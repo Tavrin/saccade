@@ -597,15 +597,12 @@ pub fn diagnose(req: &DiagnoseRequest<'_>) -> Result<DiagnoseOutput> {
     // Recover non-finite locations before signed statistics: HDR decoding has
     // already replaced those samples with finite values.
     let mut nonfinite_codes = None;
-    if let (Some(p), Some(path)) = (req.capture_properties, req.capture_path) {
-        if p.nan_count + p.inf_count + p.negative_count > 0 {
-            if let Some((map, codes)) =
-                locate_nonfinite(path, &p, req.out, &mut out.nonfinite_mask)?
-            {
-                out.diagnostics.nonfinite = Some(map);
-                nonfinite_codes = Some(codes);
-            }
-        }
+    if let (Some(p), Some(path)) = (req.capture_properties, req.capture_path)
+        && p.nan_count + p.inf_count + p.negative_count > 0
+        && let Some((map, codes)) = locate_nonfinite(path, &p, req.out, &mut out.nonfinite_mask)?
+    {
+        out.diagnostics.nonfinite = Some(map);
+        nonfinite_codes = Some(codes);
     }
 
     // Signed difference, flat-frame statistics and the PNG.
@@ -738,16 +735,16 @@ fn broken_reason(
     flat_capture: bool,
     nonfinite: Option<&NonFiniteMap>,
 ) -> Option<String> {
-    if let Some(nf) = nonfinite {
-        if nf.nan > 0 || nf.inf > 0 {
-            return Some(format!(
-                "Capture has non-finite samples ({} NaN, {} infinite) in {} area{}",
-                nf.nan,
-                nf.inf,
-                nf.cluster_count,
-                if nf.cluster_count == 1 { "" } else { "s" }
-            ));
-        }
+    if let Some(nf) = nonfinite
+        && (nf.nan > 0 || nf.inf > 0)
+    {
+        return Some(format!(
+            "Capture has non-finite samples ({} NaN, {} infinite) in {} area{}",
+            nf.nan,
+            nf.inf,
+            nf.cluster_count,
+            if nf.cluster_count == 1 { "" } else { "s" }
+        ));
     }
     let (cap, base) = (req.capture_properties?, req.baseline_properties);
     if cap.nan_count > 0 || cap.inf_count > 0 {
@@ -1320,7 +1317,7 @@ fn shift_capture(cap: Pixels<'_>, dx: f64, dy: f64) -> Owned {
             let mut out = vec![0u8; src.len()];
             out.par_chunks_mut(w * 4).enumerate().for_each(|(y, row)| {
                 let (yi, yw) = &ty[y];
-                for (x, px) in row.chunks_exact_mut(4).enumerate() {
+                for (x, px) in row.as_chunks_mut::<4>().0.iter_mut().enumerate() {
                     let (xi, xw) = &tx[x];
                     for (c, o) in px.iter_mut().enumerate() {
                         let mut acc = 0.0f32;
@@ -1343,7 +1340,7 @@ fn shift_capture(cap: Pixels<'_>, dx: f64, dy: f64) -> Owned {
             let mut out = vec![0.0f32; src.len()];
             out.par_chunks_mut(w * 3).enumerate().for_each(|(y, row)| {
                 let (yi, yw) = &ty[y];
-                for (x, px) in row.chunks_exact_mut(3).enumerate() {
+                for (x, px) in row.as_chunks_mut::<3>().0.iter_mut().enumerate() {
                     let (xi, xw) = &tx[x];
                     for (c, o) in px.iter_mut().enumerate() {
                         let mut acc = 0.0f32;
@@ -1519,7 +1516,7 @@ fn locate_nonfinite(
     let (w, h) = (rgb.width() as usize, rgb.height() as usize);
     // 0 clean, 1 NaN, 2 infinite, 3 negative.
     let mut code = vec![0u8; w * h];
-    for (c, px) in code.iter_mut().zip(rgb.as_raw().chunks_exact(3)) {
+    for (c, px) in code.iter_mut().zip(rgb.as_raw().as_chunks::<3>().0) {
         for &v in px {
             let k = if v.is_nan() {
                 1
@@ -2043,7 +2040,7 @@ mod tests {
             hdr: crate::hdr::HdrConfig {
                 start_exposure: Some(0.0),
                 stop_exposure: Some(0.0),
-                num_exposures: Some(1),
+                num_exposures: Some(2),
                 ..Default::default()
             },
             ..Default::default()

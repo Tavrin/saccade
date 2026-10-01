@@ -169,10 +169,10 @@ impl ViewState {
                     }
                 }
                 "split" => {
-                    if let Ok(x) = v.parse::<f64>() {
-                        if x.is_finite() {
-                            st.split = x.clamp(0.0, 1.0);
-                        }
+                    if let Ok(x) = v.parse::<f64>()
+                        && x.is_finite()
+                    {
+                        st.split = x.clamp(0.0, 1.0);
                     }
                 }
                 "vertical" => match v {
@@ -183,10 +183,11 @@ impl ViewState {
                 "zoom" => match v {
                     "fit" => st.zoom = Zoom::Fit,
                     _ => {
-                        if let Ok(z) = v.parse::<f64>() {
-                            if z.is_finite() && z > 0.0 {
-                                st.zoom = Zoom::Scale(z.min(64.0));
-                            }
+                        if let Ok(z) = v.parse::<f64>()
+                            && z.is_finite()
+                            && z > 0.0
+                        {
+                            st.zoom = Zoom::Scale(z.min(64.0));
                         }
                     }
                 },
@@ -196,10 +197,10 @@ impl ViewState {
                     }
                 }
                 "heat" => {
-                    if let Ok(x) = v.parse::<f64>() {
-                        if x.is_finite() {
-                            st.heat = x.clamp(0.0, 1.0);
-                        }
+                    if let Ok(x) = v.parse::<f64>()
+                        && x.is_finite()
+                    {
+                        st.heat = x.clamp(0.0, 1.0);
                     }
                 }
                 "channel" => {
@@ -213,20 +214,19 @@ impl ViewState {
                     }
                 }
                 "ev" => {
-                    if let Ok(x) = v.parse::<f64>() {
-                        if x.is_finite() {
-                            st.ev = x.clamp(-16.0, 16.0);
-                        }
+                    if let Ok(x) = v.parse::<f64>()
+                        && x.is_finite()
+                    {
+                        st.ev = x.clamp(-16.0, 16.0);
                     }
                 }
                 "roi" => {
-                    if let Some([x, y, w, h]) = floats::<4>(v) {
-                        if [x, y, w, h].iter().all(|n| *n >= 0.0 && n.fract() == 0.0)
-                            && w > 0.0
-                            && h > 0.0
-                        {
-                            st.roi = Some([x as u32, y as u32, w as u32, h as u32]);
-                        }
+                    if let Some([x, y, w, h]) = floats::<4>(v)
+                        && [x, y, w, h].iter().all(|n| *n >= 0.0 && n.fract() == 0.0)
+                        && w > 0.0
+                        && h > 0.0
+                    {
+                        st.roi = Some([x as u32, y as u32, w as u32, h as u32]);
                     }
                 }
                 "hotspot" => {
@@ -649,10 +649,10 @@ pub fn render(source: &SnapSource, st: &ViewState, width: u32) -> Result<Vec<Rgb
             return placeholder(w, h, "MISSING");
         };
         let mut out = crop_scaled(img, dims, reg, (w, h));
-        if heat > 0.0 {
-            if let Some(hm) = &panes[i].heat {
-                blend(&mut out, &crop_scaled(hm, dims, reg, (w, h)), heat);
-            }
+        if heat > 0.0
+            && let Some(hm) = &panes[i].heat
+        {
+            blend(&mut out, &crop_scaled(hm, dims, reg, (w, h)), heat);
         }
         out
     };

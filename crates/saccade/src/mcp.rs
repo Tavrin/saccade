@@ -581,10 +581,10 @@ fn image_block(path: &Path) -> Option<Value> {
 fn top_strips(pack: &ExplainPack, dir: &Path) -> Vec<Value> {
     let mut images = Vec::new();
     for e in &pack.entries {
-        if e.hotspots.is_empty() {
-            if let Some(t) = &e.thumbnail {
-                images.extend(image_block(&dir.join(t)));
-            }
+        if e.hotspots.is_empty()
+            && let Some(t) = &e.thumbnail
+        {
+            images.extend(image_block(&dir.join(t)));
         }
         for h in &e.hotspots {
             images.extend(image_block(&dir.join(&h.strip)));
@@ -643,14 +643,14 @@ impl Server {
             "index_html",
             "markdown",
         ] {
-            if let Some(path) = value.get_mut(key) {
-                if let Some(s) = path.as_str() {
-                    *path = Value::String(saccade_core::paths::record(
-                        Path::new(s),
-                        &self.root,
-                        absolute_paths,
-                    ));
-                }
+            if let Some(path) = value.get_mut(key)
+                && let Some(s) = path.as_str()
+            {
+                *path = Value::String(saccade_core::paths::record(
+                    Path::new(s),
+                    &self.root,
+                    absolute_paths,
+                ));
             }
         }
         if let Some(overall) = value.get_mut("overall").and_then(Value::as_array_mut) {

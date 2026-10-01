@@ -225,10 +225,10 @@ pub fn search(
         .filter(|&i| seen[i].as_deref() != Some("good"))
         .map(|i| targets[i].clone())
         .collect();
-    if !candidates.is_empty() {
-        if let Some(i) = bad {
-            candidates.push(targets[i].clone());
-        }
+    if !candidates.is_empty()
+        && let Some(i) = bad
+    {
+        candidates.push(targets[i].clone());
     }
     let mut non_monotonic = Vec::new();
     for (i, v) in seen.iter().enumerate() {

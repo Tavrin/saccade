@@ -2,30 +2,21 @@
 //!
 //! HDR-FLIP evaluates LDR-FLIP at a range of exposures and keeps, per pixel,
 //! the largest error. The exposure range is derived from the reference
-//! image's luminance, following the procedure of NVIDIA's reference
-//! implementation (see `THIRD_PARTY.md`).
-//!
-//! **Approximation.** The reference implementation keeps every exposure in
-//! floating point. Here each exposure is tone-mapped, clamped, encoded to
-//! sRGB and quantised to 8 bits before it enters the existing LDR-FLIP path,
-//! so very small differences in dark or saturated regions are quantised away.
+//! image's luminance. `flip-rs` implements NVIDIA's reference algorithm with
+//! floating-point exposures (see `THIRD_PARTY.md`). The 8-bit tone mapping
+//! below is used only for display PNGs, never for HDR-FLIP evaluation.
 
 use std::path::Path;
 
 use serde::Deserialize;
 
-use crate::compare::{CompareOptions, Comparison, compare, metrics_of};
+use crate::compare::{CompareOptions, Comparison, check_ppd, metrics_of};
 use crate::error::{Error, Result};
 use crate::report::{HdrInfo, Properties};
 
-/// Largest linear value kept after decoding and after the exposure gain.
-/// Larger values (and infinities) are clamped so the tone mappers' `x * x`
-/// stays within `f32` (`1e15 ^ 2 = 1e30 < f32::MAX`).
+/// Largest linear value kept after decoding. Larger values (and infinities)
+/// are clamped so display tone mapping stays finite.
 const MAX_LINEAR: f32 = 1.0e15;
-/// Upper bound on automatically chosen exposure counts.
-const MAX_AUTO_EXPOSURES: u32 = 64;
-/// Output level of the tone mapper that defines the top of the exposure range.
-const RANGE_TARGET: f32 = 0.85;
 
 /// Tone mapper applied to each exposure.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default, Deserialize)]
@@ -62,9 +53,9 @@ impl Tonemapper {
         }
     }
 
-    /// Rational-curve coefficients `[a0, a1, a2, b0, b1, b2]` such that the
-    /// curve is `(a0 x^2 + a1 x + a2) / (b0 x^2 + b1 x + b2)`. Reinhard is
-    /// luminance-based and listed here only for the exposure-range solve.
+    /// Display tone-curve coefficients `[a0, a1, a2, b0, b1, b2]` for
+    /// `(a0 x^2 + a1 x + a2) / (b0 x^2 + b1 x + b2)`. Reinhard uses its
+    /// luminance-based display path instead.
     fn coefficients(self) -> [f32; 6] {
         match self {
             Self::Reinhard => [0.0, 1.0, 0.0, 0.0, 1.0, 1.0],
@@ -96,22 +87,28 @@ pub struct HdrConfig {
 }
 
 impl HdrConfig {
-    /// Checks that given exposures are finite, ordered, and the count is positive.
+    /// Checks finite, ordered endpoints and a count in `2..=i32::MAX`, as
+    /// required by reference HDR-FLIP.
     pub fn validate(&self) -> Result<()> {
         for (what, v) in [("start", self.start_exposure), ("stop", self.stop_exposure)] {
             if v.is_some_and(|v| !v.is_finite()) {
                 return Err(Error::Config(format!("hdr {what}_exposure must be finite")));
             }
         }
-        if let (Some(a), Some(b)) = (self.start_exposure, self.stop_exposure) {
-            if a > b {
-                return Err(Error::Config(format!(
-                    "hdr start_exposure ({a}) must not exceed stop_exposure ({b})"
-                )));
-            }
+        if let (Some(a), Some(b)) = (self.start_exposure, self.stop_exposure)
+            && a > b
+        {
+            return Err(Error::Config(format!(
+                "hdr start_exposure ({a}) must not exceed stop_exposure ({b})"
+            )));
         }
-        if self.num_exposures == Some(0) {
-            return Err(Error::Config("hdr num_exposures must be at least 1".into()));
+        if self
+            .num_exposures
+            .is_some_and(|n| n < 2 || n > i32::MAX as u32)
+        {
+            return Err(Error::Config(
+                "hdr num_exposures must be between 2 and i32::MAX".into(),
+            ));
         }
         Ok(())
     }
@@ -220,117 +217,6 @@ fn luminance(px: &[f32]) -> f32 {
     }
 }
 
-/// Smallest and largest root of `a x^2 + b x + c = 0` (equal when linear).
-fn solve_second_degree(a: f32, b: f32, c: f32) -> (f32, f32) {
-    if a == 0.0 {
-        let x = -c / b;
-        return (x, x);
-    }
-    let d1 = -0.5 * (b / a);
-    let d2 = ((d1 * d1) - (c / a)).sqrt();
-    (d1 - d2, d1 + d2)
-}
-
-/// Exposure range `(start, stop)` in stops for a reference image, following
-/// the reference HDR-FLIP: `start` makes the brightest pixel reach the tone
-/// mapper's 0.85 output level, `stop` does the same for the median luminance.
-///
-/// Degenerate references: when the median luminance is 0, the median of the
-/// non-zero luminances is used instead (the reference would divide by zero);
-/// an all-black image gives `(0, 0)`.
-pub fn auto_exposure_range(reference: &HdrImage, tm: Tonemapper) -> (f32, f32) {
-    let tc = tm.coefficients();
-    let a = tc[0] - RANGE_TARGET * tc[3];
-    let b = tc[1] - RANGE_TARGET * tc[4];
-    let c = tc[2] - RANGE_TARGET * tc[5];
-    let (_, x_max) = solve_second_degree(a, b, c);
-
-    let mut lum: Vec<f32> = reference.data.chunks_exact(3).map(luminance).collect();
-    lum.sort_unstable_by(f32::total_cmp);
-    let y_max = lum.last().copied().unwrap_or(0.0);
-    if y_max <= 0.0 || !x_max.is_finite() {
-        return (0.0, 0.0);
-    }
-    let median_of = |v: &[f32]| -> f32 {
-        let n = v.len();
-        match (n, v.get(n / 2)) {
-            (0, _) | (_, None) => 0.0,
-            (1, Some(&m)) => m,
-            (_, Some(&hi)) => (v.get(n / 2 - 1).copied().unwrap_or(hi) + hi) * 0.5,
-        }
-    };
-    let mut y_median = median_of(&lum);
-    if y_median <= 0.0 {
-        let first_nonzero = lum.partition_point(|&v| v <= 0.0);
-        y_median = median_of(lum.get(first_nonzero..).unwrap_or(&[]));
-    }
-    let start = (x_max / y_max).log2();
-    let stop = (x_max / y_median.max(f32::MIN_POSITIVE)).log2();
-    (start, stop.max(start))
-}
-
-/// The exposures that will be evaluated and how they were chosen.
-#[derive(Debug, Clone, PartialEq)]
-pub struct ExposurePlan {
-    /// First exposure in stops.
-    pub start: f32,
-    /// Last exposure in stops.
-    pub stop: f32,
-    /// Number of exposures (evenly spaced, inclusive of both ends).
-    pub count: u32,
-    /// True when neither end was given.
-    pub auto_range: bool,
-}
-
-impl ExposurePlan {
-    /// Plans the exposures for `reference` under `cfg`. A missing end of the
-    /// range is computed from the reference; a missing count is
-    /// `max(2, ceil(stop - start))` (1 when the range is empty), capped at 64.
-    pub fn new(reference: &HdrImage, cfg: &HdrConfig) -> Self {
-        let (auto_start, auto_stop) = if cfg.start_exposure.is_some() && cfg.stop_exposure.is_some()
-        {
-            (0.0, 0.0)
-        } else {
-            auto_exposure_range(reference, cfg.tonemapper)
-        };
-        let start = cfg.start_exposure.unwrap_or(auto_start);
-        let stop = cfg.stop_exposure.unwrap_or(auto_stop).max(start);
-        let count = cfg.num_exposures.unwrap_or_else(|| {
-            if stop > start {
-                ((stop - start).ceil() as u32).clamp(2, MAX_AUTO_EXPOSURES)
-            } else {
-                1
-            }
-        });
-        Self {
-            start,
-            stop,
-            count,
-            auto_range: cfg.start_exposure.is_none() && cfg.stop_exposure.is_none(),
-        }
-    }
-
-    fn exposures(&self) -> impl Iterator<Item = f32> + '_ {
-        let step = if self.count > 1 {
-            (self.stop - self.start) / (self.count - 1) as f32
-        } else {
-            0.0
-        };
-        (0..self.count).map(move |i| self.start + step * i as f32)
-    }
-
-    /// The report record of this plan.
-    pub fn info(&self, tm: Tonemapper) -> HdrInfo {
-        HdrInfo {
-            tonemapper: tm.name().to_string(),
-            start_exposure: self.start,
-            stop_exposure: self.stop,
-            num_exposures: self.count,
-            auto_range: self.auto_range,
-        }
-    }
-}
-
 fn tonemap_px(c: [f32; 3], tm: Tonemapper) -> [f32; 3] {
     if tm == Tonemapper::Reinhard {
         let f = 1.0 / (1.0 + luminance(&c));
@@ -357,25 +243,16 @@ fn srgb_byte(linear: f32) -> u8 {
     (e * 255.0 + 0.5) as u8
 }
 
-/// Applies `2^stops`, the tone mapper, a clamp and the sRGB transfer function.
-pub fn tonemap_to_srgb8(img: &HdrImage, tm: Tonemapper, stops: f32) -> image::RgbImage {
-    let gain = stops.exp2();
+/// The display PNG content: tone-mapped at exposure 0 with `tm`.
+/// This quantised image is not used for HDR-FLIP evaluation.
+pub fn display_image(img: &HdrImage, tm: Tonemapper) -> image::RgbImage {
     let mut out = Vec::with_capacity(img.data.len());
-    for px in img.data.chunks_exact(3) {
-        if let [r, g, b] = px {
-            let exposed = [r * gain, g * gain, b * gain]
-                .map(|v| if v.is_nan() { 0.0 } else { v.min(MAX_LINEAR) });
-            let mapped = tonemap_px(exposed, tm);
-            out.extend(mapped.map(srgb_byte));
-        }
+    for &[r, g, b] in img.data.as_chunks::<3>().0 {
+        let linear = [r, g, b].map(|v| if v.is_nan() { 0.0 } else { v.min(MAX_LINEAR) });
+        out.extend(tonemap_px(linear, tm).map(srgb_byte));
     }
     image::RgbImage::from_raw(img.width, img.height, out)
         .unwrap_or_else(|| image::RgbImage::new(img.width, img.height))
-}
-
-/// The display PNG content: tone-mapped at exposure 0 with `tm`.
-pub fn display_image(img: &HdrImage, tm: Tonemapper) -> image::RgbImage {
-    tonemap_to_srgb8(img, tm, 0.0)
 }
 
 /// Structural checks on linear luminance (Rec. 709 weights, no transfer
@@ -405,7 +282,7 @@ pub fn validate_hdr(img: &HdrImage) -> Properties {
     // Luminance statistics cover finite pixels only, so a NaN or infinite
     // sample cannot turn them into values JSON cannot carry.
     let (mut sum, mut min, mut max, mut finite) = (0.0f64, f32::INFINITY, f32::NEG_INFINITY, 0u64);
-    for px in img.data.chunks_exact(3) {
+    for px in img.data.as_chunks::<3>().0 {
         let l = luminance(px);
         if !l.is_finite() {
             continue;
@@ -434,45 +311,73 @@ pub fn validate_hdr(img: &HdrImage) -> Properties {
     }
 }
 
-/// HDR-FLIP of `capture` against `baseline` (the reference): the exposure
-/// range comes from the baseline unless `opts.hdr` gives it, each exposure is
-/// tone-mapped to 8-bit sRGB and compared with LDR-FLIP, and the per-pixel
-/// maximum over exposures is the error map.
+/// Reference float HDR-FLIP of `capture` against `baseline`. Missing
+/// exposure endpoints and count are resolved from the baseline by `flip-rs`.
+/// The resolved parameters are returned for the entry's `hdr` record.
 ///
-/// Errors as [`compare`] does (dimension mismatch, empty image, bad ppd).
+/// Errors on mismatched or empty images, malformed buffers, nonfinite input,
+/// invalid viewing/exposure parameters, or automatic endpoints on an all-black
+/// reference. Give explicit endpoints to compare all-black HDR references.
 pub fn compare_hdr(
     capture: &HdrImage,
     baseline: &HdrImage,
     opts: &CompareOptions,
 ) -> Result<(Comparison, HdrInfo)> {
+    check_ppd(opts.pixels_per_degree)?;
     let cfg = &opts.hdr;
     cfg.validate()?;
-    let plan = ExposurePlan::new(baseline, cfg);
-    let mut error_map: Vec<f32> = Vec::new();
-    for stops in plan.exposures() {
-        let cmp = compare(
-            &tonemap_to_srgb8(capture, cfg.tonemapper, stops),
-            &tonemap_to_srgb8(baseline, cfg.tonemapper, stops),
-            opts,
-        )?;
-        if error_map.is_empty() {
-            error_map = cmp.error_map;
-        } else {
-            for (acc, v) in error_map.iter_mut().zip(&cmp.error_map) {
-                if *v > *acc || v.is_nan() {
-                    *acc = *v;
-                }
-            }
-        }
+    let (w, h) = (capture.width, capture.height);
+    let (bw, bh) = (baseline.width, baseline.height);
+    if w == 0 || h == 0 || bw == 0 || bh == 0 {
+        return Err(Error::EmptyImage);
     }
-    let metrics = metrics_of(&error_map, capture.width, capture.height);
-    Ok((Comparison { metrics, error_map }, plan.info(cfg.tonemapper)))
+    if (w, h) != (bw, bh) {
+        return Err(Error::DimensionMismatch {
+            test_w: w,
+            test_h: h,
+            ref_w: bw,
+            ref_h: bh,
+        });
+    }
+    let reference = flip_rs::RgbImage::new(w as usize, h as usize, baseline.data.clone())?;
+    let test = flip_rs::RgbImage::new(w as usize, h as usize, capture.data.clone())?;
+    let mut options = flip_rs::HdrOptions::default();
+    options.ppd = opts.pixels_per_degree;
+    options.start_exposure = cfg.start_exposure;
+    options.stop_exposure = cfg.stop_exposure;
+    options.num_exposures = cfg.num_exposures.map(|n| n as usize);
+    options.tonemapper = match cfg.tonemapper {
+        Tonemapper::Aces => flip_rs::Tonemapper::Aces,
+        Tonemapper::Hable => flip_rs::Tonemapper::Hable,
+        Tonemapper::Reinhard => flip_rs::Tonemapper::Reinhard,
+    };
+    options.return_exposure_map = false;
+    let result = flip_rs::hdr_flip(&reference, &test, options)?;
+    let parameters = result.parameters;
+    let tonemapper = match parameters.tonemapper {
+        flip_rs::Tonemapper::Aces => "aces",
+        flip_rs::Tonemapper::Hable => "hable",
+        flip_rs::Tonemapper::Reinhard => "reinhard",
+        _ => return Err(Error::Config("unsupported HDR-FLIP tonemapper".into())),
+    };
+    let info = HdrInfo {
+        tonemapper: tonemapper.to_string(),
+        start_exposure: parameters.start_exposure,
+        stop_exposure: parameters.stop_exposure,
+        num_exposures: u32::try_from(parameters.num_exposures)
+            .map_err(|_| Error::Config("HDR-FLIP exposure count exceeds u32".into()))?,
+        auto_range: cfg.start_exposure.is_none() && cfg.stop_exposure.is_none(),
+    };
+    let error_map = result.error_map.into_pixels();
+    let metrics = metrics_of(&error_map, w, h);
+    Ok((Comparison { metrics, error_map }, info))
 }
 
 #[cfg(test)]
 #[allow(clippy::expect_used)]
 mod tests {
     use super::*;
+    use crate::compare::compare;
 
     const N: u32 = 128;
 
@@ -549,34 +454,130 @@ mod tests {
 
     #[test]
     fn auto_range_comes_from_the_reference() {
+        let opts = CompareOptions::default();
         let base = scene(8.0);
-        let (start, stop) = auto_exposure_range(&base, Tonemapper::Aces);
-        // x_max solves ACES(x) = 0.85; the peak luminance is 8 * (0.2126 + 0.9 * 0.7152 + 0.8 * 0.0722).
-        let peak = 8.0 * (0.2126 + 0.9 * 0.7152 + 0.8 * 0.0722);
-        let (_, x_max) = solve_second_degree(
-            Tonemapper::Aces.coefficients()[0] - 0.85 * Tonemapper::Aces.coefficients()[3],
-            Tonemapper::Aces.coefficients()[1] - 0.85 * Tonemapper::Aces.coefficients()[4],
-            -0.85 * Tonemapper::Aces.coefficients()[5],
-        );
-        assert!(
-            (start - (x_max / peak).log2()).abs() < 1e-4,
-            "start {start}"
-        );
-        assert!(start < 0.0 && stop > start);
-        // A brighter reference moves the range down; a given range is kept as is.
-        let (start2, _) = auto_exposure_range(&scene(16.0), Tonemapper::Aces);
-        assert!((start2 - (start - 1.0)).abs() < 1e-4);
-        let given = HdrConfig {
-            start_exposure: Some(-2.0),
-            stop_exposure: Some(1.0),
-            num_exposures: Some(4),
-            ..HdrConfig::default()
-        };
-        let plan = ExposurePlan::new(&base, &given);
+        let (_, info) = compare_hdr(&scene(16.0), &base, &opts).expect("auto");
+        assert!(info.start_exposure < 0.0 && info.stop_exposure > info.start_exposure);
+        assert!(info.auto_range);
+        let (_, same_info) = compare_hdr(&base, &base, &opts).expect("same reference");
+        assert_eq!(info, same_info);
+        let (_, brighter) = compare_hdr(&base, &scene(16.0), &opts).expect("brighter reference");
+        assert!((brighter.start_exposure - (info.start_exposure - 1.0)).abs() < 1e-4);
+
+        for tonemapper in [Tonemapper::Aces, Tonemapper::Hable, Tonemapper::Reinhard] {
+            let given = CompareOptions {
+                hdr: HdrConfig {
+                    tonemapper,
+                    start_exposure: Some(-2.0),
+                    stop_exposure: Some(1.0),
+                    num_exposures: Some(4),
+                },
+                ..opts
+            };
+            let (_, info) = compare_hdr(&scene(16.0), &base, &given).expect("explicit");
+            assert_eq!(info.tonemapper, tonemapper.name());
+            assert_eq!(
+                (
+                    info.start_exposure,
+                    info.stop_exposure,
+                    info.num_exposures,
+                    info.auto_range
+                ),
+                (-2.0, 1.0, 4, false)
+            );
+            let partial = CompareOptions {
+                hdr: HdrConfig {
+                    stop_exposure: None,
+                    ..given.hdr
+                },
+                ..given
+            };
+            let (_, info) = compare_hdr(&base, &base, &partial).expect("partial auto");
+            assert_eq!(info.start_exposure, -2.0);
+            assert!(!info.auto_range);
+        }
+    }
+
+    #[test]
+    fn float_hdr_difference_survives_identical_display_bytes() {
+        let mut base = scene(1.0);
+        base.data.fill(0.5);
+        let mut cap = base.clone();
+        cap.data.fill(0.5001);
         assert_eq!(
-            (plan.start, plan.stop, plan.count, plan.auto_range),
-            (-2.0, 1.0, 4, false)
+            display_image(&base, Tonemapper::Aces),
+            display_image(&cap, Tonemapper::Aces)
         );
-        assert!(ExposurePlan::new(&base, &HdrConfig::default()).auto_range);
+        let opts = CompareOptions {
+            hdr: HdrConfig {
+                start_exposure: Some(0.0),
+                stop_exposure: Some(0.0),
+                num_exposures: Some(2),
+                ..Default::default()
+            },
+            ..Default::default()
+        };
+        let (cmp, info) = compare_hdr(&cap, &base, &opts).expect("float HDR");
+        assert!(cmp.metrics.mean > 0.0);
+        assert_eq!(info.num_exposures, 2);
+    }
+
+    #[test]
+    fn undefined_hdr_inputs_are_errors() {
+        let mut black = scene(1.0);
+        black.data.fill(0.0);
+        let opts = CompareOptions::default();
+        assert!(compare_hdr(&black, &black, &opts).is_err());
+        let explicit = CompareOptions {
+            hdr: HdrConfig {
+                start_exposure: Some(0.0),
+                stop_exposure: Some(0.0),
+                num_exposures: Some(2),
+                ..Default::default()
+            },
+            ..opts
+        };
+        let (cmp, info) = compare_hdr(&black, &black, &explicit).expect("explicit black");
+        assert_eq!(cmp.metrics.max, 0.0);
+        assert_eq!(info.num_exposures, 2);
+        for n in [0, 1, u32::MAX] {
+            let bad = CompareOptions {
+                hdr: HdrConfig {
+                    num_exposures: Some(n),
+                    ..explicit.hdr
+                },
+                ..opts
+            };
+            assert!(matches!(
+                compare_hdr(&black, &black, &bad),
+                Err(Error::Config(_))
+            ));
+        }
+        let mut malformed = black.clone();
+        malformed.data.pop();
+        assert!(compare_hdr(&malformed, &black, &explicit).is_err());
+        let mut nonfinite = black.clone();
+        nonfinite.data[0] = f32::NAN;
+        assert!(compare_hdr(&nonfinite, &black, &explicit).is_err());
+        let mismatch = HdrImage {
+            width: 1,
+            height: 1,
+            data: vec![0.0; 3],
+            ..black.clone()
+        };
+        assert!(matches!(
+            compare_hdr(&mismatch, &black, &explicit),
+            Err(Error::DimensionMismatch { .. })
+        ));
+        let empty = HdrImage {
+            width: 0,
+            height: 0,
+            data: vec![],
+            ..black
+        };
+        assert!(matches!(
+            compare_hdr(&empty, &empty, &explicit),
+            Err(Error::EmptyImage)
+        ));
     }
 }

@@ -84,10 +84,10 @@ pub fn redact_entry(entry: &mut crate::Entry, base: &Path, inputs: &[&Path]) {
     let redact = |s: &mut String| {
         for input in inputs {
             let mut paths = vec![input.to_path_buf(), crate::run::normalise_path(input)];
-            if input.is_file() {
-                if let Some(parent) = input.parent() {
-                    paths.push(crate::run::normalise_path(parent));
-                }
+            if input.is_file()
+                && let Some(parent) = input.parent()
+            {
+                paths.push(crate::run::normalise_path(parent));
             }
             for p in paths {
                 if p.is_absolute() {

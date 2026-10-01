@@ -56,10 +56,10 @@ fn stdout_json(o: &Output) -> Value {
 fn text_of_tree(dir: &Path) -> String {
     let mut all = String::new();
     for e in walk(dir) {
-        if image::open(&e).is_err() {
-            if let Ok(t) = std::fs::read_to_string(&e) {
-                all.push_str(&t);
-            }
+        if image::open(&e).is_err()
+            && let Ok(t) = std::fs::read_to_string(&e)
+        {
+            all.push_str(&t);
         }
     }
     all

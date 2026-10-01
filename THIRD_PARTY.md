@@ -2,56 +2,54 @@
 
 saccade itself is licensed `MIT OR Apache-2.0` (see `LICENSE-MIT`, `LICENSE-APACHE`).
 
-## NVIDIA FLIP (BSD-3-Clause)
+## flip-rs / NVIDIA FLIP (BSD-3-Clause)
 
-The FLIP algorithm implementation is NVIDIA's C++ code, compiled into saccade
-through the `nv-flip-sys` crate (version 0.1.1, vendored under `extern/cpp`).
-The `nv-flip` and `nv-flip-sys` Rust wrappers are licensed
-`(MIT OR Apache-2.0 OR Zlib)`; the bundled NVIDIA code is `BSD-3-Clause`.
+FLIP and HDR-FLIP are implemented by the pure-Rust
+[flip-rs](https://github.com/Tavrin/flip-rs) port of NVIDIA FLIP v1.7, pinned to
+revision `5f4d5c29a0dc40fed2bda8e1d6f6ccc1772d412e`. No FLIP C++ code or FFI
+wrapper is built or bundled. The display-only HDR tone-mapping coefficients
+in `crates/saccade-core/src/hdr.rs` are also derived from NVIDIA's reference.
 
-The notice below is a verbatim quotation from the header of
-`nv-flip-sys-0.1.1/extern/cpp/CPP/image.h`:
+The following notice is reproduced from flip-rs's `LICENSE`:
 
-> Copyright (c) 2020-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
->
-> Redistribution and use in source and binary forms, with or without
-> modification, are permitted provided that the following conditions are met:
->
-> 1. Redistributions of source code must retain the above copyright notice, this
-> list of conditions and the following disclaimer.
->
-> 2. Redistributions in binary form must reproduce the above copyright notice,
-> this list of conditions and the following disclaimer in the documentation
-> and/or other materials provided with the distribution.
->
-> 3. Neither the name of the copyright holder nor the names of its
-> contributors may be used to endorse or promote products derived from
-> this software without specific prior written permission.
->
-> THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS"
-> AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
-> IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE
-> DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT HOLDER OR CONTRIBUTORS BE LIABLE
-> FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL
-> DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR
-> SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER
-> CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY,
-> OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
-> OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+```text
+BSD 3-Clause License
+
+Copyright (c) 2020-2025, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+Copyright (c) 2026 flip-rs contributors
+
+Redistribution and use in source and binary forms, with or without
+modification, are permitted provided that the following conditions are met:
+
+1. Redistributions of source code must retain the above copyright notice, this
+list of conditions and the following disclaimer.
+
+2. Redistributions in binary form must reproduce the above copyright notice,
+this list of conditions and the following disclaimer in the documentation
+and/or other materials provided with the distribution.
+
+3. Neither the name of the copyright holder nor the names of its
+contributors may be used to endorse or promote products derived from
+this software without specific prior written permission.
+
+THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS"
+AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
+IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE
+DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT HOLDER OR CONTRIBUTORS BE LIABLE
+FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL
+DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR
+SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER
+CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY,
+OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
+OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+
+SPDX-FileCopyrightText: Copyright (c) 2020-2025 NVIDIA CORPORATION & AFFILIATES
+SPDX-License-Identifier: BSD-3-Clause
+```
 
 Reference: Andersson et al., "FLIP: A Difference Evaluator for Alternating
-Images", High Performance Graphics 2020.
-
-### HDR-FLIP exposure procedure (derived work)
-
-`crates/saccade-core/src/hdr.rs` re-implements, in Rust, the logic of NVIDIA's
-HDR-FLIP exposure-range selection from `CPP/image.h` (`computeExposures`),
-the tone-mapping coefficient table in `CPP/tensor.h` and `solveSecondDegree`
-in `common/sharedflip.h`, all under the BSD-3-Clause notice above (copyright
-2020-2022 NVIDIA CORPORATION & AFFILIATES). No source text was copied; the
-algorithm and the published curve coefficients were ported. NVIDIA's name is
-not used to endorse saccade. Per-exposure images are quantised to 8 bits in
-saccade, whereas the reference stays in floating point.
+Images", High Performance Graphics 2020, and "Visualizing Errors in Rendered
+High Dynamic Range Images", Eurographics 2021 Short Papers.
 
 ## HDR image decoding
 

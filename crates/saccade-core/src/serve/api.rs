@@ -1042,13 +1042,13 @@ fn session_file(state: &State, rest: &str) -> Resp {
 /// Reads at most `cap` bytes of the body. `Err` is the rejection; an
 /// over-long body is drained (bounded) first so the client sees the response.
 fn read_body(req: &mut Request, cap: u64) -> Result<Vec<u8>, Resp> {
-    if let Some(len) = req.body_length() {
-        if len as u64 > cap {
-            if (len as u64) <= cap.saturating_mul(4).max(1 << 20) {
-                let _ = std::io::copy(&mut req.as_reader().take(len as u64), &mut std::io::sink());
-            }
-            return Err(Resp::error(413, "body exceeds the size cap"));
+    if let Some(len) = req.body_length()
+        && len as u64 > cap
+    {
+        if (len as u64) <= cap.saturating_mul(4).max(1 << 20) {
+            let _ = std::io::copy(&mut req.as_reader().take(len as u64), &mut std::io::sink());
         }
+        return Err(Resp::error(413, "body exceeds the size cap"));
     }
     let mut buf = Vec::new();
     if req.as_reader().take(cap + 1).read_to_end(&mut buf).is_err() {

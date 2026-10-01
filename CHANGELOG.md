@@ -5,6 +5,12 @@ newest first.
 
 ## Unreleased
 
+- Replace the C++ FLIP bindings with the pinned pure-Rust flip-rs backend.
+  HDR-FLIP now evaluates float exposures using NVIDIA's reference algorithm;
+  LDR keeps sRGB input and saccade's nearest-rank statistics. Rust 1.88 is
+  required, HDR exposure counts start at two, and automatic all-black HDR
+  baselines require explicit endpoints. CI fetches flip-rs with a deploy key.
+
 - Dashboard deep links: single-run and single-image pages, repeated `run=`
   parameters, absolute-path `/open` redirects and `/api/roots`. Explicit external
   symlink targets and bounded storage timeouts support captures on NAS mounts.

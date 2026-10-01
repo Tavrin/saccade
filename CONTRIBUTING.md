@@ -4,8 +4,11 @@ Bug reports, feature requests and pull requests are welcome.
 
 ## Build
 
-You need Rust 1.85 or newer and a C++ compiler (g++, clang or MSVC), because the
-`nv-flip-sys` crate compiles NVIDIA's C++ FLIP code with the `cc` crate.
+You need Rust 1.88 or newer. FLIP is implemented in pure Rust by `flip-rs`,
+pinned to an immutable git revision. The repository is currently private,
+so source builds need GitHub access to `Tavrin/flip-rs`. CI loads the
+`FLIP_RS_DEPLOY_KEY` secret with `webfactory/ssh-agent`, fetches git through
+the CLI and rewrites the dependency's HTTPS URL to SSH.
 
 ```sh
 git clone https://github.com/Tavrin/saccade

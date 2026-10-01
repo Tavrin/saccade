@@ -195,12 +195,12 @@ fn write_atomic(path: &Path, bytes: &[u8]) -> Result<(), String> {
 /// Writes the vote run (items and strips) for the real items of `plan`, once.
 fn ensure_run(dir: &Path, run_id: &str, plan: &Plan) -> Result<VoteRun, String> {
     let file = dir.join("run.json");
-    if let Ok(text) = std::fs::read_to_string(&file) {
-        if let Ok(run) = serde_json::from_str::<VoteRun>(&text) {
-            if run.schema == VOTES_SCHEMA && run.run_id == run_id {
-                return Ok(run);
-            }
-        }
+    if let Ok(text) = std::fs::read_to_string(&file)
+        && let Ok(run) = serde_json::from_str::<VoteRun>(&text)
+        && run.schema == VOTES_SCHEMA
+        && run.run_id == run_id
+    {
+        return Ok(run);
     }
     std::fs::create_dir_all(dir.join("strips"))
         .map_err(|e| format!("creating {}: {e}", dir.display()))?;

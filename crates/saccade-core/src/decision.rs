@@ -793,13 +793,11 @@ fn decide_report_inner(
             DecideError::Invalid(format!("the report has no entry {:?}", answer.entry))
         })?;
     let human = is_human(&answer.source) && !proposal_only;
-    if !human {
-        if let Some(why) = deterministic_failure(report, entry) {
-            return Err(DecideError::Refused(format!(
-                "{}: {why}; a model cannot decide this, a person must",
-                answer.entry
-            )));
-        }
+    if !human && let Some(why) = deterministic_failure(report, entry) {
+        return Err(DecideError::Refused(format!(
+            "{}: {why}; a model cannot decide this, a person must",
+            answer.entry
+        )));
     }
     let dir = report_json
         .parent()
@@ -832,10 +830,11 @@ fn decide_report_inner(
     let refusal = gate_refusal(cfg, answer, current);
     let (decided, decision, reason) = apply(&mut d, answer, hash, Some(refusal), proposal_only);
     // The images the answer is about, so `approve` can check what it copies.
-    if let Some(set) = d.sets.iter_mut().find(|s| s.name == answer.entry) {
-        if set.sha256.is_empty() && d.dirs.len() == 2 {
-            set.sha256 = vec![entry.baseline_sha256.clone(), entry.capture_sha256.clone()];
-        }
+    if let Some(set) = d.sets.iter_mut().find(|s| s.name == answer.entry)
+        && set.sha256.is_empty()
+        && d.dirs.len() == 2
+    {
+        set.sha256 = vec![entry.baseline_sha256.clone(), entry.capture_sha256.clone()];
     }
     write_decisions(&file, &d, true)?;
     Ok(Outcome {

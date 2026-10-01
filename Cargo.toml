@@ -5,7 +5,7 @@ members = ["crates/saccade-core", "crates/saccade"]
 [workspace.package]
 version = "0.1.0"
 edition = "2024"
-rust-version = "1.85"
+rust-version = "1.88"
 license = "MIT OR Apache-2.0"
 repository = "https://github.com/Tavrin/saccade"
 keywords = ["visual-regression", "flip", "rendering", "image-diff", "ci"]
@@ -14,7 +14,7 @@ categories = ["graphics", "development-tools::testing", "command-line-utilities"
 [workspace.dependencies]
 saccade-core = { path = "crates/saccade-core", version = "0.1.0" }
 image = { version = "0.25", default-features = false, features = ["png", "jpeg", "exr", "hdr"] }
-nv-flip = "0.1"
+flip-rs = { git = "https://github.com/Tavrin/flip-rs", rev = "5f4d5c29a0dc40fed2bda8e1d6f6ccc1772d412e", default-features = false }
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 thiserror = "2"

@@ -12,7 +12,7 @@ categories.workspace = true
 [dependencies]
 image.workspace = true
 exr = "1"
-nv-flip.workspace = true
+flip-rs.workspace = true
 serde.workspace = true
 serde_json.workspace = true
 thiserror.workspace = true
@@ -30,6 +30,9 @@ notify = "7"
 schemars = { version = "1", optional = true }
 
 [features]
+default = ["parallel"]
+# Parallel FLIP filtering; disable for the sequential FLIP backend on wasm.
+parallel = ["flip-rs/parallel"]
 # Derives `schemars::JsonSchema` on the report, decisions and explain types.
 schema = ["dep:schemars"]
 

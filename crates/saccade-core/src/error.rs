@@ -5,6 +5,9 @@ use std::path::PathBuf;
 /// Errors returned by `saccade-core`.
 #[derive(Debug, thiserror::Error)]
 pub enum Error {
+    /// The FLIP backend rejected the input or viewing parameters.
+    #[error("FLIP comparison failed: {0}")]
+    Flip(#[from] flip_rs::FlipError),
     /// An image could not be opened or decoded.
     #[error("failed to decode image {path}: {source}")]
     Decode {

@@ -267,13 +267,13 @@ fn notes_section(report: &Report) -> String {
             lines.push(format!("- {name} ↳ {note}\n"));
         }
         // A passing pair is mentioned when timings come with it.
-        if let (Status::Pass, Some(d)) = (e.status, &e.diagnostics) {
-            if !d.perf.is_empty() || !d.perf_not_comparable.is_empty() {
-                lines.push(format!(
-                    "- {name} ↳ {}\n",
-                    md_text(&d.verdict_line(e.bit_identical))
-                ));
-            }
+        if let (Status::Pass, Some(d)) = (e.status, &e.diagnostics)
+            && (!d.perf.is_empty() || !d.perf_not_comparable.is_empty())
+        {
+            lines.push(format!(
+                "- {name} ↳ {}\n",
+                md_text(&d.verdict_line(e.bit_identical))
+            ));
         }
         for w in &e.warnings {
             let one_line: String = w

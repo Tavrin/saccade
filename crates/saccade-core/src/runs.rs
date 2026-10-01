@@ -839,13 +839,13 @@ pub fn assemble(plan: &Plan, results: &[Option<PairResult>], urls: &dyn AssetUrl
                             s.changed += 1;
                             cell.metrics = r.metrics;
                             cell.heat = r.heat.as_deref().and_then(|h| urls.heat(h));
-                            if let Some(m) = r.metrics.filter(|m| m.mean.is_finite()) {
-                                if s.worst.as_ref().is_none_or(|w| m.mean > w.mean) {
-                                    s.worst = Some(Worst {
-                                        name: rn.clone(),
-                                        mean: m.mean,
-                                    });
-                                }
+                            if let Some(m) = r.metrics.filter(|m| m.mean.is_finite())
+                                && s.worst.as_ref().is_none_or(|w| m.mean > w.mean)
+                            {
+                                s.worst = Some(Worst {
+                                    name: rn.clone(),
+                                    mean: m.mean,
+                                });
                             }
                         }
                     }

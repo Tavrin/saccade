@@ -6,7 +6,7 @@ use saccade_core::{Error, properties};
 
 fn stripes(w: u32, h: u32, shift: u32) -> RgbImage {
     RgbImage::from_fn(w, h, |x, _| {
-        if ((x + shift) / 4) % 2 == 0 {
+        if ((x + shift) / 4).is_multiple_of(2) {
             Rgb([0, 0, 0])
         } else {
             Rgb([255, 255, 255])
@@ -103,6 +103,20 @@ fn bad_ppd_is_rejected_and_null_metrics_round_trip() {
     let json = serde_json::to_string(&nan).expect("serialize");
     let back: saccade_core::Metrics = serde_json::from_str(&json).expect("round trip");
     assert!(back.mean.is_nan() && back.max.is_nan());
+}
+
+#[test]
+fn sparse_errors_keep_unweighted_nearest_rank_percentiles() {
+    // Error-weighted pooling would put the median in the two outliers.
+    let mut map = vec![0.0; 100];
+    map[98] = 0.4;
+    map[99] = 0.9;
+    let metrics =
+        saccade_core::compare::masked_metrics(&map, None, 10, 10, [0, 0, 10, 10]).expect("metrics");
+    assert_eq!((metrics.p50, metrics.p95), (0.0, 0.0));
+    assert_eq!(metrics.p99, f64::from(0.4_f32));
+    assert_eq!(metrics.max, f64::from(0.9_f32));
+    assert_eq!(metrics.frac_above_0_1, 0.02);
 }
 
 #[test]

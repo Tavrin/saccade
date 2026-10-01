@@ -444,12 +444,12 @@ impl Panel {
                     "panel: an openai_compatible judge needs `base_url`".into(),
                 ));
             }
-            if let Some(f) = &j.key_file {
-                if f.contains(['/', '\\']) || f.starts_with('.') {
-                    return Err(Error::Config(format!(
-                        "panel: key_file {f:?} must be a plain file name inside the keys directory"
-                    )));
-                }
+            if let Some(f) = &j.key_file
+                && (f.contains(['/', '\\']) || f.starts_with('.'))
+            {
+                return Err(Error::Config(format!(
+                    "panel: key_file {f:?} must be a plain file name inside the keys directory"
+                )));
             }
             for q in &j.questions {
                 if JudgeQuestion::parse(q).is_none() {
@@ -682,17 +682,17 @@ fn put_extras(state: &mut Value, extras: &Extras) {
 }
 
 fn diagnostic_details(state: &mut Value, entry: &Entry) {
-    if let Some(d) = &entry.diagnostics {
-        if let Some(o) = state["diagnostics"].as_object_mut() {
-            o.insert("tone".into(), json!(d.tone));
-            if let Some(s) = &d.shift {
-                o.insert(
-                    "shift".into(),
-                    json!({"dx": s.dx, "dy": s.dy,
+    if let Some(d) = &entry.diagnostics
+        && let Some(o) = state["diagnostics"].as_object_mut()
+    {
+        o.insert("tone".into(), json!(d.tone));
+        if let Some(s) = &d.shift {
+            o.insert(
+                "shift".into(),
+                json!({"dx": s.dx, "dy": s.dy,
                     "confidence": s.confidence, "detected": s.detected,
                     "explained_fraction": s.shift_explained_fraction}),
-                );
-            }
+            );
         }
     }
     state["metadata_differences"] = json!(entry.meta_diff);
@@ -800,13 +800,13 @@ pub fn report_items(
         if question == JudgeQuestion::Preference {
             // Preference: the first image is the baseline in A/B order, the capture in B/A.
             let hash = it["request_hash"].as_str().unwrap_or_default().to_owned();
-            if let Some(p) = &px {
-                if let Some((a, b)) = p.source.load() {
-                    let ppd = report.config.pixels_per_degree;
-                    let ab = pair_state(&name, &a, &b, ppd, intent).map_err(DecideError::from)?;
-                    let ba = pair_state(&name, &b, &a, ppd, intent).map_err(DecideError::from)?;
-                    states = [ab.0, ba.0];
-                }
+            if let Some(p) = &px
+                && let Some((a, b)) = p.source.load()
+            {
+                let ppd = report.config.pixels_per_degree;
+                let ab = pair_state(&name, &a, &b, ppd, intent).map_err(DecideError::from)?;
+                let ba = pair_state(&name, &b, &a, ppd, intent).map_err(DecideError::from)?;
+                states = [ab.0, ba.0];
             }
             items.push(JudgeItem {
                 id,
@@ -1689,10 +1689,10 @@ struct BatchReplay<'a> {
 impl Backend for BatchReplay<'_> {
     fn ask(&self, req: &AskRequest<'_>) -> CallOutcome {
         let key = format!("{}|{}", req.spec.id, req.prompt.user);
-        if let Ok(mut results) = self.results.lock() {
-            if let Some(out) = results.remove(&key) {
-                return out;
-            }
+        if let Ok(mut results) = self.results.lock()
+            && let Some(out) = results.remove(&key)
+        {
+            return out;
         }
         if req.spec.provider == Provider::Jev {
             return CallOutcome {

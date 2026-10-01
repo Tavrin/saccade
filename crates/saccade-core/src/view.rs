@@ -685,14 +685,18 @@ fn rgb_data_uri(img: &image::RgbaImage, f: u32) -> Result<String> {
     if f == 1 {
         let rgb: Vec<u8> = img
             .as_raw()
-            .chunks_exact(4)
+            .as_chunks::<4>()
+            .0
+            .iter()
             .flat_map(|p| [p[0], p[1], p[2]])
             .collect();
         return png_data_uri(&rgb, (w, h), image::ExtendedColorType::Rgb8);
     }
     let rgb: Vec<f32> = img
         .as_raw()
-        .chunks_exact(4)
+        .as_chunks::<4>()
+        .0
+        .iter()
         .flat_map(|p| [f32::from(p[0]), f32::from(p[1]), f32::from(p[2])])
         .collect();
     let (down, ow, oh) = box_down(&rgb, 3, (w, h), f);

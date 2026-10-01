@@ -19,11 +19,20 @@ concurrency:
   group: pages
   cancel-in-progress: false
 
+env:
+  CARGO_NET_GIT_FETCH_WITH_CLI: true
+
 jobs:
   build:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+      - name: Fetch private flip-rs dependency
+        uses: webfactory/ssh-agent@v0.9.1
+        with:
+          ssh-private-key: ${{ secrets.FLIP_RS_DEPLOY_KEY }}
+      - name: Use SSH for flip-rs
+        run: git config --global url."ssh://git@github.com/Tavrin/flip-rs".insteadOf "https://github.com/Tavrin/flip-rs"
       - uses: dtolnay/rust-toolchain@stable
       - uses: actions/setup-python@v5
         with:

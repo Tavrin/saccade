@@ -3,6 +3,10 @@
 use crate::error::{Error, Result};
 use crate::report::Metrics;
 
+/// saccade's default viewing condition, kept at 67 pixels per degree for
+/// compatibility. flip-rs's geometric default is slightly higher (67.02).
+pub const DEFAULT_PIXELS_PER_DEGREE: f32 = 67.0;
+
 /// Whether two image files hold exactly the same decoded samples at their
 /// native bit depth and channel count (alpha included, NaN payloads and
 /// negative values untouched). `false` when either file cannot be decoded.
@@ -28,7 +32,7 @@ pub struct CompareOptions {
 impl Default for CompareOptions {
     fn default() -> Self {
         Self {
-            pixels_per_degree: nv_flip::DEFAULT_PIXELS_PER_DEGREE,
+            pixels_per_degree: DEFAULT_PIXELS_PER_DEGREE,
             hdr: crate::hdr::HdrConfig::default(),
         }
     }
@@ -48,12 +52,17 @@ impl Comparison {
     pub fn heatmap_rgb(&self) -> image::RgbImage {
         let (w, h) = (self.metrics.width, self.metrics.height);
         let fallback = || image::RgbImage::new(w, h);
-        if self.error_map.len() != w as usize * h as usize || w == 0 || h == 0 {
+        let Ok(flip_map) = flip_rs::ErrorMap::new(w as usize, h as usize, self.error_map.clone())
+        else {
             return fallback();
-        }
-        let flip_map = nv_flip::FlipImageFloat::with_data(w, h, &self.error_map);
-        let coloured = flip_map.apply_color_lut(&nv_flip::magma_lut());
-        image::RgbImage::from_raw(w, h, coloured.to_vec()).unwrap_or_else(fallback)
+        };
+        let coloured = flip_map
+            .colorize()
+            .into_pixels()
+            .into_iter()
+            .map(|v| (v.clamp(0.0, 1.0) * 255.0 + 0.5) as u8)
+            .collect();
+        image::RgbImage::from_raw(w, h, coloured).unwrap_or_else(fallback)
     }
 }
 
@@ -134,10 +143,17 @@ pub fn compare(
         });
     }
 
-    // `RgbImage` is tightly packed RGB, which is what FlipImageRgb8 expects.
-    let flip_ref = nv_flip::FlipImageRgb8::with_data(w, h, baseline.as_raw());
-    let flip_test = nv_flip::FlipImageRgb8::with_data(w, h, capture.as_raw());
-    let error_map = nv_flip::flip(flip_ref, flip_test, opts.pixels_per_degree).to_vec();
+    // ldr_flip takes sRGB floats and performs the sRGB-to-linear conversion.
+    // Dividing the decoded bytes by 255 preserves the previous input semantics.
+    let srgb = |img: &image::RgbImage| {
+        flip_rs::RgbImage::new(
+            w as usize,
+            h as usize,
+            img.as_raw().iter().map(|&v| f32::from(v) / 255.0).collect(),
+        )
+    };
+    let error_map =
+        flip_rs::ldr_flip(&srgb(baseline)?, &srgb(capture)?, opts.pixels_per_degree)?.into_pixels();
 
     let metrics = metrics_of(&error_map, w, h);
     Ok(Comparison { metrics, error_map })

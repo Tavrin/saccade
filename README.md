@@ -28,7 +28,7 @@ The data is procedural ([`showcases/`](showcases)); `scripts/run-showcases.sh` r
 
 ## Try it in 30 seconds
 
-You need Rust 1.85 or newer and a C++ compiler (the build compiles NVIDIA's C++ FLIP code). The repository contains a small baseline and capture set in `examples/`.
+You need Rust 1.88 or newer. The repository contains a small baseline and capture set in `examples/`.
 
 ```sh
 git clone https://github.com/Tavrin/saccade
@@ -299,7 +299,7 @@ test -s archive.sha256 && sha256sum --check archive.sha256 && \
 
 On macOS use `shasum -a 256 --check archive.sha256` with the macOS asset's checksum line. On Windows use `Get-FileHash .\saccade-x86_64-pc-windows-msvc.zip -Algorithm SHA256` and compare the hash with that asset's line in `SHA256SUMS`, then extract the zip. Put the executable on PATH; retain the bundled notices with redistributed binaries. A separate `<asset>.sha256` is also published for each archive.
 
-From source (Rust 1.85 or newer and a C++ compiler: g++, clang or MSVC):
+From source (Rust 1.88 or newer):
 
 ```sh
 cargo install --git https://github.com/Tavrin/saccade saccade --locked
@@ -547,17 +547,9 @@ The report records the differences in each entry's `meta_diff` and the settings 
 saccade compare hdr-baseline hdr-capture --out hdr-report --hdr-tonemapper aces
 ```
 
-```
-STATUS  NAME        METRIC  VALUE    THRESHOLD
-FAIL    sphere.hdr  mean    0.04625  0.01
-pass    same.hdr    mean    0.00000  0.01
+`examples/` does not ship HDR files; supply your own linear EXR or Radiance HDR pairs.
 
-1 fail, 0 error, 0 missing, 0 new, 1 pass (2 total)
-```
-
-(`sphere.hdr` here is the `examples/` sphere with its highlight at 20 times and at 8 times the linear intensity; `examples/` does not ship HDR files.)
-
-Settings: `--hdr-tonemapper aces|hable|reinhard` and `--hdr-exposures START:STOP:N` (start and stop in stops; write `--hdr-exposures=-4:2:8` with an equals sign when START is negative). Without them the exposure range is computed from the baseline image. The same settings are in the `[hdr]` config table, and the values used are recorded in each entry's `hdr` field. An HDR and an LDR image cannot be compared (`error` entry). In the report and the viewer, HDR images are shown as PNGs tone-mapped at exposure 0, and the original is copied next to them as `images/<name>.d/baseline.orig.exr`. The method and its approximation are in [Limits](#limits) and [docs/design.md](docs/design.md#35-hdr-flip).
+Settings: `--hdr-tonemapper aces|hable|reinhard` and `--hdr-exposures START:STOP:N` (start and stop in stops, N at least 2; write `--hdr-exposures=-4:2:8` with an equals sign when START is negative). Without them the exposure range is computed from the baseline image. The same settings are in the `[hdr]` config table, and the values used are recorded in each entry's `hdr` field. An HDR and an LDR image cannot be compared (`error` entry). In the report and the viewer, HDR images are shown as PNGs tone-mapped at exposure 0, and the original is copied next to them as `images/<name>.d/baseline.orig.exr`. The reference float algorithm and its input limits are in [Limits](#limits) and [docs/design.md](docs/design.md#35-hdr-flip).
 
 ### Regions and masks
 
@@ -708,7 +700,7 @@ jobs:
           capture-dir: captures
 ```
 
-The action installs a prebuilt `saccade-<target>.tar.gz` (`.zip` on Windows) from the GitHub release for the requested ref, checks it against the `.sha256` file published next to it and runs `saccade --version`. If there is no matching release asset, the checksum is missing or wrong, or the binary does not run, it falls back to `cargo install --git`, which needs Rust on the runner (GitHub-hosted runners have it) and a C++ compiler. It then runs `compare`, uploads the report directory as an artifact, writes the summary to the job summary, updates one pull-request comment (found by the `<!-- saccade-summary -->` marker), and fails the job with the exit code of `compare`. It runs `compare` only; `identity` and `view` are CLI commands.
+The action installs a prebuilt `saccade-<target>.tar.gz` (`.zip` on Windows) from the GitHub release for the requested ref, checks it against the `.sha256` file published next to it and runs `saccade --version`. If there is no matching release asset, the checksum is missing or wrong, or the binary does not run, it falls back to `cargo install --git`, which needs Rust 1.88 or newer on the runner and access to the private flip-rs repository. For source builds in GitHub CI, load `FLIP_RS_DEPLOY_KEY` with `webfactory/ssh-agent`, enable `CARGO_NET_GIT_FETCH_WITH_CLI` and rewrite the flip-rs HTTPS URL to SSH, as in this repository's workflows. It then runs `compare`, uploads the report directory as an artifact, writes the summary to the job summary, updates one pull-request comment (found by the `<!-- saccade-summary -->` marker), and fails the job with the exit code of `compare`. It runs `compare` only; `identity` and `view` are CLI commands.
 
 The workflow that uses the action must be able to see this repository: it must be public, or, if it is private or internal, the repository's Actions settings must grant access to the repositories that use it.
 
@@ -897,8 +889,8 @@ validated by the drift and command-output tests.
 | `[[mask]]` `rect` | none | `[x, y, w, h]` as fractions of the frame; excluded from all statistics |
 | `[[mask]]` `image` | none | Mask image, white = exclude; path relative to the config file. Use `rect` or `image` |
 | `[hdr]` `tonemapper` | `"aces"` | `aces`, `hable` or `reinhard` |
-| `[hdr]` `start_exposure`, `stop_exposure` | from the baseline | Exposure range in stops; give both or neither |
-| `[hdr]` `num_exposures` | `max(2, ceil(stop - start))` | Number of exposures, at most 64 |
+| `[hdr]` `start_exposure`, `stop_exposure` | from the baseline | Exposure range in stops; each omitted endpoint is automatic |
+| `[hdr]` `num_exposures` | `max(2, ceil(stop - start))` | Number of exposures, from 2 to `i32::MAX` |
 
 A configuration for the files in `examples/`:
 
@@ -1069,7 +1061,7 @@ Images are paired by path relative to each directory (`png`, `jpg`, `jpeg`, `exr
 | Metric | FLIP (perceptual) | Pixel distance in YIQ colour space with anti-aliasing detection | AE, RMSE, PSNR, SSIM and others | Mostly pixel or DOM-aware diffs (varies by service) | FLIP |
 | Directory-to-directory run, exit code | Yes | Library: you write the loop | One pair per call | Yes (hosted workflow) | One pair per call |
 | HTML report, heatmap, flicker, swipe | Yes, one offline file | No | No | Yes, hosted | Heatmap images and statistics, no HTML report |
-| HDR and EXR | Approximate (8-bit exposures) | No | Depends on the build | Mostly no | Yes, in float |
+| HDR and EXR | Reference HDR-FLIP, in float | No | Depends on the build | Mostly no | Yes, in float |
 | Regions, masks, identity proof, blind A/B review | Yes | No | Masks by hand | Ignore regions in some | No |
 | Hosted baselines, approval UI, PR status checks | No | No | No | Yes | No |
 | Runs offline, no account | Yes | Yes | Yes | No | Yes |
@@ -1078,13 +1070,12 @@ When saccade is not the right tool:
 
 - **Web or UI testing with a hosted review workflow.** Percy and Chromatic capture the page, store baselines, and give reviewers an approval UI and PR checks. saccade does none of that: you bring the captures and the baseline storage.
 - **A single pixel-exact comparison.** For identical output, compare the bytes or hashes. (`saccade identity` also reports `bit_identical`, but it decodes images first.)
-- **Exact published HDR-FLIP numbers.** NVIDIA's `flip` tool keeps the exposures in float; saccade quantises them to 8 bits.
 - **Judging correctness.** FLIP measures how visible a difference is, not whether it is a bug.
-- **Tiny scripts that only need a per-pixel diff.** pixelmatch is a few hundred lines with no native dependency; saccade compiles C++.
+- **Tiny scripts that only need a per-pixel diff.** pixelmatch is a few hundred lines; saccade runs a perceptual filtering pipeline.
 
 ## Limits
 
-- **HDR-FLIP is an approximation.** The reference keeps every exposure in float. saccade tone-maps and then quantises each exposure to 8-bit sRGB before running FLIP. Values can differ slightly from NVIDIA's tool.
+- **HDR-FLIP uses the reference float algorithm** through the pure-Rust flip-rs port of NVIDIA FLIP v1.7. Automatic exposures require a nonblack baseline; give explicit finite endpoints and at least two exposures for an all-black reference. Display PNGs are tone-mapped to 8 bits separately from the metric.
 - **FLIP measures visibility, not correctness.** A large, visible change can be intended; a small, invisible one can be a bug (a wrong buffer that happens to look similar). A passing run means "a person would not notice the difference at this viewing condition", not "the renderer is right".
 - **Masks remove pixels from the statistics, not from the filtering.** FLIP's spatial filter spreads a change near a mask's edge into the pixels next to it. Leave a margin.
 - **Nondeterministic captures** (temporal noise, random sampling, animation, differing GPUs) need one of: a threshold above the measured noise, masks over the noisy areas, or making the capture deterministic (fixed seeds and frame count, no time-dependent effects). Measure first.
@@ -1099,7 +1090,6 @@ Planned directions, without scheduled dates:
 - A Homebrew tap for binary installation.
 - An npm wrapper plus Playwright and Jest adapters.
 - A GitLab CI component.
-- A reference float HDR backend, replacing the current 8-bit-per-exposure approximation when selected.
 - Hosted baselines and image hosting, enabling images inline in pull-request comments. Today comments link to the report artifact.
 
 Open an issue to discuss priorities or propose a contribution.
@@ -1110,9 +1100,9 @@ See [CONTRIBUTING.md](CONTRIBUTING.md). Changes are listed in [CHANGELOG.md](CHA
 
 ## Credits and licence
 
-saccade grew out of the visual-test crate of the Moss engine. The FLIP algorithm is by NVIDIA (Andersson et al., "FLIP: A Difference Evaluator for Alternating Images", High Performance Graphics 2020), used through the `nv-flip` bindings; the HDR-FLIP exposure procedure is ported from NVIDIA's reference code. See [THIRD_PARTY.md](THIRD_PARTY.md).
+saccade grew out of the visual-test crate of the Moss engine. The FLIP algorithm is by NVIDIA (Andersson et al., "FLIP: A Difference Evaluator for Alternating Images", High Performance Graphics 2020), implemented by the pure-Rust `flip-rs` port of NVIDIA FLIP v1.7 for both LDR and float HDR-FLIP. See [THIRD_PARTY.md](THIRD_PARTY.md).
 
-Licensed under `MIT OR Apache-2.0`, at your option: [LICENSE-MIT](LICENSE-MIT), [LICENSE-APACHE](LICENSE-APACHE). The bundled NVIDIA FLIP code is BSD-3-Clause.
+Licensed under `MIT OR Apache-2.0`, at your option: [LICENSE-MIT](LICENSE-MIT), [LICENSE-APACHE](LICENSE-APACHE). flip-rs is BSD-3-Clause and retains NVIDIA's notice.
 
 ## Bisect image divergence
 

@@ -85,7 +85,7 @@ impl Default for RunConfig {
         Self {
             default_threshold: 0.01,
             default_metric: Metric::Mean,
-            pixels_per_degree: nv_flip::DEFAULT_PIXELS_PER_DEGREE,
+            pixels_per_degree: crate::compare::DEFAULT_PIXELS_PER_DEGREE,
             fail_on_new: false,
             ignore: Vec::new(),
             entries: Vec::new(),
@@ -208,10 +208,10 @@ impl RunConfig {
                 }
             }
         }
-        if let (Some(dir), Some(cal)) = (&cfg.config_dir, cfg.decisions.calibration.as_mut()) {
-            if cal.is_relative() {
-                *cal = dir.join(&*cal);
-            }
+        if let (Some(dir), Some(cal)) = (&cfg.config_dir, cfg.decisions.calibration.as_mut())
+            && cal.is_relative()
+        {
+            *cal = dir.join(&*cal);
         }
         Ok(cfg)
     }

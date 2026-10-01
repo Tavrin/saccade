@@ -60,9 +60,11 @@ shown alternately: colour, contrast sensitivity and spatial frequency, at a
 given viewing distance. It produces an error map with one value per pixel in
 `[0, 1]`: 0 is no visible difference, larger values are more visible.
 
-saccade calls NVIDIA's C++ implementation through the `nv-flip` bindings.
-Inputs are decoded to 8-bit sRGB. A 16-bit PNG is accepted and down-converted
-to 8 bits.
+saccade calls the pure-Rust `flip-rs` port of NVIDIA FLIP v1.7. LDR inputs
+are decoded to 8-bit sRGB and divided by 255 to supply sRGB `f32` values;
+`ldr_flip` performs the sRGB-to-linear conversion. A 16-bit PNG is accepted
+and down-converted to 8 bits. Statistics remain saccade's nearest-rank
+percentiles, rather than flip-rs's error-weighted pooling.
 
 `pixels_per_degree` (`--ppd`, `ppd` in the config) is the viewing condition.
 The default is 67, FLIP's default. It must be finite and greater than 0. A
@@ -132,18 +134,22 @@ HDR-FLIP, which follows NVIDIA's reference procedure:
    exposure, and the median luminance does at the last. `start_exposure` and
    `stop_exposure` (in stops) override it.
 2. Choose the number of exposures N: `num_exposures`, or
-   `max(2, ceil(stop - start))`, at most 64.
+   `max(2, ceil(stop - start))`. The count must be in `2..=i32::MAX`, even
+   when the endpoints are equal.
 3. For N evenly spaced exposures, tone-map both images (`aces`, `hable` or
-   `reinhard`), encode to 8-bit sRGB and run FLIP.
+   `reinhard`) in linear `f32` and run FLIP without 8-bit quantisation.
 4. The error map is the per-pixel maximum over the exposures.
 
-**Approximation.** NVIDIA's reference keeps every exposure in floating point.
-saccade quantises each tone-mapped exposure to 8 bits before FLIP, so its
-values can differ slightly from the reference tool.
+`flip-rs::hdr_flip` implements the reference float HDR-FLIP algorithm.
+Its resolved `HdrParameters` populate the entry's `hdr` record; each omitted
+endpoint and count is resolved from the baseline. A zero median luminance is
+floored to `f32::EPSILON`, as in the reference. An all-black baseline has no
+automatic start exposure and returns an error; give explicit endpoints to
+compare it. Invalid, reversed or nonfinite exposure ranges return errors.
 
-**Credit.** The exposure-range selection, the tone-mapping coefficients and the
-overall procedure are ported from NVIDIA's FLIP reference code
-(BSD-3-Clause). See [THIRD_PARTY.md](../THIRD_PARTY.md).
+**Credit.** flip-rs is a BSD-3-Clause port of NVIDIA FLIP v1.7 and retains
+NVIDIA's notice. The display-only tone-mapping coefficients are also derived
+from NVIDIA's reference. See [THIRD_PARTY.md](../THIRD_PARTY.md).
 
 For HDR pairs, the report and the viewer show a display PNG tone-mapped at
 exposure 0 (`images/<name>.d/baseline.png`, `capture.png`). The original file is
