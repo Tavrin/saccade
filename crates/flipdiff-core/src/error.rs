@@ -47,6 +47,9 @@ pub enum Error {
         #[source]
         source: image::ImageError,
     },
+    /// A configuration file or glob pattern is invalid.
+    #[error("invalid configuration: {0}")]
+    Config(String),
     /// Report (de)serialization failed.
     #[error("report JSON error: {0}")]
     Json(#[from] serde_json::Error),
