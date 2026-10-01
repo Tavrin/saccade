@@ -185,6 +185,11 @@ impl RunConfig {
                 .filter(|p| !p.as_os_str().is_empty())
                 .map_or_else(|| Path::new(".").to_path_buf(), Path::to_path_buf),
         );
+        if let (Some(dir), Some(cal)) = (&cfg.config_dir, cfg.decisions.calibration.as_mut()) {
+            if cal.is_relative() {
+                *cal = dir.join(&*cal);
+            }
+        }
         Ok(cfg)
     }
 

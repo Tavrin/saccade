@@ -1,0 +1,17 @@
+threshold = 0.001
+[[buffer]]
+glob = "depth.png"
+kind = "depth"
+encoding = "linear01"
+threshold = 0.002
+[[buffer]]
+glob = "normal.png"
+kind = "normal"
+encoding = "rgb_snorm"
+threshold = 1.0
+[[buffer]]
+glob = "motion.png"
+kind = "motion"
+encoding = "rg_snorm"
+scale = 32.0
+threshold = 0.5

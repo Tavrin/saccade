@@ -306,7 +306,7 @@ fn compare_session_builds_and_is_reused() {
     // A changed input yields a new session.
     write_png(&f.root.join("g/b/x.png"), [1, 2, 3]);
     assert_ne!(id, session_of(&get(&f, "/compare?runs=g/a,g/b,g/c")));
-    assert!(get(&f, &format!("/session/{id}/images/x.png/pane0.png")).status == 200);
+    assert!(get(&f, &format!("/session/{id}/images/x.png.d/pane0.png")).status == 200);
     assert_eq!(get(&f, &format!("/session/{id}/session.json")).status, 404);
 }
 
@@ -420,7 +420,7 @@ fn single_images_compare_from_anywhere() {
     assert!(r.head.contains("set=image.png"), "{}", r.head);
     let id = session_of(&r);
     wait_ready(&f, &id);
-    let base = format!("/session/{id}/images/image.png");
+    let base = format!("/session/{id}/images/image.png.d");
     assert_eq!(get(&f, &format!("{base}/pane2.png")).status, 200);
     assert_eq!(get(&f, &format!("{base}/heatmap1.png")).status, 200);
     // Runs and images do not mix; a non-image file is refused.

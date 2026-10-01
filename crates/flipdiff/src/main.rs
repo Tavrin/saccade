@@ -17,8 +17,12 @@ use flipdiff_core::view::{
 
 mod agent;
 mod agent_ui;
+mod judge_cmd;
 mod mcp;
+mod outdirs;
 mod runs_cmd;
+mod s6;
+mod s6_mcp;
 
 use agent::CliError;
 
@@ -29,6 +33,9 @@ use agent::CliError;
     about = "Perceptual (FLIP) visual-regression diffing"
 )]
 struct Cli {
+    /// Silence warnings when --out is next to capture metadata.
+    #[arg(long, global = true)]
+    allow_out_near_captures: bool,
     #[command(subcommand)]
     command: Command,
 }
@@ -150,6 +157,14 @@ enum Format {
 
 #[derive(Subcommand)]
 enum Command {
+    /// Judge a report or ranking with a panel of models and humans.
+    Judge(judge_cmd::JudgeArgs),
+    /// Find the first diverging run or revision in an ordered series.
+    Bisect(s6::BisectArgs),
+    /// Compare initially and after debounced capture-directory changes.
+    Watch(s6::WatchArgs),
+    /// Post a closed-answer question to a local human inbox.
+    Ask(s6::AskArgs),
     /// Compare numbered colour frames by sorted index and measure added flicker.
     Sequence {
         baseline_dir: PathBuf,
@@ -516,6 +531,9 @@ enum Command {
         /// Directory the agent may read and write (default: the working directory).
         #[arg(long, value_name = "DIR")]
         root: Option<PathBuf>,
+        /// Watch baseline:capture inside the server root (repeatable).
+        #[arg(long, value_name = "BASE:CAP")]
+        watch: Vec<String>,
     },
     /// Render a view state (layout, split, zoom, heatmap...) of a report entry
     /// or view set to a PNG, with no browser.
@@ -592,7 +610,9 @@ fn main() -> ExitCode {
         }
     };
     let json_errors = args_want_json(&args);
-    match dispatch(cli.command) {
+    match outdirs::warn(&cli.command, cli.allow_out_near_captures)
+        .and_then(|()| dispatch(cli.command))
+    {
         Ok(code) => ExitCode::from(code),
         Err(err) => {
             if json_errors {
@@ -642,6 +662,10 @@ fn emit_run(report: &Report, out: &Path, json: Option<RunJson>) -> Result<(), Cl
 
 fn dispatch(command: Command) -> Result<u8, CliError> {
     match command {
+        Command::Judge(args) => judge_cmd::judge(args),
+        Command::Bisect(args) => s6::bisect(args),
+        Command::Watch(args) => s6::watch(args),
+        Command::Ask(args) => s6::ask(args),
         Command::Sequence {
             baseline_dir,
             capture_dir,
@@ -896,6 +920,7 @@ fn dispatch(command: Command) -> Result<u8, CliError> {
             }
             opts.view.regions = loaded.regions;
             opts.view.meta = loaded.meta;
+            opts.view.diagnostics = loaded.diagnostics;
             hdr.apply(&mut opts.view.hdr)?;
             meta.apply(&mut opts.view.meta);
             if let Some(p) = ppd {
@@ -948,6 +973,7 @@ fn dispatch(command: Command) -> Result<u8, CliError> {
             let mut opts = ViewOptions {
                 regions: loaded.regions,
                 meta: loaded.meta,
+                diagnostics: loaded.diagnostics,
                 labels,
                 reference,
                 blind,
@@ -1027,8 +1053,8 @@ fn dispatch(command: Command) -> Result<u8, CliError> {
                 opts,
             })
         }
-        Command::Mcp { root } => {
-            mcp::serve_stdio(root.as_deref())?;
+        Command::Mcp { root, watch } => {
+            mcp::serve_stdio(root.as_deref(), &watch)?;
             Ok(0)
         }
         Command::Explain {

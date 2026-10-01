@@ -23,11 +23,11 @@ pub(crate) fn write_view_html(model: &ViewModel, view_dir: &Path) -> Result<Path
     let html = TEMPLATE
         .replace(
             "/*__FLIPDIFF_CSS__*/",
-            &format!("{CSS}\n{}", super::html::AGENT_CSS),
+            &super::shared::page_css(&[super::html::AGENT_CSS, CSS]),
         )
         .replace(
             "/*__FLIPDIFF_JS__*/",
-            &format!("{}\n{JS}", super::html::AGENT_JS),
+            &super::shared::page_js(&[super::html::AGENT_JS, JS]),
         )
         .replace("__FLIPDIFF_DATA__", &data);
     let path = view_dir.join("index.html");

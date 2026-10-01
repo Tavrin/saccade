@@ -1,5 +1,4 @@
-/* Run overview. Tokens, header, buttons and cards come from serve.css. */
-.grow { flex: 1 1 auto; }
+/* Run overview layout. Tokens and controls come from the shared design system. */
 .top .back, .brand .back { color: var(--accent); text-decoration: none; font-size: 13px; margin-right: 4px; }
 .top .back:hover { text-decoration: underline; }
 .rpage { display: flex; flex-direction: column; gap: 14px; padding: 14px 16px 48px; max-width: 2560px; margin: 0 auto; }
@@ -141,3 +140,10 @@ a.cell:hover, a.cell:focus-visible { outline: 2px solid var(--accent); outline-o
   .prow { grid-template-columns: minmax(0, 1fr); }
   .prow .arrow { display: none; }
 }
+/* The matrix is a compact overview; the contact sheet is the full image view. */
+table.matrix { width: 100%; min-width: min(100%, 760px); }
+.matrix .rowh { width: 240px; min-width: 240px; }
+.matrix td { width: 200px; min-width: 180px; }
+.matrix .cell { width: min(100%, 240px); margin-inline: auto; }
+.cardhead h2 { color: var(--muted); font-size: var(--fs-xs); letter-spacing: .05em; text-transform: uppercase; }
+.stage .top { min-height: 0; padding: 0; border: 0; background: none; }

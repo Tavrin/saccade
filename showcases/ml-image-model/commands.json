@@ -1,0 +1,36 @@
+[
+  {
+    "name": "compare",
+    "args": [
+      "compare",
+      "baseline",
+      "capture",
+      "--config",
+      "flipdiff.toml"
+    ],
+    "out": "compare",
+    "exit": 1
+  },
+  {
+    "name": "explain",
+    "args": [
+      "explain",
+      "@REPORTS@/compare/flipdiff-report.v1.json"
+    ],
+    "out": "explain",
+    "exit": 0
+  },
+  {
+    "name": "decision-request",
+    "args": [
+      "decision-request",
+      "@REPORTS@/compare/flipdiff-report.v1.json",
+      "--all-failing",
+      "--question",
+      "accept",
+      "--intent",
+      "Checkpoint B must preserve colour and structure."
+    ],
+    "exit": 0
+  }
+]

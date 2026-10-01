@@ -1,0 +1,16 @@
+[
+  {
+    "name": "sequence",
+    "args": [
+      "sequence",
+      "baseline",
+      "capture",
+      "--pattern",
+      "frame_*.png",
+      "--threshold",
+      "0.005"
+    ],
+    "out": "sequence",
+    "exit": 1
+  }
+]

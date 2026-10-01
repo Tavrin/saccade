@@ -5,6 +5,23 @@ newest first.
 
 ## Unreleased
 
+- Per-image output folders now end in `.d`; CLI outputs next to capture
+  metadata warn on stderr (`--allow-out-near-captures` silences the warning).
+
+- Judge mode: typed bounded questions, deterministic text evidence and blind
+  both-order strips; weighted panels (Jev, Gemini, OpenCode, compatible HTTP and
+  local humans), canary down-weighting, calibration/ECE/human agreement,
+  invariance self-tests and Bradley–Terry ranking intervals. Adds vote pages,
+  CLI/MCP tools, schemas and a provider audit trail; retains decision proposals
+  and deterministic-failure gates, with file-only secrets and isolated free
+  OpenCode calls.
+
+- Binary-search image divergence with existing runs or CLI user-command captures;
+  skipped probes, observed reversals, per-probe reports and `flipdiff-bisect.v1`.
+- Debounced capture watch with notify/polling fallback, JSONL, MCP status and logs.
+- Persistent local human inbox, secure private serve discovery, `ask --wait`,
+  browser answers and MCP ask/get tools, with schemas and agent instruction packs.
+
 - Numbered image sequences: per-frame FLIP, added temporal instability,
   `flipdiff-sequence.v1` and a server-rendered SVG curve in the report.
 - Numerical G-buffer rules (`[[buffer]]`): depth including single-channel EXR,

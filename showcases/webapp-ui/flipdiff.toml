@@ -1,0 +1,9 @@
+threshold = 0.02
+metric = "max"
+[[region]]
+name = "header"
+rect = [0.0, 0.0, 1.0, 0.18]
+metric = "p95"
+threshold = 0.02
+[[mask]]
+rect = [0.67, 0.015, 0.33, 0.15]

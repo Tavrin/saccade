@@ -125,6 +125,7 @@ pub(crate) struct State {
     pub max_upload: u64,
     pub sessions: Mutex<HashMap<String, session::SessionState>>,
     pub overviews: Mutex<HashMap<String, Arc<overview::Job>>>,
+    pub inbox_lock: Mutex<()>,
 }
 
 impl State {
@@ -255,6 +256,17 @@ pub fn start(opts: ServeOptions) -> Result<ServeHandle> {
         .map(|a| a.port())
         .ok_or_else(|| Error::Config("server has no IP address".into()))?;
     let token = random_token();
+    let inbox = decisions.join("inbox");
+    std::fs::create_dir_all(&inbox).map_err(io_err("creating inbox directory".into()))?;
+    let inbox_canon = inbox
+        .canonicalize()
+        .map_err(io_err("resolving inbox directory".into()))?;
+    if inbox_canon != inbox || roots.iter().any(|r| inbox_canon.starts_with(&r.path)) {
+        return Err(Error::Config(
+            "inbox must be a real directory outside archive roots".into(),
+        ));
+    }
+    crate::inbox::write_discovery(&cache, port, token.clone())?;
     let state = Arc::new(State {
         roots,
         follow_links: opts.follow_symlinks_within_roots,
@@ -267,6 +279,7 @@ pub fn start(opts: ServeOptions) -> Result<ServeHandle> {
         max_upload: opts.max_upload_bytes,
         sessions: Mutex::new(HashMap::new()),
         overviews: Mutex::new(HashMap::new()),
+        inbox_lock: Mutex::new(()),
     });
     let server = Arc::new(server);
     let stop = Arc::new(AtomicBool::new(false));
@@ -294,7 +307,7 @@ pub fn start(opts: ServeOptions) -> Result<ServeHandle> {
 
 /// 128 random bits as hex: `/dev/urandom` where available, else the std
 /// hasher's per-process random keys mixed with the clock.
-fn random_token() -> String {
+pub(crate) fn random_token() -> String {
     let mut buf = [0u8; 16];
     let from_os = std::fs::File::open("/dev/urandom")
         .and_then(|mut f| f.read_exact(&mut buf))

@@ -57,6 +57,13 @@ pub struct DecisionsConfig {
     /// Which figure the threshold applies to: `prob` (default) or `confidence`.
     #[serde(default)]
     pub gate_on: Option<String>,
+    /// A `flipdiff-calibration.v1` file (from `flipdiff judge calibrate`). When
+    /// it suggests a threshold for the answering source and question, that
+    /// threshold replaces `auto_accept_min_prob` for that source; other
+    /// sources keep `auto_accept_min_prob`. A relative path is resolved from
+    /// the config file's directory.
+    #[serde(default)]
+    pub calibration: Option<PathBuf>,
 }
 
 /// A decision-request question.
@@ -252,7 +259,7 @@ fn props_value(p: &crate::report::Properties) -> Value {
 
 /// The compact, model-friendly state of one entry: numbers and flags only, no
 /// paths and no free text beyond the intent.
-fn entry_state(report: &Report, e: &Entry, intent: Option<&str>) -> Value {
+pub(crate) fn entry_state(report: &Report, e: &Entry, intent: Option<&str>) -> Value {
     let mut s = Map::new();
     s.insert("entry".into(), json!(e.name));
     s.insert("verdict".into(), json!(status_name(e.status)));
@@ -491,7 +498,21 @@ pub struct Outcome {
 }
 
 fn is_human(source: &str) -> bool {
-    source.trim().eq_ignore_ascii_case("human")
+    crate::judge_stats::is_human_source(source)
+}
+
+/// The gate threshold a calibration file suggests for `source` and `question`.
+fn calibrated_min_prob(path: &Path, source: &str, question: &str) -> Option<f64> {
+    let v: Value = serde_json::from_str(&std::fs::read_to_string(path).ok()?).ok()?;
+    if v["schema"] != crate::judge_stats::CALIBRATION_SCHEMA {
+        return None;
+    }
+    v["judges"].as_array()?.iter().find_map(|j| {
+        (j["judge"] == source && j["question"] == question)
+            .then(|| j["suggested_gate"]["min_prob"].as_f64())
+            .flatten()
+            .filter(|p| p.is_finite() && (0.0..=1.0).contains(p))
+    })
 }
 
 fn validate(a: &Answer) -> Result<(), DecideError> {
@@ -540,9 +561,13 @@ fn gate_refusal(cfg: &DecisionsConfig, a: &Answer, current: Option<Verdict>) -> 
             a.question.as_str()
         ));
     }
-    let Some(min) = cfg.auto_accept_min_prob else {
+    let calibrated = cfg
+        .calibration
+        .as_deref()
+        .and_then(|p| calibrated_min_prob(p, a.source.trim(), a.question.as_str()));
+    let Some(min) = calibrated.or(cfg.auto_accept_min_prob) else {
         return Some(
-            "the confidence gate is off ([decisions] auto_accept_min_prob is not set)".into(),
+            "the confidence gate is off ([decisions] auto_accept_min_prob is not set and the calibration suggests no threshold for this source)".into(),
         );
     };
     if !cfg.allow_sources.is_empty()
@@ -575,6 +600,7 @@ fn apply(
     a: &Answer,
     hash: String,
     gate: Option<Option<String>>,
+    proposal_only: bool,
 ) -> (bool, Option<Verdict>, Option<String>) {
     let ms = now_ms();
     let idx = match d.sets.iter().position(|s| s.name == a.entry) {
@@ -596,7 +622,7 @@ fn apply(
         }
     };
     let set = &mut d.sets[idx];
-    let human = is_human(&a.source);
+    let human = is_human(&a.source) && !proposal_only;
     let verdict = match (a.question, a.answer.as_str()) {
         (Question::Accept, "accept") => Some(Verdict::Accept),
         (Question::Accept, "reject") => Some(Verdict::Reject),
@@ -732,6 +758,32 @@ pub fn decide_report(
     cfg: &DecisionsConfig,
     answer: &Answer,
 ) -> Result<Outcome, DecideError> {
+    decide_report_inner(report_json, report, cfg, answer, false)
+}
+
+/// Records an individual panel member as a proposal, including human voters.
+/// Only the panel aggregate may use the configured promotion gate.
+pub fn propose_report(
+    report_json: &Path,
+    report: &Report,
+    answer: &Answer,
+) -> Result<Outcome, DecideError> {
+    decide_report_inner(
+        report_json,
+        report,
+        &DecisionsConfig::default(),
+        answer,
+        true,
+    )
+}
+
+fn decide_report_inner(
+    report_json: &Path,
+    report: &Report,
+    cfg: &DecisionsConfig,
+    answer: &Answer,
+    proposal_only: bool,
+) -> Result<Outcome, DecideError> {
     validate(answer)?;
     let entry = report
         .entries
@@ -740,7 +792,7 @@ pub fn decide_report(
         .ok_or_else(|| {
             DecideError::Invalid(format!("the report has no entry {:?}", answer.entry))
         })?;
-    let human = is_human(&answer.source);
+    let human = is_human(&answer.source) && !proposal_only;
     if !human {
         if let Some(why) = deterministic_failure(report, entry) {
             return Err(DecideError::Refused(format!(
@@ -778,7 +830,7 @@ pub fn decide_report(
         .find(|s| s.name == answer.entry)
         .and_then(|s| s.decision);
     let refusal = gate_refusal(cfg, answer, current);
-    let (decided, decision, reason) = apply(&mut d, answer, hash, Some(refusal));
+    let (decided, decision, reason) = apply(&mut d, answer, hash, Some(refusal), proposal_only);
     // The images the answer is about, so `approve` can check what it copies.
     if let Some(set) = d.sets.iter_mut().find(|s| s.name == answer.entry) {
         if set.sha256.is_empty() && d.dirs.len() == 2 {
@@ -833,7 +885,7 @@ pub fn decide_file(
         _ => read_decisions(file)?,
     };
     let hash = answer.request_hash.clone().unwrap_or_default();
-    let (decided, decision, reason) = apply(&mut d, answer, hash, None);
+    let (decided, decision, reason) = apply(&mut d, answer, hash, None, false);
     let sidecar = file.file_name().is_some_and(|n| n == DECISIONS_FILE_NAME);
     write_decisions(file, &d, sidecar)?;
     Ok(Outcome {
@@ -964,6 +1016,7 @@ mod tests {
             auto_accept_min_prob: Some(0.9),
             allow_sources: vec![],
             gate_on: None,
+            calibration: None,
         };
         let low = decide_report(&rj, &r, &cfg, &answer("a.png", "accept", 0.8, "jev")).unwrap();
         assert!(low.proposed && !low.decided && low.decision.is_none());
@@ -1003,6 +1056,7 @@ mod tests {
             auto_accept_min_prob: Some(0.5),
             allow_sources: vec![],
             gate_on: None,
+            calibration: None,
         };
         for name in ["b.png", "c.png"] {
             let err =

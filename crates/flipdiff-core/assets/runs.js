@@ -7,6 +7,17 @@
   var M = null;
   var UI = { sort: 'worst', changed: false, cs: -1, csChanged: false, pos: 50, manual: -1, draft: [], sig: {} };
 
+  var shared = window.__flipdiffUI, actions = shared.use(shared.actions());
+  shared.controls(actions);
+  [['ArrowLeft', -1], ['ArrowRight', 1], ['Home', 0], ['End', 100]].forEach(function (v) {
+    actions.add({ id: 'swipe.' + v[0], title: 'Contact sheet: ' + v[0], group: 'Swipe', keys: [v[0]], enabled: function () { return !$('contactcard').hidden; }, repeat: true,
+      run: function (e) { setPos(v[0] === 'Home' || v[0] === 'End' ? v[1] : UI.pos + v[1] * (e.shiftKey ? 10 : 2)); } });
+  });
+  actions.add({ id: 'copy', title: 'Copy link to this page', group: 'Tools', run: function () { shared.copy(location.href).then(function (ok) { shared.toast(ok ? 'Link copied' : 'Copy failed'); }); } });
+  actions.add({ id: 'help', title: 'Keyboard shortcuts', group: 'General', keys: ['?'], run: function () { shared.help.toggle(actions); } });
+  actions.add({ id: 'escape', title: 'Close panel', group: 'General', keys: ['Escape'], run: shared.escape });
+  $('palette-btn').addEventListener('click', function () { shared.palette.open(); });
+
   function $(id) { return document.getElementById(id); }
   function el(tag, attrs, kids) {
     var n = document.createElement(tag);
@@ -442,16 +453,6 @@
     $('csrun').addEventListener('change', function () { UI.cs = +$('csrun').value; renderContact(true); });
     $('cschanged').addEventListener('change', function () { UI.csChanged = $('cschanged').checked; renderContact(true); });
     $('csslider').addEventListener('input', function () { setPos(+$('csslider').value); });
-    document.addEventListener('keydown', function (e) {
-      var t = e.target, tag = t && t.tagName;
-      if (tag === 'INPUT' || tag === 'SELECT' || tag === 'TEXTAREA' || e.altKey || e.ctrlKey || e.metaKey) return;
-      if ($('contactcard').hidden) return;
-      var step = e.shiftKey ? 10 : 2;
-      if (e.key === 'ArrowLeft') { setPos(UI.pos - step); e.preventDefault(); }
-      else if (e.key === 'ArrowRight') { setPos(UI.pos + step); e.preventDefault(); }
-      else if (e.key === 'Home') { setPos(0); e.preventDefault(); }
-      else if (e.key === 'End') { setPos(100); e.preventDefault(); }
-    });
     var drag = null;
     $('sheet').addEventListener('pointerdown', function (e) {
       var st = e.target.closest ? e.target.closest('.stage') : null;

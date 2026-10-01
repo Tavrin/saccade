@@ -24,9 +24,15 @@ use crate::view::{DECISIONS_SCHEMA, Decisions, MAX_DIRS, MIN_DIRS, is_safe_name}
 const PAGE: &str = include_str!("../../assets/serve.html");
 const CSS: &str = include_str!("../../assets/serve.css");
 const JS: &str = include_str!("../../assets/serve.js");
+#[path = "inbox_api.rs"]
+mod inbox_api;
+#[path = "vote_api.rs"]
+mod vote_api;
 /// Runs in a served session page: the link back to the run overview, and
 /// opening the viewer at the set and pair a deep link names.
 const SESSION_OPEN_JS: &str = include_str!("../../assets/session-open.js");
+/// The script tag of the viewer page that loads the decisions sidecar.
+const DECISIONS_TWIN_TAG: &str = "<script src=\"flipdiff-decisions.v1.js\"></script>";
 
 /// Largest decisions body accepted.
 const MAX_DECISIONS_BYTES: u64 = 8 * 1024 * 1024;
@@ -62,6 +68,7 @@ impl Resp {
     }
 
     fn html(body: String) -> Self {
+        let body = crate::render::shared::complete_html(body);
         Self {
             html: true,
             ..Self::bytes(200, "text/html; charset=utf-8", body.into_bytes())
@@ -130,7 +137,7 @@ impl Resp {
 <p><a class=\"btn primary\" href=\"/\">&larr; Back to the archive</a></p></main></body></html>",
             t = html_escape(title),
             m = html_escape(msg),
-            css = CSS,
+            css = crate::render::shared::page_css(&[CSS]),
         );
         Self {
             status,
@@ -370,13 +377,22 @@ pub(crate) fn handle(state: &Arc<State>, mut req: Request) {
 fn page(state: &State, mode: &str, session: Option<&str>) -> Resp {
     let data = serde_json::json!({ "token": state.token, "mode": mode, "session": session });
     let html = PAGE
-        .replace("/*__SERVE_CSS__*/", CSS)
-        .replace("/*__SERVE_JS__*/", JS)
+        .replace(
+            "/*__SERVE_CSS__*/",
+            &crate::render::shared::page_css(&[CSS]),
+        )
+        .replace("/*__SERVE_JS__*/", &crate::render::shared::page_js(&[JS]))
         .replace("__SERVE_PAGE__", &data.to_string());
     Resp::html(html)
 }
 
 fn route_get(state: &Arc<State>, path: &str, q: &HashMap<String, String>) -> Resp {
+    if let Some(response) = inbox_api::get(state, path) {
+        return response;
+    }
+    if let Some(response) = vote_api::get(state, path, q) {
+        return response;
+    }
     let get = |k: &str| q.get(k).map_or("", String::as_str);
     match path {
         "/" | "/index.html" => page(state, "landing", None),
@@ -885,6 +901,9 @@ fn session_file(state: &State, rest: &str) -> Resp {
                 "This comparison is no longer available.",
             );
         };
+        // The decisions twin only `file://` pages need: a served session reads
+        // and writes decisions through the API, so the request would 404.
+        let html = html.replacen(DECISIONS_TWIN_TAG, "", 1);
         let overview = session_overview(state, id).map(|q| format!("/runs?{q}"));
         let data = serde_json::json!({ "token": state.token, "session": id, "browse": browse_target(state, id), "overview": overview })
             .to_string();
@@ -940,6 +959,12 @@ fn route_post(
     path: &str,
     q: &HashMap<String, String>,
 ) -> Resp {
+    if path == "/api/inbox" || path.starts_with("/api/inbox/") {
+        return inbox_api::post(state, req, path);
+    }
+    if path.starts_with("/api/vote/") {
+        return vote_api::post(state, req, path);
+    }
     if let Some(id) = path
         .strip_prefix("/api/session/")
         .and_then(|r| r.strip_suffix("/decisions"))

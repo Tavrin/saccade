@@ -23,6 +23,10 @@ rayon = "1"
 rustfft = "6"
 sha2 = "0.10"
 tiny_http = "0.12"
+# Blocking HTTP client for the judge-mode providers (MIT OR Apache-2.0); no async runtime.
+ureq = "3"
+tempfile = "3"
+notify = "7"
 schemars = { version = "1", optional = true }
 
 [features]

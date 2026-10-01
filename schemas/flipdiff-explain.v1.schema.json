@@ -141,7 +141,7 @@
           "description": "The hotspot's measurements, from the report."
         },
         "index": {
-          "description": "1-based index; the strip is `hotspots/<name>/h<index>.png`.",
+          "description": "1-based index; the strip is `hotspots/<name>.d/h<index>.png`.",
           "format": "uint32",
           "minimum": 0,
           "type": "integer"

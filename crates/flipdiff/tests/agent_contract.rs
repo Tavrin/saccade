@@ -573,7 +573,7 @@ fn mcp_results_carry_downscaled_strip_images_unless_asked_not_to() {
     }
     assert!(blocks(&replies[1]).is_empty(), "include_images=false");
     // The strips on disk never exceed 1536 px.
-    let strip = image::open(tmp.path().join("a/explain/hotspots/big.png/h1.png")).unwrap();
+    let strip = image::open(tmp.path().join("a/explain/hotspots/big.png.d/h1.png")).unwrap();
     assert!(strip.width() <= 1536);
     // Every tool declares an output schema and annotations.
     for t in replies[3]["result"]["tools"].as_array().unwrap() {

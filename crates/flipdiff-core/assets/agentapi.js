@@ -4,7 +4,7 @@
 (function () {
   'use strict';
   var VERSION = 1;
-  var LAYOUTS = ['side', 'swipe', 'flicker', 'heatmap'];
+  var LAYOUTS = ['side', 'swipe', 'flicker', 'heatmap', 'diff'];
   var CHANNELS = ['rgb', 'r', 'g', 'b', 'luma'];
 
   function num(v) { var n = typeof v === 'number' ? v : (typeof v === 'string' && v.trim() !== '' ? Number(v) : NaN); return isFinite(n) ? n : null; }
@@ -28,8 +28,13 @@
     if (typeof v === 'string') v = v.split(',');
     if (Array.isArray(v) && v.length === 2 && num(v[0]) !== null && num(v[1]) !== null) out.at = [round(num(v[0]), 1), round(num(v[1]), 1)];
     if ((n = num(src.heat)) !== null) out.heat = round(clamp(n, 0, 1), 2);
+    if ((n = num(src.signed)) !== null) out.signed = round(clamp(n, 0, 1), 2);
+    v = src.mask;
+    if (v === true || v === 1 || v === '1' || v === 'true') out.mask = true;
+    else if (v === false || v === 0 || v === '0' || v === 'false') out.mask = false;
     if (typeof src.channel === 'string' && CHANNELS.indexOf(src.channel) >= 0) out.channel = src.channel;
     if ((n = num(src.ev)) !== null) out.ev = round(clamp(n, -16, 16), 2);
+    if ((n = num(src.contrast)) !== null) out.contrast = round(clamp(n, .5, 4), 2);
     v = src.roi;
     if (typeof v === 'string') v = v.split(',');
     if (v === null) out.roi = null;
@@ -69,8 +74,11 @@
       if (st.at) p.push('at=' + st.at[0] + ',' + st.at[1]);
     }
     if (!blind && st.heat > 0) p.push('heat=' + st.heat);
+    if (!blind && st.signed > 0) p.push('signed=' + st.signed);
+    if (!blind && st.mask) p.push('mask=1');
     if (st.channel !== 'rgb') p.push('channel=' + st.channel);
     if (st.ev !== 0) p.push('ev=' + st.ev);
+    if (st.contrast != null && st.contrast !== 1) p.push('contrast=' + st.contrast);
     if (st.roi) p.push('roi=' + st.roi.join(','));
     if (!blind && st.hotspot) p.push('hotspot=' + st.hotspot);
     return p.join('&');
@@ -147,22 +155,21 @@
     return api;
   }
 
-  // The "Copy link to this view" button: copies the current link, hash included.
+  // Copies the current link, hash included, and reports it with a toast.
+  function copyLink(api) {
+    var link = api.link(), UI = window.__flipdiffUI;
+    try { history.replaceState(null, '', link.slice(link.indexOf('#'))); } catch (e) { /* ignore */ }
+    return UI.copy(link).then(function (ok) { UI.toast(ok ? 'Link to this view copied' : 'Could not copy the link'); return ok; });
+  }
+
+  // The "Copy link to this view" button.
   function bindCopy(btn, api) {
     var label = btn.textContent;
     btn.addEventListener('click', function () {
-      var link = api.link();
-      try { history.replaceState(null, '', link.slice(link.indexOf('#'))); } catch (e) { /* ignore */ }
-      var done = function () { btn.textContent = 'Link copied'; setTimeout(function () { btn.textContent = label; }, 1600); };
-      var fallback = function () {
-        var ta = document.createElement('textarea');
-        ta.value = link; ta.setAttribute('readonly', ''); ta.style.position = 'fixed'; ta.style.opacity = '0';
-        document.body.appendChild(ta); ta.select();
-        try { document.execCommand('copy'); done(); } catch (e) { btn.textContent = 'Copy failed'; }
-        ta.remove();
-      };
-      if (navigator.clipboard && navigator.clipboard.writeText) navigator.clipboard.writeText(link).then(done, fallback);
-      else fallback();
+      copyLink(api).then(function (ok) {
+        btn.textContent = ok ? 'Link copied' : 'Copy failed';
+        setTimeout(function () { btn.textContent = label; }, 1600);
+      });
     });
   }
 
@@ -218,6 +225,6 @@
 
   window.__flipdiffAgent = {
     version: VERSION, parseHash: parseHash, formatHash: formatHash, sanitize: sanitize, create: create,
-    bindCopy: bindCopy, sidecar: sidecar, acceptProposal: acceptProposal, proposalBar: proposalBar
+    bindCopy: bindCopy, copyLink: copyLink, sidecar: sidecar, acceptProposal: acceptProposal, proposalBar: proposalBar
   };
 })();

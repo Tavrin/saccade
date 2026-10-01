@@ -1,0 +1,15 @@
+=== compare (exit 1) ===
+STATUS  NAME                METRIC  VALUE    THRESHOLD
+FAIL    button-shift.png    max     0.60632  0.02
+  ↳ local_structure: Local structural change at bottom-right (55×13, 31% of error) and 2 more regions; rest of frame unchanged.
+  ↳ 3 hotspots: 55x13 @ bottom-right (31% of error), 11x31 @ bottom-right (27%), 11x31 @ bottom-right (27%)
+FAIL    label.png           max     0.74187  0.02
+  ↳ local_structure: Local structural change at bottom-right (55×14, 89% of error); rest of frame unchanged.
+  ↳ 1 hotspot: 55x14 @ bottom-right (89% of error)
+FAIL    token.png           max     0.51906  0.02
+  ↳ mixed: Mixed change: tone shift (0.2 stops brighter, tint cooler (red -33.2%, blue +72.0% vs green), black-level offset +0.21 red -0.12 green -0.90 blue) explains 58%; remaining local structural change at bottom-left (72×13, 2% of error) and 2 more regions.
+  ↳ 3 hotspots: 480x56 @ top-center (79% of error), 131x33 @ bottom-right (15%), 411x47 @ bottom-center (2%)
+pass    identical.png       max     0.00000  0.02
+pass    timestamp-only.png  max     0.00000  0.02
+
+3 fail, 0 error, 0 missing, 0 new, 2 pass (5 total)

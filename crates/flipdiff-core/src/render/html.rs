@@ -27,8 +27,14 @@ pub(crate) fn build_html(report: &Report) -> Result<String> {
     // The user-controlled payload is substituted last so that nothing in it can
     // be mistaken for another placeholder.
     Ok(TEMPLATE
-        .replace("/*__FLIPDIFF_CSS__*/", &format!("{CSS}\n{AGENT_CSS}"))
-        .replace("/*__FLIPDIFF_JS__*/", &format!("{AGENT_JS}\n{JS}"))
+        .replace(
+            "/*__FLIPDIFF_CSS__*/",
+            &super::shared::page_css(&[AGENT_CSS, CSS]),
+        )
+        .replace(
+            "/*__FLIPDIFF_JS__*/",
+            &super::shared::page_js(&[AGENT_JS, JS]),
+        )
         .replace("__FLIPDIFF_DATA__", &data))
 }
 
@@ -67,6 +73,7 @@ pub(crate) fn render_sequence_html(
         "<section aria-label=\"Frame sequence\"><h2>Frame sequence</h2><pre>{}</pre><svg viewBox=\"0 0 800 220\" role=\"img\" aria-label=\"Mean FLIP by sorted frame index; vertical scale zero to one\" style=\"width:100%;max-width:1000px\"><path d=\"M40 20 V180 H760\" fill=\"none\" stroke=\"currentColor\"/><g fill=\"none\" stroke=\"#c05cff\" stroke-width=\"2\">{curves}</g><g fill=\"currentColor\" font-size=\"14\"><text x=\"12\" y=\"26\">1</text><text x=\"12\" y=\"184\">0</text><text x=\"40\" y=\"210\">Sorted frame index (mean FLIP)</text></g></svg></section>",
         escape(&sequence.text())
     );
+    write_pixel_data(report, out)?;
     let html = build_html(report)?.replacen("<main>", &format!("<main>{block}"), 1);
     let path = out.join("index.html");
     std::fs::write(&path, html).map_err(|source| Error::Io {
@@ -103,8 +110,9 @@ pub(crate) fn render_rank_html(rank: &crate::rank::RankReport, out: &Path) -> Re
             ));
         }
     }
+    let css = super::shared::page_css(&[CSS]);
     let html = format!(
-        "<!doctype html><html lang=\"en\"><head><meta charset=\"utf-8\"><meta name=\"viewport\" content=\"width=device-width,initial-scale=1\"><title>flipdiff ranking</title><style>{CSS}</style></head><body><main><section><h1>flipdiff ranking</h1><p>Metric: {:?}. Verdict: {}. {} common / {} reference images. Ties use competition ranks; incomplete comparisons have no overall winner.</p><table><thead><tr><th>Rank</th><th>Candidate report</th><th>Mean rank</th><th>Mean metric</th><th>Bit-identical</th></tr></thead><tbody>{rows}</tbody></table><h2>Per-image rankings</h2><table><thead><tr><th>Image</th><th>Candidate</th><th>Rank</th><th>Value</th><th>Status</th></tr></thead><tbody>{image_rows}</tbody></table><p><a href=\"ranking.md\">Markdown tables</a></p></section></main></body></html>",
+        "<!doctype html><html lang=\"en\"><head><meta charset=\"utf-8\"><meta name=\"viewport\" content=\"width=device-width,initial-scale=1\"><title>flipdiff ranking</title><style>{css}</style></head><body><main><section><h1>flipdiff ranking</h1><p>Metric: {:?}. Verdict: {}. {} common / {} reference images. Ties use competition ranks; incomplete comparisons have no overall winner.</p><table><thead><tr><th>Rank</th><th>Candidate report</th><th>Mean rank</th><th>Mean metric</th><th>Bit-identical</th></tr></thead><tbody>{rows}</tbody></table><h2>Per-image rankings</h2><table><thead><tr><th>Image</th><th>Candidate</th><th>Rank</th><th>Value</th><th>Status</th></tr></thead><tbody>{image_rows}</tbody></table><p><a href=\"ranking.md\">Markdown tables</a></p></section></main></body></html>",
         rank.metric,
         escape(&rank.verdict),
         rank.common_images,
@@ -118,8 +126,41 @@ pub(crate) fn render_rank_html(rank: &crate::rank::RankReport, out: &Path) -> Re
     Ok(path)
 }
 
+fn write_pixel_data(report: &Report, report_dir: &Path) -> Result<()> {
+    let mut data = serde_json::Map::new();
+    for e in &report.entries {
+        let paths = [&e.paths.baseline, &e.paths.capture, &e.paths.heatmap];
+        let uris: Vec<Option<String>> = paths
+            .iter()
+            .map(|path| {
+                let path = path.as_ref()?;
+                let bytes = std::fs::read(report_dir.join(path)).ok()?;
+                let mime = if path.ends_with(".jpg") || path.ends_with(".jpeg") {
+                    "image/jpeg"
+                } else {
+                    "image/png"
+                };
+                Some(format!(
+                    "data:{mime};base64,{}",
+                    crate::view::base64(&bytes)
+                ))
+            })
+            .collect();
+        data.insert(e.name.clone(), serde_json::to_value(uris)?);
+    }
+    let json = serde_json::to_string(&data)?.replace("</", "<\\/");
+    let path = report_dir.join("report-pixels.js");
+    std::fs::write(&path, format!("window.__flipdiffReportPixels={json};\n")).map_err(|source| {
+        Error::Io {
+            context: format!("writing {}", path.display()),
+            source,
+        }
+    })
+}
+
 pub(crate) fn render_html(report: &Report, report_dir: &Path) -> Result<PathBuf> {
     let html = build_html(report)?;
+    write_pixel_data(report, report_dir)?;
     let path = report_dir.join("index.html");
     std::fs::write(&path, html).map_err(|source| Error::Io {
         context: format!("writing {}", path.display()),

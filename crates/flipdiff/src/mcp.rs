@@ -52,6 +52,7 @@ type ToolResult = Result<ToolOutput, CliError>;
 /// The server: the root every path must stay under.
 pub struct Server {
     root: PathBuf,
+    watches: crate::s6_mcp::Watches,
 }
 
 fn tool_schemas() -> Value {
@@ -583,6 +584,7 @@ impl Server {
         }
         Ok(Self {
             root: absolute(root),
+            watches: crate::s6_mcp::Watches::default(),
         })
     }
 
@@ -1028,6 +1030,23 @@ impl Server {
     }
 
     fn call_tool(&self, name: &str, args: &Map<String, Value>) -> Option<ToolResult> {
+        if let Some(result) = crate::judge_cmd::mcp_call(name, args, &|key, p| self.resolve(key, p))
+        {
+            return Some(result.map(|(structured, text)| ToolOutput {
+                structured,
+                text,
+                images: Vec::new(),
+            }));
+        }
+        if let Some(result) =
+            crate::s6_mcp::call(name, args, &self.watches, &|key, p| self.resolve(key, p))
+        {
+            return Some(result.map(|(structured, text)| ToolOutput {
+                structured,
+                text,
+                images: Vec::new(),
+            }));
+        }
         Some(match name {
             "flipdiff_compare_runs" => self.tool_compare_runs(args),
             "flipdiff_sequence" => self.tool_sequence(args),
@@ -1062,13 +1081,16 @@ impl Server {
             // A response or garbage from the client: nothing to answer.
             return id.map(|id| rpc_error(id, -32600, "invalid request: missing method"));
         };
+        if method == "notifications/initialized" {
+            self.watches.activate();
+        }
         // No id: a notification such as notifications/initialized, never answered.
         let id = id?;
         let params = obj.get("params").and_then(Value::as_object);
         let result = match method {
             "initialize" => json!({
                 "protocolVersion": PROTOCOL_VERSION,
-                "capabilities": {"tools": {"listChanged": false}},
+                "capabilities": {"tools": {"listChanged": false}, "logging": {}},
                 "serverInfo": {"name": "flipdiff", "version": env!("CARGO_PKG_VERSION")},
                 "instructions": format!("Perceptual (FLIP) image regression. Call flipdiff_compare (or flipdiff_identity for a no-pixel-change refactor): it writes a report plus hotspot crops, attaches the top strips as images, and returns structuredContent.next_step. Read failing[].hotspots for where the visible difference is. Every path must be under the server root ({}); relative paths resolve against it.", self.root.display()),
             }),
@@ -1077,6 +1099,8 @@ impl Server {
                 let mut tools = tool_schemas();
                 if let Some(list) = tools.as_array_mut() {
                     list.extend(crate::agent_ui::mcp_schemas());
+                    list.extend(crate::judge_cmd::mcp_schemas());
+                    list.extend(crate::s6_mcp::schemas());
                 }
                 json!({"tools": tools})
             }
@@ -1128,13 +1152,16 @@ fn rpc_error(id: Value, code: i64, message: &str) -> Value {
 
 /// Serves MCP on stdin/stdout until stdin closes. `root` defaults to the
 /// working directory.
-pub fn serve_stdio(root: Option<&Path>) -> Result<(), CliError> {
+pub fn serve_stdio(root: Option<&Path>, watch: &[String]) -> Result<(), CliError> {
     let root = match root {
         Some(r) => r.to_path_buf(),
         None => std::env::current_dir()
             .map_err(|e| CliError::io(format!("reading the working directory: {e}")))?,
     };
-    let server = Server::new(&root)?;
+    let mut server = Server::new(&root)?;
+    let mut watches = crate::s6_mcp::Watches::default();
+    watches.start(watch, &|key, p| server.resolve(key, p))?;
+    server.watches = watches;
     let stdin = std::io::stdin();
     let stdout = std::io::stdout();
     for line in stdin.lock().lines() {

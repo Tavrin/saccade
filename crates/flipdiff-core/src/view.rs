@@ -69,6 +69,10 @@ pub struct ViewOptions {
     /// Metadata-sidecar name and ignore list (`required`/`declared` are not
     /// used: a view gives no verdict).
     pub meta: crate::meta::MetaOptions,
+    /// Diagnostics engine settings (class, tone and shift findings, signed
+    /// difference and non-finite mask images, timing deltas). Not run for a
+    /// blind view.
+    pub diagnostics: crate::diagnostics::DiagnosticsConfig,
 }
 
 impl Default for ViewOptions {
@@ -83,6 +87,7 @@ impl Default for ViewOptions {
             hdr: crate::hdr::HdrConfig::default(),
             regions: Vec::new(),
             meta: crate::meta::MetaOptions::default(),
+            diagnostics: crate::diagnostics::DiagnosticsConfig::default(),
         }
     }
 }
@@ -124,6 +129,14 @@ pub struct ViewPane {
     /// SHA-256 (hex) of this pane's image file; recorded in the decisions so
     /// `approve` can tell the files it copies are the ones that were judged.
     pub sha256: Option<String>,
+    /// Why this pane differs from the reference (non-reference panes of a
+    /// non-blind view, when diagnostics are enabled).
+    pub diagnostics: Option<crate::diagnostics::Diagnostics>,
+    /// Signed luminance difference against the reference (blue darker, orange
+    /// brighter), relative to the view directory.
+    pub signed_diff: Option<String>,
+    /// Mask of non-finite samples of an HDR pane, relative to the view directory.
+    pub nonfinite_mask: Option<String>,
 }
 
 /// All panes sharing one relative path.
@@ -544,7 +557,7 @@ pub fn shuffled_order(seed: u64, name: &str, n: usize) -> Vec<usize> {
 
 const B64: &[u8; 64] = b"ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
 
-fn base64(bytes: &[u8]) -> String {
+pub(crate) fn base64(bytes: &[u8]) -> String {
     let mut out = String::with_capacity(bytes.len().div_ceil(3) * 4);
     for chunk in bytes.chunks(3) {
         let b = [
@@ -577,7 +590,7 @@ fn pane_files(
         return copy_into_report(src, out_dir, name, stem);
     };
     copy_into_report(src, out_dir, name, &format!("{stem}.orig"))?;
-    let rel = format!("images/{name}/{stem}.png");
+    let rel = format!("images/{name}.d/{stem}.png");
     let dest = out_dir.join(&rel);
     crate::hdr::display_image(hdr, tm)
         .save(&dest)
@@ -769,6 +782,84 @@ fn preset_rois(
         .collect()
 }
 
+/// One side of a pair as `diagnose_pane` reads it.
+struct Side<'a> {
+    /// Decoded 8-bit image (the display image for an HDR file).
+    img: &'a image::RgbaImage,
+    /// Float decode of an HDR file.
+    hdr: Option<&'a crate::hdr::HdrImage>,
+    /// The source file.
+    file: &'a Path,
+    /// The directory the file came from (its sidecar lives there).
+    dir: &'a Path,
+}
+
+/// Where a pane's diagnostics images go.
+struct DiagTarget<'a> {
+    /// The view directory.
+    out_dir: &'a Path,
+    /// The set name.
+    name: &'a str,
+    /// The pane's directory index.
+    index: usize,
+}
+
+/// Runs the diagnostics engine for one pane against the reference and records
+/// its findings, the signed-difference image and the non-finite mask. A failure
+/// only adds a warning: the pane stays usable.
+fn diagnose_pane(
+    pane: &mut ViewPane,
+    cmp: &crate::compare::Comparison,
+    (reference, capture): (&Side<'_>, &Side<'_>),
+    ctx: (&CompareOptions, &ViewOptions, &crate::meta::MetaChecker),
+    target: &DiagTarget<'_>,
+) {
+    use crate::diagnostics::{DiagOut, DiagnoseRequest, Pixels, diagnose};
+    let (flip, opts, meta) = ctx;
+    fn pixels<'a>(s: &Side<'a>) -> Pixels<'a> {
+        match s.hdr {
+            Some(h) => Pixels::Hdr(h),
+            None => Pixels::Ldr(s.img),
+        }
+    }
+    let diag_name = format!("{}.d/pane{}", target.name, target.index);
+    let req = DiagnoseRequest {
+        baseline: pixels(reference),
+        capture: pixels(capture),
+        comparison: cmp,
+        flip,
+        bit_identical: Some(crate::compare::native_samples_identical(
+            reference.file,
+            capture.file,
+        )),
+        baseline_properties: None,
+        capture_properties: pane.properties,
+        hotspots: &pane.hotspots,
+        hotspot_options: crate::hotspots::HotspotOptions::default(),
+        config: &opts.diagnostics,
+        capture_path: Some(capture.file),
+        out: Some(DiagOut {
+            report_dir: target.out_dir,
+            name: &diag_name,
+        }),
+    };
+    match diagnose(&req) {
+        Ok(mut out) => {
+            out.diagnostics.perf = crate::diagnostics::perf_pairs(
+                meta,
+                &opts.diagnostics,
+                reference.dir,
+                capture.dir,
+                target.name,
+            );
+            pane.signed_diff = out.signed_diff;
+            pane.nonfinite_mask = out.nonfinite_mask;
+            pane.diagnostics = Some(out.diagnostics);
+        }
+        Err(e) => pane.warnings.push(format!("diagnostics failed: {e}")),
+    }
+}
+
 /// Builds the viewer in `out_dir` (`index.html` plus `images/`) and returns
 /// the embedded model.
 ///
@@ -800,6 +891,7 @@ pub fn build_view(dirs: &[PathBuf], out_dir: &Path, opts: &ViewOptions) -> Resul
         }
     }
     crate::compare::check_ppd(opts.pixels_per_degree)?;
+    opts.diagnostics.validate()?;
     let meta = opts.meta.checker()?;
     let reference = resolve_reference(opts.reference.as_deref(), dirs, &labels)?;
     // Blind pages carry neutral labels only; the true ones go to the key file.
@@ -918,6 +1010,9 @@ pub fn build_view(dirs: &[PathBuf], out_dir: &Path, opts: &ViewOptions) -> Resul
                         meta_diff: Vec::new(),
                         meta_error: None,
                         sha256: None,
+                        diagnostics: None,
+                        signed_diff: None,
+                        nonfinite_mask: None,
                     };
                     let Some(src) = src else {
                         pixel_uris.push(None);
@@ -981,7 +1076,7 @@ pub fn build_view(dirs: &[PathBuf], out_dir: &Path, opts: &ViewOptions) -> Resul
                                         &compare_opts,
                                     ) {
                                         Ok(cmp) => {
-                                            let rel = format!("images/{name}/heatmap{i}.png");
+                                            let rel = format!("images/{name}.d/heatmap{i}.png");
                                             let dest = out_dir.join(&rel);
                                             cmp.heatmap_rgb().save(&dest).map_err(|source| {
                                                 Error::Encode { path: dest, source }
@@ -1002,6 +1097,36 @@ pub fn build_view(dirs: &[PathBuf], out_dir: &Path, opts: &ViewOptions) -> Resul
                                                 cmp.metrics.height,
                                                 &crate::hotspots::HotspotOptions::default(),
                                             );
+                                            if let Some(ref_src) = sources[reference]
+                                                .filter(|_| opts.diagnostics.enabled)
+                                            {
+                                                diagnose_pane(
+                                                    &mut pane,
+                                                    &cmp,
+                                                    (
+                                                        &Side {
+                                                            img: r,
+                                                            hdr: ref_hdr,
+                                                            file: ref_src,
+                                                            dir: &dirs[reference],
+                                                        },
+                                                        &Side {
+                                                            img,
+                                                            hdr: hdr_imgs
+                                                                .get(i)
+                                                                .and_then(Option::as_ref),
+                                                            file: src,
+                                                            dir: &dirs[i],
+                                                        },
+                                                    ),
+                                                    (&compare_opts, opts, &meta),
+                                                    &DiagTarget {
+                                                        out_dir,
+                                                        name,
+                                                        index: i,
+                                                    },
+                                                );
+                                            }
                                             pane.metrics = Some(cmp.metrics);
                                         }
                                         Err(e) => pane.error = Some(pane_error(&e, opts.blind)),
@@ -1175,7 +1300,7 @@ mod tests {
         // Hotspots come only with a comparison; the uniform shift covers the frame.
         assert!(x.panes[1].hotspots.is_empty());
         assert_eq!(x.panes[2].hotspots[0].rect_px, [0, 0, 8, 8]);
-        assert!(out.join("images/x.png/heatmap2.png").is_file());
+        assert!(out.join("images/x.png.d/heatmap2.png").is_file());
         // y.png exists only in the reference directory.
         let y = &m.sets[0];
         assert!(y.panes[0].path.is_none() && y.panes[1].path.is_some());
@@ -1357,7 +1482,11 @@ mod tests {
         let tmp = tempfile::tempdir().unwrap();
         let dirs = three_dirs(tmp.path());
         let opts = ViewOptions {
-            labels: Some(vec!["parent".into(), "candidate".into(), "other".into()]),
+            labels: Some(vec![
+                "zz_parent_label".into(),
+                "zz_candidate_label".into(),
+                "zz_other_label".into(),
+            ]),
             blind: true,
             seed: Some(5),
             ..ViewOptions::default()
@@ -1366,11 +1495,14 @@ mod tests {
         let m = build_view(&dirs, &out, &opts).unwrap();
         assert_eq!(m.labels, ["P1", "P2", "P3"]);
         let html = std::fs::read_to_string(out.join("index.html")).unwrap();
-        for secret in ["parent", "candidate", "other"] {
+        for secret in ["zz_parent_label", "zz_candidate_label", "zz_other_label"] {
             assert!(!html.contains(secret), "page leaks {secret:?}");
         }
         let key = read_blind_key(&out.join(BLIND_KEY_FILE)).unwrap();
-        assert_eq!(key.labels, ["parent", "candidate", "other"]);
+        assert_eq!(
+            key.labels,
+            ["zz_parent_label", "zz_candidate_label", "zz_other_label"]
+        );
         assert_eq!(key.shuffle_seed, 5);
         assert_ne!(m.seed, 5, "the page carries a token, not the shuffle seed");
         let decisions = Decisions {

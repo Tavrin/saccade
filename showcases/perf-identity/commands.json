@@ -1,0 +1,14 @@
+[
+  {
+    "name": "identity",
+    "args": [
+      "identity",
+      "baseline",
+      "capture",
+      "--config",
+      "flipdiff.toml"
+    ],
+    "out": "identity",
+    "exit": 1
+  }
+]

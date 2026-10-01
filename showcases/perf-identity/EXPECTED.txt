@@ -1,0 +1,14 @@
+=== identity (exit 1) ===
+identity: ❌ 1 differ (max FLIP 0.361 on `view_2.png`)
+
+STATUS  NAME        METRIC  VALUE    THRESHOLD
+FAIL    view_2.png  max     0.36141  0
+  ↳ local_structure: Local structural change at center (5×5, 38% of error).
+  ↳ perf: timing.gpu_ms 4.85 → 2.71 (−44%)
+  ↳ 1 hotspot: 5x5 @ center (38% of error)
+pass    view_0.png  max     0.00000  0
+  ↳ bit-identical · timing.gpu_ms 4.85 → 2.71 (−44%)
+pass    view_1.png  max     0.00000  0
+  ↳ bit-identical · timing.gpu_ms 4.85 → 2.71 (−44%)
+
+1 fail, 0 error, 0 missing, 0 new, 2 pass (3 total)

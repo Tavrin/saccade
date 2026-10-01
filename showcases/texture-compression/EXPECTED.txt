@@ -1,0 +1,9 @@
+=== rank (exit 1) ===
+rank: regression (Mean; 1 common / 1 reference images)
+RANK  CANDIDATE  MEAN RANK  MEAN METRIC  IDENTICAL
+1  palette-256  1.000000  0.033848  0
+2  jpeg-q85  2.000000  0.067061  0
+3  block-high  3.000000  0.116925  0
+4  block-low  4.000000  0.123128  0
+5  jpeg-q40  5.000000  0.124969  0
+report: /mnt/linux-extra/moss-cargo-targets/flipdiff-showcase-reports/texture-compression/rank/index.html

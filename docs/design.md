@@ -146,7 +146,7 @@ overall procedure are ported from NVIDIA's FLIP reference code
 (BSD-3-Clause). See [THIRD_PARTY.md](../THIRD_PARTY.md).
 
 For HDR pairs, the report and the viewer show a display PNG tone-mapped at
-exposure 0 (`images/<name>/baseline.png`, `capture.png`). The original file is
+exposure 0 (`images/<name>.d/baseline.png`, `capture.png`). The original file is
 copied next to it as `baseline.orig.<ext>` and `capture.orig.<ext>`. Image
 properties use linear Rec. 709 luminance. The chosen settings are recorded in
 the entry's `hdr` field.
@@ -249,7 +249,7 @@ what kind of change it is, in numbers. It never changes a status.
   FLIP re-run: `shift_explained_fraction`.
 - **Signed difference.** `signed`: mean of capture minus baseline display
   luminance, fractions brighter and darker than half a code value, and the
-  colour `scale`. `paths.signed_diff` is `images/<name>/signed_diff.png`: dark
+  colour `scale`. `paths.signed_diff` is `images/<name>.d/signed_diff.png`: dark
   grey is no change, orange brighter, blue darker, full colour at `scale` (the
   99.5th percentile of the absolute difference, at least 0.004).
 - **Non-finite map.** For an HDR capture with NaN, infinite or negative
@@ -312,14 +312,26 @@ cannot inject workflow commands. A closed stdout pipe is not an error.
 ```
 report/
   index.html                     self-contained HTML report
-  flipdiff-report.v1.json        machine-readable report
-  images/<name>/baseline.<ext>   copies of both inputs
-  images/<name>/capture.<ext>
-  images/<name>/heatmap.png      FLIP error map (magma colour map)
+  flipdiff-report.v1.json         machine-readable report
+  images/<name>.d/baseline.<ext>   copies of both inputs
+  images/<name>.d/capture.<ext>
+  images/<name>.d/heatmap.png      FLIP error map (magma colour map)
 ```
 
 Every path in the JSON is relative to the report directory and `/`-separated,
 so the directory can be zipped, moved and opened anywhere.
+
+`<name>` is the relative input image name, including its extension. The `.d`
+suffix marks a directory: `terrain/lit.png` goes under
+`images/terrain/lit.png.d/`. Viewer and serve-session images follow this
+convention too, including per-pane diagnostics. Explain hotspot strips use
+`hotspots/<name>.d/`; run overviews store flat thumbnails and heatmaps.
+
+At the CLI boundary, every command with `--out` checks its parent for the
+configured metadata sidecar (default `flipdiff-meta.json`) or `capture.json`.
+Finding either prints a stderr warning because generated images may be
+indexed as captures. `--allow-out-near-captures` suppresses it. MCP skips this
+warning and continues to confine paths to its root.
 
 `index.html` is one file. CSS and JavaScript are inline, the report JSON is
 embedded in a `<script type="application/json" id="flipdiff-data">` element,
@@ -511,7 +523,7 @@ panes are labelled "A", "B", and so on. What the page embeds is chosen so that
 view-source reveals nothing:
 
 - neutral labels `P1`, `P2`, ... by position within the set, and image files
-  named `images/<name>/p_<random hex>.<ext>` (never `pane<i>`);
+  named `images/<name>.d/p_<random hex>.<ext>` (never `pane<i>`);
 - `order` is always `0..n` (the panes themselves are shuffled) and `reference`
   is `n`, no pane;
 - no FLIP data at all: no heatmaps, metrics, hotspots, error maps, triage status
@@ -593,7 +605,7 @@ files in the output directory are replaced.
 explain.json                 schema flipdiff-explain.v1 (schemas/flipdiff-explain.v1.schema.json)
 explain.md                   the same, as text
 thumbs/<name>.png            whole-frame strip with the hotspot boxes drawn
-hotspots/<name>/hN.png       [baseline | capture | heatmap] crop strip of hotspot N
+hotspots/<name>.d/hN.png       [baseline | capture | heatmap] crop strip of hotspot N
 ```
 
 The thumbnail of `a.png` is `thumbs/a.png` (a name that does not end in `.png`
@@ -801,3 +813,103 @@ Requires contents write for the checkout credentials and pull-requests write
 for `github-token`; errors propagate. All expressions go through step env,
 with none embedded in shell scripts. The compare exit verdict remains the
 Action's final verdict. No PR-comment command handler is required.
+
+## 18. Bisect format: `flipdiff-bisect.v1`
+
+`schema`, `status` (`found`, `pass`, `inconclusive`, `non_monotonic`), nullable
+`first_bad`/`last_good`, `candidates[]`, `probes[]`, `total_probes`, and
+`non_monotonic[]` (observed bad-before-good target pairs). Each probe has
+zero-based `index`, `target` (absolute run path or immutable revision),
+`verdict` (`good`, `bad`, `skip`), nullable absolute `report_dir` and `reason`.
+Only an unambiguous monotonic boundary populates `first_bad`. If no probed
+target passed, `last_good` uses the supplied `--good` path or good Git revision.
+Skips between
+last good and observed bad produce candidates, including the observed bad.
+This is a search under a monotonic assumption, not exhaustive verification.
+Native sample identity is the default; explicit threshold uses FLIP. Selected
+entry statuses/totals are reflected in per-probe normal reports. Missing/new
+images fail; decode errors/no selected images skip. CLI mode B
+uses read-only Git revision queries and user `sh -c` commands, with fresh
+capture directories and logs, never an implicit checkout. MCP excludes it.
+
+Watch reuses `flipdiff-result.v1` as JSONL, or `flipdiff-error.v1` on failures.
+Native recursive `notify` monitoring falls back to content-comparing polling;
+initial capture and debounced events run the normal compare pipeline. MCP
+watch status and best-effort log notifications share that result format.
+
+## 19. Human inbox and ask formats
+
+`flipdiff-inbox-item.v1` stores `id` (32 lowercase hex), `question`,
+`allowed_answers[]`, nullable `context`, `link`, `from`, `status`
+(`open`/`answered`), `created_unix`, nullable `answer`, `note`, `answered_unix`.
+Question/answer body caps are bounded. Allowed answers are unique, nonempty,
+1 to 32 values, at most 256 bytes each. Links are local absolute paths; the
+HTTP route may normalize this server's absolute URL to a path. UI uses text
+nodes and local links. Writes are atomic and concurrent answers serialized.
+Items live only under decisions/inbox, never archive roots; files/symlink ids
+are checked before access. GET list orders open first, newest within groups.
+
+`flipdiff-ask-result.v1`: `schema`, `id`, `status`, nullable `answer`/`note`,
+`timed_out`, and `url` (human inbox deep link). Timeout leaves the question
+open. Ask uses private mode-0600 `serve.json` (`port`, `token`) in serve's
+cache, validates the requested port, and connects directly to literal IPv4
+127.0.0.1 over HTTP with no DNS, proxy or redirects. Inbox POSTs reuse serve's
+Host/Origin/token gate. No answer implies a baseline approval. The schemas
+for all three new formats are derived from Rust and checked for drift; focused
+CLI/HTTP/MCP tests validate actual payloads against them.
+
+## Judge panels, evidence and trust
+
+`judge` accepts a report or a rank document and a panel TOML. Its six fixed
+questions declare `checkable` (`triage`, `cause`), `rubric` (`accept`, `ask_human`,
+`mask_suggest`) or `preference`; every answer set includes abstention. The
+`flipdiff-judge.v1` document includes the kind and its limits, requests on a dry
+run, and otherwise the per-call audit, merged per-judge votes, weighted panel
+result, agreement, canaries, position bias and a trust explanation.
+
+The deterministic text encoder augments decision-request evidence with an 8×8
+mean FLIP grid rounded to two decimals, CIELAB nearest-neighbour English colour
+names over changed pixels, diagnostic tone/shift values without runtime timings,
+metadata differences, intent and optional external OCR line differences. Raw
+pixels never enter text requests. Vision inputs are PNG strips of padded,
+contrast-stretched hotspot crops with neutral labels, no heatmap and no full
+frame fallback. Vision and human questions, and all pairwise preferences, use
+both orders. Preference answers are mapped from presentation slots back to
+stable candidate ids before merging. An order flip escalates; incomplete human
+orders abstain. A probability omitted by a model is not treated as certainty.
+
+Known-answer generated canaries are interleaved at a configurable rate. Judges
+that fail are flagged and down-weighted. Every call, including canaries, retains
+its evidence SHA-256, provider, requested/answering model and reported version,
+probability/confidence, rubric version, timestamp, latency, errors and retry/
+fallback attempts. Text probabilities are explicitly uncalibrated until checked
+against labels. HTTP keys come from the allowed files only, never ambient API
+key variables; redirects are disabled. OpenCode free-model calls use isolated
+config and working directories, no inherited credentials and denied tools.
+
+Individual answers use `propose_report`, sharing `decide` validation and storage
+while keeping human panel votes as proposals. Only a settled `panel` aggregate
+uses the configured gate. Deterministic failures remain refused. A calibration
+threshold is schema/range checked and applies only to its source/question;
+relative config paths resolve from the config directory. Baseline approval still
+requires a final decision.
+
+`flipdiff-calibration.v1` reports accuracy against human consensus, pairwise
+agreement with humans, ECE, reliability bins, optional position bias and nominal
+Krippendorff's alpha over multiple human ratings. Automatically promoted model
+predictions are not human labels. Thresholds require minimum labelled support.
+`flipdiff-judge-selftest.v1` reports repeat, order, name and crop-shift flip rates.
+Rank judging fits Bradley–Terry over individual votes after order merging, with
+seeded bootstrap strength/rank intervals and warnings for sparse, disconnected
+or indistinguishable candidates. Preference results describe the asked
+population, never objective truth.
+
+Human runs persist at `decisions/judge/<evidence-and-panel-hash>/run.json` with
+schema `flipdiff-judge-votes.v1`, anonymous strip files and append-only
+`votes.jsonl`; latest vote per named voter/item wins. `/vote/<id>` and
+`/api/vote/<id>/{items,vote}` reuse the shared server security gate, refuse unsafe
+ids and symlink escapes, and expose only the current voter's responses. Each
+voter's items are deterministically shuffled, with both orders; localStorage
+access is guarded. Repeating the judge command includes those votes without
+reusing them for changed evidence or rubrics. MCP exposes `flipdiff_judge` and
+`flipdiff_judge_calibrate`, with nested input paths confined to its root.

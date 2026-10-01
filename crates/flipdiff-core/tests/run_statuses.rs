@@ -77,7 +77,60 @@ fn statuses_overrides_and_report_json() {
     let json = std::fs::read_to_string(out.join(REPORT_FILE_NAME)).expect("json");
     let parsed: Report = serde_json::from_str(&json).expect("parse");
     assert_eq!(parsed, lax);
-    assert!(out.join("images/terrain/hill.png/heatmap.png").is_file());
+    assert!(out.join("images/terrain/hill.png.d/heatmap.png").is_file());
+}
+
+#[test]
+fn compare_output_directories_have_no_image_extensions() {
+    let tmp = tempfile::tempdir().expect("tmp");
+    let (base, cap, out) = (
+        tmp.path().join("base"),
+        tmp.path().join("cap"),
+        tmp.path().join("out"),
+    );
+    for ext in ["png", "jpg", "jpeg", "exr", "hdr"] {
+        for (dir, value) in [(&base, 0.2), (&cap, 0.4)] {
+            let path = dir.join(format!("terrain/lit.{ext}"));
+            std::fs::create_dir_all(path.parent().expect("parent")).expect("mkdir");
+            if matches!(ext, "exr" | "hdr") {
+                image::Rgb32FImage::from_pixel(16, 16, Rgb([value, value, value]))
+                    .save(path)
+                    .expect("save HDR");
+            } else {
+                flat(16, 16, (value * 255.0) as u8)
+                    .save(path)
+                    .expect("save LDR");
+            }
+        }
+    }
+    let report = run(&base, &cap, &out, &RunConfig::default()).expect("compare");
+    assert_eq!(report.entries.len(), 5);
+    for entry in &report.entries {
+        assert_ne!(entry.status, Status::Error, "{:?}", entry.error);
+        let prefix = format!("images/{}.d/", entry.name);
+        let paths = serde_json::to_value(&entry.paths).expect("paths");
+        for path in paths.as_object().expect("paths object").values() {
+            if let Some(path) = path.as_str() {
+                assert!(path.starts_with(&prefix), "{path}");
+                assert!(out.join(path).is_file(), "{path}");
+            }
+        }
+    }
+    fn check_dirs(dir: &Path) {
+        for child in std::fs::read_dir(dir).expect("list") {
+            let path = child.expect("child").path();
+            if path.is_dir() {
+                let ext = path.extension().and_then(|s| s.to_str()).unwrap_or("");
+                assert!(
+                    !["png", "jpg", "jpeg", "exr", "hdr"].contains(&ext),
+                    "{}",
+                    path.display()
+                );
+                check_dirs(&path);
+            }
+        }
+    }
+    check_dirs(&out);
 }
 
 #[test]

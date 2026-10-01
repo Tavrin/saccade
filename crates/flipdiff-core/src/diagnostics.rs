@@ -485,7 +485,8 @@ pub struct DiagnoseRequest<'a> {
 pub struct DiagOut<'a> {
     /// The report directory.
     pub report_dir: &'a Path,
-    /// The entry name (images go to `images/<name>/`).
+    /// The image directory relative to `images/`, e.g. `<name>.d` or
+    /// `<name>.d/pane1` for viewer diagnostics.
     pub name: &'a str,
 }
 
@@ -494,9 +495,9 @@ pub struct DiagOut<'a> {
 pub struct DiagnoseOutput {
     /// The findings.
     pub diagnostics: Diagnostics,
-    /// `images/<name>/signed_diff.png`, relative to the report directory.
+    /// `images/<name>.d/signed_diff.png`, relative to the report directory.
     pub signed_diff: Option<String>,
-    /// `images/<name>/nonfinite_mask.png`, relative to the report directory.
+    /// `images/<name>.d/nonfinite_mask.png`, relative to the report directory.
     pub nonfinite_mask: Option<String>,
 }
 

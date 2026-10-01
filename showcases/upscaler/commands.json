@@ -1,0 +1,36 @@
+[
+  {
+    "name": "rank",
+    "args": [
+      "rank",
+      "baseline",
+      "candidates/nearest",
+      "candidates/bilinear",
+      "candidates/bicubic",
+      "candidates/lanczos",
+      "candidates/sharpened-bicubic",
+      "--labels",
+      "nearest,bilinear,bicubic,lanczos,sharpened-bicubic",
+      "--metric",
+      "mean",
+      "--threshold",
+      "0.001"
+    ],
+    "out": "rank",
+    "exit": 1
+  },
+  {
+    "name": "sequence",
+    "args": [
+      "sequence",
+      "sequence/baseline",
+      "sequence/capture",
+      "--pattern",
+      "frame_*.png",
+      "--threshold",
+      "0.005"
+    ],
+    "out": "sequence",
+    "exit": 1
+  }
+]

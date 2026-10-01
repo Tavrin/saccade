@@ -1,0 +1,10 @@
+=== compare (exit 1) ===
+STATUS  NAME        METRIC          VALUE    THRESHOLD
+FAIL    depth.png   mean (depth)    0.00809  0.002
+FAIL    lit.png     mean            0.06203  0.001
+  ↳ local_structure: Local structural change at center (74×56, 98% of error); rest of frame within noise.
+  ↳ 1 hotspot: 74x56 @ center (98% of error)
+pass    motion.png  mean (pixels)   0.00000  0.5
+pass    normal.png  mean (degrees)  0.00000  1
+
+2 fail, 0 error, 0 missing, 0 new, 2 pass (4 total)

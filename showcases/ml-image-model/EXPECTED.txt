@@ -1,0 +1,243 @@
+=== compare (exit 1) ===
+STATUS  NAME          METRIC  VALUE    THRESHOLD
+FAIL    seed_101.png  mean    0.18755  0.001
+  ↳ global_tone: Whole frame tint warmer (red +34.7%, blue -19.2% vs green) (tone shift explains 92% of the difference); no structural change.
+  ↳ 1 hotspot: 192x144 @ center (100% of error) [frame-wide change]
+FAIL    seed_104.png  mean    0.18235  0.001
+  ↳ global_tone: Whole frame tint warmer (red +37.3%, blue -17.9% vs green) (tone shift explains 92% of the difference); no structural change.
+  ↳ 1 hotspot: 192x144 @ center (100% of error) [frame-wide change]
+FAIL    seed_105.png  mean    0.02403  0.001
+  ↳ local_structure: Local structural change at center (67×45, 93% of error); rest of frame within noise.
+  ↳ 1 hotspot: 67x45 @ center (93% of error)
+pass    seed_100.png  mean    0.00000  0.001
+pass    seed_102.png  mean    0.00000  0.001
+pass    seed_103.png  mean    0.00000  0.001
+
+3 fail, 0 error, 0 missing, 0 new, 3 pass (6 total)
+=== explain (exit 0) ===
+# flipdiff explain: 3 entries (baseline vs capture); 3 fail, 3 pass of 6
+Strips are [baseline | capture | heatmap]; error scale 0 (none) to 1.
+
+## seed_101.png Fail Mean=0.1876 (limit 0.001)
+frame: thumbs/seed_101.png
+global_tone: Whole frame tint warmer (red +34.7%, blue -19.2% vs green) (tone shift explains 92% of the difference); no structural change.
+1. center 192x144 at (0,0) 100% of error, mean 0.19 max 0.32, hot px 27648 (100.00% of frame), box 100.0% of frame: hotspots/seed_101.png.d/h1.png
+
+## seed_104.png Fail Mean=0.1824 (limit 0.001)
+frame: thumbs/seed_104.png
+global_tone: Whole frame tint warmer (red +37.3%, blue -17.9% vs green) (tone shift explains 92% of the difference); no structural change.
+1. center 192x144 at (0,0) 100% of error, mean 0.18 max 0.35, hot px 27648 (100.00% of frame), box 100.0% of frame: hotspots/seed_104.png.d/h1.png
+
+## seed_105.png Fail Mean=0.0240 (limit 0.001)
+frame: thumbs/seed_105.png
+local_structure: Local structural change at center (67×45, 93% of error); rest of frame within noise.
+1. center 67x45 at (78,55) 93% of error, mean 0.22 max 0.76, hot px 1841 (6.66% of frame), box 10.9% of frame: hotspots/seed_105.png.d/h1.png
+
+pack: /mnt/linux-extra/moss-cargo-targets/flipdiff-showcase-reports/ml-image-model/explain
+=== decision-request (exit 0) ===
+{
+  "items": [
+    {
+      "allowed_answers": [
+        "accept",
+        "reject",
+        "needs_human"
+      ],
+      "entry": "seed_101.png",
+      "id": "seed_101.png",
+      "question": "Is this visual change intended, or a regression? Judge it against the intent text when present.",
+      "question_type": "accept",
+      "request_hash": "sha256:baa66aac3f9f128fbf09156a761c98127e124693fdb573a17d34040a9ad7925a",
+      "state": {
+        "bit_identical": false,
+        "diagnostics": {
+          "class": "global_tone",
+          "description": "Whole frame tint warmer (red +34.7%, blue -19.2% vs green) (tone shift explains 92% of the difference); no structural change.",
+          "tone_explained_fraction": 0.923789
+        },
+        "entry": "seed_101.png",
+        "frame_wide": true,
+        "hotspots": [
+          {
+            "max": 0.316142,
+            "mean": 0.187555,
+            "n": 1,
+            "position": "center",
+            "share": 1.0,
+            "size": [
+              192,
+              144
+            ]
+          }
+        ],
+        "intent": "Checkpoint B must preserve colour and structure.",
+        "meta_diff": [],
+        "metric": "mean",
+        "metrics": {
+          "frac_above_0_1": 1.0,
+          "frac_above_0_5": 0.0,
+          "height": 144,
+          "max": 0.316142,
+          "mean": 0.187555,
+          "p95": 0.282144,
+          "p99": 0.294487,
+          "width": 192
+        },
+        "mode": "regression",
+        "properties": {
+          "baseline": {
+            "all_black": false,
+            "all_white": false,
+            "inf": 0,
+            "nan": 0
+          },
+          "capture": {
+            "all_black": false,
+            "all_white": false,
+            "inf": 0,
+            "nan": 0
+          }
+        },
+        "threshold": 0.001,
+        "value": 0.187555,
+        "verdict": "fail"
+      }
+    },
+    {
+      "allowed_answers": [
+        "accept",
+        "reject",
+        "needs_human"
+      ],
+      "entry": "seed_104.png",
+      "id": "seed_104.png",
+      "question": "Is this visual change intended, or a regression? Judge it against the intent text when present.",
+      "question_type": "accept",
+      "request_hash": "sha256:4e2580f48fc9ddef0af1ef2ec93545beeb77e7e211e69791a1f72f9852bdc6a9",
+      "state": {
+        "bit_identical": false,
+        "diagnostics": {
+          "class": "global_tone",
+          "description": "Whole frame tint warmer (red +37.3%, blue -17.9% vs green) (tone shift explains 92% of the difference); no structural change.",
+          "tone_explained_fraction": 0.920327
+        },
+        "entry": "seed_104.png",
+        "frame_wide": true,
+        "hotspots": [
+          {
+            "max": 0.347808,
+            "mean": 0.182351,
+            "n": 1,
+            "position": "center",
+            "share": 1.0,
+            "size": [
+              192,
+              144
+            ]
+          }
+        ],
+        "intent": "Checkpoint B must preserve colour and structure.",
+        "meta_diff": [],
+        "metric": "mean",
+        "metrics": {
+          "frac_above_0_1": 1.0,
+          "frac_above_0_5": 0.0,
+          "height": 144,
+          "max": 0.347808,
+          "mean": 0.182351,
+          "p95": 0.284246,
+          "p99": 0.342556,
+          "width": 192
+        },
+        "mode": "regression",
+        "properties": {
+          "baseline": {
+            "all_black": false,
+            "all_white": false,
+            "inf": 0,
+            "nan": 0
+          },
+          "capture": {
+            "all_black": false,
+            "all_white": false,
+            "inf": 0,
+            "nan": 0
+          }
+        },
+        "threshold": 0.001,
+        "value": 0.182351,
+        "verdict": "fail"
+      }
+    },
+    {
+      "allowed_answers": [
+        "accept",
+        "reject",
+        "needs_human"
+      ],
+      "entry": "seed_105.png",
+      "id": "seed_105.png",
+      "question": "Is this visual change intended, or a regression? Judge it against the intent text when present.",
+      "question_type": "accept",
+      "request_hash": "sha256:4633fbad9623fdde4968d5f6f23bf2b90551bdd17cc1dae3a98310300f7c31ca",
+      "state": {
+        "bit_identical": false,
+        "diagnostics": {
+          "class": "local_structure",
+          "description": "Local structural change at center (67×45, 93% of error); rest of frame within noise.",
+          "shift_explained_fraction": 0.0,
+          "tone_explained_fraction": 0.0
+        },
+        "entry": "seed_105.png",
+        "frame_wide": false,
+        "hotspots": [
+          {
+            "max": 0.760094,
+            "mean": 0.215228,
+            "n": 1,
+            "position": "center",
+            "share": 0.932226,
+            "size": [
+              67,
+              45
+            ]
+          }
+        ],
+        "intent": "Checkpoint B must preserve colour and structure.",
+        "meta_diff": [],
+        "metric": "mean",
+        "metrics": {
+          "frac_above_0_1": 0.066587,
+          "frac_above_0_5": 0.001121,
+          "height": 144,
+          "max": 0.760094,
+          "mean": 0.02403,
+          "p95": 0.266436,
+          "p99": 0.414222,
+          "width": 192
+        },
+        "mode": "regression",
+        "properties": {
+          "baseline": {
+            "all_black": false,
+            "all_white": false,
+            "inf": 0,
+            "nan": 0
+          },
+          "capture": {
+            "all_black": false,
+            "all_white": false,
+            "inf": 0,
+            "nan": 0
+          }
+        },
+        "threshold": 0.001,
+        "value": 0.02403,
+        "verdict": "fail"
+      }
+    }
+  ],
+  "question_type": "accept",
+  "schema": "flipdiff-decision-request.v1",
+  "skipped": []
+}

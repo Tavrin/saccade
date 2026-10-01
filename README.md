@@ -7,7 +7,7 @@ Perceptual visual-regression testing for renderers, game engines and graphics co
 - **Why not pixelmatch, ImageMagick `compare` or RMSE:** they count how many pixels differ, or by how much. A 1-pixel shift of fine detail, a 1-bit dither change and a visible colour error can score alike, so any threshold is either too noisy or too blind for anti-aliased, noisy rendered images. FLIP models how a person sees the difference (colour, contrast sensitivity, spatial frequency, viewing distance) and scores a change by how visible it is. [Reading FLIP numbers](#reading-flip-numbers) has measured examples.
 - **Refuses a verdict on a mismatched comparison:** if the two runs were captured with different settings (a different renderer mode, resolution or driver), flipdiff reports an error instead of a pass or a fail. See [Configuration sidecars](#refuse-comparisons-made-under-different-settings).
 
-![HTML report: results table with the failing row expanded to baseline, capture and FLIP heatmap, with numbered hotspot boxes](docs/images/report.png)
+![HTML report with a classified regression, timing delta and numbered hotspots](docs/images/report.png)
 
 ## Try it in 30 seconds
 
@@ -41,28 +41,51 @@ open report/index.html         # macOS
 start report\index.html        # Windows
 ```
 
+### Report layout
+
+The report contains `flipdiff-report.v1.json`, `index.html` and per-image
+folders under `images/<relative name>.d/`. For example, `lit.png` gets
+`images/lit.png.d/baseline.png`, `capture.png` and `heatmap.png`. JSON image
+paths are relative to the report directory, so the report can be moved.
+Viewer and serve-session images use the same `.d` folder suffix; explain
+hotspot strips use `hotspots/<relative name>.d/`.
+
+Every CLI command with `--out` warns on stderr if its parent directory holds
+the configured metadata sidecar (`--meta-name`, default `flipdiff-meta.json`)
+or `capture.json`: outputs there may be indexed as captures. Choose another
+output location or pass `--allow-out-near-captures` to silence the warning.
+
 Click a row to expand it. A failing image also lists its **hotspots**: numbered boxes where the error is concentrated, with their position, size, share of the total error and mean and max FLIP. The boxes are drawn over the baseline, the capture and the heatmap (the Hotspots button toggles them), and clicking a box or a row zooms the compare stage to it. A "frame-wide change" badge appears when the largest hotspot covers at least half of the frame.
 
 ![Expanded report row with hotspot boxes, a heatmap and a swipe slider](docs/images/report-detail.png)
 
 ### Compare before and after
 
-The compare stage under the three panes is a swipe (drag the divider, or use the slider under it) and a flicker (alternates the two images twice a second). Zoom and pan are shared by every layer. The same keys work in the report and in `view`; the keys act on the comparison you last touched.
+Choose Side, Swipe, Flicker, Heatmap or Difference in the comparison toolbar. Swipe has a draggable divider; Flicker alternates the images twice a second. Display holds channel, exposure, contrast and reset. Tools holds region drawing, the pixel inspector, hold-to-compare, copy link and snapshot. The status bar shows cursor coordinates, original RGB values, FLIP, zoom, pair labels and layout. Zoom and pan are shared by every layer. The same keys work in the report and in `view`; the keys act on the comparison you last touched.
 
 | Key | Action |
 |---|---|
 | `←` / `→` | Move the swipe divider by 5% (with `Shift`, 1%). In `view` outside swipe, they select the previous or next image set |
+| `Ctrl` / `Cmd` + `K` | Search every action in report, view, serve and runs; arrows select, Enter runs, Esc closes |
 | `Space` | Toggle flicker |
 | `v` | Vertical or horizontal split |
 | `h` | Heatmap layer on the capture side |
+| `d` | Signed difference layer in Swipe (blue darker, orange brighter) |
+| `m` | Non-finite mask and cluster boxes, when present |
 | `1` `2` `4` `8` | Zoom to 1×, 2×, 4× or 8× the image's pixels |
 | `0` | Zoom to fit |
 | `f` | Full screen (fills the screen; `Esc` leaves it) |
 | `?` | Keyboard help; `Esc` closes it |
-| `[` / `]` | `view` only: previous or next image set |
-| `c` (hold) | `view` only: show the reference image while the key is held |
+| `[` / `]` | Previous or next image set or report entry |
+| `c` (hold) | Show the reference or baseline image while the key is held |
 
 Drag on the stage to move the divider; once zoomed, drag away from the divider to pan. `Ctrl` + wheel or a pinch zooms. In `view`, `Shift`-drag (or the Region tool) draws a region of interest, and hotspot boxes are drawn from the per-pane hotspots against the reference.
+
+The command palette uses the same action registry as keyboard shortcuts and help. Search by action or set name, including layouts, zoom, display adjustments, decisions, exports and snapshots; unavailable actions remain visible with a disabled state. Serve and runs also expose their current page controls.
+
+Diagnostics appear above each compared entry or set: a labelled change class, its explanation, tone and shift findings, and paired timing deltas. Difference is available as a layout or a Swipe layer with a signed luminance scale. Non-finite shows NaN, infinite and negative samples with labelled cluster boxes. These controls and findings are withheld in an unrevealed blind view. RGB readings use the original display images; report FLIP readings are approximate (marked `≈`), while view readings use the stored 8-bit error map. Large view images use the existing downsampled inspector data.
+
+![Diagnostics with a signed difference scale and non-finite cluster overlay](docs/images/diagnostics.png)
 
 The `examples/` images are generated by `scripts/gen-examples.py`: `sphere_identical` is unchanged, `sphere_subtle` has a sub-threshold change, `sphere_shadow` has a moved light and shadow, `sphere_new` has no baseline and `sphere_missing` has no capture.
 
@@ -88,13 +111,13 @@ Strips are [baseline | capture | heatmap]; error scale 0 (none) to 1.
 
 ## sphere_shadow.png Fail Mean=0.0504 (limit 0.01)
 frame: thumbs/sphere_shadow.png
-1. center 104x99 at (59,51) 75% of error, mean 0.25 max 0.64, hot px 7580 (11.57% of frame), box 15.7% of frame: hotspots/sphere_shadow.png/h1.png
-2. bottom-center 149x39 at (83,154) 20% of error, mean 0.13 max 0.42, hot px 2742 (4.18% of frame), box 8.9% of frame: hotspots/sphere_shadow.png/h2.png
+1. center 104x99 at (59,51) 75% of error, mean 0.25 max 0.64, hot px 7580 (11.57% of frame), box 15.7% of frame: hotspots/sphere_shadow.png.d/h1.png
+2. bottom-center 149x39 at (83,154) 20% of error, mean 0.13 max 0.42, hot px 2742 (4.18% of frame), box 8.9% of frame: hotspots/sphere_shadow.png.d/h2.png
 
 pack: explain
 ```
 
-The pack holds `explain.json` (schema `flipdiff-explain.v1`), `explain.md`, one `[baseline | capture | heatmap]` strip per hotspot (`hotspots/<name>/hN.png`) and a whole-frame strip with the hotspot boxes (`thumbs/<name>.png`).
+The pack holds `explain.json` (schema `flipdiff-explain.v1`), `explain.md`, one `[baseline | capture | heatmap]` strip per hotspot (`hotspots/<name>.d/hN.png`) and a whole-frame strip with the hotspot boxes (`thumbs/<name>.png`).
 
 ![One hotspot strip: baseline, capture and heatmap crops](docs/images/explain-strip.png)
 
@@ -146,11 +169,11 @@ A regression is not an error: the result says `verdict: "regression"`. A failed 
 The report, `view` and `serve` sessions keep their whole view in the URL hash, so a person or an agent can share or restore exactly what is on screen. The page reads the hash on load and rewrites it (`history.replaceState`, debounced) as you interact; **Copy link to this view** copies it.
 
 ```
-#set=<name>&layout=side|swipe|flicker|heatmap&split=0..1&vertical=0|1&zoom=fit|<n>&at=x,y
- &heat=0..1&channel=rgb|r|g|b|luma&ev=<float>&roi=x,y,w,h&hotspot=<n>
+#set=<name>&layout=side|swipe|flicker|heatmap|diff&split=0..1&vertical=0|1&zoom=fit|<n>&at=x,y
+ &heat=0..1&signed=0..1&mask=0|1&channel=rgb|r|g|b|luma&ev=<float>&contrast=0.5..4&roi=x,y,w,h&hotspot=<n>
 ```
 
-The report writes `entry=<name>` where the viewer writes `set=<name>`. `at` is the image-pixel centre of the zoom; `zoom` is output pixels per image pixel (`fit`, `1`, `2`, `4`, `8`, or any number up to 64); `hotspot` is the 1-based hotspot to zoom to. Unknown or invalid keys are ignored. A blind view never writes labels, the reference or `heat`/`hotspot` to the hash. Layouts map as follows: in the viewer `side` is "Side by side" and `heatmap` is the heatmap overlay; in the report `side` hides the compare stage (the three images stay in a row) and `heatmap` shows the capture under its FLIP heatmap.
+The report writes `entry=<name>` where the viewer writes `set=<name>`. `at` is the image-pixel centre of the zoom; `zoom` is output pixels per image pixel (`fit`, `1`, `2`, `4`, `8`, or any number up to 64); `hotspot` is the 1-based hotspot to zoom to. Unknown or invalid keys are ignored. A blind view never writes labels, the reference or `heat`/`signed`/`mask`/`hotspot` to the hash. Layouts map as follows: in the viewer `side` is "Side by side" and `heatmap` is the heatmap overlay; in the report `side` shows the three images in a row and `heatmap` shows the capture under its FLIP heatmap. `diff` selects signed difference; `signed` sets its opacity in Swipe and `mask` enables the non-finite overlay. These diagnostic layers and `contrast` are browser controls; the CLI snapshot renderer supports the layouts and controls described below.
 
 For browser automation (Playwright, Claude in Chrome) the pages expose a stable API, `window.flipdiff` (version 1):
 
@@ -341,7 +364,7 @@ blind key (keep it away from the judge): blind-key.json
 
 ![Blind viewer: two panes labelled A and B, with preferred-image buttons](docs/images/blind.png)
 
-Each image set is laid out in its own random order, so the position of a pane says nothing about its directory. The page embeds only neutral labels (`P1`, `P2`, by position within the set), random image file names (`images/<name>/p_<hex>.png`), no reference index, no per-set order, no shuffle seed (a random token pairs the page with its key) and no FLIP data at all: no heatmaps, metrics, hotspots or error maps, because those would single out the reference directory. So view-source reveals nothing, and a test greps the page and the explain pack for the directory names and labels. The true labels are in the key file, which the page does not reference: `--key-out PATH` puts it somewhere else (by default it is `blind-key.json` inside `--out`, which then must not be handed to the judge). After the judge has decided every set, "Reveal labels" asks for that file, or you convert the exported decisions yourself:
+Each image set is laid out in its own random order, so the position of a pane says nothing about its directory. The page embeds only neutral labels (`P1`, `P2`, by position within the set), random image file names (`images/<name>.d/p_<hex>.png`), no reference index, no per-set order, no shuffle seed (a random token pairs the page with its key) and no FLIP data at all: no heatmaps, metrics, hotspots or error maps, because those would single out the reference directory. So view-source reveals nothing, and a test greps the page and the explain pack for the directory names and labels. The true labels are in the key file, which the page does not reference: `--key-out PATH` puts it somewhere else (by default it is `blind-key.json` inside `--out`, which then must not be handed to the judge). After the judge has decided every set, "Reveal labels" asks for that file, or you convert the exported decisions yourself:
 
 ```sh
 flipdiff unblind flipdiff-decisions.v1.json blind-key.json --out decisions-true-labels.json
@@ -460,7 +483,7 @@ pass    same.hdr    mean    0.00000  0.01
 
 (`sphere.hdr` here is the `examples/` sphere with its highlight at 20 times and at 8 times the linear intensity; `examples/` does not ship HDR files.)
 
-Settings: `--hdr-tonemapper aces|hable|reinhard` and `--hdr-exposures START:STOP:N` (start and stop in stops; write `--hdr-exposures=-4:2:8` with an equals sign when START is negative). Without them the exposure range is computed from the baseline image. The same settings are in the `[hdr]` config table, and the values used are recorded in each entry's `hdr` field. An HDR and an LDR image cannot be compared (`error` entry). In the report and the viewer, HDR images are shown as PNGs tone-mapped at exposure 0, and the original is copied next to them as `images/<name>/baseline.orig.exr`. The method and its approximation are in [Limits](#limits) and [docs/design.md](docs/design.md#35-hdr-flip).
+Settings: `--hdr-tonemapper aces|hable|reinhard` and `--hdr-exposures START:STOP:N` (start and stop in stops; write `--hdr-exposures=-4:2:8` with an equals sign when START is negative). Without them the exposure range is computed from the baseline image. The same settings are in the `[hdr]` config table, and the values used are recorded in each entry's `hdr` field. An HDR and an LDR image cannot be compared (`error` entry). In the report and the viewer, HDR images are shown as PNGs tone-mapped at exposure 0, and the original is copied next to them as `images/<name>.d/baseline.orig.exr`. The method and its approximation are in [Limits](#limits) and [docs/design.md](docs/design.md#35-hdr-flip).
 
 ### Regions and masks
 
@@ -931,3 +954,159 @@ See [CONTRIBUTING.md](CONTRIBUTING.md). Changes are listed in [CHANGELOG.md](CHA
 flipdiff grew out of the visual-test crate of the Moss engine. The FLIP algorithm is by NVIDIA (Andersson et al., "FLIP: A Difference Evaluator for Alternating Images", High Performance Graphics 2020), used through the `nv-flip` bindings; the HDR-FLIP exposure procedure is ported from NVIDIA's reference code. See [THIRD_PARTY.md](THIRD_PARTY.md).
 
 Licensed under `MIT OR Apache-2.0`, at your option: [LICENSE-MIT](LICENSE-MIT), [LICENSE-APACHE](LICENSE-APACHE). The bundled NVIDIA FLIP code is BSD-3-Clause.
+
+## Bisect image divergence
+
+```sh
+flipdiff bisect --runs runs/old runs/middle runs/new --out bisect-report --json
+flipdiff bisect --runs-from ordered-runs.txt --good runs/reference --entries '**/*.png'
+flipdiff bisect --git GOOD..BAD --capture-cmd './capture-revision {rev} {out}' --reference baseline --out bisect-report --json
+```
+
+Existing runs are ordered oldest to newest and compared with the first (or `--good`). The default detects any change in native image samples, including changes FLIP cannot see; additions and missing images fail. `--threshold` explicitly switches to a FLIP gate; `--metric mean|p95|p99|max` defaults to max. `--entries` is one image-name glob. The search assumes monotonic divergence. It reports only non-monotonic observations it actually saw; it does not scan history to prove monotonicity. Skipped image errors or capture failures leave explicit candidates and an inconclusive result when the first bad target cannot be pinned down. `--runs-from` contains one path per line, resolved against the working directory.
+
+Command mode reads `git rev-list --reverse GOOD..BAD` in the current directory. It performs no checkout or other Git mutation. **The user command runs with `sh -c` and can have arbitrary side effects**; the command is responsible for building/capturing a revision into its fresh output directory. Use unquoted `{rev}` and `{out}` placeholders: flipdiff substitutes shell-quoted arguments. Command output goes to each capture directory's `capture.log`. MCP `flipdiff_bisect` supports existing runs only, because command mode executes shell code.
+
+`flipdiff-bisect.v1` includes `first_bad`, `last_good`, `probes` (verdict and report directory), `total_probes`, `candidates` and `non_monotonic`. Exit 0 = pass, 1 = first bad found, 2 = inconclusive/non-monotonic or command error. Reports are kept under `--out` (default `bisect-report`); inputs must be separate from it.
+
+## Watch captures
+
+```sh
+flipdiff watch baseline captures --out watch-report --config flipdiff.toml --debounce-ms 500
+flipdiff watch baseline captures --out watch-report --once --json
+flipdiff mcp --root . --watch baseline:captures
+```
+
+Watch compares initially, then recursively monitors captures with `notify` and a content-comparing polling fallback. The quiet period debounces file changes. Each result replaces the normal report and prints one line (verdict, counts, worst entry and diagnosis); `--json` emits `flipdiff-result.v1` JSONL. Comparison failures print an error line (`flipdiff-error.v1` in JSON mode). Ctrl-C exits with the last result's code. `--once` compares without installing a watcher. Only the capture directory triggers reruns; baseline/config changes need a restart.
+
+MCP keeps a watcher thread per repeatable `--watch BASE:CAP` pair. `flipdiff_watch_status` takes `capture_dir` and returns its latest lean result (or initialization/setup error). After client initialization, each new result also sends a best-effort `notifications/message` log; clients may ignore it. Reports live in `<root>/.flipdiff-watch/N/`.
+
+## Ask a human in the local inbox
+
+Run `flipdiff serve ARCHIVE --port 7878` and open `/inbox` (also linked from the landing header). Agents post questions with a closed answer set; humans see context, open the linked evidence at its exact view hash, choose an answer and optionally leave a note.
+
+```sh
+flipdiff ask --serve http://127.0.0.1:7878 --question 'Is this lighting change intended?' --answers accept,reject --link '/compare?runs=before,after#entry=scene.png' --wait --timeout 600 --json
+```
+
+Serve writes `<cache-dir>/serve.json` with port/token and mode 0600. Ask reads it (`--cache-dir` for a custom serve cache), connects only to literal `127.0.0.1`, and never follows redirects. Optional `--context` and `--from` carry supporting text and agent identity. Without `--wait`, ask returns immediately with an open item. `flipdiff-ask-result.v1` includes id, status, answer, note, human URL and `timed_out`; a wait timeout leaves the item open and exits 2. MCP `flipdiff_ask_human` posts and optionally waits; `flipdiff_inbox_get` reads the answer. Both take `serve`, optional `cache_dir`, and the appropriate question/id fields.
+
+API: `POST /api/inbox` accepts `{question, allowed_answers, context?, link?, from?}` and returns `{id}`; `GET /api/inbox` lists open items first; `GET /api/inbox/<id>` reads one; `POST /api/inbox/<id>/answer` accepts `{answer, note?}`. POSTs require the existing matching Host/Origin and `X-Flipdiff-Token` rules. Links must point to this serve instance. Questions persist in `<decisions-dir>/inbox/<id>.json`, outside archive roots. An inbox answer records human feedback; it never updates a baseline or approves a comparison.
+
+## Agent integrations
+
+[Installation and small instruction packs](integrations/README.md) cover Claude Code MCP, a skill and `/flipdiff` command, plus a Codex MCP configuration and `AGENTS.md` snippet. The workflow is compare → snapshot/explain → propose a decision → ask a human when ambiguous. Never auto-approve a baseline.
+
+## Judge mode
+
+`flipdiff judge` asks a bounded question of a panel and records its answers as
+proposals through `decide`. The result explains its question kind and trust limits:
+
+| Kind | Questions | Limit |
+|---|---|---|
+| `checkable` | `triage`, `cause` | An objective answer exists, but the encoding may omit the evidence needed to establish it. These are hypotheses to verify. |
+| `rubric` | `accept`, `ask_human`, `mask_suggest` | Answers depend on the supplied expert standard and intent. Agreement does not establish correctness. |
+| `preference` | `preference` | Describes the population asked and the criterion supplied; never objective truth. |
+
+Every question has an abstention option. Low probability, insufficient agreement,
+an order-dependent answer or too few committed judges produces `needs_human`.
+Individual judges, including human voters, remain proposals. Only the settled
+`panel` aggregate can pass the existing `[decisions]` gate. Deterministic failures
+remain refused, and `approve` continues to read final decisions only.
+
+```sh
+flipdiff compare examples/baseline examples/capture --out /tmp/flipdiff-judge-example
+flipdiff judge /tmp/flipdiff-judge-example/flipdiff-report.v1.json --panel examples/panel.toml --intent 'Soften the shadow' --both-orders --dry-run
+flipdiff judge /tmp/flipdiff-judge-example/flipdiff-report.v1.json --panel examples/panel.toml --intent 'Soften the shadow' --both-orders
+flipdiff judge rank/flipdiff-rank.v1.json --panel examples/panel.toml --question preference --intent 'Best shadow quality'
+```
+
+A panel TOML has an optional `[panel]` and one `[[judge]]` per model or human
+population. [`examples/panel.toml`](examples/panel.toml) contains a mixed example.
+Each judge supplies `provider`, `model`, `role`, `rubric`, `weight`, `questions` and
+optional `fallback = [models]`; `id`, `rubric_version`, `vision` and
+`timeout_secs` are optional. The default Gemini model is pinned to
+`gemini-3.8-flash`; moving `-latest` aliases are refused except Jev's API alias.
+The panel sets `min_prob`, `min_agreement`, `min_judges`, `canary_rate` and
+`canary_pass`. Retries use backoff for 429/503 and transient errors; unavailable
+judges abstain so the panel can continue. `--max-calls` bounds logical questions;
+HTTP retries and fallback attempts are separately visible in the audit trail.
+
+| Provider | Verification as of 2026-10-01 |
+|---|---|
+| `jev` | API contract verified by the coordinator against `jev-1.13.0`; text only. |
+| `gemini` | Live `gemini-3.5-flash` fallback returned valid JSON from vision strips in both orders on 2026-10-01; 3.8/3.7 returned 503. |
+| `opencode` | Local v1.18.31 `run --help` verified, including `--file`; nemotron/mimo live attempts returned exit status 1 on 2026-10-01. Generation remains unverified. |
+| `openai_compatible` | Generic chat-completions adapter; unverified against a live endpoint. Set `base_url`; optional `key_file`/`key_var` require explicit `--keys-dir`. |
+| `human` | Local vote API covered by the offline round trip. Named voters are a local convenience, not authenticated identities. |
+
+Text judges receive a deterministic 8×8 rounded FLIP grid, hotspot position/size/
+error share, diagnostic class/description/tone/shift, metadata differences,
+English colour shifts (CIELAB nearest neighbour over a small built-in table) and
+intent. They receive no pixels. Optional OCR uses
+`--ocr-cmd 'tesseract {image} stdout'`; the hook is split on whitespace and invoked
+without a shell. Paths containing spaces remain a single substituted argument;
+quote-heavy command syntax should be put in an executable wrapper. Vision judges
+receive only anonymous, contrast-stretched hotspot strips, in both orders; there
+is no full-frame fallback. Pairwise preferences and human votes always use both
+orders, even without `--both-orders`. Results report stable-answer flip rates and
+first-slot preference rates.
+
+Generated gold canaries cover identical images, an obvious shadow change, pure
+noise and a tone shift. `canary_rate` is a fraction of real items, rounded up and
+capped at four; zero disables it. Applicable canaries are interleaved with the
+real questions. Failures flag the judge and reduce its weight. A canary pass is
+an easy-case sanity check, not evidence that hard answers are reliable.
+
+```sh
+flipdiff judge calibrate --labels reviewer-a.json reviewer-b.json --runs report/flipdiff-judge.v1.json --out flipdiff-calibration.v1.json
+flipdiff judge selftest report/flipdiff-report.v1.json --panel examples/panel.toml --items 1 --max-calls 20
+```
+
+Calibration reports per judge/question accuracy, agreement with human finals,
+ECE, a reliability table, position bias and nominal Krippendorff's alpha when
+several humans labelled the same items. Alpha describes human agreement; it is
+not a mathematical bound on objective accuracy. Threshold suggestions require
+at least `--min-support` labelled predictions (default 10) at the requested
+accuracy. Set `[decisions] calibration = 'flipdiff-calibration.v1.json'` (relative
+to the config), or use `judge --calibration`, to let the gate use a suggested
+threshold for its source. `panel` needs its own calibration row. No suggestion
+means the ordinary configured threshold applies. Self-tests measure the repeat
+noise floor and answer flips after order swap, entry renaming and crop-offset
+shifts. Ranking uses individual merged pairwise votes in Bradley–Terry with
+deterministic bootstrap confidence intervals; sparse or disconnected votes
+produce warnings instead of confident ordering.
+
+For human votes, run `flipdiff serve examples --decisions-dir /tmp/flipdiff-votes`,
+then judge with the same `--decisions-dir`. Open the returned
+`/vote/<panel-run-id>` link on that server. Each voter chooses a name (remembered
+in localStorage with storage errors caught), sees shuffled anonymous strips in
+both orders, and votes with 1/2, left/right arrows for preferences, or `u` for
+unsure. The page shows progress and persists votes under
+`<decisions-dir>/judge/<id>/`. Re-run the same judge command to include saved votes;
+both orders must be completed. The run id binds the evidence content and panel
+rubrics. The vote page uses serve's Host/Origin/token checks and stays local.
+
+**Privacy.** Judge mode reads Jev and Gemini keys only from
+`~/.config/flipdiff/jev.env` (`JEV_API_KEY`) and
+`~/.config/flipdiff/gemini.env` (`FLIPDIFF_GEMINI_API_KEY`), or `--keys-dir`.
+Ambient API-key variables are ignored. HTTP keys travel only in headers to their
+provider endpoint; redirects are disabled and errors redact the key. Free
+OpenCode calls run with isolated configuration, no inherited API keys and tool
+permissions denied. Provider calls send intent, metadata and OCR text, as well
+as strips for vision judges: use only data you may share. `--dry-run` makes no
+provider calls and writes no votes or decisions, but still runs an explicitly
+supplied local OCR hook. Judge mode does not upload full images or private
+captures on your behalf.
+
+`flipdiff-judge.v1`, `flipdiff-calibration.v1`, `flipdiff-judge-selftest.v1` and
+`flipdiff-judge-votes.v1` (with `flipdiff-judge-vote-api.v1` for API responses) have shipped schemas. Each judgement records judge,
+provider, requested/answering model, reported version, probability/confidence,
+rubric version, evidence hash, timestamp, latency and fallback attempts. The
+`trust` text distinguishes measured calibration from providers' own stated
+probabilities, shows panel support and names escalation reasons. MCP exposes
+`flipdiff_judge` and `flipdiff_judge_calibrate`; nested reports and image paths
+are confined to the MCP root.
+
+Public-data live answers, probabilities, latencies, errors and exact commands are
+recorded in [the 2026-10-01 acceptance transcript](docs/judge-live-2026-10-01.md).

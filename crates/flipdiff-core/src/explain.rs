@@ -8,7 +8,7 @@
 //!   explain.json            every file below with its hotspot data
 //!   explain.md              token-lean summary
 //!   thumbs/<name>.png       whole-frame strip, hotspot boxes drawn
-//!   hotspots/<name>/hN.png  [baseline | capture | heatmap] crop strip
+//!   hotspots/<name>.d/hN.png  [baseline | capture | heatmap] crop strip
 //! ```
 //!
 //! With `blind` each strip is `[A | B]` in a seeded random order and the
@@ -113,7 +113,7 @@ pub struct ExplainSettings {
 #[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct ExplainHotspot {
-    /// 1-based index; the strip is `hotspots/<name>/h<index>.png`.
+    /// 1-based index; the strip is `hotspots/<name>.d/h<index>.png`.
     pub index: u32,
     /// The hotspot's measurements, from the report.
     pub hotspot: Hotspot,
@@ -722,7 +722,7 @@ pub fn explain(report_json: &Path, out_dir: &Path, opts: &ExplainOptions) -> Res
                 }
                 v
             };
-            let rel = format!("hotspots/{}/h{index}.png", e.name);
+            let rel = format!("hotspots/{}.d/h{index}.png", e.name);
             let (strip, shrink) = compose(&panels);
             save(&strip, &out_dir.join(&rel))?;
             ee.hotspots.push(ExplainHotspot {

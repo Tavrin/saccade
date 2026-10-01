@@ -1020,10 +1020,15 @@ pub(crate) fn write_thumbnail(
 pub fn render_page(config: &str) -> String {
     // `</` would end the inline script element early.
     let safe = config.replace("</", "<\\/");
-    PAGE.replace("/*__SERVE_CSS__*/", SERVE_CSS)
-        .replace("/*__RUNS_CSS__*/", RUNS_CSS)
-        .replace("/*__RUNS_JS__*/", RUNS_JS)
-        .replace("__RUNS_PAGE__", &safe)
+    PAGE.replace(
+        "/*__RUNS_CSS__*/",
+        &crate::render::shared::page_css(&[SERVE_CSS, RUNS_CSS]),
+    )
+    .replace(
+        "/*__RUNS_JS__*/",
+        &crate::render::shared::page_js(&[RUNS_JS]),
+    )
+    .replace("__RUNS_PAGE__", &safe)
 }
 
 struct StaticAssets<'a> {

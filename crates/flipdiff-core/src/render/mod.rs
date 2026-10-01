@@ -5,6 +5,7 @@
 
 mod html;
 mod markdown;
+pub(crate) mod shared;
 mod view_html;
 
 pub use markdown::identity_headline;

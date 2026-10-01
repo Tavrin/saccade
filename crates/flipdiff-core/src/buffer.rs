@@ -360,7 +360,7 @@ pub(crate) fn fill_pair(
             .map(|&e| (f64::from(e) / heatmap_max).clamp(0.0, 1.0) as f32)
             .collect(),
     };
-    let rel = format!("images/{}/heatmap.png", entry.name);
+    let rel = format!("images/{}.d/heatmap.png", entry.name);
     let path = out.join(&rel);
     cmp.heatmap_rgb()
         .save(&path)

@@ -1,0 +1,132 @@
+{
+  "$defs": {
+    "Choice": {
+      "description": "One answer button on the vote page.",
+      "properties": {
+        "answer": {
+          "description": "The answer recorded.",
+          "type": "string"
+        },
+        "key": {
+          "description": "The keyboard key.",
+          "type": "string"
+        },
+        "label": {
+          "description": "The button text.",
+          "type": "string"
+        }
+      },
+      "required": [
+        "answer",
+        "label",
+        "key"
+      ],
+      "type": "object"
+    },
+    "VoteItem": {
+      "description": "One thing to vote on: an item in one presentation order.",
+      "properties": {
+        "choices": {
+          "description": "The buttons.",
+          "items": {
+            "$ref": "#/$defs/Choice"
+          },
+          "type": "array"
+        },
+        "context": {
+          "description": "Extra context (the intent, which image is the reference).",
+          "type": "string"
+        },
+        "evidence_hash": {
+          "description": "SHA-256 of the question, context, choices and exact strip bytes shown.",
+          "type": "string"
+        },
+        "id": {
+          "description": "Opaque presentation id; candidate names and order stay server-side.",
+          "type": "string"
+        },
+        "item": {
+          "description": "The judge item.",
+          "type": "string"
+        },
+        "kind": {
+          "description": "The question kind.",
+          "type": "string"
+        },
+        "kind_limits": {
+          "description": "What the kind means for this vote.",
+          "type": "string"
+        },
+        "order": {
+          "description": "`ab` or `ba`.",
+          "type": "string"
+        },
+        "pairwise": {
+          "description": "Whether this is a pairwise preference (arrow keys apply).",
+          "type": "boolean"
+        },
+        "question": {
+          "description": "The question type.",
+          "type": "string"
+        },
+        "strip": {
+          "description": "The strip image file inside `strips/`; empty when there is no image.",
+          "type": "string"
+        },
+        "text": {
+          "description": "The fixed question wording.",
+          "type": "string"
+        }
+      },
+      "required": [
+        "id",
+        "item",
+        "order",
+        "question",
+        "kind",
+        "kind_limits",
+        "text",
+        "context",
+        "choices",
+        "strip",
+        "pairwise",
+        "evidence_hash"
+      ],
+      "type": "object"
+    }
+  },
+  "$id": "https://github.com/Tavrin/flipdiff/schemas/flipdiff-judge-votes.v1.schema.json",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "description": "The `run.json` of a vote run.",
+  "properties": {
+    "created_at_unix": {
+      "description": "Creation time.",
+      "format": "uint64",
+      "minimum": 0,
+      "type": "integer"
+    },
+    "items": {
+      "description": "The items, one per item and order.",
+      "items": {
+        "$ref": "#/$defs/VoteItem"
+      },
+      "type": "array"
+    },
+    "run_id": {
+      "description": "The run id.",
+      "type": "string"
+    },
+    "schema": {
+      "description": "Always [`VOTES_SCHEMA`].",
+      "type": "string"
+    }
+  },
+  "required": [
+    "schema",
+    "run_id",
+    "created_at_unix",
+    "items"
+  ],
+  "title": "VoteRun",
+  "type": "object"
+}

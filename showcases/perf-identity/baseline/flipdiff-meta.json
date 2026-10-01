@@ -1,0 +1,5 @@
+{
+  "renderer.mode": "lit",
+  "resolution.output": "192x144",
+  "timing.gpu_ms": 4.85
+}

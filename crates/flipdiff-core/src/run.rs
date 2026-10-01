@@ -238,7 +238,7 @@ pub(crate) fn clear_previous_report(report_dir: &Path) -> Result<()> {
     Ok(())
 }
 
-/// Copies `src` to `<report>/images/<name>/<stem>.<ext>`, returning the path
+/// Copies `src` to `<report>/images/<name>.d/<stem>.<ext>`, returning the path
 /// relative to the report directory.
 pub(crate) fn copy_into_report(
     src: &Path,
@@ -251,7 +251,7 @@ pub(crate) fn copy_into_report(
         .and_then(|e| e.to_str())
         .unwrap_or("png")
         .to_ascii_lowercase();
-    let rel = format!("images/{name}/{stem}.{ext}");
+    let rel = format!("images/{name}.d/{stem}.{ext}");
     let dest = report_dir.join(&rel);
     if let Some(parent) = dest.parent() {
         std::fs::create_dir_all(parent)
@@ -566,6 +566,7 @@ fn run_diagnostics(
     if !config.diagnostics.enabled {
         return;
     }
+    let image_dir = format!("{}.d", entry.name);
     let req = DiagnoseRequest {
         baseline: pair.baseline,
         capture: pair.capture,
@@ -584,7 +585,7 @@ fn run_diagnostics(
         capture_path: Some(pair.capture_path),
         out: Some(DiagOut {
             report_dir,
-            name: &entry.name,
+            name: &image_dir,
         }),
     };
     match diagnose(&req) {
@@ -769,7 +770,7 @@ fn finish_entry(
     let name = entry.name.clone();
     let scene = crate::regions::evaluate(entry, &cmp, config)?;
     let value = metric_value(&scene.metrics, entry.metric_used);
-    let rel = format!("images/{name}/heatmap.png");
+    let rel = format!("images/{name}.d/heatmap.png");
     let dest = report_dir.join(&rel);
     let mut heatmap = cmp.heatmap_rgb();
     if let Some(mask) = &scene.mask {
@@ -830,7 +831,7 @@ fn copy_entry_side(
         let Ok(img) = crate::buffer::decode(src, spec) else {
             return Ok(None);
         };
-        let rel = format!("images/{name}/{stem}.png");
+        let rel = format!("images/{name}.d/{stem}.png");
         let path = report_dir.join(&rel);
         img.to_rgb8()
             .save(&path)
@@ -854,7 +855,7 @@ fn copy_side(
     let Ok(img) = crate::hdr::decode_hdr(src) else {
         return Ok(None);
     };
-    let rel = format!("images/{name}/{stem}.png");
+    let rel = format!("images/{name}.d/{stem}.png");
     let dest = report_dir.join(&rel);
     crate::hdr::display_image(&img, config.hdr.tonemapper)
         .save(&dest)

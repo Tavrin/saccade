@@ -78,6 +78,69 @@ fn an_unrelated_output_directory_is_never_cleared() {
 }
 
 #[test]
+fn outputs_next_to_capture_metadata_warn_unless_allowed() {
+    let tmp = tempfile::tempdir().unwrap();
+    let (base, cap, out) = (
+        tmp.path().join("base"),
+        tmp.path().join("cap"),
+        tmp.path().join("report"),
+    );
+    save(&base, "a.png", 100);
+    save(&cap, "a.png", 100);
+    for (name, flags, config) in [
+        ("flipdiff-meta.json", vec![], None),
+        (
+            "cost-card.json",
+            vec!["--meta-name", "cost-card.json"],
+            None,
+        ),
+        ("configured.json", vec![], Some("configured.json")),
+        ("capture.json", vec!["--meta-name", "other.json"], None),
+    ] {
+        let sidecar = tmp.path().join(name);
+        std::fs::write(&sidecar, "{}").unwrap();
+        if let Some(name) = config {
+            std::fs::write(
+                tmp.path().join("flipdiff.toml"),
+                format!("meta_name = {name:?}\n"),
+            )
+            .unwrap();
+        }
+        let mut args = vec!["compare", "--json"];
+        args.extend(&flags);
+        let warned = flipdiff(tmp.path(), &args, &[&base, &cap, Path::new("--out"), &out]);
+        assert_eq!(warned.status.code(), Some(0), "{}", text(&warned));
+        let stderr = String::from_utf8_lossy(&warned.stderr);
+        assert!(
+            stderr.contains("--out is inside a capture directory"),
+            "{stderr}"
+        );
+        assert!(
+            stderr.contains(&format!("found {name} next to it")),
+            "{stderr}"
+        );
+        assert!(stderr.contains("--allow-out-near-captures"), "{stderr}");
+        serde_json::from_slice::<serde_json::Value>(&warned.stdout).expect("JSON stdout");
+
+        args.push("--allow-out-near-captures");
+        let allowed = flipdiff(tmp.path(), &args, &[&base, &cap, Path::new("--out"), &out]);
+        assert_eq!(allowed.status.code(), Some(0), "{}", text(&allowed));
+        assert!(!String::from_utf8_lossy(&allowed.stderr).contains("capture directory"));
+        std::fs::remove_file(sidecar).unwrap();
+        if config.is_some() {
+            std::fs::remove_file(tmp.path().join("flipdiff.toml")).unwrap();
+        }
+    }
+    let clean = flipdiff(
+        tmp.path(),
+        &["compare"],
+        &[&base, &cap, Path::new("--out"), &out],
+    );
+    assert_eq!(clean.status.code(), Some(0), "{}", text(&clean));
+    assert!(!String::from_utf8_lossy(&clean.stderr).contains("capture directory"));
+}
+
+#[test]
 fn an_output_directory_inside_an_input_is_refused() {
     let tmp = tempfile::tempdir().unwrap();
     let (base, cap) = (tmp.path().join("base"), tmp.path().join("cap"));

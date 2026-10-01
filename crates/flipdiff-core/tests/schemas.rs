@@ -38,6 +38,22 @@ fn committed_schemas_match_the_rust_types() {
     let update = std::env::var_os("UPDATE_SCHEMAS").is_some();
     let all = [
         (
+            "flipdiff-judge-votes.v1.schema.json",
+            generated::<flipdiff_core::judge_vote::VoteRun>("flipdiff-judge-votes.v1.schema.json"),
+        ),
+        (
+            "flipdiff-bisect.v1.schema.json",
+            generated::<flipdiff_core::bisect::BisectResult>("flipdiff-bisect.v1.schema.json"),
+        ),
+        (
+            "flipdiff-inbox-item.v1.schema.json",
+            generated::<flipdiff_core::inbox::Item>("flipdiff-inbox-item.v1.schema.json"),
+        ),
+        (
+            "flipdiff-ask-result.v1.schema.json",
+            generated::<flipdiff_core::inbox::AskResult>("flipdiff-ask-result.v1.schema.json"),
+        ),
+        (
             "flipdiff-sequence.v1.schema.json",
             generated::<flipdiff_core::sequence::SequenceReport>(
                 "flipdiff-sequence.v1.schema.json",
@@ -85,6 +101,14 @@ fn committed_schemas_match_the_rust_types() {
 
     // Every schema id the tools emit has a file with a matching `$id`.
     for name in [
+        "judge",
+        "calibration",
+        "judge-selftest",
+        "judge-votes",
+        "judge-vote-api",
+        "bisect",
+        "inbox-item",
+        "ask-result",
         "sequence",
         "rank",
         "report",

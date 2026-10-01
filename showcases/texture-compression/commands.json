@@ -1,0 +1,22 @@
+[
+  {
+    "name": "rank",
+    "args": [
+      "rank",
+      "baseline",
+      "candidates/block-low",
+      "candidates/block-high",
+      "candidates/jpeg-q40",
+      "candidates/jpeg-q85",
+      "candidates/palette-256",
+      "--labels",
+      "block-low,block-high,jpeg-q40,jpeg-q85,palette-256",
+      "--metric",
+      "mean",
+      "--threshold",
+      "0.001"
+    ],
+    "out": "rank",
+    "exit": 1
+  }
+]

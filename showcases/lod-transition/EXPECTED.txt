@@ -1,0 +1,6 @@
+=== sequence (exit 1) ===
+sequence: regression (12 baseline, 12 capture frames)
+temporal instability: 0.007413 (capture 0.062165 - baseline 0.054752)
+frames over threshold: 1
+worst frame: 6 (mean FLIP 0.076637)
+report: /mnt/linux-extra/moss-cargo-targets/flipdiff-showcase-reports/lod-transition/sequence/index.html

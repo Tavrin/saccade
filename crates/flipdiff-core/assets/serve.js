@@ -503,5 +503,27 @@
     return h;
   }
 
+  var shared = window.__flipdiffUI, actions = shared.use(shared.actions());
+  shared.controls(actions);
+  actions.add({ id: 'navigate.home', group: 'Navigate', title: 'Browse archive roots', run: function () { navigate(''); } });
+  actions.add({ id: 'navigate.recent', group: 'Navigate', title: 'Show recent runs', run: function () { runSearch(true); } });
+  actions.add({ id: 'copy', group: 'Tools', title: 'Copy link to this page', run: function () { shared.copy(location.href).then(function (ok) { shared.toast(ok ? 'Link copied' : 'Copy failed'); }); } });
+  actions.add({ id: 'help', group: 'General', title: 'Keyboard shortcuts', keys: ['?'], run: function () { shared.help.toggle(actions); } });
+  actions.add({ id: 'escape', group: 'General', title: 'Close panel', keys: ['Escape'], run: shared.escape });
+  $('palette-btn').addEventListener('click', function () { shared.palette.open(); });
+
   if (P.mode === 'progress') progress(); else landing();
+})();
+
+// Isolated inbox badge: independent of archive browsing and selection state.
+(() => {
+  const badge = document.getElementById('inboxbadge');
+  if (!badge) return;
+  async function updateInboxBadge() {
+    try {
+      const response = await fetch('/api/inbox');
+      if (response.ok) badge.textContent = 'Inbox (' + (await response.json()).filter(i => i.status === 'open').length + ' open)';
+    } catch (_) { /* The archive remains usable if an inbox refresh fails. */ }
+  }
+  updateInboxBadge(); setInterval(updateInboxBadge, 5000);
 })();
