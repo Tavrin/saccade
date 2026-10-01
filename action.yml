@@ -1,0 +1,225 @@
+name: flipdiff
+description: Perceptual (NVIDIA FLIP) visual-regression check for renderer output. Compares baseline and capture images, uploads an HTML report and comments on the pull request.
+author: flipdiff contributors
+branding:
+  icon: image
+  color: purple
+
+inputs:
+  baseline-dir:
+    description: Directory of committed baseline images.
+    required: true
+  capture-dir:
+    description: Directory of freshly captured images.
+    required: true
+  threshold:
+    description: Default pass threshold. Empty uses flipdiff.toml or 0.01.
+    required: false
+    default: ''
+  metric:
+    description: Default metric, one of mean, p95, max. Empty uses flipdiff.toml or mean.
+    required: false
+    default: ''
+  config:
+    description: Path to a flipdiff.toml. Empty uses ./flipdiff.toml if it exists.
+    required: false
+    default: ''
+  report-dir:
+    description: Directory the report is written to.
+    required: false
+    default: flipdiff-report
+  fail-on-new:
+    description: Treat captures without a baseline as a regression.
+    required: false
+    default: 'false'
+  comment:
+    description: Create or update one sticky pull-request comment (pull_request events only).
+    required: false
+    default: 'true'
+  github-token:
+    description: Token used for the comment and for downloading release assets.
+    required: false
+    default: ${{ github.token }}
+  version:
+    description: Git ref (tag, branch or commit) of the flipdiff repository to install. Empty uses the ref this action was invoked with.
+    required: false
+    default: ''
+
+outputs:
+  exit-code:
+    description: Exit code of flipdiff compare (0 no regression, 1 regression, 2 usage or IO error).
+    value: ${{ steps.compare.outputs.exit-code }}
+  failed:
+    description: Number of failed images.
+    value: ${{ steps.compare.outputs.failed }}
+  new:
+    description: Number of captures without a baseline.
+    value: ${{ steps.compare.outputs.new }}
+  report-dir:
+    description: Report directory.
+    value: ${{ inputs.report-dir }}
+
+runs:
+  using: composite
+  steps:
+    - name: Install flipdiff
+      shell: bash
+      env:
+        INPUT_VERSION: ${{ inputs.version }}
+        ACTION_REF: ${{ github.action_ref }}
+        ACTION_REPO: ${{ github.action_repository }}
+        ACTION_PATH: ${{ github.action_path }}
+        GH_TOKEN: ${{ inputs.github-token }}
+      run: |
+        set -euo pipefail
+        ref="${INPUT_VERSION:-$ACTION_REF}"
+        repo="${ACTION_REPO:-}"
+        bin_dir="$RUNNER_TEMP/flipdiff-bin"
+        mkdir -p "$bin_dir"
+
+        case "$RUNNER_OS-$RUNNER_ARCH" in
+          Linux-X64)    target=x86_64-unknown-linux-gnu;  ext=tar.gz ;;
+          Linux-ARM64)  target=aarch64-unknown-linux-gnu; ext=tar.gz ;;
+          macOS-ARM64)  target=aarch64-apple-darwin;      ext=tar.gz ;;
+          Windows-X64)  target=x86_64-pc-windows-msvc;    ext=zip ;;
+          *)            target=''; ext='' ;;
+        esac
+
+        installed=false
+        if [ -n "$target" ] && [ -n "$ref" ] && [ -n "$repo" ]; then
+          asset="flipdiff-$target.$ext"
+          dl="$RUNNER_TEMP/flipdiff-dl"
+          rm -rf "$dl"; mkdir -p "$dl"
+          if gh release download "$ref" --repo "$repo" --pattern "$asset" --dir "$dl" 2>/dev/null; then
+            if [ "$ext" = zip ]; then
+              unzip -q -o "$dl/$asset" -d "$bin_dir"
+            else
+              tar -xzf "$dl/$asset" -C "$bin_dir"
+            fi
+            if [ -x "$bin_dir/flipdiff" ] || [ -x "$bin_dir/flipdiff.exe" ]; then
+              installed=true
+              echo "Installed prebuilt flipdiff from release $ref ($target)"
+            fi
+          fi
+        fi
+
+        if [ "$installed" != true ]; then
+          echo "No prebuilt binary for ref '${ref:-<none>}' on $RUNNER_OS-$RUNNER_ARCH; building from source with cargo."
+          if ! command -v cargo >/dev/null 2>&1; then
+            echo "::error::cargo is not available on this runner. Install Rust (for example with dtolnay/rust-toolchain) before this action."
+            exit 2
+          fi
+          root="$RUNNER_TEMP/flipdiff-root"
+          if [ -n "$ref" ] && [ -n "$repo" ]; then
+            cargo install --git "https://github.com/$repo" --rev "$ref" flipdiff --locked --root "$root"
+          elif [ -n "$repo" ]; then
+            cargo install --git "https://github.com/$repo" flipdiff --locked --root "$root"
+          else
+            cargo install --path "$ACTION_PATH/crates/flipdiff" --locked --root "$root"
+          fi
+          cp "$root"/bin/flipdiff* "$bin_dir"/
+        fi
+        echo "$bin_dir" >> "$GITHUB_PATH"
+
+    - name: Compare images
+      id: compare
+      shell: bash
+      env:
+        BASELINE_DIR: ${{ inputs.baseline-dir }}
+        CAPTURE_DIR: ${{ inputs.capture-dir }}
+        REPORT_DIR: ${{ inputs.report-dir }}
+        THRESHOLD: ${{ inputs.threshold }}
+        METRIC: ${{ inputs.metric }}
+        CONFIG: ${{ inputs.config }}
+        FAIL_ON_NEW: ${{ inputs.fail-on-new }}
+      run: |
+        set -uo pipefail
+        args=(compare "$BASELINE_DIR" "$CAPTURE_DIR" --out "$REPORT_DIR")
+        [ -n "$THRESHOLD" ] && args+=(--threshold "$THRESHOLD")
+        [ -n "$METRIC" ] && args+=(--metric "$METRIC")
+        [ -n "$CONFIG" ] && args+=(--config "$CONFIG")
+        [ "$FAIL_ON_NEW" = true ] && args+=(--fail-on-new)
+
+        set +e
+        flipdiff "${args[@]}"
+        code=$?
+        set -e
+
+        failed=0
+        new=0
+        report="$REPORT_DIR/flipdiff-report.v1.json"
+        if [ -f "$report" ] && command -v jq >/dev/null 2>&1; then
+          failed=$(jq -r '.totals.fail' "$report")
+          new=$(jq -r '.totals.new' "$report")
+        fi
+        {
+          echo "exit-code=$code"
+          echo "failed=$failed"
+          echo "new=$new"
+        } >> "$GITHUB_OUTPUT"
+
+    - name: Upload report
+      id: upload
+      if: ${{ always() && hashFiles(format('{0}/flipdiff-report.v1.json', inputs.report-dir)) != '' }}
+      uses: actions/upload-artifact@v4
+      with:
+        name: flipdiff-report
+        path: ${{ inputs.report-dir }}
+        if-no-files-found: warn
+
+    - name: Write job summary
+      id: summary
+      if: ${{ always() }}
+      shell: bash
+      env:
+        REPORT_DIR: ${{ inputs.report-dir }}
+        ARTIFACT_URL: ${{ steps.upload.outputs.artifact-url }}
+        RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+      run: |
+        set -uo pipefail
+        report="$REPORT_DIR/flipdiff-report.v1.json"
+        if [ ! -f "$report" ]; then
+          echo "No report at $report; skipping summary."
+          exit 0
+        fi
+        url="${ARTIFACT_URL:-$RUN_URL}"
+        out="$RUNNER_TEMP/flipdiff-summary.md"
+        flipdiff summary "$report" --format markdown --artifact-url "$url" > "$out"
+        if ! head -n 1 "$out" | grep -q '<!-- flipdiff-summary -->'; then
+          { echo '<!-- flipdiff-summary -->'; cat "$out"; } > "$out.tmp" && mv "$out.tmp" "$out"
+        fi
+        cat "$out" >> "$GITHUB_STEP_SUMMARY"
+        echo "path=$out" >> "$GITHUB_OUTPUT"
+
+    - name: Pull request comment
+      if: ${{ always() && github.event_name == 'pull_request' && inputs.comment == 'true' && steps.summary.outputs.path != '' }}
+      shell: bash
+      env:
+        GH_TOKEN: ${{ inputs.github-token }}
+        REPO: ${{ github.repository }}
+        PR_NUMBER: ${{ github.event.pull_request.number }}
+        SUMMARY_PATH: ${{ steps.summary.outputs.path }}
+      run: |
+        set -uo pipefail
+        marker='<!-- flipdiff-summary -->'
+        id=$(gh api --paginate "repos/$REPO/issues/$PR_NUMBER/comments" \
+          --jq ".[] | select(.body | contains(\"$marker\")) | .id" | head -n 1) || id=''
+        if [ -n "$id" ]; then
+          gh api --method PATCH "repos/$REPO/issues/comments/$id" -F body=@"$SUMMARY_PATH" >/dev/null \
+            || echo "::warning::Could not update the flipdiff comment (read-only token on a fork PR?)."
+        else
+          gh api --method POST "repos/$REPO/issues/$PR_NUMBER/comments" -F body=@"$SUMMARY_PATH" >/dev/null \
+            || echo "::warning::Could not create the flipdiff comment (read-only token on a fork PR?)."
+        fi
+
+    - name: Fail on regression
+      if: ${{ always() }}
+      shell: bash
+      env:
+        EXIT_CODE: ${{ steps.compare.outputs.exit-code }}
+      run: |
+        code="${EXIT_CODE:-2}"
+        if [ "$code" != 0 ]; then
+          echo "::error::flipdiff exited with code $code (1 = regression, 2 = usage or IO error)."
+        fi
+        exit "$code"

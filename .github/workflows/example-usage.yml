@@ -1,0 +1,22 @@
+name: Example usage
+
+# Runs the action from this checkout on the generated examples/ set.
+# examples/ contains a deliberate regression, so the final step is expected to fail.
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  example:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: ./
+        with:
+          baseline-dir: examples/baseline
+          capture-dir: examples/capture
+          report-dir: flipdiff-report
+          comment: 'false'
