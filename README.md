@@ -9,7 +9,7 @@ What flipdiff does not do: it does not run your renderer or capture images, it h
 ## Quickstart: CLI
 
 ```sh
-cargo install --git https://github.com/OWNER/flipdiff flipdiff --locked
+cargo install --git https://github.com/Tavrin/flipdiff flipdiff --locked
 
 flipdiff compare baseline/ capture/ --out report/ --threshold 0.01
 open report/index.html
@@ -58,7 +58,7 @@ jobs:
       - uses: actions/checkout@v4
       - run: ./render-tests.sh --out captures/   # your renderer
       - uses: dtolnay/rust-toolchain@stable      # needed only if no release binary matches
-      - uses: OWNER/flipdiff@v0.1.0
+      - uses: Tavrin/flipdiff@main
         with:
           baseline-dir: tests/baseline
           capture-dir: captures
@@ -85,7 +85,7 @@ strategy:
   matrix:
     gpu: [nvidia, intel]
 steps:
-  - uses: OWNER/flipdiff@v0.1.0
+  - uses: Tavrin/flipdiff@main
     with:
       baseline-dir: tests/baseline/${{ matrix.gpu }}
       capture-dir: captures

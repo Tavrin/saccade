@@ -7,7 +7,7 @@ version = "0.1.0"
 edition = "2024"
 rust-version = "1.85"
 license = "MIT OR Apache-2.0"
-repository = "https://github.com/OWNER/flipdiff"
+repository = "https://github.com/Tavrin/flipdiff"
 keywords = ["visual-regression", "flip", "rendering", "image-diff", "ci"]
 categories = ["graphics", "development-tools::testing", "command-line-utilities"]
 
