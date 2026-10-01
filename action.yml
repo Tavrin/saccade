@@ -288,11 +288,11 @@ runs:
           echo "::error::Baseline updates require a trusted workflow_dispatch on a branch."
           exit 2
         fi
-        cd "$GITHUB_WORKSPACE"
+        cd -P "$GITHUB_WORKSPACE"
         workspace="$(pwd -P)"
-        baseline_abs="$(cd "$BASELINE_DIR" && pwd -P)"
+        baseline_abs="$(cd -P "$BASELINE_DIR" && pwd -P)"
         case "$baseline_abs" in
-          "$workspace"/*) baseline_rel="${baseline_abs#"$workspace"/}" ;;
+          "$workspace"/*) ;;
           *) echo "::error::The baseline directory must be inside the checked-out repository."; exit 2 ;;
         esac
         branch="$BRANCH_PREFIX-$RUN_ID"
@@ -310,8 +310,19 @@ runs:
         changed_paths="$RUNNER_TEMP/saccade-approved-$RUN_ID.paths"
         jq -j '.copied[].to, .pruned[] | . + "\u0000"' "$approval" > "$changed_paths"
         while IFS= read -r -d '' changed; do
-          case "$changed" in
-            "$workspace/$baseline_rel"/*) git --literal-pathspecs add -- "$changed" ;;
+          # Resolve directory aliases (including macOS /var and Git Bash drive
+          # spellings). Pruned files no longer exist, but their parents do.
+          changed_dir="$(cd -P "$(dirname -- "$changed")" && pwd -P)" || {
+            echo "::error::Could not resolve the parent of an approved path."
+            exit 2
+          }
+          changed_name="$(basename -- "$changed")"
+          case "$changed_name" in
+            .|..) echo "::error::approve returned a directory instead of a file."; exit 2 ;;
+          esac
+          changed_abs="$changed_dir/$changed_name"
+          case "$changed_abs" in
+            "$baseline_abs"/*) git --literal-pathspecs add -- "$changed_abs" ;;
             *) echo "::error::approve returned a path outside the baseline directory."; exit 2 ;;
           esac
         done < "$changed_paths"

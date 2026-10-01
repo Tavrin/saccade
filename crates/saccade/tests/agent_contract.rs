@@ -240,7 +240,20 @@ fn compare_json_is_a_lean_result_and_full_is_the_report() {
     let tmp = tempfile::tempdir().unwrap();
     let (base, cap) = dirs(tmp.path());
     let out = tmp.path().join("report");
-    let o = run(&[&"compare", &base, &cap, &"--out", &out, &"--json"]);
+    // Lean paths are relative to cwd, which may be on a different drive from
+    // the runner's temp directory. Keep cwd, inputs and report on one root.
+    let compare = |format: &str| {
+        Command::new(BIN)
+            .current_dir(tmp.path())
+            .arg("compare")
+            .args([&base, &cap])
+            .arg("--out")
+            .arg(&out)
+            .arg(format)
+            .output()
+            .expect("spawn")
+    };
+    let o = compare("--json");
     assert_eq!(o.status.code(), Some(1));
     let v = stdout_json(&o);
     assert_eq!(v["schema"], "saccade-result.v1");
@@ -254,7 +267,7 @@ fn compare_json_is_a_lean_result_and_full_is_the_report() {
         let path = v["paths"][p].as_str().unwrap();
         assert!(Path::new(path).is_relative());
         assert!(!path.contains('\\'), "{p}: {path}");
-        assert!(Path::new(path).is_file(), "{p}: {path}");
+        assert!(tmp.path().join(path).is_file(), "{p}: {path}");
     }
     assert!(v["next_step"].as_str().unwrap().contains("saccade explain"));
     // Every float has at most 4 significant digits.
@@ -276,14 +289,7 @@ fn compare_json_is_a_lean_result_and_full_is_the_report() {
             "{x} is not rounded"
         );
     }
-    let full = stdout_json(&run(&[
-        &"compare",
-        &base,
-        &cap,
-        &"--out",
-        &out,
-        &"--json=full",
-    ]));
+    let full = stdout_json(&compare("--json=full"));
     assert_eq!(full["schema"], "saccade-report.v1");
     for (key, expected) in [("baseline_dir", &base), ("capture_dir", &cap)] {
         let path = full[key].as_str().unwrap();

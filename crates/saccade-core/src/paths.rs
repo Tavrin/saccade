@@ -39,10 +39,14 @@ pub fn record(path: &Path, base: &Path, absolute: bool) -> String {
         return portable(&path);
     }
     let base = crate::run::normalise_path(base);
+    record_relative(&path, &base)
+}
+
+fn record_relative(path: &Path, base: &Path) -> String {
     let target: Vec<_> = path.components().collect();
     let origin: Vec<_> = base.components().collect();
     if target.first() != origin.first() {
-        return portable(&path);
+        return portable(path);
     }
     let common = target
         .iter()
@@ -171,6 +175,33 @@ mod tests {
         }
         assert!(restore_verbatim("C:/captures/scene.png").is_none());
         assert!(restore_verbatim("//server/share/scene.png").is_none());
+    }
+
+    #[cfg(windows)]
+    #[test]
+    fn windows_paths_are_relative_only_when_their_prefixes_match() {
+        for (path, base, expected) in [
+            (r"C:\inputs\scene.png", r"C:\reports", "../inputs/scene.png"),
+            (r"C:\inputs\scene.png", r"D:\reports", "C:/inputs/scene.png"),
+            (
+                r"\\server\share\inputs\scene.png",
+                r"\\server\share\reports",
+                "../inputs/scene.png",
+            ),
+            (
+                r"\\server\share\inputs\scene.png",
+                r"\\server\other\reports",
+                "//server/share/inputs/scene.png",
+            ),
+        ] {
+            let recorded = record_relative(Path::new(path), Path::new(base));
+            assert_eq!(recorded, expected);
+            assert_eq!(
+                Path::new(&recorded).is_relative(),
+                Path::new(path).components().next() == Path::new(base).components().next()
+            );
+            assert!(!recorded.contains('\\'));
+        }
     }
 
     #[test]
