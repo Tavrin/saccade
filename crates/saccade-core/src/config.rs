@@ -131,6 +131,10 @@ struct FileConfig {
     perf_noise: Option<FilePerfNoise>,
     perf_noise_file: Option<std::path::PathBuf>,
     perf_noise_k: Option<f64>,
+    perf_resolution_ms: Option<f64>,
+    perf_resolution_ticks: Option<u32>,
+    perf_min_delta_ms: Option<f64>,
+    perf_min_delta_pct: Option<f64>,
     require_matching_meta: Option<bool>,
     hotspot_threshold: Option<f32>,
     hotspots: Option<usize>,
@@ -254,6 +258,10 @@ impl RunConfig {
             None => {}
         }
         cfg.perf.k = file.perf_noise_k.unwrap_or(cfg.perf.k);
+        cfg.perf.resolution_ms = file.perf_resolution_ms;
+        cfg.perf.resolution_ticks = file.perf_resolution_ticks;
+        cfg.perf.min_delta_ms = file.perf_min_delta_ms;
+        cfg.perf.min_delta_pct = file.perf_min_delta_pct;
         if let Some(v) = file.threshold {
             cfg.default_threshold = v;
         }
@@ -424,6 +432,10 @@ impl RunConfig {
                 "require_matching_meta": c.meta.required, "meta_name": c.meta.name,
                 "meta_ignore": c.meta.ignore, "declare": c.meta.declared,
                 "perf_name": c.perf.name, "perf_noise_k": c.perf.k,
+                "perf_resolution_ms": c.perf.resolution_ms,
+                "perf_resolution_ticks": c.perf.resolution_ticks,
+                "perf_min_delta_ms": c.perf.min_delta_ms,
+                "perf_min_delta_pct": c.perf.min_delta_pct,
                 "perf_noise_file": c.perf.noise.as_ref().map(|p| crate::paths::cwd(p,false)),
                 "perf_noise": c.perf.floor,
                 "hotspot_threshold": c.hotspot_threshold, "hotspots": c.hotspots,

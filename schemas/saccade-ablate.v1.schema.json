@@ -124,7 +124,16 @@
           "type": "string"
         },
         "noise_floor": {
-          "description": "Raw repeat range in ms (threshold is k times this).",
+          "description": "Raw repeat range in ms.",
+          "format": "double",
+          "type": [
+            "number",
+            "null"
+          ]
+        },
+        "noise_threshold": {
+          "default": null,
+          "description": "Effective threshold: max(k × range, ticks × quantum, absolute/relative minimum).",
           "format": "double",
           "type": [
             "number",
@@ -179,7 +188,16 @@
           ]
         },
         "noise_floor": {
-          "description": "Raw repeat range in ms (threshold is k times this).",
+          "description": "Raw repeat range in ms.",
+          "format": "double",
+          "type": [
+            "number",
+            "null"
+          ]
+        },
+        "noise_threshold": {
+          "default": null,
+          "description": "Effective threshold: max(k × range, ticks × quantum, absolute/relative minimum).",
           "format": "double",
           "type": [
             "number",
@@ -209,9 +227,39 @@
         "frame": {
           "$ref": "#/$defs/Delta"
         },
+        "min_delta_ms": {
+          "default": 0.05,
+          "format": "double",
+          "type": "number"
+        },
+        "min_delta_pct": {
+          "default": 0.5,
+          "format": "double",
+          "type": "number"
+        },
+        "minimum_delta_ms": {
+          "default": 0.0,
+          "description": "max(min_delta_ms, baseline frame × min_delta_pct / 100).",
+          "format": "double",
+          "type": "number"
+        },
         "noise_k": {
           "format": "double",
           "type": "number"
+        },
+        "resolution_ms": {
+          "default": null,
+          "format": "double",
+          "type": [
+            "number",
+            "null"
+          ]
+        },
+        "resolution_ticks": {
+          "default": 2,
+          "format": "uint32",
+          "minimum": 0,
+          "type": "integer"
         },
         "schema": {
           "type": "string"
@@ -351,7 +399,16 @@
           "type": "string"
         },
         "noise_floor": {
-          "description": "Raw repeat range in ms (threshold is k times this).",
+          "description": "Raw repeat range in ms.",
+          "format": "double",
+          "type": [
+            "number",
+            "null"
+          ]
+        },
+        "noise_threshold": {
+          "default": null,
+          "description": "Effective threshold: max(k × range, ticks × quantum, absolute/relative minimum).",
           "format": "double",
           "type": [
             "number",

@@ -3,7 +3,13 @@
   function node(tag, text, cls) { var e = document.createElement(tag); if (text != null) e.textContent = text; if (cls) e.className = cls; return e; }
   function num(v, digits) { return v == null ? '—' : v.toFixed(digits == null ? 4 : digits); }
   function signed(v) { return v == null ? '—' : (v > 0 ? '+' : '') + num(v); }
-  function noise(t, k) { return t.beyond_noise == null ? 'not comparable (noise unknown)' : (t.beyond_noise ? 'beyond' : 'within') + ' ' + num(t.noise_floor) + ' ms × ' + k; }
+  function noise(t, k) {
+    if (t.status !== 'paired') return 'not comparable';
+    if (t.beyond_noise == null) return 'repeat noise unknown';
+    if (t.noise_threshold == null && t.noise_floor == null) return 'within minimum delta (repeat noise unknown)';
+    var limit = t.noise_threshold == null ? t.noise_floor * k : t.noise_threshold;
+    return (t.beyond_noise ? 'beyond' : 'within') + ' threshold ' + num(limit) + ' ms';
+  }
   var colors = ['var(--accent)', 'var(--pass)', 'var(--new)', 'var(--missing)', 'var(--error)', 'var(--darker)', 'var(--brighter)'];
   function bars(host, d) {
     var wrap = node('div', null, 'perf-bars'), legend = node('div', null, 'perf-legend');
@@ -55,9 +61,15 @@
     if (verdict) panel.appendChild(node('p',verdict));
     if (!d) { panel.appendChild(node('p','Performance unavailable')); host.appendChild(panel); return; }
     d.warnings.forEach(function(w) { panel.appendChild(node('p',w,'perf-warning')); });
+    panel.appendChild(node('p','Frame: ' + signed(d.frame.delta) + ' ms · ' + noise(d.frame,d.noise_k) + '. Timer quantum: ' + num(d.resolution_ms,6) + ' ms; ' + d.resolution_ticks + ' ticks. Minimum delta: ' + num(d.min_delta_ms) + ' ms and ' + num(d.min_delta_pct,2) + '% of baseline frame (' + num(d.minimum_delta_ms) + ' ms).'));
+    var unpaired = d.terms.filter(function(t){return t.status !== 'paired';}).sort(function(a,b){return Math.max(b.before || 0,b.after || 0)-Math.max(a.before || 0,a.after || 0) || a.id.localeCompare(b.id);});
+    if (unpaired.length) {
+      panel.appendChild(node('h4','Terms differ (' + unpaired.length + ' not comparable)'));
+      unpaired.forEach(function(t){var prominent = Math.max(t.before || 0,t.after || 0) > d.minimum_delta_ms; panel.appendChild(node('p',t.label + ' [' + t.id + '] · ' + t.status + ' · ' + num(t.before) + ' → ' + num(t.after) + ' ms' + (prominent ? ' · above minimum delta' : ''),prominent ? 'perf-warning' : ''));});
+    }
     panel.appendChild(node('p','Unattributed: ' + num(d.unattributed_before) + ' → ' + num(d.unattributed_after) + ' ms. Scopes are nested and excluded from frame totals.'));
     bars(panel,d);
-    table(panel,[['Term',function(t){return t.id;}],['Kind',function(t){return t.kind;}],['Before ms',function(t){return t.before;}],['After ms',function(t){return t.after;}],['Δ ms',function(t){return t.delta;}],['Δ %',function(t){return t.delta_pct;}],['Share before',function(t){return t.share_before;}],['Share after',function(t){return t.share_after;}],['Noise floor',function(t){return t.noise_floor;}]],d.terms,function(body,sorted) {
+    table(panel,[['Term',function(t){return t.id;}],['Kind',function(t){return t.kind;}],['Before ms',function(t){return t.before;}],['After ms',function(t){return t.after;}],['Δ ms',function(t){return t.delta;}],['Δ %',function(t){return t.delta_pct;}],['Share before',function(t){return t.share_before;}],['Share after',function(t){return t.share_after;}],['Effective threshold',function(t){return t.noise_threshold;}]],d.terms,function(body,sorted) {
       var visited = new Set();
       function row(t,depth) {
         if (visited.has(t.id)) return; visited.add(t.id);
@@ -78,7 +90,7 @@
         [a.image_verdict,a.flag,signed(a.frame_delta)].forEach(function(v){tr.appendChild(node('td',v,'perf-copy'));});
         var moves = node('td',null,'perf-copy');
         if (!a.top_deltas.length) moves.textContent = 'none established';
-        a.top_deltas.forEach(function(t){var move=node('div',t.label+' '+signed(t.delta)+' ms (floor '+num(t.noise_floor)+')','perf-mover');move.title=t.id+' · '+noise(t,a.perf_diff ? a.perf_diff.noise_k : 3);moves.appendChild(move);});tr.appendChild(moves);
+        a.top_deltas.forEach(function(t){var move=node('div',t.label+' '+signed(t.delta)+' ms (threshold '+num(t.noise_threshold)+')','perf-mover');move.title=t.id+' · '+noise(t,a.perf_diff ? a.perf_diff.noise_k : 3);moves.appendChild(move);});tr.appendChild(moves);
         [a.config_differs.join(', ') || 'none',a.combined_verdict].forEach(function(v){tr.appendChild(node('td',v,'perf-copy'));});body.appendChild(tr);
       });
     });

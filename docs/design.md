@@ -1022,7 +1022,7 @@ error entries. Optional sidecars never change image pairing or thresholds.
 `perf_diff` is attached once per pair at the report/run level. Its schema is
 `saccade-perf-diff.v1`: `unit`, `noise_k`, `frame`, signed
 `unattributed_before/after`, `terms` and `warnings`. Every delta has nullable
-`before`, `after`, `delta`, `delta_pct`, `noise_floor`, `beyond_noise` and a
+`before`, `after`, `delta`, `delta_pct`, `noise_floor`, `noise_threshold`, `beyond_noise` and a
 `status` (`paired`, `appeared`, `disappeared`, `not_comparable`). Before zero
 makes percentage null. Relative calculations that overflow remain unknown.
 Exact ID, kind and parent must agree for a paired term; frame statistics must
@@ -1042,8 +1042,38 @@ calibration. The raw floor is independent of the image threshold margin and of
 per-capture spread bounds. Configuration accepts inline `[perf_noise]`, or a
 `perf_noise`/`perf_noise_file` file path resolved relative to its config file.
 CLI `--perf-noise` overrides it. `perf_noise_k`/`--perf-noise-k` defaults to 3
-and is finite and positive. The test is strictly `abs(delta) > k * floor`;
-unknown floors give null `beyond_noise`. A measured zero floor is not missing.
+and is finite and positive. The timer quantum is estimated across all term
+values in all repeats: sort values, take adjacent distinct differences, then
+reduce with approximate Euclid (GCD), treating residuals below `1e-6` ms as
+floating noise. Adjacent differences have the same GCD as all pairwise
+differences. Frame durations and descriptive sidecar spreads do not enter the
+estimate. No distinct values means unknown quantum. An estimate describes the
+observed lattice; sparse measurements can overestimate the actual timer tick,
+and mixed timing sources need an explicit override.
+
+`perf_resolution_ms`/`--perf-resolution` overrides the estimate with a finite
+positive quantum in ms. `perf_resolution_ticks`/`--perf-resolution-ticks` is a
+positive integer, default 2. `perf_min_delta_ms`/`--perf-min-delta-ms` defaults
+to 0.05 ms; `perf_min_delta_pct`/`--perf-min-delta-pct` defaults to 0.5 (percent).
+Both minima are finite and nonnegative. The shared meaningful minimum is
+`max(perf_min_delta_ms, baseline.frame.value * perf_min_delta_pct / 100)`;
+it uses the baseline frame even for term and scope deltas. The effective frame
+or term threshold is `max(k * repeat_range, ticks * quantum, meaningful_minimum)`.
+Only `abs(delta) > threshold` counts; equality is within noise. This prevents
+single-tick changes from being evidence even when repeat spread is zero.
+
+Noise output records raw frame/term ranges and `resolution_ms` (nullable in JSON,
+omitted from TOML when unknown), `resolution_ticks`, `min_delta_ms` and
+`min_delta_pct` inside `perf_noise`. Older calibration files use the new defaults
+and an unknown quantum. Explicit config and CLI options override loaded calibration
+settings, which override defaults. `noise --config` supports the same keys and
+CLI options. Generated TOML also records `perf_noise_k` at the root. Diffs retain
+raw `noise_floor`, add `noise_threshold`, and record the applied settings and
+`minimum_delta_ms` (the effective meaningful minimum). An unknown repeat floor
+does not become zero: meaningful deltas retain null `beyond_noise`; deltas
+at or below the known timer/meaningful minimum receive false. Counter deltas
+do not use timing thresholds. Structurally different terms retain null deltas
+and null `beyond_noise` regardless of their durations.
 
 `saccade-ablate.v1` contains `base` and `arms`. Each arm records its path,
 label, image verdict, nullable frame delta, top-N beyond-noise term rows,
@@ -1052,10 +1082,17 @@ perf evidence/errors and its relative report link. Arm output directories are
 stable `arm-1`, `arm-2`, etc.; arbitrary labels never become output paths.
 The output ownership and input-containment guards apply before writes.
 The command exits 0 for completed evidence (including image changes), 2 for
-malformed/incomplete comparisons or command errors. `NO-EFFECT` requires
-complete, calibrated term coverage and identical images; `PERF-ONLY` requires
-identical images and at least one term beyond noise. Frame deltas and counter
-changes remain separate evidence from these term-based flags. HTML, JSON and
+malformed/incomplete comparisons or command errors. `PERF-ONLY` requires
+identical images and a comparable frame OR at least one comparable term beyond
+its effective threshold. `NO-EFFECT` requires identical images, a calibrated
+comparable frame within noise, and all paired terms within their thresholds or
+below the timer/meaningful minimum. Appeared, disappeared and structurally
+changed terms alone never establish `PERF-ONLY` or block `NO-EFFECT`: they are
+reported separately with a `terms differ` note, sorted by largest recorded
+duration, with durations above the meaningful minimum highlighted. Unknown
+meaningful paired deltas or an uncalibrated/non-comparable frame remain
+`INCONCLUSIVE` when no change is established. Counters remain descriptive.
+HTML, JSON and
 text are written even for a completed arm with sidecar error entries.
 
 The run overview exposes an ablation table and run-level performance tables.

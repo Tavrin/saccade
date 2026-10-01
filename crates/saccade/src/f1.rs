@@ -177,9 +177,10 @@ pub(crate) fn entries(args: EntriesArgs) -> Result<u8, CliError> {
 
 #[derive(Args)]
 pub(crate) struct NoiseArgs {
-    /// Performance sidecar file name.
-    #[arg(long, default_value = "saccade-perf.json")]
-    perf_name: String,
+    #[command(flatten)]
+    perf: crate::perf_cmd::PerfArgs,
+    #[arg(long)]
+    config: Option<PathBuf>,
     #[arg(required = true, num_args = 2..)]
     dirs: Vec<PathBuf>,
     #[arg(long, default_value_t = 1.5)]
@@ -193,12 +194,14 @@ pub(crate) struct NoiseArgs {
 }
 
 pub(crate) fn noise(args: NoiseArgs, record_absolute_paths: bool) -> Result<u8, CliError> {
-    let mut report = saccade_core::ergonomics::noise_with_perf(
+    let mut cfg = crate::load_config(args.config.as_deref())?;
+    args.perf.apply(&mut cfg.perf)?;
+    let mut report = saccade_core::ergonomics::noise_with_perf_options(
         &args.dirs,
         args.margin,
         args.metric.into(),
         &args.out,
-        &args.perf_name,
+        &cfg.perf,
     )?;
     if record_absolute_paths {
         report.runs = args
@@ -223,9 +226,14 @@ pub(crate) fn noise(args: NoiseArgs, record_absolute_paths: bool) -> Result<u8, 
         }
         if let Some(f) = &report.perf_noise {
             crate::emit(&format!(
-                "perf noise (max-min): frame {:.6} ms; {} terms\n",
+                "perf noise (max-min): frame {:.6} ms; {} terms; quantum {} ms; {} ticks; min delta {:.6} ms / {:.3}% of baseline frame\n",
                 f.frame,
-                f.terms.len()
+                f.terms.len(),
+                f.resolution_ms
+                    .map_or_else(|| "unknown".into(), |q| format!("{q:.9}")),
+                f.resolution_ticks,
+                f.min_delta_ms,
+                f.min_delta_pct
             ))?;
         }
         crate::emit(&format!("wrote {}\n", args.out.display()))?;

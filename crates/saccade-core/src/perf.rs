@@ -7,6 +7,16 @@ use std::collections::{BTreeMap, BTreeSet};
 use std::path::{Path, PathBuf};
 
 pub const DEFAULT_PERF_NAME: &str = "saccade-perf.json";
+const QUANTUM_TOLERANCE_MS: f64 = 1e-6;
+fn default_ticks() -> u32 {
+    2
+}
+fn default_min_delta_ms() -> f64 {
+    0.05
+}
+fn default_min_delta_pct() -> f64 {
+    0.5
+}
 
 #[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, thiserror::Error)]
@@ -22,6 +32,10 @@ pub struct PerfOptions {
     pub noise: Option<PathBuf>,
     pub floor: Option<PerfNoise>,
     pub k: f64,
+    pub resolution_ms: Option<f64>,
+    pub resolution_ticks: Option<u32>,
+    pub min_delta_ms: Option<f64>,
+    pub min_delta_pct: Option<f64>,
 }
 impl Default for PerfOptions {
     fn default() -> Self {
@@ -30,6 +44,10 @@ impl Default for PerfOptions {
             noise: None,
             floor: None,
             k: 3.0,
+            resolution_ms: None,
+            resolution_ticks: None,
+            min_delta_ms: None,
+            min_delta_pct: None,
         }
     }
 }
@@ -52,14 +70,39 @@ impl PerfOptions {
         if let Some(f) = &self.floor {
             f.validate()?;
         }
+        self.policy(None).validate()?;
         Ok(())
+    }
+    /// Explicit options override calibration settings, then defaults apply.
+    pub fn policy(&self, floor: Option<&PerfNoise>) -> PerfNoise {
+        let mut policy = floor.cloned().unwrap_or_default();
+        if let Some(v) = self.resolution_ms {
+            policy.resolution_ms = Some(v);
+        }
+        if let Some(v) = self.resolution_ticks {
+            policy.resolution_ticks = v;
+        }
+        if let Some(v) = self.min_delta_ms {
+            policy.min_delta_ms = v;
+        }
+        if let Some(v) = self.min_delta_pct {
+            policy.min_delta_pct = v;
+        }
+        policy
     }
     pub fn resolved_floor(&self) -> crate::Result<Option<PerfNoise>> {
         self.validate()?;
-        match &self.noise {
-            Some(p) => Ok(Some(PerfNoise::read(p)?)),
-            None => Ok(self.floor.clone()),
-        }
+        let floor = match &self.noise {
+            Some(p) => Some(PerfNoise::read(p)?),
+            None => self.floor.clone(),
+        };
+        floor
+            .map(|f| {
+                let f = self.policy(Some(&f));
+                f.validate()?;
+                Ok(f)
+            })
+            .transpose()
     }
 }
 
@@ -278,6 +321,28 @@ pub struct PerfNoise {
     pub frame: f64,
     #[serde(default)]
     pub terms: BTreeMap<String, f64>,
+    /// Estimated timer quantum, or an explicit override, in ms. None means unknown.
+    #[serde(default)]
+    pub resolution_ms: Option<f64>,
+    #[serde(default = "default_ticks")]
+    pub resolution_ticks: u32,
+    #[serde(default = "default_min_delta_ms")]
+    pub min_delta_ms: f64,
+    /// Percentage of the baseline frame, shared by frame and term thresholds.
+    #[serde(default = "default_min_delta_pct")]
+    pub min_delta_pct: f64,
+}
+impl Default for PerfNoise {
+    fn default() -> Self {
+        Self {
+            frame: 0.0,
+            terms: BTreeMap::new(),
+            resolution_ms: None,
+            resolution_ticks: default_ticks(),
+            min_delta_ms: default_min_delta_ms(),
+            min_delta_pct: default_min_delta_pct(),
+        }
+    }
 }
 impl PerfNoise {
     pub fn validate(&self) -> crate::Result<()> {
@@ -289,6 +354,20 @@ impl PerfNoise {
         {
             return Err(crate::Error::Config(
                 "perf_noise values must be finite and nonnegative".into(),
+            ));
+        }
+        if self
+            .resolution_ms
+            .is_some_and(|v| !v.is_finite() || v <= 0.0)
+            || self.resolution_ticks == 0
+            || !nonnegative(self.min_delta_ms)
+            || !nonnegative(self.min_delta_pct)
+            || self
+                .resolution_ms
+                .is_some_and(|v| !(v * f64::from(self.resolution_ticks)).is_finite())
+        {
+            return Err(crate::Error::Config(
+                "perf_resolution_ms must be finite and positive; perf_resolution_ticks must be positive; perf_min_delta_ms and perf_min_delta_pct must be finite and nonnegative".into(),
             ));
         }
         Ok(())
@@ -326,8 +405,11 @@ pub struct Delta {
     pub after: Option<f64>,
     pub delta: Option<f64>,
     pub delta_pct: Option<f64>,
-    /// Raw repeat range in ms (threshold is k times this).
+    /// Raw repeat range in ms.
     pub noise_floor: Option<f64>,
+    /// Effective threshold: max(k × range, ticks × quantum, absolute/relative minimum).
+    #[serde(default)]
+    pub noise_threshold: Option<f64>,
     pub beyond_noise: Option<bool>,
     /// paired, appeared, disappeared, or not_comparable.
     pub status: String,
@@ -340,7 +422,8 @@ impl Delta {
         before: Option<f64>,
         after: Option<f64>,
         floor: Option<f64>,
-        k: f64,
+        threshold: Option<f64>,
+        minimum: Option<f64>,
         comparable: bool,
     ) -> Self {
         let status = match (before, after, comparable) {
@@ -358,15 +441,20 @@ impl Delta {
             .zip(before)
             .filter(|(_, b)| *b != 0.0)
             .and_then(|(d, b)| finite(d / b * 100.0));
-        let beyond_noise = delta
-            .zip(floor)
-            .and_then(|(d, f)| finite(k * f).map(|limit| d.abs() > limit));
+        let beyond_noise = delta.and_then(|d| {
+            if minimum.is_some_and(|m| d.abs() <= m) {
+                Some(false)
+            } else {
+                threshold.map(|limit| d.abs() > limit)
+            }
+        });
         Self {
             before,
             after,
             delta,
             delta_pct,
             noise_floor: floor,
+            noise_threshold: threshold,
             beyond_noise,
             status: status.into(),
         }
@@ -402,6 +490,17 @@ pub struct PerfDiff {
     pub schema: String,
     pub unit: String,
     pub noise_k: f64,
+    #[serde(default)]
+    pub resolution_ms: Option<f64>,
+    #[serde(default = "default_ticks")]
+    pub resolution_ticks: u32,
+    #[serde(default = "default_min_delta_ms")]
+    pub min_delta_ms: f64,
+    #[serde(default = "default_min_delta_pct")]
+    pub min_delta_pct: f64,
+    /// max(min_delta_ms, baseline frame × min_delta_pct / 100).
+    #[serde(default)]
+    pub minimum_delta_ms: f64,
     pub frame: Delta,
     pub unattributed_before: f64,
     pub unattributed_after: f64,
@@ -410,6 +509,31 @@ pub struct PerfDiff {
 }
 impl PerfDiff {
     pub fn between(b: &CapturePerf, a: &CapturePerf, floor: Option<&PerfNoise>, k: f64) -> Self {
+        Self::between_with_options(
+            b,
+            a,
+            floor,
+            &PerfOptions {
+                k,
+                ..Default::default()
+            },
+        )
+    }
+    pub fn between_with_options(
+        b: &CapturePerf,
+        a: &CapturePerf,
+        floor: Option<&PerfNoise>,
+        opts: &PerfOptions,
+    ) -> Self {
+        let k = opts.k;
+        let policy = opts.policy(floor);
+        let minimum = policy
+            .min_delta_ms
+            .max(b.frame.value * (policy.min_delta_pct / 100.0))
+            .min(f64::MAX);
+        let hard_floor =
+            minimum.max(policy.resolution_ms.unwrap_or(0.0) * f64::from(policy.resolution_ticks));
+        let threshold = |spread: Option<f64>| spread.and_then(|s| finite((k * s).max(hard_floor)));
         let bm: BTreeMap<_, _> = b.terms.iter().map(|t| (&t.id, t)).collect();
         let am: BTreeMap<_, _> = a.terms.iter().map(|t| (&t.id, t)).collect();
         let ids: BTreeSet<_> = bm.keys().chain(am.keys()).copied().collect();
@@ -433,7 +557,8 @@ impl PerfDiff {
                         bc.get(name).copied(),
                         ac.get(name).copied(),
                         None,
-                        k,
+                        None,
+                        None,
                         comparable,
                     ),
                 })
@@ -459,7 +584,8 @@ impl PerfDiff {
                     bt.map(|t| t.value),
                     at.map(|t| t.value),
                     floor.and_then(|f| f.terms.get(id).copied()),
-                    k,
+                    threshold(floor.and_then(|f| f.terms.get(id).copied())),
+                    finite(hard_floor),
                     comparable,
                 ),
                 share_before: bt
@@ -484,11 +610,17 @@ impl PerfDiff {
             schema: "saccade-perf-diff.v1".into(),
             unit: "ms".into(),
             noise_k: k,
+            resolution_ms: policy.resolution_ms,
+            resolution_ticks: policy.resolution_ticks,
+            min_delta_ms: policy.min_delta_ms,
+            min_delta_pct: policy.min_delta_pct,
+            minimum_delta_ms: minimum,
             frame: Delta::new(
                 Some(b.frame.value),
                 Some(a.frame.value),
                 floor.map(|f| f.frame),
-                k,
+                threshold(floor.map(|f| f.frame)),
+                finite(hard_floor),
                 b.frame.stat == a.frame.stat,
             ),
             unattributed_before: b.remainder(),
@@ -517,15 +649,17 @@ impl PerfDiff {
         terms
     }
     pub fn flags(&self, identical: bool) -> (bool, bool) {
-        let moved = self
-            .terms
-            .iter()
-            .any(|t| t.change.beyond_noise == Some(true));
-        let complete = !self.terms.is_empty()
+        let moved = self.frame.beyond_noise == Some(true)
+            || self
+                .terms
+                .iter()
+                .any(|t| t.change.beyond_noise == Some(true));
+        let complete = self.frame.noise_floor.is_some()
+            && self.frame.beyond_noise == Some(false)
             && self
                 .terms
                 .iter()
-                .all(|t| t.change.status == "paired" && t.change.beyond_noise.is_some());
+                .all(|t| t.change.status != "paired" || t.change.beyond_noise == Some(false));
         (identical && complete && !moved, identical && moved)
     }
     /// Compact verdict prioritises established beyond-noise changes.
@@ -547,7 +681,12 @@ impl PerfDiff {
             .filter(|t| t.change.status != "paired")
             .count();
         if incomplete > 0 {
-            parts.push(format!("{incomplete} terms not comparable"));
+            parts.push(format!("terms differ: {incomplete} not comparable"));
+            parts.extend(
+                self.not_comparable(3)
+                    .into_iter()
+                    .map(|t| self.describe_unpaired(t)),
+            );
         }
         parts.join(" · ")
     }
@@ -581,15 +720,47 @@ impl PerfDiff {
             }
         }
         let unpaired: Vec<_> = self
-            .terms
-            .iter()
-            .filter(|t| t.change.status != "paired")
-            .take(3)
-            .map(|t| format!("{} {} (not comparable)", clean(&t.id), t.change.status))
+            .not_comparable(3)
+            .into_iter()
+            .map(|t| self.describe_unpaired(t))
             .collect();
         parts.extend(unpaired);
         parts.push(format!("frame {}", describe(&self.frame, self.noise_k)));
         parts.join(" · ")
+    }
+    /// Unmatched or structurally different terms, largest recorded duration first.
+    pub fn not_comparable(&self, n: usize) -> Vec<&TermDiff> {
+        let mut terms: Vec<_> = self
+            .terms
+            .iter()
+            .filter(|t| t.change.status != "paired")
+            .collect();
+        let magnitude = |t: &TermDiff| {
+            t.change
+                .before
+                .unwrap_or(0.0)
+                .max(t.change.after.unwrap_or(0.0))
+        };
+        terms.sort_by(|a, b| magnitude(b).total_cmp(&magnitude(a)).then(a.id.cmp(&b.id)));
+        terms.truncate(n);
+        terms
+    }
+    pub fn describe_unpaired(&self, t: &TermDiff) -> String {
+        let value = t
+            .change
+            .before
+            .unwrap_or(0.0)
+            .max(t.change.after.unwrap_or(0.0));
+        format!(
+            "{} {} ({value:.4} ms; not comparable{})",
+            clean(&t.id),
+            t.change.status,
+            if value > self.minimum_delta_ms {
+                "; above minimum delta"
+            } else {
+                ""
+            }
+        )
     }
 }
 pub fn clean(s: &str) -> String {
@@ -604,12 +775,13 @@ fn describe(d: &Delta, k: f64) -> String {
     let pct = d
         .delta_pct
         .map_or(String::new(), |p| format!(" ({p:+.1}%)"));
-    let noise = match (d.beyond_noise, d.noise_floor) {
+    let noise = match (d.beyond_noise, d.noise_threshold) {
         (Some(b), Some(f)) => format!(
-            " ({} noise {:.4} ms; k={k})",
+            " ({} noise; threshold {:.4} ms; k={k})",
             if b { "beyond" } else { "within" },
             f
         ),
+        (Some(false), None) => " (within minimum delta; repeat noise unknown)".into(),
         _ => " (noise unknown)".into(),
     };
     format!("{v:+.4} ms{pct}{noise}")
@@ -631,7 +803,9 @@ pub fn pair(
         .filter_map(|r| r.as_ref().err().cloned())
         .collect();
     let diff = match (b, a) {
-        (Ok(Some(b)), Ok(Some(a))) => Some(PerfDiff::between(&b, &a, floor.as_ref(), opts.k)),
+        (Ok(Some(b)), Ok(Some(a))) => {
+            Some(PerfDiff::between_with_options(&b, &a, floor.as_ref(), opts))
+        }
         _ => None,
     };
     Ok((diff, errors))
@@ -639,9 +813,22 @@ pub fn pair(
 
 /// Repeat range for keys present with the same kind and parent in every capture.
 pub fn noise(dirs: &[PathBuf], name: &str) -> crate::Result<(Option<PerfNoise>, Vec<String>)> {
+    noise_with_options(
+        dirs,
+        &PerfOptions {
+            name: name.into(),
+            ..Default::default()
+        },
+    )
+}
+pub fn noise_with_options(
+    dirs: &[PathBuf],
+    opts: &PerfOptions,
+) -> crate::Result<(Option<PerfNoise>, Vec<String>)> {
+    opts.validate()?;
     let captures: Vec<_> = dirs
         .iter()
-        .map(|d| CapturePerf::read(d, name).map_err(crate::Error::Perf))
+        .map(|d| CapturePerf::read(d, &opts.name).map_err(crate::Error::Perf))
         .collect::<crate::Result<_>>()?;
     let present: Vec<_> = captures.iter().flatten().collect();
     if present.is_empty() {
@@ -688,11 +875,52 @@ pub fn noise(dirs: &[PathBuf], name: &str) -> crate::Result<(Option<PerfNoise>, 
             ));
         }
     }
-    Ok((
-        Some(PerfNoise {
-            frame: range(present.iter().map(|p| p.frame.value).collect()),
-            terms,
-        }),
-        warnings,
-    ))
+    let mut calibration = opts.policy(opts.resolved_floor()?.as_ref());
+    calibration.frame = range(present.iter().map(|p| p.frame.value).collect());
+    calibration.terms = terms;
+    if calibration.resolution_ms.is_none() {
+        calibration.resolution_ms = estimate_quantum(
+            present
+                .iter()
+                .flat_map(|p| p.terms.iter().map(|t| t.value))
+                .collect(),
+        );
+    }
+    calibration.validate()?;
+    Ok((Some(calibration), warnings))
+}
+
+// Adjacent distinct values contain the same GCD as all pairwise differences.
+// Approximate Euclid tolerates decimal/floating roundoff below 1e-6 ms.
+fn estimate_quantum(mut values: Vec<f64>) -> Option<f64> {
+    values.sort_by(f64::total_cmp);
+    let mut previous = None;
+    let mut quantum = None;
+    for value in values {
+        let Some(prev) = previous else {
+            previous = Some(value);
+            continue;
+        };
+        let difference: f64 = value - prev;
+        if difference < QUANTUM_TOLERANCE_MS {
+            continue;
+        }
+        previous = Some(value);
+        let Some(q) = quantum else {
+            quantum = Some(difference);
+            continue;
+        };
+        let mut large = difference.max(q);
+        let mut small = difference.min(q);
+        loop {
+            let remainder = large % small;
+            if remainder < QUANTUM_TOLERANCE_MS || small - remainder < QUANTUM_TOLERANCE_MS {
+                break;
+            }
+            large = small;
+            small = remainder;
+        }
+        quantum = Some(small);
+    }
+    quantum
 }

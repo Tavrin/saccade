@@ -172,29 +172,63 @@ and are listed in warnings.
 
 `--perf-noise` accepts either noise JSON or TOML. Configure a file with
 `perf_noise = "noise.toml"` (relative to the config file), or load the generated
-TOML itself using `--config noise.toml`. A delta is beyond noise only when
-`abs(delta) > k * floor`; equality is within noise. Default `k = 3`; configure
-`--perf-noise-k` or `perf_noise_k`. Missing floors stay unknown, rather than
-silently becoming zero. A measured zero floor uses the same strict rule.
+TOML itself using `--config noise.toml`. The effective threshold for both a term
+and the frame is
+`max(k * spread, resolution_ticks * quantum, perf_min_delta_ms, baseline_frame_ms * perf_min_delta_pct / 100)`.
+A delta is beyond noise only when its absolute value exceeds this threshold;
+equality is within noise. The relative minimum uses the baseline frame duration,
+including for scopes and gaps, rather than the term's own duration.
+
+| Config key | CLI option | Default | Meaning |
+| --- | --- | --- | --- |
+| `perf_noise_k` | `--perf-noise-k` | `3` | Repeat spread multiplier |
+| `perf_resolution_ms` | `--perf-resolution` | estimated | Timer quantum in ms |
+| `perf_resolution_ticks` | `--perf-resolution-ticks` | `2` | Minimum timer ticks |
+| `perf_min_delta_ms` | `--perf-min-delta-ms` | `0.05` | Absolute meaningful delta in ms |
+| `perf_min_delta_pct` | `--perf-min-delta-pct` | `0.5` | Meaningful delta as a percentage of baseline frame |
+
+Calibration estimates the quantum with a GCD-like reduction of differences
+between distinct term values across all repeats, ignoring floating noise below
+`1e-6` ms. It does not infer a timer quantum from frame durations. If no distinct
+term values exist, the quantum remains unknown; use an override when the timer
+resolution is known. Noise JSON and TOML record `resolution_ms` (when known),
+`resolution_ticks`, `min_delta_ms` and `min_delta_pct` inside `perf_noise`, alongside
+the raw ranges. Explicit config/CLI settings override calibration settings;
+otherwise loaded settings apply, followed by defaults. `noise` also accepts
+`--config` and these performance options. The quantum and tick count must be
+positive; minimum deltas must be nonnegative, and all numeric values finite.
+
+Pair/arm JSON preserves raw `noise_floor` and records the effective
+`noise_threshold`. A missing repeat floor remains unknown for a delta above the
+timer/meaningful minimum; a delta at or below that minimum cannot be evidence,
+even without a repeat floor. An observed zero spread still receives these limits.
 
 `ablate` writes `index.html`, `saccade-ablate.v1.json`, `ablation.txt` and a
 normal report per arm. Each row includes image bit-identity or FLIP class,
 frame delta, the top five term deltas beyond noise (`--top N`), and existing
-metadata-sidecar `config_differs` keys. `NO-EFFECT` requires bit-identical images
-and every term comparable, calibrated and within noise. `PERF-ONLY` requires
-bit-identical images and at least one term beyond noise; scopes count as evidence.
-These flags follow term changes; the frame's noise verdict is reported separately.
-Missing calibration or incomplete image comparisons remain `INCONCLUSIVE`.
+metadata-sidecar `config_differs` keys. `PERF-ONLY` requires bit-identical images
+and either the frame or at least one comparable term beyond its effective
+threshold; scopes count as evidence. `NO-EFFECT` requires bit-identical images,
+a calibrated comparable frame within noise, and every paired term within its
+threshold or below the timer/meaningful minimum. Appeared, disappeared and
+structurally changed terms never establish `PERF-ONLY` on their own. They are
+reported separately, largest recorded duration first, with a `terms differ`
+note; disappeared terms above the meaningful minimum are highlighted. An arm
+with only such unmatched term evidence and a quiet calibrated frame is `NO-EFFECT`.
+Missing calibration for a meaningful paired delta, an uncalibrated frame or
+incomplete image comparisons remains `INCONCLUSIVE` when no change is established.
 Image changes use `IMAGE-CHANGE`. These are evidence flags, not proof of causality.
 The **Ablation table** button in the runs overview presents the same evidence
 for its runs. The overview reports FLIP statistics and diagnoses changed image pairs with
 the same classification engine as normal reports.
 
 Every pair/arm includes a `combined_verdict`, such as
-`image bit-identical · render -4.0000 ms (-50.0%) (beyond noise 0.1000 ms; k=3) · frame -4.0000 ms`.
+`image bit-identical · render -4.0000 ms (-50.0%) (beyond noise; threshold 0.3000 ms; k=3) · frame -4.0000 ms`.
 It appears in lean JSON, text, Markdown, `explain.md` and MCP results.
 MCP `saccade_ablate` accepts `base_dir`, `arm_dirs`, `out_dir`, optional `config`,
-`top`, `perf_name`, `perf_noise`, `perf_noise_k`, and `record_absolute_paths`.
+`top`, `perf_name`, `perf_noise`, `perf_noise_k`, `perf_resolution_ms`,
+`perf_resolution_ticks`, `perf_min_delta_ms`, `perf_min_delta_pct`, and
+`record_absolute_paths`.
 Pair and overview MCP tools accept the same performance options; noise/config
 paths obey the server root policy.
 

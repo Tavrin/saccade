@@ -75,6 +75,10 @@ fn tool_schemas() -> Value {
             "perf_name": {"type":"string","minLength":1},
             "perf_noise": {"type":"string","minLength":1},
             "perf_noise_k": {"type":"number","exclusiveMinimum":0},
+            "perf_resolution_ms":{"type":"number","exclusiveMinimum":0},
+            "perf_resolution_ticks":{"type":"integer","minimum":1},
+            "perf_min_delta_ms":{"type":"number","minimum":0},
+            "perf_min_delta_pct":{"type":"number","minimum":0},
             "meta_name": {"type": "string", "minLength": 1, "description": "Metadata sidecar file name (default saccade-meta.json); `<stem>.<name>` next to an image overrides the directory-level one."},
             "require_matching_meta": {"type": "boolean", "description": "Make an undeclared metadata-sidecar difference an error for that image."},
             "declare": {"type": "array", "items": {"type": "string"}, "description": "Sidecar keys or globs allowed to differ; needs require_matching_meta."},
@@ -150,6 +154,10 @@ fn tool_schemas() -> Value {
                 "top":{"type":"integer","minimum":0,"default":5},
                 "perf_name":{"type":"string"}, "perf_noise":{"type":"string"},
                 "perf_noise_k":{"type":"number","exclusiveMinimum":0,"default":3},
+                "perf_resolution_ms":{"type":"number","exclusiveMinimum":0},
+                "perf_resolution_ticks":{"type":"integer","minimum":1,"default":2},
+                "perf_min_delta_ms":{"type":"number","minimum":0,"default":0.05},
+                "perf_min_delta_pct":{"type":"number","minimum":0,"default":0.5},
                 "record_absolute_paths":{"type":"boolean","default":false}
             },"required":["base_dir","arm_dirs","out_dir"],"additionalProperties":false},
             "outputSchema":serde_json::from_str::<Value>(include_str!("../../../schemas/saccade-ablate.v1.schema.json")).unwrap_or_else(|_|json!({"type":"object"})),
@@ -260,7 +268,11 @@ fn tool_schemas() -> Value {
                     "run_dirs": {"type": "array", "items": {"type": "string", "minLength": 1}, "minItems": 1, "maxItems": 5, "description": "Runs to compare against the reference, paired by relative image path (inside the server root)."},
                     "labels": {"type": "array", "items": {"type": "string", "minLength": 1}, "description": "One label per directory, the reference first (default: directory names)."},
                     "pair_by_position": {"type": "boolean", "description": "Pair each run's images with the reference's by sorted position instead of by name."},
-                    "perf_name":{"type":"string"},"perf_noise":{"type":"string"},"perf_noise_k":{"type":"number","exclusiveMinimum":0},"config":{"type":"string"},
+                    "perf_name":{"type":"string"},"perf_noise":{"type":"string"},"perf_noise_k":{"type":"number","exclusiveMinimum":0},
+                    "perf_resolution_ms":{"type":"number","exclusiveMinimum":0},
+                    "perf_resolution_ticks":{"type":"integer","minimum":1},
+                    "perf_min_delta_ms":{"type":"number","minimum":0},
+                    "perf_min_delta_pct":{"type":"number","minimum":0},"config":{"type":"string"},
                     "ppd": {"type": "number", "exclusiveMinimum": 0, "description": "FLIP pixels per degree of visual angle (default 67)."},
                     "meta_name": {"type": "string", "minLength": 1, "description": "Run-level sidecar file name (default saccade-meta.json); its keys that differ from the reference's are listed per run."}
                 },
@@ -451,6 +463,10 @@ const RUN_ARGS: &[&str] = &[
     "perf_name",
     "perf_noise",
     "perf_noise_k",
+    "perf_resolution_ms",
+    "perf_resolution_ticks",
+    "perf_min_delta_ms",
+    "perf_min_delta_pct",
     "threshold",
     "metric",
     "ppd",
@@ -759,6 +775,24 @@ impl Server {
         if let Some(k) = arg_f64(args, "perf_noise_k")? {
             opts.k = k;
         }
+        if let Some(v) = arg_f64(args, "perf_resolution_ms")? {
+            opts.resolution_ms = Some(v);
+        }
+        if let Some(v) = arg_f64(args, "perf_min_delta_ms")? {
+            opts.min_delta_ms = Some(v);
+        }
+        if let Some(v) = arg_f64(args, "perf_min_delta_pct")? {
+            opts.min_delta_pct = Some(v);
+        }
+        if let Some(v) = args.get("perf_resolution_ticks") {
+            opts.resolution_ticks = Some(
+                v.as_u64()
+                    .and_then(|v| u32::try_from(v).ok())
+                    .ok_or_else(|| {
+                        CliError::usage("perf_resolution_ticks must be a positive 32-bit integer")
+                    })?,
+            );
+        }
         // Config-provided paths obey the same server confinement as explicit arguments.
         if let Some(n) = &opts.noise {
             opts.noise = Some(self.existing_file("perf_noise", &saccade_core::paths::portable(n))?);
@@ -779,6 +813,10 @@ impl Server {
                 "perf_name",
                 "perf_noise",
                 "perf_noise_k",
+                "perf_resolution_ms",
+                "perf_resolution_ticks",
+                "perf_min_delta_ms",
+                "perf_min_delta_pct",
                 "record_absolute_paths",
             ],
         )?;
@@ -1175,6 +1213,10 @@ impl Server {
                 "perf_name",
                 "perf_noise",
                 "perf_noise_k",
+                "perf_resolution_ms",
+                "perf_resolution_ticks",
+                "perf_min_delta_ms",
+                "perf_min_delta_pct",
                 "config",
                 "ppd",
                 "meta_name",

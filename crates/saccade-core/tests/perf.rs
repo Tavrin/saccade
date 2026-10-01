@@ -78,6 +78,30 @@ fn strict_validation_returns_typed_errors_for_malformed_evidence() {
         .validate()
         .is_err()
     );
+    for opts in [
+        PerfOptions {
+            resolution_ms: Some(0.0),
+            ..Default::default()
+        },
+        PerfOptions {
+            resolution_ms: Some(f64::NAN),
+            ..Default::default()
+        },
+        PerfOptions {
+            resolution_ticks: Some(0),
+            ..Default::default()
+        },
+        PerfOptions {
+            min_delta_ms: Some(-1.0),
+            ..Default::default()
+        },
+        PerfOptions {
+            min_delta_pct: Some(f64::INFINITY),
+            ..Default::default()
+        },
+    ] {
+        assert!(opts.validate().is_err());
+    }
     assert!(
         PerfOptions {
             k: f64::NAN,
@@ -101,6 +125,7 @@ fn exact_ids_scopes_zero_denominators_and_counter_moves_are_preserved() {
     let floor = PerfNoise {
         frame: 1.0,
         terms: [("render".into(), 0.2), ("render/detail".into(), 0.5)].into(),
+        ..Default::default()
     };
     let d = PerfDiff::between(&parse(&b), &parse(&a), Some(&floor), 3.0);
     assert_eq!(d.unattributed_before, 1.0);
@@ -155,6 +180,7 @@ fn exact_ids_scopes_zero_denominators_and_counter_moves_are_preserved() {
         Some(&PerfNoise {
             frame: 1.0,
             terms: [("render".into(), 0.5)].into(),
+            ..Default::default()
         }),
         2.0,
     );
@@ -194,6 +220,15 @@ fn repeat_noise_ranges_include_scopes_and_exclude_incomplete_keys() {
     )
     .unwrap();
     assert_eq!(PerfNoise::read(&tmp.path().join("floor.json")).unwrap(), f);
+    std::fs::write(
+        tmp.path().join("full-floor.toml"),
+        toml::to_string(&json!({"perf_noise": f})).unwrap(),
+    )
+    .unwrap();
+    assert_eq!(
+        PerfNoise::read(&tmp.path().join("full-floor.toml")).unwrap(),
+        f
+    );
     let text = format!(
         "[perf_noise]\nframe = {}\n[perf_noise.terms]\nrender = {}\n",
         f.frame, f.terms["render"]
@@ -217,6 +252,99 @@ fn repeat_noise_ranges_include_scopes_and_exclude_incomplete_keys() {
     assert_eq!(cfg.perf.resolved_floor().unwrap().unwrap().frame, 2.0);
     std::fs::remove_file(dirs[2].join("saccade-perf.json")).unwrap();
     assert!(saccade_core::perf::noise(&dirs, "saccade-perf.json").is_err());
+}
+
+#[test]
+fn quantised_zero_spread_and_one_tick_do_not_make_performance_evidence() {
+    let tmp = tempfile::tempdir().unwrap();
+    let quantum = 0.001024;
+    let b = capture(16.0 * quantum, 10.0 * quantum);
+    let dirs: Vec<_> = (0..3).map(|i| tmp.path().join(i.to_string())).collect();
+    for (i, dir) in dirs.iter().enumerate() {
+        let mut v = b.clone();
+        // Decimal/floating jitter below the estimator tolerance is not a tick.
+        v["terms"][2]["value"] = json!(5.0 * quantum + i as f64 * 1e-9);
+        write(dir, &v);
+    }
+    let opts = PerfOptions {
+        min_delta_ms: Some(0.0),
+        min_delta_pct: Some(0.0),
+        ..Default::default()
+    };
+    let (floor, _) = saccade_core::perf::noise_with_options(&dirs, &opts).unwrap();
+    let floor = floor.unwrap();
+    assert!((floor.resolution_ms.unwrap() - quantum).abs() < 1e-8);
+    assert_eq!(floor.terms["render"], 0.0);
+    let a = capture(16.0 * quantum, 11.0 * quantum);
+    let d = PerfDiff::between(&parse(&b), &parse(&a), Some(&floor), 3.0);
+    assert_eq!(d.flags(true), (true, false));
+    let render = d.terms.iter().find(|t| t.id == "render").unwrap();
+    assert_eq!(render.change.beyond_noise, Some(false));
+    assert!((render.change.noise_threshold.unwrap() - 2.0 * quantum).abs() < 1e-8);
+
+    // Unmatched terms carry durations, not paired changes, even when large.
+    let mut unpaired = b.clone();
+    unpaired["terms"][0]["id"] = json!("other-render");
+    unpaired["terms"][0]["value"] = json!(9.0 * quantum);
+    unpaired["terms"][2]["parent"] = json!("other-render");
+    unpaired["terms"][2]["id"] = json!("other-detail");
+    unpaired["counters"] = json!({});
+    let d = PerfDiff::between(&parse(&b), &parse(&unpaired), Some(&floor), 3.0);
+    assert_eq!(d.flags(true), (true, false));
+    assert!(d.verdict().contains("terms differ"));
+    assert!(d.verdict().contains("disappeared"));
+    assert!(d.summary(1).contains("above minimum delta"));
+    assert_eq!(d.not_comparable(1)[0].change.status, "disappeared");
+}
+
+#[test]
+fn meaningful_term_or_frame_changes_above_the_floor_are_flagged() {
+    let tmp = tempfile::tempdir().unwrap();
+    let quantum = 0.001024;
+    let b = capture(1001.0 * quantum, 500.0 * quantum);
+    let dirs: Vec<_> = (0..2).map(|i| tmp.path().join(i.to_string())).collect();
+    for dir in &dirs {
+        write(dir, &b);
+    }
+    let floor = saccade_core::perf::noise(&dirs, "saccade-perf.json")
+        .unwrap()
+        .0
+        .unwrap();
+    assert!((floor.resolution_ms.unwrap() - quantum).abs() < 1e-10);
+    assert_eq!(floor.min_delta_ms, 0.05);
+    assert_eq!(floor.min_delta_pct, 0.5);
+    let a = capture(1001.0 * quantum, 600.0 * quantum);
+    let d = PerfDiff::between(&parse(&b), &parse(&a), Some(&floor), 3.0);
+    assert_eq!(d.frame.beyond_noise, Some(false));
+    assert_eq!(d.flags(true), (false, true));
+    assert_eq!(d.top(1, true)[0].change.beyond_noise, Some(true));
+
+    let mut a = b.clone();
+    a["frame"]["value"] = json!(b["frame"]["value"].as_f64().unwrap() + 0.2);
+    let d = PerfDiff::between(&parse(&b), &parse(&a), Some(&floor), 3.0);
+    assert_eq!(d.frame.beyond_noise, Some(true));
+    assert!(d.top(5, true).is_empty());
+    assert_eq!(d.flags(true), (false, true));
+
+    // The same term change is below 0.5% of a 100 ms baseline frame.
+    let b = capture(100.0, 0.512);
+    let a = capture(100.2, 0.612);
+    let d = PerfDiff::between(&parse(&b), &parse(&a), Some(&floor), 3.0);
+    assert_eq!(d.minimum_delta_ms, 0.5);
+    assert_eq!(d.frame.beyond_noise, Some(false));
+    assert_eq!(d.flags(true), (true, false));
+    let opts = PerfOptions {
+        min_delta_pct: Some(0.0),
+        ..Default::default()
+    };
+    let d = PerfDiff::between_with_options(&parse(&b), &parse(&a), Some(&floor), &opts);
+    assert_eq!(d.flags(true), (false, true));
+    let opts = PerfOptions {
+        resolution_ms: Some(1.0),
+        ..Default::default()
+    };
+    let d = PerfDiff::between_with_options(&parse(&b), &parse(&a), Some(&floor), &opts);
+    assert_eq!(d.flags(true), (true, false));
 }
 
 #[test]

@@ -108,7 +108,7 @@ pub struct NoiseReport {
     pub entries: Vec<NoiseEntry>,
     /// Limitations and high-noise warnings.
     pub warnings: Vec<String>,
-    /// Raw max-minus-min performance range across unchanged-build repeats.
+    /// Raw repeat ranges, timer quantum and minimum meaningful delta settings.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub perf_noise: Option<crate::perf::PerfNoise>,
 }
@@ -127,6 +127,26 @@ pub fn noise_with_perf(
     out: &Path,
     perf_name: &str,
 ) -> Result<NoiseReport> {
+    noise_with_perf_options(
+        dirs,
+        margin,
+        metric,
+        out,
+        &crate::perf::PerfOptions {
+            name: perf_name.into(),
+            ..Default::default()
+        },
+    )
+}
+
+/// Noise calibration with timer resolution and minimum meaningful delta options.
+pub fn noise_with_perf_options(
+    dirs: &[PathBuf],
+    margin: f64,
+    metric: Metric,
+    out: &Path,
+    perf: &crate::perf::PerfOptions,
+) -> Result<NoiseReport> {
     if dirs.len() < 2 || !margin.is_finite() || margin < 1.0 {
         return Err(Error::Config(
             "noise needs at least two RUN_DIR arguments and --margin >= 1".into(),
@@ -140,12 +160,8 @@ pub fn noise_with_perf(
             "--out is inside a noise input directory; choose a sibling saccade.noise.toml".into(),
         ));
     }
-    crate::perf::PerfOptions {
-        name: perf_name.into(),
-        ..Default::default()
-    }
-    .validate()?;
-    let (perf_noise, perf_warnings) = crate::perf::noise(dirs, perf_name)?;
+    perf.validate()?;
+    let (perf_noise, perf_warnings) = crate::perf::noise_with_options(dirs, perf)?;
     let temp = tempfile::tempdir().map_err(crate::run::io_err(
         "creating noise scratch directory".into(),
     ))?;
@@ -198,6 +214,9 @@ pub fn noise_with_perf(
     let mut toml = String::from(
         "# Repeated captures of an unchanged build; thresholds = largest observed metric × margin.\n",
     );
+    if perf_noise.is_some() {
+        toml.push_str(&format!("perf_noise_k = {:.17}\n", perf.k));
+    }
     for e in &entries {
         if e.suggested_threshold >= 0.1 {
             warnings.push(format!(
@@ -217,9 +236,13 @@ pub fn noise_with_perf(
     warnings.extend(perf_warnings);
     if let Some(floor) = &perf_noise {
         toml.push_str(&format!(
-            "\n[perf_noise]\nframe = {:.17}\n\n[perf_noise.terms]\n",
-            floor.frame
+            "\n[perf_noise]\nframe = {:.17}\nresolution_ticks = {}\nmin_delta_ms = {:.17}\nmin_delta_pct = {:.17}\n",
+            floor.frame, floor.resolution_ticks, floor.min_delta_ms, floor.min_delta_pct
         ));
+        if let Some(q) = floor.resolution_ms {
+            toml.push_str(&format!("resolution_ms = {q:.17}\n"));
+        }
+        toml.push_str("\n[perf_noise.terms]\n");
         for (id, value) in &floor.terms {
             toml.push_str(&format!("{} = {:.17}\n", serde_json::to_string(id)?, value));
         }

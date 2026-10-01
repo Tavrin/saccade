@@ -718,9 +718,9 @@ pub struct RunSummary {
     pub frame_delta: Option<f64>,
     /// Largest five term changes beyond noise.
     pub top_deltas: Vec<crate::perf::TermDiff>,
-    /// Image identity plus absence of beyond-noise terms.
+    /// Image identity with calibrated frame and no meaningful beyond-noise changes.
     pub no_effect: bool,
-    /// Image identity with beyond-noise terms.
+    /// Image identity with a meaningful beyond-noise frame or term change.
     pub perf_only: bool,
     /// NO-EFFECT, PERF-ONLY, IMAGE-CHANGE or INCONCLUSIVE.
     pub flag: String,

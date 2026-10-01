@@ -141,12 +141,18 @@ impl Ablation {
             if let Some(d) = &a.perf_diff {
                 for t in &a.top_deltas {
                     out.push_str(&format!(
-                        "  {} {:+.6} ms (beyond noise {:.6} ms; k={})\n",
+                        "  {} {:+.6} ms (beyond noise; threshold {:.6} ms; k={})\n",
                         crate::perf::clean(&t.id),
                         t.change.delta.unwrap_or(0.0),
-                        t.change.noise_floor.unwrap_or(0.0),
+                        t.change.noise_threshold.unwrap_or(0.0),
                         d.noise_k
                     ));
+                }
+                if !d.not_comparable(1).is_empty() {
+                    out.push_str("  terms differ (not comparable):\n");
+                    for t in d.not_comparable(usize::MAX) {
+                        out.push_str(&format!("    {}\n", d.describe_unpaired(t)));
+                    }
                 }
                 for w in &d.warnings {
                     out.push_str(&format!("  warning: {}\n", crate::perf::clean(w)));

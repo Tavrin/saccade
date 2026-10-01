@@ -11,9 +11,21 @@ pub(crate) struct PerfArgs {
     /// Noise JSON or TOML from unchanged-build repeats.
     #[arg(long)]
     pub perf_noise: Option<PathBuf>,
-    /// A delta exceeds noise when |delta| > k × floor (default 3).
+    /// Repeat spread multiplier in the effective noise threshold (default 3).
     #[arg(long)]
     pub perf_noise_k: Option<f64>,
+    /// Timer quantum in ms; overrides the estimate from repeated captures.
+    #[arg(long)]
+    pub perf_resolution: Option<f64>,
+    /// Minimum timer ticks in the noise threshold (default 2).
+    #[arg(long)]
+    pub perf_resolution_ticks: Option<u32>,
+    /// Minimum meaningful delta in ms (default 0.05).
+    #[arg(long)]
+    pub perf_min_delta_ms: Option<f64>,
+    /// Minimum meaningful delta as a percentage of the baseline frame (default 0.5).
+    #[arg(long)]
+    pub perf_min_delta_pct: Option<f64>,
 }
 impl PerfArgs {
     pub fn apply(&self, opts: &mut saccade_core::perf::PerfOptions) -> Result<(), CliError> {
@@ -25,6 +37,18 @@ impl PerfArgs {
         }
         if let Some(k) = self.perf_noise_k {
             opts.k = k;
+        }
+        if let Some(v) = self.perf_resolution {
+            opts.resolution_ms = Some(v);
+        }
+        if let Some(v) = self.perf_resolution_ticks {
+            opts.resolution_ticks = Some(v);
+        }
+        if let Some(v) = self.perf_min_delta_ms {
+            opts.min_delta_ms = Some(v);
+        }
+        if let Some(v) = self.perf_min_delta_pct {
+            opts.min_delta_pct = Some(v);
         }
         opts.validate()?;
         Ok(())

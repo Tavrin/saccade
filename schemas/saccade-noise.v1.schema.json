@@ -76,6 +76,32 @@
           "format": "double",
           "type": "number"
         },
+        "min_delta_ms": {
+          "default": 0.05,
+          "format": "double",
+          "type": "number"
+        },
+        "min_delta_pct": {
+          "default": 0.5,
+          "description": "Percentage of the baseline frame, shared by frame and term thresholds.",
+          "format": "double",
+          "type": "number"
+        },
+        "resolution_ms": {
+          "default": null,
+          "description": "Estimated timer quantum, or an explicit override, in ms. None means unknown.",
+          "format": "double",
+          "type": [
+            "number",
+            "null"
+          ]
+        },
+        "resolution_ticks": {
+          "default": 2,
+          "format": "uint32",
+          "minimum": 0,
+          "type": "integer"
+        },
         "terms": {
           "additionalProperties": {
             "format": "double",
@@ -120,7 +146,7 @@
           "type": "null"
         }
       ],
-      "description": "Raw max-minus-min performance range across unchanged-build repeats."
+      "description": "Raw repeat ranges, timer quantum and minimum meaningful delta settings."
     },
     "runs": {
       "description": "Capture directories, relative to the output configuration directory.",

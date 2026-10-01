@@ -72,6 +72,60 @@ fn noise_ablation_compare_identity_markdown_and_explain_share_evidence() {
     let tmp = tempfile::tempdir().unwrap();
     let root = tmp.path();
     fixture(root);
+    std::fs::write(root.join("perf-options.toml"),
+        "perf_resolution_ms = 0.02\nperf_resolution_ticks = 4\nperf_min_delta_ms = 0.4\nperf_min_delta_pct = 1.2\n").unwrap();
+    let configured = value(&run(
+        root,
+        &[
+            "noise",
+            "base",
+            "repeat",
+            "--config",
+            "perf-options.toml",
+            "--perf-resolution",
+            "0.03",
+            "--out",
+            "configured.toml",
+            "--json",
+        ],
+    ));
+    schema("saccade-noise.v1", &configured);
+    assert_eq!(configured["perf_noise"]["resolution_ms"], 0.03);
+    assert_eq!(configured["perf_noise"]["resolution_ticks"], 4);
+    assert_eq!(configured["perf_noise"]["min_delta_ms"], 0.4);
+    assert_eq!(configured["perf_noise"]["min_delta_pct"], 1.2);
+    let recalibrated = value(&run(
+        root,
+        &[
+            "noise",
+            "base",
+            "repeat",
+            "--config",
+            "configured.toml",
+            "--out",
+            "recalibrated.toml",
+            "--json",
+        ],
+    ));
+    assert_eq!(recalibrated["perf_noise"], configured["perf_noise"]);
+    let custom = value(&run(
+        root,
+        &[
+            "ablate",
+            "base",
+            "fast",
+            "--perf-noise",
+            "configured.toml",
+            "--perf-min-delta-ms",
+            "10",
+            "--out",
+            "configured-ablation",
+            "--json",
+        ],
+    ));
+    assert_eq!(custom["arms"][0]["perf_diff"]["resolution_ms"], 0.03);
+    assert_eq!(custom["arms"][0]["perf_diff"]["min_delta_ms"], 10.0);
+    assert_eq!(custom["arms"][0]["flag"], "NO-EFFECT");
     let noise = value(&run(
         root,
         &["noise", "base", "repeat", "--out", "floor.toml", "--json"],
@@ -292,7 +346,8 @@ fn mcp_ablate_and_pair_results_validate_and_confine_noise_paths() {
         call(
             2,
             "saccade_ablate",
-            json!({"base_dir":"base","arm_dirs":["fast","same"],"perf_noise":"floor.toml","out_dir":"ablation"}),
+            json!({"base_dir":"base","arm_dirs":["fast","same"],"perf_noise":"floor.toml","out_dir":"ablation",
+                "perf_resolution_ms":0.25,"perf_resolution_ticks":3,"perf_min_delta_ms":1.0,"perf_min_delta_pct":1.0}),
         ),
         call(
             3,
@@ -334,6 +389,18 @@ fn mcp_ablate_and_pair_results_validate_and_confine_noise_paths() {
     assert_eq!(a["isError"], false, "{a}");
     schema("saccade-ablate.v1", &a["structuredContent"]);
     assert_eq!(a["structuredContent"]["arms"][0]["flag"], "PERF-ONLY");
+    assert_eq!(
+        a["structuredContent"]["arms"][0]["perf_diff"]["resolution_ms"],
+        0.25
+    );
+    assert_eq!(
+        a["structuredContent"]["arms"][0]["perf_diff"]["resolution_ticks"],
+        3
+    );
+    assert_eq!(
+        a["structuredContent"]["arms"][0]["perf_diff"]["min_delta_ms"],
+        1.0
+    );
     let validator = jsonschema::validator_for(&tool["outputSchema"]).unwrap();
     assert!(validator.is_valid(&a["structuredContent"]));
     schema(
