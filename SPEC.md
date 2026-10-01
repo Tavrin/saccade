@@ -310,3 +310,71 @@ flipdiff view <DIR_A> <DIR_B> [<DIR_C> ...] [--labels parent,candidate,...] [--r
 - Publishing to crates.io, the Marketplace or a public repo. That is a human
   decision.
 - Masks and ignore-regions, beyond a single follow-up note in the README.
+
+## 11. Scene-capture features (added 2026-10-01, lanes F/G/H)
+
+Target users: renderer teams comparing captures of heavy scenes (Sponza, Bistro, San Miguel, jungle ruins) —
+identity proofs for optimizations, HDR/linear captures, and region-focused judgement. The report-model
+additions are FROZEN in `report.rs` (`Mode`, `Labels`, `RegionResult`, `HdrInfo`, and `Entry.{regions,
+masked_fraction, bit_identical, hdr}`, all `serde(default)` so v1 reports still parse; schema stays v1).
+
+### 11.1 HDR / EXR (lane F)
+- Decode `.exr` and `.hdr` (Radiance) via the `image` crate features `exr`/`hdr` (permissive licences; verify)
+  into linear RGB f32. Pairing extensions extend to `exr`, `hdr`. Mixed LDR/HDR pair → `error` entry.
+- **HDR-FLIP**: port the exposure procedure from NVIDIA FLIP's reference code
+  (`~/.cargo/registry/src/*/nv-flip-sys-0.1.1/extern/cpp/CPP/image.h`, BSD-3 — keep attribution in
+  THIRD_PARTY.md, port logic, don't copy text): compute start/stop exposure from the reference image
+  luminance (auto) unless given; for each of N exposures tone-map both images (ACES default; Hable, Reinhard
+  options), encode to sRGB 8-bit, run LDR-FLIP, take the **per-pixel max** over exposures. Document honestly
+  that per-exposure images are quantised to 8 bits (reference HDR-FLIP stays in float) — an approximation.
+- Config/CLI: `[hdr] tonemapper, start_exposure, stop_exposure, num_exposures` and
+  `--hdr-tonemapper/--hdr-exposures START:STOP:N`. Fill `Entry.hdr`. Properties for HDR use linear luminance.
+- Report/view images: copy the original EXR for download AND write a display PNG (tone-mapped at exposure 0
+  with the chosen tonemapper) that `paths.baseline/capture` point to; add nothing to `EntryPaths` (the
+  original is at `images/<name>/<side>.orig.<ext>` by convention; document it). `flipdiff view` handles EXR
+  the same way (decode → display PNG; FLIP via HDR path).
+
+### 11.2 Regions and masks (lane G)
+```toml
+[[region]]              # named ROI; fractions of the frame so resolution changes keep meaning
+name = "atrium-floor"
+glob = "sponza/**"      # optional; default all images
+rect = [0.30, 0.55, 0.40, 0.35]   # x, y, w, h in [0,1]
+threshold = 0.02        # optional; without it the region is informational
+metric = "p95"          # optional; default = entry's metric
+
+[[mask]]                # excluded from all statistics (whole-image and regions)
+glob = "jungle/**"
+rect = [0.0, 0.0, 1.0, 0.12]      # e.g. animated sky band
+# or: image = "masks/jungle_foliage.png"  (white = EXCLUDE; resized nearest to frame; path relative to config)
+```
+- Region rect resolves to pixels by floor(x*W), floor(y*H), ceil to cover, clamped; empty → error entry.
+- Masked pixels are excluded from every statistic; `masked_fraction` set when any mask applied. Heatmap shows
+  masked pixels as a neutral hatch/grey. A region whose pixels are all masked → informational, value NaN→null.
+- Entry `fail` if whole-image value > threshold OR any region with a threshold fails. Region results go in
+  `Entry.regions` in config order.
+- HTML report: region rows under the entry (name, value, threshold, status) and the region rectangles drawn
+  over baseline/capture/heatmap (toggle). Markdown: a failing region adds `name › region` rows in the non-pass
+  table. `flipdiff view`: config regions appear as preset ROIs (`--config`).
+
+### 11.3 Identity mode (lane H)
+`flipdiff identity <PARENT_DIR> <CANDIDATE_DIR> [--out] [--config] [--threshold F (default 0.0)] [--metric (default max)]`
+- Same pipeline as `compare` with `Mode::Identity`, labels `parent`/`candidate` (overridable `--labels a,b`),
+  defaults metric=max threshold=0.0, and `bit_identical` computed for every compared pair (decoded pixels equal;
+  for HDR, f32 bitwise). Pass ⇔ bit-identical OR value ≤ threshold. Exit codes as compare.
+- `compare` also gets `--labels` and always fills `bit_identical`.
+- Text table and Markdown headline in identity mode: `identity: ✅ 12/12 bit-identical` / `❌ 2 differ (max
+  FLIP 0.031 on bistro/cam3.png)`. HTML: labels from `config.labels` everywhere ("baseline"/"capture" strings
+  must come from the report), a "bit-identical" badge per entry, mode shown in the header.
+
+### 11.4 Shared rules
+- Ownership: F → `hdr.rs` (new), decode helpers in `run.rs`/`view.rs` (decode functions only), `compare.rs`
+  (add an HDR entry point; don't change the LDR one), `config.rs` `[hdr]` section, THIRD_PARTY.md.
+  G → `regions.rs` (new), `config.rs` `[[region]]`/`[[mask]]`, stats plumbing in `compare.rs` (mask-aware
+  statistics function), `run.rs` entry evaluation, `assets/report.*` + `render/html.rs` + `render/markdown.rs`
+  region display, `view.rs`/`view.js` preset ROIs. H → `main.rs` (`identity`, `--labels`), `run.rs`
+  `RunConfig` mode/labels plumbing + bit_identical, label/mode/badge display in report and view assets.
+  Overlaps (run.rs, config.rs, compare.rs, report assets) — keep edits local, small, and re-read the file
+  right before each edit; never reformat or reorder others' code.
+- README gains a "Scene captures" section per feature (each lane writes its own subsection under a heading
+  the first lane creates; append-only).

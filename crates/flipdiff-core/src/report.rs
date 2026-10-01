@@ -42,6 +42,76 @@ pub struct ReportConfig {
     pub pixels_per_degree: f32,
     /// Whether a `new` entry fails the run.
     pub fail_on_new: bool,
+    /// What the run is for; changes defaults and presentation, not the model.
+    #[serde(default)]
+    pub mode: Mode,
+    /// Display names for the two sides (e.g. "parent" / "candidate").
+    #[serde(default)]
+    pub labels: Labels,
+}
+
+/// Purpose of a comparison run.
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "lowercase")]
+pub enum Mode {
+    /// Captures checked against approved baselines (`flipdiff compare`).
+    #[default]
+    Regression,
+    /// A candidate build checked for sameness against its parent
+    /// (`flipdiff identity`): strict defaults, bit-identity reported.
+    Identity,
+}
+
+/// Display names of the two compared sides.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct Labels {
+    /// Name of the reference side (FLIP reference). Default `"baseline"`.
+    pub baseline: String,
+    /// Name of the test side. Default `"capture"`.
+    pub capture: String,
+}
+
+impl Default for Labels {
+    fn default() -> Self {
+        Self {
+            baseline: "baseline".to_owned(),
+            capture: "capture".to_owned(),
+        }
+    }
+}
+
+/// Result of one named region of interest of an entry.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct RegionResult {
+    /// Region name from the config.
+    pub name: String,
+    /// Rectangle in pixels after resolving the config fractions: `[x, y, w, h]`.
+    pub rect_px: [u32; 4],
+    /// `Pass`/`Fail` when the region has a threshold; `None` when informational.
+    pub status: Option<Status>,
+    /// Metric that decides `status`.
+    pub metric_used: Metric,
+    /// Threshold, when the region has one.
+    pub threshold: Option<f64>,
+    /// Value of `metric_used` over the region (masked pixels excluded).
+    pub value: f64,
+    /// FLIP statistics over the region; `width`/`height` are the region's.
+    pub metrics: Metrics,
+}
+
+/// HDR comparison settings actually used for an entry (HDR-FLIP).
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct HdrInfo {
+    /// Tone mapper applied at each exposure (`"aces"`, `"hable"`, `"reinhard"`).
+    pub tonemapper: String,
+    /// First exposure, in stops.
+    pub start_exposure: f32,
+    /// Last exposure, in stops.
+    pub stop_exposure: f32,
+    /// Number of exposures evaluated.
+    pub num_exposures: u32,
+    /// Whether the exposure range was computed from the baseline (true) or given.
+    pub auto_range: bool,
 }
 
 /// Per-status counts.
@@ -110,6 +180,18 @@ pub struct Entry {
     pub paths: EntryPaths,
     /// Human-readable reason; `Some` exactly when status is error.
     pub error: Option<String>,
+    /// Per-region results (config `[[region]]`); a failing region fails the entry.
+    #[serde(default)]
+    pub regions: Vec<RegionResult>,
+    /// Fraction of pixels excluded by masks; `None` when no mask applied.
+    #[serde(default)]
+    pub masked_fraction: Option<f64>,
+    /// Whether the decoded pixels are exactly equal; `None` unless compared.
+    #[serde(default)]
+    pub bit_identical: Option<bool>,
+    /// HDR-FLIP settings when the pair was compared as HDR.
+    #[serde(default)]
+    pub hdr: Option<HdrInfo>,
 }
 
 /// Serde adapter for metric values: a non-finite number is written as `null`

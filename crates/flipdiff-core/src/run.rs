@@ -10,8 +10,8 @@ use crate::error::{Error, Result};
 use crate::properties;
 use crate::render;
 use crate::report::{
-    Entry, EntryPaths, Metric, Metrics, REPORT_FILE_NAME, REPORT_SCHEMA, Report, ReportConfig,
-    Status, Totals,
+    Entry, EntryPaths, Labels, Metric, Metrics, Mode, REPORT_FILE_NAME, REPORT_SCHEMA, Report,
+    ReportConfig, Status, Totals,
 };
 
 pub(crate) fn io_err(context: String) -> impl FnOnce(std::io::Error) -> Error {
@@ -279,6 +279,8 @@ pub fn run(
             default_metric: config.default_metric,
             pixels_per_degree: config.pixels_per_degree,
             fail_on_new: config.fail_on_new,
+            mode: Mode::default(),
+            labels: Labels::default(),
         },
         totals,
         entries,
@@ -317,6 +319,10 @@ fn build_entry(
         properties: None,
         paths: EntryPaths::default(),
         error: None,
+        regions: Vec::new(),
+        masked_fraction: None,
+        bit_identical: None,
+        hdr: None,
     };
     if let Err(e) = fill_entry(&mut entry, base, cap, report_dir, opts) {
         entry.status = Status::Error;

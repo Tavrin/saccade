@@ -24,6 +24,10 @@ fn entry(name: String, status: Status, value: Option<f64>) -> Entry {
         properties: None,
         paths: EntryPaths::default(),
         error: None,
+        regions: Vec::new(),
+        masked_fraction: None,
+        bit_identical: None,
+        hdr: None,
     }
 }
 
