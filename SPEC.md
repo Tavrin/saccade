@@ -34,18 +34,34 @@ append only, and never reorder or remove existing lines.
     `nv_flip::DEFAULT_PIXELS_PER_DEGREE`.
   - `Comparison { metrics: report::Metrics, error_map: Vec<f32> /* row-major, w*h */ }`, plus a method
     `heatmap_rgb(&self) -> image::RgbImage`, which applies the magma LUT.
-  - It returns `Error::DimensionMismatch` if the dimensions differ and
-    `Error::EmptyImage` for a 0×0 image.
-  - Percentiles use nearest-rank over the sorted error map. Sort NaN as the
-    largest value, through `f32::total_cmp`.
+  - It returns `Error::DimensionMismatch` if the dimensions differ,
+    `Error::EmptyImage` for a 0×0 image and `Error::Config` unless
+    `pixels_per_degree` is finite and > 0 (the CLI and `RunConfig::validate`
+    reject it earlier, exit 2).
+  - Percentiles use nearest-rank over the sorted error map. Map every NaN to
+    +∞ first, then sort through `f32::total_cmp`.
+  - **Alpha.** `compare` takes RGB. `compare::compare_rgba` is what `run` and
+    `view` use: if both images are fully opaque it is `compare`; otherwise both
+    are composited over black and over white, FLIP runs on each pair, and the
+    error map is the per-pixel maximum. An alpha-only change is therefore
+    visible, and RGB hidden under alpha 0 is not. Inputs are decoded to 8-bit
+    RGBA, so 16-bit PNGs are accepted and down-converted.
+  - Metric values that are not finite serialize as `null` in the report JSON
+    and read back as NaN, so a report always round-trips.
 - `properties::validate(img: &image::RgbImage) -> report::Properties` uses
   Rec. 709 luminance on sRGB-encoded bytes / 255. No linearisation; document
   this.
 - `run::run(baseline_dir, capture_dir, report_dir, &RunConfig) -> Result<Report>`
   is the whole comparison.
+  0. Remove `flipdiff-report.v1.json`, `index.html` and `images/` from the
+     report directory, and nothing else, so a failed run cannot leave a stale
+     report. A report directory that is the baseline or capture directory is
+     refused (exit 2).
   1. Pair images by path relative to each root (`/`-separated). Recurse, and
      take extensions `png`, `jpg` and `jpeg`, case-insensitive. Apply `ignore`
-     globs.
+     globs. Symbolic links are not followed: a link becomes an `error` entry
+     ("symlinks are not followed"). A directory that cannot be read becomes an
+     `error` entry named after it.
   2. For each pair, decode both. Copy them into
      `<report_dir>/images/<name>/{baseline,capture}.<ext>` and write
      `heatmap.png`. Every image gets its own directory, so nothing collides.
@@ -55,12 +71,14 @@ append only, and never reorder or remove existing lines.
   4. Write `<report_dir>/flipdiff-report.v1.json` (pretty, entries sorted by
      name), then call `render::render_html`.
   - Only directory, config and report-write failures return `Err`. Per-image
-    problems become entries.
+    problems (decode, copy, walk errors, symlinks) become `error` entries. A
+    capture without a baseline that does not decode is `error`, not `new`.
 - `config::RunConfig` holds `default_threshold` (0.01), `default_metric`
   (`mean`), `pixels_per_degree`, `fail_on_new` (false), `ignore: Vec<glob>`
   and `overrides: Vec<Override { glob, threshold: Option<f64>, metric: Option<Metric> }>`.
   The first matching override wins, field by field over the defaults.
-  `RunConfig::from_toml_file(path)`.
+  `RunConfig::from_toml_file(path)`. Globs are case-insensitive, like the
+  extensions. `pixels_per_degree` must be finite and > 0.
 - **Never panic in non-test code.** No `unwrap`, `expect` or indexing that
   can go out of bounds.
 
@@ -97,8 +115,9 @@ semantics:
 ```
 flipdiff compare <BASELINE_DIR> <CAPTURE_DIR> [--out report] [--threshold F] [--metric mean|p95|max]
                  [--config flipdiff.toml] [--fail-on-new] [--json] [--ppd F]
-flipdiff approve <CAPTURE_DIR> <BASELINE_DIR> [NAMES...] [--all-failing <REPORT_JSON>]
-flipdiff summary <REPORT_JSON> [--format markdown|text] [--artifact-url URL]
+flipdiff approve <CAPTURE_DIR> <BASELINE_DIR> [NAMES...] [--all-failing <REPORT_JSON> [--include-errors]]
+flipdiff summary <REPORT_JSON> [--format markdown|text] [--artifact-url URL] [--comment-key KEY]
+flipdiff unblind <DECISIONS_JSON> <BLIND_KEY_JSON> [--out FILE]
 ```
 - `--config` defaults to `./flipdiff.toml` if that file exists.
 - `compare` prints a short aligned text table to stdout: status, name, metric,
@@ -106,7 +125,14 @@ flipdiff summary <REPORT_JSON> [--format markdown|text] [--artifact-url URL]
   report JSON instead. It always writes the report directory.
 - `approve` copies captures over baselines, creating directories as needed. It
   takes the named images, or every fail and new entry in a report. It prints
-  each file it copies.
+  each file it copies. `--include-errors` (with `--all-failing`) also takes
+  `error` entries whose capture exists and decodes, so a size change can be
+  approved in bulk. It validates every name first and refuses, copying
+  nothing, when an existing component of a destination below `BASELINE_DIR` is
+  a symbolic link.
+- Names and error text printed in the text table are escaped (`\n`, `\x1b`,
+  ...) so they cannot inject workflow commands. A closed stdout pipe is not an
+  error.
 - `summary` prints `render::render_markdown` output, or a plain-text form of
   it.
 - **Exit codes:** `0` means no regression. `1` means a regression
@@ -158,7 +184,13 @@ pass rows first, then non-pass rows, and add a line saying "…and N more
 (see full report)".
 
 A hidden marker `<!-- flipdiff-summary -->` appears on the first line, so the
-Action can find its sticky comment and update it.
+Action can find its sticky comment and update it. With `--comment-key KEY`
+(`MarkdownOptions::comment_key`; ASCII letters, digits, `.`, `_`, `-`, at most
+64) the marker is `<!-- flipdiff-summary:KEY -->`, so matrix jobs keep one
+comment each.
+
+An error entry's text is shown in a code span under its name, escaped like
+names.
 
 ## 7. GitHub Action (lane C)
 
@@ -167,7 +199,11 @@ Action can find its sticky comment and update it.
 **Inputs:**
 - `baseline-dir` and `capture-dir` (required);
 - `threshold`, `metric`, `config` (optional);
-- `report-dir` (default `flipdiff-report`);
+- `report-dir` (default `flipdiff-report`; relative to the workspace, because
+  an absolute path is not uploaded as an artifact);
+- `artifact-name` (default `flipdiff-report`; matrix jobs need distinct names);
+- `comment-key` (default empty; the comment marker becomes
+  `<!-- flipdiff-summary:<key> -->`);
 - `fail-on-new` (default `false`);
 - `comment` (default `true` on `pull_request` events);
 - `github-token` (default `${{ github.token }}`);
@@ -175,8 +211,11 @@ Action can find its sticky comment and update it.
 
 **Steps:**
 1. Install the CLI. Use a prebuilt release binary if one exists for the
-   version; otherwise `cargo install --git <repo> --rev <ref> flipdiff --locked`.
-   Rust is expected on the runner.
+   version and its `.sha256` file matches; the binary must also run
+   `flipdiff --version`. Otherwise (no asset, missing or mismatched checksum, a
+   binary that does not run) `cargo install --git <repo> --rev <ref> flipdiff --locked`.
+   Rust is expected on the runner. The release workflow publishes a `.sha256`
+   next to every asset.
 2. `flipdiff compare`. Keep its exit code and don't fail yet.
 3. `actions/upload-artifact@v4` the report directory.
 4. `flipdiff summary --format markdown --artifact-url <run url>` into
@@ -240,10 +279,17 @@ flipdiff view <DIR_A> <DIR_B> [<DIR_C> ...] [--labels parent,candidate,...] [--r
     it; the ROI shows in every pane.
 - **Blind mode (`--blind`), for pairwise A/B judging:**
   - Pane order is shuffled per image set with a seed recorded in the data, and
-    labels are hidden as "A", "B", ….
+    panes are shown as "A", "B", ….
+  - The page embeds only neutral directory labels (`P1`, `P2`, …) and the seed.
+    The true labels are written to `<out>/blind-key.json`
+    (`flipdiff-blind-key.v1`: `seed`, `labels`), which the page does not
+    reference, so view-source reveals nothing. Pane errors do not name paths.
   - The judge picks a preferred pane, or "no visible difference", and may add
     a free-text note.
-  - Labels stay hidden until the judge clicks "Reveal" after deciding all sets.
+  - "Reveal" (enabled after all sets are decided) opens a file picker for
+    `blind-key.json` and shows the true labels. The exported decisions carry
+    the neutral labels; `flipdiff unblind <decisions> <blind-key.json>` writes
+    the same file with the true labels (and fails on a seed or label mismatch).
 - **Decisions in any mode:** per image set, accept / reject / needs-work and
   a note. Use "Export decisions" to download a `flipdiff-decisions.v1.json`
   file containing:

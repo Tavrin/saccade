@@ -41,17 +41,69 @@ impl Comparison {
     }
 }
 
-/// Compares `capture` against `baseline` with NVIDIA FLIP (baseline is the
-/// reference image).
+/// Composites `img` over a uniform grey background (`0` = black, `255` =
+/// white) using straight alpha, dropping the alpha channel.
+pub fn flatten_over(img: &image::RgbaImage, background: u8) -> image::RgbImage {
+    let bg = u32::from(background);
+    let mut out = image::RgbImage::new(img.width(), img.height());
+    for (src, dst) in img.pixels().zip(out.pixels_mut()) {
+        let a = u32::from(src.0[3]);
+        for (d, &c) in dst.0.iter_mut().zip(&src.0[..3]) {
+            *d = ((u32::from(c) * a + bg * (255 - a) + 127) / 255) as u8;
+        }
+    }
+    out
+}
+
+/// Compares two images that may carry an alpha channel.
 ///
-/// Errors with [`Error::EmptyImage`] for a 0-pixel image and
-/// [`Error::DimensionMismatch`] when the sizes differ. Percentiles use
-/// nearest-rank over the sorted error map, with NaN sorted as the largest value.
+/// When both images are fully opaque this is [`compare`]. Otherwise both are
+/// composited over black and over white, FLIP runs on each pair, and the error
+/// map is the per-pixel maximum of the two. An alpha-only change is therefore
+/// visible, and RGB hidden under alpha 0 is not.
+///
+/// Errors as [`compare`] does.
+pub fn compare_rgba(
+    capture: &image::RgbaImage,
+    baseline: &image::RgbaImage,
+    opts: &CompareOptions,
+) -> Result<Comparison> {
+    let opaque = |i: &image::RgbaImage| i.pixels().all(|p| p.0[3] == 255);
+    let on_black = compare(&flatten_over(capture, 0), &flatten_over(baseline, 0), opts)?;
+    if opaque(capture) && opaque(baseline) {
+        return Ok(on_black);
+    }
+    let on_white = compare(
+        &flatten_over(capture, 255),
+        &flatten_over(baseline, 255),
+        opts,
+    )?;
+    let error_map: Vec<f32> = on_black
+        .error_map
+        .iter()
+        .zip(&on_white.error_map)
+        .map(|(&a, &b)| if b > a || a.is_nan() { b } else { a })
+        .collect();
+    let (w, h) = capture.dimensions();
+    let metrics = metrics_of(&error_map, w, h);
+    Ok(Comparison { metrics, error_map })
+}
+
+/// Compares `capture` against `baseline` with NVIDIA FLIP (baseline is the
+/// reference image). Alpha is not considered; use [`compare_rgba`] for images
+/// that may be transparent.
+///
+/// Errors with [`Error::EmptyImage`] for a 0-pixel image,
+/// [`Error::DimensionMismatch`] when the sizes differ and [`Error::Config`]
+/// when `pixels_per_degree` is not finite and positive. Percentiles use
+/// nearest-rank over the sorted error map, with every NaN mapped to +infinity
+/// first so it sorts as the largest value.
 pub fn compare(
     capture: &image::RgbImage,
     baseline: &image::RgbImage,
     opts: &CompareOptions,
 ) -> Result<Comparison> {
+    check_ppd(opts.pixels_per_degree)?;
     let (w, h) = capture.dimensions();
     let (bw, bh) = baseline.dimensions();
     if w == 0 || h == 0 || bw == 0 || bh == 0 {
@@ -75,10 +127,24 @@ pub fn compare(
     Ok(Comparison { metrics, error_map })
 }
 
+/// Rejects a pixels-per-degree that is not finite and positive.
+pub(crate) fn check_ppd(ppd: f32) -> Result<()> {
+    if ppd.is_finite() && ppd > 0.0 {
+        Ok(())
+    } else {
+        Err(Error::Config(format!(
+            "pixels per degree must be finite and > 0, got {ppd}"
+        )))
+    }
+}
+
 fn metrics_of(error_map: &[f32], width: u32, height: u32) -> Metrics {
     let n = error_map.len().max(1) as f64;
     let mean = error_map.iter().map(|&v| f64::from(v)).sum::<f64>() / n;
-    let mut sorted = error_map.to_vec();
+    let mut sorted: Vec<f32> = error_map
+        .iter()
+        .map(|&v| if v.is_nan() { f32::INFINITY } else { v })
+        .collect();
     sorted.sort_unstable_by(f32::total_cmp);
     let pct = |p: f64| -> f64 {
         let rank = (p * sorted.len() as f64).ceil() as usize;

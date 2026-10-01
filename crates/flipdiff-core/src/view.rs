@@ -11,7 +11,7 @@ use std::time::{SystemTime, UNIX_EPOCH};
 
 use serde::{Deserialize, Serialize};
 
-use crate::compare::{CompareOptions, compare};
+use crate::compare::{CompareOptions, compare_rgba};
 use crate::error::{Error, Result};
 use crate::render::write_view_html;
 use crate::report::Metrics;
@@ -21,6 +21,12 @@ use crate::run::{collect_images, copy_into_report, decode, io_err};
 pub const VIEW_SCHEMA: &str = "flipdiff-view.v1";
 /// Schema tag of the decisions file exported by the viewer.
 pub const DECISIONS_SCHEMA: &str = "flipdiff-decisions.v1";
+
+/// Schema tag of the blind key written next to a `--blind` view.
+pub const BLIND_KEY_SCHEMA: &str = "flipdiff-blind-key.v1";
+/// File name of the blind key inside the view directory. The page never
+/// references it; the judge loads it through a file picker to reveal labels.
+pub const BLIND_KEY_FILE: &str = "blind-key.json";
 
 /// Minimum and maximum number of directories a view accepts.
 pub const MIN_DIRS: usize = 2;
@@ -183,6 +189,69 @@ pub struct Decisions {
     pub sets: Vec<SetDecision>,
 }
 
+/// The mapping from a blind view's neutral labels (`P1`, `P2`, ...) to the true
+/// directory labels. Written to `<out>/blind-key.json`, never embedded in the page.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct BlindKey {
+    /// Always [`BLIND_KEY_SCHEMA`].
+    pub schema: String,
+    /// The view's shuffle seed; must match the decisions file.
+    pub seed: u64,
+    /// True labels, in directory order (the neutral label `P<n>` is entry `n - 1`).
+    pub labels: Vec<String>,
+}
+
+/// Reads and validates a blind key file.
+pub fn read_blind_key(path: &Path) -> Result<BlindKey> {
+    let text = std::fs::read_to_string(path)
+        .map_err(io_err(format!("reading blind key {}", path.display())))?;
+    let key: BlindKey = serde_json::from_str(&text)?;
+    if key.schema != BLIND_KEY_SCHEMA {
+        return Err(Error::Config(format!(
+            "{} has schema {:?}, expected {BLIND_KEY_SCHEMA:?}",
+            path.display(),
+            key.schema
+        )));
+    }
+    Ok(key)
+}
+
+/// Replaces the neutral labels of a decisions file exported from a blind view
+/// with the true labels from its key.
+///
+/// Fails when the seeds differ, the label counts differ, or a `chosen_label`
+/// is not one of the decisions' own labels.
+pub fn unblind(decisions: &Decisions, key: &BlindKey) -> Result<Decisions> {
+    if decisions.seed != key.seed {
+        return Err(Error::Config(format!(
+            "seed mismatch: decisions {} vs key {}",
+            decisions.seed, key.seed
+        )));
+    }
+    if decisions.labels.len() != key.labels.len() {
+        return Err(Error::Config(format!(
+            "{} labels in the decisions, {} in the key",
+            decisions.labels.len(),
+            key.labels.len()
+        )));
+    }
+    let mut out = decisions.clone();
+    out.labels = key.labels.clone();
+    for set in &mut out.sets {
+        if let Some(neutral) = &set.chosen_label {
+            let idx = decisions
+                .labels
+                .iter()
+                .position(|l| l == neutral)
+                .ok_or_else(|| {
+                    Error::Config(format!("{:?}: unknown label {neutral:?}", set.name))
+                })?;
+            set.chosen_label = key.labels.get(idx).cloned();
+        }
+    }
+    Ok(out)
+}
+
 impl Decisions {
     /// Names of the sets whose verdict is [`Verdict::Accept`].
     pub fn accepted(&self) -> Vec<String> {
@@ -294,6 +363,15 @@ fn flip_data_uri(error_map: &[f32], w: u32, h: u32) -> Result<String> {
     Ok(format!("data:image/png;base64,{}", base64(&png)))
 }
 
+/// A pane error as shown on the page; blind pages must not leak directory paths.
+fn pane_error(e: &Error, blind: bool) -> String {
+    if blind && matches!(e, Error::Decode { .. }) {
+        "image could not be decoded".to_string()
+    } else {
+        e.to_string()
+    }
+}
+
 fn default_labels(dirs: &[PathBuf]) -> Vec<String> {
     let mut labels: Vec<String> = Vec::new();
     for (i, d) in dirs.iter().enumerate() {
@@ -363,12 +441,23 @@ pub fn build_view(dirs: &[PathBuf], out_dir: &Path, opts: &ViewOptions) -> Resul
             )));
         }
     }
+    crate::compare::check_ppd(opts.pixels_per_degree)?;
     let reference = resolve_reference(opts.reference.as_deref(), dirs, &labels)?;
+    // Blind pages carry neutral labels only; the true ones go to the key file.
+    let shown_labels: Vec<String> = if opts.blind {
+        (1..=dirs.len()).map(|i| format!("P{i}")).collect()
+    } else {
+        labels.clone()
+    };
 
-    let maps: Vec<BTreeMap<String, PathBuf>> = dirs
-        .iter()
-        .map(|d| collect_images(d))
-        .collect::<Result<_>>()?;
+    let mut maps: Vec<BTreeMap<String, PathBuf>> = Vec::with_capacity(dirs.len());
+    for d in dirs {
+        let found = collect_images(d)?;
+        if let Some((name, why)) = found.problems.iter().next() {
+            return Err(Error::Config(format!("{}: {name}: {why}", d.display())));
+        }
+        maps.push(found.files);
+    }
     let mut names: Vec<&String> = maps.iter().flat_map(BTreeMap::keys).collect();
     names.sort();
     names.dedup();
@@ -393,7 +482,7 @@ pub fn build_view(dirs: &[PathBuf], out_dir: &Path, opts: &ViewOptions) -> Resul
     let mut sets = Vec::with_capacity(names.len());
     for (set_idx, name) in names.into_iter().enumerate() {
         let sources: Vec<Option<&PathBuf>> = maps.iter().map(|m| m.get(name)).collect();
-        let decoded: Vec<Option<std::result::Result<image::RgbImage, Error>>> =
+        let decoded: Vec<Option<std::result::Result<image::RgbaImage, Error>>> =
             sources.iter().map(|s| s.map(|p| decode(p))).collect();
         let ref_img = match decoded.get(reference) {
             Some(Some(Ok(img))) => Some(img),
@@ -429,7 +518,7 @@ pub fn build_view(dirs: &[PathBuf], out_dir: &Path, opts: &ViewOptions) -> Resul
                     (pane.width, pane.height) = img.dimensions();
                     if i != reference {
                         match ref_img {
-                            Some(r) => match compare(img, r, &compare_opts) {
+                            Some(r) => match compare_rgba(img, r, &compare_opts) {
                                 Ok(cmp) => {
                                     let rel = format!("images/{name}/heatmap{i}.png");
                                     let dest = out_dir.join(&rel);
@@ -444,7 +533,7 @@ pub fn build_view(dirs: &[PathBuf], out_dir: &Path, opts: &ViewOptions) -> Resul
                                     )?);
                                     pane.metrics = Some(cmp.metrics);
                                 }
-                                Err(e) => pane.error = Some(e.to_string()),
+                                Err(e) => pane.error = Some(pane_error(&e, opts.blind)),
                             },
                             None => {
                                 pane.error =
@@ -453,7 +542,7 @@ pub fn build_view(dirs: &[PathBuf], out_dir: &Path, opts: &ViewOptions) -> Resul
                         }
                     }
                 }
-                Some(Err(e)) => pane.error = Some(e.to_string()),
+                Some(Err(e)) => pane.error = Some(pane_error(e, opts.blind)),
                 None => {}
             }
             panes.push(pane);
@@ -485,7 +574,7 @@ pub fn build_view(dirs: &[PathBuf], out_dir: &Path, opts: &ViewOptions) -> Resul
     }
 
     let id = {
-        let mut key = format!("{generated_at_unix}|{seed}|{}", labels.join(","));
+        let mut key = format!("{generated_at_unix}|{seed}|{}", shown_labels.join(","));
         for s in &sets {
             key.push('|');
             key.push_str(&s.name);
@@ -497,7 +586,7 @@ pub fn build_view(dirs: &[PathBuf], out_dir: &Path, opts: &ViewOptions) -> Resul
         tool_version: env!("CARGO_PKG_VERSION").to_string(),
         generated_at_unix,
         id,
-        labels,
+        labels: shown_labels,
         reference,
         blind: opts.blind,
         seed,
@@ -505,6 +594,16 @@ pub fn build_view(dirs: &[PathBuf], out_dir: &Path, opts: &ViewOptions) -> Resul
         sets,
     };
     write_view_html(&model, out_dir)?;
+    if opts.blind {
+        let key = BlindKey {
+            schema: BLIND_KEY_SCHEMA.to_string(),
+            seed,
+            labels,
+        };
+        let key_path = out_dir.join(BLIND_KEY_FILE);
+        std::fs::write(&key_path, serde_json::to_string_pretty(&key)?)
+            .map_err(io_err(format!("writing {}", key_path.display())))?;
+    }
     Ok(model)
 }
 
@@ -633,5 +732,46 @@ mod tests {
         }
         assert!(html.contains("flipdiff-view.v1"));
         assert!(!html.contains("__FLIPDIFF_"), "unreplaced placeholder");
+    }
+
+    #[test]
+    fn blind_page_hides_true_labels_and_unblind_restores_them() {
+        let tmp = tempfile::tempdir().unwrap();
+        let dirs = three_dirs(tmp.path());
+        let opts = ViewOptions {
+            labels: Some(vec!["parent".into(), "candidate".into(), "other".into()]),
+            blind: true,
+            seed: Some(5),
+            ..ViewOptions::default()
+        };
+        let out = tmp.path().join("view");
+        let m = build_view(&dirs, &out, &opts).unwrap();
+        assert_eq!(m.labels, ["P1", "P2", "P3"]);
+        let html = std::fs::read_to_string(out.join("index.html")).unwrap();
+        for secret in ["parent", "candidate", "other"] {
+            assert!(!html.contains(secret), "page leaks {secret:?}");
+        }
+        let key = read_blind_key(&out.join(BLIND_KEY_FILE)).unwrap();
+        assert_eq!(key.labels, ["parent", "candidate", "other"]);
+        let decisions = Decisions {
+            schema: DECISIONS_SCHEMA.into(),
+            seed: 5,
+            labels: m.labels.clone(),
+            blind: true,
+            sets: vec![SetDecision {
+                name: "x.png".into(),
+                decision: None,
+                chosen_label: Some("P2".into()),
+                no_difference: false,
+                note: String::new(),
+                roi: None,
+                timestamp_ms: 0,
+            }],
+        };
+        let back = unblind(&decisions, &key).unwrap();
+        assert_eq!(back.sets[0].chosen_label.as_deref(), Some("candidate"));
+        assert_eq!(back.labels, key.labels);
+        let wrong = BlindKey { seed: 6, ..key };
+        assert!(unblind(&decisions, &wrong).is_err());
     }
 }

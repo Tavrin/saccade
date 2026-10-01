@@ -17,9 +17,23 @@ use crate::report::Report;
 pub struct MarkdownOptions {
     /// Link to the uploaded report artifact, shown in the summary when set.
     pub artifact_url: Option<String>,
+    /// Distinguishes sticky comments of several runs on one pull request
+    /// (matrix jobs): the marker becomes `<!-- flipdiff-summary:<key> -->`.
+    /// Callers must pass a key that [`is_valid_comment_key`] accepts.
+    pub comment_key: Option<String>,
     /// Hard cap on output length in bytes (GitHub comments cap at 65 536).
     /// `None` means 60 000.
     pub max_bytes: Option<usize>,
+}
+
+/// Whether `key` is safe inside the marker comment: non-empty, at most 64
+/// characters of ASCII letters, digits, `.`, `_` or `-`.
+pub fn is_valid_comment_key(key: &str) -> bool {
+    !key.is_empty()
+        && key.len() <= 64
+        && key
+            .chars()
+            .all(|c| c.is_ascii_alphanumeric() || matches!(c, '.' | '_' | '-'))
 }
 
 /// Writes `index.html` into `report_dir` (which already holds the report JSON
@@ -34,7 +48,8 @@ pub fn render_html(report: &Report, report_dir: &Path) -> Result<PathBuf> {
 
 /// Renders the Markdown summary of `report`.
 ///
-/// The output starts with the hidden `<!-- flipdiff-summary -->` marker and is
+/// The output starts with the hidden `<!-- flipdiff-summary -->` marker (or
+/// `<!-- flipdiff-summary:<key> -->` with `opts.comment_key`) and is
 /// never longer than `opts.max_bytes` (default 60 000): pass rows are dropped
 /// first, then non-pass rows, with a "…and N more" line recording the cut.
 pub fn render_markdown(report: &Report, opts: &MarkdownOptions) -> String {

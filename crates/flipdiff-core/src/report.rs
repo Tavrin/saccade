@@ -112,22 +112,49 @@ pub struct Entry {
     pub error: Option<String>,
 }
 
-/// FLIP error-map statistics. All error values are in `[0, 1]`.
+/// Serde adapter for metric values: a non-finite number is written as `null`
+/// and `null` is read back as NaN, so a report always round-trips.
+mod finite_or_null {
+    use serde::{Deserialize, Deserializer, Serializer};
+
+    pub(super) fn serialize<S: Serializer>(v: &f64, s: S) -> Result<S::Ok, S::Error> {
+        if v.is_finite() {
+            s.serialize_f64(*v)
+        } else {
+            s.serialize_none()
+        }
+    }
+
+    pub(super) fn deserialize<'de, D: Deserializer<'de>>(d: D) -> Result<f64, D::Error> {
+        Ok(Option::<f64>::deserialize(d)?.unwrap_or(f64::NAN))
+    }
+}
+
+/// FLIP error-map statistics. All error values are in `[0, 1]`; a non-finite
+/// value (which a valid run does not produce) is serialized as `null` and read
+/// back as NaN.
 #[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize)]
 pub struct Metrics {
     /// Mean error.
+    #[serde(with = "finite_or_null")]
     pub mean: f64,
     /// Maximum error.
+    #[serde(with = "finite_or_null")]
     pub max: f64,
     /// Median error.
+    #[serde(with = "finite_or_null")]
     pub p50: f64,
     /// 95th-percentile error.
+    #[serde(with = "finite_or_null")]
     pub p95: f64,
     /// 99th-percentile error.
+    #[serde(with = "finite_or_null")]
     pub p99: f64,
     /// Fraction of pixels with error > 0.1.
+    #[serde(with = "finite_or_null")]
     pub frac_above_0_1: f64,
     /// Fraction of pixels with error > 0.5.
+    #[serde(with = "finite_or_null")]
     pub frac_above_0_5: f64,
     /// Image width in pixels.
     pub width: u32,

@@ -11,8 +11,8 @@ use crate::report::Metric;
 /// A per-path override of the default threshold and/or metric.
 #[derive(Debug, Clone, PartialEq)]
 pub struct Override {
-    /// Glob matched against the `/`-separated image name. `*` does not cross
-    /// `/`; `**` does.
+    /// Glob matched, case-insensitively, against the `/`-separated image name.
+    /// `*` does not cross `/`; `**` does.
     pub glob: String,
     /// Replacement threshold, if any.
     pub threshold: Option<f64>,
@@ -74,6 +74,7 @@ struct FileOverride {
 pub(crate) fn compile_glob(pattern: &str) -> Result<globset::GlobMatcher> {
     GlobBuilder::new(pattern)
         .literal_separator(true)
+        .case_insensitive(true)
         .build()
         .map(|g: Glob| g.compile_matcher())
         .map_err(|e| Error::Config(format!("invalid glob {pattern:?}: {e}")))
@@ -119,11 +120,13 @@ impl RunConfig {
         Ok(cfg)
     }
 
-    /// Checks that every glob compiles and thresholds are finite.
+    /// Checks that every glob compiles, thresholds are finite and pixels per
+    /// degree is finite and positive.
     pub fn validate(&self) -> Result<()> {
         if !self.default_threshold.is_finite() {
             return Err(Error::Config("threshold must be finite".into()));
         }
+        crate::compare::check_ppd(self.pixels_per_degree)?;
         for g in &self.ignore {
             compile_glob(g)?;
         }
@@ -188,5 +191,15 @@ mod tests {
         assert_eq!(cfg.effective_for("terrain/a.png"), (Metric::Mean, 0.03));
         assert_eq!(cfg.effective_for("ui/a.png"), (Metric::P95, 0.02));
         assert_eq!(cfg.effective_for("ui/a.jpg"), (Metric::Mean, 0.02));
+    }
+
+    #[test]
+    fn globs_ignore_case() {
+        let cfg = RunConfig::from_toml_str(
+            "ignore = [\"**/*.png\"]\n[[override]]\nglob = \"UI/*.PNG\"\nthreshold = 0.5\n",
+        )
+        .expect("parse");
+        assert_eq!(cfg.effective_for("ui/a.png").1, 0.5);
+        assert!(compile_glob("**/*.png").expect("glob").is_match("x/Y.PNG"));
     }
 }

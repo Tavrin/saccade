@@ -4,7 +4,7 @@ Perceptual visual-regression testing for renderers, game engines and graphics co
 
 FLIP models how a human observer sees the difference between two images (colour, contrast sensitivity, spatial frequency, viewing distance). RMSE and pixelmatch count pixel differences: a one-pixel shift of fine detail or a 1-bit dither change scores the same as a visible colour error, and any threshold on them is either too noisy or too blind for rendered images with anti-aliasing, noise and sub-pixel variation. FLIP scores such changes by how visible they are.
 
-What flipdiff does not do: it does not run your renderer or capture images, it handles only 8-bit sRGB PNG and JPEG (no HDR or EXR), it has no masks or ignore-regions, it does not store baselines or host images, and it cannot tell you whether a visible change is a bug. Different GPUs and drivers produce different pixels, so keep baselines per hardware class or use a threshold that absorbs it.
+What flipdiff does not do: it does not run your renderer or capture images, it handles 8-bit sRGB PNG and JPEG (16-bit PNGs are accepted and down-converted to 8 bits; no HDR or EXR), it has no masks or ignore-regions, it does not store baselines or host images, and it cannot tell you whether a visible change is a bug. Different GPUs and drivers produce different pixels, so keep baselines per hardware class or use a threshold that absorbs it.
 
 ## Quickstart: CLI
 
@@ -23,14 +23,23 @@ Building from source compiles NVIDIA's C++ FLIP code through the `cc` crate, so 
 ```
 flipdiff compare <BASELINE_DIR> <CAPTURE_DIR> [--out report] [--threshold F] [--metric mean|p95|max]
                  [--config flipdiff.toml] [--fail-on-new] [--json] [--ppd F]
-flipdiff approve <CAPTURE_DIR> <BASELINE_DIR> [NAMES...] [--all-failing <REPORT_JSON>]
-flipdiff summary <REPORT_JSON> [--format markdown|text] [--artifact-url URL]
+flipdiff approve <CAPTURE_DIR> <BASELINE_DIR> [NAMES...] [--all-failing <REPORT_JSON> [--include-errors]]
+flipdiff summary <REPORT_JSON> [--format markdown|text] [--artifact-url URL] [--comment-key KEY]
+flipdiff view <DIR>... [--labels a,b] [--reference X] [--blind] [--seed N] [--out view]
+flipdiff unblind <DECISIONS_JSON> <BLIND_KEY_JSON> [--out FILE]
 ```
 
 - Images are paired by path relative to each directory (`png`, `jpg`, `jpeg`, any case, recursive).
 - An image passes when its metric value is `<= threshold`. The metric is a statistic of the FLIP error map: `mean`, `p95` or `max`. Values run from 0 (identical) to 1.
-- `approve` copies captures over baselines. Name the images, or take every failing and new entry from a report.
-- `--ppd` sets pixels per degree of visual angle (default 67, a typical desktop viewing distance).
+- `approve` copies captures over baselines. Name the images, or take every failing and new entry from a report. `--include-errors` also takes `error` entries whose capture decodes (for example a deliberate size change). `approve` refuses to write through a symlink inside the baseline directory.
+- `--ppd` sets pixels per degree of visual angle (default 67, a typical desktop viewing distance). It must be finite and greater than 0.
+- **Alpha:** when either image has an alpha channel below 255, both are composited over black and over white, FLIP runs on each, and the per-pixel maximum is used. An alpha-only change is flagged, and RGB hidden under fully transparent pixels is ignored.
+- **Symlinks** in the baseline or capture directory are not followed; each becomes an `error` entry. Unreadable files and directories are `error` entries too, not an aborted run.
+- Each run first removes `flipdiff-report.v1.json`, `index.html` and `images/` from the report directory (nothing else), so a failed run never leaves a stale report.
+
+### Blind comparison with `view`
+
+`flipdiff view a/ b/ --blind --out view/` writes a self-contained page for pairwise judging. The page embeds only neutral labels (`P1`, `P2`, ...) and the seed, so view-source does not reveal which directory is which. The true labels are in `view/blind-key.json`, which the page does not reference: keep it away from the judge. After deciding every set the judge picks "Reveal" and selects that file, or hands the exported decisions back and you run `flipdiff unblind decisions.json view/blind-key.json` to get the true labels.
 
 Try it on the generated examples (`python3 scripts/gen-examples.py` regenerates them):
 
@@ -55,17 +64,35 @@ jobs:
           capture-dir: captures
 ```
 
-The action installs a prebuilt `flipdiff-<target>.tar.gz` (or `.zip`) from the release for the requested ref, and falls back to `cargo install --git` when none exists. It then runs `compare`, uploads the report directory as an artifact, writes the summary to the job summary, updates one sticky pull-request comment (found by the `<!-- flipdiff-summary -->` marker), and fails the job with the compare exit code.
+The action installs a prebuilt `flipdiff-<target>.tar.gz` (or `.zip`) from the release for the requested ref, verifies it against the `.sha256` file published next to it and runs `flipdiff --version`; on a missing asset, a missing or mismatched checksum, or a binary that does not run, it falls back to `cargo install --git`. It then runs `compare`, uploads the report directory as an artifact, writes the summary to the job summary, updates one sticky pull-request comment (found by the `<!-- flipdiff-summary -->` marker), and fails the job with the compare exit code.
 
 | Input | Default | Meaning |
 |---|---|---|
 | `baseline-dir`, `capture-dir` | required | Image directories |
 | `threshold`, `metric`, `config` | empty | Override `flipdiff.toml` defaults |
-| `report-dir` | `flipdiff-report` | Output directory |
+| `report-dir` | `flipdiff-report` | Output directory. Use a path relative to the workspace: an absolute path is compared and summarised but not uploaded as an artifact |
+| `artifact-name` | `flipdiff-report` | Name of the uploaded artifact |
+| `comment-key` | empty | Makes the sticky comment unique (marker `<!-- flipdiff-summary:<key> -->`) |
 | `fail-on-new` | `false` | New images count as a regression |
 | `comment` | `true` | Sticky PR comment (pull_request events only) |
 | `github-token` | `github.token` | Used for the comment and release download |
 | `version` | the action's own ref | Git ref of this repository to install |
+
+**Matrix jobs.** `upload-artifact` v4 rejects two artifacts with one name, and all jobs would share one comment. Give each job its own `artifact-name` and `comment-key`:
+
+```yaml
+strategy:
+  matrix:
+    gpu: [nvidia, intel]
+steps:
+  - uses: OWNER/flipdiff@v0.1.0
+    with:
+      baseline-dir: tests/baseline/${{ matrix.gpu }}
+      capture-dir: captures
+      report-dir: flipdiff-report-${{ matrix.gpu }}
+      artifact-name: flipdiff-report-${{ matrix.gpu }}
+      comment-key: ${{ matrix.gpu }}
+```
 
 Outputs: `exit-code`, `failed` (count of failed images), `new`, `report-dir`.
 
@@ -88,7 +115,7 @@ threshold = 0.03
 metric = "p95"
 ```
 
-`--config` defaults to `./flipdiff.toml` when that file exists. CLI flags override the top-level defaults; `[[override]]` tables always apply on top, and the first matching override wins, field by field. Globs match the `/`-separated image name; `*` does not cross `/`, `**` does. Unknown keys are errors.
+`--config` defaults to `./flipdiff.toml` when that file exists. CLI flags override the top-level defaults; `[[override]]` tables always apply on top, and the first matching override wins, field by field. Globs match the `/`-separated image name, ignoring case; `*` does not cross `/`, `**` does. Unknown keys are errors.
 
 ## Exit codes
 
@@ -109,7 +136,7 @@ report/
   images/<name>/heatmap.png      FLIP error map (magma)
 ```
 
-All paths in the JSON are relative to the report directory, so the directory can be zipped and opened anywhere. Statuses: `pass`, `fail`, `new` (capture without baseline), `missing` (baseline without capture), `error` (unreadable image or differing dimensions). Each entry carries mean, p50, p95, p99 and max of the error map, and basic image properties (all-black and all-white captures are flagged).
+All paths in the JSON are relative to the report directory, so the directory can be zipped and opened anywhere. Statuses: `pass`, `fail`, `new` (capture without baseline), `missing` (baseline without capture), `error` (unreadable or undecodable image, symlink, differing dimensions). Each entry carries mean, p50, p95, p99 and max of the error map, and basic image properties (all-black and all-white captures are flagged).
 
 ## Roadmap / not yet
 

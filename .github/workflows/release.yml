@@ -50,6 +50,15 @@ jobs:
           else
             tar -czf "dist/flipdiff-$TARGET.tar.gz" -C "$dir" flipdiff
           fi
+          # One checksum file per asset ("<sha256>  <file>"), verified by the action.
+          cd dist
+          for f in flipdiff-*; do
+            if command -v sha256sum >/dev/null 2>&1; then
+              sha256sum "$f" > "$f.sha256"
+            else
+              shasum -a 256 "$f" > "$f.sha256"
+            fi
+          done
       - uses: actions/upload-artifact@v4
         with:
           name: flipdiff-${{ matrix.target }}

@@ -6,7 +6,6 @@ use super::MarkdownOptions;
 use crate::report::{Entry, Metric, Report, Status};
 
 const DEFAULT_MAX_BYTES: usize = 60_000;
-const MARKER: &str = "<!-- flipdiff-summary -->";
 const TABLE_HEAD: &str =
     "| Status | Image | Metric | Value | Threshold |\n|---|---|---|---:|---:|\n";
 
@@ -56,10 +55,12 @@ fn status_rank(s: Status) -> u8 {
     }
 }
 
-fn html_escape(s: &str) -> String {
-    s.replace('&', "&amp;")
-        .replace('<', "&lt;")
-        .replace('>', "&gt;")
+/// The hidden first line that identifies the sticky comment.
+pub(crate) fn marker(comment_key: Option<&str>) -> String {
+    match comment_key.filter(|k| !k.is_empty()) {
+        Some(k) => format!("<!-- flipdiff-summary:{k} -->"),
+        None => "<!-- flipdiff-summary -->".to_string(),
+    }
 }
 
 /// A name as an inline code span that cannot break out of a table cell.
@@ -87,10 +88,7 @@ fn row(e: &Entry) -> String {
             .map(|c| if c.is_control() { ' ' } else { c })
             .take(160)
             .collect();
-        name.push_str(&format!(
-            "<br><sub>{}</sub>",
-            html_escape(&one_line).replace('|', "&#124;")
-        ));
+        name.push_str(&format!("<br>{}", code_name(&one_line)));
     }
     format!(
         "| {} | {} | {} | {} | {} |\n",
@@ -146,7 +144,7 @@ impl Parts<'_> {
     fn assemble(&self, np: usize, p: usize) -> String {
         let dropped = (self.nonpass.len() - np) + (self.pass.len() - p);
         let mut out = String::new();
-        out.push_str(MARKER);
+        out.push_str(&marker(self.opts.comment_key.as_deref()));
         out.push('\n');
         out.push_str(&heading(self.report));
         out.push_str("\n\n");

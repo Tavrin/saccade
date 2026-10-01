@@ -5,7 +5,6 @@
 # are skipped.
 #
 # Usage: scripts/action-dry-run.sh
-# Env:   CARGO_TARGET_DIR  build directory (optional)
 
 set -uo pipefail
 
@@ -23,21 +22,18 @@ if ! cargo build -p flipdiff; then
   echo "build failed" >&2
   exit 2
 fi
-bin="${CARGO_TARGET_DIR:-$root/target}/debug/flipdiff"
-if [ ! -x "$bin" ]; then
-  echo "binary not found at $bin" >&2
-  exit 2
-fi
+# `cargo run` finds the binary wherever the target directory is configured.
+flipdiff() { cargo run -q -p flipdiff -- "$@"; }
 
 echo "== step 2: flipdiff compare"
-"$bin" compare examples/baseline examples/capture --out "$report_dir"
+flipdiff compare examples/baseline examples/capture --out "$report_dir"
 code=$?
 
 echo "== step 3: upload artifact (skipped: needs GitHub)"
 
 echo "== step 4: job summary"
 if [ -f "$report_dir/flipdiff-report.v1.json" ]; then
-  "$bin" summary "$report_dir/flipdiff-report.v1.json" --format markdown \
+  flipdiff summary "$report_dir/flipdiff-report.v1.json" --format markdown \
     --artifact-url "file://$report_dir/index.html" >> "$GITHUB_STEP_SUMMARY"
   cat "$GITHUB_STEP_SUMMARY"
 else

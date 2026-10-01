@@ -78,3 +78,48 @@ fn properties_flag_black_and_white_frames() {
     let white = properties::validate(&RgbImage::from_pixel(4, 4, Rgb([255, 255, 255])));
     assert!(white.is_all_white && (white.mean_luminance - 1.0).abs() < 1e-4);
 }
+
+#[test]
+fn bad_ppd_is_rejected_and_null_metrics_round_trip() {
+    let img = gradient(16, 16);
+    for ppd in [0.0, -1.0, f32::NAN, f32::INFINITY] {
+        let opts = CompareOptions {
+            pixels_per_degree: ppd,
+        };
+        assert!(matches!(compare(&img, &img, &opts), Err(Error::Config(_))));
+    }
+    let nan = flipdiff_core::Metrics {
+        mean: f64::NAN,
+        max: f64::INFINITY,
+        p50: 0.0,
+        p95: 0.0,
+        p99: 0.0,
+        frac_above_0_1: 0.0,
+        frac_above_0_5: 0.0,
+        width: 1,
+        height: 1,
+    };
+    let json = serde_json::to_string(&nan).expect("serialize");
+    let back: flipdiff_core::Metrics = serde_json::from_str(&json).expect("round trip");
+    assert!(back.mean.is_nan() && back.max.is_nan());
+}
+
+#[test]
+fn alpha_is_compared_and_hidden_rgb_is_not() {
+    use flipdiff_core::compare::compare_rgba;
+    use image::{Rgba, RgbaImage};
+    let opts = CompareOptions::default();
+    let solid =
+        |rgb: [u8; 3], a: u8| RgbaImage::from_pixel(32, 32, Rgba([rgb[0], rgb[1], rgb[2], a]));
+    // Same RGB, different alpha: visible.
+    let c = compare_rgba(
+        &solid([200, 40, 40], 128),
+        &solid([200, 40, 40], 255),
+        &opts,
+    )
+    .expect("compare");
+    assert!(c.metrics.mean > 0.01, "mean = {}", c.metrics.mean);
+    // Fully transparent: the RGB underneath does not matter.
+    let c = compare_rgba(&solid([255, 0, 0], 0), &solid([0, 0, 255], 0), &opts).expect("compare");
+    assert_eq!(c.metrics.max, 0.0);
+}

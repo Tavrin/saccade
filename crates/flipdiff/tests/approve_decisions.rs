@@ -69,3 +69,27 @@ fn approve_decisions_copies_only_accepted_and_rejects_unsafe_names() {
     assert!(String::from_utf8_lossy(&out.stderr).contains("unsafe image name"));
     assert!(!tmp.path().join("escape.png").exists());
 }
+
+#[cfg(unix)]
+#[test]
+fn approve_refuses_to_write_through_a_symlink() {
+    let tmp = tempfile::tempdir().unwrap();
+    let (cap, base, elsewhere) = (
+        tmp.path().join("cap"),
+        tmp.path().join("base"),
+        tmp.path().join("elsewhere"),
+    );
+    save(&cap.join("sub"), "a.png", 200);
+    std::fs::create_dir_all(&base).unwrap();
+    std::fs::create_dir_all(&elsewhere).unwrap();
+    std::os::unix::fs::symlink(&elsewhere, base.join("sub")).unwrap();
+    let out = Command::new(env!("CARGO_BIN_EXE_flipdiff"))
+        .arg("approve")
+        .args([&cap, &base])
+        .arg("sub/a.png")
+        .output()
+        .expect("spawn");
+    assert_eq!(out.status.code(), Some(2), "{out:?}");
+    assert!(String::from_utf8_lossy(&out.stderr).contains("symlink"));
+    assert!(!elsewhere.join("a.png").exists());
+}

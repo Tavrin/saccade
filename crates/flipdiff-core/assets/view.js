@@ -28,11 +28,16 @@
   }
   function url(p) { return p.split('/').map(encodeURIComponent).join('/'); }
   function cur() { return D.sets[S.set]; }
+  // Blind mode embeds only neutral labels (P1, P2, ...); the true labels come from
+  // blind-key.json, loaded through the file picker when the judge reveals.
+  var KEY = null;
+  function trueLabel(i) { return KEY && KEY[i] != null ? KEY[i] : D.labels[i]; }
+  function trueOf(neutral) { var i = D.labels.indexOf(neutral); return i < 0 ? neutral : trueLabel(i); }
   function hideInfo() { return D.blind && !S.revealed; }
   function letter(set, i) { return LETTERS[set.order.indexOf(i)] || '?'; }
   function paneName(set, i) {
     if (!D.blind) return D.labels[i];
-    return S.revealed ? D.labels[i] + ' (' + letter(set, i) + ')' : letter(set, i);
+    return S.revealed ? trueLabel(i) + ' (' + letter(set, i) + ')' : letter(set, i);
   }
   function present(set) { return set.order.filter(function (i) { return set.panes[i].path; }); }
   function refDims(set) {
@@ -56,7 +61,6 @@
       if (!raw) return;
       var o = JSON.parse(raw);
       if (o && o.dec) dec = o.dec;
-      if (o && o.revealed) S.revealed = true;
     } catch (e) { /* storage unavailable: run without persistence */ }
   }
   function save() {
@@ -450,7 +454,7 @@
     if (!isDecided(e)) return { text: 'undecided', cls: '' };
     if (D.blind && !S.revealed) return { text: 'judged', cls: '' };
     if (e.decision) return { text: verdictText(e.decision), cls: e.decision };
-    return { text: e.no_difference ? 'no difference' : 'prefers ' + e.chosen_label, cls: '' };
+    return { text: e.no_difference ? 'no difference' : 'prefers ' + trueOf(e.chosen_label), cls: '' };
   }
   function renderSets() {
     var ol = $('setlist'), sel = $('setsel');
@@ -545,7 +549,7 @@
     b.hidden = !D.blind || S.revealed;
     var left = D.sets.filter(function (s) { return !isDecided(dec[s.name]); }).length;
     b.disabled = left > 0;
-    b.title = left > 0 ? left + ' image set(s) still undecided' : 'Show which directory each image came from';
+    b.title = left > 0 ? left + ' image set(s) still undecided' : 'Pick blind-key.json to show which directory each image came from';
   }
 
   function selectSet(i) {
@@ -561,7 +565,7 @@
     var m = $('meta'); m.textContent = '';
     function add(k, v) { m.appendChild(el('div', null, [el('dt', { text: k }), el('dd', { text: v })])); }
     if (D.blind && !S.revealed) add('Mode', 'blind (labels hidden)');
-    else add('Directories', D.labels.map(function (l, i) { return l + (i === D.reference ? ' (ref)' : ''); }).join(', '));
+    else add('Directories', D.labels.map(function (l, i) { return trueLabel(i) + (i === D.reference ? ' (ref)' : ''); }).join(', '));
     add('Sets', String(D.sets.length));
     add('Seed', String(D.seed));
     add('Version', D.tool_version);
@@ -619,7 +623,24 @@
     $('next').addEventListener('click', function () { selectSet(S.set + 1); });
     $('setsel').addEventListener('change', function (e) { selectSet(Number(e.target.value)); });
     $('export').addEventListener('click', exportDecisions);
-    $('reveal').addEventListener('click', function () { S.revealed = true; save(); rerenderAll(); });
+    $('reveal').addEventListener('click', function () { $('keyfile').click(); });
+    $('keyfile').addEventListener('change', function (e) {
+      var f = e.target.files && e.target.files[0];
+      e.target.value = '';
+      if (!f) return;
+      var r = new FileReader();
+      r.onload = function () {
+        try {
+          var k = JSON.parse(String(r.result));
+          if (!k || !Array.isArray(k.labels) || k.labels.length !== D.labels.length || k.seed !== D.seed) {
+            window.alert('That file is not the blind key of this view (labels or seed differ).');
+            return;
+          }
+          KEY = k.labels; S.revealed = true; rerenderAll();
+        } catch (err) { window.alert('Could not read the blind key: ' + err); }
+      };
+      r.readAsText(f);
+    });
     var st = $('stage');
     st.addEventListener('pointerdown', onDown);
     st.addEventListener('pointermove', onMove);

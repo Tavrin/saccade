@@ -53,6 +53,7 @@ fn sample_summary_has_marker_heading_rows_and_footer() {
     let opts = MarkdownOptions {
         artifact_url: Some("https://example.invalid/run/1".into()),
         max_bytes: None,
+        comment_key: None,
     };
     let md = render_markdown(&sample(), &opts);
     let lines: Vec<&str> = md.lines().collect();
@@ -97,6 +98,7 @@ fn truncation_drops_pass_rows_first_and_keeps_marker() {
         &MarkdownOptions {
             artifact_url: None,
             max_bytes: Some(2_000),
+            comment_key: None,
         },
     );
     assert!(md.len() <= 2_000, "len {}", md.len());
@@ -127,6 +129,7 @@ fn truncation_drops_non_pass_rows_when_still_too_big() {
         &MarkdownOptions {
             artifact_url: None,
             max_bytes: Some(1_500),
+            comment_key: None,
         },
     );
     assert!(md.len() <= 1_500, "len {}", md.len());
@@ -139,4 +142,21 @@ fn truncation_drops_non_pass_rows_when_still_too_big() {
     assert!(kept > 0 && kept < 100);
     assert!(md.contains(&format!("…and {} more (see full report)", 110 - kept)));
     assert!(md.starts_with("<!-- flipdiff-summary -->\n"));
+}
+
+#[test]
+fn comment_key_changes_the_marker() {
+    let keyed = render_markdown(
+        &sample(),
+        &MarkdownOptions {
+            comment_key: Some("linux-x64".into()),
+            ..MarkdownOptions::default()
+        },
+    );
+    assert_eq!(
+        keyed.lines().next(),
+        Some("<!-- flipdiff-summary:linux-x64 -->")
+    );
+    assert!(flipdiff_core::render::is_valid_comment_key("linux-x64"));
+    assert!(!flipdiff_core::render::is_valid_comment_key("a -->b"));
 }

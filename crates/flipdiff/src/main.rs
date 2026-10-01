@@ -1,15 +1,18 @@
-//! `flipdiff` command-line interface: `compare`, `approve`, `view`, `summary`.
+//! `flipdiff` command-line interface: `compare`, `approve`, `view`, `unblind`, `summary`.
 //!
 //! Exit codes: `0` no regression, `1` regression, `2` usage/config/IO error.
 
+use std::io::Write;
 use std::path::{Path, PathBuf};
 use std::process::ExitCode;
 
 use clap::{Parser, Subcommand, ValueEnum};
 use flipdiff_core::config::RunConfig;
-use flipdiff_core::render::{MarkdownOptions, render_markdown};
+use flipdiff_core::render::{MarkdownOptions, is_valid_comment_key, render_markdown};
 use flipdiff_core::report::{Metric, Report, Status};
-use flipdiff_core::view::{ViewOptions, build_view, is_safe_name, read_decisions};
+use flipdiff_core::view::{
+    ViewOptions, build_view, is_safe_name, read_blind_key, read_decisions, unblind,
+};
 
 #[derive(Parser)]
 #[command(
@@ -90,6 +93,10 @@ enum Command {
         /// `flipdiff view`.
         #[arg(long, value_name = "DECISIONS_JSON")]
         decisions: Option<PathBuf>,
+        /// With --all-failing: also approve `error` entries (for example a size
+        /// change) whose capture exists and decodes.
+        #[arg(long, requires = "all_failing")]
+        include_errors: bool,
     },
     /// Write a self-contained review viewer for 2 to 6 image directories.
     View {
@@ -115,6 +122,17 @@ enum Command {
         #[arg(long)]
         ppd: Option<f32>,
     },
+    /// Turn a decisions file exported from a `--blind` view into one with the
+    /// true directory labels, using the view's `blind-key.json`.
+    Unblind {
+        /// Decisions file exported by the blind viewer.
+        decisions_json: PathBuf,
+        /// `blind-key.json` written next to the view.
+        blind_key_json: PathBuf,
+        /// Write the result here instead of stdout.
+        #[arg(long)]
+        out: Option<PathBuf>,
+    },
     /// Print a summary of a report JSON.
     Summary {
         /// Path to `flipdiff-report.v1.json`.
@@ -125,6 +143,10 @@ enum Command {
         /// Link to the uploaded report artifact (markdown only).
         #[arg(long)]
         artifact_url: Option<String>,
+        /// Marker key for the sticky comment, so matrix jobs keep separate
+        /// comments (ASCII letters, digits, `.`, `_`, `-`; at most 64).
+        #[arg(long)]
+        comment_key: Option<String>,
     },
 }
 
@@ -133,7 +155,7 @@ fn main() -> ExitCode {
     match dispatch(cli.command) {
         Ok(code) => ExitCode::from(code),
         Err(msg) => {
-            eprintln!("flipdiff: error: {msg}");
+            eprintln!("flipdiff: error: {}", escape_control(&msg));
             ExitCode::from(2)
         }
     }
@@ -169,9 +191,9 @@ fn dispatch(command: Command) -> Result<u8, String> {
                 .map_err(|e| e.to_string())?;
             if json {
                 let text = serde_json::to_string_pretty(&report).map_err(|e| e.to_string())?;
-                println!("{text}");
+                emit(&format!("{text}\n"))?;
             } else {
-                print!("{}", text_table(&report));
+                emit(&text_table(&report))?;
             }
             Ok(u8::from(report.is_regression()))
         }
@@ -181,13 +203,33 @@ fn dispatch(command: Command) -> Result<u8, String> {
             names,
             all_failing,
             decisions,
+            include_errors,
         } => approve(
             &capture_dir,
             &baseline_dir,
             names,
             all_failing.as_deref(),
             decisions.as_deref(),
+            include_errors,
         ),
+        Command::Unblind {
+            decisions_json,
+            blind_key_json,
+            out,
+        } => {
+            let decisions = read_decisions(&decisions_json).map_err(|e| e.to_string())?;
+            let key = read_blind_key(&blind_key_json).map_err(|e| e.to_string())?;
+            let text = serde_json::to_string_pretty(
+                &unblind(&decisions, &key).map_err(|e| e.to_string())?,
+            )
+            .map_err(|e| e.to_string())?;
+            match out {
+                Some(path) => std::fs::write(&path, format!("{text}\n"))
+                    .map_err(|e| format!("writing {}: {e}", path.display()))?,
+                None => emit(&format!("{text}\n"))?,
+            }
+            Ok(0)
+        }
         Command::View {
             dirs,
             labels,
@@ -208,32 +250,47 @@ fn dispatch(command: Command) -> Result<u8, String> {
                 opts.pixels_per_degree = p;
             }
             let model = build_view(&dirs, &out, &opts).map_err(|e| e.to_string())?;
-            println!(
-                "wrote {} ({} image sets, {} directories)",
-                out.join("index.html").display(),
+            emit(&format!(
+                "wrote {} ({} image sets, {} directories)\n",
+                escape_control(&out.join("index.html").display().to_string()),
                 model.sets.len(),
                 model.labels.len()
-            );
+            ))?;
+            if blind {
+                emit(&format!(
+                    "blind key (keep it away from the judge): {}\n",
+                    escape_control(
+                        &out.join(flipdiff_core::view::BLIND_KEY_FILE)
+                            .display()
+                            .to_string()
+                    )
+                ))?;
+            }
             Ok(0)
         }
         Command::Summary {
             report_json,
             format,
             artifact_url,
+            comment_key,
         } => {
+            if comment_key
+                .as_deref()
+                .is_some_and(|k| !is_valid_comment_key(k))
+            {
+                return Err("--comment-key must be 1-64 characters of A-Z a-z 0-9 . _ -".into());
+            }
             let report = read_report(&report_json)?;
             match format {
-                Format::Markdown => print!(
-                    "{}",
-                    render_markdown(
-                        &report,
-                        &MarkdownOptions {
-                            artifact_url,
-                            max_bytes: None,
-                        },
-                    )
-                ),
-                Format::Text => print!("{}", text_table(&report)),
+                Format::Markdown => emit(&render_markdown(
+                    &report,
+                    &MarkdownOptions {
+                        artifact_url,
+                        comment_key,
+                        max_bytes: None,
+                    },
+                ))?,
+                Format::Text => emit(&text_table(&report))?,
             }
             Ok(0)
         }
@@ -257,12 +314,59 @@ fn read_report(path: &Path) -> Result<Report, String> {
     serde_json::from_str(&text).map_err(|e| format!("parsing report {}: {e}", path.display()))
 }
 
+/// Writes `text` to stdout. A closed pipe (for example `| head`) is not an error.
+fn emit(text: &str) -> Result<(), String> {
+    let mut out = std::io::stdout().lock();
+    match out.write_all(text.as_bytes()).and_then(|()| out.flush()) {
+        Ok(()) => Ok(()),
+        Err(e) if e.kind() == std::io::ErrorKind::BrokenPipe => Ok(()),
+        Err(e) => Err(format!("writing to stdout: {e}")),
+    }
+}
+
+/// Escapes control characters (newline, escape, ...) so a file name or error
+/// text cannot forge terminal output or workflow commands.
+fn escape_control(s: &str) -> String {
+    let mut out = String::with_capacity(s.len());
+    for c in s.chars() {
+        match c {
+            '\n' => out.push_str("\\n"),
+            '\r' => out.push_str("\\r"),
+            '\t' => out.push_str("\\t"),
+            c if c.is_control() => out.push_str(&format!("\\x{:02x}", u32::from(c))),
+            c => out.push(c),
+        }
+    }
+    out
+}
+
+/// Refuses a destination whose existing components below `baseline_dir` include a symlink.
+fn check_no_symlinks(baseline_dir: &Path, rel: &Path) -> Result<(), String> {
+    let mut cur = baseline_dir.to_path_buf();
+    for comp in rel.components() {
+        cur.push(comp);
+        match std::fs::symlink_metadata(&cur) {
+            Ok(meta) if meta.file_type().is_symlink() => {
+                return Err(format!(
+                    "refusing to write through symlink {}",
+                    cur.display()
+                ));
+            }
+            Ok(_) => {}
+            Err(e) if e.kind() == std::io::ErrorKind::NotFound => break,
+            Err(e) => return Err(format!("inspecting {}: {e}", cur.display())),
+        }
+    }
+    Ok(())
+}
+
 fn approve(
     capture_dir: &Path,
     baseline_dir: &Path,
     mut names: Vec<String>,
     all_failing: Option<&Path>,
     decisions: Option<&Path>,
+    include_errors: bool,
 ) -> Result<u8, String> {
     if let Some(path) = decisions {
         let d = read_decisions(path).map_err(|e| e.to_string())?;
@@ -274,7 +378,16 @@ fn approve(
             report
                 .entries
                 .into_iter()
-                .filter(|e| matches!(e.status, Status::Fail | Status::New))
+                .filter(|e| match e.status {
+                    Status::Fail | Status::New => true,
+                    Status::Error => {
+                        include_errors
+                            && e.paths.capture.is_some()
+                            && is_safe_name(&e.name)
+                            && flipdiff_core::run::is_decodable(&capture_dir.join(&e.name))
+                    }
+                    _ => false,
+                })
                 .map(|e| e.name),
         );
     } else if names.is_empty() && decisions.is_none() {
@@ -285,23 +398,32 @@ fn approve(
     }
     names.sort();
     names.dedup();
+    // Validate every name before copying anything.
     for name in &names {
         if !is_safe_name(name) {
             return Err(format!("unsafe image name {name:?}"));
         }
-        let rel = Path::new(name);
-        let src = capture_dir.join(rel);
-        let dest = baseline_dir.join(rel);
+        let src = capture_dir.join(name);
         if !src.is_file() {
             return Err(format!("capture {} does not exist", src.display()));
         }
+        check_no_symlinks(baseline_dir, Path::new(name))?;
+    }
+    for name in &names {
+        let rel = Path::new(name);
+        let src = capture_dir.join(rel);
+        let dest = baseline_dir.join(rel);
         if let Some(parent) = dest.parent() {
             std::fs::create_dir_all(parent)
                 .map_err(|e| format!("creating {}: {e}", parent.display()))?;
         }
         std::fs::copy(&src, &dest)
             .map_err(|e| format!("copying {} to {}: {e}", src.display(), dest.display()))?;
-        println!("{} -> {}", src.display(), dest.display());
+        emit(&format!(
+            "{} -> {}\n",
+            escape_control(&src.display().to_string()),
+            escape_control(&dest.display().to_string())
+        ))?;
     }
     Ok(0)
 }
@@ -344,8 +466,8 @@ fn text_table(report: &Report) -> String {
             _ => ("-".into(), "-".into()),
         };
         let name = match &e.error {
-            Some(msg) => format!("{} ({msg})", e.name),
-            None => e.name.clone(),
+            Some(msg) => format!("{} ({})", escape_control(&e.name), escape_control(msg)),
+            None => escape_control(&e.name),
         };
         cells.push([
             status_label(e.status).into(),

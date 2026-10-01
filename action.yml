@@ -25,9 +25,17 @@ inputs:
     required: false
     default: ''
   report-dir:
-    description: Directory the report is written to.
+    description: Directory the report is written to, relative to the workspace. An absolute path works for the comparison and the summary, but the report is then not uploaded as an artifact.
     required: false
     default: flipdiff-report
+  artifact-name:
+    description: Name of the uploaded report artifact. Matrix jobs must each use a distinct name, because upload-artifact v4 rejects duplicates.
+    required: false
+    default: flipdiff-report
+  comment-key:
+    description: Key that makes the sticky pull-request comment unique, for matrix jobs (the marker becomes "flipdiff-summary:<key>"). ASCII letters, digits, ".", "_" and "-", at most 64 characters. Empty uses the single shared comment.
+    required: false
+    default: ''
   fail-on-new:
     description: Treat captures without a baseline as a regression.
     required: false
@@ -90,15 +98,34 @@ runs:
           asset="flipdiff-$target.$ext"
           dl="$RUNNER_TEMP/flipdiff-dl"
           rm -rf "$dl"; mkdir -p "$dl"
-          if gh release download "$ref" --repo "$repo" --pattern "$asset" --dir "$dl" 2>/dev/null; then
-            if [ "$ext" = zip ]; then
-              unzip -q -o "$dl/$asset" -d "$bin_dir"
+          sha256_of() {
+            if command -v sha256sum >/dev/null 2>&1; then
+              sha256sum "$1" | cut -d' ' -f1
             else
-              tar -xzf "$dl/$asset" -C "$bin_dir"
+              shasum -a 256 "$1" | cut -d' ' -f1
             fi
-            if [ -x "$bin_dir/flipdiff" ] || [ -x "$bin_dir/flipdiff.exe" ]; then
-              installed=true
-              echo "Installed prebuilt flipdiff from release $ref ($target)"
+          }
+          if gh release download "$ref" --repo "$repo" --pattern "$asset" --pattern "$asset.sha256" --dir "$dl" 2>/dev/null; then
+            want=''
+            if [ -f "$dl/$asset.sha256" ]; then
+              want="$(head -n 1 "$dl/$asset.sha256" | cut -d' ' -f1 | tr 'A-F' 'a-f')"
+            fi
+            got="$(sha256_of "$dl/$asset" || true)"
+            if [ -n "$want" ] && [ "$want" = "$got" ]; then
+              if [ "$ext" = zip ]; then
+                unzip -q -o "$dl/$asset" -d "$bin_dir"
+              else
+                tar -xzf "$dl/$asset" -C "$bin_dir"
+              fi
+              if "$bin_dir/flipdiff" --version >/dev/null 2>&1; then
+                installed=true
+                echo "Installed prebuilt flipdiff from release $ref ($target), checksum verified"
+              else
+                echo "::warning::The prebuilt flipdiff does not run; building from source."
+                rm -rf "$bin_dir"; mkdir -p "$bin_dir"
+              fi
+            else
+              echo "::warning::Checksum of $asset is missing or does not match; building from source."
             fi
           fi
         fi
@@ -163,7 +190,7 @@ runs:
       if: ${{ always() && hashFiles(format('{0}/flipdiff-report.v1.json', inputs.report-dir)) != '' }}
       uses: actions/upload-artifact@v4
       with:
-        name: flipdiff-report
+        name: ${{ inputs.artifact-name }}
         path: ${{ inputs.report-dir }}
         if-no-files-found: warn
 
@@ -173,6 +200,7 @@ runs:
       shell: bash
       env:
         REPORT_DIR: ${{ inputs.report-dir }}
+        COMMENT_KEY: ${{ inputs.comment-key }}
         ARTIFACT_URL: ${{ steps.upload.outputs.artifact-url }}
         RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
       run: |
@@ -184,12 +212,21 @@ runs:
         fi
         url="${ARTIFACT_URL:-$RUN_URL}"
         out="$RUNNER_TEMP/flipdiff-summary.md"
-        flipdiff summary "$report" --format markdown --artifact-url "$url" > "$out"
-        if ! head -n 1 "$out" | grep -q '<!-- flipdiff-summary -->'; then
-          { echo '<!-- flipdiff-summary -->'; cat "$out"; } > "$out.tmp" && mv "$out.tmp" "$out"
+        sargs=(summary "$report" --format markdown --artifact-url "$url")
+        marker='<!-- flipdiff-summary -->'
+        if [ -n "$COMMENT_KEY" ]; then
+          sargs+=(--comment-key "$COMMENT_KEY")
+          marker="<!-- flipdiff-summary:$COMMENT_KEY -->"
+        fi
+        if ! flipdiff "${sargs[@]}" > "$out"; then
+          echo "::error::flipdiff summary failed (is comment-key valid?)."
+          exit 1
         fi
         cat "$out" >> "$GITHUB_STEP_SUMMARY"
-        echo "path=$out" >> "$GITHUB_OUTPUT"
+        {
+          echo "path=$out"
+          echo "marker=$marker"
+        } >> "$GITHUB_OUTPUT"
 
     - name: Pull request comment
       if: ${{ always() && github.event_name == 'pull_request' && inputs.comment == 'true' && steps.summary.outputs.path != '' }}
@@ -199,9 +236,10 @@ runs:
         REPO: ${{ github.repository }}
         PR_NUMBER: ${{ github.event.pull_request.number }}
         SUMMARY_PATH: ${{ steps.summary.outputs.path }}
+        MARKER: ${{ steps.summary.outputs.marker }}
       run: |
         set -uo pipefail
-        marker='<!-- flipdiff-summary -->'
+        marker="$MARKER"
         id=$(gh api --paginate "repos/$REPO/issues/$PR_NUMBER/comments" \
           --jq ".[] | select(.body | contains(\"$marker\")) | .id" | head -n 1) || id=''
         if [ -n "$id" ]; then
