@@ -42,6 +42,10 @@
     return v >= 0.001 ? v.toFixed(4) : v.toExponential(2);
   }
 
+  function heatmapTop(e) {
+    return e.buffer ? fmt(e.buffer.heatmap_max) + " " + e.buffer.unit : "1 FLIP";
+  }
+
   // Encode each path segment; the path is relative to index.html.
   function url(p) {
     return "./" + String(p).split("/").map(encodeURIComponent).join("/");
@@ -609,7 +613,7 @@
       opa.hidden = !heat; legend.hidden = !heat;
       legend.className = "legend " + (kind === "signed" ? "signed" : "flip");
       var scale = e.diagnostics && e.diagnostics.signed ? UI.fmtScale(e.diagnostics.signed.scale) : "?";
-      legend.replaceChildren(kind === "signed" ? "−" + scale + " darker" : "0", h("i"), kind === "signed" ? "brighter +" + scale : "1 FLIP");
+      legend.replaceChildren(kind === "signed" ? "−" + scale + " darker" : "0", h("i"), kind === "signed" ? "brighter +" + scale : heatmapTop(e));
       if (!quiet) { V.heat = kind === "heat" ? Number(opa.value) : 0; V.signed = kind === "signed" ? Number(opa.value) : 0; notify(); }
     }
     function setHeat(on, quiet) { setLayer(on ? "heat" : "none", quiet); }
@@ -948,7 +952,7 @@
     var sidePanes = h("div", { class: "panes" },
       pane(e, LB.baseline, p.baseline, null, goHot),
       pane(e, LB.capture, p.capture, null, goHot),
-      pane(e, "heatmap", p.heatmap, h("span", { class: "legend", title: "FLIP error, 0 (dark) to 1 (light)" }), goHot));
+      pane(e, "heatmap", p.heatmap, h("span", { class: "legend flip", title: "Error, 0 (dark) to " + heatmapTop(e) + " (light)" }, "0", h("i"), heatmapTop(e)), goHot));
     if (p.baseline && p.capture) { var cr = compare(e, sidePanes); cmpApi = cr.cmpApi; d.appendChild(cr);
       d.querySelectorAll(".panes .zbox").forEach(function (box) { box.addEventListener("pointermove", function (ev) { var r = box.getBoundingClientRect(); var im = box.querySelector("img"); cmpApi.inspectAt([Math.floor((ev.clientX - r.left) / r.width * im.naturalWidth), Math.floor((ev.clientY - r.top) / r.height * im.naturalHeight)]); }); }); }
     if (!cmpApi) d.appendChild(sidePanes);

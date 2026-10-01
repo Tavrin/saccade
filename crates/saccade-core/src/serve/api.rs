@@ -10,13 +10,13 @@ use serde::Serialize;
 use tiny_http::{Header, Method, Request, Response, StatusCode};
 
 use super::browse::{
-    PathError, SearchQuery, THUMB_EDGE, hash128, images, is_image_name, list, rel_in, rel_of,
-    resolve_in, resolve_under, search, thumbnail,
+    PathError, SearchQuery, THUMB_EDGE, hash128, images, is_image_name, list, rel_in, resolve_in,
+    resolve_under, search, thumbnail,
 };
 use super::overview::{self, pct_encode};
 use super::session::{
     self, Spec, decisions_path, ensure, is_built, is_session_id, recent_decisions, session_dir,
-    stage_images, stage_named, stage_pair,
+    stage_images, stage_named,
 };
 use super::{State, ct_eq};
 use crate::view::{DECISIONS_SCHEMA, Decisions, MAX_DIRS, MIN_DIRS, is_safe_name};
@@ -215,7 +215,7 @@ fn session_overview(state: &State, id: &str) -> Option<String> {
         std::fs::read_to_string(session_dir(state, id).join("session.json"))
             .ok()
             .and_then(|t| serde_json::from_str(&t).ok())?;
-    info.overview
+    info.overview.map(|query| parse_query(&query).canonical())
 }
 
 fn path_error(e: &PathError) -> Resp {
@@ -306,14 +306,58 @@ fn pct_decode(s: &str, plus_is_space: bool) -> String {
     String::from_utf8_lossy(&out).into_owned()
 }
 
-fn parse_query(q: &str) -> HashMap<String, String> {
-    q.split('&')
+pub(crate) struct Query {
+    one: HashMap<String, String>,
+    repeated: HashMap<String, Vec<String>>,
+}
+impl std::ops::Deref for Query {
+    type Target = HashMap<String, String>;
+    fn deref(&self) -> &Self::Target {
+        &self.one
+    }
+}
+impl Query {
+    pub fn runs(&self) -> Vec<String> {
+        self.repeated
+            .get("run")
+            .cloned()
+            .unwrap_or_else(|| split_list(self.get("runs").map_or("", String::as_str)))
+    }
+    pub fn values(&self, key: &str) -> Vec<String> {
+        self.repeated.get(key).cloned().unwrap_or_default()
+    }
+    pub fn canonical(&self) -> String {
+        let mut keys: Vec<&String> = self
+            .keys()
+            .filter(|k| matches!(k.as_str(), "ref" | "labels" | "blind") || k.starts_with("pair"))
+            .collect();
+        keys.sort();
+        let mut parts: Vec<String> = keys
+            .iter()
+            .map(|k| format!("{}={}", pct_encode(k), pct_encode(&self[*k])))
+            .collect();
+        parts.extend(self.runs().iter().map(|v| format!("run={}", pct_encode(v))));
+        parts.join("&")
+    }
+}
+
+fn parse_query(q: &str) -> Query {
+    let pairs: Vec<(String, String)> = q
+        .split('&')
         .filter(|p| !p.is_empty())
         .map(|p| {
             let (k, v) = p.split_once('=').unwrap_or((p, ""));
             (pct_decode(k, true), pct_decode(v, true))
         })
-        .collect()
+        .collect();
+    let mut repeated: HashMap<String, Vec<String>> = HashMap::new();
+    for (k, v) in &pairs {
+        repeated.entry(k.clone()).or_default().push(v.clone());
+    }
+    Query {
+        one: pairs.into_iter().collect(),
+        repeated,
+    }
 }
 
 /// Host, Origin and fetch-metadata checks; `Err` is the rejection.
@@ -369,7 +413,45 @@ pub(crate) fn handle(state: &Arc<State>, mut req: Request) {
     let resp = if post {
         route_post(state, &mut req, &path, &query)
     } else {
-        route_get(state, &path, &query)
+        if matches!(
+            path.as_str(),
+            "/" | "/index.html" | "/api/roots" | "/favicon.ico"
+        ) || path.starts_with("/progress/")
+        {
+            route_get(state, &path, &query)
+        } else {
+            let relative = storage_label(state, &query);
+            let worker = state.clone();
+            state
+                .storage
+                .run(move || {
+                    let mut response = route_get(&worker, &path, &query);
+                    // Read in the probe too: streaming a remote File from `send`
+                    // would put an unbounded mount read back on the HTTP worker.
+                    if let Body::File(ref mut file, _) = response.body {
+                        let mut bytes = Vec::new();
+                        if file.read_to_end(&mut bytes).is_err() {
+                            return Resp::error_page(
+                                503,
+                                "Storage not reachable",
+                                &format!("storage not reachable: {relative}"),
+                            );
+                        }
+                        response.body = Body::Bytes(bytes);
+                    }
+                    response
+                })
+                .unwrap_or_else(|_| {
+                    Resp::error_page(
+                        503,
+                        "Storage not reachable",
+                        &format!(
+                            "storage not reachable: {}",
+                            storage_label(state, &parse_query(raw_query))
+                        ),
+                    )
+                })
+        }
     };
     send(req, resp);
 }
@@ -386,7 +468,7 @@ fn page(state: &State, mode: &str, session: Option<&str>) -> Resp {
     Resp::html(html)
 }
 
-fn route_get(state: &Arc<State>, path: &str, q: &HashMap<String, String>) -> Resp {
+fn route_get(state: &Arc<State>, path: &str, q: &Query) -> Resp {
     if let Some(response) = inbox_api::get(state, path) {
         return response;
     }
@@ -412,6 +494,20 @@ fn route_get(state: &Arc<State>, path: &str, q: &HashMap<String, String>) -> Res
             Err((status, msg)) => Resp::error(status, &msg),
         },
         "/runs" => runs_page(state, q),
+        "/run" => run_page(state, get("path")),
+        "/image" => single_image(state, get("path")),
+        "/open" => open_absolute(state, q),
+        "/api/roots" => Resp::json(
+            &state
+                .roots
+                .iter()
+                .map(|r| {
+                    serde_json::json!({
+                        "name": if state.multi() { &r.name } else { "" }, "path": r.path,
+                    })
+                })
+                .collect::<Vec<_>>(),
+        ),
         "/runs/heat" => heat_file(state, get("key")),
         "/img" => image_file(state, get("path"), None),
         "/thumb" => {
@@ -423,7 +519,7 @@ fn route_get(state: &Arc<State>, path: &str, q: &HashMap<String, String>) -> Res
             image_file(state, get("path"), Some(edge))
         }
         "/compare" => compare(state, q),
-        "/pair" => pair(state, get("a"), get("b")),
+        "/pair" => pair(state, get("a"), get("b"), q),
         p => {
             if let Some(rest) = p.strip_prefix("/progress/") {
                 return if is_session_id(rest) {
@@ -443,7 +539,15 @@ fn route_get(state: &Arc<State>, path: &str, q: &HashMap<String, String>) -> Res
             {
                 // The saved decisions, so the page shows what `saccade decide` recorded.
                 return match crate::view::read_decisions(&decisions_path(state, id)) {
-                    Ok(d) => Resp::json(&d),
+                    Ok(mut d) => {
+                        crate::paths::rebase_decisions(
+                            &mut d,
+                            &decisions_path(state, id),
+                            &session_dir(state, id).join("index.html"),
+                            state.view.record_absolute_paths,
+                        );
+                        Resp::json(&d)
+                    }
                     Err(_) => Resp::error(404, "no decisions saved for this session"),
                 };
             }
@@ -510,14 +614,23 @@ fn resolve_image(state: &State, rel: &str) -> Result<PathBuf, Resp> {
         return Err(Resp::error(400, "path too long"));
     }
     let abs = resolve_under(state, rel).map_err(|e| path_error(&e))?;
-    let name = abs
+    let canon = abs
+        .canonicalize()
+        .map_err(|_| path_error(&PathError::Missing))?;
+    let root = state
+        .root_of(&abs)
+        .ok_or_else(|| path_error(&PathError::Escapes))?;
+    if !state.allows(&root.path, &canon) {
+        return Err(path_error(&PathError::Escapes));
+    }
+    let name = canon
         .file_name()
         .map(|n| n.to_string_lossy().into_owned())
         .unwrap_or_default();
-    if !abs.is_file() || !is_image_name(&name) || !is_image_name(rel) {
+    if !canon.is_file() || !is_image_name(&name) || !is_image_name(rel) {
         return Err(Resp::error(403, "only image files are served"));
     }
-    Ok(abs)
+    Ok(canon)
 }
 
 /// An image of the archive: the file itself, or its thumbnail when `thumb`
@@ -538,7 +651,7 @@ fn image_file(state: &State, rel: &str, thumb: Option<u32>) -> Resp {
 }
 
 /// The overview page of a run comparison.
-fn runs_page(state: &Arc<State>, q: &HashMap<String, String>) -> Resp {
+fn runs_page(state: &Arc<State>, q: &Query) -> Resp {
     if let Err((status, msg)) = overview::parse_request(state, q) {
         return Resp::error_page(status, "This overview cannot be opened", &msg);
     }
@@ -645,6 +758,7 @@ fn stage_paired_run(
         pixels_per_degree: state.view.pixels_per_degree,
         hdr: state.view.hdr,
         meta: state.view.meta.clone(),
+        entries: state.view.entries.clone(),
     };
     let plan = crate::runs::plan(reference, std::slice::from_ref(run), &opts)
         .map_err(|e| e.to_string())?;
@@ -669,13 +783,23 @@ fn stage_paired_run(
     Ok(dest)
 }
 
-fn compare(state: &Arc<State>, q: &HashMap<String, String>) -> Resp {
-    let runs = split_list(q.get("runs").map_or("", String::as_str));
+fn compare(state: &Arc<State>, q: &Query) -> Resp {
+    let runs = q.runs();
+    if runs.len() == 1 {
+        let dest = if is_image_name(&runs[0]) {
+            "/image"
+        } else {
+            "/run"
+        };
+        return Resp::redirect(&format!("{dest}?path={}", pct_encode(&runs[0])));
+    }
     if !(MIN_DIRS..=MAX_DIRS).contains(&runs.len()) {
         return Resp::error_page(
             400,
             "This comparison link is incomplete",
-            &format!("runs= takes {MIN_DIRS} to {MAX_DIRS} comma-separated run paths."),
+            &format!(
+                "run= takes {MIN_DIRS} to {MAX_DIRS} repeated run paths (legacy runs= is also accepted)."
+            ),
         );
     }
     let labels = q
@@ -715,7 +839,7 @@ fn compare(state: &Arc<State>, q: &HashMap<String, String>) -> Resp {
         }
     }
     let blind = q.get("blind").is_some_and(|b| b == "1" || b == "true");
-    let rels: Vec<String> = dirs.iter().map(|d| rel_of(state, d)).collect();
+    let rels = runs.clone();
     let (all_dirs, all_files) = (
         dirs.iter().all(|d| d.is_dir()),
         dirs.iter().all(|d| d.is_file()),
@@ -728,6 +852,12 @@ fn compare(state: &Arc<State>, q: &HashMap<String, String>) -> Resp {
         );
     }
     if all_files {
+        for (dir, rel) in dirs.iter_mut().zip(&rels) {
+            *dir = match resolve_image(state, rel) {
+                Ok(d) => d,
+                Err(r) => return r.into_error_page(),
+            };
+        }
         // Single images: staged so a view pairs them whatever their names.
         if let Some(bad) = dirs
             .iter()
@@ -760,6 +890,12 @@ fn compare(state: &Arc<State>, q: &HashMap<String, String>) -> Resp {
     // Runs: unlike names are paired by position or by hand (`pair<i>=`, the
     // reference being 0) and staged under the reference's names.
     let labels = labels.unwrap_or_else(|| crate::runs::unique_labels(&dirs));
+    for (dir, rel) in dirs.iter_mut().zip(&rels) {
+        *dir = match super::storage::snapshot(state, rel) {
+            Ok(d) => d,
+            Err(e) => return path_error(&e).into_error_page(),
+        };
+    }
     let mut staged = dirs.clone();
     for (i, slot) in staged.iter_mut().enumerate().skip(1) {
         let pairing = match crate::runs::Pairing::parse(
@@ -792,14 +928,18 @@ fn compare(state: &Arc<State>, q: &HashMap<String, String>) -> Resp {
             (!v.is_empty() && v != "name").then(|| format!("&pair{i}={}", pct_encode(v)))
         })
         .collect();
+    let extras = ["labels", "blind"]
+        .iter()
+        .filter_map(|k| q.get(*k).map(|v| format!("&{k}={}", pct_encode(v))))
+        .collect::<String>();
     let overview = Some(format!(
-        "ref={}&runs={}{pairs}",
+        "ref={}&{}{pairs}{extras}",
         pct_encode(&rels[0]),
         rels[1..]
             .iter()
-            .map(|r| pct_encode(r))
+            .map(|r| format!("run={}", pct_encode(r)))
             .collect::<Vec<_>>()
-            .join(",")
+            .join("&")
     ));
     let id = ensure(
         state,
@@ -814,52 +954,19 @@ fn compare(state: &Arc<State>, q: &HashMap<String, String>) -> Resp {
     to_progress(&id, q)
 }
 
-fn pair(state: &Arc<State>, a: &str, b: &str) -> Resp {
-    let (pa, pb) = match (resolve_image(state, a), resolve_image(state, b)) {
-        (Ok(pa), Ok(pb)) => (pa, pb),
-        (Err(r), _) | (_, Err(r)) => return r.into_error_page(),
-    };
-    let meta = |p: &PathBuf| {
-        std::fs::metadata(p)
-            .map(|m| format!("{}:{:?}", m.len(), m.modified().ok()))
-            .unwrap_or_default()
-    };
-    let key = hash128(&[
-        pa.to_string_lossy().as_bytes(),
-        meta(&pa).as_bytes(),
-        pb.to_string_lossy().as_bytes(),
-        meta(&pb).as_bytes(),
-    ]);
-    let dest = state.cache.join("pairs").join(&key);
-    if !dest.join("b").is_dir() {
-        let tmp = state
-            .cache
-            .join("pairs")
-            .join(format!(".tmp-{key}-{}", session::unique()));
-        if let Err(e) = stage_pair(&pa, &pb, &tmp) {
-            let _ = std::fs::remove_dir_all(&tmp);
-            return Resp::error_page(422, "These images cannot be compared", &e);
-        }
-        let _ = std::fs::remove_dir_all(&dest);
-        if let Err(e) = std::fs::rename(&tmp, &dest) {
-            let _ = std::fs::remove_dir_all(&tmp);
-            return Resp::text(500, &format!("staging the pair: {e}"));
+fn pair(state: &Arc<State>, a: &str, b: &str, q: &Query) -> Resp {
+    for rel in [a, b] {
+        if let Err(r) = resolve_image(state, rel) {
+            return r.into_error_page();
         }
     }
-    let (ra, rb) = (rel_of(state, &pa), rel_of(state, &pb));
-    let labels = if ra == rb {
-        vec!["a".to_owned(), "b".to_owned()]
-    } else {
-        vec![ra.clone(), rb.clone()]
-    };
-    let spec = Spec {
-        dirs: vec![dest.join("a"), dest.join("b")],
-        labels: Some(labels),
-        runs: vec![ra, rb],
-        blind: false,
-        overview: None,
-    };
-    to_progress(&ensure(state, spec), &HashMap::new())
+    let mut query = format!("run={}&run={}", pct_encode(a), pct_encode(b));
+    for k in ["labels", "blind", "set"] {
+        if let Some(v) = q.get(k) {
+            query.push_str(&format!("&{k}={}", pct_encode(v)));
+        }
+    }
+    compare(state, &parse_query(&query))
 }
 
 fn allowed_session_file(rest: &str) -> bool {
@@ -1068,7 +1175,7 @@ fn post_upload_open(state: &Arc<State>, q: &HashMap<String, String>) -> Resp {
         // Two single images with different names: pair them under one name.
         let staged = root.join("pair");
         let _ = std::fs::remove_dir_all(&staged);
-        match stage_pair(&da.join(&fa[0]), &db.join(&fb[0]), &staged) {
+        match session::stage_pair(&da.join(&fa[0]), &db.join(&fb[0]), &staged) {
             Ok((x, y)) => (vec![x, y], vec![fa[0].clone(), fb[0].clone()]),
             Err(e) => return Resp::error(422, &e),
         }
@@ -1090,4 +1197,150 @@ fn post_upload_open(state: &Arc<State>, q: &HashMap<String, String>) -> Resp {
         },
     );
     Resp::json(&serde_json::json!({ "session": sid, "url": format!("/progress/{sid}") }))
+}
+
+/// Only root-relative paths appear in a storage timeout, never NAS targets.
+fn storage_label(state: &State, q: &Query) -> String {
+    for key in ["path", "ref", "a"] {
+        if let Some(p) = q.get(key).filter(|p| super::browse::is_plain_rel(p)) {
+            return p.clone();
+        }
+    }
+    if let Some(p) = q.runs().first().filter(|p| super::browse::is_plain_rel(p)) {
+        return p.clone();
+    }
+    for abs in q.values("abs") {
+        if let Some(root) = state.root_of(std::path::Path::new(&abs)) {
+            let sub = rel_in(&root.path, std::path::Path::new(&abs));
+            return if state.multi() {
+                format!("{}/{sub}", root.name)
+            } else {
+                sub
+            };
+        }
+    }
+    "archive".into()
+}
+
+fn open_absolute(state: &State, q: &Query) -> Resp {
+    let paths = q.values("abs");
+    if paths.is_empty() || paths.len() > MAX_DIRS {
+        return Resp::error_page(400, "Incomplete link", "abs= takes 1 to 6 absolute paths.");
+    }
+    let mut rels = Vec::new();
+    for abs in paths.iter().chain(q.get("ref")) {
+        match super::storage::absolute_rel(state, abs) {
+            Ok(p) => rels.push(p),
+            Err(_) => {
+                return Resp::error_page(
+                    404,
+                    "Path not found",
+                    &format!("{abs}: not found or not under a served root"),
+                );
+            }
+        }
+    }
+    let dirs: Vec<bool> = rels
+        .iter()
+        .map(|r| resolve_under(state, r).is_ok_and(|p| p.is_dir()))
+        .collect();
+    let files: Vec<bool> = rels
+        .iter()
+        .map(|r| resolve_under(state, r).is_ok_and(|p| p.is_file()) && is_image_name(r))
+        .collect();
+    let extras = ["labels", "blind"]
+        .iter()
+        .filter_map(|k| q.get(*k).map(|v| format!("&{k}={}", pct_encode(v))))
+        .collect::<String>();
+    let destination = if q.contains_key("ref") && dirs.iter().all(|d| *d) {
+        let Some(reference) = rels.pop() else {
+            return Resp::text(400, "missing reference");
+        };
+        format!(
+            "/runs?ref={}&{}",
+            pct_encode(&reference),
+            rels.iter()
+                .map(|r| format!("run={}", pct_encode(r)))
+                .collect::<Vec<_>>()
+                .join("&")
+        )
+    } else if q.contains_key("ref") {
+        return Resp::error_page(400, "Invalid selection", "ref= requires run directories.");
+    } else if dirs.iter().all(|d| *d) || files.iter().all(|d| *d) {
+        if rels.len() == 1 {
+            format!(
+                "{}?path={}",
+                if dirs[0] { "/run" } else { "/image" },
+                pct_encode(&rels[0])
+            )
+        } else if files.iter().all(|d| *d) && rels.len() == 2 {
+            format!(
+                "/pair?a={}&b={}",
+                pct_encode(&rels[0]),
+                pct_encode(&rels[1])
+            )
+        } else {
+            format!(
+                "/compare?{}",
+                rels.iter()
+                    .map(|r| format!("run={}", pct_encode(r)))
+                    .collect::<Vec<_>>()
+                    .join("&")
+            )
+        }
+    } else {
+        return Resp::error_page(
+            404,
+            "Path not found",
+            &format!("{}: not found or not under a served root", paths[0]),
+        );
+    };
+    Resp::redirect(&format!("{destination}{extras}"))
+}
+
+fn run_page(state: &State, rel: &str) -> Resp {
+    let details = match super::browse::run_details(state, rel) {
+        Ok(d) => d,
+        Err(e) => return path_error(&e).into_error_page(),
+    };
+    let data = details.to_string().replace('<', "\\u003c");
+    let html = include_str!("../../assets/run.html")
+        .replace(
+            "/*__RUN_CSS__*/",
+            &crate::render::shared::page_css(&[CSS, include_str!("../../assets/run.css")]),
+        )
+        .replace(
+            "/*__RUN_JS__*/",
+            &crate::render::shared::page_js(&[include_str!("../../assets/run.js")]),
+        )
+        .replace("__RUN_DATA__", &data);
+    Resp::html(html)
+}
+
+fn single_image(state: &Arc<State>, rel: &str) -> Resp {
+    let image = match resolve_image(state, rel) {
+        Ok(p) => p,
+        Err(r) => return r.into_error_page(),
+    };
+    let dirs = match stage_single_images(state, &[image]) {
+        Ok(d) => d,
+        Err(_) => {
+            return Resp::error_page(
+                422,
+                "Image cannot be opened",
+                "This image cannot be decoded.",
+            );
+        }
+    };
+    let id = ensure(
+        state,
+        Spec {
+            dirs,
+            labels: Some(vec![rel.to_owned()]),
+            runs: vec![rel.to_owned()],
+            blind: false,
+            overview: None,
+        },
+    );
+    to_progress(&id, &HashMap::new())
 }

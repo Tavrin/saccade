@@ -1,0 +1,122 @@
+{
+  "$defs": {
+    "Metric": {
+      "description": "Which statistic of the FLIP error map decides pass/fail.",
+      "oneOf": [
+        {
+          "const": "mean",
+          "description": "Mean FLIP error over all pixels.",
+          "type": "string"
+        },
+        {
+          "const": "p95",
+          "description": "95th-percentile FLIP error.",
+          "type": "string"
+        },
+        {
+          "const": "p99",
+          "description": "99th-percentile FLIP error.",
+          "type": "string"
+        },
+        {
+          "const": "max",
+          "description": "Maximum FLIP error.",
+          "type": "string"
+        }
+      ]
+    },
+    "NoiseEntry": {
+      "description": "Largest pairwise noise statistics for one image.",
+      "properties": {
+        "max": {
+          "description": "Largest pairwise max FLIP.",
+          "format": "double",
+          "type": "number"
+        },
+        "mean": {
+          "description": "Largest pairwise mean FLIP.",
+          "format": "double",
+          "type": "number"
+        },
+        "name": {
+          "description": "Relative image name.",
+          "type": "string"
+        },
+        "p95": {
+          "description": "Largest pairwise p95 FLIP.",
+          "format": "double",
+          "type": "number"
+        },
+        "pairs": {
+          "description": "Number of measured pairs.",
+          "format": "uint",
+          "minimum": 0,
+          "type": "integer"
+        },
+        "suggested_threshold": {
+          "description": "Largest observed value of the chosen metric multiplied by margin.",
+          "format": "double",
+          "type": "number"
+        }
+      },
+      "required": [
+        "name",
+        "pairs",
+        "mean",
+        "p95",
+        "max",
+        "suggested_threshold"
+      ],
+      "type": "object"
+    }
+  },
+  "$id": "https://github.com/Tavrin/saccade/schemas/saccade-noise.v1.schema.json",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "description": "Repeated-capture calibration output.",
+  "properties": {
+    "entries": {
+      "description": "Per-image noise estimates.",
+      "items": {
+        "$ref": "#/$defs/NoiseEntry"
+      },
+      "type": "array"
+    },
+    "margin": {
+      "description": "Multiplier over the largest observed value.",
+      "format": "double",
+      "type": "number"
+    },
+    "metric": {
+      "$ref": "#/$defs/Metric",
+      "description": "Metric used for suggestions."
+    },
+    "runs": {
+      "description": "Capture directories, relative to the output configuration directory.",
+      "items": {
+        "type": "string"
+      },
+      "type": "array"
+    },
+    "schema": {
+      "description": "Always `saccade-noise.v1`.",
+      "type": "string"
+    },
+    "warnings": {
+      "description": "Limitations and high-noise warnings.",
+      "items": {
+        "type": "string"
+      },
+      "type": "array"
+    }
+  },
+  "required": [
+    "schema",
+    "metric",
+    "margin",
+    "runs",
+    "entries",
+    "warnings"
+  ],
+  "title": "NoiseReport",
+  "type": "object"
+}

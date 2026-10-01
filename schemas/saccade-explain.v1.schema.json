@@ -351,7 +351,7 @@
       "type": "boolean"
     },
     "dir": {
-      "description": "Absolute path of the pack directory as written; strip paths are\nrelative to it.",
+      "description": "Pack directory relative to the working directory, absolute only by opt-in; strip paths are\nrelative to it.",
       "type": "string"
     },
     "entries": {
@@ -373,7 +373,7 @@
       "description": "Side names; `None` in a blind pack, which must not name the sides."
     },
     "report": {
-      "description": "Absolute path of the report JSON the pack was made from; `None` in a\nblind pack, whose location could name the sides.",
+      "description": "Report JSON path relative to the pack, absolute only by opt-in; `None` in a\nblind pack, whose location could name the sides.",
       "type": [
         "string",
         "null"

@@ -17,6 +17,7 @@ use saccade_core::view::{
 
 mod agent;
 mod agent_ui;
+mod f1;
 mod judge_cmd;
 mod mcp;
 mod outdirs;
@@ -36,6 +37,9 @@ struct Cli {
     /// Silence warnings when --out is next to capture metadata.
     #[arg(long, global = true)]
     allow_out_near_captures: bool,
+    /// Opt in to absolute local paths in reports and machine-readable output.
+    #[arg(long, global = true)]
+    record_absolute_paths: bool,
     #[command(subcommand)]
     command: Command,
 }
@@ -157,6 +161,16 @@ enum Format {
 
 #[derive(Subcommand)]
 enum Command {
+    /// Bootstrap a commented configuration and print baseline adoption steps.
+    Init(f1::InitArgs),
+    /// Inspect effective configuration and the sources of image-specific settings.
+    Config(f1::ConfigArgs),
+    /// Filter and paginate full entries from an existing report.
+    Entries(f1::EntriesArgs),
+    /// Calibrate thresholds from repeated captures of an unchanged build.
+    Noise(f1::NoiseArgs),
+    /// Run the bundled example and explain its expected regression.
+    Demo(f1::DemoArgs),
     /// Judge a report or ranking with a panel of models and humans.
     Judge(judge_cmd::JudgeArgs),
     /// Find the first diverging run or revision in an ordered series.
@@ -192,6 +206,9 @@ enum Command {
         json: Option<JsonMode>,
         #[command(flatten)]
         hdr: HdrArgs,
+        /// Write one JUnit testcase per entry.
+        #[arg(long, value_name = "FILE.xml")]
+        junit: Option<PathBuf>,
         #[command(flatten)]
         meta: MetaArgs,
         #[command(flatten)]
@@ -223,6 +240,9 @@ enum Command {
         json: Option<JsonMode>,
         #[command(flatten)]
         hdr: HdrArgs,
+        /// Write one JUnit testcase per entry.
+        #[arg(long, value_name = "FILE.xml")]
+        junit: Option<PathBuf>,
         #[command(flatten)]
         meta: MetaArgs,
         #[command(flatten)]
@@ -273,6 +293,12 @@ enum Command {
         labels: Option<Vec<String>>,
         #[command(flatten)]
         hdr: HdrArgs,
+        /// Include only matching names (repeatable; union of globs).
+        #[arg(long, value_name = "GLOB")]
+        entries: Vec<String>,
+        /// Write one JUnit testcase per entry.
+        #[arg(long, value_name = "FILE.xml")]
+        junit: Option<PathBuf>,
         #[command(flatten)]
         meta: MetaArgs,
         #[command(flatten)]
@@ -319,6 +345,12 @@ enum Command {
         /// Display names of the two sides, `parent,candidate`.
         #[arg(long, value_delimiter = ',', value_name = "A,B")]
         labels: Option<Vec<String>>,
+        /// Include only matching names (repeatable; union of globs).
+        #[arg(long, value_name = "GLOB")]
+        entries: Vec<String>,
+        /// Write one JUnit testcase per entry.
+        #[arg(long, value_name = "FILE.xml")]
+        junit: Option<PathBuf>,
         #[command(flatten)]
         meta: MetaArgs,
         #[command(flatten)]
@@ -327,13 +359,16 @@ enum Command {
     /// Copy captures over baselines.
     Approve {
         /// Directory of fresh captures.
-        capture_dir: PathBuf,
+        capture_dir: Option<PathBuf>,
         /// Baseline directory to update.
-        baseline_dir: PathBuf,
+        baseline_dir: Option<PathBuf>,
+        /// Derive the input directories from this report.
+        #[arg(long)]
+        report: Option<PathBuf>,
         /// Image names (relative paths) to approve.
         names: Vec<String>,
         /// Also approve every fail and new entry of this report JSON.
-        #[arg(long, value_name = "REPORT_JSON")]
+        #[arg(long, value_name = "REPORT_JSON", num_args = 0..=1, default_missing_value = "__report__")]
         all_failing: Option<PathBuf>,
         /// Also approve every "accept" entry of a decisions file exported by
         /// `saccade view`.
@@ -341,12 +376,12 @@ enum Command {
         decisions: Option<PathBuf>,
         /// With --all-failing: also approve `error` entries (for example a size
         /// change) whose capture exists and decodes.
-        #[arg(long, requires = "all_failing")]
+        #[arg(long)]
         include_errors: bool,
         /// With --all-failing: delete the baselines of every `missing` entry
         /// of the report (capture absent). Only files inside the baseline
         /// directory are removed; each removal is printed.
-        #[arg(long, requires = "all_failing")]
+        #[arg(long)]
         prune_missing: bool,
         /// Print `{"schema":"saccade-approve.v1","copied":[...],"pruned":[...]}`
         /// instead of one line per file.
@@ -395,6 +430,9 @@ enum Command {
         json: bool,
         #[command(flatten)]
         hdr: HdrArgs,
+        /// Include only matching names (repeatable; union of globs).
+        #[arg(long, value_name = "GLOB")]
+        entries: Vec<String>,
         #[command(flatten)]
         meta: MetaArgs,
     },
@@ -409,6 +447,12 @@ enum Command {
         /// served; a symlink to anywhere else stays refused.
         #[arg(long)]
         follow_symlinks_within_roots: bool,
+        /// Allow symlinks reached below a root to resolve into DIR (repeatable).
+        #[arg(long = "symlink-target")]
+        symlink_targets: Vec<PathBuf>,
+        /// Storage deadline in milliseconds (default: 3000).
+        #[arg(long, value_parser = clap::value_parser!(u64).range(1..))]
+        fs_timeout_ms: Option<u64>,
         /// Port on 127.0.0.1 (0 picks a free one).
         #[arg(long, default_value_t = 7878)]
         port: u16,
@@ -470,6 +514,9 @@ enum Command {
         config: Option<PathBuf>,
         #[command(flatten)]
         hdr: HdrArgs,
+        /// Include only matching names (repeatable; union of globs).
+        #[arg(long, value_name = "GLOB")]
+        entries: Vec<String>,
         #[command(flatten)]
         meta: MetaArgs,
     },
@@ -606,19 +653,27 @@ fn main() -> ExitCode {
                 ));
                 return ExitCode::from(2);
             }
+            if e.use_stderr() {
+                eprintln!("{e}hint: {}", agent::CliError::usage(e.to_string()).hint);
+                return ExitCode::from(2);
+            }
             e.exit()
         }
     };
     let json_errors = args_want_json(&args);
     match outdirs::warn(&cli.command, cli.allow_out_near_captures)
-        .and_then(|()| dispatch(cli.command))
+        .and_then(|()| dispatch(cli.command, cli.record_absolute_paths))
     {
         Ok(code) => ExitCode::from(code),
         Err(err) => {
             if json_errors {
                 emit_json_error(&err);
             } else {
-                eprintln!("saccade: error: {}", escape_multiline(&err.message));
+                eprintln!(
+                    "saccade: error: {}\n  hint: {}",
+                    escape_multiline(&err.message),
+                    escape_control(&err.hint)
+                );
             }
             ExitCode::from(2)
         }
@@ -660,8 +715,13 @@ fn emit_run(report: &Report, out: &Path, json: Option<RunJson>) -> Result<(), Cl
     }
 }
 
-fn dispatch(command: Command) -> Result<u8, CliError> {
+fn dispatch(command: Command, record_absolute_paths: bool) -> Result<u8, CliError> {
     match command {
+        Command::Init(args) => f1::init(args),
+        Command::Config(args) => f1::config(args),
+        Command::Entries(args) => f1::entries(args),
+        Command::Noise(args) => f1::noise(args, record_absolute_paths),
+        Command::Demo(args) => f1::demo(args, record_absolute_paths),
         Command::Judge(args) => judge_cmd::judge(args),
         Command::Bisect(args) => s6::bisect(args),
         Command::Watch(args) => s6::watch(args),
@@ -680,10 +740,12 @@ fn dispatch(command: Command) -> Result<u8, CliError> {
             labels,
             json,
             hdr,
+            junit,
             meta,
             require,
         } => {
             let mut cfg = load_config(config.as_deref())?;
+            cfg.record_absolute_paths = record_absolute_paths;
             if let Some(t) = threshold {
                 cfg.default_threshold = t;
             }
@@ -701,6 +763,7 @@ fn dispatch(command: Command) -> Result<u8, CliError> {
             hdr.apply(&mut cfg.hdr)?;
             meta.apply(&mut cfg.meta);
             require.apply(&mut cfg.meta);
+            f1::guard_junit(junit.as_deref(), &[&baseline_dir, &capture_dir], &out)?;
             let report = saccade_core::sequence::run_sequence(
                 &baseline_dir,
                 &capture_dir,
@@ -708,6 +771,9 @@ fn dispatch(command: Command) -> Result<u8, CliError> {
                 &pattern,
                 &cfg,
             )?;
+            if let Some(path) = junit {
+                f1::junit_reports(&out, &path, false)?;
+            }
             match json {
                 None => emit(&report.text())?,
                 Some(mode) => {
@@ -736,10 +802,12 @@ fn dispatch(command: Command) -> Result<u8, CliError> {
             allow_empty,
             json,
             hdr,
+            junit,
             meta,
             require,
         } => {
             let mut cfg = load_config(config.as_deref())?;
+            cfg.record_absolute_paths = record_absolute_paths;
             if let Some(t) = threshold {
                 cfg.default_threshold = t;
             }
@@ -751,6 +819,13 @@ fn dispatch(command: Command) -> Result<u8, CliError> {
             hdr.apply(&mut cfg.hdr)?;
             meta.apply(&mut cfg.meta);
             require.apply(&mut cfg.meta);
+            f1::guard_junit(
+                junit.as_deref(),
+                &std::iter::once(reference_dir.as_path())
+                    .chain(candidate_dirs.iter().map(PathBuf::as_path))
+                    .collect::<Vec<_>>(),
+                &out,
+            )?;
             let report = saccade_core::rank::run_rank(
                 &reference_dir,
                 &candidate_dirs,
@@ -759,6 +834,9 @@ fn dispatch(command: Command) -> Result<u8, CliError> {
                 &out,
                 &cfg,
             )?;
+            if let Some(path) = junit {
+                f1::junit_reports(&out, &path, true)?;
+            }
             match json {
                 None => emit(&report.text())?,
                 Some(mode) => {
@@ -787,14 +865,19 @@ fn dispatch(command: Command) -> Result<u8, CliError> {
             ppd,
             labels,
             hdr,
+            junit,
+            entries,
             meta,
             require,
         } => {
             let mut cfg = load_config(config.as_deref())?;
+            cfg.record_absolute_paths = record_absolute_paths;
+            cfg.entries = entries;
             cfg.allow_empty |= allow_empty;
             hdr.apply(&mut cfg.hdr)?;
             meta.apply(&mut cfg.meta);
             require.apply(&mut cfg.meta);
+            f1::guard_junit(junit.as_deref(), &[&baseline_dir, &capture_dir], &out)?;
             if let Some(t) = threshold {
                 cfg.default_threshold = t;
             }
@@ -811,6 +894,9 @@ fn dispatch(command: Command) -> Result<u8, CliError> {
                 cfg.labels = parse_labels(&l)?;
             }
             let report = saccade_core::run::run(&baseline_dir, &capture_dir, &out, &cfg)?;
+            if let Some(path) = junit {
+                saccade_core::ergonomics::junit(&report, &path)?;
+            }
             emit_run(&report, &out, json)?;
             Ok(u8::from(report.is_regression()))
         }
@@ -825,13 +911,18 @@ fn dispatch(command: Command) -> Result<u8, CliError> {
             json,
             ppd,
             labels,
+            junit,
+            entries,
             meta,
             require,
         } => {
             let mut cfg = load_config(config.as_deref())?;
+            cfg.record_absolute_paths = record_absolute_paths;
+            cfg.entries = entries;
             cfg.allow_empty |= allow_empty;
             meta.apply(&mut cfg.meta);
             require.apply(&mut cfg.meta);
+            f1::guard_junit(junit.as_deref(), &[&parent_dir, &candidate_dir], &out)?;
             if config.is_none() && !cfg.overrides.is_empty() {
                 // `./saccade.toml` is auto-loaded; it must not silently relax identity.
                 eprintln!(
@@ -869,6 +960,9 @@ fn dispatch(command: Command) -> Result<u8, CliError> {
                 cfg.labels = parse_labels(&l)?;
             }
             let report = saccade_core::run::run(&parent_dir, &candidate_dir, &out, &cfg)?;
+            if let Some(path) = junit {
+                saccade_core::ergonomics::junit(&report, &path)?;
+            }
             emit_run(&report, &out, json)?;
             Ok(u8::from(report.is_regression()))
         }
@@ -876,28 +970,60 @@ fn dispatch(command: Command) -> Result<u8, CliError> {
             capture_dir,
             baseline_dir,
             names,
+            report,
             all_failing,
             decisions,
             include_errors,
             prune_missing,
             json,
             force,
-        } => approve(
-            &capture_dir,
-            &baseline_dir,
-            names,
-            all_failing.as_deref(),
-            decisions.as_deref(),
-            ApproveFlags {
-                include_errors,
-                prune_missing,
-                json,
-                force,
-            },
-        ),
+        } => {
+            let report_path = report.or_else(|| {
+                all_failing
+                    .as_ref()
+                    .filter(|p| p.as_os_str() != "__report__")
+                    .cloned()
+            });
+            if all_failing
+                .as_ref()
+                .is_some_and(|p| p.as_os_str() == "__report__")
+                && report_path.is_none()
+            {
+                return Err(CliError::usage(
+                    "--all-failing needs --report REPORT_JSON or a legacy REPORT_JSON value",
+                ));
+            }
+            if (include_errors || prune_missing) && report_path.is_none() {
+                return Err(CliError::usage(
+                    "--include-errors and --prune-missing need --report REPORT_JSON or --all-failing REPORT_JSON",
+                ));
+            }
+            let (capture, baseline) = f1::approve_dirs(
+                capture_dir,
+                baseline_dir,
+                report_path.as_deref(),
+                decisions.as_deref(),
+            )?;
+            approve(
+                &capture,
+                &baseline,
+                names,
+                report_path.as_deref(),
+                decisions.as_deref(),
+                ApproveFlags {
+                    include_errors,
+                    prune_missing,
+                    json,
+                    force,
+                    record_absolute_paths,
+                },
+            )
+        }
         Command::Serve {
             mut roots,
             follow_symlinks_within_roots,
+            symlink_targets,
+            fs_timeout_ms,
             port,
             cache_dir,
             decisions_dir,
@@ -911,6 +1037,9 @@ fn dispatch(command: Command) -> Result<u8, CliError> {
             let mut opts = saccade_core::serve::ServeOptions::new(roots.remove(0));
             opts.extra_roots = roots;
             opts.follow_symlinks_within_roots = follow_symlinks_within_roots;
+            opts.symlink_targets = loaded.symlink_targets;
+            opts.symlink_targets.extend(symlink_targets);
+            opts.fs_timeout_ms = fs_timeout_ms.unwrap_or(loaded.fs_timeout_ms);
             opts.port = port;
             if let Some(d) = cache_dir {
                 opts.cache_dir = d;
@@ -918,6 +1047,7 @@ fn dispatch(command: Command) -> Result<u8, CliError> {
             if let Some(d) = decisions_dir {
                 opts.decisions_dir = d;
             }
+            opts.view.record_absolute_paths = record_absolute_paths;
             opts.view.regions = loaded.regions;
             opts.view.meta = loaded.meta;
             opts.view.diagnostics = loaded.diagnostics;
@@ -947,7 +1077,20 @@ fn dispatch(command: Command) -> Result<u8, CliError> {
         } => {
             let decisions = read_decisions(&decisions_json)?;
             let key = read_blind_key(&blind_key_json)?;
-            let text = serde_json::to_string_pretty(&unblind(&decisions, &key)?)?;
+            let mut resolved = unblind(&decisions, &key)?;
+            let source = key
+                .view_dir
+                .as_deref()
+                .map(|d| saccade_core::paths::resolve(d, &blind_key_json).join("index.html"))
+                .unwrap_or_else(|| blind_key_json.clone());
+            let destination = out.as_deref().unwrap_or(&decisions_json);
+            saccade_core::paths::rebase_decisions(
+                &mut resolved,
+                &source,
+                destination,
+                record_absolute_paths,
+            );
+            let text = serde_json::to_string_pretty(&resolved)?;
             match out {
                 Some(path) => std::fs::write(&path, format!("{text}\n"))
                     .map_err(|e| CliError::io(format!("writing {}: {e}", path.display())))?,
@@ -967,10 +1110,13 @@ fn dispatch(command: Command) -> Result<u8, CliError> {
             config,
             json,
             hdr,
+            entries,
             meta,
         } => {
             let loaded = load_config(config.as_deref())?;
             let mut opts = ViewOptions {
+                entries,
+                record_absolute_paths,
                 regions: loaded.regions,
                 meta: loaded.meta,
                 diagnostics: loaded.diagnostics,
@@ -987,7 +1133,7 @@ fn dispatch(command: Command) -> Result<u8, CliError> {
                 opts.pixels_per_degree = p;
             }
             let model = build_view(&dirs, &out, &opts)?;
-            let abs = saccade_core::explain::absolute;
+            let abs = |p: &Path| PathBuf::from(saccade_core::paths::cwd(p, record_absolute_paths));
             let key = key_out.unwrap_or_else(|| out.join(saccade_core::view::BLIND_KEY_FILE));
             if json {
                 let value = serde_json::json!({
@@ -1031,10 +1177,12 @@ fn dispatch(command: Command) -> Result<u8, CliError> {
             ppd,
             config,
             hdr,
+            entries,
             meta,
         } => {
             let loaded = load_config(config.as_deref())?;
             let mut opts = saccade_core::runs::RunsOptions {
+                entries,
                 meta: loaded.meta,
                 ..saccade_core::runs::RunsOptions::default()
             };
@@ -1051,6 +1199,7 @@ fn dispatch(command: Command) -> Result<u8, CliError> {
                 out,
                 by_position: pair_by_position,
                 opts,
+                record_absolute_paths,
             })
         }
         Command::Mcp { root, watch } => {
@@ -1084,6 +1233,7 @@ fn dispatch(command: Command) -> Result<u8, CliError> {
                 entries,
                 key_out: key_out.clone(),
                 hotspot_min_share,
+                record_absolute_paths,
             };
             if let Some(key) = &key_out {
                 saccade_core::explain::check_key_out(&out, key)
@@ -1266,6 +1416,7 @@ struct ApproveFlags {
     prune_missing: bool,
     json: bool,
     force: bool,
+    record_absolute_paths: bool,
 }
 
 /// Whether `recorded` (a path stored in a report or decisions file) and
@@ -1393,6 +1544,7 @@ fn approve(
         prune_missing,
         json,
         force,
+        record_absolute_paths,
     } = flags;
     let mut copied: Vec<serde_json::Value> = Vec::new();
     let mut pruned: Vec<String> = Vec::new();
@@ -1402,7 +1554,19 @@ fn approve(
     let mut expected_capture: BTreeMap<String, String> = BTreeMap::new();
     let mut expected_baseline: BTreeMap<String, String> = BTreeMap::new();
     if let Some(path) = decisions {
-        let d = read_decisions(path)?;
+        let mut d = read_decisions(path)?;
+        for dir in &mut d.dirs {
+            *dir = saccade_core::paths::resolve(dir, path)
+                .display()
+                .to_string();
+        }
+        for set in &mut d.sets {
+            if let Some(dir) = &mut set.chosen_dir {
+                *dir = saccade_core::paths::resolve(dir, path)
+                    .display()
+                    .to_string();
+            }
+        }
         if d.blind {
             return Err(CliError::new(
                 "approve_mismatch",
@@ -1422,7 +1586,15 @@ fn approve(
         names.extend(d.accepted());
     }
     if let Some(path) = all_failing {
-        let report = read_report(path)?;
+        let mut report = read_report(path)?;
+        for dir in [&mut report.baseline_dir, &mut report.capture_dir]
+            .into_iter()
+            .flatten()
+        {
+            *dir = saccade_core::paths::resolve(dir, path)
+                .display()
+                .to_string();
+        }
         problems.extend(bind_report_dirs(&report, capture_dir, baseline_dir));
         if prune_missing {
             prune = report
@@ -1536,8 +1708,8 @@ fn approve(
         if json {
             copied.push(serde_json::json!({
                 "name": name,
-                "from": saccade_core::explain::absolute(&src).display().to_string(),
-                "to": saccade_core::explain::absolute(&dest).display().to_string(),
+                "from": saccade_core::paths::cwd(&src, record_absolute_paths),
+                "to": saccade_core::paths::cwd(&dest, record_absolute_paths),
             }));
         } else {
             emit(&format!(
@@ -1556,11 +1728,7 @@ fn approve(
         std::fs::remove_file(&target)
             .map_err(|e| CliError::io(format!("removing {}: {e}", target.display())))?;
         if json {
-            pruned.push(
-                saccade_core::explain::absolute(&target)
-                    .display()
-                    .to_string(),
-            );
+            pruned.push(saccade_core::paths::cwd(&target, record_absolute_paths));
         } else {
             emit(&format!(
                 "removed {}\n",
@@ -1617,7 +1785,7 @@ fn text_table(report: &Report) -> String {
         if let Some(d) = &e.diagnostics {
             if e.status == Status::Pass {
                 // A passing pair says something only when timings come with it.
-                if !d.perf.is_empty() {
+                if !d.perf.is_empty() || !d.perf_not_comparable.is_empty() {
                     lines.push(escape_control(&d.verdict_line(e.bit_identical)));
                 }
             } else {
@@ -1627,7 +1795,7 @@ fn text_table(report: &Report) -> String {
                     escape_control(&d.description)
                 ));
                 lines.extend(
-                    saccade_core::diagnostics::perf_summary(&d.perf)
+                    d.perf_summary()
                         .map(|p| format!("perf: {}", escape_control(&p))),
                 );
             }

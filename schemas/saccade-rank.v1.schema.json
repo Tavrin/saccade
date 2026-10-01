@@ -53,7 +53,7 @@
           "type": "string"
         },
         "report_json": {
-          "description": "Absolute normal report JSON path.",
+          "description": "Normal report JSON path relative to the working directory (absolute by opt-in).",
           "type": "string"
         },
         "totals": {
@@ -252,11 +252,11 @@
       "type": "array"
     },
     "index_html": {
-      "description": "Absolute HTML path.",
+      "description": "HTML path relative to the working directory (absolute by opt-in).",
       "type": "string"
     },
     "markdown": {
-      "description": "Absolute Markdown table path.",
+      "description": "Markdown path relative to the working directory (absolute by opt-in).",
       "type": "string"
     },
     "metric": {
@@ -271,7 +271,7 @@
       "type": "array"
     },
     "reference_dir": {
-      "description": "Absolute reference directory.",
+      "description": "Reference directory relative to the ranking report (absolute by opt-in).",
       "type": "string"
     },
     "reference_images": {
@@ -281,7 +281,7 @@
       "type": "integer"
     },
     "report_json": {
-      "description": "Absolute ranking JSON path.",
+      "description": "Ranking JSON path relative to the working directory (absolute by opt-in).",
       "type": "string"
     },
     "schema": {

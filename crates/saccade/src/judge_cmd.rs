@@ -497,6 +497,9 @@ fn emit(text: &str) -> Result<(), CliError> {
 
 /// Entry point of `saccade judge`.
 pub fn judge(args: JudgeArgs) -> Result<u8, CliError> {
+    eprintln!(
+        "judge mode is experimental: answers are proposals; validate against your own decisions with `saccade judge calibrate`"
+    );
     match args.sub {
         Some(JudgeSub::Calibrate(c)) => {
             let v = run_calibrate(
@@ -537,7 +540,7 @@ pub fn mcp_schemas() -> Vec<Value> {
         json!({
             "name": "saccade_judge",
             "title": "Judge a report or ranking with a panel",
-            "description": "Asks a panel of decision models (and, through `saccade serve`, people) a bounded question per failing entry, or pairwise preferences between the candidates of a ranking. Every question is typed (checkable, rubric or preference) and the result states what that kind of answer can and cannot tell you; text-only judges get an evidence encoding, never pixels, and vision judges only blind hotspot strips. Answers are recorded as proposals; disagreement or low confidence escalates to needs_human. Sends evidence to the panel's providers: use only data you may share. Set dry_run to see the requests without making any.",
+            "description": "Experimental judge mode: answers are proposals; validate against your own decisions with `saccade judge calibrate`. Asks a panel of decision models (and, through `saccade serve`, people) a bounded question per failing entry, or pairwise preferences between the candidates of a ranking. Every question is typed (checkable, rubric or preference) and the result states what that kind of answer can and cannot tell you; text-only judges get an evidence encoding, never pixels, and vision judges only blind hotspot strips. Answers are recorded as proposals; disagreement or low confidence escalates to needs_human. Sends evidence to the panel's providers: use only data you may share. Set dry_run to see the requests without making any.",
             "inputSchema": {
                 "type": "object",
                 "properties": {
@@ -563,7 +566,7 @@ pub fn mcp_schemas() -> Vec<Value> {
         json!({
             "name": "saccade_judge_calibrate",
             "title": "Calibrate judges against human labels",
-            "description": "Measures each judge per question type against human final decisions: accuracy, agreement with humans, expected calibration error with a reliability table, position bias and the human-human ceiling (Krippendorff's alpha), and suggests gate thresholds. Writes and returns saccade-calibration.v1. Reads local files only.",
+            "description": "Experimental judge mode: validate proposal answers against your own human decisions before using a gate. Measures each judge per question type against human final decisions: accuracy, agreement with humans, expected calibration error with a reliability table, position bias and the human-human ceiling (Krippendorff's alpha), and suggests gate thresholds. Writes and returns saccade-calibration.v1. Reads local files only.",
             "inputSchema": {
                 "type": "object",
                 "properties": {

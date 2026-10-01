@@ -80,6 +80,8 @@ pub struct ExplainOptions {
     /// Hotspots carrying less than this share of the total error (`0..=1`)
     /// are left out.
     pub hotspot_min_share: f64,
+    /// Opt in to recording absolute paths in the pack.
+    pub record_absolute_paths: bool,
 }
 
 impl Default for ExplainOptions {
@@ -93,6 +95,7 @@ impl Default for ExplainOptions {
             entries: Vec::new(),
             key_out: None,
             hotspot_min_share: crate::hotspots::DEFAULT_HOTSPOT_MIN_SHARE,
+            record_absolute_paths: false,
         }
     }
 }
@@ -166,11 +169,11 @@ pub struct ExplainEntry {
 pub struct ExplainPack {
     /// Always [`EXPLAIN_SCHEMA`].
     pub schema: String,
-    /// Absolute path of the report JSON the pack was made from; `None` in a
+    /// Report JSON path relative to the pack, absolute only by opt-in; `None` in a
     /// blind pack, whose location could name the sides.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub report: Option<String>,
-    /// Absolute path of the pack directory as written; strip paths are
+    /// Pack directory relative to the working directory, absolute only by opt-in; strip paths are
     /// relative to it.
     pub dir: String,
     /// Whether sides are shuffled and anonymous (`A`/`B`).
@@ -740,8 +743,9 @@ pub fn explain(report_json: &Path, out_dir: &Path, opts: &ExplainOptions) -> Res
 
     let pack = ExplainPack {
         schema: EXPLAIN_SCHEMA.to_string(),
-        report: (!opts.blind).then(|| absolute(report_json).display().to_string()),
-        dir: absolute(out_dir).display().to_string(),
+        report: (!opts.blind)
+            .then(|| crate::paths::record(report_json, out_dir, opts.record_absolute_paths)),
+        dir: crate::paths::cwd(out_dir, opts.record_absolute_paths),
         blind: opts.blind,
         labels: (!opts.blind).then(|| labels.clone()),
         settings: ExplainSettings {

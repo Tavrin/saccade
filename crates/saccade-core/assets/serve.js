@@ -209,7 +209,7 @@
     return b;
   }
   function rowActions(row, path) {
-    return el('div', { cls: 'racts' }, [selectBtn(path), imagesToggle(row, path)]);
+    return el('div', { cls: 'racts' }, [el('a', { cls: 'btn small', href: '/run?path=' + enc(path), text: 'Open run' }), selectBtn(path), imagesToggle(row, path)]);
   }
 
   function renderRunBox(l) {
@@ -351,10 +351,10 @@
     var kind = selKind();
     // Whole runs open the overview first; single images and blind judging go straight to a viewer.
     if (kind === 'runs' && !$('blind').checked) {
-      location.href = '/runs?ref=' + enc(selection[0]) + '&runs=' + selection.slice(1).map(enc).join(',');
+      location.href = '/runs?ref=' + enc(selection[0]) + '&' + selection.slice(1).map(function (p) { return 'run=' + enc(p); }).join('&');
       return;
     }
-    var url = '/compare?runs=' + selection.map(enc).join(',');
+    var url = '/compare?' + selection.map(function (p) { return 'run=' + enc(p); }).join('&');
     if ($('blind').checked) url += '&blind=1';
     location.href = url;
   }

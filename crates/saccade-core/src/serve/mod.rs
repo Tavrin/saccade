@@ -10,7 +10,10 @@
 //!   below it (no `..`, no absolute paths, no escaping symlinks); only image
 //!   files are served from the archive. With several roots each is a top-level
 //!   entry named after its directory; `follow_symlinks_within_roots` lets a
-//!   symlink that resolves inside *any* root be browsed, nothing else;
+//!   symlink that resolves inside *any* root be browsed. Explicit symlink
+//!   targets allow capture directories on external storage; lexical containment
+//!   under a served root is checked before resolution. Storage probes time out
+//!   and at most eight may run; background comparisons use validated local copies;
 //! - the archive root is read-only: sessions and thumbnails go to the cache
 //!   directory, decisions to the decisions directory, uploads to the cache.
 
@@ -18,6 +21,7 @@ mod api;
 mod browse;
 mod overview;
 mod session;
+mod storage;
 
 use std::collections::HashMap;
 use std::io::Read;
@@ -27,7 +31,6 @@ use std::sync::{Arc, Mutex};
 use std::time::Duration;
 
 use crate::error::{Error, Result};
-use crate::meta::MetaChecker;
 use crate::run::io_err;
 use crate::view::ViewOptions;
 
@@ -47,6 +50,14 @@ pub struct ServeOptions {
     /// Let symlinks that resolve inside any root be browsed and served (a
     /// symlink to anywhere else stays refused).
     pub follow_symlinks_within_roots: bool,
+    /// Extra directories that symlinks reached under a root may resolve into.
+    pub symlink_targets: Vec<PathBuf>,
+    /// Deadline for storage requests; default 3000 milliseconds.
+    pub fs_timeout_ms: u64,
+    #[cfg(test)]
+    pub(crate) probe_delay_ms: u64,
+    #[cfg(test)]
+    pub(crate) probe_timeout_ms: Option<u64>,
     /// TCP port on `127.0.0.1`; 0 picks a free one.
     pub port: u16,
     /// Cache directory (sessions, thumbnails, uploads).
@@ -68,6 +79,12 @@ impl ServeOptions {
             root,
             extra_roots: Vec::new(),
             follow_symlinks_within_roots: false,
+            symlink_targets: Vec::new(),
+            fs_timeout_ms: 3000,
+            #[cfg(test)]
+            probe_delay_ms: 0,
+            #[cfg(test)]
+            probe_timeout_ms: None,
             port: 0,
             cache_dir: default_cache_dir(),
             decisions_dir: default_decisions_dir(),
@@ -108,20 +125,23 @@ pub fn default_decisions_dir() -> PathBuf {
 pub(crate) struct Root {
     /// Name of the top-level entry it forms when there are several roots.
     pub name: String,
-    /// Canonical directory.
+    /// Absolute lexical directory used by dashboard links.
     pub path: PathBuf,
+    /// Resolved directory used for containment checks.
+    pub target: PathBuf,
 }
 
 /// Shared server state.
 pub(crate) struct State {
     pub roots: Vec<Root>,
     pub follow_links: bool,
+    pub symlink_targets: Vec<PathBuf>,
+    pub storage: storage::Storage,
     pub cache: PathBuf,
     pub decisions: PathBuf,
     pub token: String,
     pub port: u16,
     pub view: ViewOptions,
-    pub meta: MetaChecker,
     pub max_upload: u64,
     pub sessions: Mutex<HashMap<String, session::SessionState>>,
     pub overviews: Mutex<HashMap<String, Arc<overview::Job>>>,
@@ -145,7 +165,10 @@ impl State {
     /// Whether a canonical path reached from `home` may be served: it stays
     /// inside `home`, or (with `--follow-symlinks-within-roots`) inside any root.
     pub fn allows(&self, home: &Path, canon: &Path) -> bool {
-        canon.starts_with(home) || (self.follow_links && self.root_of(canon).is_some())
+        self.roots
+            .iter()
+            .any(|r| (r.path == home || self.follow_links) && canon.starts_with(&r.target))
+            || self.symlink_targets.iter().any(|p| canon.starts_with(p))
     }
 }
 
@@ -192,19 +215,25 @@ fn is_within(inner: &Path, outer: &Path) -> bool {
 
 /// Starts the server on `127.0.0.1` and returns once it is listening.
 pub fn start(opts: ServeOptions) -> Result<ServeHandle> {
+    if opts.fs_timeout_ms == 0 {
+        return Err(Error::Config("fs_timeout_ms must be positive".into()));
+    }
+    let storage = storage::Storage::new(Duration::from_millis(opts.fs_timeout_ms));
     let mut roots: Vec<Root> = Vec::new();
     for given in std::iter::once(&opts.root).chain(&opts.extra_roots) {
-        let path = given.canonicalize().map_err(io_err(format!(
-            "resolving archive root {}",
-            given.display()
-        )))?;
-        if !path.is_dir() {
-            return Err(Error::Config(format!(
-                "{} is not a directory",
-                path.display()
-            )));
-        }
-        if roots.iter().any(|r| r.path == path) {
+        let path = storage::absolute(given)?;
+        let probe = path.clone();
+        let target = storage
+            .run(move || {
+                let target = probe.canonicalize()?;
+                if !target.is_dir() {
+                    return Err(std::io::Error::other("not a directory"));
+                }
+                Ok(target)
+            })
+            .map_err(|_| Error::Config(format!("storage not reachable: {}", path.display())))?
+            .map_err(io_err(format!("resolving archive root {}", path.display())))?;
+        if roots.iter().any(|r| r.target == target) {
             return Err(Error::Config(format!(
                 "{} is given as a root twice",
                 path.display()
@@ -219,7 +248,22 @@ pub fn start(opts: ServeOptions) -> Result<ServeHandle> {
             name = format!("{base}-{n}");
             n += 1;
         }
-        roots.push(Root { name, path });
+        roots.push(Root { name, path, target });
+    }
+    let mut symlink_targets = Vec::new();
+    for given in &opts.symlink_targets {
+        let probe = given.clone();
+        let target = storage
+            .run(move || {
+                let p = probe.canonicalize()?;
+                if !p.is_dir() {
+                    return Err(std::io::Error::other("not a directory"));
+                }
+                Ok(p)
+            })
+            .map_err(|_| Error::Config("symlink target storage not reachable".into()))?
+            .map_err(io_err("resolving symlink target".into()))?;
+        symlink_targets.push(target);
     }
     let mut dirs = Vec::new();
     for (what, dir) in [
@@ -233,7 +277,7 @@ pub fn start(opts: ServeOptions) -> Result<ServeHandle> {
         let canon = dir
             .canonicalize()
             .map_err(io_err(format!("resolving {}", dir.display())))?;
-        if roots.iter().any(|r| is_within(&canon, &r.path)) {
+        if roots.iter().any(|r| is_within(&canon, &r.target)) {
             return Err(Error::Config(format!(
                 "the {what} directory {} is inside an archive root; serve never writes under a root",
                 canon.display()
@@ -242,11 +286,11 @@ pub fn start(opts: ServeOptions) -> Result<ServeHandle> {
         dirs.push(canon);
     }
     let (cache, decisions) = (dirs[0].clone(), dirs[1].clone());
-    for sub in ["sessions", "thumbs", "uploads", "pairs", "runs"] {
+    for sub in ["sessions", "thumbs", "uploads", "pairs", "runs", "sources"] {
         let p = cache.join(sub);
         std::fs::create_dir_all(&p).map_err(io_err(format!("creating {}", p.display())))?;
     }
-    let meta = opts.view.meta.checker()?;
+    opts.view.meta.checker()?;
 
     let server = tiny_http::Server::http(("127.0.0.1", opts.port))
         .map_err(|e| Error::Config(format!("cannot listen on 127.0.0.1:{}: {e}", opts.port)))?;
@@ -261,21 +305,31 @@ pub fn start(opts: ServeOptions) -> Result<ServeHandle> {
     let inbox_canon = inbox
         .canonicalize()
         .map_err(io_err("resolving inbox directory".into()))?;
-    if inbox_canon != inbox || roots.iter().any(|r| inbox_canon.starts_with(&r.path)) {
+    if inbox_canon != inbox || roots.iter().any(|r| inbox_canon.starts_with(&r.target)) {
         return Err(Error::Config(
             "inbox must be a real directory outside archive roots".into(),
         ));
     }
     crate::inbox::write_discovery(&cache, port, token.clone())?;
+    #[cfg(test)]
+    let storage = {
+        let mut storage = storage;
+        storage.set_delay(opts.probe_delay_ms);
+        if let Some(ms) = opts.probe_timeout_ms {
+            storage.set_timeout(Duration::from_millis(ms));
+        }
+        storage
+    };
     let state = Arc::new(State {
         roots,
         follow_links: opts.follow_symlinks_within_roots,
+        symlink_targets,
+        storage,
         cache,
         decisions,
         token: token.clone(),
         port,
         view: opts.view,
-        meta,
         max_upload: opts.max_upload_bytes,
         sessions: Mutex::new(HashMap::new()),
         overviews: Mutex::new(HashMap::new()),

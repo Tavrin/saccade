@@ -33,6 +33,10 @@ pub struct RunConfig {
     pub fail_on_new: bool,
     /// Globs of image names to skip entirely.
     pub ignore: Vec<String>,
+    /// Restrict comparison to these name globs (empty selects all).
+    pub entries: Vec<String>,
+    /// Record absolute paths instead of portable relative paths.
+    pub record_absolute_paths: bool,
     /// Per-path overrides; the first matching one wins, field by field.
     pub overrides: Vec<Override>,
     /// Numerical G-buffer comparison rules (`[[buffer]]`), first match wins.
@@ -70,6 +74,10 @@ pub struct RunConfig {
     pub diagnostics: crate::diagnostics::DiagnosticsConfig,
     /// The confidence gate for answers recorded by `saccade decide` (`[decisions]`).
     pub decisions: crate::decision::DecisionsConfig,
+    /// Allowed external targets for capture symlinks in `serve`.
+    pub symlink_targets: Vec<std::path::PathBuf>,
+    /// Storage deadline for `serve`, in milliseconds.
+    pub fs_timeout_ms: u64,
 }
 
 impl Default for RunConfig {
@@ -80,6 +88,8 @@ impl Default for RunConfig {
             pixels_per_degree: nv_flip::DEFAULT_PIXELS_PER_DEGREE,
             fail_on_new: false,
             ignore: Vec::new(),
+            entries: Vec::new(),
+            record_absolute_paths: false,
             overrides: Vec::new(),
             buffers: Vec::new(),
             regions: Vec::new(),
@@ -97,6 +107,8 @@ impl Default for RunConfig {
             fail_on_nonfinite: true,
             diagnostics: crate::diagnostics::DiagnosticsConfig::default(),
             decisions: crate::decision::DecisionsConfig::default(),
+            symlink_targets: Vec::new(),
+            fs_timeout_ms: 3000,
         }
     }
 }
@@ -104,11 +116,15 @@ impl Default for RunConfig {
 #[derive(Deserialize)]
 #[serde(deny_unknown_fields)]
 struct FileConfig {
+    #[serde(default)]
+    symlink_targets: Vec<std::path::PathBuf>,
+    fs_timeout_ms: Option<u64>,
     threshold: Option<f64>,
     metric: Option<Metric>,
     fail_on_new: Option<bool>,
     ppd: Option<f32>,
     meta_name: Option<String>,
+    require_matching_meta: Option<bool>,
     hotspot_threshold: Option<f32>,
     hotspots: Option<usize>,
     hotspot_min_share: Option<f64>,
@@ -185,6 +201,13 @@ impl RunConfig {
                 .filter(|p| !p.as_os_str().is_empty())
                 .map_or_else(|| Path::new(".").to_path_buf(), Path::to_path_buf),
         );
+        if let Some(dir) = &cfg.config_dir {
+            for target in &mut cfg.symlink_targets {
+                if target.is_relative() {
+                    *target = dir.join(&*target);
+                }
+            }
+        }
         if let (Some(dir), Some(cal)) = (&cfg.config_dir, cfg.decisions.calibration.as_mut()) {
             if cal.is_relative() {
                 *cal = dir.join(&*cal);
@@ -208,6 +231,9 @@ impl RunConfig {
         }
         if let Some(v) = file.ppd {
             cfg.pixels_per_degree = v;
+        }
+        if let Some(v) = file.require_matching_meta {
+            cfg.meta.required = v;
         }
         if let Some(v) = file.meta_name {
             cfg.meta.name = v;
@@ -265,6 +291,11 @@ impl RunConfig {
             cfg.hdr.stop_exposure = h.stop_exposure;
             cfg.hdr.num_exposures = h.num_exposures;
         }
+        cfg.symlink_targets = file.symlink_targets;
+        cfg.fs_timeout_ms = file.fs_timeout_ms.unwrap_or(cfg.fs_timeout_ms);
+        if cfg.fs_timeout_ms == 0 {
+            return Err(Error::Config("fs_timeout_ms must be positive".into()));
+        }
         cfg.validate()?;
         Ok(cfg)
     }
@@ -304,7 +335,7 @@ impl RunConfig {
         self.hdr.validate()?;
         self.diagnostics.validate()?;
         self.meta.checker()?;
-        for g in &self.ignore {
+        for g in self.ignore.iter().chain(&self.entries) {
             compile_glob(g)?;
         }
         for o in &self.overrides {
@@ -341,6 +372,131 @@ impl RunConfig {
             }
         }
         (metric, threshold)
+    }
+
+    /// Effective settings with configuration and per-image provenance.
+    pub fn explain_settings(
+        &self,
+        file: Option<&Path>,
+        reason: &str,
+        name: Option<&str>,
+    ) -> Result<serde_json::Value> {
+        use serde_json::{Value, json};
+        fn settings(c: &RunConfig) -> Value {
+            json!({
+                "threshold": c.default_threshold, "metric": c.default_metric,
+                "ppd": c.pixels_per_degree, "fail_on_new": c.fail_on_new,
+                "require_matching_meta": c.meta.required, "meta_name": c.meta.name,
+                "meta_ignore": c.meta.ignore, "declare": c.meta.declared,
+                "hotspot_threshold": c.hotspot_threshold, "hotspots": c.hotspots,
+                "hotspot_min_share": c.hotspot_min_share, "hotspot_fail": c.hotspot_fail,
+                "allow_empty": c.allow_empty, "fail_on_nonfinite": c.fail_on_nonfinite,
+                "ignore": c.ignore,
+                "hdr": {"tonemapper": c.hdr.tonemapper.name(), "start_exposure": c.hdr.start_exposure, "stop_exposure": c.hdr.stop_exposure, "num_exposures": c.hdr.num_exposures},
+                "diagnostics": {"enabled": c.diagnostics.enabled, "shift_detection": c.diagnostics.shift_detection,
+                    "shift_min_px": c.diagnostics.shift_min_px, "shift_min_confidence": c.diagnostics.shift_min_confidence,
+                    "noise_max_flip": c.diagnostics.noise_max_flip, "explained_min": c.diagnostics.explained_min,
+                    "partial_min": c.diagnostics.partial_min, "perf_keys": c.diagnostics.perf_keys},
+                "decisions": {"auto_accept_min_prob": c.decisions.auto_accept_min_prob,
+                    "allow_sources": c.decisions.allow_sources, "gate_on": c.decisions.gate_on, "calibration": c.decisions.calibration.as_ref().map(|p| crate::paths::cwd(p, false))}
+            })
+        }
+        let raw: Value = match file {
+            Some(p) => {
+                let text = std::fs::read_to_string(p).map_err(|source| Error::Io {
+                    context: format!("reading config {}", p.display()),
+                    source,
+                })?;
+                let parsed: toml::Value =
+                    toml::from_str(&text).map_err(|e| Error::Config(e.to_string()))?;
+                serde_json::to_value(parsed)?
+            }
+            None => json!({}),
+        };
+        let origin = file
+            .map(|p| crate::paths::cwd(p, false))
+            .unwrap_or_else(|| "built-in default".into());
+        fn sourced(value: &Value, raw: &Value, origin: &str, key: &str) -> Value {
+            if let Value::Object(m) = value {
+                let mut result = serde_json::Map::new();
+                for (k, v) in m {
+                    result.insert(
+                        k.clone(),
+                        sourced(v, &raw[k], origin, &format!("{key}.{k}")),
+                    );
+                }
+                Value::Object(result)
+            } else {
+                json!({"value": value, "source": if raw.is_null() { "built-in default".into() } else { format!("{origin}:{key}") }})
+            }
+        }
+        let defaults = settings(&Self::default());
+        let effective = settings(self);
+        let mut values = serde_json::Map::new();
+        if let Value::Object(m) = &effective {
+            for (k, v) in m {
+                values.insert(k.clone(), sourced(v, &raw[k], &origin, k));
+            }
+        }
+        let image = if let Some(name) = name {
+            let matched = self
+                .overrides
+                .iter()
+                .enumerate()
+                .find(|(_, o)| compile_glob(&o.glob).is_ok_and(|g| g.is_match(name)));
+            let buffer = self
+                .buffers
+                .iter()
+                .enumerate()
+                .find(|(_, b)| compile_glob(&b.glob).is_ok_and(|g| g.is_match(name)));
+            let (metric, threshold) = buffer.map_or_else(
+                || self.effective_for(name),
+                |(_, b)| (b.metric, b.threshold()),
+            );
+            let source = |field: &str, overridden: bool| {
+                if let Some((i, _)) = buffer {
+                    if raw["buffer"][i].get(field).is_some() {
+                        format!("{origin}:buffer[{i}].{field}")
+                    } else {
+                        format!("built-in buffer default ({origin}:buffer[{i}])")
+                    }
+                } else if overridden {
+                    format!(
+                        "{origin}:override[{}].{field}",
+                        matched.map_or(0, |(i, _)| i)
+                    )
+                } else if raw.get(field).is_some() {
+                    format!("{origin}:{field}")
+                } else {
+                    "built-in default".into()
+                }
+            };
+            let applies =
+                |g: Option<&str>| g.is_none_or(|g| compile_glob(g).is_ok_and(|m| m.is_match(name)));
+            let regions: Vec<Value> = self.regions.iter().enumerate().filter(|(_,r)| applies(r.glob.as_deref())).map(|(i,r)| json!({
+                "name": r.name, "glob": r.glob, "rect": r.rect, "threshold": r.threshold,
+                "metric": r.metric.unwrap_or(metric), "source": format!("{origin}:region[{i}]"),
+                "metric_source": if r.metric.is_some() { format!("{origin}:region[{i}].metric") } else { source("metric", matched.is_some_and(|(_,o)| o.metric.is_some())) }
+            })).collect();
+            let masks: Vec<Value> = self.masks.iter().enumerate().filter(|(_,m)| applies(m.glob.as_deref())).map(|(i,m)| json!({"glob": m.glob, "rect": m.rect, "image": m.image, "source": format!("{origin}:mask[{i}]")})).collect();
+            json!({"name": name,
+                "matching_override": matched.map(|(i,o)| json!({"glob": o.glob,"threshold": o.threshold,"metric":o.metric,"source":format!("{origin}:override[{i}]")})),
+                "metric": {"value":metric,"source":source("metric",matched.is_some_and(|(_,o)| o.metric.is_some()))},
+                "threshold": {"value":threshold,"source":source("threshold",matched.is_some_and(|(_,o)| o.threshold.is_some()))},
+                "regions": regions, "masks": masks, "regions_and_masks_applied": buffer.is_none(),
+                "buffer": raw["buffer"].as_array().and_then(|a| a.iter().enumerate().find(|(_,b)| b["glob"].as_str().is_some_and(|g| applies(Some(g))))).map(|(i,b)| json!({"value":b,"source":format!("{origin}:buffer[{i}]")})),
+                "ignored": self.ignore.iter().any(|g| compile_glob(g).is_ok_and(|m| m.is_match(name)))
+            })
+        } else {
+            Value::Null
+        };
+        Ok(
+            json!({"config_file":file.map(|p| crate::paths::cwd(p,false)),"reason":reason,"defaults":defaults,"settings":values,
+            "override":raw.get("override").cloned().unwrap_or_else(||json!([])),
+            "regions":raw.get("region").cloned().unwrap_or_else(||json!([])),
+            "masks":raw.get("mask").cloned().unwrap_or_else(||json!([])),
+            "buffers":raw.get("buffer").cloned().unwrap_or_else(||json!([])),"image":image}),
+        )
     }
 
     /// First numerical-buffer rule matching this relative image name.

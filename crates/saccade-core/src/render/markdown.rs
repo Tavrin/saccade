@@ -268,7 +268,7 @@ fn notes_section(report: &Report) -> String {
         }
         // A passing pair is mentioned when timings come with it.
         if let (Status::Pass, Some(d)) = (e.status, &e.diagnostics) {
-            if !d.perf.is_empty() {
+            if !d.perf.is_empty() || !d.perf_not_comparable.is_empty() {
                 lines.push(format!(
                     "- {name} ↳ {}\n",
                     md_text(&d.verdict_line(e.bit_identical))
@@ -323,7 +323,8 @@ impl Parts<'_> {
                 .filter(|e| e.status == Status::Fail)
             {
                 if let Some(d) = &e.diagnostics {
-                    let perf = crate::diagnostics::perf_summary(&d.perf)
+                    let perf = d
+                        .perf_summary()
                         .map_or(String::new(), |p| format!(" · {}", md_text(&p)));
                     out.push_str(&format!(
                         "- {} ↳ {}: {}{perf}\n",

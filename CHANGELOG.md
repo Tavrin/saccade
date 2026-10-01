@@ -5,6 +5,30 @@ newest first.
 
 ## Unreleased
 
+- Dashboard deep links: single-run and single-image pages, repeated `run=`
+  parameters, absolute-path `/open` redirects and `/api/roots`. Explicit external
+  symlink targets and bounded storage timeouts support captures on NAS mounts.
+
+- Portable report and decisions provenance with SHA-256 binding, absolute-path opt-in,
+  and directory-derived `approve --report` / `--decisions` forms.
+- Filtered, paginated entry inspection with MCP list/get tools, configuration
+  explanation and four commented init templates.
+- File-pair comparison, repeatable name filters, unchanged-build noise calibration
+  with schema/TOML suggestions, JUnit export, bundled demo and actionable error hints.
+
+- Release archives include README, MIT/Apache licences and the NVIDIA FLIP
+  third-party notice, with per-asset SHA-256 files and a combined `SHA256SUMS`.
+- Showcase reports are generated outside the source tree. `build.py --out`
+  creates an offline gallery; a Pages workflow builds and deploys it at
+  `/saccade/showcase/`. Committed media remains available to the README.
+- Numerical-buffer heatmaps use per-image p99 error floored by the buffer
+  threshold, recorded as `buffer.heatmap_max`; small depth errors are visible.
+- Sidecar timings pair identical key names only; one-sided timing keys are
+  reported as `perf_not_comparable` and labelled in text and Markdown.
+- Judge CLI and MCP tools are labelled experimental, with a calibration reminder.
+- Expanded Claude Code and Codex instruction packs, draft MCP Registry metadata
+  (not yet published), install/checksum instructions and a distribution roadmap.
+
 - Renamed from the working title flipdiff before first release.
 
 - Per-image output folders now end in `.d`; CLI outputs next to capture

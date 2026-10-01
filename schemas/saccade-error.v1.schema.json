@@ -7,7 +7,8 @@
   "required": [
     "schema",
     "code",
-    "message"
+    "message",
+    "hint"
   ],
   "additionalProperties": false,
   "properties": {
@@ -27,6 +28,10 @@
     },
     "message": {
       "type": "string"
+    },
+    "hint": {
+      "type": "string",
+      "description": "Offending path or argument and how to repair it."
     }
   }
 }

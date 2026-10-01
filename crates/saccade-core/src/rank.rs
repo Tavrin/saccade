@@ -62,7 +62,7 @@ pub struct CandidateRank {
     pub totals: Totals,
     /// Whether every reference image was compared successfully.
     pub complete: bool,
-    /// Absolute normal report JSON path.
+    /// Normal report JSON path relative to the working directory (absolute by opt-in).
     pub report_json: String,
     /// Relative HTML link from the ranking report.
     pub report_html: String,
@@ -78,7 +78,7 @@ pub struct RankReport {
     pub verdict: String,
     /// Metric used for every candidate and image (per-path metric overrides ignored).
     pub metric: Metric,
-    /// Absolute reference directory.
+    /// Reference directory relative to the ranking report (absolute by opt-in).
     pub reference_dir: String,
     /// Number of reference images.
     pub reference_images: usize,
@@ -89,11 +89,11 @@ pub struct RankReport {
     /// Per-image rankings; omitted from lean output.
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub images: Vec<RankedImage>,
-    /// Absolute ranking JSON path.
+    /// Ranking JSON path relative to the working directory (absolute by opt-in).
     pub report_json: String,
-    /// Absolute HTML path.
+    /// HTML path relative to the working directory (absolute by opt-in).
     pub index_html: String,
-    /// Absolute Markdown table path.
+    /// Markdown path relative to the working directory (absolute by opt-in).
     pub markdown: String,
 }
 
@@ -377,9 +377,10 @@ pub fn run_rank(
                     .count(),
                 totals: report.totals,
                 complete,
-                report_json: crate::explain::absolute(&out.join(label).join(REPORT_FILE_NAME))
-                    .display()
-                    .to_string(),
+                report_json: crate::paths::cwd(
+                    &out.join(label).join(REPORT_FILE_NAME),
+                    cfg.record_absolute_paths,
+                ),
                 report_html: format!("{label}/index.html"),
             }
         })
@@ -416,20 +417,14 @@ pub fn run_rank(
         }
         .into(),
         metric,
-        reference_dir: crate::explain::absolute(reference).display().to_string(),
+        reference_dir: crate::paths::record(reference, out, cfg.record_absolute_paths),
         reference_images: reference_names.len(),
         common_images: common.len(),
         overall,
         images,
-        report_json: crate::explain::absolute(&out.join(RANK_FILE))
-            .display()
-            .to_string(),
-        index_html: crate::explain::absolute(&out.join("index.html"))
-            .display()
-            .to_string(),
-        markdown: crate::explain::absolute(&out.join(RANK_MD))
-            .display()
-            .to_string(),
+        report_json: crate::paths::cwd(&out.join(RANK_FILE), cfg.record_absolute_paths),
+        index_html: crate::paths::cwd(&out.join("index.html"), cfg.record_absolute_paths),
+        markdown: crate::paths::cwd(&out.join(RANK_MD), cfg.record_absolute_paths),
     };
     for (file, text) in [
         (RANK_FILE, serde_json::to_string_pretty(&result)?),

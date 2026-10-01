@@ -156,7 +156,7 @@ pub struct BufferResult {
     pub threshold: f64,
     /// Per-kind numerical statistics.
     pub stats: BufferStats,
-    /// Value represented by the top of the heatmap colormap (zero is black).
+    /// Per-image p99 error, floored by the threshold and 1e-12, at the top of the colormap.
     pub heatmap_max: f64,
 }
 
@@ -340,18 +340,14 @@ pub(crate) fn fill_pair(
     };
     let m = metrics_of(&errors, w, h);
     let value = crate::run::metric_value(&m, spec.metric);
-    let (unit, heatmap_max) = match spec.kind {
-        BufferKind::Depth => (
-            "depth",
-            if spec.encoding() == "r32f" {
-                spec.threshold().max(m.max).max(1e-12)
-            } else {
-                1.0
-            },
-        ),
-        BufferKind::Normal => ("degrees", 180.0),
-        BufferKind::Motion => ("pixels", spec.scale * 2.0 * 2.0_f64.sqrt()),
-        BufferKind::Mask | BufferKind::Id => ("changed_fraction", 1.0),
+    // Every error was checked for finiteness above. A percentile keeps isolated
+    // outliers from hiding ordinary errors; the threshold preserves the gate's scale.
+    let heatmap_max = m.p99.max(spec.threshold()).max(1e-12);
+    let unit = match spec.kind {
+        BufferKind::Depth => "depth",
+        BufferKind::Normal => "degrees",
+        BufferKind::Motion => "pixels",
+        BufferKind::Mask | BufferKind::Id => "changed_fraction",
     };
     let cmp = Comparison {
         metrics: m,

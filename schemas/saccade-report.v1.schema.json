@@ -38,7 +38,7 @@
           "type": "string"
         },
         "heatmap_max": {
-          "description": "Value represented by the top of the heatmap colormap (zero is black).",
+          "description": "Per-image p99 error, floored by the threshold and 1e-12, at the top of the colormap.",
           "format": "double",
           "type": "number"
         },
@@ -226,6 +226,13 @@
           "description": "Timing keys present on both sides' sidecars, largest relative change first.",
           "items": {
             "$ref": "#/$defs/PerfDelta"
+          },
+          "type": "array"
+        },
+        "perf_not_comparable": {
+          "description": "Keys matching the timing globs that are present on only one side.",
+          "items": {
+            "$ref": "#/$defs/PerfNotComparable"
           },
           "type": "array"
         },
@@ -924,6 +931,39 @@
       ],
       "type": "object"
     },
+    "PerfNotComparable": {
+      "description": "A timing key present on only one side, which cannot establish a timing change.",
+      "properties": {
+        "key": {
+          "description": "Exact sidecar key; differently named timings are never paired.",
+          "type": "string"
+        },
+        "side": {
+          "$ref": "#/$defs/PerfSide",
+          "description": "Side containing the key."
+        }
+      },
+      "required": [
+        "key",
+        "side"
+      ],
+      "type": "object"
+    },
+    "PerfSide": {
+      "description": "Side on which an unpaired timing key was recorded.",
+      "oneOf": [
+        {
+          "const": "baseline",
+          "description": "The baseline sidecar.",
+          "type": "string"
+        },
+        {
+          "const": "capture",
+          "description": "The capture sidecar.",
+          "type": "string"
+        }
+      ]
+    },
     "Properties": {
       "description": "Structural sanity checks on a single image (catches black frames, blowouts).",
       "properties": {
@@ -1378,7 +1418,7 @@
   "properties": {
     "baseline_dir": {
       "default": null,
-      "description": "Absolute path of the baseline directory the run compared against;\n`approve` checks it against the directory it is given.",
+      "description": "Baseline input relative to the report directory (absolute only by opt-in);\n`approve` checks it against the directory it is given.",
       "type": [
         "string",
         "null"
@@ -1386,7 +1426,7 @@
     },
     "capture_dir": {
       "default": null,
-      "description": "Absolute path of the capture directory the run compared.",
+      "description": "Capture input relative to the report directory (absolute only by opt-in).",
       "type": [
         "string",
         "null"

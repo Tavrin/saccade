@@ -38,6 +38,14 @@ fn committed_schemas_match_the_rust_types() {
     let update = std::env::var_os("UPDATE_SCHEMAS").is_some();
     let all = [
         (
+            "saccade-noise.v1.schema.json",
+            generated::<saccade_core::ergonomics::NoiseReport>("saccade-noise.v1.schema.json"),
+        ),
+        (
+            "saccade-entries.v1.schema.json",
+            generated::<saccade_core::ergonomics::EntriesPage>("saccade-entries.v1.schema.json"),
+        ),
+        (
             "saccade-judge-votes.v1.schema.json",
             generated::<saccade_core::judge_vote::VoteRun>("saccade-judge-votes.v1.schema.json"),
         ),
@@ -99,6 +107,8 @@ fn committed_schemas_match_the_rust_types() {
 
     // Every schema id the tools emit has a file with a matching `$id`.
     for name in [
+        "noise",
+        "entries",
         "judge",
         "calibration",
         "judge-selftest",

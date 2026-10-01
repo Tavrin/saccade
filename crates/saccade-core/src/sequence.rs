@@ -77,11 +77,11 @@ pub struct SequenceReport {
     pub worst_frame: Option<WorstFrame>,
     /// Paired entries whose deciding value exceeds their effective threshold.
     pub frames_over_threshold: usize,
-    /// Absolute path of this JSON report.
+    /// JSON report path relative to the working directory (absolute by opt-in).
     pub report_json: String,
-    /// Absolute path of the normal per-frame comparison report.
+    /// Per-frame report path relative to the working directory (absolute by opt-in).
     pub frames_report_json: String,
-    /// Absolute path of the HTML report with the SVG curve.
+    /// HTML report path relative to the working directory (absolute by opt-in).
     pub index_html: String,
     /// Per-frame details on disk; omitted from lean output.
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
@@ -357,6 +357,9 @@ pub fn run_sequence(
             }
         }
         crate::run::apply_image_warnings(&mut entry, cfg);
+        if !cfg.record_absolute_paths {
+            crate::paths::redact_entry(&mut entry, out, &[baseline, capture]);
+        }
         frames.push(SequenceFrame {
             index: i,
             baseline_name: b.map(|f| f.name.clone()),
@@ -386,8 +389,16 @@ pub fn run_sequence(
             .duration_since(UNIX_EPOCH)
             .map_or(0, |d| d.as_secs()),
         // Synthetic names cannot be used by approve; actual names live in frames.
-        baseline_dir: Some(crate::explain::absolute(baseline).display().to_string()),
-        capture_dir: Some(crate::explain::absolute(capture).display().to_string()),
+        baseline_dir: Some(crate::paths::record(
+            baseline,
+            out,
+            cfg.record_absolute_paths,
+        )),
+        capture_dir: Some(crate::paths::record(
+            capture,
+            out,
+            cfg.record_absolute_paths,
+        )),
         config: ReportConfig {
             default_threshold: cfg.default_threshold,
             default_metric: cfg.default_metric,
@@ -448,13 +459,12 @@ pub fn run_sequence(
             .iter()
             .filter(|f| f.entry.value.is_some_and(|v| v > f.entry.threshold))
             .count(),
-        report_json: crate::explain::absolute(&path).display().to_string(),
-        frames_report_json: crate::explain::absolute(&out.join(REPORT_FILE_NAME))
-            .display()
-            .to_string(),
-        index_html: crate::explain::absolute(&out.join("index.html"))
-            .display()
-            .to_string(),
+        report_json: crate::paths::cwd(&path, cfg.record_absolute_paths),
+        frames_report_json: crate::paths::cwd(
+            &out.join(REPORT_FILE_NAME),
+            cfg.record_absolute_paths,
+        ),
+        index_html: crate::paths::cwd(&out.join("index.html"), cfg.record_absolute_paths),
         frames,
     };
     for (file, json) in [

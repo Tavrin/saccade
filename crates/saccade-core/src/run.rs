@@ -144,6 +144,11 @@ pub const RUN_SENTINEL: &str = ".saccade-run";
 /// canonicalised (symlinks resolved), so a not-yet-created output directory
 /// can be compared with an input.
 pub fn normalise_path(path: &Path) -> PathBuf {
+    let path = if path.is_absolute() {
+        path.to_path_buf()
+    } else {
+        std::env::current_dir().map_or_else(|_| path.to_path_buf(), |cwd| cwd.join(path))
+    };
     let mut folded = PathBuf::new();
     for c in path.components() {
         match c {
@@ -338,8 +343,38 @@ pub fn run(
     let sentinel = report_dir.join(RUN_SENTINEL);
     std::fs::write(&sentinel, b"incomplete saccade run\n")
         .map_err(io_err(format!("writing {}", sentinel.display())))?;
-    let baselines = collect_images(baseline_dir)?;
-    let captures = collect_images(capture_dir)?;
+    let file_pair = baseline_dir.is_file() && capture_dir.is_file();
+    if baseline_dir.is_file() != capture_dir.is_file() {
+        return Err(Error::Config(
+            "inputs must both be files or both be directories".into(),
+        ));
+    }
+    fn input_root(p: &Path, file_pair: bool) -> &Path {
+        if file_pair {
+            p.parent().unwrap_or(Path::new("."))
+        } else {
+            p
+        }
+    }
+    let (baselines, captures) = if file_pair {
+        let name = capture_dir
+            .file_name()
+            .ok_or_else(|| Error::Config("capture file needs a name".into()))?
+            .to_string_lossy()
+            .into_owned();
+        (
+            Collected {
+                files: BTreeMap::from([(name.clone(), baseline_dir.to_path_buf())]),
+                ..Default::default()
+            },
+            Collected {
+                files: BTreeMap::from([(name, capture_dir.to_path_buf())]),
+                ..Default::default()
+            },
+        )
+    } else {
+        (collect_images(baseline_dir)?, collect_images(capture_dir)?)
+    };
 
     let mut names: BTreeMap<&str, (Option<Source<'_>>, Option<Source<'_>>)> = BTreeMap::new();
     for (n, p) in &baselines.files {
@@ -375,6 +410,7 @@ pub fn run(
     let work: Vec<_> = names
         .into_iter()
         .filter(|(name, _)| !ignore.iter().any(|m| m.is_match(name)))
+        .filter(|(name, _)| crate::paths::matches_entries(&config.entries, name))
         .collect();
     // Pairs are independent; an indexed parallel collect keeps the name order.
     let entries: Vec<Entry> = work
@@ -383,10 +419,29 @@ pub fn run(
             let both_files = matches!((base, cap), (Some(Source::File(_)), Some(Source::File(_))));
             let mut entry = build_entry(name, base, cap, report_dir, &opts, config);
             if both_files {
-                apply_meta(&mut entry, &meta, baseline_dir, capture_dir);
-                apply_perf(&mut entry, &meta, baseline_dir, capture_dir, config);
+                apply_meta(
+                    &mut entry,
+                    &meta,
+                    input_root(baseline_dir, file_pair),
+                    input_root(capture_dir, file_pair),
+                    if file_pair { baseline_dir.file_name().and_then(|n| n.to_str()).unwrap_or(name) } else { name },
+                );
+                if file_pair && baseline_dir.file_name() != capture_dir.file_name() {
+                    entry.warnings.push("per-image timing pairing is unavailable for differently named file inputs; use same-named directory entries for timing comparisons".into());
+                } else {
+                apply_perf(
+                    &mut entry,
+                    &meta,
+                    input_root(baseline_dir, file_pair),
+                    input_root(capture_dir, file_pair),
+                    config,
+                );
+                }
             }
             apply_image_warnings(&mut entry, config);
+            if !config.record_absolute_paths {
+                crate::paths::redact_entry(&mut entry, report_dir, &[baseline_dir, capture_dir]);
+            }
             entry
         })
         .collect();
@@ -411,8 +466,16 @@ pub fn run(
         generated_at_unix: SystemTime::now()
             .duration_since(UNIX_EPOCH)
             .map_or(0, |d| d.as_secs()),
-        baseline_dir: Some(normalise_path(baseline_dir).display().to_string()),
-        capture_dir: Some(normalise_path(capture_dir).display().to_string()),
+        baseline_dir: Some(crate::paths::record(
+            baseline_dir,
+            report_dir,
+            config.record_absolute_paths,
+        )),
+        capture_dir: Some(crate::paths::record(
+            capture_dir,
+            report_dir,
+            config.record_absolute_paths,
+        )),
         config: ReportConfig {
             default_threshold: config.default_threshold,
             default_metric: config.default_metric,
@@ -507,8 +570,9 @@ fn apply_meta(
     meta: &crate::meta::MetaChecker,
     baseline_dir: &Path,
     capture_dir: &Path,
+    baseline_name: &str,
 ) {
-    let failure = match meta.compare_split(baseline_dir, capture_dir, &entry.name) {
+    let failure = match meta.compare_named(baseline_dir, baseline_name, capture_dir, &entry.name) {
         Ok((diff, ignored, failure)) => {
             entry.meta_diff = diff;
             entry.meta_ignored_diff = ignored;
@@ -536,7 +600,7 @@ fn apply_perf(
     let Some(d) = entry.diagnostics.as_mut() else {
         return;
     };
-    d.perf = crate::diagnostics::perf_pairs(
+    (d.perf, d.perf_not_comparable) = crate::diagnostics::perf_pairs(
         meta,
         &config.diagnostics,
         baseline_dir,

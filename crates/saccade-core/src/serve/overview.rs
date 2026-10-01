@@ -2,11 +2,11 @@
 //! `GET /api/runs` (the `saccade-runs.v1` JSON, measured in a background
 //! thread and cached on disk next to the sessions).
 
-use std::collections::HashMap;
 use std::path::Path;
 use std::sync::{Arc, Mutex};
 
 use super::State;
+use super::api::Query;
 use super::browse::{PathError, rel_of, resolve_under};
 use crate::runs::{
     AssetUrls, MAX_RUNS, PairResult, Pairing, Plan, RunInput, RunsOptions, assemble, compute_all,
@@ -20,6 +20,7 @@ const KEEP_JOBS: usize = 16;
 pub(crate) struct Job {
     plan: Plan,
     results: Mutex<Vec<Option<PairResult>>>,
+    sources: Vec<(std::path::PathBuf, String)>,
 }
 
 /// Why an overview request was refused: HTTP status and message.
@@ -40,11 +41,20 @@ pub(crate) fn pct_encode(s: &str) -> String {
 
 struct ServerAssets<'a> {
     state: &'a State,
+    sources: &'a [(std::path::PathBuf, String)],
 }
 
 impl AssetUrls for ServerAssets<'_> {
     fn image(&self, path: &Path, edge: u32) -> Option<String> {
-        let rel = rel_of(self.state, path);
+        let rel = self
+            .sources
+            .iter()
+            .find_map(|(dir, display)| {
+                path.strip_prefix(dir)
+                    .ok()
+                    .map(|sub| format!("{display}/{}", sub.to_string_lossy()))
+            })
+            .unwrap_or_else(|| rel_of(self.state, path));
         (!rel.is_empty()).then(|| format!("/thumb?path={}&w={edge}", pct_encode(&rel)))
     }
 
@@ -68,20 +78,16 @@ fn path_refusal(what: &str, e: &PathError) -> Refusal {
 /// `pair<i>=` where `i` counts the reference as 0), resolved under the roots.
 pub(crate) fn parse_request(
     state: &State,
-    q: &HashMap<String, String>,
+    q: &Query,
 ) -> Result<(RunInput, Vec<RunInput>), Refusal> {
     let get = |k: &str| q.get(k).map_or("", String::as_str);
     let ref_rel = get("ref").to_owned();
-    let run_rels: Vec<String> = get("runs")
-        .split(',')
-        .map(|p| p.trim().to_owned())
-        .filter(|p| !p.is_empty())
-        .collect();
+    let run_rels = q.runs();
     if ref_rel.is_empty() || run_rels.is_empty() || run_rels.len() > MAX_RUNS {
         return Err((
             400,
             format!(
-                "ref= names the reference run and runs= takes 1 to {MAX_RUNS} runs to compare against it."
+                "ref= names the reference run and repeated run= takes 1 to {MAX_RUNS} runs to compare against it."
             ),
         ));
     }
@@ -93,7 +99,19 @@ pub(crate) fn parse_request(
         }
         dirs.push(abs);
     }
-    let labels = unique_labels(&dirs);
+    let labels = match q.get("labels").filter(|s| !s.is_empty()) {
+        Some(s) => {
+            let labels: Vec<String> = s.split(',').map(|v| v.trim().to_owned()).collect();
+            if labels.len() != dirs.len() {
+                return Err((
+                    400,
+                    "labels= must have one label per reference and run".into(),
+                ));
+            }
+            labels
+        }
+        None => unique_labels(&dirs),
+    };
     let mut inputs = Vec::new();
     for (i, dir) in dirs.into_iter().enumerate() {
         let pairing = if i == 0 {
@@ -102,7 +120,11 @@ pub(crate) fn parse_request(
             Pairing::parse(get(&format!("pair{i}"))).map_err(|e| (400, e))?
         };
         inputs.push(RunInput {
-            display: rel_of(state, &dir),
+            display: std::iter::once(&ref_rel)
+                .chain(&run_rels)
+                .nth(i)
+                .cloned()
+                .unwrap_or_default(),
             label: labels[i].clone(),
             dir,
             pairing,
@@ -117,17 +139,19 @@ fn options(state: &State) -> RunsOptions {
         pixels_per_degree: state.view.pixels_per_degree,
         hdr: state.view.hdr,
         meta: state.view.meta.clone(),
+        entries: state.view.entries.clone(),
     }
 }
 
 /// The overview for a request: starts the measuring thread when this exact
 /// comparison is not already measured or running, and returns the model as
 /// measured so far.
-pub(crate) fn model_json(
-    state: &Arc<State>,
-    q: &HashMap<String, String>,
-) -> Result<serde_json::Value, Refusal> {
-    let (reference, runs) = parse_request(state, q)?;
+pub(crate) fn model_json(state: &Arc<State>, q: &Query) -> Result<serde_json::Value, Refusal> {
+    let (mut reference, mut runs) = parse_request(state, q)?;
+    for input in std::iter::once(&mut reference).chain(&mut runs) {
+        input.dir = super::storage::snapshot(state, &input.display)
+            .map_err(|e| path_refusal(&input.display, &e))?;
+    }
     let plan = plan(&reference, &runs, &options(state)).map_err(|e| (422, e.to_string()))?;
     let key = plan.fingerprint();
     let job = {
@@ -143,6 +167,10 @@ pub(crate) fn model_json(
             }
             let total = plan.tasks().len();
             let job = Arc::new(Job {
+                sources: std::iter::once(&reference)
+                    .chain(&runs)
+                    .map(|r| (r.dir.clone(), r.display.clone()))
+                    .collect(),
                 plan,
                 results: Mutex::new(vec![None; total]),
             });
@@ -159,28 +187,27 @@ pub(crate) fn model_json(
         }
     };
     let snapshot = job.results.lock().map(|v| v.clone()).unwrap_or_default();
-    let model = assemble(&job.plan, &snapshot, &ServerAssets { state });
+    let model = assemble(
+        &job.plan,
+        &snapshot,
+        &ServerAssets {
+            state,
+            sources: &job.sources,
+        },
+    );
     serde_json::to_value(&model).map_err(|e| (500, e.to_string()))
 }
 
 /// The page shell of an overview request; the page script polls `/api/runs`.
-pub(crate) fn page_html(state: &State, q: &HashMap<String, String>, token: &str) -> String {
-    let mut keys: Vec<&String> = q
-        .keys()
-        .filter(|k| *k == "ref" || *k == "runs" || k.starts_with("pair"))
-        .collect();
-    keys.sort();
-    let query = keys
-        .iter()
-        .map(|k| format!("{}={}", pct_encode(k), pct_encode(&q[*k])))
-        .collect::<Vec<_>>()
-        .join("&");
+pub(crate) fn page_html(state: &State, q: &Query, token: &str) -> String {
+    let query = q.canonical();
     let config = serde_json::json!({
         "mode": "serve",
         "token": token,
         "query": query,
         "api": format!("/api/runs?{query}"),
         "multi_root": state.multi(),
+        "blind": q.get("blind").is_some_and(|b| b == "1" || b == "true"),
     });
     crate::runs::render_page(&config.to_string())
 }

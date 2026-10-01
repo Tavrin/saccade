@@ -306,6 +306,27 @@ pub struct PerfDelta {
     pub delta_pct: Option<f64>,
 }
 
+/// Side on which an unpaired timing key was recorded.
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "lowercase")]
+pub enum PerfSide {
+    /// The baseline sidecar.
+    Baseline,
+    /// The capture sidecar.
+    Capture,
+}
+
+/// A timing key present on only one side, which cannot establish a timing change.
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct PerfNotComparable {
+    /// Exact sidecar key; differently named timings are never paired.
+    pub key: String,
+    /// Side containing the key.
+    pub side: PerfSide,
+}
+
 /// What the diagnostics engine found for one compared pair.
 #[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -333,6 +354,9 @@ pub struct Diagnostics {
     /// Timing keys present on both sides' sidecars, largest relative change first.
     #[serde(default)]
     pub perf: Vec<PerfDelta>,
+    /// Keys matching the timing globs that are present on only one side.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub perf_not_comparable: Vec<PerfNotComparable>,
     /// Wall time of the whole analysis in milliseconds.
     #[serde(default)]
     pub elapsed_ms: f64,
@@ -348,10 +372,24 @@ impl Diagnostics {
             (ChangeClass::Identical, _) => "pixels identical",
             (c, _) => c.as_str(),
         };
-        match perf_summary(&self.perf) {
+        match self.perf_summary() {
             Some(p) => format!("{head} · {p}"),
             None => head.to_owned(),
         }
+    }
+
+    /// Paired timing changes, followed by the names of unpaired timing keys.
+    pub fn perf_summary(&self) -> Option<String> {
+        let mut parts: Vec<String> = perf_summary(&self.perf).into_iter().collect();
+        if !self.perf_not_comparable.is_empty() {
+            let keys: Vec<&str> = self
+                .perf_not_comparable
+                .iter()
+                .map(|p| p.key.as_str())
+                .collect();
+            parts.push(format!("not comparable: {}", keys.join(", ")));
+        }
+        (!parts.is_empty()).then(|| parts.join(" · "))
     }
 }
 
@@ -528,6 +566,7 @@ pub fn diagnose(req: &DiagnoseRequest<'_>) -> Result<DiagnoseOutput> {
             signed: None,
             nonfinite: None,
             perf: Vec::new(),
+            perf_not_comparable: Vec::new(),
             elapsed_ms: 0.0,
         },
         signed_diff: None,
@@ -1829,26 +1868,40 @@ fn numeric(v: &serde_json::Value) -> Option<f64> {
 }
 
 /// Timing keys (matching `cfg.perf_keys`) with a numeric value in both sides'
-/// sidecars of image `name`, largest relative change first. Unreadable
-/// sidecars give no pairs (the meta check reports them).
+/// sidecars of image `name`, largest relative change first, plus timing keys
+/// present on only one side (in key order). An absent sidecar is an empty side;
+/// unreadable sidecars give no results (the meta check reports them).
 pub fn perf_pairs(
     checker: &MetaChecker,
     cfg: &DiagnosticsConfig,
     baseline_root: &Path,
     capture_root: &Path,
     name: &str,
-) -> Vec<PerfDelta> {
+) -> (Vec<PerfDelta>, Vec<PerfNotComparable>) {
     let globs: Vec<_> = cfg
         .perf_keys
         .iter()
         .filter_map(|g| crate::config::compile_glob(g).ok())
         .collect();
-    let (Ok(Some(b)), Ok(Some(c))) = (
+    let (Ok(b), Ok(c)) = (
         checker.load(baseline_root, name),
         checker.load(capture_root, name),
     ) else {
-        return Vec::new();
+        return (Vec::new(), Vec::new());
     };
+    let (b, c) = (b.unwrap_or_default(), c.unwrap_or_default());
+    let mut not_comparable = Vec::new();
+    for (own, other, side) in [(&b, &c, PerfSide::Baseline), (&c, &b, PerfSide::Capture)] {
+        for key in own.keys() {
+            if globs.iter().any(|g| g.is_match(key.as_str())) && !other.contains_key(key) {
+                not_comparable.push(PerfNotComparable {
+                    key: key.clone(),
+                    side,
+                });
+            }
+        }
+    }
+    not_comparable.sort_by(|a, b| a.key.cmp(&b.key));
     let mut out: Vec<PerfDelta> = b
         .iter()
         .filter(|(k, _)| globs.iter().any(|g| g.is_match(k.as_str())))
@@ -1867,7 +1920,7 @@ pub fn perf_pairs(
         let mag = |p: &PerfDelta| p.delta_pct.map_or(0.0, f64::abs);
         mag(b).total_cmp(&mag(a)).then_with(|| a.key.cmp(&b.key))
     });
-    out
+    (out, not_comparable)
 }
 
 fn num_text(v: f64) -> String {
@@ -2169,7 +2222,7 @@ mod tests {
         let checker = crate::meta::MetaOptions::default()
             .checker()
             .expect("checker");
-        let perf = perf_pairs(&checker, &DiagnosticsConfig::default(), &b, &c, "a.png");
+        let (perf, _) = perf_pairs(&checker, &DiagnosticsConfig::default(), &b, &c, "a.png");
         let keys: Vec<&str> = perf.iter().map(|p| p.key.as_str()).collect();
         assert_eq!(keys, ["gpu_ms", "frame_ms"]);
         assert!((perf[0].delta_pct.expect("pct") + 44.1).abs() < 0.1);

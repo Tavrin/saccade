@@ -13,8 +13,6 @@ use super::State;
 /// Image extensions the server lists and serves from the archive.
 pub(crate) const IMAGE_EXTS: [&str; 5] = ["png", "jpg", "jpeg", "exr", "hdr"];
 
-/// Fake image name used to load a run's directory-level sidecar.
-const RUN_PROBE: &str = ".saccade-run";
 /// Longest time one `ls` spends probing sub-directories for images.
 const LS_PROBE_BUDGET: Duration = Duration::from_millis(1500);
 /// Entries read from one directory while probing it for an image.
@@ -111,7 +109,9 @@ pub(crate) fn resolve_under(state: &State, rel: &str) -> Result<PathBuf, PathErr
     } else {
         (&state.roots[0], rel)
     };
-    resolve_checked(&root.path, sub, |c| state.allows(&root.path, c))
+    resolve_checked(&root.path, sub, |c| state.allows(&root.path, c))?;
+    // Keep the lexical route through the root, including symlink aliases.
+    Ok(root.path.join(sub))
 }
 
 /// `/`-separated path of `abs` relative to `base`.
@@ -155,14 +155,14 @@ struct Images {
     bytes: u64,
 }
 
-fn scan_images(dir: &Path, with_sizes: bool) -> Images {
+fn scan_images(state: &State, dir: &Path, with_sizes: bool) -> Images {
     let mut out = Images::default();
     let Ok(rd) = std::fs::read_dir(dir) else {
         return out;
     };
     for e in rd.flatten() {
         let name = e.file_name().to_string_lossy().into_owned();
-        if !is_image_name(&name) || !e.file_type().is_ok_and(|t| t.is_file()) {
+        if !is_image_name(&name) || !safe_file(state, &e.path()) {
             continue;
         }
         if with_sizes {
@@ -176,13 +176,13 @@ fn scan_images(dir: &Path, with_sizes: bool) -> Images {
 
 /// The first image directly inside `dir`, reading at most [`PROBE_ENTRIES`]
 /// entries.
-fn probe_image(dir: &Path) -> Option<String> {
+fn probe_image(state: &State, dir: &Path) -> Option<String> {
     let rd = std::fs::read_dir(dir).ok()?;
     let mut best: Option<String> = None;
     for e in rd.flatten().take(PROBE_ENTRIES) {
         let name = e.file_name().to_string_lossy().into_owned();
         if is_image_name(&name)
-            && e.file_type().is_ok_and(|t| t.is_file())
+            && safe_file(state, &e.path())
             && best.as_ref().is_none_or(|b| name < *b)
         {
             best = Some(name);
@@ -201,12 +201,39 @@ fn render(v: &Value) -> String {
 /// The run-level sidecar (the directory-level file in the run), rendered as
 /// strings, or the reason it could not be read.
 fn run_meta(state: &State, run: &Path) -> (Option<BTreeMap<String, String>>, Option<String>) {
-    match state.meta.load(run, RUN_PROBE) {
-        Ok(Some(m)) => (
-            Some(m.iter().map(|(k, v)| (k.clone(), render(v))).collect()),
-            None,
-        ),
-        Ok(None) => (None, None),
+    let sidecar = run.join(&state.view.meta.name);
+    let rel = rel_of(state, &sidecar);
+    let loaded = (|| {
+        let file = match resolve_under(state, &rel) {
+            Ok(p) => p,
+            Err(PathError::Missing) => return Ok(None),
+            Err(_) => return Err("sidecar is outside allowed storage".to_owned()),
+        };
+        let m = std::fs::metadata(&file).map_err(|_| "sidecar is not readable".to_owned())?;
+        if !m.is_file() {
+            return Ok(None);
+        }
+        if m.len() > 1024 * 1024 {
+            return Err("sidecar is larger than 1 MiB".into());
+        }
+        let text =
+            std::fs::read_to_string(file).map_err(|_| "sidecar is not readable".to_owned())?;
+        let value: Value =
+            serde_json::from_str(&text).map_err(|_| "sidecar is invalid JSON".to_owned())?;
+        let Value::Object(map) = value else {
+            return Err("sidecar is not a JSON object".into());
+        };
+        let mut out = BTreeMap::new();
+        for (k, v) in map {
+            if matches!(v, Value::Array(_) | Value::Object(_)) {
+                return Err(format!("sidecar key {k} has a nested value"));
+            }
+            out.insert(k, render(&v));
+        }
+        Ok(Some(out))
+    })();
+    match loaded {
+        Ok(m) => (m, None),
         Err(e) => (None, Some(e)),
     }
 }
@@ -250,7 +277,7 @@ pub(crate) struct Listing {
 }
 
 /// Probes `subs` for images within the listing budget.
-fn dir_items(subs: Vec<(String, PathBuf, u64)>) -> (Vec<DirItem>, bool) {
+fn dir_items(state: &State, subs: Vec<(String, PathBuf, u64)>) -> (Vec<DirItem>, bool) {
     let started = Instant::now();
     let mut partial = false;
     let items = subs
@@ -265,7 +292,7 @@ fn dir_items(subs: Vec<(String, PathBuf, u64)>) -> (Vec<DirItem>, bool) {
                     sample: None,
                 };
             }
-            let sample = probe_image(&path);
+            let sample = probe_image(state, &path);
             DirItem {
                 name,
                 mtime,
@@ -289,7 +316,7 @@ pub(crate) fn list(state: &State, rel: &str) -> Result<Listing, PathError> {
                 (r.name.clone(), r.path.clone(), mtime)
             })
             .collect();
-        let (dirs, partial) = dir_items(subs);
+        let (dirs, partial) = dir_items(state, subs);
         return Ok(Listing {
             path: String::new(),
             root_name: "roots".into(),
@@ -310,7 +337,7 @@ pub(crate) fn list(state: &State, rel: &str) -> Result<Listing, PathError> {
     let home = state
         .root_of(&dir)
         .map_or_else(|| dir.clone(), |r| r.path.clone());
-    let imgs = scan_images(&dir, true);
+    let imgs = scan_images(state, &dir, true);
     let run = (!imgs.names.is_empty()).then(|| {
         let (meta, meta_error) = run_meta(state, &dir);
         RunInfo {
@@ -355,7 +382,7 @@ pub(crate) fn list(state: &State, rel: &str) -> Result<Listing, PathError> {
         }
     }
     subs.sort_by(|a, b| a.0.cmp(&b.0));
-    let (dirs, partial) = dir_items(subs);
+    let (dirs, partial) = dir_items(state, subs);
     let parent = (!rel.is_empty()).then(|| rel.rsplit_once('/').map_or("", |(p, _)| p).to_owned());
     let root_name = state.root_of(&dir).map_or_else(
         || "/".into(),
@@ -427,10 +454,21 @@ pub(crate) fn search(state: &State, rel: &str, q: &SearchQuery) -> Result<Search
     let mut hits: Vec<(u64, RunHit)> = Vec::new();
     let mut partial = false;
     let mut scanned = 0usize;
+    let mut visited = std::collections::HashSet::new();
     while let Some((dir, depth)) = queue.pop_front() {
         if started.elapsed() > q.budget || (!q.recent && hits.len() >= SEARCH_LIMIT) {
             partial = true;
             break;
+        }
+        let checked = match resolve_under(state, &rel_of(state, &dir)) {
+            Ok(p) => p,
+            Err(_) => continue,
+        };
+        let Ok(canon) = checked.canonicalize() else {
+            continue;
+        };
+        if !visited.insert(canon) {
+            continue;
         }
         scanned += 1;
         let Ok(rd) = std::fs::read_dir(&dir) else {
@@ -441,7 +479,14 @@ pub(crate) fn search(state: &State, rel: &str, q: &SearchQuery) -> Result<Search
         for e in rd.flatten() {
             let Ok(ft) = e.file_type() else { continue };
             let name = e.file_name().to_string_lossy().into_owned();
-            if ft.is_dir() {
+            let path = e.path();
+            let checked = if ft.is_symlink() {
+                resolve_under(state, &rel_of(state, &path)).ok()
+            } else {
+                Some(path)
+            };
+            let Some(checked) = checked else { continue };
+            if checked.is_dir() {
                 if name.starts_with('.') {
                     continue;
                 }
@@ -450,7 +495,7 @@ pub(crate) fn search(state: &State, rel: &str, q: &SearchQuery) -> Result<Search
                 } else {
                     partial = true;
                 }
-            } else if ft.is_file() && is_image_name(&name) {
+            } else if is_image_name(&name) && safe_file(state, &e.path()) {
                 images += 1;
                 if sample.as_ref().is_none_or(|s| name < *s) {
                     sample = Some(name);
@@ -576,7 +621,7 @@ pub(crate) fn images(state: &State, rel: &str) -> Result<ImageList, PathError> {
     if let Ok(rd) = std::fs::read_dir(&dir) {
         for e in rd.flatten() {
             let name = e.file_name().to_string_lossy().into_owned();
-            if is_image_name(&name) && e.file_type().is_ok_and(|t| t.is_file()) {
+            if is_image_name(&name) && safe_file(state, &e.path()) {
                 out.push(ImageEntry {
                     name,
                     bytes: e.metadata().map_or(0, |m| m.len()),
@@ -592,4 +637,22 @@ pub(crate) fn images(state: &State, rel: &str) -> Result<ImageList, PathError> {
         images: out,
         truncated,
     })
+}
+
+fn safe_file(state: &State, path: &Path) -> bool {
+    resolve_under(state, &rel_of(state, path)).is_ok_and(|p| {
+        p.canonicalize()
+            .is_ok_and(|canon| canon.is_file() && is_image_name(&canon.to_string_lossy()))
+    })
+}
+
+pub(crate) fn run_details(state: &State, rel: &str) -> Result<serde_json::Value, PathError> {
+    let dir = resolve_under(state, rel)?;
+    if !dir.is_dir() {
+        return Err(PathError::Missing);
+    }
+    let (meta, meta_error) = run_meta(state, &dir);
+    Ok(
+        serde_json::json!({ "path": rel, "images": images(state, rel)?, "meta": meta, "meta_error": meta_error }),
+    )
 }

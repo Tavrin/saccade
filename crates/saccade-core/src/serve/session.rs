@@ -190,14 +190,31 @@ fn build(state: &State, id: &str, spec: &Spec) -> Result<(), String> {
     opts.blind = spec.blind;
     // A deterministic seed keeps a blind session's order stable across reuse.
     opts.seed = Some(u64::from_str_radix(&id[..13], 16).map_or(1, |s| s & MAX_SEED));
-    let result = build_view(&spec.dirs, &tmp, &opts).map_err(|e| e.to_string());
-    let model = match result {
+    let build_dirs = if spec.dirs.len() == 1 {
+        vec![spec.dirs[0].clone(), spec.dirs[0].clone()]
+    } else {
+        spec.dirs.clone()
+    };
+    if spec.dirs.len() == 1 {
+        opts.labels = Some(vec!["Image".into(), "Copy".into()]);
+    }
+    let result = build_view(&build_dirs, &tmp, &opts).map_err(|e| e.to_string());
+    let mut model = match result {
         Ok(m) => m,
         Err(e) => {
             let _ = std::fs::remove_dir_all(&tmp);
             return Err(e);
         }
     };
+    if spec.dirs.len() == 1 {
+        model.labels = spec.labels.clone().unwrap_or_else(|| vec!["Image".into()]);
+        model.dirs.truncate(1);
+        for set in &mut model.sets {
+            set.panes.truncate(1);
+            set.order = vec![0];
+        }
+        crate::render::write_view_html(&model, &tmp).map_err(|e| e.to_string())?;
+    }
     let info = SessionInfo {
         runs: spec.runs.clone(),
         labels: model.labels.clone(),
@@ -290,6 +307,12 @@ pub(crate) fn save_decisions(state: &State, id: &str, d: &Decisions) -> Result<(
     let dest = decisions_path(state, id);
     // Answers `saccade decide` recorded since the page loaded must survive its next save.
     let mut merged = d.clone();
+    crate::paths::rebase_decisions(
+        &mut merged,
+        &session_dir(state, id).join("index.html"),
+        &dest,
+        state.view.record_absolute_paths,
+    );
     if let Ok(on_disk) = crate::view::read_decisions(&dest) {
         crate::decision::merge_proposals(&mut merged, &on_disk);
     }

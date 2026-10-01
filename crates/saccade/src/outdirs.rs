@@ -45,7 +45,12 @@ pub(crate) fn warn(command: &Command, allow: bool) -> Result<(), CliError> {
             }),
         },
         // MCP has its own root confinement; commands without --out do not warn.
-        Command::Mcp { .. }
+        Command::Init(_)
+        | Command::Config(_)
+        | Command::Entries(_)
+        | Command::Noise(_)
+        | Command::Demo(_)
+        | Command::Mcp { .. }
         | Command::Approve { .. }
         | Command::Serve { .. }
         | Command::Summary { .. }

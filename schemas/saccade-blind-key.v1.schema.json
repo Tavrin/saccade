@@ -5,7 +5,7 @@
   "properties": {
     "dirs": {
       "default": [],
-      "description": "Absolute path of each directory, in `labels` order.",
+      "description": "Input paths relative to the viewer directory, absolute only by opt-in.",
       "items": {
         "type": "string"
       },
@@ -45,6 +45,13 @@
       "format": "uint64",
       "minimum": 0,
       "type": "integer"
+    },
+    "view_dir": {
+      "description": "Viewer directory relative to the key file, anchoring the recorded dirs.",
+      "type": [
+        "string",
+        "null"
+      ]
     }
   },
   "required": [

@@ -29,6 +29,8 @@ pub struct RunsRequest {
     pub by_position: bool,
     /// Measurement settings.
     pub opts: RunsOptions,
+    /// Opt in to absolute source paths.
+    pub record_absolute_paths: bool,
 }
 
 fn inputs(req: &RunsRequest) -> Result<(RunInput, Vec<RunInput>), CliError> {
@@ -57,7 +59,15 @@ fn inputs(req: &RunsRequest) -> Result<(RunInput, Vec<RunInput>), CliError> {
         .into_iter()
         .zip(labels)
         .map(|(dir, label)| RunInput {
-            display: dir.display().to_string(),
+            display: if !req.json || req.out.is_some() {
+                saccade_core::paths::record(
+                    &dir,
+                    req.out.as_deref().unwrap_or(Path::new(DEFAULT_OUT)),
+                    req.record_absolute_paths,
+                )
+            } else {
+                saccade_core::paths::cwd(&dir, req.record_absolute_paths)
+            },
             dir,
             label,
             pairing: Pairing::Name,

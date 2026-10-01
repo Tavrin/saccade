@@ -72,6 +72,41 @@ fn depth_preserves_16_bit_samples_and_reads_single_r_exr() {
 }
 
 #[test]
+fn depth_heatmaps_scale_small_errors_robustly_and_honor_the_threshold() {
+    let tmp = tempfile::tempdir().unwrap();
+    let (b, c) = dirs(tmp.path());
+    let base = ImageBuffer::from_pixel(100, 1, Luma([32768u16]));
+    let mut cap = base.clone();
+    // 4/255 is a quantisation-sized error (~0.016); one isolated outlier
+    // must not dim the other pixels by stretching the scale to its maximum.
+    for x in 0..99 {
+        cap.put_pixel(x, 0, Luma([32768 + 4 * 257]));
+    }
+    cap.put_pixel(99, 0, Luma([65535]));
+    base.save(b.join("depth.png")).unwrap();
+    cap.save(c.join("depth.png")).unwrap();
+    for (label, threshold) in [("p99", 0.01), ("threshold", 0.02)] {
+        let out = tmp.path().join(label);
+        let r = saccade_core::run::run(&b, &c, &out, &config("depth", "linear01", threshold, 1.0))
+            .unwrap();
+        let e = &r.entries[0];
+        let buf = e.buffer.as_ref().unwrap();
+        assert!((buf.stats.p99 - 4.0 / 255.0).abs() < 1e-7);
+        assert!((buf.heatmap_max - (4.0_f64 / 255.0).max(threshold)).abs() < 1e-7);
+        assert!(buf.heatmap_max < buf.stats.max);
+        let heat = image::open(out.join(e.paths.heatmap.as_ref().unwrap()))
+            .unwrap()
+            .to_rgb8();
+        assert!(heat.get_pixel(0, 0).0.into_iter().max().unwrap() > 200);
+        let json: serde_json::Value = serde_json::from_str(
+            &std::fs::read_to_string(out.join("saccade-report.v1.json")).unwrap(),
+        )
+        .unwrap();
+        assert_eq!(json["entries"][0]["buffer"]["heatmap_max"], buf.heatmap_max);
+    }
+}
+
+#[test]
 fn normals_measure_angles_in_degrees_and_identity_is_zero() {
     let tmp = tempfile::tempdir().unwrap();
     let (b, c) = dirs(tmp.path());

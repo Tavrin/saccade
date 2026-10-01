@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Build the showcase gallery (docs/showcase/index.html) from real saccade output.
+"""Build a standalone showcase gallery from real saccade output.
 
 Runs every command in showcases/<case>/commands.json with the given saccade
 binary, then writes:
@@ -8,7 +8,8 @@ binary, then writes:
   assets/   tokens.css and components.css copied from crates/saccade-core
   index.html
 
-Usage: python3 docs/showcase/build.py --saccade target/release/saccade
+Usage: python3 docs/showcase/build.py --saccade target/release/saccade --out /tmp/saccade-pages/showcase
+Default output: $CARGO_TARGET_DIR/showcase (or target/showcase). Sources are never rewritten.
 Requires Python 3, Pillow. Nothing is downloaded.
 """
 import argparse
@@ -28,8 +29,9 @@ from PIL import Image
 HERE = Path(__file__).resolve().parent
 REPO = HERE.parent.parent
 SHOW = REPO / 'showcases'
-MEDIA = HERE / 'media'
-REPORTS = HERE / 'reports'
+OUTPUT = Path(os.environ.get('CARGO_TARGET_DIR', REPO / 'target')) / 'showcase'
+MEDIA = OUTPUT / 'media'
+REPORTS = OUTPUT / 'reports'
 GITHUB = 'https://github.com/Tavrin/saccade'
 TEXT_EXT = {'.html', '.js', '.json', '.md', '.txt', '.css'}
 
@@ -79,6 +81,12 @@ def copy_report(src, dst, clean):
             q.write_text(clean(p.read_text()))
         else:
             shutil.copyfile(p, q)
+    # Some report renderers leave this optional sidecar absent until a decision
+    # is recorded. Static galleries have no decisions; keep their script links valid.
+    for page in dst.rglob('index.html'):
+        sidecar = page.parent / 'saccade-decisions.v1.js'
+        if 'src="saccade-decisions.v1.js"' in page.read_text() and not sidecar.exists():
+            sidecar.write_text('window.__saccadeDecisions=null;\n')
 
 
 # ------------------------------------------------------------------- media
@@ -421,7 +429,7 @@ def build_case(spec, res, n):
         seq = json.loads((sq_dir / 'saccade-sequence.v1.json').read_text())
         extra += '<h3>Camera pan: mean FLIP per frame</h3>' + seq_chart(wid + '-seq', seq, seq['frames'][0]['entry']['threshold'], False)
     tn = data['entries'][data.get('default', 0)]
-    th = thumb(case, HERE / tn['b'], HERE / tn['c'], HERE / (tn['h'] or tn['c']),
+    th = thumb(case, OUTPUT / tn['b'], OUTPUT / tn['c'], OUTPUT / (tn['h'] or tn['c']),
                focus=(tn['hs'][0][:4] if spec.get('zoom') and tn['hs'] else None))
     wdg = widget(wid, data, split=spec.get('split', 50), picker=picker_fn, px=px, zoom=spec.get('zoom', False),
                  maxh=(520 if data['entries'][0]['ar'] < 1 else None))
@@ -482,17 +490,26 @@ def inline_code(text):
 
 # ------------------------------------------------------------------ page
 def main():
+    global OUTPUT, MEDIA, REPORTS
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument('--saccade', default='saccade', help='saccade binary (default: on PATH)')
+    ap.add_argument('--out', type=Path, default=OUTPUT, help='standalone gallery output directory')
     ap.add_argument('--keep', help='also keep raw run output in this directory')
     args = ap.parse_args()
+    OUTPUT = args.out.resolve()
+    if (OUTPUT == REPO or OUTPUT in REPO.parents
+            or any(source == OUTPUT or source in OUTPUT.parents for source in (HERE, SHOW, REPO / 'crates'))):
+        ap.error('--out must be a build directory separate from the source inputs')
+    MEDIA, REPORTS = OUTPUT / 'media', OUTPUT / 'reports'
     binary = shutil.which(args.saccade) or str(Path(args.saccade).resolve())
     for d in (MEDIA, REPORTS):
         if d.exists():
             shutil.rmtree(d)
-    (HERE / 'assets').mkdir(exist_ok=True)
+    (OUTPUT / 'assets').mkdir(parents=True, exist_ok=True)
+    for f in ('showcase.css', 'showcase.js'):
+        shutil.copyfile(HERE / 'assets' / f, OUTPUT / 'assets' / f)
     for f in ('tokens.css', 'components.css'):
-        shutil.copyfile(REPO / 'crates/saccade-core/assets' / f, HERE / 'assets' / f)
+        shutil.copyfile(REPO / 'crates/saccade-core/assets' / f, OUTPUT / 'assets' / f)
     tmp = Path(args.keep) if args.keep else Path(tempfile.mkdtemp(prefix='saccade-showcase-'))
     results = run_cases(binary, tmp)
 
@@ -535,14 +552,14 @@ def main():
                 .replace('{{CARDS}}', '\n'.join(cards))
                 .replace('{{SECTIONS}}', '\n'.join(sections))
                 .replace('{{LEAN_JSON}}', E(lean_txt)))
-    (HERE / 'index.html').write_text(page)
-    leftovers = [str(p) for p in HERE.rglob('*') if p.suffix in TEXT_EXT and p.is_file()
+    (OUTPUT / 'index.html').write_text(page)
+    leftovers = [str(p) for p in OUTPUT.rglob('*') if p.suffix in TEXT_EXT and p.is_file()
                  and (str(REPO) in p.read_text(errors='ignore') or str(tmp) in p.read_text(errors='ignore'))]
     if leftovers:
         sys.exit('local paths left in: ' + ', '.join(leftovers))
     size = sum(p.stat().st_size for p in MEDIA.rglob('*') if p.is_file())
     rsize = sum(p.stat().st_size for p in REPORTS.rglob('*') if p.is_file())
-    print(f'index.html written; media {size / 1e6:.2f} MB, reports {rsize / 1e6:.2f} MB')
+    print(f'{OUTPUT / "index.html"} written; media {size / 1e6:.2f} MB, reports {rsize / 1e6:.2f} MB')
     if not args.keep:
         shutil.rmtree(tmp)
 

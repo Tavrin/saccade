@@ -15,7 +15,7 @@ git clone https://github.com/Tavrin/saccade && cd saccade
 cargo run --release -p saccade -- compare examples/baseline examples/capture --out report
 ```
 
-**[Showcase](https://tavrin.github.io/saccade/showcase/)**: eight reproducible use cases with the exact commands, images and output. The page is [`docs/showcase/index.html`](docs/showcase/index.html) and works offline.
+**[Showcase](https://tavrin.github.io/saccade/showcase/)**: eight reproducible use cases with the exact commands, images and output. Pages regenerates the gallery and reports from [`docs/showcase/`](docs/showcase). For an offline copy, run `python3 docs/showcase/build.py --out /tmp/saccade-pages/showcase` with `saccade` on PATH, then open `/tmp/saccade-pages/showcase/index.html`.
 
 ## Use cases at a glance
 
@@ -33,7 +33,7 @@ You need Rust 1.85 or newer and a C++ compiler (the build compiles NVIDIA's C++ 
 ```sh
 git clone https://github.com/Tavrin/saccade
 cd saccade
-cargo run --release -p saccade -- compare examples/baseline examples/capture --out report
+cargo run --release -p saccade -- demo --out saccade-demo
 ```
 
 Output (the first build takes longer, since it compiles the dependencies):
@@ -53,9 +53,9 @@ pass     sphere_subtle.png     mean    0.00481  0.01
 The exit code is 1: `sphere_shadow.png` is over the threshold, and a baseline with no capture counts as a regression. Open the report. It is a self-contained report directory (`index.html` plus `images/`) and needs no server:
 
 ```sh
-xdg-open report/index.html     # Linux
-open report/index.html         # macOS
-start report\index.html        # Windows
+xdg-open saccade-demo/report/index.html     # Linux
+open saccade-demo/report/index.html         # macOS
+start saccade-demo\report\index.html        # Windows
 ```
 
 ![HTML report with a classified regression, timing delta and numbered hotspots](docs/images/report.png)
@@ -286,13 +286,26 @@ JEV_API_KEY=... examples/adapters/jev_adapter.py accept.json --target report/sac
 
 ## Install
 
-From source (Rust 1.85 or newer, and a C++ compiler: g++, clang or MSVC):
+Download a prebuilt archive and `SHA256SUMS` from [GitHub Releases](https://github.com/Tavrin/saccade/releases). Archives are named `saccade-<target>.tar.gz` (Linux x86_64/aarch64 and macOS arm64) or `saccade-<target>.zip` (Windows x86_64). They include the binary, README and licence notices; assets appear when a version is tagged.
+
+Verify the downloaded archive against its line in `SHA256SUMS` before extracting it. For Linux x86_64, in the download directory:
+
+```sh
+# Save just this archive's published checksum, then verify it.
+sed -n '/  saccade-x86_64-unknown-linux-gnu.tar.gz$/p' SHA256SUMS > archive.sha256
+test -s archive.sha256 && sha256sum --check archive.sha256 && \
+  tar -xzf saccade-x86_64-unknown-linux-gnu.tar.gz && ./saccade --version
+```
+
+On macOS use `shasum -a 256 --check archive.sha256` with the macOS asset's checksum line. On Windows use `Get-FileHash .\saccade-x86_64-pc-windows-msvc.zip -Algorithm SHA256` and compare the hash with that asset's line in `SHA256SUMS`, then extract the zip. Put the executable on PATH; retain the bundled notices with redistributed binaries. A separate `<asset>.sha256` is also published for each archive.
+
+From source (Rust 1.85 or newer and a C++ compiler: g++, clang or MSVC):
 
 ```sh
 cargo install --git https://github.com/Tavrin/saccade saccade --locked
 ```
 
-Prebuilt binaries for Linux (x86_64, aarch64), macOS (arm64) and Windows (x86_64) will be attached to GitHub releases once a version is tagged. The GitHub Action uses them when they exist.
+A crates.io release is planned later; `cargo install saccade --locked` will be available after publication. The GitHub Action uses checksum-verified prebuilt binaries when available and otherwise builds from source.
 
 ## Use cases
 
@@ -410,21 +423,63 @@ The comparison page opens on the worst set and has a "← Browse" link back to t
 
 ![serve browse: three runs of a nightly directory, two selected for comparison](docs/images/serve-browse.png)
 
-**Run overview.** Pressing Compare on two or more runs (blind off) opens the run overview first, `/runs?ref=<run>&runs=<a>,<b>,...` (the first selected run is the reference). It shows, once at the top, the run-level sidecar keys that differ; one card per run with `N identical · N changed (worst lit.png 0.645) · N only-in-ref · N only-in-run · config differs: K keys`; a matrix of images by runs; and a contact sheet with one swipe slider (left and right arrow keys) shared by every image. A run whose images are all bit-identical to the reference's, with none missing or extra, is flagged "No visible effect: this run changed nothing", which is what an ablation arm that turned out to do nothing looks like. Matrix cells are thumbnails tinted by mean FLIP from green to red, "=" for bit-identical and a dash for absent; hover shows the FLIP heatmap and values, click opens the viewer on that image and pair. FLIP is measured in a background thread, pair by pair, with progress shown, and cached in the cache directory (`runs/`), so reopening is instant. A session links back with "Run overview".
+**Run overview.** Pressing Compare on two or more runs (blind off) opens the run overview first, `/runs?ref=<run>&run=<a>&run=<b>` (the first selected run is the reference). It shows, once at the top, the run-level sidecar keys that differ; one card per run with `N identical · N changed (worst lit.png 0.645) · N only-in-ref · N only-in-run · config differs: K keys`; a matrix of images by runs; and a contact sheet with one swipe slider (left and right arrow keys) shared by every image. A run whose images are all bit-identical to the reference's, with none missing or extra, is flagged "No visible effect: this run changed nothing", which is what an ablation arm that turned out to do nothing looks like. Matrix cells are thumbnails tinted by mean FLIP from green to red, "=" for bit-identical and a dash for absent; hover shows the FLIP heatmap and values, click opens the viewer on that image and pair. FLIP is measured in a background thread, pair by pair, with progress shown, and cached in the cache directory (`runs/`), so reopening is instant. A session links back with "Run overview".
 
 When the runs share few or no file names ("0 of 9 file names match"), the card says so and offers **Pair by position** (sorted order) or **Pair manually** (drag a run image onto a reference image, or pick it from a list). The pairing is in the URL (`pair<i>=position` or `manual:<ref index>-<run index>,...`, the reference being 0).
 
 `saccade runs REF_DIR RUN_DIR... [--json] [--out DIR]` writes the same overview as a static page (`index.html`, thumbnails, `saccade-runs.v1.json`; default `runs/`), or prints `saccade-runs.v1` JSON with `--json` ([schema](schemas/saccade-runs.v1.schema.json)); `--pair-by-position` pairs unlike names. `GET /api/runs?ref=...&runs=...` returns the same JSON from the server (poll until `progress.complete`), and the MCP tool `saccade_compare_runs` returns the matrix summary (read-only, paths under the root).
 
-**Single images, several roots, symlinks.** A run row's "Images" button lists its images, each with its own "+ Compare": any 2 to 6 single images from anywhere under the root can be compared (a selection holds runs or images, not both). `saccade serve rootA rootB ...` serves several roots, each a top-level entry named after its directory (paths then start with that name, for example `rootA/nightly/2026-09-27`). `--follow-symlinks-within-roots` lets a symlink that resolves inside any of the roots be browsed and served; a symlink to anywhere else stays refused. Without it, a symlink may still point inside its own root.
+**Single images, several roots, symlinks.** A run row's "Images" button lists its images, each with its own "+ Compare": any 2 to 6 single images from anywhere under the root can be compared (a selection holds runs or images, not both). `saccade serve rootA rootB ...` serves several roots, each a top-level entry named after its directory (paths then start with that name, for example `rootA/nightly/2026-09-27`). `--follow-symlinks-within-roots` lets a symlink that resolves inside any of the roots be browsed and served; a symlink to anywhere else stays refused. Without it, a symlink may still point inside its own root. External capture storage is allowed explicitly with repeatable `--symlink-target DIR`.
 
-**Deep links.** A comparison has a URL you can share with a teammate on the same machine or put in a script:
+#### Deep links for dashboards
 
-- `/compare?runs=nightly/2026-09-27,nightly/2026-09-29` compares runs given relative to the archive root, or 2 to 6 single images (`runs=a/x.png,b/x.png`). Optional: `&labels=old,new` (one label per run), `&blind=1` (hide which run is which; the key is kept by the server), `&pair<i>=position` and `&set=<image>&a=<label>&b=<label>` (open on that set with those two images swiped).
-- `/pair?a=nightly/2026-09-27/sphere_shadow.png&b=nightly/2026-09-29/sphere_shadow.png` compares two single images.
-- `/runs?ref=nightly/2026-09-27&runs=nightly/2026-09-29,nightly/2026-09-30` is the run overview.
+Use repeated `run=` parameters and percent-encode each complete path. A comma
+in a directory name stays part of that path: `nightly/build,fast` becomes
+`nightly%2Fbuild%2Cfast`. The legacy `runs=a,b` form still works when no `run=`
+parameter is present; its commas are separators after decoding.
 
-**Security model.** The server binds `127.0.0.1` only, with no option to change that. It rejects any request whose `Host` is not `127.0.0.1:<port>` or `localhost:<port>` (DNS-rebinding defence), and every write needs a matching `Origin` and a per-process random token. Client paths are relative to the archive root (or start with a root's name when there are several), canonicalised, and must stay inside the root they were reached from (inside any root with `--follow-symlinks-within-roots`): no `..`, no absolute paths, no other symlinks, and only image files are served. The archive is read-only.
+| Form | Destination | Example |
+| --- | --- | --- |
+| `/run?path=<rel>` | One run: cached thumbnails, metadata and compare-tray actions | `/run?path=nightly%2Fbuild%2Cfast` |
+| `/compare?run=<rel>&run=<rel>` | Viewer for 2–6 runs or images; one run redirects to `/run` | `/compare?run=nightly%2Fbuild%2Cfast&run=nightly%2Fbaseline` |
+| `/runs?ref=<rel>&run=<rel>[&run=...]` | Overview of 1–6 runs against a reference | `/runs?ref=baseline&run=nightly%2Fbuild%2Cfast` |
+| `/open?abs=<absolute>[&abs=...][&ref=<absolute>]` | Resolve absolute archive paths and redirect to `/run`, `/compare` or `/runs` | `/open?abs=%2Fcaptures%2Fbuild%2Cfast&abs=%2Fcaptures%2Fbaseline` |
+| `/image?path=<rel>` | Single image in the shared viewer with one pane | `/image?path=nightly%2Fbuild%2Cfast%2Flit.png` |
+| `/pair?a=<rel>&b=<rel>` | Two images in the viewer | `/pair?a=build%2Flit.png&b=baseline%2Flit.png` |
+| `/api/roots` | JSON array of `{name, path}` for dashboard mapping | `[{"name":"captures","path":"/mnt/captures"},{"name":"captures-2","path":"/nas/captures"}]` |
+
+With one root, relative paths have no root prefix and `/api/roots` returns
+`name: ""`. With several roots, the first segment is the root directory's
+basename. Duplicate names gain `-2`, `-3`, etc. in command-line order (skipping
+names already assigned). `/open` builds these prefixes for the dashboard.
+One image passed to `/open` opens `/image`; two images open `/pair`.
+`labels=` and `blind=1` are preserved by `/open` redirects and used by the
+comparison viewer. Missing paths and paths outside the roots return the same
+styled 404 with a link back to the archive.
+
+For symlinked captures on network storage:
+
+```sh
+saccade serve /captures --symlink-target /mnt/nas/captures --fs-timeout-ms 3000
+# /captures/run may link to /mnt/nas/captures/run
+# Open the lexical archive path, not the NAS target itself:
+curl -i 'http://127.0.0.1:7878/open?abs=%2Fcaptures%2Frun'
+```
+
+The unresolved path must be inside a served root and contain no `..` before
+it is resolved. The resolved target must stay inside its root, inside another
+served root with `--follow-symlinks-within-roots`, or inside an explicit
+`--symlink-target`. This rule applies to browsing, metadata, sessions,
+thumbnails and images. `symlink_targets = ["/mnt/nas/captures"]` and
+`fs_timeout_ms = 3000` may also be set in `saccade.toml`; relative config targets
+are based on that file's directory. CLI targets extend the config allowlist,
+and the CLI timeout overrides the config. Storage probes run in helper threads
+with a bounded channel and a default 3-second deadline. At most eight probes
+can remain active, including timed-out operations; a timeout or saturation
+returns a styled 503 naming only the root-relative path. Comparison inputs are
+copied into the local cache before background work starts.
+
+**Security model.** The server binds `127.0.0.1` only, with no option to change that. It rejects any request whose `Host` is not `127.0.0.1:<port>` or `localhost:<port>` (DNS-rebinding defence), and every write needs a matching `Origin` and a per-process random token. Client paths are relative to the archive root (or start with a root's name when there are several), canonicalised, and must stay inside the root they were reached from (inside any root with `--follow-symlinks-within-roots`): no `..`; `/open` accepts absolute paths only after lexical containment, and explicitly allowed external symlink targets follow the same checks. Only image files are served. The archive is read-only.
 
 **Where things go.** Sessions, thumbnails, pair staging and uploads go to the cache directory (`--cache-dir`, default `$XDG_CACHE_HOME/saccade`, i.e. `~/.cache/saccade`). The decisions you make in the viewer (accept, reject, needs work, notes, regions) are saved as `saccade-decisions.v1.json` files in the decisions directory (`--decisions-dir`, default `$XDG_DATA_HOME/saccade/decisions`) and listed under "Recent decisions"; feed one to `saccade approve --decisions`. `--config`, `--ppd`, `--meta-name`, `--meta-ignore` and the HDR flags behave as in `view`.
 
@@ -870,6 +925,85 @@ rect = [0.0, 0.0, 1.0, 0.40]
 
 Save it as `saccade.toml` in the current directory (or pass `--config`) and run `saccade compare examples/baseline examples/capture`.
 
+## Init
+
+Start with a commented configuration matched to your task:
+
+```sh
+saccade init --template renderer --dir .
+# Other templates: ui, identity, ml. Use --force to replace an existing config.
+mkdir -p baseline
+saccade compare baseline capture --out report
+saccade approve --report report/saccade-report.v1.json --all-failing
+# Commit baseline/ with your project.
+```
+
+The first comparison exits 1 because no pairs exist yet. Renderer enables metadata matching, p95 and a local hotspot guard. UI supplies text/control regions and a timestamp mask example; identity uses max with threshold zero; ML includes rank and judge command pointers.
+
+## Config
+
+`config` prints the loaded file, why it was selected, built-in defaults and each effective value's source. `--explain` adds the first matching override, regions, masks, metric and threshold for an image name relative to the input root:
+
+```sh
+saccade config --explain ui/settings.png
+saccade config --config tests/saccade.toml --explain ui/settings.png --json
+```
+
+Configuration selection is explicit `--config FILE`, then `./saccade.toml`, then built-in defaults. `require_matching_meta = true` in the file is equivalent to the CLI metadata enforcement flag.
+
+## Entries
+
+Inspect complete entries without repeating a comparison:
+
+```sh
+saccade entries report/saccade-report.v1.json --status fail,error --name 'ui/**' --offset 0 --limit 20 --json
+```
+
+The `saccade-entries.v1` page has matching `total`, `offset`, `limit`, `next_cursor` and full `entries`, including all hotspots, diagnostics, metadata differences, hashes and report-relative image paths. MCP exposes `saccade_list_entries` with the same filters and a cursor, and `saccade_get_entry` for an exact name. Keep filters and page size unchanged while following a cursor. Lean comparison results point to these tools when they omit entries.
+
+`compare` and `identity` also accept two files, even with different names; the entry uses the capture filename. Repeat `--entries GLOB` to select the union of matching names on compare, identity, view and runs. Compare/identity config ignores still apply.
+
+## Noise
+
+Capture the same unchanged build at least twice, then calibrate thresholds:
+
+```sh
+saccade noise run-1 run-2 run-3 --metric p95 --margin 1.5 --out saccade.noise.toml --json
+saccade compare baseline capture --config saccade.noise.toml --out report
+```
+
+Every distinct pair is measured. `saccade-noise.v1` reports the largest pairwise mean, p95 and max FLIP per image. Suggested thresholds are the largest observed deciding metric multiplied by the margin, emitted as literal-name `[[override]]` blocks. Input image sets must match and decode. High noise produces a warning; unchanged-build noise alone cannot prove separation from a real change. Validate the suggestions with a known changed build.
+
+## JUnit
+
+```sh
+saccade compare baseline capture --out report --junit results.xml
+```
+
+`compare`, `identity`, `sequence` and `rank` support `--junit FILE.xml` for GitLab, Jenkins and Azure. Each entry becomes one testcase; rank prefixes names with the candidate label. Fail/error and missing entries fail, matching the comparison verdict. New images are skipped unless `fail_on_new` is enabled. Diagnostics descriptions or error messages appear in the XML message. JUnit export preserves the normal command exit code.
+
+## Demo
+
+```sh
+saccade demo --out saccade-demo
+```
+
+The binary embeds the small `examples/` image pair, writes it under the output directory and runs a comparison. Without `--out`, it keeps a temporary directory and prints its report location. Look at the moved light/shadow, an unchanged image, a subtle passing change, and the new/missing images. Exit 1 is expected. A nonempty unrelated output directory is refused.
+
+## Approve a report
+
+```sh
+saccade approve --report report/saccade-report.v1.json --all-failing
+saccade approve --report report/saccade-report.v1.json --all-failing --include-errors --prune-missing
+saccade approve --decisions view/saccade-decisions.v1.json
+```
+
+The report form derives capture and baseline directories from the report; `--report` alone also selects failing/new entries. The decisions form derives them from a two-directory review in reference/capture order. Multi-directory reviews still need explicit positional directories. The existing `approve CAPTURE BASELINE NAME...` and `approve CAPTURE BASELINE --all-failing REPORT_JSON` forms work.
+
+By default, reports and decisions record input paths relative to their containing report/view directory, along with image SHA-256 hashes. Approval resolves the recorded paths from the document's location and checks directories and reviewed hashes before copying. Keep a browser-exported decisions file beside its viewer; CLI `unblind --out` and server saves rebase paths to the new document location. `--record-absolute-paths` opts in to local absolute provenance. Relative paths can still contain directory names: inspect those before publishing. `next_step` command paths are relative to the working directory. File-pair reports are inspectable but cannot be adopted as directory baselines.
+
+CLI and MCP errors include a `hint` naming the failing path or argument and suggesting a repair. JSON errors retain the `saccade-error.v1` schema and exit 2.
+
 ## CLI reference
 
 `saccade <command> --help` is authoritative. Exit codes for `compare` and `identity`: 0 no regression, 1 regression (any `fail`, `error` or `missing` entry, a `new` entry with `fail_on_new`, or nothing compared unless `--allow-empty`), 2 usage, config or IO error.
@@ -898,7 +1032,7 @@ saccade unblind <DECISIONS_JSON> <BLIND_KEY_JSON> [--out FILE]
 
 saccade runs <REF_DIR> <RUN_DIR>... [--json] [--out DIR] [--labels REF,A,..] [--pair-by-position] [--ppd F]
 
-saccade serve <ROOT>... [--follow-symlinks-within-roots] [--port 7878] [--open] [--cache-dir DIR] [--decisions-dir DIR] [--config saccade.toml]
+saccade serve <ROOT>... [--follow-symlinks-within-roots] [--symlink-target DIR] [--fs-timeout-ms 3000] [--port 7878] [--open] [--cache-dir DIR] [--decisions-dir DIR] [--config saccade.toml]
                [--ppd F] [--hdr-tonemapper NAME] [--hdr-exposures START:STOP:N] [--meta-name NAME] [--meta-ignore GLOB,...]
 
 saccade explain <REPORT_JSON> [--out DIR] [--top 3] [--pad 16] [--stretch] [--hotspot-min-share 0.01]
@@ -960,9 +1094,15 @@ When saccade is not the right tool:
 
 ## Roadmap
 
-No features are scheduled. Open an issue to propose one.
+Planned directions, without scheduled dates:
 
-Not possible without image hosting, which this project does not provide: **hosted baselines and images inline in pull-request comments.** Today the comment links to the report artifact.
+- A Homebrew tap for binary installation.
+- An npm wrapper plus Playwright and Jest adapters.
+- A GitLab CI component.
+- A reference float HDR backend, replacing the current 8-bit-per-exposure approximation when selected.
+- Hosted baselines and image hosting, enabling images inline in pull-request comments. Today comments link to the report artifact.
+
+Open an issue to discuss priorities or propose a contribution.
 
 ## Contributing
 
@@ -1016,7 +1156,7 @@ API: `POST /api/inbox` accepts `{question, allowed_answers, context?, link?, fro
 
 [Installation and small instruction packs](integrations/README.md) cover Claude Code MCP, a skill and `/saccade` command, plus a Codex MCP configuration and `AGENTS.md` snippet. The workflow is compare → snapshot/explain → propose a decision → ask a human when ambiguous. Never auto-approve a baseline.
 
-## Judge mode
+## Judge mode (experimental)
 
 `saccade judge` asks a bounded question of a panel and records its answers as
 proposals through `decide`. The result explains its question kind and trust limits:

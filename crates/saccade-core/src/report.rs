@@ -24,11 +24,11 @@ pub struct Report {
     pub tool_version: String,
     /// Seconds since the Unix epoch when the run finished.
     pub generated_at_unix: u64,
-    /// Absolute path of the baseline directory the run compared against;
+    /// Baseline input relative to the report directory (absolute only by opt-in);
     /// `approve` checks it against the directory it is given.
     #[serde(default)]
     pub baseline_dir: Option<String>,
-    /// Absolute path of the capture directory the run compared.
+    /// Capture input relative to the report directory (absolute only by opt-in).
     #[serde(default)]
     pub capture_dir: Option<String>,
     /// Effective run-wide settings (per-entry overrides live on each entry).

@@ -13,7 +13,7 @@
     actions.add({ id: 'swipe.' + v[0], title: 'Contact sheet: ' + v[0], group: 'Swipe', keys: [v[0]], enabled: function () { return !$('contactcard').hidden; }, repeat: true,
       run: function (e) { setPos(v[0] === 'Home' || v[0] === 'End' ? v[1] : UI.pos + v[1] * (e.shiftKey ? 10 : 2)); } });
   });
-  actions.add({ id: 'copy', title: 'Copy link to this page', group: 'Tools', run: function () { shared.copy(location.href).then(function (ok) { shared.toast(ok ? 'Link copied' : 'Copy failed'); }); } });
+  actions.add({ id: 'copy', title: 'Copy link to this page', group: 'Tools', run: function () { shared.copy(STATIC ? location.href : location.origin + '/runs?' + C.query).then(function (ok) { shared.toast(ok ? 'Link copied' : 'Copy failed'); }); } });
   actions.add({ id: 'help', title: 'Keyboard shortcuts', group: 'General', keys: ['?'], run: function () { shared.help.toggle(actions); } });
   actions.add({ id: 'escape', title: 'Close panel', group: 'General', keys: ['Escape'], run: shared.escape });
   $('palette-btn').addEventListener('click', function () { shared.palette.open(); });
@@ -67,7 +67,9 @@
       paths.push(M.runs[ci].path); labels.push(M.runs[ci].label);
       if (PAIRQ[ci + 1]) extra += '&pair' + (j + 1) + '=' + enc(PAIRQ[ci + 1]);
     });
-    var u = '/compare?runs=' + paths.map(enc).join(',') + '&labels=' + labels.map(enc).join(',') + extra;
+    var u = '/compare?' + paths.map(function (p) { return 'run=' + enc(p); }).join('&') + extra;
+    if (new URLSearchParams(C.query || '').has('labels')) u += '&labels=' + enc(labels.join(','));
+    if (C.blind) u += '&blind=1';
     if (rowName != null) u += '&set=' + enc(rowName) + '&a=' + enc(M.ref.label) + '&b=' + enc(labels[labels.length - 1]);
     return u;
   }

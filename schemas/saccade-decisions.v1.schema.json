@@ -116,7 +116,7 @@
       "properties": {
         "chosen_dir": {
           "default": null,
-          "description": "Pairwise judging: the absolute directory of the preferred pane (set by\nthe viewer, or by `unblind` for a blind view). `approve` refuses a\ndecision whose chosen directory is not the capture directory.",
+          "description": "Pairwise judging: the recorded directory of the preferred pane (set by\nthe viewer, or by `unblind` for a blind view). `approve` refuses a\ndecision whose chosen directory is not the capture directory.",
           "type": [
             "string",
             "null"
@@ -231,7 +231,7 @@
     },
     "dirs": {
       "default": [],
-      "description": "Absolute path of each directory, in `labels` order. Empty for a blind\nview until `unblind` fills it from the key.",
+      "description": "Input paths relative to the decisions document, absolute only by opt-in. Empty for a blind\nview until `unblind` fills it from the key.",
       "items": {
         "type": "string"
       },

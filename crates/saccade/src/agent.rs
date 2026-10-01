@@ -29,14 +29,44 @@ pub struct CliError {
     pub code: &'static str,
     /// Human-readable message.
     pub message: String,
+    /// Path/argument context and an actionable repair.
+    pub hint: String,
 }
 
 impl CliError {
     /// An error with an explicit code.
     pub fn new(code: &'static str, message: impl Into<String>) -> Self {
+        let message = message.into();
+        let fix = if message.contains("inside an input") || message.contains("inside a noise input")
+        {
+            "--out is inside an input dir: choose a sibling dir like ./saccade-report"
+        } else {
+            match code {
+                "config" => {
+                    "check the named config setting or glob, correct its value, and rerun `saccade config --explain NAME`"
+                }
+                "unsafe_path" => "choose a path inside the allowed root without symlink escapes",
+                "not_empty_out_dir" => {
+                    "choose an empty --out directory or an existing saccade report directory"
+                }
+                "approve_mismatch" => {
+                    "rerun the comparison on the current inputs and approve its report"
+                }
+                "nothing_compared" => {
+                    "check the input paths and --entries filters; bootstrap with `saccade approve --report REPORT_JSON --all-failing`"
+                }
+                "io" => {
+                    "check the named path exists, is readable or writable as needed, and images decode"
+                }
+                _ => {
+                    "correct the named argument; run `saccade COMMAND --help` for its accepted values"
+                }
+            }
+        };
         Self {
             code,
-            message: message.into(),
+            hint: format!("{message}; {fix}"),
+            message,
         }
     }
 
@@ -52,7 +82,7 @@ impl CliError {
 
     /// The `saccade-error.v1` object.
     pub fn value(&self) -> Value {
-        json!({"schema": ERROR_SCHEMA, "code": self.code, "message": self.message})
+        json!({"schema": ERROR_SCHEMA, "code": self.code, "message": self.message, "hint": self.hint})
     }
 }
 
@@ -189,7 +219,12 @@ pub fn summary_value(report: &Report, report_json: &Path, top: usize) -> Value {
     let dir = report_json
         .parent()
         .map_or_else(|| PathBuf::from("."), Path::to_path_buf);
-    let existing = |p: PathBuf| p.is_file().then(|| p.display().to_string());
+    let abs_paths = report
+        .baseline_dir
+        .as_deref()
+        .is_some_and(|p| Path::new(p).is_absolute());
+    let display = |p: &Path| saccade_core::paths::cwd(p, abs_paths);
+    let existing = |p: PathBuf| p.is_file().then(|| display(&p));
     let explain_dir = dir.join("explain");
     json!({
         "schema": SUMMARY_SCHEMA,
@@ -201,11 +236,11 @@ pub fn summary_value(report: &Report, report_json: &Path, top: usize) -> Value {
         "failing": shown,
         "failing_omitted": failing.len().saturating_sub(top),
         "paths": {
-            "report_json": report_json.display().to_string(),
-            "report_dir": dir.display().to_string(),
+            "report_json": display(&report_json),
+            "report_dir": display(&dir),
             "index_html": existing(dir.join("index.html")),
             "explain_dir": explain_dir.join("explain.json").is_file()
-                .then(|| explain_dir.display().to_string()),
+                .then(|| display(&explain_dir)),
             "explain_json": existing(explain_dir.join("explain.json")),
             "explain_md": existing(explain_dir.join("explain.md")),
         },
@@ -340,19 +375,11 @@ pub fn nothing_compared(report: &Report, report_json: &Path) -> Option<CliError>
 /// What the agent should do next, as one sentence.
 fn next_step(report: &Report, report_json: &Path, explain_written: bool) -> String {
     let failing = failing_entries(report);
-    let rj = report_json.display();
+    let rj = saccade_core::paths::cwd(report_json, false);
     if report.is_empty_run() {
         return "nothing was compared: no image exists in both directories; check the two paths, or pass --allow-empty if an empty run is fine".to_string();
     }
-    let dir = |d: &Option<String>, fallback: &'static str| {
-        d.as_deref()
-            .map_or_else(|| fallback.to_string(), str::to_string)
-    };
-    let approve = format!(
-        "saccade approve {} {} --all-failing {rj}",
-        dir(&report.capture_dir, "<capture_dir>"),
-        dir(&report.baseline_dir, "<baseline_dir>")
-    );
+    let approve = format!("saccade approve --report {rj} --all-failing");
     if failing.is_empty() {
         return match report.totals.new {
             0 => "no regression: nothing to do".to_string(),
@@ -401,7 +428,12 @@ pub fn result_value(
     let dir = report_json
         .parent()
         .map_or_else(|| PathBuf::from("."), Path::to_path_buf);
-    let existing = |p: PathBuf| p.is_file().then(|| p.display().to_string());
+    let abs_paths = report
+        .baseline_dir
+        .as_deref()
+        .is_some_and(|p| Path::new(p).is_absolute());
+    let display = |p: &Path| saccade_core::paths::cwd(p, abs_paths);
+    let existing = |p: PathBuf| p.is_file().then(|| display(&p));
     let explain_dir = dir.join("explain");
     let mut v = json!({
         "schema": RESULT_SCHEMA,
@@ -411,11 +443,17 @@ pub fn result_value(
         "failing": failing.iter().take(top).map(|e| lean_entry(e)).collect::<Vec<_>>(),
         "failing_omitted": failing.len().saturating_sub(top),
         "paths": {
-            "report_json": report_json.display().to_string(),
+            "report_json": display(&report_json),
             "index_html": existing(dir.join("index.html")),
             "explain_md": existing(explain_dir.join("explain.md")),
         },
-        "next_step": next_step(report, &report_json, explain_written),
+        "next_step": ({
+            let mut next = next_step(report, &report_json, explain_written);
+            if report.entries.len() > failing.len().min(top) {
+                next.push_str(&format!("; inspect omitted entries with `saccade entries {}` or MCP saccade_list_entries / saccade_get_entry", saccade_core::paths::cwd(&report_json, false)));
+            }
+            next
+        }),
     });
     let warnings: Vec<String> = report
         .entries

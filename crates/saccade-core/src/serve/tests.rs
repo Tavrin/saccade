@@ -539,3 +539,284 @@ fn api_runs_returns_the_overview_model() {
     assert_eq!(get(&f, "/api/runs?ref=g/a&runs=g/nope").status, 404);
     assert_eq!(get(&f, "/api/runs?ref=g/a").status, 400);
 }
+
+#[test]
+fn deeplink_single_run_and_single_pane_viewer() {
+    let f = fixture(1024);
+    let r = get(&f, "/compare?run=g%2Fa");
+    assert_eq!(r.status, 302);
+    assert!(r.head.contains("/run?path=g%2Fa"));
+    assert!(
+        get(&f, "/compare?runs=g/a")
+            .head
+            .contains("/run?path=g%2Fa")
+    );
+    let page = get(&f, "/run?path=g/a");
+    assert_eq!(page.status, 200);
+    assert!(page.text().contains("Probe") && page.text().contains("x.png"));
+    assert!(page.text().contains("/thumb?path=") && page.text().contains("Compare with"));
+    let id = session_of(&get(&f, "/image?path=g/a/x.png"));
+    wait_ready(&f, &id);
+    let page = get(&f, &format!("/session/{id}/"));
+    let text = page.text();
+    let start = text.find("id=\"saccade-data\"").unwrap();
+    let json_start = start + text[start..].find('>').unwrap() + 1;
+    let json_end = json_start + text[json_start..].find("</script>").unwrap();
+    let model: serde_json::Value = serde_json::from_str(&text[json_start..json_end]).unwrap();
+    assert_eq!(model["labels"].as_array().unwrap().len(), 1);
+    assert_eq!(model["sets"][0]["panes"].as_array().unwrap().len(), 1);
+}
+
+#[test]
+fn deeplink_repeated_comma_paths_and_legacy_forms() {
+    let f = fixture(1024);
+    write_png(&f.root.join("g/a,b/x.png"), [7, 8, 9]);
+    let id = session_of(&get(
+        &f,
+        "/compare?run=g%2Fa%2Cb&run=g%2Fb&runs=nope,missing",
+    ));
+    wait_ready(&f, &id);
+    let info: session::SessionInfo = serde_json::from_str(
+        &std::fs::read_to_string(f.cache.join("sessions").join(id).join("session.json")).unwrap(),
+    )
+    .unwrap();
+    assert_eq!(info.runs, ["g/a,b", "g/b"]);
+    assert!(info.overview.unwrap().contains("run=g%2Fb"));
+    assert_eq!(get(&f, "/compare?runs=g/a,g/b").status, 302);
+    for q in [
+        "ref=g/a&run=g%2Fa%2Cb&run=g/b&runs=missing",
+        "ref=g/a&runs=g/b,g/c",
+    ] {
+        let page = get(&f, &format!("/runs?{q}"));
+        assert_eq!(page.status, 200);
+        assert!(page.text().contains("run=g%2F") && !page.text().contains("runs="));
+        assert_eq!(get(&f, &format!("/api/runs?{q}")).status, 200);
+    }
+}
+
+#[test]
+fn deeplink_open_two_roots_reference_images_and_outside() {
+    let tmp = tempfile::tempdir().unwrap();
+    let (a, b) = (tmp.path().join("a"), tmp.path().join("b"));
+    for dir in [a.join("r,1"), a.join("ref"), b.join("r2")] {
+        write_png(&dir.join("x.png"), [3, 4, 5]);
+    }
+    let outside = tmp.path().join("outside");
+    std::fs::create_dir(&outside).unwrap();
+    let f = serve_roots(tmp, &[a.clone(), b.clone()], false);
+    let enc = overview::pct_encode;
+    let run = enc(&a.join("r,1").to_string_lossy());
+    let other = enc(&b.join("r2").to_string_lossy());
+    let r = get(
+        &f,
+        &format!(
+            "/open?abs={run}&abs={other}&ref={}&blind=1&labels=ref,one,two",
+            enc(&a.join("ref").to_string_lossy())
+        ),
+    );
+    assert_eq!(r.status, 302);
+    assert!(
+        r.head
+            .contains("/runs?ref=a%2Fref&run=a%2Fr%2C1&run=b%2Fr2&labels=ref%2Cone%2Ctwo&blind=1"),
+        "{}",
+        r.head
+    );
+    let r = get(&f, &format!("/open?abs={run}&abs={other}"));
+    assert!(r.head.contains("/compare?run=a%2Fr%2C1&run=b%2Fr2"));
+    assert!(
+        get(&f, &format!("/open?abs={run}"))
+            .head
+            .contains("/run?path=a%2Fr%2C1")
+    );
+    let image_a = enc(&a.join("r,1/x.png").to_string_lossy());
+    let image_b = enc(&b.join("r2/x.png").to_string_lossy());
+    assert!(
+        get(&f, &format!("/open?abs={image_a}"))
+            .head
+            .contains("/image?path=a%2Fr%2C1%2Fx.png")
+    );
+    assert!(
+        get(&f, &format!("/open?abs={image_a}&abs={image_b}"))
+            .head
+            .contains("/pair?a=a%2Fr%2C1%2Fx.png&b=b%2Fr2%2Fx.png")
+    );
+    for path in [
+        outside.clone(),
+        outside.join("missing"),
+        a.join("../outside"),
+    ] {
+        let r = get(&f, &format!("/open?abs={}", enc(&path.to_string_lossy())));
+        assert_eq!(r.status, 404);
+        assert!(
+            r.text().contains("not found or not under a served root")
+                && r.text().contains("Back to the archive")
+        );
+    }
+}
+
+#[test]
+fn deeplink_roots_names_and_config() {
+    let f = fixture(1024);
+    let roots = json(&get(&f, "/api/roots"));
+    assert_eq!(roots[0]["name"], "");
+    assert_eq!(roots[0]["path"], f.root.to_string_lossy().as_ref());
+    let tmp = tempfile::tempdir().unwrap();
+    let roots: Vec<PathBuf> = ["a/data", "b/data", "c/data"]
+        .iter()
+        .map(|r| tmp.path().join(r))
+        .collect();
+    for root in &roots {
+        std::fs::create_dir_all(root).unwrap();
+    }
+    let multi = serve_roots(tmp, &roots, false);
+    let api = json(&get(&multi, "/api/roots"));
+    assert_eq!(api[0]["name"], "data");
+    assert_eq!(api[1]["name"], "data-2");
+    assert_eq!(api[2]["name"], "data-3");
+    let cfg = crate::config::RunConfig::from_toml_str(
+        "symlink_targets = ['/nas/captures']\nfs_timeout_ms = 40",
+    )
+    .unwrap();
+    assert_eq!(cfg.symlink_targets, [PathBuf::from("/nas/captures")]);
+    assert_eq!(cfg.fs_timeout_ms, 40);
+    assert!(crate::config::RunConfig::from_toml_str("fs_timeout_ms = 0").is_err());
+}
+
+#[cfg(unix)]
+#[test]
+fn deeplink_allowed_external_symlinks_uniformly_confined() {
+    let tmp = tempfile::tempdir().unwrap();
+    let root = tmp.path().join("root");
+    let target = tmp.path().join("nas");
+    let denied = tmp.path().join("denied");
+    write_png(&root.join("local/x.png"), [2, 2, 2]);
+    write_png(&target.join("remote/x.png"), [8, 8, 8]);
+    write_png(&denied.join("x.png"), [9, 9, 9]);
+    std::fs::write(target.join("remote/custom.json"), r#"{"host":"nas"}"#).unwrap();
+    std::os::unix::fs::symlink(target.join("remote"), root.join("linked,run")).unwrap();
+    std::os::unix::fs::symlink(&denied, root.join("denied")).unwrap();
+    let mut opts = ServeOptions::new(root.clone());
+    opts.symlink_targets = vec![target.clone()];
+    opts.view.meta.name = "custom.json".into();
+    opts.cache_dir = tmp.path().join("cache");
+    opts.decisions_dir = tmp.path().join("decisions");
+    let handle = start(opts).unwrap();
+    let f = Fixture {
+        root: root.clone(),
+        cache: tmp.path().join("cache"),
+        decisions: tmp.path().join("decisions"),
+        handle,
+        _tmp: tmp,
+    };
+    for path in [
+        "/api/ls?path=linked%2Crun",
+        "/run?path=linked%2Crun",
+        "/api/images?path=linked%2Crun",
+        "/img?path=linked%2Crun/x.png",
+        "/thumb?path=linked%2Crun/x.png",
+    ] {
+        assert_eq!(get(&f, path).status, 200, "{path}");
+    }
+    let listing = json(&get(&f, "/api/ls?path=linked%2Crun"));
+    std::os::unix::fs::symlink(target.join("remote/custom.json"), root.join("fake.png")).unwrap();
+    for route in [
+        "/img?path=fake.png",
+        "/thumb?path=fake.png",
+        "/image?path=fake.png",
+        "/compare?run=local/x.png&run=fake.png",
+    ] {
+        assert_eq!(get(&f, route).status, 403, "{route}");
+    }
+    assert_eq!(
+        json(&get(&f, "/api/images"))["images"]
+            .as_array()
+            .unwrap()
+            .len(),
+        0
+    );
+    assert_eq!(listing["path"], "linked,run");
+    assert_eq!(listing["run"]["meta"]["host"], "nas");
+    assert_eq!(
+        json(&get(&f, "/api/search"))["runs"]
+            .as_array()
+            .unwrap()
+            .len(),
+        2
+    );
+    let open = format!(
+        "/open?abs={}",
+        overview::pct_encode(&root.join("linked,run").to_string_lossy())
+    );
+    assert!(get(&f, &open).head.contains("/run?path=linked%2Crun"));
+    assert_eq!(
+        get(
+            &f,
+            &format!(
+                "/open?abs={}",
+                overview::pct_encode(&target.join("remote").to_string_lossy())
+            )
+        )
+        .status,
+        404,
+        "allowlisted storage cannot be addressed directly"
+    );
+    let id = session_of(&get(&f, "/compare?run=local&run=linked%2Crun"));
+    wait_ready(&f, &id);
+    assert_eq!(get(&f, "/api/runs?ref=local&run=linked%2Crun").status, 200);
+    for path in [
+        "/api/ls?path=denied",
+        "/run?path=denied",
+        "/img?path=denied/x.png",
+        "/thumb?path=denied/x.png",
+        "/compare?run=local&run=denied",
+        "/api/runs?ref=local&run=denied",
+    ] {
+        assert_eq!(get(&f, path).status, 403, "{path}");
+    }
+}
+
+#[test]
+fn deeplink_storage_timeout_and_probe_cap() {
+    let tmp = tempfile::tempdir().unwrap();
+    let root = tmp.path().join("root");
+    write_png(&root.join("r/x.png"), [1, 2, 3]);
+    let mut opts = ServeOptions::new(root.clone());
+    opts.cache_dir = tmp.path().join("cache");
+    opts.decisions_dir = tmp.path().join("decisions");
+    opts.probe_timeout_ms = Some(20);
+    opts.probe_delay_ms = 200;
+    let handle = start(opts).unwrap();
+    let f = Fixture {
+        root,
+        cache: tmp.path().join("cache"),
+        decisions: tmp.path().join("decisions"),
+        handle,
+        _tmp: tmp,
+    };
+    let started = std::time::Instant::now();
+    for _ in 0..8 {
+        let r = get(&f, "/run?path=r");
+        assert_eq!(r.status, 503);
+        assert!(r.text().contains("storage not reachable: r"));
+    }
+    assert!(started.elapsed() < Duration::from_millis(800));
+    // Eight still-running probes retain every slot; the ninth never executes.
+    let r = get(&f, "/img?path=r/x.png");
+    assert_eq!(r.status, 503);
+    assert_eq!(get(&f, "/").status, 200);
+    assert_eq!(get(&f, "/api/roots").status, 200);
+    let storage = storage::Storage::new(Duration::from_millis(5));
+    let release = Arc::new(std::sync::Barrier::new(9));
+    for _ in 0..8 {
+        let release = release.clone();
+        assert!(
+            storage
+                .run(move || {
+                    release.wait();
+                })
+                .is_err()
+        );
+    }
+    assert!(storage.run(|| panic!("ninth probe must not run")).is_err());
+    release.wait();
+}

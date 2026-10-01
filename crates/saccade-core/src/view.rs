@@ -73,6 +73,10 @@ pub struct ViewOptions {
     /// difference and non-finite mask images, timing deltas). Not run for a
     /// blind view.
     pub diagnostics: crate::diagnostics::DiagnosticsConfig,
+    /// Name globs to include; empty includes all.
+    pub entries: Vec<String>,
+    /// Opt in to absolute source paths.
+    pub record_absolute_paths: bool,
 }
 
 impl Default for ViewOptions {
@@ -88,6 +92,8 @@ impl Default for ViewOptions {
             regions: Vec::new(),
             meta: crate::meta::MetaOptions::default(),
             diagnostics: crate::diagnostics::DiagnosticsConfig::default(),
+            entries: Vec::new(),
+            record_absolute_paths: false,
         }
     }
 }
@@ -256,7 +262,7 @@ pub struct ViewModel {
     pub seed: u64,
     /// FLIP pixels per degree.
     pub pixels_per_degree: f32,
-    /// Absolute path of each directory, in directory order. Empty in blind
+    /// Path of each directory relative to the viewer, absolute only by opt-in. Empty in blind
     /// mode, where a path could reveal which side is which (the paths live in
     /// the blind key and reach the decisions through `unblind`).
     pub dirs: Vec<String>,
@@ -315,7 +321,7 @@ pub struct SetDecision {
     /// When the entry was last edited, Unix milliseconds.
     #[serde(default)]
     pub timestamp_ms: u64,
-    /// Pairwise judging: the absolute directory of the preferred pane (set by
+    /// Pairwise judging: the recorded directory of the preferred pane (set by
     /// the viewer, or by `unblind` for a blind view). `approve` refuses a
     /// decision whose chosen directory is not the capture directory.
     #[serde(default)]
@@ -380,7 +386,7 @@ pub struct Decisions {
     /// Whether the judging was blind.
     #[serde(default)]
     pub blind: bool,
-    /// Absolute path of each directory, in `labels` order. Empty for a blind
+    /// Input paths relative to the decisions document, absolute only by opt-in. Empty for a blind
     /// view until `unblind` fills it from the key.
     #[serde(default)]
     pub dirs: Vec<String>,
@@ -403,9 +409,12 @@ pub struct BlindKey {
     pub shuffle_seed: u64,
     /// True labels, in directory order.
     pub labels: Vec<String>,
-    /// Absolute path of each directory, in `labels` order.
+    /// Input paths relative to the viewer directory, absolute only by opt-in.
     #[serde(default)]
     pub dirs: Vec<String>,
+    /// Viewer directory relative to the key file, anchoring the recorded dirs.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub view_dir: Option<String>,
     /// Per image set, the true label of each pane as displayed: entry `n - 1`
     /// is the label behind the set's neutral label `P<n>`.
     #[serde(default)]
@@ -845,13 +854,14 @@ fn diagnose_pane(
     };
     match diagnose(&req) {
         Ok(mut out) => {
-            out.diagnostics.perf = crate::diagnostics::perf_pairs(
-                meta,
-                &opts.diagnostics,
-                reference.dir,
-                capture.dir,
-                target.name,
-            );
+            (out.diagnostics.perf, out.diagnostics.perf_not_comparable) =
+                crate::diagnostics::perf_pairs(
+                    meta,
+                    &opts.diagnostics,
+                    reference.dir,
+                    capture.dir,
+                    target.name,
+                );
             pane.signed_diff = out.signed_diff;
             pane.nonfinite_mask = out.nonfinite_mask;
             pane.diagnostics = Some(out.diagnostics);
@@ -901,13 +911,22 @@ pub fn build_view(dirs: &[PathBuf], out_dir: &Path, opts: &ViewOptions) -> Resul
         labels.clone()
     };
 
+    for g in &opts.entries {
+        crate::config::compile_glob(g)?;
+    }
     let mut maps: Vec<BTreeMap<String, PathBuf>> = Vec::with_capacity(dirs.len());
     for d in dirs {
         let found = collect_images(d)?;
         if let Some((name, why)) = found.problems.iter().next() {
             return Err(Error::Config(format!("{}: {name}: {why}", d.display())));
         }
-        maps.push(found.files);
+        maps.push(
+            found
+                .files
+                .into_iter()
+                .filter(|(name, _)| crate::paths::matches_entries(&opts.entries, name))
+                .collect(),
+        );
     }
     let mut names: Vec<&String> = maps.iter().flat_map(BTreeMap::keys).collect();
     names.sort();
@@ -927,7 +946,7 @@ pub fn build_view(dirs: &[PathBuf], out_dir: &Path, opts: &ViewOptions) -> Resul
     .map_err(io_err(format!("writing {}", marker_path.display())))?;
     let abs_dirs: Vec<String> = dirs
         .iter()
-        .map(|d| crate::run::normalise_path(d).display().to_string())
+        .map(|d| crate::paths::record(d, out_dir, opts.record_absolute_paths))
         .collect();
     let generated_at_unix = SystemTime::now()
         .duration_since(UNIX_EPOCH)
@@ -1213,7 +1232,7 @@ pub fn build_view(dirs: &[PathBuf], out_dir: &Path, opts: &ViewOptions) -> Resul
         }
         format!("{:016x}", fnv1a(key.as_bytes()))
     };
-    let model = ViewModel {
+    let mut model = ViewModel {
         schema: VIEW_SCHEMA.to_string(),
         tool_version: env!("CARGO_PKG_VERSION").to_string(),
         generated_at_unix,
@@ -1230,6 +1249,23 @@ pub fn build_view(dirs: &[PathBuf], out_dir: &Path, opts: &ViewOptions) -> Resul
         },
         sets,
     };
+    if !opts.record_absolute_paths {
+        for set in &mut model.sets {
+            for pane in &mut set.panes {
+                for error in [&mut pane.error, &mut pane.meta_error]
+                    .into_iter()
+                    .flatten()
+                {
+                    for dir in dirs {
+                        *error = error.replace(
+                            &crate::run::normalise_path(dir).display().to_string(),
+                            &crate::paths::record(dir, out_dir, false),
+                        );
+                    }
+                }
+            }
+        }
+    }
     write_view_html(&model, out_dir)?;
     if opts.blind {
         let key = BlindKey {
@@ -1238,6 +1274,14 @@ pub fn build_view(dirs: &[PathBuf], out_dir: &Path, opts: &ViewOptions) -> Resul
             shuffle_seed,
             labels,
             dirs: abs_dirs,
+            view_dir: Some(crate::paths::record(
+                out_dir,
+                opts.key_out
+                    .as_deref()
+                    .and_then(Path::parent)
+                    .unwrap_or(out_dir),
+                opts.record_absolute_paths,
+            )),
             sets: key_sets,
         };
         let key_path = opts
@@ -1538,6 +1582,7 @@ mod tests {
             second_dir.and_then(|i| key.dirs.get(i)).map(String::as_str)
         );
         let wrong = BlindKey {
+            view_dir: None,
             seed: key.seed + 1,
             ..key
         };

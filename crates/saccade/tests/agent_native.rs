@@ -201,8 +201,16 @@ fn mcp_round_trip_compare_returns_a_structured_verdict() {
     assert_eq!(s["totals"]["fail"], 1);
     assert_eq!(s["failing"][0]["name"], "scene.png");
     assert_eq!(s["failing"][0]["hotspots"][0]["position"], "bottom-center");
-    assert!(Path::new(s["paths"]["index_html"].as_str().unwrap()).is_file());
-    assert!(Path::new(s["paths"]["explain_md"].as_str().unwrap()).is_file());
+    assert!(
+        tmp.path()
+            .join(s["paths"]["index_html"].as_str().unwrap())
+            .is_file()
+    );
+    assert!(
+        tmp.path()
+            .join(s["paths"]["explain_md"].as_str().unwrap())
+            .is_file()
+    );
     assert!(
         result["content"][0]["text"]
             .as_str()

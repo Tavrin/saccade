@@ -266,11 +266,23 @@ impl MetaChecker {
         cap_root: &Path,
         name: &str,
     ) -> std::result::Result<(Vec<MetaDiff>, Vec<MetaDiff>, Option<String>), String> {
+        self.compare_named(base_root, name, cap_root, name)
+    }
+
+    /// Metadata comparison using the actual filename on each side of a file pair.
+    #[allow(clippy::type_complexity)]
+    pub(crate) fn compare_named(
+        &self,
+        base_root: &Path,
+        base_name: &str,
+        cap_root: &Path,
+        cap_name: &str,
+    ) -> std::result::Result<(Vec<MetaDiff>, Vec<MetaDiff>, Option<String>), String> {
         let b = self
-            .load(base_root, name)
+            .load(base_root, base_name)
             .map_err(|e| format!("baseline sidecar: {e}"))?;
         let c = self
-            .load(cap_root, name)
+            .load(cap_root, cap_name)
             .map_err(|e| format!("capture sidecar: {e}"))?;
         let (diff, ignored) = self.diff_split(b.as_ref(), c.as_ref());
         let bad = self.violations(&diff);

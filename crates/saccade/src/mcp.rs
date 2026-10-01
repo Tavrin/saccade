@@ -78,6 +78,8 @@ fn tool_schemas() -> Value {
             "fail_on_new": {"type": "boolean", "description": "Count an image with no baseline as a regression."},
             "allow_empty": {"type": "boolean", "description": "Accept a run that compared no image pair (otherwise that is a regression)."},
             "include_images": include_images,
+            "entries": {"type":"array","items":{"type":"string"}},
+            "record_absolute_paths": {"type":"boolean","default":false},
         })
     };
     let mut compare_props = run_props("baseline", "capture");
@@ -135,6 +137,24 @@ fn tool_schemas() -> Value {
         }
     }
     json!([
+        {
+            "name": "saccade_list_entries", "title": "Inspect report entries",
+            "description": "Read-only filtered pagination of full entries. Keep status/name/limit unchanged when following next_cursor. Paths are relative to the report directory.",
+            "inputSchema": {"type":"object", "properties": {
+                "report_json": report_json, "status":{"type":"array","items":{"enum":["pass","fail","error","new","missing"]}},
+                "name":{"type":"string"}, "offset":{"type":"integer","minimum":0}, "limit":{"type":"integer","minimum":1,"maximum":1000},
+                "cursor":{"type":"string"}
+            },"required":["report_json"],"additionalProperties":false},
+            "outputSchema": serde_json::from_str::<Value>(include_str!("../../../schemas/saccade-entries.v1.schema.json")).unwrap_or_else(|_| json!({"type":"object"})),
+            "annotations":{"readOnlyHint":true,"destructiveHint":false,"idempotentHint":true,"openWorldHint":false}
+        },
+        {
+            "name":"saccade_get_entry", "title":"Read one full entry",
+            "description":"Read-only exact-name lookup including all hotspots, diagnostics, metadata differences, hashes and report-relative image paths.",
+            "inputSchema":{"type":"object","properties":{"report_json":report_json,"name":{"type":"string","minLength":1}},"required":["report_json","name"],"additionalProperties":false},
+            "outputSchema":{"type":"object","properties":{"name":{"type":"string"},"status":{"enum":["pass","fail","error","new","missing"]},"hotspots":{"type":"array"},"meta_diff":{"type":"array"},"paths":{"type":"object"}},"required":["name","status","paths"]},
+            "annotations":{"readOnlyHint":true,"destructiveHint":false,"idempotentHint":true,"openWorldHint":false}
+        },
         {
             "name": "saccade_sequence",
             "title": "Compare numbered frame sequences",
@@ -453,6 +473,8 @@ const RUN_ARGS: &[&str] = &[
     "fail_on_new",
     "allow_empty",
     "include_images",
+    "entries",
+    "record_absolute_paths",
 ];
 
 /// Applies the arguments `saccade_compare` and `saccade_identity` share.
@@ -509,6 +531,8 @@ fn apply_run_args(args: &Map<String, Value>, cfg: &mut RunConfig) -> Result<(), 
     }
     cfg.meta.required |= required;
     cfg.meta.declared.extend(declared);
+    cfg.entries = arg_strings(args, "entries")?;
+    cfg.record_absolute_paths = arg_bool(args, "record_absolute_paths")?.unwrap_or(false);
     Ok(())
 }
 
@@ -612,6 +636,42 @@ impl Server {
         }
     }
 
+    fn output_paths(&self, value: &mut Value, absolute_paths: bool) {
+        for key in [
+            "report_json",
+            "frames_report_json",
+            "index_html",
+            "markdown",
+        ] {
+            if let Some(path) = value.get_mut(key) {
+                if let Some(s) = path.as_str() {
+                    *path = Value::String(saccade_core::paths::record(
+                        Path::new(s),
+                        &self.root,
+                        absolute_paths,
+                    ));
+                }
+            }
+        }
+        if let Some(overall) = value.get_mut("overall").and_then(Value::as_array_mut) {
+            for candidate in overall {
+                self.output_paths(candidate, absolute_paths);
+            }
+        }
+
+        if let Some(paths) = value.get_mut("paths").and_then(Value::as_object_mut) {
+            for path in paths.values_mut() {
+                if let Some(s) = path.as_str() {
+                    *path = Value::String(saccade_core::paths::record(
+                        Path::new(s),
+                        &self.root,
+                        absolute_paths,
+                    ));
+                }
+            }
+        }
+    }
+
     fn existing_dir(&self, key: &str, p: &str) -> Result<PathBuf, CliError> {
         let path = self.resolve(key, p)?;
         if path.is_dir() {
@@ -661,7 +721,14 @@ impl Server {
         let mut images = Vec::new();
         let mut written = false;
         if report.totals.fail > 0 {
-            match explain(&report_json, &explain_dir, &ExplainOptions::default()) {
+            match explain(
+                &report_json,
+                &explain_dir,
+                &ExplainOptions {
+                    record_absolute_paths: cfg.record_absolute_paths,
+                    ..Default::default()
+                },
+            ) {
                 Ok(pack) => {
                     written = true;
                     if include_images {
@@ -675,6 +742,13 @@ impl Server {
         if let (Some(err), Some(obj)) = (explain_error, value.as_object_mut()) {
             obj.insert("explain_error".into(), Value::String(err));
         }
+        self.output_paths(
+            &mut value,
+            report
+                .baseline_dir
+                .as_deref()
+                .is_some_and(|d| Path::new(d).is_absolute()),
+        );
         let text = summary_text(&report, &value);
         Ok(ToolOutput {
             structured: value,
@@ -687,8 +761,8 @@ impl Server {
         let mut known = vec!["baseline_dir", "capture_dir", "config"];
         known.extend_from_slice(RUN_ARGS);
         reject_unknown(args, &known)?;
-        let baseline = self.existing_dir("baseline_dir", &require_str(args, "baseline_dir")?)?;
-        let capture = self.existing_dir("capture_dir", &require_str(args, "capture_dir")?)?;
+        let baseline = self.resolve("baseline_dir", &require_str(args, "baseline_dir")?)?;
+        let capture = self.resolve("capture_dir", &require_str(args, "capture_dir")?)?;
         let out = self.checked_out_dir(&require_str(args, "out_dir")?, &[&baseline, &capture])?;
         let mut cfg = match arg_str(args, "config")? {
             Some(p) => RunConfig::from_toml_file(&self.existing_file("config", &p)?)?,
@@ -745,8 +819,8 @@ impl Server {
             "hdr_exposures",
         ]);
         reject_unknown(args, &known)?;
-        let baseline = self.existing_dir("baseline_dir", &require_str(args, "baseline_dir")?)?;
-        let capture = self.existing_dir("capture_dir", &require_str(args, "capture_dir")?)?;
+        let baseline = self.resolve("baseline_dir", &require_str(args, "baseline_dir")?)?;
+        let capture = self.resolve("capture_dir", &require_str(args, "capture_dir")?)?;
         let out = self.resolve("out_dir", &require_str(args, "out_dir")?)?;
         let mut cfg = self.sequence_rank_config(args)?;
         let labels = arg_strings(args, "labels")?;
@@ -757,6 +831,7 @@ impl Server {
         let report =
             saccade_core::sequence::run_sequence(&baseline, &capture, &out, &pattern, &cfg)?;
         let mut structured = serde_json::to_value(report.lean())?;
+        self.output_paths(&mut structured, cfg.record_absolute_paths);
         round_floats(&mut structured);
         Ok(ToolOutput {
             structured,
@@ -806,6 +881,7 @@ impl Server {
             &cfg,
         )?;
         let mut structured = serde_json::to_value(report.lean())?;
+        self.output_paths(&mut structured, cfg.record_absolute_paths);
         round_floats(&mut structured);
         Ok(ToolOutput {
             structured,
@@ -818,8 +894,8 @@ impl Server {
         let mut known = vec!["parent_dir", "candidate_dir"];
         known.extend_from_slice(RUN_ARGS);
         reject_unknown(args, &known)?;
-        let parent = self.existing_dir("parent_dir", &require_str(args, "parent_dir")?)?;
-        let candidate = self.existing_dir("candidate_dir", &require_str(args, "candidate_dir")?)?;
+        let parent = self.resolve("parent_dir", &require_str(args, "parent_dir")?)?;
+        let candidate = self.resolve("candidate_dir", &require_str(args, "candidate_dir")?)?;
         let out = self.checked_out_dir(&require_str(args, "out_dir")?, &[&parent, &candidate])?;
         let mut cfg = RunConfig {
             mode: Mode::Identity,
@@ -883,7 +959,7 @@ impl Server {
             opts.hotspot_min_share = s;
         }
         let pack = explain(&report_json, &out, &opts)?;
-        let abs = |rel: &str| out.join(rel).display().to_string();
+        let abs = |rel: &str| saccade_core::paths::record(&out.join(rel), &self.root, false);
         let entries: Vec<Value> = pack
             .entries
             .iter()
@@ -910,10 +986,10 @@ impl Server {
             "schema": "saccade-explain-result.v1",
             "blind": blind,
             "paths": {
-                "dir": out.display().to_string(),
+                "dir": saccade_core::paths::record(&out, &self.root, false),
                 "explain_json": abs(saccade_core::explain::EXPLAIN_FILE),
                 "explain_md": abs(saccade_core::explain::EXPLAIN_MD_FILE),
-                "blind_key": key_out.as_ref().map(|k| k.display().to_string()),
+                "blind_key": key_out.as_ref().map(|k| saccade_core::paths::record(k, &self.root, false)),
             },
             "entries": entries,
         });
@@ -941,6 +1017,72 @@ impl Server {
         })
     }
 
+    fn tool_entries(&self, args: &Map<String, Value>, single: bool) -> ToolResult {
+        reject_unknown(
+            args,
+            if single {
+                &["report_json", "name"]
+            } else {
+                &["report_json", "status", "name", "offset", "limit", "cursor"]
+            },
+        )?;
+        let path = self.existing_file("report_json", &require_str(args, "report_json")?)?;
+        let report = crate::read_report(&path)?;
+        let value = if single {
+            let name = require_str(args, "name")?;
+            let entry = report
+                .entries
+                .iter()
+                .find(|e| e.name == name)
+                .ok_or_else(|| {
+                    CliError::usage(format!("name {name:?} is absent from {}", path.display()))
+                })?;
+            serde_json::to_value(entry)?
+        } else {
+            let integer = |key: &str, default: usize| -> Result<usize, CliError> {
+                match args.get(key) {
+                    None => Ok(default),
+                    Some(v) => v
+                        .as_u64()
+                        .and_then(|n| usize::try_from(n).ok())
+                        .ok_or_else(|| {
+                            CliError::usage(format!("`{key}` must be a nonnegative integer"))
+                        }),
+                }
+            };
+            let offset = match arg_str(args, "cursor")? {
+                Some(c) => {
+                    if args.contains_key("offset") {
+                        return Err(CliError::usage("use cursor or offset, not both"));
+                    }
+                    c.parse().map_err(|_| {
+                        CliError::usage(
+                            "`cursor` must be the numeric next_cursor from the previous page",
+                        )
+                    })?
+                }
+                None => integer("offset", 0)?,
+            };
+            let limit = integer("limit", 50)?;
+            if !(1..=1000).contains(&limit) {
+                return Err(CliError::usage("`limit` must be from 1 to 1000"));
+            }
+            let page = saccade_core::ergonomics::entries(
+                &report,
+                &arg_strings(args, "status")?,
+                arg_str(args, "name")?.as_deref(),
+                offset,
+                limit,
+            )?;
+            serde_json::to_value(page)?
+        };
+        Ok(ToolOutput {
+            text: serde_json::to_string(&value)?,
+            structured: value,
+            images: Vec::new(),
+        })
+    }
+
     fn tool_summary(&self, args: &Map<String, Value>) -> ToolResult {
         reject_unknown(args, &["report_json"])?;
         let path = self.existing_file("report_json", &require_str(args, "report_json")?)?;
@@ -950,6 +1092,13 @@ impl Server {
             .map_err(|e| CliError::io(format!("parsing {}: {e}", path.display())))?;
         let mut value = summary_value(&report, &path, DEFAULT_TOP_FAILING);
         round_floats(&mut value);
+        self.output_paths(
+            &mut value,
+            report
+                .baseline_dir
+                .as_deref()
+                .is_some_and(|d| Path::new(d).is_absolute()),
+        );
         let text = summary_text(&report, &value);
         Ok(ToolOutput {
             structured: value,
@@ -1008,7 +1157,7 @@ impl Server {
             .zip(labels)
             .enumerate()
             .map(|(i, (dir, label))| RunInput {
-                display: dir.display().to_string(),
+                display: saccade_core::paths::record(&dir, &self.root, false),
                 dir,
                 label,
                 pairing: if by_position && i > 0 {
@@ -1055,6 +1204,8 @@ impl Server {
             "saccade_identity" => self.tool_identity(args),
             "saccade_explain" => self.tool_explain(args),
             "saccade_summary" => self.tool_summary(args),
+            "saccade_list_entries" => self.tool_entries(args, false),
+            "saccade_get_entry" => self.tool_entries(args, true),
             _ => {
                 let resolved =
                     crate::agent_ui::mcp_call(name, args, &|key, p| self.resolve(key, p))?;

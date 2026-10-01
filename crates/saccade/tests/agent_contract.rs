@@ -251,7 +251,7 @@ fn compare_json_is_a_lean_result_and_full_is_the_report() {
     assert!(f["hotspots"].as_array().unwrap().len() <= 3);
     assert!(f["hotspots"][0]["share_of_total_error"].as_f64().unwrap() > 0.5);
     for p in ["report_json", "index_html"] {
-        assert!(Path::new(v["paths"][p].as_str().unwrap()).is_absolute());
+        assert!(Path::new(v["paths"][p].as_str().unwrap()).is_relative());
     }
     assert!(v["next_step"].as_str().unwrap().contains("saccade explain"));
     // Every float has at most 4 significant digits.

@@ -115,6 +115,8 @@ pub struct RunsOptions {
     pub hdr: HdrConfig,
     /// Sidecar settings (run-level config differences).
     pub meta: MetaOptions,
+    /// Restrict image names to these globs.
+    pub entries: Vec<String>,
 }
 
 impl Default for RunsOptions {
@@ -123,6 +125,7 @@ impl Default for RunsOptions {
             pixels_per_degree: CompareOptions::default().pixels_per_degree,
             hdr: HdrConfig::default(),
             meta: MetaOptions::default(),
+            entries: Vec::new(),
         }
     }
 }
@@ -218,13 +221,18 @@ pub fn plan(reference: &RunInput, runs: &[RunInput], opts: &RunsOptions) -> Resu
         }
     }
     let checker = opts.meta.checker()?;
-    let ref_files = collect_images(&reference.dir)?.files;
+    for g in &opts.entries {
+        crate::config::compile_glob(g)?;
+    }
+    let mut ref_files = collect_images(&reference.dir)?.files;
+    ref_files.retain(|name, _| crate::paths::matches_entries(&opts.entries, name));
     let ref_names = sorted_names(&ref_files);
     let ref_meta = checker.load(&reference.dir, RUN_PROBE);
     let mut out = Vec::with_capacity(runs.len());
     let mut task_base = 0;
     for input in runs {
-        let files = collect_images(&input.dir)?.files;
+        let mut files = collect_images(&input.dir)?.files;
+        files.retain(|name, _| crate::paths::matches_entries(&opts.entries, name));
         let run_names = sorted_names(&files);
         let name_matches = ref_names.iter().filter(|n| files.contains_key(*n)).count();
         let index_pairs: Vec<(usize, usize)> = match &input.pairing {
@@ -943,6 +951,27 @@ pub fn assemble(plan: &Plan, results: &[Option<PairResult>], urls: &dyn AssetUrl
             .filter_map(|c| c.metrics.map(|m| m.mean))
             .filter(|m| m.is_finite())
             .fold(None, |a: Option<f64>, v| Some(a.map_or(v, |a| a.max(v))));
+    }
+    let redact = |error: &mut String| {
+        for input in std::iter::once(&plan.ref_input).chain(plan.runs.iter().map(|r| &r.input)) {
+            for path in [input.dir.clone(), crate::run::normalise_path(&input.dir)] {
+                if path.is_absolute() {
+                    *error = error.replace(&path.display().to_string(), &input.display);
+                }
+            }
+        }
+    };
+    for summary in &mut summaries {
+        if let Some(error) = &mut summary.config_error {
+            redact(error);
+        }
+    }
+    for row in &mut images {
+        for cell in &mut row.cells {
+            if let Some(error) = &mut cell.error {
+                redact(error);
+            }
+        }
     }
     RunsModel {
         schema: RUNS_SCHEMA.to_owned(),

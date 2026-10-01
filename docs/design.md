@@ -352,7 +352,7 @@ first release have `serde` defaults, so older v1 reports still parse.
 | `schema` | string | `"saccade-report.v1"` |
 | `tool_version` | string | saccade version that wrote it |
 | `generated_at_unix` | integer | Seconds since the Unix epoch |
-| `baseline_dir`, `capture_dir` | string or null | Absolute paths the run compared; `approve` checks them against the directories it is given |
+| `baseline_dir`, `capture_dir` | string or null | Input paths relative to the report directory by default; `--record-absolute-paths` opts in to absolute paths. `approve` resolves them from the report location |
 | `config` | object | Effective settings, see below |
 | `totals` | object | `total`, `pass`, `fail`, `new`, `missing`, `error` |
 | `entries` | array | One entry per image name, sorted by name |
@@ -467,7 +467,7 @@ download goes through a Blob, so it works from `file://`. Decisions are kept in
   "seed": 7,
   "labels": ["baseline", "capture"],
   "blind": false,
-  "dirs": ["/work/baseline", "/work/capture"],
+  "dirs": ["../baseline", "../capture"],
   "sets": [
     {
       "name": "sphere_shadow.png",
@@ -495,11 +495,11 @@ download goes through a Blob, so it works from `file://`. Decisions are kept in
 | `sets[].note` | Free text |
 | `sets[].roi` | The rectangle that was drawn, in pixels, or null |
 | `sets[].timestamp_ms` | Last edit, Unix milliseconds |
-| `dirs` | Absolute path of each directory, in `labels` order. Empty in a blind view until `unblind` fills it from the key |
+| `dirs` | Path of each directory relative to the decisions document, in `labels` order. Absolute only by opt-in. Empty in a blind view until `unblind` fills it from the key |
 | `sets[].chosen_dir` | Pairwise judging: the directory of the preferred pane (set by the viewer, or by `unblind`) |
 | `sets[].sha256` | SHA-256 of the set's image in each directory when it was judged, in directory order; null where the directory had none |
 
-`saccade approve CAPTURE BASELINE --decisions decisions.json` copies the
+`saccade approve --decisions view/decisions.json` (two recorded directories), or `saccade approve CAPTURE BASELINE --decisions decisions.json` copies the
 capture of every set whose `decision` is `accept`, after checking that the file
 is what was judged. It refuses (exit 2, error code `approve_mismatch`) when:
 
@@ -508,7 +508,7 @@ is what was judged. It refuses (exit 2, error code `approve_mismatch`) when:
 - an accepted set's `chosen_dir` is not `CAPTURE`;
 - a capture file's SHA-256 differs from the recorded one.
 
-`saccade approve --all-failing report.json` makes the same checks against the
+`saccade approve --report report.json --all-failing` makes the same checks against the
 report's `baseline_dir`, `capture_dir` and per-entry `capture_sha256` (and
 `baseline_sha256`, which also guards `--prune-missing`). `--force` overrides
 the directory and hash checks and prints each overridden problem as a warning.
@@ -615,8 +615,8 @@ Hotspots carrying less than `--hotspot-min-share` (default 0.01) of the total
 error are left out; `hotspot_min_share` in `saccade.toml` applies the same
 filter when the report is made.
 
-`explain.json` has `schema`, `report` (absolute path; absent when blind), `dir`
-(absolute path of the pack), `blind`, `labels` (absent when blind), `settings` (`top`,
+`explain.json` has `schema`, `report` (relative to the pack; absent when blind), `dir`
+(pack path relative to the working directory; absolute paths require opt-in), `blind`, `labels` (absent when blind), `settings` (`top`,
 `pad`, `stretch`) and `entries`. An entry has `name`, `status`, `metric_used`,
 `threshold`, `value`, `thumbnail`, an optional `note` (for example "no hotspot
 above the threshold: the difference is diffuse or below it") and `hotspots`.
@@ -646,6 +646,10 @@ summary). The run tools accept `threshold`, `metric`, `ppd`, `labels`,
 and `include_images` (compare also `config`).
 
 **Path policy.** `saccade mcp [--root DIR]` (default: the working directory).
+CLI next-step commands use the working directory; MCP result paths are relative
+to the server root so they can be reused directly as tool inputs. Entry image
+paths remain relative to the report directory.
+
 Every path argument (inputs, `out_dir`, `report_json`, `config`, `key_out`) is
 joined to the root when relative, folded (`..`), canonicalised through its
 longest existing prefix (symlinks resolved) and must then lie under the root,
@@ -668,11 +672,15 @@ object (`saccade-summary.v1`).
 
 `compare --json` and `identity --json` print `saccade-result.v1`; `--json=full`
 prints the whole `saccade-report.v1`. Floats of the lean result have 4
-significant digits, and the paths of every JSON output (`result`, `summary`,
-`approve`, `view-summary`, the explain `report` and `dir`) are absolute. With
+significant digits. CLI output paths (`result`, `summary`, `approve`,
+`view-summary`) are relative to the working directory by default; report input
+provenance is relative to the report, and the explain `report` is relative to
+the pack. `--record-absolute-paths` opts back in. `next_step` hints always use
+working-directory-relative paths. With
 `--json` or `--format json`, a failing command prints `saccade-error.v1` on
 stdout (`code` one of `usage`, `io`, `config`, `unsafe_path`,
-`not_empty_out_dir`, `nothing_compared`, `approve_mismatch`) and keeps its exit
+`not_empty_out_dir`, `nothing_compared`, `approve_mismatch`), with a `hint`
+naming the offending path/argument and a repair, and keeps its exit
 code `2`; clap's own argument errors included. A run that compared nothing is a
 regression (exit `1`) reported in the result, so `nothing_compared` is reserved.
 Every schema id has a file `schemas/saccade-<name>.v1.schema.json` with
@@ -693,8 +701,8 @@ while it builds.
 - **Security.** Binds `127.0.0.1` only. `Host` must be `127.0.0.1:<port>` or
   `localhost:<port>`; every POST needs a matching `Origin` and the per-process
   token in `X-Saccade-Token`. Client paths are relative to the root,
-  canonicalised and must stay below it; symlinks that leave the root are not
-  followed or listed. The root is read-only.
+  canonicalised and must stay below it; external symlinks are followed only through explicit `symlink_targets`
+  (see section 12.1). The root is read-only.
 - **State.** Cache (`--cache-dir`, default `$XDG_CACHE_HOME/saccade`): sessions,
   thumbnails, staged pairs, uploads (64 MB per file). Decisions
   (`--decisions-dir`, default `$XDG_DATA_HOME/saccade/decisions`): one
@@ -703,6 +711,45 @@ while it builds.
 - **Recent runs.** Each run lists up to three sidecar chips: the keys whose
   value differs among the listed runs (timing keys are hidden), values over 20
   characters shortened with the full value in the tooltip, the rest as "+N".
+
+### 12.1 Dashboard deep links and remote captures
+
+Canonical routes are `/run?path=<rel>` (one capture),
+`/compare?run=<rel>&run=<rel>` (2–6 inputs), and
+`/runs?ref=<rel>&run=<rel>[&run=...]` (1–6 candidates). Query parsing retains
+repeated values without splitting them; legacy `runs=a,b` is used only if no
+`run` key is present. Generated links always use repeated `run`. A one-input
+compare redirects to `/run`, or `/image` for an image. `/run` renders cached
+thumbnail tiles, the configured metadata sidecar and actions using the existing
+compare tray. `/image` reuses the view frontend with exactly one pane.
+
+`/api/roots` returns `{name, path}` entries in command-line order. One root has
+an empty name and no prefix. Multiple roots use directory basenames, with
+`-2`, `-3`, etc. for collisions, skipping previously assigned names. `/open`
+accepts repeated absolute `abs` and an optional absolute `ref`, checks lexical
+containment before filesystem access, resolves each input and emits canonical
+relative links. One/two image inputs redirect to `/image`/`/pair`. Optional
+`labels` and `blind` survive redirects. Outside and missing paths share a
+styled 404 that names the supplied path without filesystem error details.
+
+Containment requires an unresolved path under a served root without `..`.
+The canonical target must be under the original root, another served root when
+`--follow-symlinks-within-roots` is enabled, or the explicit repeatable
+`--symlink-target` allowlist (`symlink_targets` in TOML). Relative TOML targets
+are relative to the config file. The lexical alias remains the identity used
+for links, including metadata and overview thumbnail URLs. Allowlisted targets
+cannot be addressed directly through `/open` unless also served as roots.
+
+All GET storage requests, including file reads, run on helper threads with
+`sync_channel(1)` and `recv_timeout`. `--fs-timeout-ms` overrides TOML
+`fs_timeout_ms` (default 3000; positive values only). A shared atomic limit
+allows eight active probes. A timeout does not free its slot until the operation
+actually returns; saturation refuses immediately. A styled 503 says
+`storage not reachable: <root-relative path>`. The landing page and root map
+remain available while storage is saturated. Each comparison input is copied
+through containment checks into an immutable local cache snapshot before
+background view/overview jobs start, so those jobs never touch a hung mount.
+Nothing is written under the archive roots; Host/Origin/token checks remain.
 
 ## 13. Library
 
@@ -726,8 +773,8 @@ capture name for a new frame), and metadata loads from each actual source name.
 `saccade-sequence.v1.json` contains `schema`, `verdict`, `pattern`, source frame
 counts, `totals`, `mean_flip_curve` (null for unmeasured pairs),
 `baseline_temporal_mean`, `capture_temporal_mean`, `temporal_instability`,
-`temporal_errors`, `worst_frame`, `frames_over_threshold`, absolute report/HTML
-paths and `frames[]` with normal `Entry` payloads. Temporal means cover all
+`temporal_errors`, `worst_frame`, `frames_over_threshold`, working-directory-relative report/HTML
+paths by default (absolute by opt-in) and `frames[]` with normal `Entry` payloads. Temporal means cover all
 adjacent frames on each side using whole-image colour FLIP (HDR-FLIP for HDR).
 Instability is the signed capture mean minus baseline mean. It is null when
 either side has fewer than two frames or a temporal pair cannot be measured;
@@ -775,13 +822,13 @@ The chosen metric overrides metric overrides so every ranking uses one FLIP
 unit. Numerical buffer rules are not accepted in rank.
 
 `saccade-rank.v1.json` contains `schema`, `verdict`, `metric`, `reference_dir`,
-`reference_images`, `common_images`, `overall[]`, `images[]` and absolute JSON,
-HTML and Markdown paths. Each `images[]` has `name` and `candidates[]` with
+`reference_images`, `common_images`, `overall[]`, `images[]` and JSON,
+HTML and Markdown paths (relative to the working directory by default). Each `images[]` has `name` and `candidates[]` with
 `label`, `status`, nullable `value` and nullable `rank`. Valid comparisons rank
 in increasing metric order using exact ties and competition ranks (1,1,3).
 Missing/new/error values have no rank and sort last. `overall[]` holds labels,
 rank, mean rank, mean metric, number of ranked images, `complete`,
-`bit_identical`, normal report totals, absolute report JSON and relative HTML
+`bit_identical`, normal report totals, working-directory-relative report JSON and relative HTML
 link. Both overall means use the intersection of valid comparisons across all
 candidates. No overall rank is published unless every reference image belongs
 to that intersection. Overall order is mean rank, then mean metric, then label;
@@ -913,3 +960,40 @@ voter's items are deterministically shuffled, with both orders; localStorage
 access is guarded. Repeating the judge command includes those votes without
 reusing them for changed evidence or rubrics. MCP exposes `saccade_judge` and
 `saccade_judge_calibrate`, with nested input paths confined to its root.
+
+## 20. Release ergonomics
+
+`init` writes one of four commented templates with exclusive creation by default.
+`config` uses the same explicit-file / working-directory-file / built-in selection
+as compare, showing defaults, effective values and field sources. Its image
+explanation uses the first matching override, regions, masks and buffer rule.
+Identity still imposes its own strict command defaults as described above.
+
+File pairs key their one entry by the capture filename, preserve both hashes
+and read sidecars from the files' parent directories. Mixed file/directory inputs
+are rejected. `--entries` selects a union of case-insensitive name globs before
+comparison on compare, identity, view and runs; config ignores take precedence.
+
+`saccade-entries.v1` contains full entry payloads, filtered total, offset, limit
+and nullable next_cursor. The cursor is the next filtered offset; filters and
+page size must remain unchanged and the underlying report must not be replaced
+while paginating. MCP list/get are read-only and retain root confinement.
+
+`saccade-noise.v1` records the metric, margin, relative run paths, entries and
+warnings. Each entry records pair count, the maximum pairwise mean/p95/max and
+threshold = largest deciding metric × margin. All distinct pairs are measured.
+Missing/error pairs prevent calibration; suggestions are exact image-name
+TOML overrides. High noise warns, and noise alone cannot establish separation
+from a known changed build. Schemas are derived from Rust and validated on
+real generated-fixture command output.
+
+JUnit emits one testcase per entry with XML-escaped names and messages; fail,
+error and missing fail, new skips unless fail_on_new, and pass has no child.
+Rank prefixes entry names with the candidate label. Demo embeds less than 116 KiB of
+example PNGs and uses the normal comparison/report pipeline.
+
+Viewer decisions must be saved beside the viewer to retain their relative
+provenance. Server saves and CLI unblind rebase paths when saving elsewhere.
+Blind keys include view_dir relative to the key file, so CLI unblind can
+resolve the view-relative input dirs even when --key-out is elsewhere.
+Approval keeps directory and SHA-256 checks, including baseline pruning.
