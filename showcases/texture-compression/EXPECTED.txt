@@ -6,4 +6,4 @@ RANK  CANDIDATE  MEAN RANK  MEAN METRIC  IDENTICAL
 3  block-high  3.000000  0.116925  0
 4  block-low  4.000000  0.123128  0
 5  jpeg-q40  5.000000  0.124969  0
-report: /mnt/linux-extra/moss-cargo-targets/flipdiff-showcase-reports/texture-compression/rank/index.html
+report: /mnt/linux-extra/moss-cargo-targets/saccade-showcase-reports/texture-compression/rank/index.html

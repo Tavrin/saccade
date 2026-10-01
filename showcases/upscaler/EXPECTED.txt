@@ -6,10 +6,10 @@ RANK  CANDIDATE  MEAN RANK  MEAN METRIC  IDENTICAL
 3  bicubic  3.000000  0.075615  0
 4  sharpened-bicubic  4.000000  0.089922  0
 5  bilinear  5.000000  0.092189  0
-report: /mnt/linux-extra/moss-cargo-targets/flipdiff-showcase-reports/upscaler/rank/index.html
+report: /mnt/linux-extra/moss-cargo-targets/saccade-showcase-reports/upscaler/rank/index.html
 === sequence (exit 1) ===
 sequence: regression (12 baseline, 12 capture frames)
 temporal instability: 0.226255 (capture 0.318896 - baseline 0.092641)
 frames over threshold: 12
 worst frame: 0 (mean FLIP 0.229671)
-report: /mnt/linux-extra/moss-cargo-targets/flipdiff-showcase-reports/upscaler/sequence/index.html
+report: /mnt/linux-extra/moss-cargo-targets/saccade-showcase-reports/upscaler/sequence/index.html

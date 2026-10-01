@@ -1,8 +1,8 @@
-"""Shared plumbing for the flipdiff decision adapters (standard library only).
+"""Shared plumbing for the saccade decision adapters (standard library only).
 
-An adapter reads one or more `flipdiff decision-request` documents, asks a
-provider each question, and pipes the answers into `flipdiff decide` as JSON
-lines. flipdiff itself never sees an API key: keys are read here, from the
+An adapter reads one or more `saccade decision-request` documents, asks a
+provider each question, and pipes the answers into `saccade decide` as JSON
+lines. saccade itself never sees an API key: keys are read here, from the
 environment, and are never printed or logged.
 """
 import argparse
@@ -51,10 +51,10 @@ def post_json(url, headers, body, timeout=60):
 def parse_args(description):
     ap = argparse.ArgumentParser(description=description)
     ap.add_argument("requests", nargs="+",
-                    help="decision-request JSON files from `flipdiff decision-request` ('-' for stdin)")
+                    help="decision-request JSON files from `saccade decision-request` ('-' for stdin)")
     ap.add_argument("--target", required=True,
-                    help="what `flipdiff decide` records into: the report JSON, a view directory or a decisions file")
-    ap.add_argument("--flipdiff", default="flipdiff", help="the flipdiff executable")
+                    help="what `saccade decide` records into: the report JSON, a view directory or a decisions file")
+    ap.add_argument("--saccade", default="saccade", help="the saccade executable")
     ap.add_argument("--dry-run", action="store_true",
                     help="print the answers as JSON lines instead of recording them")
     return ap.parse_args()
@@ -65,18 +65,18 @@ def load_requests(paths):
     for p in paths:
         text = sys.stdin.read() if p == "-" else open(p, encoding="utf-8").read()
         doc = json.loads(text)
-        if doc.get("schema") != "flipdiff-decision-request.v1":
-            sys.exit(f"{p}: not a flipdiff-decision-request.v1 document")
+        if doc.get("schema") != "saccade-decision-request.v1":
+            sys.exit(f"{p}: not a saccade-decision-request.v1 document")
         out.append(doc)
     return out
 
 
 def record(answers, args):
-    """Pipes answer objects (one per line) into `flipdiff decide`."""
+    """Pipes answer objects (one per line) into `saccade decide`."""
     lines = "".join(json.dumps(a) + "\n" for a in answers)
     if args.dry_run or not answers:
         sys.stdout.write(lines)
         return
-    proc = subprocess.run([args.flipdiff, "decide", args.target, "--json"],
+    proc = subprocess.run([args.saccade, "decide", args.target, "--json"],
                           input=lines, text=True)
     sys.exit(proc.returncode)

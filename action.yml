@@ -1,6 +1,6 @@
-name: flipdiff
+name: saccade
 description: Perceptual (NVIDIA FLIP) visual-regression check for renderer output. Compares baseline and capture images, uploads an HTML report, writes a job summary and keeps one pull-request comment up to date.
-author: flipdiff contributors
+author: saccade contributors
 branding:
   icon: image
   color: purple
@@ -13,27 +13,27 @@ inputs:
     description: Directory of freshly captured images, searched recursively.
     required: true
   threshold:
-    description: Default pass threshold, a FLIP value from 0 (identical) to 1. Empty uses flipdiff.toml, then 0.01.
+    description: Default pass threshold, a FLIP value from 0 (identical) to 1. Empty uses saccade.toml, then 0.01.
     required: false
     default: ''
   metric:
-    description: Statistic of the FLIP error map that is compared with the threshold, one of mean, p95 or max. Empty uses flipdiff.toml, then mean.
+    description: Statistic of the FLIP error map that is compared with the threshold, one of mean, p95 or max. Empty uses saccade.toml, then mean.
     required: false
     default: ''
   config:
-    description: Path to a flipdiff.toml (thresholds, overrides, regions, masks, HDR settings). Empty uses ./flipdiff.toml if it exists.
+    description: Path to a saccade.toml (thresholds, overrides, regions, masks, HDR settings). Empty uses ./saccade.toml if it exists.
     required: false
     default: ''
   report-dir:
     description: Directory the report is written to, relative to the workspace. An absolute path works for the comparison and the summary, but the report is then not uploaded as an artifact.
     required: false
-    default: flipdiff-report
+    default: saccade-report
   artifact-name:
     description: Name of the uploaded report artifact. Matrix jobs must each use a distinct name, because upload-artifact v4 rejects duplicates.
     required: false
-    default: flipdiff-report
+    default: saccade-report
   comment-key:
-    description: Key that makes the sticky pull-request comment unique, for matrix jobs (the marker becomes "flipdiff-summary:<key>"). ASCII letters, digits, ".", "_" and "-", at most 64 characters. Empty uses the single shared comment.
+    description: Key that makes the sticky pull-request comment unique, for matrix jobs (the marker becomes "saccade-summary:<key>"). ASCII letters, digits, ".", "_" and "-", at most 64 characters. Empty uses the single shared comment.
     required: false
     default: ''
   fail-on-new:
@@ -51,7 +51,7 @@ inputs:
   update-branch-prefix:
     description: Prefix for the new baseline-update branch, suffixed with the run ID.
     required: false
-    default: flipdiff/update-baselines
+    default: saccade/update-baselines
   update-prune-missing:
     description: With update-baselines, also delete missing baselines through approve --prune-missing. Explicit opt-in.
     required: false
@@ -61,13 +61,13 @@ inputs:
     required: false
     default: ${{ github.token }}
   version:
-    description: Git ref (tag, branch or commit) of the flipdiff repository to install. Uses a release binary for that ref if one exists, otherwise a build from source with cargo. Empty uses the ref this action was invoked with.
+    description: Git ref (tag, branch or commit) of the saccade repository to install. Uses a release binary for that ref if one exists, otherwise a build from source with cargo. Empty uses the ref this action was invoked with.
     required: false
     default: ''
 
 outputs:
   exit-code:
-    description: Exit code of flipdiff compare, which is also the job's result (0 no regression, 1 regression, 2 usage, config or IO error).
+    description: Exit code of saccade compare, which is also the job's result (0 no regression, 1 regression, 2 usage, config or IO error).
     value: ${{ steps.compare.outputs.exit-code }}
   failed:
     description: Number of images over their threshold.
@@ -82,7 +82,7 @@ outputs:
 runs:
   using: composite
   steps:
-    - name: Install flipdiff
+    - name: Install saccade
       shell: bash
       env:
         INPUT_VERSION: ${{ inputs.version }}
@@ -94,7 +94,7 @@ runs:
         set -euo pipefail
         ref="${INPUT_VERSION:-$ACTION_REF}"
         repo="${ACTION_REPO:-}"
-        bin_dir="$RUNNER_TEMP/flipdiff-bin"
+        bin_dir="$RUNNER_TEMP/saccade-bin"
         mkdir -p "$bin_dir"
 
         case "$RUNNER_OS-$RUNNER_ARCH" in
@@ -107,8 +107,8 @@ runs:
 
         installed=false
         if [ -n "$target" ] && [ -n "$ref" ] && [ -n "$repo" ]; then
-          asset="flipdiff-$target.$ext"
-          dl="$RUNNER_TEMP/flipdiff-dl"
+          asset="saccade-$target.$ext"
+          dl="$RUNNER_TEMP/saccade-dl"
           rm -rf "$dl"; mkdir -p "$dl"
           sha256_of() {
             if command -v sha256sum >/dev/null 2>&1; then
@@ -129,11 +129,11 @@ runs:
               else
                 tar -xzf "$dl/$asset" -C "$bin_dir"
               fi
-              if "$bin_dir/flipdiff" --version >/dev/null 2>&1; then
+              if "$bin_dir/saccade" --version >/dev/null 2>&1; then
                 installed=true
-                echo "Installed prebuilt flipdiff from release $ref ($target), checksum verified"
+                echo "Installed prebuilt saccade from release $ref ($target), checksum verified"
               else
-                echo "::warning::The prebuilt flipdiff does not run; building from source."
+                echo "::warning::The prebuilt saccade does not run; building from source."
                 rm -rf "$bin_dir"; mkdir -p "$bin_dir"
               fi
             else
@@ -148,15 +148,15 @@ runs:
             echo "::error::cargo is not available on this runner. Install Rust (for example with dtolnay/rust-toolchain) before this action."
             exit 2
           fi
-          root="$RUNNER_TEMP/flipdiff-root"
+          root="$RUNNER_TEMP/saccade-root"
           if [ -n "$ref" ] && [ -n "$repo" ]; then
-            cargo install --git "https://github.com/$repo" --rev "$ref" flipdiff --locked --root "$root"
+            cargo install --git "https://github.com/$repo" --rev "$ref" saccade --locked --root "$root"
           elif [ -n "$repo" ]; then
-            cargo install --git "https://github.com/$repo" flipdiff --locked --root "$root"
+            cargo install --git "https://github.com/$repo" saccade --locked --root "$root"
           else
-            cargo install --path "$ACTION_PATH/crates/flipdiff" --locked --root "$root"
+            cargo install --path "$ACTION_PATH/crates/saccade" --locked --root "$root"
           fi
-          cp "$root"/bin/flipdiff* "$bin_dir"/
+          cp "$root"/bin/saccade* "$bin_dir"/
         fi
         echo "$bin_dir" >> "$GITHUB_PATH"
 
@@ -180,13 +180,13 @@ runs:
         [ "$FAIL_ON_NEW" = true ] && args+=(--fail-on-new)
 
         set +e
-        flipdiff "${args[@]}"
+        saccade "${args[@]}"
         code=$?
         set -e
 
         failed=0
         new=0
-        report="$REPORT_DIR/flipdiff-report.v1.json"
+        report="$REPORT_DIR/saccade-report.v1.json"
         if [ -f "$report" ] && command -v jq >/dev/null 2>&1; then
           failed=$(jq -r '.totals.fail' "$report")
           new=$(jq -r '.totals.new' "$report")
@@ -199,7 +199,7 @@ runs:
 
     - name: Upload report
       id: upload
-      if: ${{ always() && hashFiles(format('{0}/flipdiff-report.v1.json', inputs.report-dir)) != '' }}
+      if: ${{ always() && hashFiles(format('{0}/saccade-report.v1.json', inputs.report-dir)) != '' }}
       uses: actions/upload-artifact@v4
       with:
         name: ${{ inputs.artifact-name }}
@@ -217,21 +217,21 @@ runs:
         RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
       run: |
         set -uo pipefail
-        report="$REPORT_DIR/flipdiff-report.v1.json"
+        report="$REPORT_DIR/saccade-report.v1.json"
         if [ ! -f "$report" ]; then
           echo "No report at $report; skipping summary."
           exit 0
         fi
         url="${ARTIFACT_URL:-$RUN_URL}"
-        out="$RUNNER_TEMP/flipdiff-summary.md"
+        out="$RUNNER_TEMP/saccade-summary.md"
         sargs=(summary "$report" --format markdown --artifact-url "$url")
-        marker='<!-- flipdiff-summary -->'
+        marker='<!-- saccade-summary -->'
         if [ -n "$COMMENT_KEY" ]; then
           sargs+=(--comment-key "$COMMENT_KEY")
-          marker="<!-- flipdiff-summary:$COMMENT_KEY -->"
+          marker="<!-- saccade-summary:$COMMENT_KEY -->"
         fi
-        if ! flipdiff "${sargs[@]}" > "$out"; then
-          echo "::error::flipdiff summary failed (is comment-key valid?)."
+        if ! saccade "${sargs[@]}" > "$out"; then
+          echo "::error::saccade summary failed (is comment-key valid?)."
           exit 1
         fi
         cat "$out" >> "$GITHUB_STEP_SUMMARY"
@@ -256,10 +256,10 @@ runs:
           --jq ".[] | select(.body | contains(\"$marker\")) | .id" | head -n 1) || id=''
         if [ -n "$id" ]; then
           gh api --method PATCH "repos/$REPO/issues/comments/$id" -F body=@"$SUMMARY_PATH" >/dev/null \
-            || echo "::warning::Could not update the flipdiff comment (read-only token on a fork PR?)."
+            || echo "::warning::Could not update the saccade comment (read-only token on a fork PR?)."
         else
           gh api --method POST "repos/$REPO/issues/$PR_NUMBER/comments" -F body=@"$SUMMARY_PATH" >/dev/null \
-            || echo "::warning::Could not create the flipdiff comment (read-only token on a fork PR?)."
+            || echo "::warning::Could not create the saccade comment (read-only token on a fork PR?)."
         fi
 
     - name: Open baseline-update pull request
@@ -303,11 +303,11 @@ runs:
         fi
         # The checkout's credentials must allow contents: write; gh uses GH_TOKEN
         # for pull-requests: write. Fail rather than swallowing permission errors.
-        args=(approve "$CAPTURE_DIR" "$baseline_abs" --all-failing "$REPORT_DIR/flipdiff-report.v1.json" --json)
+        args=(approve "$CAPTURE_DIR" "$baseline_abs" --all-failing "$REPORT_DIR/saccade-report.v1.json" --json)
         [ "$PRUNE_MISSING" = true ] && args+=(--prune-missing)
-        approval="$RUNNER_TEMP/flipdiff-approved-$RUN_ID.json"
-        flipdiff "${args[@]}" > "$approval"
-        changed_paths="$RUNNER_TEMP/flipdiff-approved-$RUN_ID.paths"
+        approval="$RUNNER_TEMP/saccade-approved-$RUN_ID.json"
+        saccade "${args[@]}" > "$approval"
+        changed_paths="$RUNNER_TEMP/saccade-approved-$RUN_ID.paths"
         jq -j '.copied[].to, .pruned[] | . + "\u0000"' "$approval" > "$changed_paths"
         while IFS= read -r -d '' changed; do
           case "$changed" in
@@ -321,10 +321,10 @@ runs:
         fi
         git switch -c "$branch"
         git -c user.name='github-actions[bot]' -c user.email='41898282+github-actions[bot]@users.noreply.github.com' \
-          commit -m "Update flipdiff baselines (run $RUN_ID)"
+          commit -m "Update saccade baselines (run $RUN_ID)"
         git push "$SERVER_URL/$REPO.git" "HEAD:refs/heads/$branch"
         gh pr create --repo "$REPO" --base "$BASE_BRANCH" --head "$branch" \
-          --title "Update flipdiff baselines (run $RUN_ID)" --body-file "$SUMMARY_PATH"
+          --title "Update saccade baselines (run $RUN_ID)" --body-file "$SUMMARY_PATH"
 
     - name: Fail on regression
       if: ${{ always() }}
@@ -334,6 +334,6 @@ runs:
       run: |
         code="${EXIT_CODE:-2}"
         if [ "$code" != 0 ]; then
-          echo "::error::flipdiff exited with code $code (1 = regression, 2 = usage or IO error)."
+          echo "::error::saccade exited with code $code (1 = regression, 2 = usage or IO error)."
         fi
         exit "$code"

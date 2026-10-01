@@ -3,7 +3,7 @@
 set -euo pipefail
 TASK_ROOT=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/.." && pwd)
 cd -- "$TASK_ROOT"
-command -v flipdiff >/dev/null || { echo 'Put the release flipdiff binary on PATH.' >&2; exit 2; }
+command -v saccade >/dev/null || { echo 'Put the release saccade binary on PATH.' >&2; exit 2; }
 python3 scripts/gen-showcases.py
 python3 - <<'PY'
 import difflib
@@ -14,7 +14,7 @@ import subprocess
 import sys
 
 root = Path.cwd()
-reports = Path('/mnt/linux-extra/moss-cargo-targets/flipdiff-showcase-reports')
+reports = Path('/mnt/linux-extra/moss-cargo-targets/saccade-showcase-reports')
 reports.mkdir(parents=True, exist_ok=True)
 env = dict(os.environ, LC_ALL='C', NO_COLOR='1')
 failed = False
@@ -24,7 +24,7 @@ for manifest in sorted((root / 'showcases').glob('*/commands.json')):
     out.mkdir(parents=True, exist_ok=True)
     transcript = []
     for command in json.loads(manifest.read_text()):
-        args = ['flipdiff'] + [a.replace('@REPORTS@', str(out)) for a in command['args']]
+        args = ['saccade'] + [a.replace('@REPORTS@', str(out)) for a in command['args']]
         if command.get('out'):
             args += ['--out', str(out / command['out'])]
         result = subprocess.run(args, cwd=case, env=env, capture_output=True, text=True)

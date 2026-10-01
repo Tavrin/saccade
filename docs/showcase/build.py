@@ -1,14 +1,14 @@
 #!/usr/bin/env python3
-"""Build the showcase gallery (docs/showcase/index.html) from real flipdiff output.
+"""Build the showcase gallery (docs/showcase/index.html) from real saccade output.
 
-Runs every command in showcases/<case>/commands.json with the given flipdiff
+Runs every command in showcases/<case>/commands.json with the given saccade
 binary, then writes:
   media/    optimized copies of the compared images and heatmaps (Pillow)
   reports/  the full HTML reports, with local paths replaced by "$OUT"
-  assets/   tokens.css and components.css copied from crates/flipdiff-core
+  assets/   tokens.css and components.css copied from crates/saccade-core
   index.html
 
-Usage: python3 docs/showcase/build.py --flipdiff target/release/flipdiff
+Usage: python3 docs/showcase/build.py --saccade target/release/saccade
 Requires Python 3, Pillow. Nothing is downloaded.
 """
 import argparse
@@ -30,7 +30,7 @@ REPO = HERE.parent.parent
 SHOW = REPO / 'showcases'
 MEDIA = HERE / 'media'
 REPORTS = HERE / 'reports'
-GITHUB = 'https://github.com/Tavrin/flipdiff'
+GITHUB = 'https://github.com/Tavrin/saccade'
 TEXT_EXT = {'.html', '.js', '.json', '.md', '.txt', '.css'}
 
 E = html.escape
@@ -229,15 +229,15 @@ def command_text(case, runs):
                 args.append(shlex.quote(a))
         if c.get('out'):
             args += ['--out', f'"$OUT/{c["out"]}"']
-        lines.append('flipdiff ' + ' '.join(args))
+        lines.append('saccade ' + ' '.join(args))
     return '\n'.join(lines)
 
 
 def command_html(text):
     out = []
     for line in text.splitlines():
-        if line.startswith('flipdiff '):
-            out.append('<span class="p">$ </span><span class="c">flipdiff</span>' + E(line[8:]))
+        if line.startswith('saccade '):
+            out.append('<span class="p">$ </span><span class="c">saccade</span>' + E(line[8:]))
         else:
             out.append('<span class="p">$ </span>' + E(line))
     return '\n'.join(out)
@@ -351,7 +351,7 @@ CASES = [
     {
         'id': 'render-gbuffer', 'title': 'G-buffers: depth, normals, motion',
         'problem': 'Depth, normals and motion vectors are data, not pictures. Compare them in their own units.',
-        'about': 'The lit image goes through FLIP. Buffers declared in flipdiff.toml bypass FLIP and are measured in depth units, degrees and pixels. '
+        'about': 'The lit image goes through FLIP. Buffers declared in saccade.toml bypass FLIP and are measured in depth units, degrees and pixels. '
                  'The capture quantizes depth to 32 levels; normals and motion are unchanged.',
         'pick': ['lit.png', 'depth.png', 'normal.png', 'motion.png'],
     },
@@ -383,7 +383,7 @@ def build_case(spec, res, n):
     px = False
     wid = f'w-{case}'
     if first in ('compare', 'identity'):
-        rep = json.loads((rep_dir / 'flipdiff-report.v1.json').read_text())
+        rep = json.loads((rep_dir / 'saccade-report.v1.json').read_text())
         labels = (rep.get('config') or {}).get('labels') or {}
         left, right = labels.get('baseline', 'baseline'), labels.get('capture', 'capture')
         by = {e['name']: e for e in rep['entries']}
@@ -392,11 +392,11 @@ def build_case(spec, res, n):
         data = {'left': left, 'right': right, 'entries': ents}
         px = ents[0]['w'] <= 256
     elif first == 'rank':
-        rk = json.loads((rep_dir / 'flipdiff-rank.v1.json').read_text())
+        rk = json.loads((rep_dir / 'saccade-rank.v1.json').read_text())
         ents = []
         for o in rk['overall']:
             sub = rep_dir / o['label']
-            rep = json.loads((sub / 'flipdiff-report.v1.json').read_text())
+            rep = json.loads((sub / 'saccade-report.v1.json').read_text())
             e = rep['entries'][0]
             ents.append(entry_from_report(case, sub, e, f'{o["label"]}', left='reference', right=o['label']))
         data = {'left': 'reference', 'right': 'candidate', 'entries': ents}
@@ -404,7 +404,7 @@ def build_case(spec, res, n):
         extra = '<h3>Ranking</h3>' + rank_table(wid, rk['overall'], rk['metric'])
         px = ents[0]['w'] <= 256
     elif first == 'sequence':
-        seq = json.loads((rep_dir / 'flipdiff-sequence.v1.json').read_text())
+        seq = json.loads((rep_dir / 'saccade-sequence.v1.json').read_text())
         thr = seq['frames'][0]['entry']['threshold']
         ents = []
         for f in seq['frames']:
@@ -418,7 +418,7 @@ def build_case(spec, res, n):
         px = True
     if case == 'upscaler':
         sq_dir = out / runs[1]['cmd']['out']
-        seq = json.loads((sq_dir / 'flipdiff-sequence.v1.json').read_text())
+        seq = json.loads((sq_dir / 'saccade-sequence.v1.json').read_text())
         extra += '<h3>Camera pan: mean FLIP per frame</h3>' + seq_chart(wid + '-seq', seq, seq['frames'][0]['entry']['threshold'], False)
     tn = data['entries'][data.get('default', 0)]
     th = thumb(case, HERE / tn['b'], HERE / tn['c'], HERE / (tn['h'] or tn['c']),
@@ -436,7 +436,7 @@ def build_case(spec, res, n):
                   f'<img class="px" src="{strip}" alt="Explain strip for seed_105: baseline, capture and heatmap crops of the moved shape">'
                   '<figcaption><code>hotspots/seed_105.png.d/h1.png</code>: [baseline | capture | heatmap], one per hotspot.</figcaption></figure>')
     if case == 'render-gbuffer':
-        rep = json.loads((rep_dir / 'flipdiff-report.v1.json').read_text())
+        rep = json.loads((rep_dir / 'saccade-report.v1.json').read_text())
         rows = ''.join(
             f'<tr><td>{E(e["name"])}</td><td>{E((e.get("buffer") or {}).get("kind", "colour"))}</td>'
             f'<td>{E((e.get("buffer") or {}).get("unit", "FLIP"))}</td><td class="num">{e["value"]:.5f}</td><td class="num">{e["threshold"]:g}</td>'
@@ -483,17 +483,17 @@ def inline_code(text):
 # ------------------------------------------------------------------ page
 def main():
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
-    ap.add_argument('--flipdiff', default='flipdiff', help='flipdiff binary (default: on PATH)')
+    ap.add_argument('--saccade', default='saccade', help='saccade binary (default: on PATH)')
     ap.add_argument('--keep', help='also keep raw run output in this directory')
     args = ap.parse_args()
-    binary = shutil.which(args.flipdiff) or str(Path(args.flipdiff).resolve())
+    binary = shutil.which(args.saccade) or str(Path(args.saccade).resolve())
     for d in (MEDIA, REPORTS):
         if d.exists():
             shutil.rmtree(d)
     (HERE / 'assets').mkdir(exist_ok=True)
     for f in ('tokens.css', 'components.css'):
-        shutil.copyfile(REPO / 'crates/flipdiff-core/assets' / f, HERE / 'assets' / f)
-    tmp = Path(args.keep) if args.keep else Path(tempfile.mkdtemp(prefix='flipdiff-showcase-'))
+        shutil.copyfile(REPO / 'crates/saccade-core/assets' / f, HERE / 'assets' / f)
+    tmp = Path(args.keep) if args.keep else Path(tempfile.mkdtemp(prefix='saccade-showcase-'))
     results = run_cases(binary, tmp)
 
     sections, cards = [], []
@@ -505,7 +505,7 @@ def main():
     # hero: the label regression from webapp-ui, at higher scale
     out = results['webapp-ui']['out']
     rep_dir = out / 'compare'
-    rep = json.loads((rep_dir / 'flipdiff-report.v1.json').read_text())
+    rep = json.loads((rep_dir / 'saccade-report.v1.json').read_text())
     lab = entry_from_report('hero', rep_dir, next(e for e in rep['entries'] if e['name'] == 'label.png'), 'label.png')
     hero = widget('w-hero', {'left': 'baseline', 'right': 'capture', 'entries': [lab]}, split=50, intro=True)
     hero_lines = [l for l in sanitizer(out)(results['webapp-ui']['runs'][0]['stdout']).splitlines()]
@@ -515,11 +515,11 @@ def main():
     # agent evidence: a real CLI snapshot and the lean JSON result
     snap = MEDIA / 'agents/snapshot-label.png'
     snap.parent.mkdir(parents=True, exist_ok=True)
-    subprocess.run([binary, 'snapshot', str(rep_dir / 'flipdiff-report.v1.json'), '--entry', 'label.png',
+    subprocess.run([binary, 'snapshot', str(rep_dir / 'saccade-report.v1.json'), '--entry', 'label.png',
                     '--state', 'layout=swipe&split=0.5&heat=0.6&hotspot=1&zoom=3', '--out', str(snap), '--width', '1200'],
                    check=True, capture_output=True)
     Image.open(snap).save(snap, optimize=True)
-    lean = subprocess.run([binary, 'compare', 'baseline', 'capture', '--config', 'flipdiff.toml', '--out', str(tmp / 'lean'), '--json'],
+    lean = subprocess.run([binary, 'compare', 'baseline', 'capture', '--config', 'saccade.toml', '--out', str(tmp / 'lean'), '--json'],
                           cwd=SHOW / 'webapp-ui', capture_output=True, text=True, env=dict(os.environ, LC_ALL='C', NO_COLOR='1'))
     lj = json.loads(lean.stdout)
     lean_view = {'schema': lj['schema'], 'verdict': lj['verdict'], 'totals': lj['totals'],

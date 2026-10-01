@@ -8,15 +8,15 @@ You need Rust 1.85 or newer and a C++ compiler (g++, clang or MSVC), because the
 `nv-flip-sys` crate compiles NVIDIA's C++ FLIP code with the `cc` crate.
 
 ```sh
-git clone https://github.com/Tavrin/flipdiff
-cd flipdiff
+git clone https://github.com/Tavrin/saccade
+cd saccade
 cargo build --workspace
-cargo run -p flipdiff -- compare examples/baseline examples/capture --out /tmp/flipdiff-report
+cargo run -p saccade -- compare examples/baseline examples/capture --out /tmp/saccade-report
 ```
 
-The workspace has two crates: `flipdiff-core` (comparison, report model, HTML
-and Markdown rendering, viewer) and `flipdiff` (the CLI). The HTML assets are in
-`crates/flipdiff-core/assets/` and are embedded into the binary. See
+The workspace has two crates: `saccade-core` (comparison, report model, HTML
+and Markdown rendering, viewer) and `saccade` (the CLI). The HTML assets are in
+`crates/saccade-core/assets/` and are embedded into the binary. See
 [docs/design.md](docs/design.md) for the formats.
 
 ## Test and check

@@ -10,7 +10,7 @@
 
   // ---- theme ----
   const root = document.documentElement;
-  const saved = store.get('flipdiff-showcase-theme');
+  const saved = store.get('saccade-showcase-theme');
   if (saved === 'light' || saved === 'dark') root.dataset.theme = saved;
   const themeBtn = document.getElementById('theme');
   const isDark = () => root.dataset.theme ? root.dataset.theme === 'dark' : matchMedia('(prefers-color-scheme: dark)').matches;
@@ -19,7 +19,7 @@
     syncTheme();
     themeBtn.addEventListener('click', () => {
       root.dataset.theme = isDark() ? 'light' : 'dark';
-      store.set('flipdiff-showcase-theme', root.dataset.theme);
+      store.set('saccade-showcase-theme', root.dataset.theme);
       syncTheme();
     });
   }

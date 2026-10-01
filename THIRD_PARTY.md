@@ -1,10 +1,10 @@
 # Third-party notices
 
-flipdiff itself is licensed `MIT OR Apache-2.0` (see `LICENSE-MIT`, `LICENSE-APACHE`).
+saccade itself is licensed `MIT OR Apache-2.0` (see `LICENSE-MIT`, `LICENSE-APACHE`).
 
 ## NVIDIA FLIP (BSD-3-Clause)
 
-The FLIP algorithm implementation is NVIDIA's C++ code, compiled into flipdiff
+The FLIP algorithm implementation is NVIDIA's C++ code, compiled into saccade
 through the `nv-flip-sys` crate (version 0.1.1, vendored under `extern/cpp`).
 The `nv-flip` and `nv-flip-sys` Rust wrappers are licensed
 `(MIT OR Apache-2.0 OR Zlib)`; the bundled NVIDIA code is `BSD-3-Clause`.
@@ -44,21 +44,21 @@ Images", High Performance Graphics 2020.
 
 ### HDR-FLIP exposure procedure (derived work)
 
-`crates/flipdiff-core/src/hdr.rs` re-implements, in Rust, the logic of NVIDIA's
+`crates/saccade-core/src/hdr.rs` re-implements, in Rust, the logic of NVIDIA's
 HDR-FLIP exposure-range selection from `CPP/image.h` (`computeExposures`),
 the tone-mapping coefficient table in `CPP/tensor.h` and `solveSecondDegree`
 in `common/sharedflip.h`, all under the BSD-3-Clause notice above (copyright
 2020-2022 NVIDIA CORPORATION & AFFILIATES). No source text was copied; the
 algorithm and the published curve coefficients were ported. NVIDIA's name is
-not used to endorse flipdiff. Per-exposure images are quantised to 8 bits in
-flipdiff, whereas the reference stays in floating point.
+not used to endorse saccade. Per-exposure images are quantised to 8 bits in
+saccade, whereas the reference stays in floating point.
 
 ## HDR image decoding
 
 The `exr` and `hdr` features of the `image` crate add `exr` 1.x (BSD-3-Clause),
 `lebe` (BSD-3-Clause), `half` (MIT OR Apache-2.0), `bit_field`
 (Apache-2.0/MIT), `crunchy` (MIT) and `zune-inflate` (MIT OR Apache-2.0 OR
-Zlib), all compatible with flipdiff's `MIT OR Apache-2.0` licence.
+Zlib), all compatible with saccade's `MIT OR Apache-2.0` licence.
 
 ## Other dependencies
 

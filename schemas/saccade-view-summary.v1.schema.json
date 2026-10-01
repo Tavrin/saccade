@@ -1,0 +1,66 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/Tavrin/saccade/schemas/saccade-view-summary.v1.schema.json",
+  "title": "saccade-view-summary.v1",
+  "description": "Printed by `saccade view --json`; paths are absolute. A blind view reports neither labels nor seed.",
+  "type": "object",
+  "required": [
+    "schema",
+    "index_html",
+    "out_dir",
+    "sets",
+    "set_names",
+    "directories",
+    "blind"
+  ],
+  "additionalProperties": false,
+  "properties": {
+    "schema": {
+      "const": "saccade-view-summary.v1"
+    },
+    "index_html": {
+      "type": "string"
+    },
+    "out_dir": {
+      "type": "string"
+    },
+    "sets": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "set_names": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "directories": {
+      "type": "integer",
+      "minimum": 2
+    },
+    "labels": {
+      "type": [
+        "array",
+        "null"
+      ],
+      "items": {
+        "type": "string"
+      }
+    },
+    "blind": {
+      "type": "boolean"
+    },
+    "seed": {
+      "type": [
+        "integer",
+        "null"
+      ]
+    },
+    "blind_key": {
+      "type": [
+        "string",
+        "null"
+      ]
+    }
+  }
+}

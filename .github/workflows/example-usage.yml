@@ -19,5 +19,5 @@ jobs:
         with:
           baseline-dir: examples/baseline
           capture-dir: examples/capture
-          report-dir: flipdiff-report
+          report-dir: saccade-report
           comment: 'false'

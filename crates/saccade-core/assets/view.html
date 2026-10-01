@@ -1,0 +1,135 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="light dark">
+<title>saccade view</title>
+<style>/*__SACCADE_CSS__*/</style>
+</head>
+<body>
+<svg class="defs" width="0" height="0" aria-hidden="true" focusable="false">
+  <filter id="ch-r" color-interpolation-filters="sRGB"><feColorMatrix type="matrix" values="1 0 0 0 0  1 0 0 0 0  1 0 0 0 0  0 0 0 1 0"/></filter>
+  <filter id="ch-g" color-interpolation-filters="sRGB"><feColorMatrix type="matrix" values="0 1 0 0 0  0 1 0 0 0  0 1 0 0 0  0 0 0 1 0"/></filter>
+  <filter id="ch-b" color-interpolation-filters="sRGB"><feColorMatrix type="matrix" values="0 0 1 0 0  0 0 1 0 0  0 0 1 0 0  0 0 0 1 0"/></filter>
+  <filter id="ch-l" color-interpolation-filters="sRGB"><feColorMatrix type="matrix" values="0.2126 0.7152 0.0722 0 0  0.2126 0.7152 0.0722 0 0  0.2126 0.7152 0.0722 0 0  0 0 0 1 0"/></filter>
+</svg>
+<header class="top">
+  <div class="brand"><a class="back" id="browse" href="/" hidden>&larr; Browse</a><span class="logo" aria-hidden="true"></span><h1>saccade</h1><span class="tag">view</span></div>
+  <dl class="meta" id="meta"></dl>
+  <div class="actions">
+    <button type="button" class="btn" id="reveal" hidden>Reveal labels</button>
+    <input type="file" id="keyfile" accept="application/json,.json" hidden>
+    <button type="button" class="btn kbdhint" id="palette-btn" title="Search every action (Ctrl+K)">Search actions <span class="keys"><kbd>Ctrl</kbd><kbd>K</kbd></span></button>
+    <button type="button" class="btn primary" id="export" title="Download the decisions file (saccade approve --decisions reads it)">Export decisions</button>
+  </div>
+</header>
+<div class="layout">
+  <aside class="sets" aria-label="Image sets"><div class="triage" hidden></div><ol id="setlist"></ol></aside>
+  <main class="work">
+    <div class="setbar">
+      <button type="button" class="btn icon" id="prev" aria-label="Previous image set" title="Previous set ([)">&larr;</button>
+      <select id="setsel" aria-label="Image set"></select>
+      <button type="button" class="btn icon" id="next" aria-label="Next image set" title="Next set (])">&rarr;</button>
+      <span class="count" id="count"></span>
+    </div>
+    <div class="agent-slot" id="agent-slot" hidden></div>
+    <div class="triage mobile-only" hidden></div>
+    <div class="diag-grid" id="diag-slot" hidden></div>
+    <section class="card warn" id="warn-card" aria-labelledby="h-warn" hidden><h2 id="h-warn">&#9888; Warnings: check the images before trusting the numbers</h2>
+      <ul id="warnlist"></ul></section>
+    <section class="card warn" id="cfg-card" aria-labelledby="h-cfg" hidden><h2 id="h-cfg">&#9888; Configuration differs: this comparison may not be like for like</h2>
+      <div class="tscroll"><table class="tbl" id="cfgdiff"></table></div>
+      <p class="hint" id="cfg-hint"></p></section>
+    <div class="toolbar" id="toolbar" role="toolbar" aria-label="View controls">
+      <div class="seg" id="seg-layout" role="group" aria-label="Layout">
+        <button type="button" data-v="grid" title="All images side by side">Side</button>
+        <button type="button" data-v="swipe" title="Two images with a draggable divider">Swipe</button>
+        <button type="button" data-v="flicker" title="Alternate the images (Space)">Flicker</button>
+        <button type="button" data-v="overlay" id="b-overlay" title="Each image under its FLIP heatmap">Heatmap</button>
+        <button type="button" data-v="diff" id="b-diff" title="Each image under its signed difference: blue darker, orange brighter" hidden>Difference</button>
+      </div>
+      <div class="seg" id="seg-zoom" role="group" aria-label="Zoom">
+        <button type="button" data-z="fit" title="Fit (0)">Fit</button>
+        <button type="button" data-z="1" title="1:1 (1)">1&times;</button>
+        <button type="button" data-z="2" title="2&times; (2)">2&times;</button>
+        <button type="button" data-z="4" title="4&times; (4)">4&times;</button>
+        <button type="button" data-z="8" title="8&times; (8)">8&times;</button>
+      </div>
+      <div class="tgrp" id="g-swipe" hidden>
+        <label class="fld" for="swipe"><span class="lbl">Split</span><input type="range" id="swipe" min="0" max="100" step="0.1" value="50"></label>
+        <button type="button" class="btn" id="b-vert" aria-pressed="false" title="Vertical / horizontal split (v)">Vertical</button>
+        <div class="seg" id="seg-layer" role="group" aria-label="Overlay layer on the right image">
+          <button type="button" data-v="none" title="No overlay layer">Plain</button>
+          <button type="button" data-v="heat" title="FLIP heatmap layer (h)">Heatmap</button>
+          <button type="button" data-v="signed" id="b-layer-signed" title="Signed difference layer (d)" hidden>Difference</button>
+        </div>
+      </div>
+      <div class="tgrp" id="g-flick" hidden>
+        <label class="fld" for="rate"><span class="lbl">Rate</span><input type="range" id="rate" min="0.5" max="10" step="0.5" value="2"></label><span class="val" id="ratev"></span>
+        <button type="button" class="btn" id="pause" aria-pressed="false">Pause</button>
+      </div>
+      <div class="tgrp" id="g-over" hidden>
+        <label class="fld" for="opa"><span class="lbl">Opacity</span><input type="range" id="opa" min="0" max="1" step="0.05" value="0.6"></label>
+      </div>
+      <span class="legends" id="legend" hidden></span>
+      <span class="grow"></span>
+      <button type="button" class="btn" id="b-hot" aria-pressed="true" title="Numbered boxes where the error is concentrated">Hotspots</button>
+      <button type="button" class="btn" id="b-mask" aria-pressed="false" title="Mask of NaN, infinite and negative samples (m)" hidden>Non-finite</button>
+      <div class="pop-wrap" id="w-display">
+        <button type="button" class="btn" id="display-btn">Display <i class="dot" id="display-dot" hidden></i><i class="caret"></i></button>
+        <div class="pop" id="display-pop" role="group" aria-label="Display settings">
+          <h3>Display</h3>
+          <div class="row col"><span class="lbl">Channel</span>
+            <div class="seg" id="seg-chan" role="group" aria-label="Channel">
+              <button type="button" data-v="rgb">RGB</button>
+              <button type="button" data-v="r">R</button>
+              <button type="button" data-v="g">G</button>
+              <button type="button" data-v="b">B</button>
+              <button type="button" data-v="l">Luma</button>
+            </div></div>
+          <div class="row"><label class="lbl" for="exp">Exposure</label><input type="range" id="exp" min="-4" max="4" step="0.1" value="0"><span class="val" id="expv"></span></div>
+          <div class="row"><label class="lbl" for="con">Contrast</label><input type="range" id="con" min="0.5" max="4" step="0.05" value="1"><span class="val" id="conv"></span></div>
+          <div class="row"><span class="hint">Applies to what is drawn, never to the files.</span><button type="button" class="btn small" id="reset-view">Reset</button></div>
+        </div>
+      </div>
+      <div class="pop-wrap" id="w-tools">
+        <button type="button" class="btn" id="tools-btn">Tools <i class="caret"></i></button>
+        <div class="pop" id="tools-pop" role="group" aria-label="Tools">
+          <h3>Tools</h3>
+          <div class="row"><span class="lbl">Drag</span>
+            <div class="seg" id="seg-tool" role="group" aria-label="Drag tool">
+              <button type="button" data-v="pan">Pan</button>
+              <button type="button" data-v="roi" title="Draw a region of interest (or Shift-drag)">Region</button>
+            </div></div>
+          <div class="row"><span class="lbl">Inspector</span><button type="button" class="btn small" id="b-insp" aria-pressed="false" title="The pixel and region table below the image">Show table</button></div>
+          <div class="row"><span class="lbl">Reference</span><button type="button" class="btn small" id="hold" aria-pressed="false" title="Hold to show the reference (key: c)">Hold to compare</button></div>
+          <div class="row"><span class="lbl">Share</span><span><button type="button" class="btn small copy-link" id="copy-link" title="Copy a link that reopens this exact view">Copy link</button> <button type="button" class="btn small" id="snap" title="Download the stage as a PNG">Snapshot</button></span></div>
+        </div>
+      </div>
+      <button type="button" class="btn" id="fs" aria-pressed="false" title="Full screen (f)">Full screen</button>
+      <button type="button" class="btn icon" id="help-btn" title="Keyboard shortcuts (?)" aria-label="Keyboard shortcuts">?</button>
+    </div>
+    <div class="showrow" id="g-show" hidden><span class="lbl">Compare</span><span id="chosen" class="chosen"></span></div>
+    <div class="compare-stage" id="compare-stage">
+      <div class="stage" id="stage"></div>
+      <div class="sbar" id="sbar" aria-label="Pixel readout"></div>
+    </div>
+    <div class="below">
+      <section class="card" id="insp-card" aria-labelledby="h-insp" hidden><h2 id="h-insp">Pixel inspector</h2>
+        <div class="tscroll"><table class="tbl" id="insp"></table></div>
+        <p class="hint" id="insp-hint"></p></section>
+      <section class="card" id="hot-card" aria-labelledby="h-hot" hidden><h2 id="h-hot">Hotspots</h2>
+        <div class="tscroll"><table class="tbl" id="hotlist"></table></div>
+        <p class="hint" id="hot-hint"></p></section>
+      <section class="card" aria-labelledby="h-dec"><h2 id="h-dec">Decision</h2>
+        <div id="dec"></div></section>
+    </div>
+  </main>
+</div>
+<noscript><p class="noscript">This viewer needs JavaScript. The data is in the JSON script tag of this page.</p></noscript>
+<script src="saccade-decisions.v1.js"></script>
+<script type="application/json" id="saccade-data">__SACCADE_DATA__</script>
+<script>/*__SACCADE_JS__*/</script>
+</body>
+</html>

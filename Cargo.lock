@@ -481,44 +481,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "flipdiff"
-version = "0.1.0"
-dependencies = [
- "clap",
- "ctrlc",
- "flipdiff-core",
- "image",
- "jsonschema",
- "serde",
- "serde_json",
- "tempfile",
-]
-
-[[package]]
-name = "flipdiff-core"
-version = "0.1.0"
-dependencies = [
- "exr",
- "flipdiff-core",
- "globset",
- "image",
- "notify",
- "nv-flip",
- "rayon",
- "rustfft",
- "schemars",
- "serde",
- "serde_json",
- "sha2",
- "tempfile",
- "thiserror",
- "tiny_http",
- "toml",
- "ureq",
- "walkdir",
-]
-
-[[package]]
 name = "fluent-uri"
 version = "0.3.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1488,6 +1450,44 @@ name = "rustversion"
 version = "1.0.23"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "cf54715a573b99ac80df0bc206da022bcd442c974952c7b9720069370852e21f"
+
+[[package]]
+name = "saccade"
+version = "0.1.0"
+dependencies = [
+ "clap",
+ "ctrlc",
+ "image",
+ "jsonschema",
+ "saccade-core",
+ "serde",
+ "serde_json",
+ "tempfile",
+]
+
+[[package]]
+name = "saccade-core"
+version = "0.1.0"
+dependencies = [
+ "exr",
+ "globset",
+ "image",
+ "notify",
+ "nv-flip",
+ "rayon",
+ "rustfft",
+ "saccade-core",
+ "schemars",
+ "serde",
+ "serde_json",
+ "sha2",
+ "tempfile",
+ "thiserror",
+ "tiny_http",
+ "toml",
+ "ureq",
+ "walkdir",
+]
 
 [[package]]
 name = "same-file"

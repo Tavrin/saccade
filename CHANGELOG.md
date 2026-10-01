@@ -5,6 +5,8 @@ newest first.
 
 ## Unreleased
 
+- Renamed from the working title flipdiff before first release.
+
 - Per-image output folders now end in `.d`; CLI outputs next to capture
   metadata warn on stderr (`--allow-out-near-captures` silences the warning).
 
@@ -17,26 +19,26 @@ newest first.
   OpenCode calls.
 
 - Binary-search image divergence with existing runs or CLI user-command captures;
-  skipped probes, observed reversals, per-probe reports and `flipdiff-bisect.v1`.
+  skipped probes, observed reversals, per-probe reports and `saccade-bisect.v1`.
 - Debounced capture watch with notify/polling fallback, JSONL, MCP status and logs.
 - Persistent local human inbox, secure private serve discovery, `ask --wait`,
   browser answers and MCP ask/get tools, with schemas and agent instruction packs.
 
 - Numbered image sequences: per-frame FLIP, added temporal instability,
-  `flipdiff-sequence.v1` and a server-rendered SVG curve in the report.
+  `saccade-sequence.v1` and a server-rendered SVG curve in the report.
 - Numerical G-buffer rules (`[[buffer]]`): depth including single-channel EXR,
   normal angles, motion end-point errors, exact mask/id samples and heatmaps.
-- Candidate ranking by mean/p95/p99/max FLIP: `flipdiff-rank.v1`, competition
+- Candidate ranking by mean/p95/p99/max FLIP: `saccade-rank.v1`, competition
   ties, common-image overall means, Markdown tables and per-candidate reports.
-- MCP `flipdiff_sequence` and `flipdiff_rank`, lean JSON outputs and schemas.
+- MCP `saccade_sequence` and `saccade_rank`, lean JSON outputs and schemas.
 - Dispatch-only baseline-update PR flow in the Action, explicit pruning,
   fork/write guards and `example-update-baselines.yml`.
 
 - Run overview: comparing 2 or more runs in `serve` opens `/runs` first (per-run
   summary with a "no visible effect" flag, run-level config differences, a
   matrix tinted by FLIP, a contact sheet with one shared swipe slider). Also
-  `GET /api/runs`, `flipdiff runs` (static page or `flipdiff-runs.v1` JSON) and
-  the MCP tool `flipdiff_compare_runs`. Mismatched file names offer pairing by
+  `GET /api/runs`, `saccade runs` (static page or `saccade-runs.v1` JSON) and
+  the MCP tool `saccade_compare_runs`. Mismatched file names offer pairing by
   position or by hand. `serve` takes several roots and
   `--follow-symlinks-within-roots`; run rows expand to single images that can
   be compared; the viewer labels sets "only in <label>", sorts them last and
@@ -44,8 +46,8 @@ newest first.
 
 - Agent-addressable pages: the report, `view` and `serve` sessions keep their
   view in the URL hash, offer "Copy link to this view" and expose
-  `window.flipdiff` (`get`, `set`, `sets`/`entries`, `next`/`prev`, `snapshot`,
-  `on`). `flipdiff snapshot` and the MCP tool `flipdiff_snapshot` render a view
+  `window.saccade` (`get`, `set`, `sets`/`entries`, `next`/`prev`, `snapshot`,
+  `on`). `saccade snapshot` and the MCP tool `saccade_snapshot` render a view
   state to PNG with no browser. Fixed: the viewer's arrow keys outside swipe
   threw (a local variable shadowed `step`).
 - Bounded decisions: `decision-request` (also `compare --json=decision` and
@@ -63,15 +65,15 @@ newest first.
 - Agent surface: `view --blind` embeds no reference, per-set order, seed or
   FLIP data and names panes neutrally per set (`--key-out` for the key);
   `explain --blind` needs `--key-out` outside the pack and omits the report
-  path and labels. With `--json`, every error is a `flipdiff-error.v1` on
+  path and labels. With `--json`, every error is a `saccade-error.v1` on
   stdout; `compare --json` and `identity --json` print a lean
-  `flipdiff-result.v1` (`--json=full` for the report); every schema id has a
-  file in `schemas/`. `flipdiff mcp --root DIR` confines paths, the tools gain
+  `saccade-result.v1` (`--json=full` for the report); every schema id has a
+  file in `schemas/`. `saccade mcp --root DIR` confines paths, the tools gain
   `outputSchema`, annotations, more arguments and image content blocks.
   `explain`: strips at most 1536 px wide, `hotspot_min_share` (default 0.01),
   hot-pixel and box areas labelled apart.
 - Safety: `compare`, `identity`, `view` and `explain` refuse (exit 2) an
-  `--out` that is not empty and not a previous flipdiff output, and `--out`
+  `--out` that is not empty and not a previous saccade output, and `--out`
   inside an input directory. `approve` verifies the directories and the SHA-256
   of the files recorded in the report or decisions file (`--force` overrides),
   and refuses a blind decisions file.
@@ -92,24 +94,24 @@ newest first.
 
 First release.
 
-- `flipdiff compare`: compares a directory of baseline images with a directory
+- `saccade compare`: compares a directory of baseline images with a directory
   of captures using NVIDIA FLIP. Writes a JSON report
-  (`flipdiff-report.v1.json`), a self-contained HTML report (table, side by
+  (`saccade-report.v1.json`), a self-contained HTML report (table, side by
   side, swipe, flicker, heatmap, zoom) and a text table. Statuses `pass`,
   `fail`, `new`, `missing` and `error`. Exit code 0 (no regression), 1
   (regression) or 2 (usage or IO error). Metrics `mean`, `p95` and `max`,
-  threshold and metric per image through `flipdiff.toml` overrides.
-- `flipdiff identity`: identity proof for optimizations. Metric `max`, threshold
+  threshold and metric per image through `saccade.toml` overrides.
+- `saccade identity`: identity proof for optimizations. Metric `max`, threshold
   0, and `bit_identical` per image.
-- `flipdiff approve`: copy captures over baselines, by name, from a report
+- `saccade approve`: copy captures over baselines, by name, from a report
   (`--all-failing`, `--include-errors`, `--prune-missing`) or from a decisions
   file (`--decisions`).
-- `flipdiff summary`: Markdown or text summary of a report.
-- `flipdiff view`: self-contained review viewer for 2 to 6 directories (layouts,
+- `saccade summary`: Markdown or text summary of a report.
+- `saccade view`: self-contained review viewer for 2 to 6 directories (layouts,
   synchronised zoom, pixel inspector, exposure and channel controls, regions of
   interest), with accept, reject and needs-work decisions exported as
-  `flipdiff-decisions.v1.json`.
-- Blind mode (`view --blind`) with `blind-key.json` and `flipdiff unblind`.
+  `saccade-decisions.v1.json`.
+- Blind mode (`view --blind`) with `blind-key.json` and `saccade unblind`.
 - HDR: `.exr` and `.hdr` inputs compared with HDR-FLIP (8-bit-per-exposure
   approximation), tone mappers `aces`, `hable` and `reinhard`.
 - Regions and masks (`[[region]]`, `[[mask]]`) given as fractions of the frame

@@ -49,7 +49,7 @@ def tone(image, gains):
 def compare(config=True, mode="compare", **extra):
     args = [mode, "baseline", "capture"]
     if config:
-        args += ["--config", "flipdiff.toml"]
+        args += ["--config", "saccade.toml"]
     return dict(name=mode, args=args, out=mode, exit=1, **extra)
 
 
@@ -64,18 +64,18 @@ def case(name, description, expected, commands, config=None):
     path = SHOWCASES / name
     path.mkdir(parents=True, exist_ok=True)
     if config:
-        (path / "flipdiff.toml").write_text(config.strip() + "\n")
+        (path / "saccade.toml").write_text(config.strip() + "\n")
     (path / "commands.json").write_text(json.dumps(commands, indent=2) + "\n")
     lines = ["# " + name, "", description, "", "Generate from the repository root:",
              "", "```sh", "python3 scripts/gen-showcases.py", "```", "",
-             "Run from the repository root with `flipdiff` on PATH. Reports go to a",
+             "Run from the repository root with `saccade` on PATH. Reports go to a",
              "sibling directory outside the repository; use a fresh directory or an",
-             "existing flipdiff report directory.", "", "```sh",
-             "REPORTS=../flipdiff-showcase-reports", "(", "  cd showcases/" + name]
+             "existing saccade report directory.", "", "```sh",
+             "REPORTS=../saccade-showcase-reports", "(", "  cd showcases/" + name]
     for command in commands:
         args = [a.replace("@REPORTS@", "$REPORTS/" + name) for a in command["args"]]
         # REPORTS was relative to the repository root, two levels above this cwd.
-        text = "flipdiff " + " ".join('"../../' + a + '"' if "$REPORTS" in a
+        text = "saccade " + " ".join('"../../' + a + '"' if "$REPORTS" in a
                                       else shlex.quote(a) for a in args)
         if command.get("out"):
             text += ' --out "../../$REPORTS/' + name + '/' + command["out"] + '"'
@@ -298,9 +298,9 @@ def model_image(seed, moved=False):
 
 def ml():
     commands = [compare(), dict(name="explain", args=["explain",
-                "@REPORTS@/compare/flipdiff-report.v1.json"], out="explain", exit=0),
+                "@REPORTS@/compare/saccade-report.v1.json"], out="explain", exit=0),
                 dict(name="decision-request", args=["decision-request",
-                "@REPORTS@/compare/flipdiff-report.v1.json", "--all-failing", "--question",
+                "@REPORTS@/compare/saccade-report.v1.json", "--all-failing", "--question",
                 "accept", "--intent", "Checkpoint B must preserve colour and structure."], exit=0)]
     p = case("ml-image-model", "Six fixed procedural seeds stand in for shared prompts "
              "across checkpoints A and B. B adds a colour cast to seeds 101 and 104, moves "
@@ -362,7 +362,7 @@ def perf():
              "one image changes a pixel. Flat sidecars pair timing.gpu_ms 4.85 to 2.71. "
              "These timings illustrate pairing and are not benchmark measurements.",
              "identity exits 1: 1 fail, 2 pass, with bit-identical and gpu_ms timing text.",
-             [compare(mode="identity")], 'meta_name = "flipdiff-meta.json"')
+             [compare(mode="identity")], 'meta_name = "saccade-meta.json"')
     for n in range(3):
         base = model_image(300 + n)
         a = np.asarray(base).copy()
@@ -371,7 +371,7 @@ def perf():
         save(base, p / "baseline" / f"view_{n}.png")
         save(a, p / "capture" / f"view_{n}.png")
     for side, ms in [("baseline", 4.85), ("capture", 2.71)]:
-        (p / side / "flipdiff-meta.json").write_text(json.dumps({
+        (p / side / "saccade-meta.json").write_text(json.dumps({
             "renderer.mode": "lit", "resolution.output": "192x144", "timing.gpu_ms": ms
         }, indent=2) + "\n")
 
@@ -383,7 +383,7 @@ def main():
         "# Reproducible showcases\n\n"
         "Run `python3 scripts/gen-showcases.py` to generate the eight cases using "
         "Python 3, Pillow and numpy. No downloaded imagery, GPU or model is used.\n\n"
-        "With the release `flipdiff` on PATH, `scripts/run-showcases.sh` regenerates "
+        "With the release `saccade` on PATH, `scripts/run-showcases.sh` regenerates "
         "the data, checks each command's exit verdict, and reproduces every case's "
         "EXPECTED.txt byte for byte. Reports are kept outside this repository. "
         "A changed expectation is a failure; the runner never blesses new output.\n\n"

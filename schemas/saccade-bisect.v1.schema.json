@@ -1,0 +1,124 @@
+{
+  "$defs": {
+    "Probe": {
+      "description": "Result of one probe.",
+      "properties": {
+        "index": {
+          "description": "Zero-based position in the supplied order.",
+          "format": "uint",
+          "minimum": 0,
+          "type": "integer"
+        },
+        "reason": {
+          "description": "Reason for a skipped probe.",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "report_dir": {
+          "description": "Absolute report directory, including for image errors.",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "target": {
+          "description": "Run path or immutable git revision.",
+          "type": "string"
+        },
+        "verdict": {
+          "description": "good, bad, or skip.",
+          "enum": [
+            "good",
+            "bad",
+            "skip"
+          ],
+          "type": "string"
+        }
+      },
+      "required": [
+        "index",
+        "target",
+        "verdict"
+      ],
+      "type": "object"
+    }
+  },
+  "$id": "https://github.com/Tavrin/saccade/schemas/saccade-bisect.v1.schema.json",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "description": "`saccade-bisect.v1` result. Skips can make the answer inconclusive.",
+  "properties": {
+    "candidates": {
+      "description": "Possible first-bad targets when skips prevent an exact answer.",
+      "items": {
+        "type": "string"
+      },
+      "type": "array"
+    },
+    "first_bad": {
+      "description": "Proven first bad target under the monotonic assumption; null if ambiguous.",
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "last_good": {
+      "description": "Last observed good target, or the supplied known-good anchor.",
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "non_monotonic": {
+      "description": "Observed bad-before-good pairs (target names).",
+      "items": {
+        "items": {
+          "type": "string"
+        },
+        "maxItems": 2,
+        "minItems": 2,
+        "type": "array"
+      },
+      "type": "array"
+    },
+    "probes": {
+      "description": "Probes in execution order.",
+      "items": {
+        "$ref": "#/$defs/Probe"
+      },
+      "type": "array"
+    },
+    "schema": {
+      "const": "saccade-bisect.v1",
+      "description": "Schema identifier.",
+      "type": "string"
+    },
+    "status": {
+      "description": "found, pass, inconclusive, or non_monotonic.",
+      "enum": [
+        "found",
+        "pass",
+        "inconclusive",
+        "non_monotonic"
+      ],
+      "type": "string"
+    },
+    "total_probes": {
+      "description": "Number of probes performed.",
+      "format": "uint",
+      "minimum": 0,
+      "type": "integer"
+    }
+  },
+  "required": [
+    "schema",
+    "status",
+    "candidates",
+    "probes",
+    "total_probes",
+    "non_monotonic"
+  ],
+  "title": "BisectResult",
+  "type": "object"
+}

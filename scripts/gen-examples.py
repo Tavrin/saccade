@@ -3,7 +3,7 @@
 
 Each image is a small analytic render: gradient sky, ground plane, a shaded
 sphere with a specular highlight and a soft shadow. The pairs cover every
-flipdiff status:
+saccade status:
 
   sphere_identical.png     identical            -> pass
   sphere_subtle.png        +-1 dither noise     -> pass (below threshold)

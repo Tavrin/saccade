@@ -36,7 +36,7 @@ jobs:
       - uses: dtolnay/rust-toolchain@stable
         with:
           targets: ${{ matrix.target }}
-      - run: cargo build --release --locked -p flipdiff --target ${{ matrix.target }}
+      - run: cargo build --release --locked -p saccade --target ${{ matrix.target }}
       - name: Archive
         shell: bash
         env:
@@ -47,13 +47,13 @@ jobs:
           dir="target/$TARGET/release"
           mkdir -p dist
           if [ "$EXT" = zip ]; then
-            (cd "$dir" && 7z a -tzip "$GITHUB_WORKSPACE/dist/flipdiff-$TARGET.zip" flipdiff.exe)
+            (cd "$dir" && 7z a -tzip "$GITHUB_WORKSPACE/dist/saccade-$TARGET.zip" saccade.exe)
           else
-            tar -czf "dist/flipdiff-$TARGET.tar.gz" -C "$dir" flipdiff
+            tar -czf "dist/saccade-$TARGET.tar.gz" -C "$dir" saccade
           fi
           # One checksum file per asset ("<sha256>  <file>"), verified by the action.
           cd dist
-          for f in flipdiff-*; do
+          for f in saccade-*; do
             if command -v sha256sum >/dev/null 2>&1; then
               sha256sum "$f" > "$f.sha256"
             else
@@ -62,7 +62,7 @@ jobs:
           done
       - uses: actions/upload-artifact@v4
         with:
-          name: flipdiff-${{ matrix.target }}
+          name: saccade-${{ matrix.target }}
           path: dist/*
           if-no-files-found: error
 

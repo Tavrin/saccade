@@ -15,7 +15,7 @@ pass    seed_103.png  mean    0.00000  0.001
 
 3 fail, 0 error, 0 missing, 0 new, 3 pass (6 total)
 === explain (exit 0) ===
-# flipdiff explain: 3 entries (baseline vs capture); 3 fail, 3 pass of 6
+# saccade explain: 3 entries (baseline vs capture); 3 fail, 3 pass of 6
 Strips are [baseline | capture | heatmap]; error scale 0 (none) to 1.
 
 ## seed_101.png Fail Mean=0.1876 (limit 0.001)
@@ -33,7 +33,7 @@ frame: thumbs/seed_105.png
 local_structure: Local structural change at center (67×45, 93% of error); rest of frame within noise.
 1. center 67x45 at (78,55) 93% of error, mean 0.22 max 0.76, hot px 1841 (6.66% of frame), box 10.9% of frame: hotspots/seed_105.png.d/h1.png
 
-pack: /mnt/linux-extra/moss-cargo-targets/flipdiff-showcase-reports/ml-image-model/explain
+pack: /mnt/linux-extra/moss-cargo-targets/saccade-showcase-reports/ml-image-model/explain
 === decision-request (exit 0) ===
 {
   "items": [
@@ -238,6 +238,6 @@ pack: /mnt/linux-extra/moss-cargo-targets/flipdiff-showcase-reports/ml-image-mod
     }
   ],
   "question_type": "accept",
-  "schema": "flipdiff-decision-request.v1",
+  "schema": "saccade-decision-request.v1",
   "skipped": []
 }

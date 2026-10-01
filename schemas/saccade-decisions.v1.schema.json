@@ -1,0 +1,273 @@
+{
+  "$defs": {
+    "Proposal": {
+      "description": "One answer to a decision-request question, as recorded by `saccade decide`.",
+      "properties": {
+        "answer": {
+          "description": "The answer, one of the question's allowed answers.",
+          "type": "string"
+        },
+        "confidence": {
+          "description": "A second confidence figure when the provider reports one besides the\nprobability of the chosen answer (Jev's `confidence`).",
+          "format": "double",
+          "type": [
+            "number",
+            "null"
+          ]
+        },
+        "hotspot": {
+          "description": "For `mask_suggest`: the 1-based hotspot the answer is about.",
+          "format": "uint32",
+          "minimum": 0,
+          "type": [
+            "integer",
+            "null"
+          ]
+        },
+        "note": {
+          "description": "Free-text note from the answerer.",
+          "type": "string"
+        },
+        "prob": {
+          "default": null,
+          "description": "The model's confidence in `[0, 1]`; `None` for a person.",
+          "format": "double",
+          "type": [
+            "number",
+            "null"
+          ]
+        },
+        "promoted": {
+          "default": false,
+          "description": "True when the confidence gate turned this answer into the set's decision.",
+          "type": "boolean"
+        },
+        "proposed": {
+          "description": "True for every non-human source: the answer is advice, not a decision.",
+          "type": "boolean"
+        },
+        "question": {
+          "description": "The question type: `accept`, `triage`, `cause`, `ask_human` or `mask_suggest`.",
+          "type": "string"
+        },
+        "request_hash": {
+          "default": "",
+          "description": "The `request_hash` of the decision-request item it answered.",
+          "type": "string"
+        },
+        "source": {
+          "description": "Who answered: `jev`, `openai-decisions`, a model name or `human`.",
+          "type": "string"
+        },
+        "timestamp_ms": {
+          "default": 0,
+          "description": "When it was recorded, Unix milliseconds.",
+          "format": "uint64",
+          "minimum": 0,
+          "type": "integer"
+        }
+      },
+      "required": [
+        "question",
+        "answer",
+        "source",
+        "proposed"
+      ],
+      "type": "object"
+    },
+    "Roi": {
+      "description": "A region of interest in image pixels.",
+      "properties": {
+        "h": {
+          "description": "Height.",
+          "format": "uint32",
+          "minimum": 0,
+          "type": "integer"
+        },
+        "w": {
+          "description": "Width.",
+          "format": "uint32",
+          "minimum": 0,
+          "type": "integer"
+        },
+        "x": {
+          "description": "Left edge.",
+          "format": "uint32",
+          "minimum": 0,
+          "type": "integer"
+        },
+        "y": {
+          "description": "Top edge.",
+          "format": "uint32",
+          "minimum": 0,
+          "type": "integer"
+        }
+      },
+      "required": [
+        "x",
+        "y",
+        "w",
+        "h"
+      ],
+      "type": "object"
+    },
+    "SetDecision": {
+      "description": "The judge's entry for one image set.",
+      "properties": {
+        "chosen_dir": {
+          "default": null,
+          "description": "Pairwise judging: the absolute directory of the preferred pane (set by\nthe viewer, or by `unblind` for a blind view). `approve` refuses a\ndecision whose chosen directory is not the capture directory.",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "chosen_label": {
+          "default": null,
+          "description": "Pairwise judging: the true label of the preferred pane.",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "decision": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Verdict"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "accept / reject / needs-work, if decided."
+        },
+        "name": {
+          "description": "Relative image path of the set.",
+          "type": "string"
+        },
+        "no_difference": {
+          "default": false,
+          "description": "Pairwise judging: \"no visible difference\".",
+          "type": "boolean"
+        },
+        "note": {
+          "default": "",
+          "description": "Free-text note.",
+          "type": "string"
+        },
+        "proposals": {
+          "description": "Answers recorded by `saccade decide` (an agent, a bounded-decision\nmodel or a person). They never change [`SetDecision::decision`] unless\nthe confidence gate promoted them; `approve` reads `decision` only.",
+          "items": {
+            "$ref": "#/$defs/Proposal"
+          },
+          "type": "array"
+        },
+        "roi": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Roi"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "The ROI that was drawn, if any."
+        },
+        "sha256": {
+          "default": [],
+          "description": "SHA-256 (hex) of the image of each directory when the set was judged,\nin directory order; `null` where the directory had no such image.",
+          "items": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "type": "array"
+        },
+        "timestamp_ms": {
+          "default": 0,
+          "description": "When the entry was last edited, Unix milliseconds.",
+          "format": "uint64",
+          "minimum": 0,
+          "type": "integer"
+        }
+      },
+      "required": [
+        "name"
+      ],
+      "type": "object"
+    },
+    "Verdict": {
+      "description": "A human verdict on one image set.",
+      "oneOf": [
+        {
+          "const": "accept",
+          "description": "Promote the capture to baseline.",
+          "type": "string"
+        },
+        {
+          "const": "reject",
+          "description": "Do not promote.",
+          "type": "string"
+        },
+        {
+          "const": "needs-work",
+          "description": "Not decided; the renderer needs more work.",
+          "type": "string"
+        }
+      ]
+    }
+  },
+  "$id": "https://github.com/Tavrin/saccade/schemas/saccade-decisions.v1.schema.json",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "description": "The `saccade-decisions.v1.json` file.",
+  "properties": {
+    "blind": {
+      "default": false,
+      "description": "Whether the judging was blind.",
+      "type": "boolean"
+    },
+    "dirs": {
+      "default": [],
+      "description": "Absolute path of each directory, in `labels` order. Empty for a blind\nview until `unblind` fills it from the key.",
+      "items": {
+        "type": "string"
+      },
+      "type": "array"
+    },
+    "labels": {
+      "description": "The view's directory labels.",
+      "items": {
+        "type": "string"
+      },
+      "type": "array"
+    },
+    "schema": {
+      "description": "Always [`DECISIONS_SCHEMA`].",
+      "type": "string"
+    },
+    "seed": {
+      "description": "The shuffle seed of the view the decisions were made in.",
+      "format": "uint64",
+      "minimum": 0,
+      "type": "integer"
+    },
+    "sets": {
+      "description": "One entry per image set.",
+      "items": {
+        "$ref": "#/$defs/SetDecision"
+      },
+      "type": "array"
+    }
+  },
+  "required": [
+    "schema",
+    "seed",
+    "labels",
+    "sets"
+  ],
+  "title": "Decisions",
+  "type": "object"
+}

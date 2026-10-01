@@ -18,9 +18,9 @@ jobs:
         with:
           baseline-dir: examples/baseline
           capture-dir: examples/capture
-          report-dir: flipdiff-update-report
-          artifact-name: flipdiff-update-report
+          report-dir: saccade-update-report
+          artifact-name: saccade-update-report
           comment: 'false'
           update-baselines: 'true'
-          update-branch-prefix: flipdiff/update-baselines
+          update-branch-prefix: saccade/update-baselines
           update-prune-missing: 'false'

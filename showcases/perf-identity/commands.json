@@ -6,7 +6,7 @@
       "baseline",
       "capture",
       "--config",
-      "flipdiff.toml"
+      "saccade.toml"
     ],
     "out": "identity",
     "exit": 1

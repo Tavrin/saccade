@@ -1,6 +1,8 @@
-# flipdiff
+# saccade
 
 Perceptual visual-regression testing for renderers, game engines and graphics code, built on NVIDIA FLIP.
+
+A saccade is the quick jump your eyes make between two points, which is what you do when you compare two images; saccade measures what that glance would notice, using NVIDIA FLIP.
 
 <p align="center"><img src="docs/images/showcase-swipe.gif" alt="Swipe between a baseline and a capture where the button label changed from Export CSV to Delete data; the FLIP heatmap and a numbered hotspot box mark the change" width="760"><br><sub>The swipe from the showcase page, on the UI case. The HTML report has the same swipe, heatmap and hotspot views.</sub></p>
 
@@ -9,17 +11,17 @@ Perceptual visual-regression testing for renderers, game engines and graphics co
 - **Refuses a verdict on a mismatched comparison.** Given capture metadata, a run made with a different renderer mode, resolution or driver is reported as an error, not as a pass or a fail. See [Configuration sidecars](#refuse-comparisons-made-under-different-settings).
 
 ```sh
-git clone https://github.com/Tavrin/flipdiff && cd flipdiff
-cargo run --release -p flipdiff -- compare examples/baseline examples/capture --out report
+git clone https://github.com/Tavrin/saccade && cd saccade
+cargo run --release -p saccade -- compare examples/baseline examples/capture --out report
 ```
 
-**[Showcase](https://tavrin.github.io/flipdiff/showcase/)**: eight reproducible use cases with the exact commands, images and output. The page is [`docs/showcase/index.html`](docs/showcase/index.html) and works offline.
+**[Showcase](https://tavrin.github.io/saccade/showcase/)**: eight reproducible use cases with the exact commands, images and output. The page is [`docs/showcase/index.html`](docs/showcase/index.html) and works offline.
 
 ## Use cases at a glance
 
 <table>
-<tr><td width="25%" valign="top"><a href="https://tavrin.github.io/flipdiff/showcase/#webapp-ui"><img src="docs/showcase/media/webapp-ui/thumb.png" alt="UI screenshots: baseline and FLIP heatmap" width="100%"></a><br><b><a href="https://tavrin.github.io/flipdiff/showcase/#webapp-ui">UI screenshots</a></b><br>A button label changed; the clock changes every run.</td><td width="25%" valign="top"><a href="https://tavrin.github.io/flipdiff/showcase/#cover-art"><img src="docs/showcase/media/cover-art/thumb.png" alt="Cover art and assets: baseline and FLIP heatmap" width="100%"></a><br><b><a href="https://tavrin.github.io/flipdiff/showcase/#cover-art">Cover art and assets</a></b><br>Tint, crop and JPEG quality 40, told apart.</td><td width="25%" valign="top"><a href="https://tavrin.github.io/flipdiff/showcase/#texture-compression"><img src="docs/showcase/media/texture-compression/thumb.png" alt="Texture compression: baseline and FLIP heatmap" width="100%"></a><br><b><a href="https://tavrin.github.io/flipdiff/showcase/#texture-compression">Texture compression</a></b><br>Five lossy encodings ranked by visible error.</td><td width="25%" valign="top"><a href="https://tavrin.github.io/flipdiff/showcase/#upscaler"><img src="docs/showcase/media/upscaler/thumb.png" alt="Upscalers and shimmer: baseline and FLIP heatmap" width="100%"></a><br><b><a href="https://tavrin.github.io/flipdiff/showcase/#upscaler">Upscalers and shimmer</a></b><br>Filters ranked; flicker measured over a pan.</td></tr>
-<tr><td width="25%" valign="top"><a href="https://tavrin.github.io/flipdiff/showcase/#lod-transition"><img src="docs/showcase/media/lod-transition/thumb.png" alt="LOD pops: baseline and FLIP heatmap" width="100%"></a><br><b><a href="https://tavrin.github.io/flipdiff/showcase/#lod-transition">LOD pops</a></b><br>One frame loses its detail. Which one?</td><td width="25%" valign="top"><a href="https://tavrin.github.io/flipdiff/showcase/#ml-image-model"><img src="docs/showcase/media/ml-image-model/thumb.png" alt="Image-model checkpoints: baseline and FLIP heatmap" width="100%"></a><br><b><a href="https://tavrin.github.io/flipdiff/showcase/#ml-image-model">Image-model checkpoints</a></b><br>Same seeds, two checkpoints, judge-ready crops.</td><td width="25%" valign="top"><a href="https://tavrin.github.io/flipdiff/showcase/#render-gbuffer"><img src="docs/showcase/media/render-gbuffer/thumb.png" alt="G-buffers: baseline and FLIP heatmap" width="100%"></a><br><b><a href="https://tavrin.github.io/flipdiff/showcase/#render-gbuffer">G-buffers</a></b><br>Depth, normals and motion in their own units.</td><td width="25%" valign="top"><a href="https://tavrin.github.io/flipdiff/showcase/#perf-identity"><img src="docs/showcase/media/perf-identity/thumb.png" alt="Optimization identity: baseline and FLIP heatmap" width="100%"></a><br><b><a href="https://tavrin.github.io/flipdiff/showcase/#perf-identity">Optimization identity</a></b><br>Bit-identity per image; one pixel moved.</td></tr>
+<tr><td width="25%" valign="top"><a href="https://tavrin.github.io/saccade/showcase/#webapp-ui"><img src="docs/showcase/media/webapp-ui/thumb.png" alt="UI screenshots: baseline and FLIP heatmap" width="100%"></a><br><b><a href="https://tavrin.github.io/saccade/showcase/#webapp-ui">UI screenshots</a></b><br>A button label changed; the clock changes every run.</td><td width="25%" valign="top"><a href="https://tavrin.github.io/saccade/showcase/#cover-art"><img src="docs/showcase/media/cover-art/thumb.png" alt="Cover art and assets: baseline and FLIP heatmap" width="100%"></a><br><b><a href="https://tavrin.github.io/saccade/showcase/#cover-art">Cover art and assets</a></b><br>Tint, crop and JPEG quality 40, told apart.</td><td width="25%" valign="top"><a href="https://tavrin.github.io/saccade/showcase/#texture-compression"><img src="docs/showcase/media/texture-compression/thumb.png" alt="Texture compression: baseline and FLIP heatmap" width="100%"></a><br><b><a href="https://tavrin.github.io/saccade/showcase/#texture-compression">Texture compression</a></b><br>Five lossy encodings ranked by visible error.</td><td width="25%" valign="top"><a href="https://tavrin.github.io/saccade/showcase/#upscaler"><img src="docs/showcase/media/upscaler/thumb.png" alt="Upscalers and shimmer: baseline and FLIP heatmap" width="100%"></a><br><b><a href="https://tavrin.github.io/saccade/showcase/#upscaler">Upscalers and shimmer</a></b><br>Filters ranked; flicker measured over a pan.</td></tr>
+<tr><td width="25%" valign="top"><a href="https://tavrin.github.io/saccade/showcase/#lod-transition"><img src="docs/showcase/media/lod-transition/thumb.png" alt="LOD pops: baseline and FLIP heatmap" width="100%"></a><br><b><a href="https://tavrin.github.io/saccade/showcase/#lod-transition">LOD pops</a></b><br>One frame loses its detail. Which one?</td><td width="25%" valign="top"><a href="https://tavrin.github.io/saccade/showcase/#ml-image-model"><img src="docs/showcase/media/ml-image-model/thumb.png" alt="Image-model checkpoints: baseline and FLIP heatmap" width="100%"></a><br><b><a href="https://tavrin.github.io/saccade/showcase/#ml-image-model">Image-model checkpoints</a></b><br>Same seeds, two checkpoints, judge-ready crops.</td><td width="25%" valign="top"><a href="https://tavrin.github.io/saccade/showcase/#render-gbuffer"><img src="docs/showcase/media/render-gbuffer/thumb.png" alt="G-buffers: baseline and FLIP heatmap" width="100%"></a><br><b><a href="https://tavrin.github.io/saccade/showcase/#render-gbuffer">G-buffers</a></b><br>Depth, normals and motion in their own units.</td><td width="25%" valign="top"><a href="https://tavrin.github.io/saccade/showcase/#perf-identity"><img src="docs/showcase/media/perf-identity/thumb.png" alt="Optimization identity: baseline and FLIP heatmap" width="100%"></a><br><b><a href="https://tavrin.github.io/saccade/showcase/#perf-identity">Optimization identity</a></b><br>Bit-identity per image; one pixel moved.</td></tr>
 </table>
 
 The data is procedural ([`showcases/`](showcases)); `scripts/run-showcases.sh` reproduces each case's output byte for byte. Thumbnails show the baseline on the left and the capture under its FLIP heatmap on the right.
@@ -29,9 +31,9 @@ The data is procedural ([`showcases/`](showcases)); `scripts/run-showcases.sh` r
 You need Rust 1.85 or newer and a C++ compiler (the build compiles NVIDIA's C++ FLIP code). The repository contains a small baseline and capture set in `examples/`.
 
 ```sh
-git clone https://github.com/Tavrin/flipdiff
-cd flipdiff
-cargo run --release -p flipdiff -- compare examples/baseline examples/capture --out report
+git clone https://github.com/Tavrin/saccade
+cd saccade
+cargo run --release -p saccade -- compare examples/baseline examples/capture --out report
 ```
 
 Output (the first build takes longer, since it compiles the dependencies):
@@ -60,7 +62,7 @@ start report\index.html        # Windows
 
 ### Report layout
 
-The report contains `flipdiff-report.v1.json`, `index.html` and per-image
+The report contains `saccade-report.v1.json`, `index.html` and per-image
 folders under `images/<relative name>.d/`. For example, `lit.png` gets
 `images/lit.png.d/baseline.png`, `capture.png` and `heatmap.png`. JSON image
 paths are relative to the report directory, so the report can be moved.
@@ -68,7 +70,7 @@ Viewer and serve-session images use the same `.d` folder suffix; explain
 hotspot strips use `hotspots/<relative name>.d/`.
 
 Every CLI command with `--out` warns on stderr if its parent directory holds
-the configured metadata sidecar (`--meta-name`, default `flipdiff-meta.json`)
+the configured metadata sidecar (`--meta-name`, default `saccade-meta.json`)
 or `capture.json`: outputs there may be indexed as captures. Choose another
 output location or pass `--allow-out-near-captures` to silence the warning.
 
@@ -108,22 +110,22 @@ The `examples/` images are generated by `scripts/gen-examples.py`: `sphere_ident
 
 ## Built for AI agents
 
-flipdiff is meant to be driven by a coding agent as much as by a person. An agent that cannot open an HTML report still gets *where* and *how much* the images differ, as structured data and as small crops it can look at.
+saccade is meant to be driven by a coding agent as much as by a person. An agent that cannot open an HTML report still gets *where* and *how much* the images differ, as structured data and as small crops it can look at.
 
-**Hotspots in JSON.** Every compared entry of the report carries `hotspots`: the regions where the FLIP error is concentrated, largest first. Each has `rect_px` and `rect_frac` (`[x, y, w, h]`), `position` (a 3x3 cell such as `bottom-center`), `area_px`, `area_frac`, `mean_flip`, `max_flip` and `share_of_total_error`. In `flipdiff.toml`, `hotspots` sets how many are kept per entry (default 5, 0 disables the search), `hotspot_threshold` the error above which a pixel counts (default 0.1) and `hotspot_min_share` the smallest share of the total error a hotspot must carry to be kept (default 0.01). `area_px` and `area_frac` count the hot pixels only; the box (`rect_frac`) is usually larger. The text table and the Markdown summary print the same data on one line.
+**Hotspots in JSON.** Every compared entry of the report carries `hotspots`: the regions where the FLIP error is concentrated, largest first. Each has `rect_px` and `rect_frac` (`[x, y, w, h]`), `position` (a 3x3 cell such as `bottom-center`), `area_px`, `area_frac`, `mean_flip`, `max_flip` and `share_of_total_error`. In `saccade.toml`, `hotspots` sets how many are kept per entry (default 5, 0 disables the search), `hotspot_threshold` the error above which a pixel counts (default 0.1) and `hotspot_min_share` the smallest share of the total error a hotspot must carry to be kept (default 0.01). `area_px` and `area_frac` count the hot pixels only; the box (`rect_frac`) is usually larger. The text table and the Markdown summary print the same data on one line.
 
-**`--json` and summaries.** `compare`, `identity`, `approve`, `view` and `explain` take `--json` and print one JSON document on stdout (the reports are written to disk either way). `compare --json` and `identity --json` print a lean `flipdiff-result.v1`: the verdict, the totals, the failing entries (value, threshold, top-3 hotspots, the sidecar keys that differ), the report and `index.html` paths and a `next_step` sentence such as "run `flipdiff explain ...` and inspect the strips; approve with `flipdiff approve ...` if the change is intended". Floats carry 4 significant digits and paths are absolute. `--json=full` prints the whole `flipdiff-report.v1` instead. `flipdiff summary REPORT --format json` prints a compact verdict: totals, the worst failing entries with their top hotspots, and the report's file paths.
+**`--json` and summaries.** `compare`, `identity`, `approve`, `view` and `explain` take `--json` and print one JSON document on stdout (the reports are written to disk either way). `compare --json` and `identity --json` print a lean `saccade-result.v1`: the verdict, the totals, the failing entries (value, threshold, top-3 hotspots, the sidecar keys that differ), the report and `index.html` paths and a `next_step` sentence such as "run `saccade explain ...` and inspect the strips; approve with `saccade approve ...` if the change is intended". Floats carry 4 significant digits and paths are absolute. `--json=full` prints the whole `saccade-report.v1` instead. `saccade summary REPORT --format json` prints a compact verdict: totals, the worst failing entries with their top hotspots, and the report's file paths.
 
-**JSON errors.** With `--json` (or `--format json`) every failure, including a command line clap rejects, prints `{"schema": "flipdiff-error.v1", "code": ..., "message": ...}` on stdout and exits `2`, as without `--json`. The codes are `usage`, `io`, `config`, `unsafe_path`, `not_empty_out_dir`, `nothing_compared` and `approve_mismatch`.
+**JSON errors.** With `--json` (or `--format json`) every failure, including a command line clap rejects, prints `{"schema": "saccade-error.v1", "code": ..., "message": ...}` on stdout and exits `2`, as without `--json`. The codes are `usage`, `io`, `config`, `unsafe_path`, `not_empty_out_dir`, `nothing_compared` and `approve_mismatch`.
 
-**Judge packs: `flipdiff explain`.** Turns a report into crops a vision model can read:
+**Judge packs: `saccade explain`.** Turns a report into crops a vision model can read:
 
 ```sh
-flipdiff explain report/flipdiff-report.v1.json --out explain
+saccade explain report/saccade-report.v1.json --out explain
 ```
 
 ```
-# flipdiff explain: 1 entry (baseline vs capture); 1 fail, 2 pass of 5
+# saccade explain: 1 entry (baseline vs capture); 1 fail, 2 pass of 5
 Strips are [baseline | capture | heatmap]; error scale 0 (none) to 1.
 
 ## sphere_shadow.png Fail Mean=0.0504 (limit 0.01)
@@ -134,29 +136,29 @@ frame: thumbs/sphere_shadow.png
 pack: explain
 ```
 
-The pack holds `explain.json` (schema `flipdiff-explain.v1`), `explain.md`, one `[baseline | capture | heatmap]` strip per hotspot (`hotspots/<name>.d/hN.png`) and a whole-frame strip with the hotspot boxes (`thumbs/<name>.png`).
+The pack holds `explain.json` (schema `saccade-explain.v1`), `explain.md`, one `[baseline | capture | heatmap]` strip per hotspot (`hotspots/<name>.d/hN.png`) and a whole-frame strip with the hotspot boxes (`thumbs/<name>.png`).
 
 ![One hotspot strip: baseline, capture and heatmap crops](docs/images/explain-strip.png)
 
 `--top N` sets the hotspots per entry, `--pad` the context around each box, `--stretch` brightens dark crops (the same gain on both images) and `--entries a.png,b.png` limits the pack and `--hotspot-min-share` (default 0.01) drops hotspots that carry less of the error. A strip is at most 1536 px wide; larger crops are scaled down. With `--blind`, each strip is `[A | B]` in a random order per hotspot, with no heatmap, and the pack names neither the report nor the sides. `--key-out PATH` is required and must lie outside `--out`, so the pack can be handed to a judge as it is (`--seed` makes the shuffle reproducible): a judge that does not know which side is the candidate cannot favour it.
 
-**MCP server: `flipdiff mcp`.** A Model Context Protocol server over stdio (protocol `2025-06-18`). **Path policy:** `flipdiff mcp [--root DIR]` (default: the working directory) confines the agent to `DIR`. Every path it passes (inputs, `out_dir`, report and config files, the blind `key_out`) is resolved against the root and canonicalised; one that ends up outside it, through `..` or a symlink, is refused with `unsafe_path`.
+**MCP server: `saccade mcp`.** A Model Context Protocol server over stdio (protocol `2025-06-18`). **Path policy:** `saccade mcp [--root DIR]` (default: the working directory) confines the agent to `DIR`. Every path it passes (inputs, `out_dir`, report and config files, the blind `key_out`) is resolved against the root and canonicalised; one that ends up outside it, through `..` or a symlink, is refused with `unsafe_path`.
 
 | Tool | What it does |
 |---|---|
-| `flipdiff_compare` | Compares `baseline_dir` with `capture_dir` (also `threshold`, `metric`, `ppd`, `labels`, `meta_name`, `fail_on_new`, `allow_empty`, `config`, `require_matching_meta`, `declare`), writes the report and a judge pack into `out_dir`, returns a `flipdiff-result.v1` (verdict, the worst failing entries with their hotspots, the file paths, `next_step`) |
-| `flipdiff_identity` | The same for `parent_dir` and `candidate_dir` with the strict identity defaults |
-| `flipdiff_explain` | Writes a judge pack for an existing `report_json` (`top`, `hotspot_min_share`, `blind` with `key_out`) |
-| `flipdiff_summary` | Summarises an existing `report_json` without running anything (read-only) |
-| `flipdiff_sequence` | Compares `baseline_dir` and `capture_dir` by sorted frame index (`pattern`, run settings, `config`, HDR settings), writes to `out_dir`, returns a lean `flipdiff-sequence.v1` with temporal instability and report paths |
-| `flipdiff_rank` | Ranks `candidate_dirs` against `reference_dir` (`labels`, `metric`, run settings, `config`, HDR settings), writes rankings and per-candidate reports to `out_dir`, returns a lean `flipdiff-rank.v1` |
+| `saccade_compare` | Compares `baseline_dir` with `capture_dir` (also `threshold`, `metric`, `ppd`, `labels`, `meta_name`, `fail_on_new`, `allow_empty`, `config`, `require_matching_meta`, `declare`), writes the report and a judge pack into `out_dir`, returns a `saccade-result.v1` (verdict, the worst failing entries with their hotspots, the file paths, `next_step`) |
+| `saccade_identity` | The same for `parent_dir` and `candidate_dir` with the strict identity defaults |
+| `saccade_explain` | Writes a judge pack for an existing `report_json` (`top`, `hotspot_min_share`, `blind` with `key_out`) |
+| `saccade_summary` | Summarises an existing `report_json` without running anything (read-only) |
+| `saccade_sequence` | Compares `baseline_dir` and `capture_dir` by sorted frame index (`pattern`, run settings, `config`, HDR settings), writes to `out_dir`, returns a lean `saccade-sequence.v1` with temporal instability and report paths |
+| `saccade_rank` | Ranks `candidate_dirs` against `reference_dir` (`labels`, `metric`, run settings, `config`, HDR settings), writes rankings and per-candidate reports to `out_dir`, returns a lean `saccade-rank.v1` |
 
-Every tool declares an `outputSchema` and annotations (`destructiveHint: false`, `idempotentHint: true`, `readOnlyHint` only for the summary). `flipdiff_compare` and `flipdiff_explain` also return up to three image content blocks, the top hotspot strips downscaled to at most 1024 px wide, unless `include_images` is `false`.
+Every tool declares an `outputSchema` and annotations (`destructiveHint: false`, `idempotentHint: true`, `readOnlyHint` only for the summary). `saccade_compare` and `saccade_explain` also return up to three image content blocks, the top hotspot strips downscaled to at most 1024 px wide, unless `include_images` is `false`.
 
 Add it to Claude Code:
 
 ```sh
-claude mcp add flipdiff -- flipdiff mcp
+claude mcp add saccade -- saccade mcp
 ```
 
 or to a project's `.mcp.json`:
@@ -164,7 +166,7 @@ or to a project's `.mcp.json`:
 ```json
 {
   "mcpServers": {
-    "flipdiff": { "command": "flipdiff", "args": ["mcp"] }
+    "saccade": { "command": "saccade", "args": ["mcp"] }
   }
 }
 ```
@@ -172,16 +174,16 @@ or to a project's `.mcp.json`:
 or to Codex, in `~/.codex/config.toml`:
 
 ```toml
-[mcp_servers.flipdiff]
-command = "flipdiff"
+[mcp_servers.saccade]
+command = "saccade"
 args = ["mcp"]
 ```
 
-A regression is not an error: the result says `verdict: "regression"`. A failed call is a tool result with `isError: true` and `structuredContent` of schema `flipdiff-error.v1`, whose `code` is one of `usage` (a bad or missing argument), `unsafe_path` (a path outside the root), `io` (a path cannot be read or written, an image or report does not decode) or `config` (an invalid config file or setting). Protocol-level problems use the JSON-RPC codes `-32700`, `-32600`, `-32601` and `-32602`.
+A regression is not an error: the result says `verdict: "regression"`. A failed call is a tool result with `isError: true` and `structuredContent` of schema `saccade-error.v1`, whose `code` is one of `usage` (a bad or missing argument), `unsafe_path` (a path outside the root), `io` (a path cannot be read or written, an image or report does not decode) or `config` (an invalid config file or setting). Protocol-level problems use the JSON-RPC codes `-32700`, `-32600`, `-32601` and `-32602`.
 
-**Schemas and exit codes.** [`schemas/`](schemas) holds a JSON Schema, `schemas/flipdiff-<name>.v1.schema.json`, for every schema id the tools emit: `report`, `sequence`, `rank`, `decisions`, `explain`, `explain-blind-key`, `blind-key`, `explain-result`, `view-summary`, `summary`, `approve`, `result`, `decision-request`, `decide-result` and `error`. A test fails when the generated ones drift from the Rust types, and another validates real command output against them. The exit code is the verdict: `0` no regression, `1` regression (any `fail`, `error` or `missing` entry, a `new` entry with `fail_on_new`, or no pair compared at all unless `--allow-empty`), `2` usage, config or IO error (including an unsafe `--out`, see [CLI reference](#cli-reference)).
+**Schemas and exit codes.** [`schemas/`](schemas) holds a JSON Schema, `schemas/saccade-<name>.v1.schema.json`, for every schema id the tools emit: `report`, `sequence`, `rank`, `decisions`, `explain`, `explain-blind-key`, `blind-key`, `explain-result`, `view-summary`, `summary`, `approve`, `result`, `decision-request`, `decide-result` and `error`. A test fails when the generated ones drift from the Rust types, and another validates real command output against them. The exit code is the verdict: `0` no regression, `1` regression (any `fail`, `error` or `missing` entry, a `new` entry with `fail_on_new`, or no pair compared at all unless `--allow-empty`), `2` usage, config or IO error (including an unsafe `--out`, see [CLI reference](#cli-reference)).
 
-### Agent-addressable pages: the URL hash, `window.flipdiff` and `flipdiff snapshot`
+### Agent-addressable pages: the URL hash, `window.saccade` and `saccade snapshot`
 
 The report, `view` and `serve` sessions keep their whole view in the URL hash, so a person or an agent can share or restore exactly what is on screen. The page reads the hash on load and rewrites it (`history.replaceState`, debounced) as you interact; **Copy link to this view** copies it.
 
@@ -192,7 +194,7 @@ The report, `view` and `serve` sessions keep their whole view in the URL hash, s
 
 The report writes `entry=<name>` where the viewer writes `set=<name>`. `at` is the image-pixel centre of the zoom; `zoom` is output pixels per image pixel (`fit`, `1`, `2`, `4`, `8`, or any number up to 64); `hotspot` is the 1-based hotspot to zoom to. Unknown or invalid keys are ignored. A blind view never writes labels, the reference or `heat`/`signed`/`mask`/`hotspot` to the hash. Layouts map as follows: in the viewer `side` is "Side by side" and `heatmap` is the heatmap overlay; in the report `side` shows the three images in a row and `heatmap` shows the capture under its FLIP heatmap. `diff` selects signed difference; `signed` sets its opacity in Swipe and `mask` enables the non-finite overlay. These diagnostic layers and `contrast` are browser controls; the CLI snapshot renderer supports the layouts and controls described below.
 
-For browser automation (Playwright, Claude in Chrome) the pages expose a stable API, `window.flipdiff` (version 1):
+For browser automation (Playwright, Claude in Chrome) the pages expose a stable API, `window.saccade` (version 1):
 
 | Call | Returns |
 |---|---|
@@ -204,26 +206,26 @@ For browser automation (Playwright, Claude in Chrome) the pages expose a stable 
 | `on('change', fn)` | subscribes to view changes; returns an unsubscribe function |
 | `version` | `1` |
 
-**`flipdiff snapshot`** renders a state to a PNG on the server, with no browser:
+**`saccade snapshot`** renders a state to a PNG on the server, with no browser:
 
 ```
-flipdiff snapshot <REPORT_JSON|VIEW_DIR> [--entry NAME] [--state 'layout=swipe&split=0.3&zoom=4&at=120,80&hotspot=1'] [--out snapshot.png] [--width 1600] [--json]
+saccade snapshot <REPORT_JSON|VIEW_DIR> [--entry NAME] [--state 'layout=swipe&split=0.3&zoom=4&at=120,80&hotspot=1'] [--out snapshot.png] [--width 1600] [--json]
 ```
 
-`side` draws the images in a row under their labels; `swipe` shows the first image on one side of a divider at `split` and the second on the other, with the FLIP heatmap over the second when `heat` is above 0; `heatmap` is the second image under its heatmap; `flicker` writes one PNG per image (`<stem>-1.png`, `<stem>-2.png`; there is no APNG). `zoom`/`at` crop, `ev` and `channel` change the display, `roi` and the hotspot boxes are drawn. Labels use a built-in bitmap font. A blind view keeps its neutral labels and draws no heatmap or hotspots. The MCP tool `flipdiff_snapshot` takes `{report_json | view_dir, entry, state, width}` and returns an image block (at most 1600 px wide) and the path.
+`side` draws the images in a row under their labels; `swipe` shows the first image on one side of a divider at `split` and the second on the other, with the FLIP heatmap over the second when `heat` is above 0; `heatmap` is the second image under its heatmap; `flicker` writes one PNG per image (`<stem>-1.png`, `<stem>-2.png`; there is no APNG). `zoom`/`at` crop, `ev` and `channel` change the display, `roi` and the hotspot boxes are drawn. Labels use a built-in bitmap font. A blind view keeps its neutral labels and draws no heatmap or hotspots. The MCP tool `saccade_snapshot` takes `{report_json | view_dir, entry, state, width}` and returns an image block (at most 1600 px wide) and the path.
 
 ### Bounded-decision models (Jev, OpenAI Decisions API, any LLM)
 
-A bounded-decision model answers a question from a closed list of answers, with a probability. flipdiff asks fixed questions, hands over compact evidence and records the answer; it contains no API key and no vendor SDK. An answer from a model is a **proposal**: the pages show it as a chip ("agent proposed: accept 0.93 (jev)") that a person confirms or overrides with one click (`y` / `n`). A proposal never moves a baseline: `approve` reads final decisions only.
+A bounded-decision model answers a question from a closed list of answers, with a probability. saccade asks fixed questions, hands over compact evidence and records the answer; it contains no API key and no vendor SDK. An answer from a model is a **proposal**: the pages show it as a chip ("agent proposed: accept 0.93 (jev)") that a person confirms or overrides with one click (`y` / `n`). A proposal never moves a baseline: `approve` reads final decisions only.
 
 ```
-flipdiff decision-request report/flipdiff-report.v1.json --all-failing [--entry NAME] [--question accept|triage|cause|ask_human|mask_suggest] [--intent "commit message or PR text"]
-flipdiff compare base cap --json=decision          # same, for every failing entry
-flipdiff decide report/flipdiff-report.v1.json --entry NAME --answer accept --prob 0.93 --source jev [--confidence F] [--request-hash H] [--note TEXT]
-echo '{"entry":"a.png","answer":"reject","prob":0.8,"source":"my-model"}' | flipdiff decide report/flipdiff-report.v1.json
+saccade decision-request report/saccade-report.v1.json --all-failing [--entry NAME] [--question accept|triage|cause|ask_human|mask_suggest] [--intent "commit message or PR text"]
+saccade compare base cap --json=decision          # same, for every failing entry
+saccade decide report/saccade-report.v1.json --entry NAME --answer accept --prob 0.93 --source jev [--confidence F] [--request-hash H] [--note TEXT]
+echo '{"entry":"a.png","answer":"reject","prob":0.8,"source":"my-model"}' | saccade decide report/saccade-report.v1.json
 ```
 
-The request is `flipdiff-decision-request.v1`, deterministic (the same report gives the same bytes), one item per entry with a fixed `question`, `allowed_answers`, a token-lean `state` (verdict, metrics, top-3 hotspots, frame-wide flag, black/white/NaN flags, config differences and whether they were declared, `bit_identical`, `diagnostics` class and description, your `intent`) and a `request_hash` to pass back to `decide`. MCP: `flipdiff_decision_request` and `flipdiff_decide`.
+The request is `saccade-decision-request.v1`, deterministic (the same report gives the same bytes), one item per entry with a fixed `question`, `allowed_answers`, a token-lean `state` (verdict, metrics, top-3 hotspots, frame-wide flag, black/white/NaN flags, config differences and whether they were declared, `bit_identical`, `diagnostics` class and description, your `intent`) and a `request_hash` to pass back to `decide`. MCP: `saccade_decision_request` and `saccade_decide`.
 
 | Question | Allowed answers | Asked about |
 |---|---|---|
@@ -256,9 +258,9 @@ The other four have the same shape and differ in `question_type`, `question` and
 {"entry": "a.png", "question": "mask_suggest", "hotspot": 2, "answer": "noise_region", "prob": 0.9, "source": "my-model"}
 ```
 
-**Where answers go.** `decide` records into `<report_dir>/flipdiff-decisions.v1.json` (plus `flipdiff-decisions.v1.js`, which the page loads from `file://`), the same file `approve --decisions` reads. Pass a view directory, a decisions file or a `serve` session id instead of a report to record there (a session's file is in the decisions directory; the page shows the chip after a reload). Each record carries the answer, `prob`, `confidence` when the provider reports one, `source`, a timestamp, the `request_hash` it answered and `proposed: true` for every source but `human`. A new `compare` run discards the old decisions of that report directory.
+**Where answers go.** `decide` records into `<report_dir>/saccade-decisions.v1.json` (plus `saccade-decisions.v1.js`, which the page loads from `file://`), the same file `approve --decisions` reads. Pass a view directory, a decisions file or a `serve` session id instead of a report to record there (a session's file is in the decisions directory; the page shows the chip after a reload). Each record carries the answer, `prob`, `confidence` when the provider reports one, `source`, a timestamp, the `request_hash` it answered and `proposed: true` for every source but `human`. A new `compare` run discards the old decisions of that report directory.
 
-**The confidence gate.** In `flipdiff.toml`:
+**The confidence gate.** In `saccade.toml`:
 
 ```toml
 [decisions]
@@ -269,17 +271,17 @@ gate_on = "prob"              # or "confidence"
 
 Only an `accept` or `reject` answer to the `accept` question can become the set's decision, and only above the threshold, from an allowed source, on a set that has no decision yet. Otherwise it stays a proposal. **Deterministic failures are never answered by a model**: a non-finite or all-black/all-white capture, a config mismatch under `--require-matching-meta`, an identity break in `identity` mode and an `error` status are listed under `skipped` in a request and refused by `decide` (code `deterministic_failure`); a person (`--source human`) may still decide them. Session and view targets have no report to check against, so their model answers are never promoted.
 
-**Adapters.** [`examples/adapters/`](examples/adapters) has Python scripts (standard library only) that read request files, call a provider and pipe the answers into `flipdiff decide`; keys come from the environment and are never printed:
+**Adapters.** [`examples/adapters/`](examples/adapters) has Python scripts (standard library only) that read request files, call a provider and pipe the answers into `saccade decide`; keys come from the environment and are never printed:
 
 | Script | Provider | Status |
 |---|---|---|
-| `jev_adapter.py` | Jev by TypeSafe (`JEV_API_KEY`, or `~/.config/flipdiff/jev.env`). Text only, batches an entry's questions into one call, passes both `probabilities[choice]` and `confidence` | verified against jev-1.13.0 on 2026-10-01 |
+| `jev_adapter.py` | Jev by TypeSafe (`JEV_API_KEY`, or `~/.config/saccade/jev.env`). Text only, batches an entry's questions into one call, passes both `probabilities[choice]` and `confidence` | verified against jev-1.13.0 on 2026-10-01 |
 | `openai_decisions_adapter.py` | OpenAI Decisions API (`OPENAI_API_KEY`, `OPENAI_DECISIONS_URL`) | **UNVERIFIED**: limited preview, request schema not published; the body and reply parsing are guesses isolated in two functions |
 | `llm_json_adapter.py` | any OpenAI-compatible chat model with JSON-schema constrained output (`LLM_API_KEY`, `LLM_MODEL`, `LLM_BASE_URL`) | the model's own probability is self-reported; keep the gate off or high |
 
 ```
-flipdiff decision-request report/flipdiff-report.v1.json --all-failing --intent "$PR_TITLE" > accept.json
-JEV_API_KEY=... examples/adapters/jev_adapter.py accept.json --target report/flipdiff-report.v1.json
+saccade decision-request report/saccade-report.v1.json --all-failing --intent "$PR_TITLE" > accept.json
+JEV_API_KEY=... examples/adapters/jev_adapter.py accept.json --target report/saccade-report.v1.json
 ```
 
 ## Install
@@ -287,7 +289,7 @@ JEV_API_KEY=... examples/adapters/jev_adapter.py accept.json --target report/fli
 From source (Rust 1.85 or newer, and a C++ compiler: g++, clang or MSVC):
 
 ```sh
-cargo install --git https://github.com/Tavrin/flipdiff flipdiff --locked
+cargo install --git https://github.com/Tavrin/saccade saccade --locked
 ```
 
 Prebuilt binaries for Linux (x86_64, aarch64), macOS (arm64) and Windows (x86_64) will be attached to GitHub releases once a version is tagged. The GitHub Action uses them when they exist.
@@ -299,7 +301,7 @@ Prebuilt binaries for Linux (x86_64, aarch64), macOS (arm64) and Windows (x86_64
 Render your test scenes into a `captures/` directory, then compare against the committed baselines:
 
 ```sh
-flipdiff compare tests/baseline captures --out flipdiff-report --threshold 0.01
+saccade compare tests/baseline captures --out saccade-report --threshold 0.01
 ```
 
 With the `examples/` set this prints the table above and exits 1. In any CI system, the exit code is the gate: 0 no regression, 1 regression (including "nothing compared", for example an empty baseline directory; pass `--allow-empty` for a first run), 2 usage or IO error. In GitHub Actions, use the [action](#github-action), which also uploads the report, writes the job summary and keeps one pull-request comment up to date.
@@ -307,7 +309,7 @@ With the `examples/` set this prints the table above and exits 1. In any CI syst
 To accept a change, copy the captures over the baselines. Note the argument order: `approve` is `CAPTURE_DIR BASELINE_DIR`, the reverse of `compare`.
 
 ```sh
-flipdiff approve captures tests/baseline --all-failing flipdiff-report/flipdiff-report.v1.json
+saccade approve captures tests/baseline --all-failing saccade-report/saccade-report.v1.json
 ```
 
 ```
@@ -328,7 +330,7 @@ removed tests/baseline/sphere_missing.png
 A renderer optimization should not change the output. Render the same scenes with the parent build and the candidate build, then:
 
 ```sh
-flipdiff identity parent-captures candidate-captures --out identity-report
+saccade identity parent-captures candidate-captures --out identity-report
 ```
 
 ```
@@ -345,33 +347,33 @@ pass    sphere_subtle.png     max     0.00000  0
 
 The defaults are strict: metric `max`, threshold 0. Each pair reports `bit_identical`: the decoded samples are exactly equal, at native depth, including alpha, 16-bit values and HDR NaN and negative values. A pair passes if it is bit-identical or its value is within `--threshold`. When pairs differ, the headline says how much, for example ``identity: ❌ 2 differ (max FLIP 0.637 on `sphere_shadow.png`), 1 missing, 1 new``. Use `--threshold 0.01` for a change that may differ slightly, and `--labels parent,candidate` to rename the two sides in the report.
 
-`identity` ignores `[[override]]` tables from an auto-loaded `./flipdiff.toml` and prints a notice saying so. It applies them only when you pass `--config` explicitly. Regions, masks and `[hdr]` settings are always applied.
+`identity` ignores `[[override]]` tables from an auto-loaded `./saccade.toml` and prints a notice saying so. It applies them only when you pass `--config` explicitly. Regions, masks and `[hdr]` settings are always applied.
 
 ### Human A/B review
 
 `view` is for deciding between images: accepting a re-baseline, choosing between candidate renders, look-dev review. It needs no threshold and no CI. It takes 2 to 6 directories, paired by relative path, and writes a self-contained directory (`index.html` plus `images/`) that needs no server.
 
 ```sh
-flipdiff view examples/baseline examples/capture --labels baseline,capture --out view
+saccade view examples/baseline examples/capture --labels baseline,capture --out view
 xdg-open view/index.html
 ```
 
 ![Viewer with the triage set list (status chip and FLIP value per set, worst first), three renders side by side with FLIP values per pane, and the hotspot table](docs/images/viewer.png)
 
-The viewer has side-by-side, swipe, flicker and heatmap layouts; synchronised zoom and pan; a pixel inspector (RGB of every pane and the FLIP value; its pixel data loads only when you first inspect a set, and is capped at 2048 px on the long side, with an "inspector at 1/N res" note when a pane is larger); exposure and contrast sliders and channel isolation for dark frames; and a region tool that reports mean FLIP and mean RGB inside a rectangle. `--reference DIR` picks the FLIP reference (the first directory by default). `--config flipdiff.toml` shows its `[[region]]` tables as preset rectangles. `--ppd` sets the viewing condition.
+The viewer has side-by-side, swipe, flicker and heatmap layouts; synchronised zoom and pan; a pixel inspector (RGB of every pane and the FLIP value; its pixel data loads only when you first inspect a set, and is capped at 2048 px on the long side, with an "inspector at 1/N res" note when a pane is larger); exposure and contrast sliders and channel isolation for dark frames; and a region tool that reports mean FLIP and mean RGB inside a rectangle. `--reference DIR` picks the FLIP reference (the first directory by default). `--config saccade.toml` shows its `[[region]]` tables as preset rectangles. `--ppd` sets the viewing condition.
 
 The set list is a triage list: each set shows a status chip (differs, identical, missing, error) and its worst mean FLIP, ordered worst first by default (or by name or status), with a "Differences only" filter. The viewer opens on the worst set. When the sidecars of the directories differ, a warning above the images lists the differing keys, because the comparison may not be like for like.
 
-For each image set the reviewer chooses Accept, Reject or Needs work and may add a note. "Export decisions" downloads `flipdiff-decisions.v1.json` (format in [docs/design.md](docs/design.md#81-decisions)). Feed it to `approve` to promote the accepted captures:
+For each image set the reviewer chooses Accept, Reject or Needs work and may add a note. "Export decisions" downloads `saccade-decisions.v1.json` (format in [docs/design.md](docs/design.md#81-decisions)). Feed it to `approve` to promote the accepted captures:
 
 ```sh
-flipdiff approve captures tests/baseline --decisions flipdiff-decisions.v1.json
+saccade approve captures tests/baseline --decisions saccade-decisions.v1.json
 ```
 
 **Blind mode.** `--blind` hides which directory is which, for unbiased A/B judging:
 
 ```sh
-flipdiff view examples/baseline examples/capture --blind --out view-blind --key-out blind-key.json
+saccade view examples/baseline examples/capture --blind --out view-blind --key-out blind-key.json
 ```
 
 ```
@@ -384,21 +386,21 @@ blind key (keep it away from the judge): blind-key.json
 Each image set is laid out in its own random order, so the position of a pane says nothing about its directory. The page embeds only neutral labels (`P1`, `P2`, by position within the set), random image file names (`images/<name>.d/p_<hex>.png`), no reference index, no per-set order, no shuffle seed (a random token pairs the page with its key) and no FLIP data at all: no heatmaps, metrics, hotspots or error maps, because those would single out the reference directory. So view-source reveals nothing, and a test greps the page and the explain pack for the directory names and labels. The true labels are in the key file, which the page does not reference: `--key-out PATH` puts it somewhere else (by default it is `blind-key.json` inside `--out`, which then must not be handed to the judge). After the judge has decided every set, "Reveal labels" asks for that file, or you convert the exported decisions yourself:
 
 ```sh
-flipdiff unblind flipdiff-decisions.v1.json blind-key.json --out decisions-true-labels.json
+saccade unblind saccade-decisions.v1.json blind-key.json --out decisions-true-labels.json
 ```
 
-### Browse and compare runs: `flipdiff serve`
+### Browse and compare runs: `saccade serve`
 
 `serve` is a local web app for an archive of captures: a directory tree whose leaves are directories of images (one per run, nightly build or release). It lists the runs with their thumbnails and sidecar metadata, searches them, and opens the `view` page on any 2 to 6 of them.
 
 ```sh
-flipdiff serve archive --open
+saccade serve archive --open
 ```
 
 ```
-flipdiff serve: http://127.0.0.1:7878/
-  cache:     ~/.cache/flipdiff
-  decisions: ~/.local/share/flipdiff/decisions
+saccade serve: http://127.0.0.1:7878/
+  cache:     ~/.cache/saccade
+  decisions: ~/.local/share/saccade/decisions
   (Ctrl-C to stop)
 ```
 
@@ -412,9 +414,9 @@ The comparison page opens on the worst set and has a "← Browse" link back to t
 
 When the runs share few or no file names ("0 of 9 file names match"), the card says so and offers **Pair by position** (sorted order) or **Pair manually** (drag a run image onto a reference image, or pick it from a list). The pairing is in the URL (`pair<i>=position` or `manual:<ref index>-<run index>,...`, the reference being 0).
 
-`flipdiff runs REF_DIR RUN_DIR... [--json] [--out DIR]` writes the same overview as a static page (`index.html`, thumbnails, `flipdiff-runs.v1.json`; default `runs/`), or prints `flipdiff-runs.v1` JSON with `--json` ([schema](schemas/flipdiff-runs.v1.schema.json)); `--pair-by-position` pairs unlike names. `GET /api/runs?ref=...&runs=...` returns the same JSON from the server (poll until `progress.complete`), and the MCP tool `flipdiff_compare_runs` returns the matrix summary (read-only, paths under the root).
+`saccade runs REF_DIR RUN_DIR... [--json] [--out DIR]` writes the same overview as a static page (`index.html`, thumbnails, `saccade-runs.v1.json`; default `runs/`), or prints `saccade-runs.v1` JSON with `--json` ([schema](schemas/saccade-runs.v1.schema.json)); `--pair-by-position` pairs unlike names. `GET /api/runs?ref=...&runs=...` returns the same JSON from the server (poll until `progress.complete`), and the MCP tool `saccade_compare_runs` returns the matrix summary (read-only, paths under the root).
 
-**Single images, several roots, symlinks.** A run row's "Images" button lists its images, each with its own "+ Compare": any 2 to 6 single images from anywhere under the root can be compared (a selection holds runs or images, not both). `flipdiff serve rootA rootB ...` serves several roots, each a top-level entry named after its directory (paths then start with that name, for example `rootA/nightly/2026-09-27`). `--follow-symlinks-within-roots` lets a symlink that resolves inside any of the roots be browsed and served; a symlink to anywhere else stays refused. Without it, a symlink may still point inside its own root.
+**Single images, several roots, symlinks.** A run row's "Images" button lists its images, each with its own "+ Compare": any 2 to 6 single images from anywhere under the root can be compared (a selection holds runs or images, not both). `saccade serve rootA rootB ...` serves several roots, each a top-level entry named after its directory (paths then start with that name, for example `rootA/nightly/2026-09-27`). `--follow-symlinks-within-roots` lets a symlink that resolves inside any of the roots be browsed and served; a symlink to anywhere else stays refused. Without it, a symlink may still point inside its own root.
 
 **Deep links.** A comparison has a URL you can share with a teammate on the same machine or put in a script:
 
@@ -424,13 +426,13 @@ When the runs share few or no file names ("0 of 9 file names match"), the card s
 
 **Security model.** The server binds `127.0.0.1` only, with no option to change that. It rejects any request whose `Host` is not `127.0.0.1:<port>` or `localhost:<port>` (DNS-rebinding defence), and every write needs a matching `Origin` and a per-process random token. Client paths are relative to the archive root (or start with a root's name when there are several), canonicalised, and must stay inside the root they were reached from (inside any root with `--follow-symlinks-within-roots`): no `..`, no absolute paths, no other symlinks, and only image files are served. The archive is read-only.
 
-**Where things go.** Sessions, thumbnails, pair staging and uploads go to the cache directory (`--cache-dir`, default `$XDG_CACHE_HOME/flipdiff`, i.e. `~/.cache/flipdiff`). The decisions you make in the viewer (accept, reject, needs work, notes, regions) are saved as `flipdiff-decisions.v1.json` files in the decisions directory (`--decisions-dir`, default `$XDG_DATA_HOME/flipdiff/decisions`) and listed under "Recent decisions"; feed one to `flipdiff approve --decisions`. `--config`, `--ppd`, `--meta-name`, `--meta-ignore` and the HDR flags behave as in `view`.
+**Where things go.** Sessions, thumbnails, pair staging and uploads go to the cache directory (`--cache-dir`, default `$XDG_CACHE_HOME/saccade`, i.e. `~/.cache/saccade`). The decisions you make in the viewer (accept, reject, needs work, notes, regions) are saved as `saccade-decisions.v1.json` files in the decisions directory (`--decisions-dir`, default `$XDG_DATA_HOME/saccade/decisions`) and listed under "Recent decisions"; feed one to `saccade approve --decisions`. `--config`, `--ppd`, `--meta-name`, `--meta-ignore` and the HDR flags behave as in `view`.
 
 ### Refuse comparisons made under different settings
 
-Two captures can differ because the configuration differed, not because the code did. A capture preset can silently inject a renderer mode nobody chose, and an "A versus B" performance or quality comparison then measures the preset. flipdiff can read a small JSON file that describes how each directory of captures was made, and refuse to call a comparison when the two sides differ in a setting nobody declared.
+Two captures can differ because the configuration differed, not because the code did. A capture preset can silently inject a renderer mode nobody chose, and an "A versus B" performance or quality comparison then measures the preset. saccade can read a small JSON file that describes how each directory of captures was made, and refuse to call a comparison when the two sides differ in a setting nobody declared.
 
-Write a flat JSON file named `flipdiff-meta.json` into each capture directory (the name is configurable):
+Write a flat JSON file named `saccade-meta.json` into each capture directory (the name is configurable):
 
 ```json
 {
@@ -442,7 +444,7 @@ Write a flat JSON file named `flipdiff-meta.json` into each capture directory (t
 ```
 
 ```sh
-flipdiff identity parent-captures candidate-captures --require-matching-meta
+saccade identity parent-captures candidate-captures --require-matching-meta
 ```
 
 If `renderer.mode` is `forward` in one directory and `deferred` in the other:
@@ -459,7 +461,7 @@ ERROR   sphere_identical.png (configuration differs on undeclared keys: renderer
 The exit code is 1. Each affected entry becomes an `error` (its metrics are kept in the report). Declare the keys that are expected to differ and the run gives a verdict again, still showing the difference:
 
 ```sh
-flipdiff identity parent-captures candidate-captures --require-matching-meta --declare renderer.mode
+saccade identity parent-captures candidate-captures --require-matching-meta --declare renderer.mode
 ```
 
 ```
@@ -473,12 +475,12 @@ pass    sphere_identical.png [config differs: renderer.mode]  max     0.00000  0
 Rules:
 
 - Without `--require-matching-meta`, differences are only shown, and do not change a verdict: a `config differs` badge and a key table in the HTML report, a `⚠ config differs on N images: ...` line in the Markdown summary, a `↳ config differs: ...` line in the text table, and a card per image set in `view`.
-- **Lookup.** Sidecars from the root of the directory down to the image's folder merge, and the nearer one wins on a conflicting key. A per-image `<stem>.flipdiff-meta.json` overrides all of them.
+- **Lookup.** Sidecars from the root of the directory down to the image's folder merge, and the nearer one wins on a conflicting key. A per-image `<stem>.saccade-meta.json` overrides all of them.
 - **Format.** A flat JSON object whose values are strings, numbers, booleans or null. Use dot-namespaced keys (`renderer.mode`, `env.SOME_VAR`, `binary.sha`, `warmup_frames`). A nested value makes the entry an `error` that names the key. A sidecar that is a symlink, or larger than 1 MiB, is refused.
 - **Ignored keys.** Keys that match `*timestamp*`, `*_ms`, `*duration*`, `*elapsed*`, `run.id`, `*.started_at`, `*.finished_at` or `generated_at*` (case-insensitive) are never compared, and a bare `*time*` is deliberately not among them (it would hide `timezone` or `timeout`). `--meta-ignore GLOB,...` adds more. Every ignored key that differs is still listed per entry as `meta_ignored_diff` in the report, so an ignore glob cannot hide a change unnoticed.
 - **Declared keys.** `--declare KEY|GLOB,...` names the keys allowed to differ when `--require-matching-meta` is set.
 - A sidecar on one side only shows every key of the other as `<absent>`.
-- `--meta-name NAME` (or `meta_name` in `flipdiff.toml`) changes the file name, for example `--meta-name cost-card.json` to adopt a file your pipeline already writes. `compare` and `identity` take all four flags; `view` takes `--meta-name` and `--meta-ignore`, and in `--blind` mode it hides the difference from the judge.
+- `--meta-name NAME` (or `meta_name` in `saccade.toml`) changes the file name, for example `--meta-name cost-card.json` to adopt a file your pipeline already writes. `compare` and `identity` take all four flags; `view` takes `--meta-name` and `--meta-ignore`, and in `--blind` mode it hides the difference from the judge.
 
 The report records the differences in each entry's `meta_diff` and the settings in `config.meta` ([docs/design.md](docs/design.md#9-metadata-sidecars)).
 
@@ -487,7 +489,7 @@ The report records the differences in each entry's `meta_diff` and the settings 
 `.exr` and `.hdr` (Radiance) files are paired like PNGs and compared with HDR-FLIP: both images are tone-mapped at several exposures, FLIP runs on each, and the per-pixel maximum is kept. A change in a highlight that is clipped in an 8-bit capture is visible this way.
 
 ```sh
-flipdiff compare hdr-baseline hdr-capture --out hdr-report --hdr-tonemapper aces
+saccade compare hdr-baseline hdr-capture --out hdr-report --hdr-tonemapper aces
 ```
 
 ```
@@ -506,7 +508,7 @@ Settings: `--hdr-tonemapper aces|hable|reinhard` and `--hdr-exposures START:STOP
 
 A whole-frame mean hides a local change, and some areas are noise you do not want to judge. `[[region]]` names an area that matters, and `[[mask]]` removes an area from the statistics. Both take rectangles as fractions of the frame (`[x, y, w, h]`, so a resolution change keeps their meaning). A mask can also be an image.
 
-`examples/` contains no config, so this `flipdiff.toml` is written for it: it judges the shadow area of `sphere_shadow.png` on its own and masks the sky (the top 40 percent) in every `sphere_*` image.
+`examples/` contains no config, so this `saccade.toml` is written for it: it judges the shadow area of `sphere_shadow.png` on its own and masks the sky (the top 40 percent) in every `sphere_*` image.
 
 ```toml
 [[region]]
@@ -522,7 +524,7 @@ rect = [0.0, 0.0, 1.0, 0.40]
 ```
 
 ```sh
-flipdiff compare examples/baseline examples/capture --config flipdiff.toml --out report
+saccade compare examples/baseline examples/capture --config saccade.toml --out report
 ```
 
 ```
@@ -546,7 +548,7 @@ pass     sphere_subtle.png     mean    0.00487  0.01
 
 ## Reading FLIP numbers
 
-FLIP gives each pixel an error between 0 (no visible difference) and 1. flipdiff reports statistics of that map: `mean`, `p50`, `p95`, `p99` and `max`. The table shows what some changes score. The base image is `examples/baseline/sphere_identical.png` (256x256), and the variants were generated for this table, except the last two rows, which are in `examples/`.
+FLIP gives each pixel an error between 0 (no visible difference) and 1. saccade reports statistics of that map: `mean`, `p50`, `p95`, `p99` and `max`. The table shows what some changes score. The base image is `examples/baseline/sphere_identical.png` (256x256), and the variants were generated for this table, except the last two rows, which are in `examples/`.
 
 | Change to the image | mean | p95 | max |
 |---|---:|---:|---:|
@@ -617,23 +619,23 @@ Different GPUs, drivers and operating systems produce different pixels for the s
        steps:
          - uses: actions/checkout@v4
          - run: ./render-tests.sh --out captures/
-         - uses: Tavrin/flipdiff@main
+         - uses: Tavrin/saccade@main
            with:
              baseline-dir: tests/baseline/${{ matrix.name }}
              capture-dir: captures
-             report-dir: flipdiff-report-${{ matrix.name }}
-             artifact-name: flipdiff-report-${{ matrix.name }}
+             report-dir: saccade-report-${{ matrix.name }}
+             artifact-name: saccade-report-${{ matrix.name }}
              comment-key: ${{ matrix.name }}
    ```
 
    `upload-artifact` v4 rejects two artifacts with the same name, and without a `comment-key` every job would overwrite the same pull-request comment.
 
 3. Pick the metric by how reproducible the class is:
-   - **Same GPU, driver and OS as the baseline, deterministic renderer:** use `max` with a small threshold (or `flipdiff identity` for optimizations). Any local defect shows up.
+   - **Same GPU, driver and OS as the baseline, deterministic renderer:** use `max` with a small threshold (or `saccade identity` for optimizations). Any local defect shows up.
    - **Same hardware class but driver updates, or a renderer with temporal noise:** use `mean` or `p95` with a threshold above the noise you measured (see [choosing a threshold](#reading-flip-numbers)), and add `[[region]]` tables with their own thresholds for the areas that must not move.
    - **Software rasteriser (for example llvmpipe or WARP) in CI:** treat it as its own class, with its own baselines. It is deterministic, so `max` works, but its output differs from real GPUs.
 
-4. When a driver or runner image changes the output of a class, re-baseline that class only, with `flipdiff approve`.
+4. When a driver or runner image changes the output of a class, re-baseline that class only, with `saccade approve`.
 
 ## GitHub Action
 
@@ -645,13 +647,13 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - run: ./render-tests.sh --out captures/   # your renderer
-      - uses: Tavrin/flipdiff@main
+      - uses: Tavrin/saccade@main
         with:
           baseline-dir: tests/baseline
           capture-dir: captures
 ```
 
-The action installs a prebuilt `flipdiff-<target>.tar.gz` (`.zip` on Windows) from the GitHub release for the requested ref, checks it against the `.sha256` file published next to it and runs `flipdiff --version`. If there is no matching release asset, the checksum is missing or wrong, or the binary does not run, it falls back to `cargo install --git`, which needs Rust on the runner (GitHub-hosted runners have it) and a C++ compiler. It then runs `compare`, uploads the report directory as an artifact, writes the summary to the job summary, updates one pull-request comment (found by the `<!-- flipdiff-summary -->` marker), and fails the job with the exit code of `compare`. It runs `compare` only; `identity` and `view` are CLI commands.
+The action installs a prebuilt `saccade-<target>.tar.gz` (`.zip` on Windows) from the GitHub release for the requested ref, checks it against the `.sha256` file published next to it and runs `saccade --version`. If there is no matching release asset, the checksum is missing or wrong, or the binary does not run, it falls back to `cargo install --git`, which needs Rust on the runner (GitHub-hosted runners have it) and a C++ compiler. It then runs `compare`, uploads the report directory as an artifact, writes the summary to the job summary, updates one pull-request comment (found by the `<!-- saccade-summary -->` marker), and fails the job with the exit code of `compare`. It runs `compare` only; `identity` and `view` are CLI commands.
 
 The workflow that uses the action must be able to see this repository: it must be public, or, if it is private or internal, the repository's Actions settings must grant access to the repositories that use it.
 
@@ -661,16 +663,16 @@ The workflow that uses the action must be able to see this repository: it must b
 |---|---|---|
 | `baseline-dir` | required | Directory of committed baseline images |
 | `capture-dir` | required | Directory of freshly captured images |
-| `threshold` | empty | Default pass threshold. Empty uses `flipdiff.toml`, then 0.01 |
-| `metric` | empty | `mean`, `p95` or `max`. Empty uses `flipdiff.toml`, then `mean` |
-| `config` | empty | Path to a `flipdiff.toml`. Empty uses `./flipdiff.toml` if it exists |
-| `report-dir` | `flipdiff-report` | Output directory, relative to the workspace. An absolute path is compared and summarised but not uploaded as an artifact |
-| `artifact-name` | `flipdiff-report` | Name of the uploaded artifact. Matrix jobs need distinct names |
-| `comment-key` | empty | Makes the pull-request comment unique (marker `<!-- flipdiff-summary:<key> -->`). ASCII letters, digits, `.`, `_`, `-`; at most 64 characters |
+| `threshold` | empty | Default pass threshold. Empty uses `saccade.toml`, then 0.01 |
+| `metric` | empty | `mean`, `p95` or `max`. Empty uses `saccade.toml`, then `mean` |
+| `config` | empty | Path to a `saccade.toml`. Empty uses `./saccade.toml` if it exists |
+| `report-dir` | `saccade-report` | Output directory, relative to the workspace. An absolute path is compared and summarised but not uploaded as an artifact |
+| `artifact-name` | `saccade-report` | Name of the uploaded artifact. Matrix jobs need distinct names |
+| `comment-key` | empty | Makes the pull-request comment unique (marker `<!-- saccade-summary:<key> -->`). ASCII letters, digits, `.`, `_`, `-`; at most 64 characters |
 | `fail-on-new` | `false` | A capture without a baseline counts as a regression |
 | `comment` | `true` | Create or update one pull-request comment (`pull_request` events only) |
 | `update-baselines` | `false` | On trusted `workflow_dispatch` runs, approve failing/new captures and open a baseline-update PR |
-| `update-branch-prefix` | `flipdiff/update-baselines` | Update branch prefix; the run ID is appended with a hyphen |
+| `update-branch-prefix` | `saccade/update-baselines` | Update branch prefix; the run ID is appended with a hyphen |
 | `update-prune-missing` | `false` | Explicitly opt into removing missing baselines during an update |
 | `github-token` | `github.token` | Used for the comment and for downloading the release asset |
 | `version` | the action's own ref | Git ref (tag, branch or commit) of this repository to install |
@@ -679,7 +681,7 @@ The workflow that uses the action must be able to see this repository: it must b
 
 | Output | Meaning |
 |---|---|
-| `exit-code` | Exit code of `flipdiff compare`: 0, 1 or 2 |
+| `exit-code` | Exit code of `saccade compare`: 0, 1 or 2 |
 | `failed` | Number of failed images |
 | `new` | Number of captures without a baseline |
 | `report-dir` | The report directory |
@@ -693,9 +695,9 @@ The comment needs `pull-requests: write` on the token. On pull requests from for
 Set `update-baselines: 'true'` in a `workflow_dispatch` workflow with
 `permissions: { contents: write, pull-requests: write }`. The checkout credentials
 need contents write access, and `github-token` needs pull-request write access.
-The action runs `flipdiff approve CAPTURE BASELINE --all-failing REPORT`, stages
+The action runs `saccade approve CAPTURE BASELINE --all-failing REPORT`, stages
 only the files approve copied or pruned, commits on
-`flipdiff/update-baselines-<run_id>`, pushes and opens a PR. Its body contains the
+`saccade/update-baselines-<run_id>`, pushes and opens a PR. Its body contains the
 Markdown comparison summary and the uploaded report artifact link. No changed
 baselines means no branch or PR. `update-prune-missing: 'true'` adds
 `--prune-missing`; deletion is off by default.
@@ -713,7 +715,7 @@ for a dispatch-only workflow. PR comment commands are not required.
 Use sequences to compare TAA or upscaler changes across a moving scene:
 
 ```sh
-flipdiff sequence baseline-frames capture-frames --pattern 'frame_*.png' --out sequence-report
+saccade sequence baseline-frames capture-frames --pattern 'frame_*.png' --out sequence-report
 ```
 
 Each directory is one sequence of numbered colour frames. The trailing integer
@@ -722,7 +724,7 @@ Frames pair by sorted index, so numbering may start at different values on the
 two sides. Duplicate numbers and matching files without a trailing number are
 configuration errors. Extra baseline/capture frames are missing/new entries.
 
-`flipdiff-sequence.v1.json` records the per-frame mean FLIP curve, worst frame,
+`saccade-sequence.v1.json` records the per-frame mean FLIP curve, worst frame,
 frames over their deciding threshold, and **temporal instability**: mean FLIP
 between consecutive capture frames minus the same mean for the baseline.
 A positive value means the change added variation; a negative value means it
@@ -737,7 +739,7 @@ table and adds a server-generated SVG curve. `--json` prints a lean summary;
 
 ## Non-colour buffers: G-buffer checks
 
-Declare buffer meanings in `flipdiff.toml`, then use `flipdiff compare` as usual:
+Declare buffer meanings in `saccade.toml`, then use `saccade compare` as usual:
 
 ```toml
 [[buffer]]
@@ -789,11 +791,11 @@ Compare texture compression (BC7/ASTC), upscalers, encoder settings or ML model
 checkpoints against one reference:
 
 ```sh
-flipdiff rank reference bc7 astc --labels bc7,astc --metric p95 --out rank-report
+saccade rank reference bc7 astc --labels bc7,astc --metric p95 --out rank-report
 ```
 
 Images pair by relative name in each candidate's normal comparison report.
-`flipdiff-rank.v1.json` contains a per-image ranking plus an overall ranking by
+`saccade-rank.v1.json` contains a per-image ranking plus an overall ranking by
 mean rank, then mean metric. Ties use competition ranks (1, 1, 3). Overall means
 use the same images successfully compared by every candidate; an incomplete
 reference set has no overall winner. Missing/error/new comparisons have no
@@ -809,9 +811,9 @@ candidates. `--json` returns the lean overall ranking; `--json=full` includes
 per-image results. Both new JSON schema IDs are documented in `schemas/` and
 validated by the drift and command-output tests.
 
-## Configuration: `flipdiff.toml`
+## Configuration: `saccade.toml`
 
-`--config` defaults to `./flipdiff.toml` when that file exists. Command-line flags override the top-level keys. `[[override]]` tables always apply on top, and the first matching override wins, field by field. Globs match the `/`-separated image name, ignoring case; `*` does not cross `/`, `**` does. Unknown keys are errors.
+`--config` defaults to `./saccade.toml` when that file exists. Command-line flags override the top-level keys. `[[override]]` tables always apply on top, and the first matching override wins, field by field. Globs match the `/`-separated image name, ignoring case; `*` does not cross `/`, `**` does. Unknown keys are errors.
 
 | Key | Default | Meaning |
 |---|---|---|
@@ -821,13 +823,13 @@ validated by the drift and command-output tests.
 | `allow_empty` | `false` | Accept a run that compared no pair (also `--allow-empty`); otherwise it exits 1 with "nothing compared" |
 | `fail_on_nonfinite` | `true` | A capture (HDR) with NaN or infinite samples is an `error` entry; `false` keeps only the warning |
 | `hotspot_fail` | off | Peak error in `(0, 1]` (not below `hotspot_threshold`). An entry whose metric passes still fails when its worst pixel reaches this, so a small severe defect cannot hide behind a low `mean` |
-| `[decisions]` | off | Confidence gate for `flipdiff decide`: `auto_accept_min_prob`, `allow_sources`, `gate_on` (`prob` or `confidence`); see [Bounded-decision models](#bounded-decision-models-jev-openai-decisions-api-any-llm) |
+| `[decisions]` | off | Confidence gate for `saccade decide`: `auto_accept_min_prob`, `allow_sources`, `gate_on` (`prob` or `confidence`); see [Bounded-decision models](#bounded-decision-models-jev-openai-decisions-api-any-llm) |
 | `[diagnostics]` | on | Cause analysis per pair (`class` and plain-English `description`): `enabled`, `shift_detection`, `shift_min_px`, `shift_min_confidence`, `noise_max_flip`, `explained_min`, `partial_min`, `perf_keys` (sidecar timing keys paired next to the verdict); see `docs/design.md` section 3.9 |
 | `ppd` | `67.0` | Pixels per degree of visual angle; finite and greater than 0 |
 | `ignore` | `[]` | Globs of image names to leave out of the run |
 | `hotspots` | `5` | Hotspots kept per entry; `0` disables them, see [Built for AI agents](#built-for-ai-agents) |
 | `hotspot_threshold` | `0.1` | Error above which a pixel belongs to a hotspot, in 0 to 1 |
-| `meta_name` | `"flipdiff-meta.json"` | Sidecar file name, see [Configuration sidecars](#refuse-comparisons-made-under-different-settings) |
+| `meta_name` | `"saccade-meta.json"` | Sidecar file name, see [Configuration sidecars](#refuse-comparisons-made-under-different-settings) |
 | `[[override]]` `glob` | required | Names the override applies to |
 | `[[override]]` `threshold` | inherit | Threshold for matching images |
 | `[[override]]` `metric` | inherit | Metric for matching images |
@@ -866,60 +868,60 @@ glob = "sphere_*"
 rect = [0.0, 0.0, 1.0, 0.40]
 ```
 
-Save it as `flipdiff.toml` in the current directory (or pass `--config`) and run `flipdiff compare examples/baseline examples/capture`.
+Save it as `saccade.toml` in the current directory (or pass `--config`) and run `saccade compare examples/baseline examples/capture`.
 
 ## CLI reference
 
-`flipdiff <command> --help` is authoritative. Exit codes for `compare` and `identity`: 0 no regression, 1 regression (any `fail`, `error` or `missing` entry, a `new` entry with `fail_on_new`, or nothing compared unless `--allow-empty`), 2 usage, config or IO error.
+`saccade <command> --help` is authoritative. Exit codes for `compare` and `identity`: 0 no regression, 1 regression (any `fail`, `error` or `missing` entry, a `new` entry with `fail_on_new`, or nothing compared unless `--allow-empty`), 2 usage, config or IO error.
 
 ```
-flipdiff compare <BASELINE_DIR> <CAPTURE_DIR> [--out report] [--threshold F] [--metric mean|p95|p99|max]
-                 [--config flipdiff.toml] [--fail-on-new] [--allow-empty] [--json] [--ppd F] [--labels A,B]
+saccade compare <BASELINE_DIR> <CAPTURE_DIR> [--out report] [--threshold F] [--metric mean|p95|p99|max]
+                 [--config saccade.toml] [--fail-on-new] [--allow-empty] [--json] [--ppd F] [--labels A,B]
                  [--hdr-tonemapper aces|hable|reinhard] [--hdr-exposures START:STOP:N]
                  [--meta-name NAME] [--meta-ignore GLOB,...] [--require-matching-meta] [--declare KEY,...]
 
-flipdiff identity <PARENT_DIR> <CANDIDATE_DIR> [--out report] [--threshold F] [--metric mean|p95|p99|max]
-                  [--config flipdiff.toml] [--allow-empty] [--json] [--ppd F] [--labels A,B]
+saccade identity <PARENT_DIR> <CANDIDATE_DIR> [--out report] [--threshold F] [--metric mean|p95|p99|max]
+                  [--config saccade.toml] [--allow-empty] [--json] [--ppd F] [--labels A,B]
                   [--meta-name NAME] [--meta-ignore GLOB,...] [--require-matching-meta] [--declare KEY,...]
 
-flipdiff approve <CAPTURE_DIR> <BASELINE_DIR> [NAMES...] [--all-failing <REPORT_JSON>
+saccade approve <CAPTURE_DIR> <BASELINE_DIR> [NAMES...] [--all-failing <REPORT_JSON>
                  [--include-errors] [--prune-missing]] [--decisions <DECISIONS_JSON>] [--force]
 
-flipdiff summary <REPORT_JSON> [--format markdown|text] [--artifact-url URL] [--comment-key KEY]
+saccade summary <REPORT_JSON> [--format markdown|text] [--artifact-url URL] [--comment-key KEY]
 
-flipdiff view <DIR> <DIR> [<DIR>...] [--labels a,b,...] [--reference X] [--blind [--seed N] [--key-out PATH]]
-              [--out view] [--ppd F] [--config flipdiff.toml]
+saccade view <DIR> <DIR> [<DIR>...] [--labels a,b,...] [--reference X] [--blind [--seed N] [--key-out PATH]]
+              [--out view] [--ppd F] [--config saccade.toml]
               [--hdr-tonemapper NAME] [--hdr-exposures START:STOP:N]
               [--meta-name NAME] [--meta-ignore GLOB,...]
 
-flipdiff unblind <DECISIONS_JSON> <BLIND_KEY_JSON> [--out FILE]
+saccade unblind <DECISIONS_JSON> <BLIND_KEY_JSON> [--out FILE]
 
-flipdiff runs <REF_DIR> <RUN_DIR>... [--json] [--out DIR] [--labels REF,A,..] [--pair-by-position] [--ppd F]
+saccade runs <REF_DIR> <RUN_DIR>... [--json] [--out DIR] [--labels REF,A,..] [--pair-by-position] [--ppd F]
 
-flipdiff serve <ROOT>... [--follow-symlinks-within-roots] [--port 7878] [--open] [--cache-dir DIR] [--decisions-dir DIR] [--config flipdiff.toml]
+saccade serve <ROOT>... [--follow-symlinks-within-roots] [--port 7878] [--open] [--cache-dir DIR] [--decisions-dir DIR] [--config saccade.toml]
                [--ppd F] [--hdr-tonemapper NAME] [--hdr-exposures START:STOP:N] [--meta-name NAME] [--meta-ignore GLOB,...]
 
-flipdiff explain <REPORT_JSON> [--out DIR] [--top 3] [--pad 16] [--stretch] [--hotspot-min-share 0.01]
+saccade explain <REPORT_JSON> [--out DIR] [--top 3] [--pad 16] [--stretch] [--hotspot-min-share 0.01]
                  [--blind --key-out PATH [--seed N]] [--entries NAME,...] [--json]
 
-flipdiff snapshot <REPORT_JSON|VIEW_DIR> [--entry NAME] [--state HASH] [--out snapshot.png] [--width 1600] [--json]
+saccade snapshot <REPORT_JSON|VIEW_DIR> [--entry NAME] [--state HASH] [--out snapshot.png] [--width 1600] [--json]
 
-flipdiff decision-request <REPORT_JSON> [--entry NAME] [--all-failing] [--question accept|triage|cause|ask_human|mask_suggest] [--intent TEXT]
+saccade decision-request <REPORT_JSON> [--entry NAME] [--all-failing] [--question accept|triage|cause|ask_human|mask_suggest] [--intent TEXT]
 
-flipdiff decide <REPORT_JSON|VIEW_DIR|DECISIONS_JSON|SESSION_ID> [--entry NAME] [--question Q] [--hotspot N] [--answer A] [--prob F] [--confidence F]
-                [--source S] [--note TEXT] [--request-hash H] [--config flipdiff.toml] [--json]   # without --answer: JSON lines on stdin
+saccade decide <REPORT_JSON|VIEW_DIR|DECISIONS_JSON|SESSION_ID> [--entry NAME] [--question Q] [--hotspot N] [--answer A] [--prob F] [--confidence F]
+                [--source S] [--note TEXT] [--request-hash H] [--config saccade.toml] [--json]   # without --answer: JSON lines on stdin
 
-flipdiff mcp [--root DIR]
+saccade mcp [--root DIR]
 ```
 
 | Command | Defaults and notes |
 |---|---|
-| `compare` | `--out report`. Threshold 0.01 and metric `mean` unless the config or a flag says otherwise. Baseline first, capture second. `--json` prints the lean `flipdiff-result.v1` instead of the table and `--json=full` the whole report; the report directory is always written. Each run first removes `flipdiff-report.v1.json`, `index.html` and `images/` from the report directory, and nothing else. `--out` is refused (exit 2) when it is inside either input directory, or when it exists, is not empty and holds no `flipdiff-report.v1.json` (it is not a previous report). Pairs are compared in parallel (all cores; set `RAYON_NUM_THREADS` to limit); the output order does not change. For a passing entry whose worst hotspot peaks at 0.5 or more, the table and the Markdown add `↳ pass, but local hotspot: ...` |
-| `identity` | Metric `max`, threshold 0, labels `parent,candidate`. Ignores `[[override]]` from an auto-loaded `./flipdiff.toml` (pass `--config` to apply them) |
+| `compare` | `--out report`. Threshold 0.01 and metric `mean` unless the config or a flag says otherwise. Baseline first, capture second. `--json` prints the lean `saccade-result.v1` instead of the table and `--json=full` the whole report; the report directory is always written. Each run first removes `saccade-report.v1.json`, `index.html` and `images/` from the report directory, and nothing else. `--out` is refused (exit 2) when it is inside either input directory, or when it exists, is not empty and holds no `saccade-report.v1.json` (it is not a previous report). Pairs are compared in parallel (all cores; set `RAYON_NUM_THREADS` to limit); the output order does not change. For a passing entry whose worst hotspot peaks at 0.5 or more, the table and the Markdown add `↳ pass, but local hotspot: ...` |
+| `identity` | Metric `max`, threshold 0, labels `parent,candidate`. Ignores `[[override]]` from an auto-loaded `./saccade.toml` (pass `--config` to apply them) |
 | `approve` | Capture first, baseline second: the reverse of `compare`. Name images, or use `--all-failing` (every `fail` and `new` entry) and `--decisions` (every `accept`). `--prune-missing` needs `--all-failing`. Reports and decisions files record the absolute baseline and capture directories and a SHA-256 per image; `--all-failing` and `--decisions` refuse (exit 2) when the directories you give differ from the recorded ones, when a capture or baseline file changed since it was reviewed, when a decision preferred another directory, or when the decisions file is still blind (run `unblind` first). `--force` overrides the first three. A report or decisions file written by an older version records nothing, so it only warns |
-| `summary` | `--format markdown` is the default. Markdown starts with the `<!-- flipdiff-summary -->` marker |
-| `view` | 2 to 6 directories. `--out view`. Reference is the first directory unless `--reference` is given. `--seed` makes the blind shuffle reproducible. `--out` is refused (exit 2) when it is inside one of the input directories, or exists, is not empty and holds no `flipdiff-view.v1.json`. Image sets are built in parallel |
-| `serve` | 127.0.0.1 only, `--port 7878` (0 picks a free one). The archive is never written to. See [Browse and compare runs](#browse-and-compare-runs-flipdiff-serve) |
+| `summary` | `--format markdown` is the default. Markdown starts with the `<!-- saccade-summary -->` marker |
+| `view` | 2 to 6 directories. `--out view`. Reference is the first directory unless `--reference` is given. `--seed` makes the blind shuffle reproducible. `--out` is refused (exit 2) when it is inside one of the input directories, or exists, is not empty and holds no `saccade-view.v1.json`. Image sets are built in parallel |
+| `serve` | 127.0.0.1 only, `--port 7878` (0 picks a free one). The archive is never written to. See [Browse and compare runs](#browse-and-compare-runs-saccade-serve) |
 | `explain` | `--out` defaults to `explain/` next to the report JSON. Only the pack's own files are replaced, and `--out` is refused (exit 2) when it exists, is not empty and holds no `explain.json`. See [Built for AI agents](#built-for-ai-agents) |
 | `mcp` | MCP over stdio. `--root DIR` (default: the working directory) is the only place the agent may read or write; anything outside is `unsafe_path` |
 | `unblind` | Prints to stdout unless `--out` is given. Fails if the seed or the labels of the two files differ. The result has `"blind": false` and the true directories |
@@ -928,7 +930,7 @@ Images are paired by path relative to each directory (`png`, `jpg`, `jpeg`, `exr
 
 ## Comparison with other tools
 
-| | flipdiff | pixelmatch | ImageMagick `compare` | reg-suit, Percy, Chromatic | NVIDIA `flip` CLI |
+| | saccade | pixelmatch | ImageMagick `compare` | reg-suit, Percy, Chromatic | NVIDIA `flip` CLI |
 |---|---|---|---|---|---|
 | Metric | FLIP (perceptual) | Pixel distance in YIQ colour space with anti-aliasing detection | AE, RMSE, PSNR, SSIM and others | Mostly pixel or DOM-aware diffs (varies by service) | FLIP |
 | Directory-to-directory run, exit code | Yes | Library: you write the loop | One pair per call | Yes (hosted workflow) | One pair per call |
@@ -938,23 +940,23 @@ Images are paired by path relative to each directory (`png`, `jpg`, `jpeg`, `exr
 | Hosted baselines, approval UI, PR status checks | No | No | No | Yes | No |
 | Runs offline, no account | Yes | Yes | Yes | No | Yes |
 
-When flipdiff is not the right tool:
+When saccade is not the right tool:
 
-- **Web or UI testing with a hosted review workflow.** Percy and Chromatic capture the page, store baselines, and give reviewers an approval UI and PR checks. flipdiff does none of that: you bring the captures and the baseline storage.
-- **A single pixel-exact comparison.** For identical output, compare the bytes or hashes. (`flipdiff identity` also reports `bit_identical`, but it decodes images first.)
-- **Exact published HDR-FLIP numbers.** NVIDIA's `flip` tool keeps the exposures in float; flipdiff quantises them to 8 bits.
+- **Web or UI testing with a hosted review workflow.** Percy and Chromatic capture the page, store baselines, and give reviewers an approval UI and PR checks. saccade does none of that: you bring the captures and the baseline storage.
+- **A single pixel-exact comparison.** For identical output, compare the bytes or hashes. (`saccade identity` also reports `bit_identical`, but it decodes images first.)
+- **Exact published HDR-FLIP numbers.** NVIDIA's `flip` tool keeps the exposures in float; saccade quantises them to 8 bits.
 - **Judging correctness.** FLIP measures how visible a difference is, not whether it is a bug.
-- **Tiny scripts that only need a per-pixel diff.** pixelmatch is a few hundred lines with no native dependency; flipdiff compiles C++.
+- **Tiny scripts that only need a per-pixel diff.** pixelmatch is a few hundred lines with no native dependency; saccade compiles C++.
 
 ## Limits
 
-- **HDR-FLIP is an approximation.** The reference keeps every exposure in float. flipdiff tone-maps and then quantises each exposure to 8-bit sRGB before running FLIP. Values can differ slightly from NVIDIA's tool.
+- **HDR-FLIP is an approximation.** The reference keeps every exposure in float. saccade tone-maps and then quantises each exposure to 8-bit sRGB before running FLIP. Values can differ slightly from NVIDIA's tool.
 - **FLIP measures visibility, not correctness.** A large, visible change can be intended; a small, invisible one can be a bug (a wrong buffer that happens to look similar). A passing run means "a person would not notice the difference at this viewing condition", not "the renderer is right".
 - **Masks remove pixels from the statistics, not from the filtering.** FLIP's spatial filter spreads a change near a mask's edge into the pixels next to it. Leave a margin.
 - **Nondeterministic captures** (temporal noise, random sampling, animation, differing GPUs) need one of: a threshold above the measured noise, masks over the noisy areas, or making the capture deterministic (fixed seeds and frame count, no time-dependent effects). Measure first.
 - **Inputs are 8-bit** (PNG, JPEG), or float (EXR, Radiance HDR). 16-bit PNGs are accepted and down-converted to 8 bits for FLIP.
 - **Colour space.** 8-bit images are treated as sRGB. There is no ICC profile handling.
-- flipdiff does not run your renderer or capture images, and does not store baselines or host images.
+- saccade does not run your renderer or capture images, and does not store baselines or host images.
 
 ## Roadmap
 
@@ -968,55 +970,55 @@ See [CONTRIBUTING.md](CONTRIBUTING.md). Changes are listed in [CHANGELOG.md](CHA
 
 ## Credits and licence
 
-flipdiff grew out of the visual-test crate of the Moss engine. The FLIP algorithm is by NVIDIA (Andersson et al., "FLIP: A Difference Evaluator for Alternating Images", High Performance Graphics 2020), used through the `nv-flip` bindings; the HDR-FLIP exposure procedure is ported from NVIDIA's reference code. See [THIRD_PARTY.md](THIRD_PARTY.md).
+saccade grew out of the visual-test crate of the Moss engine. The FLIP algorithm is by NVIDIA (Andersson et al., "FLIP: A Difference Evaluator for Alternating Images", High Performance Graphics 2020), used through the `nv-flip` bindings; the HDR-FLIP exposure procedure is ported from NVIDIA's reference code. See [THIRD_PARTY.md](THIRD_PARTY.md).
 
 Licensed under `MIT OR Apache-2.0`, at your option: [LICENSE-MIT](LICENSE-MIT), [LICENSE-APACHE](LICENSE-APACHE). The bundled NVIDIA FLIP code is BSD-3-Clause.
 
 ## Bisect image divergence
 
 ```sh
-flipdiff bisect --runs runs/old runs/middle runs/new --out bisect-report --json
-flipdiff bisect --runs-from ordered-runs.txt --good runs/reference --entries '**/*.png'
-flipdiff bisect --git GOOD..BAD --capture-cmd './capture-revision {rev} {out}' --reference baseline --out bisect-report --json
+saccade bisect --runs runs/old runs/middle runs/new --out bisect-report --json
+saccade bisect --runs-from ordered-runs.txt --good runs/reference --entries '**/*.png'
+saccade bisect --git GOOD..BAD --capture-cmd './capture-revision {rev} {out}' --reference baseline --out bisect-report --json
 ```
 
 Existing runs are ordered oldest to newest and compared with the first (or `--good`). The default detects any change in native image samples, including changes FLIP cannot see; additions and missing images fail. `--threshold` explicitly switches to a FLIP gate; `--metric mean|p95|p99|max` defaults to max. `--entries` is one image-name glob. The search assumes monotonic divergence. It reports only non-monotonic observations it actually saw; it does not scan history to prove monotonicity. Skipped image errors or capture failures leave explicit candidates and an inconclusive result when the first bad target cannot be pinned down. `--runs-from` contains one path per line, resolved against the working directory.
 
-Command mode reads `git rev-list --reverse GOOD..BAD` in the current directory. It performs no checkout or other Git mutation. **The user command runs with `sh -c` and can have arbitrary side effects**; the command is responsible for building/capturing a revision into its fresh output directory. Use unquoted `{rev}` and `{out}` placeholders: flipdiff substitutes shell-quoted arguments. Command output goes to each capture directory's `capture.log`. MCP `flipdiff_bisect` supports existing runs only, because command mode executes shell code.
+Command mode reads `git rev-list --reverse GOOD..BAD` in the current directory. It performs no checkout or other Git mutation. **The user command runs with `sh -c` and can have arbitrary side effects**; the command is responsible for building/capturing a revision into its fresh output directory. Use unquoted `{rev}` and `{out}` placeholders: saccade substitutes shell-quoted arguments. Command output goes to each capture directory's `capture.log`. MCP `saccade_bisect` supports existing runs only, because command mode executes shell code.
 
-`flipdiff-bisect.v1` includes `first_bad`, `last_good`, `probes` (verdict and report directory), `total_probes`, `candidates` and `non_monotonic`. Exit 0 = pass, 1 = first bad found, 2 = inconclusive/non-monotonic or command error. Reports are kept under `--out` (default `bisect-report`); inputs must be separate from it.
+`saccade-bisect.v1` includes `first_bad`, `last_good`, `probes` (verdict and report directory), `total_probes`, `candidates` and `non_monotonic`. Exit 0 = pass, 1 = first bad found, 2 = inconclusive/non-monotonic or command error. Reports are kept under `--out` (default `bisect-report`); inputs must be separate from it.
 
 ## Watch captures
 
 ```sh
-flipdiff watch baseline captures --out watch-report --config flipdiff.toml --debounce-ms 500
-flipdiff watch baseline captures --out watch-report --once --json
-flipdiff mcp --root . --watch baseline:captures
+saccade watch baseline captures --out watch-report --config saccade.toml --debounce-ms 500
+saccade watch baseline captures --out watch-report --once --json
+saccade mcp --root . --watch baseline:captures
 ```
 
-Watch compares initially, then recursively monitors captures with `notify` and a content-comparing polling fallback. The quiet period debounces file changes. Each result replaces the normal report and prints one line (verdict, counts, worst entry and diagnosis); `--json` emits `flipdiff-result.v1` JSONL. Comparison failures print an error line (`flipdiff-error.v1` in JSON mode). Ctrl-C exits with the last result's code. `--once` compares without installing a watcher. Only the capture directory triggers reruns; baseline/config changes need a restart.
+Watch compares initially, then recursively monitors captures with `notify` and a content-comparing polling fallback. The quiet period debounces file changes. Each result replaces the normal report and prints one line (verdict, counts, worst entry and diagnosis); `--json` emits `saccade-result.v1` JSONL. Comparison failures print an error line (`saccade-error.v1` in JSON mode). Ctrl-C exits with the last result's code. `--once` compares without installing a watcher. Only the capture directory triggers reruns; baseline/config changes need a restart.
 
-MCP keeps a watcher thread per repeatable `--watch BASE:CAP` pair. `flipdiff_watch_status` takes `capture_dir` and returns its latest lean result (or initialization/setup error). After client initialization, each new result also sends a best-effort `notifications/message` log; clients may ignore it. Reports live in `<root>/.flipdiff-watch/N/`.
+MCP keeps a watcher thread per repeatable `--watch BASE:CAP` pair. `saccade_watch_status` takes `capture_dir` and returns its latest lean result (or initialization/setup error). After client initialization, each new result also sends a best-effort `notifications/message` log; clients may ignore it. Reports live in `<root>/.saccade-watch/N/`.
 
 ## Ask a human in the local inbox
 
-Run `flipdiff serve ARCHIVE --port 7878` and open `/inbox` (also linked from the landing header). Agents post questions with a closed answer set; humans see context, open the linked evidence at its exact view hash, choose an answer and optionally leave a note.
+Run `saccade serve ARCHIVE --port 7878` and open `/inbox` (also linked from the landing header). Agents post questions with a closed answer set; humans see context, open the linked evidence at its exact view hash, choose an answer and optionally leave a note.
 
 ```sh
-flipdiff ask --serve http://127.0.0.1:7878 --question 'Is this lighting change intended?' --answers accept,reject --link '/compare?runs=before,after#entry=scene.png' --wait --timeout 600 --json
+saccade ask --serve http://127.0.0.1:7878 --question 'Is this lighting change intended?' --answers accept,reject --link '/compare?runs=before,after#entry=scene.png' --wait --timeout 600 --json
 ```
 
-Serve writes `<cache-dir>/serve.json` with port/token and mode 0600. Ask reads it (`--cache-dir` for a custom serve cache), connects only to literal `127.0.0.1`, and never follows redirects. Optional `--context` and `--from` carry supporting text and agent identity. Without `--wait`, ask returns immediately with an open item. `flipdiff-ask-result.v1` includes id, status, answer, note, human URL and `timed_out`; a wait timeout leaves the item open and exits 2. MCP `flipdiff_ask_human` posts and optionally waits; `flipdiff_inbox_get` reads the answer. Both take `serve`, optional `cache_dir`, and the appropriate question/id fields.
+Serve writes `<cache-dir>/serve.json` with port/token and mode 0600. Ask reads it (`--cache-dir` for a custom serve cache), connects only to literal `127.0.0.1`, and never follows redirects. Optional `--context` and `--from` carry supporting text and agent identity. Without `--wait`, ask returns immediately with an open item. `saccade-ask-result.v1` includes id, status, answer, note, human URL and `timed_out`; a wait timeout leaves the item open and exits 2. MCP `saccade_ask_human` posts and optionally waits; `saccade_inbox_get` reads the answer. Both take `serve`, optional `cache_dir`, and the appropriate question/id fields.
 
-API: `POST /api/inbox` accepts `{question, allowed_answers, context?, link?, from?}` and returns `{id}`; `GET /api/inbox` lists open items first; `GET /api/inbox/<id>` reads one; `POST /api/inbox/<id>/answer` accepts `{answer, note?}`. POSTs require the existing matching Host/Origin and `X-Flipdiff-Token` rules. Links must point to this serve instance. Questions persist in `<decisions-dir>/inbox/<id>.json`, outside archive roots. An inbox answer records human feedback; it never updates a baseline or approves a comparison.
+API: `POST /api/inbox` accepts `{question, allowed_answers, context?, link?, from?}` and returns `{id}`; `GET /api/inbox` lists open items first; `GET /api/inbox/<id>` reads one; `POST /api/inbox/<id>/answer` accepts `{answer, note?}`. POSTs require the existing matching Host/Origin and `X-Saccade-Token` rules. Links must point to this serve instance. Questions persist in `<decisions-dir>/inbox/<id>.json`, outside archive roots. An inbox answer records human feedback; it never updates a baseline or approves a comparison.
 
 ## Agent integrations
 
-[Installation and small instruction packs](integrations/README.md) cover Claude Code MCP, a skill and `/flipdiff` command, plus a Codex MCP configuration and `AGENTS.md` snippet. The workflow is compare → snapshot/explain → propose a decision → ask a human when ambiguous. Never auto-approve a baseline.
+[Installation and small instruction packs](integrations/README.md) cover Claude Code MCP, a skill and `/saccade` command, plus a Codex MCP configuration and `AGENTS.md` snippet. The workflow is compare → snapshot/explain → propose a decision → ask a human when ambiguous. Never auto-approve a baseline.
 
 ## Judge mode
 
-`flipdiff judge` asks a bounded question of a panel and records its answers as
+`saccade judge` asks a bounded question of a panel and records its answers as
 proposals through `decide`. The result explains its question kind and trust limits:
 
 | Kind | Questions | Limit |
@@ -1032,10 +1034,10 @@ Individual judges, including human voters, remain proposals. Only the settled
 remain refused, and `approve` continues to read final decisions only.
 
 ```sh
-flipdiff compare examples/baseline examples/capture --out /tmp/flipdiff-judge-example
-flipdiff judge /tmp/flipdiff-judge-example/flipdiff-report.v1.json --panel examples/panel.toml --intent 'Soften the shadow' --both-orders --dry-run
-flipdiff judge /tmp/flipdiff-judge-example/flipdiff-report.v1.json --panel examples/panel.toml --intent 'Soften the shadow' --both-orders
-flipdiff judge rank/flipdiff-rank.v1.json --panel examples/panel.toml --question preference --intent 'Best shadow quality'
+saccade compare examples/baseline examples/capture --out /tmp/saccade-judge-example
+saccade judge /tmp/saccade-judge-example/saccade-report.v1.json --panel examples/panel.toml --intent 'Soften the shadow' --both-orders --dry-run
+saccade judge /tmp/saccade-judge-example/saccade-report.v1.json --panel examples/panel.toml --intent 'Soften the shadow' --both-orders
+saccade judge rank/saccade-rank.v1.json --panel examples/panel.toml --question preference --intent 'Best shadow quality'
 ```
 
 A panel TOML has an optional `[panel]` and one `[[judge]]` per model or human
@@ -1076,8 +1078,8 @@ real questions. Failures flag the judge and reduce its weight. A canary pass is
 an easy-case sanity check, not evidence that hard answers are reliable.
 
 ```sh
-flipdiff judge calibrate --labels reviewer-a.json reviewer-b.json --runs report/flipdiff-judge.v1.json --out flipdiff-calibration.v1.json
-flipdiff judge selftest report/flipdiff-report.v1.json --panel examples/panel.toml --items 1 --max-calls 20
+saccade judge calibrate --labels reviewer-a.json reviewer-b.json --runs report/saccade-judge.v1.json --out saccade-calibration.v1.json
+saccade judge selftest report/saccade-report.v1.json --panel examples/panel.toml --items 1 --max-calls 20
 ```
 
 Calibration reports per judge/question accuracy, agreement with human finals,
@@ -1085,7 +1087,7 @@ ECE, a reliability table, position bias and nominal Krippendorff's alpha when
 several humans labelled the same items. Alpha describes human agreement; it is
 not a mathematical bound on objective accuracy. Threshold suggestions require
 at least `--min-support` labelled predictions (default 10) at the requested
-accuracy. Set `[decisions] calibration = 'flipdiff-calibration.v1.json'` (relative
+accuracy. Set `[decisions] calibration = 'saccade-calibration.v1.json'` (relative
 to the config), or use `judge --calibration`, to let the gate use a suggested
 threshold for its source. `panel` needs its own calibration row. No suggestion
 means the ordinary configured threshold applies. Self-tests measure the repeat
@@ -1094,7 +1096,7 @@ shifts. Ranking uses individual merged pairwise votes in Bradley–Terry with
 deterministic bootstrap confidence intervals; sparse or disconnected votes
 produce warnings instead of confident ordering.
 
-For human votes, run `flipdiff serve examples --decisions-dir /tmp/flipdiff-votes`,
+For human votes, run `saccade serve examples --decisions-dir /tmp/saccade-votes`,
 then judge with the same `--decisions-dir`. Open the returned
 `/vote/<panel-run-id>` link on that server. Each voter chooses a name (remembered
 in localStorage with storage errors caught), sees shuffled anonymous strips in
@@ -1105,8 +1107,8 @@ both orders must be completed. The run id binds the evidence content and panel
 rubrics. The vote page uses serve's Host/Origin/token checks and stays local.
 
 **Privacy.** Judge mode reads Jev and Gemini keys only from
-`~/.config/flipdiff/jev.env` (`JEV_API_KEY`) and
-`~/.config/flipdiff/gemini.env` (`FLIPDIFF_GEMINI_API_KEY`), or `--keys-dir`.
+`~/.config/saccade/jev.env` (`JEV_API_KEY`) and
+`~/.config/saccade/gemini.env` (`SACCADE_GEMINI_API_KEY`), or `--keys-dir`.
 Ambient API-key variables are ignored. HTTP keys travel only in headers to their
 provider endpoint; redirects are disabled and errors redact the key. Free
 OpenCode calls run with isolated configuration, no inherited API keys and tool
@@ -1116,13 +1118,13 @@ provider calls and writes no votes or decisions, but still runs an explicitly
 supplied local OCR hook. Judge mode does not upload full images or private
 captures on your behalf.
 
-`flipdiff-judge.v1`, `flipdiff-calibration.v1`, `flipdiff-judge-selftest.v1` and
-`flipdiff-judge-votes.v1` (with `flipdiff-judge-vote-api.v1` for API responses) have shipped schemas. Each judgement records judge,
+`saccade-judge.v1`, `saccade-calibration.v1`, `saccade-judge-selftest.v1` and
+`saccade-judge-votes.v1` (with `saccade-judge-vote-api.v1` for API responses) have shipped schemas. Each judgement records judge,
 provider, requested/answering model, reported version, probability/confidence,
 rubric version, evidence hash, timestamp, latency and fallback attempts. The
 `trust` text distinguishes measured calibration from providers' own stated
 probabilities, shows panel support and names escalation reasons. MCP exposes
-`flipdiff_judge` and `flipdiff_judge_calibrate`; nested reports and image paths
+`saccade_judge` and `saccade_judge_calibrate`; nested reports and image paths
 are confined to the MCP root.
 
 Public-data live answers, probabilities, latencies, errors and exact commands are

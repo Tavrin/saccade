@@ -1,22 +1,22 @@
 // Local visual acceptance: start the CLI fixture server and Chrome with --disable-gpu
 // --remote-debugging-port first. No browser download or network access is needed.
-const { chromium } = require(process.env.FLIPDIFF_PLAYWRIGHT || 'playwright');
+const { chromium } = require(process.env.SACCADE_PLAYWRIGHT || 'playwright');
 const fs = require('node:fs');
 const path = require('node:path');
 const assert = require('node:assert/strict');
-const staticBase = process.env.FLIPDIFF_STATIC_URL || 'http://127.0.0.1:18879';
-const serveBase = process.env.FLIPDIFF_SERVE_URL || 'http://127.0.0.1:18878';
-const out = process.env.FLIPDIFF_SHOTS || '/mnt/linux-extra/moss-cargo-targets/codex-flipdiff-u1-shots';
+const staticBase = process.env.SACCADE_STATIC_URL || 'http://127.0.0.1:18879';
+const serveBase = process.env.SACCADE_SERVE_URL || 'http://127.0.0.1:18878';
+const out = process.env.SACCADE_SHOTS || '/mnt/linux-extra/moss-cargo-targets/codex-saccade-u1-shots';
 const results = { pages: [], checks: [], errors: [] };
 const pause = ms => new Promise(r => setTimeout(r, ms));
 (async () => {
   fs.mkdirSync(out, { recursive: true });
-  const browser = await chromium.connectOverCDP(process.env.FLIPDIFF_CDP || 'http://127.0.0.1:19333');
+  const browser = await chromium.connectOverCDP(process.env.SACCADE_CDP || 'http://127.0.0.1:19333');
   const context = await browser.newContext({ viewport: { width: 1440, height: 1000 }, colorScheme: 'light' });
   // Observe the real page registry, without changing registered actions or their behavior.
   await context.addInitScript(() => {
     let ui;
-    Object.defineProperty(window, '__flipdiffUI', { get: () => ui, set: value => {
+    Object.defineProperty(window, '__saccadeUI', { get: () => ui, set: value => {
       ui = value;
       let use;
       Object.defineProperty(ui, 'use', { get: () => use, set: fn => {
@@ -29,11 +29,11 @@ const pause = ms => new Promise(r => setTimeout(r, ms));
   page.on('response', r => { if (r.status() >= 400 && !r.url().endsWith('/favicon.ico') && !(r.status() === 404 && /\/api\/session\/[^/]+\/decisions$/.test(r.url()))) results.errors.push({ url: r.url(), status: r.status() }); });
   await page.goto(serveBase + '/compare?runs=reference,candidate,tone-fit&set=sphere_shadow.png&a=reference&b=candidate');
   await page.waitForURL(/\/session\//, { timeout: 60000 });
-  await page.waitForFunction(() => !!window.flipdiff);
+  await page.waitForFunction(() => !!window.saccade);
   const session = page.url();
   // Populate this isolated inbox solely to inspect a representative existing page.
   await page.evaluate(async () => {
-    const r = await fetch('/api/inbox', { method: 'POST', headers: { 'Content-Type': 'application/json', 'X-Flipdiff-Token': window.FLIPDIFF_SERVE.token }, body: JSON.stringify({ question: 'Is the softer shadow an intended lighting change?', allowed_answers: ['accept', 'reject', 'needs-work'], context: 'Candidate reduces frame time from 12.0 ms to 10.4 ms. Review the center and bottom-center hotspots.', link: '/compare?runs=reference,candidate#entry=sphere_shadow.png', from: 'Visual review' }) });
+    const r = await fetch('/api/inbox', { method: 'POST', headers: { 'Content-Type': 'application/json', 'X-Saccade-Token': window.SACCADE_SERVE.token }, body: JSON.stringify({ question: 'Is the softer shadow an intended lighting change?', allowed_answers: ['accept', 'reject', 'needs-work'], context: 'Candidate reduces frame time from 12.0 ms to 10.4 ms. Review the center and bottom-center hotspots.', link: '/compare?runs=reference,candidate#entry=sphere_shadow.png', from: 'Visual review' }) });
     if (!r.ok) throw new Error(await r.text());
   });
   const pages = [
@@ -53,7 +53,7 @@ const pause = ms => new Promise(r => setTimeout(r, ms));
     await page.emulateMedia({ colorScheme: scheme, reducedMotion: 'reduce' });
     for (const [name, url, state] of pages) {
       await page.goto(url);
-      if (state) await page.evaluate(s => window.flipdiff.set(s), state);
+      if (state) await page.evaluate(s => window.saccade.set(s), state);
       if (name === 'serve-browse') {
         // The archive uses a path query inside its hash; follow a real run control.
         await page.waitForSelector('#runbox:not([hidden])');
@@ -63,7 +63,7 @@ const pause = ms => new Promise(r => setTimeout(r, ms));
         await Promise.race([Promise.all([...document.images].filter(i => i.getClientRects().length).map(i => i.decode().catch(() => {}))), new Promise(resolve => setTimeout(resolve, 3000))]);
       });
       // Test 1: every actual page embeds tokens/components, fits its viewport and respects theme.
-      const geometry = await page.evaluate(() => ({ width: document.documentElement.scrollWidth, viewport: innerWidth, bg: getComputedStyle(document.documentElement).getPropertyValue('--bg').trim(), shared: [...document.querySelectorAll('style')].some(s => s.textContent.includes('flipdiff design tokens') && s.textContent.includes('flipdiff shared components')), stage: document.querySelector('.stage')?.getBoundingClientRect().toJSON() }));
+      const geometry = await page.evaluate(() => ({ width: document.documentElement.scrollWidth, viewport: innerWidth, bg: getComputedStyle(document.documentElement).getPropertyValue('--bg').trim(), shared: [...document.querySelectorAll('style')].some(s => s.textContent.includes('saccade design tokens') && s.textContent.includes('saccade shared components')), stage: document.querySelector('.stage')?.getBoundingClientRect().toJSON() }));
       assert(geometry.shared, name + ' does not embed the design system');
       assert(geometry.width <= width, name + ' overflows at ' + width);
       if (name === 'report') assert(await page.locator('tr.row').first().evaluate(n => n.getBoundingClientRect().height < 100), 'report name column collapsed');
@@ -106,7 +106,7 @@ const pause = ms => new Promise(r => setTimeout(r, ms));
           assert.match(await page.locator('.legend.mask').innerText(), /NaN[\s\S]*Inf[\s\S]*negative/);
         }
         if (name === 'report' || name === 'view') {
-          await page.evaluate(() => window.flipdiff.set({ layout: 'swipe', signed: .75 }));
+          await page.evaluate(() => window.saccade.set({ layout: 'swipe', signed: .75 }));
           assert.match(await page.locator('.legend.signed').innerText(), /darker[\s\S]*brighter/);
           const display = name === 'view' ? page.locator('#display-btn') : page.getByRole('button', { name: 'Display', exact: true });
           await display.click();
@@ -127,7 +127,7 @@ const pause = ms => new Promise(r => setTimeout(r, ms));
     }
     console.log('captured', width, scheme);
   }
-  assert(!results.errors.some(e => e.url.includes('flipdiff-decisions.v1.js')), 'served session requested decision twin');
+  assert(!results.errors.some(e => e.url.includes('saccade-decisions.v1.js')), 'served session requested decision twin');
   assert.deepEqual(results.errors, [], 'browser/network errors');
   fs.writeFileSync(path.join(out, 'qa-results.json'), JSON.stringify(results, null, 2) + '\n');
   await context.close(); await browser.close();

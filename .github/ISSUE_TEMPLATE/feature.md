@@ -6,6 +6,6 @@ labels: enhancement
 
 **What are you trying to do?** (the problem, not the solution)
 
-**What would you like flipdiff to do?**
+**What would you like saccade to do?**
 
 **What do you do today instead?**

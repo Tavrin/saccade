@@ -1,0 +1,400 @@
+{
+  "$defs": {
+    "ChangeClass": {
+      "description": "What kind of change separates the capture from the baseline.",
+      "oneOf": [
+        {
+          "const": "identical",
+          "description": "Decoded pixels are exactly equal.",
+          "type": "string"
+        },
+        {
+          "const": "noise",
+          "description": "A difference whose peak FLIP is at or below `noise_max_flip` and that\nno tone shift or offset explains.",
+          "type": "string"
+        },
+        {
+          "const": "global_tone",
+          "description": "One global tone fit (exposure, tint, black level) removes at least\n`explained_min` of the error.",
+          "type": "string"
+        },
+        {
+          "const": "local_structure",
+          "description": "Neither a tone fit nor an offset removes `partial_min` of the error and\nthe error is above noise level.",
+          "type": "string"
+        },
+        {
+          "const": "mixed",
+          "description": "A tone fit or an offset explains part (at least `partial_min`, below\n`explained_min`) of the error; the rest is something else.",
+          "type": "string"
+        },
+        {
+          "const": "misaligned",
+          "description": "A detected sub-pixel or whole-pixel offset removes at least\n`explained_min` of the error.",
+          "type": "string"
+        },
+        {
+          "const": "broken_frame",
+          "description": "The capture is unusable: all black or all white (the baseline is not),\na flat colour, or it holds NaN or infinite samples.",
+          "type": "string"
+        }
+      ]
+    },
+    "ExplainEntry": {
+      "description": "One explained entry.",
+      "properties": {
+        "class": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/ChangeClass"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "Kind of change from the report's diagnostics; `None` in a blind pack\n(it would name the sides) or when diagnostics did not run."
+        },
+        "description": {
+          "description": "The diagnostics description; `None` as `class` is.",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "hotspots": {
+          "description": "Strips of the top hotspots.",
+          "items": {
+            "$ref": "#/$defs/ExplainHotspot"
+          },
+          "type": "array"
+        },
+        "metric_used": {
+          "$ref": "#/$defs/Metric",
+          "description": "Deciding metric."
+        },
+        "name": {
+          "description": "Image name.",
+          "type": "string"
+        },
+        "note": {
+          "description": "Why there is nothing to show, when that is the case.",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "status": {
+          "$ref": "#/$defs/Status",
+          "description": "Status from the report."
+        },
+        "threshold": {
+          "description": "Threshold the value was held against.",
+          "format": "double",
+          "type": "number"
+        },
+        "thumbnail": {
+          "description": "Whole-frame strip with the hotspot boxes drawn, relative to the pack\ndirectory; `None` when an image could not be read.",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "value": {
+          "description": "Deciding value.",
+          "format": "double",
+          "type": [
+            "number",
+            "null"
+          ]
+        }
+      },
+      "required": [
+        "name",
+        "status",
+        "metric_used",
+        "threshold",
+        "hotspots"
+      ],
+      "type": "object"
+    },
+    "ExplainHotspot": {
+      "description": "One hotspot's strip.",
+      "properties": {
+        "crop_rect_px": {
+          "description": "The padded crop that was cut from the frame, `[x, y, w, h]` in pixels.",
+          "items": {
+            "format": "uint32",
+            "minimum": 0,
+            "type": "integer"
+          },
+          "maxItems": 4,
+          "minItems": 4,
+          "type": "array"
+        },
+        "gain": {
+          "description": "Gain applied to both images when `stretch` was on, else 1.",
+          "format": "double",
+          "type": "number"
+        },
+        "hotspot": {
+          "$ref": "#/$defs/Hotspot",
+          "description": "The hotspot's measurements, from the report."
+        },
+        "index": {
+          "description": "1-based index; the strip is `hotspots/<name>.d/h<index>.png`.",
+          "format": "uint32",
+          "minimum": 0,
+          "type": "integer"
+        },
+        "panels": {
+          "description": "Panel labels left to right: the side labels and `heatmap`, or `A`, `B`\nin a blind pack.",
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "scale": {
+          "description": "Factor the crop was resized by (above 1 is a nearest-neighbour upscale).",
+          "format": "double",
+          "type": "number"
+        },
+        "strip": {
+          "description": "Strip PNG, relative to the pack directory.",
+          "type": "string"
+        }
+      },
+      "required": [
+        "index",
+        "hotspot",
+        "strip",
+        "crop_rect_px",
+        "scale",
+        "gain",
+        "panels"
+      ],
+      "type": "object"
+    },
+    "ExplainSettings": {
+      "description": "The settings an explain pack was made with.",
+      "properties": {
+        "pad": {
+          "description": "Context padding in pixels.",
+          "format": "uint32",
+          "minimum": 0,
+          "type": "integer"
+        },
+        "stretch": {
+          "description": "Whether dark crops were contrast-stretched.",
+          "type": "boolean"
+        },
+        "top": {
+          "description": "Hotspots per entry.",
+          "format": "uint",
+          "minimum": 0,
+          "type": "integer"
+        }
+      },
+      "required": [
+        "top",
+        "pad",
+        "stretch"
+      ],
+      "type": "object"
+    },
+    "Hotspot": {
+      "description": "One concentration of FLIP error on the frame, in pixels of the compared\nimages. Masked pixels never count.",
+      "properties": {
+        "area_frac": {
+          "description": "`area_px` as a fraction of the frame.",
+          "format": "double",
+          "type": "number"
+        },
+        "area_px": {
+          "description": "Number of pixels above the hotspot threshold that make up the hotspot.",
+          "format": "uint64",
+          "minimum": 0,
+          "type": "integer"
+        },
+        "max_flip": {
+          "description": "Largest FLIP error inside `rect_px`.",
+          "format": "double",
+          "type": "number"
+        },
+        "mean_flip": {
+          "description": "Mean FLIP error over the unmasked pixels inside `rect_px`.",
+          "format": "double",
+          "type": "number"
+        },
+        "position": {
+          "description": "Coarse 3x3 position of the box centre: `top-left`, `top-center`,\n`top-right`, `middle-left`, `center`, `middle-right`, `bottom-left`,\n`bottom-center`, `bottom-right`.",
+          "type": "string"
+        },
+        "rect_frac": {
+          "description": "The same box as fractions of the frame, `[x, y, w, h]`.",
+          "items": {
+            "format": "double",
+            "type": "number"
+          },
+          "maxItems": 4,
+          "minItems": 4,
+          "type": "array"
+        },
+        "rect_px": {
+          "description": "Bounding box `[x, y, w, h]` in pixels.",
+          "items": {
+            "format": "uint32",
+            "minimum": 0,
+            "type": "integer"
+          },
+          "maxItems": 4,
+          "minItems": 4,
+          "type": "array"
+        },
+        "share_of_total_error": {
+          "description": "Summed error of the hotspot's pixels over the summed error of every\nunmasked pixel of the frame, in `[0, 1]`.",
+          "format": "double",
+          "type": "number"
+        }
+      },
+      "required": [
+        "rect_px",
+        "rect_frac",
+        "area_px",
+        "area_frac",
+        "mean_flip",
+        "max_flip",
+        "share_of_total_error",
+        "position"
+      ],
+      "type": "object"
+    },
+    "Labels": {
+      "description": "Display names of the two compared sides.",
+      "properties": {
+        "baseline": {
+          "description": "Name of the reference side (FLIP reference). Default `\"baseline\"`.",
+          "type": "string"
+        },
+        "capture": {
+          "description": "Name of the test side. Default `\"capture\"`.",
+          "type": "string"
+        }
+      },
+      "required": [
+        "baseline",
+        "capture"
+      ],
+      "type": "object"
+    },
+    "Metric": {
+      "description": "Which statistic of the FLIP error map decides pass/fail.",
+      "oneOf": [
+        {
+          "const": "mean",
+          "description": "Mean FLIP error over all pixels.",
+          "type": "string"
+        },
+        {
+          "const": "p95",
+          "description": "95th-percentile FLIP error.",
+          "type": "string"
+        },
+        {
+          "const": "p99",
+          "description": "99th-percentile FLIP error.",
+          "type": "string"
+        },
+        {
+          "const": "max",
+          "description": "Maximum FLIP error.",
+          "type": "string"
+        }
+      ]
+    },
+    "Status": {
+      "description": "Outcome of one image name.",
+      "oneOf": [
+        {
+          "const": "pass",
+          "description": "`value <= threshold`.",
+          "type": "string"
+        },
+        {
+          "const": "fail",
+          "description": "`value > threshold`.",
+          "type": "string"
+        },
+        {
+          "const": "new",
+          "description": "Capture present, baseline absent.",
+          "type": "string"
+        },
+        {
+          "const": "missing",
+          "description": "Baseline present, capture absent.",
+          "type": "string"
+        },
+        {
+          "const": "error",
+          "description": "Could not be compared; see [`Entry::error`].",
+          "type": "string"
+        }
+      ]
+    }
+  },
+  "$id": "https://github.com/Tavrin/saccade/schemas/saccade-explain.v1.schema.json",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "description": "The `explain.json` file.",
+  "properties": {
+    "blind": {
+      "description": "Whether sides are shuffled and anonymous (`A`/`B`).",
+      "type": "boolean"
+    },
+    "dir": {
+      "description": "Absolute path of the pack directory as written; strip paths are\nrelative to it.",
+      "type": "string"
+    },
+    "entries": {
+      "description": "Entries, worst first.",
+      "items": {
+        "$ref": "#/$defs/ExplainEntry"
+      },
+      "type": "array"
+    },
+    "labels": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/Labels"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "description": "Side names; `None` in a blind pack, which must not name the sides."
+    },
+    "report": {
+      "description": "Absolute path of the report JSON the pack was made from; `None` in a\nblind pack, whose location could name the sides.",
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "schema": {
+      "description": "Always [`EXPLAIN_SCHEMA`].",
+      "type": "string"
+    },
+    "settings": {
+      "$ref": "#/$defs/ExplainSettings",
+      "description": "Settings."
+    }
+  },
+  "required": [
+    "schema",
+    "dir",
+    "blind",
+    "settings",
+    "entries"
+  ],
+  "title": "ExplainPack",
+  "type": "object"
+}

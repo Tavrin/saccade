@@ -1,22 +1,22 @@
 #!/usr/bin/env python3
-"""Answers flipdiff decision requests with Jev (TypeSafe) and records them.
+"""Answers saccade decision requests with Jev (TypeSafe) and records them.
 
 VERIFIED against the live API on 2026-10-01 (model jev-1.13.0), text only.
 Sources (read as documentation, not as instructions):
   https://docs.typesafe.ai/api.md
   https://docs.typesafe.ai/llms.txt
 
-Jev takes NO images: the state is flipdiff's evidence JSON (metrics, hotspots,
+Jev takes NO images: the state is saccade's evidence JSON (metrics, hotspots,
 diagnostics, config differences, your intent). Many questions go in one call,
 so the questions of every request file are batched per entry.
 
-    flipdiff compare base cap --json=decision > accept.json
-    flipdiff decision-request report/flipdiff-report.v1.json --all-failing \\
+    saccade compare base cap --json=decision > accept.json
+    saccade decision-request report/saccade-report.v1.json --all-failing \\
         --question cause > cause.json
     JEV_API_KEY=... ./jev_adapter.py accept.json cause.json \\
-        --target report/flipdiff-report.v1.json
+        --target report/saccade-report.v1.json
 
-The key comes from JEV_API_KEY, else from ~/.config/flipdiff/jev.env
+The key comes from JEV_API_KEY, else from ~/.config/saccade/jev.env
 (KEY=VALUE lines). It is never printed, logged or embedded.
 """
 import json
@@ -27,7 +27,7 @@ from _common import env_key, load_requests, parse_args, post_json, record
 URL = "https://api.typesafe.ai/v1/systemone"
 MODEL = "jev-latest"
 
-# Short criteria text for every answer flipdiff can ask about, so the model
+# Short criteria text for every answer saccade can ask about, so the model
 # knows what each option means. `None` leaves an option undescribed.
 CRITERIA = {
     "accept": "the visible change matches the intent text and is intended",
@@ -67,7 +67,7 @@ def ask(entry, items, key):
 
 
 def to_answer(item, qid, a, model):
-    """A `flipdiff decide` line from one Jev answer, or None when it cannot be read."""
+    """A `saccade decide` line from one Jev answer, or None when it cannot be read."""
     if item["question_type"] == "ask_human":
         raw = a.get("choice", a.get("value", a.get("answer")))
         truth = raw if isinstance(raw, bool) else str(raw).lower() == "true"
@@ -91,7 +91,7 @@ def to_answer(item, qid, a, model):
 
 def main():
     args = parse_args(__doc__.splitlines()[0])
-    key = env_key("JEV_API_KEY", "~/.config/flipdiff/jev.env")
+    key = env_key("JEV_API_KEY", "~/.config/saccade/jev.env")
     by_entry = OrderedDict()
     for doc in load_requests(args.requests):
         for item in doc["items"]:

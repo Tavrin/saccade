@@ -1,18 +1,18 @@
 [workspace]
 resolver = "3"
-members = ["crates/flipdiff-core", "crates/flipdiff"]
+members = ["crates/saccade-core", "crates/saccade"]
 
 [workspace.package]
 version = "0.1.0"
 edition = "2024"
 rust-version = "1.85"
 license = "MIT OR Apache-2.0"
-repository = "https://github.com/Tavrin/flipdiff"
+repository = "https://github.com/Tavrin/saccade"
 keywords = ["visual-regression", "flip", "rendering", "image-diff", "ci"]
 categories = ["graphics", "development-tools::testing", "command-line-utilities"]
 
 [workspace.dependencies]
-flipdiff-core = { path = "crates/flipdiff-core", version = "0.1.0" }
+saccade-core = { path = "crates/saccade-core", version = "0.1.0" }
 image = { version = "0.25", default-features = false, features = ["png", "jpeg", "exr", "hdr"] }
 nv-flip = "0.1"
 serde = { version = "1", features = ["derive"] }

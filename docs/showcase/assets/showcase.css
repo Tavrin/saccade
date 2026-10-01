@@ -1,5 +1,5 @@
 /* Showcase page layout. Colours, controls, chips and diagnostics come from
- * tokens.css and components.css (copied from crates/flipdiff-core/assets by
+ * tokens.css and components.css (copied from crates/saccade-core/assets by
  * build.py); this file adds the page's type scale, layout and the swipe widget. */
 :root {
   --page: 1280px;

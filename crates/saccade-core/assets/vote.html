@@ -1,0 +1,45 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="light dark">
+<title>saccade vote</title>
+<style>/*__VOTE_CSS__*/</style>
+</head>
+<body>
+<header class="top">
+  <div class="brand"><span class="logo" aria-hidden="true"></span><h1>saccade</h1><span class="tag">vote</span></div>
+  <span class="sub" id="runname"></span>
+</header>
+<main class="page">
+  <section class="card" id="who" hidden aria-label="Your name">
+    <h2>Who is voting?</h2>
+    <p class="hint">Your name is stored with each vote so several people can vote on the same run. Votes are blind: you see no model answers and no one else's votes.</p>
+    <form class="row" id="whoform">
+      <input type="text" id="name" maxlength="40" placeholder="Your name" aria-label="Your name" autocomplete="off" spellcheck="false">
+      <button type="submit" class="btn primary">Start voting</button>
+    </form>
+  </section>
+  <section class="card" id="stage" hidden aria-label="Vote">
+    <div class="meta"><span id="who-label"></span><span id="prog"></span><button type="button" class="btn" id="rename">Change name</button></div>
+    <div class="bar" aria-hidden="true"><i id="barfill"></i></div>
+    <div class="meta"><span class="kind" id="kind"></span><span id="limits"></span></div>
+    <h2 id="question"></h2>
+    <p class="hint" id="context"></p>
+    <div class="stripbox" id="stripbox"><img id="strip" alt="Image 1 on the left and image 2 on the right"></div>
+    <div class="choices" id="choices" role="group" aria-label="Answers"></div>
+    <p class="hint" id="keys"></p>
+    <div class="row"><button type="button" class="btn" id="back">Previous</button><button type="button" class="btn" id="skip">Skip</button></div>
+  </section>
+  <section class="card" id="done" hidden aria-label="Done">
+    <h2>All done</h2>
+    <p id="donemsg"></p>
+    <p class="hint">Your votes are saved. Run the same <code>saccade judge</code> command again to include them in the panel.</p>
+  </section>
+  <p class="hint" id="msg" role="status"></p>
+</main>
+<script>window.SACCADE_VOTE = __VOTE_PAGE__;</script>
+<script>/*__VOTE_JS__*/</script>
+</body>
+</html>

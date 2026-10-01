@@ -1,6 +1,6 @@
 ---
 name: Bug report
-about: flipdiff gives a wrong result, crashes or misbehaves
+about: saccade gives a wrong result, crashes or misbehaves
 labels: bug
 ---
 
@@ -9,11 +9,11 @@ labels: bug
 **Command and output**
 
 ```
-flipdiff --version
+saccade --version
 <the command you ran>
 <its output and exit code>
 ```
 
-**Images or config** (a pair of small images that reproduces it, and your `flipdiff.toml`, if you can share them)
+**Images or config** (a pair of small images that reproduces it, and your `saccade.toml`, if you can share them)
 
-**Environment** (OS, how you installed flipdiff, GitHub Action version if relevant)
+**Environment** (OS, how you installed saccade, GitHub Action version if relevant)

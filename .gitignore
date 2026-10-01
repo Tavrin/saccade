@@ -2,3 +2,5 @@
 /report*
 /.tools
 *.orig
+__pycache__/
+*.pyc

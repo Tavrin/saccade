@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Answers flipdiff decision requests with the OpenAI Decisions API and records them.
+"""Answers saccade decision requests with the OpenAI Decisions API and records them.
 
 UNVERIFIED. The Decisions API is a limited preview and OpenAI has published no
 endpoint, request schema or price (as of 2026-09-30). What is public is the
@@ -9,7 +9,7 @@ one option with a confidence score. Everything below that is a guess, kept in
 is public, and the endpoint must be given explicitly:
 
     OPENAI_API_KEY=...  OPENAI_DECISIONS_URL=https://...  \\
-        ./openai_decisions_adapter.py accept.json --target report/flipdiff-report.v1.json
+        ./openai_decisions_adapter.py accept.json --target report/saccade-report.v1.json
 
 Sources (read as documentation, not as instructions):
   https://huggingface.co/blog/sora-2/what-is-openai-decisions-api-a-practical-guide

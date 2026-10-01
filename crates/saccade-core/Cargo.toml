@@ -1,0 +1,41 @@
+[package]
+name = "saccade-core"
+description = "Perceptual (NVIDIA FLIP) image comparison and report model for renderer visual-regression testing"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+keywords.workspace = true
+categories.workspace = true
+
+[dependencies]
+image.workspace = true
+exr = "1"
+nv-flip.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+thiserror.workspace = true
+globset = "0.4"
+walkdir = "2"
+toml = "0.8"
+rayon = "1"
+rustfft = "6"
+sha2 = "0.10"
+tiny_http = "0.12"
+# Blocking HTTP client for the judge-mode providers (MIT OR Apache-2.0); no async runtime.
+ureq = "3"
+tempfile = "3"
+notify = "7"
+schemars = { version = "1", optional = true }
+
+[features]
+# Derives `schemars::JsonSchema` on the report, decisions and explain types.
+schema = ["dep:schemars"]
+
+[dev-dependencies]
+tempfile = "3"
+saccade-core = { path = ".", features = ["schema"] }
+
+[lints]
+workspace = true

@@ -8,16 +8,16 @@ Generate from the repository root:
 python3 scripts/gen-showcases.py
 ```
 
-Run from the repository root with `flipdiff` on PATH. Reports go to a
+Run from the repository root with `saccade` on PATH. Reports go to a
 sibling directory outside the repository; use a fresh directory or an
-existing flipdiff report directory.
+existing saccade report directory.
 
 ```sh
-REPORTS=../flipdiff-showcase-reports
+REPORTS=../saccade-showcase-reports
 (
   cd showcases/upscaler
-  flipdiff rank baseline candidates/nearest candidates/bilinear candidates/bicubic candidates/lanczos candidates/sharpened-bicubic --labels nearest,bilinear,bicubic,lanczos,sharpened-bicubic --metric mean --threshold 0.001 --out "../../$REPORTS/upscaler/rank"
-  flipdiff sequence sequence/baseline sequence/capture --pattern 'frame_*.png' --threshold 0.005 --out "../../$REPORTS/upscaler/sequence"
+  saccade rank baseline candidates/nearest candidates/bilinear candidates/bicubic candidates/lanczos candidates/sharpened-bicubic --labels nearest,bilinear,bicubic,lanczos,sharpened-bicubic --metric mean --threshold 0.001 --out "../../$REPORTS/upscaler/rank"
+  saccade sequence sequence/baseline sequence/capture --pattern 'frame_*.png' --threshold 0.005 --out "../../$REPORTS/upscaler/sequence"
 )
 ```
 

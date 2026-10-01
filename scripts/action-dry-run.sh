@@ -15,25 +15,25 @@ tmp="$(mktemp -d)"
 trap 'rm -rf "$tmp"' EXIT
 export GITHUB_STEP_SUMMARY="$tmp/step-summary.md"
 : > "$GITHUB_STEP_SUMMARY"
-report_dir="$tmp/flipdiff-report"
+report_dir="$tmp/saccade-report"
 
-echo "== step 1: install (cargo build -p flipdiff)"
-if ! cargo build -p flipdiff; then
+echo "== step 1: install (cargo build -p saccade)"
+if ! cargo build -p saccade; then
   echo "build failed" >&2
   exit 2
 fi
 # `cargo run` finds the binary wherever the target directory is configured.
-flipdiff() { cargo run -q -p flipdiff -- "$@"; }
+saccade() { cargo run -q -p saccade -- "$@"; }
 
-echo "== step 2: flipdiff compare"
-flipdiff compare examples/baseline examples/capture --out "$report_dir"
+echo "== step 2: saccade compare"
+saccade compare examples/baseline examples/capture --out "$report_dir"
 code=$?
 
 echo "== step 3: upload artifact (skipped: needs GitHub)"
 
 echo "== step 4: job summary"
-if [ -f "$report_dir/flipdiff-report.v1.json" ]; then
-  flipdiff summary "$report_dir/flipdiff-report.v1.json" --format markdown \
+if [ -f "$report_dir/saccade-report.v1.json" ]; then
+  saccade summary "$report_dir/saccade-report.v1.json" --format markdown \
     --artifact-url "file://$report_dir/index.html" >> "$GITHUB_STEP_SUMMARY"
   cat "$GITHUB_STEP_SUMMARY"
 else
@@ -43,5 +43,5 @@ fi
 echo "== step 5: PR comment (skipped: needs GitHub)"
 
 echo "== step 6: exit code"
-echo "flipdiff compare exit code: $code (expected 1: examples/ holds a regression and a missing image)"
+echo "saccade compare exit code: $code (expected 1: examples/ holds a regression and a missing image)"
 exit "$code"

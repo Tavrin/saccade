@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Answers flipdiff decision requests with any chat model that supports
+"""Answers saccade decision requests with any chat model that supports
 JSON-schema constrained output, and records them.
 
 Works with every OpenAI-compatible chat-completions endpoint that honours
@@ -10,7 +10,7 @@ what the model reports about itself: treat it as weaker than a bounded-decision
 model's, and keep the [decisions] gate off or high.
 
     LLM_API_KEY=... LLM_MODEL=gpt-5-mini ./llm_json_adapter.py accept.json \\
-        --target report/flipdiff-report.v1.json
+        --target report/saccade-report.v1.json
 
 Environment: LLM_API_KEY (required, never printed), LLM_MODEL (required),
 LLM_BASE_URL (default https://api.openai.com/v1).

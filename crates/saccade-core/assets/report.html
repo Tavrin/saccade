@@ -1,0 +1,47 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="light dark">
+<title>saccade report</title>
+<style>/*__SACCADE_CSS__*/</style>
+</head>
+<body>
+<svg class="defs" width="0" height="0" aria-hidden="true" focusable="false">
+  <filter id="ch-r" color-interpolation-filters="sRGB"><feColorMatrix type="matrix" values="1 0 0 0 0  1 0 0 0 0  1 0 0 0 0  0 0 0 1 0"/></filter>
+  <filter id="ch-g" color-interpolation-filters="sRGB"><feColorMatrix type="matrix" values="0 1 0 0 0  0 1 0 0 0  0 1 0 0 0  0 0 0 1 0"/></filter>
+  <filter id="ch-b" color-interpolation-filters="sRGB"><feColorMatrix type="matrix" values="0 0 1 0 0  0 0 1 0 0  0 0 1 0 0  0 0 0 1 0"/></filter>
+  <filter id="ch-l" color-interpolation-filters="sRGB"><feColorMatrix type="matrix" values="0.2126 0.7152 0.0722 0 0  0.2126 0.7152 0.0722 0 0  0.2126 0.7152 0.0722 0 0  0 0 0 1 0"/></filter>
+</svg>
+<header class="top">
+  <div class="brand"><span class="logo" aria-hidden="true"></span><h1>saccade</h1><span class="tag">report</span></div>
+  <dl class="meta" id="meta"></dl>
+  <div class="chips" id="chips" role="list" aria-label="Totals by status"></div>
+</header>
+<main>
+  <div class="toolbar">
+    <div class="seg" role="group" aria-label="Row filter">
+      <button type="button" id="f-issues" aria-pressed="false">Failures only</button>
+      <button type="button" id="f-all" aria-pressed="true">All</button>
+    </div>
+    <span class="count" id="count" aria-live="polite"></span>
+    <span class="grow"></span>
+    <button type="button" class="btn small" id="palette-btn">Search actions <kbd>Ctrl K</kbd></button>
+    <button type="button" class="btn small copy-link" id="copy-link" title="Copy a link that reopens this exact view">Copy link to this view</button>
+    <button type="button" class="btn small" id="export" title="Download the decisions file (saccade approve --decisions reads it)">Export decisions</button>
+  </div>
+  <div class="table-wrap">
+    <table id="tbl">
+      <thead><tr id="thead-row"></tr></thead>
+      <tbody id="tbody"></tbody>
+    </table>
+    <p class="empty" id="empty" hidden>Nothing to show with this filter.</p>
+  </div>
+</main>
+<noscript><p class="noscript">This report needs JavaScript to render its table. The raw data is in the JSON script tag of this page and in saccade-report.v1.json.</p></noscript>
+<script src="saccade-decisions.v1.js"></script>
+<script type="application/json" id="saccade-data">__SACCADE_DATA__</script>
+<script>/*__SACCADE_JS__*/</script>
+</body>
+</html>

@@ -2,7 +2,7 @@
 
 Run `python3 scripts/gen-showcases.py` to generate the eight cases using Python 3, Pillow and numpy. No downloaded imagery, GPU or model is used.
 
-With the release `flipdiff` on PATH, `scripts/run-showcases.sh` regenerates the data, checks each command's exit verdict, and reproduces every case's EXPECTED.txt byte for byte. Reports are kept outside this repository. A changed expectation is a failure; the runner never blesses new output.
+With the release `saccade` on PATH, `scripts/run-showcases.sh` regenerates the data, checks each command's exit verdict, and reproduces every case's EXPECTED.txt byte for byte. Reports are kept outside this repository. A changed expectation is a failure; the runner never blesses new output.
 
 Each case README contains portable commands, a description and expected verdict. EXPECTED.txt holds measured stdout, not predicted metric values. The generator preserves those files. commands.json is the same command list used by the runner (`@REPORTS@` denotes that case's report directory).
 

@@ -1,0 +1,192 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/Tavrin/saccade/schemas/saccade-decision-request.v1.schema.json",
+  "title": "saccade-decision-request.v1",
+  "description": "Printed by `saccade decision-request` and `compare --json=decision`: bounded questions about report entries. Deterministic: the same report gives the same bytes. Answer each item from `allowed_answers`, then record it with `saccade decide`, passing the item's `request_hash`.",
+  "type": "object",
+  "required": [
+    "schema",
+    "question_type",
+    "items",
+    "skipped"
+  ],
+  "additionalProperties": false,
+  "properties": {
+    "schema": {
+      "const": "saccade-decision-request.v1"
+    },
+    "question_type": {
+      "enum": [
+        "accept",
+        "triage",
+        "cause",
+        "ask_human",
+        "mask_suggest"
+      ]
+    },
+    "items": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": [
+          "id",
+          "entry",
+          "question_type",
+          "question",
+          "allowed_answers",
+          "state",
+          "request_hash"
+        ],
+        "additionalProperties": false,
+        "properties": {
+          "id": {
+            "type": "string",
+            "description": "The entry name, or `<entry>#<n>` for a mask_suggest hotspot."
+          },
+          "entry": {
+            "type": "string"
+          },
+          "hotspot": {
+            "type": "integer",
+            "minimum": 1,
+            "description": "mask_suggest only: the 1-based hotspot asked about."
+          },
+          "question_type": {
+            "type": "string"
+          },
+          "question": {
+            "type": "string",
+            "description": "Fixed wording per question type."
+          },
+          "allowed_answers": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "minItems": 2
+          },
+          "state": {
+            "type": "object",
+            "description": "Compact facts about the entry: verdict, mode, metric, threshold, value, metrics, hotspots (top 3: n, position, size, share, max, mean), frame_wide, properties (capture/baseline: all_black, all_white, nan, inf), meta_diff (key, declared), bit_identical, diagnostics (class, description, tone_explained_fraction, shift_explained_fraction), intent.",
+            "required": [
+              "entry",
+              "verdict",
+              "mode",
+              "metric",
+              "threshold",
+              "hotspots",
+              "frame_wide",
+              "properties",
+              "meta_diff"
+            ],
+            "properties": {
+              "entry": {
+                "type": "string"
+              },
+              "verdict": {
+                "enum": [
+                  "pass",
+                  "fail",
+                  "new",
+                  "missing",
+                  "error"
+                ]
+              },
+              "mode": {
+                "enum": [
+                  "regression",
+                  "identity"
+                ]
+              },
+              "metric": {
+                "type": "string"
+              },
+              "threshold": {
+                "type": [
+                  "number",
+                  "null"
+                ]
+              },
+              "value": {
+                "type": [
+                  "number",
+                  "null"
+                ]
+              },
+              "metrics": {
+                "type": "object"
+              },
+              "hotspots": {
+                "type": "array",
+                "items": {
+                  "type": "object"
+                }
+              },
+              "frame_wide": {
+                "type": "boolean"
+              },
+              "properties": {
+                "type": "object"
+              },
+              "meta_diff": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "required": [
+                    "key",
+                    "declared"
+                  ],
+                  "properties": {
+                    "key": {
+                      "type": "string"
+                    },
+                    "declared": {
+                      "type": "boolean"
+                    }
+                  }
+                }
+              },
+              "bit_identical": {
+                "type": "boolean"
+              },
+              "diagnostics": {
+                "type": "object"
+              },
+              "intent": {
+                "type": "string"
+              },
+              "hotspot": {
+                "type": "integer"
+              }
+            }
+          },
+          "request_hash": {
+            "type": "string",
+            "pattern": "^sha256:[0-9a-f]{64}$",
+            "description": "Hash of the question, allowed answers and state; pass it to `saccade decide`."
+          }
+        }
+      }
+    },
+    "skipped": {
+      "type": "array",
+      "description": "Failing entries a model may not answer (deterministic failures), with the reason.",
+      "items": {
+        "type": "object",
+        "required": [
+          "entry",
+          "reason"
+        ],
+        "additionalProperties": false,
+        "properties": {
+          "entry": {
+            "type": "string"
+          },
+          "reason": {
+            "type": "string"
+          }
+        }
+      }
+    }
+  }
+}

@@ -8,15 +8,15 @@ Generate from the repository root:
 python3 scripts/gen-showcases.py
 ```
 
-Run from the repository root with `flipdiff` on PATH. Reports go to a
+Run from the repository root with `saccade` on PATH. Reports go to a
 sibling directory outside the repository; use a fresh directory or an
-existing flipdiff report directory.
+existing saccade report directory.
 
 ```sh
-REPORTS=../flipdiff-showcase-reports
+REPORTS=../saccade-showcase-reports
 (
   cd showcases/render-gbuffer
-  flipdiff compare baseline capture --config flipdiff.toml --out "../../$REPORTS/render-gbuffer/compare"
+  saccade compare baseline capture --config saccade.toml --out "../../$REPORTS/render-gbuffer/compare"
 )
 ```
 
