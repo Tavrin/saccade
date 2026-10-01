@@ -1,0 +1,4 @@
+/target*
+/report*
+/.tools
+*.orig

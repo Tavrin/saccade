@@ -1,0 +1,19 @@
+[package]
+name = "flipdiff"
+description = "Perceptual visual-regression CLI for renderers, game engines and graphics code (NVIDIA FLIP)"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+keywords.workspace = true
+categories.workspace = true
+
+[dependencies]
+flipdiff-core.workspace = true
+image.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+
+[lints]
+workspace = true

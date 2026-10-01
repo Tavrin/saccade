@@ -1,0 +1,20 @@
+[package]
+name = "flipdiff-core"
+description = "Perceptual (NVIDIA FLIP) image comparison and report model for renderer visual-regression testing"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+keywords.workspace = true
+categories.workspace = true
+
+[dependencies]
+image.workspace = true
+nv-flip.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+thiserror.workspace = true
+
+[lints]
+workspace = true
