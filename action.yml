@@ -1,5 +1,5 @@
 name: flipdiff
-description: Perceptual (NVIDIA FLIP) visual-regression check for renderer output. Compares baseline and capture images, uploads an HTML report and comments on the pull request.
+description: Perceptual (NVIDIA FLIP) visual-regression check for renderer output. Compares baseline and capture images, uploads an HTML report, writes a job summary and keeps one pull-request comment up to date.
 author: flipdiff contributors
 branding:
   icon: image
@@ -7,21 +7,21 @@ branding:
 
 inputs:
   baseline-dir:
-    description: Directory of committed baseline images.
+    description: Directory of committed baseline images, searched recursively. Images are paired with the captures by relative path.
     required: true
   capture-dir:
-    description: Directory of freshly captured images.
+    description: Directory of freshly captured images, searched recursively.
     required: true
   threshold:
-    description: Default pass threshold. Empty uses flipdiff.toml or 0.01.
+    description: Default pass threshold, a FLIP value from 0 (identical) to 1. Empty uses flipdiff.toml, then 0.01.
     required: false
     default: ''
   metric:
-    description: Default metric, one of mean, p95, max. Empty uses flipdiff.toml or mean.
+    description: Statistic of the FLIP error map that is compared with the threshold, one of mean, p95 or max. Empty uses flipdiff.toml, then mean.
     required: false
     default: ''
   config:
-    description: Path to a flipdiff.toml. Empty uses ./flipdiff.toml if it exists.
+    description: Path to a flipdiff.toml (thresholds, overrides, regions, masks, HDR settings). Empty uses ./flipdiff.toml if it exists.
     required: false
     default: ''
   report-dir:
@@ -37,34 +37,34 @@ inputs:
     required: false
     default: ''
   fail-on-new:
-    description: Treat captures without a baseline as a regression.
+    description: Treat captures without a baseline as a regression. Set to 'true' to enable.
     required: false
     default: 'false'
   comment:
-    description: Create or update one sticky pull-request comment (pull_request events only).
+    description: Create or update one pull-request comment with the summary (pull_request events only; needs pull-requests write permission, and is skipped with a warning when the token is read-only, for example on fork PRs). Set to 'false' to disable.
     required: false
     default: 'true'
   github-token:
-    description: Token used for the comment and for downloading release assets.
+    description: Token used to post the comment and to download the prebuilt release binary.
     required: false
     default: ${{ github.token }}
   version:
-    description: Git ref (tag, branch or commit) of the flipdiff repository to install. Empty uses the ref this action was invoked with.
+    description: Git ref (tag, branch or commit) of the flipdiff repository to install. Uses a release binary for that ref if one exists, otherwise a build from source with cargo. Empty uses the ref this action was invoked with.
     required: false
     default: ''
 
 outputs:
   exit-code:
-    description: Exit code of flipdiff compare (0 no regression, 1 regression, 2 usage or IO error).
+    description: Exit code of flipdiff compare, which is also the job's result (0 no regression, 1 regression, 2 usage, config or IO error).
     value: ${{ steps.compare.outputs.exit-code }}
   failed:
-    description: Number of failed images.
+    description: Number of images over their threshold.
     value: ${{ steps.compare.outputs.failed }}
   new:
     description: Number of captures without a baseline.
     value: ${{ steps.compare.outputs.new }}
   report-dir:
-    description: Report directory.
+    description: Directory the report was written to (the report-dir input).
     value: ${{ inputs.report-dir }}
 
 runs:

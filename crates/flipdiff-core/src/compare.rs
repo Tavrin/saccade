@@ -3,6 +3,19 @@
 use crate::error::{Error, Result};
 use crate::report::Metrics;
 
+/// Whether two image files hold exactly the same decoded samples at their
+/// native bit depth and channel count (alpha included, NaN payloads and
+/// negative values untouched). `false` when either file cannot be decoded.
+pub fn native_samples_identical(a: &std::path::Path, b: &std::path::Path) -> bool {
+    let (Ok(a), Ok(b)) = (image::open(a), image::open(b)) else {
+        return false;
+    };
+    a.color() == b.color()
+        && a.width() == b.width()
+        && a.height() == b.height()
+        && a.as_bytes() == b.as_bytes()
+}
+
 /// Options for [`compare`].
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub struct CompareOptions {

@@ -175,6 +175,25 @@ pub(crate) fn copy_into_report(
     Ok(rel)
 }
 
+/// Prints a stderr warning for each `[[region]]` or `[[mask]]` glob that
+/// matches no image of the run (usually a typo that silently disables it).
+fn warn_unmatched_globs(config: &RunConfig, entries: &[Entry]) {
+    let globs = config
+        .regions
+        .iter()
+        .map(|r| ("region", r.glob.as_deref()))
+        .chain(config.masks.iter().map(|m| ("mask", m.glob.as_deref())));
+    for (kind, glob) in globs {
+        let Some(glob) = glob else { continue };
+        let Ok(matcher) = compile_glob(glob) else {
+            continue;
+        };
+        if !entries.iter().any(|e| matcher.is_match(&e.name)) {
+            eprintln!("flipdiff: warning: {kind} glob {glob:?} matches no image in this run");
+        }
+    }
+}
+
 pub(crate) fn status_of(value: f64, threshold: f64) -> Status {
     // `!(<=)` so a NaN value fails rather than passes.
     if value <= threshold {
@@ -239,13 +258,20 @@ pub fn run(
         pixels_per_degree: config.pixels_per_degree,
         hdr: config.hdr,
     };
+    let meta = config.meta.checker()?;
     let mut entries = Vec::new();
     for (name, (base, cap)) in names {
         if ignore.iter().any(|m| m.is_match(name)) {
             continue;
         }
-        entries.push(build_entry(name, base, cap, report_dir, &opts, config));
+        let both_files = matches!((base, cap), (Some(Source::File(_)), Some(Source::File(_))));
+        let mut entry = build_entry(name, base, cap, report_dir, &opts, config);
+        if both_files {
+            apply_meta(&mut entry, &meta, baseline_dir, capture_dir);
+        }
+        entries.push(entry);
     }
+    warn_unmatched_globs(config, &entries);
 
     let mut totals = Totals {
         total: entries.len(),
@@ -273,6 +299,7 @@ pub fn run(
             fail_on_new: config.fail_on_new,
             mode: config.mode,
             labels: config.labels.clone(),
+            meta: meta.settings(),
         },
         totals,
         entries,
@@ -290,6 +317,31 @@ pub fn run(
 enum Source<'a> {
     File(&'a Path),
     Problem(&'a str),
+}
+
+/// Reads both sidecars of a compared pair into `entry.meta_diff`. An unreadable
+/// or nested sidecar, or (when required) an undeclared differing key, turns
+/// the entry into an `error` that names the cause; the metrics stay.
+fn apply_meta(
+    entry: &mut Entry,
+    meta: &crate::meta::MetaChecker,
+    baseline_dir: &Path,
+    capture_dir: &Path,
+) {
+    let failure = match meta.compare(baseline_dir, capture_dir, &entry.name) {
+        Ok((diff, failure)) => {
+            entry.meta_diff = diff;
+            failure
+        }
+        Err(e) => Some(e),
+    };
+    if let Some(msg) = failure {
+        entry.status = Status::Error;
+        entry.error = Some(match entry.error.take() {
+            Some(prev) => format!("{prev}; {msg}"),
+            None => msg,
+        });
+    }
 }
 
 fn build_entry(
@@ -315,6 +367,8 @@ fn build_entry(
         masked_fraction: None,
         bit_identical: None,
         hdr: None,
+        meta_diff: Vec::new(),
+        hotspots: Vec::new(),
     };
     if let Err(e) = fill_entry(&mut entry, base, cap, report_dir, opts, config) {
         entry.status = Status::Error;
@@ -323,6 +377,7 @@ fn build_entry(
         entry.paths.heatmap = None;
         entry.regions.clear();
         entry.masked_fraction = None;
+        entry.hotspots.clear();
         entry.error = Some(e.to_string());
     }
     entry
@@ -403,9 +458,7 @@ fn fill_entry(
             return Ok(());
         }
     };
-    entry.bit_identical = Some(
-        cap_img.dimensions() == base_img.dimensions() && cap_img.as_raw() == base_img.as_raw(),
-    );
+    entry.bit_identical = Some(crate::compare::native_samples_identical(base, cap));
     match compare_rgba(&cap_img, &base_img, opts) {
         Ok(cmp) => finish_entry(entry, cmp, report_dir, config)?,
         Err(e) => entry.error = Some(e.to_string()),
@@ -433,6 +486,16 @@ fn finish_entry(
     heatmap
         .save(&dest)
         .map_err(|source| Error::Encode { path: dest, source })?;
+    entry.hotspots = crate::hotspots::find_hotspots(
+        &cmp.error_map,
+        scene.mask.as_deref(),
+        cmp.metrics.width,
+        cmp.metrics.height,
+        &crate::hotspots::HotspotOptions {
+            threshold: config.hotspot_threshold,
+            top_k: config.hotspots,
+        },
+    );
     entry.status = crate::regions::combine(status_of(value, entry.threshold), &entry.regions);
     entry.value = Some(value);
     entry.metrics = Some(scene.metrics);
@@ -492,7 +555,7 @@ fn fill_hdr_pair(
             return Ok(());
         }
     };
-    entry.bit_identical = Some(crate::hdr::bit_identical(&cap_img, &base_img));
+    entry.bit_identical = Some(crate::compare::native_samples_identical(base, cap));
     match crate::hdr::compare_hdr(&cap_img, &base_img, opts) {
         Ok((cmp, info)) => {
             entry.hdr = Some(info);

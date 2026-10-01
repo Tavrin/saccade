@@ -162,7 +162,7 @@ pub fn identity_headline(report: &Report) -> Option<String> {
                 .max_by(|a, b| a.0.total_cmp(&b.0));
             let mut s = format!("{} differ", differ.len());
             if let Some((max, name)) = worst {
-                s.push_str(&format!(" (max FLIP {} on {})", sig3(max), name));
+                s.push_str(&format!(" (max FLIP {} on {})", sig3(max), code_name(name)));
             }
             parts.push(s);
         }
@@ -216,6 +216,32 @@ fn artifact_link(url: &str) -> String {
     format!("[Full report with heatmaps]({safe})")
 }
 
+/// `⚠ config differs on N images: key1, key2…` over every entry with a
+/// metadata difference (not only the rows shown); `None` when there is none.
+fn config_differs_line(report: &Report) -> Option<String> {
+    const MAX_KEYS: usize = 10;
+    let mut keys = std::collections::BTreeSet::new();
+    let mut images = 0;
+    for e in report.entries.iter().filter(|e| !e.meta_diff.is_empty()) {
+        images += 1;
+        keys.extend(e.meta_diff.iter().map(|d| d.key.as_str()));
+    }
+    if images == 0 {
+        return None;
+    }
+    let shown: Vec<String> = keys
+        .iter()
+        .take(MAX_KEYS)
+        .map(|k| code_name(&k.chars().take(60).collect::<String>()))
+        .collect();
+    let more = if keys.len() > MAX_KEYS { "…" } else { "" };
+    let noun = if images == 1 { "image" } else { "images" };
+    Some(format!(
+        "⚠ config differs on {images} {noun}: {}{more}",
+        shown.join(", ")
+    ))
+}
+
 struct Parts<'a> {
     report: &'a Report,
     opts: &'a MarkdownOptions,
@@ -239,6 +265,20 @@ impl Parts<'_> {
                 out.push_str(&region_rows(e));
             }
             out.push('\n');
+            for e in self.nonpass[..np]
+                .iter()
+                .filter(|e| e.status == Status::Fail)
+            {
+                if let Some(line) = crate::hotspots::summary_line(&e.hotspots) {
+                    out.push_str(&format!("- {} ↳ {line}\n", code_name(&e.name)));
+                }
+            }
+            if self.nonpass[..np]
+                .iter()
+                .any(|e| e.status == Status::Fail && !e.hotspots.is_empty())
+            {
+                out.push('\n');
+            }
         }
         if p > 0 {
             out.push_str(&format!(
@@ -250,6 +290,10 @@ impl Parts<'_> {
                 out.push_str(&row(e));
             }
             out.push_str("\n</details>\n\n");
+        }
+        if let Some(line) = config_differs_line(self.report) {
+            out.push_str(&line);
+            out.push_str("\n\n");
         }
         if dropped > 0 {
             out.push_str(&format!("…and {dropped} more (see full report)\n\n"));

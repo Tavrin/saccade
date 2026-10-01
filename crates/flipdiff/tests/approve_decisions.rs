@@ -93,3 +93,49 @@ fn approve_refuses_to_write_through_a_symlink() {
     assert!(String::from_utf8_lossy(&out.stderr).contains("symlink"));
     assert!(!elsewhere.join("a.png").exists());
 }
+
+#[test]
+fn prune_missing_deletes_only_baselines_without_a_capture() {
+    let tmp = tempfile::tempdir().unwrap();
+    let (cap, base, out) = (
+        tmp.path().join("cap"),
+        tmp.path().join("base"),
+        tmp.path().join("out"),
+    );
+    save(&cap, "kept.png", 10);
+    save(&base, "kept.png", 10);
+    save(&base, "gone.png", 10);
+    let compare = Command::new(env!("CARGO_BIN_EXE_flipdiff"))
+        .current_dir(tmp.path())
+        .arg("compare")
+        .args([&base, &cap])
+        .arg("--out")
+        .arg(&out)
+        .output()
+        .unwrap();
+    assert_eq!(
+        compare.status.code(),
+        Some(1),
+        "missing entry is a regression"
+    );
+    let approve = |extra: &[&str]| {
+        Command::new(env!("CARGO_BIN_EXE_flipdiff"))
+            .arg("approve")
+            .args([&cap, &base])
+            .arg("--all-failing")
+            .arg(out.join("flipdiff-report.v1.json"))
+            .args(extra)
+            .output()
+            .unwrap()
+    };
+    assert_eq!(approve(&[]).status.code(), Some(0));
+    assert!(
+        base.join("gone.png").exists(),
+        "no deletion without the flag"
+    );
+    let o = approve(&["--prune-missing"]);
+    assert_eq!(o.status.code(), Some(0), "{o:?}");
+    assert!(String::from_utf8_lossy(&o.stdout).contains("removed"));
+    assert!(!base.join("gone.png").exists());
+    assert!(base.join("kept.png").exists());
+}

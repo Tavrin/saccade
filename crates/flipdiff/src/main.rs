@@ -14,6 +14,9 @@ use flipdiff_core::view::{
     ViewOptions, build_view, is_safe_name, read_blind_key, read_decisions, unblind,
 };
 
+mod agent;
+mod mcp;
+
 #[derive(Parser)]
 #[command(
     name = "flipdiff",
@@ -33,7 +36,7 @@ struct HdrArgs {
     hdr_tonemapper: Option<String>,
     /// Exposure range in stops and count, `START:STOP:N` (default: computed
     /// from the baseline image).
-    #[arg(long, value_name = "START:STOP:N")]
+    #[arg(long, value_name = "START:STOP:N", allow_hyphen_values = true)]
     hdr_exposures: Option<String>,
 }
 
@@ -46,6 +49,51 @@ impl HdrArgs {
             hdr.parse_exposures(e).map_err(|e| e.to_string())?;
         }
         Ok(())
+    }
+}
+
+/// Metadata-sidecar flags shared by `compare`, `identity` and `view`.
+#[derive(clap::Args, Clone, Default)]
+struct MetaArgs {
+    /// Sidecar file name (default `cost-card.json`); the per-image sidecar is
+    /// `<stem>.<name>` and overrides the directory-level one.
+    #[arg(long, value_name = "NAME")]
+    meta_name: Option<String>,
+    /// Extra sidecar key globs to ignore, added to the built-in timing,
+    /// timestamp and run-id defaults.
+    #[arg(long, value_delimiter = ',', value_name = "GLOB,...")]
+    meta_ignore: Vec<String>,
+}
+
+/// Metadata enforcement flags for `compare` and `identity`.
+#[derive(clap::Args, Clone, Default)]
+struct MetaRequireArgs {
+    /// Make an entry an error when a sidecar key differs and is not declared.
+    #[arg(long)]
+    require_matching_meta: bool,
+    /// Sidecar keys (or globs) that may differ with --require-matching-meta.
+    #[arg(
+        long,
+        value_delimiter = ',',
+        value_name = "KEY,...",
+        requires = "require_matching_meta"
+    )]
+    declare: Vec<String>,
+}
+
+impl MetaArgs {
+    fn apply(&self, meta: &mut flipdiff_core::meta::MetaOptions) {
+        if let Some(n) = &self.meta_name {
+            meta.name.clone_from(n);
+        }
+        meta.ignore.extend(self.meta_ignore.iter().cloned());
+    }
+}
+
+impl MetaRequireArgs {
+    fn apply(&self, meta: &mut flipdiff_core::meta::MetaOptions) {
+        meta.required |= self.require_matching_meta;
+        meta.declared.extend(self.declare.iter().cloned());
     }
 }
 
@@ -70,6 +118,7 @@ impl From<MetricArg> for Metric {
 enum Format {
     Markdown,
     Text,
+    Json,
 }
 
 #[derive(Subcommand)]
@@ -106,6 +155,10 @@ enum Command {
         labels: Option<Vec<String>>,
         #[command(flatten)]
         hdr: HdrArgs,
+        #[command(flatten)]
+        meta: MetaArgs,
+        #[command(flatten)]
+        require: MetaRequireArgs,
     },
     /// Check that a candidate build matches its parent: strict defaults
     /// (metric max, threshold 0), bit-identity reported per image.
@@ -135,6 +188,10 @@ enum Command {
         /// Display names of the two sides, `parent,candidate`.
         #[arg(long, value_delimiter = ',', value_name = "A,B")]
         labels: Option<Vec<String>>,
+        #[command(flatten)]
+        meta: MetaArgs,
+        #[command(flatten)]
+        require: MetaRequireArgs,
     },
     /// Copy captures over baselines.
     Approve {
@@ -155,6 +212,15 @@ enum Command {
         /// change) whose capture exists and decodes.
         #[arg(long, requires = "all_failing")]
         include_errors: bool,
+        /// With --all-failing: delete the baselines of every `missing` entry
+        /// of the report (capture absent). Only files inside the baseline
+        /// directory are removed; each removal is printed.
+        #[arg(long, requires = "all_failing")]
+        prune_missing: bool,
+        /// Print `{"schema":"flipdiff-approve.v1","copied":[...],"pruned":[...]}`
+        /// instead of one line per file.
+        #[arg(long)]
+        json: bool,
     },
     /// Write a self-contained review viewer for 2 to 6 image directories.
     View {
@@ -183,8 +249,44 @@ enum Command {
         /// (default: `./flipdiff.toml` when present).
         #[arg(long)]
         config: Option<PathBuf>,
+        /// Print a JSON summary (`flipdiff-view-summary.v1`) instead of text.
+        #[arg(long)]
+        json: bool,
         #[command(flatten)]
         hdr: HdrArgs,
+        #[command(flatten)]
+        meta: MetaArgs,
+    },
+    /// Serve a local web app for browsing a capture archive and comparing runs
+    /// (127.0.0.1 only; the archive is never written to).
+    Serve {
+        /// Archive root to browse (read-only).
+        root: PathBuf,
+        /// Port on 127.0.0.1 (0 picks a free one).
+        #[arg(long, default_value_t = 7878)]
+        port: u16,
+        /// Cache directory for sessions, thumbnails and uploads
+        /// (default: `$XDG_CACHE_HOME/flipdiff`).
+        #[arg(long)]
+        cache_dir: Option<PathBuf>,
+        /// Directory the viewer's decisions are written to
+        /// (default: `$XDG_DATA_HOME/flipdiff/decisions`).
+        #[arg(long)]
+        decisions_dir: Option<PathBuf>,
+        /// Config file for sidecar settings and preset regions
+        /// (default: `./flipdiff.toml` when present).
+        #[arg(long)]
+        config: Option<PathBuf>,
+        /// FLIP pixels per degree.
+        #[arg(long)]
+        ppd: Option<f32>,
+        /// Open the page in the default browser.
+        #[arg(long)]
+        open: bool,
+        #[command(flatten)]
+        hdr: HdrArgs,
+        #[command(flatten)]
+        meta: MetaArgs,
     },
     /// Turn a decisions file exported from a `--blind` view into one with the
     /// true directory labels, using the view's `blind-key.json`.
@@ -197,6 +299,40 @@ enum Command {
         #[arg(long)]
         out: Option<PathBuf>,
     },
+    /// Write crops and data that explain where and how a report's failing
+    /// images differ: per-hotspot strips for agents and vision-model judges.
+    Explain {
+        /// Path to `flipdiff-report.v1.json`.
+        report_json: PathBuf,
+        /// Output directory (default: `explain/` next to the report JSON).
+        #[arg(long)]
+        out: Option<PathBuf>,
+        /// Hotspots per entry.
+        #[arg(long, default_value_t = 3)]
+        top: usize,
+        /// Pixels of context around each hotspot.
+        #[arg(long, default_value_t = 16)]
+        pad: u32,
+        /// Contrast-stretch dark crops (same gain on both images).
+        #[arg(long)]
+        stretch: bool,
+        /// Shuffle which side is A or B per hotspot and omit the heatmap; the
+        /// key goes to `blind-key.json`.
+        #[arg(long)]
+        blind: bool,
+        /// Seed for the blind shuffle (default: from the clock; recorded in the key).
+        #[arg(long, requires = "blind")]
+        seed: Option<u64>,
+        /// Explain only these entries (default: every failing entry).
+        #[arg(long, value_delimiter = ',', value_name = "NAME,...")]
+        entries: Vec<String>,
+        /// Print the pack's `explain.json` instead of `explain.md`.
+        #[arg(long)]
+        json: bool,
+    },
+    /// Serve the Model Context Protocol over stdio, so an AI agent can run
+    /// comparisons and read their hotspots as a tool.
+    Mcp,
     /// Print a summary of a report JSON.
     Summary {
         /// Path to `flipdiff-report.v1.json`.
@@ -219,7 +355,7 @@ fn main() -> ExitCode {
     match dispatch(cli.command) {
         Ok(code) => ExitCode::from(code),
         Err(msg) => {
-            eprintln!("flipdiff: error: {}", escape_control(&msg));
+            eprintln!("flipdiff: error: {}", escape_multiline(&msg));
             ExitCode::from(2)
         }
     }
@@ -239,9 +375,13 @@ fn dispatch(command: Command) -> Result<u8, String> {
             ppd,
             labels,
             hdr,
+            meta,
+            require,
         } => {
             let mut cfg = load_config(config.as_deref())?;
             hdr.apply(&mut cfg.hdr)?;
+            meta.apply(&mut cfg.meta);
+            require.apply(&mut cfg.meta);
             if let Some(t) = threshold {
                 cfg.default_threshold = t;
             }
@@ -277,8 +417,34 @@ fn dispatch(command: Command) -> Result<u8, String> {
             json,
             ppd,
             labels,
+            meta,
+            require,
         } => {
             let mut cfg = load_config(config.as_deref())?;
+            meta.apply(&mut cfg.meta);
+            require.apply(&mut cfg.meta);
+            if config.is_none() && !cfg.overrides.is_empty() {
+                // `./flipdiff.toml` is auto-loaded; it must not silently relax identity.
+                eprintln!(
+                    "flipdiff: note: ignoring [[override]] entries ({}) from the auto-loaded flipdiff.toml; \
+                     pass --config to apply them to identity",
+                    cfg.overrides
+                        .iter()
+                        .map(|o| format!("{:?}", o.glob))
+                        .collect::<Vec<_>>()
+                        .join(", ")
+                );
+                cfg.overrides.clear();
+            } else if !cfg.overrides.is_empty() {
+                eprintln!(
+                    "flipdiff: note: applying [[override]] entries ({}) to identity because --config was given",
+                    cfg.overrides
+                        .iter()
+                        .map(|o| format!("{:?}", o.glob))
+                        .collect::<Vec<_>>()
+                        .join(", ")
+                );
+            }
             cfg.mode = Mode::Identity;
             cfg.labels = Labels {
                 baseline: "parent".into(),
@@ -310,14 +476,61 @@ fn dispatch(command: Command) -> Result<u8, String> {
             all_failing,
             decisions,
             include_errors,
+            prune_missing,
+            json,
         } => approve(
             &capture_dir,
             &baseline_dir,
             names,
             all_failing.as_deref(),
             decisions.as_deref(),
-            include_errors,
+            ApproveFlags {
+                include_errors,
+                prune_missing,
+                json,
+            },
         ),
+        Command::Serve {
+            root,
+            port,
+            cache_dir,
+            decisions_dir,
+            config,
+            ppd,
+            open,
+            hdr,
+            meta,
+        } => {
+            let loaded = load_config(config.as_deref())?;
+            let mut opts = flipdiff_core::serve::ServeOptions::new(root);
+            opts.port = port;
+            if let Some(d) = cache_dir {
+                opts.cache_dir = d;
+            }
+            if let Some(d) = decisions_dir {
+                opts.decisions_dir = d;
+            }
+            opts.view.regions = loaded.regions;
+            opts.view.meta = loaded.meta;
+            hdr.apply(&mut opts.view.hdr)?;
+            meta.apply(&mut opts.view.meta);
+            if let Some(p) = ppd {
+                opts.view.pixels_per_degree = p;
+            }
+            let (cache, decisions) = (opts.cache_dir.clone(), opts.decisions_dir.clone());
+            let handle = flipdiff_core::serve::start(opts).map_err(|e| e.to_string())?;
+            let url = format!("http://127.0.0.1:{}/", handle.port());
+            emit(&format!(
+                "flipdiff serve: {url}\n  cache:     {}\n  decisions: {}\n  (Ctrl-C to stop)\n",
+                escape_control(&cache.display().to_string()),
+                escape_control(&decisions.display().to_string())
+            ))?;
+            if open {
+                open_browser(&url);
+            }
+            handle.wait();
+            Ok(0)
+        }
         Command::Unblind {
             decisions_json,
             blind_key_json,
@@ -345,10 +558,14 @@ fn dispatch(command: Command) -> Result<u8, String> {
             out,
             ppd,
             config,
+            json,
             hdr,
+            meta,
         } => {
+            let loaded = load_config(config.as_deref())?;
             let mut opts = ViewOptions {
-                regions: load_config(config.as_deref())?.regions,
+                regions: loaded.regions,
+                meta: loaded.meta,
                 labels,
                 reference,
                 blind,
@@ -356,10 +573,32 @@ fn dispatch(command: Command) -> Result<u8, String> {
                 ..ViewOptions::default()
             };
             hdr.apply(&mut opts.hdr)?;
+            meta.apply(&mut opts.meta);
             if let Some(p) = ppd {
                 opts.pixels_per_degree = p;
             }
             let model = build_view(&dirs, &out, &opts).map_err(|e| e.to_string())?;
+            if json {
+                let key = out.join(flipdiff_core::view::BLIND_KEY_FILE);
+                let value = serde_json::json!({
+                    "schema": "flipdiff-view-summary.v1",
+                    "index_html": out.join("index.html").display().to_string(),
+                    "out_dir": out.display().to_string(),
+                    "sets": model.sets.len(),
+                    "set_names": model.sets.iter().map(|s| s.name.as_str()).collect::<Vec<_>>(),
+                    "directories": model.labels.len(),
+                    // A blind view's labels stay out of the output.
+                    "labels": (!blind).then(|| model.labels.clone()),
+                    "blind": blind,
+                    "seed": model.seed,
+                    "blind_key": blind.then(|| key.display().to_string()),
+                });
+                emit(&format!(
+                    "{}\n",
+                    serde_json::to_string_pretty(&value).map_err(|e| e.to_string())?
+                ))?;
+                return Ok(0);
+            }
             emit(&format!(
                 "wrote {} ({} image sets, {} directories)\n",
                 escape_control(&out.join("index.html").display().to_string()),
@@ -375,6 +614,60 @@ fn dispatch(command: Command) -> Result<u8, String> {
                             .to_string()
                     )
                 ))?;
+            }
+            Ok(0)
+        }
+        Command::Mcp => {
+            mcp::serve_stdio()?;
+            Ok(0)
+        }
+        Command::Explain {
+            report_json,
+            out,
+            top,
+            pad,
+            stretch,
+            blind,
+            seed,
+            entries,
+            json,
+        } => {
+            let out = out.unwrap_or_else(|| {
+                report_json
+                    .parent()
+                    .map_or_else(|| PathBuf::from("explain"), |p| p.join("explain"))
+            });
+            let opts = flipdiff_core::explain::ExplainOptions {
+                top,
+                pad,
+                stretch,
+                blind,
+                seed,
+                entries,
+            };
+            let pack = flipdiff_core::explain::explain(&report_json, &out, &opts)
+                .map_err(|e| e.to_string())?;
+            if json {
+                let text = serde_json::to_string_pretty(&pack).map_err(|e| e.to_string())?;
+                emit(&format!("{text}\n"))?;
+            } else {
+                let md = std::fs::read_to_string(out.join(flipdiff_core::explain::EXPLAIN_MD_FILE))
+                    .map_err(|e| format!("reading explain.md: {e}"))?;
+                emit(&md)?;
+                emit(&format!(
+                    "\npack: {}\n",
+                    escape_control(&out.display().to_string())
+                ))?;
+                if blind {
+                    emit(&format!(
+                        "blind key (keep it away from the judge): {}\n",
+                        escape_control(
+                            &out.join(flipdiff_core::explain::EXPLAIN_BLIND_KEY_FILE)
+                                .display()
+                                .to_string()
+                        )
+                    ))?;
+                }
             }
             Ok(0)
         }
@@ -401,6 +694,12 @@ fn dispatch(command: Command) -> Result<u8, String> {
                     },
                 ))?,
                 Format::Text => emit(&text_table(&report))?,
+                Format::Json => {
+                    let value =
+                        agent::summary_value(&report, &report_json, agent::DEFAULT_TOP_FAILING);
+                    let text = serde_json::to_string_pretty(&value).map_err(|e| e.to_string())?;
+                    emit(&format!("{text}\n"))?;
+                }
             }
             Ok(0)
         }
@@ -427,6 +726,23 @@ fn load_config(explicit: Option<&Path>) -> Result<RunConfig, String> {
         Some(p) => RunConfig::from_toml_file(p).map_err(|e| e.to_string()),
         None => Ok(RunConfig::default()),
     }
+}
+
+/// Opens `url` in the default browser; failures are ignored.
+fn open_browser(url: &str) {
+    let (program, args): (&str, Vec<&str>) = if cfg!(target_os = "macos") {
+        ("open", vec![url])
+    } else if cfg!(target_os = "windows") {
+        ("cmd", vec!["/C", "start", "", url])
+    } else {
+        ("xdg-open", vec![url])
+    };
+    let _ = std::process::Command::new(program)
+        .args(args)
+        .stdin(std::process::Stdio::null())
+        .stdout(std::process::Stdio::null())
+        .stderr(std::process::Stdio::null())
+        .spawn();
 }
 
 fn read_report(path: &Path) -> Result<Report, String> {
@@ -461,6 +777,17 @@ fn escape_control(s: &str) -> String {
     out
 }
 
+/// Like [`escape_control`] but keeps line breaks, so multi-line errors (a TOML
+/// parse error with its source excerpt) stay readable. Every continuation line
+/// is indented, so file-controlled text cannot start a line with a workflow
+/// command such as `::error::`.
+fn escape_multiline(s: &str) -> String {
+    s.lines()
+        .map(escape_control)
+        .collect::<Vec<_>>()
+        .join("\n  ")
+}
+
 /// Refuses a destination whose existing components below `baseline_dir` include a symlink.
 fn check_no_symlinks(baseline_dir: &Path, rel: &Path) -> Result<(), String> {
     let mut cur = baseline_dir.to_path_buf();
@@ -481,20 +808,45 @@ fn check_no_symlinks(baseline_dir: &Path, rel: &Path) -> Result<(), String> {
     Ok(())
 }
 
+/// The switches of `approve`.
+struct ApproveFlags {
+    include_errors: bool,
+    prune_missing: bool,
+    json: bool,
+}
+
 fn approve(
     capture_dir: &Path,
     baseline_dir: &Path,
     mut names: Vec<String>,
     all_failing: Option<&Path>,
     decisions: Option<&Path>,
-    include_errors: bool,
+    flags: ApproveFlags,
 ) -> Result<u8, String> {
+    let ApproveFlags {
+        include_errors,
+        prune_missing,
+        json,
+    } = flags;
+    let mut copied: Vec<serde_json::Value> = Vec::new();
+    let mut pruned: Vec<String> = Vec::new();
+    let mut prune: Vec<String> = Vec::new();
     if let Some(path) = decisions {
         let d = read_decisions(path).map_err(|e| e.to_string())?;
         names.extend(d.accepted());
     }
     if let Some(path) = all_failing {
         let report = read_report(path)?;
+        if prune_missing {
+            prune = report
+                .entries
+                .iter()
+                .filter(|e| e.status == Status::Missing)
+                .map(|e| e.name.clone())
+                .collect();
+            prune.sort();
+            prune.dedup();
+        }
         names.extend(
             report
                 .entries
@@ -530,6 +882,12 @@ fn approve(
         }
         check_no_symlinks(baseline_dir, Path::new(name))?;
     }
+    for name in &prune {
+        if !is_safe_name(name) {
+            return Err(format!("unsafe image name {name:?}"));
+        }
+        check_no_symlinks(baseline_dir, Path::new(name))?;
+    }
     for name in &names {
         let rel = Path::new(name);
         let src = capture_dir.join(rel);
@@ -540,11 +898,44 @@ fn approve(
         }
         std::fs::copy(&src, &dest)
             .map_err(|e| format!("copying {} to {}: {e}", src.display(), dest.display()))?;
-        emit(&format!(
-            "{} -> {}\n",
-            escape_control(&src.display().to_string()),
-            escape_control(&dest.display().to_string())
-        ))?;
+        if json {
+            copied.push(serde_json::json!({
+                "name": name,
+                "from": src.display().to_string(),
+                "to": dest.display().to_string(),
+            }));
+        } else {
+            emit(&format!(
+                "{} -> {}\n",
+                escape_control(&src.display().to_string()),
+                escape_control(&dest.display().to_string())
+            ))?;
+        }
+    }
+    for name in &prune {
+        let target = baseline_dir.join(name);
+        // The report says `missing`; only delete when the capture is still absent.
+        if capture_dir.join(name).exists() || !target.is_file() {
+            continue;
+        }
+        std::fs::remove_file(&target).map_err(|e| format!("removing {}: {e}", target.display()))?;
+        if json {
+            pruned.push(target.display().to_string());
+        } else {
+            emit(&format!(
+                "removed {}\n",
+                escape_control(&target.display().to_string())
+            ))?;
+        }
+    }
+    if json {
+        let value = serde_json::json!({
+            "schema": "flipdiff-approve.v1",
+            "copied": copied,
+            "pruned": pruned,
+        });
+        let text = serde_json::to_string_pretty(&value).map_err(|e| e.to_string())?;
+        emit(&format!("{text}\n"))?;
     }
     Ok(0)
 }
@@ -578,7 +969,13 @@ fn text_table(report: &Report) -> String {
         "VALUE".into(),
         "THRESHOLD".into(),
     ]];
+    let mut notes: Vec<Option<String>> = vec![None];
     for e in rows {
+        notes.push(if e.status == Status::Fail {
+            flipdiff_core::hotspots::summary_line(&e.hotspots)
+        } else {
+            None
+        });
         let (value, threshold) = match e.status {
             Status::Pass | Status::Fail => (
                 e.value.map_or("-".into(), |v| format!("{v:.5}")),
@@ -589,6 +986,15 @@ fn text_table(report: &Report) -> String {
         let name = match &e.error {
             Some(msg) => format!("{} ({})", escape_control(&e.name), escape_control(msg)),
             None => escape_control(&e.name),
+        };
+        let name = if e.meta_diff.is_empty() {
+            name
+        } else {
+            let keys: Vec<&str> = e.meta_diff.iter().map(|d| d.key.as_str()).collect();
+            format!(
+                "{name} [config differs: {}]",
+                escape_control(&keys.join(", "))
+            )
         };
         cells.push([
             status_label(e.status).into(),
@@ -605,7 +1011,7 @@ fn text_table(report: &Report) -> String {
         }
     }
     let mut out = String::new();
-    for row in &cells {
+    for (row, note) in cells.iter().zip(&notes) {
         let line: Vec<String> = row
             .iter()
             .zip(widths)
@@ -613,6 +1019,9 @@ fn text_table(report: &Report) -> String {
             .collect();
         out.push_str(line.join("  ").trim_end());
         out.push('\n');
+        if let Some(note) = note {
+            out.push_str(&format!("  ↳ {note}\n"));
+        }
     }
     if let Some(headline) = flipdiff_core::render::identity_headline(report) {
         out.insert_str(0, &format!("{}\n\n", escape_control(&headline)));

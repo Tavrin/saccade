@@ -53,6 +53,9 @@ pub struct ViewOptions {
     pub hdr: crate::hdr::HdrConfig,
     /// Config regions, offered in the viewer as preset ROIs.
     pub regions: Vec<crate::regions::RegionSpec>,
+    /// Metadata-sidecar name and ignore list (`required`/`declared` are not
+    /// used: a view gives no verdict).
+    pub meta: crate::meta::MetaOptions,
 }
 
 impl Default for ViewOptions {
@@ -65,6 +68,7 @@ impl Default for ViewOptions {
             pixels_per_degree: CompareOptions::default().pixels_per_degree,
             hdr: crate::hdr::HdrConfig::default(),
             regions: Vec::new(),
+            meta: crate::meta::MetaOptions::default(),
         }
     }
 }
@@ -88,6 +92,12 @@ pub struct ViewPane {
     pub metrics: Option<Metrics>,
     /// Why this pane could not be compared or decoded.
     pub error: Option<String>,
+    /// Sidecar keys that differ from the reference directory's (`baseline` is
+    /// the reference, `capture` this pane). Empty for the reference pane and
+    /// in blind mode, where a value could reveal which side is which.
+    pub meta_diff: Vec<crate::report::MetaDiff>,
+    /// Why the sidecars of this pane or the reference could not be read.
+    pub meta_error: Option<String>,
 }
 
 /// All panes sharing one relative path.
@@ -148,6 +158,7 @@ pub struct ViewModel {
 }
 
 /// A human verdict on one image set.
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "kebab-case")]
 pub enum Verdict {
@@ -160,6 +171,7 @@ pub enum Verdict {
 }
 
 /// A region of interest in image pixels.
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub struct Roi {
     /// Left edge.
@@ -173,6 +185,7 @@ pub struct Roi {
 }
 
 /// The judge's entry for one image set.
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct SetDecision {
     /// Relative image path of the set.
@@ -198,6 +211,7 @@ pub struct SetDecision {
 }
 
 /// The `flipdiff-decisions.v1.json` file.
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct Decisions {
     /// Always [`DECISIONS_SCHEMA`].
@@ -215,6 +229,7 @@ pub struct Decisions {
 
 /// The mapping from a blind view's neutral labels (`P1`, `P2`, ...) to the true
 /// directory labels. Written to `<out>/blind-key.json`, never embedded in the page.
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct BlindKey {
     /// Always [`BLIND_KEY_SCHEMA`].
@@ -542,6 +557,7 @@ pub fn build_view(dirs: &[PathBuf], out_dir: &Path, opts: &ViewOptions) -> Resul
         }
     }
     crate::compare::check_ppd(opts.pixels_per_degree)?;
+    let meta = opts.meta.checker()?;
     let reference = resolve_reference(opts.reference.as_deref(), dirs, &labels)?;
     // Blind pages carry neutral labels only; the true ones go to the key file.
     let shown_labels: Vec<String> = if opts.blind {
@@ -610,6 +626,8 @@ pub fn build_view(dirs: &[PathBuf], out_dir: &Path, opts: &ViewOptions) -> Resul
                 flip: None,
                 metrics: None,
                 error: None,
+                meta_diff: Vec::new(),
+                meta_error: None,
             };
             let Some(src) = src else {
                 pixel_uris.push(None);
@@ -624,6 +642,13 @@ pub fn build_view(dirs: &[PathBuf], out_dir: &Path, opts: &ViewOptions) -> Resul
             )?;
             pane.path = Some(shown);
             pixel_uris.push(Some(uri));
+            if i != reference && !opts.blind && sources.get(reference).is_some_and(Option::is_some)
+            {
+                match meta.compare(&dirs[reference], &dirs[i], name) {
+                    Ok((diff, _)) => pane.meta_diff = diff,
+                    Err(e) => pane.meta_error = Some(e),
+                }
+            }
             match &decoded[i] {
                 Some(Ok(img)) => {
                     (pane.width, pane.height) = img.dimensions();

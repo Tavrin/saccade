@@ -179,7 +179,8 @@
       toggle(e.name);
     } },
       h("td", null, h("span", { class: "st s-" + e.status, text: e.status })),
-      h("td", { class: "name" }, h("button", { type: "button", "aria-expanded": open ? "true" : "false", onclick: function () { toggle(e.name); } }, e.name)),
+      h("td", { class: "name" }, h("button", { type: "button", "aria-expanded": open ? "true" : "false", onclick: function () { toggle(e.name); } }, e.name),
+        (e.meta_diff || []).length ? h("span", { class: "badge cfg", title: e.meta_diff.map(function (d) { return d.key; }).join(", "), text: "config differs" }) : null),
       h("td", { class: "metric col-sec", text: e.metric_used }),
       valueCell(e),
       numCell(e.threshold),
@@ -193,6 +194,7 @@
   function render() {
     timers.forEach(clearInterval);
     timers = [];
+    cmps = [];
     renderHead();
     var shown = entries.filter(function (e) { return state.filter === "all" || e.status !== "pass"; });
     var body = document.getElementById("tbody");
@@ -263,6 +265,20 @@
       }))));
   }
 
+  function metaTable(e) {
+    var ds = e.meta_diff || [];
+    if (!ds.length) return null;
+    return h("div", { class: "rtab-wrap" }, h("table", { class: "rtab mtab" },
+      h("caption", { text: "Configuration differences" }),
+      h("thead", null, h("tr", null, ["Key", LB.baseline, LB.capture].map(function (t) { return h("th", { scope: "col", text: t }); }))),
+      h("tbody", null, ds.map(function (d) {
+        return h("tr", null,
+          h("td", { class: "mk", text: d.key }),
+          h("td", { class: d.baseline === "<absent>" ? "mv na" : "mv", text: d.baseline }),
+          h("td", { class: d.capture === "<absent>" ? "mv na" : "mv", text: d.capture }));
+      }))));
+  }
+
   function markUpscaled(d) {
     if (!d) return;
     var img = d.querySelector(".zbox img");
@@ -280,6 +296,7 @@
   function badges(e) {
     var p = e.properties;
     var b = h("div", { class: "badges" });
+    if ((e.meta_diff || []).length) b.appendChild(h("span", { class: "badge cfg", text: "config differs" }));
     if (!p) { b.appendChild(h("span", { class: "badge", text: "no decodable " + LB.capture })); return b; }
     if (e.bit_identical === true) b.appendChild(h("span", { class: "badge ident", text: "bit-identical" }));
     else if (e.bit_identical === false) b.appendChild(h("span", { class: "badge", text: "not bit-identical" }));
@@ -292,31 +309,79 @@
     return b;
   }
 
+  // ---- compare stage: swipe / flicker with synced zoom and pan ---------------
+
+  var cmps = [];          // live compare controllers, rebuilt on every render()
+  var activeCmp = null;   // the one the keyboard shortcuts drive
+
   function compare(e) {
-    var stage = h("div", { class: "stage zbox" });
-    if (e.metrics && e.metrics.width) stage.style.setProperty("--nw", e.metrics.width);
-    var base = h("img", { src: url(e.paths.baseline), alt: LB.baseline, decoding: "async" });
+    var hasHeat = !!e.paths.heatmap;
+    var x = 50, k = 1, tx = 0, ty = 0, vertical = false, heat = false;
+    var ptrs = {}, gesture = null;
+
+    var stage = h("div", { class: "stage", tabindex: "0", role: "group",
+      "aria-label": "Comparison of " + LB.baseline + " and " + LB.capture + ". Drag to move the divider; arrow keys also work." });
+    if (e.metrics && e.metrics.width && e.metrics.height) stage.style.setProperty("--ar", e.metrics.width / e.metrics.height);
+    var base = h("img", { class: "base", src: url(e.paths.baseline), alt: LB.baseline, decoding: "async", draggable: "false" });
     base.addEventListener("load", function () {
-      stage.style.setProperty("--nw", base.naturalWidth);
-      markUpscaled(stage.closest(".d"));
+      if (base.naturalWidth && base.naturalHeight) stage.style.setProperty("--ar", base.naturalWidth / base.naturalHeight);
+      paint();
     });
-    var cap = h("img", { class: "cap", src: url(e.paths.capture), alt: LB.capture, decoding: "async" });
-    var line = h("div", { class: "line" });
+    var capImg = h("img", { src: url(e.paths.capture), alt: LB.capture, decoding: "async", draggable: "false" });
+    var heatImg = hasHeat ? h("img", { class: "hm", src: url(e.paths.heatmap), alt: "FLIP heatmap", decoding: "async", draggable: "false" }) : null;
+    var cap = h("div", { class: "cap" }, capImg, heatImg);
+    var grip = h("i", { class: "grip" });
+    var line = h("div", { class: "line" }, grip);
     var tagL = h("span", { class: "tag l", text: LB.baseline });
     var tagR = h("span", { class: "tag r", text: LB.capture });
     stage.append(base, cap, line, tagL, tagR);
 
-    var slider = h("input", { type: "range", min: "0", max: "100", value: "50", "aria-label": "Swipe position: " + LB.baseline + " left, " + LB.capture + " right" });
-    slider.addEventListener("input", function () { stage.style.setProperty("--x", slider.value + "%"); });
+    var slider = h("input", { type: "range", min: "0", max: "100", step: "0.1", value: "50", "aria-label": "Swipe position: " + LB.baseline + " left, " + LB.capture + " right" });
+    var opa = h("input", { type: "range", min: "0", max: "1", step: "0.05", value: "0.6", hidden: true, class: "opa", "aria-label": "Heatmap opacity" });
+    stage.style.setProperty("--opa", "0.6");
 
-    var mode = "swipe";
-    var paused = false;
-    var showCap = false;
-    var timer = null;
+    function setX(p) {
+      x = Math.max(0, Math.min(100, Math.round(p * 10) / 10));
+      stage.style.setProperty("--x", x + "%");
+      slider.value = String(x);
+    }
+    setX(50);
+    slider.addEventListener("input", function () { setX(Number(slider.value)); });
+    opa.addEventListener("input", function () { stage.style.setProperty("--opa", opa.value); });
+
+    // ---- zoom and pan: one transform shared by every layer ----
+    var zoomBtns = {};
+    var ZS = [["fit", "Fit"], ["1", "1×"], ["2", "2×"], ["4", "4×"], ["8", "8×"]];
+    function absK(z) { return Math.max(1, Number(z) * (base.naturalWidth || (e.metrics && e.metrics.width) || 1) / (stage.clientWidth || 1)); }
+    function paint() {
+      var w = stage.clientWidth, hh = stage.clientHeight;
+      if (k <= 1.0001) { k = 1; tx = 0; ty = 0; }
+      tx = Math.max(w - w * k, Math.min(0, tx));
+      ty = Math.max(hh - hh * k, Math.min(0, ty));
+      stage.style.setProperty("--t", "translate(" + tx + "px," + ty + "px) scale(" + k + ")");
+      stage.classList.toggle("pix", k > 1.0001);
+      ZS.forEach(function (z) {
+        var on = z[0] === "fit" ? k === 1 : k > 1 && Math.abs(k - absK(z[0])) < 1e-3;
+        zoomBtns[z[0]].setAttribute("aria-pressed", on ? "true" : "false");
+      });
+    }
+    function zoomAt(f, cx, cy) {
+      var nk = Math.max(1, Math.min(256, k * f)), r = nk / k;
+      tx = cx - (cx - tx) * r; ty = cy - (cy - ty) * r; k = nk;
+      paint();
+    }
+    function setZoom(z) {
+      if (z === "fit") { k = 1; paint(); return; }
+      var nk = absK(z), r = nk / k, cx = stage.clientWidth / 2, cy = stage.clientHeight / 2;
+      tx = cx - (cx - tx) * r; ty = cy - (cy - ty) * r; k = nk;
+      paint();
+    }
+
+    // ---- modes ----
+    var mode = "swipe", paused = false, showCap = false, timer = null;
     var pauseBtn = h("button", { type: "button", class: "btn", hidden: true, text: "Pause" });
     var bSwipe = h("button", { type: "button", "aria-pressed": "true", text: "Swipe" });
-    var bFlick = h("button", { type: "button", "aria-pressed": "false", text: "Flicker" });
-
+    var bFlick = h("button", { type: "button", "aria-pressed": "false", text: "Flicker", title: "Space" });
     function paintFlick() {
       stage.classList.toggle("showcap", showCap);
       tagL.textContent = showCap ? LB.capture : LB.baseline;
@@ -353,14 +418,208 @@
       if (paused) stop(); else start();
     });
 
-    return h("div", { class: "cmp" },
+    var vertBtn = h("button", { type: "button", class: "btn small", "aria-pressed": "false", title: "Vertical / horizontal split (v)", text: "Vertical" });
+    function setVertical(v) {
+      vertical = v;
+      stage.classList.toggle("vert", v);
+      vertBtn.setAttribute("aria-pressed", v ? "true" : "false");
+    }
+    vertBtn.addEventListener("click", function () { setVertical(!vertical); });
+
+    var heatBtn = hasHeat ? h("button", { type: "button", class: "btn small", "aria-pressed": "false", title: "FLIP heatmap on the capture side (h)", text: "Heatmap" }) : null;
+    function setHeat(on) {
+      if (!hasHeat) return;
+      heat = on;
+      stage.classList.toggle("heat", on);
+      heatBtn.setAttribute("aria-pressed", on ? "true" : "false");
+      opa.hidden = !on;
+    }
+    if (heatBtn) heatBtn.addEventListener("click", function () { setHeat(!heat); });
+
+    // ---- full screen: the Fullscreen API on the whole .cmp, with a CSS fallback ----
+    var root;
+    var fsBtn = h("button", { type: "button", class: "btn small", "aria-pressed": "false", title: "Full screen (f)", text: "Full screen" });
+    function fsActive() { return document.fullscreenElement === root || root.classList.contains("fs-css"); }
+    function paintFs() {
+      var on = fsActive();
+      root.classList.toggle("fs-on", on);
+      fsBtn.setAttribute("aria-pressed", on ? "true" : "false");
+      fsBtn.textContent = on ? "Exit full screen" : "Full screen";
+      paint();
+    }
+    function setFullscreen(on) {
+      if (!on) {
+        root.classList.remove("fs-css");
+        if (document.fullscreenElement && document.exitFullscreen) document.exitFullscreen();
+        paintFs();
+        return;
+      }
+      var fallback = function () { root.classList.add("fs-css"); paintFs(); };
+      if (root.requestFullscreen) {
+        var r = root.requestFullscreen();
+        if (r && r.catch) r.catch(fallback);
+      } else fallback();
+    }
+    fsBtn.addEventListener("click", function () { setFullscreen(!fsActive()); });
+    document.addEventListener("fullscreenchange", function () { if (root.isConnected) paintFs(); });
+    window.addEventListener("resize", function () { if (root.isConnected) paint(); });
+
+    // ---- pointer input: drag moves the divider; pan when zoomed; pinch zooms ----
+    function nearLine(ev) {
+      var rc = stage.getBoundingClientRect();
+      var pos = vertical ? ev.clientY - rc.top : ev.clientX - rc.left;
+      return Math.abs(pos - (vertical ? rc.height : rc.width) * x / 100) <= 28;
+    }
+    function xFrom(ev) {
+      var rc = stage.getBoundingClientRect();
+      setX(vertical ? (ev.clientY - rc.top) / rc.height * 100 : (ev.clientX - rc.left) / rc.width * 100);
+    }
+    function pinchDist() {
+      var ks = Object.keys(ptrs), a = ptrs[ks[0]], b = ptrs[ks[1]];
+      return Math.hypot(a.x - b.x, a.y - b.y) || 1;
+    }
+    stage.addEventListener("pointerdown", function (ev) {
+      if (ev.pointerType === "mouse" && ev.button !== 0) return;
+      ptrs[ev.pointerId] = { x: ev.clientX, y: ev.clientY };
+      try { stage.setPointerCapture(ev.pointerId); } catch (err) { /* ignore */ }
+      if (Object.keys(ptrs).length === 2) { gesture = { kind: "pinch", d: pinchDist() }; return; }
+      if (mode === "swipe" && (k === 1 || nearLine(ev))) { gesture = { kind: "divider" }; xFrom(ev); }
+      else gesture = { kind: "pan", sx: ev.clientX, sy: ev.clientY, tx: tx, ty: ty };
+      stage.classList.add("drag");
+    });
+    stage.addEventListener("pointermove", function (ev) {
+      if (ptrs[ev.pointerId]) { ptrs[ev.pointerId].x = ev.clientX; ptrs[ev.pointerId].y = ev.clientY; }
+      if (!gesture) return;
+      if (gesture.kind === "pinch") {
+        if (Object.keys(ptrs).length < 2) return;
+        var ks = Object.keys(ptrs), a = ptrs[ks[0]], b = ptrs[ks[1]], rc = stage.getBoundingClientRect(), nd = pinchDist();
+        zoomAt(nd / gesture.d, (a.x + b.x) / 2 - rc.left, (a.y + b.y) / 2 - rc.top);
+        gesture.d = nd;
+      } else if (gesture.kind === "divider") xFrom(ev);
+      else { tx = gesture.tx + ev.clientX - gesture.sx; ty = gesture.ty + ev.clientY - gesture.sy; paint(); }
+    });
+    function up(ev) {
+      delete ptrs[ev.pointerId];
+      if (gesture && gesture.kind === "pinch" && Object.keys(ptrs).length >= 1) { gesture = null; return; }
+      gesture = null;
+      stage.classList.remove("drag");
+    }
+    stage.addEventListener("pointerup", up);
+    stage.addEventListener("pointercancel", up);
+    // Plain wheel scrolls the page until the stage is zoomed; Ctrl/Cmd+wheel (and trackpad pinch) always zooms.
+    stage.addEventListener("wheel", function (ev) {
+      if (!(ev.ctrlKey || ev.metaKey || k > 1.0001)) return;
+      ev.preventDefault();
+      var rc = stage.getBoundingClientRect(), dy = ev.deltaMode === 1 ? ev.deltaY * 16 : ev.deltaY;
+      zoomAt(Math.exp(-dy * (ev.ctrlKey ? 0.01 : 0.0015)), ev.clientX - rc.left, ev.clientY - rc.top);
+    }, { passive: false });
+
+    var zoomSeg = h("div", { class: "seg", role: "group", "aria-label": "Compare zoom" }, ZS.map(function (z) {
+      var b = h("button", { type: "button", "data-cz": z[0], "aria-pressed": z[0] === "fit" ? "true" : "false", text: z[1], title: z[0] === "fit" ? "Fit (0)" : "Zoom " + z[1] + " (" + z[0] + ")" });
+      b.addEventListener("click", function () { setZoom(z[0]); });
+      zoomBtns[z[0]] = b;
+      return b;
+    }));
+
+    root = h("div", { class: "cmp" },
       h("div", { class: "cmp-cap" },
         h("span", { text: "Compare" }),
         h("div", { class: "seg", role: "group", "aria-label": "Compare mode" }, bSwipe, bFlick),
-        pauseBtn),
+        pauseBtn,
+        h("span", { class: "grow" }),
+        fsBtn,
+        h("button", { type: "button", class: "btn small", title: "Keyboard shortcuts (?)", "aria-label": "Keyboard shortcuts", text: "?", onclick: function () { toggleHelp(); } })),
+      h("div", { class: "cmp-tools" }, zoomSeg, vertBtn, heatBtn, opa),
       h("div", { class: "cmp-wrap" }, stage),
       slider);
+
+    var api = {
+      root: root,
+      nudge: function (d) { if (mode === "swipe") setX(x + d); },
+      flicker: function () { setMode(mode === "flicker" ? "swipe" : "flicker"); },
+      vertical: function () { setVertical(!vertical); },
+      heat: function () { setHeat(!heat); },
+      zoom: setZoom,
+      fullscreen: function () { setFullscreen(!fsActive()); },
+      exitFullscreen: function () { if (fsActive()) setFullscreen(false); },
+      isFullscreen: fsActive
+    };
+    cmps.push(api);
+    root.addEventListener("pointerenter", function () { activeCmp = api; });
+    root.addEventListener("focusin", function () { activeCmp = api; });
+    root.addEventListener("pointerdown", function () { activeCmp = api; });
+    return root;
   }
+
+  // The compare the keyboard drives: the last one touched, else the first on screen.
+  function currentCmp() {
+    var live = cmps.filter(function (c) { return c.root.isConnected; });
+    if (activeCmp && live.indexOf(activeCmp) >= 0) return activeCmp;
+    var vh = window.innerHeight;
+    for (var i = 0; i < live.length; i++) {
+      var r = live[i].root.getBoundingClientRect();
+      if (r.bottom > 0 && r.top < vh) return live[i];
+    }
+    return live[0] || null;
+  }
+
+  var KEYS = [
+    ["← / →", "Move the divider 5% (Shift: 1%)"],
+    ["Space", "Toggle flicker"],
+    ["v", "Vertical / horizontal split"],
+    ["h", "Heatmap layer on the capture side"],
+    ["1 2 4 8", "Zoom 1×, 2×, 4×, 8×"],
+    ["0", "Zoom to fit"],
+    ["f", "Full screen"],
+    ["?", "This help"],
+    ["Esc", "Close help / leave full screen"]
+  ];
+  function toggleHelp(force) {
+    var hp = document.getElementById("help");
+    var show = force === undefined ? !hp || hp.hidden : force;
+    if (!hp) {
+      var close = h("button", { type: "button", class: "btn small", text: "Close", onclick: function () { toggleHelp(false); } });
+      var dl = h("dl");
+      KEYS.forEach(function (kv) { dl.append(h("dt", null, h("kbd", { text: kv[0] })), h("dd", { text: kv[1] })); });
+      hp = h("div", { id: "help", class: "help", role: "dialog", "aria-label": "Keyboard shortcuts", hidden: true },
+        h("div", { class: "help-card" }, h("h2", { text: "Keyboard shortcuts" }), dl,
+          h("p", { class: "hint", text: "Keys drive the comparison you last touched. Drag the image to move the divider; once zoomed, drag away from it to pan. Ctrl + wheel or pinch zooms." }),
+          close));
+      hp.addEventListener("click", function (ev) { if (ev.target === hp) toggleHelp(false); });
+    }
+    (document.fullscreenElement || document.body).appendChild(hp);
+    hp.hidden = !show;
+    if (show) hp.querySelector("button").focus();
+  }
+
+  function typing(t) {
+    if (!t || !t.tagName) return false;
+    if (t.isContentEditable || t.tagName === "TEXTAREA" || t.tagName === "SELECT") return true;
+    return t.tagName === "INPUT" && !/^(range|checkbox|radio|button)$/.test(t.type);
+  }
+  document.addEventListener("keydown", function (ev) {
+    if (ev.ctrlKey || ev.metaKey || ev.altKey || typing(ev.target)) return;
+    var key = ev.key, hp = document.getElementById("help");
+    if (key === "Escape") {
+      if (hp && !hp.hidden) toggleHelp(false);
+      else { var c0 = currentCmp(); if (c0) c0.exitFullscreen(); }
+      return;
+    }
+    if (key === "?") { ev.preventDefault(); toggleHelp(); return; }
+    var c = currentCmp();
+    if (!c) return;
+    if (key === "ArrowLeft" || key === "ArrowRight") { ev.preventDefault(); c.nudge((key === "ArrowLeft" ? -1 : 1) * (ev.shiftKey ? 1 : 5)); }
+    else if (key === " ") { ev.preventDefault(); if (!ev.repeat) c.flicker(); }
+    else if (key === "v" || key === "V") c.vertical();
+    else if (key === "h" || key === "H") c.heat();
+    else if (key === "f" || key === "F") c.fullscreen();
+    else if (key === "0") c.zoom("fit");
+    else if (key === "1" || key === "2" || key === "4" || key === "8") c.zoom(key);
+  });
+  // Space activates a focused button on keyup; keep it from doing so after it toggled flicker.
+  document.addEventListener("keyup", function (ev) {
+    if (ev.key === " " && !typing(ev.target) && currentCmp()) ev.preventDefault();
+  });
 
   function metricsGrid(e) {
     var m = e.metrics;
@@ -409,6 +668,8 @@
     if (mg) d.appendChild(mg);
     var rt = regionTable(e);
     if (rt) d.appendChild(rt);
+    var mt = metaTable(e);
+    if (mt) d.appendChild(mt);
     var tr = h("tr", { class: "detail" }, h("td", { colspan: String(COLUMNS.length) }, d));
     return tr;
   }

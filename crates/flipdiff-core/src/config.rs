@@ -47,6 +47,12 @@ pub struct RunConfig {
     pub labels: Labels,
     /// HDR-FLIP settings (`[hdr]`) for `.exr`/`.hdr` images.
     pub hdr: crate::hdr::HdrConfig,
+    /// Metadata-sidecar settings (`meta_name` in the file, flags on the CLI).
+    pub meta: crate::meta::MetaOptions,
+    /// Error value above which a pixel belongs to a hotspot (`hotspot_threshold`).
+    pub hotspot_threshold: f32,
+    /// Hotspots kept per entry; `0` disables them (`hotspots`).
+    pub hotspots: usize,
 }
 
 impl Default for RunConfig {
@@ -64,6 +70,9 @@ impl Default for RunConfig {
             mode: Mode::default(),
             labels: Labels::default(),
             hdr: crate::hdr::HdrConfig::default(),
+            meta: crate::meta::MetaOptions::default(),
+            hotspot_threshold: crate::hotspots::DEFAULT_HOTSPOT_THRESHOLD,
+            hotspots: crate::hotspots::DEFAULT_HOTSPOTS,
         }
     }
 }
@@ -75,6 +84,9 @@ struct FileConfig {
     metric: Option<Metric>,
     fail_on_new: Option<bool>,
     ppd: Option<f32>,
+    meta_name: Option<String>,
+    hotspot_threshold: Option<f32>,
+    hotspots: Option<usize>,
     #[serde(default)]
     ignore: Vec<String>,
     #[serde(default, rename = "override")]
@@ -119,8 +131,10 @@ impl RunConfig {
             context: format!("reading config {}", path.display()),
             source,
         })?;
-        let mut cfg = Self::from_toml_str(&text)
-            .map_err(|e| Error::Config(format!("{}: {e}", path.display())))?;
+        let mut cfg = Self::from_toml_str(&text).map_err(|e| match e {
+            Error::Config(msg) => Error::Config(format!("{}: {msg}", path.display())),
+            other => other,
+        })?;
         cfg.config_dir = Some(
             path.parent()
                 .filter(|p| !p.as_os_str().is_empty())
@@ -144,6 +158,15 @@ impl RunConfig {
         }
         if let Some(v) = file.ppd {
             cfg.pixels_per_degree = v;
+        }
+        if let Some(v) = file.meta_name {
+            cfg.meta.name = v;
+        }
+        if let Some(v) = file.hotspot_threshold {
+            cfg.hotspot_threshold = v;
+        }
+        if let Some(v) = file.hotspots {
+            cfg.hotspots = v;
         }
         cfg.ignore = file.ignore;
         cfg.overrides = file
@@ -176,7 +199,14 @@ impl RunConfig {
             return Err(Error::Config("threshold must be finite".into()));
         }
         crate::compare::check_ppd(self.pixels_per_degree)?;
+        if !self.hotspot_threshold.is_finite() || !(0.0..1.0).contains(&self.hotspot_threshold) {
+            return Err(Error::Config(format!(
+                "hotspot_threshold must be in [0, 1), got {}",
+                self.hotspot_threshold
+            )));
+        }
         self.hdr.validate()?;
+        self.meta.checker()?;
         for g in &self.ignore {
             compile_glob(g)?;
         }

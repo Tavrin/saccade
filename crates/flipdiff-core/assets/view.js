@@ -8,7 +8,7 @@
   var S = {
     set: 0, layout: 'grid', tool: 'pan', scale: 1, tx: 0, ty: 0, fit: true,
     exposure: 0, contrast: 1, channel: 'rgb', opacity: 0.6, rate: 2, paused: false,
-    swipe: 50, revealed: false, chosen: [], flickerIdx: 0, cursor: null, roiDraft: null
+    swipe: 50, vertical: false, heat: false, hold: false, lastLayout: 'swipe', fs: false, revealed: false, chosen: [], flickerIdx: 0, cursor: null, roiDraft: null
   };
   var dec = {};           // name -> SetDecision-shaped entry
   var pixCache = {};      // set index -> {rgb:[ImageData|null], flip:[Uint8Array|null], promise}
@@ -65,6 +65,21 @@
   }
   function save() {
     try { localStorage.setItem(LS_KEY, JSON.stringify({ dec: dec, revealed: S.revealed })); } catch (e) { /* ignore */ }
+    serveSync();
+  }
+  // Under `flipdiff serve` (window.FLIPDIFF_SERVE = {token, session}), also POST the decisions file, debounced.
+  var serveTimer = 0;
+  function serveSync() {
+    var sv = window.FLIPDIFF_SERVE;
+    if (!sv || !sv.session) return;
+    clearTimeout(serveTimer);
+    serveTimer = setTimeout(function () {
+      var out = { schema: 'flipdiff-decisions.v1', seed: D.seed, labels: D.labels, blind: D.blind, sets: D.sets.map(function (s) {
+        var e = dec[s.name] || {};
+        return { name: s.name, decision: e.decision || null, chosen_label: e.chosen_label || null, no_difference: !!e.no_difference, note: e.note || '', roi: e.roi || null, timestamp_ms: e.timestamp_ms || 0 };
+      }) };
+      fetch('/api/session/' + sv.session + '/decisions', { method: 'POST', headers: { 'X-Flipdiff-Token': sv.token, 'Content-Type': 'application/json' }, body: JSON.stringify(out) }).catch(function () { /* offline: localStorage keeps it */ });
+    }, 500);
   }
 
   // ---------- pixels (inspector + ROI) ----------
@@ -194,21 +209,22 @@
   }
 
   // ---------- stage ----------
-  function layerFor(set, i, withHeat) {
+  function layerFor(set, i, withHeat, heatPath) {
     var p = set.panes[i];
     var layer = el('div', { class: 'layer' });
     layer.style.width = p.width + 'px'; layer.style.height = p.height + 'px';
     var img = el('img', { class: 'base', src: url(p.path), width: String(p.width), height: String(p.height), alt: paneName(set, i) + ' – ' + set.name, draggable: 'false' });
     layer.appendChild(img);
-    if (withHeat && p.heatmap) {
-      layer.appendChild(el('img', { class: 'heat', src: url(p.heatmap), width: String(p.width), height: String(p.height), alt: '', draggable: 'false' }));
+    var hp = heatPath || (withHeat && p.heatmap);
+    if (hp) {
+      layer.appendChild(el('img', { class: 'heat', src: url(hp), width: String(p.width), height: String(p.height), alt: '', draggable: 'false' }));
     }
     layer.appendChild(el('div', { class: 'roi', hidden: '' }));
     return layer;
   }
-  function wrapFor(set, i, withHeat) {
+  function wrapFor(set, i, withHeat, heatPath) {
     var w = el('div', { class: 'wrap' });
-    w.appendChild(layerFor(set, i, withHeat));
+    w.appendChild(layerFor(set, i, withHeat, heatPath));
     return w;
   }
   function paneHead(set, i) {
@@ -260,13 +276,14 @@
       if (ch.length < 2) { stage.appendChild(el('p', { class: 'note-msg', text: 'Swipe needs two images: tick two under "Show".' })); }
       else {
         var a = ch[0], b = ch[1];
-        var wb = wrapFor(set, b, false);
-        wb.style.clipPath = 'inset(0 0 0 ' + S.swipe + '%)';
+        var wb = wrapFor(set, b, false, S.heat && !hideInfo() ? heatFor(set, a, b) : null);
         wb.id = 'swipe-top';
-        var div = el('div', { class: 'divider', id: 'swipe-div' });
-        div.style.left = 'calc(' + S.swipe + '% - 1px)';
+        var div = el('div', { class: 'divider', id: 'swipe-div' }, [el('i', { class: 'grip' })]);
         var v = vpEl([wrapFor(set, a, false), wb, div,
           el('span', { class: 'corner l', text: paneName(set, a) }), el('span', { class: 'corner r', text: paneName(set, b) })]);
+        v.classList.add('swipe');
+        v.classList.toggle('vert', S.vertical);
+        paintSwipe(v);
         stage.appendChild(el('div', { class: 'pane' }, [el('div', { class: 'pane-h' }, [el('b', { text: paneName(set, a) + ' | ' + paneName(set, b) }), el('span', { text: '' })]), v]));
       }
     } else if (S.layout === 'flicker') {
@@ -287,11 +304,131 @@
         if (!S.paused) timer = setInterval(function () { S.flickerIdx = (S.flickerIdx + 1) % ch.length; show(); }, 1000 / S.rate);
       }
     }
+    S.hold = false;
+    stage.appendChild(el('div', { class: 'fs-hud' }, [el('button', { type: 'button', class: 'btn small', id: 'fs-exit', text: 'Exit full screen (f)' })]));
+    $('fs-exit').addEventListener('click', function () { setFullscreen(false); });
     applyFilter();
     stage.style.setProperty('--opa', S.opacity);
     applyTransform();
     drawRoi();
     renderInspector();
+  }
+
+  // The FLIP heatmap that belongs to the capture side of a swipe: FLIP(reference, pane).
+  function heatFor(set, a, b) {
+    if (b !== D.reference && set.panes[b].heatmap) return set.panes[b].heatmap;
+    if (a !== D.reference && set.panes[a].heatmap) return set.panes[a].heatmap;
+    return null;
+  }
+  // Position the swipe divider and clip the top pane, horizontally or vertically.
+  function paintSwipe(vp) {
+    var t = $('swipe-top'), d = $('swipe-div');
+    if (!t || !d) return;
+    var v = vp || d.closest('.vp');
+    v.classList.toggle('vert', S.vertical);
+    if (S.vertical) {
+      t.style.clipPath = 'inset(' + S.swipe + '% 0 0 0)';
+      d.style.left = ''; d.style.top = 'calc(' + S.swipe + '% - 1px)';
+    } else {
+      t.style.clipPath = 'inset(0 0 0 ' + S.swipe + '%)';
+      d.style.top = ''; d.style.left = 'calc(' + S.swipe + '% - 1px)';
+    }
+  }
+  function setSwipe(pct) {
+    S.swipe = Math.max(0, Math.min(100, Math.round(pct * 10) / 10));
+    $('swipe').value = String(S.swipe);
+    paintSwipe();
+  }
+  function swipeFromPointer(vp, e) {
+    var rc = vp.getBoundingClientRect();
+    setSwipe(S.vertical ? (e.clientY - rc.top) / rc.height * 100 : (e.clientX - rc.left) / rc.width * 100);
+  }
+  function nearDivider(vp, e) {
+    var rc = vp.getBoundingClientRect();
+    var pos = S.vertical ? e.clientY - rc.top : e.clientX - rc.left;
+    var at = (S.vertical ? rc.height : rc.width) * S.swipe / 100;
+    return Math.abs(pos - at) <= 28;
+  }
+
+  // ---------- hold to compare ----------
+  function holdStart() {
+    var set = cur();
+    if (S.hold || hideInfo() || !set.panes[D.reference] || !set.panes[D.reference].path || S.layout === 'flicker') return;
+    S.hold = true;
+    $('hold').setAttribute('aria-pressed', 'true');
+    viewports.forEach(function (vp) {
+      var w = wrapFor(set, D.reference, false);
+      w.classList.add('holdwrap');
+      vp.appendChild(w);
+      vp.appendChild(el('span', { class: 'corner hold', text: paneName(set, D.reference) + ' (held)' }));
+    });
+    applyFilter(); applyTransform();
+  }
+  function holdEnd() {
+    if (!S.hold) return;
+    S.hold = false;
+    $('hold').setAttribute('aria-pressed', 'false');
+    var xs = document.querySelectorAll('.holdwrap, .corner.hold');
+    for (var i = 0; i < xs.length; i++) xs[i].remove();
+  }
+
+  // ---------- full screen ----------
+  // Fullscreen API on the stage; when it is missing or refused, a fixed-position CSS fallback.
+  function fsActive() { return document.fullscreenElement === $('stage') || $('stage').classList.contains('fs-css'); }
+  function paintFs() {
+    S.fs = fsActive();
+    $('stage').classList.toggle('fs-on', S.fs);
+    $('fs').setAttribute('aria-pressed', String(S.fs));
+    if (viewports.length) applyTransform();
+  }
+  function setFullscreen(on) {
+    var st = $('stage');
+    if (!on) {
+      st.classList.remove('fs-css');
+      if (document.fullscreenElement && document.exitFullscreen) document.exitFullscreen();
+      paintFs();
+      return;
+    }
+    var fallback = function () { st.classList.add('fs-css'); paintFs(); };
+    if (st.requestFullscreen) {
+      var r = st.requestFullscreen();
+      if (r && r.catch) r.catch(fallback);
+    } else fallback();
+  }
+
+  // ---------- help overlay ----------
+  var KEYS = [
+    ['← / →', 'Move the swipe divider 5% (Shift: 1%); outside swipe, previous/next set'],
+    ['[ / ]', 'Previous / next image set'],
+    ['Space', 'Toggle flicker'],
+    ['v', 'Vertical / horizontal split (swipe)'],
+    ['h', 'Heatmap layer on the capture side (swipe)'],
+    ['1 2 4 8', 'Zoom 1×, 2×, 4×, 8×'],
+    ['0', 'Zoom to fit'],
+    ['f', 'Full screen'],
+    ['c (hold)', 'Show the reference while held'],
+    ['?', 'This help'],
+    ['Esc', 'Close help / leave full screen']
+  ];
+  function toggleHelp(force) {
+    var h = $('help');
+    var show = force == null ? !h || h.hidden : force;
+    if (!h) {
+      h = el('div', { id: 'help', class: 'help', role: 'dialog', 'aria-label': 'Keyboard shortcuts', hidden: '' });
+      var card = el('div', { class: 'help-card' }, [el('h2', { text: 'Keyboard shortcuts' })]);
+      var dl = el('dl');
+      KEYS.forEach(function (k) { dl.appendChild(el('dt', null, [el('kbd', { text: k[0] })])); dl.appendChild(el('dd', { text: k[1] })); });
+      card.appendChild(dl);
+      card.appendChild(el('p', { class: 'hint', text: 'Drag on a swipe image to move the divider; when zoomed, drag away from it to pan. Wheel or pinch to zoom.' }));
+      var x = el('button', { type: 'button', class: 'btn small', text: 'Close' });
+      x.addEventListener('click', function () { toggleHelp(false); });
+      card.appendChild(x);
+      h.appendChild(card);
+      h.addEventListener('click', function (e) { if (e.target === h) toggleHelp(false); });
+    }
+    (document.fullscreenElement || document.body).appendChild(h);
+    h.hidden = !show;
+    if (show) h.querySelector('button').focus();
   }
 
   // ---------- ROI ----------
@@ -392,6 +529,8 @@
     try { vp.setPointerCapture(e.pointerId); } catch (err) { /* ignore */ }
     if (ptrCount() === 2) { gesture = { kind: 'pinch', d: pinchDist(), vp: vp }; return; }
     var roi = S.tool === 'roi' || e.shiftKey;
+    var sw = !roi && S.layout === 'swipe' && vp.classList.contains('swipe') && !S.hold && (S.fit || nearDivider(vp, e));
+    if (sw) { gesture = { kind: 'divider', vp: vp, moved: true }; swipeFromPointer(vp, e); vp.classList.add('drag'); return; }
     gesture = { kind: roi ? 'roi' : 'pan', vp: vp, sx: e.clientX, sy: e.clientY, tx: S.tx, ty: S.ty, moved: false };
     if (roi) { var p = toImage(vp, e); gesture.p0 = p; }
     if (!roi) vp.classList.add('drag');
@@ -410,6 +549,9 @@
       var nd = pinchDist();
       zoomAt(nd / gesture.d, (a.x + b.x) / 2 - rc.left, (a.y + b.y) / 2 - rc.top);
       gesture.d = nd;
+    } else if (gesture.kind === 'divider') {
+      swipeFromPointer(gesture.vp, e);
+      if (e.pointerType === 'mouse') cursorFrom(gesture.vp, e);
     } else if (gesture.kind === 'pan') {
       var dx = e.clientX - gesture.sx, dy = e.clientY - gesture.sy;
       if (Math.abs(dx) + Math.abs(dy) > 3) gesture.moved = true;
@@ -495,7 +637,11 @@
     $('b-overlay').disabled = hideInfo();
     $('g-swipe').hidden = S.layout !== 'swipe';
     $('g-flick').hidden = S.layout !== 'flicker';
-    $('g-over').hidden = S.layout !== 'overlay';
+    $('g-over').hidden = S.layout !== 'overlay' && !(S.layout === 'swipe' && S.heat);
+    $('b-heat').setAttribute('aria-pressed', String(S.heat));
+    $('b-heat').disabled = hideInfo();
+    $('b-vert').setAttribute('aria-pressed', String(S.vertical));
+    $('hold').disabled = hideInfo() || S.layout === 'flicker';
     $('g-show').hidden = S.layout !== 'swipe' && S.layout !== 'flicker';
     $('ratev').textContent = S.rate + ' Hz';
     $('pause').setAttribute('aria-pressed', String(S.paused));
@@ -569,9 +715,41 @@
     S.set = i; S.cursor = null; S.roiDraft = null; S.flickerIdx = 0;
     S.chosen = present(cur());
     S.fit = true;
-    renderSets(); renderToolbar(); renderStage(); renderDecision();
+    renderSets(); renderToolbar(); renderStage(); renderDecision(); renderConfigDiff();
   }
-  function rerenderAll() { renderSets(); renderToolbar(); renderStage(); renderDecision(); renderMeta(); }
+  function rerenderAll() { renderSets(); renderToolbar(); renderStage(); renderDecision(); renderMeta(); renderConfigDiff(); }
+
+  // Metadata-sidecar differences of the current set, each pane against the reference.
+  function renderConfigDiff() {
+    var set = cur(), card = $('cfg-card'), t = $('cfgdiff'), hint = $('cfg-hint');
+    t.textContent = '';
+    var cols = [], vals = {}, keys = [];
+    set.panes.forEach(function (p, i) {
+      (p.meta_diff || []).forEach(function (d) {
+        if (keys.indexOf(d.key) < 0) keys.push(d.key);
+        (vals[d.key] = vals[d.key] || { ref: d.baseline })[i] = d.capture;
+        if (cols.indexOf(i) < 0) cols.push(i);
+      });
+    });
+    var errs = [];
+    set.panes.forEach(function (p, i) { if (p.meta_error) errs.push(D.labels[i] + ': ' + p.meta_error); });
+    card.hidden = !keys.length && !errs.length;
+    hint.textContent = errs.join(' | ');
+    if (!keys.length) return;
+    keys.sort();
+    cols.sort(function (a, b) { return a - b; });
+    var head = el('tr', null, [el('th', { text: 'Key' }), el('th', { text: D.labels[D.reference] + ' (ref)' })]);
+    cols.forEach(function (i) { head.appendChild(el('th', { text: D.labels[i] })); });
+    t.appendChild(head);
+    keys.forEach(function (k) {
+      var row = el('tr', null, [el('td', { class: 'mk', text: k }), el('td', { class: 'mv' + (vals[k].ref === '<absent>' ? ' na' : ''), text: vals[k].ref })]);
+      cols.forEach(function (i) {
+        var v = vals[k][i] === undefined ? vals[k].ref : vals[k][i];
+        row.appendChild(el('td', { class: 'mv' + (v === '<absent>' ? ' na' : '') + (v !== vals[k].ref ? ' diff' : ''), text: v }));
+      });
+      t.appendChild(row);
+    });
+  }
 
   function renderMeta() {
     var m = $('meta'); m.textContent = '';
@@ -609,6 +787,37 @@
       if (b && !b.disabled) fn(b.getAttribute(attr));
     });
   }
+  function typing(t) {
+    if (!t || !t.tagName) return false;
+    if (t.isContentEditable || t.tagName === 'TEXTAREA' || t.tagName === 'SELECT') return true;
+    return t.tagName === 'INPUT' && !/^(range|checkbox|radio|button)$/.test(t.type);
+  }
+  function toggleVertical() { S.vertical = !S.vertical; renderToolbar(); paintSwipe(); }
+  function toggleHeat() { S.heat = !S.heat; renderToolbar(); renderStage(); }
+  function onKey(e) {
+    if (e.ctrlKey || e.metaKey || e.altKey || typing(e.target)) return;
+    var k = e.key, step = e.shiftKey ? 1 : 5;
+    if (k === 'Escape') { if ($('help') && !$('help').hidden) toggleHelp(false); else if (S.fs) setFullscreen(false); return; }
+    if (k === '?') { e.preventDefault(); toggleHelp(); return; }
+    if (k === 'ArrowLeft' || k === 'ArrowRight') {
+      var dir = k === 'ArrowLeft' ? -1 : 1;
+      if (S.layout === 'swipe') { e.preventDefault(); setSwipe(S.swipe + dir * step); }
+      else selectSet(S.set + dir);
+    } else if (k === '[') selectSet(S.set - 1);
+    else if (k === ']') selectSet(S.set + 1);
+    else if (k === ' ') {
+      e.preventDefault();
+      if (e.repeat) return;
+      if (S.layout === 'flicker') S.layout = S.lastLayout;
+      else { S.lastLayout = S.layout; S.layout = 'flicker'; }
+      renderToolbar(); renderStage();
+    } else if (k === 'v' || k === 'V') { if (S.layout === 'swipe') toggleVertical(); }
+    else if (k === 'h' || k === 'H') { if (S.layout === 'swipe') toggleHeat(); }
+    else if (k === 'f' || k === 'F') setFullscreen(!fsActive());
+    else if (k === 'c' || k === 'C') { if (!e.repeat) holdStart(); }
+    else if (k === '0') setZoom('fit');
+    else if (k === '1' || k === '2' || k === '4' || k === '8') setZoom(k);
+  }
   function init() {
     load();
     if (!D.sets.length) { $('stage').appendChild(el('p', { class: 'note-msg', text: 'No images found in the given directories.' })); return; }
@@ -622,12 +831,19 @@
       S.exposure = 0; S.contrast = 1; S.channel = 'rgb'; $('exp').value = '0'; $('con').value = '1';
       renderToolbar(); applyFilter();
     });
-    $('swipe').addEventListener('input', function (e) {
-      S.swipe = Number(e.target.value);
-      var t = $('swipe-top'), d = $('swipe-div');
-      if (t) t.style.clipPath = 'inset(0 0 0 ' + S.swipe + '%)';
-      if (d) d.style.left = 'calc(' + S.swipe + '% - 1px)';
-    });
+    $('swipe').addEventListener('input', function (e) { setSwipe(Number(e.target.value)); });
+    $('b-vert').addEventListener('click', function () { toggleVertical(); });
+    $('b-heat').addEventListener('click', function () { toggleHeat(); });
+    $('fs').addEventListener('click', function () { setFullscreen(!fsActive()); });
+    $('help-btn').addEventListener('click', function () { toggleHelp(); });
+    var hb = $('hold');
+    hb.addEventListener('pointerdown', function (e) { e.preventDefault(); try { hb.setPointerCapture(e.pointerId); } catch (err) { /* ignore */ } holdStart(); });
+    ['pointerup', 'pointercancel', 'lostpointercapture'].forEach(function (n) { hb.addEventListener(n, holdEnd); });
+    hb.addEventListener('contextmenu', function (e) { e.preventDefault(); });
+    hb.addEventListener('keydown', function (e) { if (e.key === 'Enter') { e.preventDefault(); holdStart(); } });
+    hb.addEventListener('keyup', function (e) { if (e.key === 'Enter') holdEnd(); });
+    window.addEventListener('blur', holdEnd);
+    document.addEventListener('fullscreenchange', paintFs);
     $('rate').addEventListener('input', function (e) { S.rate = Number(e.target.value); renderToolbar(); renderStage(); });
     $('pause').addEventListener('click', function () { S.paused = !S.paused; renderToolbar(); renderStage(); });
     $('opa').addEventListener('input', function (e) { S.opacity = Number(e.target.value); $('stage').style.setProperty('--opa', S.opacity); });
@@ -660,11 +876,10 @@
     st.addEventListener('pointercancel', onUp);
     st.addEventListener('wheel', onWheel, { passive: false });
     window.addEventListener('resize', function () { if (S.fit) applyTransform(); else { clampT(); applyTransform(); } });
-    document.addEventListener('keydown', function (e) {
-      var t = e.target && e.target.tagName;
-      if (t === 'TEXTAREA' || t === 'INPUT' || t === 'SELECT' || e.ctrlKey || e.metaKey || e.altKey) return;
-      if (e.key === 'ArrowLeft') selectSet(S.set - 1);
-      else if (e.key === 'ArrowRight') selectSet(S.set + 1);
+    document.addEventListener('keydown', onKey);
+    document.addEventListener('keyup', function (e) {
+      if (e.key === 'c' || e.key === 'C') holdEnd();
+      else if (e.key === ' ' && !typing(e.target)) e.preventDefault();
     });
     renderMeta();
     selectSet(0);

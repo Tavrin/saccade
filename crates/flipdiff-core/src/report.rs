@@ -15,6 +15,7 @@ pub const REPORT_SCHEMA: &str = "flipdiff-report.v1";
 pub const REPORT_FILE_NAME: &str = "flipdiff-report.v1.json";
 
 /// One comparison run over a baseline directory and a capture directory.
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct Report {
     /// Always [`REPORT_SCHEMA`].
@@ -32,6 +33,7 @@ pub struct Report {
 }
 
 /// Run-wide settings recorded for reproducibility.
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct ReportConfig {
     /// Default pass threshold applied when no override matches.
@@ -48,9 +50,50 @@ pub struct ReportConfig {
     /// Display names for the two sides (e.g. "parent" / "candidate").
     #[serde(default)]
     pub labels: Labels,
+    /// How metadata sidecars were read and enforced.
+    #[serde(default)]
+    pub meta: MetaSettings,
+}
+
+/// Metadata-sidecar settings recorded for reproducibility.
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct MetaSettings {
+    /// Sidecar file name (the per-image sidecar is `<stem>.<name>`).
+    pub name: String,
+    /// Whether an undeclared differing key fails the entry.
+    pub required: bool,
+    /// Keys whose difference is declared (expected) and therefore allowed.
+    pub declared: Vec<String>,
+    /// Effective ignore globs (built-in defaults plus `--meta-ignore`).
+    pub ignored: Vec<String>,
+}
+
+impl Default for MetaSettings {
+    fn default() -> Self {
+        Self {
+            name: crate::meta::DEFAULT_META_NAME.to_owned(),
+            required: false,
+            declared: Vec::new(),
+            ignored: Vec::new(),
+        }
+    }
+}
+
+/// One metadata key whose value differs between the two sides.
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct MetaDiff {
+    /// Sidecar key.
+    pub key: String,
+    /// Value on the baseline side, or `<absent>`.
+    pub baseline: String,
+    /// Value on the capture side, or `<absent>`.
+    pub capture: String,
 }
 
 /// Purpose of a comparison run.
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "lowercase")]
 pub enum Mode {
@@ -63,6 +106,7 @@ pub enum Mode {
 }
 
 /// Display names of the two compared sides.
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct Labels {
     /// Name of the reference side (FLIP reference). Default `"baseline"`.
@@ -81,6 +125,7 @@ impl Default for Labels {
 }
 
 /// Result of one named region of interest of an entry.
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct RegionResult {
     /// Region name from the config.
@@ -93,13 +138,17 @@ pub struct RegionResult {
     pub metric_used: Metric,
     /// Threshold, when the region has one.
     pub threshold: Option<f64>,
-    /// Value of `metric_used` over the region (masked pixels excluded).
+    /// Value of `metric_used` over the region (masked pixels excluded); a
+    /// fully masked region has no pixels and is `null` (read back as NaN).
+    #[serde(with = "finite_or_null")]
+    #[cfg_attr(feature = "schema", schemars(with = "Option<f64>"))]
     pub value: f64,
     /// FLIP statistics over the region; `width`/`height` are the region's.
     pub metrics: Metrics,
 }
 
 /// HDR comparison settings actually used for an entry (HDR-FLIP).
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct HdrInfo {
     /// Tone mapper applied at each exposure (`"aces"`, `"hable"`, `"reinhard"`).
@@ -115,6 +164,7 @@ pub struct HdrInfo {
 }
 
 /// Per-status counts.
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize)]
 pub struct Totals {
     /// Number of entries.
@@ -132,6 +182,7 @@ pub struct Totals {
 }
 
 /// Outcome of one image name.
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "lowercase")]
 pub enum Status {
@@ -148,6 +199,7 @@ pub enum Status {
 }
 
 /// Which statistic of the FLIP error map decides pass/fail.
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "lowercase")]
 pub enum Metric {
@@ -160,6 +212,7 @@ pub enum Metric {
 }
 
 /// One image name's comparison result.
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct Entry {
     /// Path relative to the baseline/capture roots, `/`-separated.
@@ -192,6 +245,40 @@ pub struct Entry {
     /// HDR-FLIP settings when the pair was compared as HDR.
     #[serde(default)]
     pub hdr: Option<HdrInfo>,
+    /// Sidecar keys that differ between the sides (ignored keys excluded).
+    #[serde(default)]
+    pub meta_diff: Vec<MetaDiff>,
+    /// Where the FLIP error is concentrated, largest first (see
+    /// [`crate::hotspots`]); empty when none exceed the threshold, when the
+    /// pair was not compared or when hotspots are disabled.
+    #[serde(default)]
+    pub hotspots: Vec<Hotspot>,
+}
+
+/// One concentration of FLIP error on the frame, in pixels of the compared
+/// images. Masked pixels never count.
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct Hotspot {
+    /// Bounding box `[x, y, w, h]` in pixels.
+    pub rect_px: [u32; 4],
+    /// The same box as fractions of the frame, `[x, y, w, h]`.
+    pub rect_frac: [f64; 4],
+    /// Number of pixels above the hotspot threshold that make up the hotspot.
+    pub area_px: u64,
+    /// `area_px` as a fraction of the frame.
+    pub area_frac: f64,
+    /// Mean FLIP error over the unmasked pixels inside `rect_px`.
+    pub mean_flip: f64,
+    /// Largest FLIP error inside `rect_px`.
+    pub max_flip: f64,
+    /// Summed error of the hotspot's pixels over the summed error of every
+    /// unmasked pixel of the frame, in `[0, 1]`.
+    pub share_of_total_error: f64,
+    /// Coarse 3x3 position of the box centre: `top-left`, `top-center`,
+    /// `top-right`, `middle-left`, `center`, `middle-right`, `bottom-left`,
+    /// `bottom-center`, `bottom-right`.
+    pub position: String,
 }
 
 /// Serde adapter for metric values: a non-finite number is written as `null`
@@ -215,28 +302,36 @@ mod finite_or_null {
 /// FLIP error-map statistics. All error values are in `[0, 1]`; a non-finite
 /// value (which a valid run does not produce) is serialized as `null` and read
 /// back as NaN.
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 #[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize)]
 pub struct Metrics {
     /// Mean error.
     #[serde(with = "finite_or_null")]
+    #[cfg_attr(feature = "schema", schemars(with = "Option<f64>"))]
     pub mean: f64,
     /// Maximum error.
     #[serde(with = "finite_or_null")]
+    #[cfg_attr(feature = "schema", schemars(with = "Option<f64>"))]
     pub max: f64,
     /// Median error.
     #[serde(with = "finite_or_null")]
+    #[cfg_attr(feature = "schema", schemars(with = "Option<f64>"))]
     pub p50: f64,
     /// 95th-percentile error.
     #[serde(with = "finite_or_null")]
+    #[cfg_attr(feature = "schema", schemars(with = "Option<f64>"))]
     pub p95: f64,
     /// 99th-percentile error.
     #[serde(with = "finite_or_null")]
+    #[cfg_attr(feature = "schema", schemars(with = "Option<f64>"))]
     pub p99: f64,
     /// Fraction of pixels with error > 0.1.
     #[serde(with = "finite_or_null")]
+    #[cfg_attr(feature = "schema", schemars(with = "Option<f64>"))]
     pub frac_above_0_1: f64,
     /// Fraction of pixels with error > 0.5.
     #[serde(with = "finite_or_null")]
+    #[cfg_attr(feature = "schema", schemars(with = "Option<f64>"))]
     pub frac_above_0_5: f64,
     /// Image width in pixels.
     pub width: u32,
@@ -245,6 +340,7 @@ pub struct Metrics {
 }
 
 /// Structural sanity checks on a single image (catches black frames, blowouts).
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 #[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize)]
 pub struct Properties {
     /// Every pixel is (0,0,0).
@@ -261,6 +357,7 @@ pub struct Properties {
 
 /// Paths (relative to the report directory, `/`-separated) of the images the
 /// report copies or generates. `None` when that image does not exist.
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 #[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
 pub struct EntryPaths {
     /// Copy of the baseline image.
@@ -277,5 +374,38 @@ impl Report {
     pub fn is_regression(&self) -> bool {
         let t = &self.totals;
         t.fail > 0 || t.error > 0 || t.missing > 0 || (self.config.fail_on_new && t.new > 0)
+    }
+}
+
+#[cfg(test)]
+#[allow(clippy::expect_used)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn fully_masked_region_value_round_trips() {
+        let m = Metrics {
+            mean: f64::NAN,
+            max: f64::NAN,
+            p50: f64::NAN,
+            p95: f64::NAN,
+            p99: f64::NAN,
+            frac_above_0_1: f64::NAN,
+            frac_above_0_5: f64::NAN,
+            width: 1,
+            height: 1,
+        };
+        let r = RegionResult {
+            name: "hud".into(),
+            rect_px: [0, 0, 1, 1],
+            status: None,
+            metric_used: Metric::Mean,
+            threshold: None,
+            value: f64::NAN,
+            metrics: m,
+        };
+        let json = serde_json::to_string(&r).expect("serialize");
+        let back: RegionResult = serde_json::from_str(&json).expect("deserialize");
+        assert!(back.value.is_nan());
     }
 }

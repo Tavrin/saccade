@@ -130,6 +130,10 @@ main { padding: 14px 16px 40px; max-width: 1500px; margin: 0 auto; }
   padding: 4px 11px; cursor: pointer;
 }
 .btn:hover { background: var(--surface-2); }
+.btn.small { padding: 2px 9px; font-size: 12.5px; }
+.btn[aria-pressed="true"] { background: var(--accent); border-color: var(--accent); color: #fff; }
+:root[data-theme="dark"] .btn[aria-pressed="true"] { color: #0f1218; }
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) .btn[aria-pressed="true"] { color: #0f1218; } }
 
 /* ---- table ---- */
 .table-wrap { background: var(--surface); border: 1px solid var(--border); border-radius: 9px; overflow-x: auto; }
@@ -203,21 +207,53 @@ tr.detail > td { padding: 0; background: var(--surface-2); border-bottom: 1px so
 
 .cmp { display: grid; gap: 6px; }
 .cmp-cap { margin: 0; justify-content: flex-start; flex-wrap: wrap; gap: 8px 12px; }
+.cmp-cap .grow { flex: 1; }
+.cmp-tools { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 10px; }
 .zoom-fit .cmp { max-width: 720px; }
-.cmp-wrap { overflow: auto; max-height: 80vh; background: var(--surface); border: 1px solid var(--border); border-radius: 6px; }
-.stage { position: relative; line-height: 0; }
-.stage .cap { position: absolute; left: 0; top: 0; width: 100%; height: 100%; clip-path: inset(0 0 0 var(--x, 50%)); }
-.stage .line { position: absolute; top: 0; bottom: 0; left: var(--x, 50%); width: 2px; margin-left: -1px; background: var(--accent); box-shadow: 0 0 0 1px rgba(255,255,255,.55); pointer-events: none; }
+.cmp-wrap { background: var(--surface); border: 1px solid var(--border); border-radius: 6px; overflow: hidden; }
+.cmp-wrap > .stage { margin-inline: auto; }
+/* The stage is the viewport: every layer shares --t (translate + scale), the divider lives in screen space. */
+.stage { position: relative; line-height: 0; overflow: hidden; width: 100%; max-width: calc(80vh * var(--ar, 1.6)); aspect-ratio: var(--ar, 1.6); touch-action: none; cursor: ew-resize; user-select: none; -webkit-user-select: none; outline-offset: -2px; }
+.stage.vert { cursor: ns-resize; }
+.stage.drag { cursor: grabbing; }
+.stage img { position: absolute; left: 0; top: 0; width: 100%; height: 100%; max-width: none; transform: var(--t, none); transform-origin: 0 0; pointer-events: none; -webkit-user-drag: none; }
+.stage.pix img { image-rendering: pixelated; }
+.stage .cap { position: absolute; inset: 0; clip-path: inset(0 0 0 var(--x, 50%)); }
+.stage.vert .cap { clip-path: inset(var(--x, 50%) 0 0 0); }
+.stage .hm { display: none; opacity: var(--opa, 0.6); }
+.stage.heat .hm { display: block; }
+.stage .line { position: absolute; top: 0; bottom: 0; left: var(--x, 50%); width: 2px; margin-left: -1px; background: #fff; box-shadow: 0 0 0 1px rgba(0,0,0,.55), 0 0 8px rgba(0,0,0,.35); pointer-events: none; }
+.stage.vert .line { top: var(--x, 50%); bottom: auto; left: 0; right: 0; width: auto; height: 2px; margin: -1px 0 0; }
+.stage .grip { position: absolute; left: 50%; top: 50%; width: 34px; height: 34px; margin: -17px 0 0 -17px; border-radius: 50%; background: #fff; box-shadow: 0 0 0 1px #000, 0 2px 8px rgba(0,0,0,.5); }
+.stage .grip::before, .stage .grip::after { content: ""; position: absolute; top: 50%; width: 7px; height: 7px; margin-top: -4px; border: solid #222; border-width: 2px 2px 0 0; }
+.stage .grip::before { left: 8px; transform: rotate(-135deg); }
+.stage .grip::after { right: 8px; transform: rotate(45deg); }
+.stage.vert .grip { transform: rotate(90deg); }
 .stage .tag {
   position: absolute; top: 6px; padding: 1px 7px; border-radius: 4px; font: 600 11px/1.6 var(--sans);
   background: rgba(0,0,0,.65); color: #fff; pointer-events: none;
 }
 .stage .tag.l { left: 6px; } .stage .tag.r { right: 6px; }
+.stage.vert .tag.r { top: auto; bottom: 6px; right: auto; left: 6px; }
 .stage.flick .line, .stage.flick .tag.r { display: none; }
+.stage.flick { cursor: grab; }
 .stage.flick .cap { clip-path: none; opacity: 0; }
 .stage.flick.showcap .cap { opacity: 1; }
 .cmp input[type=range] { width: 100%; accent-color: var(--accent); margin: 2px 0 0; }
 .cmp input[type=range][hidden] { display: none; }
+.cmp-tools input[type=range] { width: 110px; margin: 0; }
+/* full screen: the Fullscreen API on .cmp, or this fixed-position fallback */
+.cmp.fs-on { background: var(--bg); padding: 12px; align-content: start; overflow: auto; max-width: none; }
+.cmp.fs-css { position: fixed; inset: 0; z-index: 50; }
+.cmp.fs-on .cmp-wrap { border: 0; background: none; }
+.cmp.fs-on .stage { max-width: min(100%, calc((100vh - 120px) * var(--ar, 1.6))); }
+.help { position: fixed; inset: 0; z-index: 100; display: grid; place-items: center; padding: 16px; background: rgba(0, 0, 0, 0.5); }
+.help-card { max-width: 440px; width: 100%; max-height: 90vh; overflow: auto; background: var(--surface); color: var(--text); border: 1px solid var(--border); border-radius: 12px; padding: 14px 18px; box-shadow: 0 10px 40px rgba(0, 0, 0, 0.4); }
+.help-card h2 { margin: 0 0 10px; font-size: 14px; }
+.help-card dl { display: grid; grid-template-columns: auto 1fr; gap: 6px 14px; margin: 0 0 10px; align-items: baseline; }
+.help-card dd { margin: 0; color: var(--muted); font-size: 13px; }
+.help-card .hint { margin: 0 0 10px; color: var(--muted); font-size: 12.5px; }
+kbd { font: 600 12px var(--mono); padding: 2px 6px; border: 1px solid var(--border); border-bottom-width: 2px; border-radius: 5px; background: var(--surface-2); white-space: nowrap; }
 
 .mx { display: grid; grid-template-columns: repeat(auto-fit, minmax(92px, 1fr)); gap: 6px; margin: 0; }
 .mx div { background: var(--surface); border: 1px solid var(--border); border-radius: 6px; padding: 4px 9px; }
@@ -243,3 +279,7 @@ tr.detail > td { padding: 0; background: var(--surface-2); border-bottom: 1px so
   .chips { margin-left: 0; }
   .top, main { padding-left: 16px; padding-right: 16px; }
 }
+.badge.cfg { background: var(--missing-bg); color: var(--missing); border-color: var(--missing); font-weight: 700; }
+td.name .badge.cfg { margin-left: 8px; font-size: 11px; }
+.mtab td.mk, .mtab td.mv { font-family: var(--mono); overflow-wrap: anywhere; }
+.mtab td.na { color: var(--muted); font-style: italic; }

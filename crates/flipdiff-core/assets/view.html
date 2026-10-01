@@ -64,10 +64,15 @@
       <div class="grp"><label class="lbl" for="exp">Exposure</label><input type="range" id="exp" min="-4" max="4" step="0.1" value="0"><span class="val" id="expv"></span></div>
       <div class="grp"><label class="lbl" for="con">Contrast</label><input type="range" id="con" min="0.5" max="4" step="0.05" value="1"><span class="val" id="conv"></span>
         <button type="button" class="btn small" id="reset-view">Reset</button></div>
-      <div class="grp opt" id="g-swipe"><label class="lbl" for="swipe">Swipe</label><input type="range" id="swipe" min="0" max="100" step="1" value="50"></div>
+      <div class="grp opt" id="g-swipe"><label class="lbl" for="swipe">Swipe</label><input type="range" id="swipe" min="0" max="100" step="0.1" value="50">
+        <button type="button" class="btn small" id="b-vert" aria-pressed="false" title="Vertical / horizontal split (v)">Vertical</button>
+        <button type="button" class="btn small" id="b-heat" aria-pressed="false" title="FLIP heatmap on the capture side (h)">Heatmap layer</button></div>
       <div class="grp opt" id="g-flick"><label class="lbl" for="rate">Rate</label><input type="range" id="rate" min="0.5" max="10" step="0.5" value="2"><span class="val" id="ratev"></span>
         <button type="button" class="btn small" id="pause" aria-pressed="false">Pause</button></div>
       <div class="grp opt" id="g-over"><label class="lbl" for="opa">Heatmap opacity</label><input type="range" id="opa" min="0" max="1" step="0.05" value="0.6"></div>
+      <div class="grp"><button type="button" class="btn small" id="hold" aria-pressed="false" title="Hold to show the reference (key: c)">Hold to compare</button>
+        <button type="button" class="btn small" id="fs" aria-pressed="false" title="Full screen (f)">Full screen</button>
+        <button type="button" class="btn small" id="help-btn" title="Keyboard shortcuts (?)" aria-label="Keyboard shortcuts">?</button></div>
       <div class="grp opt" id="g-show"><span class="lbl">Show</span><span id="chosen" class="chosen"></span></div>
     </div>
     <div class="stage" id="stage"></div>
@@ -75,6 +80,9 @@
       <section class="card" aria-labelledby="h-insp"><h2 id="h-insp">Pixel inspector</h2>
         <div class="tscroll"><table id="insp"></table></div>
         <p class="hint" id="insp-hint"></p></section>
+      <section class="card" id="cfg-card" aria-labelledby="h-cfg" hidden><h2 id="h-cfg">Configuration differs</h2>
+        <div class="tscroll"><table id="cfgdiff"></table></div>
+        <p class="hint" id="cfg-hint"></p></section>
       <section class="card" aria-labelledby="h-dec"><h2 id="h-dec">Decision</h2>
         <div id="dec"></div></section>
     </div>

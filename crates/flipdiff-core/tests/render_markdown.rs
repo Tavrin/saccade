@@ -28,6 +28,8 @@ fn entry(name: String, status: Status, value: Option<f64>) -> Entry {
         masked_fraction: None,
         bit_identical: None,
         hdr: None,
+        meta_diff: Vec::new(),
+        hotspots: Vec::new(),
     }
 }
 
@@ -163,4 +165,26 @@ fn comment_key_changes_the_marker() {
     );
     assert!(flipdiff_core::render::is_valid_comment_key("linux-x64"));
     assert!(!flipdiff_core::render::is_valid_comment_key("a -->b"));
+}
+
+#[test]
+fn identity_headline_escapes_the_entry_name() {
+    use flipdiff_core::report::{Metrics, Mode};
+    let mut r = synthetic(1, 0);
+    r.config.mode = Mode::Identity;
+    let e = &mut r.entries[0];
+    e.name = "a|`b`\n<x>.png".into();
+    e.metrics = Some(Metrics {
+        mean: 0.1,
+        max: 0.2,
+        p50: 0.1,
+        p95: 0.1,
+        p99: 0.1,
+        frac_above_0_1: 0.0,
+        frac_above_0_5: 0.0,
+        width: 1,
+        height: 1,
+    });
+    let h = flipdiff_core::render::identity_headline(&r).expect("headline");
+    assert!(h.contains("on `a\\|ˋbˋ <x>.png`"), "{h}");
 }

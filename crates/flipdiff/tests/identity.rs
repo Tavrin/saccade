@@ -113,7 +113,53 @@ fn identity_markdown_headline() {
     identity(tmp.path(), &[]);
     let md = summary(&json);
     assert!(
-        md.contains("identity: ❌ 1 differ (max FLIP ") && md.contains(" on sub/b.png)"),
+        md.contains("identity: ❌ 1 differ (max FLIP ") && md.contains(" on `sub/b.png`)"),
         "{md}"
     );
+}
+
+#[test]
+fn bit_identity_compares_native_samples_not_the_cleaned_decode() {
+    let tmp = tempfile::tempdir().expect("tmp");
+    let (parent, cand) = (tmp.path().join("parent"), tmp.path().join("cand"));
+    std::fs::create_dir_all(&parent).expect("mkdir");
+    std::fs::create_dir_all(&cand).expect("mkdir");
+    // 16-bit samples that differ only in the low byte.
+    let deep = |v: u16| image::ImageBuffer::from_pixel(8, 8, image::Rgb([v, v, v]));
+    deep(30000).save(parent.join("deep.png")).expect("save");
+    deep(30001).save(cand.join("deep.png")).expect("save");
+    // A NaN sample against 0: the HDR decode cleans NaN to 0.
+    let exr = |v: f32| image::Rgb32FImage::from_pixel(8, 8, image::Rgb([v, 0.0, 0.0]));
+    exr(0.0).save(parent.join("nan.exr")).expect("save");
+    exr(f32::NAN).save(cand.join("nan.exr")).expect("save");
+    identity(tmp.path(), &[]);
+    let r = report(tmp.path());
+    for e in r["entries"].as_array().expect("entries") {
+        assert_eq!(e["bit_identical"], false, "{e}");
+    }
+}
+
+#[test]
+fn auto_loaded_config_overrides_do_not_relax_identity() {
+    let tmp = tempfile::tempdir().expect("tmp");
+    pair(tmp.path(), true);
+    let toml = "[[override]]\nglob = \"**\"\nthreshold = 1.0\n";
+    std::fs::write(tmp.path().join("flipdiff.toml"), toml).expect("toml");
+    let run = |extra: &[&str]| {
+        let (parent, cand) = (tmp.path().join("parent"), tmp.path().join("cand"));
+        Command::new(env!("CARGO_BIN_EXE_flipdiff"))
+            .current_dir(tmp.path())
+            .arg("identity")
+            .args([&parent, &cand])
+            .arg("--out")
+            .arg(tmp.path().join("out"))
+            .args(extra)
+            .output()
+            .expect("spawn")
+    };
+    let o = run(&[]);
+    assert_eq!(o.status.code(), Some(1), "{o:?}");
+    assert!(String::from_utf8_lossy(&o.stderr).contains("[[override]]"));
+    let o = run(&["--config", "flipdiff.toml"]);
+    assert_eq!(o.status.code(), Some(0), "{o:?}");
 }

@@ -1,0 +1,80 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="light dark">
+<title>flipdiff serve</title>
+<style>/*__SERVE_CSS__*/</style>
+</head>
+<body>
+<header class="top">
+  <div class="brand"><span class="logo" aria-hidden="true"></span><h1>flipdiff</h1><span class="tag">serve</span></div>
+  <span class="sub" id="rootname"></span>
+</header>
+<div class="page" id="landing" hidden>
+  <div class="col">
+    <section class="card" aria-label="Browse">
+      <h2>Browse</h2>
+      <nav class="crumbs" id="crumbs" aria-label="Path"></nav>
+      <form class="filters" id="filters" role="search">
+        <input type="search" id="q" placeholder="Path contains…" aria-label="Path substring">
+        <input type="text" id="metaf" placeholder="sidecar key=value" aria-label="Sidecar filter, key or key=value" spellcheck="false" autocomplete="off">
+        <button type="submit" class="btn">Search here</button>
+        <button type="button" class="btn" id="recentbtn">Recent here</button>
+      </form>
+      <div id="runbox" class="runbox" hidden></div>
+      <p class="hint" id="note" role="status"></p>
+      <ul class="list" id="dirs"></ul>
+    </section>
+    <section class="card" id="resultscard" hidden aria-label="Search results">
+      <h2 id="resultstitle">Results</h2>
+      <p class="hint" id="resultsnote" role="status"></p>
+      <ul class="list" id="results"></ul>
+    </section>
+  </div>
+  <div class="col">
+    <section class="card" aria-label="Selection">
+      <h2>Compare</h2>
+      <ol class="chips" id="chips"></ol>
+      <p class="hint" id="selhint">Select 2 to 6 runs. The first is the FLIP reference; drag chips (or use the arrows) to reorder.</p>
+      <div class="opts">
+        <label><input type="checkbox" id="blind"> Blind</label>
+        <button type="button" class="btn primary" id="compare" disabled>Compare</button>
+        <button type="button" class="btn" id="clear">Clear</button>
+      </div>
+    </section>
+    <section class="card" aria-label="Upload two images or folders">
+      <h2>Drop two images or folders</h2>
+      <div class="drop" id="drop">
+        <div class="slot" id="slot-a"><span class="t">A (reference)</span><span class="v" id="va">empty</span>
+          <span class="btns"><button type="button" class="btn small" data-pick="a-file">Image…</button><button type="button" class="btn small" data-pick="a-dir">Folder…</button></span></div>
+        <div class="slot" id="slot-b"><span class="t">B</span><span class="v" id="vb">empty</span>
+          <span class="btns"><button type="button" class="btn small" data-pick="b-file">Image…</button><button type="button" class="btn small" data-pick="b-dir">Folder…</button></span></div>
+        <p class="dropmsg" id="dropmsg">Drop two items here (or one on a slot). Files up to 64 MB each are uploaded to the local cache, never to the archive.</p>
+        <button type="button" class="btn primary" id="upload" disabled>Open comparison</button>
+      </div>
+      <input type="file" id="in-file" accept=".png,.jpg,.jpeg,.exr,.hdr" hidden>
+      <input type="file" id="in-dir" webkitdirectory hidden>
+    </section>
+    <section class="card" aria-label="Recent runs">
+      <h2>Recent runs <span class="hint" id="recentwhere"></span></h2>
+      <p class="hint" id="recentnote" role="status"></p>
+      <ul class="list" id="recent"></ul>
+    </section>
+    <section class="card decs" aria-label="Recent decisions">
+      <h2>Recent decisions</h2>
+      <ul class="list" id="decs"></ul>
+    </section>
+  </div>
+</div>
+<div class="big" id="progress" hidden>
+  <h2 id="ptitle">Building the comparison…</h2>
+  <div class="bar" aria-hidden="true"><i></i></div>
+  <p class="hint" id="pnote" role="status"></p>
+  <p><a href="/">Back to the archive</a></p>
+</div>
+<script>window.FLIPDIFF_PAGE = __SERVE_PAGE__;</script>
+<script>/*__SERVE_JS__*/</script>
+</body>
+</html>

@@ -1,0 +1,163 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Decisions",
+  "description": "The `flipdiff-decisions.v1.json` file.",
+  "type": "object",
+  "properties": {
+    "blind": {
+      "description": "Whether the judging was blind.",
+      "type": "boolean",
+      "default": false
+    },
+    "labels": {
+      "description": "The view's directory labels.",
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "schema": {
+      "description": "Always [`DECISIONS_SCHEMA`].",
+      "type": "string"
+    },
+    "seed": {
+      "description": "The shuffle seed of the view the decisions were made in.",
+      "type": "integer",
+      "format": "uint64",
+      "minimum": 0
+    },
+    "sets": {
+      "description": "One entry per image set.",
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/SetDecision"
+      }
+    }
+  },
+  "required": [
+    "schema",
+    "seed",
+    "labels",
+    "sets"
+  ],
+  "$defs": {
+    "Roi": {
+      "description": "A region of interest in image pixels.",
+      "type": "object",
+      "properties": {
+        "h": {
+          "description": "Height.",
+          "type": "integer",
+          "format": "uint32",
+          "minimum": 0
+        },
+        "w": {
+          "description": "Width.",
+          "type": "integer",
+          "format": "uint32",
+          "minimum": 0
+        },
+        "x": {
+          "description": "Left edge.",
+          "type": "integer",
+          "format": "uint32",
+          "minimum": 0
+        },
+        "y": {
+          "description": "Top edge.",
+          "type": "integer",
+          "format": "uint32",
+          "minimum": 0
+        }
+      },
+      "required": [
+        "x",
+        "y",
+        "w",
+        "h"
+      ]
+    },
+    "SetDecision": {
+      "description": "The judge's entry for one image set.",
+      "type": "object",
+      "properties": {
+        "chosen_label": {
+          "description": "Pairwise judging: the true label of the preferred pane.",
+          "type": [
+            "string",
+            "null"
+          ],
+          "default": null
+        },
+        "decision": {
+          "description": "accept / reject / needs-work, if decided.",
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Verdict"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "name": {
+          "description": "Relative image path of the set.",
+          "type": "string"
+        },
+        "no_difference": {
+          "description": "Pairwise judging: \"no visible difference\".",
+          "type": "boolean",
+          "default": false
+        },
+        "note": {
+          "description": "Free-text note.",
+          "type": "string",
+          "default": ""
+        },
+        "roi": {
+          "description": "The ROI that was drawn, if any.",
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Roi"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "timestamp_ms": {
+          "description": "When the entry was last edited, Unix milliseconds.",
+          "type": "integer",
+          "format": "uint64",
+          "default": 0,
+          "minimum": 0
+        }
+      },
+      "required": [
+        "name"
+      ]
+    },
+    "Verdict": {
+      "description": "A human verdict on one image set.",
+      "oneOf": [
+        {
+          "description": "Promote the capture to baseline.",
+          "type": "string",
+          "const": "accept"
+        },
+        {
+          "description": "Do not promote.",
+          "type": "string",
+          "const": "reject"
+        },
+        {
+          "description": "Not decided; the renderer needs more work.",
+          "type": "string",
+          "const": "needs-work"
+        }
+      ]
+    }
+  }
+}

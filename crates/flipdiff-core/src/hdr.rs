@@ -18,8 +18,9 @@ use crate::compare::{CompareOptions, Comparison, compare, metrics_of};
 use crate::error::{Error, Result};
 use crate::report::{HdrInfo, Properties};
 
-/// Largest linear value kept after decoding. Larger values (and infinities)
-/// are clamped so tone mapping cannot overflow `f32`.
+/// Largest linear value kept after decoding and after the exposure gain.
+/// Larger values (and infinities) are clamped so the tone mappers' `x * x`
+/// stays within `f32` (`1e15 ^ 2 = 1e30 < f32::MAX`).
 const MAX_LINEAR: f32 = 1.0e15;
 /// Upper bound on automatically chosen exposure counts.
 const MAX_AUTO_EXPOSURES: u32 = 64;
@@ -340,7 +341,9 @@ pub fn tonemap_to_srgb8(img: &HdrImage, tm: Tonemapper, stops: f32) -> image::Rg
     let mut out = Vec::with_capacity(img.data.len());
     for px in img.data.chunks_exact(3) {
         if let [r, g, b] = px {
-            let mapped = tonemap_px([r * gain, g * gain, b * gain], tm);
+            let exposed = [r * gain, g * gain, b * gain]
+                .map(|v| if v.is_nan() { 0.0 } else { v.min(MAX_LINEAR) });
+            let mapped = tonemap_px(exposed, tm);
             out.extend(mapped.map(srgb_byte));
         }
     }
@@ -417,16 +420,6 @@ pub fn compare_hdr(
     }
     let metrics = metrics_of(&error_map, capture.width, capture.height);
     Ok((Comparison { metrics, error_map }, plan.info(cfg.tonemapper)))
-}
-
-/// True when every channel of both images is bit-for-bit equal.
-pub fn bit_identical(a: &HdrImage, b: &HdrImage) -> bool {
-    a.width == b.width
-        && a.height == b.height
-        && a.data
-            .iter()
-            .zip(&b.data)
-            .all(|(x, y)| x.to_bits() == y.to_bits())
 }
 
 #[cfg(test)]
