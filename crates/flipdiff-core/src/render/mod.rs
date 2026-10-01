@@ -2,8 +2,9 @@
 //! Markdown summary used for CI step summaries and PR comments.
 //!
 //! Both read only the [`Report`] model (see `SPEC.md` §3).
-//!
-//! SCAFFOLD STUB — lane B replaces the bodies; the signatures are frozen.
+
+mod html;
+mod markdown;
 
 use std::path::{Path, PathBuf};
 
@@ -22,13 +23,19 @@ pub struct MarkdownOptions {
 
 /// Writes `index.html` into `report_dir` (which already holds the report JSON
 /// and the images it references) and returns its path.
+///
+/// The page is fully self-contained: CSS, JS and the report JSON are inline,
+/// and images are referenced by the report's relative paths, so the directory
+/// works when opened from `file://`.
 pub fn render_html(report: &Report, report_dir: &Path) -> Result<PathBuf> {
-    let _ = report;
-    Ok(report_dir.join("index.html"))
+    html::render_html(report, report_dir)
 }
 
 /// Renders the Markdown summary of `report`.
+///
+/// The output starts with the hidden `<!-- flipdiff-summary -->` marker and is
+/// never longer than `opts.max_bytes` (default 60 000): pass rows are dropped
+/// first, then non-pass rows, with a "…and N more" line recording the cut.
 pub fn render_markdown(report: &Report, opts: &MarkdownOptions) -> String {
-    let _ = (report, opts);
-    String::new()
+    markdown::render_markdown(report, opts)
 }
