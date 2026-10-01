@@ -24,6 +24,13 @@ pub struct Report {
     pub tool_version: String,
     /// Seconds since the Unix epoch when the run finished.
     pub generated_at_unix: u64,
+    /// Absolute path of the baseline directory the run compared against;
+    /// `approve` checks it against the directory it is given.
+    #[serde(default)]
+    pub baseline_dir: Option<String>,
+    /// Absolute path of the capture directory the run compared.
+    #[serde(default)]
+    pub capture_dir: Option<String>,
     /// Effective run-wide settings (per-entry overrides live on each entry).
     pub config: ReportConfig,
     /// Counts per status; always consistent with `entries`.
@@ -53,6 +60,19 @@ pub struct ReportConfig {
     /// How metadata sidecars were read and enforced.
     #[serde(default)]
     pub meta: MetaSettings,
+    /// Whether a run that compared no pair is accepted (`--allow-empty`).
+    #[serde(default)]
+    pub allow_empty: bool,
+    /// Whether a capture with NaN or infinite samples fails its entry.
+    #[serde(default = "default_true")]
+    pub fail_on_nonfinite: bool,
+    /// Peak-error value at which a local hotspot fails an entry; `None` is off.
+    #[serde(default)]
+    pub hotspot_fail: Option<f64>,
+}
+
+fn default_true() -> bool {
+    true
 }
 
 /// Metadata-sidecar settings recorded for reproducibility.
@@ -207,6 +227,8 @@ pub enum Metric {
     Mean,
     /// 95th-percentile FLIP error.
     P95,
+    /// 99th-percentile FLIP error.
+    P99,
     /// Maximum FLIP error.
     Max,
 }
@@ -248,11 +270,37 @@ pub struct Entry {
     /// Sidecar keys that differ between the sides (ignored keys excluded).
     #[serde(default)]
     pub meta_diff: Vec<MetaDiff>,
+    /// Sidecar keys that differ but were ignored (timestamps, durations...),
+    /// listed so an ignore glob that hides a real change stays visible.
+    #[serde(default)]
+    pub meta_ignored_diff: Vec<MetaDiff>,
+    /// Structural checks on the baseline; `None` when there is no decodable baseline.
+    #[serde(default)]
+    pub baseline_properties: Option<Properties>,
+    /// Non-fatal observations: an all-black or all-white image, non-finite
+    /// samples, a local hotspot that failed an otherwise passing entry.
+    #[serde(default)]
+    pub warnings: Vec<String>,
+    /// SHA-256 (hex) of the baseline file as compared.
+    #[serde(default)]
+    pub baseline_sha256: Option<String>,
+    /// SHA-256 (hex) of the capture file as compared.
+    #[serde(default)]
+    pub capture_sha256: Option<String>,
     /// Where the FLIP error is concentrated, largest first (see
     /// [`crate::hotspots`]); empty when none exceed the threshold, when the
     /// pair was not compared or when hotspots are disabled.
     #[serde(default)]
     pub hotspots: Vec<Hotspot>,
+    /// Numerical comparison for non-colour buffers; FLIP metrics stay absent.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub buffer: Option<crate::buffer::BufferResult>,
+    /// Why the images differ: cause decomposition, sub-pixel shift, signed
+    /// difference, non-finite map, timing pairs and a plain-English
+    /// description (see [`crate::diagnostics`]). `None` when diagnostics are
+    /// disabled or the pair was not compared as images.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub diagnostics: Option<crate::diagnostics::Diagnostics>,
 }
 
 /// One concentration of FLIP error on the frame, in pixels of the compared
@@ -353,6 +401,15 @@ pub struct Properties {
     pub min_luminance: f32,
     /// Maximum Rec. 709 luminance.
     pub max_luminance: f32,
+    /// Samples that are NaN (HDR images only; always 0 for 8-bit images).
+    #[serde(default)]
+    pub nan_count: u64,
+    /// Samples that are infinite (HDR images only).
+    #[serde(default)]
+    pub inf_count: u64,
+    /// Finite samples below zero (HDR images only).
+    #[serde(default)]
+    pub negative_count: u64,
 }
 
 /// Paths (relative to the report directory, `/`-separated) of the images the
@@ -366,14 +423,67 @@ pub struct EntryPaths {
     pub capture: Option<String>,
     /// FLIP error heatmap (magma colormap).
     pub heatmap: Option<String>,
+    /// Signed luminance difference (blue darker, orange brighter), when
+    /// diagnostics ran on a non-identical pair.
+    #[serde(default)]
+    pub signed_diff: Option<String>,
+    /// Mask of NaN (magenta), infinite (yellow) and negative (cyan) samples of
+    /// an HDR capture, when it has any.
+    #[serde(default)]
+    pub nonfinite_mask: Option<String>,
+}
+
+/// Peak FLIP error from which a passing entry is reported as having a local
+/// defect.
+pub const LOCAL_HOTSPOT_NOTE_MIN: f64 = 0.5;
+
+impl Entry {
+    /// For a passing entry whose worst hotspot peaks at
+    /// [`LOCAL_HOTSPOT_NOTE_MIN`] or more, a line such as
+    /// `pass, but local hotspot: 40x40 @ top-left (max 0.75)`. A low mean can
+    /// hide a small, severe defect; this keeps it visible.
+    pub fn local_hotspot_note(&self) -> Option<String> {
+        if self.status != Status::Pass {
+            return None;
+        }
+        let worst = self
+            .hotspots
+            .iter()
+            .filter(|h| h.max_flip >= LOCAL_HOTSPOT_NOTE_MIN)
+            .max_by(|a, b| a.max_flip.total_cmp(&b.max_flip))?;
+        Some(format!(
+            "pass, but local hotspot: {}x{} @ {} (max {:.2})",
+            worst.rect_px[2], worst.rect_px[3], worst.position, worst.max_flip
+        ))
+    }
 }
 
 impl Report {
+    /// Number of pairs actually compared: entries with FLIP metrics (a pair
+    /// that errored only on its sidecars still counts).
+    pub fn compared(&self) -> usize {
+        self.entries
+            .iter()
+            .filter(|e| e.metrics.is_some() || e.value.is_some())
+            .count()
+    }
+
+    /// Whether the run compared nothing and did not opt into that
+    /// (`--allow-empty`): a green result would then mean nothing.
+    pub fn is_empty_run(&self) -> bool {
+        self.compared() == 0 && !self.config.allow_empty
+    }
+
     /// Whether this run should exit non-zero: any fail, error or missing entry,
-    /// or any new entry when `config.fail_on_new`.
+    /// any new entry when `config.fail_on_new`, or no pair compared at all
+    /// unless `config.allow_empty`.
     pub fn is_regression(&self) -> bool {
         let t = &self.totals;
-        t.fail > 0 || t.error > 0 || t.missing > 0 || (self.config.fail_on_new && t.new > 0)
+        t.fail > 0
+            || t.error > 0
+            || t.missing > 0
+            || (self.config.fail_on_new && t.new > 0)
+            || self.is_empty_run()
     }
 }
 

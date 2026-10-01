@@ -82,16 +82,19 @@ fn explain_writes_strips_and_blind_hides_the_heatmap_and_the_key() {
     assert_eq!(hs["hotspot"]["position"], "bottom-center");
     let strip = image::open(out.join(hs["strip"].as_str().unwrap())).expect("strip decodes");
     assert!(strip.width() > 3 * 256, "three panels of at least 256 px");
-    assert!(out.join("thumbs/scene.png.png").is_file());
+    assert!(out.join("thumbs/scene.png").is_file());
     assert!(out.join("explain.md").is_file());
     assert!(!out.join("blind-key.json").exists());
 
     let out = tmp.path().join("blind");
+    let key_out = tmp.path().join("keys/blind-key.json");
     let ok = Command::new(BIN)
         .arg("explain")
         .arg(&json)
         .args(["--blind", "--seed", "7", "--out"])
         .arg(&out)
+        .arg("--key-out")
+        .arg(&key_out)
         .stdout(Stdio::null())
         .status()
         .expect("spawn");
@@ -99,10 +102,14 @@ fn explain_writes_strips_and_blind_hides_the_heatmap_and_the_key() {
     let pack = read_json(&out.join("explain.json"));
     let hs = &pack["entries"][0]["hotspots"][0];
     assert_eq!(hs["panels"], json!(["A", "B"]));
-    assert!(pack["labels"].is_null());
+    assert!(pack["labels"].is_null() && pack["report"].is_null());
     let blind_strip = image::open(out.join(hs["strip"].as_str().unwrap())).unwrap();
     assert!(blind_strip.width() < 700, "two panels, no heatmap");
-    let key = read_json(&out.join("blind-key.json"));
+    assert!(
+        !out.join("blind-key.json").exists(),
+        "the key stays out of the pack"
+    );
+    let key = read_json(&key_out);
     assert_eq!(key["seed"], 7);
     assert_eq!(
         key["items"].as_array().unwrap().len(),
@@ -113,11 +120,13 @@ fn explain_writes_strips_and_blind_hides_the_heatmap_and_the_key() {
     assert!(!md.contains("baseline") && !md.contains("capture"));
 }
 
-/// Sends `requests` (one JSON message per line) to `flipdiff mcp`, returns the
-/// replies in order.
-fn mcp(requests: &[Value]) -> Vec<Value> {
+/// Sends `requests` (one JSON message per line) to `flipdiff mcp --root root`,
+/// returns the replies in order.
+fn mcp(root: &Path, requests: &[Value]) -> Vec<Value> {
     let mut child = Command::new(BIN)
         .arg("mcp")
+        .arg("--root")
+        .arg(root)
         .stdin(Stdio::piped())
         .stdout(Stdio::piped())
         .stderr(Stdio::null())
@@ -146,23 +155,26 @@ fn mcp_round_trip_compare_returns_a_structured_verdict() {
     let tmp = tempfile::tempdir().unwrap();
     let (base, cap) = dirs(tmp.path());
     let out = tmp.path().join("out");
-    let replies = mcp(&[
-        json!({"jsonrpc": "2.0", "id": 1, "method": "initialize", "params": {
+    let replies = mcp(
+        tmp.path(),
+        &[
+            json!({"jsonrpc": "2.0", "id": 1, "method": "initialize", "params": {
             "protocolVersion": "2025-06-18", "capabilities": {},
             "clientInfo": {"name": "test", "version": "0"}}}),
-        json!({"jsonrpc": "2.0", "method": "notifications/initialized"}),
-        json!({"jsonrpc": "2.0", "id": 2, "method": "tools/list"}),
-        call(
-            3,
-            "flipdiff_compare",
-            json!({"baseline_dir": base, "capture_dir": cap, "out_dir": out}),
-        ),
-        call(
-            4,
-            "flipdiff_summary",
-            json!({"report_json": out.join("flipdiff-report.v1.json")}),
-        ),
-    ]);
+            json!({"jsonrpc": "2.0", "method": "notifications/initialized"}),
+            json!({"jsonrpc": "2.0", "id": 2, "method": "tools/list"}),
+            call(
+                3,
+                "flipdiff_compare",
+                json!({"baseline_dir": base, "capture_dir": cap, "out_dir": out}),
+            ),
+            call(
+                4,
+                "flipdiff_summary",
+                json!({"report_json": out.join("flipdiff-report.v1.json")}),
+            ),
+        ],
+    );
     assert_eq!(replies.len(), 4, "the notification gets no reply");
     assert_eq!(replies[0]["result"]["protocolVersion"], "2025-06-18");
     let names: Vec<&str> = replies[1]["result"]["tools"]
@@ -171,15 +183,17 @@ fn mcp_round_trip_compare_returns_a_structured_verdict() {
         .iter()
         .map(|t| t["name"].as_str().unwrap())
         .collect();
-    assert_eq!(
-        names,
-        [
-            "flipdiff_compare",
-            "flipdiff_identity",
-            "flipdiff_explain",
-            "flipdiff_summary"
-        ]
-    );
+    for tool in [
+        "flipdiff_compare",
+        "flipdiff_identity",
+        "flipdiff_explain",
+        "flipdiff_summary",
+        "flipdiff_snapshot",
+        "flipdiff_decision_request",
+        "flipdiff_decide",
+    ] {
+        assert!(names.contains(&tool), "{tool} is listed in {names:?}");
+    }
     let result = &replies[2]["result"];
     assert_eq!(result["isError"], false);
     let s = &result["structuredContent"];
@@ -205,24 +219,27 @@ fn mcp_round_trip_compare_returns_a_structured_verdict() {
 fn mcp_reports_stable_error_codes() {
     let tmp = tempfile::tempdir().unwrap();
     let (base, cap) = dirs(tmp.path());
-    let replies = mcp(&[
-        call(
-            1,
-            "flipdiff_compare",
-            json!({"baseline_dir": tmp.path().join("nope"), "capture_dir": cap, "out_dir": tmp.path().join("o")}),
-        ),
-        call(
-            2,
-            "flipdiff_compare",
-            json!({"baseline_dir": base, "capture_dir": cap, "out_dir": base.join("report")}),
-        ),
-    ]);
+    let replies = mcp(
+        tmp.path(),
+        &[
+            call(
+                1,
+                "flipdiff_compare",
+                json!({"baseline_dir": tmp.path().join("nope"), "capture_dir": cap, "out_dir": tmp.path().join("o")}),
+            ),
+            call(
+                2,
+                "flipdiff_compare",
+                json!({"baseline_dir": base, "capture_dir": cap, "out_dir": base.join("report")}),
+            ),
+        ],
+    );
     let first = &replies[0]["result"];
     assert_eq!(first["isError"], true);
     assert_eq!(first["structuredContent"]["code"], "io");
     let second = &replies[1]["result"];
     assert_eq!(second["isError"], true);
-    assert_eq!(second["structuredContent"]["code"], "usage");
+    assert_eq!(second["structuredContent"]["code"], "config");
 }
 
 #[test]

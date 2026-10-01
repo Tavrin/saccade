@@ -21,13 +21,20 @@ pub(crate) fn write_view_html(model: &ViewModel, view_dir: &Path) -> Result<Path
     let data = embed_json(model)?;
     // The payload is substituted last so nothing in it can pose as a placeholder.
     let html = TEMPLATE
-        .replace("/*__FLIPDIFF_CSS__*/", CSS)
-        .replace("/*__FLIPDIFF_JS__*/", JS)
+        .replace(
+            "/*__FLIPDIFF_CSS__*/",
+            &format!("{CSS}\n{}", super::html::AGENT_CSS),
+        )
+        .replace(
+            "/*__FLIPDIFF_JS__*/",
+            &format!("{}\n{JS}", super::html::AGENT_JS),
+        )
         .replace("__FLIPDIFF_DATA__", &data);
     let path = view_dir.join("index.html");
     std::fs::write(&path, html).map_err(|source| Error::Io {
         context: format!("writing {}", path.display()),
         source,
     })?;
+    crate::decision::ensure_sidecar(view_dir);
     Ok(path)
 }

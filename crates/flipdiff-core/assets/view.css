@@ -123,9 +123,11 @@ input[type=range] { width: 120px; accent-color: var(--accent); }
 .stage { display: grid; gap: 10px; grid-template-columns: repeat(auto-fit, minmax(min(100%, 280px), 1fr)); --ar: 1; }
 .stage.single { grid-template-columns: minmax(0, 1fr); }
 .pane { align-self: start; min-width: 0; width: 100%; max-width: calc(76vh * var(--ar)); margin-inline: auto; background: var(--surface); border: 1px solid var(--border); border-radius: 9px; overflow: hidden; }
-.pane-h { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 8px; align-items: baseline; padding: 6px 10px; border-bottom: 1px solid var(--border); font-size: 13px; }
-.pane-h b { font-family: var(--mono); flex: none; max-width: 100%; overflow-wrap: anywhere; }
-.pane-h span { color: var(--muted); font: 12px var(--mono); }
+.pane-h { display: flex; flex-wrap: nowrap; justify-content: space-between; gap: 8px; align-items: center; height: 32px; padding: 0 10px; border-bottom: 1px solid var(--border); font-size: 13px; overflow: hidden; }
+.pane-h b { font-family: var(--mono); flex: 0 0 auto; min-width: 0; max-width: 50%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.pane-h span { color: var(--muted); font: 12px var(--mono); flex: 0 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.pane-h span:not(.wide) { margin-left: auto; }
+.pane-h .wide { flex: none; }
 .vp { position: relative; overflow: hidden; width: 100%; aspect-ratio: var(--w) / var(--h); background:
   repeating-conic-gradient(var(--surface-2) 0% 25%, var(--surface) 0% 50%) 0 0 / 16px 16px;
   touch-action: none; cursor: grab; user-select: none; -webkit-user-select: none; }
@@ -190,7 +192,7 @@ textarea { width: 100%; min-height: 64px; resize: vertical; padding: 6px 8px; bo
 #hold { touch-action: none; -webkit-user-select: none; user-select: none; -webkit-touch-callout: none; }
 .fs-hud { display: none; }
 .stage { position: relative; }
-.stage.fs-on { background: var(--bg); padding: 12px; overflow: auto; align-content: center; justify-items: center; }
+.stage.fs-on { background: #111; padding: 12px; overflow: auto; align-content: center; justify-items: center; }
 .stage.fs-css { position: fixed; inset: 0; z-index: 50; }
 .stage.fs-on .pane { max-width: min(100%, calc((100vh - 70px) * var(--ar))); }
 .stage.fs-on .fs-hud { display: block; position: fixed; top: 10px; right: 12px; z-index: 5; }
@@ -209,3 +211,28 @@ kbd { font: 600 12px var(--mono); padding: 2px 6px; border: 1px solid var(--bord
 .pane-h .wide { color: var(--missing); font-family: var(--sans); font-weight: 700; }
 #hotlist .hrow { cursor: pointer; }
 #hotlist .hrow:hover td { background: var(--surface-2); }
+
+/* triage: status chips, FLIP values, order and filter */
+.triage { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 14px; padding: 8px 10px; border-bottom: 1px solid var(--border); font-size: 12.5px; }
+.triage label { display: inline-flex; align-items: center; gap: 6px; color: var(--muted); }
+.triage select { padding: 2px 6px; border: 1px solid var(--border); border-radius: 6px; background: var(--surface); }
+.triage.mobile-only { border: 1px solid var(--border); border-radius: 9px; background: var(--surface); }
+@media (min-width: 900px) { .triage.mobile-only { display: none; } }
+@media (max-width: 899px) { .sets .triage { display: none; } }
+.sets .line { display: flex; flex-wrap: wrap; align-items: center; gap: 2px 6px; }
+.chip { font: 600 11px/1.5 var(--sans); padding: 0 6px; border-radius: 999px; background: var(--surface-2); color: var(--muted); }
+.chip.st-changed { background: var(--fail-bg); color: var(--fail); }
+.chip.st-identical { background: var(--pass-bg); color: var(--pass); }
+.chip.st-missing { background: var(--missing-bg); color: var(--missing); }
+.chip.st-error { background: var(--error-bg); color: var(--error); }
+.fv { font: 12px var(--mono); color: var(--text); }
+.sets .none { padding: 10px; color: var(--muted); font-size: 12.5px; }
+.back { font-size: 13px; text-decoration: none; color: var(--accent); margin-right: 6px; white-space: nowrap; }
+.back:hover { text-decoration: underline; }
+
+/* configuration differences: a validity warning above everything else */
+.cfgwarn { background: var(--missing-bg); border: 1px solid var(--missing); border-radius: 9px; padding: 8px 12px; }
+.cfgwarn h2 { margin: 0 0 6px; font-size: 13px; color: var(--missing); }
+#hot-card { grid-column: 1 / -1; order: -1; }
+#warn-card ul { margin: 0; padding-left: 18px; font-size: 12.5px; }
+#warn-card li.nf { color: var(--fail); font-weight: 700; }

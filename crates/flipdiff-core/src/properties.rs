@@ -17,6 +17,9 @@ pub fn validate(img: &image::RgbImage) -> Properties {
             mean_luminance: 0.0,
             min_luminance: 0.0,
             max_luminance: 0.0,
+            nan_count: 0,
+            inf_count: 0,
+            negative_count: 0,
         };
     }
     let (mut black, mut white) = (true, true);
@@ -38,5 +41,8 @@ pub fn validate(img: &image::RgbImage) -> Properties {
         mean_luminance: (sum / count as f64) as f32,
         min_luminance: min,
         max_luminance: max,
+        nan_count: 0,
+        inf_count: 0,
+        negative_count: 0,
     }
 }

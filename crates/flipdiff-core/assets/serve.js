@@ -41,7 +41,8 @@
     var id = P.session;
     function poll() {
       getJSON('/api/session/' + enc(id) + '/status').then(function (s) {
-        if (s.state === 'ready' && s.url) { location.replace(s.url); return; }
+        // set=, a= and b= (the set and pair to open on) ride along to the session.
+        if (s.state === 'ready' && s.url) { location.replace(s.url + location.search); return; }
         if (s.state === 'failed') {
           $('ptitle').textContent = 'The comparison could not be built';
           $('pnote').textContent = s.error || 'unknown error';
@@ -56,6 +57,12 @@
       }).catch(function (e) {
         $('pnote').textContent = String(e.message || e);
         $('pnote').className = 'hint err';
+        if (/unknown session/i.test(String(e.message || e))) {
+          $('ptitle').textContent = 'This comparison is not available';
+          $('pnote').textContent = 'The link is stale or the cache was cleared. Open it again from the archive.';
+          document.querySelector('#progress .bar').hidden = true;
+          return;
+        }
         setTimeout(poll, 2000);
       });
     }
@@ -72,15 +79,18 @@
   }
   function saveSel() { try { localStorage.setItem(LS_SEL, JSON.stringify(selection)); } catch (e) { /* ignore */ } }
 
-  function renderCrumbs(path, rootName) {
+  // With several roots the first path segment names a root and the empty
+  // path lists them: the crumbs then start at "Roots", not at the root.
+  function renderCrumbs(path, rootName, multi) {
     var c = $('crumbs'); clear(c);
     var parts = path ? path.split('/') : [];
     function go(p) { return function () { navigate(p); }; }
+    var top = multi ? 'Roots' : (rootName || '/');
     if (parts.length) {
-      var rb = el('button', { type: 'button', text: rootName || '/' });
+      var rb = el('button', { type: 'button', text: top });
       rb.addEventListener('click', go(''));
       c.appendChild(rb);
-    } else c.appendChild(el('span', { cls: 'cur', text: rootName || '/' }));
+    } else c.appendChild(el('span', { cls: 'cur', text: top }));
     var acc = '';
     parts.forEach(function (p, i) {
       acc = join(acc, p);
@@ -139,12 +149,67 @@
     return i;
   }
 
-  function selectBtn(path) {
+  // A selection holds either whole runs or single images, never both.
+  function isImg(p) { return IMG_RE.test(p); }
+  function selKind() {
+    var n = selection.filter(isImg).length;
+    return !selection.length ? '' : n === selection.length ? 'images' : n === 0 ? 'runs' : 'mixed';
+  }
+  var btnReg = [];
+  function paintBtn(b, path) {
     var on = selection.indexOf(path) >= 0;
-    var b = el('button', { type: 'button', cls: 'btn small', text: on ? 'Selected' : '+ Compare', 'aria-pressed': on ? 'true' : 'false' });
-    b.disabled = on || selection.length >= MAX_RUNS;
+    var kind = isImg(path) ? 'images' : 'runs', cur = selKind();
+    var clash = !!cur && cur !== kind;
+    b.textContent = on ? 'Selected' : '+ Compare';
+    b.setAttribute('aria-pressed', on ? 'true' : 'false');
+    b.disabled = on || selection.length >= MAX_RUNS || clash;
+    b.title = clash ? 'The selection holds ' + (cur === 'images' ? 'single images' : 'runs') + '; clear it to pick ' + (kind === 'images' ? 'an image' : 'a run') : '';
+  }
+  function paintAll() {
+    btnReg = btnReg.filter(function (r) { return document.body.contains(r.b); });
+    btnReg.forEach(function (r) { paintBtn(r.b, r.path); });
+  }
+  function selectBtn(path) {
+    var b = el('button', { type: 'button', cls: 'btn small' });
+    paintBtn(b, path);
+    btnReg.push({ b: b, path: path });
     b.addEventListener('click', function () { addSel(path); });
     return b;
+  }
+
+  // All the images of a run, each with its own "+ Compare".
+  function imagesPanel(path) {
+    var box = el('div', { cls: 'imgpanel' }, [el('p', { cls: 'hint', text: 'Loading images…' })]);
+    getJSON('/api/images?path=' + enc(path)).then(function (r) {
+      clear(box);
+      if (!r.images.length) { box.appendChild(el('p', { cls: 'hint', text: 'No images here.' })); return; }
+      var g = el('div', { cls: 'thumbs pick' });
+      r.images.forEach(function (it) {
+        var full = join(path, it.name);
+        var im = el('img', { loading: 'lazy', alt: it.name, src: '/thumb?path=' + enc(full) });
+        im.addEventListener('error', function () { im.style.visibility = 'hidden'; });
+        g.appendChild(el('figure', null, [im, el('figcaption', { text: it.name, title: it.name + ' · ' + size(it.bytes) }), selectBtn(full)]));
+      });
+      box.appendChild(g);
+      if (r.truncated) box.appendChild(el('p', { cls: 'hint', text: 'Only the first ' + r.images.length + ' images are listed.' }));
+    }).catch(function (e) { clear(box); box.appendChild(el('p', { cls: 'hint err', text: String(e.message || e) })); });
+    return box;
+  }
+  // "Images" toggle on a run row: expands the row into its image list.
+  function imagesToggle(row, path) {
+    var b = el('button', { type: 'button', cls: 'btn small ghost', text: 'Images ▾', 'aria-expanded': 'false' });
+    var panel = null;
+    b.addEventListener('click', function () {
+      var open = row.classList.toggle('open');
+      b.setAttribute('aria-expanded', open ? 'true' : 'false');
+      b.textContent = open ? 'Images ▴' : 'Images ▾';
+      if (open) { panel = imagesPanel(path); row.appendChild(panel); }
+      else if (panel) { row.removeChild(panel); panel = null; }
+    });
+    return b;
+  }
+  function rowActions(row, path) {
+    return el('div', { cls: 'racts' }, [selectBtn(path), imagesToggle(row, path)]);
   }
 
   function renderRunBox(l) {
@@ -157,13 +222,7 @@
     ]));
     if (l.run.meta_error) rb.appendChild(el('p', { cls: 'hint err', text: 'sidecar: ' + l.run.meta_error }));
     rb.appendChild(pairsEl(l.run.meta, 12));
-    var g = el('div', { cls: 'thumbs' });
-    l.run.names.slice(0, 24).forEach(function (n) {
-      var im = el('img', { loading: 'lazy', alt: n, src: '/thumb?path=' + enc(join(l.path, n)) });
-      im.addEventListener('error', function () { im.style.visibility = 'hidden'; });
-      g.appendChild(el('figure', null, [im, el('figcaption', { text: n, title: n })]));
-    });
-    rb.appendChild(g);
+    rb.appendChild(imagesPanel(l.path));
   }
 
   function navigate(path, noHash) {
@@ -172,7 +231,7 @@
       cwd = l.path; meta = l;
       if (!noHash) { try { history.pushState(null, '', '#' + (cwd ? '/' + cwd : '')); } catch (e) { /* ignore */ } }
       $('rootname').textContent = l.root_name;
-      renderCrumbs(l.path, l.root_name);
+      renderCrumbs(l.path, l.root_name, l.multi);
       renderRunBox(l);
       var ul = $('dirs'); clear(ul);
       l.dirs.forEach(function (d) {
@@ -182,10 +241,10 @@
         var sub = el('span', { cls: 'sub', text: when(d.mtime) });
         var top = el('span', null, [nm, d.has_images ? el('span', { cls: 'badge', text: 'run' }) : null]);
         var row = el('li', { cls: 'row' }, [thumb(p, d.sample), el('div', { cls: 'main' }, [top, sub])]);
-        if (d.has_images) row.appendChild(selectBtn(p));
+        if (d.has_images) row.appendChild(rowActions(row, p));
         ul.appendChild(row);
       });
-      $('note').textContent = l.dirs.length + ' sub-directories' + (l.partial ? ' (image probing stopped early: some directories are not classified)' : '') + (l.outside_links ? ' · ' + l.outside_links + ' symlinks leave the archive root and are not shown' : '');
+      $('note').textContent = l.dirs.length + (l.multi && !l.path ? ' roots' : ' sub-directories') + (l.partial ? ' (image probing stopped early: some directories are not classified)' : '') + (l.outside_links ? ' · ' + l.outside_links + ' symlinks leave the served roots and are not shown' : '');
       $('resultscard').hidden = true;
       loadRecent();
     }).catch(function (e) {
@@ -202,9 +261,9 @@
       nm.addEventListener('click', function () { navigate(r.path); });
       var row = el('li', { cls: 'row' }, [
         thumb(r.path, r.sample),
-        el('div', { cls: 'main' }, [nm, el('span', { cls: 'sub', text: r.images + ' images · ' + when(r.mtime) }), pairsEl(r.meta, 3, diff)]),
-        selectBtn(r.path)
+        el('div', { cls: 'main' }, [nm, el('span', { cls: 'sub', text: r.images + ' images · ' + when(r.mtime) }), pairsEl(r.meta, 3, diff)])
       ]);
+      row.appendChild(rowActions(row, r.path));
       ul.appendChild(row);
     });
   }
@@ -246,13 +305,7 @@
   // ---------- selection ----------
   function addSel(p) {
     if (selection.indexOf(p) >= 0 || selection.length >= MAX_RUNS) return;
-    selection.push(p); saveSel(); renderSel(); refreshButtons();
-  }
-  function refreshButtons() {
-    if (meta) { renderRunBox(meta); }
-    // other select buttons re-render on the next listing; re-run the cheap ones
-    var rows = document.querySelectorAll('.list .row .btn.small');
-    rows.forEach(function (b) { if (selection.length >= MAX_RUNS && b.textContent === '+ Compare') b.disabled = true; });
+    selection.push(p); saveSel(); renderSel(); paintAll();
   }
   function move(i, d) {
     var j = i + d;
@@ -272,7 +325,7 @@
       var x = el('button', { type: 'button', cls: 'btn small', 'aria-label': 'Remove', text: '×' });
       l.addEventListener('click', function () { move(i, -1); });
       r.addEventListener('click', function () { move(i, 1); });
-      x.addEventListener('click', function () { selection.splice(i, 1); saveSel(); renderSel(); if (meta) renderRunBox(meta); });
+      x.addEventListener('click', function () { selection.splice(i, 1); saveSel(); renderSel(); paintAll(); });
       [l, r, x].forEach(function (b) { li.appendChild(b); });
       li.addEventListener('dragstart', function (e) { dragFrom = i; try { e.dataTransfer.setData('text/plain', p); e.dataTransfer.effectAllowed = 'move'; } catch (er) { /* ignore */ } });
       li.addEventListener('dragover', function (e) { if (dragFrom >= 0) { e.preventDefault(); li.classList.add('over'); } });
@@ -287,10 +340,20 @@
       });
       ul.appendChild(li);
     });
-    $('compare').disabled = selection.length < 2;
-    $('selhint').textContent = selection.length < 2 ? 'Select 2 to 6 runs. The first is the FLIP reference; drag chips (or use the arrows) to reorder.' : selection.length + ' runs; "' + selection[0] + '" is the reference.';
+    var kind = selKind();
+    $('compare').disabled = selection.length < 2 || kind === 'mixed';
+    $('compare').textContent = kind === 'runs' && !$('blind').checked ? 'Compare runs' : 'Compare';
+    $('selhint').textContent = kind === 'mixed' ? 'The selection mixes runs and single images; clear it and pick one kind.'
+      : selection.length < 2 ? 'Select 2 to 6 runs, or 2 to 6 single images (open a run row with "Images"). The first is the FLIP reference; drag chips (or use the arrows) to reorder.'
+      : selection.length + (kind === 'images' ? ' images' : ' runs') + '; "' + selection[0] + '" is the reference.' + (kind === 'runs' && !$('blind').checked ? ' Compare opens the run overview.' : '');
   }
   function compare() {
+    var kind = selKind();
+    // Whole runs open the overview first; single images and blind judging go straight to a viewer.
+    if (kind === 'runs' && !$('blind').checked) {
+      location.href = '/runs?ref=' + enc(selection[0]) + '&runs=' + selection.slice(1).map(enc).join(',');
+      return;
+    }
     var url = '/compare?runs=' + selection.map(enc).join(',');
     if ($('blind').checked) url += '&blind=1';
     location.href = url;
@@ -412,7 +475,8 @@
     $('filters').addEventListener('submit', function (e) { e.preventDefault(); runSearch(false); });
     $('recentbtn').addEventListener('click', function () { runSearch(true); });
     $('compare').addEventListener('click', compare);
-    $('clear').addEventListener('click', function () { selection = []; saveSel(); renderSel(); if (meta) renderRunBox(meta); });
+    $('clear').addEventListener('click', function () { selection = []; saveSel(); renderSel(); paintAll(); });
+    $('blind').addEventListener('change', renderSel);
     $('upload').addEventListener('click', upload);
     document.querySelectorAll('[data-pick]').forEach(function (b) {
       b.addEventListener('click', function () { var p = b.getAttribute('data-pick').split('-'); pickInput(p[0], p[1] === 'dir'); });

@@ -9,6 +9,7 @@ use std::collections::BTreeMap;
 use std::path::{Component, Path, PathBuf};
 use std::time::{SystemTime, UNIX_EPOCH};
 
+use rayon::prelude::*;
 use serde::{Deserialize, Serialize};
 
 use crate::compare::{CompareOptions, compare_rgba};
@@ -33,6 +34,11 @@ pub const MIN_DIRS: usize = 2;
 /// See [`MIN_DIRS`].
 pub const MAX_DIRS: usize = 6;
 
+/// Small file `build_view` writes first into its output directory: the
+/// marker that makes the directory recognisably flipdiff's own, so a later
+/// run may replace its contents (and nothing else is ever overwritten).
+pub const VIEW_MARKER_FILE: &str = "flipdiff-view.v1.json";
+
 /// Largest seed the viewer can round-trip through a JavaScript number (2^53 - 1).
 pub const MAX_SEED: u64 = (1 << 53) - 1;
 
@@ -43,10 +49,17 @@ pub struct ViewOptions {
     pub labels: Option<Vec<String>>,
     /// The FLIP reference: a label or a directory path. `None` is the first.
     pub reference: Option<String>,
-    /// Shuffle and hide the pane labels for pairwise judging.
+    /// Pairwise judging: every set gets its own pane order, panes carry
+    /// neutral positional labels and random file names, and no FLIP data,
+    /// order, reference or seed is embedded, so the page cannot reveal which
+    /// directory is which. `reference` is ignored.
     pub blind: bool,
-    /// Shuffle seed; `None` derives one from the clock. Recorded in the data.
+    /// Shuffle seed. `None` draws one from the operating system's randomness
+    /// in blind mode and from the clock otherwise.
     pub seed: Option<u64>,
+    /// Where a blind view's key goes (default: `blind-key.json` inside the
+    /// view directory, which must then be kept from the judge).
+    pub key_out: Option<PathBuf>,
     /// FLIP pixels per degree.
     pub pixels_per_degree: f32,
     /// HDR-FLIP settings for `.exr`/`.hdr` images.
@@ -65,6 +78,7 @@ impl Default for ViewOptions {
             reference: None,
             blind: false,
             seed: None,
+            key_out: None,
             pixels_per_degree: CompareOptions::default().pixels_per_degree,
             hdr: crate::hdr::HdrConfig::default(),
             regions: Vec::new(),
@@ -85,9 +99,15 @@ pub struct ViewPane {
     pub height: u32,
     /// FLIP heatmap against the reference (non-reference panes only).
     pub heatmap: Option<String>,
-    /// Quantised (8-bit grayscale) FLIP error map as a PNG data URI, read by
-    /// the pixel inspector and the ROI statistics.
-    pub flip: Option<String>,
+    /// Downsampling factor of this pane's inspector pixel data (1 = full
+    /// resolution). The data itself lives in the set's lazily loaded
+    /// `pixels_script`, never in the page.
+    pub inspector_scale: u32,
+    /// Structural checks of this image (black, white, non-finite samples).
+    pub properties: Option<crate::report::Properties>,
+    /// Non-fatal observations about this image: all black, all white,
+    /// non-finite samples.
+    pub warnings: Vec<String>,
     /// FLIP statistics against the reference.
     pub metrics: Option<Metrics>,
     /// Where the FLIP error against the reference is concentrated, largest
@@ -101,6 +121,9 @@ pub struct ViewPane {
     pub meta_diff: Vec<crate::report::MetaDiff>,
     /// Why the sidecars of this pane or the reference could not be read.
     pub meta_error: Option<String>,
+    /// SHA-256 (hex) of this pane's image file; recorded in the decisions so
+    /// `approve` can tell the files it copies are the ones that were judged.
+    pub sha256: Option<String>,
 }
 
 /// All panes sharing one relative path.
@@ -115,9 +138,70 @@ pub struct ViewSet {
     /// Script that defines per-pane data URIs, loaded only when the browser
     /// refuses to read pixels from the image files (canvas taint on `file://`).
     pub pixels_script: String,
+    /// How the set compares against the reference, for triage ordering;
+    /// `None` in blind mode, where it would reveal which side is which.
+    pub status: Option<SetStatus>,
+    /// Worst (largest) mean FLIP of any pane against the reference; `None`
+    /// when there is no FLIP data or in blind mode.
+    pub worst_flip: Option<f64>,
     /// Config regions that apply to this set, resolved to pixels of the
     /// reference image.
     pub presets: Vec<ViewPreset>,
+}
+
+/// Triage status of an image set (non-blind views only).
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "lowercase")]
+pub enum SetStatus {
+    /// A pane failed to decode or compare.
+    Error,
+    /// Some directory has no image of this name.
+    Missing,
+    /// At least one pane differs from the reference.
+    Changed,
+    /// Every pane matches the reference exactly (FLIP max 0).
+    Identical,
+}
+
+fn image_warnings(p: &crate::report::Properties) -> Vec<String> {
+    let mut w = Vec::new();
+    if p.is_all_black {
+        w.push("image is all black".to_owned());
+    }
+    if p.is_all_white {
+        w.push("image is all white".to_owned());
+    }
+    if p.nan_count > 0 || p.inf_count > 0 {
+        w.push(format!(
+            "image has non-finite samples ({} NaN, {} infinite)",
+            p.nan_count, p.inf_count
+        ));
+    }
+    w
+}
+
+/// Triage status and worst mean FLIP of a set's panes.
+fn triage(panes: &[ViewPane], reference: usize) -> (SetStatus, Option<f64>) {
+    let worst = panes
+        .iter()
+        .enumerate()
+        .filter(|(i, _)| *i != reference)
+        .filter_map(|(_, p)| p.metrics.as_ref().map(|m| m.mean))
+        .fold(None, |a: Option<f64>, v| Some(a.map_or(v, |a| a.max(v))));
+    let status = if panes.iter().any(|p| p.path.is_none()) {
+        SetStatus::Missing
+    } else if panes.iter().any(|p| p.error.is_some()) {
+        SetStatus::Error
+    } else if panes
+        .iter()
+        .filter_map(|p| p.metrics.as_ref())
+        .all(|m| m.max <= 0.0)
+    {
+        SetStatus::Identical
+    } else {
+        SetStatus::Changed
+    };
+    (status, worst)
 }
 
 /// A config region offered as a preset ROI.
@@ -148,14 +232,21 @@ pub struct ViewModel {
     pub id: String,
     /// One label per directory.
     pub labels: Vec<String>,
-    /// Index of the FLIP reference directory.
+    /// Index of the FLIP reference directory; the number of directories (no
+    /// such pane) in blind mode.
     pub reference: usize,
     /// Blind mode: labels are hidden until the judge reveals them.
     pub blind: bool,
-    /// Shuffle seed (the per-set order derives from it and the set name).
+    /// The shuffle seed (the per-set order derives from it and the set name);
+    /// in blind mode a random token unrelated to the shuffle, which only pairs
+    /// the page with its key and decisions.
     pub seed: u64,
     /// FLIP pixels per degree.
     pub pixels_per_degree: f32,
+    /// Absolute path of each directory, in directory order. Empty in blind
+    /// mode, where a path could reveal which side is which (the paths live in
+    /// the blind key and reach the decisions through `unblind`).
+    pub dirs: Vec<String>,
     /// The image sets, sorted by name.
     pub sets: Vec<ViewSet>,
 }
@@ -211,6 +302,56 @@ pub struct SetDecision {
     /// When the entry was last edited, Unix milliseconds.
     #[serde(default)]
     pub timestamp_ms: u64,
+    /// Pairwise judging: the absolute directory of the preferred pane (set by
+    /// the viewer, or by `unblind` for a blind view). `approve` refuses a
+    /// decision whose chosen directory is not the capture directory.
+    #[serde(default)]
+    pub chosen_dir: Option<String>,
+    /// SHA-256 (hex) of the image of each directory when the set was judged,
+    /// in directory order; `null` where the directory had no such image.
+    #[serde(default)]
+    pub sha256: Vec<Option<String>>,
+    /// Answers recorded by `flipdiff decide` (an agent, a bounded-decision
+    /// model or a person). They never change [`SetDecision::decision`] unless
+    /// the confidence gate promoted them; `approve` reads `decision` only.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub proposals: Vec<Proposal>,
+}
+
+/// One answer to a decision-request question, as recorded by `flipdiff decide`.
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct Proposal {
+    /// The question type: `accept`, `triage`, `cause`, `ask_human` or `mask_suggest`.
+    pub question: String,
+    /// For `mask_suggest`: the 1-based hotspot the answer is about.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub hotspot: Option<u32>,
+    /// The answer, one of the question's allowed answers.
+    pub answer: String,
+    /// The model's confidence in `[0, 1]`; `None` for a person.
+    #[serde(default)]
+    pub prob: Option<f64>,
+    /// Who answered: `jev`, `openai-decisions`, a model name or `human`.
+    pub source: String,
+    /// A second confidence figure when the provider reports one besides the
+    /// probability of the chosen answer (Jev's `confidence`).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub confidence: Option<f64>,
+    /// When it was recorded, Unix milliseconds.
+    #[serde(default)]
+    pub timestamp_ms: u64,
+    /// The `request_hash` of the decision-request item it answered.
+    #[serde(default)]
+    pub request_hash: String,
+    /// Free-text note from the answerer.
+    #[serde(default, skip_serializing_if = "String::is_empty")]
+    pub note: String,
+    /// True for every non-human source: the answer is advice, not a decision.
+    pub proposed: bool,
+    /// True when the confidence gate turned this answer into the set's decision.
+    #[serde(default)]
+    pub promoted: bool,
 }
 
 /// The `flipdiff-decisions.v1.json` file.
@@ -226,21 +367,36 @@ pub struct Decisions {
     /// Whether the judging was blind.
     #[serde(default)]
     pub blind: bool,
+    /// Absolute path of each directory, in `labels` order. Empty for a blind
+    /// view until `unblind` fills it from the key.
+    #[serde(default)]
+    pub dirs: Vec<String>,
     /// One entry per image set.
     pub sets: Vec<SetDecision>,
 }
 
 /// The mapping from a blind view's neutral labels (`P1`, `P2`, ...) to the true
-/// directory labels. Written to `<out>/blind-key.json`, never embedded in the page.
+/// directory labels, per image set (every set shuffles its own panes). Never
+/// embedded in the page.
 #[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct BlindKey {
     /// Always [`BLIND_KEY_SCHEMA`].
     pub schema: String,
-    /// The view's shuffle seed; must match the decisions file.
+    /// The page's random token (`ViewModel::seed`); must match the decisions file.
     pub seed: u64,
-    /// True labels, in directory order (the neutral label `P<n>` is entry `n - 1`).
+    /// The seed the panes were shuffled with (`--seed` reproduces the view).
+    #[serde(default)]
+    pub shuffle_seed: u64,
+    /// True labels, in directory order.
     pub labels: Vec<String>,
+    /// Absolute path of each directory, in `labels` order.
+    #[serde(default)]
+    pub dirs: Vec<String>,
+    /// Per image set, the true label of each pane as displayed: entry `n - 1`
+    /// is the label behind the set's neutral label `P<n>`.
+    #[serde(default)]
+    pub sets: BTreeMap<String, Vec<String>>,
 }
 
 /// Reads and validates a blind key file.
@@ -279,6 +435,9 @@ pub fn unblind(decisions: &Decisions, key: &BlindKey) -> Result<Decisions> {
     }
     let mut out = decisions.clone();
     out.labels = key.labels.clone();
+    out.dirs = key.dirs.clone();
+    // The result carries the true labels: it is no longer a blind file.
+    out.blind = false;
     for set in &mut out.sets {
         if let Some(neutral) = &set.chosen_label {
             let idx = decisions
@@ -288,7 +447,26 @@ pub fn unblind(decisions: &Decisions, key: &BlindKey) -> Result<Decisions> {
                 .ok_or_else(|| {
                     Error::Config(format!("{:?}: unknown label {neutral:?}", set.name))
                 })?;
-            set.chosen_label = key.labels.get(idx).cloned();
+            let per_set = key.sets.get(&set.name).ok_or_else(|| {
+                Error::Config(format!("the blind key has no entry for {:?}", set.name))
+            })?;
+            set.chosen_label = per_set.get(idx).cloned();
+            set.chosen_dir = set
+                .chosen_label
+                .as_ref()
+                .and_then(|l| key.labels.iter().position(|k| k == l))
+                .and_then(|i| key.dirs.get(i).cloned());
+        }
+        // A blind page lists a set's panes in its shuffled order; the hashes
+        // go back to directory order, which is how `approve` reads them.
+        if let Some(per_set) = key.sets.get(&set.name).filter(|_| !set.sha256.is_empty()) {
+            let mut by_dir = vec![None; key.labels.len()];
+            for (shown, label) in per_set.iter().enumerate() {
+                if let Some(dir_idx) = key.labels.iter().position(|l| l == label) {
+                    by_dir[dir_idx] = set.sha256.get(shown).cloned().flatten();
+                }
+            }
+            set.sha256 = by_dir;
         }
     }
     Ok(out)
@@ -327,6 +505,15 @@ pub fn is_safe_name(name: &str) -> bool {
         && Path::new(name)
             .components()
             .all(|c| matches!(c, Component::Normal(_)))
+}
+
+/// A fresh 64-bit value from the operating system's randomness (the standard
+/// library seeds every `RandomState` from it).
+fn random_u64() -> u64 {
+    use std::hash::{BuildHasher, Hasher};
+    let mut h = std::collections::hash_map::RandomState::new().build_hasher();
+    h.write_u8(0);
+    h.finish()
 }
 
 fn fnv1a(bytes: &[u8]) -> u64 {
@@ -377,25 +564,20 @@ fn base64(bytes: &[u8]) -> String {
     out
 }
 
-/// Copies a pane's file into the view and returns the path the page shows plus
-/// its data URI. An HDR file is copied as `pane<i>.orig.<ext>` and shown as a
-/// tone-mapped `pane<i>.png` (exposure 0).
+/// Copies a pane's file into the view and returns the path the page shows. An
+/// HDR file is copied as `<stem>.orig.<ext>` and shown as a tone-mapped
+/// `<stem>.png` (exposure 0).
 fn pane_files(
     src: &Path,
     hdr: Option<&crate::hdr::HdrImage>,
-    (out_dir, name, i): (&Path, &str, usize),
+    (out_dir, name, stem): (&Path, &str, &str),
     tm: crate::hdr::Tonemapper,
-) -> Result<(String, String)> {
+) -> Result<String> {
     let Some(hdr) = hdr else {
-        let rel = copy_into_report(src, out_dir, name, &format!("pane{i}"))?;
-        let bytes = std::fs::read(src).map_err(io_err(format!("reading {}", src.display())))?;
-        return Ok((
-            rel,
-            format!("data:{};base64,{}", mime_of(src), base64(&bytes)),
-        ));
+        return copy_into_report(src, out_dir, name, stem);
     };
-    copy_into_report(src, out_dir, name, &format!("pane{i}.orig"))?;
-    let rel = format!("images/{name}/pane{i}.png");
+    copy_into_report(src, out_dir, name, &format!("{stem}.orig"))?;
+    let rel = format!("images/{name}/{stem}.png");
     let dest = out_dir.join(&rel);
     crate::hdr::display_image(hdr, tm)
         .save(&dest)
@@ -403,8 +585,7 @@ fn pane_files(
             path: dest.clone(),
             source,
         })?;
-    let bytes = std::fs::read(&dest).map_err(io_err(format!("reading {}", dest.display())))?;
-    Ok((rel, format!("data:image/png;base64,{}", base64(&bytes))))
+    Ok(rel)
 }
 
 /// FLIP between a pane and the reference: HDR-FLIP when both are HDR, an
@@ -425,32 +606,91 @@ fn compare_pane(
     }
 }
 
-fn mime_of(path: &Path) -> &'static str {
-    match path
-        .extension()
-        .and_then(|e| e.to_str())
-        .map(str::to_ascii_lowercase)
-        .as_deref()
-    {
-        Some("jpg" | "jpeg") => "image/jpeg",
-        _ => "image/png",
-    }
+/// Longest side, in pixels, of the inspector pixel data of one pane.
+const INSPECTOR_MAX_SIDE: u32 = 2048;
+
+/// Integer downsampling factor that brings the longest side to
+/// [`INSPECTOR_MAX_SIDE`] or less.
+fn inspector_scale(w: u32, h: u32) -> u32 {
+    w.max(h).div_ceil(INSPECTOR_MAX_SIDE).max(1)
 }
 
-/// Encodes the error map as an 8-bit grayscale PNG data URI.
-fn flip_data_uri(error_map: &[f32], w: u32, h: u32) -> Result<String> {
-    let gray: Vec<u8> = error_map
+/// Box-averages `channels` interleaved planes of `w`x`h` samples by `f`.
+fn box_down(src: &[f32], channels: usize, (w, h): (u32, u32), f: u32) -> (Vec<f32>, u32, u32) {
+    let (ow, oh) = (w.div_ceil(f), h.div_ceil(f));
+    let mut out = Vec::with_capacity(ow as usize * oh as usize * channels);
+    for oy in 0..oh {
+        for ox in 0..ow {
+            let (x1, y1) = (((ox + 1) * f).min(w), ((oy + 1) * f).min(h));
+            let n = ((x1 - ox * f) * (y1 - oy * f)) as f32;
+            for c in 0..channels {
+                let mut sum = 0.0f32;
+                for y in oy * f..y1 {
+                    for x in ox * f..x1 {
+                        sum += src[(y as usize * w as usize + x as usize) * channels + c];
+                    }
+                }
+                out.push(sum / n);
+            }
+        }
+    }
+    (out, ow, oh)
+}
+
+fn png_data_uri(
+    bytes: &[u8],
+    (w, h): (u32, u32),
+    color: image::ExtendedColorType,
+) -> Result<String> {
+    use image::ImageEncoder;
+    let mut png = Vec::new();
+    image::codecs::png::PngEncoder::new_with_quality(
+        &mut png,
+        image::codecs::png::CompressionType::Best,
+        image::codecs::png::FilterType::Adaptive,
+    )
+    .write_image(bytes, w, h, color)
+    .map_err(|source| Error::Encode {
+        path: PathBuf::from("<inspector data>"),
+        source,
+    })?;
+    Ok(format!("data:image/png;base64,{}", base64(&png)))
+}
+
+/// Lossless PNG data URI of a pane's RGB, box-downsampled by `f`.
+fn rgb_data_uri(img: &image::RgbaImage, f: u32) -> Result<String> {
+    let (w, h) = img.dimensions();
+    if f == 1 {
+        let rgb: Vec<u8> = img
+            .as_raw()
+            .chunks_exact(4)
+            .flat_map(|p| [p[0], p[1], p[2]])
+            .collect();
+        return png_data_uri(&rgb, (w, h), image::ExtendedColorType::Rgb8);
+    }
+    let rgb: Vec<f32> = img
+        .as_raw()
+        .chunks_exact(4)
+        .flat_map(|p| [f32::from(p[0]), f32::from(p[1]), f32::from(p[2])])
+        .collect();
+    let (down, ow, oh) = box_down(&rgb, 3, (w, h), f);
+    let bytes: Vec<u8> = down.iter().map(|v| v.round() as u8).collect();
+    png_data_uri(&bytes, (ow, oh), image::ExtendedColorType::Rgb8)
+}
+
+/// Quantised (8-bit grayscale) FLIP error map as a lossless PNG data URI,
+/// box-downsampled by `f`.
+fn flip_data_uri(error_map: &[f32], (w, h): (u32, u32), f: u32) -> Result<String> {
+    let (down, ow, oh) = if f == 1 {
+        (error_map.to_vec(), w, h)
+    } else {
+        box_down(error_map, 1, (w, h), f)
+    };
+    let gray: Vec<u8> = down
         .iter()
         .map(|&v| (v.clamp(0.0, 1.0) * 255.0).round() as u8)
         .collect();
-    let img = image::GrayImage::from_raw(w, h, gray).ok_or(Error::EmptyImage)?;
-    let mut png = Vec::new();
-    img.write_to(&mut std::io::Cursor::new(&mut png), image::ImageFormat::Png)
-        .map_err(|source| Error::Encode {
-            path: PathBuf::from("<flip error map>"),
-            source,
-        })?;
-    Ok(format!("data:image/png;base64,{}", base64(&png)))
+    png_data_uri(&gray, (ow, oh), image::ExtendedColorType::L8)
 }
 
 /// A pane error as shown on the page; blind pages must not leak directory paths.
@@ -581,154 +821,263 @@ pub fn build_view(dirs: &[PathBuf], out_dir: &Path, opts: &ViewOptions) -> Resul
     names.sort();
     names.dedup();
 
+    let input_dirs: Vec<&Path> = dirs.iter().map(PathBuf::as_path).collect();
+    crate::run::guard_output_dir(out_dir, &input_dirs, &[VIEW_MARKER_FILE])?;
     std::fs::create_dir_all(out_dir).map_err(io_err(format!("creating {}", out_dir.display())))?;
+    let marker_path = out_dir.join(VIEW_MARKER_FILE);
+    std::fs::write(
+        &marker_path,
+        format!(
+            "{{\"schema\":\"{VIEW_SCHEMA}\",\"tool_version\":\"{}\"}}\n",
+            env!("CARGO_PKG_VERSION")
+        ),
+    )
+    .map_err(io_err(format!("writing {}", marker_path.display())))?;
+    let abs_dirs: Vec<String> = dirs
+        .iter()
+        .map(|d| crate::run::normalise_path(d).display().to_string())
+        .collect();
     let generated_at_unix = SystemTime::now()
         .duration_since(UNIX_EPOCH)
         .map_or(0, |d| d.as_secs());
     // JSON numbers are doubles in the browser: keep the seed exactly representable.
-    let seed = opts.seed.unwrap_or_else(|| {
-        SystemTime::now()
-            .duration_since(UNIX_EPOCH)
-            .map_or(1, |d| d.as_nanos() as u64 & MAX_SEED)
+    let shuffle_seed = opts.seed.unwrap_or_else(|| {
+        if opts.blind {
+            random_u64() & MAX_SEED
+        } else {
+            SystemTime::now()
+                .duration_since(UNIX_EPOCH)
+                .map_or(1, |d| d.as_nanos() as u64 & MAX_SEED)
+        }
     });
-    if seed > MAX_SEED {
+    if shuffle_seed > MAX_SEED {
         return Err(Error::Config(format!("--seed must be at most {MAX_SEED}")));
     }
+    // A blind page must not carry what lets its shuffle be undone: it embeds
+    // an unrelated random token instead of the seed.
+    let seed = if opts.blind {
+        random_u64() & MAX_SEED
+    } else {
+        shuffle_seed
+    };
+    let mut key_sets: BTreeMap<String, Vec<String>> = BTreeMap::new();
     let compare_opts = CompareOptions {
         pixels_per_degree: opts.pixels_per_degree,
         hdr: opts.hdr,
     };
 
-    let mut sets = Vec::with_capacity(names.len());
-    for (set_idx, name) in names.into_iter().enumerate() {
-        let sources: Vec<Option<&PathBuf>> = maps.iter().map(|m| m.get(name)).collect();
-        let decoded: Vec<Option<std::result::Result<image::RgbaImage, Error>>> =
-            sources.iter().map(|s| s.map(|p| decode(p))).collect();
-        let ref_img = match decoded.get(reference) {
-            Some(Some(Ok(img))) => Some(img),
-            _ => None,
-        };
-        // HDR sources are compared with HDR-FLIP and shown as tone-mapped PNGs.
-        let hdr_imgs: Vec<Option<crate::hdr::HdrImage>> = sources
-            .iter()
-            .map(|s| {
-                s.filter(|p| crate::hdr::is_hdr_path(p))
-                    .and_then(|p| crate::hdr::decode_hdr(p).ok())
-            })
-            .collect();
-        let ref_hdr = hdr_imgs.get(reference).and_then(Option::as_ref);
+    // Image sets are independent: build them in parallel, kept in name order.
+    let indexed: Vec<(usize, &String)> = names.into_iter().enumerate().collect();
+    let built: Vec<(ViewSet, Option<Vec<String>>)> = indexed
+        .into_par_iter()
+        .map(
+            |(set_idx, name)| -> Result<(ViewSet, Option<Vec<String>>)> {
+                let sources: Vec<Option<&PathBuf>> = maps.iter().map(|m| m.get(name)).collect();
+                let decoded: Vec<Option<std::result::Result<image::RgbaImage, Error>>> =
+                    sources.iter().map(|s| s.map(|p| decode(p))).collect();
+                let ref_img = match decoded.get(reference) {
+                    Some(Some(Ok(img))) => Some(img),
+                    _ => None,
+                };
+                // HDR sources are compared with HDR-FLIP and shown as tone-mapped PNGs.
+                let hdr_imgs: Vec<Option<crate::hdr::HdrImage>> = sources
+                    .iter()
+                    .map(|s| {
+                        s.filter(|p| crate::hdr::is_hdr_path(p))
+                            .and_then(|p| crate::hdr::decode_hdr(p).ok())
+                    })
+                    .collect();
+                let ref_hdr = hdr_imgs.get(reference).and_then(Option::as_ref);
 
-        let mut panes = Vec::with_capacity(dirs.len());
-        let mut pixel_uris = Vec::with_capacity(dirs.len());
-        for (i, src) in sources.iter().enumerate() {
-            let mut pane = ViewPane {
-                path: None,
-                width: 0,
-                height: 0,
-                heatmap: None,
-                flip: None,
-                metrics: None,
-                hotspots: Vec::new(),
-                error: None,
-                meta_diff: Vec::new(),
-                meta_error: None,
-            };
-            let Some(src) = src else {
-                pixel_uris.push(None);
-                panes.push(pane);
-                continue;
-            };
-            let (shown, uri) = pane_files(
-                src,
-                hdr_imgs.get(i).and_then(Option::as_ref),
-                (out_dir, name, i),
-                opts.hdr.tonemapper,
-            )?;
-            pane.path = Some(shown);
-            pixel_uris.push(Some(uri));
-            if i != reference && !opts.blind && sources.get(reference).is_some_and(Option::is_some)
-            {
-                match meta.compare(&dirs[reference], &dirs[i], name) {
-                    Ok((diff, _)) => pane.meta_diff = diff,
-                    Err(e) => pane.meta_error = Some(e),
-                }
-            }
-            match &decoded[i] {
-                Some(Ok(img)) => {
-                    (pane.width, pane.height) = img.dimensions();
-                    if i != reference {
-                        match ref_img {
-                            Some(r) => match compare_pane(
-                                img,
-                                r,
-                                hdr_imgs.get(i).and_then(Option::as_ref),
-                                ref_hdr,
-                                &compare_opts,
-                            ) {
-                                Ok(cmp) => {
-                                    let rel = format!("images/{name}/heatmap{i}.png");
-                                    let dest = out_dir.join(&rel);
-                                    cmp.heatmap_rgb()
-                                        .save(&dest)
-                                        .map_err(|source| Error::Encode { path: dest, source })?;
-                                    pane.heatmap = Some(rel);
-                                    pane.flip = Some(flip_data_uri(
-                                        &cmp.error_map,
-                                        cmp.metrics.width,
-                                        cmp.metrics.height,
-                                    )?);
-                                    pane.hotspots = crate::hotspots::find_hotspots(
-                                        &cmp.error_map,
-                                        None,
-                                        cmp.metrics.width,
-                                        cmp.metrics.height,
-                                        &crate::hotspots::HotspotOptions::default(),
-                                    );
-                                    pane.metrics = Some(cmp.metrics);
-                                }
-                                Err(e) => pane.error = Some(pane_error(&e, opts.blind)),
-                            },
-                            None => {
-                                pane.error =
-                                    Some("reference image is missing or unreadable".into());
-                            }
+                let mut panes = Vec::with_capacity(dirs.len());
+                let mut pixel_uris: Vec<Option<String>> = Vec::with_capacity(dirs.len());
+                let mut flip_uris: Vec<Option<String>> = Vec::with_capacity(dirs.len());
+                // Blind: this set's panes are laid out in a shuffled directory order, so
+                // the position of a pane says nothing about its directory.
+                let dir_order: Vec<usize> = if opts.blind {
+                    shuffled_order(shuffle_seed, name, dirs.len())
+                } else {
+                    (0..dirs.len()).collect()
+                };
+                let key_entry: Option<Vec<String>> = opts
+                    .blind
+                    .then(|| dir_order.iter().map(|&i| labels[i].clone()).collect());
+                for &i in &dir_order {
+                    let src = &sources[i];
+                    let mut pane = ViewPane {
+                        path: None,
+                        width: 0,
+                        height: 0,
+                        heatmap: None,
+                        inspector_scale: 1,
+                        properties: None,
+                        warnings: Vec::new(),
+                        metrics: None,
+                        hotspots: Vec::new(),
+                        error: None,
+                        meta_diff: Vec::new(),
+                        meta_error: None,
+                        sha256: None,
+                    };
+                    let Some(src) = src else {
+                        pixel_uris.push(None);
+                        flip_uris.push(None);
+                        panes.push(pane);
+                        continue;
+                    };
+                    let stem = if opts.blind {
+                        format!("p_{:016x}", random_u64())
+                    } else {
+                        format!("pane{i}")
+                    };
+                    let shown = pane_files(
+                        src,
+                        hdr_imgs.get(i).and_then(Option::as_ref),
+                        (out_dir, name, &stem),
+                        opts.hdr.tonemapper,
+                    )?;
+                    // The inspector reads what the page shows: the decoded file, or the
+                    // tone-mapped PNG of an HDR file.
+                    let shown_img = if hdr_imgs.get(i).is_some_and(Option::is_some) {
+                        image::open(out_dir.join(&shown)).ok().map(|d| d.to_rgba8())
+                    } else {
+                        match &decoded[i] {
+                            Some(Ok(img)) => Some(img.clone()),
+                            _ => None,
+                        }
+                    };
+                    pane.path = Some(shown);
+                    pane.sha256 = crate::run::sha256_file(src).ok();
+                    let mut flip_uri = None;
+                    if i != reference
+                        && !opts.blind
+                        && sources.get(reference).is_some_and(Option::is_some)
+                    {
+                        match meta.compare(&dirs[reference], &dirs[i], name) {
+                            Ok((diff, _)) => pane.meta_diff = diff,
+                            Err(e) => pane.meta_error = Some(e),
                         }
                     }
+                    match &decoded[i] {
+                        Some(Ok(img)) => {
+                            (pane.width, pane.height) = img.dimensions();
+                            let props = match hdr_imgs.get(i).and_then(Option::as_ref) {
+                                Some(h) => crate::hdr::validate_hdr(h),
+                                None => crate::properties::validate(&crate::compare::flatten_over(
+                                    img, 0,
+                                )),
+                            };
+                            pane.warnings = image_warnings(&props);
+                            pane.properties = Some(props);
+                            // Blind views embed no FLIP data: it would single out the
+                            // reference directory.
+                            if i != reference && !opts.blind {
+                                match ref_img {
+                                    Some(r) => match compare_pane(
+                                        img,
+                                        r,
+                                        hdr_imgs.get(i).and_then(Option::as_ref),
+                                        ref_hdr,
+                                        &compare_opts,
+                                    ) {
+                                        Ok(cmp) => {
+                                            let rel = format!("images/{name}/heatmap{i}.png");
+                                            let dest = out_dir.join(&rel);
+                                            cmp.heatmap_rgb().save(&dest).map_err(|source| {
+                                                Error::Encode { path: dest, source }
+                                            })?;
+                                            pane.heatmap = Some(rel);
+                                            flip_uri = Some(flip_data_uri(
+                                                &cmp.error_map,
+                                                (cmp.metrics.width, cmp.metrics.height),
+                                                inspector_scale(
+                                                    cmp.metrics.width,
+                                                    cmp.metrics.height,
+                                                ),
+                                            )?);
+                                            pane.hotspots = crate::hotspots::find_hotspots(
+                                                &cmp.error_map,
+                                                None,
+                                                cmp.metrics.width,
+                                                cmp.metrics.height,
+                                                &crate::hotspots::HotspotOptions::default(),
+                                            );
+                                            pane.metrics = Some(cmp.metrics);
+                                        }
+                                        Err(e) => pane.error = Some(pane_error(&e, opts.blind)),
+                                    },
+                                    None => {
+                                        pane.error =
+                                            Some("reference image is missing or unreadable".into());
+                                    }
+                                }
+                            }
+                        }
+                        Some(Err(e)) => pane.error = Some(pane_error(e, opts.blind)),
+                        None => {}
+                    }
+                    pane.inspector_scale = inspector_scale(pane.width, pane.height);
+                    pixel_uris.push(match &shown_img {
+                        Some(img) => Some(rgb_data_uri(img, pane.inspector_scale)?),
+                        None => None,
+                    });
+                    flip_uris.push(flip_uri);
+                    panes.push(pane);
                 }
-                Some(Err(e)) => pane.error = Some(pane_error(e, opts.blind)),
-                None => {}
-            }
-            panes.push(pane);
-        }
 
-        let px_rel = format!("images/_px/{set_idx}.js");
-        let px_path = out_dir.join(&px_rel);
-        if let Some(parent) = px_path.parent() {
-            std::fs::create_dir_all(parent)
-                .map_err(io_err(format!("creating {}", parent.display())))?;
-        }
-        let px_json = serde_json::to_string(&pixel_uris)?;
-        let px_js =
-            format!("(window.__flipdiffPx=window.__flipdiffPx||{{}})[{set_idx}]={px_json};\n");
-        std::fs::write(&px_path, px_js)
-            .map_err(io_err(format!("writing {}", px_path.display())))?;
+                let px_rel = format!("images/_px/{set_idx}.js");
+                let px_path = out_dir.join(&px_rel);
+                if let Some(parent) = px_path.parent() {
+                    std::fs::create_dir_all(parent)
+                        .map_err(io_err(format!("creating {}", parent.display())))?;
+                }
+                let px_json = serde_json::to_string(&serde_json::json!({
+                    "scale": panes.iter().map(|p| p.inspector_scale).collect::<Vec<_>>(),
+                    "rgb": pixel_uris,
+                    "flip": flip_uris,
+                }))?;
+                let px_js = format!(
+                    "(window.__flipdiffPx=window.__flipdiffPx||{{}})[{set_idx}]={px_json};\n"
+                );
+                std::fs::write(&px_path, px_js)
+                    .map_err(io_err(format!("writing {}", px_path.display())))?;
 
-        let order = if opts.blind {
-            shuffled_order(seed, name, dirs.len())
-        } else {
-            (0..dirs.len()).collect()
-        };
-        let presets = panes
-            .get(reference)
-            .map(|p| preset_rois(&opts.regions, name, p.width, p.height))
-            .unwrap_or_default();
-        sets.push(ViewSet {
-            name: name.clone(),
-            order,
-            panes,
-            pixels_script: px_rel,
-            presets,
-        });
+                let order: Vec<usize> = (0..dirs.len()).collect();
+                let ref_pane = if opts.blind {
+                    panes.iter().find(|p| p.width > 0)
+                } else {
+                    panes.get(reference)
+                };
+                let presets = ref_pane
+                    .map(|p| preset_rois(&opts.regions, name, p.width, p.height))
+                    .unwrap_or_default();
+                let (status, worst_flip) = if opts.blind {
+                    (None, None)
+                } else {
+                    let (st, w) = triage(&panes, reference);
+                    (Some(st), w)
+                };
+                Ok((
+                    ViewSet {
+                        name: name.clone(),
+                        order,
+                        panes,
+                        pixels_script: px_rel,
+                        status,
+                        worst_flip,
+                        presets,
+                    },
+                    key_entry,
+                ))
+            },
+        )
+        .collect::<Result<Vec<_>>>()?;
+    let mut sets = Vec::with_capacity(built.len());
+    for (set, key_entry) in built {
+        if let Some(labels) = key_entry {
+            key_sets.insert(set.name.clone(), labels);
+        }
+        sets.push(set);
     }
 
     let id = {
@@ -745,10 +1094,15 @@ pub fn build_view(dirs: &[PathBuf], out_dir: &Path, opts: &ViewOptions) -> Resul
         generated_at_unix,
         id,
         labels: shown_labels,
-        reference,
+        reference: if opts.blind { dirs.len() } else { reference },
         blind: opts.blind,
         seed,
         pixels_per_degree: opts.pixels_per_degree,
+        dirs: if opts.blind {
+            Vec::new()
+        } else {
+            abs_dirs.clone()
+        },
         sets,
     };
     write_view_html(&model, out_dir)?;
@@ -756,9 +1110,19 @@ pub fn build_view(dirs: &[PathBuf], out_dir: &Path, opts: &ViewOptions) -> Resul
         let key = BlindKey {
             schema: BLIND_KEY_SCHEMA.to_string(),
             seed,
+            shuffle_seed,
             labels,
+            dirs: abs_dirs,
+            sets: key_sets,
         };
-        let key_path = out_dir.join(BLIND_KEY_FILE);
+        let key_path = opts
+            .key_out
+            .clone()
+            .unwrap_or_else(|| out_dir.join(BLIND_KEY_FILE));
+        if let Some(parent) = key_path.parent().filter(|p| !p.as_os_str().is_empty()) {
+            std::fs::create_dir_all(parent)
+                .map_err(io_err(format!("creating {}", parent.display())))?;
+        }
         std::fs::write(&key_path, serde_json::to_string_pretty(&key)?)
             .map_err(io_err(format!("writing {}", key_path.display())))?;
     }
@@ -820,6 +1184,92 @@ mod tests {
     }
 
     #[test]
+    fn sets_carry_triage_data_and_blind_hides_it() {
+        let tmp = tempfile::tempdir().unwrap();
+        let dirs = three_dirs(tmp.path());
+        let m = build_view(&dirs, &tmp.path().join("v"), &ViewOptions::default()).unwrap();
+        let x = m.sets.iter().find(|s| s.name == "x.png").unwrap();
+        let y = m.sets.iter().find(|s| s.name == "sub/y.png").unwrap();
+        assert_eq!(x.status, Some(SetStatus::Changed));
+        assert!(x.worst_flip.is_some_and(|w| w > 0.0));
+        assert_eq!(y.status, Some(SetStatus::Missing));
+        let blind = ViewOptions {
+            blind: true,
+            ..ViewOptions::default()
+        };
+        let mb = build_view(&dirs, &tmp.path().join("vb"), &blind).unwrap();
+        assert!(
+            mb.sets
+                .iter()
+                .all(|s| s.status.is_none() && s.worst_flip.is_none())
+        );
+    }
+
+    #[test]
+    fn inspector_data_is_capped_lossless_and_kept_out_of_the_page() {
+        let tmp = tempfile::tempdir().unwrap();
+        let (a, b) = (tmp.path().join("a"), tmp.path().join("b"));
+        std::fs::create_dir_all(&a).unwrap();
+        std::fs::create_dir_all(&b).unwrap();
+        let wide = |shift: u32| {
+            image::RgbImage::from_fn(4200, 40, |x, y| {
+                image::Rgb([(x / 17 + shift) as u8, y as u8, 90])
+            })
+        };
+        wide(0).save(a.join("w.png")).unwrap();
+        wide(9).save(b.join("w.png")).unwrap();
+        let out = tmp.path().join("v");
+        let m = build_view(&[a, b], &out, &ViewOptions::default()).unwrap();
+        assert_eq!(m.sets[0].panes[1].inspector_scale, 3);
+        let html = std::fs::read_to_string(out.join("index.html")).unwrap();
+        assert!(
+            !html.contains("data:image"),
+            "pixel data must load lazily, not ride in the page"
+        );
+        let px = std::fs::read_to_string(out.join(&m.sets[0].pixels_script)).unwrap();
+        assert!(px.contains("\"scale\":[3,3]") && px.contains("data:image/png;base64,"));
+        // Lossless: the stored RGB is exactly the box average of 3x3 source blocks.
+        let json = px
+            .split_once("]=")
+            .unwrap()
+            .1
+            .trim_end()
+            .trim_end_matches(';');
+        let v: serde_json::Value = serde_json::from_str(json).unwrap();
+        let uri = v["rgb"][0]
+            .as_str()
+            .unwrap()
+            .strip_prefix("data:image/png;base64,")
+            .unwrap();
+        let bytes = decode_b64(uri);
+        let img = image::load_from_memory(&bytes).unwrap().to_rgb8();
+        assert_eq!(img.dimensions(), (1400, 14));
+        let src = wide(0);
+        let want: u32 = (0..3).map(|d| u32::from(src.get_pixel(3 + d, 0)[0])).sum();
+        assert_eq!(
+            u32::from(img.get_pixel(1, 0)[0]),
+            (want as f32 / 3.0).round() as u32
+        );
+    }
+
+    fn decode_b64(s: &str) -> Vec<u8> {
+        let val = |c: u8| B64.iter().position(|&b| b == c).map(|p| p as u32);
+        let mut out = Vec::new();
+        for chunk in s.as_bytes().chunks(4) {
+            let n = chunk
+                .iter()
+                .filter(|&&c| c != b'=')
+                .fold(0u32, |a, &c| (a << 6) | val(c).unwrap());
+            let pad = chunk.iter().filter(|&&c| c == b'=').count();
+            let n = n << (6 * pad);
+            for k in 0..(3 - pad) {
+                out.push((n >> (16 - 8 * k)) as u8);
+            }
+        }
+        out
+    }
+
+    #[test]
     fn blind_order_is_a_deterministic_seeded_permutation() {
         let a = shuffled_order(7, "x.png", 6);
         assert_eq!(a, shuffled_order(7, "x.png", 6));
@@ -838,6 +1288,7 @@ mod tests {
             seed: 42,
             labels: vec!["a".into(), "b".into()],
             blind: true,
+            dirs: Vec::new(),
             sets: vec![
                 SetDecision {
                     name: "x.png".into(),
@@ -852,6 +1303,9 @@ mod tests {
                         h: 4,
                     }),
                     timestamp_ms: 9,
+                    chosen_dir: None,
+                    sha256: Vec::new(),
+                    proposals: Vec::new(),
                 },
                 SetDecision {
                     name: "y.png".into(),
@@ -861,6 +1315,9 @@ mod tests {
                     note: String::new(),
                     roi: None,
                     timestamp_ms: 10,
+                    chosen_dir: None,
+                    sha256: Vec::new(),
+                    proposals: Vec::new(),
                 },
             ],
         };
@@ -914,11 +1371,14 @@ mod tests {
         }
         let key = read_blind_key(&out.join(BLIND_KEY_FILE)).unwrap();
         assert_eq!(key.labels, ["parent", "candidate", "other"]);
+        assert_eq!(key.shuffle_seed, 5);
+        assert_ne!(m.seed, 5, "the page carries a token, not the shuffle seed");
         let decisions = Decisions {
             schema: DECISIONS_SCHEMA.into(),
-            seed: 5,
+            seed: m.seed,
             labels: m.labels.clone(),
             blind: true,
+            dirs: Vec::new(),
             sets: vec![SetDecision {
                 name: "x.png".into(),
                 decision: None,
@@ -927,12 +1387,28 @@ mod tests {
                 note: String::new(),
                 roi: None,
                 timestamp_ms: 0,
+                chosen_dir: None,
+                sha256: Vec::new(),
+                proposals: Vec::new(),
             }],
         };
         let back = unblind(&decisions, &key).unwrap();
-        assert_eq!(back.sets[0].chosen_label.as_deref(), Some("candidate"));
+        // Every set shuffles its own panes: P2 is whichever directory the key
+        // lists second for this set.
+        let second = key.sets["x.png"][1].clone();
+        assert_eq!(back.sets[0].chosen_label.as_deref(), Some(second.as_str()));
         assert_eq!(back.labels, key.labels);
-        let wrong = BlindKey { seed: 6, ..key };
+        assert!(!back.blind, "an unblinded file is not blind");
+        assert_eq!(back.dirs, key.dirs);
+        let second_dir = key.labels.iter().position(|l| *l == second);
+        assert_eq!(
+            back.sets[0].chosen_dir.as_deref(),
+            second_dir.and_then(|i| key.dirs.get(i)).map(String::as_str)
+        );
+        let wrong = BlindKey {
+            seed: key.seed + 1,
+            ..key
+        };
         assert!(unblind(&decisions, &wrong).is_err());
     }
 }

@@ -3,6 +3,74 @@
 This project follows [Semantic Versioning](https://semver.org/). Entries are
 newest first.
 
+## Unreleased
+
+- Numbered image sequences: per-frame FLIP, added temporal instability,
+  `flipdiff-sequence.v1` and a server-rendered SVG curve in the report.
+- Numerical G-buffer rules (`[[buffer]]`): depth including single-channel EXR,
+  normal angles, motion end-point errors, exact mask/id samples and heatmaps.
+- Candidate ranking by mean/p95/p99/max FLIP: `flipdiff-rank.v1`, competition
+  ties, common-image overall means, Markdown tables and per-candidate reports.
+- MCP `flipdiff_sequence` and `flipdiff_rank`, lean JSON outputs and schemas.
+- Dispatch-only baseline-update PR flow in the Action, explicit pruning,
+  fork/write guards and `example-update-baselines.yml`.
+
+- Run overview: comparing 2 or more runs in `serve` opens `/runs` first (per-run
+  summary with a "no visible effect" flag, run-level config differences, a
+  matrix tinted by FLIP, a contact sheet with one shared swipe slider). Also
+  `GET /api/runs`, `flipdiff runs` (static page or `flipdiff-runs.v1` JSON) and
+  the MCP tool `flipdiff_compare_runs`. Mismatched file names offer pairing by
+  position or by hand. `serve` takes several roots and
+  `--follow-symlinks-within-roots`; run rows expand to single images that can
+  be compared; the viewer labels sets "only in <label>", sorts them last and
+  can hide them, and names the missing side in the empty swipe state.
+
+- Agent-addressable pages: the report, `view` and `serve` sessions keep their
+  view in the URL hash, offer "Copy link to this view" and expose
+  `window.flipdiff` (`get`, `set`, `sets`/`entries`, `next`/`prev`, `snapshot`,
+  `on`). `flipdiff snapshot` and the MCP tool `flipdiff_snapshot` render a view
+  state to PNG with no browser. Fixed: the viewer's arrow keys outside swipe
+  threw (a local variable shadowed `step`).
+- Bounded decisions: `decision-request` (also `compare --json=decision` and
+  MCP) asks fixed `accept`, `triage`, `cause`, `ask_human` and `mask_suggest`
+  questions; `decide` records answers as proposals, shown as a chip with
+  `y`/`n` confirm keys; `[decisions]` confidence gate; deterministic failures
+  are never model-answerable. Adapters for Jev, the OpenAI Decisions API
+  (unverified) and any JSON-schema chat model in `examples/adapters/`.
+- Diagnostics: every compared pair gets `diagnostics` (class, plain-English
+  description, global tone fit with its explained fraction, sub-pixel shift by
+  phase correlation, signed difference PNG, non-finite mask, paired sidecar
+  timings). Class and description appear in the text table, Markdown, the lean
+  result, MCP and `explain.md`. Config `[diagnostics]`.
+
+- Agent surface: `view --blind` embeds no reference, per-set order, seed or
+  FLIP data and names panes neutrally per set (`--key-out` for the key);
+  `explain --blind` needs `--key-out` outside the pack and omits the report
+  path and labels. With `--json`, every error is a `flipdiff-error.v1` on
+  stdout; `compare --json` and `identity --json` print a lean
+  `flipdiff-result.v1` (`--json=full` for the report); every schema id has a
+  file in `schemas/`. `flipdiff mcp --root DIR` confines paths, the tools gain
+  `outputSchema`, annotations, more arguments and image content blocks.
+  `explain`: strips at most 1536 px wide, `hotspot_min_share` (default 0.01),
+  hot-pixel and box areas labelled apart.
+- Safety: `compare`, `identity`, `view` and `explain` refuse (exit 2) an
+  `--out` that is not empty and not a previous flipdiff output, and `--out`
+  inside an input directory. `approve` verifies the directories and the SHA-256
+  of the files recorded in the report or decisions file (`--force` overrides),
+  and refuses a blind decisions file.
+- CI correctness: a run that compared nothing exits 1 (`--allow-empty` opts
+  out); NaN or infinite HDR captures are errors (`fail_on_nonfinite`);
+  all-black and all-white images are warned about; `hotspot_fail` and the
+  `p99` metric catch local defects behind a low mean.
+- Report additions (all optional on read): `baseline_dir`, `capture_dir`,
+  `baseline_sha256`, `capture_sha256`, `baseline_properties`, `warnings`,
+  `meta_ignored_diff`, `nan_count`, `inf_count`, `negative_count`. Decisions
+  files gain `dirs`, `chosen_dir` and `sha256`.
+- Default meta ignore globs narrowed: `*time*` is gone.
+- Pairs are compared in parallel; `unblind` writes `"blind": false`.
+- Markdown numbers use 4 significant digits without trimming; the text table
+  moves status text to `↳` lines.
+
 ## 0.1.0
 
 First release.

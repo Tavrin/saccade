@@ -1,0 +1,310 @@
+{
+  "$defs": {
+    "CandidateRank": {
+      "description": "Overall comparison of one candidate.",
+      "properties": {
+        "bit_identical": {
+          "description": "Number of bit-identical pairs (all pairs, including outside the common set).",
+          "format": "uint",
+          "minimum": 0,
+          "type": "integer"
+        },
+        "complete": {
+          "description": "Whether every reference image was compared successfully.",
+          "type": "boolean"
+        },
+        "label": {
+          "description": "Candidate label.",
+          "type": "string"
+        },
+        "mean_metric": {
+          "description": "Mean metric across the same common image set.",
+          "format": "double",
+          "type": [
+            "number",
+            "null"
+          ]
+        },
+        "mean_rank": {
+          "description": "Mean competition rank across the common, successfully compared images.",
+          "format": "double",
+          "type": [
+            "number",
+            "null"
+          ]
+        },
+        "rank": {
+          "description": "Competition rank by mean rank, with mean metric as a tie-breaker.\nNull unless every reference image has a valid comparison for every candidate.",
+          "format": "uint",
+          "minimum": 0,
+          "type": [
+            "integer",
+            "null"
+          ]
+        },
+        "ranked_images": {
+          "description": "Number of images used by both overall means.",
+          "format": "uint",
+          "minimum": 0,
+          "type": "integer"
+        },
+        "report_html": {
+          "description": "Relative HTML link from the ranking report.",
+          "type": "string"
+        },
+        "report_json": {
+          "description": "Absolute normal report JSON path.",
+          "type": "string"
+        },
+        "totals": {
+          "$ref": "#/$defs/Totals",
+          "description": "Per-candidate status totals."
+        }
+      },
+      "required": [
+        "label",
+        "ranked_images",
+        "bit_identical",
+        "totals",
+        "complete",
+        "report_json",
+        "report_html"
+      ],
+      "type": "object"
+    },
+    "ImageRank": {
+      "description": "One candidate's result for an image.",
+      "properties": {
+        "label": {
+          "description": "Candidate label (also the report subdirectory).",
+          "type": "string"
+        },
+        "rank": {
+          "description": "Competition rank (1, 1, 3 for a tie); null for an unavailable comparison.",
+          "format": "uint",
+          "minimum": 0,
+          "type": [
+            "integer",
+            "null"
+          ]
+        },
+        "status": {
+          "$ref": "#/$defs/Status",
+          "description": "The normal report's entry status."
+        },
+        "value": {
+          "description": "Metric value; null for missing, new or erroneous entries.",
+          "format": "double",
+          "type": [
+            "number",
+            "null"
+          ]
+        }
+      },
+      "required": [
+        "label",
+        "status"
+      ],
+      "type": "object"
+    },
+    "Metric": {
+      "description": "Which statistic of the FLIP error map decides pass/fail.",
+      "oneOf": [
+        {
+          "const": "mean",
+          "description": "Mean FLIP error over all pixels.",
+          "type": "string"
+        },
+        {
+          "const": "p95",
+          "description": "95th-percentile FLIP error.",
+          "type": "string"
+        },
+        {
+          "const": "p99",
+          "description": "99th-percentile FLIP error.",
+          "type": "string"
+        },
+        {
+          "const": "max",
+          "description": "Maximum FLIP error.",
+          "type": "string"
+        }
+      ]
+    },
+    "RankedImage": {
+      "description": "Ranking of the candidates for one relative image name.",
+      "properties": {
+        "candidates": {
+          "description": "Candidates in increasing metric order; unavailable results last.",
+          "items": {
+            "$ref": "#/$defs/ImageRank"
+          },
+          "type": "array"
+        },
+        "name": {
+          "description": "Relative image name.",
+          "type": "string"
+        }
+      },
+      "required": [
+        "name",
+        "candidates"
+      ],
+      "type": "object"
+    },
+    "Status": {
+      "description": "Outcome of one image name.",
+      "oneOf": [
+        {
+          "const": "pass",
+          "description": "`value <= threshold`.",
+          "type": "string"
+        },
+        {
+          "const": "fail",
+          "description": "`value > threshold`.",
+          "type": "string"
+        },
+        {
+          "const": "new",
+          "description": "Capture present, baseline absent.",
+          "type": "string"
+        },
+        {
+          "const": "missing",
+          "description": "Baseline present, capture absent.",
+          "type": "string"
+        },
+        {
+          "const": "error",
+          "description": "Could not be compared; see [`Entry::error`].",
+          "type": "string"
+        }
+      ]
+    },
+    "Totals": {
+      "description": "Per-status counts.",
+      "properties": {
+        "error": {
+          "description": "Could not be compared (decode failure, dimension mismatch).",
+          "format": "uint",
+          "minimum": 0,
+          "type": "integer"
+        },
+        "fail": {
+          "description": "Entries whose metric exceeds their threshold.",
+          "format": "uint",
+          "minimum": 0,
+          "type": "integer"
+        },
+        "missing": {
+          "description": "Baseline present, capture absent.",
+          "format": "uint",
+          "minimum": 0,
+          "type": "integer"
+        },
+        "new": {
+          "description": "Capture present, baseline absent.",
+          "format": "uint",
+          "minimum": 0,
+          "type": "integer"
+        },
+        "pass": {
+          "description": "Entries whose metric is at or below their threshold.",
+          "format": "uint",
+          "minimum": 0,
+          "type": "integer"
+        },
+        "total": {
+          "description": "Number of entries.",
+          "format": "uint",
+          "minimum": 0,
+          "type": "integer"
+        }
+      },
+      "required": [
+        "total",
+        "pass",
+        "fail",
+        "new",
+        "missing",
+        "error"
+      ],
+      "type": "object"
+    }
+  },
+  "$id": "https://github.com/Tavrin/flipdiff/schemas/flipdiff-rank.v1.schema.json",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "description": "Full ranking on disk; lean outputs omit `images`.",
+  "properties": {
+    "common_images": {
+      "description": "Number of reference images successfully compared by every candidate.",
+      "format": "uint",
+      "minimum": 0,
+      "type": "integer"
+    },
+    "images": {
+      "description": "Per-image rankings; omitted from lean output.",
+      "items": {
+        "$ref": "#/$defs/RankedImage"
+      },
+      "type": "array"
+    },
+    "index_html": {
+      "description": "Absolute HTML path.",
+      "type": "string"
+    },
+    "markdown": {
+      "description": "Absolute Markdown table path.",
+      "type": "string"
+    },
+    "metric": {
+      "$ref": "#/$defs/Metric",
+      "description": "Metric used for every candidate and image (per-path metric overrides ignored)."
+    },
+    "overall": {
+      "description": "Overall ranking; incomplete runs publish means but no overall winner.",
+      "items": {
+        "$ref": "#/$defs/CandidateRank"
+      },
+      "type": "array"
+    },
+    "reference_dir": {
+      "description": "Absolute reference directory.",
+      "type": "string"
+    },
+    "reference_images": {
+      "description": "Number of reference images.",
+      "format": "uint",
+      "minimum": 0,
+      "type": "integer"
+    },
+    "report_json": {
+      "description": "Absolute ranking JSON path.",
+      "type": "string"
+    },
+    "schema": {
+      "description": "Always `flipdiff-rank.v1`.",
+      "type": "string"
+    },
+    "verdict": {
+      "description": "Compare's verdict across all candidate reports.",
+      "type": "string"
+    }
+  },
+  "required": [
+    "schema",
+    "verdict",
+    "metric",
+    "reference_dir",
+    "reference_images",
+    "common_images",
+    "overall",
+    "report_json",
+    "index_html",
+    "markdown"
+  ],
+  "title": "RankReport",
+  "type": "object"
+}

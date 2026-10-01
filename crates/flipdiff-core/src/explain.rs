@@ -9,11 +9,13 @@
 //!   explain.md              token-lean summary
 //!   thumbs/<name>.png       whole-frame strip, hotspot boxes drawn
 //!   hotspots/<name>/hN.png  [baseline | capture | heatmap] crop strip
-//!   blind-key.json          only with `blind`: which side was A or B
 //! ```
 //!
 //! With `blind` each strip is `[A | B]` in a seeded random order and the
-//! heatmap is left out, because it shows which side is the reference.
+//! heatmap is left out, because it shows which side is the reference. The key
+//! (which side was A or B) is written only to [`ExplainOptions::key_out`],
+//! which must be outside the pack so the pack can be handed to a judge as is;
+//! the pack itself then names neither the report nor the sides.
 
 use std::path::{Path, PathBuf};
 use std::time::{SystemTime, UNIX_EPOCH};
@@ -38,7 +40,7 @@ pub const EXPLAIN_FILE: &str = "explain.json";
 /// File name of the pack's Markdown summary.
 pub const EXPLAIN_MD_FILE: &str = "explain.md";
 
-/// File name of the blind key (only written with `blind`).
+/// Suggested file name of the blind key (it is written to `key_out`).
 pub const EXPLAIN_BLIND_KEY_FILE: &str = "blind-key.json";
 
 /// Smallest side, in pixels, a crop is upscaled to (nearest neighbour).
@@ -49,6 +51,10 @@ const MAX_PANEL: u32 = 768;
 
 /// Largest width of one panel of the whole-frame thumbnail strip.
 const THUMB_PANEL: u32 = 480;
+
+/// Widest strip written: wider ones are scaled down so a vision model or a
+/// chat transcript does not choke on them.
+pub const MAX_STRIP: u32 = 1536;
 
 /// Height of the label bar above each strip.
 const BAR_H: u32 = 18;
@@ -68,6 +74,12 @@ pub struct ExplainOptions {
     pub seed: Option<u64>,
     /// Entry names to explain; empty means every failing entry.
     pub entries: Vec<String>,
+    /// Where the blind key goes. Required with `blind`, and must lie outside
+    /// the pack directory; ignored otherwise.
+    pub key_out: Option<PathBuf>,
+    /// Hotspots carrying less than this share of the total error (`0..=1`)
+    /// are left out.
+    pub hotspot_min_share: f64,
 }
 
 impl Default for ExplainOptions {
@@ -79,6 +91,8 @@ impl Default for ExplainOptions {
             blind: false,
             seed: None,
             entries: Vec::new(),
+            key_out: None,
+            hotspot_min_share: crate::hotspots::DEFAULT_HOTSPOT_MIN_SHARE,
         }
     }
 }
@@ -135,6 +149,13 @@ pub struct ExplainEntry {
     pub thumbnail: Option<String>,
     /// Why there is nothing to show, when that is the case.
     pub note: Option<String>,
+    /// Kind of change from the report's diagnostics; `None` in a blind pack
+    /// (it would name the sides) or when diagnostics did not run.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub class: Option<crate::diagnostics::ChangeClass>,
+    /// The diagnostics description; `None` as `class` is.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub description: Option<String>,
     /// Strips of the top hotspots.
     pub hotspots: Vec<ExplainHotspot>,
 }
@@ -145,11 +166,17 @@ pub struct ExplainEntry {
 pub struct ExplainPack {
     /// Always [`EXPLAIN_SCHEMA`].
     pub schema: String,
-    /// Report JSON the pack was made from, as given.
-    pub report: String,
+    /// Absolute path of the report JSON the pack was made from; `None` in a
+    /// blind pack, whose location could name the sides.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub report: Option<String>,
+    /// Absolute path of the pack directory as written; strip paths are
+    /// relative to it.
+    pub dir: String,
     /// Whether sides are shuffled and anonymous (`A`/`B`).
     pub blind: bool,
     /// Side names; `None` in a blind pack, which must not name the sides.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
     pub labels: Option<Labels>,
     /// Settings.
     pub settings: ExplainSettings,
@@ -224,12 +251,23 @@ const GLYPHS: &[(char, [u8; 7])] = &[
     ('-', [0x00, 0x00, 0x00, 0x1F, 0x00, 0x00, 0x00]),
     ('_', [0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x1F]),
     ('.', [0x00, 0x00, 0x00, 0x00, 0x00, 0x0C, 0x0C]),
+    (':', [0x00, 0x0C, 0x0C, 0x00, 0x0C, 0x0C, 0x00]),
+    ('/', [0x01, 0x01, 0x02, 0x04, 0x08, 0x10, 0x10]),
+    ('|', [0x04, 0x04, 0x04, 0x04, 0x04, 0x04, 0x04]),
+    ('#', [0x0A, 0x0A, 0x1F, 0x0A, 0x1F, 0x0A, 0x0A]),
 ];
 
 /// Draws `text` (letters, digits, `-_.`; anything else is blank) with the
 /// built-in 5x7 font at integer `scale`, top-left at `(x, y)`. Stops at the
 /// right edge of the image.
-fn draw_text(img: &mut RgbImage, x: u32, y: u32, text: &str, scale: u32, color: Rgb<u8>) {
+pub(crate) fn draw_text(
+    img: &mut RgbImage,
+    x: u32,
+    y: u32,
+    text: &str,
+    scale: u32,
+    color: Rgb<u8>,
+) {
     let mut cx = x;
     for ch in text.chars() {
         let up = ch.to_ascii_uppercase();
@@ -257,7 +295,7 @@ fn draw_text(img: &mut RgbImage, x: u32, y: u32, text: &str, scale: u32, color: 
     }
 }
 
-fn fill(img: &mut RgbImage, x: u32, y: u32, w: u32, h: u32, color: Rgb<u8>) {
+pub(crate) fn fill(img: &mut RgbImage, x: u32, y: u32, w: u32, h: u32, color: Rgb<u8>) {
     for yy in y..(y + h).min(img.height()) {
         for xx in x..(x + w).min(img.width()) {
             img.put_pixel(xx, yy, color);
@@ -265,7 +303,7 @@ fn fill(img: &mut RgbImage, x: u32, y: u32, w: u32, h: u32, color: Rgb<u8>) {
     }
 }
 
-fn outline(img: &mut RgbImage, rect: [u32; 4], thickness: u32, color: Rgb<u8>) {
+pub(crate) fn outline(img: &mut RgbImage, rect: [u32; 4], thickness: u32, color: Rgb<u8>) {
     let [x, y, w, h] = rect;
     let t = thickness.min(w).min(h).max(1);
     fill(img, x, y, w, t, color);
@@ -274,8 +312,31 @@ fn outline(img: &mut RgbImage, rect: [u32; 4], thickness: u32, color: Rgb<u8>) {
     fill(img, (x + w).saturating_sub(t), y, t, h, color);
 }
 
-/// Joins panels left to right under a label bar, with a 1 px separator.
-fn compose(panels: &[(String, RgbImage)]) -> RgbImage {
+/// Joins panels left to right under a label bar, with a 1 px separator. A
+/// strip wider than [`MAX_STRIP`] is built from proportionally smaller panels;
+/// the second value is the factor they were shrunk by (1 when untouched).
+fn compose(panels: &[(String, RgbImage)]) -> (RgbImage, f64) {
+    let seps = panels.len().saturating_sub(1) as u32;
+    let sum: u32 = panels.iter().map(|(_, p)| p.width()).sum();
+    if sum + seps > MAX_STRIP {
+        let f = f64::from(MAX_STRIP - seps) / f64::from(sum);
+        let shrunk: Vec<(String, RgbImage)> = panels
+            .iter()
+            .map(|(l, p)| {
+                let w = ((f64::from(p.width()) * f).floor() as u32).max(1);
+                let h = ((f64::from(p.height()) * f).round() as u32).max(1);
+                (
+                    l.clone(),
+                    imageops::resize(p, w, h, imageops::FilterType::Triangle),
+                )
+            })
+            .collect();
+        return (join(&shrunk), f);
+    }
+    (join(panels), 1.0)
+}
+
+fn join(panels: &[(String, RgbImage)]) -> RgbImage {
     let ph = panels.iter().map(|(_, p)| p.height()).max().unwrap_or(1);
     let total: u32 =
         panels.iter().map(|(_, p)| p.width()).sum::<u32>() + panels.len().saturating_sub(1) as u32;
@@ -455,6 +516,15 @@ fn clear_previous(out_dir: &Path) -> Result<()> {
 /// strip. Unreadable images make that entry carry a `note` instead of failing
 /// the pack.
 pub fn explain(report_json: &Path, out_dir: &Path, opts: &ExplainOptions) -> Result<ExplainPack> {
+    let key_out = if opts.blind {
+        let key_out = opts.key_out.as_deref().ok_or_else(|| {
+            Error::Config("a blind pack needs `key_out`, a path outside the pack".into())
+        })?;
+        check_key_out(out_dir, key_out)?;
+        Some(key_out)
+    } else {
+        None
+    };
     let text = std::fs::read_to_string(report_json)
         .map_err(io_err(format!("reading report {}", report_json.display())))?;
     let report: Report = serde_json::from_str(&text)?;
@@ -488,8 +558,12 @@ pub fn explain(report_json: &Path, out_dir: &Path, opts: &ExplainOptions) -> Res
             .then_with(|| a.name.cmp(&b.name))
     });
 
+    crate::run::guard_output_dir(out_dir, &[], &[EXPLAIN_FILE, crate::run::RUN_SENTINEL])?;
     std::fs::create_dir_all(out_dir).map_err(io_err(format!("creating {}", out_dir.display())))?;
     clear_previous(out_dir)?;
+    let sentinel = out_dir.join(crate::run::RUN_SENTINEL);
+    std::fs::write(&sentinel, b"incomplete flipdiff run\n")
+        .map_err(io_err(format!("writing {}", sentinel.display())))?;
 
     let seed = opts.seed.unwrap_or_else(clock_seed) & MAX_SEED;
     let labels = &report.config.labels;
@@ -507,6 +581,16 @@ pub fn explain(report_json: &Path, out_dir: &Path, opts: &ExplainOptions) -> Res
             value: e.value,
             thumbnail: None,
             note: None,
+            class: e
+                .diagnostics
+                .as_ref()
+                .filter(|_| !opts.blind)
+                .map(|d| d.class),
+            description: e
+                .diagnostics
+                .as_ref()
+                .filter(|_| !opts.blind)
+                .map(|d| d.description.clone()),
             hotspots: Vec::new(),
         };
         let (Some(bp), Some(cp)) = (&e.paths.baseline, &e.paths.capture) else {
@@ -532,7 +616,12 @@ pub fn explain(report_json: &Path, out_dir: &Path, opts: &ExplainOptions) -> Res
                 .as_deref()
                 .and_then(|p| load_rgb(&report_dir, p).ok())
         };
-        let spots: Vec<&Hotspot> = e.hotspots.iter().take(opts.top).collect();
+        let spots: Vec<&Hotspot> = e
+            .hotspots
+            .iter()
+            .filter(|h| h.share_of_total_error >= opts.hotspot_min_share)
+            .take(opts.top)
+            .collect();
 
         // Whole-frame strip with the boxes.
         let mut tb = base.clone();
@@ -594,8 +683,12 @@ pub fn explain(report_json: &Path, out_dir: &Path, opts: &ExplainOptions) -> Res
             }
             v
         };
-        let thumb_rel = format!("thumbs/{}.png", e.name);
-        save(&compose(&thumb_panels), &out_dir.join(&thumb_rel))?;
+        let thumb_rel = if e.name.to_ascii_lowercase().ends_with(".png") {
+            format!("thumbs/{}", e.name)
+        } else {
+            format!("thumbs/{}.png", e.name)
+        };
+        save(&compose(&thumb_panels).0, &out_dir.join(&thumb_rel))?;
         ee.thumbnail = Some(thumb_rel);
 
         if spots.is_empty() {
@@ -630,13 +723,14 @@ pub fn explain(report_json: &Path, out_dir: &Path, opts: &ExplainOptions) -> Res
                 v
             };
             let rel = format!("hotspots/{}/h{index}.png", e.name);
-            save(&compose(&panels), &out_dir.join(&rel))?;
+            let (strip, shrink) = compose(&panels);
+            save(&strip, &out_dir.join(&rel))?;
             ee.hotspots.push(ExplainHotspot {
                 index,
                 hotspot: (*h).clone(),
                 strip: rel,
                 crop_rect_px: rect,
-                scale,
+                scale: scale * shrink,
                 gain: f64::from(gain),
                 panels: panels.iter().map(|(l, _)| l.clone()).collect(),
             });
@@ -646,7 +740,8 @@ pub fn explain(report_json: &Path, out_dir: &Path, opts: &ExplainOptions) -> Res
 
     let pack = ExplainPack {
         schema: EXPLAIN_SCHEMA.to_string(),
-        report: report_json.display().to_string(),
+        report: (!opts.blind).then(|| absolute(report_json).display().to_string()),
+        dir: absolute(out_dir).display().to_string(),
         blind: opts.blind,
         labels: (!opts.blind).then(|| labels.clone()),
         settings: ExplainSettings {
@@ -664,19 +759,83 @@ pub fn explain(report_json: &Path, out_dir: &Path, opts: &ExplainOptions) -> Res
         EXPLAIN_FILE,
         format!("{}\n", serde_json::to_string_pretty(&pack)?),
     )?;
+    // `explain.json` now marks the directory as the pack's own.
+    std::fs::remove_file(&sentinel).map_err(io_err(format!("removing {}", sentinel.display())))?;
     write(EXPLAIN_MD_FILE, markdown(&pack, &report))?;
-    if opts.blind {
+    if let Some(key_out) = key_out {
         let key = ExplainBlindKey {
             schema: EXPLAIN_BLIND_KEY_SCHEMA.to_string(),
             seed,
             items: key_items,
         };
-        write(
-            EXPLAIN_BLIND_KEY_FILE,
+        if let Some(parent) = key_out.parent().filter(|p| !p.as_os_str().is_empty()) {
+            std::fs::create_dir_all(parent)
+                .map_err(io_err(format!("creating {}", parent.display())))?;
+        }
+        std::fs::write(
+            key_out,
             format!("{}\n", serde_json::to_string_pretty(&key)?),
-        )?;
+        )
+        .map_err(io_err(format!("writing {}", key_out.display())))?;
     }
     Ok(pack)
+}
+
+/// `p` made absolute against the working directory, with `.` and `..` folded
+/// away and the longest existing prefix canonicalised (symlinks resolved), so a
+/// path that does not exist yet can still be compared with one that does. The
+/// result is what an operation on `p` would touch, which makes it safe to test
+/// with `starts_with`.
+pub fn absolute(p: &Path) -> PathBuf {
+    let joined = if p.is_absolute() {
+        p.to_path_buf()
+    } else {
+        std::env::current_dir().map_or_else(|_| p.to_path_buf(), |c| c.join(p))
+    };
+    let mut folded = PathBuf::new();
+    for c in joined.components() {
+        match c {
+            std::path::Component::ParentDir => {
+                folded.pop();
+            }
+            std::path::Component::CurDir => {}
+            other => folded.push(other.as_os_str()),
+        }
+    }
+    let mut existing = folded.clone();
+    let mut tail = Vec::new();
+    while !existing.exists() {
+        match existing.file_name().map(std::ffi::OsStr::to_owned) {
+            Some(n) => tail.push(n),
+            None => return folded,
+        }
+        if !existing.pop() {
+            return folded;
+        }
+    }
+    let mut out = existing.canonicalize().unwrap_or(existing);
+    for n in tail.into_iter().rev() {
+        out.push(n);
+    }
+    out
+}
+
+/// Refuses a blind key destination inside the pack directory: the pack is
+/// what the judge sees, so the key must live elsewhere.
+pub fn check_key_out(out_dir: &Path, key_out: &Path) -> Result<()> {
+    if absolute(key_out).starts_with(absolute(out_dir)) {
+        return Err(Error::Config(format!(
+            "the blind key {} must be outside the pack directory {}",
+            key_out.display(),
+            out_dir.display()
+        )));
+    }
+    Ok(())
+}
+
+/// `1 entry`, `2 entries`.
+pub fn plural(n: usize, one: &str, many: &str) -> String {
+    format!("{n} {}", if n == 1 { one } else { many })
 }
 
 /// Token-lean Markdown of a pack, for pasting into an agent's context.
@@ -688,8 +847,8 @@ fn markdown(pack: &ExplainPack, report: &Report) -> String {
         None => "A vs B (blind)".to_string(),
     };
     out.push_str(&format!(
-        "# flipdiff explain: {} entries ({sides}); {} fail, {} pass of {}\n",
-        pack.entries.len(),
+        "# flipdiff explain: {} ({sides}); {} fail, {} pass of {}\n",
+        plural(pack.entries.len(), "entry", "entries"),
         t.fail,
         t.pass,
         t.total
@@ -709,13 +868,16 @@ fn markdown(pack: &ExplainPack, report: &Report) -> String {
         if let Some(t) = &e.thumbnail {
             out.push_str(&format!("frame: {t}\n"));
         }
+        if let (Some(c), Some(d)) = (e.class, &e.description) {
+            out.push_str(&format!("{}: {d}\n", c.as_str()));
+        }
         if let Some(n) = &e.note {
             out.push_str(&format!("note: {n}\n"));
         }
         for h in &e.hotspots {
             let s = &h.hotspot;
             out.push_str(&format!(
-                "{}. {} {}x{} at ({},{}) {:.0}% of error, mean {:.2} max {:.2}, {:.2}% of frame: {}\n",
+                "{}. {} {}x{} at ({},{}) {:.0}% of error, mean {:.2} max {:.2}, hot px {} ({:.2}% of frame), box {:.1}% of frame: {}\n",
                 h.index,
                 s.position,
                 s.rect_px[2],
@@ -725,7 +887,9 @@ fn markdown(pack: &ExplainPack, report: &Report) -> String {
                 s.share_of_total_error * 100.0,
                 s.mean_flip,
                 s.max_flip,
+                s.area_px,
                 s.area_frac * 100.0,
+                s.rect_frac[2] * s.rect_frac[3] * 100.0,
                 h.strip
             ));
         }

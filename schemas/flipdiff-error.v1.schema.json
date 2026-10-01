@@ -1,0 +1,32 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/Tavrin/flipdiff/schemas/flipdiff-error.v1.schema.json",
+  "title": "flipdiff-error.v1",
+  "description": "Printed on stdout, with the command's exit code, when a command run with --json (or --format json) fails.",
+  "type": "object",
+  "required": [
+    "schema",
+    "code",
+    "message"
+  ],
+  "additionalProperties": false,
+  "properties": {
+    "schema": {
+      "const": "flipdiff-error.v1"
+    },
+    "code": {
+      "enum": [
+        "usage",
+        "io",
+        "config",
+        "unsafe_path",
+        "not_empty_out_dir",
+        "nothing_compared",
+        "approve_mismatch"
+      ]
+    },
+    "message": {
+      "type": "string"
+    }
+  }
+}

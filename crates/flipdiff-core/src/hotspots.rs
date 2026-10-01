@@ -14,6 +14,10 @@ pub const DEFAULT_HOTSPOT_THRESHOLD: f32 = 0.1;
 /// Default number of hotspots kept per entry.
 pub const DEFAULT_HOTSPOTS: usize = 5;
 
+/// Default smallest share of the frame's total error a hotspot must carry to
+/// be kept: groups below 1% are noise next to the real concentrations.
+pub const DEFAULT_HOTSPOT_MIN_SHARE: f64 = 0.01;
+
 /// Components kept (by summed error) before the box-merging step, which is
 /// quadratic. A frame with more is mostly noise; the rest still count towards
 /// the total error that `share_of_total_error` is measured against.
@@ -26,6 +30,9 @@ pub struct HotspotOptions {
     pub threshold: f32,
     /// How many hotspots to keep; `0` disables the search.
     pub top_k: usize,
+    /// Hotspots carrying less than this share of the total error (`0..=1`)
+    /// are dropped.
+    pub min_share: f64,
 }
 
 impl Default for HotspotOptions {
@@ -33,6 +40,7 @@ impl Default for HotspotOptions {
         Self {
             threshold: DEFAULT_HOTSPOT_THRESHOLD,
             top_k: DEFAULT_HOTSPOTS,
+            min_share: DEFAULT_HOTSPOT_MIN_SHARE,
         }
     }
 }
@@ -217,6 +225,9 @@ pub fn find_hotspots(
         break;
     }
     roots.sort_by(|a, b| b.sum.total_cmp(&a.sum));
+    if opts.min_share > 0.0 && total > 0.0 {
+        roots.retain(|c| c.sum / total >= opts.min_share);
+    }
     roots.truncate(opts.top_k);
 
     roots

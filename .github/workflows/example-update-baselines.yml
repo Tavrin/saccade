@@ -1,0 +1,26 @@
+name: Example baseline-update pull request
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  pull-requests: write
+
+jobs:
+  update:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      # Replace examples/capture with your generated captures in a real workflow.
+      - uses: ./
+        with:
+          baseline-dir: examples/baseline
+          capture-dir: examples/capture
+          report-dir: flipdiff-update-report
+          artifact-name: flipdiff-update-report
+          comment: 'false'
+          update-baselines: 'true'
+          update-branch-prefix: flipdiff/update-baselines
+          update-prune-missing: 'false'

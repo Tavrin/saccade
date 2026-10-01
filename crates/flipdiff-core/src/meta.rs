@@ -20,13 +20,20 @@ pub const DEFAULT_META_NAME: &str = "flipdiff-meta.json";
 
 /// Keys ignored by default: timings, timestamps and run ids differ between any
 /// two runs and say nothing about the configuration. Matched case-insensitively.
+/// The patterns are deliberately narrow (no bare `*time*`, which would also
+/// hide `timezone`, `timeout` or `lifetime`); every ignored key that differs is
+/// still listed in the report as `meta_ignored_diff`.
 pub const DEFAULT_IGNORE: &[&str] = &[
-    "*time*",
     "*timestamp*",
-    "run.id",
-    "*duration*",
     "*_ms",
+    "*.ms",
+    "timing.*",
+    "*duration*",
     "*elapsed*",
+    "run.id",
+    "*.started_at",
+    "*.finished_at",
+    "generated_at*",
 ];
 
 /// Placeholder shown for a key (or a whole sidecar) missing on one side.
@@ -200,17 +207,32 @@ impl MetaChecker {
     /// sorted by key. A side without any sidecar shows every key of the other
     /// as [`ABSENT`]; two sides without one have no difference.
     pub fn diff(&self, baseline: Option<&Meta>, capture: Option<&Meta>) -> Vec<MetaDiff> {
+        self.diff_split(baseline, capture).0
+    }
+
+    /// Like [`Self::diff`], plus the differing keys that were ignored.
+    pub fn diff_split(
+        &self,
+        baseline: Option<&Meta>,
+        capture: Option<&Meta>,
+    ) -> (Vec<MetaDiff>, Vec<MetaDiff>) {
         let empty = Meta::new();
         let (b, c) = (baseline.unwrap_or(&empty), capture.unwrap_or(&empty));
         let keys: BTreeSet<&String> = b.keys().chain(c.keys()).collect();
-        keys.into_iter()
-            .filter(|k| b.get(*k) != c.get(*k) && !self.is_ignored(k))
-            .map(|k| MetaDiff {
+        let (mut kept, mut ignored) = (Vec::new(), Vec::new());
+        for k in keys.into_iter().filter(|k| b.get(*k) != c.get(*k)) {
+            let d = MetaDiff {
                 key: k.clone(),
                 baseline: b.get(k).map_or_else(|| ABSENT.to_owned(), render),
                 capture: c.get(k).map_or_else(|| ABSENT.to_owned(), render),
-            })
-            .collect()
+            };
+            if self.is_ignored(k) {
+                ignored.push(d);
+            } else {
+                kept.push(d);
+            }
+        }
+        (kept, ignored)
     }
 
     /// The differing keys that are not declared, when matching is required.
@@ -232,13 +254,25 @@ impl MetaChecker {
         cap_root: &Path,
         name: &str,
     ) -> std::result::Result<(Vec<MetaDiff>, Option<String>), String> {
+        self.compare_split(base_root, cap_root, name)
+            .map(|(diff, _, err)| (diff, err))
+    }
+
+    /// [`Self::compare`] plus the differing keys that were ignored.
+    #[allow(clippy::type_complexity)]
+    pub(crate) fn compare_split(
+        &self,
+        base_root: &Path,
+        cap_root: &Path,
+        name: &str,
+    ) -> std::result::Result<(Vec<MetaDiff>, Vec<MetaDiff>, Option<String>), String> {
         let b = self
             .load(base_root, name)
             .map_err(|e| format!("baseline sidecar: {e}"))?;
         let c = self
             .load(cap_root, name)
             .map_err(|e| format!("capture sidecar: {e}"))?;
-        let diff = self.diff(b.as_ref(), c.as_ref());
+        let (diff, ignored) = self.diff_split(b.as_ref(), c.as_ref());
         let bad = self.violations(&diff);
         let err = (!bad.is_empty()).then(|| {
             format!(
@@ -246,7 +280,7 @@ impl MetaChecker {
                 bad.join(", ")
             )
         });
-        Ok((diff, err))
+        Ok((diff, ignored, err))
     }
 
     /// The settings as recorded in the report.

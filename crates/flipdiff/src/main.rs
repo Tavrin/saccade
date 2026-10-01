@@ -2,6 +2,7 @@
 //!
 //! Exit codes: `0` no regression, `1` regression, `2` usage/config/IO error.
 
+use std::collections::BTreeMap;
 use std::io::Write;
 use std::path::{Path, PathBuf};
 use std::process::ExitCode;
@@ -11,11 +12,15 @@ use flipdiff_core::config::RunConfig;
 use flipdiff_core::render::{MarkdownOptions, is_valid_comment_key, render_markdown};
 use flipdiff_core::report::{Labels, Metric, Mode, Report, Status};
 use flipdiff_core::view::{
-    ViewOptions, build_view, is_safe_name, read_blind_key, read_decisions, unblind,
+    Verdict, ViewOptions, build_view, is_safe_name, read_blind_key, read_decisions, unblind,
 };
 
 mod agent;
+mod agent_ui;
 mod mcp;
+mod runs_cmd;
+
+use agent::CliError;
 
 #[derive(Parser)]
 #[command(
@@ -41,12 +46,12 @@ struct HdrArgs {
 }
 
 impl HdrArgs {
-    fn apply(&self, hdr: &mut flipdiff_core::hdr::HdrConfig) -> Result<(), String> {
+    fn apply(&self, hdr: &mut flipdiff_core::hdr::HdrConfig) -> Result<(), CliError> {
         if let Some(t) = &self.hdr_tonemapper {
-            hdr.tonemapper = flipdiff_core::hdr::Tonemapper::parse(t).map_err(|e| e.to_string())?;
+            hdr.tonemapper = flipdiff_core::hdr::Tonemapper::parse(t)?;
         }
         if let Some(e) = &self.hdr_exposures {
-            hdr.parse_exposures(e).map_err(|e| e.to_string())?;
+            hdr.parse_exposures(e)?;
         }
         Ok(())
     }
@@ -101,6 +106,7 @@ impl MetaRequireArgs {
 enum MetricArg {
     Mean,
     P95,
+    P99,
     Max,
 }
 
@@ -109,9 +115,30 @@ impl From<MetricArg> for Metric {
         match m {
             MetricArg::Mean => Metric::Mean,
             MetricArg::P95 => Metric::P95,
+            MetricArg::P99 => Metric::P99,
             MetricArg::Max => Metric::Max,
         }
     }
+}
+
+/// How much `compare --json` and `identity --json` print.
+#[derive(Clone, Copy, ValueEnum)]
+enum RunJson {
+    /// The lean `flipdiff-result.v1`.
+    Lean,
+    /// The whole `flipdiff-report.v1`.
+    Full,
+    /// A `flipdiff-decision-request.v1` for every failing entry.
+    Decision,
+}
+
+/// How much `sequence --json` and `rank --json` print.
+#[derive(Clone, Copy, ValueEnum)]
+enum JsonMode {
+    /// The lean `flipdiff-result.v1`.
+    Lean,
+    /// The whole `flipdiff-report.v1`.
+    Full,
 }
 
 #[derive(Clone, Copy, ValueEnum)]
@@ -123,6 +150,69 @@ enum Format {
 
 #[derive(Subcommand)]
 enum Command {
+    /// Compare numbered colour frames by sorted index and measure added flicker.
+    Sequence {
+        baseline_dir: PathBuf,
+        capture_dir: PathBuf,
+        /// Relative-name glob; frames must end in an integer before the extension.
+        #[arg(long, default_value = "*")]
+        pattern: String,
+        #[arg(long, default_value = "sequence-report")]
+        out: PathBuf,
+        #[arg(long)]
+        threshold: Option<f64>,
+        #[arg(long, value_enum)]
+        metric: Option<MetricArg>,
+        #[arg(long)]
+        config: Option<PathBuf>,
+        #[arg(long)]
+        ppd: Option<f32>,
+        #[arg(long)]
+        fail_on_new: bool,
+        #[arg(long)]
+        allow_empty: bool,
+        #[arg(long, value_delimiter = ',')]
+        labels: Option<Vec<String>>,
+        #[arg(long, value_enum, num_args = 0..=1, require_equals = true, default_missing_value = "lean")]
+        json: Option<JsonMode>,
+        #[command(flatten)]
+        hdr: HdrArgs,
+        #[command(flatten)]
+        meta: MetaArgs,
+        #[command(flatten)]
+        require: MetaRequireArgs,
+    },
+    /// Rank candidate directories against one common FLIP reference.
+    Rank {
+        reference_dir: PathBuf,
+        #[arg(required = true, num_args = 1..)]
+        candidate_dirs: Vec<PathBuf>,
+        /// One unique, safe directory label per candidate, comma separated.
+        #[arg(long, value_delimiter = ',')]
+        labels: Option<Vec<String>>,
+        #[arg(long, value_enum, default_value = "mean")]
+        metric: MetricArg,
+        #[arg(long, default_value = "rank-report")]
+        out: PathBuf,
+        #[arg(long)]
+        config: Option<PathBuf>,
+        #[arg(long)]
+        threshold: Option<f64>,
+        #[arg(long)]
+        ppd: Option<f32>,
+        #[arg(long)]
+        fail_on_new: bool,
+        #[arg(long)]
+        allow_empty: bool,
+        #[arg(long, value_enum, num_args = 0..=1, require_equals = true, default_missing_value = "lean")]
+        json: Option<JsonMode>,
+        #[command(flatten)]
+        hdr: HdrArgs,
+        #[command(flatten)]
+        meta: MetaArgs,
+        #[command(flatten)]
+        require: MetaRequireArgs,
+    },
     /// Compare a directory of captures against a directory of baselines.
     Compare {
         /// Directory of approved baseline images.
@@ -144,9 +234,22 @@ enum Command {
         /// Treat new images (no baseline) as a regression.
         #[arg(long)]
         fail_on_new: bool,
-        /// Print the report JSON instead of the table.
+        /// Accept a run that compared no pair (for example the first run, with
+        /// an empty baseline directory). Without it, nothing compared exits 1.
         #[arg(long)]
-        json: bool,
+        allow_empty: bool,
+        /// Print JSON instead of the table: a lean `flipdiff-result.v1` (verdict,
+        /// totals, failing entries, paths, next step), or with `--json=full`
+        /// the whole report.
+        #[arg(
+            long,
+            value_enum,
+            num_args = 0..=1,
+            require_equals = true,
+            default_missing_value = "lean",
+            value_name = "full"
+        )]
+        json: Option<RunJson>,
         /// FLIP pixels per degree.
         #[arg(long)]
         ppd: Option<f32>,
@@ -170,6 +273,10 @@ enum Command {
         /// Report output directory.
         #[arg(long, default_value = "report")]
         out: PathBuf,
+        /// Accept a run that compared no pair. Without it, nothing compared
+        /// exits 1.
+        #[arg(long)]
+        allow_empty: bool,
         /// Pass threshold for images that are not bit-identical.
         #[arg(long)]
         threshold: Option<f64>,
@@ -179,9 +286,18 @@ enum Command {
         /// Config file; defaults to ./flipdiff.toml when it exists.
         #[arg(long)]
         config: Option<PathBuf>,
-        /// Print the report JSON instead of the table.
-        #[arg(long)]
-        json: bool,
+        /// Print JSON instead of the table: a lean `flipdiff-result.v1` (verdict,
+        /// totals, failing entries, paths, next step), or with `--json=full`
+        /// the whole report.
+        #[arg(
+            long,
+            value_enum,
+            num_args = 0..=1,
+            require_equals = true,
+            default_missing_value = "lean",
+            value_name = "full"
+        )]
+        json: Option<RunJson>,
         /// FLIP pixels per degree.
         #[arg(long)]
         ppd: Option<f32>,
@@ -221,6 +337,11 @@ enum Command {
         /// instead of one line per file.
         #[arg(long)]
         json: bool,
+        /// Approve even when the directories or the capture files differ from
+        /// what the report or decisions file recorded (they are checked by
+        /// default: approving unreviewed pixels is refused).
+        #[arg(long)]
+        force: bool,
     },
     /// Write a self-contained review viewer for 2 to 6 image directories.
     View {
@@ -236,9 +357,14 @@ enum Command {
         /// Pairwise judging: shuffle panes and hide labels until "Reveal".
         #[arg(long)]
         blind: bool,
-        /// Seed for the blind shuffle (default: from the clock; recorded in the data).
+        /// Seed for the blind shuffle (default: random). A blind page never
+        /// embeds it; it is recorded in the key.
         #[arg(long)]
         seed: Option<u64>,
+        /// Where a blind view's key goes (default: `blind-key.json` inside
+        /// `--out`; put it elsewhere to hand the view directory to a judge).
+        #[arg(long, value_name = "PATH", requires = "blind")]
+        key_out: Option<PathBuf>,
         /// Output directory.
         #[arg(long, default_value = "view")]
         out: PathBuf,
@@ -260,8 +386,14 @@ enum Command {
     /// Serve a local web app for browsing a capture archive and comparing runs
     /// (127.0.0.1 only; the archive is never written to).
     Serve {
-        /// Archive root to browse (read-only).
-        root: PathBuf,
+        /// Archive roots to browse (read-only). With several, each is a
+        /// top-level entry named after its directory.
+        #[arg(required = true, num_args = 1..)]
+        roots: Vec<PathBuf>,
+        /// Let a symlink that resolves inside any of the roots be browsed and
+        /// served; a symlink to anywhere else stays refused.
+        #[arg(long)]
+        follow_symlinks_within_roots: bool,
         /// Port on 127.0.0.1 (0 picks a free one).
         #[arg(long, default_value_t = 7878)]
         port: u16,
@@ -283,6 +415,44 @@ enum Command {
         /// Open the page in the default browser.
         #[arg(long)]
         open: bool,
+        #[command(flatten)]
+        hdr: HdrArgs,
+        #[command(flatten)]
+        meta: MetaArgs,
+    },
+    /// Compare whole runs against a reference run: per-run summary, an image
+    /// matrix tinted by FLIP severity and a contact sheet, as a static HTML
+    /// page (`--out`) or `flipdiff-runs.v1` JSON (`--json`).
+    Runs {
+        /// The reference run: a directory of images.
+        ref_dir: PathBuf,
+        /// The runs to compare against it (1 to 5), paired by relative image
+        /// path.
+        #[arg(required = true, num_args = 1..=5)]
+        run_dirs: Vec<PathBuf>,
+        /// Comma-separated labels, one per directory, the reference first
+        /// (default: directory names).
+        #[arg(long, value_delimiter = ',')]
+        labels: Option<Vec<String>>,
+        /// Pair the images of every run with the reference's by sorted
+        /// position instead of by name (for runs whose file names differ).
+        #[arg(long)]
+        pair_by_position: bool,
+        /// Print `flipdiff-runs.v1` JSON instead of text; the page is then
+        /// written only when `--out` is given too.
+        #[arg(long)]
+        json: bool,
+        /// Directory for the static page (`index.html`, thumbnails,
+        /// `flipdiff-runs.v1.json`); default `runs`.
+        #[arg(long)]
+        out: Option<PathBuf>,
+        /// FLIP pixels per degree.
+        #[arg(long)]
+        ppd: Option<f32>,
+        /// Config file for sidecar settings (default: `./flipdiff.toml` when
+        /// present).
+        #[arg(long)]
+        config: Option<PathBuf>,
         #[command(flatten)]
         hdr: HdrArgs,
         #[command(flatten)]
@@ -317,12 +487,21 @@ enum Command {
         #[arg(long)]
         stretch: bool,
         /// Shuffle which side is A or B per hotspot and omit the heatmap; the
-        /// key goes to `blind-key.json`.
-        #[arg(long)]
+        /// pack names neither the report nor the sides, and the key goes to
+        /// `--key-out`.
+        #[arg(long, requires = "key_out")]
         blind: bool,
+        /// Where the blind key is written (required with `--blind`; must be
+        /// outside `--out`, so the pack can be handed to a judge as is).
+        #[arg(long, value_name = "PATH", requires = "blind")]
+        key_out: Option<PathBuf>,
         /// Seed for the blind shuffle (default: from the clock; recorded in the key).
         #[arg(long, requires = "blind")]
         seed: Option<u64>,
+        /// Leave out hotspots carrying less than this share of the total
+        /// error, 0 to 1.
+        #[arg(long, default_value_t = 0.01, value_name = "SHARE")]
+        hotspot_min_share: f64,
         /// Explain only these entries (default: every failing entry).
         #[arg(long, value_delimiter = ',', value_name = "NAME,...")]
         entries: Vec<String>,
@@ -331,8 +510,22 @@ enum Command {
         json: bool,
     },
     /// Serve the Model Context Protocol over stdio, so an AI agent can run
-    /// comparisons and read their hotspots as a tool.
-    Mcp,
+    /// comparisons and read their hotspots as a tool. Every path an agent
+    /// passes must resolve under `--root`.
+    Mcp {
+        /// Directory the agent may read and write (default: the working directory).
+        #[arg(long, value_name = "DIR")]
+        root: Option<PathBuf>,
+    },
+    /// Render a view state (layout, split, zoom, heatmap...) of a report entry
+    /// or view set to a PNG, with no browser.
+    Snapshot(agent_ui::SnapshotArgs),
+    /// Print the bounded questions an agent or decision model can answer about
+    /// a report's entries (`flipdiff-decision-request.v1`).
+    DecisionRequest(agent_ui::DecisionRequestArgs),
+    /// Record an answer to a decision-request question; a model's answer is a
+    /// proposal a person confirms, never a baseline change.
+    Decide(agent_ui::DecideArgs),
     /// Print a summary of a report JSON.
     Summary {
         /// Path to `flipdiff-report.v1.json`.
@@ -350,19 +543,213 @@ enum Command {
     },
 }
 
+/// Whether the command line asks for JSON output (`--json`, `--json=full`,
+/// `--format json`), judged from the raw arguments so that even a command line
+/// clap rejects gets a JSON error.
+fn args_want_json(args: &[std::ffi::OsString]) -> bool {
+    let args: Vec<String> = args
+        .iter()
+        .skip(1)
+        .map(|a| a.to_string_lossy().into_owned())
+        .collect();
+    args.iter().enumerate().any(|(i, a)| {
+        a == "--json"
+            || a.starts_with("--json=")
+            || a == "--format=json"
+            || (a == "--format" && args.get(i + 1).is_some_and(|v| v == "json"))
+    })
+}
+
+/// Prints `err` as `flipdiff-error.v1` on stdout.
+fn emit_json_error(err: &CliError) {
+    let text = serde_json::to_string_pretty(&err.value()).unwrap_or_default();
+    let _ = emit(&format!("{text}\n"));
+}
+
 fn main() -> ExitCode {
-    let cli = Cli::parse();
+    let args: Vec<std::ffi::OsString> = std::env::args_os().collect();
+    let cli = match Cli::try_parse_from(&args) {
+        Ok(cli) => cli,
+        Err(e) => {
+            if e.use_stderr() && args_want_json(&args) {
+                let text = e.to_string();
+                // The message is the text before clap's `Usage:` block.
+                let message = text
+                    .split("\n\n")
+                    .next()
+                    .unwrap_or("invalid arguments")
+                    .lines()
+                    .map(str::trim)
+                    .filter(|l| !l.is_empty())
+                    .collect::<Vec<_>>()
+                    .join(" ");
+                emit_json_error(&CliError::usage(
+                    message.trim_start_matches("error: ").to_string(),
+                ));
+                return ExitCode::from(2);
+            }
+            e.exit()
+        }
+    };
+    let json_errors = args_want_json(&args);
     match dispatch(cli.command) {
         Ok(code) => ExitCode::from(code),
-        Err(msg) => {
-            eprintln!("flipdiff: error: {}", escape_multiline(&msg));
+        Err(err) => {
+            if json_errors {
+                emit_json_error(&err);
+            } else {
+                eprintln!("flipdiff: error: {}", escape_multiline(&err.message));
+            }
             ExitCode::from(2)
         }
     }
 }
 
-fn dispatch(command: Command) -> Result<u8, String> {
+/// Prints a run's result: the table, the lean result or the whole report.
+fn emit_run(report: &Report, out: &Path, json: Option<RunJson>) -> Result<(), CliError> {
+    match json {
+        None => emit(&text_table(report)),
+        Some(RunJson::Lean) => {
+            let report_json = out.join(flipdiff_core::report::REPORT_FILE_NAME);
+            // An empty run prints an error object, on stdout, with exit code 1.
+            if let Some(err) = agent::nothing_compared(report, &report_json) {
+                return emit(&format!(
+                    "{}\n",
+                    serde_json::to_string_pretty(&err.value())?
+                ));
+            }
+            let value = agent::result_value(
+                report,
+                &out.join(flipdiff_core::report::REPORT_FILE_NAME),
+                agent::DEFAULT_TOP_FAILING,
+                false,
+            );
+            emit(&format!("{}\n", serde_json::to_string_pretty(&value)?))
+        }
+        Some(RunJson::Full) => emit(&format!("{}\n", serde_json::to_string_pretty(report)?)),
+        Some(RunJson::Decision) => {
+            let request = flipdiff_core::decision::build_request(
+                report,
+                &flipdiff_core::decision::RequestOptions {
+                    all_failing: true,
+                    ..Default::default()
+                },
+            )?;
+            emit(&format!("{}\n", serde_json::to_string_pretty(&request)?))
+        }
+    }
+}
+
+fn dispatch(command: Command) -> Result<u8, CliError> {
     match command {
+        Command::Sequence {
+            baseline_dir,
+            capture_dir,
+            pattern,
+            out,
+            threshold,
+            metric,
+            config,
+            ppd,
+            fail_on_new,
+            allow_empty,
+            labels,
+            json,
+            hdr,
+            meta,
+            require,
+        } => {
+            let mut cfg = load_config(config.as_deref())?;
+            if let Some(t) = threshold {
+                cfg.default_threshold = t;
+            }
+            if let Some(m) = metric {
+                cfg.default_metric = m.into();
+            }
+            if let Some(p) = ppd {
+                cfg.pixels_per_degree = p;
+            }
+            if let Some(l) = labels {
+                cfg.labels = parse_labels(&l)?;
+            }
+            cfg.fail_on_new |= fail_on_new;
+            cfg.allow_empty |= allow_empty;
+            hdr.apply(&mut cfg.hdr)?;
+            meta.apply(&mut cfg.meta);
+            require.apply(&mut cfg.meta);
+            let report = flipdiff_core::sequence::run_sequence(
+                &baseline_dir,
+                &capture_dir,
+                &out,
+                &pattern,
+                &cfg,
+            )?;
+            match json {
+                None => emit(&report.text())?,
+                Some(mode) => {
+                    let mut value = serde_json::to_value(match mode {
+                        JsonMode::Lean => report.lean(),
+                        JsonMode::Full => report.clone(),
+                    })?;
+                    if matches!(mode, JsonMode::Lean) {
+                        agent::round_floats(&mut value);
+                    }
+                    emit(&format!("{}\n", serde_json::to_string_pretty(&value)?))?;
+                }
+            }
+            Ok(u8::from(report.is_regression()))
+        }
+        Command::Rank {
+            reference_dir,
+            candidate_dirs,
+            labels,
+            metric,
+            out,
+            config,
+            threshold,
+            ppd,
+            fail_on_new,
+            allow_empty,
+            json,
+            hdr,
+            meta,
+            require,
+        } => {
+            let mut cfg = load_config(config.as_deref())?;
+            if let Some(t) = threshold {
+                cfg.default_threshold = t;
+            }
+            if let Some(p) = ppd {
+                cfg.pixels_per_degree = p;
+            }
+            cfg.fail_on_new |= fail_on_new;
+            cfg.allow_empty |= allow_empty;
+            hdr.apply(&mut cfg.hdr)?;
+            meta.apply(&mut cfg.meta);
+            require.apply(&mut cfg.meta);
+            let report = flipdiff_core::rank::run_rank(
+                &reference_dir,
+                &candidate_dirs,
+                labels.as_deref(),
+                metric.into(),
+                &out,
+                &cfg,
+            )?;
+            match json {
+                None => emit(&report.text())?,
+                Some(mode) => {
+                    let mut value = serde_json::to_value(match mode {
+                        JsonMode::Lean => report.lean(),
+                        JsonMode::Full => report.clone(),
+                    })?;
+                    if matches!(mode, JsonMode::Lean) {
+                        agent::round_floats(&mut value);
+                    }
+                    emit(&format!("{}\n", serde_json::to_string_pretty(&value)?))?;
+                }
+            }
+            Ok(u8::from(report.is_regression()))
+        }
         Command::Compare {
             baseline_dir,
             capture_dir,
@@ -371,6 +758,7 @@ fn dispatch(command: Command) -> Result<u8, String> {
             metric,
             config,
             fail_on_new,
+            allow_empty,
             json,
             ppd,
             labels,
@@ -379,6 +767,7 @@ fn dispatch(command: Command) -> Result<u8, String> {
             require,
         } => {
             let mut cfg = load_config(config.as_deref())?;
+            cfg.allow_empty |= allow_empty;
             hdr.apply(&mut cfg.hdr)?;
             meta.apply(&mut cfg.meta);
             require.apply(&mut cfg.meta);
@@ -397,20 +786,15 @@ fn dispatch(command: Command) -> Result<u8, String> {
             if let Some(l) = labels {
                 cfg.labels = parse_labels(&l)?;
             }
-            let report = flipdiff_core::run::run(&baseline_dir, &capture_dir, &out, &cfg)
-                .map_err(|e| e.to_string())?;
-            if json {
-                let text = serde_json::to_string_pretty(&report).map_err(|e| e.to_string())?;
-                emit(&format!("{text}\n"))?;
-            } else {
-                emit(&text_table(&report))?;
-            }
+            let report = flipdiff_core::run::run(&baseline_dir, &capture_dir, &out, &cfg)?;
+            emit_run(&report, &out, json)?;
             Ok(u8::from(report.is_regression()))
         }
         Command::Identity {
             parent_dir,
             candidate_dir,
             out,
+            allow_empty,
             threshold,
             metric,
             config,
@@ -421,6 +805,7 @@ fn dispatch(command: Command) -> Result<u8, String> {
             require,
         } => {
             let mut cfg = load_config(config.as_deref())?;
+            cfg.allow_empty |= allow_empty;
             meta.apply(&mut cfg.meta);
             require.apply(&mut cfg.meta);
             if config.is_none() && !cfg.overrides.is_empty() {
@@ -459,14 +844,8 @@ fn dispatch(command: Command) -> Result<u8, String> {
             if let Some(l) = labels {
                 cfg.labels = parse_labels(&l)?;
             }
-            let report = flipdiff_core::run::run(&parent_dir, &candidate_dir, &out, &cfg)
-                .map_err(|e| e.to_string())?;
-            if json {
-                let text = serde_json::to_string_pretty(&report).map_err(|e| e.to_string())?;
-                emit(&format!("{text}\n"))?;
-            } else {
-                emit(&text_table(&report))?;
-            }
+            let report = flipdiff_core::run::run(&parent_dir, &candidate_dir, &out, &cfg)?;
+            emit_run(&report, &out, json)?;
             Ok(u8::from(report.is_regression()))
         }
         Command::Approve {
@@ -478,6 +857,7 @@ fn dispatch(command: Command) -> Result<u8, String> {
             include_errors,
             prune_missing,
             json,
+            force,
         } => approve(
             &capture_dir,
             &baseline_dir,
@@ -488,10 +868,12 @@ fn dispatch(command: Command) -> Result<u8, String> {
                 include_errors,
                 prune_missing,
                 json,
+                force,
             },
         ),
         Command::Serve {
-            root,
+            mut roots,
+            follow_symlinks_within_roots,
             port,
             cache_dir,
             decisions_dir,
@@ -502,7 +884,9 @@ fn dispatch(command: Command) -> Result<u8, String> {
             meta,
         } => {
             let loaded = load_config(config.as_deref())?;
-            let mut opts = flipdiff_core::serve::ServeOptions::new(root);
+            let mut opts = flipdiff_core::serve::ServeOptions::new(roots.remove(0));
+            opts.extra_roots = roots;
+            opts.follow_symlinks_within_roots = follow_symlinks_within_roots;
             opts.port = port;
             if let Some(d) = cache_dir {
                 opts.cache_dir = d;
@@ -518,7 +902,7 @@ fn dispatch(command: Command) -> Result<u8, String> {
                 opts.view.pixels_per_degree = p;
             }
             let (cache, decisions) = (opts.cache_dir.clone(), opts.decisions_dir.clone());
-            let handle = flipdiff_core::serve::start(opts).map_err(|e| e.to_string())?;
+            let handle = flipdiff_core::serve::start(opts)?;
             let url = format!("http://127.0.0.1:{}/", handle.port());
             emit(&format!(
                 "flipdiff serve: {url}\n  cache:     {}\n  decisions: {}\n  (Ctrl-C to stop)\n",
@@ -536,15 +920,12 @@ fn dispatch(command: Command) -> Result<u8, String> {
             blind_key_json,
             out,
         } => {
-            let decisions = read_decisions(&decisions_json).map_err(|e| e.to_string())?;
-            let key = read_blind_key(&blind_key_json).map_err(|e| e.to_string())?;
-            let text = serde_json::to_string_pretty(
-                &unblind(&decisions, &key).map_err(|e| e.to_string())?,
-            )
-            .map_err(|e| e.to_string())?;
+            let decisions = read_decisions(&decisions_json)?;
+            let key = read_blind_key(&blind_key_json)?;
+            let text = serde_json::to_string_pretty(&unblind(&decisions, &key)?)?;
             match out {
                 Some(path) => std::fs::write(&path, format!("{text}\n"))
-                    .map_err(|e| format!("writing {}: {e}", path.display()))?,
+                    .map_err(|e| CliError::io(format!("writing {}: {e}", path.display())))?,
                 None => emit(&format!("{text}\n"))?,
             }
             Ok(0)
@@ -555,6 +936,7 @@ fn dispatch(command: Command) -> Result<u8, String> {
             reference,
             blind,
             seed,
+            key_out,
             out,
             ppd,
             config,
@@ -570,6 +952,7 @@ fn dispatch(command: Command) -> Result<u8, String> {
                 reference,
                 blind,
                 seed,
+                key_out: key_out.clone(),
                 ..ViewOptions::default()
             };
             hdr.apply(&mut opts.hdr)?;
@@ -577,26 +960,25 @@ fn dispatch(command: Command) -> Result<u8, String> {
             if let Some(p) = ppd {
                 opts.pixels_per_degree = p;
             }
-            let model = build_view(&dirs, &out, &opts).map_err(|e| e.to_string())?;
+            let model = build_view(&dirs, &out, &opts)?;
+            let abs = flipdiff_core::explain::absolute;
+            let key = key_out.unwrap_or_else(|| out.join(flipdiff_core::view::BLIND_KEY_FILE));
             if json {
-                let key = out.join(flipdiff_core::view::BLIND_KEY_FILE);
                 let value = serde_json::json!({
                     "schema": "flipdiff-view-summary.v1",
-                    "index_html": out.join("index.html").display().to_string(),
-                    "out_dir": out.display().to_string(),
+                    "index_html": abs(&out.join("index.html")).display().to_string(),
+                    "out_dir": abs(&out).display().to_string(),
                     "sets": model.sets.len(),
                     "set_names": model.sets.iter().map(|s| s.name.as_str()).collect::<Vec<_>>(),
                     "directories": model.labels.len(),
                     // A blind view's labels stay out of the output.
                     "labels": (!blind).then(|| model.labels.clone()),
                     "blind": blind,
-                    "seed": model.seed,
-                    "blind_key": blind.then(|| key.display().to_string()),
+                    // A blind page's token is not the shuffle seed; the key has both.
+                    "seed": (!blind).then_some(model.seed),
+                    "blind_key": blind.then(|| abs(&key).display().to_string()),
                 });
-                emit(&format!(
-                    "{}\n",
-                    serde_json::to_string_pretty(&value).map_err(|e| e.to_string())?
-                ))?;
+                emit(&format!("{}\n", serde_json::to_string_pretty(&value)?))?;
                 return Ok(0);
             }
             emit(&format!(
@@ -608,17 +990,45 @@ fn dispatch(command: Command) -> Result<u8, String> {
             if blind {
                 emit(&format!(
                     "blind key (keep it away from the judge): {}\n",
-                    escape_control(
-                        &out.join(flipdiff_core::view::BLIND_KEY_FILE)
-                            .display()
-                            .to_string()
-                    )
+                    escape_control(&key.display().to_string())
                 ))?;
             }
             Ok(0)
         }
-        Command::Mcp => {
-            mcp::serve_stdio()?;
+        Command::Runs {
+            ref_dir,
+            run_dirs,
+            labels,
+            pair_by_position,
+            json,
+            out,
+            ppd,
+            config,
+            hdr,
+            meta,
+        } => {
+            let loaded = load_config(config.as_deref())?;
+            let mut opts = flipdiff_core::runs::RunsOptions {
+                meta: loaded.meta,
+                ..flipdiff_core::runs::RunsOptions::default()
+            };
+            hdr.apply(&mut opts.hdr)?;
+            meta.apply(&mut opts.meta);
+            if let Some(p) = ppd {
+                opts.pixels_per_degree = p;
+            }
+            runs_cmd::run(&runs_cmd::RunsRequest {
+                ref_dir,
+                run_dirs,
+                labels,
+                json,
+                out,
+                by_position: pair_by_position,
+                opts,
+            })
+        }
+        Command::Mcp { root } => {
+            mcp::serve_stdio(root.as_deref())?;
             Ok(0)
         }
         Command::Explain {
@@ -628,7 +1038,9 @@ fn dispatch(command: Command) -> Result<u8, String> {
             pad,
             stretch,
             blind,
+            key_out,
             seed,
+            hotspot_min_share,
             entries,
             json,
         } => {
@@ -644,33 +1056,37 @@ fn dispatch(command: Command) -> Result<u8, String> {
                 blind,
                 seed,
                 entries,
+                key_out: key_out.clone(),
+                hotspot_min_share,
             };
-            let pack = flipdiff_core::explain::explain(&report_json, &out, &opts)
-                .map_err(|e| e.to_string())?;
+            if let Some(key) = &key_out {
+                flipdiff_core::explain::check_key_out(&out, key)
+                    .map_err(|e| CliError::new("unsafe_path", strip_config_prefix(&e)))?;
+            }
+            let pack = flipdiff_core::explain::explain(&report_json, &out, &opts)?;
             if json {
-                let text = serde_json::to_string_pretty(&pack).map_err(|e| e.to_string())?;
+                let text = serde_json::to_string_pretty(&pack)?;
                 emit(&format!("{text}\n"))?;
             } else {
                 let md = std::fs::read_to_string(out.join(flipdiff_core::explain::EXPLAIN_MD_FILE))
-                    .map_err(|e| format!("reading explain.md: {e}"))?;
+                    .map_err(|e| CliError::io(format!("reading explain.md: {e}")))?;
                 emit(&md)?;
                 emit(&format!(
                     "\npack: {}\n",
                     escape_control(&out.display().to_string())
                 ))?;
-                if blind {
+                if let Some(key) = &key_out {
                     emit(&format!(
                         "blind key (keep it away from the judge): {}\n",
-                        escape_control(
-                            &out.join(flipdiff_core::explain::EXPLAIN_BLIND_KEY_FILE)
-                                .display()
-                                .to_string()
-                        )
+                        escape_control(&key.display().to_string())
                     ))?;
                 }
             }
             Ok(0)
         }
+        Command::Snapshot(args) => agent_ui::snapshot(&args),
+        Command::DecisionRequest(args) => agent_ui::decision_request(&args),
+        Command::Decide(args) => agent_ui::decide(&args),
         Command::Summary {
             report_json,
             format,
@@ -681,7 +1097,9 @@ fn dispatch(command: Command) -> Result<u8, String> {
                 .as_deref()
                 .is_some_and(|k| !is_valid_comment_key(k))
             {
-                return Err("--comment-key must be 1-64 characters of A-Z a-z 0-9 . _ -".into());
+                return Err(CliError::usage(
+                    "--comment-key must be 1-64 characters of A-Z a-z 0-9 . _ -",
+                ));
             }
             let report = read_report(&report_json)?;
             match format {
@@ -697,7 +1115,7 @@ fn dispatch(command: Command) -> Result<u8, String> {
                 Format::Json => {
                     let value =
                         agent::summary_value(&report, &report_json, agent::DEFAULT_TOP_FAILING);
-                    let text = serde_json::to_string_pretty(&value).map_err(|e| e.to_string())?;
+                    let text = serde_json::to_string_pretty(&value)?;
                     emit(&format!("{text}\n"))?;
                 }
             }
@@ -717,15 +1135,22 @@ fn parse_labels(parts: &[String]) -> Result<Labels, String> {
     }
 }
 
-fn load_config(explicit: Option<&Path>) -> Result<RunConfig, String> {
+fn load_config(explicit: Option<&Path>) -> Result<RunConfig, CliError> {
     let path = match explicit {
         Some(p) => Some(p),
         None => Some(Path::new("flipdiff.toml")).filter(|p| p.is_file()),
     };
     match path {
-        Some(p) => RunConfig::from_toml_file(p).map_err(|e| e.to_string()),
+        Some(p) => Ok(RunConfig::from_toml_file(p)?),
         None => Ok(RunConfig::default()),
     }
+}
+
+/// The message of a configuration error without its "invalid configuration: " prefix.
+fn strip_config_prefix(e: &flipdiff_core::Error) -> String {
+    let text = e.to_string();
+    text.strip_prefix("invalid configuration: ")
+        .map_or_else(|| text.clone(), str::to_string)
 }
 
 /// Opens `url` in the default browser; failures are ignored.
@@ -745,19 +1170,20 @@ fn open_browser(url: &str) {
         .spawn();
 }
 
-fn read_report(path: &Path) -> Result<Report, String> {
+fn read_report(path: &Path) -> Result<Report, CliError> {
     let text = std::fs::read_to_string(path)
-        .map_err(|e| format!("reading report {}: {e}", path.display()))?;
-    serde_json::from_str(&text).map_err(|e| format!("parsing report {}: {e}", path.display()))
+        .map_err(|e| CliError::io(format!("reading report {}: {e}", path.display())))?;
+    serde_json::from_str(&text)
+        .map_err(|e| CliError::io(format!("parsing report {}: {e}", path.display())))
 }
 
 /// Writes `text` to stdout. A closed pipe (for example `| head`) is not an error.
-fn emit(text: &str) -> Result<(), String> {
+fn emit(text: &str) -> Result<(), CliError> {
     let mut out = std::io::stdout().lock();
     match out.write_all(text.as_bytes()).and_then(|()| out.flush()) {
         Ok(()) => Ok(()),
         Err(e) if e.kind() == std::io::ErrorKind::BrokenPipe => Ok(()),
-        Err(e) => Err(format!("writing to stdout: {e}")),
+        Err(e) => Err(CliError::io(format!("writing to stdout: {e}"))),
     }
 }
 
@@ -789,20 +1215,20 @@ fn escape_multiline(s: &str) -> String {
 }
 
 /// Refuses a destination whose existing components below `baseline_dir` include a symlink.
-fn check_no_symlinks(baseline_dir: &Path, rel: &Path) -> Result<(), String> {
+fn check_no_symlinks(baseline_dir: &Path, rel: &Path) -> Result<(), CliError> {
     let mut cur = baseline_dir.to_path_buf();
     for comp in rel.components() {
         cur.push(comp);
         match std::fs::symlink_metadata(&cur) {
             Ok(meta) if meta.file_type().is_symlink() => {
-                return Err(format!(
-                    "refusing to write through symlink {}",
-                    cur.display()
+                return Err(CliError::new(
+                    "unsafe_path",
+                    format!("refusing to write through symlink {}", cur.display()),
                 ));
             }
             Ok(_) => {}
             Err(e) if e.kind() == std::io::ErrorKind::NotFound => break,
-            Err(e) => return Err(format!("inspecting {}: {e}", cur.display())),
+            Err(e) => return Err(CliError::io(format!("inspecting {}: {e}", cur.display()))),
         }
     }
     Ok(())
@@ -813,6 +1239,119 @@ struct ApproveFlags {
     include_errors: bool,
     prune_missing: bool,
     json: bool,
+    force: bool,
+}
+
+/// Whether `recorded` (a path stored in a report or decisions file) and
+/// `given` (a path on the command line) name the same directory.
+fn same_dir(recorded: &str, given: &Path) -> bool {
+    flipdiff_core::run::normalise_path(Path::new(recorded))
+        == flipdiff_core::run::normalise_path(given)
+}
+
+/// Checks the directories recorded in a report against the ones `approve` was
+/// given. A report from before directories were recorded cannot be checked.
+fn bind_report_dirs(report: &Report, capture_dir: &Path, baseline_dir: &Path) -> Vec<String> {
+    let mut problems = Vec::new();
+    for (what, recorded, given) in [
+        ("capture", report.capture_dir.as_deref(), capture_dir),
+        ("baseline", report.baseline_dir.as_deref(), baseline_dir),
+    ] {
+        match recorded {
+            Some(r) if !same_dir(r, given) => problems.push(format!(
+                "the report compared the {what} directory {r}, not {}",
+                given.display()
+            )),
+            Some(_) => {}
+            None => eprintln!(
+                "flipdiff: warning: the report records no {what} directory, so it cannot be checked against {}",
+                given.display()
+            ),
+        }
+    }
+    problems
+}
+
+/// Checks a decisions file against the directories `approve` was given and
+/// records, per accepted set, the capture hash that was judged.
+fn bind_decisions(
+    d: &flipdiff_core::view::Decisions,
+    capture_dir: &Path,
+    baseline_dir: &Path,
+    expected_capture: &mut BTreeMap<String, String>,
+) -> Vec<String> {
+    let mut problems = Vec::new();
+    if d.dirs.is_empty() {
+        eprintln!(
+            "flipdiff: warning: the decisions file records no directories, so it cannot be checked against {} and {}",
+            capture_dir.display(),
+            baseline_dir.display()
+        );
+        return problems;
+    }
+    let find = |dir: &Path| d.dirs.iter().position(|r| same_dir(r, dir));
+    let cap_idx = find(capture_dir);
+    for (what, dir, idx) in [
+        ("capture", capture_dir, cap_idx),
+        ("baseline", baseline_dir, find(baseline_dir)),
+    ] {
+        if idx.is_none() {
+            problems.push(format!(
+                "the {what} directory {} is not one of the directories the decisions were made on ({})",
+                dir.display(),
+                d.dirs.join(", ")
+            ));
+        }
+    }
+    for set in d
+        .sets
+        .iter()
+        .filter(|s| s.decision == Some(Verdict::Accept))
+    {
+        if let Some(chosen) = set
+            .chosen_dir
+            .as_deref()
+            .filter(|c| !same_dir(c, capture_dir))
+        {
+            problems.push(format!(
+                "{}: the judge preferred {chosen}, which is not the capture directory",
+                set.name
+            ));
+        }
+        let Some(idx) = cap_idx else { continue };
+        match set.sha256.get(idx) {
+            Some(Some(hash)) => {
+                expected_capture.insert(set.name.clone(), hash.clone());
+            }
+            _ if set.sha256.is_empty() => {}
+            _ => problems.push(format!(
+                "{}: the capture directory had no such image when it was judged",
+                set.name
+            )),
+        }
+    }
+    problems
+}
+
+/// Compares recorded file hashes with the files on disk (only for names that
+/// are about to be touched), returning one problem per difference.
+fn check_hashes(dir: &Path, what: &str, expected: &BTreeMap<String, String>) -> Vec<String> {
+    expected
+        .iter()
+        .filter_map(|(name, recorded)| {
+            let path = dir.join(name);
+            if !path.is_file() {
+                return None;
+            }
+            match flipdiff_core::run::sha256_file(&path) {
+                Ok(actual) if actual == *recorded => None,
+                Ok(_) => Some(format!(
+                    "{name}: the {what} file changed since it was reviewed"
+                )),
+                Err(e) => Some(format!("{name}: {e}")),
+            }
+        })
+        .collect()
 }
 
 fn approve(
@@ -822,21 +1361,43 @@ fn approve(
     all_failing: Option<&Path>,
     decisions: Option<&Path>,
     flags: ApproveFlags,
-) -> Result<u8, String> {
+) -> Result<u8, CliError> {
     let ApproveFlags {
         include_errors,
         prune_missing,
         json,
+        force,
     } = flags;
     let mut copied: Vec<serde_json::Value> = Vec::new();
     let mut pruned: Vec<String> = Vec::new();
     let mut prune: Vec<String> = Vec::new();
+    // What the report or decisions recorded about the files being approved.
+    let mut problems: Vec<String> = Vec::new();
+    let mut expected_capture: BTreeMap<String, String> = BTreeMap::new();
+    let mut expected_baseline: BTreeMap<String, String> = BTreeMap::new();
     if let Some(path) = decisions {
-        let d = read_decisions(path).map_err(|e| e.to_string())?;
+        let d = read_decisions(path)?;
+        if d.blind {
+            return Err(CliError::new(
+                "approve_mismatch",
+                format!(
+                    "{} is a blind decisions file: its labels and directories are still hidden. \
+                     Run `flipdiff unblind` on it first and approve the unblinded file",
+                    path.display()
+                ),
+            ));
+        }
+        problems.extend(bind_decisions(
+            &d,
+            capture_dir,
+            baseline_dir,
+            &mut expected_capture,
+        ));
         names.extend(d.accepted());
     }
     if let Some(path) = all_failing {
         let report = read_report(path)?;
+        problems.extend(bind_report_dirs(&report, capture_dir, baseline_dir));
         if prune_missing {
             prune = report
                 .entries
@@ -846,47 +1407,93 @@ fn approve(
                 .collect();
             prune.sort();
             prune.dedup();
-        }
-        names.extend(
-            report
+            for e in report
                 .entries
-                .into_iter()
-                .filter(|e| match e.status {
-                    Status::Fail | Status::New => true,
-                    Status::Error => {
-                        include_errors
-                            && e.paths.capture.is_some()
-                            && is_safe_name(&e.name)
-                            && flipdiff_core::run::is_decodable(&capture_dir.join(&e.name))
-                    }
-                    _ => false,
-                })
-                .map(|e| e.name),
-        );
+                .iter()
+                .filter(|e| e.status == Status::Missing)
+            {
+                if let Some(h) = &e.baseline_sha256 {
+                    expected_baseline.insert(e.name.clone(), h.clone());
+                }
+            }
+        }
+        let chosen: Vec<_> = report
+            .entries
+            .into_iter()
+            .filter(|e| match e.status {
+                Status::Fail | Status::New => true,
+                Status::Error => {
+                    include_errors
+                        && e.paths.capture.is_some()
+                        && is_safe_name(&e.name)
+                        && flipdiff_core::run::is_decodable(&capture_dir.join(&e.name))
+                }
+                _ => false,
+            })
+            .collect();
+        for e in &chosen {
+            if let Some(h) = &e.capture_sha256 {
+                expected_capture.insert(e.name.clone(), h.clone());
+            }
+            if let Some(h) = &e.baseline_sha256 {
+                expected_baseline.insert(e.name.clone(), h.clone());
+            }
+        }
+        names.extend(chosen.into_iter().map(|e| e.name));
     } else if names.is_empty() && decisions.is_none() {
-        return Err(
-            "name at least one image, or pass --all-failing <REPORT_JSON> or --decisions <FILE>"
-                .into(),
-        );
+        return Err(CliError::usage(
+            "name at least one image, or pass --all-failing <REPORT_JSON> or --decisions <FILE>",
+        ));
     }
     names.sort();
     names.dedup();
     // Validate every name before copying anything.
     for name in &names {
         if !is_safe_name(name) {
-            return Err(format!("unsafe image name {name:?}"));
+            return Err(CliError::new(
+                "unsafe_path",
+                format!("unsafe image name {name:?}"),
+            ));
         }
         let src = capture_dir.join(name);
         if !src.is_file() {
-            return Err(format!("capture {} does not exist", src.display()));
+            return Err(CliError::io(format!(
+                "capture {} does not exist",
+                src.display()
+            )));
         }
         check_no_symlinks(baseline_dir, Path::new(name))?;
     }
     for name in &prune {
         if !is_safe_name(name) {
-            return Err(format!("unsafe image name {name:?}"));
+            return Err(CliError::new(
+                "unsafe_path",
+                format!("unsafe image name {name:?}"),
+            ));
         }
         check_no_symlinks(baseline_dir, Path::new(name))?;
+    }
+    // Only files about to be copied over or removed are checked.
+    expected_capture.retain(|n, _| names.contains(n));
+    expected_baseline.retain(|n, _| names.contains(n) || prune.contains(n));
+    problems.extend(check_hashes(capture_dir, "capture", &expected_capture));
+    problems.extend(check_hashes(baseline_dir, "baseline", &expected_baseline));
+    if !problems.is_empty() {
+        if !force {
+            return Err(CliError::new(
+                "approve_mismatch",
+                format!(
+                    "refusing to approve what was not reviewed: {}; pass --force to override",
+                    problems.join("; ")
+                ),
+            ));
+        }
+        for p in &problems {
+            eprintln!(
+                "flipdiff: warning: --force overrides: {}",
+                escape_control(p)
+            );
+        }
     }
     for name in &names {
         let rel = Path::new(name);
@@ -894,15 +1501,20 @@ fn approve(
         let dest = baseline_dir.join(rel);
         if let Some(parent) = dest.parent() {
             std::fs::create_dir_all(parent)
-                .map_err(|e| format!("creating {}: {e}", parent.display()))?;
+                .map_err(|e| CliError::io(format!("creating {}: {e}", parent.display())))?;
         }
-        std::fs::copy(&src, &dest)
-            .map_err(|e| format!("copying {} to {}: {e}", src.display(), dest.display()))?;
+        std::fs::copy(&src, &dest).map_err(|e| {
+            CliError::io(format!(
+                "copying {} to {}: {e}",
+                src.display(),
+                dest.display()
+            ))
+        })?;
         if json {
             copied.push(serde_json::json!({
                 "name": name,
-                "from": src.display().to_string(),
-                "to": dest.display().to_string(),
+                "from": flipdiff_core::explain::absolute(&src).display().to_string(),
+                "to": flipdiff_core::explain::absolute(&dest).display().to_string(),
             }));
         } else {
             emit(&format!(
@@ -918,9 +1530,14 @@ fn approve(
         if capture_dir.join(name).exists() || !target.is_file() {
             continue;
         }
-        std::fs::remove_file(&target).map_err(|e| format!("removing {}: {e}", target.display()))?;
+        std::fs::remove_file(&target)
+            .map_err(|e| CliError::io(format!("removing {}: {e}", target.display())))?;
         if json {
-            pruned.push(target.display().to_string());
+            pruned.push(
+                flipdiff_core::explain::absolute(&target)
+                    .display()
+                    .to_string(),
+            );
         } else {
             emit(&format!(
                 "removed {}\n",
@@ -934,7 +1551,7 @@ fn approve(
             "copied": copied,
             "pruned": pruned,
         });
-        let text = serde_json::to_string_pretty(&value).map_err(|e| e.to_string())?;
+        let text = serde_json::to_string_pretty(&value)?;
         emit(&format!("{text}\n"))?;
     }
     Ok(0)
@@ -954,6 +1571,7 @@ fn metric_label(m: Metric) -> &'static str {
     match m {
         Metric::Mean => "mean",
         Metric::P95 => "p95",
+        Metric::P99 => "p99",
         Metric::Max => "max",
     }
 }
@@ -969,13 +1587,53 @@ fn text_table(report: &Report) -> String {
         "VALUE".into(),
         "THRESHOLD".into(),
     ]];
-    let mut notes: Vec<Option<String>> = vec![None];
+    // Everything that is not a table column goes on `↳` lines under its row.
+    let mut notes: Vec<Vec<String>> = vec![Vec::new()];
     for e in rows {
-        notes.push(if e.status == Status::Fail {
-            flipdiff_core::hotspots::summary_line(&e.hotspots)
-        } else {
-            None
-        });
+        let mut lines = Vec::new();
+        if let Some(d) = &e.diagnostics {
+            if e.status == Status::Pass {
+                // A passing pair says something only when timings come with it.
+                if !d.perf.is_empty() {
+                    lines.push(escape_control(&d.verdict_line(e.bit_identical)));
+                }
+            } else {
+                lines.push(format!(
+                    "{}: {}",
+                    d.class.as_str(),
+                    escape_control(&d.description)
+                ));
+                lines.extend(
+                    flipdiff_core::diagnostics::perf_summary(&d.perf)
+                        .map(|p| format!("perf: {}", escape_control(&p))),
+                );
+            }
+        }
+        if e.status == Status::Fail {
+            lines.extend(flipdiff_core::hotspots::summary_line(&e.hotspots));
+        }
+        if let Some(note) = e.local_hotspot_note() {
+            lines.push(note);
+        }
+        if let Some(msg) = &e.error {
+            lines.push(format!("error: {}", escape_control(msg)));
+        }
+        // An undeclared-difference error already names the keys.
+        let error_names_keys = e
+            .error
+            .as_deref()
+            .is_some_and(|m| m.contains("configuration differs"));
+        if !e.meta_diff.is_empty() && !error_names_keys {
+            let keys: Vec<&str> = e.meta_diff.iter().map(|d| d.key.as_str()).collect();
+            lines.push(format!(
+                "config differs: {}",
+                escape_control(&keys.join(", "))
+            ));
+        }
+        for w in &e.warnings {
+            lines.push(format!("warning: {}", escape_control(w)));
+        }
+        notes.push(lines);
         let (value, threshold) = match e.status {
             Status::Pass | Status::Fail => (
                 e.value.map_or("-".into(), |v| format!("{v:.5}")),
@@ -983,23 +1641,13 @@ fn text_table(report: &Report) -> String {
             ),
             _ => ("-".into(), "-".into()),
         };
-        let name = match &e.error {
-            Some(msg) => format!("{} ({})", escape_control(&e.name), escape_control(msg)),
-            None => escape_control(&e.name),
-        };
-        let name = if e.meta_diff.is_empty() {
-            name
-        } else {
-            let keys: Vec<&str> = e.meta_diff.iter().map(|d| d.key.as_str()).collect();
-            format!(
-                "{name} [config differs: {}]",
-                escape_control(&keys.join(", "))
-            )
-        };
         cells.push([
             status_label(e.status).into(),
-            name,
-            metric_label(e.metric_used).into(),
+            escape_control(&e.name),
+            e.buffer.as_ref().map_or_else(
+                || metric_label(e.metric_used).to_string(),
+                |b| format!("{} ({})", metric_label(b.metric), b.unit),
+            ),
             value,
             threshold,
         ]);
@@ -1019,7 +1667,7 @@ fn text_table(report: &Report) -> String {
             .collect();
         out.push_str(line.join("  ").trim_end());
         out.push('\n');
-        if let Some(note) = note {
+        for note in note {
             out.push_str(&format!("  ↳ {note}\n"));
         }
     }
@@ -1031,5 +1679,10 @@ fn text_table(report: &Report) -> String {
         "\n{} fail, {} error, {} missing, {} new, {} pass ({} total)\n",
         t.fail, t.error, t.missing, t.new, t.pass, t.total
     ));
+    if report.is_empty_run() {
+        out.push_str(
+            "nothing compared: no image exists in both directories (--allow-empty accepts this)\n",
+        );
+    }
     out
 }

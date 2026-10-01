@@ -1,0 +1,135 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/Tavrin/flipdiff/schemas/flipdiff-explain-result.v1.schema.json",
+  "title": "flipdiff-explain-result.v1",
+  "description": "The structured result of the MCP explain tool; paths are absolute and floats carry 4 significant digits.",
+  "type": "object",
+  "required": [
+    "schema",
+    "blind",
+    "paths",
+    "entries"
+  ],
+  "additionalProperties": false,
+  "properties": {
+    "schema": {
+      "const": "flipdiff-explain-result.v1"
+    },
+    "blind": {
+      "type": "boolean"
+    },
+    "paths": {
+      "type": "object",
+      "required": [
+        "dir",
+        "explain_json",
+        "explain_md",
+        "blind_key"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "dir": {
+          "type": "string"
+        },
+        "explain_json": {
+          "type": "string"
+        },
+        "explain_md": {
+          "type": "string"
+        },
+        "blind_key": {
+          "type": [
+            "string",
+            "null"
+          ]
+        }
+      }
+    },
+    "entries": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": [
+          "name",
+          "status",
+          "value",
+          "thumbnail",
+          "note",
+          "hotspots"
+        ],
+        "properties": {
+          "name": {
+            "type": "string"
+          },
+          "status": {
+            "enum": [
+              "pass",
+              "fail",
+              "new",
+              "missing",
+              "error"
+            ]
+          },
+          "value": {
+            "type": [
+              "number",
+              "null"
+            ]
+          },
+          "thumbnail": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "note": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "hotspots": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "required": [
+                "index",
+                "strip",
+                "position",
+                "rect_px",
+                "share_of_total_error",
+                "panels"
+              ],
+              "properties": {
+                "index": {
+                  "type": "integer"
+                },
+                "strip": {
+                  "type": "string"
+                },
+                "position": {
+                  "type": "string"
+                },
+                "rect_px": {
+                  "type": "array",
+                  "items": {
+                    "type": "integer"
+                  }
+                },
+                "share_of_total_error": {
+                  "type": "number"
+                },
+                "panels": {
+                  "type": "array",
+                  "items": {
+                    "type": "string"
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+}

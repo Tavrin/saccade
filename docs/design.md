@@ -9,13 +9,22 @@ and writes. Usage is in the [README](../README.md). The report schema is
 
 `flipdiff compare BASELINE_DIR CAPTURE_DIR` does the following.
 
-1. **Clean the report directory.** It removes `flipdiff-report.v1.json`,
-   `index.html` and `images/` from the report directory, and nothing else, so a
-   failed run cannot leave a stale report. A report directory that is the
-   baseline or the capture directory is refused (exit 2).
+1. **Check, then clean the report directory.** The output directory is refused
+   (exit 2) when it is, or is inside, the baseline or the capture directory, and
+   when it exists, is not empty and holds no `flipdiff-report.v1.json` (it is
+   not a previous report). `view --out` applies the same rule with the marker
+   `flipdiff-view.v1.json`, and `explain --out` with `explain.json`. A run then
+   removes `flipdiff-report.v1.json`, `index.html` and `images/` from the
+   report directory, and nothing else, so a failed run cannot leave a stale
+   report. While a run is incomplete it keeps a `.flipdiff-run` file there (the
+   ownership marker of a failed run); the file is removed when the report is
+   complete.
 2. **Pair images** by path relative to each directory (section 2).
 3. **Compare each pair** with FLIP (section 3) and evaluate it against its
-   threshold, regions and masks.
+   threshold, regions and masks. Pairs are compared in parallel (`rayon`, one
+   thread per core, `RAYON_NUM_THREADS` overrides); entries are collected in
+   name order, so the output does not depend on scheduling. `view` builds its
+   image sets the same way.
 4. **Write** the images, `flipdiff-report.v1.json` and `index.html`, then print
    the summary table.
 
@@ -75,7 +84,7 @@ The statistics are taken over the error map:
 NaN values sort as +infinity. A metric that is not finite is written as `null`
 in the JSON and read back as NaN, so every report round-trips.
 
-The deciding statistic for an entry (`metric_used`) is `mean`, `p95` or `max`.
+The deciding statistic for an entry (`metric_used`) is `mean`, `p95`, `p99` or `max`.
 The entry passes when `value <= threshold`, where `value` is that statistic.
 The defaults are metric `mean` and threshold 0.01. Overrides in the config
 change them per image.
@@ -156,10 +165,22 @@ or its value is within the threshold.
 ### 3.7 Image properties
 
 Each compared image carries `properties`: `is_all_black`, `is_all_white`,
-`mean_luminance`, `min_luminance`, `max_luminance`. Luminance is Rec. 709
+`mean_luminance`, `min_luminance`, `max_luminance`, `nan_count`, `inf_count`
+and `negative_count`. Luminance is Rec. 709
 weights applied to the sRGB-encoded values divided by 255, with no
-linearisation. For HDR images it is linear Rec. 709 luminance, and "all white"
-means every channel is at least 1.0.
+linearisation. For HDR images it is linear Rec. 709 luminance over the finite
+pixels, and "all white" means every channel is at least 1.0. The three counts
+are the NaN, infinite and negative samples found in an HDR file before decoding
+replaced them (always 0 for 8-bit images). `baseline_properties` holds the same
+checks for the baseline.
+
+Entries carry `warnings`, plain text lines: a baseline or capture that is
+all black or all white, and non-finite samples. A warning never changes a
+status. The exception is `fail_on_nonfinite` (config, default `true`): a
+capture with NaN or infinite samples makes the entry an `error` (its metrics are
+kept), because FLIP over replaced samples would compare something other than the
+capture. Set it to `false` to keep only the warning. The text table, the
+Markdown summary and the report show the warnings.
 
 ### 3.8 Hotspots
 
@@ -183,6 +204,84 @@ is a single raster pass with union-find, so memory does not grow with the frame.
 A box whose area (`rect_frac[2] * rect_frac[3]`) is at least 0.5 is shown as a
 "frame-wide change" in the HTML report and in `view`.
 
+**Local defects behind a passing mean.** A small, severe defect barely moves
+the `mean`. Two things keep it from passing silently:
+
+- A passing entry whose worst hotspot has `max_flip >= 0.5` gets a line
+  `↳ pass, but local hotspot: 40x40 @ top-left (max 0.75)` in the text table and
+  in the Markdown summary. It does not change the status.
+- `hotspot_fail` (config, off by default; a value in `(0, 1]` that is not below
+  `hotspot_threshold`) fails an entry when the largest unmasked FLIP value of
+  the frame reaches it. Because that pixel is above `hotspot_threshold`, it
+  belongs to a hotspot. The reason is added to the entry's `warnings`.
+  Alternatively choose a metric that sees tails: `--metric p99`.
+
+### 3.9 Diagnostics
+
+Every compared pair gets `diagnostics` (module `flipdiff_core::diagnostics`):
+what kind of change it is, in numbers. It never changes a status.
+
+- **Tone fit.** Per channel, in linear light, `capture = gain * baseline + bias`
+  by four rounds of trimmed least squares (20% of the largest residuals dropped
+  each round) over the lower-gradient half of a grid of at most about 1M
+  pixels, skipping clipped samples. The bias is fitted only when the baseline's
+  standard deviation is at least 0.02; otherwise gain only. Reported:
+  `exposure_stops` (log2 of the luminance-weighted gain, negative is darker),
+  `gain`, `bias`, `white_balance` (red and blue gain relative to green) and a
+  `summary` line. The inverse fit is applied to the capture and FLIP re-run;
+  `tone_explained_fraction` is the share of the mean error removed.
+  `residual` holds the mean, max and top-3 hotspots of that re-run. A fit with
+  every gain within 0.4% of 1 and every bias below 0.002 is negligible: no
+  re-run, fraction 0.
+- **Sub-pixel shift.** Phase correlation of a compressed luminance
+  (`sqrt(y / (1 + y))`), mean-removed, Hann-windowed, zero-padded to a power of
+  two. A first estimate runs on a plane of at most 1024 px per side (box
+  downsample); the offset is rounded to whole pixels and a second pass on a
+  full-resolution window of at most 1024 x 1024 refines it. The sub-pixel part
+  is a weighted least-squares fit of the residual cross-power phase slope over
+  frequencies up to a quarter of the sampling rate. `confidence` is the
+  weighted phase coherence of the fit residuals (1 for a pure translation,
+  near 0 for unrelated content). A detected shift is only named in the
+  description when the re-run confirms it (`shift_explained_fraction`).
+  `dx`, `dy`: positive is right and down, content of the capture against the
+  baseline. When the offset reaches `shift_min_px` (0.25) with
+  `shift_min_confidence` (0.5), the capture is resampled back (bicubic) and
+  FLIP re-run: `shift_explained_fraction`.
+- **Signed difference.** `signed`: mean of capture minus baseline display
+  luminance, fractions brighter and darker than half a code value, and the
+  colour `scale`. `paths.signed_diff` is `images/<name>/signed_diff.png`: dark
+  grey is no change, orange brighter, blue darker, full colour at `scale` (the
+  99.5th percentile of the absolute difference, at least 0.004).
+- **Non-finite map.** For an HDR capture with NaN, infinite or negative
+  samples: `nonfinite` (counts, cluster count, boxes of the first 16
+  8-connected clusters in raster order) and `paths.nonfinite_mask` (magenta
+  NaN, yellow infinite, cyan negative).
+- **Perf pairing.** `perf`: every sidecar key matching `perf_keys` (default
+  `*_ms`, `gpu_ms`, `frame_ms`, `*.ms`, `timing.*`) with a numeric value on
+  both sides: `{key, baseline, capture, delta, delta_pct}`, largest relative
+  change first. These keys are also ignored by `--require-matching-meta`.
+- **Class**, first match wins: `identical` (bit-identical, or maximum FLIP 0);
+  `broken_frame` (capture entirely black or white while the baseline is not,
+  NaN or infinite samples, or a flat colour while the baseline has contrast);
+  `misaligned` (shift fraction at least `explained_min` 0.8 and not below the
+  tone fraction); `global_tone` (tone fraction at least 0.8); `noise` (both
+  fractions below `partial_min` 0.2 and maximum FLIP at most `noise_max_flip`
+  0.05); `local_structure` (both fractions below 0.2, above noise); otherwise
+  `mixed`. Below mean FLIP 0.0001 no cause search runs.
+- **Description.** A fixed template per class. A tone or shift cause is named
+  only when its fraction reaches `partial_min`; "rest of frame unchanged" only
+  when the mean FLIP outside the named regions is at most 0.001 (within noise
+  up to 0.01). Examples: `Local structural change at bottom-center (149×39,
+  20% of error); rest of frame unchanged.`, `Whole frame 0.4 stops darker (tone
+  shift explains 91% of the difference); no structural change.`, `Capture
+  shifted 0.5 px right (explains 87%).` A blind explain pack omits class and
+  description because they name the sides.
+
+Config `[diagnostics]`: `enabled` (true), `shift_detection` (true),
+`shift_min_px`, `shift_min_confidence`, `noise_max_flip`, `explained_min`,
+`partial_min`, `perf_keys`. Masks and regions do not enter the analysis; the
+FLIP means it compares are whole-frame.
+
 ## 4. Statuses and exit codes
 
 | Status | Meaning |
@@ -196,8 +295,13 @@ A box whose area (`rect_frac[2] * rect_frac[3]`) is at least 0.5 is shown as a
 | Exit code | Meaning |
 |---|---|
 | 0 | No regression |
-| 1 | Regression: any `fail`, `error` or `missing` entry, or a `new` entry with `fail_on_new` |
-| 2 | Usage, config or IO error |
+| 1 | Regression: any `fail`, `error` or `missing` entry, a `new` entry with `fail_on_new`, or no pair compared at all (`nothing compared`, for example an empty baseline directory) unless `--allow-empty` or `allow_empty = true` |
+| 2 | Usage, config or IO error, including a refused output directory (section 1) |
+
+A pair counts as compared when it has FLIP metrics. A run where every entry is
+`new` (empty or missing baseline directory) therefore exits 1 with a warning on
+stderr; `--allow-empty` accepts it, for the first run that creates the
+baselines.
 
 Command-line parse errors are printed to stderr with exit code 2. Names and
 error text printed in the table are escaped (`\n`, `\x1b`, ...) so a file name
@@ -236,6 +340,7 @@ first release have `serde` defaults, so older v1 reports still parse.
 | `schema` | string | `"flipdiff-report.v1"` |
 | `tool_version` | string | flipdiff version that wrote it |
 | `generated_at_unix` | integer | Seconds since the Unix epoch |
+| `baseline_dir`, `capture_dir` | string or null | Absolute paths the run compared; `approve` checks them against the directories it is given |
 | `config` | object | Effective settings, see below |
 | `totals` | object | `total`, `pass`, `fail`, `new`, `missing`, `error` |
 | `entries` | array | One entry per image name, sorted by name |
@@ -245,7 +350,10 @@ first release have `serde` defaults, so older v1 reports still parse.
 | Field | Type | Notes |
 |---|---|---|
 | `default_threshold` | number | |
-| `default_metric` | `"mean"`, `"p95"`, `"max"` | |
+| `default_metric` | `"mean"`, `"p95"`, `"p99"`, `"max"` | |
+| `allow_empty` | boolean | A run that compared no pair is accepted |
+| `fail_on_nonfinite` | boolean | Default true, see section 3.7 |
+| `hotspot_fail` | number or null | See section 3.8 |
 | `pixels_per_degree` | number | |
 | `fail_on_new` | boolean | |
 | `mode` | `"regression"`, `"identity"` | |
@@ -270,7 +378,12 @@ first release have `serde` defaults, so older v1 reports still parse.
 | `bit_identical` | boolean or null | Set for compared pairs |
 | `hdr` | object or null | `tonemapper`, `start_exposure`, `stop_exposure`, `num_exposures`, `auto_range` |
 | `hotspots` | array | Ranked hotspots (section 3.8); empty when none exceed the threshold, when the pair was not compared or when they are disabled |
+| `diagnostics` | object or null | Section 3.9: `class`, `description`, `tone`, `residual`, `shift`, `signed`, `nonfinite`, `perf`, `elapsed_ms`; paths in `paths.signed_diff` and `paths.nonfinite_mask` |
 | `meta_diff` | array | Sidecar keys that differ: `{key, baseline, capture}`; a missing value is `"<absent>"` |
+| `meta_ignored_diff` | array | Keys that differ but matched an ignore glob, same shape |
+| `baseline_properties` | object or null | Section 3.7, for the baseline |
+| `warnings` | array of strings | Section 3.7 and 3.8; never change a status on their own |
+| `baseline_sha256`, `capture_sha256` | string or null | SHA-256 of the files as compared; `approve` verifies them |
 
 A region result has `name`, `rect_px` (`[x, y, w, h]` in pixels), `status`
 (null when informational), `metric_used`, `threshold`, `value` (null when fully
@@ -289,7 +402,13 @@ masked) and `metrics`.
   `identity: ✅ 12/12 bit-identical` or
   `identity: ❌ 2 differ (max FLIP 0.031 on a/b.png)`;
 - a table of every non-pass entry (status, name, metric, value, threshold),
-  with a row `name › region` for each failing region;
+  with a row `name › region` for each failing region. Numbers use 4
+  significant digits with no trimming (`0.01000`, `0.5000`, `123.5`), and zero
+  is `0.0000`;
+- bullet lines for the entries with notes, over every entry (at most 20):
+  `↳ pass, but local hotspot: ...` for a passing entry with a severe local
+  hotspot (section 3.8) and `⚠ <warning>` for each warning (section 3.7). A
+  run that compared nothing says `nothing compared` in the heading;
 - the passing entries inside `<details>`;
 - a footer that links the report artifact when `--artifact-url` is given,
   followed by `flipdiff vX.Y.Z`.
@@ -336,6 +455,7 @@ download goes through a Blob, so it works from `file://`. Decisions are kept in
   "seed": 7,
   "labels": ["baseline", "capture"],
   "blind": false,
+  "dirs": ["/work/baseline", "/work/capture"],
   "sets": [
     {
       "name": "sphere_shadow.png",
@@ -344,7 +464,9 @@ download goes through a Blob, so it works from `file://`. Decisions are kept in
       "no_difference": false,
       "note": "shadow reads better",
       "roi": { "x": 60, "y": 140, "w": 120, "h": 60 },
-      "timestamp_ms": 1790000000000
+      "timestamp_ms": 1790000000000,
+      "chosen_dir": null,
+      "sha256": ["3b1f...", "9c07..."]
     }
   ]
 }
@@ -361,23 +483,57 @@ download goes through a Blob, so it works from `file://`. Decisions are kept in
 | `sets[].note` | Free text |
 | `sets[].roi` | The rectangle that was drawn, in pixels, or null |
 | `sets[].timestamp_ms` | Last edit, Unix milliseconds |
+| `dirs` | Absolute path of each directory, in `labels` order. Empty in a blind view until `unblind` fills it from the key |
+| `sets[].chosen_dir` | Pairwise judging: the directory of the preferred pane (set by the viewer, or by `unblind`) |
+| `sets[].sha256` | SHA-256 of the set's image in each directory when it was judged, in directory order; null where the directory had none |
 
 `flipdiff approve CAPTURE BASELINE --decisions decisions.json` copies the
-capture of every set whose `decision` is `accept`.
+capture of every set whose `decision` is `accept`, after checking that the file
+is what was judged. It refuses (exit 2, error code `approve_mismatch`) when:
+
+- `blind` is true: the file is still blind; run `flipdiff unblind` first;
+- `CAPTURE` or `BASELINE` is not one of `dirs`;
+- an accepted set's `chosen_dir` is not `CAPTURE`;
+- a capture file's SHA-256 differs from the recorded one.
+
+`flipdiff approve --all-failing report.json` makes the same checks against the
+report's `baseline_dir`, `capture_dir` and per-entry `capture_sha256` (and
+`baseline_sha256`, which also guards `--prune-missing`). `--force` overrides
+the directory and hash checks and prints each overridden problem as a warning.
+A file that records no directories or hashes (written by an older version)
+cannot be checked: `approve` warns and proceeds.
 
 ### 8.2 Blind mode
 
-With `--blind` the pane order is shuffled per image set, using `--seed` (or one
-taken from the clock), and the panes are labelled "A", "B", and so on. The
-page embeds only neutral directory labels (`P1`, `P2`, ...) and the seed, so
-view-source reveals nothing. Pane errors do not name paths.
+With `--blind` every image set lays out its panes in its own random directory
+order (seeded by `--seed`, or by the operating system's randomness), and the
+panes are labelled "A", "B", and so on. What the page embeds is chosen so that
+view-source reveals nothing:
 
-The true labels are written to `<out>/blind-key.json`, which the page does not
-reference. Keep it away from the judge.
+- neutral labels `P1`, `P2`, ... by position within the set, and image files
+  named `images/<name>/p_<random hex>.<ext>` (never `pane<i>`);
+- `order` is always `0..n` (the panes themselves are shuffled) and `reference`
+  is `n`, no pane;
+- no FLIP data at all: no heatmaps, metrics, hotspots, error maps, triage status
+  or meta diffs, because any of them singles out the reference directory (the
+  alternative, comparable data on every pane, is not possible with a single FLIP
+  reference);
+- `seed` is a random token that only pairs the page with its key and decisions,
+  not the shuffle seed, so the shuffle cannot be undone from the page;
+- pane errors do not name paths.
+
+The true labels are written to the key file: `--key-out PATH`, by default
+`<out>/blind-key.json` (then keep `<out>` away from the judge). The page does
+not reference it.
 
 ```json
-{ "schema": "flipdiff-blind-key.v1", "seed": 7, "labels": ["baseline", "capture"] }
+{ "schema": "flipdiff-blind-key.v1", "seed": 2555678565829461, "shuffle_seed": 7,
+  "labels": ["baseline", "capture"], "dirs": ["/abs/baseline", "/abs/capture"],
+  "sets": { "scene.png": ["capture", "baseline"] } }
 ```
+
+`sets[name][n - 1]` is the true label behind `P<n>` in that set. A test greps
+the blind page and the blind explain pack for the directory names and labels.
 
 The judge picks a preferred pane or "no visible difference", and may decide
 accept, reject or needs-work. "Reveal labels" is enabled once every set is
@@ -407,9 +563,12 @@ and, on request, refuse to give a verdict.
 - **Comparison.** The two merged key sets are compared. A key present on one
   side only differs, with the value `<absent>` on the other. Keys matching an
   ignore glob are skipped. The built-in ignore globs, matched
-  case-insensitively, are `*time*`, `*timestamp*`, `run.id`, `*duration*`,
-  `*_ms` and `*elapsed*`; `--meta-ignore` adds more. The differences are stored
-  in the entry's `meta_diff`.
+  case-insensitively, are `*timestamp*`, `*_ms`, `*duration*`, `*elapsed*`,
+  `run.id`, `*.started_at`, `*.finished_at` and `generated_at*`. A bare
+  `*time*` is deliberately absent: it also matches `timezone`, `timeout` or
+  `lifetime`. `--meta-ignore` adds more. The differences are stored in the
+  entry's `meta_diff`; the ones that were skipped are stored in
+  `meta_ignored_diff`, so what an ignore glob hides stays visible.
 - **Enforcement.** With `--require-matching-meta`, an entry with a differing key
   that is not declared (`--declare KEY|GLOB,...`) becomes an `error` (its
   metrics are kept), so the run exits 1. Declared differences pass and are
@@ -417,8 +576,9 @@ and, on request, refuse to give a verdict.
   status.
 - **Display.** The HTML report shows a "config differs" badge and a key table
   per entry. The Markdown summary adds a line
-  `⚠ config differs on N images: ...`. The text table marks the entry with
-  `[config differs: ...]`. `view` shows a card per image set, and hides it in
+  `⚠ config differs on N images: ...`. The text table puts a
+  `↳ config differs: ...` line under the entry (omitted when the entry's error
+  already names the keys). `view` shows a card per image set, and hides it in
   `--blind` mode.
 - **Scope.** `compare` and `identity` accept all four flags. `view` accepts
   `--meta-name` and `--meta-ignore`.
@@ -430,14 +590,21 @@ failing entry, crops that show what changed at each hotspot. Only the pack's own
 files in the output directory are replaced.
 
 ```
-explain.json                 schema flipdiff-explain.v1 (schemas/explain.v1.schema.json)
+explain.json                 schema flipdiff-explain.v1 (schemas/flipdiff-explain.v1.schema.json)
 explain.md                   the same, as text
 thumbs/<name>.png            whole-frame strip with the hotspot boxes drawn
 hotspots/<name>/hN.png       [baseline | capture | heatmap] crop strip of hotspot N
-blind-key.json               only with --blind
 ```
 
-`explain.json` has `schema`, `report`, `blind`, `labels`, `settings` (`top`,
+The thumbnail of `a.png` is `thumbs/a.png` (a name that does not end in `.png`
+gets `.png` appended). A strip is at most 1536 px wide: panels of a wider strip
+are scaled down together, and `scale` in `explain.json` includes that factor.
+Hotspots carrying less than `--hotspot-min-share` (default 0.01) of the total
+error are left out; `hotspot_min_share` in `flipdiff.toml` applies the same
+filter when the report is made.
+
+`explain.json` has `schema`, `report` (absolute path; absent when blind), `dir`
+(absolute path of the pack), `blind`, `labels` (absent when blind), `settings` (`top`,
 `pad`, `stretch`) and `entries`. An entry has `name`, `status`, `metric_used`,
 `threshold`, `value`, `thumbnail`, an optional `note` (for example "no hotspot
 above the threshold: the difference is diffuse or below it") and `hotspots`.
@@ -446,9 +613,12 @@ Each hotspot has `index` (1-based), the report's `hotspot` object, `strip`,
 `panels`. With `--stretch`, dark crops get one gain applied to both images.
 
 With `--blind` each strip is `[A | B]`, A and B assigned at random per hotspot
-(`--seed`, recorded in the key) and the heatmap omitted. `blind-key.json` (`flipdiff-explain-blind-key.v1`) lists, for each strip (the
+(`--seed`, recorded in the key) and the heatmap omitted. The pack names neither
+the report nor the sides. `--key-out PATH` is required and must be outside
+`--out`; the key (`flipdiff-explain-blind-key.v1`) lists, for each strip (the
 whole-frame strip has `hotspot: null`), which side was A and which was B. It is
-not referenced from `explain.json` or `explain.md`.
+never written into the pack. Per-hotspot hot-pixel and box areas are printed
+separately in `explain.md` (`hot px N (x% of frame), box y% of frame`).
 
 ## 11. MCP server: `flipdiff mcp`
 
@@ -456,18 +626,45 @@ JSON-RPC 2.0 over stdio, one JSON message per line, protocol version
 `2025-06-18`. It implements `initialize`, `notifications/initialized`, `ping`,
 `tools/list` and `tools/call`. Tools: `flipdiff_compare`, `flipdiff_identity`
 (both write a report and a judge pack into `out_dir`), `flipdiff_explain` and
-`flipdiff_summary`. Input schemas come from `tools/list`. Relative paths resolve
-against the server's working directory.
+`flipdiff_summary`. `tools/list` gives each tool an `inputSchema`, an
+`outputSchema` (a compact form of the shipped schema) and annotations
+(`destructiveHint: false`, `idempotentHint: true`, `readOnlyHint` only for the
+summary). The run tools accept `threshold`, `metric`, `ppd`, `labels`,
+`meta_name`, `fail_on_new`, `allow_empty`, `require_matching_meta`, `declare`
+and `include_images` (compare also `config`).
 
-A successful call returns `content` (a short text) and `structuredContent` with
-`verdict` (`regression` when the run fails the gate), `totals`, the worst failing entries with up to
-three hotspots each, and the report and pack paths. A regression is a successful
-call. A failed call has `isError: true` and `structuredContent` of schema
-`flipdiff-error.v1` with `code` `usage` (bad or missing argument, unsafe path),
-`io` (unreadable or unwritable path, undecodable image or report) or `config`
-(invalid config). Protocol errors use the JSON-RPC codes -32700, -32600, -32601
-and -32602. `flipdiff summary --format json` prints the same summary object
-(`flipdiff-summary.v1`).
+**Path policy.** `flipdiff mcp [--root DIR]` (default: the working directory).
+Every path argument (inputs, `out_dir`, `report_json`, `config`, `key_out`) is
+joined to the root when relative, folded (`..`), canonicalised through its
+longest existing prefix (symlinks resolved) and must then lie under the root,
+otherwise the call fails with `unsafe_path`.
+
+A successful call returns `content` (a short text, then up to three image
+blocks) and `structuredContent`. The run tools return the lean
+`flipdiff-result.v1` (`verdict`, `totals`, the failing entries with up to three
+hotspots, `paths`, `next_step`), the same object as `compare --json`. The image
+blocks are the top explain strips as PNG, each at most 1024 px wide, unless
+`include_images` is `false`. A regression is a successful call. A failed call has
+`isError: true` and `structuredContent` of schema `flipdiff-error.v1` with
+`code` `usage` (bad or missing argument), `unsafe_path` (outside the root), `io`
+(unreadable or unwritable path, undecodable image or report), `config` (invalid
+config) or `not_empty_out_dir`. Protocol errors use the JSON-RPC codes -32700,
+-32600, -32601 and -32602. `flipdiff summary --format json` prints the summary
+object (`flipdiff-summary.v1`).
+
+## 11.1 JSON output of the CLI
+
+`compare --json` and `identity --json` print `flipdiff-result.v1`; `--json=full`
+prints the whole `flipdiff-report.v1`. Floats of the lean result have 4
+significant digits, and the paths of every JSON output (`result`, `summary`,
+`approve`, `view-summary`, the explain `report` and `dir`) are absolute. With
+`--json` or `--format json`, a failing command prints `flipdiff-error.v1` on
+stdout (`code` one of `usage`, `io`, `config`, `unsafe_path`,
+`not_empty_out_dir`, `nothing_compared`, `approve_mismatch`) and keeps its exit
+code `2`; clap's own argument errors included. A run that compared nothing is a
+regression (exit `1`) reported in the result, so `nothing_compared` is reserved.
+Every schema id has a file `schemas/flipdiff-<name>.v1.schema.json` with
+`$id` `https://github.com/Tavrin/flipdiff/schemas/<file>`.
 
 ## 12. Local web app: `flipdiff serve`
 
@@ -502,3 +699,105 @@ while it builds.
 documented with rustdoc (`cargo doc -p flipdiff-core --open`). The CLI is a
 thin layer over it. The code does not panic on bad input: `unwrap`, `expect`
 and unchecked indexing are not used outside tests.
+
+## 14. Sequence format: `flipdiff-sequence.v1`
+
+`sequence BASE CAP --pattern GLOB --out OUT` sorts each sequence by the trailing
+integer in each matching image stem and pairs by zero-based sorted index.
+Numbering origins/gaps may differ; duplicate numbers or unnumbered matching
+images are rejected before writes. Config ignores apply before pairing.
+Synthetic safe entry names (`frame_00000000.png`, etc.) key the per-frame report
+images; `frames[]` records actual `baseline_name`, `capture_name` and their
+numbers. Per-path overrides/regions/masks match the actual baseline name (or
+capture name for a new frame), and metadata loads from each actual source name.
+
+`flipdiff-sequence.v1.json` contains `schema`, `verdict`, `pattern`, source frame
+counts, `totals`, `mean_flip_curve` (null for unmeasured pairs),
+`baseline_temporal_mean`, `capture_temporal_mean`, `temporal_instability`,
+`temporal_errors`, `worst_frame`, `frames_over_threshold`, absolute report/HTML
+paths and `frames[]` with normal `Entry` payloads. Temporal means cover all
+adjacent frames on each side using whole-image colour FLIP (HDR-FLIP for HDR).
+Instability is the signed capture mean minus baseline mean. It is null when
+either side has fewer than two frames or a temporal pair cannot be measured;
+temporal errors are regressions. Worst frame uses mean FLIP; threshold count
+uses each entry's deciding metric. Temporal instability has no separate gate.
+The normal `flipdiff-report.v1.json` supports the HTML table and explain packs;
+its synthetic entry names are not baseline-update source names.
+
+`--json`/MCP omit the curve and `frames`; `--json=full` returns the complete
+sequence object. HTML adds an SVG curve generated in Rust, with gaps for null
+values. No temporal browser/serve interface or video decoding is involved.
+
+## 15. Numerical buffer entries
+
+`[[buffer]]` has `glob`, `kind`, `encoding`, optional `threshold`, `metric`
+(default mean) and `scale` (default 1). First match wins independently of colour
+overrides. Depth (`linear01`, `reverse_z`, `r32f`), normal (`rgb_snorm`, `oct`),
+motion (`rg_snorm`) and discrete mask/id (`exact`) bypass FLIP. Numerical
+comparisons retain native precision; EXR depth reads R directly. Size mismatch,
+invalid normals or non-finite numerical samples become error entries.
+
+The additive optional `Entry.buffer` carries `kind`, effective `encoding`,
+`unit`, `scale`, deciding `metric`, `value`, `threshold`, `stats` and
+`heatmap_max`. `stats` contains mean/max/p95/p99; depth adds mean/max relative
+error (`abs(c-b)/max(abs(b),1e-12)` after decoding), mask/id add
+`exact_match_fraction` and `changed_pixels`. Mask/id compare complete native
+pixel samples and decide on changed fraction, with thresholds in [0,1]. Other
+kinds decide on their configured absolute/angular/end-point statistic. FLIP
+`metrics`, `hdr`, hotspots, regions and colour diagnostics remain absent.
+Mask/id formats must match. A buffer's numerical value counts as a compared
+pair. Metadata enforcement continues to apply.
+
+Heatmaps use magma with zero at the bottom and `heatmap_max` at the top: 1 for
+normalised depth/discrete error, 180 for normals, `2*sqrt(2)*scale` for motion,
+and the larger of the observed maximum/threshold for r32f depth. Default limits
+are 0.01 depth units, 1 degree, 0.5 pixels and 0 changed fraction. Reverse Z is
+normalised `1-R`, without projection linearisation or camera near/far parameters.
+
+## 16. Ranking format: `flipdiff-rank.v1`
+
+`rank REFERENCE CANDIDATE...` runs normal comparisons under `<out>/<label>/`.
+Candidate labels are unique safe directory components. All destinations are
+checked against every input before writes; child output symlinks are refused.
+The chosen metric overrides metric overrides so every ranking uses one FLIP
+unit. Numerical buffer rules are not accepted in rank.
+
+`flipdiff-rank.v1.json` contains `schema`, `verdict`, `metric`, `reference_dir`,
+`reference_images`, `common_images`, `overall[]`, `images[]` and absolute JSON,
+HTML and Markdown paths. Each `images[]` has `name` and `candidates[]` with
+`label`, `status`, nullable `value` and nullable `rank`. Valid comparisons rank
+in increasing metric order using exact ties and competition ranks (1,1,3).
+Missing/new/error values have no rank and sort last. `overall[]` holds labels,
+rank, mean rank, mean metric, number of ranked images, `complete`,
+`bit_identical`, normal report totals, absolute report JSON and relative HTML
+link. Both overall means use the intersection of valid comparisons across all
+candidates. No overall rank is published unless every reference image belongs
+to that intersection. Overall order is mean rank, then mean metric, then label;
+identical rank/metric tuples tie. Candidate-specific new images are listed but
+do not enter overall means. Verdicts use the normal compare rules.
+
+`ranking.md` and root HTML list overall/per-image rankings and link to child
+reports. `--json` and `flipdiff_rank` MCP omit `images[]`; full output includes
+them. Both sequence/rank MCP tools follow the root path policy, accept CLI run
+settings, declare output schemas and safe-write annotations, and return no
+image content blocks. Their lean floats use 4 significant digits.
+
+## 17. Baseline-update Action
+
+`update-baselines` defaults false. Only a trusted `workflow_dispatch` on a branch
+can enter the update step; both the step condition and the shell write boundary
+guard the event and fork status. Comparison must finish with exit 0/1 and have
+an uploaded report/Markdown summary. The baseline path must resolve below the
+workspace, and tracked/staged changes must be absent before approval.
+
+The Action runs approve with `--all-failing` and optional `--prune-missing`
+(`update-prune-missing`, default false). It uses approve's JSON list to stage
+only copied/pruned paths, preserving literal filenames. With changes, it creates
+`<update-branch-prefix>-<run_id>` (default prefix `flipdiff/update-baselines`),
+commits, pushes to the event repository and opens a PR against the dispatch
+branch. The existing Markdown summary (including the report artifact link) is
+passed through `gh pr create --body-file`. No changed files means no branch/PR.
+Requires contents write for the checkout credentials and pull-requests write
+for `github-token`; errors propagate. All expressions go through step env,
+with none embedded in shell scripts. The compare exit verdict remains the
+Action's final verdict. No PR-comment command handler is required.

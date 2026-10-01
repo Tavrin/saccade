@@ -15,6 +15,7 @@ fn sample() -> Report {
 
 fn entry(name: String, status: Status, value: Option<f64>) -> Entry {
     Entry {
+        buffer: None,
         name,
         status,
         metric_used: Metric::Mean,
@@ -29,7 +30,13 @@ fn entry(name: String, status: Status, value: Option<f64>) -> Entry {
         bit_identical: None,
         hdr: None,
         meta_diff: Vec::new(),
+        meta_ignored_diff: Vec::new(),
+        baseline_properties: None,
+        warnings: Vec::new(),
+        baseline_sha256: None,
+        capture_sha256: None,
         hotspots: Vec::new(),
+        diagnostics: None,
     }
 }
 
@@ -68,9 +75,9 @@ fn sample_summary_has_marker_heading_rows_and_footer() {
         lines[1],
         "### flipdiff: ❌ 3 failed · 1 errored · 1 missing · 1 new · 2 passed"
     );
-    // Worst fail first, values to 4 significant digits, trailing zeros trimmed.
-    assert!(md.contains("| ❌ fail | `gi/cornell-box.png` | mean | 0.4412 | 0.01 |"));
-    assert!(md.contains("| ❌ fail | `terrain/heightfield.png` | p95 | 0.2113 | 0.15 |"));
+    // Worst fail first, values to 4 significant digits, zeros kept.
+    assert!(md.contains("| ❌ fail | `gi/cornell-box.png` | mean | 0.4412 | 0.01000 |"));
+    assert!(md.contains("| ❌ fail | `terrain/heightfield.png` | p95 | 0.2113 | 0.1500 |"));
     assert!(md.contains("| 🆕 new | `ui/hud minimap #2.png` | mean | — | — |"));
     let cornell = md.find("cornell-box").expect("row");
     let shadow = md.find("shadow-shift").expect("row");

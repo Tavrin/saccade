@@ -6,14 +6,17 @@
   var LETTERS = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ';
 
   var S = {
-    set: 0, layout: 'grid', tool: 'pan', scale: 1, tx: 0, ty: 0, fit: true,
+    set: 0, visible: [], sort: 'name', diffOnly: false, layout: 'grid', tool: 'pan', scale: 1, tx: 0, ty: 0, fit: true,
     exposure: 0, contrast: 1, channel: 'rgb', opacity: 0.6, rate: 2, paused: false,
-    swipe: 50, vertical: false, heat: false, hot: true, hold: false, lastLayout: 'swipe', fs: false, revealed: false, chosen: [], flickerIdx: 0, cursor: null, roiDraft: null
+    swipe: 50, vertical: false, heat: false, hot: true, hold: false, lastLayout: 'swipe', fs: false, revealed: false, chosen: [], flickerIdx: 0, cursor: null, roiDraft: null, hsel: null, hselT: ''
   };
   var dec = {};           // name -> SetDecision-shaped entry
   var pixCache = {};      // set index -> {rgb:[ImageData|null], flip:[Uint8Array|null], promise}
   var timer = null;
   var viewports = [];
+  var agent = null;       // window.flipdiff (see agentapi.js)
+  var props = {};         // set name -> proposals recorded by `flipdiff decide`
+  function notify() { if (agent) agent.changed(); }
 
   // ---------- helpers ----------
   function el(tag, attrs, kids) {
@@ -30,16 +33,38 @@
   function cur() { return D.sets[S.set]; }
   // Blind mode embeds only neutral labels (P1, P2, ...); the true labels come from
   // blind-key.json, loaded through the file picker when the judge reveals.
-  var KEY = null;
-  function trueLabel(i) { return KEY && KEY[i] != null ? KEY[i] : D.labels[i]; }
-  function trueOf(neutral) { var i = D.labels.indexOf(neutral); return i < 0 ? neutral : trueLabel(i); }
+  // The key maps each set's pane positions (P1, P2, ...) to the true labels: every
+  // set shuffles its panes, so the mapping is per set (KEYSETS[set.name][i]).
+  var KEY = null, KEYSETS = null;
+  function trueLabel(i, set) {
+    if (set && KEYSETS && KEYSETS[set.name] && KEYSETS[set.name][i] != null) return KEYSETS[set.name][i];
+    return KEY && KEY[i] != null ? KEY[i] : D.labels[i];
+  }
+  function trueOf(neutral, set) { var i = D.labels.indexOf(neutral); return i < 0 ? neutral : trueLabel(i, set); }
   function hideInfo() { return D.blind && !S.revealed; }
   function letter(set, i) { return LETTERS[set.order.indexOf(i)] || '?'; }
   function paneName(set, i) {
     if (!D.blind) return D.labels[i];
-    return S.revealed ? trueLabel(i) + ' (' + letter(set, i) + ')' : letter(set, i);
+    return S.revealed ? trueLabel(i, set) + ' (' + letter(set, i) + ')' : letter(set, i);
   }
   function present(set) { return set.order.filter(function (i) { return set.panes[i].path; }); }
+  // Which directories have this set's image (labels are neutral or hidden in blind mode).
+  function labelsWhere(set, has) {
+    return set.panes.map(function (p, i) { return !!p.path === has ? D.labels[i] : null; }).filter(Boolean);
+  }
+  // The one directory that has the image, when only one does.
+  function soloLabel(set) {
+    if (D.blind || set.panes.length < 2) return null;
+    var have = labelsWhere(set, true);
+    return have.length === 1 ? have[0] : null;
+  }
+  // Why a comparison layout has nothing to show: names the directory that lacks the image.
+  function needTwo(set, what, tickHint) {
+    if (present(set).length >= 2) return tickHint;
+    var miss = labelsWhere(set, false);
+    if (hideInfo() || !miss.length) return what + ' needs two images, but this set has only ' + present(set).length + '.';
+    return miss.join(', ') + (miss.length > 1 ? ' have' : ' has') + ' no ' + set.name + '. ' + what + ' needs two images.';
+  }
   function refDims(set) {
     var r = set.panes[D.reference];
     if (r && r.width) return [r.width, r.height];
@@ -67,6 +92,28 @@
     try { localStorage.setItem(LS_KEY, JSON.stringify({ dec: dec, revealed: S.revealed })); } catch (e) { /* ignore */ }
     serveSync();
   }
+  // The decisions document: what was decided, and what it was decided on. `dirs`
+  // (empty in a blind view until `flipdiff unblind` fills it from the key) and the
+  // per-set image hashes let `flipdiff approve` refuse to promote anything else.
+  function buildDecisions() {
+    var dirs = D.dirs || [];
+    return {
+      schema: 'flipdiff-decisions.v1', seed: D.seed, labels: D.labels, blind: D.blind, dirs: dirs,
+      sets: D.sets.map(function (s) {
+        var e = dec[s.name] || {};
+        var ci = e.chosen_label ? D.labels.indexOf(e.chosen_label) : -1;
+        var out = {
+          name: s.name, decision: e.decision || null, chosen_label: e.chosen_label || null,
+          no_difference: !!e.no_difference, note: e.note || '', roi: e.roi || null, timestamp_ms: e.timestamp_ms || 0,
+          chosen_dir: ci >= 0 && !D.blind ? (dirs[ci] || null) : null,
+          sha256: s.panes.map(function (p) { return p.sha256 || null; })
+        };
+        // Answers `flipdiff decide` recorded travel with the file, so saving never drops them.
+        if (props[s.name] && props[s.name].length) out.proposals = props[s.name];
+        return out;
+      })
+    };
+  }
   // Under `flipdiff serve` (window.FLIPDIFF_SERVE = {token, session}), also POST the decisions file, debounced.
   var serveTimer = 0;
   function serveSync() {
@@ -74,10 +121,7 @@
     if (!sv || !sv.session) return;
     clearTimeout(serveTimer);
     serveTimer = setTimeout(function () {
-      var out = { schema: 'flipdiff-decisions.v1', seed: D.seed, labels: D.labels, blind: D.blind, sets: D.sets.map(function (s) {
-        var e = dec[s.name] || {};
-        return { name: s.name, decision: e.decision || null, chosen_label: e.chosen_label || null, no_difference: !!e.no_difference, note: e.note || '', roi: e.roi || null, timestamp_ms: e.timestamp_ms || 0 };
-      }) };
+      var out = buildDecisions();
       fetch('/api/session/' + sv.session + '/decisions', { method: 'POST', headers: { 'X-Flipdiff-Token': sv.token, 'Content-Type': 'application/json' }, body: JSON.stringify(out) }).catch(function () { /* offline: localStorage keeps it */ });
     }, 500);
   }
@@ -103,50 +147,47 @@
       var c = document.createElement('canvas'); c.width = w; c.height = h;
       var g = c.getContext('2d', { willReadFrequently: true });
       g.drawImage(im, 0, 0);
-      return g.getImageData(0, 0, w, h);   // throws SecurityError when the canvas is tainted
+      return g.getImageData(0, 0, w, h);
     });
   }
+  // Inspector data is loaded per set, only once the inspector is first used. The
+  // set's script holds lossless PNG data URIs (same-origin, so the canvas is never
+  // tainted on file://), downsampled by an integer factor when a pane is larger
+  // than 2048 px; `ix` maps an image pixel to its index in that data.
   function pixelsFor(si) {
     var c = pixCache[si];
     if (c) return c.promise;
     var set = D.sets[si];
-    c = pixCache[si] = { rgb: [], flip: [] };
-    c.promise = (function () {
-      var uris = null;
-      function rgbOf(i) {
-        var p = set.panes[i];
-        if (!p.path || !p.width) return Promise.resolve(null);
-        var direct = uris ? Promise.reject(new Error('use data')) : readImage(url(p.path), p.width, p.height);
-        return direct.catch(function () {
-          // file:// images taint the canvas in Chromium: fall back to data URIs
-          // from the per-set script, which are same-origin by definition.
-          var ready = uris ? Promise.resolve() : loadScript(url(set.pixels_script)).then(function () {
-            uris = (window.__flipdiffPx || {})[si] || [];
-          });
-          return ready.then(function () {
-            return uris[i] ? readImage(uris[i], p.width, p.height) : null;
-          });
-        });
-      }
-      function flipOf(i) {
-        var p = set.panes[i];
-        if (!p.flip) return Promise.resolve(null);
-        return readImage(p.flip, p.width, p.height).then(function (id) {
-          var a = new Uint8Array(p.width * p.height);
-          for (var k = 0; k < a.length; k++) a[k] = id.data[k * 4];
-          return a;
-        });
-      }
+    c = pixCache[si] = { rgb: [], flip: [], scale: [] };
+    c.promise = loadScript(url(set.pixels_script)).then(function () {
+      var px = (window.__flipdiffPx || {})[si] || {};
       var chain = Promise.resolve();
-      set.panes.forEach(function (_, i) {
-        chain = chain.then(function () { return rgbOf(i); }).then(function (v) { c.rgb[i] = v; })
-          .catch(function () { c.rgb[i] = null; })
-          .then(function () { return flipOf(i); }).then(function (v) { c.flip[i] = v; })
-          .catch(function () { c.flip[i] = null; });
+      set.panes.forEach(function (p, i) {
+        var f = (px.scale && px.scale[i]) || 1;
+        var w = Math.ceil(p.width / f), h = Math.ceil(p.height / f);
+        c.scale[i] = f;
+        chain = chain.then(function () { return px.rgb && px.rgb[i] ? readImage(px.rgb[i], w, h) : null; })
+          .catch(function () { return null; })
+          .then(function (v) { c.rgb[i] = v; })
+          .then(function () { return px.flip && px.flip[i] ? readImage(px.flip[i], w, h) : null; })
+          .catch(function () { return null; })
+          .then(function (id) {
+            if (!id) { c.flip[i] = null; return; }
+            var a = new Uint8Array(w * h);
+            for (var k = 0; k < a.length; k++) a[k] = id.data[k * 4];
+            c.flip[i] = a;
+          });
       });
-      return chain.then(function () { return c; });
-    })();
+      return chain.then(function () { delete (window.__flipdiffPx || {})[si]; return c; });
+    }).catch(function () {
+      set.panes.forEach(function (_, i) { c.rgb[i] = null; c.flip[i] = null; c.scale[i] = 1; });
+      return c;
+    });
     return c.promise;
+  }
+  function ix(c, set, i, x, y) {
+    var f = c.scale[i] || 1;
+    return Math.floor(y / f) * Math.ceil(set.panes[i].width / f) + Math.floor(x / f);
   }
 
   // ---------- transform ----------
@@ -170,12 +211,14 @@
       layers[i].style.setProperty('--inv', String(1 / s));
     }
     $('stage').classList.toggle('pix', s > 1.0001);
-    $('zval').textContent = (s >= 10 ? s.toFixed(0) : s.toFixed(2)) + '×';
+    // With no image on stage (nothing to swipe) there is no scale to report.
+    $('zval').textContent = viewports.length ? (s >= 10 ? s.toFixed(0) : s.toFixed(2)) + '×' : '–';
     var zb = document.querySelectorAll('#seg-zoom button');
     for (var j = 0; j < zb.length; j++) {
       var z = zb[j].getAttribute('data-z');
       zb[j].setAttribute('aria-pressed', String(z === 'fit' ? S.fit : (!S.fit && Math.abs(S.scale - Number(z)) < 1e-6)));
     }
+    notify();
   }
   function zoomAt(k, cx, cy) {
     var ns = Math.max(fitScale(), Math.min(64, S.scale * k));
@@ -206,6 +249,7 @@
     $('stage').style.setProperty('--f', f.length ? f.join(' ') : 'none');
     $('expv').textContent = (S.exposure > 0 ? '+' : '') + S.exposure.toFixed(1) + ' EV';
     $('conv').textContent = '×' + S.contrast.toFixed(2);
+    notify();
   }
 
   // ---------- stage ----------
@@ -244,13 +288,13 @@
   }
   function paneHead(set, i) {
     var p = set.panes[i];
-    var right = '';
+    var right = '', full = null;
     if (!hideInfo()) {
       if (i === D.reference) right = 'reference';
-      else if (p.metrics) right = 'FLIP mean ' + fmt(p.metrics.mean) + ' · p95 ' + fmt(p.metrics.p95) + ' · max ' + fmt(p.metrics.max);
+      else if (p.metrics) { right = 'mean ' + fmt(p.metrics.mean) + ' · p95 ' + fmt(p.metrics.p95) + ' · max ' + fmt(p.metrics.max); full = 'FLIP ' + right; }
       else if (p.error) right = p.error;
     }
-    var head = el('div', { class: 'pane-h' }, [el('b', { text: paneName(set, i) }), el('span', { text: right })]);
+    var head = el('div', { class: 'pane-h' }, [el('b', { text: paneName(set, i), title: paneName(set, i) }), el('span', { text: right, title: full || right })]);
     if (!hideInfo() && frameWide(p)) head.appendChild(el('span', { class: 'wide', text: 'frame-wide change', title: 'The largest hotspot covers at least half of the frame' }));
     return head;
   }
@@ -290,7 +334,7 @@
         stage.appendChild(el('div', { class: 'pane' }, [paneHead(set, i), vpEl([wrapFor(set, i, true)])]));
       });
     } else if (S.layout === 'swipe') {
-      if (ch.length < 2) { stage.appendChild(el('p', { class: 'note-msg', text: 'Swipe needs two images: tick two under "Show".' })); }
+      if (ch.length < 2) { stage.appendChild(el('p', { class: 'note-msg', text: needTwo(set, 'Swipe', 'Swipe needs two images: tick two under "Show".') })); }
       else {
         var a = ch[0], b = ch[1];
         var wb = wrapFor(set, b, false, S.heat && !hideInfo() ? heatFor(set, a, b) : null, true);
@@ -307,11 +351,11 @@
           el('span', { class: 'corner l', text: paneName(set, a) }), el('span', { class: 'corner r', text: paneName(set, b) })]);
         v.classList.add('swipe');
         v.classList.toggle('vert', S.vertical);
-        stage.appendChild(el('div', { class: 'pane' }, [el('div', { class: 'pane-h' }, [el('b', { text: paneName(set, a) + ' | ' + paneName(set, b) }), el('span', { text: '' })]), v]));
+        stage.appendChild(el('div', { class: 'pane' }, [el('div', { class: 'pane-h' }, [el('b', { text: paneName(set, a) + ' | ' + paneName(set, b), title: paneName(set, a) + ' | ' + paneName(set, b) }), el('span', { text: '' })]), v]));
         paintSwipe(v);   // after attaching: it looks the layers up by id
       }
     } else if (S.layout === 'flicker') {
-      if (ch.length < 2) { stage.appendChild(el('p', { class: 'note-msg', text: 'Flicker needs at least two images: tick them under "Show".' })); }
+      if (ch.length < 2) { stage.appendChild(el('p', { class: 'note-msg', text: needTwo(set, 'Flicker', 'Flicker needs at least two images: tick them under "Show".') })); }
       else {
         var wraps = ch.map(function (i) { return wrapFor(set, i, false); });
         var corner = el('span', { class: 'corner l' });
@@ -362,6 +406,7 @@
     S.swipe = Math.max(0, Math.min(100, Math.round(pct * 10) / 10));
     $('swipe').value = String(S.swipe);
     paintSwipe();
+    notify();
   }
   // Zoom the viewports to hotspot k of pane i, leaving a margin around the box.
   function zoomHot(i, k) {
@@ -375,6 +420,7 @@
     S.tx = vw / 2 - (r[0] + r[2] / 2) * ns;
     S.ty = vh / 2 - (r[1] + r[3] / 2) * ns;
     applyTransform();
+    S.hsel = k + 1; S.hselT = tkey();
     $('stage').scrollIntoView({ block: 'nearest', behavior: 'smooth' });
   }
   function swipeFromPointer(vp, e) {
@@ -436,6 +482,7 @@
 
   // ---------- help overlay ----------
   var KEYS = [
+    ['y / n', 'Confirm / override the decision an agent proposed'],
     ['← / →', 'Move the swipe divider 5% (Shift: 1%); outside swipe, previous/next set'],
     ['[ / ]', 'Previous / next image set'],
     ['Space', 'Toggle flicker'],
@@ -483,6 +530,7 @@
       boxes[i].style.left = r.x + 'px'; boxes[i].style.top = r.y + 'px';
       boxes[i].style.width = r.w + 'px'; boxes[i].style.height = r.h + 'px';
     }
+    notify();
   }
   function roiStats(c, set, r) {
     var out = {};
@@ -492,7 +540,7 @@
       var x0 = Math.max(0, r.x), y0 = Math.max(0, r.y), x1 = Math.min(p.width, r.x + r.w), y1 = Math.min(p.height, r.y + r.h);
       var n = 0, sr = 0, sg = 0, sb = 0, sf = 0, fm = c.flip[i];
       for (var y = y0; y < y1; y++) for (var x = x0; x < x1; x++) {
-        var k = y * p.width + x;
+        var k = ix(c, set, i, x, y);
         sr += id.data[k * 4]; sg += id.data[k * 4 + 1]; sb += id.data[k * 4 + 2];
         if (fm) sf += fm[k];
         n++;
@@ -503,46 +551,60 @@
   }
 
   // ---------- inspector ----------
+  function inspectorNote(set) {
+    var f = 1;
+    set.panes.forEach(function (p) { if (p.inspector_scale > f) f = p.inspector_scale; });
+    return f > 1 ? 'Inspector at 1/' + f + ' res: values are ' + f + '×' + f + ' averages (data capped at 2048 px).' : '';
+  }
+  function inspRows(set, c, pos, stats, t, head) {
+    t.textContent = '';
+    t.appendChild(head);
+    set.order.forEach(function (i) {
+      var p = set.panes[i];
+      var rgbTxt = '–', flipTxt = '–', sw = null;
+      if (p.path && pos) {
+        var id = c && c.rgb[i];
+        if (id && pos.x < p.width && pos.y < p.height) {
+          var k = ix(c, set, i, pos.x, pos.y) * 4;
+          rgbTxt = id.data[k] + ' ' + id.data[k + 1] + ' ' + id.data[k + 2];
+          sw = 'rgb(' + id.data[k] + ',' + id.data[k + 1] + ',' + id.data[k + 2] + ')';
+        } else if (!c) rgbTxt = '…';
+        else if (!id) rgbTxt = 'n/a';
+        var fm = c && c.flip[i];
+        if (hideInfo()) flipTxt = 'hidden';
+        else if (i === D.reference) flipTxt = 'ref';
+        else if (fm && pos.x < p.width && pos.y < p.height) flipTxt = (fm[ix(c, set, i, pos.x, pos.y)] / 255).toFixed(3);
+      } else if (!p.path) rgbTxt = 'missing';
+      var sp = el('span', { class: 'sw' }); if (sw) sp.style.background = sw;
+      var tr = el('tr', null, [el('td', null, [sp, paneName(set, i)]), el('td', { text: rgbTxt }), el('td', { text: flipTxt })]);
+      if (stats) {
+        var s = stats[i];
+        tr.appendChild(el('td', { text: s ? s.r.toFixed(1) + ' ' + s.g.toFixed(1) + ' ' + s.b.toFixed(1) : '–' }));
+        tr.appendChild(el('td', { text: hideInfo() ? 'hidden' : (i === D.reference ? 'ref' : (s && s.flip != null ? s.flip.toFixed(4) : '–')) }));
+      }
+      t.appendChild(tr);
+    });
+  }
   function renderInspector() {
     var set = cur(), t = $('insp'), si = S.set;
     var r = roiRect(), pos = S.cursor;
     var hint = $('insp-hint');
-    t.textContent = '';
     var head = el('tr', null, [el('th', { text: 'Image' }), el('th', { text: 'RGB' }), el('th', { text: 'FLIP' })]);
     var hasRoi = r && r.w > 0 && r.h > 0;
     if (hasRoi) { head.appendChild(el('th', { text: 'ROI mean RGB' })); head.appendChild(el('th', { text: 'ROI mean FLIP' })); }
-    t.appendChild(head);
     hint.textContent = pos ? 'Pixel (' + pos.x + ', ' + pos.y + ')' : 'Hover (or tap) an image to read pixel values.';
     if (hasRoi) hint.textContent += (pos ? ' · ' : '') + 'ROI ' + r.x + ',' + r.y + ' ' + r.w + '×' + r.h + ' (' + (r.w * r.h) + ' px)';
+    var note = inspectorNote(set);
+    if (note) hint.textContent += ' · ' + note;
+    // No pixel data is fetched until a pixel or a region is actually inspected.
+    var used = !!pos || hasRoi;
+    var ready = pixCache[si] && pixCache[si].done ? pixCache[si] : null;
+    inspRows(set, ready, pos, null, t, head);
+    if (!used) return;
     pixelsFor(si).then(function (c) {
+      c.done = true;
       if (si !== S.set) return;
-      var stats = hasRoi ? roiStats(c, set, r) : null;
-      t.textContent = '';
-      t.appendChild(head);
-      set.order.forEach(function (i) {
-        var p = set.panes[i];
-        var rgbTxt = '–', flipTxt = '–', sw = null;
-        if (p.path && pos) {
-          var id = c.rgb[i];
-          if (id && pos.x < p.width && pos.y < p.height) {
-            var k = (pos.y * p.width + pos.x) * 4;
-            rgbTxt = id.data[k] + ' ' + id.data[k + 1] + ' ' + id.data[k + 2];
-            sw = 'rgb(' + id.data[k] + ',' + id.data[k + 1] + ',' + id.data[k + 2] + ')';
-          } else if (!id) rgbTxt = 'n/a';
-          var fm = c.flip[i];
-          if (hideInfo()) flipTxt = 'hidden';
-          else if (i === D.reference) flipTxt = 'ref';
-          else if (fm && pos.x < p.width && pos.y < p.height) flipTxt = (fm[pos.y * p.width + pos.x] / 255).toFixed(3);
-        } else if (!p.path) rgbTxt = 'missing';
-        var sp = el('span', { class: 'sw' }); if (sw) sp.style.background = sw;
-        var tr = el('tr', null, [el('td', null, [sp, paneName(set, i)]), el('td', { text: rgbTxt }), el('td', { text: flipTxt })]);
-        if (stats) {
-          var s = stats[i];
-          tr.appendChild(el('td', { text: s ? s.r.toFixed(1) + ' ' + s.g.toFixed(1) + ' ' + s.b.toFixed(1) : '–' }));
-          tr.appendChild(el('td', { text: hideInfo() ? 'hidden' : (i === D.reference ? 'ref' : (s && s.flip != null ? s.flip.toFixed(4) : '–')) }));
-        }
-        t.appendChild(tr);
-      });
+      inspRows(set, c, pos, hasRoi ? roiStats(c, set, r) : null, t, head);
     });
   }
   function toImage(vp, e) {
@@ -639,24 +701,124 @@
     if (!isDecided(e)) return { text: 'undecided', cls: '' };
     if (D.blind && !S.revealed) return { text: 'judged', cls: '' };
     if (e.decision) return { text: verdictText(e.decision), cls: e.decision };
-    return { text: e.no_difference ? 'no difference' : 'prefers ' + trueOf(e.chosen_label), cls: '' };
+    return { text: e.no_difference ? 'no difference' : 'prefers ' + trueOf(e.chosen_label, set), cls: '' };
+  }
+  // ---------- triage: order, filter, status chips ----------
+  var RANK = { error: 0, missing: 1, changed: 2, identical: 3 };
+  function hasTriage() { return !D.blind && D.sets.some(function (s) { return s.status; }); }
+  function hasFlip() { return hasTriage() && D.sets.some(function (s) { return s.worst_flip != null; }); }
+  function byName(a, b) { return D.sets[a].name < D.sets[b].name ? -1 : D.sets[a].name > D.sets[b].name ? 1 : 0; }
+  function worstKey(s) { return s.status === 'error' ? 0 : s.worst_flip > 0 ? 1 : s.status === 'missing' ? 2 : 3; }
+  function computeOrder() {
+    var idx = D.sets.map(function (_, i) { return i; });
+    if (S.diffOnly && hasTriage()) idx = idx.filter(function (i) { return D.sets[i].status !== 'identical'; });
+    if (S.hideSolo) idx = idx.filter(function (i) { return !soloLabel(D.sets[i]); });
+    idx.sort(function (a, b) {
+      var sa = D.sets[a], sb = D.sets[b];
+      // Sets only one directory has cannot be compared: always last.
+      var oa = soloLabel(sa) ? 1 : 0, ob = soloLabel(sb) ? 1 : 0;
+      if (oa !== ob) return oa - ob;
+      if (hasTriage() && S.sort === 'worst') {
+        // errors, then measured differences by size, then sets with no FLIP value, then identical ones
+        var d = worstKey(sa) - worstKey(sb);
+        if (d) return d;
+        var wa = sa.worst_flip == null ? -1 : sa.worst_flip, wb = sb.worst_flip == null ? -1 : sb.worst_flip;
+        if (wa !== wb) return wb - wa;
+      } else if (hasTriage() && S.sort === 'status') {
+        var d2 = (RANK[sa.status] || 0) - (RANK[sb.status] || 0);
+        if (d2) return d2;
+      }
+      return byName(a, b);
+    });
+    S.visible = idx;
+  }
+  function curPos() { return S.visible.indexOf(S.set); }
+  function step(d) {
+    var p = curPos(), q = p < 0 ? 0 : p + d;
+    if (q >= 0 && q < S.visible.length) selectSet(S.visible[q]);
+  }
+  function chipFor(s) {
+    if (!s.status) return null;
+    var txt = s.status === 'changed' ? 'differs' : s.status;
+    if (s.status === 'missing') {
+      var solo = soloLabel(s);
+      txt = solo ? 'only in ' + solo : 'missing in ' + labelsWhere(s, false).join(', ');
+    }
+    var f = s.worst_flip == null ? '' : ' ' + fmt(s.worst_flip, 4);
+    return { cls: s.status, text: txt, flip: f.trim() };
+  }
+  function renderTriage() {
+    var boxes = document.querySelectorAll('.triage');
+    for (var b = 0; b < boxes.length; b++) fillTriage(boxes[b]);
+  }
+  function fillTriage(box) {
+    box.textContent = '';
+    box.hidden = !hasTriage();
+    if (!hasTriage()) return;
+    var sel = el('select', { 'aria-label': 'Order image sets' });
+    [['worst', 'Worst first'], ['name', 'Name'], ['status', 'Status']].forEach(function (o) {
+      if (o[0] === 'worst' && !hasFlip()) return;
+      var op = el('option', { value: o[0], text: o[1] }); if (o[0] === S.sort) op.selected = true; sel.appendChild(op);
+    });
+    sel.addEventListener('change', function () { S.sort = sel.value; refreshOrder(); });
+    var cb = el('input', { type: 'checkbox' }); cb.checked = S.diffOnly;
+    cb.addEventListener('change', function () { S.diffOnly = cb.checked; refreshOrder(); });
+    box.appendChild(el('label', { class: 'sortl' }, [el('span', { text: 'Order' }), sel]));
+    box.appendChild(el('label', { class: 'difl' }, [cb, el('span', { text: 'Differences only' })]));
+    var solos = D.sets.filter(function (s) { return soloLabel(s); }).length;
+    if (solos) {
+      var hs = el('input', { type: 'checkbox' }); hs.checked = !!S.hideSolo;
+      hs.addEventListener('change', function () { S.hideSolo = hs.checked; refreshOrder(); });
+      box.appendChild(el('label', { class: 'difl', title: 'Sets that only one directory has (nothing to compare)' }, [hs, el('span', { text: 'Hide unmatched (' + solos + ')' })]));
+    }
+  }
+  // Re-sort; the current set stays selected while it is visible, else the first one is shown.
+  function refreshOrder() {
+    computeOrder();
+    renderTriage();
+    if (!S.visible.length) { renderSets(); return; }
+    if (curPos() < 0) selectSet(S.visible[0]); else renderSets();
+  }
+  function setHasWarnings(s) { return s.panes.some(function (p) { return (p.warnings || []).length; }); }
+  function renderWarnings() {
+    var set = cur(), card = $('warn-card'), ul = $('warnlist');
+    ul.textContent = '';
+    set.panes.forEach(function (p, i) {
+      (p.warnings || []).forEach(function (w) {
+        var bad = /non-finite/.test(w);
+        ul.appendChild(el('li', { class: bad ? 'nf' : '', text: paneName(set, i) + ': ' + w.replace(/^image /, '') }));
+      });
+      var pr = p.properties;
+      if (pr && pr.negative_count) ul.appendChild(el('li', { text: paneName(set, i) + ': ' + pr.negative_count + ' negative samples' }));
+    });
+    card.hidden = !ul.children.length;
   }
   function renderSets() {
     var ol = $('setlist'), sel = $('setsel');
     ol.textContent = ''; sel.textContent = '';
-    D.sets.forEach(function (s, i) {
-      var b = badgeFor(s);
-      var btn = el('button', { type: 'button' }, [el('span', { class: 'n', text: s.name }), el('span', { class: 'badge ' + b.cls, text: b.text })]);
+    S.visible.forEach(function (i) {
+      var s = D.sets[i];
+      var b = badgeFor(s), c = chipFor(s);
+      var line = el('span', { class: 'line' });
+      if (c) {
+        line.appendChild(el('span', { class: 'chip st-' + c.cls, text: c.text }));
+        if (c.flip) line.appendChild(el('span', { class: 'fv', text: c.flip, title: 'Worst mean FLIP against the reference' }));
+      }
+      if (setHasWarnings(s)) line.appendChild(el('span', { class: 'chip st-error', text: '\u26A0 warning', title: 'An image is all black, all white or has non-finite samples' }));
+      line.appendChild(el('span', { class: 'badge ' + b.cls, text: b.text }));
+      var btn = el('button', { type: 'button', title: s.name }, [el('span', { class: 'n', text: s.name }), line]);
       if (i === S.set) btn.setAttribute('aria-current', 'true');
       btn.addEventListener('click', function () { selectSet(i); });
       ol.appendChild(el('li', null, [btn]));
-      var o = el('option', { value: String(i), text: s.name + ' – ' + b.text });
+      var o = el('option', { value: String(i), text: s.name + (c ? ' – ' + c.text + (c.flip ? ' ' + c.flip : '') : '') + ' – ' + b.text });
       if (i === S.set) o.selected = true;
       sel.appendChild(o);
     });
-    $('count').textContent = (S.set + 1) + ' / ' + D.sets.length;
-    $('prev').disabled = S.set === 0;
-    $('next').disabled = S.set >= D.sets.length - 1;
+    if (!S.visible.length) ol.appendChild(el('li', { class: 'none', text: 'No sets differ from the reference.' }));
+    var p = curPos();
+    $('count').textContent = (p < 0 ? 0 : p + 1) + ' / ' + S.visible.length + (S.visible.length < D.sets.length ? ' (of ' + D.sets.length + ')' : '');
+    $('prev').disabled = p <= 0;
+    $('next').disabled = p < 0 || p >= S.visible.length - 1;
   }
   function renderChosen() {
     var set = cur(), box = $('chosen');
@@ -677,6 +839,7 @@
       for (var i = 0; i < bs.length; i++) bs[i].setAttribute('aria-pressed', String(bs[i].getAttribute('data-v') === val));
     }
     mark('seg-layout', S.layout); mark('seg-tool', S.tool); mark('seg-chan', S.channel);
+    notify();
     $('b-overlay').disabled = hideInfo();
     $('g-swipe').hidden = S.layout !== 'swipe';
     $('g-flick').hidden = S.layout !== 'flicker';
@@ -772,6 +935,7 @@
       box.appendChild(clr);
     }
     updateReveal();
+    renderProposal();
   }
   function afterDecision() { renderSets(); renderDecision(); }
   function updateReveal() {
@@ -787,9 +951,9 @@
     S.set = i; S.cursor = null; S.roiDraft = null; S.flickerIdx = 0;
     S.chosen = present(cur());
     S.fit = true;
-    renderSets(); renderToolbar(); renderStage(); renderDecision(); renderConfigDiff(); renderHotspots();
+    renderSets(); renderToolbar(); renderStage(); renderDecision(); renderWarnings(); renderConfigDiff(); renderHotspots();
   }
-  function rerenderAll() { renderSets(); renderToolbar(); renderStage(); renderDecision(); renderMeta(); renderConfigDiff(); renderHotspots(); }
+  function rerenderAll() { renderSets(); renderToolbar(); renderStage(); renderDecision(); renderMeta(); renderWarnings(); renderConfigDiff(); renderHotspots(); }
 
   // Metadata-sidecar differences of the current set, each pane against the reference.
   function renderConfigDiff() {
@@ -827,7 +991,7 @@
     var m = $('meta'); m.textContent = '';
     function add(k, v) { m.appendChild(el('div', null, [el('dt', { text: k }), el('dd', { text: v })])); }
     if (D.blind && !S.revealed) add('Mode', 'blind (labels hidden)');
-    else add('Directories', D.labels.map(function (l, i) { return trueLabel(i) + (i === D.reference ? ' (ref)' : ''); }).join(', '));
+    else add('Directories', D.labels.map(function (l, i) { return trueLabel(i) + (i === D.reference && !D.blind ? ' (ref)' : ''); }).join(', '));
     add('Sets', String(D.sets.length));
     add('Seed', String(D.seed));
     add('Version', D.tool_version);
@@ -835,16 +999,7 @@
 
   // ---------- export ----------
   function exportDecisions() {
-    var out = {
-      schema: 'flipdiff-decisions.v1', seed: D.seed, labels: D.labels, blind: D.blind,
-      sets: D.sets.map(function (s) {
-        var e = dec[s.name] || {};
-        return {
-          name: s.name, decision: e.decision || null, chosen_label: e.chosen_label || null,
-          no_difference: !!e.no_difference, note: e.note || '', roi: e.roi || null, timestamp_ms: e.timestamp_ms || 0
-        };
-      })
-    };
+    var out = buildDecisions();
     var blob = new Blob([JSON.stringify(out, null, 2) + '\n'], { type: 'application/json' });
     var u = URL.createObjectURL(blob);
     var a = el('a', { href: u, download: 'flipdiff-decisions.v1.json' });
@@ -868,15 +1023,15 @@
   function toggleHeat() { S.heat = !S.heat; renderToolbar(); renderStage(); }
   function onKey(e) {
     if (e.ctrlKey || e.metaKey || e.altKey || typing(e.target)) return;
-    var k = e.key, step = e.shiftKey ? 1 : 5;
+    var k = e.key, amt = e.shiftKey ? 1 : 5;
     if (k === 'Escape') { if ($('help') && !$('help').hidden) toggleHelp(false); else if (S.fs) setFullscreen(false); return; }
     if (k === '?') { e.preventDefault(); toggleHelp(); return; }
     if (k === 'ArrowLeft' || k === 'ArrowRight') {
       var dir = k === 'ArrowLeft' ? -1 : 1;
-      if (S.layout === 'swipe') { e.preventDefault(); setSwipe(S.swipe + dir * step); }
-      else selectSet(S.set + dir);
-    } else if (k === '[') selectSet(S.set - 1);
-    else if (k === ']') selectSet(S.set + 1);
+      if (S.layout === 'swipe') { e.preventDefault(); setSwipe(S.swipe + dir * amt); }
+      else step(dir);
+    } else if (k === '[') step(-1);
+    else if (k === ']') step(1);
     else if (k === ' ') {
       e.preventDefault();
       if (e.repeat) return;
@@ -889,9 +1044,168 @@
     else if (k === 'c' || k === 'C') { if (!e.repeat) holdStart(); }
     else if (k === '0') setZoom('fit');
     else if (k === '1' || k === '2' || k === '4' || k === '8') setZoom(k);
+    else if (k === 'y' || k === 'Y' || k === 'n' || k === 'N') {
+      var ap = proposal();
+      if (ap) setVerdict((k === 'y' || k === 'Y') === (ap.answer === 'accept') ? 'accept' : 'reject');
+    }
   }
+
+  // ---------- agent API: hash state, window.flipdiff, proposed decisions ----------
+  var A = window.__flipdiffAgent;
+  var LAYOUT_OUT = { grid: 'side', overlay: 'heatmap', swipe: 'swipe', flicker: 'flicker' };
+  var LAYOUT_IN = { side: 'grid', heatmap: 'overlay', swipe: 'swipe', flicker: 'flicker' };
+  function tkey() { return [S.tx.toFixed(2), S.ty.toFixed(2), S.scale.toFixed(4)].join(); }
+  // The pane whose hotspots `hotspot=n` counts: the first non-reference image.
+  function primaryPane() {
+    var set = cur();
+    for (var k = 0; k < set.order.length; k++) {
+      var i = set.order[k];
+      if (i !== D.reference && set.panes[i].path) return i;
+    }
+    return -1;
+  }
+  function agentGet() {
+    var set = cur(), vw = vpWidth(), d = refDims(set), vh = vw * d[1] / d[0], r = roiRect();
+    var heat = !hideInfo() && (S.layout === 'overlay' || (S.layout === 'swipe' && S.heat)) ? S.opacity : 0;
+    return {
+      set: set.name, layout: LAYOUT_OUT[S.layout] || 'side', split: Math.round(S.swipe * 10) / 1000, vertical: S.vertical,
+      zoom: S.fit ? 'fit' : Math.round(S.scale * 1000) / 1000,
+      at: S.fit ? null : [Math.round((vw / 2 - S.tx) / S.scale), Math.round((vh / 2 - S.ty) / S.scale)],
+      heat: heat, channel: S.channel === 'l' ? 'luma' : S.channel, ev: Math.round(S.exposure * 100) / 100,
+      roi: r && r.w > 0 && r.h > 0 ? [r.x, r.y, r.w, r.h] : null,
+      hotspot: !hideInfo() && S.hsel && S.hselT === tkey() ? S.hsel : null
+    };
+  }
+  function agentApply(p) {
+    if (p.set != null) {
+      var idx = -1;
+      D.sets.forEach(function (s, i) { if (s.name === p.set) idx = i; });
+      if (idx >= 0 && idx !== S.set) {
+        if (S.visible.indexOf(idx) < 0) { S.diffOnly = false; computeOrder(); renderTriage(); }
+        selectSet(idx);
+      }
+    }
+    if (p.layout) { S.layout = LAYOUT_IN[p.layout]; if (S.layout === 'overlay' && hideInfo()) S.layout = 'grid'; }
+    if (p.split != null) { S.swipe = Math.round(p.split * 1000) / 10; $('swipe').value = String(S.swipe); }
+    if (p.vertical != null) S.vertical = p.vertical;
+    if (p.channel) S.channel = p.channel === 'luma' ? 'l' : p.channel;
+    if (p.ev != null) { S.exposure = p.ev; $('exp').value = String(p.ev); }
+    if (p.heat != null && !hideInfo()) {
+      if (p.heat > 0) { S.opacity = p.heat; $('opa').value = String(p.heat); if (S.layout === 'swipe') S.heat = true; }
+      else if (S.layout === 'swipe') S.heat = false;
+    }
+    renderToolbar(); renderStage(); applyFilter();
+    var vw = vpWidth(), d = refDims(cur()), vh = vw * d[1] / d[0];
+    if (p.zoom === 'fit') setZoom('fit');
+    else if (p.zoom != null || (p.at && !S.fit)) {
+      S.fit = false;
+      S.scale = Math.max(fitScale(), p.zoom != null ? p.zoom : S.scale);
+      var at = p.at || [d[0] / 2, d[1] / 2];
+      S.tx = vw / 2 - at[0] * S.scale; S.ty = vh / 2 - at[1] * S.scale;
+      applyTransform();
+    }
+    if ('roi' in p) {
+      if (p.roi) S.roiDraft = { x: p.roi[0], y: p.roi[1], w: p.roi[2], h: p.roi[3] };
+      else { S.roiDraft = null; var en = dec[cur().name]; if (en && en.roi) { en.roi = null; touch(en); } }
+      drawRoi(); renderInspector();
+    }
+    if (p.hotspot && !hideInfo()) { var pi = primaryPane(); if (pi >= 0) zoomHot(pi, p.hotspot - 1); }
+  }
+  // The stage as a canvas: images with the current transform, the swipe split, display filter, boxes and labels.
+  function drawVp(g, vp, sr, filter) {
+    var r = vp.getBoundingClientRect(), ox = r.left - sr.left, oy = r.top - sr.top;
+    g.save(); g.beginPath(); g.rect(ox, oy, r.width, r.height); g.clip();
+    for (var i = 0; i < vp.children.length; i++) {
+      var w = vp.children[i];
+      if (!w.classList.contains('wrap') || w.classList.contains('hotwrap') || w.classList.contains('holdwrap') || w.style.visibility === 'hidden') continue;
+      var base = w.querySelector('img.base'), heat = w.querySelector('img.heat');
+      if (!base) continue;
+      var bw = Number(base.getAttribute('width')), bh = Number(base.getAttribute('height'));
+      g.save();
+      if (w.id === 'swipe-top') {
+        g.beginPath();
+        if (S.vertical) g.rect(ox, oy + r.height * S.swipe / 100, r.width, r.height); else g.rect(ox + r.width * S.swipe / 100, oy, r.width, r.height);
+        g.clip();
+      }
+      g.filter = filter && filter !== 'none' ? filter : 'none';
+      g.drawImage(base, ox + S.tx, oy + S.ty, bw * S.scale, bh * S.scale);
+      if (heat) { g.globalAlpha = S.opacity; g.drawImage(heat, ox + S.tx, oy + S.ty, bw * S.scale, bh * S.scale); }
+      g.restore();
+    }
+    var dv = vp.querySelector('.divider');
+    if (dv) {
+      g.fillStyle = '#fff'; g.strokeStyle = '#000'; g.lineWidth = 1;
+      var pos = (S.vertical ? r.height : r.width) * S.swipe / 100;
+      if (S.vertical) { g.fillRect(ox, oy + pos - 1, r.width, 2); } else { g.fillRect(ox + pos - 1, oy, 2, r.height); }
+    }
+    Array.prototype.forEach.call(vp.querySelectorAll('.hsp, .roi'), function (b) {
+      if (b.hidden) return;
+      var br = b.getBoundingClientRect();
+      g.lineWidth = 2; g.strokeStyle = b.classList.contains('roi') ? '#00c8ff' : '#ffb000';
+      g.strokeRect(br.left - sr.left + 1, br.top - sr.top + 1, br.width - 2, br.height - 2);
+      if (b.classList.contains('hsp')) { g.fillStyle = '#ffb000'; g.font = 'bold 12px sans-serif'; g.fillText(b.textContent, br.left - sr.left + 4, br.top - sr.top + 14); }
+    });
+    Array.prototype.forEach.call(vp.querySelectorAll('.corner'), function (c) {
+      var cr = c.getBoundingClientRect();
+      g.fillStyle = 'rgba(0,0,0,0.7)'; g.fillRect(cr.left - sr.left, cr.top - sr.top, cr.width, cr.height);
+      g.fillStyle = '#fff'; g.font = '12px sans-serif'; g.fillText(c.textContent, cr.left - sr.left + 5, cr.top - sr.top + cr.height * 0.72);
+    });
+    g.restore();
+  }
+  function agentCanvas() {
+    var st = $('stage'), sr = st.getBoundingClientRect();
+    var imgs = Array.prototype.slice.call(st.querySelectorAll('img.base, img.heat'));
+    return Promise.all(imgs.map(function (im) { return im.decode ? im.decode().catch(function () { /* drawn blank */ }) : null; })).then(function () {
+      var c = document.createElement('canvas');
+      c.width = Math.max(1, Math.round(sr.width)); c.height = Math.max(1, Math.round(sr.height));
+      var g = c.getContext('2d');
+      g.fillStyle = getComputedStyle(document.body).backgroundColor || '#000';
+      g.fillRect(0, 0, c.width, c.height);
+      g.imageSmoothingEnabled = !(S.scale > 1.0001);
+      var f = st.style.getPropertyValue('--f');
+      Array.prototype.forEach.call(st.querySelectorAll('.vp'), function (vp) { drawVp(g, vp, sr, f); });
+      Array.prototype.forEach.call(st.querySelectorAll('.pane-h b'), function (b) {
+        var br = b.getBoundingClientRect();
+        g.fillStyle = getComputedStyle(document.body).color; g.font = 'bold 13px sans-serif';
+        g.fillText(b.textContent, br.left - sr.left, br.top - sr.top + 13);
+      });
+      return c;
+    });
+  }
+  function mergeDecisions(d) {
+    if (!d || !Array.isArray(d.sets)) return;
+    d.sets.forEach(function (s) {
+      props[s.name] = s.proposals || [];
+      if (s.decision && !(dec[s.name] && dec[s.name].decision)) {
+        var e = entry(s.name);
+        e.decision = s.decision;
+        if (!e.note && s.note) e.note = s.note;
+      }
+    });
+  }
+  function proposal() {
+    var ap = A.acceptProposal(props[cur().name]);
+    return ap && (ap.answer === 'accept' || ap.answer === 'reject') ? ap : null;
+  }
+  function setVerdict(v) { var e = entry(cur().name); e.decision = v; touch(e); afterDecision(); }
+  // The chip for what an agent proposed for this set, above the stage.
+  function renderProposal() {
+    var slot = $('agent-slot');
+    if (!slot) return;
+    slot.textContent = '';
+    var list = props[cur().name] || [];
+    slot.hidden = !list.length;
+    if (list.length) slot.appendChild(A.proposalBar(list, (dec[cur().name] || {}).decision, setVerdict).el);
+  }
+
   function init() {
     load();
+    mergeDecisions(window.__flipdiffDecisions);
+    var sv0 = window.FLIPDIFF_SERVE;
+    if (sv0 && sv0.session) {
+      fetch('/api/session/' + sv0.session + '/decisions').then(function (r) { return r.ok ? r.json() : null; })
+        .then(function (d) { if (d) { mergeDecisions(d); renderSets(); renderDecision(); } }).catch(function () { /* offline: the page works without proposals */ });
+    }
     if (!D.sets.length) { $('stage').appendChild(el('p', { class: 'note-msg', text: 'No images found in the given directories.' })); return; }
     seg('seg-layout', 'data-v', function (v) { S.layout = v; renderToolbar(); renderStage(); });
     seg('seg-tool', 'data-v', function (v) { S.tool = v; renderToolbar(); $('stage').classList.toggle('tool-roi', v === 'roi'); });
@@ -920,8 +1234,8 @@
     $('rate').addEventListener('input', function (e) { S.rate = Number(e.target.value); renderToolbar(); renderStage(); });
     $('pause').addEventListener('click', function () { S.paused = !S.paused; renderToolbar(); renderStage(); });
     $('opa').addEventListener('input', function (e) { S.opacity = Number(e.target.value); $('stage').style.setProperty('--opa', S.opacity); });
-    $('prev').addEventListener('click', function () { selectSet(S.set - 1); });
-    $('next').addEventListener('click', function () { selectSet(S.set + 1); });
+    $('prev').addEventListener('click', function () { step(-1); });
+    $('next').addEventListener('click', function () { step(1); });
     $('setsel').addEventListener('change', function (e) { selectSet(Number(e.target.value)); });
     $('export').addEventListener('click', exportDecisions);
     $('reveal').addEventListener('click', function () { $('keyfile').click(); });
@@ -937,7 +1251,7 @@
             window.alert('That file is not the blind key of this view (labels or seed differ).');
             return;
           }
-          KEY = k.labels; S.revealed = true; rerenderAll();
+          KEY = k.labels; KEYSETS = k.sets || null; S.revealed = true; rerenderAll();
         } catch (err) { window.alert('Could not read the blind key: ' + err); }
       };
       r.readAsText(f);
@@ -955,7 +1269,22 @@
       else if (e.key === ' ' && !typing(e.target)) e.preventDefault();
     });
     renderMeta();
-    selectSet(0);
+    S.sort = hasFlip() ? 'worst' : 'name';
+    var bl = window.FLIPDIFF_SERVE && window.FLIPDIFF_SERVE.browse;
+    if (bl) { $('browse').href = bl; $('browse').hidden = false; }
+    computeOrder();
+    renderTriage();
+    selectSet(S.visible.length ? S.visible[0] : 0);
+    agent = A.create({
+      nameKey: 'set', blind: D.blind, defaults: { split: 0.5 },
+      get: agentGet, apply: agentApply,
+      names: function () {
+        return D.sets.map(function (s) { return { name: s.name, status: hideInfo() ? null : (s.status || null), value: hideInfo() || s.worst_flip == null ? null : s.worst_flip }; });
+      },
+      step: step, canvas: agentCanvas
+    });
+    A.bindCopy($('copy-link'), agent);
+    agent.applyHash();
   }
   init();
 })();

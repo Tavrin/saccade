@@ -44,6 +44,18 @@ inputs:
     description: Create or update one pull-request comment with the summary (pull_request events only; needs pull-requests write permission, and is skipped with a warning when the token is read-only, for example on fork PRs). Set to 'false' to disable.
     required: false
     default: 'true'
+  update-baselines:
+    description: Open a baseline-update PR on workflow_dispatch only. Requires contents write and pull-requests write; never runs on fork PRs.
+    required: false
+    default: 'false'
+  update-branch-prefix:
+    description: Prefix for the new baseline-update branch, suffixed with the run ID.
+    required: false
+    default: flipdiff/update-baselines
+  update-prune-missing:
+    description: With update-baselines, also delete missing baselines through approve --prune-missing. Explicit opt-in.
+    required: false
+    default: 'false'
   github-token:
     description: Token used to post the comment and to download the prebuilt release binary.
     required: false
@@ -249,6 +261,70 @@ runs:
           gh api --method POST "repos/$REPO/issues/$PR_NUMBER/comments" -F body=@"$SUMMARY_PATH" >/dev/null \
             || echo "::warning::Could not create the flipdiff comment (read-only token on a fork PR?)."
         fi
+
+    - name: Open baseline-update pull request
+      id: update
+      if: ${{ inputs.update-baselines == 'true' && github.event_name == 'workflow_dispatch' && !github.event.pull_request.head.repo.fork && (steps.compare.outputs.exit-code == '0' || steps.compare.outputs.exit-code == '1') && steps.summary.outputs.path != '' && steps.upload.outputs.artifact-url != '' }}
+      shell: bash
+      env:
+        GH_TOKEN: ${{ inputs.github-token }}
+        REPO: ${{ github.repository }}
+        SERVER_URL: ${{ github.server_url }}
+        BASE_BRANCH: ${{ github.ref_name }}
+        REF_TYPE: ${{ github.ref_type }}
+        EVENT_NAME: ${{ github.event_name }}
+        FORK: ${{ github.event.pull_request.head.repo.fork }}
+        RUN_ID: ${{ github.run_id }}
+        BRANCH_PREFIX: ${{ inputs.update-branch-prefix }}
+        BASELINE_DIR: ${{ inputs.baseline-dir }}
+        CAPTURE_DIR: ${{ inputs.capture-dir }}
+        REPORT_DIR: ${{ inputs.report-dir }}
+        PRUNE_MISSING: ${{ inputs.update-prune-missing }}
+        SUMMARY_PATH: ${{ steps.summary.outputs.path }}
+      run: |
+        set -euo pipefail
+        # Keep the event/fork checks at the write boundary as well as in `if`.
+        if [ "$EVENT_NAME" != workflow_dispatch ] || [ "$FORK" = true ] || [ "$REF_TYPE" != branch ]; then
+          echo "::error::Baseline updates require a trusted workflow_dispatch on a branch."
+          exit 2
+        fi
+        cd "$GITHUB_WORKSPACE"
+        workspace="$(pwd -P)"
+        baseline_abs="$(cd "$BASELINE_DIR" && pwd -P)"
+        case "$baseline_abs" in
+          "$workspace"/*) baseline_rel="${baseline_abs#"$workspace"/}" ;;
+          *) echo "::error::The baseline directory must be inside the checked-out repository."; exit 2 ;;
+        esac
+        branch="$BRANCH_PREFIX-$RUN_ID"
+        git check-ref-format --branch "$branch" >/dev/null
+        if ! git diff --quiet || ! git diff --cached --quiet; then
+          echo "::error::Baseline updates require a clean tracked checkout and no staged changes."
+          exit 2
+        fi
+        # The checkout's credentials must allow contents: write; gh uses GH_TOKEN
+        # for pull-requests: write. Fail rather than swallowing permission errors.
+        args=(approve "$CAPTURE_DIR" "$baseline_abs" --all-failing "$REPORT_DIR/flipdiff-report.v1.json" --json)
+        [ "$PRUNE_MISSING" = true ] && args+=(--prune-missing)
+        approval="$RUNNER_TEMP/flipdiff-approved-$RUN_ID.json"
+        flipdiff "${args[@]}" > "$approval"
+        changed_paths="$RUNNER_TEMP/flipdiff-approved-$RUN_ID.paths"
+        jq -j '.copied[].to, .pruned[] | . + "\u0000"' "$approval" > "$changed_paths"
+        while IFS= read -r -d '' changed; do
+          case "$changed" in
+            "$workspace/$baseline_rel"/*) git --literal-pathspecs add -- "$changed" ;;
+            *) echo "::error::approve returned a path outside the baseline directory."; exit 2 ;;
+          esac
+        done < "$changed_paths"
+        if git diff --cached --quiet; then
+          echo "No baselines changed; no pull request needed."
+          exit 0
+        fi
+        git switch -c "$branch"
+        git -c user.name='github-actions[bot]' -c user.email='41898282+github-actions[bot]@users.noreply.github.com' \
+          commit -m "Update flipdiff baselines (run $RUN_ID)"
+        git push "$SERVER_URL/$REPO.git" "HEAD:refs/heads/$branch"
+        gh pr create --repo "$REPO" --base "$BASE_BRANCH" --head "$branch" \
+          --title "Update flipdiff baselines (run $RUN_ID)" --body-file "$SUMMARY_PATH"
 
     - name: Fail on regression
       if: ${{ always() }}

@@ -53,6 +53,10 @@ pub enum Error {
     /// A configuration file or glob pattern is invalid.
     #[error("invalid configuration: {0}")]
     Config(String),
+    /// An output directory exists, is not empty and is not a previous flipdiff
+    /// output; nothing in it is cleared or overwritten.
+    #[error("{0}")]
+    NotEmptyOutDir(String),
     /// Report (de)serialization failed.
     #[error("report JSON error: {0}")]
     Json(#[from] serde_json::Error),

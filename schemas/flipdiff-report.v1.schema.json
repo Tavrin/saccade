@@ -1,59 +1,349 @@
 {
-  "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "title": "Report",
-  "description": "One comparison run over a baseline directory and a capture directory.",
-  "type": "object",
-  "properties": {
-    "config": {
-      "description": "Effective run-wide settings (per-entry overrides live on each entry).",
-      "$ref": "#/$defs/ReportConfig"
-    },
-    "entries": {
-      "description": "One entry per image name seen in either directory, sorted by `name`.",
-      "type": "array",
-      "items": {
-        "$ref": "#/$defs/Entry"
-      }
-    },
-    "generated_at_unix": {
-      "description": "Seconds since the Unix epoch when the run finished.",
-      "type": "integer",
-      "format": "uint64",
-      "minimum": 0
-    },
-    "schema": {
-      "description": "Always [`REPORT_SCHEMA`].",
-      "type": "string"
-    },
-    "tool_version": {
-      "description": "Version of the tool that produced the report (`CARGO_PKG_VERSION`).",
-      "type": "string"
-    },
-    "totals": {
-      "description": "Counts per status; always consistent with `entries`.",
-      "$ref": "#/$defs/Totals"
-    }
-  },
-  "required": [
-    "schema",
-    "tool_version",
-    "generated_at_unix",
-    "config",
-    "totals",
-    "entries"
-  ],
   "$defs": {
+    "BufferKind": {
+      "description": "Meaning of the samples in a non-colour image.",
+      "oneOf": [
+        {
+          "const": "depth",
+          "description": "Normalised depth, or linear floating-point depth.",
+          "type": "string"
+        },
+        {
+          "const": "normal",
+          "description": "Unit surface normals.",
+          "type": "string"
+        },
+        {
+          "const": "motion",
+          "description": "Two-dimensional motion vectors.",
+          "type": "string"
+        },
+        {
+          "const": "mask",
+          "description": "Exact discrete mask samples.",
+          "type": "string"
+        },
+        {
+          "const": "id",
+          "description": "Exact discrete identifier samples.",
+          "type": "string"
+        }
+      ]
+    },
+    "BufferResult": {
+      "description": "Additive `Entry.buffer` payload.",
+      "properties": {
+        "encoding": {
+          "description": "Effective encoding.",
+          "type": "string"
+        },
+        "heatmap_max": {
+          "description": "Value represented by the top of the heatmap colormap (zero is black).",
+          "format": "double",
+          "type": "number"
+        },
+        "kind": {
+          "$ref": "#/$defs/BufferKind",
+          "description": "Buffer meaning."
+        },
+        "metric": {
+          "$ref": "#/$defs/Metric",
+          "description": "Deciding statistic."
+        },
+        "scale": {
+          "description": "Motion-vector scale, in pixels per signed component unit.",
+          "format": "double",
+          "type": "number"
+        },
+        "stats": {
+          "$ref": "#/$defs/BufferStats",
+          "description": "Per-kind numerical statistics."
+        },
+        "threshold": {
+          "description": "Pass limit in `unit`.",
+          "format": "double",
+          "type": "number"
+        },
+        "unit": {
+          "description": "`depth`, `degrees`, `pixels` or `changed_fraction`.",
+          "type": "string"
+        },
+        "value": {
+          "description": "Deciding value in `unit`.",
+          "format": "double",
+          "type": "number"
+        }
+      },
+      "required": [
+        "kind",
+        "encoding",
+        "unit",
+        "scale",
+        "metric",
+        "value",
+        "threshold",
+        "stats",
+        "heatmap_max"
+      ],
+      "type": "object"
+    },
+    "BufferStats": {
+      "description": "Statistics in the buffer's units, rather than perceptual FLIP units.",
+      "properties": {
+        "changed_pixels": {
+          "description": "Mask/id only: number of changed pixels.",
+          "format": "uint64",
+          "minimum": 0,
+          "type": [
+            "integer",
+            "null"
+          ]
+        },
+        "exact_match_fraction": {
+          "description": "Mask/id only: fraction of pixels with identical native samples, including alpha.",
+          "format": "double",
+          "type": [
+            "number",
+            "null"
+          ]
+        },
+        "max": {
+          "description": "Largest per-pixel error.",
+          "format": "double",
+          "type": "number"
+        },
+        "max_relative": {
+          "description": "Depth only: maximum relative error.",
+          "format": "double",
+          "type": [
+            "number",
+            "null"
+          ]
+        },
+        "mean": {
+          "description": "Mean absolute depth, angular or end-point error; changed fraction for discrete buffers.",
+          "format": "double",
+          "type": "number"
+        },
+        "mean_relative": {
+          "description": "Depth only: mean `abs(capture-base) / max(abs(base), 1e-12)`.",
+          "format": "double",
+          "type": [
+            "number",
+            "null"
+          ]
+        },
+        "p95": {
+          "description": "Nearest-rank 95th percentile.",
+          "format": "double",
+          "type": "number"
+        },
+        "p99": {
+          "description": "Nearest-rank 99th percentile.",
+          "format": "double",
+          "type": "number"
+        }
+      },
+      "required": [
+        "mean",
+        "max",
+        "p95",
+        "p99"
+      ],
+      "type": "object"
+    },
+    "ChangeClass": {
+      "description": "What kind of change separates the capture from the baseline.",
+      "oneOf": [
+        {
+          "const": "identical",
+          "description": "Decoded pixels are exactly equal.",
+          "type": "string"
+        },
+        {
+          "const": "noise",
+          "description": "A difference whose peak FLIP is at or below `noise_max_flip` and that\nno tone shift or offset explains.",
+          "type": "string"
+        },
+        {
+          "const": "global_tone",
+          "description": "One global tone fit (exposure, tint, black level) removes at least\n`explained_min` of the error.",
+          "type": "string"
+        },
+        {
+          "const": "local_structure",
+          "description": "Neither a tone fit nor an offset removes `partial_min` of the error and\nthe error is above noise level.",
+          "type": "string"
+        },
+        {
+          "const": "mixed",
+          "description": "A tone fit or an offset explains part (at least `partial_min`, below\n`explained_min`) of the error; the rest is something else.",
+          "type": "string"
+        },
+        {
+          "const": "misaligned",
+          "description": "A detected sub-pixel or whole-pixel offset removes at least\n`explained_min` of the error.",
+          "type": "string"
+        },
+        {
+          "const": "broken_frame",
+          "description": "The capture is unusable: all black or all white (the baseline is not),\na flat colour, or it holds NaN or infinite samples.",
+          "type": "string"
+        }
+      ]
+    },
+    "Diagnostics": {
+      "description": "What the diagnostics engine found for one compared pair.",
+      "properties": {
+        "class": {
+          "$ref": "#/$defs/ChangeClass",
+          "description": "The kind of change."
+        },
+        "description": {
+          "description": "A deterministic, template-based sentence; every cause it names is\nbacked by the numbers below.",
+          "type": "string"
+        },
+        "elapsed_ms": {
+          "default": 0.0,
+          "description": "Wall time of the whole analysis in milliseconds.",
+          "format": "double",
+          "type": "number"
+        },
+        "nonfinite": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/NonFiniteMap"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Non-finite samples of the capture; `None` when there are none."
+        },
+        "perf": {
+          "default": [],
+          "description": "Timing keys present on both sides' sidecars, largest relative change first.",
+          "items": {
+            "$ref": "#/$defs/PerfDelta"
+          },
+          "type": "array"
+        },
+        "residual": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Residual"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Error left after the tone fit; present exactly when `tone` is."
+        },
+        "shift": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/ShiftEstimate"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Sub-pixel shift; `None` when disabled, identical or negligible."
+        },
+        "signed": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/SignedDiff"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Luminance direction; `None` for an identical pair."
+        },
+        "tone": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/ToneShift"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Global tone fit; `None` for an identical pair or a negligible error."
+        }
+      },
+      "required": [
+        "class",
+        "description"
+      ],
+      "type": "object"
+    },
     "Entry": {
       "description": "One image name's comparison result.",
-      "type": "object",
       "properties": {
+        "baseline_properties": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Properties"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Structural checks on the baseline; `None` when there is no decodable baseline."
+        },
+        "baseline_sha256": {
+          "default": null,
+          "description": "SHA-256 (hex) of the baseline file as compared.",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
         "bit_identical": {
+          "default": null,
           "description": "Whether the decoded pixels are exactly equal; `None` unless compared.",
           "type": [
             "boolean",
             "null"
+          ]
+        },
+        "buffer": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/BufferResult"
+            },
+            {
+              "type": "null"
+            }
           ],
-          "default": null
+          "description": "Numerical comparison for non-colour buffers; FLIP metrics stay absent."
+        },
+        "capture_sha256": {
+          "default": null,
+          "description": "SHA-256 (hex) of the capture file as compared.",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "diagnostics": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Diagnostics"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "Why the images differ: cause decomposition, sub-pixel shift, signed\ndifference, non-finite map, timing pairs and a plain-English\ndescription (see [`crate::diagnostics`]). `None` when diagnostics are\ndisabled or the pair was not compared as images."
         },
         "error": {
           "description": "Human-readable reason; `Some` exactly when status is error.",
@@ -63,7 +353,6 @@
           ]
         },
         "hdr": {
-          "description": "HDR-FLIP settings when the pair was compared as HDR.",
           "anyOf": [
             {
               "$ref": "#/$defs/HdrInfo"
@@ -72,39 +361,47 @@
               "type": "null"
             }
           ],
-          "default": null
+          "default": null,
+          "description": "HDR-FLIP settings when the pair was compared as HDR."
         },
         "hotspots": {
-          "description": "Where the FLIP error is concentrated, largest first (see\n[`crate::hotspots`]); empty when none exceed the threshold, when the\npair was not compared or when hotspots are disabled.",
-          "type": "array",
           "default": [],
+          "description": "Where the FLIP error is concentrated, largest first (see\n[`crate::hotspots`]); empty when none exceed the threshold, when the\npair was not compared or when hotspots are disabled.",
           "items": {
             "$ref": "#/$defs/Hotspot"
-          }
+          },
+          "type": "array"
         },
         "masked_fraction": {
+          "default": null,
           "description": "Fraction of pixels excluded by masks; `None` when no mask applied.",
+          "format": "double",
           "type": [
             "number",
             "null"
-          ],
-          "format": "double",
-          "default": null
+          ]
         },
         "meta_diff": {
-          "description": "Sidecar keys that differ between the sides (ignored keys excluded).",
-          "type": "array",
           "default": [],
+          "description": "Sidecar keys that differ between the sides (ignored keys excluded).",
           "items": {
             "$ref": "#/$defs/MetaDiff"
-          }
+          },
+          "type": "array"
+        },
+        "meta_ignored_diff": {
+          "default": [],
+          "description": "Sidecar keys that differ but were ignored (timestamps, durations...),\nlisted so an ignore glob that hides a real change stays visible.",
+          "items": {
+            "$ref": "#/$defs/MetaDiff"
+          },
+          "type": "array"
         },
         "metric_used": {
-          "description": "Metric that decided `status` for this entry (after overrides).",
-          "$ref": "#/$defs/Metric"
+          "$ref": "#/$defs/Metric",
+          "description": "Metric that decided `status` for this entry (after overrides)."
         },
         "metrics": {
-          "description": "Full FLIP statistics; `None` unless status is pass or fail.",
           "anyOf": [
             {
               "$ref": "#/$defs/Metrics"
@@ -112,18 +409,18 @@
             {
               "type": "null"
             }
-          ]
+          ],
+          "description": "Full FLIP statistics; `None` unless status is pass or fail."
         },
         "name": {
           "description": "Path relative to the baseline/capture roots, `/`-separated.",
           "type": "string"
         },
         "paths": {
-          "description": "Image paths relative to the report directory.",
-          "$ref": "#/$defs/EntryPaths"
+          "$ref": "#/$defs/EntryPaths",
+          "description": "Image paths relative to the report directory."
         },
         "properties": {
-          "description": "Structural checks on the capture; `None` when there is no decodable capture.",
           "anyOf": [
             {
               "$ref": "#/$defs/Properties"
@@ -131,32 +428,41 @@
             {
               "type": "null"
             }
-          ]
+          ],
+          "description": "Structural checks on the capture; `None` when there is no decodable capture."
         },
         "regions": {
-          "description": "Per-region results (config `[[region]]`); a failing region fails the entry.",
-          "type": "array",
           "default": [],
+          "description": "Per-region results (config `[[region]]`); a failing region fails the entry.",
           "items": {
             "$ref": "#/$defs/RegionResult"
-          }
+          },
+          "type": "array"
         },
         "status": {
-          "description": "Outcome.",
-          "$ref": "#/$defs/Status"
+          "$ref": "#/$defs/Status",
+          "description": "Outcome."
         },
         "threshold": {
           "description": "Threshold that decided `status` for this entry (after overrides).",
-          "type": "number",
-          "format": "double"
+          "format": "double",
+          "type": "number"
         },
         "value": {
           "description": "Value of `metric_used`; `None` unless status is pass or fail.",
+          "format": "double",
           "type": [
             "number",
             "null"
-          ],
-          "format": "double"
+          ]
+        },
+        "warnings": {
+          "default": [],
+          "description": "Non-fatal observations: an all-black or all-white image, non-finite\nsamples, a local hotspot that failed an otherwise passing entry.",
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
         }
       },
       "required": [
@@ -165,11 +471,11 @@
         "metric_used",
         "threshold",
         "paths"
-      ]
+      ],
+      "type": "object"
     },
     "EntryPaths": {
       "description": "Paths (relative to the report directory, `/`-separated) of the images the\nreport copies or generates. `None` when that image does not exist.",
-      "type": "object",
       "properties": {
         "baseline": {
           "description": "Copy of the baseline image.",
@@ -191,12 +497,28 @@
             "string",
             "null"
           ]
+        },
+        "nonfinite_mask": {
+          "default": null,
+          "description": "Mask of NaN (magenta), infinite (yellow) and negative (cyan) samples of\nan HDR capture, when it has any.",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "signed_diff": {
+          "default": null,
+          "description": "Signed luminance difference (blue darker, orange brighter), when\ndiagnostics ran on a non-identical pair.",
+          "type": [
+            "string",
+            "null"
+          ]
         }
-      }
+      },
+      "type": "object"
     },
     "HdrInfo": {
       "description": "HDR comparison settings actually used for an entry (HDR-FLIP).",
-      "type": "object",
       "properties": {
         "auto_range": {
           "description": "Whether the exposure range was computed from the baseline (true) or given.",
@@ -204,19 +526,19 @@
         },
         "num_exposures": {
           "description": "Number of exposures evaluated.",
-          "type": "integer",
           "format": "uint32",
-          "minimum": 0
+          "minimum": 0,
+          "type": "integer"
         },
         "start_exposure": {
           "description": "First exposure, in stops.",
-          "type": "number",
-          "format": "float"
+          "format": "float",
+          "type": "number"
         },
         "stop_exposure": {
           "description": "Last exposure, in stops.",
-          "type": "number",
-          "format": "float"
+          "format": "float",
+          "type": "number"
         },
         "tonemapper": {
           "description": "Tone mapper applied at each exposure (`\"aces\"`, `\"hable\"`, `\"reinhard\"`).",
@@ -229,32 +551,32 @@
         "stop_exposure",
         "num_exposures",
         "auto_range"
-      ]
+      ],
+      "type": "object"
     },
     "Hotspot": {
       "description": "One concentration of FLIP error on the frame, in pixels of the compared\nimages. Masked pixels never count.",
-      "type": "object",
       "properties": {
         "area_frac": {
           "description": "`area_px` as a fraction of the frame.",
-          "type": "number",
-          "format": "double"
+          "format": "double",
+          "type": "number"
         },
         "area_px": {
           "description": "Number of pixels above the hotspot threshold that make up the hotspot.",
-          "type": "integer",
           "format": "uint64",
-          "minimum": 0
+          "minimum": 0,
+          "type": "integer"
         },
         "max_flip": {
           "description": "Largest FLIP error inside `rect_px`.",
-          "type": "number",
-          "format": "double"
+          "format": "double",
+          "type": "number"
         },
         "mean_flip": {
           "description": "Mean FLIP error over the unmasked pixels inside `rect_px`.",
-          "type": "number",
-          "format": "double"
+          "format": "double",
+          "type": "number"
         },
         "position": {
           "description": "Coarse 3x3 position of the box centre: `top-left`, `top-center`,\n`top-right`, `middle-left`, `center`, `middle-right`, `bottom-left`,\n`bottom-center`, `bottom-right`.",
@@ -262,29 +584,29 @@
         },
         "rect_frac": {
           "description": "The same box as fractions of the frame, `[x, y, w, h]`.",
-          "type": "array",
           "items": {
-            "type": "number",
-            "format": "double"
+            "format": "double",
+            "type": "number"
           },
           "maxItems": 4,
-          "minItems": 4
+          "minItems": 4,
+          "type": "array"
         },
         "rect_px": {
           "description": "Bounding box `[x, y, w, h]` in pixels.",
-          "type": "array",
           "items": {
-            "type": "integer",
             "format": "uint32",
-            "minimum": 0
+            "minimum": 0,
+            "type": "integer"
           },
           "maxItems": 4,
-          "minItems": 4
+          "minItems": 4,
+          "type": "array"
         },
         "share_of_total_error": {
           "description": "Summed error of the hotspot's pixels over the summed error of every\nunmasked pixel of the frame, in `[0, 1]`.",
-          "type": "number",
-          "format": "double"
+          "format": "double",
+          "type": "number"
         }
       },
       "required": [
@@ -296,11 +618,11 @@
         "max_flip",
         "share_of_total_error",
         "position"
-      ]
+      ],
+      "type": "object"
     },
     "Labels": {
       "description": "Display names of the two compared sides.",
-      "type": "object",
       "properties": {
         "baseline": {
           "description": "Name of the reference side (FLIP reference). Default `\"baseline\"`.",
@@ -314,11 +636,11 @@
       "required": [
         "baseline",
         "capture"
-      ]
+      ],
+      "type": "object"
     },
     "MetaDiff": {
       "description": "One metadata key whose value differs between the two sides.",
-      "type": "object",
       "properties": {
         "baseline": {
           "description": "Value on the baseline side, or `<absent>`.",
@@ -337,25 +659,25 @@
         "key",
         "baseline",
         "capture"
-      ]
+      ],
+      "type": "object"
     },
     "MetaSettings": {
       "description": "Metadata-sidecar settings recorded for reproducibility.",
-      "type": "object",
       "properties": {
         "declared": {
           "description": "Keys whose difference is declared (expected) and therefore allowed.",
-          "type": "array",
           "items": {
             "type": "string"
-          }
+          },
+          "type": "array"
         },
         "ignored": {
           "description": "Effective ignore globs (built-in defaults plus `--meta-ignore`).",
-          "type": "array",
           "items": {
             "type": "string"
-          }
+          },
+          "type": "array"
         },
         "name": {
           "description": "Sidecar file name (the per-image sidecar is `<stem>.<name>`).",
@@ -371,125 +693,247 @@
         "required",
         "declared",
         "ignored"
-      ]
+      ],
+      "type": "object"
     },
     "Metric": {
       "description": "Which statistic of the FLIP error map decides pass/fail.",
       "oneOf": [
         {
+          "const": "mean",
           "description": "Mean FLIP error over all pixels.",
-          "type": "string",
-          "const": "mean"
+          "type": "string"
         },
         {
+          "const": "p95",
           "description": "95th-percentile FLIP error.",
-          "type": "string",
-          "const": "p95"
+          "type": "string"
         },
         {
+          "const": "p99",
+          "description": "99th-percentile FLIP error.",
+          "type": "string"
+        },
+        {
+          "const": "max",
           "description": "Maximum FLIP error.",
-          "type": "string",
-          "const": "max"
+          "type": "string"
         }
       ]
     },
     "Metrics": {
       "description": "FLIP error-map statistics. All error values are in `[0, 1]`; a non-finite\nvalue (which a valid run does not produce) is serialized as `null` and read\nback as NaN.",
-      "type": "object",
       "properties": {
         "frac_above_0_1": {
           "description": "Fraction of pixels with error > 0.1.",
+          "format": "double",
           "type": [
             "number",
             "null"
-          ],
-          "format": "double"
+          ]
         },
         "frac_above_0_5": {
           "description": "Fraction of pixels with error > 0.5.",
+          "format": "double",
           "type": [
             "number",
             "null"
-          ],
-          "format": "double"
+          ]
         },
         "height": {
           "description": "Image height in pixels.",
-          "type": "integer",
           "format": "uint32",
-          "minimum": 0
+          "minimum": 0,
+          "type": "integer"
         },
         "max": {
           "description": "Maximum error.",
+          "format": "double",
           "type": [
             "number",
             "null"
-          ],
-          "format": "double"
+          ]
         },
         "mean": {
           "description": "Mean error.",
+          "format": "double",
           "type": [
             "number",
             "null"
-          ],
-          "format": "double"
+          ]
         },
         "p50": {
           "description": "Median error.",
+          "format": "double",
           "type": [
             "number",
             "null"
-          ],
-          "format": "double"
+          ]
         },
         "p95": {
           "description": "95th-percentile error.",
+          "format": "double",
           "type": [
             "number",
             "null"
-          ],
-          "format": "double"
+          ]
         },
         "p99": {
           "description": "99th-percentile error.",
+          "format": "double",
           "type": [
             "number",
             "null"
-          ],
-          "format": "double"
+          ]
         },
         "width": {
           "description": "Image width in pixels.",
-          "type": "integer",
           "format": "uint32",
-          "minimum": 0
+          "minimum": 0,
+          "type": "integer"
         }
       },
       "required": [
         "width",
         "height"
-      ]
+      ],
+      "type": "object"
     },
     "Mode": {
       "description": "Purpose of a comparison run.",
       "oneOf": [
         {
+          "const": "regression",
           "description": "Captures checked against approved baselines (`flipdiff compare`).",
-          "type": "string",
-          "const": "regression"
+          "type": "string"
         },
         {
+          "const": "identity",
           "description": "A candidate build checked for sameness against its parent\n(`flipdiff identity`): strict defaults, bit-identity reported.",
-          "type": "string",
-          "const": "identity"
+          "type": "string"
         }
       ]
     },
+    "NonFiniteCluster": {
+      "description": "A connected group of non-finite samples.",
+      "properties": {
+        "pixels": {
+          "description": "Pixels in the cluster.",
+          "format": "uint64",
+          "minimum": 0,
+          "type": "integer"
+        },
+        "rect_px": {
+          "description": "Bounding box `[x, y, w, h]` in pixels.",
+          "items": {
+            "format": "uint32",
+            "minimum": 0,
+            "type": "integer"
+          },
+          "maxItems": 4,
+          "minItems": 4,
+          "type": "array"
+        }
+      },
+      "required": [
+        "rect_px",
+        "pixels"
+      ],
+      "type": "object"
+    },
+    "NonFiniteMap": {
+      "description": "Where the capture holds NaN, infinite or negative samples (HDR only).",
+      "properties": {
+        "cluster_count": {
+          "description": "Number of 8-connected groups of affected pixels.",
+          "format": "uint64",
+          "minimum": 0,
+          "type": "integer"
+        },
+        "clusters": {
+          "description": "Boxes of the first [`MAX_NONFINITE_CLUSTERS`] groups in raster order.",
+          "items": {
+            "$ref": "#/$defs/NonFiniteCluster"
+          },
+          "type": "array"
+        },
+        "inf": {
+          "description": "Infinite samples.",
+          "format": "uint64",
+          "minimum": 0,
+          "type": "integer"
+        },
+        "nan": {
+          "description": "NaN samples.",
+          "format": "uint64",
+          "minimum": 0,
+          "type": "integer"
+        },
+        "negative": {
+          "description": "Finite samples below zero.",
+          "format": "uint64",
+          "minimum": 0,
+          "type": "integer"
+        }
+      },
+      "required": [
+        "nan",
+        "inf",
+        "negative",
+        "cluster_count",
+        "clusters"
+      ],
+      "type": "object"
+    },
+    "PerfDelta": {
+      "description": "One timing key present on both sides.",
+      "properties": {
+        "baseline": {
+          "description": "Value on the baseline side.",
+          "format": "double",
+          "type": "number"
+        },
+        "capture": {
+          "description": "Value on the capture side.",
+          "format": "double",
+          "type": "number"
+        },
+        "delta": {
+          "description": "`capture - baseline`.",
+          "format": "double",
+          "type": "number"
+        },
+        "delta_pct": {
+          "description": "`delta` as a percentage of `baseline`; `None` when `baseline` is 0.",
+          "format": "double",
+          "type": [
+            "number",
+            "null"
+          ]
+        },
+        "key": {
+          "description": "Sidecar key.",
+          "type": "string"
+        }
+      },
+      "required": [
+        "key",
+        "baseline",
+        "capture",
+        "delta"
+      ],
+      "type": "object"
+    },
     "Properties": {
       "description": "Structural sanity checks on a single image (catches black frames, blowouts).",
-      "type": "object",
       "properties": {
+        "inf_count": {
+          "default": 0,
+          "description": "Samples that are infinite (HDR images only).",
+          "format": "uint64",
+          "minimum": 0,
+          "type": "integer"
+        },
         "is_all_black": {
           "description": "Every pixel is (0,0,0).",
           "type": "boolean"
@@ -500,18 +944,32 @@
         },
         "max_luminance": {
           "description": "Maximum Rec. 709 luminance.",
-          "type": "number",
-          "format": "float"
+          "format": "float",
+          "type": "number"
         },
         "mean_luminance": {
           "description": "Mean Rec. 709 luminance in `[0, 1]`.",
-          "type": "number",
-          "format": "float"
+          "format": "float",
+          "type": "number"
         },
         "min_luminance": {
           "description": "Minimum Rec. 709 luminance.",
-          "type": "number",
-          "format": "float"
+          "format": "float",
+          "type": "number"
+        },
+        "nan_count": {
+          "default": 0,
+          "description": "Samples that are NaN (HDR images only; always 0 for 8-bit images).",
+          "format": "uint64",
+          "minimum": 0,
+          "type": "integer"
+        },
+        "negative_count": {
+          "default": 0,
+          "description": "Finite samples below zero (HDR images only).",
+          "format": "uint64",
+          "minimum": 0,
+          "type": "integer"
         }
       },
       "required": [
@@ -520,19 +978,19 @@
         "mean_luminance",
         "min_luminance",
         "max_luminance"
-      ]
+      ],
+      "type": "object"
     },
     "RegionResult": {
       "description": "Result of one named region of interest of an entry.",
-      "type": "object",
       "properties": {
         "metric_used": {
-          "description": "Metric that decides `status`.",
-          "$ref": "#/$defs/Metric"
+          "$ref": "#/$defs/Metric",
+          "description": "Metric that decides `status`."
         },
         "metrics": {
-          "description": "FLIP statistics over the region; `width`/`height` are the region's.",
-          "$ref": "#/$defs/Metrics"
+          "$ref": "#/$defs/Metrics",
+          "description": "FLIP statistics over the region; `width`/`height` are the region's."
         },
         "name": {
           "description": "Region name from the config.",
@@ -540,17 +998,16 @@
         },
         "rect_px": {
           "description": "Rectangle in pixels after resolving the config fractions: `[x, y, w, h]`.",
-          "type": "array",
           "items": {
-            "type": "integer",
             "format": "uint32",
-            "minimum": 0
+            "minimum": 0,
+            "type": "integer"
           },
           "maxItems": 4,
-          "minItems": 4
+          "minItems": 4,
+          "type": "array"
         },
         "status": {
-          "description": "`Pass`/`Fail` when the region has a threshold; `None` when informational.",
           "anyOf": [
             {
               "$ref": "#/$defs/Status"
@@ -558,23 +1015,24 @@
             {
               "type": "null"
             }
-          ]
+          ],
+          "description": "`Pass`/`Fail` when the region has a threshold; `None` when informational."
         },
         "threshold": {
           "description": "Threshold, when the region has one.",
+          "format": "double",
           "type": [
             "number",
             "null"
-          ],
-          "format": "double"
+          ]
         },
         "value": {
           "description": "Value of `metric_used` over the region (masked pixels excluded); a\nfully masked region has no pixels and is `null` (read back as NaN).",
+          "format": "double",
           "type": [
             "number",
             "null"
-          ],
-          "format": "double"
+          ]
         }
       },
       "required": [
@@ -582,52 +1040,71 @@
         "rect_px",
         "metric_used",
         "metrics"
-      ]
+      ],
+      "type": "object"
     },
     "ReportConfig": {
       "description": "Run-wide settings recorded for reproducibility.",
-      "type": "object",
       "properties": {
+        "allow_empty": {
+          "default": false,
+          "description": "Whether a run that compared no pair is accepted (`--allow-empty`).",
+          "type": "boolean"
+        },
         "default_metric": {
-          "description": "Default metric applied when no override matches.",
-          "$ref": "#/$defs/Metric"
+          "$ref": "#/$defs/Metric",
+          "description": "Default metric applied when no override matches."
         },
         "default_threshold": {
           "description": "Default pass threshold applied when no override matches.",
-          "type": "number",
-          "format": "double"
+          "format": "double",
+          "type": "number"
         },
         "fail_on_new": {
           "description": "Whether a `new` entry fails the run.",
           "type": "boolean"
         },
+        "fail_on_nonfinite": {
+          "default": true,
+          "description": "Whether a capture with NaN or infinite samples fails its entry.",
+          "type": "boolean"
+        },
+        "hotspot_fail": {
+          "default": null,
+          "description": "Peak-error value at which a local hotspot fails an entry; `None` is off.",
+          "format": "double",
+          "type": [
+            "number",
+            "null"
+          ]
+        },
         "labels": {
-          "description": "Display names for the two sides (e.g. \"parent\" / \"candidate\").",
           "$ref": "#/$defs/Labels",
           "default": {
             "baseline": "baseline",
             "capture": "capture"
-          }
+          },
+          "description": "Display names for the two sides (e.g. \"parent\" / \"candidate\")."
         },
         "meta": {
-          "description": "How metadata sidecars were read and enforced.",
           "$ref": "#/$defs/MetaSettings",
           "default": {
             "declared": [],
             "ignored": [],
             "name": "flipdiff-meta.json",
             "required": false
-          }
+          },
+          "description": "How metadata sidecars were read and enforced."
         },
         "mode": {
-          "description": "What the run is for; changes defaults and presentation, not the model.",
           "$ref": "#/$defs/Mode",
-          "default": "regression"
+          "default": "regression",
+          "description": "What the run is for; changes defaults and presentation, not the model."
         },
         "pixels_per_degree": {
           "description": "FLIP observer setting (pixels per degree of visual angle).",
-          "type": "number",
-          "format": "float"
+          "format": "float",
+          "type": "number"
         }
       },
       "required": [
@@ -635,77 +1112,253 @@
         "default_metric",
         "pixels_per_degree",
         "fail_on_new"
-      ]
+      ],
+      "type": "object"
+    },
+    "Residual": {
+      "description": "FLIP error that remains once the global tone shift is removed.",
+      "properties": {
+        "flip_max": {
+          "description": "Maximum FLIP error of the tone-corrected capture.",
+          "format": "double",
+          "type": "number"
+        },
+        "flip_mean": {
+          "description": "Mean FLIP error of the tone-corrected capture (the original mean when\nthe tone fit is negligible).",
+          "format": "double",
+          "type": "number"
+        },
+        "hotspots": {
+          "description": "Where that error is concentrated, largest first (at most 3).",
+          "items": {
+            "$ref": "#/$defs/Hotspot"
+          },
+          "type": "array"
+        }
+      },
+      "required": [
+        "flip_mean",
+        "flip_max",
+        "hotspots"
+      ],
+      "type": "object"
+    },
+    "ShiftEstimate": {
+      "description": "Sub-pixel shift of the capture against the baseline.",
+      "properties": {
+        "coarse_downsample": {
+          "description": "Factor the first estimate's luminance plane was downsampled by.",
+          "format": "uint32",
+          "minimum": 0,
+          "type": "integer"
+        },
+        "confidence": {
+          "description": "Weighted phase coherence of the cross-spectrum around the fitted\nshift, in `[0, 1]`: 1 for a pure translation, near 0 for unrelated\ncontent.",
+          "format": "double",
+          "type": "number"
+        },
+        "detected": {
+          "description": "Whether the offset reached `shift_min_px` with `shift_min_confidence`.",
+          "type": "boolean"
+        },
+        "dx": {
+          "description": "Horizontal offset of the capture's content in pixels; positive is right.",
+          "format": "double",
+          "type": "number"
+        },
+        "dy": {
+          "description": "Vertical offset in pixels; positive is down.",
+          "format": "double",
+          "type": "number"
+        },
+        "estimate_ms": {
+          "description": "Wall time of the estimate (excluding the compensated FLIP run), in ms.",
+          "format": "double",
+          "type": "number"
+        },
+        "shift_explained_fraction": {
+          "description": "Share of the mean FLIP error removed by resampling the capture back by\n`(dx, dy)`; `None` unless `detected`.",
+          "format": "double",
+          "type": [
+            "number",
+            "null"
+          ]
+        }
+      },
+      "required": [
+        "dx",
+        "dy",
+        "confidence",
+        "detected",
+        "coarse_downsample",
+        "estimate_ms"
+      ],
+      "type": "object"
+    },
+    "SignedDiff": {
+      "description": "Which way the luminance moved, over the whole frame.",
+      "properties": {
+        "frac_brighter": {
+          "description": "Fraction of pixels brighter by more than half a code value.",
+          "format": "double",
+          "type": "number"
+        },
+        "frac_darker": {
+          "description": "Fraction of pixels darker by more than half a code value.",
+          "format": "double",
+          "type": "number"
+        },
+        "mean_delta": {
+          "description": "Mean of `capture - baseline` display luminance (encoded Rec. 709 for\nLDR, linear for HDR). Positive is brighter.",
+          "format": "double",
+          "type": "number"
+        },
+        "scale": {
+          "description": "Luminance difference mapped to full colour in `signed_diff.png` (the\n99.5th percentile of the absolute difference, at least 0.004).",
+          "format": "double",
+          "type": "number"
+        }
+      },
+      "required": [
+        "mean_delta",
+        "frac_brighter",
+        "frac_darker",
+        "scale"
+      ],
+      "type": "object"
     },
     "Status": {
       "description": "Outcome of one image name.",
       "oneOf": [
         {
+          "const": "pass",
           "description": "`value <= threshold`.",
-          "type": "string",
-          "const": "pass"
+          "type": "string"
         },
         {
+          "const": "fail",
           "description": "`value > threshold`.",
-          "type": "string",
-          "const": "fail"
+          "type": "string"
         },
         {
+          "const": "new",
           "description": "Capture present, baseline absent.",
-          "type": "string",
-          "const": "new"
+          "type": "string"
         },
         {
+          "const": "missing",
           "description": "Baseline present, capture absent.",
-          "type": "string",
-          "const": "missing"
+          "type": "string"
         },
         {
+          "const": "error",
           "description": "Could not be compared; see [`Entry::error`].",
-          "type": "string",
-          "const": "error"
+          "type": "string"
         }
       ]
     },
+    "ToneShift": {
+      "description": "Global tone fit of the capture against the baseline, in linear light.",
+      "properties": {
+        "bias": {
+          "description": "The per-channel bias, in linear light (0 when the fit was gain-only).",
+          "items": {
+            "format": "double",
+            "type": "number"
+          },
+          "maxItems": 3,
+          "minItems": 3,
+          "type": "array"
+        },
+        "exposure_stops": {
+          "description": "Exposure change in stops: `log2` of the luminance-weighted gain.\nNegative is darker.",
+          "format": "double",
+          "type": "number"
+        },
+        "gain": {
+          "description": "`capture = gain * baseline + bias`, per channel `[r, g, b]`.",
+          "items": {
+            "format": "double",
+            "type": "number"
+          },
+          "maxItems": 3,
+          "minItems": 3,
+          "type": "array"
+        },
+        "model": {
+          "description": "`affine` when gain and bias were fitted, `gain` when the baseline had\ntoo little tonal range for a bias.",
+          "type": "string"
+        },
+        "samples": {
+          "description": "Pixels the fit used.",
+          "format": "uint64",
+          "minimum": 0,
+          "type": "integer"
+        },
+        "summary": {
+          "description": "One human-readable line, for example `3.1% darker (-0.05 stops), +0.02\nred offset`.",
+          "type": "string"
+        },
+        "tone_explained_fraction": {
+          "description": "Share of the mean FLIP error removed by applying the inverse fit to the\ncapture, in `[0, 1]`; 0 when the fit is negligible.",
+          "format": "double",
+          "type": "number"
+        },
+        "white_balance": {
+          "description": "Tint relative to green, for example `warmer (red +2.1%, blue -1.8% vs\ngreen)`, or `neutral`.",
+          "type": "string"
+        }
+      },
+      "required": [
+        "gain",
+        "bias",
+        "model",
+        "exposure_stops",
+        "white_balance",
+        "summary",
+        "tone_explained_fraction",
+        "samples"
+      ],
+      "type": "object"
+    },
     "Totals": {
       "description": "Per-status counts.",
-      "type": "object",
       "properties": {
         "error": {
           "description": "Could not be compared (decode failure, dimension mismatch).",
-          "type": "integer",
           "format": "uint",
-          "minimum": 0
+          "minimum": 0,
+          "type": "integer"
         },
         "fail": {
           "description": "Entries whose metric exceeds their threshold.",
-          "type": "integer",
           "format": "uint",
-          "minimum": 0
+          "minimum": 0,
+          "type": "integer"
         },
         "missing": {
           "description": "Baseline present, capture absent.",
-          "type": "integer",
           "format": "uint",
-          "minimum": 0
+          "minimum": 0,
+          "type": "integer"
         },
         "new": {
           "description": "Capture present, baseline absent.",
-          "type": "integer",
           "format": "uint",
-          "minimum": 0
+          "minimum": 0,
+          "type": "integer"
         },
         "pass": {
           "description": "Entries whose metric is at or below their threshold.",
-          "type": "integer",
           "format": "uint",
-          "minimum": 0
+          "minimum": 0,
+          "type": "integer"
         },
         "total": {
           "description": "Number of entries.",
-          "type": "integer",
           "format": "uint",
-          "minimum": 0
+          "minimum": 0,
+          "type": "integer"
         }
       },
       "required": [
@@ -715,7 +1368,68 @@
         "new",
         "missing",
         "error"
-      ]
+      ],
+      "type": "object"
     }
-  }
+  },
+  "$id": "https://github.com/Tavrin/flipdiff/schemas/flipdiff-report.v1.schema.json",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "description": "One comparison run over a baseline directory and a capture directory.",
+  "properties": {
+    "baseline_dir": {
+      "default": null,
+      "description": "Absolute path of the baseline directory the run compared against;\n`approve` checks it against the directory it is given.",
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "capture_dir": {
+      "default": null,
+      "description": "Absolute path of the capture directory the run compared.",
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "config": {
+      "$ref": "#/$defs/ReportConfig",
+      "description": "Effective run-wide settings (per-entry overrides live on each entry)."
+    },
+    "entries": {
+      "description": "One entry per image name seen in either directory, sorted by `name`.",
+      "items": {
+        "$ref": "#/$defs/Entry"
+      },
+      "type": "array"
+    },
+    "generated_at_unix": {
+      "description": "Seconds since the Unix epoch when the run finished.",
+      "format": "uint64",
+      "minimum": 0,
+      "type": "integer"
+    },
+    "schema": {
+      "description": "Always [`REPORT_SCHEMA`].",
+      "type": "string"
+    },
+    "tool_version": {
+      "description": "Version of the tool that produced the report (`CARGO_PKG_VERSION`).",
+      "type": "string"
+    },
+    "totals": {
+      "$ref": "#/$defs/Totals",
+      "description": "Counts per status; always consistent with `entries`."
+    }
+  },
+  "required": [
+    "schema",
+    "tool_version",
+    "generated_at_unix",
+    "config",
+    "totals",
+    "entries"
+  ],
+  "title": "Report",
+  "type": "object"
 }

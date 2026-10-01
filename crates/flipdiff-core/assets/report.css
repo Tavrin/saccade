@@ -242,7 +242,7 @@ tr.detail > td { padding: 0; background: var(--surface-2); border-bottom: 1px so
 .cmp input[type=range][hidden] { display: none; }
 .cmp-tools input[type=range] { width: 110px; margin: 0; }
 /* full screen: the Fullscreen API on .cmp, or this fixed-position fallback */
-.cmp.fs-on { background: var(--bg); padding: 12px; align-content: start; overflow: auto; max-width: none; }
+.cmp.fs-on { background: #111; --text: #e6e9ef; --muted: #9099a8; --surface: #171b23; --surface-2: #1f242e; --border: #2c333f; color: var(--text); padding: 12px; align-content: start; overflow: auto; max-width: none; }
 .cmp.fs-css { position: fixed; inset: 0; z-index: 50; }
 .cmp.fs-on .cmp-wrap { border: 0; background: none; }
 .cmp.fs-on .stage { max-width: min(100%, calc((100vh - 120px) * var(--ar, 1.6))); }
@@ -293,3 +293,24 @@ td.name .badge.wide { margin-left: 8px; font-size: 11px; }
 .htab .hrow { cursor: pointer; }
 .htab .hrow:hover td { background: var(--surface-2); }
 .htab .hn { min-width: 22px; padding: 0 5px; border: 0; border-radius: 4px; background: #25d3ee; color: #00262c; font: 700 11px/18px var(--sans); cursor: pointer; }
+
+/* configuration differences: a validity warning above the images */
+.cfgwarn { background: var(--missing-bg); border: 1px solid var(--missing); border-radius: 8px; padding: 8px 12px; display: flex; flex-direction: column; gap: 6px; }
+.cfgwarn > strong { color: var(--missing); font-size: 13px; }
+.cfgwarn .rtab { background: transparent; }
+.warnbox ul { margin: 0; padding-left: 18px; font-size: 12.5px; }
+.warnbox li.nf { color: var(--fail); font-weight: 700; }
+td.name .badge.warn, td.name .badge.cfg { margin-left: 8px; font-size: 11px; }
+
+/* ---- agent state: display filter, ROI box, side layout, decision bar ---- */
+.defs { position: absolute; width: 0; height: 0; }
+.stage img, .pane img { filter: var(--f, none); }
+.stage .roi { position: absolute; border: 2px solid #00c8ff; box-sizing: border-box; pointer-events: none; }
+.stage .roi[hidden] { display: none; }
+.cmp.side .cmp-wrap, .cmp.side > input[type=range] { display: none; }
+.cmp-tools select { font: inherit; }
+.cmp-tools .evr { width: 90px; }
+.decwrap { display: grid; gap: 4px; }
+.decbar .lbl { color: var(--muted); font-size: 12.5px; font-weight: 600; }
+.toolbar .grow { flex: 1; }
+.toolbar { flex-wrap: wrap; row-gap: 6px; }

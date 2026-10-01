@@ -9,28 +9,25 @@ const DEFAULT_MAX_BYTES: usize = 60_000;
 const TABLE_HEAD: &str =
     "| Status | Image | Metric | Value | Threshold |\n|---|---|---|---:|---:|\n";
 
-/// Formats `v` with 4 significant digits, trimming trailing zeros.
+/// Formats `v` with 4 significant digits and no trimming, so a column of
+/// values has one shape (`0.01000`, `0.5000`, `123.5`); zero is `0.0000`.
 fn sig4(v: f64) -> String {
     if !v.is_finite() {
         return v.to_string();
     }
     if v == 0.0 {
-        return "0".to_string();
+        return "0.0000".to_string();
     }
     let magnitude = v.abs().log10().floor() as i32;
     let decimals = (3 - magnitude).clamp(0, 15) as usize;
-    let s = format!("{v:.decimals$}");
-    if s.contains('.') {
-        s.trim_end_matches('0').trim_end_matches('.').to_string()
-    } else {
-        s
-    }
+    format!("{v:.decimals$}")
 }
 
 fn metric_name(m: Metric) -> &'static str {
     match m {
         Metric::Mean => "mean",
         Metric::P95 => "p95",
+        Metric::P99 => "p99",
         Metric::Max => "max",
     }
 }
@@ -74,6 +71,15 @@ fn code_name(name: &str) -> String {
     format!("`{cleaned}`")
 }
 
+/// Plain text made safe for one Markdown line (sidecar keys can reach it).
+fn md_text(s: &str) -> String {
+    s.chars()
+        .map(|c| if c.is_control() { ' ' } else { c })
+        .collect::<String>()
+        .replace('|', "\\|")
+        .replace('`', "ˋ")
+}
+
 fn row(e: &Entry) -> String {
     let value = e.value.map_or_else(|| "—".to_string(), sig4);
     let threshold = if e.value.is_some() {
@@ -94,7 +100,10 @@ fn row(e: &Entry) -> String {
         "| {} | {} | {} | {} | {} |\n",
         status_label(e.status),
         name,
-        metric_name(e.metric_used),
+        e.buffer.as_ref().map_or_else(
+            || metric_name(e.metric_used).to_string(),
+            |b| format!("{} ({})", metric_name(b.metric), b.unit)
+        ),
         value,
         threshold
     )
@@ -200,6 +209,11 @@ fn heading(report: &Report) -> String {
     .collect();
     if parts.is_empty() {
         format!("### flipdiff: {icon} no images compared")
+    } else if report.is_empty_run() {
+        format!(
+            "### flipdiff: {icon} nothing compared · {}",
+            parts.join(" · ")
+        )
     } else {
         format!("### flipdiff: {icon} {}", parts.join(" · "))
     }
@@ -242,6 +256,44 @@ fn config_differs_line(report: &Report) -> Option<String> {
     ))
 }
 
+/// One line per entry with a warning or a local defect behind a passing
+/// verdict, over every entry (not only the rows shown), capped.
+fn notes_section(report: &Report) -> String {
+    const MAX_NOTES: usize = 20;
+    let mut lines = Vec::new();
+    for e in &report.entries {
+        let name = code_name(&e.name);
+        if let Some(note) = e.local_hotspot_note() {
+            lines.push(format!("- {name} ↳ {note}\n"));
+        }
+        // A passing pair is mentioned when timings come with it.
+        if let (Status::Pass, Some(d)) = (e.status, &e.diagnostics) {
+            if !d.perf.is_empty() {
+                lines.push(format!(
+                    "- {name} ↳ {}\n",
+                    md_text(&d.verdict_line(e.bit_identical))
+                ));
+            }
+        }
+        for w in &e.warnings {
+            let one_line: String = w
+                .chars()
+                .map(|c| if c.is_control() { ' ' } else { c })
+                .take(160)
+                .collect();
+            lines.push(format!("- {name} ⚠ {}\n", code_name(&one_line)));
+        }
+    }
+    let mut out: String = lines.iter().take(MAX_NOTES).map(String::as_str).collect();
+    if lines.len() > MAX_NOTES {
+        out.push_str(&format!("- …and {} more notes\n", lines.len() - MAX_NOTES));
+    }
+    if !out.is_empty() {
+        out.push('\n');
+    }
+    out
+}
+
 struct Parts<'a> {
     report: &'a Report,
     opts: &'a MarkdownOptions,
@@ -265,21 +317,32 @@ impl Parts<'_> {
                 out.push_str(&region_rows(e));
             }
             out.push('\n');
+            let mut wrote = false;
             for e in self.nonpass[..np]
                 .iter()
                 .filter(|e| e.status == Status::Fail)
             {
+                if let Some(d) = &e.diagnostics {
+                    let perf = crate::diagnostics::perf_summary(&d.perf)
+                        .map_or(String::new(), |p| format!(" · {}", md_text(&p)));
+                    out.push_str(&format!(
+                        "- {} ↳ {}: {}{perf}\n",
+                        code_name(&e.name),
+                        d.class.as_str(),
+                        md_text(&d.description)
+                    ));
+                    wrote = true;
+                }
                 if let Some(line) = crate::hotspots::summary_line(&e.hotspots) {
                     out.push_str(&format!("- {} ↳ {line}\n", code_name(&e.name)));
+                    wrote = true;
                 }
             }
-            if self.nonpass[..np]
-                .iter()
-                .any(|e| e.status == Status::Fail && !e.hotspots.is_empty())
-            {
+            if wrote {
                 out.push('\n');
             }
         }
+        out.push_str(&notes_section(self.report));
         if p > 0 {
             out.push_str(&format!(
                 "<details><summary>{} passed</summary>\n\n",
@@ -393,9 +456,9 @@ mod tests {
     #[test]
     fn four_significant_digits() {
         assert_eq!(sig4(0.012_345_67), "0.01235");
-        assert_eq!(sig4(0.01), "0.01");
-        assert_eq!(sig4(0.5), "0.5");
-        assert_eq!(sig4(0.0), "0");
+        assert_eq!(sig4(0.01), "0.01000");
+        assert_eq!(sig4(0.5), "0.5000");
+        assert_eq!(sig4(0.0), "0.0000");
         assert_eq!(sig4(123.456), "123.5");
     }
 }

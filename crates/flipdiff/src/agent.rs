@@ -1,6 +1,6 @@
-//! Machine-readable summaries shared by `summary --format json` and the MCP
-//! tools: verdict, totals, the worst entries with their hotspots, and where the
-//! report files are.
+//! Machine-readable output shared by the CLI and the MCP tools: the lean
+//! `flipdiff-result.v1` of a run, the `flipdiff-summary.v1` of a report, and
+//! the `flipdiff-error.v1` every failing command prints in JSON mode.
 
 use std::path::{Path, PathBuf};
 
@@ -10,6 +10,81 @@ use serde_json::{Value, json};
 
 /// Schema identifier of the summary object.
 pub const SUMMARY_SCHEMA: &str = "flipdiff-summary.v1";
+
+/// Schema identifier of the lean result of `compare` / `identity`.
+pub const RESULT_SCHEMA: &str = "flipdiff-result.v1";
+
+/// Schema identifier of the error object.
+pub const ERROR_SCHEMA: &str = "flipdiff-error.v1";
+
+/// A failed command: a stable machine-readable `code` and a message.
+///
+/// Codes: `usage` (bad arguments), `io` (a file cannot be read, written or
+/// decoded), `config` (a config file or setting is invalid), `unsafe_path`
+/// (a path escapes its root or goes through a symlink), `not_empty_out_dir`,
+/// `nothing_compared` and `approve_mismatch`.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct CliError {
+    /// Stable error code.
+    pub code: &'static str,
+    /// Human-readable message.
+    pub message: String,
+}
+
+impl CliError {
+    /// An error with an explicit code.
+    pub fn new(code: &'static str, message: impl Into<String>) -> Self {
+        Self {
+            code,
+            message: message.into(),
+        }
+    }
+
+    /// Bad or missing argument.
+    pub fn usage(message: impl Into<String>) -> Self {
+        Self::new("usage", message)
+    }
+
+    /// A file or stream cannot be read, written or decoded.
+    pub fn io(message: impl Into<String>) -> Self {
+        Self::new("io", message)
+    }
+
+    /// The `flipdiff-error.v1` object.
+    pub fn value(&self) -> Value {
+        json!({"schema": ERROR_SCHEMA, "code": self.code, "message": self.message})
+    }
+}
+
+impl std::fmt::Display for CliError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_str(&self.message)
+    }
+}
+
+impl From<String> for CliError {
+    fn from(message: String) -> Self {
+        Self::usage(message)
+    }
+}
+
+impl From<serde_json::Error> for CliError {
+    fn from(e: serde_json::Error) -> Self {
+        Self::io(format!("JSON error: {e}"))
+    }
+}
+
+impl From<flipdiff_core::Error> for CliError {
+    fn from(e: flipdiff_core::Error) -> Self {
+        use flipdiff_core::Error;
+        let code = match e {
+            Error::Config(_) => "config",
+            Error::NotEmptyOutDir(_) => "not_empty_out_dir",
+            _ => "io",
+        };
+        Self::new(code, e.to_string())
+    }
+}
 
 /// How many failing entries a summary lists by default.
 pub const DEFAULT_TOP_FAILING: usize = 10;
@@ -31,6 +106,7 @@ fn metric_str(m: Metric) -> &'static str {
     match m {
         Metric::Mean => "mean",
         Metric::P95 => "p95",
+        Metric::P99 => "p99",
         Metric::Max => "max",
     }
 }
@@ -96,6 +172,9 @@ fn entry_value(e: &Entry) -> Value {
             .collect::<Vec<_>>(),
         "config_differs": e.meta_diff.iter().map(|d| d.key.as_str()).collect::<Vec<_>>(),
         "hotspots": e.hotspots.iter().take(HOTSPOTS_PER_ENTRY).collect::<Vec<_>>(),
+        "buffer": e.buffer,
+        "class": e.diagnostics.as_ref().map(|d| d.class.as_str()),
+        "description": e.diagnostics.as_ref().map(|d| d.description.as_str()),
     })
 }
 
@@ -151,6 +230,9 @@ pub fn summary_text(report: &Report, value: &Value) -> String {
             format!(" {} {v:.4} > {}", metric_str(e.metric_used), e.threshold)
         });
         out.push_str(&format!("\n- {} {}{v}", status_str(e.status), e.name));
+        if let Some(d) = &e.diagnostics {
+            out.push_str(&format!("\n  {}: {}", d.class.as_str(), d.description));
+        }
         if let Some(line) = flipdiff_core::hotspots::summary_line(&e.hotspots) {
             out.push_str(&format!("\n  {line}"));
         }
@@ -162,4 +244,188 @@ pub fn summary_text(report: &Report, value: &Value) -> String {
         out.push_str(&format!("\nexplain: {p}"));
     }
     out
+}
+
+/// Rounds every non-integer number in `value` to 4 significant digits.
+pub fn round_floats(value: &mut Value) {
+    match value {
+        Value::Number(n) if n.is_f64() => {
+            if let Some(x) = n.as_f64() {
+                let rounded = format!("{x:.3e}")
+                    .parse::<f64>()
+                    .ok()
+                    .and_then(serde_json::Number::from_f64);
+                if let Some(r) = rounded {
+                    *n = r;
+                }
+            }
+        }
+        Value::Array(items) => items.iter_mut().for_each(round_floats),
+        Value::Object(map) => map.values_mut().for_each(round_floats),
+        _ => {}
+    }
+}
+
+fn lean_entry(e: &Entry) -> Value {
+    let mut v = json!({
+        "name": e.name,
+        "status": status_str(e.status),
+        "metric": metric_str(e.metric_used),
+        "value": e.value,
+        "threshold": e.threshold,
+    });
+    let Some(obj) = v.as_object_mut() else {
+        return v;
+    };
+    if let Some(err) = &e.error {
+        obj.insert("error".into(), json!(err));
+    }
+    if let Some(buffer) = &e.buffer {
+        obj.insert("buffer".into(), json!(buffer));
+    }
+    let keys: Vec<&str> = e.meta_diff.iter().map(|d| d.key.as_str()).collect();
+    if !keys.is_empty() {
+        obj.insert("config_differs".into(), json!(keys));
+    }
+    let failing_regions: Vec<&str> = e
+        .regions
+        .iter()
+        .filter(|r| r.status == Some(Status::Fail))
+        .map(|r| r.name.as_str())
+        .collect();
+    if !failing_regions.is_empty() {
+        obj.insert("failing_regions".into(), json!(failing_regions));
+    }
+    if let Some(d) = &e.diagnostics {
+        obj.insert("class".into(), json!(d.class.as_str()));
+        obj.insert("description".into(), json!(d.description));
+        if let Some(perf) = flipdiff_core::diagnostics::perf_summary(&d.perf) {
+            obj.insert("perf".into(), json!(perf));
+        }
+    }
+    let spots: Vec<Value> = e
+        .hotspots
+        .iter()
+        .take(HOTSPOTS_PER_ENTRY)
+        .map(|h| {
+            json!({
+                "rect_px": h.rect_px,
+                "position": h.position,
+                "share_of_total_error": h.share_of_total_error,
+                "mean_flip": h.mean_flip,
+                "max_flip": h.max_flip,
+            })
+        })
+        .collect();
+    if !spots.is_empty() {
+        obj.insert("hotspots".into(), Value::Array(spots));
+    }
+    v
+}
+
+/// The error a run that compared no pair (and was not told `--allow-empty`)
+/// is reported as in JSON mode; it exits 1 like any regression.
+pub fn nothing_compared(report: &Report, report_json: &Path) -> Option<CliError> {
+    report.is_empty_run().then(|| {
+        CliError::new(
+            "nothing_compared",
+            format!(
+                "no image exists in both directories, so nothing was compared (report: {}); pass --allow-empty if an empty run is fine",
+                absolute(report_json).display()
+            ),
+        )
+    })
+}
+
+/// What the agent should do next, as one sentence.
+fn next_step(report: &Report, report_json: &Path, explain_written: bool) -> String {
+    let failing = failing_entries(report);
+    let rj = report_json.display();
+    if report.is_empty_run() {
+        return "nothing was compared: no image exists in both directories; check the two paths, or pass --allow-empty if an empty run is fine".to_string();
+    }
+    let dir = |d: &Option<String>, fallback: &'static str| {
+        d.as_deref()
+            .map_or_else(|| fallback.to_string(), str::to_string)
+    };
+    let approve = format!(
+        "flipdiff approve {} {} --all-failing {rj}",
+        dir(&report.capture_dir, "<capture_dir>"),
+        dir(&report.baseline_dir, "<baseline_dir>")
+    );
+    if failing.is_empty() {
+        return match report.totals.new {
+            0 => "no regression: nothing to do".to_string(),
+            n => format!(
+                "no regression; {n} new image(s) have no baseline: adopt them with `{approve}` if intended"
+            ),
+        };
+    }
+    let only_config = failing
+        .iter()
+        .all(|e| e.status == Status::Error && !e.meta_diff.is_empty());
+    if only_config {
+        return "config differs: declare the keys with --declare (and --require-matching-meta) or fix the capture setup, then rerun".to_string();
+    }
+    let has_fail = failing.iter().any(|e| e.status == Status::Fail);
+    if has_fail {
+        let look = if explain_written {
+            "inspect the strips in the explain pack (paths.explain_md)".to_string()
+        } else {
+            format!("run `flipdiff explain {rj}` and inspect the strips")
+        };
+        return format!("{look}; approve with `{approve}` if the change is intended");
+    }
+    if failing.iter().any(|e| e.status == Status::Missing) {
+        return format!(
+            "captures are missing for some baselines: capture them, or drop the baselines with `{approve} --prune-missing`"
+        );
+    }
+    "fix the errors listed in `failing[].error` (unreadable or mismatched images), then rerun"
+        .to_string()
+}
+
+/// The lean `flipdiff-result.v1` printed by `compare --json` and
+/// `identity --json` and returned by the MCP run tools: verdict, totals, the
+/// failing entries (value, threshold, top-3 hotspots, config-diff keys), the
+/// report paths and a `next_step`. Floats carry 4 significant digits; paths
+/// are absolute.
+pub fn result_value(
+    report: &Report,
+    report_json: &Path,
+    top: usize,
+    explain_written: bool,
+) -> Value {
+    let failing = failing_entries(report);
+    let report_json = absolute(report_json);
+    let dir = report_json
+        .parent()
+        .map_or_else(|| PathBuf::from("."), Path::to_path_buf);
+    let existing = |p: PathBuf| p.is_file().then(|| p.display().to_string());
+    let explain_dir = dir.join("explain");
+    let mut v = json!({
+        "schema": RESULT_SCHEMA,
+        "verdict": if report.is_regression() { "regression" } else { "pass" },
+        "mode": serde_json::to_value(report.config.mode).unwrap_or(Value::Null),
+        "totals": report.totals,
+        "failing": failing.iter().take(top).map(|e| lean_entry(e)).collect::<Vec<_>>(),
+        "failing_omitted": failing.len().saturating_sub(top),
+        "paths": {
+            "report_json": report_json.display().to_string(),
+            "index_html": existing(dir.join("index.html")),
+            "explain_md": existing(explain_dir.join("explain.md")),
+        },
+        "next_step": next_step(report, &report_json, explain_written),
+    });
+    let warnings: Vec<String> = report
+        .entries
+        .iter()
+        .flat_map(|e| e.warnings.iter().map(move |w| format!("{}: {w}", e.name)))
+        .take(5)
+        .collect();
+    if let (false, Some(obj)) = (warnings.is_empty(), v.as_object_mut()) {
+        obj.insert("warnings".into(), json!(warnings));
+    }
+    round_floats(&mut v);
+    v
 }

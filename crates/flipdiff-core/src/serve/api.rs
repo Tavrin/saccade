@@ -10,11 +10,13 @@ use serde::Serialize;
 use tiny_http::{Header, Method, Request, Response, StatusCode};
 
 use super::browse::{
-    PathError, SearchQuery, hash128, is_image_name, list, rel_of, resolve_under, search, thumbnail,
+    PathError, SearchQuery, THUMB_EDGE, hash128, images, is_image_name, list, rel_in, rel_of,
+    resolve_in, resolve_under, search, thumbnail,
 };
+use super::overview::{self, pct_encode};
 use super::session::{
     self, Spec, decisions_path, ensure, is_built, is_session_id, recent_decisions, session_dir,
-    stage_pair,
+    stage_images, stage_named, stage_pair,
 };
 use super::{State, ct_eq};
 use crate::view::{DECISIONS_SCHEMA, Decisions, MAX_DIRS, MIN_DIRS, is_safe_name};
@@ -22,6 +24,9 @@ use crate::view::{DECISIONS_SCHEMA, Decisions, MAX_DIRS, MIN_DIRS, is_safe_name}
 const PAGE: &str = include_str!("../../assets/serve.html");
 const CSS: &str = include_str!("../../assets/serve.css");
 const JS: &str = include_str!("../../assets/serve.js");
+/// Runs in a served session page: the link back to the run overview, and
+/// opening the viewer at the set and pair a deep link names.
+const SESSION_OPEN_JS: &str = include_str!("../../assets/session-open.js");
 
 /// Largest decisions body accepted.
 const MAX_DECISIONS_BYTES: u64 = 8 * 1024 * 1024;
@@ -103,6 +108,107 @@ impl Resp {
             Err(_) => Self::text(404, "not found"),
         }
     }
+}
+
+fn html_escape(s: &str) -> String {
+    s.replace('&', "&amp;")
+        .replace('<', "&lt;")
+        .replace('>', "&gt;")
+        .replace('"', "&quot;")
+}
+
+impl Resp {
+    /// A styled error page for a navigation (a deep link that cannot be
+    /// served), with a link back to the browser.
+    fn error_page(status: u16, title: &str, msg: &str) -> Self {
+        let body = format!(
+            "<!doctype html><html lang=\"en\"><head><meta charset=\"utf-8\">\
+<meta name=\"viewport\" content=\"width=device-width, initial-scale=1\">\
+<meta name=\"color-scheme\" content=\"light dark\"><title>flipdiff serve: {t}</title><style>{css}</style></head>\
+<body><header class=\"top\"><div class=\"brand\"><span class=\"logo\" aria-hidden=\"true\"></span><h1>flipdiff</h1><span class=\"tag\">serve</span></div></header>\
+<main class=\"big\"><h2>{t}</h2><p class=\"err\" role=\"alert\">{m}</p>\
+<p><a class=\"btn primary\" href=\"/\">&larr; Back to the archive</a></p></main></body></html>",
+            t = html_escape(title),
+            m = html_escape(msg),
+            css = CSS,
+        );
+        Self {
+            status,
+            html: true,
+            ..Self::bytes(status, "text/html; charset=utf-8", body.into_bytes())
+        }
+    }
+
+    /// Restyles a JSON `{"error": ...}` reply as an error page.
+    fn into_error_page(self) -> Self {
+        let msg = match &self.body {
+            Body::Bytes(b) => serde_json::from_slice::<serde_json::Value>(b)
+                .ok()
+                .and_then(|v| v.get("error").and_then(|e| e.as_str().map(str::to_owned))),
+            Body::File(..) => None,
+        };
+        match msg {
+            Some(m) => Self::error_page(self.status, "This link cannot be opened", &m),
+            None => self,
+        }
+    }
+}
+
+/// `%`-encodes a `/`-separated path segment by segment for a URL fragment.
+fn encode_path(p: &str) -> String {
+    let mut out = String::new();
+    for (i, seg) in p.split('/').enumerate() {
+        if i > 0 {
+            out.push('/');
+        }
+        for b in seg.bytes() {
+            if b.is_ascii_alphanumeric() || b"-_.~".contains(&b) {
+                out.push(char::from(b));
+            } else {
+                out.push_str(&format!("%{b:02X}"));
+            }
+        }
+    }
+    out
+}
+
+/// The archive directory the browser should return to for a session: the
+/// deepest directory that contains the parents of all its runs.
+fn browse_target(state: &State, id: &str) -> String {
+    let info: Option<session::SessionInfo> =
+        std::fs::read_to_string(session_dir(state, id).join("session.json"))
+            .ok()
+            .and_then(|t| serde_json::from_str(&t).ok());
+    let mut common: Option<Vec<String>> = None;
+    for run in info.iter().flat_map(|i| i.runs.iter()) {
+        let mut parts: Vec<String> = run.split('/').map(str::to_owned).collect();
+        parts.pop();
+        common = Some(match common {
+            None => parts,
+            Some(c) => c
+                .into_iter()
+                .zip(parts)
+                .take_while(|(a, b)| a == b)
+                .map(|(a, _)| a)
+                .collect(),
+        });
+    }
+    let dir = common.unwrap_or_default().join("/");
+    if dir.is_empty() {
+        "/".to_owned()
+    } else {
+        format!("/#/{}", encode_path(&dir))
+    }
+}
+
+/// The query string of the run overview a session belongs to, when it
+/// compares whole runs.
+fn session_overview(state: &State, id: &str) -> Option<String> {
+    let info: session::SessionInfo =
+        std::fs::read_to_string(session_dir(state, id).join("session.json"))
+            .ok()
+            .and_then(|t| serde_json::from_str(&t).ok())?;
+    info.overview
 }
 
 fn path_error(e: &PathError) -> Resp {
@@ -281,8 +387,25 @@ fn route_get(state: &Arc<State>, path: &str, q: &HashMap<String, String>) -> Res
         "/api/search" => api_search(state, q),
         "/favicon.ico" => Resp::bytes(204, "image/x-icon", Vec::new()),
         "/api/decisions" => Resp::json(&recent_decisions(state, 30)),
-        "/img" => image_file(state, get("path"), false),
-        "/thumb" => image_file(state, get("path"), true),
+        "/api/images" => match images(state, get("path")) {
+            Ok(l) => Resp::json(&l),
+            Err(e) => path_error(&e),
+        },
+        "/api/runs" => match overview::model_json(state, q) {
+            Ok(m) => Resp::json(&m),
+            Err((status, msg)) => Resp::error(status, &msg),
+        },
+        "/runs" => runs_page(state, q),
+        "/runs/heat" => heat_file(state, get("key")),
+        "/img" => image_file(state, get("path"), None),
+        "/thumb" => {
+            let edge = get("w")
+                .parse::<u32>()
+                .ok()
+                .filter(|w| *w == crate::runs::PREVIEW_EDGE)
+                .unwrap_or(THUMB_EDGE);
+            image_file(state, get("path"), Some(edge))
+        }
         "/compare" => compare(state, q),
         "/pair" => pair(state, get("a"), get("b")),
         p => {
@@ -290,7 +413,22 @@ fn route_get(state: &Arc<State>, path: &str, q: &HashMap<String, String>) -> Res
                 return if is_session_id(rest) {
                     page(state, "progress", Some(rest))
                 } else {
-                    Resp::text(404, "not found")
+                    Resp::error_page(
+                        404,
+                        "Unknown comparison",
+                        "This comparison link is not valid.",
+                    )
+                };
+            }
+            if let Some(id) = p
+                .strip_prefix("/api/session/")
+                .and_then(|r| r.strip_suffix("/decisions"))
+                .filter(|id| is_session_id(id))
+            {
+                // The saved decisions, so the page shows what `flipdiff decide` recorded.
+                return match crate::view::read_decisions(&decisions_path(state, id)) {
+                    Ok(d) => Resp::json(&d),
+                    Err(_) => Resp::error(404, "no decisions saved for this session"),
                 };
             }
             if let Some(rest) = p.strip_prefix("/api/session/") {
@@ -305,7 +443,10 @@ fn route_get(state: &Arc<State>, path: &str, q: &HashMap<String, String>) -> Res
             if let Some(rest) = p.strip_prefix("/session/") {
                 return session_file(state, rest);
             }
-            Resp::text(404, "not found")
+            if p.starts_with("/api/") || p.starts_with("/img") || p.starts_with("/thumb") {
+                return Resp::text(404, "not found");
+            }
+            Resp::error_page(404, "Page not found", "There is nothing at this address.")
         }
     }
 }
@@ -352,7 +493,7 @@ fn resolve_image(state: &State, rel: &str) -> Result<PathBuf, Resp> {
     if rel.len() > MAX_NAME_LEN {
         return Err(Resp::error(400, "path too long"));
     }
-    let abs = resolve_under(&state.root, rel).map_err(|e| path_error(&e))?;
+    let abs = resolve_under(state, rel).map_err(|e| path_error(&e))?;
     let name = abs
         .file_name()
         .map(|n| n.to_string_lossy().into_owned())
@@ -363,19 +504,41 @@ fn resolve_image(state: &State, rel: &str) -> Result<PathBuf, Resp> {
     Ok(abs)
 }
 
-fn image_file(state: &State, rel: &str, thumb: bool) -> Resp {
+/// An image of the archive: the file itself, or its thumbnail when `thumb`
+/// carries the longest edge.
+fn image_file(state: &State, rel: &str, thumb: Option<u32>) -> Resp {
     let abs = match resolve_image(state, rel) {
         Ok(a) => a,
         Err(r) => return r,
     };
-    if thumb {
-        match thumbnail(state, &abs) {
+    if let Some(edge) = thumb {
+        match thumbnail(state, &abs, edge) {
             Ok(p) => Resp::file(&p, "image/png", "private, max-age=3600"),
             Err(e) => Resp::error(422, &e),
         }
     } else {
         Resp::file(&abs, image_ctype(&abs), "no-cache")
     }
+}
+
+/// The overview page of a run comparison.
+fn runs_page(state: &Arc<State>, q: &HashMap<String, String>) -> Resp {
+    if let Err((status, msg)) = overview::parse_request(state, q) {
+        return Resp::error_page(status, "This overview cannot be opened", &msg);
+    }
+    Resp::html(overview::page_html(state, q, &state.token))
+}
+
+/// A cached mini heatmap of the overview.
+fn heat_file(state: &State, key: &str) -> Resp {
+    if key.len() != 32 || !key.bytes().all(|b| matches!(b, b'0'..=b'9' | b'a'..=b'f')) {
+        return Resp::text(404, "not found");
+    }
+    Resp::file(
+        &state.cache.join("runs").join(format!("{key}.heat.png")),
+        "image/png",
+        "private, max-age=3600",
+    )
 }
 
 fn split_list(s: &str) -> Vec<String> {
@@ -385,16 +548,118 @@ fn split_list(s: &str) -> Vec<String> {
         .collect()
 }
 
-fn to_progress(id: &str) -> Resp {
-    Resp::redirect(&format!("/progress/{id}"))
+/// Redirects to the progress page, carrying `set=`, `a=` and `b=` (the set
+/// and the two images the viewer opens on) through to the finished session.
+fn to_progress(id: &str, q: &HashMap<String, String>) -> Resp {
+    let open: Vec<String> = ["set", "a", "b"]
+        .iter()
+        .filter_map(|k| {
+            q.get(*k)
+                .filter(|v| !v.is_empty() && v.len() <= MAX_NAME_LEN)
+                .map(|v| format!("{k}={}", pct_encode(v)))
+        })
+        .collect();
+    if open.is_empty() {
+        Resp::redirect(&format!("/progress/{id}"))
+    } else {
+        Resp::redirect(&format!("/progress/{id}?{}", open.join("&")))
+    }
+}
+
+/// Labels for single images: `parent/name`, made unique with `-2`, `-3`.
+fn image_labels(rels: &[String]) -> Vec<String> {
+    let mut labels: Vec<String> = Vec::new();
+    for rel in rels {
+        let parts: Vec<&str> = rel.split('/').collect();
+        let base = parts[parts.len().saturating_sub(2)..].join("/");
+        let mut label = base.clone();
+        let mut n = 2;
+        while labels.contains(&label) {
+            label = format!("{base}-{n}");
+            n += 1;
+        }
+        labels.push(label);
+    }
+    labels
+}
+
+/// Stages 2 to 6 single images under the pairs cache (reused while the files
+/// are unchanged) and returns the staged directories.
+fn stage_single_images(state: &State, files: &[PathBuf]) -> Result<Vec<PathBuf>, String> {
+    let meta = |p: &PathBuf| {
+        std::fs::metadata(p)
+            .map(|m| format!("{}:{:?}", m.len(), m.modified().ok()))
+            .unwrap_or_default()
+    };
+    let parts: Vec<String> = files
+        .iter()
+        .flat_map(|p| [p.to_string_lossy().into_owned(), meta(p)])
+        .collect();
+    let refs: Vec<&[u8]> = parts.iter().map(|s| s.as_bytes()).collect();
+    let key = hash128(&refs);
+    let dest = state.cache.join("pairs").join(format!("n-{key}"));
+    let names: Vec<String> = (0..files.len()).map(|i| i.to_string()).collect();
+    let name_refs: Vec<&str> = names.iter().map(String::as_str).collect();
+    if !dest.join(&names[files.len() - 1]).is_dir() {
+        let tmp = state
+            .cache
+            .join("pairs")
+            .join(format!(".tmp-{key}-{}", session::unique()));
+        let paths: Vec<&std::path::Path> = files.iter().map(PathBuf::as_path).collect();
+        if let Err(e) = stage_images(&paths, &tmp, &name_refs) {
+            let _ = std::fs::remove_dir_all(&tmp);
+            return Err(e);
+        }
+        let _ = std::fs::remove_dir_all(&dest);
+        if let Err(e) = std::fs::rename(&tmp, &dest) {
+            let _ = std::fs::remove_dir_all(&tmp);
+            return Err(format!("staging the images: {e}"));
+        }
+    }
+    Ok(names.iter().map(|n| dest.join(n)).collect())
+}
+
+/// Stages a run paired by position or by hand under the pairs cache.
+fn stage_paired_run(
+    state: &State,
+    reference: &crate::runs::RunInput,
+    run: &crate::runs::RunInput,
+) -> Result<PathBuf, String> {
+    let opts = crate::runs::RunsOptions {
+        pixels_per_degree: state.view.pixels_per_degree,
+        hdr: state.view.hdr,
+        meta: state.view.meta.clone(),
+    };
+    let plan = crate::runs::plan(reference, std::slice::from_ref(run), &opts)
+        .map_err(|e| e.to_string())?;
+    let dest = state
+        .cache
+        .join("pairs")
+        .join(format!("r-{}", plan.fingerprint()));
+    if !dest.is_dir() {
+        let tmp = state
+            .cache
+            .join("pairs")
+            .join(format!(".tmp-r-{}", session::unique()));
+        if let Err(e) = stage_named(&plan.paired_files(0), &tmp) {
+            let _ = std::fs::remove_dir_all(&tmp);
+            return Err(e);
+        }
+        if let Err(e) = std::fs::rename(&tmp, &dest) {
+            let _ = std::fs::remove_dir_all(&tmp);
+            return Err(format!("staging the run: {e}"));
+        }
+    }
+    Ok(dest)
 }
 
 fn compare(state: &Arc<State>, q: &HashMap<String, String>) -> Resp {
     let runs = split_list(q.get("runs").map_or("", String::as_str));
     if !(MIN_DIRS..=MAX_DIRS).contains(&runs.len()) {
-        return Resp::text(
+        return Resp::error_page(
             400,
-            &format!("runs= takes {MIN_DIRS} to {MAX_DIRS} comma-separated run paths"),
+            "This comparison link is incomplete",
+            &format!("runs= takes {MIN_DIRS} to {MAX_DIRS} comma-separated run paths."),
         );
     }
     let labels = q
@@ -402,38 +667,141 @@ fn compare(state: &Arc<State>, q: &HashMap<String, String>) -> Resp {
         .filter(|l| !l.is_empty())
         .map(|l| split_list(l));
     if labels.as_ref().is_some_and(|l| l.len() != runs.len()) {
-        return Resp::text(400, "labels= must have one label per run");
+        return Resp::error_page(
+            400,
+            "This comparison link is invalid",
+            "labels= must have one label per run.",
+        );
     }
     let mut dirs = Vec::new();
     for r in &runs {
-        match resolve_under(&state.root, r) {
-            Ok(d) if d.is_dir() => dirs.push(d),
-            Ok(_) => return Resp::text(400, &format!("{r}: not a directory")),
-            Err(PathError::Invalid) => return Resp::text(400, &format!("{r}: invalid path")),
-            Err(PathError::Escapes) => {
-                return Resp::text(403, &format!("{r}: escapes the archive root"));
+        match resolve_under(state, r) {
+            Ok(d) => dirs.push(d),
+            Err(PathError::Invalid) => {
+                return Resp::error_page(400, "Invalid path", &format!("{r}: invalid path."));
             }
-            Err(PathError::Missing) => return Resp::text(404, &format!("{r}: no such run")),
+            Err(PathError::Escapes) => {
+                return Resp::error_page(
+                    403,
+                    "Outside the archive",
+                    &format!("{r}: escapes the archive root."),
+                );
+            }
+            Err(PathError::Missing) => {
+                return Resp::error_page(
+                    404,
+                    "Run not found",
+                    &format!(
+                        "{r}: no such run in this archive. It may have been moved or deleted."
+                    ),
+                );
+            }
         }
     }
     let blind = q.get("blind").is_some_and(|b| b == "1" || b == "true");
-    let runs = dirs.iter().map(|d| rel_of(&state.root, d)).collect();
+    let rels: Vec<String> = dirs.iter().map(|d| rel_of(state, d)).collect();
+    let (all_dirs, all_files) = (
+        dirs.iter().all(|d| d.is_dir()),
+        dirs.iter().all(|d| d.is_file()),
+    );
+    if !all_dirs && !all_files {
+        return Resp::error_page(
+            400,
+            "Mixed selection",
+            "Compare either runs (directories) or single images, not both.",
+        );
+    }
+    if all_files {
+        // Single images: staged so a view pairs them whatever their names.
+        if let Some(bad) = dirs
+            .iter()
+            .zip(&rels)
+            .find(|(d, r)| !is_image_name(&d.to_string_lossy()) || !is_image_name(r))
+        {
+            return Resp::error_page(
+                403,
+                "Only images",
+                &format!("{}: only image files can be compared.", bad.1),
+            );
+        }
+        let staged = match stage_single_images(state, &dirs) {
+            Ok(s) => s,
+            Err(e) => return Resp::error_page(422, "These images cannot be compared", &e),
+        };
+        let labels = labels.or_else(|| Some(image_labels(&rels)));
+        let id = ensure(
+            state,
+            Spec {
+                dirs: staged,
+                labels,
+                runs: rels,
+                blind,
+                overview: None,
+            },
+        );
+        return to_progress(&id, q);
+    }
+    // Runs: unlike names are paired by position or by hand (`pair<i>=`, the
+    // reference being 0) and staged under the reference's names.
+    let labels = labels.unwrap_or_else(|| crate::runs::unique_labels(&dirs));
+    let mut staged = dirs.clone();
+    for (i, slot) in staged.iter_mut().enumerate().skip(1) {
+        let pairing = match crate::runs::Pairing::parse(
+            q.get(&format!("pair{i}")).map_or("", String::as_str),
+        ) {
+            Ok(p) => p,
+            Err(e) => return Resp::error_page(400, "This comparison link is invalid", &e),
+        };
+        if pairing == crate::runs::Pairing::Name {
+            continue;
+        }
+        let input = |k: usize, p: crate::runs::Pairing| crate::runs::RunInput {
+            dir: dirs[k].clone(),
+            label: labels[k].clone(),
+            display: rels[k].clone(),
+            pairing: p,
+        };
+        match stage_paired_run(
+            state,
+            &input(0, crate::runs::Pairing::Name),
+            &input(i, pairing),
+        ) {
+            Ok(d) => *slot = d,
+            Err(e) => return Resp::error_page(422, "These runs cannot be paired", &e),
+        }
+    }
+    let pairs: String = (1..rels.len())
+        .filter_map(|i| {
+            let v = q.get(&format!("pair{i}"))?;
+            (!v.is_empty() && v != "name").then(|| format!("&pair{i}={}", pct_encode(v)))
+        })
+        .collect();
+    let overview = Some(format!(
+        "ref={}&runs={}{pairs}",
+        pct_encode(&rels[0]),
+        rels[1..]
+            .iter()
+            .map(|r| pct_encode(r))
+            .collect::<Vec<_>>()
+            .join(",")
+    ));
     let id = ensure(
         state,
         Spec {
-            dirs,
-            labels,
-            runs,
+            dirs: staged,
+            labels: Some(labels),
+            runs: rels,
             blind,
+            overview,
         },
     );
-    to_progress(&id)
+    to_progress(&id, q)
 }
 
 fn pair(state: &Arc<State>, a: &str, b: &str) -> Resp {
     let (pa, pb) = match (resolve_image(state, a), resolve_image(state, b)) {
         (Ok(pa), Ok(pb)) => (pa, pb),
-        (Err(r), _) | (_, Err(r)) => return r,
+        (Err(r), _) | (_, Err(r)) => return r.into_error_page(),
     };
     let meta = |p: &PathBuf| {
         std::fs::metadata(p)
@@ -454,7 +822,7 @@ fn pair(state: &Arc<State>, a: &str, b: &str) -> Resp {
             .join(format!(".tmp-{key}-{}", session::unique()));
         if let Err(e) = stage_pair(&pa, &pb, &tmp) {
             let _ = std::fs::remove_dir_all(&tmp);
-            return Resp::text(422, &e);
+            return Resp::error_page(422, "These images cannot be compared", &e);
         }
         let _ = std::fs::remove_dir_all(&dest);
         if let Err(e) = std::fs::rename(&tmp, &dest) {
@@ -462,7 +830,7 @@ fn pair(state: &Arc<State>, a: &str, b: &str) -> Resp {
             return Resp::text(500, &format!("staging the pair: {e}"));
         }
     }
-    let (ra, rb) = (rel_of(&state.root, &pa), rel_of(&state.root, &pb));
+    let (ra, rb) = (rel_of(state, &pa), rel_of(state, &pb));
     let labels = if ra == rb {
         vec!["a".to_owned(), "b".to_owned()]
     } else {
@@ -473,8 +841,9 @@ fn pair(state: &Arc<State>, a: &str, b: &str) -> Resp {
         labels: Some(labels),
         runs: vec![ra, rb],
         blind: false,
+        overview: None,
     };
-    to_progress(&ensure(state, spec))
+    to_progress(&ensure(state, spec), &HashMap::new())
 }
 
 fn allowed_session_file(rest: &str) -> bool {
@@ -495,7 +864,11 @@ fn allowed_session_file(rest: &str) -> bool {
 fn session_file(state: &State, rest: &str) -> Resp {
     let (id, file) = rest.split_once('/').unwrap_or((rest, ""));
     if !is_session_id(id) {
-        return Resp::text(404, "not found");
+        return Resp::error_page(
+            404,
+            "Unknown comparison",
+            "This comparison link is not valid.",
+        );
     }
     if file.is_empty() && !rest.contains('/') {
         return Resp::redirect(&format!("/session/{id}/"));
@@ -506,10 +879,18 @@ fn session_file(state: &State, rest: &str) -> Resp {
     let dir = session_dir(state, id);
     if file.is_empty() || file == "index.html" {
         let Ok(html) = std::fs::read_to_string(dir.join("index.html")) else {
-            return Resp::text(404, "not found");
+            return Resp::error_page(
+                404,
+                "Comparison not found",
+                "This comparison is no longer available.",
+            );
         };
-        let data = serde_json::json!({ "token": state.token, "session": id }).to_string();
-        let inject = format!("<script>window.FLIPDIFF_SERVE={data};</script>");
+        let overview = session_overview(state, id).map(|q| format!("/runs?{q}"));
+        let data = serde_json::json!({ "token": state.token, "session": id, "browse": browse_target(state, id), "overview": overview })
+            .to_string();
+        let inject = format!(
+            "<script>window.FLIPDIFF_SERVE={data};</script><script>{SESSION_OPEN_JS}</script>"
+        );
         let html = html.replacen("</head>", &format!("{inject}</head>"), 1);
         return Resp::html(html);
     }
@@ -519,7 +900,7 @@ fn session_file(state: &State, rest: &str) -> Resp {
     let Ok(canon_dir) = dir.canonicalize() else {
         return Resp::text(404, "not found");
     };
-    match resolve_under(&canon_dir, file) {
+    match resolve_in(&canon_dir, file) {
         Ok(p) if p.is_file() => {
             let ctype = if p.extension().is_some_and(|e| e == "js") {
                 "text/javascript; charset=utf-8"
@@ -636,7 +1017,7 @@ fn upload_files(dir: &std::path::Path) -> Vec<String> {
         .into_iter()
         .flatten()
         .filter(|e| e.file_type().is_file())
-        .map(|e| rel_of(dir, e.path()))
+        .map(|e| rel_in(dir, e.path()))
         .collect()
 }
 
@@ -680,6 +1061,7 @@ fn post_upload_open(state: &Arc<State>, q: &HashMap<String, String>) -> Resp {
             labels,
             runs,
             blind,
+            overview: None,
         },
     );
     Resp::json(&serde_json::json!({ "session": sid, "url": format!("/progress/{sid}") }))

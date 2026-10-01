@@ -8,6 +8,12 @@
 <style>/*__FLIPDIFF_CSS__*/</style>
 </head>
 <body>
+<svg class="defs" width="0" height="0" aria-hidden="true" focusable="false">
+  <filter id="ch-r" color-interpolation-filters="sRGB"><feColorMatrix type="matrix" values="1 0 0 0 0  1 0 0 0 0  1 0 0 0 0  0 0 0 1 0"/></filter>
+  <filter id="ch-g" color-interpolation-filters="sRGB"><feColorMatrix type="matrix" values="0 1 0 0 0  0 1 0 0 0  0 1 0 0 0  0 0 0 1 0"/></filter>
+  <filter id="ch-b" color-interpolation-filters="sRGB"><feColorMatrix type="matrix" values="0 0 1 0 0  0 0 1 0 0  0 0 1 0 0  0 0 0 1 0"/></filter>
+  <filter id="ch-l" color-interpolation-filters="sRGB"><feColorMatrix type="matrix" values="0.2126 0.7152 0.0722 0 0  0.2126 0.7152 0.0722 0 0  0.2126 0.7152 0.0722 0 0  0 0 0 1 0"/></filter>
+</svg>
 <header class="top">
   <div class="brand"><span class="logo" aria-hidden="true"></span><h1>flipdiff</h1></div>
   <dl class="meta" id="meta"></dl>
@@ -20,6 +26,9 @@
       <button type="button" id="f-all" aria-pressed="true">All</button>
     </div>
     <span class="count" id="count" aria-live="polite"></span>
+    <span class="grow"></span>
+    <button type="button" class="btn small copy-link" id="copy-link" title="Copy a link that reopens this exact view">Copy link to this view</button>
+    <button type="button" class="btn small" id="export" title="Download the decisions file (flipdiff approve --decisions reads it)">Export decisions</button>
   </div>
   <div class="table-wrap">
     <table id="tbl">
@@ -30,6 +39,7 @@
   </div>
 </main>
 <noscript><p class="noscript">This report needs JavaScript to render its table. The raw data is in the JSON script tag of this page and in flipdiff-report.v1.json.</p></noscript>
+<script src="flipdiff-decisions.v1.js"></script>
 <script type="application/json" id="flipdiff-data">__FLIPDIFF_DATA__</script>
 <script>/*__FLIPDIFF_JS__*/</script>
 </body>

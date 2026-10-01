@@ -1,0 +1,57 @@
+{
+  "$id": "https://github.com/Tavrin/flipdiff/schemas/flipdiff-blind-key.v1.schema.json",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "description": "The mapping from a blind view's neutral labels (`P1`, `P2`, ...) to the true\ndirectory labels, per image set (every set shuffles its own panes). Never\nembedded in the page.",
+  "properties": {
+    "dirs": {
+      "default": [],
+      "description": "Absolute path of each directory, in `labels` order.",
+      "items": {
+        "type": "string"
+      },
+      "type": "array"
+    },
+    "labels": {
+      "description": "True labels, in directory order.",
+      "items": {
+        "type": "string"
+      },
+      "type": "array"
+    },
+    "schema": {
+      "description": "Always [`BLIND_KEY_SCHEMA`].",
+      "type": "string"
+    },
+    "seed": {
+      "description": "The page's random token (`ViewModel::seed`); must match the decisions file.",
+      "format": "uint64",
+      "minimum": 0,
+      "type": "integer"
+    },
+    "sets": {
+      "additionalProperties": {
+        "items": {
+          "type": "string"
+        },
+        "type": "array"
+      },
+      "default": {},
+      "description": "Per image set, the true label of each pane as displayed: entry `n - 1`\nis the label behind the set's neutral label `P<n>`.",
+      "type": "object"
+    },
+    "shuffle_seed": {
+      "default": 0,
+      "description": "The seed the panes were shuffled with (`--seed` reproduces the view).",
+      "format": "uint64",
+      "minimum": 0,
+      "type": "integer"
+    }
+  },
+  "required": [
+    "schema",
+    "seed",
+    "labels"
+  ],
+  "title": "BlindKey",
+  "type": "object"
+}

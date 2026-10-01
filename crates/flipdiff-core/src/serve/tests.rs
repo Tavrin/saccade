@@ -83,11 +83,26 @@ fn http(f: &Fixture, method: &str, path: &str, headers: &[(&str, &str)], body: &
     let split = raw.windows(4).position(|w| w == b"\r\n\r\n").unwrap();
     let head = String::from_utf8_lossy(&raw[..split]).into_owned();
     let status = head.split(' ').nth(1).unwrap().parse().unwrap();
-    Reply {
-        status,
-        head,
-        body: raw[split + 4..].to_vec(),
+    let mut body = raw[split + 4..].to_vec();
+    if head.to_lowercase().contains("transfer-encoding: chunked") {
+        body = dechunk(&body);
     }
+    Reply { status, head, body }
+}
+
+/// Decodes an HTTP/1.1 chunked body.
+fn dechunk(mut rest: &[u8]) -> Vec<u8> {
+    let mut out = Vec::new();
+    while let Some(eol) = rest.windows(2).position(|w| w == b"\r\n") {
+        let size =
+            usize::from_str_radix(String::from_utf8_lossy(&rest[..eol]).trim(), 16).unwrap_or(0);
+        if size == 0 {
+            break;
+        }
+        out.extend_from_slice(&rest[eol + 2..eol + 2 + size]);
+        rest = &rest[eol + 2 + size + 2..];
+    }
+    out
 }
 
 fn get(f: &Fixture, path: &str) -> Reply {
@@ -128,6 +143,9 @@ fn session_of(reply: &Reply) -> String {
                 .or_else(|| l.strip_prefix("Location: "))
         })
         .and_then(|l| l.strip_prefix("/progress/"))
+        .unwrap()
+        .split('?')
+        .next()
         .unwrap()
         .to_owned()
 }
@@ -272,6 +290,7 @@ fn compare_session_builds_and_is_reused() {
     assert_eq!(page.status, 200);
     assert!(page.text().contains("window.FLIPDIFF_SERVE="));
     assert!(page.text().contains(f.handle.token()));
+    assert!(page.text().contains(r#""browse":"/#/g""#));
     let built = std::fs::metadata(f.cache.join("sessions").join(&id).join("index.html"))
         .unwrap()
         .modified()
@@ -344,4 +363,179 @@ fn upload_over_the_cap_is_rejected() {
             .is_empty()
     );
     assert!(!f.root.join("big.png").exists());
+}
+
+#[test]
+fn bad_deep_link_gets_a_styled_page_with_a_way_back() {
+    let f = fixture(1024);
+    for path in [
+        "/compare?runs=g/a,nope/missing",
+        "/session/not-a-session/",
+        "/no-such-page",
+    ] {
+        let r = get(&f, path);
+        assert!(r.status == 404, "{path}: {}", r.status);
+        assert!(r.head.to_lowercase().contains("text/html"), "{path}");
+        let t = r.text();
+        assert!(
+            t.contains("href=\"/\"") && t.contains("Back to the archive"),
+            "{path}"
+        );
+    }
+}
+
+/// A server over `roots`, owning the temporary directory they live in.
+fn serve_roots(tmp: tempfile::TempDir, roots: &[PathBuf], follow: bool) -> Fixture {
+    let (cache, decisions) = (tmp.path().join("cache"), tmp.path().join("decisions"));
+    let mut opts = ServeOptions::new(roots[0].clone());
+    opts.extra_roots = roots[1..].to_vec();
+    opts.follow_symlinks_within_roots = follow;
+    opts.cache_dir = cache.clone();
+    opts.decisions_dir = decisions.clone();
+    let handle = start(opts).unwrap();
+    Fixture {
+        root: roots[0].canonicalize().unwrap(),
+        cache: cache.canonicalize().unwrap(),
+        decisions: decisions.canonicalize().unwrap(),
+        handle,
+        _tmp: tmp,
+    }
+}
+
+fn json(r: &Reply) -> serde_json::Value {
+    serde_json::from_str(&r.text()).unwrap()
+}
+
+#[test]
+fn single_images_compare_from_anywhere() {
+    let f = fixture(1024);
+    let listing = json(&get(&f, "/api/images?path=g/a"));
+    assert_eq!(listing["images"][0]["name"], "x.png");
+    // Images of three different runs, staged under one name.
+    let r = get(
+        &f,
+        "/compare?runs=g/a/x.png,g/b/x.png,g/c/x.png&set=image.png",
+    );
+    assert_eq!(r.status, 302);
+    assert!(r.head.contains("set=image.png"), "{}", r.head);
+    let id = session_of(&r);
+    wait_ready(&f, &id);
+    let base = format!("/session/{id}/images/image.png");
+    assert_eq!(get(&f, &format!("{base}/pane2.png")).status, 200);
+    assert_eq!(get(&f, &format!("{base}/heatmap1.png")).status, 200);
+    // Runs and images do not mix; a non-image file is refused.
+    assert_eq!(get(&f, "/compare?runs=g/a,g/b/x.png").status, 400);
+    assert_eq!(
+        get(&f, "/compare?runs=g/a/x.png,g/a/flipdiff-meta.json").status,
+        403
+    );
+}
+
+#[test]
+fn several_roots_are_top_level_entries() {
+    let tmp = tempfile::tempdir().unwrap();
+    let (a, b) = (tmp.path().join("one/data"), tmp.path().join("two/data"));
+    write_png(&a.join("r1/x.png"), [1, 1, 1]);
+    write_png(&b.join("r2/x.png"), [9, 9, 9]);
+    let f = serve_roots(tmp, &[a, b], false);
+    let top = json(&get(&f, "/api/ls?path="));
+    let names: Vec<&str> = top["dirs"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .map(|d| d["name"].as_str().unwrap())
+        .collect();
+    assert_eq!(names, ["data", "data-2"], "equal names are told apart");
+    assert_eq!(top["multi"], true);
+    assert_eq!(top["dirs"][0]["has_images"], false);
+    assert_eq!(json(&get(&f, "/api/ls?path=data-2/r2"))["run"]["images"], 1);
+    assert_eq!(get(&f, "/img?path=data-2/r2/x.png").status, 200);
+    assert_eq!(get(&f, "/api/ls?path=nope").status, 404);
+    assert_eq!(get(&f, "/api/ls?path=data/..").status, 400);
+    // A run from each root compares.
+    assert_eq!(get(&f, "/compare?runs=data/r1,data-2/r2").status, 302);
+    let found = json(&get(&f, "/api/search?path="));
+    assert_eq!(found["runs"].as_array().unwrap().len(), 2);
+}
+
+#[cfg(unix)]
+#[test]
+fn symlinks_resolving_inside_any_root_are_followed_and_others_refused() {
+    let tmp = tempfile::tempdir().unwrap();
+    let (a, b, other) = (
+        tmp.path().join("a"),
+        tmp.path().join("b"),
+        tmp.path().join("other"),
+    );
+    write_png(&a.join("real/x.png"), [5, 5, 5]);
+    write_png(&other.join("y.png"), [6, 6, 6]);
+    std::fs::create_dir_all(&b).unwrap();
+    std::os::unix::fs::symlink(a.join("real"), b.join("link")).unwrap();
+    std::os::unix::fs::symlink(&other, b.join("outside")).unwrap();
+    let roots = [a.clone(), b.clone()];
+
+    let with = serve_roots(tempfile::tempdir().unwrap(), &roots, true);
+    let ls = json(&get(&with, "/api/ls?path=b"));
+    let listed: Vec<&str> = ls["dirs"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .map(|d| d["name"].as_str().unwrap())
+        .collect();
+    assert_eq!(
+        listed,
+        ["link"],
+        "the link into root a is listed, the outside one is not"
+    );
+    assert_eq!(ls["outside_links"], 1);
+    assert_eq!(get(&with, "/api/ls?path=b/link").status, 200);
+    assert_eq!(get(&with, "/img?path=b/link/x.png").status, 200);
+    assert_eq!(get(&with, "/api/ls?path=b/outside").status, 403);
+    assert_eq!(get(&with, "/img?path=b/outside/y.png").status, 403);
+    assert_eq!(get(&with, "/compare?runs=a/real,b/outside").status, 403);
+
+    // Without the flag, a link into another root is refused as well.
+    let without = serve_roots(tempfile::tempdir().unwrap(), &roots, false);
+    assert_eq!(get(&without, "/api/ls?path=b/link").status, 403);
+    assert_eq!(get(&without, "/img?path=b/link/x.png").status, 403);
+}
+
+#[test]
+fn api_runs_returns_the_overview_model() {
+    let f = fixture(1024);
+    let q = "ref=g/a&runs=g/b,g/c";
+    let mut model = json(&get(&f, &format!("/api/runs?{q}")));
+    for _ in 0..200 {
+        if model["progress"]["complete"] == true {
+            break;
+        }
+        std::thread::sleep(Duration::from_millis(50));
+        model = json(&get(&f, &format!("/api/runs?{q}")));
+    }
+    assert_eq!(model["schema"], "flipdiff-runs.v1");
+    assert_eq!(model["progress"]["total"], 2);
+    assert_eq!(model["progress"]["complete"], true);
+    assert_eq!(model["ref"]["label"], "a");
+    assert_eq!(model["runs"][0]["label"], "b");
+    assert_eq!(model["runs"][0]["changed"], 1);
+    assert_eq!(model["runs"][0]["no_visible_effect"], false);
+    let cell = &model["images"][0]["cells"][1];
+    assert_eq!(cell["status"], "changed");
+    assert!(cell["metrics"]["mean"].as_f64().unwrap() > 0.0);
+    assert!(
+        cell["thumb"]
+            .as_str()
+            .unwrap()
+            .starts_with("/thumb?path=g%2Fc%2Fx.png")
+    );
+    let heat = cell["heat"].as_str().unwrap();
+    assert_eq!(get(&f, heat).status, 200, "{heat}");
+    // The page, and refusals that follow the path rules.
+    let page = get(&f, &format!("/runs?{q}"));
+    assert_eq!(page.status, 200);
+    assert!(page.text().contains("FLIPDIFF_RUNS"));
+    #[cfg(unix)]
+    assert_eq!(get(&f, "/api/runs?ref=g/a&runs=escape").status, 403);
+    assert_eq!(get(&f, "/api/runs?ref=g/a&runs=g/nope").status, 404);
+    assert_eq!(get(&f, "/api/runs?ref=g/a").status, 400);
 }

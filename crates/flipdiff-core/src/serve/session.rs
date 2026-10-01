@@ -39,6 +39,9 @@ pub(crate) struct Spec {
     pub runs: Vec<String>,
     /// Blind judging.
     pub blind: bool,
+    /// Query string of the run overview this session belongs to, when it
+    /// compares whole runs.
+    pub overview: Option<String>,
 }
 
 /// `session.json`, written next to the view in the cache.
@@ -48,6 +51,8 @@ pub(crate) struct SessionInfo {
     pub labels: Vec<String>,
     pub blind: bool,
     pub created_unix: u64,
+    #[serde(default)]
+    pub overview: Option<String>,
 }
 
 /// True for a 32-character lower-case hex session id.
@@ -197,6 +202,7 @@ fn build(state: &State, id: &str, spec: &Spec) -> Result<(), String> {
         runs: spec.runs.clone(),
         labels: model.labels.clone(),
         blind: spec.blind,
+        overview: spec.overview.clone(),
         created_unix: SystemTime::now()
             .duration_since(UNIX_EPOCH)
             .map_or(0, |d| d.as_secs()),
@@ -281,8 +287,13 @@ pub(crate) fn decisions_path(state: &State, id: &str) -> PathBuf {
 
 /// Writes a session's decisions atomically into the decisions directory.
 pub(crate) fn save_decisions(state: &State, id: &str, d: &Decisions) -> Result<(), String> {
-    let text = serde_json::to_string_pretty(d).map_err(|e| e.to_string())?;
     let dest = decisions_path(state, id);
+    // Answers `flipdiff decide` recorded since the page loaded must survive its next save.
+    let mut merged = d.clone();
+    if let Ok(on_disk) = crate::view::read_decisions(&dest) {
+        crate::decision::merge_proposals(&mut merged, &on_disk);
+    }
+    let text = serde_json::to_string_pretty(&merged).map_err(|e| e.to_string())?;
     let tmp = state.decisions.join(format!(".{id}.{}.tmp", unique()));
     std::fs::write(&tmp, format!("{text}\n")).map_err(|e| e.to_string())?;
     std::fs::rename(&tmp, &dest).map_err(|e| {
@@ -351,34 +362,87 @@ pub(crate) fn recent_decisions(state: &State, limit: usize) -> Vec<DecisionSumma
         .collect()
 }
 
+fn ext_of(p: &Path) -> String {
+    p.extension()
+        .and_then(|e| e.to_str())
+        .map(str::to_ascii_lowercase)
+        .unwrap_or_default()
+}
+
 /// Copies or re-encodes two images to `<dest>/a/image.<ext>` and
 /// `<dest>/b/image.<ext>` so a view pairs them whatever their names. Equal
 /// extensions are copied byte for byte; differing ones are decoded and written
 /// as PNG (HDR formats must match).
 pub(crate) fn stage_pair(a: &Path, b: &Path, dest: &Path) -> Result<(PathBuf, PathBuf), String> {
-    let ext = |p: &Path| {
-        p.extension()
-            .and_then(|e| e.to_str())
-            .map(str::to_ascii_lowercase)
-            .unwrap_or_default()
-    };
-    let (ea, eb) = (ext(a), ext(b));
-    let (da, db) = (dest.join("a"), dest.join("b"));
-    for d in [&da, &db] {
-        std::fs::create_dir_all(d).map_err(|e| format!("creating {}: {e}", d.display()))?;
+    let dirs = stage_images(&[a, b], dest, &["a", "b"])?;
+    Ok((dirs[0].clone(), dirs[1].clone()))
+}
+
+/// Stages 2 to 6 single images, each as `<dest>/<dir name>/image.<ext>`, so a
+/// view pairs them whatever their names. Equal extensions are copied byte for
+/// byte; differing ones are decoded and written as PNG (HDR formats must
+/// match). Returns the directories, in order.
+pub(crate) fn stage_images(
+    images: &[&Path],
+    dest: &Path,
+    names: &[&str],
+) -> Result<Vec<PathBuf>, String> {
+    let exts: Vec<String> = images.iter().map(|p| ext_of(p)).collect();
+    let same = exts.iter().all(|e| *e == exts[0]);
+    if !same && images.iter().any(|p| crate::hdr::is_hdr_path(p)) {
+        return Err("an HDR image can only be paired with an image of the same format".into());
     }
-    if ea == eb {
-        std::fs::copy(a, da.join(format!("image.{ea}"))).map_err(|e| e.to_string())?;
-        std::fs::copy(b, db.join(format!("image.{eb}"))).map_err(|e| e.to_string())?;
-    } else {
-        if crate::hdr::is_hdr_path(a) || crate::hdr::is_hdr_path(b) {
-            return Err("an HDR image can only be paired with an image of the same format".into());
-        }
-        for (src, d) in [(a, &da), (b, &db)] {
+    let mut dirs = Vec::new();
+    for ((src, ext), name) in images.iter().zip(&exts).zip(names) {
+        let d = dest.join(name);
+        std::fs::create_dir_all(&d).map_err(|e| format!("creating {}: {e}", d.display()))?;
+        if same {
+            std::fs::copy(src, d.join(format!("image.{ext}"))).map_err(|e| e.to_string())?;
+        } else {
             let img = crate::run::decode(src).map_err(|e| e.to_string())?;
             img.save_with_format(d.join("image.png"), image::ImageFormat::Png)
                 .map_err(|e| e.to_string())?;
         }
+        dirs.push(d);
     }
-    Ok((da, db))
+    Ok(dirs)
+}
+
+/// Stages the images of a run that was paired by position or by hand: each
+/// run image is written under its reference counterpart's name, converted to
+/// the reference's format when the extensions differ (HDR formats must
+/// match), so a view pairs them by name. `files` is `(reference name,
+/// reference image, run image)`; only the run's images are written, into `dest`.
+pub(crate) fn stage_named(files: &[(String, PathBuf, PathBuf)], dest: &Path) -> Result<(), String> {
+    std::fs::create_dir_all(dest).map_err(|e| format!("creating {}: {e}", dest.display()))?;
+    for (name, ref_path, run_path) in files {
+        let to = dest.join(name);
+        if let Some(parent) = to.parent() {
+            std::fs::create_dir_all(parent)
+                .map_err(|e| format!("creating {}: {e}", parent.display()))?;
+        }
+        let (er, ec) = (ext_of(ref_path), ext_of(run_path));
+        let same_kind = er == ec
+            || (matches!(er.as_str(), "jpg" | "jpeg") && matches!(ec.as_str(), "jpg" | "jpeg"));
+        if same_kind {
+            std::fs::copy(run_path, &to).map_err(|e| e.to_string())?;
+            continue;
+        }
+        if crate::hdr::is_hdr_path(ref_path) || crate::hdr::is_hdr_path(run_path) {
+            return Err(format!(
+                "{name}: an HDR image can only be paired with an image of the same format"
+            ));
+        }
+        let format = image::ImageFormat::from_path(ref_path).map_err(|e| e.to_string())?;
+        let img = crate::run::decode(run_path).map_err(|e| e.to_string())?;
+        let out = if format == image::ImageFormat::Jpeg {
+            image::DynamicImage::ImageRgba8(img)
+                .to_rgb8()
+                .save_with_format(&to, format)
+        } else {
+            img.save_with_format(&to, format)
+        };
+        out.map_err(|e| e.to_string())?;
+    }
+    Ok(())
 }

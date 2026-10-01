@@ -8,12 +8,15 @@
 //!   per-process random token in `X-Flipdiff-Token`;
 //! - client paths are relative to the archive root, canonicalised, and must stay
 //!   below it (no `..`, no absolute paths, no escaping symlinks); only image
-//!   files are served from the archive;
+//!   files are served from the archive. With several roots each is a top-level
+//!   entry named after its directory; `follow_symlinks_within_roots` lets a
+//!   symlink that resolves inside *any* root be browsed, nothing else;
 //! - the archive root is read-only: sessions and thumbnails go to the cache
 //!   directory, decisions to the decisions directory, uploads to the cache.
 
 mod api;
 mod browse;
+mod overview;
 mod session;
 
 use std::collections::HashMap;
@@ -38,6 +41,12 @@ const WORKERS: usize = 8;
 pub struct ServeOptions {
     /// The archive root: browsed read-only.
     pub root: PathBuf,
+    /// More archive roots; with any, every root is a top-level entry named
+    /// after its directory.
+    pub extra_roots: Vec<PathBuf>,
+    /// Let symlinks that resolve inside any root be browsed and served (a
+    /// symlink to anywhere else stays refused).
+    pub follow_symlinks_within_roots: bool,
     /// TCP port on `127.0.0.1`; 0 picks a free one.
     pub port: u16,
     /// Cache directory (sessions, thumbnails, uploads).
@@ -57,6 +66,8 @@ impl ServeOptions {
     pub fn new(root: PathBuf) -> Self {
         Self {
             root,
+            extra_roots: Vec::new(),
+            follow_symlinks_within_roots: false,
             port: 0,
             cache_dir: default_cache_dir(),
             decisions_dir: default_decisions_dir(),
@@ -93,9 +104,18 @@ pub fn default_decisions_dir() -> PathBuf {
         .join("decisions")
 }
 
+/// One browsable root.
+pub(crate) struct Root {
+    /// Name of the top-level entry it forms when there are several roots.
+    pub name: String,
+    /// Canonical directory.
+    pub path: PathBuf,
+}
+
 /// Shared server state.
 pub(crate) struct State {
-    pub root: PathBuf,
+    pub roots: Vec<Root>,
+    pub follow_links: bool,
     pub cache: PathBuf,
     pub decisions: PathBuf,
     pub token: String,
@@ -104,6 +124,28 @@ pub(crate) struct State {
     pub meta: MetaChecker,
     pub max_upload: u64,
     pub sessions: Mutex<HashMap<String, session::SessionState>>,
+    pub overviews: Mutex<HashMap<String, Arc<overview::Job>>>,
+}
+
+impl State {
+    /// More than one root: paths carry the root's name as first segment.
+    pub fn multi(&self) -> bool {
+        self.roots.len() > 1
+    }
+
+    /// The innermost root containing the canonical path `canon`.
+    pub fn root_of(&self, canon: &Path) -> Option<&Root> {
+        self.roots
+            .iter()
+            .filter(|r| canon.starts_with(&r.path))
+            .max_by_key(|r| r.path.components().count())
+    }
+
+    /// Whether a canonical path reached from `home` may be served: it stays
+    /// inside `home`, or (with `--follow-symlinks-within-roots`) inside any root.
+    pub fn allows(&self, home: &Path, canon: &Path) -> bool {
+        canon.starts_with(home) || (self.follow_links && self.root_of(canon).is_some())
+    }
 }
 
 /// A running server; dropping it stops the workers.
@@ -149,15 +191,34 @@ fn is_within(inner: &Path, outer: &Path) -> bool {
 
 /// Starts the server on `127.0.0.1` and returns once it is listening.
 pub fn start(opts: ServeOptions) -> Result<ServeHandle> {
-    let root = opts.root.canonicalize().map_err(io_err(format!(
-        "resolving archive root {}",
-        opts.root.display()
-    )))?;
-    if !root.is_dir() {
-        return Err(Error::Config(format!(
-            "{} is not a directory",
-            root.display()
-        )));
+    let mut roots: Vec<Root> = Vec::new();
+    for given in std::iter::once(&opts.root).chain(&opts.extra_roots) {
+        let path = given.canonicalize().map_err(io_err(format!(
+            "resolving archive root {}",
+            given.display()
+        )))?;
+        if !path.is_dir() {
+            return Err(Error::Config(format!(
+                "{} is not a directory",
+                path.display()
+            )));
+        }
+        if roots.iter().any(|r| r.path == path) {
+            return Err(Error::Config(format!(
+                "{} is given as a root twice",
+                path.display()
+            )));
+        }
+        let base = path
+            .file_name()
+            .map_or_else(|| "root".to_owned(), |n| n.to_string_lossy().into_owned());
+        let mut name = base.clone();
+        let mut n = 2;
+        while roots.iter().any(|r| r.name == name) {
+            name = format!("{base}-{n}");
+            n += 1;
+        }
+        roots.push(Root { name, path });
     }
     let mut dirs = Vec::new();
     for (what, dir) in [
@@ -171,16 +232,16 @@ pub fn start(opts: ServeOptions) -> Result<ServeHandle> {
         let canon = dir
             .canonicalize()
             .map_err(io_err(format!("resolving {}", dir.display())))?;
-        if is_within(&canon, &root) {
+        if roots.iter().any(|r| is_within(&canon, &r.path)) {
             return Err(Error::Config(format!(
-                "the {what} directory {} is inside the archive root; serve never writes under the root",
+                "the {what} directory {} is inside an archive root; serve never writes under a root",
                 canon.display()
             )));
         }
         dirs.push(canon);
     }
     let (cache, decisions) = (dirs[0].clone(), dirs[1].clone());
-    for sub in ["sessions", "thumbs", "uploads", "pairs"] {
+    for sub in ["sessions", "thumbs", "uploads", "pairs", "runs"] {
         let p = cache.join(sub);
         std::fs::create_dir_all(&p).map_err(io_err(format!("creating {}", p.display())))?;
     }
@@ -195,7 +256,8 @@ pub fn start(opts: ServeOptions) -> Result<ServeHandle> {
         .ok_or_else(|| Error::Config("server has no IP address".into()))?;
     let token = random_token();
     let state = Arc::new(State {
-        root,
+        roots,
+        follow_links: opts.follow_symlinks_within_roots,
         cache,
         decisions,
         token: token.clone(),
@@ -204,6 +266,7 @@ pub fn start(opts: ServeOptions) -> Result<ServeHandle> {
         meta,
         max_upload: opts.max_upload_bytes,
         sessions: Mutex::new(HashMap::new()),
+        overviews: Mutex::new(HashMap::new()),
     });
     let server = Arc::new(server);
     let stop = Arc::new(AtomicBool::new(false));

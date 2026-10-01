@@ -27,7 +27,7 @@ fn compare(tmp: &Path, extra: &[&str]) -> Output {
         .args([tmp.join("base"), tmp.join("cap")])
         .arg("--out")
         .arg(tmp.join("out"))
-        .arg("--json")
+        .arg("--json=full")
         .args(extra)
         .output()
         .expect("spawn")
@@ -143,14 +143,20 @@ fn timing_keys_are_ignored_by_default_and_nested_values_are_errors() {
     let tmp = tempfile::tempdir().expect("tmp");
     setup(
         tmp.path(),
-        Some(r#"{"cfg":1,"Frame_Time":3,"run.id":"a","gpu_ms":1.5,"elapsed.s":2}"#),
-        Some(r#"{"cfg":1,"Frame_Time":9,"run.id":"b","gpu_ms":2.5,"elapsed.s":7}"#),
+        Some(r#"{"cfg":1,"Frame_Timestamp":3,"run.id":"a","gpu_ms":1.5,"elapsed.s":2}"#),
+        Some(r#"{"cfg":1,"Frame_Timestamp":9,"run.id":"b","gpu_ms":2.5,"elapsed.s":7}"#),
     );
     let o = compare(tmp.path(), &["--require-matching-meta"]);
     assert_eq!(o.status.code(), Some(0), "{o:?}");
+    let r = report(&o);
+    assert_eq!(entry(&r, "a.png")["meta_diff"], serde_json::json!([]));
+    // The ignored differences stay visible in the report.
     assert_eq!(
-        entry(&report(&o), "a.png")["meta_diff"],
-        serde_json::json!([])
+        entry(&r, "a.png")["meta_ignored_diff"]
+            .as_array()
+            .expect("ignored")
+            .len(),
+        4
     );
 
     std::fs::write(

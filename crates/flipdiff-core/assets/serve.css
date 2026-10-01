@@ -77,8 +77,8 @@ a { color: var(--accent); }
 .btn.small { padding: 2px 8px; font-size: 12.5px; }
 input[type=text], input[type=search] { padding: 5px 8px; border: 1px solid var(--border); border-radius: 7px; background: var(--bg); min-width: 0; }
 
-.page { display: grid; gap: 14px; padding: 14px 16px 32px; grid-template-columns: minmax(0, 1fr); max-width: 1500px; margin: 0 auto; }
-@media (min-width: 900px) { .page { grid-template-columns: minmax(0, 3fr) minmax(300px, 2fr); align-items: start; } }
+.page { display: grid; gap: 14px; padding: 14px 16px 32px; grid-template-columns: minmax(0, 1fr); max-width: 2400px; margin: 0 auto; }
+@media (min-width: 900px) { .page { grid-template-columns: minmax(0, 1fr) clamp(340px, 26vw, 460px); align-items: start; } .rail { position: sticky; top: 12px; max-height: calc(100vh - 24px); overflow-y: auto; } }
 .col { display: flex; flex-direction: column; gap: 14px; min-width: 0; }
 .card { background: var(--surface); border: 1px solid var(--border); border-radius: 9px; padding: 10px 12px; min-width: 0; }
 .card h2 { margin: 0 0 8px; font-size: 13px; text-transform: uppercase; letter-spacing: 0.05em; color: var(--muted); }
@@ -146,3 +146,33 @@ input[type=text], input[type=search] { padding: 5px 8px; border: 1px solid var(-
   .drop { grid-template-columns: 1fr; }
   .row .th { width: 44px; height: 34px; }
 }
+
+/* browse results as a responsive grid of cards; the rail keeps compact rows */
+a.btn { display: inline-block; text-decoration: none; }
+.list.grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(230px, 1fr)); gap: 12px; }
+.list.grid .row { flex-direction: column; align-items: stretch; gap: 6px; padding: 8px; border: 1px solid var(--border); border-radius: 9px; background: var(--surface); }
+.list.grid .row:first-child { border-top: 1px solid var(--border); }
+.list.grid .row .th { width: 100%; height: auto; aspect-ratio: 4 / 3; border-radius: 6px; }
+.list.grid .row .th.none { font-size: 28px; }
+.list.grid .row .btn.small { align-self: flex-start; }
+.thumbs { grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); }
+.list.grid .row .th.none { aspect-ratio: 16 / 5; font-size: 20px; }
+
+/* run rows: select + expand to the run's images */
+.racts { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
+.btn.ghost { background: transparent; color: var(--muted); }
+.btn.ghost:hover:not(:disabled) { color: var(--text); }
+.list .row.open { flex-wrap: wrap; }
+.list .row.open .imgpanel { flex: 1 0 100%; }
+.list.grid .row.open { grid-column: 1 / -1; }
+.imgpanel { margin-top: 4px; }
+.imgpanel .thumbs.pick { grid-template-columns: repeat(auto-fill, minmax(clamp(120px, 11vw, 190px), 1fr)); margin-top: 4px; }
+.thumbs.pick figure { display: flex; flex-direction: column; gap: 3px; }
+.thumbs.pick .btn.small { align-self: flex-start; }
+.runbox .imgpanel .thumbs.pick { max-height: 52vh; overflow-y: auto; padding-right: 4px; }
+.imgpanel .hint { margin: 4px 0; }
+.list.grid .row.open { flex-direction: row; flex-wrap: wrap; align-items: center; }
+.list.grid .row.open .th { width: 96px; height: 64px; aspect-ratio: auto; }
+.list.grid .row.open .main { flex: 1; min-width: 0; }
+.list.grid .row.open .imgpanel { flex: 1 0 100%; min-width: 0; }
+.thumbs.pick figure img { aspect-ratio: 16 / 10; }

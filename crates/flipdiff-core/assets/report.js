@@ -6,6 +6,19 @@
   var LB = ((report.config || {}).labels) || { baseline: "baseline", capture: "capture" };
   var IDENTITY = (report.config || {}).mode === "identity";
 
+  var A = window.__flipdiffAgent;
+  // The view state the URL hash and window.flipdiff describe; compare() reads it
+  // when it is built and writes it back as the person changes the view.
+  var V = { entry: null, layout: "swipe", split: 0.5, vertical: false, zoom: "fit", at: null, heat: 0, channel: "rgb", ev: 0, roi: null, hsel: null, hselT: "", tcur: "", hotspotReq: null };
+  var agent = null;
+  function notify() { if (agent) agent.changed(); }
+  function applyFilter() {
+    var f = [];
+    if (V.ev !== 0) f.push("brightness(" + Math.pow(2, V.ev).toFixed(4) + ")");
+    if (V.channel !== "rgb") f.push("url(#ch-" + (V.channel === "luma" ? "l" : V.channel) + ")");
+    document.body.style.setProperty("--f", f.length ? f.join(" ") : "none");
+  }
+
   var RANK = { fail: 0, error: 1, missing: 2, new: 3, pass: 4 };
   var STATUSES = ["fail", "error", "missing", "new", "pass"];
 
@@ -176,9 +189,15 @@
   }
 
   function toggle(name) {
-    if (state.open[name]) delete state.open[name];
-    else state.open[name] = true;
+    if (state.open[name]) {
+      delete state.open[name];
+      if (V.entry === name) V.entry = Object.keys(state.open)[0] || null;
+    } else {
+      state.open[name] = true;
+      V.entry = name;
+    }
     render();
+    notify();
   }
 
   function renderRow(e) {
@@ -190,6 +209,7 @@
       h("td", null, h("span", { class: "st s-" + e.status, text: e.status })),
       h("td", { class: "name" }, h("button", { type: "button", "aria-expanded": open ? "true" : "false", onclick: function () { toggle(e.name); } }, e.name),
         (e.meta_diff || []).length ? h("span", { class: "badge cfg", title: e.meta_diff.map(function (d) { return d.key; }).join(", "), text: "config differs" }) : null,
+        (e.warnings || []).length ? h("span", { class: "badge warn", title: e.warnings.join("\n"), text: "warning" }) : null,
         frameWide(e) ? h("span", { class: "badge wide", title: "The largest hotspot covers at least half of the frame", text: "frame-wide change" }) : null),
       h("td", { class: "metric col-sec", text: e.metric_used }),
       valueCell(e),
@@ -284,18 +304,37 @@
       }))));
   }
 
+  // Non-fatal observations (all-black or all-white sides, non-finite samples) and
+  // per-side non-finite counts, in the validity area at the top of the detail.
+  function warnBox(e) {
+    var ws = (e.warnings || []).slice(), lines = [];
+    [[LB.baseline, e.baseline_properties], [LB.capture, e.properties]].forEach(function (sp) {
+      var p = sp[1];
+      if (!p) return;
+      var bad = (p.nan_count || 0) + (p.inf_count || 0);
+      if (bad || p.negative_count) {
+        lines.push(h("li", { class: bad ? "nf" : "", text: sp[0] + ": " + (p.nan_count || 0) + " NaN, " + (p.inf_count || 0) + " Inf, " + (p.negative_count || 0) + " negative samples" }));
+      }
+    });
+    if (!ws.length && !lines.length) return null;
+    return h("div", { class: "cfgwarn warnbox", role: "note" },
+      h("strong", { text: "\u26A0 Warnings: check the images before trusting the numbers" }),
+      h("ul", null, ws.map(function (w) { return h("li", { text: w }); }).concat(lines)));
+  }
+
   function metaTable(e) {
     var ds = e.meta_diff || [];
     if (!ds.length) return null;
-    return h("div", { class: "rtab-wrap" }, h("table", { class: "rtab mtab" },
-      h("caption", { text: "Configuration differences" }),
+    return h("div", { class: "cfgwarn", role: "note" },
+      h("strong", { text: "\u26A0 Configuration differs: this comparison may not be like for like" }),
+      h("div", { class: "rtab-wrap" }, h("table", { class: "rtab mtab" },
       h("thead", null, h("tr", null, ["Key", LB.baseline, LB.capture].map(function (t) { return h("th", { scope: "col", text: t }); }))),
       h("tbody", null, ds.map(function (d) {
         return h("tr", null,
           h("td", { class: "mk", text: d.key }),
           h("td", { class: d.baseline === "<absent>" ? "mv na" : "mv", text: d.baseline }),
           h("td", { class: d.capture === "<absent>" ? "mv na" : "mv", text: d.capture }));
-      }))));
+      })))));
   }
 
   function markUpscaled(d) {
@@ -340,9 +379,7 @@
     else if (e.bit_identical === false) b.appendChild(h("span", { class: "badge", text: "not bit-identical" }));
     if (p.is_all_black) b.appendChild(h("span", { class: "badge warn", text: "ALL BLACK" }));
     if (p.is_all_white) b.appendChild(h("span", { class: "badge warn", text: "ALL WHITE" }));
-    b.appendChild(h("span", { class: "badge", text: "lum mean " + p.mean_luminance.toFixed(3) }));
-    b.appendChild(h("span", { class: "badge", text: "min " + p.min_luminance.toFixed(3) }));
-    b.appendChild(h("span", { class: "badge", text: "max " + p.max_luminance.toFixed(3) }));
+    b.appendChild(h("span", { class: "badge", text: "lum min/mean/max " + p.min_luminance.toFixed(3) + " / " + p.mean_luminance.toFixed(3) + " / " + p.max_luminance.toFixed(3), title: "Image luminance (0 to 1) of the capture: minimum, mean, maximum. Not FLIP values." }));
     if (e.metrics) b.appendChild(h("span", { class: "badge", text: e.metrics.width + "×" + e.metrics.height }));
     return b;
   }
@@ -354,7 +391,7 @@
 
   function compare(e) {
     var hasHeat = !!e.paths.heatmap;
-    var x = 50, k = 1, tx = 0, ty = 0, vertical = false, heat = false;
+    var x = 50, k = 1, tx = 0, ty = 0, vertical = false, heat = false, applied = false;
     var ptrs = {}, gesture = null;
 
     var stage = h("div", { class: "stage", tabindex: "0", role: "group",
@@ -363,6 +400,7 @@
     var base = h("img", { class: "base", src: url(e.paths.baseline), alt: LB.baseline, decoding: "async", draggable: "false" });
     base.addEventListener("load", function () {
       if (base.naturalWidth && base.naturalHeight) stage.style.setProperty("--ar", base.naturalWidth / base.naturalHeight);
+      applyView();
       paint();
     });
     var capImg = h("img", { src: url(e.paths.capture), alt: LB.capture, decoding: "async", draggable: "false" });
@@ -372,7 +410,8 @@
     var line = h("div", { class: "line" }, grip);
     var tagL = h("span", { class: "tag l", text: LB.baseline });
     var tagR = h("span", { class: "tag r", text: LB.capture });
-    stage.append(base, cap, line, tagL, tagR);
+    var roiEl = h("div", { class: "roi", hidden: true });
+    stage.append(base, cap, line, tagL, tagR, roiEl);
     var hots = hotspotsOf(e).map(function (hs, i) {
       var b = h("button", { type: "button", class: "hsp", title: "Hotspot " + (i + 1) + ": zoom to it", "aria-label": "Zoom to hotspot " + (i + 1) }, h("span", { text: String(i + 1) }));
       b.addEventListener("pointerdown", function (ev) { ev.stopPropagation(); });
@@ -385,19 +424,34 @@
     var opa = h("input", { type: "range", min: "0", max: "1", step: "0.05", value: "0.6", hidden: true, class: "opa", "aria-label": "Heatmap opacity" });
     stage.style.setProperty("--opa", "0.6");
 
-    function setX(p) {
+    function setX(p, quiet) {
       x = Math.max(0, Math.min(100, Math.round(p * 10) / 10));
       stage.style.setProperty("--x", x + "%");
       slider.value = String(x);
+      if (!quiet) { V.split = x / 100; notify(); }
     }
-    setX(50);
+    setX(V.split * 100, true);
     slider.addEventListener("input", function () { setX(Number(slider.value)); });
-    opa.addEventListener("input", function () { stage.style.setProperty("--opa", opa.value); });
+    opa.addEventListener("input", function () { stage.style.setProperty("--opa", opa.value); V.heat = Number(opa.value); notify(); });
 
     // ---- zoom and pan: one transform shared by every layer ----
     var zoomBtns = {};
     var ZS = [["fit", "Fit"], ["1", "1×"], ["2", "2×"], ["4", "4×"], ["8", "8×"]];
-    function absK(z) { return Math.max(1, Number(z) * (base.naturalWidth || (e.metrics && e.metrics.width) || 1) / (stage.clientWidth || 1)); }
+    function natW() { return base.naturalWidth || (e.metrics && e.metrics.width) || 1; }
+    function natH() { return base.naturalHeight || (e.metrics && e.metrics.height) || 1; }
+    function absK(z) { return Math.max(1, Number(z) * natW() / (stage.clientWidth || 1)); }
+    // Applies the page-level zoom (V.zoom, V.at) to this stage.
+    function applyView() {
+      var w = stage.clientWidth, hh = stage.clientHeight;
+      if (V.zoom === "fit" || !w) { k = 1; tx = 0; ty = 0; }
+      else {
+        k = absK(V.zoom);
+        var at = V.at || [natW() / 2, natH() / 2];
+        tx = w / 2 - at[0] / natW() * w * k; ty = hh / 2 - at[1] / natH() * hh * k;
+      }
+      applied = true;
+      if (V.hotspotReq && hotspotsOf(e).length >= V.hotspotReq) { var n = V.hotspotReq; V.hotspotReq = null; zoomBox(n - 1); }
+    }
     function paint() {
       var w = stage.clientWidth, hh = stage.clientHeight;
       if (k <= 1.0001) { k = 1; tx = 0; ty = 0; }
@@ -414,6 +468,21 @@
         var on = z[0] === "fit" ? k === 1 : k > 1 && Math.abs(k - absK(z[0])) < 1e-3;
         zoomBtns[z[0]].setAttribute("aria-pressed", on ? "true" : "false");
       });
+      if (V.roi && w) {
+        var q = V.roi, st2 = roiEl.style;
+        roiEl.hidden = false;
+        st2.left = (tx + q[0] / natW() * w * k) + "px"; st2.top = (ty + q[1] / natH() * hh * k) + "px";
+        st2.width = (q[2] / natW() * w * k) + "px"; st2.height = (q[3] / natH() * hh * k) + "px";
+      } else roiEl.hidden = true;
+      if (applied && w) {
+        V.tcur = k.toFixed(4) + "," + tx.toFixed(1) + "," + ty.toFixed(1);
+        if (k <= 1.0001) { V.zoom = "fit"; V.at = null; }
+        else {
+          V.zoom = Math.round(k * w / natW() * 1000) / 1000;
+          V.at = [Math.round((w / 2 - tx) / (w * k) * natW()), Math.round((hh / 2 - ty) / (hh * k) * natH())];
+        }
+        notify();
+      }
     }
     function zoomAt(f, cx, cy) {
       var nk = Math.max(1, Math.min(256, k * f)), r = nk / k;
@@ -429,6 +498,7 @@
       tx = w / 2 - (r[0] + r[2] / 2) * w * nk;
       ty = hh / 2 - (r[1] + r[3] / 2) * hh * nk;
       paint();
+      V.hsel = i + 1; V.hselT = V.tcur;
     }
     function setZoom(z) {
       if (z === "fit") { k = 1; paint(); return; }
@@ -440,8 +510,10 @@
     // ---- modes ----
     var mode = "swipe", paused = false, showCap = false, timer = null;
     var pauseBtn = h("button", { type: "button", class: "btn", hidden: true, text: "Pause" });
-    var bSwipe = h("button", { type: "button", "aria-pressed": "true", text: "Swipe" });
-    var bFlick = h("button", { type: "button", "aria-pressed": "false", text: "Flicker", title: "Space" });
+    var bSide = h("button", { type: "button", "aria-pressed": "false", "data-layout": "side", text: "Side", title: "Only the images side by side, no compare stage" });
+    var bSwipe = h("button", { type: "button", "aria-pressed": "true", "data-layout": "swipe", text: "Swipe" });
+    var bFlick = h("button", { type: "button", "aria-pressed": "false", "data-layout": "flicker", text: "Flicker", title: "Space" });
+    var bHeatL = hasHeat ? h("button", { type: "button", "aria-pressed": "false", "data-layout": "heatmap", text: "Heatmap", title: "The capture under its FLIP heatmap" }) : null;
     function paintFlick() {
       stage.classList.toggle("showcap", showCap);
       tagL.textContent = showCap ? LB.capture : LB.baseline;
@@ -456,8 +528,6 @@
     }
     function setMode(m) {
       mode = m;
-      bSwipe.setAttribute("aria-pressed", m === "swipe");
-      bFlick.setAttribute("aria-pressed", m === "flicker");
       stage.classList.toggle("flick", m === "flicker");
       slider.hidden = m === "flicker";
       pauseBtn.hidden = m !== "flicker";
@@ -470,8 +540,22 @@
         stage.classList.remove("showcap");
       }
     }
-    bSwipe.addEventListener("click", function () { setMode("swipe"); });
-    bFlick.addEventListener("click", function () { setMode("flicker"); });
+    // side | swipe | flicker | heatmap: the page-level layout (V.layout).
+    function setLayout(l, quiet) {
+      if (l === "heatmap" && !hasHeat) l = "swipe";
+      V.layout = l;
+      root.classList.toggle("side", l === "side");
+      setMode(l === "flicker" ? "flicker" : "swipe");
+      if (l === "heatmap") { setX(0, true); setHeat(true, true); }
+      else {
+        setX(V.split * 100, true);
+        if (hasHeat && !(l === "swipe" && V.heat > 0)) setHeat(false, true);
+      }
+      slider.hidden = l !== "swipe";
+      [bSide, bSwipe, bFlick, bHeatL].forEach(function (b) { if (b) b.setAttribute("aria-pressed", b.getAttribute("data-layout") === l ? "true" : "false"); });
+      if (!quiet) notify();
+    }
+    [bSide, bSwipe, bFlick, bHeatL].forEach(function (b) { if (b) b.addEventListener("click", function () { setLayout(b.getAttribute("data-layout")); }); });
     pauseBtn.addEventListener("click", function () {
       paused = !paused;
       pauseBtn.textContent = paused ? "Play" : "Pause";
@@ -479,20 +563,22 @@
     });
 
     var vertBtn = h("button", { type: "button", class: "btn small", "aria-pressed": "false", title: "Vertical / horizontal split (v)", text: "Vertical" });
-    function setVertical(v) {
+    function setVertical(v, quiet) {
       vertical = v;
+      if (!quiet) { V.vertical = v; notify(); }
       stage.classList.toggle("vert", v);
       vertBtn.setAttribute("aria-pressed", v ? "true" : "false");
     }
     vertBtn.addEventListener("click", function () { setVertical(!vertical); });
 
     var heatBtn = hasHeat ? h("button", { type: "button", class: "btn small", "aria-pressed": "false", title: "FLIP heatmap on the capture side (h)", text: "Heatmap" }) : null;
-    function setHeat(on) {
+    function setHeat(on, quiet) {
       if (!hasHeat) return;
       heat = on;
       stage.classList.toggle("heat", on);
       heatBtn.setAttribute("aria-pressed", on ? "true" : "false");
       opa.hidden = !on;
+      if (!quiet) { V.heat = on ? Number(opa.value) : 0; notify(); }
     }
     if (heatBtn) heatBtn.addEventListener("click", function () { setHeat(!heat); });
 
@@ -574,6 +660,11 @@
       zoomAt(Math.exp(-dy * (ev.ctrlKey ? 0.01 : 0.0015)), ev.clientX - rc.left, ev.clientY - rc.top);
     }, { passive: false });
 
+    var chanSel = h("select", { "aria-label": "Display channel", title: "Display channel" }, [["rgb", "RGB"], ["r", "R"], ["g", "G"], ["b", "B"], ["luma", "Luma"]].map(function (o) { return h("option", { value: o[0], text: o[1] }); }));
+    chanSel.value = V.channel;
+    chanSel.addEventListener("change", function () { V.channel = chanSel.value; applyFilter(); notify(); });
+    var evInp = h("input", { type: "range", min: "-4", max: "4", step: "0.1", value: String(V.ev), class: "evr", "aria-label": "Exposure in stops", title: "Exposure (EV)" });
+    evInp.addEventListener("input", function () { V.ev = Number(evInp.value); applyFilter(); notify(); });
     var zoomSeg = h("div", { class: "seg", role: "group", "aria-label": "Compare zoom" }, ZS.map(function (z) {
       var b = h("button", { type: "button", "data-cz": z[0], "aria-pressed": z[0] === "fit" ? "true" : "false", text: z[1], title: z[0] === "fit" ? "Fit (0)" : "Zoom " + z[1] + " (" + z[0] + ")" });
       b.addEventListener("click", function () { setZoom(z[0]); });
@@ -584,17 +675,61 @@
     root = h("div", { class: "cmp" },
       h("div", { class: "cmp-cap" },
         h("span", { text: "Compare" }),
-        h("div", { class: "seg", role: "group", "aria-label": "Compare mode" }, bSwipe, bFlick),
+        h("div", { class: "seg", role: "group", "aria-label": "Compare mode" }, bSide, bSwipe, bFlick, bHeatL),
         pauseBtn,
         h("span", { class: "grow" }),
         fsBtn,
         h("button", { type: "button", class: "btn small", title: "Keyboard shortcuts (?)", "aria-label": "Keyboard shortcuts", text: "?", onclick: function () { toggleHelp(); } })),
-      h("div", { class: "cmp-tools" }, zoomSeg, vertBtn, heatBtn, opa),
+      h("div", { class: "cmp-tools" }, zoomSeg, vertBtn, heatBtn, opa, chanSel, evInp),
       h("div", { class: "cmp-wrap" }, stage),
       slider);
 
+    // The stage as a canvas: both images with the current transform, the split, heatmap, filter, boxes and labels.
+    function toCanvas() {
+      var w = stage.clientWidth, hh = stage.clientHeight;
+      var imgs = [base, capImg].concat(heatImg && stage.classList.contains("heat") ? [heatImg] : []);
+      return Promise.all(imgs.map(function (im) { return im.decode ? im.decode().catch(function () { /* drawn blank */ }) : null; })).then(function () {
+        var c = document.createElement("canvas");
+        c.width = Math.max(1, w); c.height = Math.max(1, hh);
+        var g = c.getContext("2d");
+        g.imageSmoothingEnabled = !(k > 1.0001);
+        var f = getComputedStyle(document.body).getPropertyValue("--f").trim();
+        var clip = vertical ? [0, hh * x / 100, w, hh] : [w * x / 100, 0, w, hh];
+        function draw(img, alpha, clipped) {
+          g.save();
+          if (clipped) { g.beginPath(); g.rect(clip[0], clip[1], clip[2], clip[3]); g.clip(); }
+          g.globalAlpha = alpha; g.filter = f && f !== "none" ? f : "none";
+          g.drawImage(img, tx, ty, w * k, hh * k);
+          g.restore();
+        }
+        if (mode === "flicker") draw(showCap ? capImg : base, 1, false);
+        else {
+          draw(base, 1, false); draw(capImg, 1, true);
+          if (heatImg && stage.classList.contains("heat")) draw(heatImg, Number(opa.value), true);
+          g.fillStyle = "#fff";
+          if (vertical) g.fillRect(0, hh * x / 100 - 1, w, 2); else g.fillRect(w * x / 100 - 1, 0, 2, hh);
+        }
+        Array.prototype.forEach.call(stage.querySelectorAll(".hsp, .roi, .tag"), function (b) {
+          if (b.hidden || b.classList.contains("r") && mode === "flicker") return;
+          var br = b.getBoundingClientRect(), sr = stage.getBoundingClientRect();
+          var bx = br.left - sr.left, by = br.top - sr.top;
+          if (b.classList.contains("tag")) {
+            g.fillStyle = "rgba(0,0,0,0.7)"; g.fillRect(bx, by, br.width, br.height);
+            g.fillStyle = "#fff"; g.font = "12px sans-serif"; g.fillText(b.textContent, bx + 5, by + br.height * 0.72);
+          } else {
+            g.lineWidth = 2; g.strokeStyle = b.classList.contains("roi") ? "#00c8ff" : "#ffb000";
+            g.strokeRect(bx + 1, by + 1, br.width - 2, br.height - 2);
+          }
+        });
+        return c;
+      });
+    }
+
     var api = {
       root: root,
+      canvas: toCanvas,
+      refresh: function () { applyView(); paint(); },
+      entry: e.name,
       nudge: function (d) { if (mode === "swipe") setX(x + d); },
       flicker: function () { setMode(mode === "flicker" ? "swipe" : "flicker"); },
       vertical: function () { setVertical(!vertical); },
@@ -607,6 +742,9 @@
     };
     root.cmpApi = api;
     cmps.push(api);
+    if (V.vertical) setVertical(true, true);
+    if (V.heat > 0 && hasHeat) { opa.value = String(V.heat); stage.style.setProperty("--opa", String(V.heat)); setHeat(true, true); }
+    setLayout(V.layout, true);
     root.addEventListener("pointerenter", function () { activeCmp = api; });
     root.addEventListener("focusin", function () { activeCmp = api; });
     root.addEventListener("pointerdown", function () { activeCmp = api; });
@@ -633,6 +771,7 @@
     ["1 2 4 8", "Zoom 1×, 2×, 4×, 8×"],
     ["0", "Zoom to fit"],
     ["f", "Full screen"],
+    ["y / n", "Confirm / override the decision an agent proposed for the open entry"],
     ["?", "This help"],
     ["Esc", "Close help / leave full screen"]
   ];
@@ -729,6 +868,11 @@
         document.querySelectorAll(".d-bar .seg[aria-label=Hotspots] button").forEach(function (b) { b.setAttribute("aria-pressed", on); });
       } })) : null;
     d.className += state.hotspots ? " hots" : "";
+    d.appendChild(decisionBar(e));
+    var wb = warnBox(e);
+    if (wb) d.appendChild(wb);
+    var mt = metaTable(e);
+    if (mt) d.appendChild(mt);
     d.appendChild(h("div", { class: "d-bar" },
       h("div", { class: "seg", role: "group", "aria-label": "Zoom" }, zoomBtns),
       rgnBtn,
@@ -747,10 +891,106 @@
     if (mg) d.appendChild(mg);
     var rt = regionTable(e);
     if (rt) d.appendChild(rt);
-    var mt = metaTable(e);
-    if (mt) d.appendChild(mt);
     var tr = h("tr", { class: "detail" }, h("td", { colspan: String(COLUMNS.length) }, d));
     return tr;
+  }
+
+  // ---- decisions: what a person decided, and what an agent proposed ---------
+
+  var dec = {}, props = {};
+  var LS_KEY = "flipdiff-report.v1:" + report.generated_at_unix + ":" + entries.length;
+  function loadDecisions() {
+    try { var o = JSON.parse(localStorage.getItem(LS_KEY) || "null"); if (o && o.dec) dec = o.dec; } catch (err) { /* no storage: decisions last for the visit */ }
+    var side = A.sidecar();
+    Object.keys(side).forEach(function (name) {
+      props[name] = side[name].proposals || [];
+      if (side[name].decision && !(dec[name] && dec[name].decision)) dec[name] = { decision: side[name].decision, note: side[name].note || "", timestamp_ms: side[name].timestamp_ms || 0 };
+    });
+  }
+  function setVerdict(name, v) {
+    dec[name] = { decision: v, note: (dec[name] && dec[name].note) || "", timestamp_ms: Date.now() };
+    try { localStorage.setItem(LS_KEY, JSON.stringify({ dec: dec })); } catch (err) { /* ignore */ }
+    render();
+  }
+  // The decisions file, as `flipdiff approve --decisions` reads it; proposals travel along.
+  function buildDecisions() {
+    var dirs = report.baseline_dir && report.capture_dir ? [report.baseline_dir, report.capture_dir] : [];
+    return {
+      schema: "flipdiff-decisions.v1", seed: 0, labels: [LB.baseline, LB.capture], blind: false, dirs: dirs,
+      sets: entries.filter(function (e) { return dec[e.name] || (props[e.name] || []).length; }).map(function (e) {
+        var d = dec[e.name] || {};
+        var o = { name: e.name, decision: d.decision || null, chosen_label: null, no_difference: false, note: d.note || "", roi: null, timestamp_ms: d.timestamp_ms || 0, chosen_dir: null, sha256: dirs.length ? [e.baseline_sha256 || null, e.capture_sha256 || null] : [] };
+        if ((props[e.name] || []).length) o.proposals = props[e.name];
+        return o;
+      })
+    };
+  }
+  function exportDecisions() {
+    var blob = new Blob([JSON.stringify(buildDecisions(), null, 2) + "\n"], { type: "application/json" });
+    var u = URL.createObjectURL(blob);
+    var a = h("a", { href: u, download: "flipdiff-decisions.v1.json" });
+    document.body.appendChild(a); a.click(); a.remove();
+    setTimeout(function () { URL.revokeObjectURL(u); }, 4000);
+  }
+  function decisionBar(e) {
+    var cur = (dec[e.name] || {}).decision || null;
+    var list = props[e.name] || [];
+    var bar = A.proposalBar(list, cur, function (v) { setVerdict(e.name, v); }).el;
+    var mk = function (v, label) {
+      return h("button", { type: "button", class: "btn small", "aria-pressed": cur === v ? "true" : "false", text: label, onclick: function () { setVerdict(e.name, cur === v ? null : v); } });
+    };
+    var row = h("div", { class: "d-bar decbar" }, h("span", { class: "lbl", text: "Decision" }), mk("accept", "Accept"), mk("reject", "Reject"));
+    return h("div", { class: "decwrap" }, list.length ? bar : null, row);
+  }
+  function proposalFor(name) {
+    var ap = name ? A.acceptProposal(props[name]) : null;
+    return ap && (ap.answer === "accept" || ap.answer === "reject") ? ap : null;
+  }
+
+  // ---- window.flipdiff and the URL hash --------------------------------------
+
+  function shownEntries() {
+    var shown = entries.filter(function (e) { return state.filter === "all" || e.status !== "pass"; });
+    return sorted(shown);
+  }
+  function activeCmpFor(name) {
+    var live = cmps.filter(function (c) { return c.root.isConnected && c.entry === name; });
+    return live[0] || null;
+  }
+  function agentGet() {
+    return {
+      entry: V.entry, layout: V.layout, split: V.split, vertical: V.vertical, zoom: V.zoom, at: V.zoom === "fit" ? null : V.at,
+      heat: V.heat, channel: V.channel, ev: V.ev, roi: V.roi,
+      hotspot: V.hsel && V.hselT === V.tcur ? V.hsel : null
+    };
+  }
+  function agentApply(p) {
+    ["layout", "split", "vertical", "zoom", "heat", "channel", "ev", "roi"].forEach(function (key) { if (key in p) V[key] = p[key]; });
+    if ("at" in p) V.at = p.at;
+    if (p.zoom === "fit") V.at = null;
+    V.hotspotReq = p.hotspot || null;
+    if (p.hotspot === null) { V.hsel = null; V.hotspotReq = null; }
+    if (p.entry != null && entries.some(function (e) { return e.name === p.entry; })) {
+      state.open = {}; state.open[p.entry] = true; V.entry = p.entry;
+      if (state.filter === "issues" && entries.some(function (e) { return e.name === p.entry && e.status === "pass"; })) state.filter = "all";
+    }
+    applyFilter();
+    render();
+    var row = V.entry && document.querySelector("tr.row.open");
+    if (row && row.scrollIntoView) row.scrollIntoView({ block: "nearest" });
+  }
+  function agentStep(d) {
+    var list = shownEntries().map(function (e) { return e.name; });
+    if (!list.length) return false;
+    var i = list.indexOf(V.entry), q = i < 0 ? (d > 0 ? 0 : list.length - 1) : i + d;
+    if (q < 0 || q >= list.length) return false;
+    agentApply({ entry: list[q] });
+    return true;
+  }
+  function agentCanvas() {
+    var c = V.entry ? activeCmpFor(V.entry) : null;
+    if (!c) return Promise.reject(new Error("no compare stage is open: call flipdiff.set({entry: name}) first (the entry needs both a baseline and a capture image)"));
+    return c.canvas();
   }
 
   // ---- wiring ----------------------------------------------------------------
@@ -761,6 +1001,28 @@
     document.querySelectorAll(".d").forEach(markUpscaled);
   });
 
+  loadDecisions();
+  var init = A.parseHash(location.hash, "entry");
+  ["layout", "split", "vertical", "zoom", "at", "heat", "channel", "ev", "roi"].forEach(function (key) { if (key in init) V[key] = init[key]; });
+  if (init.entry && entries.some(function (e) { return e.name === init.entry; })) {
+    V.entry = init.entry; state.open[init.entry] = true;
+    if (entries.some(function (e) { return e.name === init.entry && e.status === "pass"; })) state.filter = "all";
+  }
+  if (init.hotspot) V.hotspotReq = init.hotspot;
+  applyFilter();
   renderHeader();
   render();
+  agent = A.create({
+    nameKey: "entry", blind: false, defaults: { split: 0.5 },
+    get: agentGet, apply: agentApply, step: agentStep, canvas: agentCanvas,
+    names: function () { return entries.map(function (e) { return { name: e.name, status: e.status, value: e.value }; }); }
+  });
+  A.bindCopy(document.getElementById("copy-link"), agent);
+  document.getElementById("export").addEventListener("click", exportDecisions);
+  document.addEventListener("keydown", function (ev) {
+    if (ev.ctrlKey || ev.metaKey || ev.altKey || typing(ev.target)) return;
+    var ap = ev.key.toLowerCase() === "y" || ev.key.toLowerCase() === "n" ? proposalFor(V.entry) : null;
+    if (ap) setVerdict(V.entry, (ev.key.toLowerCase() === "y") === (ap.answer === "accept") ? "accept" : "reject");
+  });
+  agent.applyHash();
 })();

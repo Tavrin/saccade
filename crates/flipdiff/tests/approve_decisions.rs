@@ -139,3 +139,25 @@ fn prune_missing_deletes_only_baselines_without_a_capture() {
     assert!(!base.join("gone.png").exists());
     assert!(base.join("kept.png").exists());
 }
+
+#[test]
+fn approve_ignores_proposed_decisions() {
+    let tmp = tempfile::tempdir().unwrap();
+    let (cap, base) = (tmp.path().join("cap"), tmp.path().join("base"));
+    save(&cap, "a.png", 200);
+    save(&base, "a.png", 10);
+    // A model's accept is only a proposal: the set has no decision of its own.
+    let file = tmp.path().join("d.json");
+    std::fs::write(
+        &file,
+        r#"{"schema":"flipdiff-decisions.v1","seed":1,"labels":["a","b"],"sets":[{"name":"a.png","proposals":[{"question":"accept","answer":"accept","prob":0.99,"source":"jev","proposed":true}]}]}"#,
+    )
+    .unwrap();
+    let out = approve(&cap, &base, &file);
+    assert_eq!(out.status.code(), Some(0), "{out:?}");
+    let px = image::open(base.join("a.png"))
+        .unwrap()
+        .to_rgb8()
+        .get_pixel(0, 0)[0];
+    assert_eq!(px, 10, "a proposal never moves a baseline");
+}

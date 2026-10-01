@@ -1,18 +1,33 @@
-//! The JSON Schemas under `schemas/` are generated from the Rust types. This
-//! test fails when a committed schema drifts from them; regenerate with
-//! `UPDATE_SCHEMAS=1 cargo test -p flipdiff-core --test schemas`.
+//! The JSON Schemas under `schemas/`, one per emitted schema id. Those of the
+//! types in this crate are generated from them, and this test fails when a
+//! committed file drifts; regenerate with
+//! `UPDATE_SCHEMAS=1 cargo test -p flipdiff-core --test schemas`. The others
+//! (the CLI's own output objects) are written by hand: this test checks that
+//! each exists, parses and carries the right `$id`, and the `flipdiff` crate's
+//! tests validate real outputs against them.
 
 #![allow(clippy::expect_used, clippy::panic, missing_docs)]
 
 use std::path::PathBuf;
 
-use flipdiff_core::explain::ExplainPack;
+use flipdiff_core::explain::{ExplainBlindKey, ExplainPack};
 use flipdiff_core::report::Report;
-use flipdiff_core::view::Decisions;
+use flipdiff_core::view::{BlindKey, Decisions};
 
-fn generated<T: schemars::JsonSchema>() -> String {
+const BASE: &str = "https://github.com/Tavrin/flipdiff/schemas";
+
+fn generated<T: schemars::JsonSchema>(file: &str) -> String {
     let schema = schemars::schema_for!(T);
-    let mut text = serde_json::to_string_pretty(&schema).expect("schema serializes");
+    let mut value = serde_json::to_value(&schema).expect("schema serializes");
+    let obj = value.as_object_mut().expect("schema is an object");
+    // `$id` right after `$schema`, as in the hand-written files.
+    let mut ordered = serde_json::Map::new();
+    if let Some(s) = obj.remove("$schema") {
+        ordered.insert("$schema".into(), s);
+    }
+    ordered.insert("$id".into(), format!("{BASE}/{file}").into());
+    ordered.extend(std::mem::take(obj));
+    let mut text = serde_json::to_string_pretty(&ordered).expect("schema serializes");
     text.push('\n');
     text
 }
@@ -22,12 +37,36 @@ fn committed_schemas_match_the_rust_types() {
     let dir = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../schemas");
     let update = std::env::var_os("UPDATE_SCHEMAS").is_some();
     let all = [
-        ("flipdiff-report.v1.schema.json", generated::<Report>()),
+        (
+            "flipdiff-sequence.v1.schema.json",
+            generated::<flipdiff_core::sequence::SequenceReport>(
+                "flipdiff-sequence.v1.schema.json",
+            ),
+        ),
+        (
+            "flipdiff-rank.v1.schema.json",
+            generated::<flipdiff_core::rank::RankReport>("flipdiff-rank.v1.schema.json"),
+        ),
+        (
+            "flipdiff-report.v1.schema.json",
+            generated::<Report>("flipdiff-report.v1.schema.json"),
+        ),
         (
             "flipdiff-decisions.v1.schema.json",
-            generated::<Decisions>(),
+            generated::<Decisions>("flipdiff-decisions.v1.schema.json"),
         ),
-        ("explain.v1.schema.json", generated::<ExplainPack>()),
+        (
+            "flipdiff-blind-key.v1.schema.json",
+            generated::<BlindKey>("flipdiff-blind-key.v1.schema.json"),
+        ),
+        (
+            "flipdiff-explain.v1.schema.json",
+            generated::<ExplainPack>("flipdiff-explain.v1.schema.json"),
+        ),
+        (
+            "flipdiff-explain-blind-key.v1.schema.json",
+            generated::<ExplainBlindKey>("flipdiff-explain-blind-key.v1.schema.json"),
+        ),
     ];
     for (file, text) in all {
         let path = dir.join(file);
@@ -41,6 +80,35 @@ fn committed_schemas_match_the_rust_types() {
         assert!(
             committed == text,
             "{file} drifted from the Rust types; run `UPDATE_SCHEMAS=1 cargo test -p flipdiff-core --test schemas`"
+        );
+    }
+
+    // Every schema id the tools emit has a file with a matching `$id`.
+    for name in [
+        "sequence",
+        "rank",
+        "report",
+        "decisions",
+        "blind-key",
+        "explain",
+        "explain-blind-key",
+        "view-summary",
+        "summary",
+        "approve",
+        "result",
+        "explain-result",
+        "decision-request",
+        "decide-result",
+        "error",
+    ] {
+        let file = format!("flipdiff-{name}.v1.schema.json");
+        let text =
+            std::fs::read_to_string(dir.join(&file)).unwrap_or_else(|e| panic!("{file}: {e}"));
+        let v: serde_json::Value = serde_json::from_str(&text).expect("schema parses");
+        assert_eq!(
+            v["$id"].as_str(),
+            Some(format!("{BASE}/{file}").as_str()),
+            "{file}: wrong $id"
         );
     }
 }

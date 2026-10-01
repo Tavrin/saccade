@@ -35,6 +35,8 @@ pub struct RunConfig {
     pub ignore: Vec<String>,
     /// Per-path overrides; the first matching one wins, field by field.
     pub overrides: Vec<Override>,
+    /// Numerical G-buffer comparison rules (`[[buffer]]`), first match wins.
+    pub buffers: Vec<crate::buffer::BufferSpec>,
     /// Named regions of interest (`[[region]]`).
     pub regions: Vec<crate::regions::RegionSpec>,
     /// Excluded areas (`[[mask]]`).
@@ -53,6 +55,21 @@ pub struct RunConfig {
     pub hotspot_threshold: f32,
     /// Hotspots kept per entry; `0` disables them (`hotspots`).
     pub hotspots: usize,
+    /// Hotspots below this share of the total error are dropped (`hotspot_min_share`).
+    pub hotspot_min_share: f64,
+    /// Peak error at which any local hotspot fails an entry whose deciding
+    /// metric passed (`hotspot_fail`); `None` (default) leaves it to the metric.
+    pub hotspot_fail: Option<f64>,
+    /// Whether a run that compared no pair is accepted (`allow_empty`,
+    /// `--allow-empty`). Off by default: nothing compared is not a pass.
+    pub allow_empty: bool,
+    /// Whether a capture with NaN or infinite samples is an error
+    /// (`fail_on_nonfinite`, default true).
+    pub fail_on_nonfinite: bool,
+    /// Diagnostics engine settings (`[diagnostics]`).
+    pub diagnostics: crate::diagnostics::DiagnosticsConfig,
+    /// The confidence gate for answers recorded by `flipdiff decide` (`[decisions]`).
+    pub decisions: crate::decision::DecisionsConfig,
 }
 
 impl Default for RunConfig {
@@ -64,6 +81,7 @@ impl Default for RunConfig {
             fail_on_new: false,
             ignore: Vec::new(),
             overrides: Vec::new(),
+            buffers: Vec::new(),
             regions: Vec::new(),
             masks: Vec::new(),
             config_dir: None,
@@ -73,6 +91,12 @@ impl Default for RunConfig {
             meta: crate::meta::MetaOptions::default(),
             hotspot_threshold: crate::hotspots::DEFAULT_HOTSPOT_THRESHOLD,
             hotspots: crate::hotspots::DEFAULT_HOTSPOTS,
+            hotspot_min_share: crate::hotspots::DEFAULT_HOTSPOT_MIN_SHARE,
+            hotspot_fail: None,
+            allow_empty: false,
+            fail_on_nonfinite: true,
+            diagnostics: crate::diagnostics::DiagnosticsConfig::default(),
+            decisions: crate::decision::DecisionsConfig::default(),
         }
     }
 }
@@ -87,15 +111,36 @@ struct FileConfig {
     meta_name: Option<String>,
     hotspot_threshold: Option<f32>,
     hotspots: Option<usize>,
+    hotspot_min_share: Option<f64>,
+    hotspot_fail: Option<f64>,
+    allow_empty: Option<bool>,
+    fail_on_nonfinite: Option<bool>,
     #[serde(default)]
     ignore: Vec<String>,
     #[serde(default, rename = "override")]
     overrides: Vec<FileOverride>,
+    #[serde(default, rename = "buffer")]
+    buffers: Vec<crate::buffer::BufferSpec>,
     #[serde(default, rename = "region")]
     regions: Vec<crate::regions::RegionSpec>,
     #[serde(default, rename = "mask")]
     masks: Vec<crate::regions::MaskSpec>,
     hdr: Option<FileHdr>,
+    diagnostics: Option<FileDiagnostics>,
+    decisions: Option<crate::decision::DecisionsConfig>,
+}
+
+#[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
+struct FileDiagnostics {
+    enabled: Option<bool>,
+    shift_detection: Option<bool>,
+    shift_min_px: Option<f64>,
+    shift_min_confidence: Option<f64>,
+    noise_max_flip: Option<f64>,
+    explained_min: Option<f64>,
+    partial_min: Option<f64>,
+    perf_keys: Option<Vec<String>>,
 }
 
 #[derive(Deserialize)]
@@ -168,6 +213,16 @@ impl RunConfig {
         if let Some(v) = file.hotspots {
             cfg.hotspots = v;
         }
+        if let Some(v) = file.hotspot_min_share {
+            cfg.hotspot_min_share = v;
+        }
+        cfg.hotspot_fail = file.hotspot_fail;
+        if let Some(v) = file.allow_empty {
+            cfg.allow_empty = v;
+        }
+        if let Some(v) = file.fail_on_nonfinite {
+            cfg.fail_on_nonfinite = v;
+        }
         cfg.ignore = file.ignore;
         cfg.overrides = file
             .overrides
@@ -179,7 +234,24 @@ impl RunConfig {
             })
             .collect();
         cfg.regions = file.regions;
+        cfg.buffers = file.buffers;
         cfg.masks = file.masks;
+        if let Some(d) = file.decisions {
+            cfg.decisions = d;
+        }
+        if let Some(d) = file.diagnostics {
+            let t = &mut cfg.diagnostics;
+            t.enabled = d.enabled.unwrap_or(t.enabled);
+            t.shift_detection = d.shift_detection.unwrap_or(t.shift_detection);
+            t.shift_min_px = d.shift_min_px.unwrap_or(t.shift_min_px);
+            t.shift_min_confidence = d.shift_min_confidence.unwrap_or(t.shift_min_confidence);
+            t.noise_max_flip = d.noise_max_flip.unwrap_or(t.noise_max_flip);
+            t.explained_min = d.explained_min.unwrap_or(t.explained_min);
+            t.partial_min = d.partial_min.unwrap_or(t.partial_min);
+            if let Some(keys) = d.perf_keys {
+                t.perf_keys = keys;
+            }
+        }
         if let Some(h) = file.hdr {
             if let Some(t) = h.tonemapper {
                 cfg.hdr.tonemapper = t;
@@ -205,7 +277,27 @@ impl RunConfig {
                 self.hotspot_threshold
             )));
         }
+        if !self.hotspot_min_share.is_finite() || !(0.0..=1.0).contains(&self.hotspot_min_share) {
+            return Err(Error::Config(format!(
+                "hotspot_min_share must be in [0, 1], got {}",
+                self.hotspot_min_share
+            )));
+        }
+        if let Some(hf) = self.hotspot_fail {
+            if !hf.is_finite() || hf <= 0.0 || hf > 1.0 {
+                return Err(Error::Config(format!(
+                    "hotspot_fail must be in (0, 1], got {hf}"
+                )));
+            }
+            if hf < f64::from(self.hotspot_threshold) {
+                return Err(Error::Config(format!(
+                    "hotspot_fail ({hf}) must not be below hotspot_threshold ({})",
+                    self.hotspot_threshold
+                )));
+            }
+        }
         self.hdr.validate()?;
+        self.diagnostics.validate()?;
         self.meta.checker()?;
         for g in &self.ignore {
             compile_glob(g)?;
@@ -220,6 +312,9 @@ impl RunConfig {
             }
         }
         crate::regions::validate(&self.regions, &self.masks)?;
+        for buffer in &self.buffers {
+            buffer.validate()?;
+        }
         Ok(())
     }
 
@@ -241,6 +336,13 @@ impl RunConfig {
             }
         }
         (metric, threshold)
+    }
+
+    /// First numerical-buffer rule matching this relative image name.
+    pub fn buffer_for(&self, name: &str) -> Option<&crate::buffer::BufferSpec> {
+        self.buffers
+            .iter()
+            .find(|b| compile_glob(&b.glob).is_ok_and(|m| m.is_match(name)))
     }
 }
 

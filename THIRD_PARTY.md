@@ -62,6 +62,6 @@ Zlib), all compatible with flipdiff's `MIT OR Apache-2.0` licence.
 
 ## Other dependencies
 
-Rust dependencies (`image`, `serde`, `serde_json`, `thiserror`, `clap`, and
-their transitive crates) are under MIT, Apache-2.0, BSD, Zlib or ISC terms.
+Rust dependencies (`image`, `serde`, `serde_json`, `thiserror`, `clap`, `rayon`
+(MIT OR Apache-2.0), `sha2` (MIT OR Apache-2.0), and their transitive crates) are under MIT, Apache-2.0, BSD, Zlib or ISC terms.
 Run `cargo tree` for the full list.

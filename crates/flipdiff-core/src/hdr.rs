@@ -141,6 +141,20 @@ pub struct HdrImage {
     pub height: u32,
     /// `width * height * 3` linear values, row-major.
     pub data: Vec<f32>,
+    /// What decoding replaced: the NaN, infinite and negative samples of the
+    /// file (`data` itself is already cleaned).
+    pub replaced: ReplacedSamples,
+}
+
+/// Counts of samples [`decode_hdr`] had to replace to keep `data` finite.
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+pub struct ReplacedSamples {
+    /// NaN samples (became 0).
+    pub nan: u64,
+    /// Infinite samples (became the clamp maximum or 0).
+    pub inf: u64,
+    /// Finite samples below zero (became 0).
+    pub negative: u64,
 }
 
 /// Whether `path` has an HDR extension (`exr` or `hdr`, case-insensitive).
@@ -160,13 +174,20 @@ pub fn decode_hdr(path: &Path) -> Result<HdrImage> {
     })?;
     let rgb = img.to_rgb32f();
     let (width, height) = rgb.dimensions();
+    let mut replaced = ReplacedSamples::default();
     let data = rgb
         .into_raw()
         .into_iter()
         .map(|v| {
             if v.is_nan() {
+                replaced.nan += 1;
                 0.0
             } else {
+                if v.is_infinite() {
+                    replaced.inf += 1;
+                } else if v < 0.0 {
+                    replaced.negative += 1;
+                }
                 v.clamp(0.0, MAX_LINEAR)
             }
         })
@@ -175,6 +196,7 @@ pub fn decode_hdr(path: &Path) -> Result<HdrImage> {
         width,
         height,
         data,
+        replaced,
     })
 }
 
@@ -367,23 +389,48 @@ pub fn validate_hdr(img: &HdrImage) -> Properties {
             mean_luminance: 0.0,
             min_luminance: 0.0,
             max_luminance: 0.0,
+            nan_count: 0,
+            inf_count: 0,
+            negative_count: 0,
         };
     }
     let black = img.data.iter().all(|&v| v == 0.0);
     let white = img.data.iter().all(|&v| v >= 1.0);
-    let (mut sum, mut min, mut max) = (0.0f64, f32::INFINITY, f32::NEG_INFINITY);
+    // Decoding already replaced these samples, so the file's counts are used.
+    let ReplacedSamples {
+        nan: nan_count,
+        inf: inf_count,
+        negative: negative_count,
+    } = img.replaced;
+    // Luminance statistics cover finite pixels only, so a NaN or infinite
+    // sample cannot turn them into values JSON cannot carry.
+    let (mut sum, mut min, mut max, mut finite) = (0.0f64, f32::INFINITY, f32::NEG_INFINITY, 0u64);
     for px in img.data.chunks_exact(3) {
         let l = luminance(px);
+        if !l.is_finite() {
+            continue;
+        }
         sum += f64::from(l);
         min = min.min(l);
         max = max.max(l);
+        finite += 1;
+    }
+    if finite == 0 {
+        (min, max) = (0.0, 0.0);
     }
     Properties {
         is_all_black: black,
         is_all_white: white,
-        mean_luminance: (sum / count as f64) as f32,
+        mean_luminance: if finite == 0 {
+            0.0
+        } else {
+            (sum / finite as f64) as f32
+        },
         min_luminance: min,
         max_luminance: max,
+        nan_count,
+        inf_count,
+        negative_count,
     }
 }
 
@@ -444,6 +491,7 @@ mod tests {
             width: N,
             height: N,
             data,
+            replaced: ReplacedSamples::default(),
         }
     }
 

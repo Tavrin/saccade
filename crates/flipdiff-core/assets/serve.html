@@ -13,27 +13,27 @@
   <span class="sub" id="rootname"></span>
 </header>
 <div class="page" id="landing" hidden>
-  <div class="col">
+  <div class="col main">
     <section class="card" aria-label="Browse">
       <h2>Browse</h2>
       <nav class="crumbs" id="crumbs" aria-label="Path"></nav>
       <form class="filters" id="filters" role="search">
-        <input type="search" id="q" placeholder="Path contains…" aria-label="Path substring">
+        <input type="search" id="q" placeholder="Path or sidecar value contains…" aria-label="Text in the path or in a sidecar value">
         <input type="text" id="metaf" placeholder="sidecar key=value" aria-label="Sidecar filter, key or key=value" spellcheck="false" autocomplete="off">
         <button type="submit" class="btn">Search here</button>
         <button type="button" class="btn" id="recentbtn">Recent here</button>
       </form>
       <div id="runbox" class="runbox" hidden></div>
       <p class="hint" id="note" role="status"></p>
-      <ul class="list" id="dirs"></ul>
+      <ul class="list grid" id="dirs"></ul>
     </section>
     <section class="card" id="resultscard" hidden aria-label="Search results">
       <h2 id="resultstitle">Results</h2>
       <p class="hint" id="resultsnote" role="status"></p>
-      <ul class="list" id="results"></ul>
+      <ul class="list grid" id="results"></ul>
     </section>
   </div>
-  <div class="col">
+  <div class="col rail">
     <section class="card" aria-label="Selection">
       <h2>Compare</h2>
       <ol class="chips" id="chips"></ol>

@@ -48,6 +48,20 @@ pub fn render_html(report: &Report, report_dir: &Path) -> Result<PathBuf> {
     html::render_html(report, report_dir)
 }
 
+/// Writes a normal report with a server-rendered sequence curve.
+pub fn render_sequence_html(
+    report: &Report,
+    sequence: &crate::sequence::SequenceReport,
+    report_dir: &Path,
+) -> Result<PathBuf> {
+    html::render_sequence_html(report, sequence, report_dir)
+}
+
+/// Writes the server-rendered ranking tables and links to candidate reports.
+pub fn render_rank_html(rank: &crate::rank::RankReport, report_dir: &Path) -> Result<PathBuf> {
+    html::render_rank_html(rank, report_dir)
+}
+
 /// Renders the Markdown summary of `report`.
 ///
 /// The output starts with the hidden `<!-- flipdiff-summary -->` marker (or
