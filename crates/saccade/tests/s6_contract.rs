@@ -19,6 +19,15 @@ fn image(dir: &Path, shade: u8) {
         .save(dir.join("scene.png"))
         .unwrap();
 }
+fn assert_same_path(recorded: &str, expected: &Path) {
+    // Canonical spelling may differ from tempfile's path (macOS /var aliases,
+    // Windows verbatim prefixes); the contract identifies the same directory.
+    assert!(Path::new(recorded).is_absolute(), "{recorded}");
+    assert_eq!(
+        Path::new(recorded).canonicalize().unwrap(),
+        expected.canonicalize().unwrap()
+    );
+}
 fn validate(name: &str, value: &Value) {
     let path = Path::new(env!("CARGO_MANIFEST_DIR"))
         .join(format!("../../schemas/saccade-{name}.v1.schema.json"));
@@ -108,8 +117,8 @@ fn bisect_a_identity_threshold_selection_skips_and_observed_non_monotonicity() {
         &BisectOptions::default(),
     )
     .unwrap();
-    assert_eq!(result.first_bad.as_deref(), dirs[3].to_str());
-    assert_eq!(result.last_good.as_deref(), dirs[2].to_str());
+    assert_same_path(result.first_bad.as_deref().unwrap(), &dirs[3]);
+    assert_same_path(result.last_good.as_deref().unwrap(), &dirs[2]);
     assert!(result.total_probes <= 5);
     validate("bisect", &serde_json::to_value(&result).unwrap());
     let cli = Command::new(BIN)
@@ -133,7 +142,7 @@ fn bisect_a_identity_threshold_selection_skips_and_observed_non_monotonicity() {
         String::from_utf8_lossy(&cli.stderr)
     );
     let cli: Value = serde_json::from_slice(&cli.stdout).unwrap();
-    assert_eq!(cli["first_bad"], dirs[4].display().to_string());
+    assert_same_path(cli["first_bad"].as_str().unwrap(), &dirs[4]);
     validate("bisect", &cli);
     let relaxed = runs(
         &dirs,
@@ -157,10 +166,10 @@ fn bisect_a_identity_threshold_selection_skips_and_observed_non_monotonicity() {
     .unwrap();
     assert_eq!(skipped.status, "inconclusive");
     assert!(skipped.first_bad.is_none());
-    assert_eq!(
-        skipped.candidates,
-        vec![dirs[3].display().to_string(), dirs[4].display().to_string()]
-    );
+    assert_eq!(skipped.candidates.len(), 2);
+    for (candidate, expected) in skipped.candidates.iter().zip(&dirs[3..5]) {
+        assert_same_path(candidate, expected);
+    }
     assert!(
         skipped
             .probes
@@ -198,7 +207,7 @@ fn bisect_a_identity_threshold_selection_skips_and_observed_non_monotonicity() {
         &BisectOptions::default(),
     )
     .unwrap();
-    assert_eq!(strict.first_bad.as_deref(), native[1].to_str());
+    assert_same_path(strict.first_bad.as_deref().unwrap(), &native[1]);
     let relaxed = runs(
         &native,
         None,
@@ -261,7 +270,10 @@ fn git(root: &Path, args: &[&str], stdin: &str) -> String {
 }
 #[test]
 fn bisect_b_fake_capture_in_temporary_git_preserves_git_state_and_skips_failure() {
-    let tmp = tempfile::tempdir().unwrap();
+    let tmp = tempfile::Builder::new()
+        .prefix("saccade capture ' ")
+        .tempdir()
+        .unwrap();
     let root = tmp.path();
     git(root, &["init", "-q"], "");
     let tree = git(root, &["mktree"], "");
@@ -281,15 +293,15 @@ fn bisect_b_fake_capture_in_temporary_git_preserves_git_state_and_skips_failure(
     let before = std::fs::read(root.join(".git/HEAD")).unwrap();
     let run = |skip: bool| {
         let command = format!(
-            "{}if [ {{rev}} = {} ]; then cp {}/scene.png {{out}}/scene.png; else cp {}/scene.png {{out}}/scene.png; fi",
+            "{}if [ {{rev}} = {} ]; then cp {} {{out}}/scene.png; else cp {} {{out}}/scene.png; fi",
             if skip {
                 format!("if [ {{rev}} = {} ]; then exit 9; fi; ", revs[2])
             } else {
                 String::new()
             },
             revs[1],
-            same.display(),
-            bad.display()
+            shell_path(&same.join("scene.png")),
+            shell_path(&bad.join("scene.png"))
         );
         Command::new(BIN)
             .current_dir(root)
@@ -331,6 +343,15 @@ fn bisect_b_fake_capture_in_temporary_git_preserves_git_state_and_skips_failure(
     );
     assert_eq!(before, std::fs::read(root.join(".git/HEAD")).unwrap());
     assert!(!root.join(".git/index").exists());
+}
+
+fn shell_path(path: &Path) -> String {
+    // capture-cmd uses sh on all supported platforms. Quote fixture paths and
+    // use drive/UNC spelling sh's filesystem tools understand on Windows.
+    format!(
+        "'{}'",
+        saccade_core::paths::portable(path).replace('\'', "'\\''")
+    )
 }
 
 #[test]
@@ -681,9 +702,11 @@ fn mcp_ask_inbox_bisect_are_schema_valid_and_capture_commands_are_refused() {
     output.read_line(&mut line).unwrap();
     let v: Value = serde_json::from_str(&line).unwrap();
     validate("bisect", &v["result"]["structuredContent"]);
-    assert_eq!(
-        v["result"]["structuredContent"]["first_bad"],
-        bad.display().to_string()
+    assert_same_path(
+        v["result"]["structuredContent"]["first_bad"]
+            .as_str()
+            .unwrap(),
+        &bad,
     );
     for (id, args) in [
         (4, json!({"runs":[base,bad],"out_dir":"../escape"})),

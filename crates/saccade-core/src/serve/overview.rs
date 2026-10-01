@@ -52,7 +52,7 @@ impl AssetUrls for ServerAssets<'_> {
             .find_map(|(dir, display)| {
                 path.strip_prefix(dir)
                     .ok()
-                    .map(|sub| format!("{display}/{}", sub.to_string_lossy()))
+                    .map(|sub| format!("{display}/{}", crate::paths::portable(sub)))
             })
             .unwrap_or_else(|| rel_of(self.state, path));
         (!rel.is_empty()).then(|| format!("/thumb?path={}&w={edge}", pct_encode(&rel)))

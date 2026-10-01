@@ -140,39 +140,39 @@ pub fn sha256_file(path: &Path) -> Result<String> {
 /// a failed run's leftovers are still recognised as saccade's own.
 pub const RUN_SENTINEL: &str = ".saccade-run";
 
-/// `path` with `..` and `.` folded away and the longest existing prefix
-/// canonicalised (symlinks resolved), so a not-yet-created output directory
-/// can be compared with an input.
+/// `path` with the longest existing prefix canonicalised (symlinks resolved)
+/// before folding the missing suffix's `..` and `.`, so a not-yet-created
+/// output directory can be compared with an input. Resolving before folding
+/// preserves the filesystem meaning of `symlink/..`.
 pub fn normalise_path(path: &Path) -> PathBuf {
+    let path = crate::paths::native(path);
     let path = if path.is_absolute() {
         path.to_path_buf()
     } else {
-        std::env::current_dir().map_or_else(|_| path.to_path_buf(), |cwd| cwd.join(path))
+        std::env::current_dir().map_or_else(|_| path.to_path_buf(), |cwd| cwd.join(path.as_ref()))
     };
-    let mut folded = PathBuf::new();
-    for c in path.components() {
-        match c {
-            std::path::Component::ParentDir => {
-                folded.pop();
-            }
-            std::path::Component::CurDir => {}
-            other => folded.push(other.as_os_str()),
-        }
-    }
-    let mut existing = folded.clone();
+    let mut existing = path.clone();
     let mut tail = Vec::new();
-    while !existing.exists() {
-        match existing.file_name().map(std::ffi::OsStr::to_owned) {
-            Some(name) => tail.push(name),
-            None => break,
+    let mut out = loop {
+        if let Ok(canonical) = existing.canonicalize() {
+            break canonical;
+        }
+        match existing.components().next_back() {
+            Some(c @ (std::path::Component::Normal(_) | std::path::Component::ParentDir)) => {
+                tail.push(c.as_os_str().to_owned());
+            }
+            _ => break existing,
         }
         if !existing.pop() {
-            break;
+            break existing;
         }
-    }
-    let mut out = existing.canonicalize().unwrap_or(existing);
+    };
     for name in tail.into_iter().rev() {
-        out.push(name);
+        if name == ".." {
+            out.pop();
+        } else {
+            out.push(name);
+        }
     }
     out
 }

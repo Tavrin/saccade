@@ -785,43 +785,13 @@ pub fn explain(report_json: &Path, out_dir: &Path, opts: &ExplainOptions) -> Res
     Ok(pack)
 }
 
-/// `p` made absolute against the working directory, with `.` and `..` folded
-/// away and the longest existing prefix canonicalised (symlinks resolved), so a
+/// `p` made absolute against the working directory, with the longest existing
+/// prefix canonicalised (symlinks resolved) before folding the missing suffix, so a
 /// path that does not exist yet can still be compared with one that does. The
 /// result is what an operation on `p` would touch, which makes it safe to test
 /// with `starts_with`.
 pub fn absolute(p: &Path) -> PathBuf {
-    let joined = if p.is_absolute() {
-        p.to_path_buf()
-    } else {
-        std::env::current_dir().map_or_else(|_| p.to_path_buf(), |c| c.join(p))
-    };
-    let mut folded = PathBuf::new();
-    for c in joined.components() {
-        match c {
-            std::path::Component::ParentDir => {
-                folded.pop();
-            }
-            std::path::Component::CurDir => {}
-            other => folded.push(other.as_os_str()),
-        }
-    }
-    let mut existing = folded.clone();
-    let mut tail = Vec::new();
-    while !existing.exists() {
-        match existing.file_name().map(std::ffi::OsStr::to_owned) {
-            Some(n) => tail.push(n),
-            None => return folded,
-        }
-        if !existing.pop() {
-            return folded;
-        }
-    }
-    let mut out = existing.canonicalize().unwrap_or(existing);
-    for n in tail.into_iter().rev() {
-        out.push(n);
-    }
-    out
+    crate::run::normalise_path(p)
 }
 
 /// Refuses a blind key destination inside the pack directory: the pack is

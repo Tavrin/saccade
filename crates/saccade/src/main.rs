@@ -632,6 +632,32 @@ fn emit_json_error(err: &CliError) {
 }
 
 fn main() -> ExitCode {
+    // The debug clap command builder alone uses almost 1 MiB of stack. Windows
+    // gives the process's main thread 1 MiB, so parse and execute on an explicit
+    // stack on every platform, independent of linker defaults or RUST_MIN_STACK.
+    match std::thread::Builder::new()
+        .name("saccade-cli".into())
+        .stack_size(8 * 1024 * 1024)
+        .spawn(cli_main)
+    {
+        Ok(thread) => match thread.join() {
+            Ok(code) => code,
+            Err(panic) => std::panic::resume_unwind(panic),
+        },
+        Err(error) => {
+            let error = CliError::io(format!("starting CLI thread: {error}"));
+            let args: Vec<_> = std::env::args_os().collect();
+            if args_want_json(&args) {
+                emit_json_error(&error);
+            } else {
+                eprintln!("saccade: error: {error}\n  hint: {}", error.hint);
+            }
+            ExitCode::from(2)
+        }
+    }
+}
+
+fn cli_main() -> ExitCode {
     let args: Vec<std::ffi::OsString> = std::env::args_os().collect();
     let cli = match Cli::try_parse_from(&args) {
         Ok(cli) => cli,

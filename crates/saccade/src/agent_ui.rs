@@ -210,7 +210,7 @@ pub fn snapshot(args: &SnapshotArgs) -> Result<u8, CliError> {
     let paths: Vec<String> = snap
         .paths
         .iter()
-        .map(|p| saccade_core::explain::absolute(p).display().to_string())
+        .map(|p| saccade_core::paths::portable(&saccade_core::explain::absolute(p)))
         .collect();
     if args.json {
         emit(&pretty(
@@ -314,7 +314,7 @@ fn outcome_value(a: &Answer, o: &Outcome) -> Value {
         "decided": o.decided,
         "decision": o.decision.and_then(|v| serde_json::to_value(v).ok()),
         "reason": o.reason,
-        "file": saccade_core::explain::absolute(&o.file).display().to_string(),
+        "file": saccade_core::paths::portable(&saccade_core::explain::absolute(&o.file)),
     })
 }
 
@@ -595,7 +595,11 @@ fn mcp_snapshot(args: &Map<String, Value>, resolve: Resolve<'_>) -> Result<McpOu
             json!({"type": "image", "data": crate::mcp::base64(&bytes), "mimeType": "image/png"}),
         );
     }
-    let paths: Vec<String> = snap.paths.iter().map(|p| p.display().to_string()).collect();
+    let paths: Vec<String> = snap
+        .paths
+        .iter()
+        .map(|p| saccade_core::paths::portable(p))
+        .collect();
     let text = format!(
         "saccade snapshot: {}x{}{}; {}",
         snap.width,

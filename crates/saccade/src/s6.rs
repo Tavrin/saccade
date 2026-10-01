@@ -154,9 +154,10 @@ pub(crate) fn bisect(args: BisectArgs) -> Result<u8, CliError> {
             let log = std::fs::File::create(capture.join("capture.log"))
                 .map_err(core_io("opening capture log"))?;
             let stderr = log.try_clone().map_err(core_io("opening capture stderr"))?;
-            let command = capture_cmd
-                .replace("{rev}", &shell_quote(rev))
-                .replace("{out}", &shell_quote(&capture.to_string_lossy()));
+            let command = capture_cmd.replace("{rev}", &shell_quote(rev)).replace(
+                "{out}",
+                &shell_quote(&saccade_core::paths::portable(&capture)),
+            );
             let status = std::process::Command::new("sh")
                 .args(["-c", &command])
                 .stdout(log)

@@ -6,6 +6,8 @@ use std::io::Write;
 use std::path::Path;
 use std::process::{Command, Output, Stdio};
 
+const PYTHON: &str = if cfg!(windows) { "python" } else { "python3" };
+
 fn image(dir: &Path, name: &str, delta: u8) {
     std::fs::create_dir_all(dir).unwrap();
     let img = image::RgbImage::from_fn(24, 24, |x, y| {
@@ -58,10 +60,23 @@ fn report(root: &Path) {
     );
 }
 fn no_prefix(v: &Value, prefix: &str) {
+    let normalized = saccade_core::run::normalise_path(Path::new(prefix));
+    let prefixes = [
+        prefix.to_owned(),
+        prefix.replace('\\', "/"),
+        normalized.display().to_string(),
+        saccade_core::paths::portable(&normalized),
+    ];
+    check_no_prefix(v, &prefixes);
+}
+fn check_no_prefix(v: &Value, prefixes: &[String]) {
     match v {
-        Value::String(s) => assert!(!s.starts_with(prefix), "leaked path {s}"),
-        Value::Object(m) => m.values().for_each(|v| no_prefix(v, prefix)),
-        Value::Array(a) => a.iter().for_each(|v| no_prefix(v, prefix)),
+        Value::String(s) => assert!(
+            prefixes.iter().all(|prefix| !s.starts_with(prefix)),
+            "leaked path {s}"
+        ),
+        Value::Object(m) => m.values().for_each(|v| check_no_prefix(v, prefixes)),
+        Value::Array(a) => a.iter().for_each(|v| check_no_prefix(v, prefixes)),
         _ => {}
     }
 }
@@ -85,11 +100,12 @@ fn no_absolute_paths_by_default() {
     let mut absolute = args.to_vec();
     absolute.push("--record-absolute-paths");
     let output = run(root, &absolute);
-    assert!(
-        value(&output)["capture_dir"]
-            .as_str()
-            .unwrap()
-            .starts_with(root.canonicalize().unwrap().to_str().unwrap())
+    let absolute = value(&output);
+    let recorded = Path::new(absolute["capture_dir"].as_str().unwrap());
+    assert!(recorded.is_absolute());
+    assert_eq!(
+        recorded.canonicalize().unwrap(),
+        cap.canonicalize().unwrap()
     );
     report(root);
     for args in [
@@ -569,7 +585,7 @@ fn junit_is_valid_xml_and_preserves_verdicts() {
         ],
     );
     assert_eq!(out.status.code(), Some(1));
-    let out=Command::new("python3").args(["-c","import sys,xml.etree.ElementTree as E; r=E.parse(sys.argv[1]).getroot(); assert len(r.findall('testcase'))==5; assert len(r.findall('.//failure'))==3; assert len(r.findall('.//skipped'))==1",root.join("results.xml").to_str().unwrap()]).output().unwrap();
+    let out=Command::new(PYTHON).args(["-c","import sys,xml.etree.ElementTree as E; r=E.parse(sys.argv[1]).getroot(); assert len(r.findall('testcase'))==5; assert len(r.findall('.//failure'))==3; assert len(r.findall('.//skipped'))==1",root.join("results.xml").to_str().unwrap()]).output().unwrap();
     assert!(
         out.status.success(),
         "{}",
@@ -589,7 +605,7 @@ fn junit_is_valid_xml_and_preserves_verdicts() {
             ],
         );
         assert_eq!(out.status.code(), Some(1));
-        let parsed=Command::new("python3").args(["-c","import sys,xml.etree.ElementTree as E; assert len(E.parse(sys.argv[1]).getroot().findall('testcase'))==5",root.join("results.xml").to_str().unwrap()]).output().unwrap();
+        let parsed=Command::new(PYTHON).args(["-c","import sys,xml.etree.ElementTree as E; assert len(E.parse(sys.argv[1]).getroot().findall('testcase'))==5",root.join("results.xml").to_str().unwrap()]).output().unwrap();
         assert!(parsed.status.success());
     }
     image(&root.join("seq-base"), "frame_000.png", 0);
@@ -609,6 +625,6 @@ fn junit_is_valid_xml_and_preserves_verdicts() {
         ],
     );
     assert_eq!(out.status.code(), Some(1));
-    let parsed=Command::new("python3").args(["-c","import sys,xml.etree.ElementTree as E; assert len(E.parse(sys.argv[1]).getroot().findall('testcase'))==2",root.join("results.xml").to_str().unwrap()]).output().unwrap();
+    let parsed=Command::new(PYTHON).args(["-c","import sys,xml.etree.ElementTree as E; assert len(E.parse(sys.argv[1]).getroot().findall('testcase'))==2",root.join("results.xml").to_str().unwrap()]).output().unwrap();
     assert!(parsed.status.success());
 }

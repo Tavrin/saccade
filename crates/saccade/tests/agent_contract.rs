@@ -251,7 +251,10 @@ fn compare_json_is_a_lean_result_and_full_is_the_report() {
     assert!(f["hotspots"].as_array().unwrap().len() <= 3);
     assert!(f["hotspots"][0]["share_of_total_error"].as_f64().unwrap() > 0.5);
     for p in ["report_json", "index_html"] {
-        assert!(Path::new(v["paths"][p].as_str().unwrap()).is_relative());
+        let path = v["paths"][p].as_str().unwrap();
+        assert!(Path::new(path).is_relative());
+        assert!(!path.contains('\\'), "{p}: {path}");
+        assert!(Path::new(path).is_file(), "{p}: {path}");
     }
     assert!(v["next_step"].as_str().unwrap().contains("saccade explain"));
     // Every float has at most 4 significant digits.
@@ -282,6 +285,15 @@ fn compare_json_is_a_lean_result_and_full_is_the_report() {
         &"--json=full",
     ]));
     assert_eq!(full["schema"], "saccade-report.v1");
+    for (key, expected) in [("baseline_dir", &base), ("capture_dir", &cap)] {
+        let path = full[key].as_str().unwrap();
+        assert!(Path::new(path).is_relative());
+        assert!(!path.contains('\\'), "{key}: {path}");
+        assert_eq!(
+            out.join(path).canonicalize().unwrap(),
+            expected.canonicalize().unwrap()
+        );
+    }
     assert!(full["entries"].as_array().unwrap().len() == 2);
     assert!(serde_json::to_string(&v).unwrap().len() < serde_json::to_string(&full).unwrap().len());
 }
@@ -478,6 +490,11 @@ fn mcp_refuses_every_path_outside_the_root() {
             "saccade_compare",
             with("baseline_dir", json!("sneaky")),
         ));
+        requests.push(call(
+            9,
+            "saccade_compare",
+            with("out_dir", json!("sneaky/../new-output")),
+        ));
     }
     let replies = mcp(&root, &requests);
     let _ = base;
@@ -614,6 +631,7 @@ fn mcp_snapshot_returns_an_image_block_and_a_decision_request_is_schema_valid() 
         .as_str()
         .unwrap();
     assert!(Path::new(path).is_file(), "{path}");
+    assert!(!path.contains('\\'), "{path}");
     schema_check(
         "saccade-decision-request.v1.schema.json",
         &replies[2]["result"]["structuredContent"],

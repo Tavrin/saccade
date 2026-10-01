@@ -167,7 +167,7 @@ pub fn compare_probe(
     )
     .map_err(io("writing filtered bisect report"))?;
     crate::render::render_html(&report, out)?;
-    probe.report_dir = Some(absolute(out).display().to_string());
+    probe.report_dir = Some(crate::paths::portable(&absolute(out)));
     if report.totals.error > 0 || report.entries.is_empty() {
         probe.reason = Some("image errors or no selected images".into());
     } else {
@@ -285,7 +285,7 @@ pub fn runs(
     let out = prepare(out, &inputs)?;
     let targets: Vec<_> = runs
         .iter()
-        .map(|p| absolute(p).display().to_string())
+        .map(|p| crate::paths::portable(&absolute(p)))
         .collect();
     let mut result = search(&targets, |i, target| {
         compare_probe(
@@ -298,7 +298,7 @@ pub fn runs(
         )
     })?;
     if result.last_good.is_none() && good.is_some() {
-        result.last_good = Some(absolute(reference).display().to_string());
+        result.last_good = Some(crate::paths::portable(&absolute(reference)));
     }
     write_result(&out, &result)?;
     Ok(result)
