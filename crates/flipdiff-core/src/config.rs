@@ -125,7 +125,7 @@ pub(crate) fn compile_glob(pattern: &str) -> Result<globset::GlobMatcher> {
 }
 
 impl RunConfig {
-    /// Parses a `flipdiff.toml` file (see `SPEC.md`). Unknown keys are errors.
+    /// Parses a `flipdiff.toml` file (see `docs/design.md`). Unknown keys are errors.
     pub fn from_toml_file(path: &Path) -> Result<Self> {
         let text = std::fs::read_to_string(path).map_err(|source| Error::Io {
             context: format!("reading config {}", path.display()),

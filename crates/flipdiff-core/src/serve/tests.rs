@@ -31,7 +31,7 @@ fn fixture(max_upload: u64) -> Fixture {
     ] {
         write_png(&root.join(run).join("x.png"), rgb);
     }
-    std::fs::write(root.join("g/a/cost-card.json"), r#"{"mode":"Probe"}"#).unwrap();
+    std::fs::write(root.join("g/a/flipdiff-meta.json"), r#"{"mode":"Probe"}"#).unwrap();
     std::fs::write(tmp.path().join("secret.png"), b"not an image").unwrap();
     #[cfg(unix)]
     {
@@ -158,7 +158,7 @@ fn rejects_traversal_and_symlink_escape() {
         assert_eq!(get(&f, "/img?path=g/link.png").status, 403);
         assert_eq!(get(&f, "/compare?runs=g/a,escape").status, 403);
     }
-    assert_eq!(get(&f, "/img?path=g/a/cost-card.json").status, 403);
+    assert_eq!(get(&f, "/img?path=g/a/flipdiff-meta.json").status, 403);
     assert_eq!(get(&f, "/img?path=g/a/x.png").status, 200);
     assert_eq!(
         get(&f, &format!("/session/{}/index.html", "0".repeat(32))).status,

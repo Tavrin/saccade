@@ -122,7 +122,7 @@ input[type=range] { width: 120px; accent-color: var(--accent); }
 
 .stage { display: grid; gap: 10px; grid-template-columns: repeat(auto-fit, minmax(min(100%, 280px), 1fr)); --ar: 1; }
 .stage.single { grid-template-columns: minmax(0, 1fr); }
-.pane { min-width: 0; width: 100%; max-width: calc(76vh * var(--ar)); margin-inline: auto; background: var(--surface); border: 1px solid var(--border); border-radius: 9px; overflow: hidden; }
+.pane { align-self: start; min-width: 0; width: 100%; max-width: calc(76vh * var(--ar)); margin-inline: auto; background: var(--surface); border: 1px solid var(--border); border-radius: 9px; overflow: hidden; }
 .pane-h { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 8px; align-items: baseline; padding: 6px 10px; border-bottom: 1px solid var(--border); font-size: 13px; }
 .pane-h b { font-family: var(--mono); flex: none; max-width: 100%; overflow-wrap: anywhere; }
 .pane-h span { color: var(--muted); font: 12px var(--mono); }
@@ -200,3 +200,12 @@ textarea { width: 100%; min-height: 64px; resize: vertical; padding: 6px 8px; bo
 .help-card dl { display: grid; grid-template-columns: auto 1fr; gap: 6px 14px; margin: 0 0 10px; align-items: baseline; }
 .help-card dd { margin: 0; color: var(--muted); font-size: 13px; }
 kbd { font: 600 12px var(--mono); padding: 2px 6px; border: 1px solid var(--border); border-bottom-width: 2px; border-radius: 5px; background: var(--surface-2); white-space: nowrap; }
+
+/* hotspots: numbered boxes in image space, so they zoom with the layer */
+.wrap, .layer { pointer-events: none; }
+.hsp { pointer-events: auto; position: absolute; box-sizing: border-box; box-shadow: 0 0 0 calc(var(--inv) * 2px) #25d3ee, 0 0 0 calc(var(--inv) * 3px) #000; background: rgba(37, 211, 238, 0.08); cursor: zoom-in; z-index: 1; }
+.hsp:hover { background: rgba(37, 211, 238, 0.22); }
+.hsp span { position: absolute; left: 0; top: 0; padding: 0 calc(var(--inv) * 4px); min-width: calc(var(--inv) * 16px); text-align: center; font: 700 calc(var(--inv) * 11px)/calc(var(--inv) * 16px) var(--sans); background: #25d3ee; color: #00262c; pointer-events: none; }
+.pane-h .wide { color: var(--missing); font-family: var(--sans); font-weight: 700; }
+#hotlist .hrow { cursor: pointer; }
+#hotlist .hrow:hover td { background: var(--surface-2); }

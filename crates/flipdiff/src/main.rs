@@ -55,7 +55,7 @@ impl HdrArgs {
 /// Metadata-sidecar flags shared by `compare`, `identity` and `view`.
 #[derive(clap::Args, Clone, Default)]
 struct MetaArgs {
-    /// Sidecar file name (default `cost-card.json`); the per-image sidecar is
+    /// Sidecar file name (default `flipdiff-meta.json`); the per-image sidecar is
     /// `<stem>.<name>` and overrides the directory-level one.
     #[arg(long, value_name = "NAME")]
     meta_name: Option<String>,

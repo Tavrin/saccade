@@ -1,7 +1,7 @@
 //! Perceptual image comparison (NVIDIA FLIP) and the report model behind the
 //! `flipdiff` visual-regression CLI.
 //!
-//! See `SPEC.md` at the repository root for the frozen contracts.
+//! See `docs/design.md` for the frozen contracts.
 
 pub mod compare;
 pub mod config;

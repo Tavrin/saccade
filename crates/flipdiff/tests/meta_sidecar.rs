@@ -15,7 +15,7 @@ fn setup(tmp: &Path, base_card: Option<&str>, cap_card: Option<&str>) -> (PathBu
         img.save(dir.join("a.png")).expect("save");
         img.save(dir.join("b.png")).expect("save");
         if let Some(text) = card {
-            std::fs::write(dir.join("cost-card.json"), text).expect("card");
+            std::fs::write(dir.join("flipdiff-meta.json"), text).expect("card");
         }
     }
     (base, cap)
@@ -55,7 +55,7 @@ fn identical_sidecars_have_no_diff() {
     assert_eq!(o.status.code(), Some(0), "{o:?}");
     let r = report(&o);
     assert_eq!(r["config"]["meta"]["required"], true);
-    assert_eq!(r["config"]["meta"]["name"], "cost-card.json");
+    assert_eq!(r["config"]["meta"]["name"], "flipdiff-meta.json");
     for e in r["entries"].as_array().expect("entries") {
         assert_eq!(e["meta_diff"], serde_json::json!([]));
     }
@@ -117,8 +117,8 @@ fn per_image_sidecar_overrides_and_one_sided_sidecar_is_absent() {
     let (base, cap) = setup(tmp.path(), Some(r#"{"mode":"x"}"#), Some(r#"{"mode":"x"}"#));
     // b.png alone gets a different mode on the capture side; a.png has a
     // per-image sidecar on the capture side only, adding a key.
-    std::fs::write(cap.join("b.cost-card.json"), r#"{"mode":"y"}"#).expect("card");
-    std::fs::write(cap.join("a.cost-card.json"), r#"{"extra":true}"#).expect("card");
+    std::fs::write(cap.join("b.flipdiff-meta.json"), r#"{"mode":"y"}"#).expect("card");
+    std::fs::write(cap.join("a.flipdiff-meta.json"), r#"{"extra":true}"#).expect("card");
     let o = compare(tmp.path(), &[]);
     let r = report(&o);
     assert_eq!(
@@ -130,7 +130,7 @@ fn per_image_sidecar_overrides_and_one_sided_sidecar_is_absent() {
         serde_json::json!({"key": "extra", "baseline": "<absent>", "capture": "true"})
     );
     // A sidecar present on exactly one side: every key is a difference.
-    std::fs::remove_file(base.join("cost-card.json")).expect("rm");
+    std::fs::remove_file(base.join("flipdiff-meta.json")).expect("rm");
     let o = compare(tmp.path(), &[]);
     assert_eq!(
         entry(&report(&o), "a.png")["meta_diff"][1],
@@ -154,7 +154,7 @@ fn timing_keys_are_ignored_by_default_and_nested_values_are_errors() {
     );
 
     std::fs::write(
-        tmp.path().join("cap/cost-card.json"),
+        tmp.path().join("cap/flipdiff-meta.json"),
         r#"{"gpu":{"name":"x"}}"#,
     )
     .expect("card");

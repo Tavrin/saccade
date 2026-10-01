@@ -1,7 +1,7 @@
 //! Presentations of a [`Report`]: the self-contained HTML report and the
 //! Markdown summary used for CI step summaries and PR comments.
 //!
-//! Both read only the [`Report`] model (see `SPEC.md` §3).
+//! Both read only the [`Report`] model (see `docs/design.md`).
 
 mod html;
 mod markdown;

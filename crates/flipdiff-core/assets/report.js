@@ -64,6 +64,14 @@
     return d.toISOString().replace("T", " ").slice(0, 16) + " UTC";
   }
 
+  // Hotspots are listed and drawn for failing entries only.
+  function hotspotsOf(e) { return e.status === "fail" && e.hotspots ? e.hotspots : []; }
+  function frameWide(e) {
+    var hs = hotspotsOf(e);
+    return hs.length > 0 && hs[0].rect_frac[2] * hs[0].rect_frac[3] >= 0.5;
+  }
+  function pct(v) { return (v * 100).toFixed(v < 0.1 ? 1 : 0) + "%"; }
+
   // ---- header ------------------------------------------------------------
 
   function renderHeader() {
@@ -95,6 +103,7 @@
     filter: hasIssues ? "issues" : "all",
     sort: null, // {key, dir} or null for the default order
     regions: true, // draw region rectangles over the images
+    hotspots: true, // draw numbered hotspot boxes over the images
     open: {}
   };
   var timers = [];
@@ -180,7 +189,8 @@
     } },
       h("td", null, h("span", { class: "st s-" + e.status, text: e.status })),
       h("td", { class: "name" }, h("button", { type: "button", "aria-expanded": open ? "true" : "false", onclick: function () { toggle(e.name); } }, e.name),
-        (e.meta_diff || []).length ? h("span", { class: "badge cfg", title: e.meta_diff.map(function (d) { return d.key; }).join(", "), text: "config differs" }) : null),
+        (e.meta_diff || []).length ? h("span", { class: "badge cfg", title: e.meta_diff.map(function (d) { return d.key; }).join(", "), text: "config differs" }) : null,
+        frameWide(e) ? h("span", { class: "badge wide", title: "The largest hotspot covers at least half of the frame", text: "frame-wide change" }) : null),
       h("td", { class: "metric col-sec", text: e.metric_used }),
       valueCell(e),
       numCell(e.threshold),
@@ -219,7 +229,7 @@
   }
 
   // An image inside a .zbox; records the natural width for 1x/2x sizing.
-  function zimg(src, alt, e) {
+  function zimg(src, alt, e, onHot) {
     var box = h("div", { class: "zbox" });
     if (e.metrics && e.metrics.width) box.style.setProperty("--nw", e.metrics.width);
     var img = h("img", { src: url(src), alt: alt, loading: "lazy", decoding: "async" });
@@ -229,6 +239,15 @@
     });
     box.appendChild(img);
     regionBoxes(e).forEach(function (r) { box.appendChild(r); });
+    hotspotsOf(e).forEach(function (hs, i) {
+      var r = hs.rect_frac;
+      box.appendChild(h("button", {
+        type: "button", class: "hsp", title: "Hotspot " + (i + 1) + ": zoom the compare stage to it",
+        "aria-label": "Zoom to hotspot " + (i + 1),
+        style: "left:" + (r[0] * 100) + "%;top:" + (r[1] * 100) + "%;width:" + (r[2] * 100) + "%;height:" + (r[3] * 100) + "%",
+        onclick: function () { if (onHot) onHot(i); }
+      }, h("span", { text: String(i + 1) })));
+    });
     return box;
   }
 
@@ -287,15 +306,34 @@
     d.classList.toggle("up", d.classList.contains("zoom-fit") && box.clientWidth > img.naturalWidth);
   }
 
-  function pane(e, label, path, extra) {
+  function pane(e, label, path, extra, onHot) {
     var cap = h("figcaption", null, h("span", { text: label }), extra || null);
-    var body = path ? h("div", { class: "vp" }, zimg(path, label + " of " + e.name, e)) : placeholder(e, label);
+    var body = path ? h("div", { class: "vp" }, zimg(path, label + " of " + e.name, e, onHot)) : placeholder(e, label);
     return h("figure", { class: "pane" }, cap, body);
+  }
+
+  function hotspotTable(e, onHot) {
+    var hs = hotspotsOf(e);
+    if (!hs.length) return null;
+    var head = ["#", "Position", "Size (px)", "Share of error", "Mean FLIP", "Max FLIP"];
+    return h("div", { class: "rtab-wrap" }, h("table", { class: "rtab htab" },
+      h("caption", { text: "Hotspots (click a row to zoom the compare stage to it)" }),
+      h("thead", null, h("tr", null, head.map(function (t, i) { return h("th", { class: i >= 3 ? "num" : "", scope: "col", text: t }); }))),
+      h("tbody", null, hs.map(function (x, i) {
+        return h("tr", { class: "hrow", onclick: function () { onHot(i); } },
+          h("td", null, h("button", { type: "button", class: "hn", "aria-label": "Zoom to hotspot " + (i + 1), text: String(i + 1) })),
+          h("td", { text: x.position }),
+          h("td", { text: x.rect_px[2] + "×" + x.rect_px[3] }),
+          h("td", { class: "num", text: pct(x.share_of_total_error) }),
+          numCell(x.mean_flip),
+          numCell(x.max_flip));
+      }))));
   }
 
   function badges(e) {
     var p = e.properties;
     var b = h("div", { class: "badges" });
+    if (frameWide(e)) b.appendChild(h("span", { class: "badge wide", title: "The largest hotspot covers at least half of the frame", text: "frame-wide change" }));
     if ((e.meta_diff || []).length) b.appendChild(h("span", { class: "badge cfg", text: "config differs" }));
     if (!p) { b.appendChild(h("span", { class: "badge", text: "no decodable " + LB.capture })); return b; }
     if (e.bit_identical === true) b.appendChild(h("span", { class: "badge ident", text: "bit-identical" }));
@@ -335,6 +373,13 @@
     var tagL = h("span", { class: "tag l", text: LB.baseline });
     var tagR = h("span", { class: "tag r", text: LB.capture });
     stage.append(base, cap, line, tagL, tagR);
+    var hots = hotspotsOf(e).map(function (hs, i) {
+      var b = h("button", { type: "button", class: "hsp", title: "Hotspot " + (i + 1) + ": zoom to it", "aria-label": "Zoom to hotspot " + (i + 1) }, h("span", { text: String(i + 1) }));
+      b.addEventListener("pointerdown", function (ev) { ev.stopPropagation(); });
+      b.addEventListener("click", function () { zoomBox(i); });
+      stage.appendChild(b);
+      return b;
+    });
 
     var slider = h("input", { type: "range", min: "0", max: "100", step: "0.1", value: "50", "aria-label": "Swipe position: " + LB.baseline + " left, " + LB.capture + " right" });
     var opa = h("input", { type: "range", min: "0", max: "1", step: "0.05", value: "0.6", hidden: true, class: "opa", "aria-label": "Heatmap opacity" });
@@ -360,6 +405,11 @@
       ty = Math.max(hh - hh * k, Math.min(0, ty));
       stage.style.setProperty("--t", "translate(" + tx + "px," + ty + "px) scale(" + k + ")");
       stage.classList.toggle("pix", k > 1.0001);
+      hotspotsOf(e).forEach(function (hs, i) {
+        var r = hs.rect_frac, st = hots[i].style;
+        st.left = (tx + r[0] * w * k) + "px"; st.top = (ty + r[1] * hh * k) + "px";
+        st.width = (r[2] * w * k) + "px"; st.height = (r[3] * hh * k) + "px";
+      });
       ZS.forEach(function (z) {
         var on = z[0] === "fit" ? k === 1 : k > 1 && Math.abs(k - absK(z[0])) < 1e-3;
         zoomBtns[z[0]].setAttribute("aria-pressed", on ? "true" : "false");
@@ -368,6 +418,16 @@
     function zoomAt(f, cx, cy) {
       var nk = Math.max(1, Math.min(256, k * f)), r = nk / k;
       tx = cx - (cx - tx) * r; ty = cy - (cy - ty) * r; k = nk;
+      paint();
+    }
+    // Zoom and centre the stage on hotspot i, leaving a margin around the box.
+    function zoomBox(i) {
+      var r = hotspotsOf(e)[i].rect_frac, w = stage.clientWidth, hh = stage.clientHeight;
+      var bw = Math.max(r[2] * w, 8), bh = Math.max(r[3] * hh, 8);
+      var nk = Math.max(1, Math.min(256, 0.8 * Math.min(w / bw, hh / bh)));
+      k = nk;
+      tx = w / 2 - (r[0] + r[2] / 2) * w * nk;
+      ty = hh / 2 - (r[1] + r[3] / 2) * hh * nk;
       paint();
     }
     function setZoom(z) {
@@ -540,10 +600,12 @@
       vertical: function () { setVertical(!vertical); },
       heat: function () { setHeat(!heat); },
       zoom: setZoom,
+      zoomBox: zoomBox,
       fullscreen: function () { setFullscreen(!fsActive()); },
       exitFullscreen: function () { if (fsActive()) setFullscreen(false); },
       isFullscreen: fsActive
     };
+    root.cmpApi = api;
     cmps.push(api);
     root.addEventListener("pointerenter", function () { activeCmp = api; });
     root.addEventListener("focusin", function () { activeCmp = api; });
@@ -653,17 +715,34 @@
         document.querySelectorAll(".d").forEach(function (el) { el.classList.toggle("regions", on); });
         document.querySelectorAll(".d-bar .seg[aria-label=Regions] button").forEach(function (b) { b.setAttribute("aria-pressed", on); });
       } })) : null;
+    var cmpApi = null;
+    function goHot(i) {
+      if (!cmpApi) return;
+      cmpApi.zoomBox(i);
+      cmpApi.root.scrollIntoView({ block: "nearest", behavior: "smooth" });
+    }
+    var hspBtn = hotspotsOf(e).length ? h("div", { class: "seg", role: "group", "aria-label": "Hotspots" },
+      h("button", { type: "button", "aria-pressed": state.hotspots ? "true" : "false", text: "Hotspots", title: "Numbered boxes where the error is concentrated", onclick: function () {
+        state.hotspots = !state.hotspots;
+        var on = state.hotspots;
+        document.querySelectorAll(".d").forEach(function (el) { el.classList.toggle("hots", on); });
+        document.querySelectorAll(".d-bar .seg[aria-label=Hotspots] button").forEach(function (b) { b.setAttribute("aria-pressed", on); });
+      } })) : null;
+    d.className += state.hotspots ? " hots" : "";
     d.appendChild(h("div", { class: "d-bar" },
       h("div", { class: "seg", role: "group", "aria-label": "Zoom" }, zoomBtns),
       rgnBtn,
+      hspBtn,
       badges(e)));
     if (e.error) d.appendChild(h("div", { class: "err-box", role: "alert", text: e.error }));
     var p = e.paths || {};
     d.appendChild(h("div", { class: "panes" },
-      pane(e, LB.baseline, p.baseline),
-      pane(e, LB.capture, p.capture),
-      pane(e, "heatmap", p.heatmap, h("span", { class: "legend", title: "FLIP error, 0 (dark) to 1 (light)" }))));
-    if (p.baseline && p.capture) d.appendChild(compare(e));
+      pane(e, LB.baseline, p.baseline, null, goHot),
+      pane(e, LB.capture, p.capture, null, goHot),
+      pane(e, "heatmap", p.heatmap, h("span", { class: "legend", title: "FLIP error, 0 (dark) to 1 (light)" }), goHot)));
+    if (p.baseline && p.capture) { var cr = compare(e); cmpApi = cr.cmpApi; d.appendChild(cr); }
+    var ht = hotspotTable(e, goHot);
+    if (ht) d.appendChild(ht);
     var mg = metricsGrid(e);
     if (mg) d.appendChild(mg);
     var rt = regionTable(e);

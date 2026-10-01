@@ -16,7 +16,7 @@ use crate::error::{Error, Result};
 use crate::report::{MetaDiff, MetaSettings};
 
 /// Default sidecar file name.
-pub const DEFAULT_META_NAME: &str = "cost-card.json";
+pub const DEFAULT_META_NAME: &str = "flipdiff-meta.json";
 
 /// Keys ignored by default: timings, timestamps and run ids differ between any
 /// two runs and say nothing about the configuration. Matched case-insensitively.

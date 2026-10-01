@@ -11,7 +11,7 @@ const JS: &str = include_str!("../../assets/report.js");
 
 /// Serializes the report for embedding in a `<script type="application/json">`.
 ///
-/// `</` becomes `<\/` (SPEC §5) and `<!--` becomes `<!--`, so the payload
+/// `</` becomes `<\/` (see `docs/design.md`) and `<!--` becomes `<!--`, so the payload
 /// can neither close the script element nor enter the "script data escaped"
 /// state. Both are valid JSON string escapes and decode to the original text.
 pub(crate) fn embed_json(report: &Report) -> Result<String> {

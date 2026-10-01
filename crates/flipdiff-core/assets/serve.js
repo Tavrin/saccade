@@ -91,16 +91,45 @@
   }
 
   var HIDE_KEY = /time|_ms$|duration|elapsed|timestamp|run\.id/i;
-  function pairsEl(m, limit) {
+  function shortVal(v) {
+    var t = String(v);
+    return t.length > 20 ? t.slice(0, 12) + '…' + t.slice(-4) : t;
+  }
+  // Metadata chips for one run. `prefer` lists the keys worth showing first
+  // (those that differ among the listed runs); the rest hides behind "+N".
+  function pairsEl(m, limit, prefer) {
     var box = el('div', { cls: 'pairs' });
     if (!m) return box;
-    var keys = Object.keys(m).filter(function (k) { return !HIDE_KEY.test(k); }).slice(0, limit || 6);
-    keys.forEach(function (k) {
-      var b = el('button', { type: 'button', cls: 'kv', text: k + '=' + m[k], title: 'Filter by ' + k + '=' + m[k] });
-      b.addEventListener('click', function () { $('metaf').value = k + '=' + m[k]; runSearch(false); });
+    var all = Object.keys(m).filter(function (k) { return !HIDE_KEY.test(k); });
+    var first = (prefer || []).filter(function (k) { return all.indexOf(k) >= 0; });
+    var keys = first.concat(all.filter(function (k) { return first.indexOf(k) < 0; }));
+    var max = limit || 6;
+    // With differing keys, show only those; everything else hides behind "+N".
+    var shown = (first.length ? first : keys).slice(0, max);
+    shown.forEach(function (k) {
+      var full = k + '=' + m[k];
+      var b = el('button', { type: 'button', cls: 'kv', text: k + '=' + shortVal(m[k]), title: full + ' (click to filter)' });
+      b.addEventListener('click', function () { $('metaf').value = full; runSearch(false); });
       box.appendChild(b);
     });
+    var rest = keys.filter(function (k) { return shown.indexOf(k) < 0; }).map(function (k) { return k + '=' + m[k]; });
+    if (rest.length) box.appendChild(el('span', { cls: 'kv more', text: '+' + rest.length, title: rest.join('\n') }));
     return box;
+  }
+  // Keys whose value is not the same in every listed run, in first-seen order.
+  function differingKeys(runs) {
+    var seen = {}, order = [];
+    runs.forEach(function (r) {
+      Object.keys(r.meta || {}).forEach(function (k) {
+        if (HIDE_KEY.test(k)) return;
+        if (!seen[k]) { seen[k] = {}; order.push(k); }
+      });
+    });
+    return order.filter(function (k) {
+      var vals = {};
+      runs.forEach(function (r) { vals[r.meta && k in r.meta ? String(r.meta[k]) : '\u0000absent'] = 1; });
+      return Object.keys(vals).length > 1;
+    });
   }
 
   function thumb(path, sample) {
@@ -167,12 +196,13 @@
 
   function runList(ul, runs) {
     clear(ul);
+    var diff = differingKeys(runs);
     runs.forEach(function (r) {
       var nm = el('button', { type: 'button', cls: 'nm', text: r.path });
       nm.addEventListener('click', function () { navigate(r.path); });
       var row = el('li', { cls: 'row' }, [
         thumb(r.path, r.sample),
-        el('div', { cls: 'main' }, [nm, el('span', { cls: 'sub', text: r.images + ' images · ' + when(r.mtime) }), pairsEl(r.meta, 4)]),
+        el('div', { cls: 'main' }, [nm, el('span', { cls: 'sub', text: r.images + ' images · ' + when(r.mtime) }), pairsEl(r.meta, 3, diff)]),
         selectBtn(r.path)
       ]);
       ul.appendChild(row);

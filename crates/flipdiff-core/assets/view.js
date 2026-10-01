@@ -8,7 +8,7 @@
   var S = {
     set: 0, layout: 'grid', tool: 'pan', scale: 1, tx: 0, ty: 0, fit: true,
     exposure: 0, contrast: 1, channel: 'rgb', opacity: 0.6, rate: 2, paused: false,
-    swipe: 50, vertical: false, heat: false, hold: false, lastLayout: 'swipe', fs: false, revealed: false, chosen: [], flickerIdx: 0, cursor: null, roiDraft: null
+    swipe: 50, vertical: false, heat: false, hot: true, hold: false, lastLayout: 'swipe', fs: false, revealed: false, chosen: [], flickerIdx: 0, cursor: null, roiDraft: null
   };
   var dec = {};           // name -> SetDecision-shaped entry
   var pixCache = {};      // set index -> {rgb:[ImageData|null], flip:[Uint8Array|null], promise}
@@ -209,7 +209,17 @@
   }
 
   // ---------- stage ----------
-  function layerFor(set, i, withHeat, heatPath) {
+  // Numbered hotspot boxes of pane i, in image pixels (they zoom with their layer).
+  function hotBoxes(p, i) {
+    if (!S.hot || hideInfo()) return [];
+    return (p.hotspots || []).map(function (hs, k) {
+      var r = hs.rect_px;
+      var b = el('div', { class: 'hsp', 'data-pane': String(i), 'data-h': String(k), title: 'Hotspot ' + (k + 1) + ': click to zoom to it' }, [el('span', { text: String(k + 1) })]);
+      b.style.left = r[0] + 'px'; b.style.top = r[1] + 'px'; b.style.width = r[2] + 'px'; b.style.height = r[3] + 'px';
+      return b;
+    });
+  }
+  function layerFor(set, i, withHeat, heatPath, noBoxes) {
     var p = set.panes[i];
     var layer = el('div', { class: 'layer' });
     layer.style.width = p.width + 'px'; layer.style.height = p.height + 'px';
@@ -220,12 +230,17 @@
       layer.appendChild(el('img', { class: 'heat', src: url(hp), width: String(p.width), height: String(p.height), alt: '', draggable: 'false' }));
     }
     layer.appendChild(el('div', { class: 'roi', hidden: '' }));
+    if (!noBoxes) hotBoxes(p, i).forEach(function (b) { layer.appendChild(b); });
     return layer;
   }
-  function wrapFor(set, i, withHeat, heatPath) {
+  function wrapFor(set, i, withHeat, heatPath, noBoxes) {
     var w = el('div', { class: 'wrap' });
-    w.appendChild(layerFor(set, i, withHeat, heatPath));
+    w.appendChild(layerFor(set, i, withHeat, heatPath, noBoxes));
     return w;
+  }
+  function frameWide(p) {
+    var hs = p.hotspots || [];
+    return hs.length > 0 && hs[0].rect_frac[2] * hs[0].rect_frac[3] >= 0.5;
   }
   function paneHead(set, i) {
     var p = set.panes[i];
@@ -235,7 +250,9 @@
       else if (p.metrics) right = 'FLIP mean ' + fmt(p.metrics.mean) + ' · p95 ' + fmt(p.metrics.p95) + ' · max ' + fmt(p.metrics.max);
       else if (p.error) right = p.error;
     }
-    return el('div', { class: 'pane-h' }, [el('b', { text: paneName(set, i) }), el('span', { text: right })]);
+    var head = el('div', { class: 'pane-h' }, [el('b', { text: paneName(set, i) }), el('span', { text: right })]);
+    if (!hideInfo() && frameWide(p)) head.appendChild(el('span', { class: 'wide', text: 'frame-wide change', title: 'The largest hotspot covers at least half of the frame' }));
+    return head;
   }
   function vpEl(kids) {
     var v = el('div', { class: 'vp' }, kids);
@@ -276,15 +293,22 @@
       if (ch.length < 2) { stage.appendChild(el('p', { class: 'note-msg', text: 'Swipe needs two images: tick two under "Show".' })); }
       else {
         var a = ch[0], b = ch[1];
-        var wb = wrapFor(set, b, false, S.heat && !hideInfo() ? heatFor(set, a, b) : null);
+        var wb = wrapFor(set, b, false, S.heat && !hideInfo() ? heatFor(set, a, b) : null, true);
         wb.id = 'swipe-top';
         var div = el('div', { class: 'divider', id: 'swipe-div' }, [el('i', { class: 'grip' })]);
-        var v = vpEl([wrapFor(set, a, false), wb, div,
+        // Hotspot boxes sit in their own unclipped layer, so the divider never hides them.
+        var hp = b === D.reference ? a : b;
+        var hw = el('div', { class: 'wrap hotwrap' });
+        var hl = el('div', { class: 'layer' });
+        hl.style.width = set.panes[hp].width + 'px'; hl.style.height = set.panes[hp].height + 'px';
+        hotBoxes(set.panes[hp], hp).forEach(function (x) { hl.appendChild(x); });
+        hw.appendChild(hl);
+        var v = vpEl([wrapFor(set, a, false, null, true), wb, hw, div,
           el('span', { class: 'corner l', text: paneName(set, a) }), el('span', { class: 'corner r', text: paneName(set, b) })]);
         v.classList.add('swipe');
         v.classList.toggle('vert', S.vertical);
-        paintSwipe(v);
         stage.appendChild(el('div', { class: 'pane' }, [el('div', { class: 'pane-h' }, [el('b', { text: paneName(set, a) + ' | ' + paneName(set, b) }), el('span', { text: '' })]), v]));
+        paintSwipe(v);   // after attaching: it looks the layers up by id
       }
     } else if (S.layout === 'flicker') {
       if (ch.length < 2) { stage.appendChild(el('p', { class: 'note-msg', text: 'Flicker needs at least two images: tick them under "Show".' })); }
@@ -338,6 +362,20 @@
     S.swipe = Math.max(0, Math.min(100, Math.round(pct * 10) / 10));
     $('swipe').value = String(S.swipe);
     paintSwipe();
+  }
+  // Zoom the viewports to hotspot k of pane i, leaving a margin around the box.
+  function zoomHot(i, k) {
+    var set = cur(), hs = (set.panes[i].hotspots || [])[k];
+    if (!hs || !viewports.length) return;
+    var r = hs.rect_px, vw = vpWidth(), d = refDims(set), vh = vw * d[1] / d[0];
+    var want = 0.8 * Math.min(vw / Math.max(r[2], 4), vh / Math.max(r[3], 4));
+    var ns = Math.max(fitScale(), Math.min(64, want));
+    S.fit = Math.abs(ns - fitScale()) < 1e-6;
+    S.scale = ns;
+    S.tx = vw / 2 - (r[0] + r[2] / 2) * ns;
+    S.ty = vh / 2 - (r[1] + r[3] / 2) * ns;
+    applyTransform();
+    $('stage').scrollIntoView({ block: 'nearest', behavior: 'smooth' });
   }
   function swipeFromPointer(vp, e) {
     var rc = vp.getBoundingClientRect();
@@ -529,10 +567,12 @@
     try { vp.setPointerCapture(e.pointerId); } catch (err) { /* ignore */ }
     if (ptrCount() === 2) { gesture = { kind: 'pinch', d: pinchDist(), vp: vp }; return; }
     var roi = S.tool === 'roi' || e.shiftKey;
-    var sw = !roi && S.layout === 'swipe' && vp.classList.contains('swipe') && !S.hold && (S.fit || nearDivider(vp, e));
+    var hb = !roi && e.target.closest ? e.target.closest('.hsp') : null;
+    var sw = !roi && !hb && S.layout === 'swipe' && vp.classList.contains('swipe') && !S.hold && (S.fit || nearDivider(vp, e));
     if (sw) { gesture = { kind: 'divider', vp: vp, moved: true }; swipeFromPointer(vp, e); vp.classList.add('drag'); return; }
     gesture = { kind: roi ? 'roi' : 'pan', vp: vp, sx: e.clientX, sy: e.clientY, tx: S.tx, ty: S.ty, moved: false };
     if (roi) { var p = toImage(vp, e); gesture.p0 = p; }
+    if (hb) gesture.hot = [Number(hb.getAttribute('data-pane')), Number(hb.getAttribute('data-h'))];
     if (!roi) vp.classList.add('drag');
   }
   function pinchDist() {
@@ -578,7 +618,10 @@
       en.roi = r && r.w >= 2 && r.h >= 2 ? r : null;
       touch(en);
       drawRoi(); renderInspector(); renderDecision();
-    } else if (!g.moved) cursorFrom(g.vp, e);
+    } else if (!g.moved) {
+      if (g.hot) zoomHot(g.hot[0], g.hot[1]);
+      else cursorFrom(g.vp, e);
+    }
   }
   function onWheel(e) {
     var vp = e.target.closest ? e.target.closest('.vp') : null;
@@ -641,12 +684,41 @@
     $('b-heat').setAttribute('aria-pressed', String(S.heat));
     $('b-heat').disabled = hideInfo();
     $('b-vert').setAttribute('aria-pressed', String(S.vertical));
+    $('swipe').value = String(S.swipe);
+    $('b-hot').setAttribute('aria-pressed', String(S.hot));
+    $('b-hot').disabled = hideInfo();
     $('hold').disabled = hideInfo() || S.layout === 'flicker';
     $('g-show').hidden = S.layout !== 'swipe' && S.layout !== 'flicker';
     $('ratev').textContent = S.rate + ' Hz';
     $('pause').setAttribute('aria-pressed', String(S.paused));
     $('pause').textContent = S.paused ? 'Resume' : 'Pause';
     renderChosen();
+  }
+  // Hotspots of the current set, each non-reference pane against the reference.
+  function renderHotspots() {
+    var set = cur(), card = $('hot-card'), t = $('hotlist');
+    t.textContent = '';
+    var rows = [];
+    if (!hideInfo()) set.order.forEach(function (i) {
+      (set.panes[i].hotspots || []).forEach(function (hs, k) { rows.push({ i: i, k: k, hs: hs }); });
+    });
+    card.hidden = !rows.length;
+    if (!rows.length) return;
+    t.appendChild(el('tr', null, ['Image', '#', 'Position', 'Size (px)', 'Share of error', 'Mean FLIP', 'Max FLIP'].map(function (c) { return el('th', { text: c }); })));
+    rows.forEach(function (r) {
+      var hs = r.hs;
+      var tr = el('tr', { class: 'hrow', tabindex: '0', title: 'Zoom to this hotspot' }, [
+        el('td', { text: paneName(set, r.i) }), el('td', { text: String(r.k + 1) }), el('td', { text: hs.position }),
+        el('td', { text: hs.rect_px[2] + '×' + hs.rect_px[3] }),
+        el('td', { text: (hs.share_of_total_error * 100).toFixed(1) + '%' }),
+        el('td', { text: fmt(hs.mean_flip) }), el('td', { text: fmt(hs.max_flip) })]);
+      var go = function () { zoomHot(r.i, r.k); };
+      tr.addEventListener('click', go);
+      tr.addEventListener('keydown', function (e) { if (e.key === 'Enter') { e.preventDefault(); go(); } });
+      t.appendChild(tr);
+    });
+    var wide = set.order.filter(function (i) { return frameWide(set.panes[i]); });
+    $('hot-hint').textContent = wide.length ? 'Frame-wide change: ' + wide.map(function (i) { return paneName(set, i); }).join(', ') + ' (the largest hotspot covers at least half of the frame).' : '';
   }
   function renderDecision() {
     var set = cur(), box = $('dec'), e = entry(set.name);
@@ -715,9 +787,9 @@
     S.set = i; S.cursor = null; S.roiDraft = null; S.flickerIdx = 0;
     S.chosen = present(cur());
     S.fit = true;
-    renderSets(); renderToolbar(); renderStage(); renderDecision(); renderConfigDiff();
+    renderSets(); renderToolbar(); renderStage(); renderDecision(); renderConfigDiff(); renderHotspots();
   }
-  function rerenderAll() { renderSets(); renderToolbar(); renderStage(); renderDecision(); renderMeta(); renderConfigDiff(); }
+  function rerenderAll() { renderSets(); renderToolbar(); renderStage(); renderDecision(); renderMeta(); renderConfigDiff(); renderHotspots(); }
 
   // Metadata-sidecar differences of the current set, each pane against the reference.
   function renderConfigDiff() {
@@ -834,6 +906,7 @@
     $('swipe').addEventListener('input', function (e) { setSwipe(Number(e.target.value)); });
     $('b-vert').addEventListener('click', function () { toggleVertical(); });
     $('b-heat').addEventListener('click', function () { toggleHeat(); });
+    $('b-hot').addEventListener('click', function () { S.hot = !S.hot; renderToolbar(); renderStage(); });
     $('fs').addEventListener('click', function () { setFullscreen(!fsActive()); });
     $('help-btn').addEventListener('click', function () { toggleHelp(); });
     var hb = $('hold');

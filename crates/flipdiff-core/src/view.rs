@@ -1,4 +1,4 @@
-//! The review viewer model (`flipdiff view`, SPEC §10) and the decisions file
+//! The review viewer model (`flipdiff view`, see `docs/design.md`) and the decisions file
 //! it exports (`flipdiff approve --decisions`).
 //!
 //! [`build_view`] pairs 2 to 6 directories by relative path, compares every
@@ -90,6 +90,9 @@ pub struct ViewPane {
     pub flip: Option<String>,
     /// FLIP statistics against the reference.
     pub metrics: Option<Metrics>,
+    /// Where the FLIP error against the reference is concentrated, largest
+    /// first (same fields and defaults as a report entry's hotspots).
+    pub hotspots: Vec<crate::report::Hotspot>,
     /// Why this pane could not be compared or decoded.
     pub error: Option<String>,
     /// Sidecar keys that differ from the reference directory's (`baseline` is
@@ -625,6 +628,7 @@ pub fn build_view(dirs: &[PathBuf], out_dir: &Path, opts: &ViewOptions) -> Resul
                 heatmap: None,
                 flip: None,
                 metrics: None,
+                hotspots: Vec::new(),
                 error: None,
                 meta_diff: Vec::new(),
                 meta_error: None,
@@ -673,6 +677,13 @@ pub fn build_view(dirs: &[PathBuf], out_dir: &Path, opts: &ViewOptions) -> Resul
                                         cmp.metrics.width,
                                         cmp.metrics.height,
                                     )?);
+                                    pane.hotspots = crate::hotspots::find_hotspots(
+                                        &cmp.error_map,
+                                        None,
+                                        cmp.metrics.width,
+                                        cmp.metrics.height,
+                                        &crate::hotspots::HotspotOptions::default(),
+                                    );
                                     pane.metrics = Some(cmp.metrics);
                                 }
                                 Err(e) => pane.error = Some(pane_error(&e, opts.blind)),
@@ -797,6 +808,9 @@ mod tests {
         // Reference pane has no comparison; the others do.
         assert!(x.panes[1].metrics.is_none());
         assert!(x.panes[0].metrics.is_some() && x.panes[2].metrics.is_some());
+        // Hotspots come only with a comparison; the uniform shift covers the frame.
+        assert!(x.panes[1].hotspots.is_empty());
+        assert_eq!(x.panes[2].hotspots[0].rect_px, [0, 0, 8, 8]);
         assert!(out.join("images/x.png/heatmap2.png").is_file());
         // y.png exists only in the reference directory.
         let y = &m.sets[0];

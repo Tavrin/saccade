@@ -161,6 +161,28 @@ weights applied to the sRGB-encoded values divided by 255, with no
 linearisation. For HDR images it is linear Rec. 709 luminance, and "all white"
 means every channel is at least 1.0.
 
+### 3.8 Hotspots
+
+Hotspots say where on the frame the FLIP error is concentrated. For every
+compared pair, the pixels whose error is strictly above `hotspot_threshold`
+(default 0.1) are grouped into 8-connected components; components whose
+bounding boxes lie within about 1% of the long side of each other are merged;
+the groups are ranked by summed error and the first `hotspots` (default 5, 0
+disables the search) are kept. Masked pixels never count. The component search
+is a single raster pass with union-find, so memory does not grow with the frame.
+
+| Field | Type | Notes |
+|---|---|---|
+| `rect_px` | `[x, y, w, h]` | Bounding box in pixels |
+| `rect_frac` | `[x, y, w, h]` | The same box as fractions of the frame |
+| `area_px`, `area_frac` | number | Pixels above the threshold, absolute and as a fraction of the frame |
+| `mean_flip`, `max_flip` | number | Over the unmasked pixels inside the box |
+| `share_of_total_error` | number | Summed error of the hotspot over the summed error of every unmasked pixel, in 0 to 1 |
+| `position` | string | 3x3 cell of the box centre: `top-left`, `top-center`, `top-right`, `middle-left`, `center`, `middle-right`, `bottom-left`, `bottom-center`, `bottom-right` |
+
+A box whose area (`rect_frac[2] * rect_frac[3]`) is at least 0.5 is shown as a
+"frame-wide change" in the HTML report and in `view`.
+
 ## 4. Statuses and exit codes
 
 | Status | Meaning |
@@ -247,6 +269,7 @@ first release have `serde` defaults, so older v1 reports still parse.
 | `masked_fraction` | number or null | Fraction of pixels masked, when a mask applied |
 | `bit_identical` | boolean or null | Set for compared pairs |
 | `hdr` | object or null | `tonemapper`, `start_exposure`, `stop_exposure`, `num_exposures`, `auto_range` |
+| `hotspots` | array | Ranked hotspots (section 3.8); empty when none exceed the threshold, when the pair was not compared or when they are disabled |
 | `meta_diff` | array | Sidecar keys that differ: `{key, baseline, capture}`; a missing value is `"<absent>"` |
 
 A region result has `name`, `rect_px` (`[x, y, w, h]` in pixels), `status`
@@ -293,6 +316,10 @@ images copied to `view/images/`).
   value.
 - **Display controls.** Exposure and contrast sliders (display only), and
   channel isolation (R, G, B, luminance).
+- **Hotspots.** Each non-reference pane carries its own `hotspots` against the
+  reference (same fields as section 3.8, default settings) in the embedded
+  model. The viewer draws them as numbered boxes, lists them in a card, and
+  zooms to a box on click. Blind mode hides them with the other measurements.
 - **Region of interest.** Drag a rectangle to get the mean FLIP value and mean
   RGB per pane. Regions from `--config` appear as preset rectangles.
 
@@ -368,7 +395,7 @@ caller never chose. A comparator that ignores configuration then reports a
 how each directory of captures was made, so flipdiff can show the difference
 and, on request, refuse to give a verdict.
 
-- **File.** `cost-card.json` by default (`--meta-name`, or `meta_name` in the
+- **File.** `flipdiff-meta.json` by default (`--meta-name`, or `meta_name` in the
   config). A per-image sidecar is `<image_stem>.<meta-name>`.
 - **Lookup.** For an image, the sidecars from the root of the directory down to
   the image's folder are merged, the nearer one winning on a conflicting key,
@@ -396,7 +423,79 @@ and, on request, refuse to give a verdict.
 - **Scope.** `compare` and `identity` accept all four flags. `view` accepts
   `--meta-name` and `--meta-ignore`.
 
-## 10. Library
+## 10. Judge packs: `flipdiff explain`
+
+`flipdiff explain REPORT_JSON [--out DIR]` reads a report and writes, for each
+failing entry, crops that show what changed at each hotspot. Only the pack's own
+files in the output directory are replaced.
+
+```
+explain.json                 schema flipdiff-explain.v1 (schemas/explain.v1.schema.json)
+explain.md                   the same, as text
+thumbs/<name>.png            whole-frame strip with the hotspot boxes drawn
+hotspots/<name>/hN.png       [baseline | capture | heatmap] crop strip of hotspot N
+blind-key.json               only with --blind
+```
+
+`explain.json` has `schema`, `report`, `blind`, `labels`, `settings` (`top`,
+`pad`, `stretch`) and `entries`. An entry has `name`, `status`, `metric_used`,
+`threshold`, `value`, `thumbnail`, an optional `note` (for example "no hotspot
+above the threshold: the difference is diffuse or below it") and `hotspots`.
+Each hotspot has `index` (1-based), the report's `hotspot` object, `strip`,
+`crop_rect_px` (the box plus `--pad`, clamped to the frame), `scale`, `gain` and
+`panels`. With `--stretch`, dark crops get one gain applied to both images.
+
+With `--blind` each strip is `[A | B]`, A and B assigned at random per hotspot
+(`--seed`, recorded in the key) and the heatmap omitted. `blind-key.json` (`flipdiff-explain-blind-key.v1`) lists, for each strip (the
+whole-frame strip has `hotspot: null`), which side was A and which was B. It is
+not referenced from `explain.json` or `explain.md`.
+
+## 11. MCP server: `flipdiff mcp`
+
+JSON-RPC 2.0 over stdio, one JSON message per line, protocol version
+`2025-06-18`. It implements `initialize`, `notifications/initialized`, `ping`,
+`tools/list` and `tools/call`. Tools: `flipdiff_compare`, `flipdiff_identity`
+(both write a report and a judge pack into `out_dir`), `flipdiff_explain` and
+`flipdiff_summary`. Input schemas come from `tools/list`. Relative paths resolve
+against the server's working directory.
+
+A successful call returns `content` (a short text) and `structuredContent` with
+`verdict` (`regression` when the run fails the gate), `totals`, the worst failing entries with up to
+three hotspots each, and the report and pack paths. A regression is a successful
+call. A failed call has `isError: true` and `structuredContent` of schema
+`flipdiff-error.v1` with `code` `usage` (bad or missing argument, unsafe path),
+`io` (unreadable or unwritable path, undecodable image or report) or `config`
+(invalid config). Protocol errors use the JSON-RPC codes -32700, -32600, -32601
+and -32602. `flipdiff summary --format json` prints the same summary object
+(`flipdiff-summary.v1`).
+
+## 12. Local web app: `flipdiff serve`
+
+`flipdiff serve ROOT` serves an archive of capture directories on `127.0.0.1`.
+It reuses the `view` pipeline: a session is a `view` model built in the cache
+directory for 2 to 6 runs, opened at `/session/<id>/`, with a progress page
+while it builds.
+
+- **Routes.** `/` (landing page), `/api/ls`, `/api/search` (path substring,
+  sidecar `key=value` filter, `recent=1`), `/thumb` and `/img` (image files
+  under the root only), `/compare?runs=a,b[,...][&labels=x,y][&blind=1]` (2 to
+  6 runs relative to the root; `labels` has one entry per run), `/pair?a=&b=`
+  (two image files), `/api/decisions` (recently saved decisions).
+- **Security.** Binds `127.0.0.1` only. `Host` must be `127.0.0.1:<port>` or
+  `localhost:<port>`; every POST needs a matching `Origin` and the per-process
+  token in `X-Flipdiff-Token`. Client paths are relative to the root,
+  canonicalised and must stay below it; symlinks that leave the root are not
+  followed or listed. The root is read-only.
+- **State.** Cache (`--cache-dir`, default `$XDG_CACHE_HOME/flipdiff`): sessions,
+  thumbnails, staged pairs, uploads (64 MB per file). Decisions
+  (`--decisions-dir`, default `$XDG_DATA_HOME/flipdiff/decisions`): one
+  `<session-id>.flipdiff-decisions.v1.json` per session, written as the reviewer decides, in
+  the format of section 8.1.
+- **Recent runs.** Each run lists up to three sidecar chips: the keys whose
+  value differs among the listed runs (timing keys are hidden), values over 20
+  characters shortened with the full value in the tooltip, the rest as "+N".
+
+## 13. Library
 
 `flipdiff-core` is the library behind the CLI: `compare`, `run`, `report`,
 `render` (HTML and Markdown), `view`, `hdr`, `regions` and `config`. It is

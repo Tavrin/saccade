@@ -615,7 +615,7 @@
           "default": {
             "declared": [],
             "ignored": [],
-            "name": "cost-card.json",
+            "name": "flipdiff-meta.json",
             "required": false
           }
         },
