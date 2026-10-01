@@ -208,6 +208,54 @@ Also ship:
 - **Tests:** about one focused test per stated behaviour. Generate fixtures in
   code; don't commit binary fixtures beyond `examples/`.
 
+## 10. Review viewer: `flipdiff view` (added 2026-10-01, lane E)
+
+The viewer is for people who have to decide between images: a reviewer
+accepting a re-baseline, a look-dev judge, a lead choosing between candidate
+renders. It needs no thresholds and no CI.
+
+```
+flipdiff view <DIR_A> <DIR_B> [<DIR_C> ...] [--labels parent,candidate,...] [--reference <DIR>] [--blind] [--out view/]
+```
+- **Pairing.** Images are paired by relative path across 2 to 6 directories.
+  - `--reference` marks one directory as the FLIP reference. Without it, the
+    first directory is the reference.
+  - Each non-reference image gets a heatmap against the reference, and its
+    metrics are shown.
+- **Output.** It writes a self-contained `view/index.html` with the same rules
+  as §5: offline, no external requests, the data embedded as JSON, images
+  copied under `view/images/`. It reuses the report's CSS tokens and
+  components where it can.
+- **Viewer features, per image set:**
+  - **Layouts:** side-by-side grid (N-up), swipe (any 2 chosen), flicker (cycles
+    through the chosen ones, adjustable rate, pause), and heatmap overlay with
+    an opacity slider.
+  - **Synchronised zoom and pan** across all panes: wheel or pinch zoom,
+    drag to pan, and 1×/2×/4×/8×/fit buttons. Pixelated past 1×.
+  - **Pixel inspector:** under the cursor, the RGB values of every pane at the
+    same pixel, plus the FLIP value.
+  - **Exposure/contrast stretch slider** (display only, with a reset), for
+    judging dark frames. Channel isolation: R, G, B and luminance.
+  - **ROI:** drag a rectangle to get mean FLIP and mean RGB per pane inside
+    it; the ROI shows in every pane.
+- **Blind mode (`--blind`), for pairwise A/B judging:**
+  - Pane order is shuffled per image set with a seed recorded in the data, and
+    labels are hidden as "A", "B", ….
+  - The judge picks a preferred pane, or "no visible difference", and may add
+    a free-text note.
+  - Labels stay hidden until the judge clicks "Reveal" after deciding all sets.
+- **Decisions in any mode:** per image set, accept / reject / needs-work and
+  a note. Use "Export decisions" to download a `flipdiff-decisions.v1.json`
+  file containing:
+  - per set: name, the decision or preference, the true label of the chosen
+    pane, the note, the ROI if one was drawn, and a timestamp;
+  - for the whole file: the seed and the labels.
+  The download goes through a Blob, so it works from `file://`. Decisions
+  persist in `localStorage` (wrapped in try/catch) so a reload keeps them.
+- **Approving from decisions.** `flipdiff approve --decisions <file>` takes
+  the "accept" entries as names, so a human verdict feeds straight into
+  baseline promotion.
+
 ## 9. Non-goals (v0.1)
 
 - HDR/EXR or float FLIP.
