@@ -40,11 +40,20 @@ impl Storage {
     /// Timed-out probes retain their slot until the OS operation returns.
     /// Saturation fails immediately instead of spawning more hung threads.
     pub fn run<T: Send + 'static>(&self, op: impl FnOnce() -> T + Send + 'static) -> Result<T, ()> {
-        self.active
-            .fetch_update(Ordering::AcqRel, Ordering::Acquire, |n| {
-                (n < MAX_PROBES).then_some(n + 1)
-            })
-            .map_err(|_| ())?;
+        // `try_update` requires Rust 1.95; retain the workspace's Rust 1.88 MSRV.
+        let mut n = self.active.load(Ordering::Acquire);
+        loop {
+            if n >= MAX_PROBES {
+                return Err(());
+            }
+            match self
+                .active
+                .compare_exchange_weak(n, n + 1, Ordering::AcqRel, Ordering::Acquire)
+            {
+                Ok(_) => break,
+                Err(current) => n = current,
+            }
+        }
         #[cfg(test)]
         let delay = self.delay.load(Ordering::Relaxed);
         let active = self.active.clone();

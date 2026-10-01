@@ -25,6 +25,13 @@ env:
 jobs:
   build:
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pages: read
+    env:
+      CARGO_TARGET_DIR: ${{ github.workspace }}/target
+    outputs:
+      pages-enabled: ${{ steps.pages.outputs.enabled }}
     steps:
       - uses: actions/checkout@v4
       - name: Fetch private flip-rs dependency
@@ -40,13 +47,26 @@ jobs:
       - run: python3 -m pip install Pillow
       - run: cargo build --release --locked -p saccade
       - name: Build gallery and reports
-        run: python3 docs/showcase/build.py --saccade target/release/saccade --out "$RUNNER_TEMP/saccade-pages/showcase"
+        run: python3 docs/showcase/build.py --saccade "$CARGO_TARGET_DIR/release/saccade" --out "$RUNNER_TEMP/saccade-pages/showcase"
       - uses: actions/upload-pages-artifact@v3
         with:
           path: ${{ runner.temp }}/saccade-pages
+      - name: Check Pages availability
+        id: pages
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+        run: |
+          if [ "$(gh api "repos/$REPO/pages" --jq '.build_type' 2>/dev/null)" = workflow ]; then
+            echo "enabled=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "enabled=false" >> "$GITHUB_OUTPUT"
+            echo "::notice::Skipping deployment: Pages must be available and enabled with GitHub Actions as its source."
+          fi
 
   deploy:
     needs: build
+    if: ${{ needs.build.outputs.pages-enabled == 'true' }}
     runs-on: ubuntu-latest
     permissions:
       pages: write

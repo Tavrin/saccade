@@ -16,6 +16,8 @@ jobs:
   build:
     name: build (${{ matrix.target }})
     runs-on: ${{ matrix.os }}
+    env:
+      CARGO_TARGET_DIR: ${{ github.workspace }}/target
     strategy:
       fail-fast: true
       matrix:
@@ -54,7 +56,7 @@ jobs:
           EXT: ${{ matrix.ext }}
         run: |
           set -euo pipefail
-          dir="target/$TARGET/release"
+          dir="$CARGO_TARGET_DIR/$TARGET/release"
           mkdir -p dist/package
           cp LICENSE-MIT LICENSE-APACHE THIRD_PARTY.md README.md dist/package/
           if [ "$EXT" = zip ]; then
