@@ -85,6 +85,7 @@ fn bad_ppd_is_rejected_and_null_metrics_round_trip() {
     for ppd in [0.0, -1.0, f32::NAN, f32::INFINITY] {
         let opts = CompareOptions {
             pixels_per_degree: ppd,
+            ..CompareOptions::default()
         };
         assert!(matches!(compare(&img, &img, &opts), Err(Error::Config(_))));
     }

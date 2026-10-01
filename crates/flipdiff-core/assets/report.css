@@ -178,6 +178,7 @@ tr.detail > td { padding: 0; background: var(--surface-2); border-bottom: 1px so
   background: var(--surface); border: 1px solid var(--border); color: var(--muted);
 }
 .badge.warn { background: var(--fail-bg); color: var(--fail); border-color: var(--fail); font-weight: 700; }
+.badge.ident { background: var(--pass-bg); color: var(--pass); border-color: var(--pass); font-weight: 700; }
 .err-box { padding: 8px 12px; border-radius: 7px; background: var(--error-bg); color: var(--error); border: 1px solid var(--error); font-family: var(--mono); font-size: 12.5px; word-break: break-word; }
 
 .panes { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 250px), 1fr)); gap: 12px; }
@@ -222,6 +223,18 @@ tr.detail > td { padding: 0; background: var(--surface-2); border-bottom: 1px so
 .mx div { background: var(--surface); border: 1px solid var(--border); border-radius: 6px; padding: 4px 9px; }
 .mx dt { font-size: 11px; color: var(--muted); }
 .mx dd { margin: 0; font: 12.5px var(--mono); font-variant-numeric: tabular-nums; }
+
+/* ---- regions: rectangle overlay and result rows ---- */
+.zbox { position: relative; }
+.rgn { display: none; position: absolute; box-sizing: border-box; pointer-events: none; border: 2px solid #ffc83d; box-shadow: 0 0 0 1px rgba(0,0,0,.8), inset 0 0 0 1px rgba(0,0,0,.8); }
+.rgn.s-fail { border-color: #ff5a5a; }
+.d.regions .rgn { display: block; }
+.rgn span { position: absolute; left: 0; top: 0; max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; padding: 0 5px; font: 600 11px/1.5 var(--sans); background: rgba(0,0,0,.78); color: #fff; }
+.rtab { border-collapse: collapse; width: 100%; font-size: 12.5px; background: var(--surface); border: 1px solid var(--border); border-radius: 6px; }
+.rtab th, .rtab td { padding: 4px 9px; text-align: left; border-bottom: 1px solid var(--border); }
+.rtab td.num, .rtab th.num { text-align: right; font-family: var(--mono); font-variant-numeric: tabular-nums; }
+.rtab caption { text-align: left; font-weight: 600; padding: 0 0 4px; color: var(--muted); caption-side: top; }
+.rtab-wrap { overflow-x: auto; }
 
 /* ---- narrow screens ---- */
 @media (max-width: 720px) {

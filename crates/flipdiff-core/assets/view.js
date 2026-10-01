@@ -536,6 +536,18 @@
     var meta = el('p', { class: 'dec-meta' });
     meta.textContent = e.roi ? 'ROI saved: ' + e.roi.x + ',' + e.roi.y + ' ' + e.roi.w + '×' + e.roi.h : 'No ROI. Choose "Region" and drag, or Shift-drag.';
     box.appendChild(meta);
+    var presets = cur().presets || [];
+    if (presets.length) {
+      var prow = el('div', { class: 'dec-row' }, [el('span', { class: 'lbl', text: 'Regions' })]);
+      presets.forEach(function (p) {
+        var pb = el('button', { type: 'button', class: 'btn small', text: p.name, title: p.x + ',' + p.y + ' ' + p.w + '×' + p.h });
+        pb.addEventListener('click', function () {
+          e.roi = { x: p.x, y: p.y, w: p.w, h: p.h }; touch(e); drawRoi(); renderInspector(); renderDecision();
+        });
+        prow.appendChild(pb);
+      });
+      box.appendChild(prow);
+    }
     if (e.roi) {
       var clr = el('button', { type: 'button', class: 'btn small', text: 'Clear ROI' });
       clr.addEventListener('click', function () { e.roi = null; touch(e); drawRoi(); renderInspector(); renderDecision(); });

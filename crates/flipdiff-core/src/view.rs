@@ -49,6 +49,10 @@ pub struct ViewOptions {
     pub seed: Option<u64>,
     /// FLIP pixels per degree.
     pub pixels_per_degree: f32,
+    /// HDR-FLIP settings for `.exr`/`.hdr` images.
+    pub hdr: crate::hdr::HdrConfig,
+    /// Config regions, offered in the viewer as preset ROIs.
+    pub regions: Vec<crate::regions::RegionSpec>,
 }
 
 impl Default for ViewOptions {
@@ -59,6 +63,8 @@ impl Default for ViewOptions {
             blind: false,
             seed: None,
             pixels_per_degree: CompareOptions::default().pixels_per_degree,
+            hdr: crate::hdr::HdrConfig::default(),
+            regions: Vec::new(),
         }
     }
 }
@@ -96,6 +102,24 @@ pub struct ViewSet {
     /// Script that defines per-pane data URIs, loaded only when the browser
     /// refuses to read pixels from the image files (canvas taint on `file://`).
     pub pixels_script: String,
+    /// Config regions that apply to this set, resolved to pixels of the
+    /// reference image.
+    pub presets: Vec<ViewPreset>,
+}
+
+/// A config region offered as a preset ROI.
+#[derive(Debug, Clone, Serialize)]
+pub struct ViewPreset {
+    /// Region name.
+    pub name: String,
+    /// Left edge in pixels.
+    pub x: u32,
+    /// Top edge in pixels.
+    pub y: u32,
+    /// Width in pixels.
+    pub w: u32,
+    /// Height in pixels.
+    pub h: u32,
 }
 
 /// The data embedded in the viewer's `index.html`.
@@ -335,6 +359,54 @@ fn base64(bytes: &[u8]) -> String {
     out
 }
 
+/// Copies a pane's file into the view and returns the path the page shows plus
+/// its data URI. An HDR file is copied as `pane<i>.orig.<ext>` and shown as a
+/// tone-mapped `pane<i>.png` (exposure 0).
+fn pane_files(
+    src: &Path,
+    hdr: Option<&crate::hdr::HdrImage>,
+    (out_dir, name, i): (&Path, &str, usize),
+    tm: crate::hdr::Tonemapper,
+) -> Result<(String, String)> {
+    let Some(hdr) = hdr else {
+        let rel = copy_into_report(src, out_dir, name, &format!("pane{i}"))?;
+        let bytes = std::fs::read(src).map_err(io_err(format!("reading {}", src.display())))?;
+        return Ok((
+            rel,
+            format!("data:{};base64,{}", mime_of(src), base64(&bytes)),
+        ));
+    };
+    copy_into_report(src, out_dir, name, &format!("pane{i}.orig"))?;
+    let rel = format!("images/{name}/pane{i}.png");
+    let dest = out_dir.join(&rel);
+    crate::hdr::display_image(hdr, tm)
+        .save(&dest)
+        .map_err(|source| Error::Encode {
+            path: dest.clone(),
+            source,
+        })?;
+    let bytes = std::fs::read(&dest).map_err(io_err(format!("reading {}", dest.display())))?;
+    Ok((rel, format!("data:image/png;base64,{}", base64(&bytes))))
+}
+
+/// FLIP between a pane and the reference: HDR-FLIP when both are HDR, an
+/// error when only one is, LDR-FLIP otherwise.
+fn compare_pane(
+    img: &image::RgbaImage,
+    reference: &image::RgbaImage,
+    hdr: Option<&crate::hdr::HdrImage>,
+    ref_hdr: Option<&crate::hdr::HdrImage>,
+    opts: &CompareOptions,
+) -> Result<crate::compare::Comparison> {
+    match (hdr, ref_hdr) {
+        (Some(h), Some(r)) => crate::hdr::compare_hdr(h, r, opts).map(|(cmp, _)| cmp),
+        (None, None) => compare_rgba(img, reference, opts),
+        _ => Err(Error::HdrMismatch(
+            "one of the panes is HDR and the other is LDR".into(),
+        )),
+    }
+}
+
 fn mime_of(path: &Path) -> &'static str {
     match path
         .extension()
@@ -411,6 +483,34 @@ fn resolve_reference(
         .ok_or_else(|| Error::Config(format!("--reference {r:?} is not one of the directories")))
 }
 
+/// Resolves the config regions that match `name` against a `width` x `height`
+/// reference image.
+fn preset_rois(
+    regions: &[crate::regions::RegionSpec],
+    name: &str,
+    width: u32,
+    height: u32,
+) -> Vec<ViewPreset> {
+    regions
+        .iter()
+        .filter(|r| {
+            r.glob
+                .as_deref()
+                .is_none_or(|g| crate::config::compile_glob(g).is_ok_and(|m| m.is_match(name)))
+        })
+        .filter_map(|r| {
+            let [x, y, w, h] = crate::regions::resolve_rect(r.rect, width, height)?;
+            Some(ViewPreset {
+                name: r.name.clone(),
+                x,
+                y,
+                w,
+                h,
+            })
+        })
+        .collect()
+}
+
 /// Builds the viewer in `out_dir` (`index.html` plus `images/`) and returns
 /// the embedded model.
 ///
@@ -477,6 +577,7 @@ pub fn build_view(dirs: &[PathBuf], out_dir: &Path, opts: &ViewOptions) -> Resul
     }
     let compare_opts = CompareOptions {
         pixels_per_degree: opts.pixels_per_degree,
+        hdr: opts.hdr,
     };
 
     let mut sets = Vec::with_capacity(names.len());
@@ -488,6 +589,15 @@ pub fn build_view(dirs: &[PathBuf], out_dir: &Path, opts: &ViewOptions) -> Resul
             Some(Some(Ok(img))) => Some(img),
             _ => None,
         };
+        // HDR sources are compared with HDR-FLIP and shown as tone-mapped PNGs.
+        let hdr_imgs: Vec<Option<crate::hdr::HdrImage>> = sources
+            .iter()
+            .map(|s| {
+                s.filter(|p| crate::hdr::is_hdr_path(p))
+                    .and_then(|p| crate::hdr::decode_hdr(p).ok())
+            })
+            .collect();
+        let ref_hdr = hdr_imgs.get(reference).and_then(Option::as_ref);
 
         let mut panes = Vec::with_capacity(dirs.len());
         let mut pixel_uris = Vec::with_capacity(dirs.len());
@@ -506,19 +616,26 @@ pub fn build_view(dirs: &[PathBuf], out_dir: &Path, opts: &ViewOptions) -> Resul
                 panes.push(pane);
                 continue;
             };
-            pane.path = Some(copy_into_report(src, out_dir, name, &format!("pane{i}"))?);
-            let bytes = std::fs::read(src).map_err(io_err(format!("reading {}", src.display())))?;
-            pixel_uris.push(Some(format!(
-                "data:{};base64,{}",
-                mime_of(src),
-                base64(&bytes)
-            )));
+            let (shown, uri) = pane_files(
+                src,
+                hdr_imgs.get(i).and_then(Option::as_ref),
+                (out_dir, name, i),
+                opts.hdr.tonemapper,
+            )?;
+            pane.path = Some(shown);
+            pixel_uris.push(Some(uri));
             match &decoded[i] {
                 Some(Ok(img)) => {
                     (pane.width, pane.height) = img.dimensions();
                     if i != reference {
                         match ref_img {
-                            Some(r) => match compare_rgba(img, r, &compare_opts) {
+                            Some(r) => match compare_pane(
+                                img,
+                                r,
+                                hdr_imgs.get(i).and_then(Option::as_ref),
+                                ref_hdr,
+                                &compare_opts,
+                            ) {
                                 Ok(cmp) => {
                                     let rel = format!("images/{name}/heatmap{i}.png");
                                     let dest = out_dir.join(&rel);
@@ -565,11 +682,16 @@ pub fn build_view(dirs: &[PathBuf], out_dir: &Path, opts: &ViewOptions) -> Resul
         } else {
             (0..dirs.len()).collect()
         };
+        let presets = panes
+            .get(reference)
+            .map(|p| preset_rois(&opts.regions, name, p.width, p.height))
+            .unwrap_or_default();
         sets.push(ViewSet {
             name: name.clone(),
             order,
             panes,
             pixels_script: px_rel,
+            presets,
         });
     }
 

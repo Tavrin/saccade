@@ -6,7 +6,7 @@ use globset::{Glob, GlobBuilder};
 use serde::Deserialize;
 
 use crate::error::{Error, Result};
-use crate::report::Metric;
+use crate::report::{Labels, Metric, Mode};
 
 /// A per-path override of the default threshold and/or metric.
 #[derive(Debug, Clone, PartialEq)]
@@ -35,6 +35,18 @@ pub struct RunConfig {
     pub ignore: Vec<String>,
     /// Per-path overrides; the first matching one wins, field by field.
     pub overrides: Vec<Override>,
+    /// Named regions of interest (`[[region]]`).
+    pub regions: Vec<crate::regions::RegionSpec>,
+    /// Excluded areas (`[[mask]]`).
+    pub masks: Vec<crate::regions::MaskSpec>,
+    /// Directory mask-image paths are relative to (the config file's directory).
+    pub config_dir: Option<std::path::PathBuf>,
+    /// What the run is for (`compare` or `identity`).
+    pub mode: Mode,
+    /// Display names of the two sides.
+    pub labels: Labels,
+    /// HDR-FLIP settings (`[hdr]`) for `.exr`/`.hdr` images.
+    pub hdr: crate::hdr::HdrConfig,
 }
 
 impl Default for RunConfig {
@@ -46,6 +58,12 @@ impl Default for RunConfig {
             fail_on_new: false,
             ignore: Vec::new(),
             overrides: Vec::new(),
+            regions: Vec::new(),
+            masks: Vec::new(),
+            config_dir: None,
+            mode: Mode::default(),
+            labels: Labels::default(),
+            hdr: crate::hdr::HdrConfig::default(),
         }
     }
 }
@@ -61,6 +79,20 @@ struct FileConfig {
     ignore: Vec<String>,
     #[serde(default, rename = "override")]
     overrides: Vec<FileOverride>,
+    #[serde(default, rename = "region")]
+    regions: Vec<crate::regions::RegionSpec>,
+    #[serde(default, rename = "mask")]
+    masks: Vec<crate::regions::MaskSpec>,
+    hdr: Option<FileHdr>,
+}
+
+#[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
+struct FileHdr {
+    tonemapper: Option<crate::hdr::Tonemapper>,
+    start_exposure: Option<f32>,
+    stop_exposure: Option<f32>,
+    num_exposures: Option<u32>,
 }
 
 #[derive(Deserialize)]
@@ -87,7 +119,14 @@ impl RunConfig {
             context: format!("reading config {}", path.display()),
             source,
         })?;
-        Self::from_toml_str(&text).map_err(|e| Error::Config(format!("{}: {e}", path.display())))
+        let mut cfg = Self::from_toml_str(&text)
+            .map_err(|e| Error::Config(format!("{}: {e}", path.display())))?;
+        cfg.config_dir = Some(
+            path.parent()
+                .filter(|p| !p.as_os_str().is_empty())
+                .map_or_else(|| Path::new(".").to_path_buf(), Path::to_path_buf),
+        );
+        Ok(cfg)
     }
 
     /// Parses `flipdiff.toml` contents.
@@ -116,6 +155,16 @@ impl RunConfig {
                 metric: o.metric,
             })
             .collect();
+        cfg.regions = file.regions;
+        cfg.masks = file.masks;
+        if let Some(h) = file.hdr {
+            if let Some(t) = h.tonemapper {
+                cfg.hdr.tonemapper = t;
+            }
+            cfg.hdr.start_exposure = h.start_exposure;
+            cfg.hdr.stop_exposure = h.stop_exposure;
+            cfg.hdr.num_exposures = h.num_exposures;
+        }
         cfg.validate()?;
         Ok(cfg)
     }
@@ -127,6 +176,7 @@ impl RunConfig {
             return Err(Error::Config("threshold must be finite".into()));
         }
         crate::compare::check_ppd(self.pixels_per_degree)?;
+        self.hdr.validate()?;
         for g in &self.ignore {
             compile_glob(g)?;
         }
@@ -139,6 +189,7 @@ impl RunConfig {
                 )));
             }
         }
+        crate::regions::validate(&self.regions, &self.masks)?;
         Ok(())
     }
 

@@ -6,7 +6,9 @@
 pub mod compare;
 pub mod config;
 pub mod error;
+pub mod hdr;
 pub mod properties;
+pub mod regions;
 pub mod render;
 pub mod report;
 pub mod run;

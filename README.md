@@ -117,6 +117,67 @@ metric = "p95"
 
 `--config` defaults to `./flipdiff.toml` when that file exists. CLI flags override the top-level defaults; `[[override]]` tables always apply on top, and the first matching override wins, field by field. Globs match the `/`-separated image name, ignoring case; `*` does not cross `/`, `**` does. Unknown keys are errors.
 
+## Scene captures
+
+### HDR / EXR captures
+
+`.exr` and `.hdr` (Radiance) files are paired and compared like PNGs and decoded to linear `f32` RGB (alpha is dropped; NaN and negative values become 0). A pair is compared with HDR-FLIP: flipdiff computes an exposure range from the baseline (the brightest pixel reaches 0.85 after tone mapping at the first exposure, the median luminance at the last), tone-maps both images at each of N evenly spaced exposures, encodes them to 8-bit sRGB, runs FLIP on each and keeps the per-pixel maximum. The procedure follows NVIDIA's reference (see `THIRD_PARTY.md`), with one honest approximation: the reference keeps every exposure in float, flipdiff quantises each to 8 bits.
+
+```toml
+[hdr]
+tonemapper = "aces"       # aces (default) | hable | reinhard
+start_exposure = -4.0     # stops; omit both ends to compute them from the baseline
+stop_exposure = 1.5
+num_exposures = 6         # omit: max(2, ceil(stop - start)), at most 64
+```
+
+Flags: `--hdr-tonemapper aces|hable|reinhard` and `--hdr-exposures START:STOP:N`, on `compare` and `view` (`identity` reads `[hdr]`). The chosen settings are recorded in each entry's `hdr` field. An HDR and an LDR image cannot be compared (`error` entry).
+
+In the report and in `view`, each HDR side is shown as a display PNG tone-mapped at exposure 0 (`images/<name>/baseline.png`, `capture.png`); the original file is copied next to it as `images/<name>/baseline.orig.exr` and `capture.orig.exr` (the extension of the source). Properties for HDR images use linear Rec. 709 luminance, and "all white" means every channel is at least 1.0.
+
+### Identity proofs with `flipdiff identity`
+
+A renderer optimization must ship an identity proof against its parent
+build: render the same scenes with the parent and the candidate, then run
+
+```
+flipdiff identity parent-captures/ candidate-captures/ --out identity-report
+```
+
+Defaults are strict: metric `max`, threshold `0`. Every compared pair reports
+`bit_identical` (decoded pixels exactly equal; the report badges it), and a
+pair passes if it is bit-identical or its value is within `--threshold`. The
+headline reads `identity: ✅ 12/12 bit-identical` or
+`identity: ❌ 2 differ (max FLIP 0.031 on bistro/cam3.png)`. Pass
+`--threshold 0.01` for a change that is allowed to differ slightly, and
+`--labels a,b` (also on `compare`) to rename the two sides in the report.
+Exit codes are the same as `compare`.
+
+### Regions and masks
+
+A whole-frame mean hides a local change. Name the area that matters with
+`[[region]]` (fractions of the frame, so a resolution change keeps the meaning)
+and exclude noise such as an animated sky with `[[mask]]`:
+
+```toml
+[[region]]
+name = "atrium-floor"
+glob = "sponza/**"                # optional; default all images
+rect = [0.30, 0.55, 0.40, 0.35]   # x, y, w, h in [0, 1]
+threshold = 0.02                  # optional; without it the region is informational
+metric = "p95"                    # optional; default is the entry's metric
+
+[[mask]]
+glob = "jungle/**"
+rect = [0.0, 0.0, 1.0, 0.12]      # or: image = "masks/jungle_foliage.png"
+```
+
+- A rect becomes pixels by flooring the origin and ceiling the far edge, clamped to the frame; one that resolves to nothing makes the entry an `error`.
+- Masked pixels are left out of every statistic, whole-image and regions. `masked_fraction` records how much was excluded, and the heatmap shows masked pixels as a grey hatch. A region with no unmasked pixel is informational and its value is `null`. A mask that covers the whole image is an `error`.
+- An image mask is white = exclude (luminance of 128 or more), resized nearest-neighbour to the frame. Its path is relative to the config file and must not be absolute or contain `..`.
+- An entry fails if the whole-image value exceeds its threshold or any region with a threshold fails. Failing regions get `image › region` rows in the Markdown summary; the HTML report lists every region under the entry and can draw the rectangles over the baseline, capture and heatmap.
+- `flipdiff view --config flipdiff.toml` offers the regions as preset ROIs.
+
 ## Exit codes
 
 | Code | Meaning |

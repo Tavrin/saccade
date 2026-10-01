@@ -8,12 +8,15 @@ use crate::report::Metrics;
 pub struct CompareOptions {
     /// FLIP observer setting (pixels per degree of visual angle).
     pub pixels_per_degree: f32,
+    /// HDR-FLIP settings, used only by [`crate::hdr::compare_hdr`].
+    pub hdr: crate::hdr::HdrConfig,
 }
 
 impl Default for CompareOptions {
     fn default() -> Self {
         Self {
             pixels_per_degree: nv_flip::DEFAULT_PIXELS_PER_DEGREE,
+            hdr: crate::hdr::HdrConfig::default(),
         }
     }
 }
@@ -138,7 +141,7 @@ pub(crate) fn check_ppd(ppd: f32) -> Result<()> {
     }
 }
 
-fn metrics_of(error_map: &[f32], width: u32, height: u32) -> Metrics {
+pub(crate) fn metrics_of(error_map: &[f32], width: u32, height: u32) -> Metrics {
     let n = error_map.len().max(1) as f64;
     let mean = error_map.iter().map(|&v| f64::from(v)).sum::<f64>() / n;
     let mut sorted: Vec<f32> = error_map
@@ -162,5 +165,52 @@ fn metrics_of(error_map: &[f32], width: u32, height: u32) -> Metrics {
         frac_above_0_5: frac_above(0.5),
         width,
         height,
+    }
+}
+
+/// Statistics of the error map over the rectangle `rect` (`[x, y, w, h]` in
+/// pixels, inside the `width` x `height` frame), skipping pixels where `mask`
+/// is `true`. Same nearest-rank percentiles and NaN rules as [`compare`]; the
+/// returned `width`/`height` are the rectangle's. `None` when no pixel is left.
+pub fn masked_metrics(
+    error_map: &[f32],
+    mask: Option<&[bool]>,
+    width: u32,
+    height: u32,
+    rect: [u32; 4],
+) -> Option<Metrics> {
+    let [x, y, w, h] = rect;
+    if error_map.len() != width as usize * height as usize
+        || x.checked_add(w)? > width
+        || y.checked_add(h)? > height
+    {
+        return None;
+    }
+    let mut kept = Vec::with_capacity(w as usize * h as usize);
+    for row in y..y + h {
+        let start = row as usize * width as usize + x as usize;
+        let span = start..start + w as usize;
+        for (i, &v) in span.clone().zip(&error_map[span]) {
+            if !mask.is_some_and(|m| m.get(i).copied().unwrap_or(false)) {
+                kept.push(v);
+            }
+        }
+    }
+    (!kept.is_empty()).then(|| metrics_of(&kept, w, h))
+}
+
+/// Paints masked pixels of `heatmap` as a neutral grey diagonal hatch, so they
+/// read as "not measured" rather than as zero error.
+pub fn hatch_masked(heatmap: &mut image::RgbImage, mask: &[bool]) {
+    let w = heatmap.width() as usize;
+    if w == 0 || mask.len() != w * heatmap.height() as usize {
+        return;
+    }
+    for (i, px) in heatmap.pixels_mut().enumerate() {
+        if mask[i] {
+            let (x, y) = (i % w, i / w);
+            let v = if (x + y) % 8 < 3 { 150 } else { 96 };
+            *px = image::Rgb([v, v, v]);
+        }
     }
 }

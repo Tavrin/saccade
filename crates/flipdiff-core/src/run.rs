@@ -10,8 +10,8 @@ use crate::error::{Error, Result};
 use crate::properties;
 use crate::render;
 use crate::report::{
-    Entry, EntryPaths, Labels, Metric, Metrics, Mode, REPORT_FILE_NAME, REPORT_SCHEMA, Report,
-    ReportConfig, Status, Totals,
+    Entry, EntryPaths, Metric, Metrics, REPORT_FILE_NAME, REPORT_SCHEMA, Report, ReportConfig,
+    Status, Totals,
 };
 
 pub(crate) fn io_err(context: String) -> impl FnOnce(std::io::Error) -> Error {
@@ -86,7 +86,7 @@ pub(crate) fn collect_images(root: &Path) -> Result<Collected> {
             .extension()
             .and_then(|e| e.to_str())
             .is_some_and(|e| {
-                ["png", "jpg", "jpeg"]
+                ["png", "jpg", "jpeg", "exr", "hdr"]
                     .iter()
                     .any(|known| e.eq_ignore_ascii_case(known))
             });
@@ -175,7 +175,7 @@ pub(crate) fn copy_into_report(
     Ok(rel)
 }
 
-fn status_of(value: f64, threshold: f64) -> Status {
+pub(crate) fn status_of(value: f64, threshold: f64) -> Status {
     // `!(<=)` so a NaN value fails rather than passes.
     if value <= threshold {
         Status::Pass
@@ -184,7 +184,7 @@ fn status_of(value: f64, threshold: f64) -> Status {
     }
 }
 
-fn metric_value(m: &Metrics, metric: Metric) -> f64 {
+pub(crate) fn metric_value(m: &Metrics, metric: Metric) -> f64 {
     match metric {
         Metric::Mean => m.mean,
         Metric::P95 => m.p95,
@@ -237,22 +237,14 @@ pub fn run(
 
     let opts = CompareOptions {
         pixels_per_degree: config.pixels_per_degree,
+        hdr: config.hdr,
     };
     let mut entries = Vec::new();
     for (name, (base, cap)) in names {
         if ignore.iter().any(|m| m.is_match(name)) {
             continue;
         }
-        let (metric_used, threshold) = config.effective_for(name);
-        entries.push(build_entry(
-            name,
-            base,
-            cap,
-            report_dir,
-            &opts,
-            metric_used,
-            threshold,
-        ));
+        entries.push(build_entry(name, base, cap, report_dir, &opts, config));
     }
 
     let mut totals = Totals {
@@ -279,8 +271,8 @@ pub fn run(
             default_metric: config.default_metric,
             pixels_per_degree: config.pixels_per_degree,
             fail_on_new: config.fail_on_new,
-            mode: Mode::default(),
-            labels: Labels::default(),
+            mode: config.mode,
+            labels: config.labels.clone(),
         },
         totals,
         entries,
@@ -306,9 +298,9 @@ fn build_entry(
     cap: Option<Source<'_>>,
     report_dir: &Path,
     opts: &CompareOptions,
-    metric_used: Metric,
-    threshold: f64,
+    config: &RunConfig,
 ) -> Entry {
+    let (metric_used, threshold) = config.effective_for(name);
     let mut entry = Entry {
         name: name.to_string(),
         status: Status::Error,
@@ -324,11 +316,13 @@ fn build_entry(
         bit_identical: None,
         hdr: None,
     };
-    if let Err(e) = fill_entry(&mut entry, base, cap, report_dir, opts) {
+    if let Err(e) = fill_entry(&mut entry, base, cap, report_dir, opts, config) {
         entry.status = Status::Error;
         entry.value = None;
         entry.metrics = None;
         entry.paths.heatmap = None;
+        entry.regions.clear();
+        entry.masked_fraction = None;
         entry.error = Some(e.to_string());
     }
     entry
@@ -340,6 +334,7 @@ fn fill_entry(
     cap: Option<Source<'_>>,
     report_dir: &Path,
     opts: &CompareOptions,
+    config: &RunConfig,
 ) -> Result<()> {
     let name = entry.name.clone();
     let mut problems = Vec::new();
@@ -349,17 +344,33 @@ fn fill_entry(
         }
     }
     if let Some(Source::File(p)) = base {
-        entry.paths.baseline = Some(copy_into_report(p, report_dir, &name, "baseline")?);
+        entry.paths.baseline = copy_side(p, report_dir, &name, "baseline", config)?;
     }
     if let Some(Source::File(p)) = cap {
-        entry.paths.capture = Some(copy_into_report(p, report_dir, &name, "capture")?);
+        entry.paths.capture = copy_side(p, report_dir, &name, "capture", config)?;
     }
     if !problems.is_empty() {
         entry.error = Some(problems.join("; "));
         return Ok(());
     }
     let (base, cap) = match (base, cap) {
-        (Some(Source::File(b)), Some(Source::File(c))) => (b, c),
+        (Some(Source::File(b)), Some(Source::File(c))) => {
+            crate::hdr::check_same_kind(b, c)?;
+            if crate::hdr::is_hdr_path(b) {
+                return fill_hdr_pair(entry, b, c, report_dir, opts, config);
+            }
+            (b, c)
+        }
+        (None, Some(Source::File(c))) if crate::hdr::is_hdr_path(c) => {
+            match crate::hdr::decode_hdr(c) {
+                Ok(img) => {
+                    entry.status = Status::New;
+                    entry.properties = Some(crate::hdr::validate_hdr(&img));
+                }
+                Err(e) => entry.error = Some(e.to_string()),
+            }
+            return Ok(());
+        }
         (None, Some(Source::File(c))) => {
             match decode(c) {
                 Ok(img) => {
@@ -392,18 +403,100 @@ fn fill_entry(
             return Ok(());
         }
     };
+    entry.bit_identical = Some(
+        cap_img.dimensions() == base_img.dimensions() && cap_img.as_raw() == base_img.as_raw(),
+    );
     match compare_rgba(&cap_img, &base_img, opts) {
-        Ok(cmp) => {
-            let value = metric_value(&cmp.metrics, entry.metric_used);
-            let rel = format!("images/{name}/heatmap.png");
-            let dest = report_dir.join(&rel);
-            cmp.heatmap_rgb()
-                .save(&dest)
-                .map_err(|source| Error::Encode { path: dest, source })?;
-            entry.status = status_of(value, entry.threshold);
-            entry.value = Some(value);
-            entry.metrics = Some(cmp.metrics);
-            entry.paths.heatmap = Some(rel);
+        Ok(cmp) => finish_entry(entry, cmp, report_dir, config)?,
+        Err(e) => entry.error = Some(e.to_string()),
+    }
+    Ok(())
+}
+
+/// Turns a finished comparison into the entry's status, value, metrics and
+/// heatmap (regions and masks included).
+fn finish_entry(
+    entry: &mut Entry,
+    cmp: crate::compare::Comparison,
+    report_dir: &Path,
+    config: &RunConfig,
+) -> Result<()> {
+    let name = entry.name.clone();
+    let scene = crate::regions::evaluate(entry, &cmp, config)?;
+    let value = metric_value(&scene.metrics, entry.metric_used);
+    let rel = format!("images/{name}/heatmap.png");
+    let dest = report_dir.join(&rel);
+    let mut heatmap = cmp.heatmap_rgb();
+    if let Some(mask) = &scene.mask {
+        crate::compare::hatch_masked(&mut heatmap, mask);
+    }
+    heatmap
+        .save(&dest)
+        .map_err(|source| Error::Encode { path: dest, source })?;
+    entry.status = crate::regions::combine(status_of(value, entry.threshold), &entry.regions);
+    entry.value = Some(value);
+    entry.metrics = Some(scene.metrics);
+    entry.paths.heatmap = Some(rel);
+    Ok(())
+}
+
+/// Copies `src` into the report and returns the path the report should show
+/// for this side. LDR files are copied as `<stem>.<ext>`. An HDR file is
+/// copied as `<stem>.orig.<ext>` and a tone-mapped display PNG `<stem>.png`
+/// is written next to it and returned; `None` when the HDR file cannot be
+/// decoded (the comparison then reports the decode error).
+fn copy_side(
+    src: &Path,
+    report_dir: &Path,
+    name: &str,
+    stem: &str,
+    config: &RunConfig,
+) -> Result<Option<String>> {
+    if !crate::hdr::is_hdr_path(src) {
+        return copy_into_report(src, report_dir, name, stem).map(Some);
+    }
+    copy_into_report(src, report_dir, name, &format!("{stem}.orig"))?;
+    let Ok(img) = crate::hdr::decode_hdr(src) else {
+        return Ok(None);
+    };
+    let rel = format!("images/{name}/{stem}.png");
+    let dest = report_dir.join(&rel);
+    crate::hdr::display_image(&img, config.hdr.tonemapper)
+        .save(&dest)
+        .map_err(|source| Error::Encode { path: dest, source })?;
+    Ok(Some(rel))
+}
+
+/// The HDR branch of [`fill_entry`]: HDR-FLIP over the baseline's exposure
+/// range, with linear-luminance properties and a bit-exact `f32` identity flag.
+fn fill_hdr_pair(
+    entry: &mut Entry,
+    base: &Path,
+    cap: &Path,
+    report_dir: &Path,
+    opts: &CompareOptions,
+    config: &RunConfig,
+) -> Result<()> {
+    let cap_img = match crate::hdr::decode_hdr(cap) {
+        Ok(i) => i,
+        Err(e) => {
+            entry.error = Some(e.to_string());
+            return Ok(());
+        }
+    };
+    entry.properties = Some(crate::hdr::validate_hdr(&cap_img));
+    let base_img = match crate::hdr::decode_hdr(base) {
+        Ok(i) => i,
+        Err(e) => {
+            entry.error = Some(e.to_string());
+            return Ok(());
+        }
+    };
+    entry.bit_identical = Some(crate::hdr::bit_identical(&cap_img, &base_img));
+    match crate::hdr::compare_hdr(&cap_img, &base_img, opts) {
+        Ok((cmp, info)) => {
+            entry.hdr = Some(info);
+            finish_entry(entry, cmp, report_dir, config)?;
         }
         Err(e) => entry.error = Some(e.to_string()),
     }

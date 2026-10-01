@@ -42,6 +42,24 @@ The notice below is a verbatim quotation from the header of
 Reference: Andersson et al., "FLIP: A Difference Evaluator for Alternating
 Images", High Performance Graphics 2020.
 
+### HDR-FLIP exposure procedure (derived work)
+
+`crates/flipdiff-core/src/hdr.rs` re-implements, in Rust, the logic of NVIDIA's
+HDR-FLIP exposure-range selection from `CPP/image.h` (`computeExposures`),
+the tone-mapping coefficient table in `CPP/tensor.h` and `solveSecondDegree`
+in `common/sharedflip.h`, all under the BSD-3-Clause notice above (copyright
+2020-2022 NVIDIA CORPORATION & AFFILIATES). No source text was copied; the
+algorithm and the published curve coefficients were ported. NVIDIA's name is
+not used to endorse flipdiff. Per-exposure images are quantised to 8 bits in
+flipdiff, whereas the reference stays in floating point.
+
+## HDR image decoding
+
+The `exr` and `hdr` features of the `image` crate add `exr` 1.x (BSD-3-Clause),
+`lebe` (BSD-3-Clause), `half` (MIT OR Apache-2.0), `bit_field`
+(Apache-2.0/MIT), `crunchy` (MIT) and `zune-inflate` (MIT OR Apache-2.0 OR
+Zlib), all compatible with flipdiff's `MIT OR Apache-2.0` licence.
+
 ## Other dependencies
 
 Rust dependencies (`image`, `serde`, `serde_json`, `thiserror`, `clap`, and

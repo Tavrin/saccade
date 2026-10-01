@@ -26,6 +26,9 @@ pub enum Error {
         /// Baseline height.
         ref_h: u32,
     },
+    /// One side of a pair is HDR and the other is LDR.
+    #[error("cannot compare an HDR image with an LDR image: {0}")]
+    HdrMismatch(String),
     /// An image has zero width or height.
     #[error("image is empty (0 pixels)")]
     EmptyImage,

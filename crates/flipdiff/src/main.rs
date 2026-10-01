@@ -1,4 +1,4 @@
-//! `flipdiff` command-line interface: `compare`, `approve`, `view`, `unblind`, `summary`.
+//! `flipdiff` command-line interface: `compare`, `identity`, `approve`, `view`, `unblind`, `summary`.
 //!
 //! Exit codes: `0` no regression, `1` regression, `2` usage/config/IO error.
 
@@ -9,7 +9,7 @@ use std::process::ExitCode;
 use clap::{Parser, Subcommand, ValueEnum};
 use flipdiff_core::config::RunConfig;
 use flipdiff_core::render::{MarkdownOptions, is_valid_comment_key, render_markdown};
-use flipdiff_core::report::{Metric, Report, Status};
+use flipdiff_core::report::{Labels, Metric, Mode, Report, Status};
 use flipdiff_core::view::{
     ViewOptions, build_view, is_safe_name, read_blind_key, read_decisions, unblind,
 };
@@ -23,6 +23,30 @@ use flipdiff_core::view::{
 struct Cli {
     #[command(subcommand)]
     command: Command,
+}
+
+/// HDR-FLIP flags shared by `compare` and `view`.
+#[derive(clap::Args, Clone, Default)]
+struct HdrArgs {
+    /// Tone mapper for `.exr`/`.hdr` images: aces (default), hable or reinhard.
+    #[arg(long, value_name = "NAME")]
+    hdr_tonemapper: Option<String>,
+    /// Exposure range in stops and count, `START:STOP:N` (default: computed
+    /// from the baseline image).
+    #[arg(long, value_name = "START:STOP:N")]
+    hdr_exposures: Option<String>,
+}
+
+impl HdrArgs {
+    fn apply(&self, hdr: &mut flipdiff_core::hdr::HdrConfig) -> Result<(), String> {
+        if let Some(t) = &self.hdr_tonemapper {
+            hdr.tonemapper = flipdiff_core::hdr::Tonemapper::parse(t).map_err(|e| e.to_string())?;
+        }
+        if let Some(e) = &self.hdr_exposures {
+            hdr.parse_exposures(e).map_err(|e| e.to_string())?;
+        }
+        Ok(())
+    }
 }
 
 #[derive(Clone, Copy, ValueEnum)]
@@ -77,6 +101,40 @@ enum Command {
         /// FLIP pixels per degree.
         #[arg(long)]
         ppd: Option<f32>,
+        /// Display names of the two sides, `baseline,capture`.
+        #[arg(long, value_delimiter = ',', value_name = "A,B")]
+        labels: Option<Vec<String>>,
+        #[command(flatten)]
+        hdr: HdrArgs,
+    },
+    /// Check that a candidate build matches its parent: strict defaults
+    /// (metric max, threshold 0), bit-identity reported per image.
+    Identity {
+        /// Directory of images from the parent build.
+        parent_dir: PathBuf,
+        /// Directory of images from the candidate build.
+        candidate_dir: PathBuf,
+        /// Report output directory.
+        #[arg(long, default_value = "report")]
+        out: PathBuf,
+        /// Pass threshold for images that are not bit-identical.
+        #[arg(long)]
+        threshold: Option<f64>,
+        /// Deciding metric (default: max).
+        #[arg(long, value_enum)]
+        metric: Option<MetricArg>,
+        /// Config file; defaults to ./flipdiff.toml when it exists.
+        #[arg(long)]
+        config: Option<PathBuf>,
+        /// Print the report JSON instead of the table.
+        #[arg(long)]
+        json: bool,
+        /// FLIP pixels per degree.
+        #[arg(long)]
+        ppd: Option<f32>,
+        /// Display names of the two sides, `parent,candidate`.
+        #[arg(long, value_delimiter = ',', value_name = "A,B")]
+        labels: Option<Vec<String>>,
     },
     /// Copy captures over baselines.
     Approve {
@@ -121,6 +179,12 @@ enum Command {
         /// FLIP pixels per degree.
         #[arg(long)]
         ppd: Option<f32>,
+        /// Config file whose `[[region]]` tables become preset ROIs
+        /// (default: `./flipdiff.toml` when present).
+        #[arg(long)]
+        config: Option<PathBuf>,
+        #[command(flatten)]
+        hdr: HdrArgs,
     },
     /// Turn a decisions file exported from a `--blind` view into one with the
     /// true directory labels, using the view's `blind-key.json`.
@@ -173,8 +237,11 @@ fn dispatch(command: Command) -> Result<u8, String> {
             fail_on_new,
             json,
             ppd,
+            labels,
+            hdr,
         } => {
             let mut cfg = load_config(config.as_deref())?;
+            hdr.apply(&mut cfg.hdr)?;
             if let Some(t) = threshold {
                 cfg.default_threshold = t;
             }
@@ -187,7 +254,46 @@ fn dispatch(command: Command) -> Result<u8, String> {
             if let Some(p) = ppd {
                 cfg.pixels_per_degree = p;
             }
+            if let Some(l) = labels {
+                cfg.labels = parse_labels(&l)?;
+            }
             let report = flipdiff_core::run::run(&baseline_dir, &capture_dir, &out, &cfg)
+                .map_err(|e| e.to_string())?;
+            if json {
+                let text = serde_json::to_string_pretty(&report).map_err(|e| e.to_string())?;
+                emit(&format!("{text}\n"))?;
+            } else {
+                emit(&text_table(&report))?;
+            }
+            Ok(u8::from(report.is_regression()))
+        }
+        Command::Identity {
+            parent_dir,
+            candidate_dir,
+            out,
+            threshold,
+            metric,
+            config,
+            json,
+            ppd,
+            labels,
+        } => {
+            let mut cfg = load_config(config.as_deref())?;
+            cfg.mode = Mode::Identity;
+            cfg.labels = Labels {
+                baseline: "parent".into(),
+                capture: "candidate".into(),
+            };
+            // Identity defaults are strict; only explicit flags relax them.
+            cfg.default_threshold = threshold.unwrap_or(0.0);
+            cfg.default_metric = metric.map_or(Metric::Max, Into::into);
+            if let Some(p) = ppd {
+                cfg.pixels_per_degree = p;
+            }
+            if let Some(l) = labels {
+                cfg.labels = parse_labels(&l)?;
+            }
+            let report = flipdiff_core::run::run(&parent_dir, &candidate_dir, &out, &cfg)
                 .map_err(|e| e.to_string())?;
             if json {
                 let text = serde_json::to_string_pretty(&report).map_err(|e| e.to_string())?;
@@ -238,14 +344,18 @@ fn dispatch(command: Command) -> Result<u8, String> {
             seed,
             out,
             ppd,
+            config,
+            hdr,
         } => {
             let mut opts = ViewOptions {
+                regions: load_config(config.as_deref())?.regions,
                 labels,
                 reference,
                 blind,
                 seed,
                 ..ViewOptions::default()
             };
+            hdr.apply(&mut opts.hdr)?;
             if let Some(p) = ppd {
                 opts.pixels_per_degree = p;
             }
@@ -294,6 +404,17 @@ fn dispatch(command: Command) -> Result<u8, String> {
             }
             Ok(0)
         }
+    }
+}
+
+/// Parses `--labels a,b` into the two side names.
+fn parse_labels(parts: &[String]) -> Result<Labels, String> {
+    match parts {
+        [a, b] if !a.trim().is_empty() && !b.trim().is_empty() => Ok(Labels {
+            baseline: a.trim().to_string(),
+            capture: b.trim().to_string(),
+        }),
+        _ => Err("--labels takes exactly two non-empty names, `A,B`".into()),
     }
 }
 
@@ -492,6 +613,9 @@ fn text_table(report: &Report) -> String {
             .collect();
         out.push_str(line.join("  ").trim_end());
         out.push('\n');
+    }
+    if let Some(headline) = flipdiff_core::render::identity_headline(report) {
+        out.insert_str(0, &format!("{}\n\n", escape_control(&headline)));
     }
     let t = &report.totals;
     out.push_str(&format!(

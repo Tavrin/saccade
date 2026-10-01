@@ -7,6 +7,8 @@ mod html;
 mod markdown;
 mod view_html;
 
+pub use markdown::identity_headline;
+
 use std::path::{Path, PathBuf};
 
 use crate::error::Result;

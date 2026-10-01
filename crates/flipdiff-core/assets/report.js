@@ -3,6 +3,8 @@
 
   var report = JSON.parse(document.getElementById("flipdiff-data").textContent);
   var entries = report.entries || [];
+  var LB = ((report.config || {}).labels) || { baseline: "baseline", capture: "capture" };
+  var IDENTITY = (report.config || {}).mode === "identity";
 
   var RANK = { fail: 0, error: 1, missing: 2, new: 3, pass: 4 };
   var STATUSES = ["fail", "error", "missing", "new", "pass"];
@@ -72,7 +74,8 @@
       ["generated", fmtTime(report.generated_at_unix)],
       ["threshold", fmt(cfg.default_threshold) || String(cfg.default_threshold)],
       ["metric", cfg.default_metric],
-      ["ppd", String(cfg.pixels_per_degree)]
+      ["ppd", String(cfg.pixels_per_degree)],
+      ["mode", (cfg.mode || "regression") + " (" + LB.baseline + " vs " + LB.capture + ")"]
     ].forEach(function (kv) {
       meta.appendChild(h("div", null, h("dt", { text: kv[0] }), h("dd", { text: String(kv[1]) })));
     });
@@ -91,6 +94,7 @@
   var state = {
     filter: hasIssues ? "issues" : "all",
     sort: null, // {key, dir} or null for the default order
+    regions: true, // draw region rectangles over the images
     open: {}
   };
   var timers = [];
@@ -222,7 +226,41 @@
       markUpscaled(box.closest(".d"));
     });
     box.appendChild(img);
+    regionBoxes(e).forEach(function (r) { box.appendChild(r); });
     return box;
+  }
+
+  // Region rectangles as percentages of the image, so every zoom level lines up.
+  function regionBoxes(e) {
+    var m = e.metrics;
+    if (!m || !m.width || !m.height) return [];
+    return (e.regions || []).map(function (r) {
+      var rp = r.rect_px;
+      return h("div", {
+        class: "rgn" + (r.status === "fail" ? " s-fail" : ""),
+        style: "left:" + (rp[0] / m.width * 100) + "%;top:" + (rp[1] / m.height * 100) + "%;width:" +
+          (rp[2] / m.width * 100) + "%;height:" + (rp[3] / m.height * 100) + "%"
+      }, h("span", { text: r.name }));
+    });
+  }
+
+  function regionTable(e) {
+    var rs = e.regions || [];
+    if (!rs.length) return null;
+    var head = ["Region", "Rect (px)", "Metric", "Value", "Threshold", "Status"];
+    return h("div", { class: "rtab-wrap" }, h("table", { class: "rtab" },
+      h("caption", { text: "Regions" }),
+      h("thead", null, h("tr", null, head.map(function (t, i) { return h("th", { class: (i >= 3 && i < 5 ? "num" : "") + (i === 1 || i === 2 ? " col-sec" : ""), scope: "col", text: t }); }))),
+      h("tbody", null, rs.map(function (r) {
+        var st = r.status || "info";
+        return h("tr", null,
+          h("td", { text: r.name }),
+          h("td", { class: "col-sec", text: r.rect_px.join(", ") }),
+          h("td", { class: "col-sec", text: r.metric_used }),
+          numCell(r.value),
+          numCell(r.threshold),
+          h("td", null, h("span", { class: "st" + (r.status ? " s-" + r.status : ""), text: st })));
+      }))));
   }
 
   function markUpscaled(d) {
@@ -242,7 +280,9 @@
   function badges(e) {
     var p = e.properties;
     var b = h("div", { class: "badges" });
-    if (!p) { b.appendChild(h("span", { class: "badge", text: "no decodable capture" })); return b; }
+    if (!p) { b.appendChild(h("span", { class: "badge", text: "no decodable " + LB.capture })); return b; }
+    if (e.bit_identical === true) b.appendChild(h("span", { class: "badge ident", text: "bit-identical" }));
+    else if (e.bit_identical === false) b.appendChild(h("span", { class: "badge", text: "not bit-identical" }));
     if (p.is_all_black) b.appendChild(h("span", { class: "badge warn", text: "ALL BLACK" }));
     if (p.is_all_white) b.appendChild(h("span", { class: "badge warn", text: "ALL WHITE" }));
     b.appendChild(h("span", { class: "badge", text: "lum mean " + p.mean_luminance.toFixed(3) }));
@@ -255,18 +295,18 @@
   function compare(e) {
     var stage = h("div", { class: "stage zbox" });
     if (e.metrics && e.metrics.width) stage.style.setProperty("--nw", e.metrics.width);
-    var base = h("img", { src: url(e.paths.baseline), alt: "baseline", decoding: "async" });
+    var base = h("img", { src: url(e.paths.baseline), alt: LB.baseline, decoding: "async" });
     base.addEventListener("load", function () {
       stage.style.setProperty("--nw", base.naturalWidth);
       markUpscaled(stage.closest(".d"));
     });
-    var cap = h("img", { class: "cap", src: url(e.paths.capture), alt: "capture", decoding: "async" });
+    var cap = h("img", { class: "cap", src: url(e.paths.capture), alt: LB.capture, decoding: "async" });
     var line = h("div", { class: "line" });
-    var tagL = h("span", { class: "tag l", text: "baseline" });
-    var tagR = h("span", { class: "tag r", text: "capture" });
+    var tagL = h("span", { class: "tag l", text: LB.baseline });
+    var tagR = h("span", { class: "tag r", text: LB.capture });
     stage.append(base, cap, line, tagL, tagR);
 
-    var slider = h("input", { type: "range", min: "0", max: "100", value: "50", "aria-label": "Swipe position: baseline left, capture right" });
+    var slider = h("input", { type: "range", min: "0", max: "100", value: "50", "aria-label": "Swipe position: " + LB.baseline + " left, " + LB.capture + " right" });
     slider.addEventListener("input", function () { stage.style.setProperty("--x", slider.value + "%"); });
 
     var mode = "swipe";
@@ -279,7 +319,7 @@
 
     function paintFlick() {
       stage.classList.toggle("showcap", showCap);
-      tagL.textContent = showCap ? "capture" : "baseline";
+      tagL.textContent = showCap ? LB.capture : LB.baseline;
     }
     function stop() {
       if (timer !== null) { clearInterval(timer); timers = timers.filter(function (t) { return t !== timer; }); timer = null; }
@@ -301,7 +341,7 @@
         if (!paused) start();
       } else {
         stop();
-        tagL.textContent = "baseline";
+        tagL.textContent = LB.baseline;
         stage.classList.remove("showcap");
       }
     }
@@ -335,7 +375,7 @@
   }
 
   function renderDetail(e) {
-    var d = h("div", { class: "d zoom-" + zoom });
+    var d = h("div", { class: "d zoom-" + zoom + (state.regions ? " regions" : "") });
     var zoomBtns = ZOOMS.map(function (z) {
       return h("button", { type: "button", "aria-pressed": zoom === z[0] ? "true" : "false", "data-z": z[0], text: z[1], onclick: function () {
         zoom = z[0];
@@ -347,18 +387,28 @@
         });
       } });
     });
+    var rgnBtn = (e.regions || []).length ? h("div", { class: "seg", role: "group", "aria-label": "Regions" },
+      h("button", { type: "button", "aria-pressed": state.regions ? "true" : "false", text: "Regions", onclick: function (ev) {
+        state.regions = !state.regions;
+        var on = state.regions;
+        document.querySelectorAll(".d").forEach(function (el) { el.classList.toggle("regions", on); });
+        document.querySelectorAll(".d-bar .seg[aria-label=Regions] button").forEach(function (b) { b.setAttribute("aria-pressed", on); });
+      } })) : null;
     d.appendChild(h("div", { class: "d-bar" },
       h("div", { class: "seg", role: "group", "aria-label": "Zoom" }, zoomBtns),
+      rgnBtn,
       badges(e)));
     if (e.error) d.appendChild(h("div", { class: "err-box", role: "alert", text: e.error }));
     var p = e.paths || {};
     d.appendChild(h("div", { class: "panes" },
-      pane(e, "baseline", p.baseline),
-      pane(e, "capture", p.capture),
+      pane(e, LB.baseline, p.baseline),
+      pane(e, LB.capture, p.capture),
       pane(e, "heatmap", p.heatmap, h("span", { class: "legend", title: "FLIP error, 0 (dark) to 1 (light)" }))));
     if (p.baseline && p.capture) d.appendChild(compare(e));
     var mg = metricsGrid(e);
     if (mg) d.appendChild(mg);
+    var rt = regionTable(e);
+    if (rt) d.appendChild(rt);
     var tr = h("tr", { class: "detail" }, h("td", { colspan: String(COLUMNS.length) }, d));
     return tr;
   }

@@ -3,7 +3,7 @@
 use std::cmp::Ordering;
 
 use super::MarkdownOptions;
-use crate::report::{Entry, Metric, Report, Status};
+use crate::report::{Entry, Metric, Mode, Report, Status};
 
 const DEFAULT_MAX_BYTES: usize = 60_000;
 const TABLE_HEAD: &str =
@@ -100,7 +100,91 @@ fn row(e: &Entry) -> String {
     )
 }
 
+/// Rows for the failing regions of `e`, named `image › region`.
+fn region_rows(e: &Entry) -> String {
+    e.regions
+        .iter()
+        .filter(|r| r.status == Some(Status::Fail))
+        .map(|r| {
+            format!(
+                "| {} | {} | {} | {} | {} |\n",
+                status_label(Status::Fail),
+                code_name(&format!("{} › {}", e.name, r.name)),
+                metric_name(r.metric_used),
+                sig4(r.value),
+                r.threshold.map_or_else(|| "—".to_string(), sig4)
+            )
+        })
+        .collect()
+}
+
+/// The identity-mode headline, for example `identity: ✅ 12/12 bit-identical`
+/// or `identity: ❌ 2 differ (max FLIP 0.031 on bistro/cam3.png)`. `None`
+/// unless the report was produced in [`Mode::Identity`].
+pub fn identity_headline(report: &Report) -> Option<String> {
+    if report.config.mode != Mode::Identity {
+        return None;
+    }
+    let t = &report.totals;
+    let compared = report
+        .entries
+        .iter()
+        .filter(|e| e.bit_identical.is_some())
+        .count();
+    let identical = report
+        .entries
+        .iter()
+        .filter(|e| e.bit_identical == Some(true))
+        .count();
+    let differ: Vec<&Entry> = report
+        .entries
+        .iter()
+        .filter(|e| e.status == Status::Fail && e.bit_identical != Some(true))
+        .collect();
+    let others: Vec<String> = [(t.error, "error"), (t.missing, "missing"), (t.new, "new")]
+        .iter()
+        .filter(|(n, _)| *n > 0)
+        .map(|(n, label)| format!("{n} {label}"))
+        .collect();
+    let mut text = if differ.is_empty() && others.is_empty() {
+        let within = compared - identical;
+        let mut s = format!("✅ {identical}/{compared} bit-identical");
+        if within > 0 {
+            s.push_str(&format!(", {within} within threshold"));
+        }
+        s
+    } else {
+        let mut parts = Vec::new();
+        if !differ.is_empty() {
+            let worst = differ
+                .iter()
+                .filter_map(|e| e.metrics.as_ref().map(|m| (m.max, e.name.as_str())))
+                .max_by(|a, b| a.0.total_cmp(&b.0));
+            let mut s = format!("{} differ", differ.len());
+            if let Some((max, name)) = worst {
+                s.push_str(&format!(" (max FLIP {} on {})", sig3(max), name));
+            }
+            parts.push(s);
+        }
+        parts.extend(others);
+        let icon = if report.is_regression() { "❌" } else { "✅" };
+        format!("{icon} {}", parts.join(", "))
+    };
+    if text.contains(['\n', '\r']) {
+        text = text.replace(['\n', '\r'], " ");
+    }
+    Some(format!("identity: {text}"))
+}
+
+/// Formats `v` with 3 decimals (FLIP values are in `[0, 1]`).
+fn sig3(v: f64) -> String {
+    format!("{v:.3}")
+}
+
 fn heading(report: &Report) -> String {
+    if let Some(h) = identity_headline(report) {
+        return format!("### flipdiff {h}");
+    }
     let t = &report.totals;
     let icon = if report.is_regression() { "❌" } else { "✅" };
     let parts: Vec<String> = [
@@ -152,6 +236,7 @@ impl Parts<'_> {
             out.push_str(TABLE_HEAD);
             for e in &self.nonpass[..np] {
                 out.push_str(&row(e));
+                out.push_str(&region_rows(e));
             }
             out.push('\n');
         }
