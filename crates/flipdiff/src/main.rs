@@ -1,14 +1,15 @@
-//! `flipdiff` command-line interface: `compare`, `approve`, `summary`.
+//! `flipdiff` command-line interface: `compare`, `approve`, `view`, `summary`.
 //!
 //! Exit codes: `0` no regression, `1` regression, `2` usage/config/IO error.
 
-use std::path::{Component, Path, PathBuf};
+use std::path::{Path, PathBuf};
 use std::process::ExitCode;
 
 use clap::{Parser, Subcommand, ValueEnum};
 use flipdiff_core::config::RunConfig;
 use flipdiff_core::render::{MarkdownOptions, render_markdown};
 use flipdiff_core::report::{Metric, Report, Status};
+use flipdiff_core::view::{ViewOptions, build_view, is_safe_name, read_decisions};
 
 #[derive(Parser)]
 #[command(
@@ -85,6 +86,34 @@ enum Command {
         /// Also approve every fail and new entry of this report JSON.
         #[arg(long, value_name = "REPORT_JSON")]
         all_failing: Option<PathBuf>,
+        /// Also approve every "accept" entry of a decisions file exported by
+        /// `flipdiff view`.
+        #[arg(long, value_name = "DECISIONS_JSON")]
+        decisions: Option<PathBuf>,
+    },
+    /// Write a self-contained review viewer for 2 to 6 image directories.
+    View {
+        /// Directories to compare, paired by relative image path (2 to 6).
+        #[arg(required = true, num_args = 2..=6)]
+        dirs: Vec<PathBuf>,
+        /// Comma-separated labels, one per directory (default: directory names).
+        #[arg(long, value_delimiter = ',')]
+        labels: Option<Vec<String>>,
+        /// FLIP reference: a label or one of the directories (default: the first).
+        #[arg(long)]
+        reference: Option<String>,
+        /// Pairwise judging: shuffle panes and hide labels until "Reveal".
+        #[arg(long)]
+        blind: bool,
+        /// Seed for the blind shuffle (default: from the clock; recorded in the data).
+        #[arg(long)]
+        seed: Option<u64>,
+        /// Output directory.
+        #[arg(long, default_value = "view")]
+        out: PathBuf,
+        /// FLIP pixels per degree.
+        #[arg(long)]
+        ppd: Option<f32>,
     },
     /// Print a summary of a report JSON.
     Summary {
@@ -151,7 +180,42 @@ fn dispatch(command: Command) -> Result<u8, String> {
             baseline_dir,
             names,
             all_failing,
-        } => approve(&capture_dir, &baseline_dir, names, all_failing.as_deref()),
+            decisions,
+        } => approve(
+            &capture_dir,
+            &baseline_dir,
+            names,
+            all_failing.as_deref(),
+            decisions.as_deref(),
+        ),
+        Command::View {
+            dirs,
+            labels,
+            reference,
+            blind,
+            seed,
+            out,
+            ppd,
+        } => {
+            let mut opts = ViewOptions {
+                labels,
+                reference,
+                blind,
+                seed,
+                ..ViewOptions::default()
+            };
+            if let Some(p) = ppd {
+                opts.pixels_per_degree = p;
+            }
+            let model = build_view(&dirs, &out, &opts).map_err(|e| e.to_string())?;
+            println!(
+                "wrote {} ({} image sets, {} directories)",
+                out.join("index.html").display(),
+                model.sets.len(),
+                model.labels.len()
+            );
+            Ok(0)
+        }
         Command::Summary {
             report_json,
             format,
@@ -198,7 +262,12 @@ fn approve(
     baseline_dir: &Path,
     mut names: Vec<String>,
     all_failing: Option<&Path>,
+    decisions: Option<&Path>,
 ) -> Result<u8, String> {
+    if let Some(path) = decisions {
+        let d = read_decisions(path).map_err(|e| e.to_string())?;
+        names.extend(d.accepted());
+    }
     if let Some(path) = all_failing {
         let report = read_report(path)?;
         names.extend(
@@ -208,17 +277,19 @@ fn approve(
                 .filter(|e| matches!(e.status, Status::Fail | Status::New))
                 .map(|e| e.name),
         );
-    } else if names.is_empty() {
-        return Err("name at least one image, or pass --all-failing <REPORT_JSON>".into());
+    } else if names.is_empty() && decisions.is_none() {
+        return Err(
+            "name at least one image, or pass --all-failing <REPORT_JSON> or --decisions <FILE>"
+                .into(),
+        );
     }
     names.sort();
     names.dedup();
     for name in &names {
-        let rel = Path::new(name);
-        let safe = rel.components().all(|c| matches!(c, Component::Normal(_)));
-        if !safe || name.is_empty() {
+        if !is_safe_name(name) {
             return Err(format!("unsafe image name {name:?}"));
         }
+        let rel = Path::new(name);
         let src = capture_dir.join(rel);
         let dest = baseline_dir.join(rel);
         if !src.is_file() {

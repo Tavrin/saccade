@@ -14,12 +14,12 @@ use crate::report::{
     Status, Totals,
 };
 
-fn io_err(context: String) -> impl FnOnce(std::io::Error) -> Error {
+pub(crate) fn io_err(context: String) -> impl FnOnce(std::io::Error) -> Error {
     move |source| Error::Io { context, source }
 }
 
 /// Recursively lists image files under `root` as `/`-separated relative names.
-fn collect_images(root: &Path) -> Result<BTreeMap<String, PathBuf>> {
+pub(crate) fn collect_images(root: &Path) -> Result<BTreeMap<String, PathBuf>> {
     if !root.is_dir() {
         return Err(Error::Io {
             context: format!("{} is not a directory", root.display()),
@@ -60,7 +60,7 @@ fn collect_images(root: &Path) -> Result<BTreeMap<String, PathBuf>> {
     Ok(out)
 }
 
-fn decode(path: &Path) -> std::result::Result<image::RgbImage, Error> {
+pub(crate) fn decode(path: &Path) -> std::result::Result<image::RgbImage, Error> {
     image::open(path)
         .map(|i| i.to_rgb8())
         .map_err(|source| Error::Decode {
@@ -71,7 +71,12 @@ fn decode(path: &Path) -> std::result::Result<image::RgbImage, Error> {
 
 /// Copies `src` to `<report>/images/<name>/<stem>.<ext>`, returning the path
 /// relative to the report directory.
-fn copy_into_report(src: &Path, report_dir: &Path, name: &str, stem: &str) -> Result<String> {
+pub(crate) fn copy_into_report(
+    src: &Path,
+    report_dir: &Path,
+    name: &str,
+    stem: &str,
+) -> Result<String> {
     let ext = src
         .extension()
         .and_then(|e| e.to_str())

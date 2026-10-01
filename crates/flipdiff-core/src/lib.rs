@@ -10,6 +10,7 @@ pub mod properties;
 pub mod render;
 pub mod report;
 pub mod run;
+pub mod view;
 
 pub use error::{Error, Result};
 pub use report::{Entry, EntryPaths, Metric, Metrics, Properties, Report, Status, Totals};

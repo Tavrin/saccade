@@ -1,0 +1,86 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="light dark">
+<title>flipdiff view</title>
+<style>/*__FLIPDIFF_CSS__*/</style>
+</head>
+<body>
+<svg class="defs" width="0" height="0" aria-hidden="true" focusable="false">
+  <filter id="ch-r" color-interpolation-filters="sRGB"><feColorMatrix type="matrix" values="1 0 0 0 0  1 0 0 0 0  1 0 0 0 0  0 0 0 1 0"/></filter>
+  <filter id="ch-g" color-interpolation-filters="sRGB"><feColorMatrix type="matrix" values="0 1 0 0 0  0 1 0 0 0  0 1 0 0 0  0 0 0 1 0"/></filter>
+  <filter id="ch-b" color-interpolation-filters="sRGB"><feColorMatrix type="matrix" values="0 0 1 0 0  0 0 1 0 0  0 0 1 0 0  0 0 0 1 0"/></filter>
+  <filter id="ch-l" color-interpolation-filters="sRGB"><feColorMatrix type="matrix" values="0.2126 0.7152 0.0722 0 0  0.2126 0.7152 0.0722 0 0  0.2126 0.7152 0.0722 0 0  0 0 0 1 0"/></filter>
+</svg>
+<header class="top">
+  <div class="brand"><span class="logo" aria-hidden="true"></span><h1>flipdiff</h1><span class="tag">view</span></div>
+  <dl class="meta" id="meta"></dl>
+  <div class="actions">
+    <button type="button" class="btn" id="reveal" hidden>Reveal labels</button>
+    <button type="button" class="btn primary" id="export">Export decisions</button>
+  </div>
+</header>
+<div class="layout">
+  <aside class="sets" aria-label="Image sets"><ol id="setlist"></ol></aside>
+  <main class="work">
+    <div class="setbar">
+      <button type="button" class="btn" id="prev" aria-label="Previous image set">&larr;</button>
+      <select id="setsel" aria-label="Image set"></select>
+      <button type="button" class="btn" id="next" aria-label="Next image set">&rarr;</button>
+      <span class="count" id="count"></span>
+    </div>
+    <div class="toolbar" id="toolbar">
+      <div class="grp"><span class="lbl">Layout</span>
+        <div class="seg" id="seg-layout" role="group" aria-label="Layout">
+          <button type="button" data-v="grid">Side by side</button>
+          <button type="button" data-v="swipe">Swipe</button>
+          <button type="button" data-v="flicker">Flicker</button>
+          <button type="button" data-v="overlay" id="b-overlay">Heatmap</button>
+        </div></div>
+      <div class="grp"><span class="lbl">Zoom</span>
+        <div class="seg" id="seg-zoom" role="group" aria-label="Zoom">
+          <button type="button" data-z="fit">Fit</button>
+          <button type="button" data-z="1">1&times;</button>
+          <button type="button" data-z="2">2&times;</button>
+          <button type="button" data-z="4">4&times;</button>
+          <button type="button" data-z="8">8&times;</button>
+        </div><span class="val" id="zval"></span></div>
+      <div class="grp"><span class="lbl">Drag</span>
+        <div class="seg" id="seg-tool" role="group" aria-label="Drag tool">
+          <button type="button" data-v="pan">Pan</button>
+          <button type="button" data-v="roi">Region</button>
+        </div></div>
+      <div class="grp"><span class="lbl">Channel</span>
+        <div class="seg" id="seg-chan" role="group" aria-label="Channel">
+          <button type="button" data-v="rgb">RGB</button>
+          <button type="button" data-v="r">R</button>
+          <button type="button" data-v="g">G</button>
+          <button type="button" data-v="b">B</button>
+          <button type="button" data-v="l">Luma</button>
+        </div></div>
+      <div class="grp"><label class="lbl" for="exp">Exposure</label><input type="range" id="exp" min="-4" max="4" step="0.1" value="0"><span class="val" id="expv"></span></div>
+      <div class="grp"><label class="lbl" for="con">Contrast</label><input type="range" id="con" min="0.5" max="4" step="0.05" value="1"><span class="val" id="conv"></span>
+        <button type="button" class="btn small" id="reset-view">Reset</button></div>
+      <div class="grp opt" id="g-swipe"><label class="lbl" for="swipe">Swipe</label><input type="range" id="swipe" min="0" max="100" step="1" value="50"></div>
+      <div class="grp opt" id="g-flick"><label class="lbl" for="rate">Rate</label><input type="range" id="rate" min="0.5" max="10" step="0.5" value="2"><span class="val" id="ratev"></span>
+        <button type="button" class="btn small" id="pause" aria-pressed="false">Pause</button></div>
+      <div class="grp opt" id="g-over"><label class="lbl" for="opa">Heatmap opacity</label><input type="range" id="opa" min="0" max="1" step="0.05" value="0.6"></div>
+      <div class="grp opt" id="g-show"><span class="lbl">Show</span><span id="chosen" class="chosen"></span></div>
+    </div>
+    <div class="stage" id="stage"></div>
+    <div class="below">
+      <section class="card" aria-labelledby="h-insp"><h2 id="h-insp">Pixel inspector</h2>
+        <div class="tscroll"><table id="insp"></table></div>
+        <p class="hint" id="insp-hint"></p></section>
+      <section class="card" aria-labelledby="h-dec"><h2 id="h-dec">Decision</h2>
+        <div id="dec"></div></section>
+    </div>
+  </main>
+</div>
+<noscript><p class="noscript">This viewer needs JavaScript. The data is in the JSON script tag of this page.</p></noscript>
+<script type="application/json" id="flipdiff-data">__FLIPDIFF_DATA__</script>
+<script>/*__FLIPDIFF_JS__*/</script>
+</body>
+</html>

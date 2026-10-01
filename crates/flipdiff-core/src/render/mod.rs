@@ -5,6 +5,7 @@
 
 mod html;
 mod markdown;
+mod view_html;
 
 use std::path::{Path, PathBuf};
 
@@ -38,4 +39,10 @@ pub fn render_html(report: &Report, report_dir: &Path) -> Result<PathBuf> {
 /// first, then non-pass rows, with a "…and N more" line recording the cut.
 pub fn render_markdown(report: &Report, opts: &MarkdownOptions) -> String {
     markdown::render_markdown(report, opts)
+}
+
+/// Writes the review viewer's `index.html` into `view_dir` (which already
+/// holds the images the model references) and returns its path.
+pub(crate) fn write_view_html(model: &crate::view::ViewModel, view_dir: &Path) -> Result<PathBuf> {
+    view_html::write_view_html(model, view_dir)
 }

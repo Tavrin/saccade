@@ -1,0 +1,33 @@
+//! The self-contained review viewer page.
+
+use std::path::{Path, PathBuf};
+
+use crate::error::{Error, Result};
+use crate::view::ViewModel;
+
+const TEMPLATE: &str = include_str!("../../assets/view.html");
+const CSS: &str = include_str!("../../assets/view.css");
+const JS: &str = include_str!("../../assets/view.js");
+
+/// Serializes the model for a `<script type="application/json">`: `</` becomes
+/// `<\/` and `<!--` becomes `<!--`, so the payload cannot close the
+/// script element or enter the "script data escaped" state.
+fn embed_json(model: &ViewModel) -> Result<String> {
+    let json = serde_json::to_string(model)?;
+    Ok(json.replace("</", "<\\/").replace("<!--", "<\\u0021--"))
+}
+
+pub(crate) fn write_view_html(model: &ViewModel, view_dir: &Path) -> Result<PathBuf> {
+    let data = embed_json(model)?;
+    // The payload is substituted last so nothing in it can pose as a placeholder.
+    let html = TEMPLATE
+        .replace("/*__FLIPDIFF_CSS__*/", CSS)
+        .replace("/*__FLIPDIFF_JS__*/", JS)
+        .replace("__FLIPDIFF_DATA__", &data);
+    let path = view_dir.join("index.html");
+    std::fs::write(&path, html).map_err(|source| Error::Io {
+        context: format!("writing {}", path.display()),
+        source,
+    })?;
+    Ok(path)
+}
