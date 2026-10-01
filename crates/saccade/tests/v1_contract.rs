@@ -128,6 +128,7 @@ fn mcp_sequence_rank_are_lean_schema_valid_and_confined_to_the_root() {
     let root = tmp.path().join("root");
     let (reference, candidates) = fixtures(&root);
     let call = |id, name, args| json!({"jsonrpc":"2.0", "id":id, "method":"tools/call", "params":{"name":name,"arguments":args}});
+    #[cfg_attr(not(unix), allow(unused_mut))]
     let mut requests = vec![
         json!({"jsonrpc":"2.0","id":0,"method":"tools/list"}),
         call(

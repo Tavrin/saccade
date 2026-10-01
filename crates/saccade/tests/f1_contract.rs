@@ -89,7 +89,7 @@ fn no_absolute_paths_by_default() {
         value(&output)["capture_dir"]
             .as_str()
             .unwrap()
-            .starts_with(root.to_str().unwrap())
+            .starts_with(root.canonicalize().unwrap().to_str().unwrap())
     );
     report(root);
     for args in [
