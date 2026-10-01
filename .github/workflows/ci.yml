@@ -3,9 +3,9 @@ name: CI
 on:
   push:
     branches: [main]
-    paths-ignore: ["**.md", "docs/**", "LICENSE-*"]
+    paths-ignore: ["**.md", "docs/**", "LICENSE-*", ".github/workflows/example-usage.yml", ".github/workflows/release.yml"]
   pull_request:
-    paths-ignore: ["**.md", "docs/**", "LICENSE-*"]
+    paths-ignore: ["**.md", "docs/**", "LICENSE-*", ".github/workflows/example-usage.yml", ".github/workflows/release.yml"]
 
 permissions:
   contents: read

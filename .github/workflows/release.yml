@@ -1,4 +1,5 @@
 name: Release
+# (tag-triggered: v*)
 
 on:
   push:

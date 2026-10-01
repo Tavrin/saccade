@@ -1,4 +1,5 @@
 name: Example usage
+# (dispatch-only; run from the Actions tab)
 
 # Runs the action from this checkout on the generated examples/ set.
 # examples/ contains a deliberate regression, so the final step is expected to fail.
