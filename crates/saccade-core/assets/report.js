@@ -1076,6 +1076,11 @@
   }
   if (init.hotspot) V.hotspotReq = init.hotspot;
   applyFilter();
+  if (report.perf_diff || (report.perf_errors || []).length) {
+    var perfHost = document.createElement("section"); document.querySelector("main").prepend(perfHost);
+    window.saccadePerf.diff(perfHost, report.perf_diff, report.combined_verdict);
+    (report.perf_errors || []).forEach(function(e) {var p=document.createElement("p");p.textContent=e.path+": "+e.message;perfHost.appendChild(p);});
+  }
   renderHeader();
   render();
   agent = A.create({

@@ -757,6 +757,7 @@ fn stage_paired_run(
         hdr: state.view.hdr,
         meta: state.view.meta.clone(),
         entries: state.view.entries.clone(),
+        perf: state.view.perf.clone(),
     };
     let plan = crate::runs::plan(reference, std::slice::from_ref(run), &opts)
         .map_err(|e| e.to_string())?;
@@ -772,6 +773,14 @@ fn stage_paired_run(
         if let Err(e) = stage_named(&plan.paired_files(0), &tmp) {
             let _ = std::fs::remove_dir_all(&tmp);
             return Err(e);
+        }
+        // Performance is run-wide, so image renaming must preserve the run sidecar.
+        let perf = run.dir.join(&state.view.perf.name);
+        if std::fs::symlink_metadata(&perf).is_ok()
+            && let Err(e) = std::fs::copy(&perf, tmp.join(&state.view.perf.name))
+        {
+            let _ = std::fs::remove_dir_all(&tmp);
+            return Err(format!("staging performance evidence: {e}"));
         }
         if let Err(e) = std::fs::rename(&tmp, &dest) {
             let _ = std::fs::remove_dir_all(&tmp);

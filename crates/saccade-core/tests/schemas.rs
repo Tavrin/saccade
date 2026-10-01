@@ -38,6 +38,18 @@ fn committed_schemas_match_the_rust_types() {
     let update = std::env::var_os("UPDATE_SCHEMAS").is_some();
     let all = [
         (
+            "saccade-perf.v1.schema.json",
+            generated::<saccade_core::perf::CapturePerf>("saccade-perf.v1.schema.json"),
+        ),
+        (
+            "saccade-perf-diff.v1.schema.json",
+            generated::<saccade_core::perf::PerfDiff>("saccade-perf-diff.v1.schema.json"),
+        ),
+        (
+            "saccade-ablate.v1.schema.json",
+            generated::<saccade_core::ablate::Ablation>("saccade-ablate.v1.schema.json"),
+        ),
+        (
             "saccade-noise.v1.schema.json",
             generated::<saccade_core::ergonomics::NoiseReport>("saccade-noise.v1.schema.json"),
         ),

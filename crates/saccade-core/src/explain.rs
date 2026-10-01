@@ -827,6 +827,11 @@ fn markdown(pack: &ExplainPack, report: &Report) -> String {
         t.pass,
         t.total
     ));
+    if !pack.blind
+        && let Some(v) = &report.combined_verdict
+    {
+        out.push_str(&format!("{}\n", crate::perf::clean(v)));
+    }
     if pack.blind {
         out.push_str("Strips are [A | B]; which side is the reference is hidden.\n");
     } else {

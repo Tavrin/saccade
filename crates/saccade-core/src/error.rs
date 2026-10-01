@@ -60,6 +60,9 @@ pub enum Error {
     /// output; nothing in it is cleared or overwritten.
     #[error("{0}")]
     NotEmptyOutDir(String),
+    /// A run performance sidecar is malformed.
+    #[error(transparent)]
+    Perf(#[from] crate::perf::PerfError),
     /// Report (de)serialization failed.
     #[error("report JSON error: {0}")]
     Json(#[from] serde_json::Error),

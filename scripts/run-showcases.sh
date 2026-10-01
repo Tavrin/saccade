@@ -14,7 +14,7 @@ import subprocess
 import sys
 
 root = Path.cwd()
-reports = Path('/mnt/linux-extra/moss-cargo-targets/saccade-showcase-reports')
+reports = Path(os.environ.get('SACCADE_SHOWCASE_REPORTS', '/tmp/saccade-showcase-reports'))
 reports.mkdir(parents=True, exist_ok=True)
 env = dict(os.environ, LC_ALL='C', NO_COLOR='1')
 failed = False
@@ -35,6 +35,9 @@ for manifest in sorted((root / 'showcases').glob('*/commands.json')):
             print(result.stderr, file=sys.stderr)
             failed = True
     actual = ''.join(transcript)
+    # Compare evidence independent of the output location; no numeric normalization.
+    relative_reports = os.path.relpath(reports.resolve(), case).replace(os.sep, '/')
+    actual = actual.replace(relative_reports, '@REPORTS@').replace(str(reports.resolve()), '@REPORTS@')
     (out / 'ACTUAL.txt').write_text(actual)
     expected_path = case / 'EXPECTED.txt'
     if not expected_path.exists():

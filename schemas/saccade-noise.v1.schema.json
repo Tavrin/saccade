@@ -68,6 +68,27 @@
         "suggested_threshold"
       ],
       "type": "object"
+    },
+    "PerfNoise": {
+      "additionalProperties": false,
+      "properties": {
+        "frame": {
+          "format": "double",
+          "type": "number"
+        },
+        "terms": {
+          "additionalProperties": {
+            "format": "double",
+            "type": "number"
+          },
+          "default": {},
+          "type": "object"
+        }
+      },
+      "required": [
+        "frame"
+      ],
+      "type": "object"
     }
   },
   "$id": "https://github.com/Tavrin/saccade/schemas/saccade-noise.v1.schema.json",
@@ -89,6 +110,17 @@
     "metric": {
       "$ref": "#/$defs/Metric",
       "description": "Metric used for suggestions."
+    },
+    "perf_noise": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/PerfNoise"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "description": "Raw max-minus-min performance range across unchanged-build repeats."
     },
     "runs": {
       "description": "Capture directories, relative to the output configuration directory.",

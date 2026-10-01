@@ -108,11 +108,25 @@ pub struct NoiseReport {
     pub entries: Vec<NoiseEntry>,
     /// Limitations and high-noise warnings.
     pub warnings: Vec<String>,
+    /// Raw max-minus-min performance range across unchanged-build repeats.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub perf_noise: Option<crate::perf::PerfNoise>,
 }
 
 /// Compares every distinct pair of unchanged-build captures and writes TOML overrides.
 /// Missing images and comparison errors prevent misleading suggestions.
 pub fn noise(dirs: &[PathBuf], margin: f64, metric: Metric, out: &Path) -> Result<NoiseReport> {
+    noise_with_perf(dirs, margin, metric, out, crate::perf::DEFAULT_PERF_NAME)
+}
+
+/// Noise calibration with a configurable performance sidecar file name.
+pub fn noise_with_perf(
+    dirs: &[PathBuf],
+    margin: f64,
+    metric: Metric,
+    out: &Path,
+    perf_name: &str,
+) -> Result<NoiseReport> {
     if dirs.len() < 2 || !margin.is_finite() || margin < 1.0 {
         return Err(Error::Config(
             "noise needs at least two RUN_DIR arguments and --margin >= 1".into(),
@@ -126,6 +140,12 @@ pub fn noise(dirs: &[PathBuf], margin: f64, metric: Metric, out: &Path) -> Resul
             "--out is inside a noise input directory; choose a sibling saccade.noise.toml".into(),
         ));
     }
+    crate::perf::PerfOptions {
+        name: perf_name.into(),
+        ..Default::default()
+    }
+    .validate()?;
+    let (perf_noise, perf_warnings) = crate::perf::noise(dirs, perf_name)?;
     let temp = tempfile::tempdir().map_err(crate::run::io_err(
         "creating noise scratch directory".into(),
     ))?;
@@ -194,6 +214,16 @@ pub fn noise(dirs: &[PathBuf], margin: f64, metric: Metric, out: &Path) -> Resul
             e.suggested_threshold
         ));
     }
+    warnings.extend(perf_warnings);
+    if let Some(floor) = &perf_noise {
+        toml.push_str(&format!(
+            "\n[perf_noise]\nframe = {:.17}\n\n[perf_noise.terms]\n",
+            floor.frame
+        ));
+        for (id, value) in &floor.terms {
+            toml.push_str(&format!("{} = {:.17}\n", serde_json::to_string(id)?, value));
+        }
+    }
     RunConfig::from_toml_str(&toml)?;
     std::fs::write(out, toml).map_err(crate::run::io_err(format!(
         "writing noise configuration {}",
@@ -209,6 +239,7 @@ pub fn noise(dirs: &[PathBuf], margin: f64, metric: Metric, out: &Path) -> Resul
             .collect(),
         entries,
         warnings,
+        perf_noise,
     })
 }
 

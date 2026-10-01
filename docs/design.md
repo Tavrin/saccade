@@ -1003,3 +1003,69 @@ provenance. Server saves and CLI unblind rebase paths when saving elsewhere.
 Blind keys include view_dir relative to the key file, so CLI unblind can
 resolve the view-relative input dirs even when --key-out is elsewhere.
 Approval keeps directory and SHA-256 checks, including baseline pruning.
+
+
+## 21. Run performance and ablation contracts
+
+`saccade-perf.v1` is an optional capture-directory sidecar in milliseconds.
+See [Performance evidence](../README.md#performance-evidence) for the complete
+input example and commands. Frame values are finite and nonnegative, samples
+are positive, and statistics are `p50`, `p95`, `p99`, `mean`, `min` or `max`.
+Pass and gap values are additive; scopes require existing, acyclic non-gap
+parents and never contribute to frame totals. Optional spread bounds contain
+the term value. IDs are unique. Counter maps reference existing IDs and carry
+finite numeric values. Unknown fields and invalid evidence fail validation as
+`PerfError { path, message }`. Compare/identity record `perf_errors` and one
+error entry per malformed sidecar; runs and viewer sessions carry run-level
+error entries. Optional sidecars never change image pairing or thresholds.
+
+`perf_diff` is attached once per pair at the report/run level. Its schema is
+`saccade-perf-diff.v1`: `unit`, `noise_k`, `frame`, signed
+`unattributed_before/after`, `terms` and `warnings`. Every delta has nullable
+`before`, `after`, `delta`, `delta_pct`, `noise_floor`, `beyond_noise` and a
+`status` (`paired`, `appeared`, `disappeared`, `not_comparable`). Before zero
+makes percentage null. Relative calculations that overflow remain unknown.
+Exact ID, kind and parent must agree for a paired term; frame statistics must
+agree for a paired frame. Term rows retain both kinds/parents, frame shares and
+counter deltas; counters sort by absolute relative change, then name. Inputs
+are never matched by labels or similarity. Remainders warn above 1% in either
+direction. Tables nest scopes under parents and sort sibling groups; stacked
+bars contain only each side's additive terms and positive remainder on a shared
+millisecond scale, without pretending a negative remainder is an extra term.
+
+Repeat calibration uses `max(value) - min(value)` across all unchanged-build
+repeats. Noise JSON extends `saccade-noise.v1` with `perf_noise`; generated TOML
+contains `[perf_noise] frame = ...` and `[perf_noise.terms]`. Terms absent or
+structurally inconsistent across repeats have no floor and generate warnings.
+Sidecars missing from only some repeats or inconsistent frame statistics abort
+calibration. The raw floor is independent of the image threshold margin and of
+per-capture spread bounds. Configuration accepts inline `[perf_noise]`, or a
+`perf_noise`/`perf_noise_file` file path resolved relative to its config file.
+CLI `--perf-noise` overrides it. `perf_noise_k`/`--perf-noise-k` defaults to 3
+and is finite and positive. The test is strictly `abs(delta) > k * floor`;
+unknown floors give null `beyond_noise`. A measured zero floor is not missing.
+
+`saccade-ablate.v1` contains `base` and `arms`. Each arm records its path,
+label, image verdict, nullable frame delta, top-N beyond-noise term rows,
+config keys from the existing metadata diff, flags, combined verdict, full
+perf evidence/errors and its relative report link. Arm output directories are
+stable `arm-1`, `arm-2`, etc.; arbitrary labels never become output paths.
+The output ownership and input-containment guards apply before writes.
+The command exits 0 for completed evidence (including image changes), 2 for
+malformed/incomplete comparisons or command errors. `NO-EFFECT` requires
+complete, calibrated term coverage and identical images; `PERF-ONLY` requires
+identical images and at least one term beyond noise. Frame deltas and counter
+changes remain separate evidence from these term-based flags. HTML, JSON and
+text are written even for a completed arm with sidecar error entries.
+
+The run overview exposes an ablation table and run-level performance tables.
+Changed overview pairs use the existing diagnostics engine for FLIP classes
+without writing diagnostic image artifacts; normal arm reports use the same engine.
+Performance inputs and noise-file content participate in server cache identity;
+position/manual staging preserves the directory sidecar. Blind viewers contain
+no performance evidence. The shared report/view/runs design system supplies
+performance tables and composition bars. `saccade_ablate` and pair/overview
+MCP tools enforce confinement on explicit and config-provided noise paths.
+Combined verdicts reach full/lean pair JSON, text, Markdown, explain summaries
+(except blind packs) and MCP text/structured results. All recorded paths use
+the canonical path helper and `/` separators.

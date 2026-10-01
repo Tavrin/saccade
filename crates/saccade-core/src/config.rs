@@ -55,6 +55,8 @@ pub struct RunConfig {
     pub hdr: crate::hdr::HdrConfig,
     /// Metadata-sidecar settings (`meta_name` in the file, flags on the CLI).
     pub meta: crate::meta::MetaOptions,
+    /// Run-level attribution and repeat noise settings.
+    pub perf: crate::perf::PerfOptions,
     /// Error value above which a pixel belongs to a hotspot (`hotspot_threshold`).
     pub hotspot_threshold: f32,
     /// Hotspots kept per entry; `0` disables them (`hotspots`).
@@ -99,6 +101,7 @@ impl Default for RunConfig {
             labels: Labels::default(),
             hdr: crate::hdr::HdrConfig::default(),
             meta: crate::meta::MetaOptions::default(),
+            perf: crate::perf::PerfOptions::default(),
             hotspot_threshold: crate::hotspots::DEFAULT_HOTSPOT_THRESHOLD,
             hotspots: crate::hotspots::DEFAULT_HOTSPOTS,
             hotspot_min_share: crate::hotspots::DEFAULT_HOTSPOT_MIN_SHARE,
@@ -124,6 +127,10 @@ struct FileConfig {
     fail_on_new: Option<bool>,
     ppd: Option<f32>,
     meta_name: Option<String>,
+    perf_name: Option<String>,
+    perf_noise: Option<FilePerfNoise>,
+    perf_noise_file: Option<std::path::PathBuf>,
+    perf_noise_k: Option<f64>,
     require_matching_meta: Option<bool>,
     hotspot_threshold: Option<f32>,
     hotspots: Option<usize>,
@@ -144,6 +151,13 @@ struct FileConfig {
     hdr: Option<FileHdr>,
     diagnostics: Option<FileDiagnostics>,
     decisions: Option<crate::decision::DecisionsConfig>,
+}
+
+#[derive(Deserialize)]
+#[serde(untagged)]
+enum FilePerfNoise {
+    Floor(crate::perf::PerfNoise),
+    File(std::path::PathBuf),
 }
 
 #[derive(Deserialize)]
@@ -201,6 +215,11 @@ impl RunConfig {
                 .filter(|p| !p.as_os_str().is_empty())
                 .map_or_else(|| Path::new(".").to_path_buf(), Path::to_path_buf),
         );
+        if let (Some(dir), Some(noise)) = (&cfg.config_dir, cfg.perf.noise.as_mut())
+            && noise.is_relative()
+        {
+            *noise = dir.join(&*noise);
+        }
         if let Some(dir) = &cfg.config_dir {
             for target in &mut cfg.symlink_targets {
                 if target.is_relative() {
@@ -220,6 +239,21 @@ impl RunConfig {
     pub fn from_toml_str(text: &str) -> Result<Self> {
         let file: FileConfig = toml::from_str(text).map_err(|e| Error::Config(e.to_string()))?;
         let mut cfg = Self::default();
+        cfg.perf.name = file.perf_name.unwrap_or(cfg.perf.name);
+        cfg.perf.noise = file.perf_noise_file;
+        match file.perf_noise {
+            Some(FilePerfNoise::Floor(f)) => cfg.perf.floor = Some(f),
+            Some(FilePerfNoise::File(p)) => {
+                if cfg.perf.noise.is_some() {
+                    return Err(Error::Config(
+                        "use perf_noise or perf_noise_file, not both file keys".into(),
+                    ));
+                }
+                cfg.perf.noise = Some(p);
+            }
+            None => {}
+        }
+        cfg.perf.k = file.perf_noise_k.unwrap_or(cfg.perf.k);
         if let Some(v) = file.threshold {
             cfg.default_threshold = v;
         }
@@ -332,6 +366,7 @@ impl RunConfig {
                 )));
             }
         }
+        self.perf.validate()?;
         self.hdr.validate()?;
         self.diagnostics.validate()?;
         self.meta.checker()?;
@@ -388,6 +423,9 @@ impl RunConfig {
                 "ppd": c.pixels_per_degree, "fail_on_new": c.fail_on_new,
                 "require_matching_meta": c.meta.required, "meta_name": c.meta.name,
                 "meta_ignore": c.meta.ignore, "declare": c.meta.declared,
+                "perf_name": c.perf.name, "perf_noise_k": c.perf.k,
+                "perf_noise_file": c.perf.noise.as_ref().map(|p| crate::paths::cwd(p,false)),
+                "perf_noise": c.perf.floor,
                 "hotspot_threshold": c.hotspot_threshold, "hotspots": c.hotspots,
                 "hotspot_min_share": c.hotspot_min_share, "hotspot_fail": c.hotspot_fail,
                 "allow_empty": c.allow_empty, "fail_on_nonfinite": c.fail_on_nonfinite,

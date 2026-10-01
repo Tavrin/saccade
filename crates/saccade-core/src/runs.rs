@@ -117,6 +117,8 @@ pub struct RunsOptions {
     pub meta: MetaOptions,
     /// Restrict image names to these globs.
     pub entries: Vec<String>,
+    /// Attribution and noise settings.
+    pub perf: crate::perf::PerfOptions,
 }
 
 impl Default for RunsOptions {
@@ -126,6 +128,7 @@ impl Default for RunsOptions {
             hdr: HdrConfig::default(),
             meta: MetaOptions::default(),
             entries: Vec::new(),
+            perf: crate::perf::PerfOptions::default(),
         }
     }
 }
@@ -185,6 +188,8 @@ pub struct RunPlan {
     name_matches: usize,
     task_base: usize,
     meta: std::result::Result<Option<crate::meta::Meta>, String>,
+    perf_diff: Option<crate::perf::PerfDiff>,
+    perf_errors: Vec<crate::perf::PerfError>,
 }
 
 /// Everything an overview compares, resolved on disk.
@@ -221,6 +226,7 @@ pub fn plan(reference: &RunInput, runs: &[RunInput], opts: &RunsOptions) -> Resu
         }
     }
     let checker = opts.meta.checker()?;
+    opts.perf.validate()?;
     for g in &opts.entries {
         crate::config::compile_glob(g)?;
     }
@@ -276,7 +282,10 @@ pub fn plan(reference: &RunInput, runs: &[RunInput], opts: &RunsOptions) -> Resu
             .map(|(_, n)| n.clone())
             .collect();
         let n = pairs.len();
+        let (perf_diff, perf_errors) = crate::perf::pair(&reference.dir, &input.dir, &opts.perf)?;
         out.push(RunPlan {
+            perf_diff,
+            perf_errors,
             meta: checker.load(&input.dir, RUN_PROBE),
             input: input.clone(),
             files,
@@ -359,6 +368,7 @@ impl Plan {
             );
         }
         for run in &self.runs {
+            parts.push(format!("{:?}|{:?}", run.perf_diff, run.perf_errors).into_bytes());
             parts.push(
                 format!("{}|{:?}|{:?}", run.input.label, run.only_ref, run.only_run).into_bytes(),
             );
@@ -408,6 +418,9 @@ pub enum PairStatus {
 pub struct PairResult {
     /// Identical, changed or error.
     pub status: PairStatus,
+    /// Existing diagnostics classification of a changed pair.
+    #[serde(default)]
+    pub class: Option<crate::diagnostics::ChangeClass>,
     /// FLIP statistics of a changed pair.
     pub metrics: Option<Metrics>,
     /// Cache key of the mini heatmap (`<key>.heat.png` in the cache directory).
@@ -419,6 +432,7 @@ pub struct PairResult {
 fn error_result(e: impl ToString) -> PairResult {
     PairResult {
         status: PairStatus::Error,
+        class: None,
         metrics: None,
         heat: None,
         error: Some(e.to_string()),
@@ -433,6 +447,7 @@ fn pair_key(t: &PairTask, opts: &RunsOptions) -> String {
         )
     };
     digest(&[
+        b"runs-with-class.v1",
         t.ref_path.to_string_lossy().as_bytes(),
         stat(&t.ref_path).as_bytes(),
         t.run_path.to_string_lossy().as_bytes(),
@@ -447,6 +462,30 @@ fn pair_key(t: &PairTask, opts: &RunsOptions) -> String {
     ])
 }
 
+fn pair_class(
+    baseline: crate::diagnostics::Pixels<'_>,
+    capture: crate::diagnostics::Pixels<'_>,
+    comparison: &crate::compare::Comparison,
+    flip: &CompareOptions,
+) -> Option<crate::diagnostics::ChangeClass> {
+    crate::diagnostics::diagnose(&crate::diagnostics::DiagnoseRequest {
+        baseline,
+        capture,
+        comparison,
+        flip,
+        bit_identical: Some(false),
+        baseline_properties: None,
+        capture_properties: None,
+        hotspots: &[],
+        hotspot_options: Default::default(),
+        config: &Default::default(),
+        capture_path: None,
+        out: None,
+    })
+    .ok()
+    .map(|out| out.diagnostics.class)
+}
+
 fn measure(t: &PairTask, opts: &RunsOptions, key: &str, cache: Option<&Path>) -> PairResult {
     let same_bytes = matches!(
         (sha256_file(&t.ref_path), sha256_file(&t.run_path)),
@@ -455,6 +494,7 @@ fn measure(t: &PairTask, opts: &RunsOptions, key: &str, cache: Option<&Path>) ->
     if same_bytes || native_samples_identical(&t.ref_path, &t.run_path) {
         return PairResult {
             status: PairStatus::Identical,
+            class: Some(crate::diagnostics::ChangeClass::Identical),
             metrics: None,
             heat: None,
             error: None,
@@ -470,19 +510,35 @@ fn measure(t: &PairTask, opts: &RunsOptions, key: &str, cache: Option<&Path>) ->
                 crate::hdr::decode_hdr(&t.run_path),
                 crate::hdr::decode_hdr(&t.ref_path),
             ) {
-                (Ok(c), Ok(r)) => crate::hdr::compare_hdr(&c, &r, &copts).map(|(c, _)| c),
+                (Ok(c), Ok(r)) => crate::hdr::compare_hdr(&c, &r, &copts).map(|(cmp, _)| {
+                    let class = pair_class(
+                        crate::diagnostics::Pixels::Hdr(&r),
+                        crate::diagnostics::Pixels::Hdr(&c),
+                        &cmp,
+                        &copts,
+                    );
+                    (cmp, class)
+                }),
                 (Err(e), _) | (_, Err(e)) => Err(e),
             }
         }
         (false, false) => match (decode(&t.run_path), decode(&t.ref_path)) {
-            (Ok(c), Ok(r)) => compare_rgba(&c, &r, &copts),
+            (Ok(c), Ok(r)) => compare_rgba(&c, &r, &copts).map(|cmp| {
+                let class = pair_class(
+                    crate::diagnostics::Pixels::Ldr(&r),
+                    crate::diagnostics::Pixels::Ldr(&c),
+                    &cmp,
+                    &copts,
+                );
+                (cmp, class)
+            }),
             (Err(e), _) | (_, Err(e)) => Err(e),
         },
         _ => Err(Error::HdrMismatch(
             "one of the images is HDR and the other is LDR".into(),
         )),
     };
-    let cmp = match cmp {
+    let (cmp, class) = match cmp {
         Ok(c) => c,
         Err(e) => return error_result(e),
     };
@@ -506,6 +562,7 @@ fn measure(t: &PairTask, opts: &RunsOptions, key: &str, cache: Option<&Path>) ->
     }
     PairResult {
         status: PairStatus::Changed,
+        class,
         metrics: Some(cmp.metrics),
         heat,
         error: None,
@@ -649,6 +706,26 @@ pub struct RunSummary {
     pub run_images: Vec<ImageRef>,
     /// One-line summary.
     pub summary: String,
+    /// Diagnostics classes of changed image pairs.
+    pub image_classes: Vec<String>,
+    /// Run attribution evidence.
+    pub perf_diff: Option<crate::perf::PerfDiff>,
+    /// Malformed sidecar error entries.
+    pub perf_errors: Vec<crate::perf::PerfError>,
+    /// Image evidence for the ablation view.
+    pub image_verdict: String,
+    /// Frame change in milliseconds.
+    pub frame_delta: Option<f64>,
+    /// Largest five term changes beyond noise.
+    pub top_deltas: Vec<crate::perf::TermDiff>,
+    /// Image identity plus absence of beyond-noise terms.
+    pub no_effect: bool,
+    /// Image identity with beyond-noise terms.
+    pub perf_only: bool,
+    /// NO-EFFECT, PERF-ONLY, IMAGE-CHANGE or INCONCLUSIVE.
+    pub flag: String,
+    /// One-line image and performance verdict.
+    pub combined_verdict: String,
 }
 
 /// A run-level sidecar key that differs between runs.
@@ -812,6 +889,19 @@ pub fn assemble(plan: &Plan, results: &[Option<PairResult>], urls: &dyn AssetUrl
             config_error: None,
             run_images: Vec::new(),
             summary: String::new(),
+            image_classes: Vec::new(),
+            perf_diff: run.perf_diff.clone(),
+            perf_errors: run.perf_errors.clone(),
+            image_verdict: String::new(),
+            frame_delta: run.perf_diff.as_ref().and_then(|d| d.frame.delta),
+            top_deltas: run
+                .perf_diff
+                .as_ref()
+                .map_or_else(Vec::new, |d| d.top(5, true).into_iter().cloned().collect()),
+            no_effect: false,
+            perf_only: false,
+            flag: String::new(),
+            combined_verdict: String::new(),
         };
         for (i, (rn, cn)) in run.pairs.iter().enumerate() {
             let Some(cp) = run.files.get(cn) else {
@@ -835,6 +925,11 @@ pub fn assemble(plan: &Plan, results: &[Option<PairResult>], urls: &dyn AssetUrl
                             s.errors += 1;
                         }
                         PairStatus::Changed => {
+                            if let Some(class) = r.class
+                                && !s.image_classes.iter().any(|c| c == class.as_str())
+                            {
+                                s.image_classes.push(class.as_str().into());
+                            }
                             cell.status = "changed";
                             s.changed += 1;
                             cell.metrics = r.metrics;
@@ -924,6 +1019,46 @@ pub fn assemble(plan: &Plan, results: &[Option<PairResult>], urls: &dyn AssetUrl
         .collect();
 
     for s in &mut summaries {
+        let image = if s.no_visible_effect {
+            "image bit-identical".into()
+        } else if s.errors > 0
+            || s.pending > 0
+            || s.only_in_ref > 0
+            || s.only_in_run > 0
+            || s.images == 0
+        {
+            "image not comparable".into()
+        } else {
+            let classes = if s.image_classes.is_empty() {
+                "class unavailable".into()
+            } else {
+                s.image_classes.sort();
+                s.image_classes.join(", ")
+            };
+            format!(
+                "image changed (FLIP {classes}; worst mean {:.6})",
+                s.worst.as_ref().map_or(0.0, |w| w.mean)
+            )
+        };
+        (s.no_effect, s.perf_only) = s
+            .perf_diff
+            .as_ref()
+            .map_or((false, false), |d| d.flags(s.no_visible_effect));
+        s.flag = if s.no_effect {
+            "NO-EFFECT"
+        } else if s.perf_only {
+            "PERF-ONLY"
+        } else if image.starts_with("image changed") {
+            "IMAGE-CHANGE"
+        } else {
+            "INCONCLUSIVE"
+        }
+        .into();
+        s.combined_verdict = s.perf_diff.as_ref().map_or_else(
+            || format!("{image} · performance unavailable"),
+            |d| format!("{image} · {}", d.verdict()),
+        );
+        s.image_verdict = image;
         s.summary = summary_line(s);
     }
     for (name, row) in &mut rows {
@@ -962,6 +1097,9 @@ pub fn assemble(plan: &Plan, results: &[Option<PairResult>], urls: &dyn AssetUrl
         }
     };
     for summary in &mut summaries {
+        for error in &mut summary.perf_errors {
+            redact(&mut error.path);
+        }
         if let Some(error) = &mut summary.config_error {
             redact(error);
         }

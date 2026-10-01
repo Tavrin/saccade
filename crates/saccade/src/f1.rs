@@ -177,6 +177,9 @@ pub(crate) fn entries(args: EntriesArgs) -> Result<u8, CliError> {
 
 #[derive(Args)]
 pub(crate) struct NoiseArgs {
+    /// Performance sidecar file name.
+    #[arg(long, default_value = "saccade-perf.json")]
+    perf_name: String,
     #[arg(required = true, num_args = 2..)]
     dirs: Vec<PathBuf>,
     #[arg(long, default_value_t = 1.5)]
@@ -190,8 +193,13 @@ pub(crate) struct NoiseArgs {
 }
 
 pub(crate) fn noise(args: NoiseArgs, record_absolute_paths: bool) -> Result<u8, CliError> {
-    let mut report =
-        saccade_core::ergonomics::noise(&args.dirs, args.margin, args.metric.into(), &args.out)?;
+    let mut report = saccade_core::ergonomics::noise_with_perf(
+        &args.dirs,
+        args.margin,
+        args.metric.into(),
+        &args.out,
+        &args.perf_name,
+    )?;
     if record_absolute_paths {
         report.runs = args
             .dirs
@@ -211,6 +219,13 @@ pub(crate) fn noise(args: NoiseArgs, record_absolute_paths: bool) -> Result<u8, 
                 e.max,
                 e.suggested_threshold,
                 report.metric
+            ))?;
+        }
+        if let Some(f) = &report.perf_noise {
+            crate::emit(&format!(
+                "perf noise (max-min): frame {:.6} ms; {} terms\n",
+                f.frame,
+                f.terms.len()
             ))?;
         }
         crate::emit(&format!("wrote {}\n", args.out.display()))?;

@@ -942,6 +942,9 @@ mod tests {
             }
         }
         Report {
+            perf_diff: None,
+            perf_errors: Vec::new(),
+            combined_verdict: None,
             schema: REPORT_SCHEMA.into(),
             tool_version: "0".into(),
             generated_at_unix: 0,

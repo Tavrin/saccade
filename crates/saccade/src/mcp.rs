@@ -72,6 +72,9 @@ fn tool_schemas() -> Value {
             "metric": {"type": "string", "enum": ["mean", "p95", "p99", "max"], "description": "Deciding metric: mean (default for compare; whole-image drift), p95 or p99 (large or local areas) or max (any single bad pixel; identity default)."},
             "ppd": {"type": "number", "exclusiveMinimum": 0, "description": "FLIP pixels per degree of visual angle (default 67, a 0.7 m viewing distance on a 4K monitor)."},
             "labels": {"type": "array", "items": {"type": "string", "minLength": 1}, "minItems": 2, "maxItems": 2, "description": format!("Display names of the two sides, [\"{a}\", \"{b}\"].")},
+            "perf_name": {"type":"string","minLength":1},
+            "perf_noise": {"type":"string","minLength":1},
+            "perf_noise_k": {"type":"number","exclusiveMinimum":0},
             "meta_name": {"type": "string", "minLength": 1, "description": "Metadata sidecar file name (default saccade-meta.json); `<stem>.<name>` next to an image overrides the directory-level one."},
             "require_matching_meta": {"type": "boolean", "description": "Make an undeclared metadata-sidecar difference an error for that image."},
             "declare": {"type": "array", "items": {"type": "string"}, "description": "Sidecar keys or globs allowed to differ; needs require_matching_meta."},
@@ -137,6 +140,21 @@ fn tool_schemas() -> Value {
         }
     }
     json!([
+        {
+            "name":"saccade_ablate", "title":"Compare ablation arms",
+            "description":"One row per arm against a common base: image identity/FLIP class, frame and beyond-noise term changes, configuration differences, NO-EFFECT and PERF-ONLY flags, and a combined verdict. Writes HTML, JSON and text evidence.",
+            "inputSchema":{"type":"object","properties":{
+                "base_dir":dir("Base capture directory"),
+                "arm_dirs":{"type":"array","items":{"type":"string","minLength":1},"minItems":1},
+                "out_dir":dir("Output directory"), "config":{"type":"string"},
+                "top":{"type":"integer","minimum":0,"default":5},
+                "perf_name":{"type":"string"}, "perf_noise":{"type":"string"},
+                "perf_noise_k":{"type":"number","exclusiveMinimum":0,"default":3},
+                "record_absolute_paths":{"type":"boolean","default":false}
+            },"required":["base_dir","arm_dirs","out_dir"],"additionalProperties":false},
+            "outputSchema":serde_json::from_str::<Value>(include_str!("../../../schemas/saccade-ablate.v1.schema.json")).unwrap_or_else(|_|json!({"type":"object"})),
+            "annotations":{"readOnlyHint":false,"destructiveHint":false,"idempotentHint":true,"openWorldHint":false}
+        },
         {
             "name": "saccade_list_entries", "title": "Inspect report entries",
             "description": "Read-only filtered pagination of full entries. Keep status/name/limit unchanged when following next_cursor. Paths are relative to the report directory.",
@@ -242,6 +260,7 @@ fn tool_schemas() -> Value {
                     "run_dirs": {"type": "array", "items": {"type": "string", "minLength": 1}, "minItems": 1, "maxItems": 5, "description": "Runs to compare against the reference, paired by relative image path (inside the server root)."},
                     "labels": {"type": "array", "items": {"type": "string", "minLength": 1}, "description": "One label per directory, the reference first (default: directory names)."},
                     "pair_by_position": {"type": "boolean", "description": "Pair each run's images with the reference's by sorted position instead of by name."},
+                    "perf_name":{"type":"string"},"perf_noise":{"type":"string"},"perf_noise_k":{"type":"number","exclusiveMinimum":0},"config":{"type":"string"},
                     "ppd": {"type": "number", "exclusiveMinimum": 0, "description": "FLIP pixels per degree of visual angle (default 67)."},
                     "meta_name": {"type": "string", "minLength": 1, "description": "Run-level sidecar file name (default saccade-meta.json); its keys that differ from the reference's are listed per run."}
                 },
@@ -318,44 +337,10 @@ fn totals_schema() -> Value {
 }
 
 fn result_output_schema() -> Value {
-    json!({
-        "type": "object",
-        "description": "saccade-result.v1 (schemas/saccade-result.v1.schema.json); with isError, saccade-error.v1.",
-        "properties": {
-            "schema": {"const": "saccade-result.v1"},
-            "verdict": {"enum": ["pass", "regression"]},
-            "mode": {"enum": ["regression", "identity"]},
-            "totals": totals_schema(),
-            "failing": {"type": "array", "items": {
-                "type": "object",
-                "properties": {
-                    "name": {"type": "string"},
-                    "status": {"enum": ["fail", "error", "missing", "new"]},
-                    "metric": {"enum": ["mean", "p95", "p99", "max"]},
-                    "value": {"type": ["number", "null"]},
-                    "threshold": {"type": "number"},
-                    "error": {"type": "string"},
-                    "config_differs": {"type": "array", "items": {"type": "string"}},
-                    "failing_regions": {"type": "array", "items": {"type": "string"}},
-                    "class": {"enum": ["identical", "noise", "global_tone", "local_structure", "mixed", "misaligned", "broken_frame"]},
-                    "description": {"type": "string"},
-                    "perf": {"type": "string"},
-                    "buffer": {"type": ["object", "null"]},
-                    "hotspots": {"type": "array", "items": {"type": "object"}}
-                },
-                "required": ["name", "status", "metric", "threshold"]
-            }},
-            "failing_omitted": {"type": "integer"},
-            "paths": {"type": "object", "properties": {
-                "report_json": {"type": "string"},
-                "index_html": {"type": ["string", "null"]},
-                "explain_md": {"type": ["string", "null"]}
-            }, "required": ["report_json"]},
-            "next_step": {"type": "string"},
-            "explain_error": {"type": "string"}
-        },
-        "required": ["schema", "verdict", "totals", "failing", "paths", "next_step"]
-    })
+    serde_json::from_str(include_str!(
+        "../../../schemas/saccade-result.v1.schema.json"
+    ))
+    .unwrap_or_else(|_| json!({"type":"object"}))
 }
 
 fn explain_output_schema() -> Value {
@@ -463,6 +448,9 @@ fn reject_unknown(args: &Map<String, Value>, known: &[&str]) -> Result<(), CliEr
 /// The argument names the run tools share.
 const RUN_ARGS: &[&str] = &[
     "out_dir",
+    "perf_name",
+    "perf_noise",
+    "perf_noise_k",
     "threshold",
     "metric",
     "ppd",
@@ -757,6 +745,70 @@ impl Server {
         })
     }
 
+    fn apply_perf_args(
+        &self,
+        args: &Map<String, Value>,
+        opts: &mut saccade_core::perf::PerfOptions,
+    ) -> Result<(), CliError> {
+        if let Some(n) = arg_str(args, "perf_name")? {
+            opts.name = n;
+        }
+        if let Some(n) = arg_str(args, "perf_noise")? {
+            opts.noise = Some(self.existing_file("perf_noise", &n)?);
+        }
+        if let Some(k) = arg_f64(args, "perf_noise_k")? {
+            opts.k = k;
+        }
+        // Config-provided paths obey the same server confinement as explicit arguments.
+        if let Some(n) = &opts.noise {
+            opts.noise = Some(self.existing_file("perf_noise", &saccade_core::paths::portable(n))?);
+        }
+        opts.validate()?;
+        Ok(())
+    }
+
+    fn tool_ablate(&self, args: &Map<String, Value>) -> ToolResult {
+        reject_unknown(
+            args,
+            &[
+                "base_dir",
+                "arm_dirs",
+                "out_dir",
+                "config",
+                "top",
+                "perf_name",
+                "perf_noise",
+                "perf_noise_k",
+                "record_absolute_paths",
+            ],
+        )?;
+        let base = self.existing_dir("base_dir", &require_str(args, "base_dir")?)?;
+        let arms = arg_strings(args, "arm_dirs")?
+            .iter()
+            .map(|p| self.existing_dir("arm_dirs", p))
+            .collect::<Result<Vec<_>, _>>()?;
+        let out = self.resolve("out_dir", &require_str(args, "out_dir")?)?;
+        let mut cfg = match arg_str(args, "config")? {
+            Some(p) => RunConfig::from_toml_file(&self.existing_file("config", &p)?)?,
+            None => RunConfig::default(),
+        };
+        cfg.record_absolute_paths = arg_bool(args, "record_absolute_paths")?.unwrap_or(false);
+        self.apply_perf_args(args, &mut cfg.perf)?;
+        let top = match args.get("top") {
+            Some(v) => v
+                .as_u64()
+                .and_then(|v| usize::try_from(v).ok())
+                .ok_or_else(|| CliError::usage("top must be a nonnegative integer"))?,
+            None => 5,
+        };
+        let model = saccade_core::ablate::run(&base, &arms, &out, &cfg, top)?;
+        Ok(ToolOutput {
+            structured: serde_json::to_value(&model)?,
+            text: model.text(),
+            images: Vec::new(),
+        })
+    }
+
     fn tool_compare(&self, args: &Map<String, Value>) -> ToolResult {
         let mut known = vec!["baseline_dir", "capture_dir", "config"];
         known.extend_from_slice(RUN_ARGS);
@@ -776,6 +828,7 @@ impl Server {
             }
         };
         apply_run_args(args, &mut cfg)?;
+        self.apply_perf_args(args, &mut cfg.perf)?;
         let images = arg_bool(args, "include_images")?.unwrap_or(true);
         self.run_and_explain((&baseline, &capture, &out), &cfg, images)
     }
@@ -908,6 +961,7 @@ impl Server {
             ..RunConfig::default()
         };
         apply_run_args(args, &mut cfg)?;
+        self.apply_perf_args(args, &mut cfg.perf)?;
         let images = arg_bool(args, "include_images")?.unwrap_or(true);
         self.run_and_explain((&parent, &candidate, &out), &cfg, images)
     }
@@ -1118,6 +1172,10 @@ impl Server {
                 "run_dirs",
                 "labels",
                 "pair_by_position",
+                "perf_name",
+                "perf_noise",
+                "perf_noise_k",
+                "config",
                 "ppd",
                 "meta_name",
             ],
@@ -1146,6 +1204,12 @@ impl Server {
         };
         let by_position = arg_bool(args, "pair_by_position")?.unwrap_or(false);
         let mut opts = RunsOptions::default();
+        if let Some(p) = arg_str(args, "config")? {
+            let cfg = RunConfig::from_toml_file(&self.existing_file("config", &p)?)?;
+            opts.perf = cfg.perf;
+            opts.meta = cfg.meta;
+        }
+        self.apply_perf_args(args, &mut opts.perf)?;
         if let Some(p) = arg_f64(args, "ppd")? {
             opts.pixels_per_degree = p as f32;
         }
@@ -1197,6 +1261,7 @@ impl Server {
             }));
         }
         Some(match name {
+            "saccade_ablate" => self.tool_ablate(args),
             "saccade_compare_runs" => self.tool_compare_runs(args),
             "saccade_sequence" => self.tool_sequence(args),
             "saccade_rank" => self.tool_rank(args),

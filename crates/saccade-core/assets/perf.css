@@ -1,0 +1,16 @@
+/* Run-level evidence shares the report design system. */
+.perf-page{max-width:1440px;margin:auto;padding:var(--sp-6);font-family:var(--sans);color:var(--text);background:var(--bg)}
+.perf-panel{margin:var(--sp-4) 0;padding:var(--sp-4);background:var(--surface);border:1px solid var(--border);border-radius:var(--r-md)}
+.perf-panel h2,.perf-panel h3{margin:0 0 var(--sp-3)}
+.perf-panel p{overflow-wrap:anywhere}.perf-scroll{overflow:auto}.perf-table{width:100%;border-collapse:collapse;font-size:var(--fs-sm);font-variant-numeric:tabular-nums}
+.perf-table th,.perf-table td{padding:var(--sp-2) var(--sp-3);border-bottom:1px solid var(--border);text-align:right;vertical-align:top}
+.perf-table th:first-child,.perf-table td:first-child{text-align:left;min-width:220px;overflow-wrap:anywhere}
+.perf-table th button{font:inherit;color:var(--text);border:0;background:transparent;cursor:pointer;white-space:nowrap}
+.perf-table td{white-space:nowrap}.perf-table td.perf-copy{white-space:normal;min-width:230px;text-align:left}.perf-scope{color:var(--muted)}
+.perf-bars{display:grid;gap:var(--sp-2);margin:var(--sp-4) 0}.perf-bar-line{display:grid;grid-template-columns:180px 1fr;align-items:center;gap:var(--sp-3)}
+.perf-stack{display:flex;min-height:28px;background:var(--surface-2);overflow:hidden;border-radius:var(--r-sm)}
+.perf-segment{display:block;min-width:0;border-right:1px solid var(--surface);overflow:hidden;font-size:var(--fs-2xs);color:var(--accent-fg);padding-top:6px;text-align:center}
+.perf-legend{display:flex;gap:var(--sp-3);flex-wrap:wrap;font-size:var(--fs-xs);color:var(--muted)}.perf-key{display:inline-block;width:10px;height:10px;margin-right:4px}
+.perf-warning{color:var(--missing)}.perf-beyond{font-weight:600;color:var(--error)}.perf-within{color:var(--muted)}
+.perf-ablation{table-layout:fixed;min-width:1200px}.perf-ablation th:nth-child(1){width:9%}.perf-ablation th:nth-child(2){width:12%}.perf-ablation th:nth-child(3){width:8%}.perf-ablation th:nth-child(4){width:8%}.perf-ablation th:nth-child(5){width:23%}.perf-ablation th:nth-child(6){width:9%}.perf-ablation th:nth-child(7){width:31%}
+.perf-ablation td,.perf-ablation td.perf-copy,.perf-ablation th:first-child,.perf-ablation td:first-child{white-space:normal;min-width:0;overflow-wrap:anywhere}.perf-ablation .perf-mover{margin-bottom:var(--sp-1)}

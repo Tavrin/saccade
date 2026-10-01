@@ -140,6 +140,7 @@ fn options(state: &State) -> RunsOptions {
         hdr: state.view.hdr,
         meta: state.view.meta.clone(),
         entries: state.view.entries.clone(),
+        perf: state.view.perf.clone(),
     }
 }
 

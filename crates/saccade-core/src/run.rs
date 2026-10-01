@@ -413,7 +413,7 @@ pub fn run(
         .filter(|(name, _)| crate::paths::matches_entries(&config.entries, name))
         .collect();
     // Pairs are independent; an indexed parallel collect keeps the name order.
-    let entries: Vec<Entry> = work
+    let mut entries: Vec<Entry> = work
         .par_iter()
         .map(|&(name, (base, cap))| {
             let both_files = matches!((base, cap), (Some(Source::File(_)), Some(Source::File(_))));
@@ -445,6 +445,30 @@ pub fn run(
             entry
         })
         .collect();
+    let (perf_diff, mut perf_errors) = crate::perf::pair(
+        input_root(baseline_dir, file_pair),
+        input_root(capture_dir, file_pair),
+        &config.perf,
+    )?;
+    for error in &mut perf_errors {
+        if !config.record_absolute_paths {
+            error.path = crate::paths::record(Path::new(&error.path), report_dir, false);
+        }
+        let why = error.to_string();
+        let mut entry = build_entry(
+            &format!("{}: {}", config.perf.name, error.path),
+            Some(Source::Problem(&why)),
+            None,
+            report_dir,
+            &opts,
+            config,
+        );
+        entry.error = Some(error.to_string());
+        entries.push(entry);
+    }
+    let combined_verdict = perf_diff
+        .as_ref()
+        .map(|diff| crate::ablate::combined(&entries, diff));
     warn_unmatched_globs(config, &entries);
 
     let mut totals = Totals {
@@ -490,6 +514,9 @@ pub fn run(
         },
         totals,
         entries,
+        perf_diff,
+        perf_errors,
+        combined_verdict,
     };
     if report.is_empty_run() {
         let why = if baselines.files.is_empty() && report.totals.new > 0 {

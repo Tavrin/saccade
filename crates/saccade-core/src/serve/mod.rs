@@ -225,6 +225,7 @@ fn is_within(inner: &Path, outer: &Path) -> bool {
 
 /// Starts the server on `127.0.0.1` and returns once it is listening.
 pub fn start(opts: ServeOptions) -> Result<ServeHandle> {
+    opts.view.perf.resolved_floor()?;
     if opts.fs_timeout_ms == 0 {
         return Err(Error::Config("fs_timeout_ms must be positive".into()));
     }

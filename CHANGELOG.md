@@ -5,6 +5,12 @@ newest first.
 
 ## Unreleased
 
+- Engine-neutral run performance sidecars with strict validation, exact-ID
+  attribution/counter diffs, nested scopes and stacked frame composition.
+- Repeat performance noise ranges, configurable beyond-noise gates, CLI/MCP
+  ablation tables and combined image/performance verdicts across reports,
+  run overviews and unblinded viewer sessions.
+
 - Replace the C++ FLIP bindings with the pinned pure-Rust flip-rs backend.
   HDR-FLIP now evaluates float exposures using NVIDIA's reference algorithm;
   LDR keeps sRGB input and saccade's nearest-rank statistics. Rust 1.88 is

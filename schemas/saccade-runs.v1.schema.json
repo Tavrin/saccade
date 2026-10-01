@@ -284,7 +284,64 @@
         },
         "summary": {
           "type": "string",
-          "description": "N identical · N changed (worst `name` mean) · N only-in-ref · N only-in-run · config differs: K keys"
+          "description": "N identical \u00b7 N changed (worst `name` mean) \u00b7 N only-in-ref \u00b7 N only-in-run \u00b7 config differs: K keys"
+        },
+        "perf_diff": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/PerfDiff"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "perf_errors": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/PerfError"
+          }
+        },
+        "combined_verdict": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "image_verdict": {
+          "type": "string"
+        },
+        "frame_delta": {
+          "type": [
+            "number",
+            "null"
+          ]
+        },
+        "top_deltas": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/TermDiff"
+          }
+        },
+        "flag": {
+          "enum": [
+            "NO-EFFECT",
+            "PERF-ONLY",
+            "IMAGE-CHANGE",
+            "INCONCLUSIVE"
+          ]
+        },
+        "no_effect": {
+          "type": "boolean"
+        },
+        "perf_only": {
+          "type": "boolean"
+        },
+        "image_classes": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
         }
       }
     },
@@ -343,15 +400,54 @@
             "height"
           ],
           "properties": {
-            "mean": { "type": ["number", "null"] },
-            "max": { "type": ["number", "null"] },
-            "p50": { "type": ["number", "null"] },
-            "p95": { "type": ["number", "null"] },
-            "p99": { "type": ["number", "null"] },
-            "frac_above_0_1": { "type": ["number", "null"] },
-            "frac_above_0_5": { "type": ["number", "null"] },
-            "width": { "type": "integer" },
-            "height": { "type": "integer" }
+            "mean": {
+              "type": [
+                "number",
+                "null"
+              ]
+            },
+            "max": {
+              "type": [
+                "number",
+                "null"
+              ]
+            },
+            "p50": {
+              "type": [
+                "number",
+                "null"
+              ]
+            },
+            "p95": {
+              "type": [
+                "number",
+                "null"
+              ]
+            },
+            "p99": {
+              "type": [
+                "number",
+                "null"
+              ]
+            },
+            "frac_above_0_1": {
+              "type": [
+                "number",
+                "null"
+              ]
+            },
+            "frac_above_0_5": {
+              "type": [
+                "number",
+                "null"
+              ]
+            },
+            "width": {
+              "type": "integer"
+            },
+            "height": {
+              "type": "integer"
+            }
           }
         },
         "heat": {
@@ -368,6 +464,315 @@
           ]
         }
       }
+    },
+    "CounterDiff": {
+      "properties": {
+        "after": {
+          "format": "double",
+          "type": [
+            "number",
+            "null"
+          ]
+        },
+        "before": {
+          "format": "double",
+          "type": [
+            "number",
+            "null"
+          ]
+        },
+        "beyond_noise": {
+          "type": [
+            "boolean",
+            "null"
+          ]
+        },
+        "delta": {
+          "format": "double",
+          "type": [
+            "number",
+            "null"
+          ]
+        },
+        "delta_pct": {
+          "format": "double",
+          "type": [
+            "number",
+            "null"
+          ]
+        },
+        "name": {
+          "type": "string"
+        },
+        "noise_floor": {
+          "description": "Raw repeat range in ms (threshold is k times this).",
+          "format": "double",
+          "type": [
+            "number",
+            "null"
+          ]
+        },
+        "status": {
+          "description": "paired, appeared, disappeared, or not_comparable.",
+          "type": "string"
+        }
+      },
+      "required": [
+        "name",
+        "status"
+      ],
+      "type": "object"
+    },
+    "Delta": {
+      "properties": {
+        "after": {
+          "format": "double",
+          "type": [
+            "number",
+            "null"
+          ]
+        },
+        "before": {
+          "format": "double",
+          "type": [
+            "number",
+            "null"
+          ]
+        },
+        "beyond_noise": {
+          "type": [
+            "boolean",
+            "null"
+          ]
+        },
+        "delta": {
+          "format": "double",
+          "type": [
+            "number",
+            "null"
+          ]
+        },
+        "delta_pct": {
+          "format": "double",
+          "type": [
+            "number",
+            "null"
+          ]
+        },
+        "noise_floor": {
+          "description": "Raw repeat range in ms (threshold is k times this).",
+          "format": "double",
+          "type": [
+            "number",
+            "null"
+          ]
+        },
+        "status": {
+          "description": "paired, appeared, disappeared, or not_comparable.",
+          "type": "string"
+        }
+      },
+      "required": [
+        "status"
+      ],
+      "type": "object"
+    },
+    "Kind": {
+      "enum": [
+        "pass",
+        "gap",
+        "scope"
+      ],
+      "type": "string"
+    },
+    "TermDiff": {
+      "properties": {
+        "after": {
+          "format": "double",
+          "type": [
+            "number",
+            "null"
+          ]
+        },
+        "after_kind": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Kind"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "after_parent": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "before": {
+          "format": "double",
+          "type": [
+            "number",
+            "null"
+          ]
+        },
+        "before_kind": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Kind"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "before_parent": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "beyond_noise": {
+          "type": [
+            "boolean",
+            "null"
+          ]
+        },
+        "counters": {
+          "items": {
+            "$ref": "#/$defs/CounterDiff"
+          },
+          "type": "array"
+        },
+        "delta": {
+          "format": "double",
+          "type": [
+            "number",
+            "null"
+          ]
+        },
+        "delta_pct": {
+          "format": "double",
+          "type": [
+            "number",
+            "null"
+          ]
+        },
+        "id": {
+          "type": "string"
+        },
+        "kind": {
+          "$ref": "#/$defs/Kind"
+        },
+        "label": {
+          "type": "string"
+        },
+        "noise_floor": {
+          "description": "Raw repeat range in ms (threshold is k times this).",
+          "format": "double",
+          "type": [
+            "number",
+            "null"
+          ]
+        },
+        "parent": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "share_after": {
+          "format": "double",
+          "type": [
+            "number",
+            "null"
+          ]
+        },
+        "share_before": {
+          "format": "double",
+          "type": [
+            "number",
+            "null"
+          ]
+        },
+        "status": {
+          "description": "paired, appeared, disappeared, or not_comparable.",
+          "type": "string"
+        }
+      },
+      "required": [
+        "id",
+        "label",
+        "kind",
+        "status",
+        "counters"
+      ],
+      "type": "object"
+    },
+    "PerfDiff": {
+      "properties": {
+        "frame": {
+          "$ref": "#/$defs/Delta"
+        },
+        "noise_k": {
+          "format": "double",
+          "type": "number"
+        },
+        "schema": {
+          "type": "string"
+        },
+        "terms": {
+          "items": {
+            "$ref": "#/$defs/TermDiff"
+          },
+          "type": "array"
+        },
+        "unattributed_after": {
+          "format": "double",
+          "type": "number"
+        },
+        "unattributed_before": {
+          "format": "double",
+          "type": "number"
+        },
+        "unit": {
+          "type": "string"
+        },
+        "warnings": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        }
+      },
+      "required": [
+        "schema",
+        "unit",
+        "noise_k",
+        "frame",
+        "unattributed_before",
+        "unattributed_after",
+        "terms",
+        "warnings"
+      ],
+      "title": "PerfDiff",
+      "type": "object"
+    },
+    "PerfError": {
+      "properties": {
+        "message": {
+          "type": "string"
+        },
+        "path": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "path",
+        "message"
+      ],
+      "type": "object"
     }
   }
 }

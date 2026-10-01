@@ -3,6 +3,7 @@
 //!
 //! See `docs/design.md` for the frozen contracts.
 
+pub mod ablate;
 pub mod bisect;
 pub mod buffer;
 pub mod compare;
@@ -23,6 +24,7 @@ pub mod judge_stats;
 pub mod judge_vote;
 pub mod meta;
 pub mod paths;
+pub mod perf;
 pub mod properties;
 pub mod rank;
 pub mod regions;

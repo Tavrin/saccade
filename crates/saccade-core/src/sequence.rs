@@ -383,6 +383,9 @@ pub fn run_sequence(
         }
     }
     let report = Report {
+        perf_diff: None,
+        perf_errors: Vec::new(),
+        combined_verdict: None,
         schema: REPORT_SCHEMA.into(),
         tool_version: env!("CARGO_PKG_VERSION").into(),
         generated_at_unix: SystemTime::now()

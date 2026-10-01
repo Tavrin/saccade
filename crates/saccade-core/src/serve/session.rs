@@ -71,16 +71,18 @@ pub(crate) fn is_built(state: &State, id: &str) -> bool {
 
 /// Everything about a directory that changes the comparison: names, sizes and
 /// modification times of its images and sidecars.
-fn fingerprint(dir: &Path, meta_name: &str) -> Vec<u8> {
+fn fingerprint(dir: &Path, meta_name: &str, perf_name: &str) -> Vec<u8> {
     let mut out = Vec::new();
-    let mut files: Vec<(String, u64, u64)> = Vec::new();
+    let mut files: Vec<(String, u64, u64, String)> = Vec::new();
     for e in walkdir::WalkDir::new(dir)
         .follow_links(false)
         .into_iter()
         .flatten()
     {
         let name = e.file_name().to_string_lossy().into_owned();
-        if !e.file_type().is_file() || !(is_image_name(&name) || name.ends_with(meta_name)) {
+        if !e.file_type().is_file()
+            || !(is_image_name(&name) || name.ends_with(meta_name) || name == perf_name)
+        {
             continue;
         }
         let (len, mtime) = e.metadata().map_or((0, 0), |m| {
@@ -96,13 +98,18 @@ fn fingerprint(dir: &Path, meta_name: &str) -> Vec<u8> {
             .path()
             .strip_prefix(dir)
             .map(|p| p.to_string_lossy().into_owned())
-            .unwrap_or(name);
-        files.push((rel, len, mtime));
+            .unwrap_or_else(|_| name.clone());
+        let hash = if name == perf_name && len <= 4 * 1024 * 1024 {
+            crate::run::sha256_file(e.path()).unwrap_or_default()
+        } else {
+            String::new()
+        };
+        files.push((rel, len, mtime, hash));
     }
     files.sort();
     out.extend_from_slice(dir.to_string_lossy().as_bytes());
-    for (rel, len, mtime) in files {
-        out.extend_from_slice(format!("|{rel}:{len}:{mtime}").as_bytes());
+    for (rel, len, mtime, hash) in files {
+        out.extend_from_slice(format!("|{rel}:{len}:{mtime}:{hash}").as_bytes());
     }
     out
 }
@@ -113,13 +120,16 @@ pub(crate) fn session_id(state: &State, spec: &Spec) -> String {
     let mut parts: Vec<Vec<u8>> = spec
         .dirs
         .iter()
-        .map(|d| fingerprint(d, &state.view.meta.name))
+        .map(|d| fingerprint(d, &state.view.meta.name, &state.view.perf.name))
         .collect();
     let template = ViewOptions {
         labels: None,
         ..state.view.clone()
     };
     parts.push(format!("{template:?}").into_bytes());
+    if let Some(p) = &state.view.perf.noise {
+        parts.push(std::fs::read(p).unwrap_or_default());
+    }
     parts.push(
         format!(
             "{:?}|{}|{}",

@@ -73,6 +73,8 @@ pub struct ViewOptions {
     /// difference and non-finite mask images, timing deltas). Not run for a
     /// blind view.
     pub diagnostics: crate::diagnostics::DiagnosticsConfig,
+    /// Run-level performance evidence.
+    pub perf: crate::perf::PerfOptions,
     /// Name globs to include; empty includes all.
     pub entries: Vec<String>,
     /// Opt in to absolute source paths.
@@ -92,6 +94,7 @@ impl Default for ViewOptions {
             regions: Vec::new(),
             meta: crate::meta::MetaOptions::default(),
             diagnostics: crate::diagnostics::DiagnosticsConfig::default(),
+            perf: crate::perf::PerfOptions::default(),
             entries: Vec::new(),
             record_absolute_paths: false,
         }
@@ -268,6 +271,22 @@ pub struct ViewModel {
     pub dirs: Vec<String>,
     /// The image sets, sorted by name.
     pub sets: Vec<ViewSet>,
+    /// Run-level attribution against the reference, absent from blind views.
+    #[serde(skip_serializing_if = "Vec::is_empty")]
+    pub perf_diff: Vec<ViewPerf>,
+}
+
+/// Run-level evidence for one viewer directory against the reference.
+#[derive(Debug, Clone, Serialize)]
+pub struct ViewPerf {
+    /// Candidate directory index.
+    pub run: usize,
+    /// Attribution evidence.
+    pub diff: Option<crate::perf::PerfDiff>,
+    /// Malformed performance error entries.
+    pub errors: Vec<crate::perf::PerfError>,
+    /// Image and performance evidence.
+    pub combined_verdict: String,
 }
 
 /// A human verdict on one image set.
@@ -902,6 +921,7 @@ pub fn build_view(dirs: &[PathBuf], out_dir: &Path, opts: &ViewOptions) -> Resul
     }
     crate::compare::check_ppd(opts.pixels_per_degree)?;
     opts.diagnostics.validate()?;
+    opts.perf.validate()?;
     let meta = opts.meta.checker()?;
     let reference = resolve_reference(opts.reference.as_deref(), dirs, &labels)?;
     // Blind pages carry neutral labels only; the true ones go to the key file.
@@ -1232,7 +1252,48 @@ pub fn build_view(dirs: &[PathBuf], out_dir: &Path, opts: &ViewOptions) -> Resul
         }
         format!("{:016x}", fnv1a(key.as_bytes()))
     };
+    let mut perf_diff = Vec::new();
+    if !opts.blind {
+        for (i, dir) in dirs.iter().enumerate().filter(|(i, _)| *i != reference) {
+            let (diff, mut errors) = crate::perf::pair(&dirs[reference], dir, &opts.perf)?;
+            for error in &mut errors {
+                if !opts.record_absolute_paths {
+                    error.path = crate::paths::record(Path::new(&error.path), out_dir, false);
+                }
+            }
+            let identical = !sets.is_empty()
+                && sets.iter().all(|s| {
+                    s.panes
+                        .get(i)
+                        .is_some_and(|p| p.error.is_none() && p.path.is_some())
+                        && s.panes
+                            .get(reference)
+                            .is_some_and(|p| p.error.is_none() && p.path.is_some())
+                        && crate::compare::native_samples_identical(
+                            &dirs[reference].join(&s.name),
+                            &dirs[i].join(&s.name),
+                        )
+                });
+            let image = if identical {
+                "image bit-identical"
+            } else {
+                "image changed or not comparable"
+            };
+            if diff.is_some() || !errors.is_empty() {
+                perf_diff.push(ViewPerf {
+                    run: i,
+                    combined_verdict: diff.as_ref().map_or_else(
+                        || format!("{image} · performance unavailable"),
+                        |d| format!("{image} · {}", d.verdict()),
+                    ),
+                    diff,
+                    errors,
+                });
+            }
+        }
+    }
     let mut model = ViewModel {
+        perf_diff,
         schema: VIEW_SCHEMA.to_string(),
         tool_version: env!("CARGO_PKG_VERSION").to_string(),
         generated_at_unix,

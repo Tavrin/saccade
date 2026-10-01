@@ -159,7 +159,7 @@
       card.appendChild(el('h3', null, [r.label, r.pairing !== 'name' ? el('span', { cls: 'chip', text: 'paired by ' + (r.pairing === 'position' ? 'position' : 'hand') }) : null]));
       card.appendChild(el('div', { cls: 'path', text: r.path }));
       if (r.no_visible_effect) {
-        card.appendChild(el('div', { cls: 'flag noeffect' }, [el('b', { text: 'No visible effect: ' }), 'this run changed nothing. Every image is bit-identical to ' + M.ref.label + '.']));
+        card.appendChild(el('div', { cls: 'flag noeffect' }, [el('b', { text: 'No visible effect: ' }), (r.perf_diff ? 'Every image is bit-identical to ' : 'this run changed nothing. Every image is bit-identical to ') + M.ref.label + '.']));
       }
       var refN = M.ref.images.length;
       if (r.mismatch && r.pairing === 'name') {
@@ -182,6 +182,7 @@
         card.appendChild(g);
       }
       if (r.config_error) card.appendChild(el('div', { cls: 'flag cfgerr', text: 'Run configuration not read: ' + r.config_error }));
+      if (r.perf_diff || (r.perf_errors || []).length) {var evidence=document.createElement('details');evidence.appendChild(el('summary',{text:'Performance evidence · '+r.flag}));var perf=document.createElement('div');window.saccadePerf.diff(perf,r.perf_diff,r.combined_verdict,r.flag);(r.perf_errors || []).forEach(function(e){perf.appendChild(el('p',{text:e.path+': '+e.message,cls:'perf-warning'}));});evidence.appendChild(perf);card.appendChild(evidence);}
       card.appendChild(statsLine(r));
       var acts = el('div', { cls: 'acts' });
       if (!STATIC) {
@@ -489,12 +490,14 @@
     });
     m.addEventListener('focusout', function () { $('tip').hidden = true; });
   }
+  $('show-ablation').addEventListener('click', function() {var host=$('ablation-evidence');host.hidden=!host.hidden;this.setAttribute('aria-expanded',String(!host.hidden));if(!host.hidden)window.saccadePerf.ablation(host,M);});
   function render() {
     $('loading').hidden = true;
     document.title = 'saccade overview: ' + M.ref.label + ' vs ' + M.runs.map(function (r) { return r.label; }).join(', ');
     renderHead();
     renderCfg();
     renderSummaries();
+    if (!$('ablation-evidence').hidden) window.saccadePerf.ablation($('ablation-evidence'),M);
     renderMatrix(false);
     renderContact(false);
     if (UI.manual >= 0 && !$('pairpanel').children.length) renderPair();

@@ -227,6 +227,9 @@ pub fn summary_value(report: &Report, report_json: &Path, top: usize) -> Value {
         "mode": serde_json::to_value(report.config.mode).unwrap_or(Value::Null),
         "labels": report.config.labels,
         "totals": report.totals,
+        "perf_diff": report.perf_diff,
+        "perf_errors": report.perf_errors,
+        "combined_verdict": report.combined_verdict,
         "failing": shown,
         "failing_omitted": failing.len().saturating_sub(top),
         "paths": {
@@ -254,6 +257,9 @@ pub fn summary_text(report: &Report, value: &Value) -> String {
         t.pass,
         t.total
     );
+    if let Some(v) = &report.combined_verdict {
+        out.push_str(&format!("\n{v}"));
+    }
     for e in failing_entries(report).into_iter().take(3) {
         let v = e.value.map_or(String::new(), |v| {
             format!(" {} {v:.4} > {}", metric_str(e.metric_used), e.threshold)
@@ -434,6 +440,9 @@ pub fn result_value(
         "verdict": if report.is_regression() { "regression" } else { "pass" },
         "mode": serde_json::to_value(report.config.mode).unwrap_or(Value::Null),
         "totals": report.totals,
+        "perf_diff": report.perf_diff,
+        "perf_errors": report.perf_errors,
+        "combined_verdict": report.combined_verdict,
         "failing": failing.iter().take(top).map(|e| lean_entry(e)).collect::<Vec<_>>(),
         "failing_omitted": failing.len().saturating_sub(top),
         "paths": {

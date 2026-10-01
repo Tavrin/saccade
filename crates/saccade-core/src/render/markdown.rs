@@ -310,6 +310,15 @@ impl Parts<'_> {
         out.push('\n');
         out.push_str(&heading(self.report));
         out.push_str("\n\n");
+        if let Some(v) = &self.report.combined_verdict {
+            out.push_str(&format!("{}\n\n", md_text(v)));
+        }
+        if let Some(diff) = &self.report.perf_diff {
+            out.push_str(&format!("{}\n\n", md_text(&diff.summary(3))));
+            for w in &diff.warnings {
+                out.push_str(&format!("{}\n\n", md_text(w)));
+            }
+        }
         if np > 0 {
             out.push_str(TABLE_HEAD);
             for e in &self.nonpass[..np] {

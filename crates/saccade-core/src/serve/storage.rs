@@ -146,7 +146,9 @@ pub(crate) fn snapshot(state: &State, rel: &str) -> Result<PathBuf, PathError> {
             };
             // Ignore unrelated files, but validate directories and all input links.
             let ft = entry.file_type().map_err(|_| PathError::Missing)?;
-            let relevant = is_image_name(&name) || name.ends_with(&state.view.meta.name);
+            let relevant = is_image_name(&name)
+                || name.ends_with(&state.view.meta.name)
+                || name == state.view.perf.name;
             if !ft.is_dir() && !ft.is_symlink() && !relevant {
                 continue;
             }
@@ -173,6 +175,11 @@ pub(crate) fn snapshot(state: &State, rel: &str) -> Result<PathBuf, PathError> {
                     meta.modified().ok(),
                     canonical.display()
                 ));
+                if name == state.view.perf.name && meta.len() <= 4 * 1024 * 1024 {
+                    let hash =
+                        crate::run::sha256_file(&resolved).map_err(|_| PathError::Missing)?;
+                    fingerprint.push(format!("{child}:perf-content:{hash}"));
+                }
                 files.push((child, resolved));
             }
         }

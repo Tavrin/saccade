@@ -1,6 +1,7 @@
 (function () {
   'use strict';
   var D = JSON.parse(document.getElementById('saccade-data').textContent);
+  if (!D.blind && D.perf_diff && D.perf_diff.length) { var perf=document.createElement('section');document.querySelector('main').prepend(perf);D.perf_diff.forEach(function(p){window.saccadePerf.diff(perf,p.diff,p.combined_verdict,D.labels[p.run]);p.errors.forEach(function(e){var row=document.createElement('p');row.textContent=e.path+': '+e.message;perf.appendChild(row);});}); }
   var UI = window.__saccadeUI;
   var $ = function (id) { return document.getElementById(id); };
   var LS_KEY = 'saccade-view.v1:' + D.id;

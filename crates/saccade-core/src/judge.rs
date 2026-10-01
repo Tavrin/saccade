@@ -586,6 +586,9 @@ pub struct EvidenceOptions {
 fn synthetic_report(entry: Entry, ppd: f32) -> Report {
     use crate::report::{Labels, MetaSettings, Mode, REPORT_SCHEMA, ReportConfig, Totals};
     Report {
+        perf_diff: None,
+        perf_errors: Vec::new(),
+        combined_verdict: None,
         schema: REPORT_SCHEMA.into(),
         tool_version: env!("CARGO_PKG_VERSION").into(),
         generated_at_unix: 0,

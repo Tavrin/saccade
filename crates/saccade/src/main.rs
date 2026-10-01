@@ -21,6 +21,7 @@ mod f1;
 mod judge_cmd;
 mod mcp;
 mod outdirs;
+mod perf_cmd;
 mod runs_cmd;
 mod s6;
 mod s6_mcp;
@@ -169,6 +170,8 @@ enum Command {
     Entries(f1::EntriesArgs),
     /// Calibrate thresholds from repeated captures of an unchanged build.
     Noise(f1::NoiseArgs),
+    /// Compare ablation arms against a base with image and performance evidence.
+    Ablate(perf_cmd::AblateArgs),
     /// Run the bundled example and explain its expected regression.
     Demo(f1::DemoArgs),
     /// Judge a report or ranking with a panel of models and humans.
@@ -303,6 +306,8 @@ enum Command {
         meta: MetaArgs,
         #[command(flatten)]
         require: MetaRequireArgs,
+        #[command(flatten)]
+        perf: perf_cmd::PerfArgs,
     },
     /// Check that a candidate build matches its parent: strict defaults
     /// (metric max, threshold 0), bit-identity reported per image.
@@ -355,6 +360,8 @@ enum Command {
         meta: MetaArgs,
         #[command(flatten)]
         require: MetaRequireArgs,
+        #[command(flatten)]
+        perf: perf_cmd::PerfArgs,
     },
     /// Copy captures over baselines.
     Approve {
@@ -435,6 +442,8 @@ enum Command {
         entries: Vec<String>,
         #[command(flatten)]
         meta: MetaArgs,
+        #[command(flatten)]
+        perf: perf_cmd::PerfArgs,
     },
     /// Serve a local web app for browsing a capture archive and comparing runs
     /// (127.0.0.1 only; the archive is never written to).
@@ -478,6 +487,8 @@ enum Command {
         hdr: HdrArgs,
         #[command(flatten)]
         meta: MetaArgs,
+        #[command(flatten)]
+        perf: perf_cmd::PerfArgs,
     },
     /// Compare whole runs against a reference run: per-run summary, an image
     /// matrix tinted by FLIP severity and a contact sheet, as a static HTML
@@ -519,6 +530,8 @@ enum Command {
         entries: Vec<String>,
         #[command(flatten)]
         meta: MetaArgs,
+        #[command(flatten)]
+        perf: perf_cmd::PerfArgs,
     },
     /// Turn a decisions file exported from a `--blind` view into one with the
     /// true directory labels, using the view's `blind-key.json`.
@@ -747,6 +760,7 @@ fn dispatch(command: Command, record_absolute_paths: bool) -> Result<u8, CliErro
         Command::Config(args) => f1::config(args),
         Command::Entries(args) => f1::entries(args),
         Command::Noise(args) => f1::noise(args, record_absolute_paths),
+        Command::Ablate(args) => perf_cmd::ablate(args, record_absolute_paths),
         Command::Demo(args) => f1::demo(args, record_absolute_paths),
         Command::Judge(args) => judge_cmd::judge(args),
         Command::Bisect(args) => s6::bisect(args),
@@ -895,9 +909,11 @@ fn dispatch(command: Command, record_absolute_paths: bool) -> Result<u8, CliErro
             entries,
             meta,
             require,
+            perf,
         } => {
             let mut cfg = load_config(config.as_deref())?;
             cfg.record_absolute_paths = record_absolute_paths;
+            perf.apply(&mut cfg.perf)?;
             cfg.entries = entries;
             cfg.allow_empty |= allow_empty;
             hdr.apply(&mut cfg.hdr)?;
@@ -941,9 +957,11 @@ fn dispatch(command: Command, record_absolute_paths: bool) -> Result<u8, CliErro
             entries,
             meta,
             require,
+            perf,
         } => {
             let mut cfg = load_config(config.as_deref())?;
             cfg.record_absolute_paths = record_absolute_paths;
+            perf.apply(&mut cfg.perf)?;
             cfg.entries = entries;
             cfg.allow_empty |= allow_empty;
             meta.apply(&mut cfg.meta);
@@ -1058,6 +1076,7 @@ fn dispatch(command: Command, record_absolute_paths: bool) -> Result<u8, CliErro
             open,
             hdr,
             meta,
+            perf,
         } => {
             let loaded = load_config(config.as_deref())?;
             let mut opts = saccade_core::serve::ServeOptions::new(roots.remove(0));
@@ -1077,6 +1096,8 @@ fn dispatch(command: Command, record_absolute_paths: bool) -> Result<u8, CliErro
             opts.view.regions = loaded.regions;
             opts.view.meta = loaded.meta;
             opts.view.diagnostics = loaded.diagnostics;
+            opts.view.perf = loaded.perf;
+            perf.apply(&mut opts.view.perf)?;
             hdr.apply(&mut opts.view.hdr)?;
             meta.apply(&mut opts.view.meta);
             if let Some(p) = ppd {
@@ -1137,6 +1158,7 @@ fn dispatch(command: Command, record_absolute_paths: bool) -> Result<u8, CliErro
             hdr,
             entries,
             meta,
+            perf,
         } => {
             let loaded = load_config(config.as_deref())?;
             let mut opts = ViewOptions {
@@ -1145,6 +1167,7 @@ fn dispatch(command: Command, record_absolute_paths: bool) -> Result<u8, CliErro
                 regions: loaded.regions,
                 meta: loaded.meta,
                 diagnostics: loaded.diagnostics,
+                perf: loaded.perf,
                 labels,
                 reference,
                 blind,
@@ -1152,6 +1175,7 @@ fn dispatch(command: Command, record_absolute_paths: bool) -> Result<u8, CliErro
                 key_out: key_out.clone(),
                 ..ViewOptions::default()
             };
+            perf.apply(&mut opts.perf)?;
             hdr.apply(&mut opts.hdr)?;
             meta.apply(&mut opts.meta);
             if let Some(p) = ppd {
@@ -1204,13 +1228,16 @@ fn dispatch(command: Command, record_absolute_paths: bool) -> Result<u8, CliErro
             hdr,
             entries,
             meta,
+            perf,
         } => {
             let loaded = load_config(config.as_deref())?;
             let mut opts = saccade_core::runs::RunsOptions {
                 entries,
                 meta: loaded.meta,
+                perf: loaded.perf,
                 ..saccade_core::runs::RunsOptions::default()
             };
+            perf.apply(&mut opts.perf)?;
             hdr.apply(&mut opts.hdr)?;
             meta.apply(&mut opts.meta);
             if let Some(p) = ppd {
@@ -1889,6 +1916,15 @@ fn text_table(report: &Report) -> String {
     }
     if let Some(headline) = saccade_core::render::identity_headline(report) {
         out.insert_str(0, &format!("{}\n\n", escape_control(&headline)));
+    }
+    if let Some(v) = &report.combined_verdict {
+        out.push_str(&format!("\n{}\n", escape_control(v)));
+    }
+    if let Some(d) = &report.perf_diff {
+        out.push_str(&format!("{}\n", escape_control(&d.summary(3))));
+        for w in &d.warnings {
+            out.push_str(&format!("warning: {}\n", escape_control(w)));
+        }
     }
     let t = &report.totals;
     out.push_str(&format!(

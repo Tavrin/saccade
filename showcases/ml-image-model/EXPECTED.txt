@@ -33,7 +33,7 @@ frame: thumbs/seed_105.png
 local_structure: Local structural change at center (67×45, 93% of error); rest of frame within noise.
 1. center 67x45 at (78,55) 93% of error, mean 0.22 max 0.76, hot px 1841 (6.66% of frame), box 10.9% of frame: hotspots/seed_105.png.d/h1.png
 
-pack: /mnt/linux-extra/moss-cargo-targets/saccade-showcase-reports/ml-image-model/explain
+pack: @REPORTS@/ml-image-model/explain
 === decision-request (exit 0) ===
 {
   "items": [

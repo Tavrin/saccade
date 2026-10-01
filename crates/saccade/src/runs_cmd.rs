@@ -96,8 +96,21 @@ fn text(model: &RunsModel, page: Option<&Path>) -> String {
     );
     for r in &model.runs {
         out.push_str(&format!("  {}: {}\n", r.label, r.summary));
+        if r.perf_diff.is_some() || !r.perf_errors.is_empty() {
+            out.push_str(&format!("    {} · {}\n", r.flag, r.combined_verdict));
+            if let Some(d) = &r.perf_diff {
+                out.push_str(&format!("    {}\n", d.summary(3)));
+            }
+            for e in &r.perf_errors {
+                out.push_str(&format!("    error: {e}\n"));
+            }
+        }
         if r.no_visible_effect {
-            out.push_str("    No visible effect: this run changed nothing.\n");
+            out.push_str(if r.perf_diff.is_some() {
+                "    No visible effect: every image is bit-identical.\n"
+            } else {
+                "    No visible effect: this run changed nothing.\n"
+            });
         }
         if r.mismatch && r.pairing == "name" {
             out.push_str(&format!(

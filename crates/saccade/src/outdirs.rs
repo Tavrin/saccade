@@ -30,6 +30,7 @@ pub(crate) fn warn(command: &Command, allow: bool) -> Result<(), CliError> {
         })),
         Command::Unblind { out, .. } => out.clone(),
         Command::Snapshot(args) => Some(args.out.clone()),
+        Command::Ablate(args) => Some(args.out.clone()),
         Command::Bisect(args) => Some(args.out.clone()),
         Command::Watch(args) => Some(args.out.clone()),
         Command::Judge(args) => match &args.sub {

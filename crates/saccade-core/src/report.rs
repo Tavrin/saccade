@@ -37,6 +37,15 @@ pub struct Report {
     pub totals: Totals,
     /// One entry per image name seen in either directory, sorted by `name`.
     pub entries: Vec<Entry>,
+    /// Run-wide attribution, present when both captures carry performance evidence.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub perf_diff: Option<crate::perf::PerfDiff>,
+    /// Malformed performance inputs (also represented by error entries).
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub perf_errors: Vec<crate::perf::PerfError>,
+    /// Image and performance evidence on one line.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub combined_verdict: Option<String>,
 }
 
 /// Run-wide settings recorded for reproducibility.
