@@ -250,15 +250,17 @@ pub struct ShiftEstimate {
 #[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct SignedDiff {
-    /// Mean of `capture - baseline` display luminance (encoded Rec. 709 for
-    /// LDR, linear for HDR). Positive is brighter.
+    /// Mean of `capture - baseline` over finite pixel pairs only. Luminance is
+    /// encoded Rec. 709 for LDR; for HDR, scene-linear Rec. 709 luminance is
+    /// clamped to `[0, 1]` on each side to bound the display scale. Positive is
+    /// brighter. Zero when there are no finite pairs.
     pub mean_delta: f64,
-    /// Fraction of pixels brighter by more than half a code value.
+    /// Fraction of finite pixel pairs brighter by more than half a code value.
     pub frac_brighter: f64,
-    /// Fraction of pixels darker by more than half a code value.
+    /// Fraction of finite pixel pairs darker by more than half a code value.
     pub frac_darker: f64,
     /// Luminance difference mapped to full colour in `signed_diff.png` (the
-    /// 99.5th percentile of the absolute difference, at least 0.004).
+    /// 99.5th percentile of finite absolute differences, at least 0.004).
     pub scale: f64,
 }
 
@@ -428,8 +430,8 @@ impl Pixels<'_> {
         }
     }
 
-    /// Display-referred luminance of pixel `i`: Rec. 709 of the encoded values
-    /// for LDR (as in `Properties`), of the linear values for HDR.
+    /// Rec. 709 luminance of pixel `i`: encoded for LDR (as in `Properties`),
+    /// scene-linear for HDR.
     fn luma(&self, i: usize) -> f32 {
         match self {
             Pixels::Ldr(img) => {
@@ -553,29 +555,35 @@ pub fn diagnose(req: &DiagnoseRequest<'_>) -> Result<DiagnoseOutput> {
         return Ok(out);
     }
 
-    // Signed difference, flat-frame statistics and the PNG.
-    let signed = signed_analysis(req, w, h, &mut out)?;
-    let flat_capture = signed.cap_std < 1.0e-3 && signed.base_std > 0.02;
-
-    // Non-finite samples.
+    // Recover non-finite locations before signed statistics: HDR decoding has
+    // already replaced those samples with finite values.
+    let mut nonfinite_codes = None;
     if let (Some(p), Some(path)) = (req.capture_properties, req.capture_path) {
         if p.nan_count + p.inf_count + p.negative_count > 0 {
-            out.diagnostics.nonfinite =
-                locate_nonfinite(path, &p, req.out, &mut out.nonfinite_mask)?;
+            if let Some((map, codes)) =
+                locate_nonfinite(path, &p, req.out, &mut out.nonfinite_mask)?
+            {
+                out.diagnostics.nonfinite = Some(map);
+                nonfinite_codes = Some(codes);
+            }
         }
     }
+
+    // Signed difference, flat-frame statistics and the PNG.
+    let signed = signed_analysis(req, w, h, nonfinite_codes.as_deref(), &mut out)?;
+    let flat_capture = signed.cap_std < 1.0e-3 && signed.base_std > 0.02;
 
     // Both hypotheses are fitted first, then their FLIP re-runs (the costly
     // part) go side by side.
     let analyse = mean0 >= NEGLIGIBLE_MEAN_FLIP;
     let fit = if analyse {
-        fit_tone(req.baseline, req.capture)
+        fit_tone(req.baseline, req.capture, nonfinite_codes.as_deref())
     } else {
         None
     };
     let t0 = Instant::now();
     let est = if analyse && cfg.shift_detection {
-        estimate_shift(req.baseline, req.capture)
+        estimate_shift(req.baseline, req.capture, nonfinite_codes.as_deref())
     } else {
         None
     };
@@ -813,7 +821,7 @@ struct Sample {
 
 /// Trimmed least-squares fit of `capture = gain * baseline + bias` per channel
 /// over the lower-gradient half of a sampling grid.
-fn fit_tone(base: Pixels<'_>, cap: Pixels<'_>) -> Option<ToneFit> {
+fn fit_tone(base: Pixels<'_>, cap: Pixels<'_>, nonfinite_codes: Option<&[u8]>) -> Option<ToneFit> {
     let (w, h) = base.dims();
     if w < 3 || h < 3 {
         return None;
@@ -827,11 +835,17 @@ fn fit_tone(base: Pixels<'_>, cap: Pixels<'_>) -> Option<ToneFit> {
             let i = y * w + x;
             let grad = (base.luma(i + 1) - base.luma(i - 1)).abs()
                 + (base.luma(i + w) - base.luma(i - w)).abs();
-            samples.push(Sample {
-                grad,
-                base: base.lin(i),
-                cap: cap.lin(i),
-            });
+            let (b, c) = (base.lin(i), cap.lin(i));
+            if grad.is_finite()
+                && b.iter().chain(&c).all(|v| v.is_finite())
+                && !nonfinite_pixel(nonfinite_codes, i)
+            {
+                samples.push(Sample {
+                    grad,
+                    base: b,
+                    cap: c,
+                });
+            }
             x += stride;
         }
         y += stride;
@@ -883,13 +897,13 @@ fn robust_fit(pairs: &[(f32, f32)]) -> Option<(f64, f64, bool)> {
     let mut keep: Vec<(f32, f32)> = pairs.to_vec();
     let mut model = ols(&keep)?;
     for _ in 0..3 {
-        let res: Vec<f32> = pairs
+        let res: Vec<f64> = pairs
             .iter()
-            .map(|&(x, y)| (f64::from(y) - model.0 * f64::from(x) - model.1).abs() as f32)
+            .map(|&(x, y)| (f64::from(y) - model.0 * f64::from(x) - model.1).abs())
             .collect();
         let mut sorted = res.clone();
         let k = (sorted.len() * 4 / 5).min(sorted.len() - 1);
-        let thr = *sorted.select_nth_unstable_by(k, f32::total_cmp).1;
+        let thr = *sorted.select_nth_unstable_by(k, f64::total_cmp).1;
         let next: Vec<(f32, f32)> = pairs
             .iter()
             .zip(&res)
@@ -985,6 +999,7 @@ fn luma_plane(
     cw: usize,
     ch: usize,
     f: usize,
+    nonfinite_codes: Option<&[u8]>,
 ) -> (Vec<f32>, usize, usize) {
     let (w, _) = px.dims();
     let (ow, oh) = (cw.div_ceil(f), ch.div_ceil(f));
@@ -994,8 +1009,16 @@ fn luma_plane(
             let (mut sum, mut n) = (0.0f32, 0.0f32);
             for yy in (oy * f)..((oy + 1) * f).min(ch) {
                 for xx in (ox * f)..((ox + 1) * f).min(cw) {
-                    let [r, g, b] = px.lin((y0 + yy) * w + x0 + xx);
-                    let y = (0.2126 * r + 0.7152 * g + 0.0722 * b).max(0.0);
+                    let i = (y0 + yy) * w + x0 + xx;
+                    if nonfinite_pixel(nonfinite_codes, i) {
+                        continue;
+                    }
+                    let [r, g, b] = px.lin(i);
+                    let y = 0.2126 * r + 0.7152 * g + 0.0722 * b;
+                    if !y.is_finite() {
+                        continue;
+                    }
+                    let y = y.max(0.0);
                     sum += (y / (1.0 + y)).sqrt();
                     n += 1.0;
                 }
@@ -1186,13 +1209,17 @@ fn phase_correlate(base: &[f32], cap: &[f32], w: usize, h: usize) -> Option<(f64
 /// Shift of `cap` against `base`: a coarse estimate on a plane of at most
 /// [`SHIFT_COARSE_MAX`] pixels per side, refined at full resolution on a
 /// window of the same size.
-fn estimate_shift(base: Pixels<'_>, cap: Pixels<'_>) -> Option<RawShift> {
+fn estimate_shift(
+    base: Pixels<'_>,
+    cap: Pixels<'_>,
+    nonfinite_codes: Option<&[u8]>,
+) -> Option<RawShift> {
     let (w, h) = base.dims();
     let f = w.max(h).div_ceil(SHIFT_COARSE_MAX).max(1);
     let (mut rx, mut ry) = (0isize, 0isize);
     if f > 1 {
-        let (a, aw, ah) = luma_plane(base, 0, 0, w, h, f);
-        let (b, _, _) = luma_plane(cap, 0, 0, w, h, f);
+        let (a, aw, ah) = luma_plane(base, 0, 0, w, h, f, None);
+        let (b, _, _) = luma_plane(cap, 0, 0, w, h, f, nonfinite_codes);
         let (dx, dy, _) = phase_correlate(&a, &b, aw, ah)?;
         rx = (dx * f as f64).round() as isize;
         ry = (dy * f as f64).round() as isize;
@@ -1209,10 +1236,10 @@ fn estimate_shift(base: Pixels<'_>, cap: Pixels<'_>) -> Option<RawShift> {
         Some((o, size))
     };
     let ((ox, cw), (oy, ch)) = (window(w, rx)?, window(h, ry)?);
-    let (a, aw, ah) = luma_plane(base, ox, oy, cw, ch, 1);
+    let (a, aw, ah) = luma_plane(base, ox, oy, cw, ch, 1, None);
     let cap_x = (ox as isize + rx) as usize;
     let cap_y = (oy as isize + ry) as usize;
-    let (b, _, _) = luma_plane(cap, cap_x, cap_y, cw, ch, 1);
+    let (b, _, _) = luma_plane(cap, cap_x, cap_y, cw, ch, 1, nonfinite_codes);
     let (ex, ey, confidence) = phase_correlate(&a, &b, aw, ah)?;
     Some(RawShift {
         dx: rx as f64 + ex,
@@ -1315,16 +1342,28 @@ fn signed_analysis(
     req: &DiagnoseRequest<'_>,
     w: usize,
     h: usize,
+    nonfinite_codes: Option<&[u8]>,
     out: &mut DiagnoseOutput,
 ) -> Result<SignedStats> {
     let n = w * h;
     let mut delta = Vec::with_capacity(n);
     let (mut sum, mut brighter, mut darker) = (0.0f64, 0u64, 0u64);
     let (mut sb, mut sbb, mut sc, mut scc) = (0.0f64, 0.0f64, 0.0f64, 0.0f64);
+    let mut valid = 0u64;
     for i in 0..n {
         let (b, c) = (req.baseline.luma(i), req.capture.luma(i));
-        let d = if (c - b).is_finite() { c - b } else { 0.0 };
+        if !b.is_finite() || !c.is_finite() || nonfinite_pixel(nonfinite_codes, i) {
+            delta.push(f32::NAN);
+            continue;
+        }
+        // Bound HDR to display luminance without letting extreme finite
+        // outliers stretch even the lowest histogram bin across the image.
+        let display = |px: Pixels<'_>, y: f32| {
+            if px.is_ldr() { y } else { y.clamp(0.0, 1.0) }
+        };
+        let d = display(req.capture, c) - display(req.baseline, b);
         delta.push(d);
+        valid += 1;
         sum += f64::from(d);
         if d > SIGNED_EPSILON {
             brighter += 1;
@@ -1337,17 +1376,20 @@ fn signed_analysis(
         sc += c;
         scc += c * c;
     }
-    let nf = n as f64;
+    let nf = valid.max(1) as f64;
     let std = |s: f64, ss: f64| (ss / nf - (s / nf) * (s / nf)).max(0.0).sqrt();
 
-    // Robust scale: the 99.5th percentile of |delta| from a histogram.
-    let max_abs = delta.iter().fold(0.0f32, |m, d| m.max(d.abs()));
+    // Robust scale: the 99.5th percentile of finite |delta| from a histogram.
+    let max_abs = delta
+        .iter()
+        .filter(|d| d.is_finite())
+        .fold(0.0f32, |m, d| m.max(d.abs()));
     let scale = if max_abs <= 0.0 {
         SIGNED_MIN_SCALE
     } else {
         const BINS: usize = 4096;
         let mut hist = vec![0u64; BINS];
-        for d in &delta {
+        for d in delta.iter().filter(|d| d.is_finite()) {
             let bin = ((d.abs() / max_abs) * (BINS as f32 - 1.0)) as usize;
             hist[bin.min(BINS - 1)] += 1;
         }
@@ -1371,7 +1413,15 @@ fn signed_analysis(
 
     if let Some(o) = req.out {
         let mut img = image::RgbImage::new(w as u32, h as u32);
-        for (px, &d) in img.pixels_mut().zip(&delta) {
+        for (i, (px, &d)) in img.pixels_mut().zip(&delta).enumerate() {
+            if !d.is_finite() {
+                px.0 = match nonfinite_codes.and_then(|codes| codes.get(i)) {
+                    Some(1) => [255, 0, 255],
+                    Some(2) => [255, 220, 0],
+                    _ => [128, 128, 128],
+                };
+                continue;
+            }
             let t = (d.abs() / scale).clamp(0.0, 1.0);
             let (zero, full): ([f32; 3], [f32; 3]) = if d >= 0.0 {
                 ([30.0, 30.0, 34.0], [255.0, 140.0, 0.0])
@@ -1408,14 +1458,21 @@ fn save_png(img: &image::RgbImage, o: DiagOut<'_>, file: &str) -> Result<String>
 // Non-finite samples
 // ---------------------------------------------------------------------------
 
+fn nonfinite_pixel(codes: Option<&[u8]>, i: usize) -> bool {
+    codes
+        .and_then(|codes| codes.get(i))
+        .is_some_and(|&code| code == 1 || code == 2)
+}
+
 /// Re-reads the HDR capture, writes the mask (magenta NaN, yellow infinite,
-/// cyan negative, black elsewhere) and boxes the first clusters.
+/// cyan negative, black elsewhere), boxes the first clusters and returns the
+/// per-pixel codes so diagnostics can exclude replaced non-finite samples.
 fn locate_nonfinite(
     path: &Path,
     props: &Properties,
     out: Option<DiagOut<'_>>,
     mask_path: &mut Option<String>,
-) -> Result<Option<NonFiniteMap>> {
+) -> Result<Option<(NonFiniteMap, Vec<u8>)>> {
     let Ok(img) = image::open(path) else {
         return Ok(None);
     };
@@ -1451,6 +1508,7 @@ fn locate_nonfinite(
         }
         *mask_path = Some(save_png(&mask, o, "nonfinite_mask.png")?);
     }
+    let codes = code.clone();
     let (mut clusters, mut count) = (Vec::new(), 0u64);
     let mut stack: Vec<usize> = Vec::new();
     for start in 0..code.len() {
@@ -1487,13 +1545,16 @@ fn locate_nonfinite(
             });
         }
     }
-    Ok(Some(NonFiniteMap {
-        nan: props.nan_count,
-        inf: props.inf_count,
-        negative: props.negative_count,
-        cluster_count: count,
-        clusters,
-    }))
+    Ok(Some((
+        NonFiniteMap {
+            nan: props.nan_count,
+            inf: props.inf_count,
+            negative: props.negative_count,
+            cluster_count: count,
+            clusters,
+        },
+        codes,
+    )))
 }
 
 // ---------------------------------------------------------------------------
@@ -1904,6 +1965,131 @@ mod tests {
             out: None,
         };
         diagnose(&req).expect("diagnose").diagnostics
+    }
+
+    #[test]
+    fn hdr_signed_difference_ignores_nonfinite_samples_and_stays_visible() {
+        let dir = tempfile::tempdir().expect("tempdir");
+        let base_path = dir.path().join("base.exr");
+        let cap_path = dir.path().join("cap.exr");
+        let base =
+            image::Rgb32FImage::from_fn(64, 64, |x, _| image::Rgb([0.125 + x as f32 / 256.0; 3]));
+        let mut cap = base.clone();
+        for p in cap.pixels_mut() {
+            p.0 = p.0.map(|v| v * 2.0); // A real +1-stop exposure change.
+        }
+        cap.get_pixel_mut(0, 0).0[0] = f32::NAN;
+        cap.get_pixel_mut(1, 0).0[1] = f32::INFINITY;
+        cap.get_pixel_mut(2, 0).0[2] = f32::NEG_INFINITY;
+        cap.get_pixel_mut(3, 0).0 = [1.0e15; 3];
+        base.save(&base_path).expect("save baseline EXR");
+        cap.save(&cap_path).expect("save capture EXR");
+        let base = crate::hdr::decode_hdr(&base_path).expect("decode baseline");
+        let cap = crate::hdr::decode_hdr(&cap_path).expect("decode capture");
+        let opts = CompareOptions {
+            hdr: crate::hdr::HdrConfig {
+                start_exposure: Some(0.0),
+                stop_exposure: Some(0.0),
+                num_exposures: Some(1),
+                ..Default::default()
+            },
+            ..Default::default()
+        };
+        let (cmp, _) = compare_hdr(&cap, &base, &opts).expect("compare HDR");
+        let cfg = DiagnosticsConfig {
+            shift_detection: false,
+            ..Default::default()
+        };
+        let req = DiagnoseRequest {
+            baseline: Pixels::Hdr(&base),
+            capture: Pixels::Hdr(&cap),
+            comparison: &cmp,
+            flip: &opts,
+            bit_identical: Some(false),
+            baseline_properties: Some(crate::hdr::validate_hdr(&base)),
+            capture_properties: Some(crate::hdr::validate_hdr(&cap)),
+            hotspots: &[],
+            hotspot_options: HotspotOptions::default(),
+            config: &cfg,
+            capture_path: Some(&cap_path),
+            out: Some(DiagOut {
+                report_dir: dir.path(),
+                name: "hdr.d",
+            }),
+        };
+        let mut result = diagnose(&req).expect("diagnose HDR");
+        let signed = result
+            .diagnostics
+            .signed
+            .as_ref()
+            .expect("signed statistics");
+        eprintln!("HDR regression pair signed scale: {:.9e}", signed.scale);
+        assert!(signed.scale.is_finite() && (0.35..=0.4).contains(&signed.scale));
+        assert!((0.24..=0.26).contains(&signed.mean_delta));
+        assert_eq!(signed.frac_brighter, 1.0);
+        assert_eq!(signed.frac_darker, 0.0);
+        let png = image::open(
+            dir.path()
+                .join(result.signed_diff.as_ref().expect("signed PNG")),
+        )
+        .expect("read signed PNG")
+        .to_rgb8();
+        let mask = image::open(
+            dir.path()
+                .join(result.nonfinite_mask.as_ref().expect("nonfinite PNG")),
+        )
+        .expect("read nonfinite PNG")
+        .to_rgb8();
+        for x in 0..3 {
+            assert_eq!(png.get_pixel(x, 0), mask.get_pixel(x, 0));
+        }
+        assert_ne!(png.get_pixel(8, 20), png.get_pixel(56, 20));
+        assert!(png.get_pixel(8, 20).0[0] > 100);
+        assert!(png.get_pixel(56, 20).0[0] > 200);
+
+        // In-memory HDR inputs may still hold raw non-finite samples. Neither
+        // the trimmed tone fit nor box-averaged shift luminance may use them.
+        let mut raw_cap = base.clone();
+        raw_cap.data = raw_cap.data.iter().map(|v| v * 2.0).collect();
+        for (i, v) in [
+            (650, f32::NAN),
+            (715, f32::INFINITY),
+            (780, f32::NEG_INFINITY),
+        ] {
+            raw_cap.data[i * 3] = v;
+        }
+        let fit = fit_tone(Pixels::Hdr(&base), Pixels::Hdr(&raw_cap), None).expect("finite fit");
+        for c in 0..3 {
+            assert!((fit.gain[c] - 2.0).abs() < 1.0e-6);
+            assert!(fit.bias[c].abs() < 1.0e-6);
+        }
+        let (plane, _, _) = luma_plane(Pixels::Hdr(&raw_cap), 0, 0, 64, 64, 8, None);
+        assert!(plane.iter().all(|v| v.is_finite()));
+
+        // With no finite pairs, all statistics have defined zero values and
+        // every pixel uses the neutral non-finite colour.
+        raw_cap.data.fill(f32::INFINITY);
+        let invalid_req = DiagnoseRequest {
+            capture: Pixels::Hdr(&raw_cap),
+            capture_path: None,
+            ..req
+        };
+        let stats = signed_analysis(&invalid_req, 64, 64, None, &mut result)
+            .expect("all-nonfinite signed analysis");
+        let signed = result
+            .diagnostics
+            .signed
+            .as_ref()
+            .expect("empty statistics");
+        assert_eq!(signed.scale, f64::from(SIGNED_MIN_SCALE));
+        assert_eq!(signed.mean_delta, 0.0);
+        assert_eq!(signed.frac_brighter, 0.0);
+        assert_eq!(signed.frac_darker, 0.0);
+        assert_eq!((stats.base_std, stats.cap_std), (0.0, 0.0));
+        let png = image::open(dir.path().join(result.signed_diff.expect("neutral PNG")))
+            .expect("read neutral PNG")
+            .to_rgb8();
+        assert!(png.pixels().all(|p| p.0 == [128, 128, 128]));
     }
 
     #[test]

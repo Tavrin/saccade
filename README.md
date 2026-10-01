@@ -2,12 +2,27 @@
 
 Perceptual visual-regression testing for renderers, game engines and graphics code, built on NVIDIA FLIP.
 
-- **What it is:** a CLI and a GitHub Action. It compares a directory of baseline images with a directory of fresh captures and writes an HTML report (side by side, swipe, flicker, heatmap), a JSON report and a Markdown summary. It exits non-zero on a regression.
-- **Who it is for:** people who test rendered output: graphics programmers, engine and tools teams, shader and look-dev work, anyone who needs a CI gate on screenshots or a way to review two renders by eye.
-- **Why not pixelmatch, ImageMagick `compare` or RMSE:** they count how many pixels differ, or by how much. A 1-pixel shift of fine detail, a 1-bit dither change and a visible colour error can score alike, so any threshold is either too noisy or too blind for anti-aliased, noisy rendered images. FLIP models how a person sees the difference (colour, contrast sensitivity, spatial frequency, viewing distance) and scores a change by how visible it is. [Reading FLIP numbers](#reading-flip-numbers) has measured examples.
-- **Refuses a verdict on a mismatched comparison:** if the two runs were captured with different settings (a different renderer mode, resolution or driver), flipdiff reports an error instead of a pass or a fail. See [Configuration sidecars](#refuse-comparisons-made-under-different-settings).
+<p align="center"><img src="docs/images/showcase-swipe.gif" alt="Swipe between a baseline and a capture where the button label changed from Export CSV to Delete data; the FLIP heatmap and a numbered hotspot box mark the change" width="760"><br><sub>The swipe from the showcase page, on the UI case. The HTML report has the same swipe, heatmap and hotspot views.</sub></p>
 
-![HTML report with a classified regression, timing delta and numbered hotspots](docs/images/report.png)
+- **Scores how visible a change is.** pixelmatch, ImageMagick `compare` and RMSE count how many pixels differ, or by how much, so a 1-pixel shift of fine detail, a 1-bit dither change and a visible colour error can score alike. FLIP models how a person sees the difference (colour, contrast sensitivity, spatial frequency, viewing distance). [Reading FLIP numbers](#reading-flip-numbers) has measured examples.
+- **Says where and what changed.** A CLI and a GitHub Action compare a directory of baselines with fresh captures. Each failure gets numbered hotspot boxes and a plain-English description of the change, such as a global tone shift or a local structural change. The HTML report has side by side, swipe, flicker and heatmap views; JSON and Markdown come with it. The exit code is 1 on a regression.
+- **Refuses a verdict on a mismatched comparison.** Given capture metadata, a run made with a different renderer mode, resolution or driver is reported as an error, not as a pass or a fail. See [Configuration sidecars](#refuse-comparisons-made-under-different-settings).
+
+```sh
+git clone https://github.com/Tavrin/flipdiff && cd flipdiff
+cargo run --release -p flipdiff -- compare examples/baseline examples/capture --out report
+```
+
+**[Showcase](https://tavrin.github.io/flipdiff/showcase/)**: eight reproducible use cases with the exact commands, images and output. The page is [`docs/showcase/index.html`](docs/showcase/index.html) and works offline.
+
+## Use cases at a glance
+
+<table>
+<tr><td width="25%" valign="top"><a href="https://tavrin.github.io/flipdiff/showcase/#webapp-ui"><img src="docs/showcase/media/webapp-ui/thumb.png" alt="UI screenshots: baseline and FLIP heatmap" width="100%"></a><br><b><a href="https://tavrin.github.io/flipdiff/showcase/#webapp-ui">UI screenshots</a></b><br>A button label changed; the clock changes every run.</td><td width="25%" valign="top"><a href="https://tavrin.github.io/flipdiff/showcase/#cover-art"><img src="docs/showcase/media/cover-art/thumb.png" alt="Cover art and assets: baseline and FLIP heatmap" width="100%"></a><br><b><a href="https://tavrin.github.io/flipdiff/showcase/#cover-art">Cover art and assets</a></b><br>Tint, crop and JPEG quality 40, told apart.</td><td width="25%" valign="top"><a href="https://tavrin.github.io/flipdiff/showcase/#texture-compression"><img src="docs/showcase/media/texture-compression/thumb.png" alt="Texture compression: baseline and FLIP heatmap" width="100%"></a><br><b><a href="https://tavrin.github.io/flipdiff/showcase/#texture-compression">Texture compression</a></b><br>Five lossy encodings ranked by visible error.</td><td width="25%" valign="top"><a href="https://tavrin.github.io/flipdiff/showcase/#upscaler"><img src="docs/showcase/media/upscaler/thumb.png" alt="Upscalers and shimmer: baseline and FLIP heatmap" width="100%"></a><br><b><a href="https://tavrin.github.io/flipdiff/showcase/#upscaler">Upscalers and shimmer</a></b><br>Filters ranked; flicker measured over a pan.</td></tr>
+<tr><td width="25%" valign="top"><a href="https://tavrin.github.io/flipdiff/showcase/#lod-transition"><img src="docs/showcase/media/lod-transition/thumb.png" alt="LOD pops: baseline and FLIP heatmap" width="100%"></a><br><b><a href="https://tavrin.github.io/flipdiff/showcase/#lod-transition">LOD pops</a></b><br>One frame loses its detail. Which one?</td><td width="25%" valign="top"><a href="https://tavrin.github.io/flipdiff/showcase/#ml-image-model"><img src="docs/showcase/media/ml-image-model/thumb.png" alt="Image-model checkpoints: baseline and FLIP heatmap" width="100%"></a><br><b><a href="https://tavrin.github.io/flipdiff/showcase/#ml-image-model">Image-model checkpoints</a></b><br>Same seeds, two checkpoints, judge-ready crops.</td><td width="25%" valign="top"><a href="https://tavrin.github.io/flipdiff/showcase/#render-gbuffer"><img src="docs/showcase/media/render-gbuffer/thumb.png" alt="G-buffers: baseline and FLIP heatmap" width="100%"></a><br><b><a href="https://tavrin.github.io/flipdiff/showcase/#render-gbuffer">G-buffers</a></b><br>Depth, normals and motion in their own units.</td><td width="25%" valign="top"><a href="https://tavrin.github.io/flipdiff/showcase/#perf-identity"><img src="docs/showcase/media/perf-identity/thumb.png" alt="Optimization identity: baseline and FLIP heatmap" width="100%"></a><br><b><a href="https://tavrin.github.io/flipdiff/showcase/#perf-identity">Optimization identity</a></b><br>Bit-identity per image; one pixel moved.</td></tr>
+</table>
+
+The data is procedural ([`showcases/`](showcases)); `scripts/run-showcases.sh` reproduces each case's output byte for byte. Thumbnails show the baseline on the left and the capture under its FLIP heatmap on the right.
 
 ## Try it in 30 seconds
 
@@ -40,6 +55,8 @@ xdg-open report/index.html     # Linux
 open report/index.html         # macOS
 start report\index.html        # Windows
 ```
+
+![HTML report with a classified regression, timing delta and numbered hotspots](docs/images/report.png)
 
 ### Report layout
 

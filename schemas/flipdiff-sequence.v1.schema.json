@@ -1112,22 +1112,22 @@
       "description": "Which way the luminance moved, over the whole frame.",
       "properties": {
         "frac_brighter": {
-          "description": "Fraction of pixels brighter by more than half a code value.",
+          "description": "Fraction of finite pixel pairs brighter by more than half a code value.",
           "format": "double",
           "type": "number"
         },
         "frac_darker": {
-          "description": "Fraction of pixels darker by more than half a code value.",
+          "description": "Fraction of finite pixel pairs darker by more than half a code value.",
           "format": "double",
           "type": "number"
         },
         "mean_delta": {
-          "description": "Mean of `capture - baseline` display luminance (encoded Rec. 709 for\nLDR, linear for HDR). Positive is brighter.",
+          "description": "Mean of `capture - baseline` over finite pixel pairs only. Luminance is\nencoded Rec. 709 for LDR; for HDR, scene-linear Rec. 709 luminance is\nclamped to `[0, 1]` on each side to bound the display scale. Positive is\nbrighter. Zero when there are no finite pairs.",
           "format": "double",
           "type": "number"
         },
         "scale": {
-          "description": "Luminance difference mapped to full colour in `signed_diff.png` (the\n99.5th percentile of the absolute difference, at least 0.004).",
+          "description": "Luminance difference mapped to full colour in `signed_diff.png` (the\n99.5th percentile of finite absolute differences, at least 0.004).",
           "format": "double",
           "type": "number"
         }
