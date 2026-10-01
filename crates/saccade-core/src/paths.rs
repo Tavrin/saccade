@@ -3,13 +3,22 @@
 use std::borrow::Cow;
 use std::path::{Path, PathBuf};
 
+/// Resolves an existing path, including symlinks and Windows 8.3 short names.
+/// Ordinary Windows paths use non-verbatim prefixes for display and comparison.
+/// `dunce` retains a verbatim prefix only when simplifying would change the
+/// path's meaning (for example, reserved names or paths beyond `MAX_PATH`).
+/// Long-lived roots should be resolved once during startup and reused.
+pub fn canonicalize(path: impl AsRef<Path>) -> std::io::Result<PathBuf> {
+    dunce::canonicalize(native(path.as_ref()))
+}
+
 fn slash_separated(path: &str) -> String {
     path.replace('\\', "/")
 }
 
 /// Formats a recorded path with `/` separators and simplifies Windows verbatim
 /// prefixes when doing so preserves the path's meaning. Filesystem containment
-/// checks keep using the canonical native path, including any verbatim prefix.
+/// checks use the same spelling returned by [`canonicalize`].
 pub fn portable(path: &Path) -> String {
     slash_separated(&dunce::simplified(path).to_string_lossy())
 }
@@ -212,24 +221,22 @@ mod tests {
         std::fs::write(&input, b"image").unwrap();
         let output = tmp.path().join("reports/session");
         // The report directory need not exist yet; its spelling stays stable
-        // after creation, including native canonical prefixes on Windows.
+        // after creation, including non-verbatim canonical paths on Windows.
         let recorded = record(&input, &output, false);
         assert_eq!(recorded, "../../inputs/nested/scene.png");
         std::fs::create_dir_all(&output).unwrap();
         assert_eq!(record(&input, &output, false), recorded);
         assert_eq!(record(&output, &output, false), ".");
         assert_eq!(
-            resolve(&recorded, &output.join("report.json"))
-                .canonicalize()
-                .unwrap(),
-            input.canonicalize().unwrap()
+            canonicalize(resolve(&recorded, &output.join("report.json"))).unwrap(),
+            canonicalize(&input).unwrap()
         );
         let absolute = record(&input, &output, true);
         assert!(!absolute.contains('\\'), "{absolute}");
         assert!(!absolute.starts_with("//?/"), "ordinary paths simplify");
         assert_eq!(
-            native(Path::new(&absolute)).canonicalize().unwrap(),
-            input.canonicalize().unwrap()
+            native(Path::new(&absolute)).as_ref(),
+            canonicalize(&input).unwrap()
         );
     }
 
@@ -237,7 +244,7 @@ mod tests {
     fn missing_path_suffixes_fold_without_escaping_the_root() {
         let tmp = tempfile::tempdir().unwrap();
         let path = tmp.path().join("missing/../reports/session");
-        let expected = tmp.path().canonicalize().unwrap().join("reports/session");
+        let expected = canonicalize(tmp.path()).unwrap().join("reports/session");
         assert_eq!(crate::run::normalise_path(&path), expected);
         assert_eq!(crate::explain::absolute(&path), expected);
     }
@@ -257,7 +264,7 @@ mod tests {
             "../../inputs"
         );
         let through_alias = crate::run::normalise_path(&alias.join("inputs/new/report"));
-        assert!(through_alias.starts_with(real.canonicalize().unwrap()));
+        assert!(through_alias.starts_with(canonicalize(&real).unwrap()));
         assert!(
             crate::run::guard_output_dir(
                 &alias.join("inputs/new/report"),
@@ -281,9 +288,9 @@ mod tests {
         let resolved = crate::run::normalise_path(&path);
         assert_eq!(
             resolved,
-            outside.canonicalize().unwrap().join("missing/report")
+            canonicalize(&outside).unwrap().join("missing/report")
         );
-        assert!(!resolved.starts_with(root.canonicalize().unwrap()));
+        assert!(!resolved.starts_with(canonicalize(&root).unwrap()));
         assert_eq!(crate::explain::absolute(&path), resolved);
     }
 }

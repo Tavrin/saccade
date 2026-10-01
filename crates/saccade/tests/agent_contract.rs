@@ -296,8 +296,8 @@ fn compare_json_is_a_lean_result_and_full_is_the_report() {
         assert!(Path::new(path).is_relative());
         assert!(!path.contains('\\'), "{key}: {path}");
         assert_eq!(
-            out.join(path).canonicalize().unwrap(),
-            expected.canonicalize().unwrap()
+            saccade_core::paths::canonicalize(out.join(path)).unwrap(),
+            saccade_core::paths::canonicalize(expected).unwrap()
         );
     }
     assert!(full["entries"].as_array().unwrap().len() == 2);

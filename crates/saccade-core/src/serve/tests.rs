@@ -5,6 +5,7 @@ use std::net::TcpStream;
 use std::path::Path;
 
 use super::*;
+use crate::paths::canonicalize;
 
 struct Fixture {
     _tmp: tempfile::TempDir,
@@ -45,9 +46,9 @@ fn fixture(max_upload: u64) -> Fixture {
     opts.max_upload_bytes = max_upload;
     let handle = start(opts).unwrap();
     Fixture {
-        root: root.canonicalize().unwrap(),
-        cache: cache.canonicalize().unwrap(),
-        decisions: decisions.canonicalize().unwrap(),
+        root: canonicalize(&root).unwrap(),
+        cache: canonicalize(&cache).unwrap(),
+        decisions: canonicalize(&decisions).unwrap(),
         handle,
         _tmp: tmp,
     }
@@ -394,9 +395,9 @@ fn serve_roots(tmp: tempfile::TempDir, roots: &[PathBuf], follow: bool) -> Fixtu
     opts.decisions_dir = decisions.clone();
     let handle = start(opts).unwrap();
     Fixture {
-        root: roots[0].canonicalize().unwrap(),
-        cache: cache.canonicalize().unwrap(),
-        decisions: decisions.canonicalize().unwrap(),
+        root: canonicalize(&roots[0]).unwrap(),
+        cache: canonicalize(&cache).unwrap(),
+        decisions: canonicalize(&decisions).unwrap(),
         handle,
         _tmp: tmp,
     }
@@ -603,6 +604,11 @@ fn deeplink_open_two_roots_reference_images_and_outside() {
     }
     let outside = tmp.path().join("outside");
     std::fs::create_dir(&outside).unwrap();
+    let (a, b, outside) = (
+        canonicalize(&a).unwrap(),
+        canonicalize(&b).unwrap(),
+        canonicalize(&outside).unwrap(),
+    );
     let f = serve_roots(tmp, &[a.clone(), b.clone()], false);
     let enc = overview::pct_encode;
     let run = enc(&a.join("r,1").to_string_lossy());
@@ -659,7 +665,10 @@ fn deeplink_roots_names_and_config() {
     let f = fixture(1024);
     let roots = json(&get(&f, "/api/roots"));
     assert_eq!(roots[0]["name"], "");
-    assert_eq!(roots[0]["path"], f.root.to_string_lossy().as_ref());
+    assert_eq!(
+        roots[0]["path"],
+        canonicalize(&f.root).unwrap().to_string_lossy().as_ref()
+    );
     let tmp = tempfile::tempdir().unwrap();
     let roots: Vec<PathBuf> = ["a/data", "b/data", "c/data"]
         .iter()
@@ -684,6 +693,70 @@ fn deeplink_roots_names_and_config() {
 
 #[cfg(unix)]
 #[test]
+fn symlinked_temp_root_has_one_canonical_path_policy() {
+    let tmp = tempfile::tempdir().unwrap();
+    let real = tmp.path().join("real");
+    let alias = tmp.path().join("alias");
+    write_png(&real.join("root/a/x.png"), [10, 10, 10]);
+    write_png(&real.join("root/b/x.png"), [20, 20, 20]);
+    write_png(&real.join("nas/remote/x.png"), [30, 30, 30]);
+    write_png(&tmp.path().join("outside/x.png"), [40, 40, 40]);
+    std::os::unix::fs::symlink(&real, &alias).unwrap();
+    std::os::unix::fs::symlink(alias.join("nas/remote"), real.join("root/linked")).unwrap();
+    std::os::unix::fs::symlink(tmp.path().join("outside"), real.join("root/escape")).unwrap();
+    let mut opts = ServeOptions::new(alias.join("root"));
+    opts.symlink_targets = vec![alias.join("nas")];
+    opts.cache_dir = alias.join("cache");
+    opts.decisions_dir = alias.join("decisions");
+    let handle = start(opts).unwrap();
+    let f = Fixture {
+        root: canonicalize(real.join("root")).unwrap(),
+        cache: canonicalize(real.join("cache")).unwrap(),
+        decisions: canonicalize(real.join("decisions")).unwrap(),
+        handle,
+        _tmp: tmp,
+    };
+    assert_eq!(f.handle.cache_dir(), f.cache);
+    assert_eq!(f.handle.decisions_dir(), f.decisions);
+    let roots = json(&get(&f, "/api/roots"));
+    assert_eq!(roots[0]["path"], f.root.to_string_lossy().as_ref());
+    assert_eq!(
+        browse::resolve_in(&f.root, "a").unwrap(),
+        canonicalize(alias.join("root/a")).unwrap()
+    );
+    assert_eq!(
+        browse::resolve_in(&f.root, "escape"),
+        Err(browse::PathError::Escapes)
+    );
+    assert_eq!(get(&f, "/img?path=a/x.png").status, 200);
+    assert_eq!(get(&f, "/img?path=linked/x.png").status, 200);
+    assert_eq!(get(&f, "/img?path=escape/x.png").status, 403);
+    let open = format!(
+        "/open?abs={}",
+        overview::pct_encode(&f.root.join("a").to_string_lossy())
+    );
+    assert!(get(&f, &open).head.contains("/run?path=a"));
+    let out = f.cache.join("report");
+    let cfg = crate::config::RunConfig {
+        record_absolute_paths: true,
+        ..crate::config::RunConfig::default()
+    };
+    crate::run::run(&alias.join("root/a"), &alias.join("root/b"), &out, &cfg).unwrap();
+    let report: crate::report::Report =
+        serde_json::from_slice(&std::fs::read(out.join(crate::report::REPORT_FILE_NAME)).unwrap())
+            .unwrap();
+    for (recorded, name) in [(&report.baseline_dir, "a"), (&report.capture_dir, "b")] {
+        let recorded = recorded.as_ref().unwrap();
+        assert_eq!(
+            recorded,
+            &crate::paths::portable(&canonicalize(f.root.join(name)).unwrap())
+        );
+        assert!(Path::new(recorded).starts_with(&f.root));
+    }
+}
+
+#[cfg(unix)]
+#[test]
 fn deeplink_allowed_external_symlinks_uniformly_confined() {
     let tmp = tempfile::tempdir().unwrap();
     let root = tmp.path().join("root");
@@ -693,6 +766,11 @@ fn deeplink_allowed_external_symlinks_uniformly_confined() {
     write_png(&target.join("remote/x.png"), [8, 8, 8]);
     write_png(&denied.join("x.png"), [9, 9, 9]);
     std::fs::write(target.join("remote/custom.json"), r#"{"host":"nas"}"#).unwrap();
+    let (root, target, denied) = (
+        canonicalize(&root).unwrap(),
+        canonicalize(&target).unwrap(),
+        canonicalize(&denied).unwrap(),
+    );
     std::os::unix::fs::symlink(target.join("remote"), root.join("linked,run")).unwrap();
     std::os::unix::fs::symlink(&denied, root.join("denied")).unwrap();
     let mut opts = ServeOptions::new(root.clone());
@@ -703,8 +781,8 @@ fn deeplink_allowed_external_symlinks_uniformly_confined() {
     let handle = start(opts).unwrap();
     let f = Fixture {
         root: root.clone(),
-        cache: tmp.path().join("cache"),
-        decisions: tmp.path().join("decisions"),
+        cache: canonicalize(tmp.path().join("cache")).unwrap(),
+        decisions: canonicalize(tmp.path().join("decisions")).unwrap(),
         handle,
         _tmp: tmp,
     };
@@ -787,9 +865,9 @@ fn deeplink_storage_timeout_and_probe_cap() {
     opts.probe_delay_ms = 200;
     let handle = start(opts).unwrap();
     let f = Fixture {
-        root,
-        cache: tmp.path().join("cache"),
-        decisions: tmp.path().join("decisions"),
+        root: canonicalize(&root).unwrap(),
+        cache: canonicalize(tmp.path().join("cache")).unwrap(),
+        decisions: canonicalize(tmp.path().join("decisions")).unwrap(),
         handle,
         _tmp: tmp,
     };

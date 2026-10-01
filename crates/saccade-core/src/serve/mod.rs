@@ -125,10 +125,8 @@ pub fn default_decisions_dir() -> PathBuf {
 pub(crate) struct Root {
     /// Name of the top-level entry it forms when there are several roots.
     pub name: String,
-    /// Absolute lexical directory used by dashboard links.
+    /// Canonical directory used by dashboard links and containment checks.
     pub path: PathBuf,
-    /// Resolved directory used for containment checks.
-    pub target: PathBuf,
 }
 
 /// Shared server state.
@@ -167,7 +165,7 @@ impl State {
     pub fn allows(&self, home: &Path, canon: &Path) -> bool {
         self.roots
             .iter()
-            .any(|r| (r.path == home || self.follow_links) && canon.starts_with(&r.target))
+            .any(|r| (r.path == home || self.follow_links) && canon.starts_with(&r.path))
             || self.symlink_targets.iter().any(|p| canon.starts_with(p))
     }
 }
@@ -176,6 +174,8 @@ impl State {
 pub struct ServeHandle {
     port: u16,
     token: String,
+    cache: PathBuf,
+    decisions: PathBuf,
     stop: Arc<AtomicBool>,
     threads: Vec<std::thread::JoinHandle<()>>,
 }
@@ -189,6 +189,16 @@ impl ServeHandle {
     /// The per-process token embedded in served pages.
     pub fn token(&self) -> &str {
         &self.token
+    }
+
+    /// The canonical cache directory selected at startup.
+    pub fn cache_dir(&self) -> &Path {
+        &self.cache
+    }
+
+    /// The canonical decisions directory selected at startup.
+    pub fn decisions_dir(&self) -> &Path {
+        &self.decisions
     }
 
     /// Blocks until the server is stopped (never, for the CLI).
@@ -221,19 +231,21 @@ pub fn start(opts: ServeOptions) -> Result<ServeHandle> {
     let storage = storage::Storage::new(Duration::from_millis(opts.fs_timeout_ms));
     let mut roots: Vec<Root> = Vec::new();
     for given in std::iter::once(&opts.root).chain(&opts.extra_roots) {
-        let path = storage::absolute(given)?;
-        let probe = path.clone();
-        let target = storage
+        let probe = given.clone();
+        let path = storage
             .run(move || {
-                let target = probe.canonicalize()?;
+                let target = crate::paths::canonicalize(&probe)?;
                 if !target.is_dir() {
                     return Err(std::io::Error::other("not a directory"));
                 }
                 Ok(target)
             })
-            .map_err(|_| Error::Config(format!("storage not reachable: {}", path.display())))?
-            .map_err(io_err(format!("resolving archive root {}", path.display())))?;
-        if roots.iter().any(|r| r.target == target) {
+            .map_err(|_| Error::Config(format!("storage not reachable: {}", given.display())))?
+            .map_err(io_err(format!(
+                "resolving archive root {}",
+                given.display()
+            )))?;
+        if roots.iter().any(|r| r.path == path) {
             return Err(Error::Config(format!(
                 "{} is given as a root twice",
                 path.display()
@@ -248,14 +260,14 @@ pub fn start(opts: ServeOptions) -> Result<ServeHandle> {
             name = format!("{base}-{n}");
             n += 1;
         }
-        roots.push(Root { name, path, target });
+        roots.push(Root { name, path });
     }
     let mut symlink_targets = Vec::new();
     for given in &opts.symlink_targets {
         let probe = given.clone();
         let target = storage
             .run(move || {
-                let p = probe.canonicalize()?;
+                let p = crate::paths::canonicalize(&probe)?;
                 if !p.is_dir() {
                     return Err(std::io::Error::other("not a directory"));
                 }
@@ -274,10 +286,9 @@ pub fn start(opts: ServeOptions) -> Result<ServeHandle> {
             "creating the {what} directory {}",
             dir.display()
         )))?;
-        let canon = dir
-            .canonicalize()
+        let canon = crate::paths::canonicalize(dir)
             .map_err(io_err(format!("resolving {}", dir.display())))?;
-        if roots.iter().any(|r| is_within(&canon, &r.target)) {
+        if roots.iter().any(|r| is_within(&canon, &r.path)) {
             return Err(Error::Config(format!(
                 "the {what} directory {} is inside an archive root; serve never writes under a root",
                 canon.display()
@@ -302,10 +313,9 @@ pub fn start(opts: ServeOptions) -> Result<ServeHandle> {
     let token = random_token();
     let inbox = decisions.join("inbox");
     std::fs::create_dir_all(&inbox).map_err(io_err("creating inbox directory".into()))?;
-    let inbox_canon = inbox
-        .canonicalize()
-        .map_err(io_err("resolving inbox directory".into()))?;
-    if inbox_canon != inbox || roots.iter().any(|r| inbox_canon.starts_with(&r.target)) {
+    let inbox_canon =
+        crate::paths::canonicalize(&inbox).map_err(io_err("resolving inbox directory".into()))?;
+    if inbox_canon != inbox || roots.iter().any(|r| inbox_canon.starts_with(&r.path)) {
         return Err(Error::Config(
             "inbox must be a real directory outside archive roots".into(),
         ));
@@ -354,6 +364,8 @@ pub fn start(opts: ServeOptions) -> Result<ServeHandle> {
     Ok(ServeHandle {
         port,
         token,
+        cache: state.cache.clone(),
+        decisions: state.decisions.clone(),
         stop,
         threads,
     })

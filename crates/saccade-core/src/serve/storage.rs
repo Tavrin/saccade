@@ -80,28 +80,6 @@ impl Storage {
     }
 }
 
-/// Normalise command-line roots; client paths never get this treatment.
-pub(crate) fn absolute(path: &Path) -> crate::error::Result<PathBuf> {
-    let given = if path.is_absolute() {
-        path.to_owned()
-    } else {
-        std::env::current_dir()
-            .map_err(crate::run::io_err("reading working directory".into()))?
-            .join(path)
-    };
-    let mut out = PathBuf::new();
-    for c in given.components() {
-        match c {
-            Component::CurDir => {}
-            Component::ParentDir => {
-                out.pop();
-            }
-            other => out.push(other.as_os_str()),
-        }
-    }
-    Ok(out)
-}
-
 /// Absolute dashboard paths are checked lexically before any filesystem call.
 pub(crate) fn absolute_rel(state: &State, path: &str) -> Result<String, PathError> {
     let abs = Path::new(path);
@@ -148,7 +126,7 @@ pub(crate) fn snapshot(state: &State, rel: &str) -> Result<PathBuf, PathError> {
             format!("{rel}/{sub}")
         };
         let dir = resolve_under(state, &dir_rel)?;
-        let canon = dir.canonicalize().map_err(|_| PathError::Missing)?;
+        let canon = crate::paths::canonicalize(&dir).map_err(|_| PathError::Missing)?;
         if !seen.insert(canon) {
             continue;
         }
@@ -184,7 +162,8 @@ pub(crate) fn snapshot(state: &State, rel: &str) -> Result<PathBuf, PathError> {
                 }
                 queue.push((child, depth + 1));
             } else if meta.is_file() && relevant {
-                let canonical = resolved.canonicalize().map_err(|_| PathError::Missing)?;
+                let canonical =
+                    crate::paths::canonicalize(&resolved).map_err(|_| PathError::Missing)?;
                 if is_image_name(&name) && !is_image_name(&canonical.to_string_lossy()) {
                     continue;
                 }
@@ -192,10 +171,7 @@ pub(crate) fn snapshot(state: &State, rel: &str) -> Result<PathBuf, PathError> {
                     "{child}:{}:{:?}:{}",
                     meta.len(),
                     meta.modified().ok(),
-                    resolved
-                        .canonicalize()
-                        .map_err(|_| PathError::Missing)?
-                        .display()
+                    canonical.display()
                 ));
                 files.push((child, resolved));
             }

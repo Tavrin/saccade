@@ -69,7 +69,7 @@ fn resolve_checked(
     if !is_plain_rel(rel) {
         return Err(PathError::Invalid);
     }
-    let canon = base.join(rel).canonicalize().map_err(|e| {
+    let canon = crate::paths::canonicalize(base.join(rel)).map_err(|e| {
         if e.kind() == std::io::ErrorKind::NotFound {
             PathError::Missing
         } else {
@@ -363,7 +363,7 @@ pub(crate) fn list(state: &State, rel: &str) -> Result<Listing, PathError> {
             let ok = if ft.is_dir() {
                 true
             } else if ft.is_symlink() {
-                match path.canonicalize() {
+                match crate::paths::canonicalize(&path) {
                     Ok(c) if c.is_dir() && state.allows(&home, &c) => true,
                     Ok(c) if c.is_dir() => {
                         outside_links += 1;
@@ -464,7 +464,7 @@ pub(crate) fn search(state: &State, rel: &str, q: &SearchQuery) -> Result<Search
             Ok(p) => p,
             Err(_) => continue,
         };
-        let Ok(canon) = checked.canonicalize() else {
+        let Ok(canon) = crate::paths::canonicalize(&checked) else {
             continue;
         };
         if !visited.insert(canon) {
@@ -641,7 +641,7 @@ pub(crate) fn images(state: &State, rel: &str) -> Result<ImageList, PathError> {
 
 fn safe_file(state: &State, path: &Path) -> bool {
     resolve_under(state, &rel_of(state, path)).is_ok_and(|p| {
-        p.canonicalize()
+        crate::paths::canonicalize(&p)
             .is_ok_and(|canon| canon.is_file() && is_image_name(&canon.to_string_lossy()))
     })
 }

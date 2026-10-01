@@ -1082,13 +1082,12 @@ fn dispatch(command: Command, record_absolute_paths: bool) -> Result<u8, CliErro
             if let Some(p) = ppd {
                 opts.view.pixels_per_degree = p;
             }
-            let (cache, decisions) = (opts.cache_dir.clone(), opts.decisions_dir.clone());
             let handle = saccade_core::serve::start(opts)?;
             let url = format!("http://127.0.0.1:{}/", handle.port());
             emit(&format!(
                 "saccade serve: {url}\n  cache:     {}\n  decisions: {}\n  (Ctrl-C to stop)\n",
-                escape_control(&cache.display().to_string()),
-                escape_control(&decisions.display().to_string())
+                escape_control(&handle.cache_dir().display().to_string()),
+                escape_control(&handle.decisions_dir().display().to_string())
             ))?;
             if open {
                 open_browser(&url);

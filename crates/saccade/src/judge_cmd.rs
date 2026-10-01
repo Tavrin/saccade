@@ -376,8 +376,7 @@ pub fn run(job: &Job) -> Result<(Value, String), CliError> {
 
 fn confined_document(doc: &Value, dir: &Path, root: &Path) -> Result<(), CliError> {
     let check = |p: PathBuf| -> Result<PathBuf, CliError> {
-        let canon = p
-            .canonicalize()
+        let canon = saccade_core::paths::canonicalize(&p)
             .map_err(|e| CliError::io(format!("{}: {e}", p.display())))?;
         if !canon.starts_with(root) {
             return Err(CliError::usage(
@@ -691,8 +690,7 @@ fn mcp_judge(args: &Map<String, Value>, resolve: Resolve<'_>) -> Result<(Value, 
         out: None,
         record: args.get("record").and_then(Value::as_bool).unwrap_or(true),
         read_root: Some(
-            resolve("root", ".")?
-                .canonicalize()
+            saccade_core::paths::canonicalize(resolve("root", ".")?)
                 .map_err(|e| CliError::io(format!("resolving the MCP root: {e}")))?,
         ),
     };

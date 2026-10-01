@@ -614,9 +614,7 @@ fn resolve_image(state: &State, rel: &str) -> Result<PathBuf, Resp> {
         return Err(Resp::error(400, "path too long"));
     }
     let abs = resolve_under(state, rel).map_err(|e| path_error(&e))?;
-    let canon = abs
-        .canonicalize()
-        .map_err(|_| path_error(&PathError::Missing))?;
+    let canon = crate::paths::canonicalize(&abs).map_err(|_| path_error(&PathError::Missing))?;
     let root = state
         .root_of(&abs)
         .ok_or_else(|| path_error(&PathError::Escapes))?;
@@ -1023,7 +1021,7 @@ fn session_file(state: &State, rest: &str) -> Resp {
     if !allowed_session_file(file) {
         return Resp::text(404, "not found");
     }
-    let Ok(canon_dir) = dir.canonicalize() else {
+    let Ok(canon_dir) = crate::paths::canonicalize(&dir) else {
         return Resp::text(404, "not found");
     };
     match resolve_in(&canon_dir, file) {

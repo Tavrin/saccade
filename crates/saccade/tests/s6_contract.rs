@@ -20,12 +20,12 @@ fn image(dir: &Path, shade: u8) {
         .unwrap();
 }
 fn assert_same_path(recorded: &str, expected: &Path) {
-    // Canonical spelling may differ from tempfile's path (macOS /var aliases,
-    // Windows verbatim prefixes); the contract identifies the same directory.
+    // Recorded paths use the product's canonical spelling, including resolved
+    // macOS /var aliases and non-verbatim Windows paths.
     assert!(Path::new(recorded).is_absolute(), "{recorded}");
     assert_eq!(
-        Path::new(recorded).canonicalize().unwrap(),
-        expected.canonicalize().unwrap()
+        Path::new(recorded),
+        saccade_core::paths::canonicalize(expected).unwrap()
     );
 }
 fn validate(name: &str, value: &Value) {

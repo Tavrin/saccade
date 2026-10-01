@@ -60,7 +60,7 @@ fn report(root: &Path) {
     );
 }
 fn no_prefix(v: &Value, prefix: &str) {
-    let normalized = saccade_core::run::normalise_path(Path::new(prefix));
+    let normalized = saccade_core::paths::canonicalize(prefix).unwrap();
     let prefixes = [
         prefix.to_owned(),
         prefix.replace('\\', "/"),
@@ -103,10 +103,7 @@ fn no_absolute_paths_by_default() {
     let absolute = value(&output);
     let recorded = Path::new(absolute["capture_dir"].as_str().unwrap());
     assert!(recorded.is_absolute());
-    assert_eq!(
-        recorded.canonicalize().unwrap(),
-        cap.canonicalize().unwrap()
-    );
+    assert_eq!(recorded, saccade_core::paths::canonicalize(&cap).unwrap());
     report(root);
     for args in [
         vec![
@@ -150,7 +147,7 @@ fn no_absolute_paths_by_default() {
         no_prefix(&value(&output), root.to_str().unwrap());
     }
     let html = std::fs::read_to_string(root.join("view/index.html")).unwrap();
-    assert!(!html.contains(root.to_str().unwrap()));
+    no_prefix(&Value::String(html), root.to_str().unwrap());
     let out = run(
         root,
         &[

@@ -188,7 +188,9 @@ cat "$APPROVAL_FIXTURE"
             );
             assert!(log.contains("git --literal-pathspecs add"));
             for name in ["a.png", "removed.png"] {
-                let changed = baseline.canonicalize().unwrap().join(name);
+                let changed = saccade_core::paths::canonicalize(&baseline)
+                    .unwrap()
+                    .join(name);
                 assert!(log.contains(&format!(
                     "git --literal-pathspecs add -- {}",
                     changed.display()

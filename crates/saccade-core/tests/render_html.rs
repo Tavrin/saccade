@@ -18,7 +18,12 @@ fn render(report: &Report, tag: &str) -> String {
         std::env::temp_dir().join(format!("saccade-render-html-{tag}-{}", std::process::id()));
     std::fs::create_dir_all(&dir).expect("create temp dir");
     let path = render_html(report, &dir).expect("render ok");
-    assert_eq!(path, dir.join("index.html"));
+    assert_eq!(
+        saccade_core::paths::canonicalize(&path).expect("canonical report path"),
+        saccade_core::paths::canonicalize(&dir)
+            .expect("canonical temp dir")
+            .join("index.html")
+    );
     let html = std::fs::read_to_string(&path).expect("index.html written");
     let _ = std::fs::remove_dir_all(&dir);
     html

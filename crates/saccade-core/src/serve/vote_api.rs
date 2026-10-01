@@ -19,8 +19,8 @@ fn run_dir(state: &State, id: &str) -> Option<PathBuf> {
         return None;
     }
     let dir = vote::run_dir(&state.decisions, id);
-    if dir.canonicalize().ok()? != dir
-        || dir.join("run.json").canonicalize().ok()? != dir.join("run.json")
+    if crate::paths::canonicalize(&dir).ok()? != dir
+        || crate::paths::canonicalize(dir.join("run.json")).ok()? != dir.join("run.json")
     {
         return None;
     }

@@ -141,9 +141,8 @@ fn load_mask_image(path: &str, config_dir: Option<&Path>, w: u32, h: u32) -> Res
         source,
     };
     // A symlink inside the config directory must not lead out of it.
-    let canon = full.canonicalize().map_err(io)?;
-    if !root
-        .canonicalize()
+    let canon = crate::paths::canonicalize(&full).map_err(io)?;
+    if !crate::paths::canonicalize(&root)
         .map_err(io)
         .is_ok_and(|r| canon.starts_with(r))
     {

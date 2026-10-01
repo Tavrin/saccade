@@ -154,7 +154,7 @@ pub fn normalise_path(path: &Path) -> PathBuf {
     let mut existing = path.clone();
     let mut tail = Vec::new();
     let mut out = loop {
-        if let Ok(canonical) = existing.canonicalize() {
+        if let Ok(canonical) = crate::paths::canonicalize(&existing) {
             break canonical;
         }
         match existing.components().next_back() {

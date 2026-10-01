@@ -731,16 +731,10 @@ fn pane_error(e: &Error, blind: bool) -> String {
 fn default_labels(dirs: &[PathBuf]) -> Vec<String> {
     let mut labels: Vec<String> = Vec::new();
     for (i, d) in dirs.iter().enumerate() {
-        let base = d
-            .canonicalize()
-            .ok()
-            .as_deref()
-            .unwrap_or(d)
-            .file_name()
-            .map_or_else(
-                || format!("dir{}", i + 1),
-                |n| n.to_string_lossy().into_owned(),
-            );
+        let base = d.file_name().map_or_else(
+            || format!("dir{}", i + 1),
+            |n| n.to_string_lossy().into_owned(),
+        );
         let mut label = base.clone();
         let mut n = 2;
         while labels.contains(&label) {
@@ -761,9 +755,9 @@ fn resolve_reference(
     if let Some(i) = labels.iter().position(|l| l == r) {
         return Ok(i);
     }
-    let want = Path::new(r).canonicalize().ok();
+    let want = crate::paths::canonicalize(r).ok();
     dirs.iter()
-        .position(|d| d == Path::new(r) || (want.is_some() && d.canonicalize().ok() == want))
+        .position(|d| d == Path::new(r) || want.as_ref() == Some(d))
         .ok_or_else(|| Error::Config(format!("--reference {r:?} is not one of the directories")))
 }
 
@@ -886,6 +880,8 @@ pub fn build_view(dirs: &[PathBuf], out_dir: &Path, opts: &ViewOptions) -> Resul
             dirs.len()
         )));
     }
+    let dirs: Vec<PathBuf> = dirs.iter().map(|d| crate::run::normalise_path(d)).collect();
+    let dirs = dirs.as_slice();
     let labels = match &opts.labels {
         Some(l) if l.len() != dirs.len() => {
             return Err(Error::Config(format!(

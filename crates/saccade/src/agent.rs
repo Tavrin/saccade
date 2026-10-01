@@ -178,13 +178,7 @@ pub fn failing_entries(report: &Report) -> Vec<&Entry> {
 }
 
 fn absolute(p: &Path) -> PathBuf {
-    p.canonicalize().unwrap_or_else(|_| {
-        if p.is_absolute() {
-            p.to_path_buf()
-        } else {
-            std::env::current_dir().map_or_else(|_| p.to_path_buf(), |c| c.join(p))
-        }
-    })
+    saccade_core::run::normalise_path(p)
 }
 
 fn entry_value(e: &Entry) -> Value {

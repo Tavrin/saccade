@@ -363,7 +363,7 @@ pub fn strip_bytes(dir: &Path, name: &str) -> Option<Vec<u8>> {
             .bytes()
             .all(|b| b.is_ascii_alphanumeric() || b == b'_' || b == b'.');
     let file = dir.join("strips").join(name);
-    (ok && file.canonicalize().ok()? == file)
+    (ok && crate::paths::canonicalize(&file).ok()? == file)
         .then(|| std::fs::read(file).ok())
         .flatten()
 }
