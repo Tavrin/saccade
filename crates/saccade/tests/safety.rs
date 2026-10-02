@@ -191,7 +191,7 @@ fn comparing_nothing_is_not_a_pass() {
         &["compare", "--allow-empty"],
         &[&base, &cap, Path::new("--out"), &out],
     );
-    assert_eq!(allowed.status.code(), Some(0), "{}", text(&allowed));
+    assert_eq!(allowed.status.code(), Some(1), "{}", text(&allowed));
 }
 
 #[test]

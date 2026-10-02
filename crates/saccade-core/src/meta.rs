@@ -9,6 +9,7 @@ use std::collections::{BTreeMap, BTreeSet};
 use std::path::Path;
 
 use globset::GlobMatcher;
+use serde::{Deserialize, Serialize};
 use serde_json::Value;
 
 use crate::config::compile_glob;
@@ -42,6 +43,68 @@ pub const ABSENT: &str = "<absent>";
 /// Largest sidecar read, in bytes.
 const MAX_SIDECAR_BYTES: u64 = 1 << 20;
 
+/// Explicit measurement/provenance keys ignored by a capture proof profile.
+pub const PROOF_IGNORE: &[&str] = &[
+    "run.id",
+    "generated_at_unix",
+    "capture.timestamp",
+    "capture.started_at",
+    "capture.finished_at",
+    "gpu_ms",
+    "frame_ms",
+    "timing.gpu_ms",
+    "timing.frame_ms",
+    "elapsed.s",
+];
+
+/// Capture comparability, independent of native sample equality.
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "lowercase")]
+pub enum Validity {
+    /// Supplied capture requirements are satisfied.
+    Valid,
+    /// Evidence violates a supplied requirement or cannot be decoded safely.
+    Invalid,
+    /// The supplied context cannot establish comparability.
+    #[default]
+    Unknown,
+}
+
+/// Validity and the missing context or violated requirements explaining it.
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct CaptureValidity {
+    /// Valid, invalid, or unknown.
+    pub status: Validity,
+    /// Explicit limits or failures.
+    pub reasons: Vec<String>,
+}
+
+impl Default for CaptureValidity {
+    fn default() -> Self {
+        Self {
+            status: Validity::Unknown,
+            reasons: vec!["capture context was not checked".into()],
+        }
+    }
+}
+
+/// A predeclared intervention; matching values do not prove it happened.
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct DeclaredChange {
+    /// Exact metadata key.
+    pub key: String,
+    /// Why this difference is permitted.
+    pub reason: String,
+    /// Expected baseline value, when specified.
+    pub before: Option<Value>,
+    /// Expected candidate value, when specified.
+    pub after: Option<Value>,
+}
+
 /// Sidecar settings for a run or a view.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct MetaOptions {
@@ -53,6 +116,10 @@ pub struct MetaOptions {
     pub declared: Vec<String>,
     /// Extra ignore globs, added to [`DEFAULT_IGNORE`].
     pub ignore: Vec<String>,
+    /// Non-null metadata fields required by the project's capture contract.
+    pub required_keys: Vec<String>,
+    /// Structured declarations with reasons and optional expected values.
+    pub changes: Vec<DeclaredChange>,
 }
 
 impl Default for MetaOptions {
@@ -62,6 +129,8 @@ impl Default for MetaOptions {
             required: false,
             declared: Vec::new(),
             ignore: Vec::new(),
+            required_keys: Vec::new(),
+            changes: Vec::new(),
         }
     }
 }
@@ -77,6 +146,17 @@ pub struct MetaChecker {
     declared_globs: Vec<GlobMatcher>,
     ignore: Vec<GlobMatcher>,
     settings: MetaSettings,
+    required_keys: Vec<String>,
+    changes: Vec<DeclaredChange>,
+}
+
+/// Checked metadata, including differences that were permitted or ignored.
+pub(crate) struct CheckedMeta {
+    pub diff: Vec<MetaDiff>,
+    pub ignored: Vec<MetaDiff>,
+    pub unchanged: Vec<String>,
+    pub validity: CaptureValidity,
+    pub failure: Option<String>,
 }
 
 impl MetaOptions {
@@ -88,7 +168,33 @@ impl MetaOptions {
                 self.name
             )));
         }
-        let ignored: Vec<String> = DEFAULT_IGNORE
+        let proof = !self.required_keys.is_empty();
+        if proof && self.ignore.iter().any(|k| k.contains(['*', '?', '[', '{'])) {
+            return Err(Error::Config(
+                "capture proof ignores must name explicit fields, not globs".into(),
+            ));
+        }
+        if self.required_keys.iter().any(|k| k.trim().is_empty()) {
+            return Err(Error::Config(
+                "capture required_keys must name nonempty metadata keys".into(),
+            ));
+        }
+        for change in &self.changes {
+            if change.key.trim().is_empty()
+                || change.reason.trim().is_empty()
+                || change.key.contains(['*', '?', '[', '{'])
+                || change
+                    .before
+                    .iter()
+                    .chain(&change.after)
+                    .any(|v| matches!(v, Value::Array(_) | Value::Object(_)))
+            {
+                return Err(Error::Config(
+                    "changes require an exact key, a reason, and scalar expected values".into(),
+                ));
+            }
+        }
+        let ignored: Vec<String> = (if proof { PROOF_IGNORE } else { DEFAULT_IGNORE })
             .iter()
             .map(|g| (*g).to_owned())
             .chain(self.ignore.iter().cloned())
@@ -104,15 +210,19 @@ impl MetaOptions {
             .collect::<Result<Vec<_>>>()?;
         Ok(MetaChecker {
             name: self.name.clone(),
-            required: self.required,
+            required: self.required || proof,
             declared: self.declared.clone(),
             declared_globs,
             ignore,
+            required_keys: self.required_keys.clone(),
+            changes: self.changes.clone(),
             settings: MetaSettings {
                 name: self.name.clone(),
-                required: self.required,
+                required: self.required || proof,
                 declared: self.declared.clone(),
                 ignored,
+                required_keys: self.required_keys.clone(),
+                changes: self.changes.clone(),
             },
         })
     }
@@ -195,12 +305,14 @@ impl MetaChecker {
     }
 
     fn is_ignored(&self, key: &str) -> bool {
-        self.ignore.iter().any(|g| g.is_match(key))
+        !key.to_ascii_lowercase().starts_with("qualification.")
+            && self.ignore.iter().any(|g| g.is_match(key))
     }
 
     fn is_declared(&self, key: &str) -> bool {
         self.declared.iter().any(|d| d == key)
             || self.declared_globs.iter().any(|g| g.is_match(key))
+            || self.changes.iter().any(|c| c.key == key)
     }
 
     /// Keys that differ between the two sidecars, ignored keys excluded,
@@ -278,6 +390,18 @@ impl MetaChecker {
         cap_root: &Path,
         cap_name: &str,
     ) -> std::result::Result<(Vec<MetaDiff>, Vec<MetaDiff>, Option<String>), String> {
+        let checked = self.check_named(base_root, base_name, cap_root, cap_name)?;
+        Ok((checked.diff, checked.ignored, checked.failure))
+    }
+
+    /// Checks context without conflating metadata validity with pixel equality.
+    pub(crate) fn check_named(
+        &self,
+        base_root: &Path,
+        base_name: &str,
+        cap_root: &Path,
+        cap_name: &str,
+    ) -> std::result::Result<CheckedMeta, String> {
         let b = self
             .load(base_root, base_name)
             .map_err(|e| format!("baseline sidecar: {e}"))?;
@@ -286,13 +410,74 @@ impl MetaChecker {
             .map_err(|e| format!("capture sidecar: {e}"))?;
         let (diff, ignored) = self.diff_split(b.as_ref(), c.as_ref());
         let bad = self.violations(&diff);
-        let err = (!bad.is_empty()).then(|| {
-            format!(
+        let mut reasons = Vec::new();
+        if !bad.is_empty() {
+            reasons.push(format!(
                 "configuration differs on undeclared keys: {} (declare them with --declare to accept)",
                 bad.join(", ")
-            )
+            ));
+        }
+        for (side, card) in [("baseline", &b), ("capture", &c)] {
+            if card.as_ref().is_none_or(|m| m.is_empty()) {
+                reasons.push(format!("{side} metadata is absent or empty"));
+            }
+            for key in &self.required_keys {
+                if card
+                    .as_ref()
+                    .and_then(|m| m.get(key))
+                    .is_none_or(|v| v.is_null() || v.as_str().is_some_and(|s| s.trim().is_empty()))
+                {
+                    reasons.push(format!(
+                        "{side} required capture key {key:?} is absent or empty"
+                    ));
+                }
+            }
+        }
+        let mut unexpected = false;
+        for change in &self.changes {
+            for (side, expected, actual) in [
+                ("baseline", &change.before, &b),
+                ("capture", &change.after, &c),
+            ] {
+                if let Some(expected) = expected
+                    && actual.as_ref().and_then(|m| m.get(&change.key)) != Some(expected)
+                {
+                    unexpected = true;
+                    reasons.push(format!(
+                        "{side} declared key {:?} does not match expected {} ({})",
+                        change.key,
+                        render(expected),
+                        change.reason
+                    ));
+                }
+            }
+        }
+        let unchanged = b.as_ref().map_or_else(Vec::new, |b| {
+            b.iter()
+                .filter(|(k, v)| {
+                    self.is_declared(k) && c.as_ref().and_then(|c| c.get(*k)) == Some(*v)
+                })
+                .map(|(k, _)| k.clone())
+                .collect()
         });
-        Ok((diff, ignored, err))
+        let status = if reasons.is_empty() && diff.iter().all(|d| self.is_declared(&d.key)) {
+            Validity::Valid
+        } else if self.required || unexpected {
+            Validity::Invalid
+        } else {
+            Validity::Unknown
+        };
+        if status == Validity::Unknown && reasons.is_empty() {
+            reasons.push("metadata differs without a matching capture requirement".into());
+        }
+        let failure = (status == Validity::Invalid).then(|| reasons.join("; "));
+        Ok(CheckedMeta {
+            diff,
+            ignored,
+            unchanged,
+            validity: CaptureValidity { status, reasons },
+            failure,
+        })
     }
 
     /// The settings as recorded in the report.

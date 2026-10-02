@@ -332,10 +332,10 @@ enum Command {
         /// exits 1.
         #[arg(long)]
         allow_empty: bool,
-        /// Pass threshold for images that are not bit-identical.
+        /// Rejected for identity; use compare for perceptual thresholds.
         #[arg(long)]
         threshold: Option<f64>,
-        /// Deciding metric (default: max).
+        /// Rejected for identity; use compare for perceptual metrics.
         #[arg(long, value_enum)]
         metric: Option<MetricArg>,
         /// Config file; defaults to ./saccade.toml when it exists.
@@ -731,7 +731,18 @@ fn cli_main() -> ExitCode {
 /// Prints a run's result: the table, the lean result or the whole report.
 fn emit_run(report: &Report, out: &Path, json: Option<RunJson>) -> Result<(), CliError> {
     match json {
-        None => emit(&text_table(report)),
+        None => {
+            emit(&text_table(report))?;
+            if report.config.mode == Mode::Identity
+                && (!report.config.entries.is_empty() || !report.config.ignore.is_empty())
+            {
+                emit(&format!(
+                    "scope: selected {:?}; excluded {:?}\n",
+                    report.config.entries, report.config.ignore
+                ))?;
+            }
+            Ok(())
+        }
         Some(RunJson::Lean) => {
             let report_json = out.join(saccade_core::report::REPORT_FILE_NAME);
             // An empty run prints an error object, on stdout, with exit code 1.
@@ -979,34 +990,17 @@ fn dispatch(command: Command, record_absolute_paths: bool) -> Result<u8, CliErro
             meta.apply(&mut cfg.meta);
             require.apply(&mut cfg.meta);
             f1::guard_junit(junit.as_deref(), &[&parent_dir, &candidate_dir], &out)?;
-            if config.is_none() && !cfg.overrides.is_empty() {
-                // `./saccade.toml` is auto-loaded; it must not silently relax identity.
-                eprintln!(
-                    "saccade: note: ignoring [[override]] entries ({}) from the auto-loaded saccade.toml; \
-                     pass --config to apply them to identity",
-                    cfg.overrides
-                        .iter()
-                        .map(|o| format!("{:?}", o.glob))
-                        .collect::<Vec<_>>()
-                        .join(", ")
-                );
-                cfg.overrides.clear();
-            } else if !cfg.overrides.is_empty() {
-                eprintln!(
-                    "saccade: note: applying [[override]] entries ({}) to identity because --config was given",
-                    cfg.overrides
-                        .iter()
-                        .map(|o| format!("{:?}", o.glob))
-                        .collect::<Vec<_>>()
-                        .join(", ")
-                );
+            if threshold.is_some() || metric.is_some() {
+                return Err(CliError::usage(
+                    "identity rejects --threshold and --metric; use compare for perceptual thresholds",
+                ));
             }
             cfg.mode = Mode::Identity;
             cfg.labels = Labels {
                 baseline: "parent".into(),
                 capture: "candidate".into(),
             };
-            // Identity defaults are strict; only explicit flags relax them.
+            // Identity is always exact; metrics describe differences only.
             cfg.default_threshold = threshold.unwrap_or(0.0);
             cfg.default_metric = metric.map_or(Metric::Max, Into::into);
             if let Some(p) = ppd {

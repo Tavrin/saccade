@@ -27,6 +27,8 @@ pub struct RunConfig {
     pub default_threshold: f64,
     /// Default deciding metric.
     pub default_metric: Metric,
+    /// Whether the project file explicitly supplied perceptual acceptance settings.
+    pub explicit_tolerances: bool,
     /// FLIP observer setting (pixels per degree).
     pub pixels_per_degree: f32,
     /// Whether a `new` entry counts as a regression.
@@ -66,8 +68,7 @@ pub struct RunConfig {
     /// Peak error at which any local hotspot fails an entry whose deciding
     /// metric passed (`hotspot_fail`); `None` (default) leaves it to the metric.
     pub hotspot_fail: Option<f64>,
-    /// Whether a run that compared no pair is accepted (`allow_empty`,
-    /// `--allow-empty`). Off by default: nothing compared is not a pass.
+    /// Historical empty-run opt-in, parsed for migration; empty runs still fail.
     pub allow_empty: bool,
     /// Whether a capture with NaN or infinite samples is an error
     /// (`fail_on_nonfinite`, default true).
@@ -87,8 +88,9 @@ impl Default for RunConfig {
         Self {
             default_threshold: 0.01,
             default_metric: Metric::Mean,
+            explicit_tolerances: false,
             pixels_per_degree: crate::compare::DEFAULT_PIXELS_PER_DEGREE,
-            fail_on_new: false,
+            fail_on_new: true,
             ignore: Vec::new(),
             entries: Vec::new(),
             record_absolute_paths: false,
@@ -119,6 +121,9 @@ impl Default for RunConfig {
 #[derive(Deserialize)]
 #[serde(deny_unknown_fields)]
 struct FileConfig {
+    capture: Option<FileCapture>,
+    #[serde(default)]
+    changes: Vec<crate::meta::DeclaredChange>,
     #[serde(default)]
     symlink_targets: Vec<std::path::PathBuf>,
     fs_timeout_ms: Option<u64>,
@@ -155,6 +160,12 @@ struct FileConfig {
     hdr: Option<FileHdr>,
     diagnostics: Option<FileDiagnostics>,
     decisions: Option<crate::decision::DecisionsConfig>,
+}
+
+#[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
+struct FileCapture {
+    required_keys: Vec<String>,
 }
 
 #[derive(Deserialize)]
@@ -242,7 +253,19 @@ impl RunConfig {
     /// Parses `saccade.toml` contents.
     pub fn from_toml_str(text: &str) -> Result<Self> {
         let file: FileConfig = toml::from_str(text).map_err(|e| Error::Config(e.to_string()))?;
-        let mut cfg = Self::default();
+        let mut cfg = Self {
+            explicit_tolerances: file.threshold.is_some() || file.metric.is_some(),
+            ..Self::default()
+        };
+        if let Some(capture) = file.capture {
+            if capture.required_keys.is_empty() {
+                return Err(Error::Config(
+                    "capture contract requires nonempty required_keys".into(),
+                ));
+            }
+            cfg.meta.required_keys = capture.required_keys;
+        }
+        cfg.meta.changes = file.changes;
         cfg.perf.name = file.perf_name.unwrap_or(cfg.perf.name);
         cfg.perf.noise = file.perf_noise_file;
         match file.perf_noise {
@@ -345,6 +368,20 @@ impl RunConfig {
     /// Checks that every glob compiles, thresholds are finite and pixels per
     /// degree is finite and positive.
     pub fn validate(&self) -> Result<()> {
+        if self.mode == Mode::Identity {
+            if self.explicit_tolerances
+                || self.default_threshold != 0.0
+                || self.default_metric != Metric::Max
+                || !self.overrides.is_empty()
+                || self.hotspot_fail.is_some()
+                || !self.buffers.is_empty()
+            {
+                return Err(Error::Config("identity rejects perceptual tolerances, [[override]], and numerical buffer acceptance; use compare for measured thresholds".into()));
+            }
+            if !self.masks.is_empty() || self.regions.iter().any(|r| r.threshold.is_some()) {
+                return Err(Error::Config("identity rejects masks and region acceptance; select a named scope with --entries".into()));
+            }
+        }
         if !self.default_threshold.is_finite() {
             return Err(Error::Config("threshold must be finite".into()));
         }
@@ -431,6 +468,7 @@ impl RunConfig {
                 "ppd": c.pixels_per_degree, "fail_on_new": c.fail_on_new,
                 "require_matching_meta": c.meta.required, "meta_name": c.meta.name,
                 "meta_ignore": c.meta.ignore, "declare": c.meta.declared,
+                "capture": {"required_keys": c.meta.required_keys}, "changes": c.meta.changes,
                 "perf_name": c.perf.name, "perf_noise_k": c.perf.k,
                 "perf_resolution_ms": c.perf.resolution_ms,
                 "perf_resolution_ticks": c.perf.resolution_ticks,

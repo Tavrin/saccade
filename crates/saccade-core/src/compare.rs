@@ -14,10 +14,28 @@ pub fn native_samples_identical(a: &std::path::Path, b: &std::path::Path) -> boo
     let (Ok(a), Ok(b)) = (image::open(a), image::open(b)) else {
         return false;
     };
+    native_images_identical(&a, &b)
+}
+
+/// Exact equality of already decoded images, including sample representation.
+pub(crate) fn native_images_identical(a: &image::DynamicImage, b: &image::DynamicImage) -> bool {
     a.color() == b.color()
         && a.width() == b.width()
         && a.height() == b.height()
         && a.as_bytes() == b.as_bytes()
+}
+
+/// Counts non-finite native samples, including alpha (display conversions lose it).
+pub(crate) fn nonfinite_samples(image: &image::DynamicImage) -> (u64, u64) {
+    let samples: &[f32] = match image {
+        image::DynamicImage::ImageRgb32F(i) => i.as_raw(),
+        image::DynamicImage::ImageRgba32F(i) => i.as_raw(),
+        _ => return (0, 0),
+    };
+    (
+        samples.iter().filter(|v| v.is_nan()).count() as u64,
+        samples.iter().filter(|v| v.is_infinite()).count() as u64,
+    )
 }
 
 /// Options for [`compare`].

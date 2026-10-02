@@ -595,6 +595,8 @@ fn synthetic_report(entry: Entry, ppd: f32) -> Report {
         baseline_dir: None,
         capture_dir: None,
         config: ReportConfig {
+            entries: Vec::new(),
+            ignore: Vec::new(),
             default_threshold: 0.01,
             default_metric: crate::report::Metric::Mean,
             pixels_per_degree: ppd,
@@ -668,6 +670,9 @@ fn compute_entry(
         hdr: None,
         meta_diff: Vec::new(),
         meta_ignored_diff: Vec::new(),
+        file_bytes_identical: None,
+        capture_validity: Default::default(),
+        meta_declared_unchanged: Vec::new(),
         baseline_properties: Some(crate::properties::validate(first)),
         warnings: Vec::new(),
         baseline_sha256: None,

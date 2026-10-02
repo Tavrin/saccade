@@ -920,6 +920,9 @@ mod tests {
             hdr: None,
             meta_diff: Vec::new(),
             meta_ignored_diff: Vec::new(),
+            file_bytes_identical: None,
+            capture_validity: Default::default(),
+            meta_declared_unchanged: Vec::new(),
             baseline_properties: None,
             warnings: Vec::new(),
             baseline_sha256: Some("aa".into()),
@@ -951,6 +954,8 @@ mod tests {
             baseline_dir: Some("/b".into()),
             capture_dir: Some("/c".into()),
             config: ReportConfig {
+                entries: Vec::new(),
+                ignore: Vec::new(),
                 default_threshold: 0.01,
                 default_metric: Metric::Mean,
                 pixels_per_degree: 67.0,

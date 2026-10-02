@@ -12,8 +12,8 @@ use crate::error::{Error, Result};
 use crate::properties;
 use crate::render;
 use crate::report::{
-    Entry, EntryPaths, Metric, Metrics, REPORT_FILE_NAME, REPORT_SCHEMA, Report, ReportConfig,
-    Status, Totals,
+    Entry, EntryPaths, Metric, Metrics, Mode, REPORT_FILE_NAME, REPORT_SCHEMA, Report,
+    ReportConfig, Status, Totals,
 };
 
 pub(crate) fn io_err(context: String) -> impl FnOnce(std::io::Error) -> Error {
@@ -397,7 +397,7 @@ pub fn run(
     // Timing keys are performance data, not capture configuration: they are
     // read for the perf pairing and never fail `--require-matching-meta`.
     let mut meta_options = config.meta.clone();
-    if config.diagnostics.enabled {
+    if config.diagnostics.enabled && config.meta.required_keys.is_empty() {
         for k in &config.diagnostics.perf_keys {
             if !meta_options.ignore.contains(k)
                 && !crate::meta::DEFAULT_IGNORE.contains(&k.as_str())
@@ -501,15 +501,17 @@ pub fn run(
             config.record_absolute_paths,
         )),
         config: ReportConfig {
+            entries: config.entries.clone(),
+            ignore: config.ignore.clone(),
             default_threshold: config.default_threshold,
             default_metric: config.default_metric,
             pixels_per_degree: config.pixels_per_degree,
-            fail_on_new: config.fail_on_new,
+            fail_on_new: config.fail_on_new || config.mode == Mode::Identity,
             mode: config.mode,
             labels: config.labels.clone(),
             meta: meta.settings(),
-            allow_empty: config.allow_empty,
-            fail_on_nonfinite: config.fail_on_nonfinite,
+            allow_empty: false,
+            fail_on_nonfinite: config.fail_on_nonfinite || config.mode == Mode::Identity,
             hotspot_fail: config.hotspot_fail,
         },
         totals,
@@ -527,17 +529,15 @@ pub fn run(
         } else {
             "no image exists in both directories".to_string()
         };
-        eprintln!(
-            "saccade: warning: nothing compared: {why}; this is a failure unless --allow-empty is given"
-        );
+        eprintln!("saccade: warning: nothing compared: {why}; empty comparisons are not evidence");
     }
 
     let json_path = report_dir.join(REPORT_FILE_NAME);
     let json = serde_json::to_string_pretty(&report)?;
     std::fs::write(&json_path, json).map_err(io_err(format!("writing {}", json_path.display())))?;
     render::render_html(&report, report_dir)?;
-    // The report is complete: the JSON is now the ownership marker.
-    std::fs::remove_file(&sentinel).map_err(io_err(format!("removing {}", sentinel.display())))?;
+    std::fs::write(&sentinel, b"complete saccade run\n")
+        .map_err(io_err(format!("writing {}", sentinel.display())))?;
     Ok(report)
 }
 
@@ -559,7 +559,7 @@ pub(crate) fn apply_image_warnings(entry: &mut Entry, config: &RunConfig) {
             entry.warnings.push(format!("{side} is all white"));
         }
         // A failing capture is reported by the entry's error instead.
-        let reported_as_error = side == "capture" && config.fail_on_nonfinite;
+        let reported_as_error = config.mode == Mode::Identity || config.fail_on_nonfinite;
         if (p.nan_count > 0 || p.inf_count > 0) && !reported_as_error {
             entry.warnings.push(format!(
                 "{side} has non-finite samples ({} NaN, {} infinite)",
@@ -567,18 +567,24 @@ pub(crate) fn apply_image_warnings(entry: &mut Entry, config: &RunConfig) {
             ));
         }
     }
-    let Some(p) = entry.properties else { return };
-    if config.fail_on_nonfinite && (p.nan_count > 0 || p.inf_count > 0) {
-        let msg = format!(
-            "capture has non-finite samples ({} NaN, {} infinite); \
-             set fail_on_nonfinite = false to accept",
-            p.nan_count, p.inf_count
-        );
-        entry.status = Status::Error;
-        entry.error = Some(match entry.error.take() {
-            Some(prev) => format!("{prev}; {msg}"),
-            None => msg,
-        });
+    for (side, props) in sides {
+        if let Some(p) = props
+            && (p.nan_count > 0 || p.inf_count > 0)
+        {
+            let msg = format!(
+                "{side} has non-finite samples ({} NaN, {} infinite)",
+                p.nan_count, p.inf_count
+            );
+            entry.capture_validity.status = crate::meta::Validity::Invalid;
+            entry.capture_validity.reasons.push(msg.clone());
+            if config.fail_on_nonfinite || config.mode == Mode::Identity {
+                entry.status = Status::Error;
+                entry.error = Some(match entry.error.take() {
+                    Some(prev) => format!("{prev}; {msg}"),
+                    None => msg,
+                });
+            }
+        }
     }
 }
 
@@ -599,15 +605,28 @@ fn apply_meta(
     capture_dir: &Path,
     baseline_name: &str,
 ) {
-    let failure = match meta.compare_named(baseline_dir, baseline_name, capture_dir, &entry.name) {
-        Ok((diff, ignored, failure)) => {
-            entry.meta_diff = diff;
-            entry.meta_ignored_diff = ignored;
-            failure
+    let failure = match meta.check_named(baseline_dir, baseline_name, capture_dir, &entry.name) {
+        Ok(checked) => {
+            entry.meta_diff = checked.diff;
+            entry.meta_ignored_diff = checked.ignored;
+            entry.meta_declared_unchanged = checked.unchanged;
+            if entry.capture_validity.status != crate::meta::Validity::Invalid {
+                entry.capture_validity = checked.validity;
+            } else {
+                entry
+                    .capture_validity
+                    .reasons
+                    .extend(checked.validity.reasons);
+            }
+            checked.failure
         }
         Err(e) => Some(e),
     };
     if let Some(msg) = failure {
+        entry.capture_validity.status = crate::meta::Validity::Invalid;
+        if !entry.capture_validity.reasons.contains(&msg) {
+            entry.capture_validity.reasons.push(msg.clone());
+        }
         entry.status = Status::Error;
         entry.error = Some(match entry.error.take() {
             Some(prev) => format!("{prev}; {msg}"),
@@ -711,6 +730,9 @@ pub(crate) fn build_entry(
         regions: Vec::new(),
         masked_fraction: None,
         bit_identical: None,
+        file_bytes_identical: None,
+        capture_validity: Default::default(),
+        meta_declared_unchanged: Vec::new(),
         hdr: None,
         meta_diff: Vec::new(),
         meta_ignored_diff: Vec::new(),
@@ -735,6 +757,22 @@ pub(crate) fn build_entry(
         entry.paths.nonfinite_mask = None;
         entry.buffer = None;
         entry.error = Some(e.to_string());
+    }
+    entry.file_bytes_identical = entry
+        .baseline_sha256
+        .as_ref()
+        .zip(entry.capture_sha256.as_ref())
+        .map(|(b, c)| b == c);
+    if matches!(entry.status, Status::Missing | Status::New | Status::Error) {
+        entry.capture_validity = crate::meta::CaptureValidity {
+            status: crate::meta::Validity::Invalid,
+            reasons: vec![
+                entry
+                    .error
+                    .clone()
+                    .unwrap_or_else(|| format!("incomplete pairing: {:?}", entry.status)),
+            ],
+        };
     }
     entry
 }
@@ -765,6 +803,11 @@ fn fill_entry(
     if !problems.is_empty() {
         entry.error = Some(problems.join("; "));
         return Ok(());
+    }
+    if config.mode == Mode::Identity
+        && let (Some(Source::File(b)), Some(Source::File(c))) = (base, cap)
+    {
+        return fill_identity_pair(entry, b, c, report_dir, opts, config);
     }
     if let Some(spec) = config.buffer_for(&name) {
         entry.metric_used = spec.metric;
@@ -881,7 +924,15 @@ fn finish_entry(
             min_share: config.hotspot_min_share,
         },
     );
-    entry.status = crate::regions::combine(status_of(value, entry.threshold), &entry.regions);
+    entry.status = if config.mode == Mode::Identity {
+        if entry.bit_identical == Some(true) {
+            Status::Pass
+        } else {
+            Status::Fail
+        }
+    } else {
+        crate::regions::combine(status_of(value, entry.threshold), &entry.regions)
+    };
     // A small severe defect barely moves the mean: `hotspot_fail` fails the
     // entry when the unmasked peak error reaches it (validated to be at least
     // `hotspot_threshold`, so some hotspot contains that pixel).
@@ -952,6 +1003,79 @@ fn copy_side(
         .save(&dest)
         .map_err(|source| Error::Encode { path: dest, source })?;
     Ok(Some(rel))
+}
+
+/// Identity decodes native samples before any display conversion or metric.
+fn fill_identity_pair(
+    entry: &mut Entry,
+    base: &Path,
+    cap: &Path,
+    report_dir: &Path,
+    opts: &CompareOptions,
+    config: &RunConfig,
+) -> Result<()> {
+    let open = |p: &Path| {
+        image::open(p).map_err(|source| Error::Decode {
+            path: p.to_path_buf(),
+            source,
+        })
+    };
+    let b = open(base)?;
+    let c = open(cap)?;
+    entry.bit_identical = Some(crate::compare::native_images_identical(&b, &c));
+    let props = |i: &image::DynamicImage| {
+        let mut p = properties::validate(&flatten_over(&i.to_rgba8(), 0));
+        (p.nan_count, p.inf_count) = crate::compare::nonfinite_samples(i);
+        p
+    };
+    entry.baseline_properties = Some(props(&b));
+    entry.properties = Some(props(&c));
+    entry.status = if entry.bit_identical == Some(true) {
+        Status::Pass
+    } else {
+        Status::Fail
+    };
+    if b.width() == 0 || b.height() == 0 || c.width() == 0 || c.height() == 0 {
+        return Err(Error::EmptyImage);
+    }
+    if b.width() != c.width() || b.height() != c.height() {
+        entry.capture_validity = crate::meta::CaptureValidity {
+            status: crate::meta::Validity::Invalid,
+            reasons: vec!["native dimensions differ".into()],
+        };
+        return Ok(());
+    }
+    if [entry.properties, entry.baseline_properties]
+        .into_iter()
+        .flatten()
+        .any(|p| p.nan_count > 0 || p.inf_count > 0)
+    {
+        // The equality finding survives; invalid samples never enter FLIP.
+        return Ok(());
+    }
+    if crate::hdr::is_hdr_path(base) && crate::hdr::is_hdr_path(cap) {
+        let b = crate::hdr::decode_hdr(base)?;
+        let c = crate::hdr::decode_hdr(cap)?;
+        let (cmp, info) = crate::hdr::compare_hdr(&c, &b, opts)?;
+        entry.hdr = Some(info);
+        let pair = PairPixels {
+            baseline: crate::diagnostics::Pixels::Hdr(&b),
+            capture: crate::diagnostics::Pixels::Hdr(&c),
+            capture_path: cap,
+            flip: opts,
+        };
+        finish_entry(entry, cmp, report_dir, config, &pair)
+    } else {
+        let (b, c) = (b.to_rgba8(), c.to_rgba8());
+        let cmp = compare_rgba(&c, &b, opts)?;
+        let pair = PairPixels {
+            baseline: crate::diagnostics::Pixels::Ldr(&b),
+            capture: crate::diagnostics::Pixels::Ldr(&c),
+            capture_path: cap,
+            flip: opts,
+        };
+        finish_entry(entry, cmp, report_dir, config, &pair)
+    }
 }
 
 /// The HDR branch of [`fill_entry`]: HDR-FLIP over the baseline's exposure

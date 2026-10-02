@@ -132,7 +132,11 @@ pub fn compare_probe(
     }
     let matcher = opts.entries.as_deref().map(compile_glob).transpose()?;
     let cfg = RunConfig {
-        mode: Mode::Identity,
+        mode: if opts.threshold.is_some() {
+            Mode::Regression
+        } else {
+            Mode::Identity
+        },
         default_threshold: opts.threshold.unwrap_or(0.0),
         default_metric: opts.metric.unwrap_or(Metric::Max),
         fail_on_new: true,

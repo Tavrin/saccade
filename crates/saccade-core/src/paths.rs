@@ -144,6 +144,9 @@ pub fn redact_entry(entry: &mut crate::Entry, base: &Path, inputs: &[&Path]) {
     for w in &mut entry.warnings {
         redact(w);
     }
+    for reason in &mut entry.capture_validity.reasons {
+        redact(reason);
+    }
 }
 
 #[cfg(test)]

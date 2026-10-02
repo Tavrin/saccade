@@ -262,6 +262,61 @@
         "string",
         "null"
       ]
+    },
+    "sample_equality": {
+      "type": [
+        "boolean",
+        "null"
+      ]
+    },
+    "capture_validity": {
+      "type": "object",
+      "required": [
+        "status",
+        "reasons"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "status": {
+          "enum": [
+            "valid",
+            "invalid",
+            "unknown"
+          ]
+        },
+        "reasons": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "reasons_omitted": {
+          "type": "integer",
+          "minimum": 0
+        }
+      }
+    },
+    "scope": {
+      "type": "object",
+      "required": [
+        "entries",
+        "ignore"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "entries": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "ignore": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        }
+      }
     }
   },
   "$defs": {

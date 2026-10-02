@@ -582,7 +582,7 @@ fn junit_is_valid_xml_and_preserves_verdicts() {
         ],
     );
     assert_eq!(out.status.code(), Some(1));
-    let out=Command::new(PYTHON).args(["-c","import sys,xml.etree.ElementTree as E; r=E.parse(sys.argv[1]).getroot(); assert len(r.findall('testcase'))==5; assert len(r.findall('.//failure'))==3; assert len(r.findall('.//skipped'))==1",root.join("results.xml").to_str().unwrap()]).output().unwrap();
+    let out=Command::new(PYTHON).args(["-c","import sys,xml.etree.ElementTree as E; r=E.parse(sys.argv[1]).getroot(); assert len(r.findall('testcase'))==5; assert len(r.findall('.//failure'))==4; assert len(r.findall('.//skipped'))==0",root.join("results.xml").to_str().unwrap()]).output().unwrap();
     assert!(
         out.status.success(),
         "{}",

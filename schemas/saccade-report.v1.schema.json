@@ -152,6 +152,27 @@
       ],
       "type": "object"
     },
+    "CaptureValidity": {
+      "description": "Validity and the missing context or violated requirements explaining it.",
+      "properties": {
+        "reasons": {
+          "description": "Explicit limits or failures.",
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "status": {
+          "$ref": "#/$defs/Validity",
+          "description": "Valid, invalid, or unknown."
+        }
+      },
+      "required": [
+        "status",
+        "reasons"
+      ],
+      "type": "object"
+    },
     "ChangeClass": {
       "description": "What kind of change separates the capture from the baseline.",
       "oneOf": [
@@ -256,6 +277,31 @@
       "required": [
         "name",
         "status"
+      ],
+      "type": "object"
+    },
+    "DeclaredChange": {
+      "additionalProperties": false,
+      "description": "A predeclared intervention; matching values do not prove it happened.",
+      "properties": {
+        "after": {
+          "description": "Expected candidate value, when specified."
+        },
+        "before": {
+          "description": "Expected baseline value, when specified."
+        },
+        "key": {
+          "description": "Exact metadata key.",
+          "type": "string"
+        },
+        "reason": {
+          "description": "Why this difference is permitted.",
+          "type": "string"
+        }
+      },
+      "required": [
+        "key",
+        "reason"
       ],
       "type": "object"
     },
@@ -471,6 +517,16 @@
             "null"
           ]
         },
+        "capture_validity": {
+          "$ref": "#/$defs/CaptureValidity",
+          "default": {
+            "reasons": [
+              "capture context was not checked"
+            ],
+            "status": "unknown"
+          },
+          "description": "Capture validity, independent of sample equality and perceptual error."
+        },
         "diagnostics": {
           "anyOf": [
             {
@@ -486,6 +542,14 @@
           "description": "Human-readable reason; `Some` exactly when status is error.",
           "type": [
             "string",
+            "null"
+          ]
+        },
+        "file_bytes_identical": {
+          "default": null,
+          "description": "File-byte equality, separate from decoded-sample equality.",
+          "type": [
+            "boolean",
             "null"
           ]
         },
@@ -517,6 +581,14 @@
             "number",
             "null"
           ]
+        },
+        "meta_declared_unchanged": {
+          "default": [],
+          "description": "Declared keys present on both sides whose values did not change.",
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
         },
         "meta_diff": {
           "default": [],
@@ -810,6 +882,14 @@
     "MetaSettings": {
       "description": "Metadata-sidecar settings recorded for reproducibility.",
       "properties": {
+        "changes": {
+          "default": [],
+          "description": "Structured declarations, including their reasons and expected values.",
+          "items": {
+            "$ref": "#/$defs/DeclaredChange"
+          },
+          "type": "array"
+        },
         "declared": {
           "description": "Keys whose difference is declared (expected) and therefore allowed.",
           "items": {
@@ -831,6 +911,14 @@
         "required": {
           "description": "Whether an undeclared differing key fails the entry.",
           "type": "boolean"
+        },
+        "required_keys": {
+          "default": [],
+          "description": "Project capture contract; empty means no proof profile was supplied.",
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
         }
       },
       "required": [
@@ -1319,7 +1407,7 @@
       "properties": {
         "allow_empty": {
           "default": false,
-          "description": "Whether a run that compared no pair is accepted (`--allow-empty`).",
+          "description": "Historical empty-run opt-in, retained for reading; new empty runs fail.",
           "type": "boolean"
         },
         "default_metric": {
@@ -1330,6 +1418,14 @@
           "description": "Default pass threshold applied when no override matches.",
           "format": "double",
           "type": "number"
+        },
+        "entries": {
+          "default": [],
+          "description": "Selected name globs; empty selects every name in the supplied inputs.",
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
         },
         "fail_on_new": {
           "description": "Whether a `new` entry fails the run.",
@@ -1349,6 +1445,14 @@
             "null"
           ]
         },
+        "ignore": {
+          "default": [],
+          "description": "Explicit exclusions from the supplied scope.",
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
         "labels": {
           "$ref": "#/$defs/Labels",
           "default": {
@@ -1360,10 +1464,12 @@
         "meta": {
           "$ref": "#/$defs/MetaSettings",
           "default": {
+            "changes": [],
             "declared": [],
             "ignored": [],
             "name": "saccade-meta.json",
-            "required": false
+            "required": false,
+            "required_keys": []
           },
           "description": "How metadata sidecars were read and enforced."
         },
@@ -1775,6 +1881,26 @@
         "error"
       ],
       "type": "object"
+    },
+    "Validity": {
+      "description": "Capture comparability, independent of native sample equality.",
+      "oneOf": [
+        {
+          "const": "valid",
+          "description": "Supplied capture requirements are satisfied.",
+          "type": "string"
+        },
+        {
+          "const": "invalid",
+          "description": "Evidence violates a supplied requirement or cannot be decoded safely.",
+          "type": "string"
+        },
+        {
+          "const": "unknown",
+          "description": "The supplied context cannot establish comparability.",
+          "type": "string"
+        }
+      ]
     }
   },
   "$id": "https://github.com/Tavrin/saccade/schemas/saccade-report.v1.schema.json",

@@ -982,6 +982,11 @@ impl Server {
     }
 
     fn tool_identity(&self, args: &Map<String, Value>) -> ToolResult {
+        if args.contains_key("threshold") || args.contains_key("metric") {
+            return Err(CliError::usage(
+                "identity rejects threshold and metric; use saccade_compare for perceptual thresholds",
+            ));
+        }
         let mut known = vec!["parent_dir", "candidate_dir"];
         known.extend_from_slice(RUN_ARGS);
         reject_unknown(args, &known)?;

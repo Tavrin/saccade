@@ -152,6 +152,27 @@
       ],
       "type": "object"
     },
+    "CaptureValidity": {
+      "description": "Validity and the missing context or violated requirements explaining it.",
+      "properties": {
+        "reasons": {
+          "description": "Explicit limits or failures.",
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "status": {
+          "$ref": "#/$defs/Validity",
+          "description": "Valid, invalid, or unknown."
+        }
+      },
+      "required": [
+        "status",
+        "reasons"
+      ],
+      "type": "object"
+    },
     "ChangeClass": {
       "description": "What kind of change separates the capture from the baseline.",
       "oneOf": [
@@ -341,6 +362,16 @@
             "null"
           ]
         },
+        "capture_validity": {
+          "$ref": "#/$defs/CaptureValidity",
+          "default": {
+            "reasons": [
+              "capture context was not checked"
+            ],
+            "status": "unknown"
+          },
+          "description": "Capture validity, independent of sample equality and perceptual error."
+        },
         "diagnostics": {
           "anyOf": [
             {
@@ -356,6 +387,14 @@
           "description": "Human-readable reason; `Some` exactly when status is error.",
           "type": [
             "string",
+            "null"
+          ]
+        },
+        "file_bytes_identical": {
+          "default": null,
+          "description": "File-byte equality, separate from decoded-sample equality.",
+          "type": [
+            "boolean",
             "null"
           ]
         },
@@ -387,6 +426,14 @@
             "number",
             "null"
           ]
+        },
+        "meta_declared_unchanged": {
+          "default": [],
+          "description": "Declared keys present on both sides whose values did not change.",
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
         },
         "meta_diff": {
           "default": [],
@@ -1221,6 +1268,26 @@
         "samples"
       ],
       "type": "object"
+    },
+    "Validity": {
+      "description": "Capture comparability, independent of native sample equality.",
+      "oneOf": [
+        {
+          "const": "valid",
+          "description": "Supplied capture requirements are satisfied.",
+          "type": "string"
+        },
+        {
+          "const": "invalid",
+          "description": "Evidence violates a supplied requirement or cannot be decoded safely.",
+          "type": "string"
+        },
+        {
+          "const": "unknown",
+          "description": "The supplied context cannot establish comparability.",
+          "type": "string"
+        }
+      ]
     }
   },
   "$id": "https://github.com/Tavrin/saccade/schemas/saccade-entries.v1.schema.json",

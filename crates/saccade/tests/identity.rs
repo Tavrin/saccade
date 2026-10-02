@@ -63,7 +63,7 @@ fn identical_pair_is_bit_identical_and_passes_at_zero() {
 }
 
 #[test]
-fn one_level_change_fails_by_default_and_passes_with_threshold() {
+fn one_level_change_fails_and_tolerance_flags_are_rejected() {
     let tmp = tempfile::tempdir().expect("tmp");
     pair(tmp.path(), true);
     let o = identity(tmp.path(), &[]);
@@ -77,8 +77,15 @@ fn one_level_change_fails_by_default_and_passes_with_threshold() {
         .expect("entry");
     assert_eq!(b["bit_identical"], false);
     assert_eq!(b["status"], "fail");
-    let o = identity(tmp.path(), &["--threshold", "0.01"]);
-    assert_eq!(o.status.code(), Some(0), "{o:?}");
+    for args in [
+        ["--threshold", "0.01"],
+        ["--threshold", "0"],
+        ["--metric", "max"],
+    ] {
+        let o = identity(tmp.path(), &args);
+        assert_eq!(o.status.code(), Some(2), "{o:?}");
+        assert!(String::from_utf8_lossy(&o.stderr).contains("identity rejects"));
+    }
 }
 
 #[test]
@@ -158,8 +165,38 @@ fn auto_loaded_config_overrides_do_not_relax_identity() {
             .expect("spawn")
     };
     let o = run(&[]);
-    assert_eq!(o.status.code(), Some(1), "{o:?}");
+    assert_eq!(o.status.code(), Some(2), "{o:?}");
     assert!(String::from_utf8_lossy(&o.stderr).contains("[[override]]"));
     let o = run(&["--config", "saccade.toml"]);
-    assert_eq!(o.status.code(), Some(0), "{o:?}");
+    assert_eq!(o.status.code(), Some(2), "{o:?}");
+}
+
+#[test]
+fn moss_json_retains_its_contract_and_separates_equality_from_validity() {
+    let tmp = tempfile::tempdir().expect("temp");
+    pair(tmp.path(), false);
+    let o = identity(
+        tmp.path(),
+        &["--json", "--require-matching-meta", "--entries", "a.png"],
+    );
+    assert_eq!(o.status.code(), Some(1), "{o:?}");
+    let v: serde_json::Value = serde_json::from_slice(&o.stdout).expect("json");
+    assert_eq!(v["schema"], "saccade-result.v1");
+    assert_eq!(v["mode"], "identity");
+    assert_eq!(v["verdict"], "regression");
+    for key in ["pass", "fail", "error", "missing", "new", "total"] {
+        assert!(v["totals"][key].is_number(), "{key}");
+    }
+    assert!(
+        v["failing"][0]["error"]
+            .as_str()
+            .expect("error")
+            .contains("metadata")
+    );
+    assert_eq!(v["sample_equality"], true);
+    assert_eq!(v["capture_validity"]["status"], "invalid");
+    assert_eq!(v["scope"]["entries"], serde_json::json!(["a.png"]));
+    let r = report(tmp.path());
+    assert_eq!(r["entries"][0]["bit_identical"], true);
+    assert_eq!(r["entries"][0]["capture_validity"]["status"], "invalid");
 }

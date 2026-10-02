@@ -419,6 +419,8 @@ pub fn run_sequence(
             cfg.record_absolute_paths,
         )),
         config: ReportConfig {
+            entries: Vec::new(),
+            ignore: Vec::new(),
             default_threshold: cfg.default_threshold,
             default_metric: cfg.default_metric,
             pixels_per_degree: cfg.pixels_per_degree,

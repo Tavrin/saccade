@@ -52,6 +52,12 @@ pub struct Report {
 #[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct ReportConfig {
+    /// Selected name globs; empty selects every name in the supplied inputs.
+    #[serde(default)]
+    pub entries: Vec<String>,
+    /// Explicit exclusions from the supplied scope.
+    #[serde(default)]
+    pub ignore: Vec<String>,
     /// Default pass threshold applied when no override matches.
     pub default_threshold: f64,
     /// Default metric applied when no override matches.
@@ -69,7 +75,7 @@ pub struct ReportConfig {
     /// How metadata sidecars were read and enforced.
     #[serde(default)]
     pub meta: MetaSettings,
-    /// Whether a run that compared no pair is accepted (`--allow-empty`).
+    /// Historical empty-run opt-in, retained for reading; new empty runs fail.
     #[serde(default)]
     pub allow_empty: bool,
     /// Whether a capture with NaN or infinite samples fails its entry.
@@ -88,6 +94,12 @@ fn default_true() -> bool {
 #[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct MetaSettings {
+    /// Project capture contract; empty means no proof profile was supplied.
+    #[serde(default)]
+    pub required_keys: Vec<String>,
+    /// Structured declarations, including their reasons and expected values.
+    #[serde(default)]
+    pub changes: Vec<crate::meta::DeclaredChange>,
     /// Sidecar file name (the per-image sidecar is `<stem>.<name>`).
     pub name: String,
     /// Whether an undeclared differing key fails the entry.
@@ -101,6 +113,8 @@ pub struct MetaSettings {
 impl Default for MetaSettings {
     fn default() -> Self {
         Self {
+            required_keys: Vec::new(),
+            changes: Vec::new(),
             name: crate::meta::DEFAULT_META_NAME.to_owned(),
             required: false,
             declared: Vec::new(),
@@ -273,6 +287,15 @@ pub struct Entry {
     /// Whether the decoded pixels are exactly equal; `None` unless compared.
     #[serde(default)]
     pub bit_identical: Option<bool>,
+    /// File-byte equality, separate from decoded-sample equality.
+    #[serde(default)]
+    pub file_bytes_identical: Option<bool>,
+    /// Capture validity, independent of sample equality and perceptual error.
+    #[serde(default)]
+    pub capture_validity: crate::meta::CaptureValidity,
+    /// Declared keys present on both sides whose values did not change.
+    #[serde(default)]
+    pub meta_declared_unchanged: Vec<String>,
     /// HDR-FLIP settings when the pair was compared as HDR.
     #[serde(default)]
     pub hdr: Option<HdrInfo>,
@@ -473,26 +496,78 @@ impl Report {
     pub fn compared(&self) -> usize {
         self.entries
             .iter()
-            .filter(|e| e.metrics.is_some() || e.value.is_some())
+            .filter(|e| {
+                e.metrics.is_some()
+                    || e.value.is_some()
+                    || (self.config.mode == Mode::Identity && e.bit_identical.is_some())
+            })
             .count()
     }
 
-    /// Whether the run compared nothing and did not opt into that
-    /// (`--allow-empty`): a green result would then mean nothing.
+    /// Whether the run compared nothing: an empty scope cannot establish evidence.
     pub fn is_empty_run(&self) -> bool {
-        self.compared() == 0 && !self.config.allow_empty
+        self.compared() == 0
     }
 
     /// Whether this run should exit non-zero: any fail, error or missing entry,
-    /// any new entry when `config.fail_on_new`, or no pair compared at all
-    /// unless `config.allow_empty`.
+    /// any new entry when required, or an empty scope. Identity also requires
+    /// exact samples and complete pairing.
     pub fn is_regression(&self) -> bool {
         let t = &self.totals;
         t.fail > 0
             || t.error > 0
             || t.missing > 0
-            || (self.config.fail_on_new && t.new > 0)
+            || ((self.config.fail_on_new || self.config.mode == Mode::Identity) && t.new > 0)
             || self.is_empty_run()
+            || (self.config.mode == Mode::Identity && self.sample_equality() != Some(true))
+    }
+
+    /// Exact sample equality across every selected entry; incomplete evidence is unknown.
+    pub fn sample_equality(&self) -> Option<bool> {
+        if self.entries.iter().any(|e| e.bit_identical == Some(false)) {
+            Some(false)
+        } else if !self.entries.is_empty()
+            && self.entries.iter().all(|e| e.bit_identical == Some(true))
+        {
+            Some(true)
+        } else {
+            None
+        }
+    }
+
+    /// Aggregate capture validity; invalid evidence wins over missing context.
+    pub fn capture_validity(&self) -> crate::meta::CaptureValidity {
+        use crate::meta::{CaptureValidity, Validity};
+        let status = if self
+            .entries
+            .iter()
+            .any(|e| e.capture_validity.status == Validity::Invalid)
+        {
+            Validity::Invalid
+        } else if self.entries.is_empty()
+            || self
+                .entries
+                .iter()
+                .any(|e| e.capture_validity.status == Validity::Unknown)
+        {
+            Validity::Unknown
+        } else {
+            Validity::Valid
+        };
+        let mut reasons: Vec<String> = self
+            .entries
+            .iter()
+            .flat_map(|e| {
+                e.capture_validity
+                    .reasons
+                    .iter()
+                    .map(move |r| format!("{}: {r}", e.name))
+            })
+            .collect();
+        if self.entries.is_empty() {
+            reasons.push("selected scope is empty".into());
+        }
+        CaptureValidity { status, reasons }
     }
 }
 

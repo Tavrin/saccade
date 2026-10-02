@@ -358,14 +358,13 @@ fn lean_entry(e: &Entry) -> Value {
     v
 }
 
-/// The error a run that compared no pair (and was not told `--allow-empty`)
-/// is reported as in JSON mode; it exits 1 like any regression.
+/// The error for a run that compared no pair in JSON mode; exits 1.
 pub fn nothing_compared(report: &Report, report_json: &Path) -> Option<CliError> {
     report.is_empty_run().then(|| {
         CliError::new(
             "nothing_compared",
             format!(
-                "no image exists in both directories, so nothing was compared (report: {}); pass --allow-empty if an empty run is fine",
+                "no image exists in both directories, so nothing was compared (report: {}); empty comparisons are not evidence",
                 absolute(report_json).display()
             ),
         )
@@ -377,7 +376,7 @@ fn next_step(report: &Report, report_json: &Path, explain_written: bool) -> Stri
     let failing = failing_entries(report);
     let rj = saccade_core::paths::cwd(report_json, false);
     if report.is_empty_run() {
-        return "nothing was compared: no image exists in both directories; check the two paths, or pass --allow-empty if an empty run is fine".to_string();
+        return "nothing was compared: no image exists in both directories; check the two paths and selected scope".to_string();
     }
     let approve = format!("saccade approve --report {rj} --all-failing");
     if failing.is_empty() {
@@ -435,11 +434,17 @@ pub fn result_value(
     let display = |p: &Path| saccade_core::paths::cwd(p, abs_paths);
     let existing = |p: PathBuf| p.is_file().then(|| display(&p));
     let explain_dir = dir.join("explain");
+    let validity = report.capture_validity();
     let mut v = json!({
         "schema": RESULT_SCHEMA,
         "verdict": if report.is_regression() { "regression" } else { "pass" },
         "mode": serde_json::to_value(report.config.mode).unwrap_or(Value::Null),
         "totals": report.totals,
+        "sample_equality": report.sample_equality(),
+        "capture_validity": {"status": validity.status,
+            "reasons": validity.reasons.iter().take(5).collect::<Vec<_>>(),
+            "reasons_omitted": validity.reasons.len().saturating_sub(5)},
+        "scope": {"entries": report.config.entries, "ignore": report.config.ignore},
         "perf_diff": report.perf_diff,
         "perf_errors": report.perf_errors,
         "combined_verdict": report.combined_verdict,
