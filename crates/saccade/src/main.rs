@@ -18,15 +18,22 @@ use saccade_core::view::{
 mod agent;
 mod agent_ui;
 mod f1;
+#[cfg(feature = "ai")]
 mod judge_cmd;
+#[cfg(feature = "mcp")]
 mod mcp;
 mod outdirs;
 mod perf_cmd;
+#[cfg(feature = "prechecks")]
 mod precheck;
+#[cfg(all(feature = "prechecks", feature = "mcp"))]
 mod precheck_mcp;
+#[cfg(feature = "ai")]
 mod review_cmd;
 mod runs_cmd;
+#[cfg(any(feature = "graphics", feature = "workbench"))]
 mod s6;
+#[cfg(feature = "mcp")]
 mod s6_mcp;
 
 use agent::CliError;
@@ -149,6 +156,7 @@ enum RunJson {
 
 /// How much `sequence --json` and `rank --json` print.
 #[derive(Clone, Copy, ValueEnum)]
+#[cfg(feature = "graphics")]
 enum JsonMode {
     /// The lean `saccade-result.v1`.
     Lean,
@@ -165,9 +173,16 @@ enum Format {
 
 #[derive(Subcommand)]
 enum Command {
+    /// Inspect the features, operations and contracts available in this build.
+    Inspect {
+        #[command(subcommand)]
+        operation: InspectOperation,
+    },
     /// Photosensitivity PRE-CHECK only; not certification or formal compliance.
+    #[cfg(feature = "prechecks")]
     Safety(precheck::SafetyArgs),
     /// Accessibility PRE-CHECK only; not certification or formal compliance.
+    #[cfg(feature = "prechecks")]
     A11y(precheck::A11yArgs),
     /// Bootstrap a commented configuration and print baseline adoption steps.
     Init(f1::InitArgs),
@@ -178,20 +193,24 @@ enum Command {
     /// Calibrate thresholds from repeated captures of an unchanged build.
     Noise(f1::NoiseArgs),
     /// Compare ablation arms against a base with image and performance evidence.
+    #[cfg(feature = "graphics")]
     Ablate(perf_cmd::AblateArgs),
     /// Run the bundled example and explain its expected regression.
     Demo(f1::DemoArgs),
     /// Judge a report or ranking with a panel of models and humans.
+    #[cfg(feature = "ai")]
     Judge(judge_cmd::JudgeArgs),
     /// Run the proposal-only AI review cascade on a report.
+    #[cfg(feature = "ai")]
     Review(review_cmd::ReviewArgs),
     /// Find the first diverging run or revision in an ordered series.
+    #[cfg(feature = "graphics")]
     Bisect(s6::BisectArgs),
-    /// Compare initially and after debounced capture-directory changes.
-    Watch(s6::WatchArgs),
     /// Post a closed-answer question to a local human inbox.
+    #[cfg(feature = "workbench")]
     Ask(s6::AskArgs),
     /// Compare numbered colour frames by sorted index and measure added flicker.
+    #[cfg(feature = "graphics")]
     Sequence {
         baseline_dir: PathBuf,
         capture_dir: PathBuf,
@@ -227,6 +246,7 @@ enum Command {
         require: MetaRequireArgs,
     },
     /// Rank candidate directories against one common FLIP reference.
+    #[cfg(feature = "graphics")]
     Rank {
         reference_dir: PathBuf,
         #[arg(required = true, num_args = 1..)]
@@ -456,6 +476,7 @@ enum Command {
     },
     /// Serve a local web app for browsing a capture archive and comparing runs
     /// (127.0.0.1 only; the archive is never written to).
+    #[cfg(feature = "workbench")]
     Serve {
         /// Archive roots to browse (read-only). With several, each is a
         /// top-level entry named after its directory.
@@ -596,13 +617,11 @@ enum Command {
     /// Serve the Model Context Protocol over stdio, so an AI agent can run
     /// comparisons and read their hotspots as a tool. Every path an agent
     /// passes must resolve under `--root`.
+    #[cfg(feature = "mcp")]
     Mcp {
         /// Directory the agent may read and write (default: the working directory).
         #[arg(long, value_name = "DIR")]
         root: Option<PathBuf>,
-        /// Watch baseline:capture inside the server root (repeatable).
-        #[arg(long, value_name = "BASE:CAP")]
-        watch: Vec<String>,
     },
     /// Render a view state (layout, split, zoom, heatmap...) of a report entry
     /// or view set to a PNG, with no browser.
@@ -627,6 +646,15 @@ enum Command {
         /// comments (ASCII letters, digits, `.`, `_`, `-`; at most 64).
         #[arg(long)]
         comment_key: Option<String>,
+    },
+}
+
+#[derive(Subcommand)]
+enum InspectOperation {
+    /// List compiled features, implemented operations and contract versions.
+    Capabilities {
+        #[arg(long)]
+        json: bool,
     },
 }
 
@@ -684,6 +712,17 @@ fn cli_main() -> ExitCode {
     let cli = match Cli::try_parse_from(&args) {
         Ok(cli) => cli,
         Err(e) => {
+            if e.use_stderr()
+                && let Some(feature) = requested_feature(&args)
+            {
+                let err = CliError::from(saccade_core::Error::FeatureUnavailable { feature });
+                if args_want_json(&args) {
+                    emit_json_error(&err);
+                } else {
+                    eprintln!("saccade: error: {err}\n  hint: {}", err.hint);
+                }
+                return ExitCode::from(2);
+            }
             if e.use_stderr() && args_want_json(&args) {
                 let text = e.to_string();
                 // The message is the text before clap's `Usage:` block.
@@ -776,19 +815,29 @@ fn emit_run(report: &Report, out: &Path, json: Option<RunJson>) -> Result<(), Cl
 
 fn dispatch(command: Command, record_absolute_paths: bool) -> Result<u8, CliError> {
     match command {
+        Command::Inspect {
+            operation: InspectOperation::Capabilities { json },
+        } => capabilities(json),
+        #[cfg(feature = "prechecks")]
         Command::Safety(args) => precheck::safety(args),
+        #[cfg(feature = "prechecks")]
         Command::A11y(args) => precheck::a11y(args),
         Command::Init(args) => f1::init(args),
         Command::Config(args) => f1::config(args),
         Command::Entries(args) => f1::entries(args),
         Command::Noise(args) => f1::noise(args, record_absolute_paths),
+        #[cfg(feature = "graphics")]
         Command::Ablate(args) => perf_cmd::ablate(args, record_absolute_paths),
         Command::Demo(args) => f1::demo(args, record_absolute_paths),
+        #[cfg(feature = "ai")]
         Command::Judge(args) => judge_cmd::judge(args),
+        #[cfg(feature = "ai")]
         Command::Review(args) => review_cmd::review(args),
+        #[cfg(feature = "graphics")]
         Command::Bisect(args) => s6::bisect(args),
-        Command::Watch(args) => s6::watch(args),
+        #[cfg(feature = "workbench")]
         Command::Ask(args) => s6::ask(args),
+        #[cfg(feature = "graphics")]
         Command::Sequence {
             baseline_dir,
             capture_dir,
@@ -852,6 +901,7 @@ fn dispatch(command: Command, record_absolute_paths: bool) -> Result<u8, CliErro
             }
             Ok(u8::from(report.is_regression()))
         }
+        #[cfg(feature = "graphics")]
         Command::Rank {
             reference_dir,
             candidate_dirs,
@@ -1069,6 +1119,7 @@ fn dispatch(command: Command, record_absolute_paths: bool) -> Result<u8, CliErro
                 },
             )
         }
+        #[cfg(feature = "workbench")]
         Command::Serve {
             mut roots,
             follow_symlinks_within_roots,
@@ -1260,8 +1311,9 @@ fn dispatch(command: Command, record_absolute_paths: bool) -> Result<u8, CliErro
                 record_absolute_paths,
             })
         }
-        Command::Mcp { root, watch } => {
-            mcp::serve_stdio(root.as_deref(), &watch)?;
+        #[cfg(feature = "mcp")]
+        Command::Mcp { root } => {
+            mcp::serve_stdio(root.as_deref())?;
             Ok(0)
         }
         Command::Explain {
@@ -1402,6 +1454,7 @@ fn strip_config_prefix(e: &saccade_core::Error) -> String {
 }
 
 /// Opens `url` in the default browser; failures are ignored.
+#[cfg(feature = "workbench")]
 fn open_browser(url: &str) {
     let (program, args): (&str, Vec<&str>) = if cfg!(target_os = "macos") {
         ("open", vec![url])
@@ -1957,4 +2010,108 @@ fn text_table(report: &Report) -> String {
         );
     }
     out
+}
+
+/// The feature required by an optional CLI operation or MCP tool.
+fn required_feature(operation: &str) -> Option<&'static str> {
+    match operation {
+        "ablate" | "bisect" | "sequence" | "rank" | "saccade_ablate" | "saccade_bisect"
+        | "saccade_sequence" | "saccade_rank" => Some("graphics"),
+        "judge" | "review" | "saccade_judge" | "saccade_review" => Some("ai"),
+        "calibrate"
+        | "selftest"
+        | "bench"
+        | "collect-labels"
+        | "saccade_judge_calibrate"
+        | "saccade_judge_bench" => Some("evaluation"),
+        "serve" | "ask" | "saccade_ask_human" | "saccade_inbox_get" => Some("workbench"),
+        "safety" | "a11y" | "saccade_safety" | "saccade_a11y" => Some("prechecks"),
+        "mcp" => Some("mcp"),
+        _ => None,
+    }
+}
+
+fn feature_enabled(feature: &str) -> bool {
+    if feature == "mcp" {
+        cfg!(feature = "mcp")
+    } else {
+        saccade_core::COMPILED_FEATURES.contains(&feature)
+    }
+}
+
+fn unavailable_feature(operation: &str) -> Option<&'static str> {
+    required_feature(operation).filter(|f| !feature_enabled(f))
+}
+
+#[cfg(feature = "mcp")]
+fn operation_available(operation: &str) -> bool {
+    operation != "saccade_watch_status" && unavailable_feature(operation).is_none()
+}
+
+fn requested_feature(args: &[std::ffi::OsString]) -> Option<&'static str> {
+    let operation = args
+        .iter()
+        .skip(1)
+        .find(|a| !a.to_string_lossy().starts_with('-'))?
+        .to_str()?;
+    unavailable_feature(operation).or_else(|| {
+        if operation == "judge" {
+            args.iter()
+                .skip(2)
+                .find_map(|a| a.to_str().and_then(unavailable_feature))
+        } else if operation == "init" && !feature_enabled("ai") {
+            args.windows(2)
+                .any(|w| {
+                    w[0] == "--template"
+                        && matches!(w[1].to_str(), Some("ci" | "nightly" | "lookdev"))
+                })
+                .then_some("ai")
+        } else {
+            None
+        }
+    })
+}
+
+fn capabilities(json: bool) -> Result<u8, CliError> {
+    use clap::CommandFactory;
+    fn operations(command: &clap::Command, prefix: &str, out: &mut Vec<String>) {
+        for child in command.get_subcommands() {
+            let name = if prefix.is_empty() {
+                child.get_name().to_owned()
+            } else {
+                format!("{prefix} {}", child.get_name())
+            };
+            out.push(name.clone());
+            operations(child, &name, out);
+        }
+    }
+    let mut names = Vec::new();
+    operations(&Cli::command(), "", &mut names);
+    let mut features = saccade_core::COMPILED_FEATURES.to_vec();
+    if cfg!(feature = "mcp") {
+        features.push("mcp");
+    }
+    features.sort_unstable();
+    let value = serde_json::json!({
+        "features": features,
+        "operations": names,
+        "contract_versions": ["saccade-report.v1", "saccade-result.v1", "saccade-decisions.v1", "saccade-noise.v1"],
+    });
+    if json {
+        emit(&format!("{}\n", serde_json::to_string_pretty(&value)?))?;
+    } else {
+        emit(&format!(
+            "features: {}\noperations: {}\ncontracts: {}\n",
+            features.join(", "),
+            names.join(", "),
+            value["contract_versions"]
+                .as_array()
+                .into_iter()
+                .flatten()
+                .filter_map(serde_json::Value::as_str)
+                .collect::<Vec<_>>()
+                .join(", ")
+        ))?;
+    }
+    Ok(0)
 }

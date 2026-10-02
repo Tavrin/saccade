@@ -3,9 +3,14 @@ use std::path::{Path, PathBuf};
 
 use serde::{Deserialize, Serialize};
 
+#[cfg(feature = "graphics")]
 use crate::config::{RunConfig, compile_glob};
+#[cfg(feature = "graphics")]
 use crate::explain::absolute;
-use crate::report::{Metric, Mode, REPORT_FILE_NAME, Status, Totals};
+use crate::report::Metric;
+#[cfg(feature = "graphics")]
+use crate::report::{Mode, REPORT_FILE_NAME, Status, Totals};
+#[cfg(feature = "graphics")]
 use crate::run::{guard_output_dir, run};
 use crate::{Error, Result};
 
@@ -90,6 +95,7 @@ impl BisectResult {
 }
 
 /// Validate and prepare a bisect report directory without touching inputs.
+#[cfg(feature = "graphics")]
 pub fn prepare(out: &Path, inputs: &[&Path]) -> Result<PathBuf> {
     let out = absolute(out);
     for input in inputs {
@@ -111,6 +117,7 @@ pub fn prepare(out: &Path, inputs: &[&Path]) -> Result<PathBuf> {
 }
 
 /// Compare one probe, retaining the report. Errors decoding images are skips.
+#[cfg(feature = "graphics")]
 pub fn compare_probe(
     reference: &Path,
     capture: &Path,
@@ -187,6 +194,7 @@ pub fn compare_probe(
 
 /// Binary-search a monotonic series. A skipped midpoint tries another point in
 /// the remaining interval; skipped boundary points never become known good.
+#[cfg(feature = "graphics")]
 pub fn search(
     targets: &[String],
     mut probe: impl FnMut(usize, &str) -> Result<Probe>,
@@ -268,6 +276,7 @@ pub fn search(
 }
 
 /// Mode A: search existing runs in supplied chronological order.
+#[cfg(feature = "graphics")]
 pub fn runs(
     runs: &[PathBuf],
     good: Option<&Path>,
@@ -309,6 +318,7 @@ pub fn runs(
 }
 
 /// Save the result alongside per-probe reports.
+#[cfg(feature = "graphics")]
 pub fn write_result(out: &Path, result: &BisectResult) -> Result<()> {
     if std::fs::symlink_metadata(out.join("saccade-bisect.v1.json"))
         .is_ok_and(|m| m.file_type().is_symlink())
@@ -323,6 +333,7 @@ pub fn write_result(out: &Path, result: &BisectResult) -> Result<()> {
 }
 
 /// Resolve a report child without letting preexisting symlinks redirect writes.
+#[cfg(feature = "graphics")]
 pub fn probe_dir(out: &Path, index: usize) -> Result<PathBuf> {
     let child = out.join(format!("probe-{index}"));
     if absolute(&child) != child {
@@ -333,6 +344,20 @@ pub fn probe_dir(out: &Path, index: usize) -> Result<PathBuf> {
     Ok(child)
 }
 
+#[cfg(feature = "graphics")]
 fn io(context: &str) -> impl FnOnce(std::io::Error) -> Error {
     crate::run::io_err(context.into())
+}
+
+/// Returns `feature_unavailable` when graphics computation is not compiled.
+#[cfg(not(feature = "graphics"))]
+pub fn runs(
+    _runs: &[PathBuf],
+    _good: Option<&Path>,
+    _out: &Path,
+    _opts: &BisectOptions,
+) -> Result<BisectResult> {
+    Err(Error::FeatureUnavailable {
+        feature: "graphics",
+    })
 }

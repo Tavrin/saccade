@@ -1,10 +1,9 @@
-//! Focused S6 production-path contracts (seven tests).
+//! Focused S6 production-path contracts.
 #![allow(clippy::unwrap_used, clippy::expect_used, missing_docs)]
 use std::io::{BufRead, BufReader, Read, Write};
 use std::net::TcpStream;
 use std::path::{Path, PathBuf};
 use std::process::{Command, Stdio};
-use std::sync::mpsc;
 use std::time::{Duration, Instant};
 
 use image::{Rgb, RgbImage};
@@ -355,103 +354,6 @@ fn shell_path(path: &Path) -> String {
 }
 
 #[test]
-fn watch_once_and_debounced_change_produce_schema_valid_results() {
-    let tmp = tempfile::tempdir().unwrap();
-    let base = tmp.path().join("base");
-    let cap = tmp.path().join("cap");
-    image(&base, 64);
-    image(&cap, 64);
-    let out = Command::new(BIN)
-        .args(["watch"])
-        .arg(&base)
-        .arg(&cap)
-        .arg("--out")
-        .arg(tmp.path().join("once"))
-        .args(["--once", "--json"])
-        .output()
-        .unwrap();
-    assert!(out.status.success());
-    let v: Value = serde_json::from_slice(&out.stdout).unwrap();
-    validate("result", &v);
-    let opts = saccade_core::watch::WatchOptions {
-        baseline: base.clone(),
-        capture: cap.clone(),
-        out: tmp.path().join("watch"),
-        config: Default::default(),
-        debounce: Duration::from_millis(100),
-    };
-    let (tx, rx) = mpsc::channel();
-    let watcher = saccade_core::watch::start(opts, move |r| {
-        tx.send(r.map(|r| r.is_regression()).map_err(|e| e.to_string()))
-            .unwrap();
-    });
-    assert!(!rx.recv_timeout(Duration::from_secs(10)).unwrap().unwrap());
-    image(&cap, 140);
-    assert!(rx.recv_timeout(Duration::from_secs(10)).unwrap().unwrap());
-    drop(watcher);
-    #[cfg(unix)]
-    {
-        image(&cap, 64);
-        let mut child = Command::new(BIN)
-            .arg("watch")
-            .arg(&base)
-            .arg(&cap)
-            .arg("--out")
-            .arg(tmp.path().join("cli-watch"))
-            .args(["--debounce-ms", "100", "--json"])
-            .stdout(Stdio::piped())
-            .spawn()
-            .unwrap();
-        let stdout = child.stdout.take().unwrap();
-        let (tx, rx) = mpsc::channel();
-        let reader = std::thread::spawn(move || {
-            for line in BufReader::new(stdout).lines() {
-                if tx
-                    .send(serde_json::from_str::<Value>(&line.unwrap()).unwrap())
-                    .is_err()
-                {
-                    break;
-                }
-            }
-        });
-        let initial = rx.recv_timeout(Duration::from_secs(10));
-        if initial.is_err() {
-            child.kill().unwrap();
-        }
-        let initial = initial.unwrap();
-        assert_eq!(initial["verdict"], "pass");
-        validate("result", &initial);
-        image(&cap, 140);
-        let changed = rx.recv_timeout(Duration::from_secs(10));
-        if changed.is_err() {
-            child.kill().unwrap();
-        }
-        let changed = changed.unwrap();
-        assert_eq!(changed["verdict"], "regression");
-        validate("result", &changed);
-        assert!(
-            Command::new("kill")
-                .args(["-INT", &child.id().to_string()])
-                .status()
-                .unwrap()
-                .success()
-        );
-        let started = Instant::now();
-        loop {
-            if let Some(status) = child.try_wait().unwrap() {
-                assert_eq!(status.code(), Some(1));
-                break;
-            }
-            if started.elapsed() > Duration::from_secs(10) {
-                child.kill().unwrap();
-            }
-            std::thread::sleep(Duration::from_millis(20));
-        }
-        reader.join().unwrap();
-    }
-}
-
-#[test]
 fn inbox_security_persistence_invalid_answers_and_discovery_permissions() {
     let tmp = tempfile::tempdir().unwrap();
     let (server, cache, decisions) = serve(tmp.path());
@@ -724,68 +626,4 @@ fn mcp_ask_inbox_bisect_are_schema_valid_and_capture_commands_are_refused() {
     child.stdin.take();
     assert!(child.wait().unwrap().success());
     assert!(!tmp.path().join("sentinel").exists());
-}
-
-#[test]
-fn mcp_watch_status_and_notifications_share_valid_jsonl_stdout() {
-    let tmp = tempfile::tempdir().unwrap();
-    let base = tmp.path().join("base");
-    let cap = tmp.path().join("cap");
-    image(&base, 64);
-    image(&cap, 64);
-    let mut child = Command::new(BIN)
-        .args(["mcp", "--root"])
-        .arg(tmp.path())
-        .arg("--watch")
-        .arg("base:cap")
-        .stdin(Stdio::piped())
-        .stdout(Stdio::piped())
-        .spawn()
-        .unwrap();
-    let stdout = child.stdout.take().unwrap();
-    let (tx, rx) = mpsc::channel();
-    let reader = std::thread::spawn(move || {
-        for line in BufReader::new(stdout).lines() {
-            tx.send(serde_json::from_str::<Value>(&line.unwrap()).unwrap())
-                .unwrap();
-        }
-    });
-    writeln!(
-        child.stdin.as_mut().unwrap(),
-        "{}",
-        json!({"jsonrpc":"2.0","method":"notifications/initialized"})
-    )
-    .unwrap();
-    let start = Instant::now();
-    loop {
-        mcp_send(
-            &mut child,
-            1,
-            "saccade_watch_status",
-            json!({"capture_dir":"cap"}),
-        );
-        let v = rx.recv_timeout(Duration::from_secs(10)).unwrap();
-        if v["result"]["structuredContent"]["verdict"] == "pass"
-            || v["method"] == "notifications/message"
-        {
-            break;
-        }
-        assert!(start.elapsed() < Duration::from_secs(10));
-        std::thread::sleep(Duration::from_millis(20));
-    }
-    image(&cap, 140);
-    let start = Instant::now();
-    loop {
-        let v = rx.recv_timeout(Duration::from_secs(10)).unwrap();
-        if v["method"] == "notifications/message"
-            && v["params"]["data"]["result"]["verdict"] == "regression"
-        {
-            validate("result", &v["params"]["data"]["result"]);
-            break;
-        }
-        assert!(start.elapsed() < Duration::from_secs(10));
-    }
-    child.stdin.take();
-    assert!(child.wait().unwrap().success());
-    reader.join().unwrap();
 }

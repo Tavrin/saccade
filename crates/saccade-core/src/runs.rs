@@ -227,6 +227,12 @@ pub fn plan(reference: &RunInput, runs: &[RunInput], opts: &RunsOptions) -> Resu
     }
     let checker = opts.meta.checker()?;
     opts.perf.validate()?;
+    #[cfg(not(feature = "graphics"))]
+    if opts.perf != crate::perf::PerfOptions::default() {
+        return Err(Error::FeatureUnavailable {
+            feature: "graphics",
+        });
+    }
     for g in &opts.entries {
         crate::config::compile_glob(g)?;
     }
@@ -282,7 +288,10 @@ pub fn plan(reference: &RunInput, runs: &[RunInput], opts: &RunsOptions) -> Resu
             .map(|(_, n)| n.clone())
             .collect();
         let n = pairs.len();
+        #[cfg(feature = "graphics")]
         let (perf_diff, perf_errors) = crate::perf::pair(&reference.dir, &input.dir, &opts.perf)?;
+        #[cfg(not(feature = "graphics"))]
+        let (perf_diff, perf_errors) = (None, Vec::new());
         out.push(RunPlan {
             perf_diff,
             perf_errors,

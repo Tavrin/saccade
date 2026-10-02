@@ -2180,6 +2180,7 @@ pub struct SelftestOptions {
     pub max_calls: usize,
 }
 
+#[cfg(feature = "evaluation")]
 fn renamed(item: &JudgeItem) -> JudgeItem {
     let mut it = item.clone();
     let alias = format!("item_{}.png", &sha(&item.id)[7..13]);
@@ -2192,6 +2193,7 @@ fn renamed(item: &JudgeItem) -> JudgeItem {
     it
 }
 
+#[cfg(feature = "evaluation")]
 fn shifted(item: &JudgeItem, dx: u32) -> JudgeItem {
     let mut it = item.clone();
     for h in &mut it.hotspots {
@@ -2214,6 +2216,7 @@ fn shifted(item: &JudgeItem, dx: u32) -> JudgeItem {
 /// Re-asks each judge the same questions with irrelevant perturbations (a
 /// repeat as the noise floor, the A/B order swapped, the entry renamed, the
 /// crop shifted) and reports how often the answer changes.
+#[cfg(feature = "evaluation")]
 pub fn selftest(
     items: &[JudgeItem],
     panel: &Panel,
@@ -2307,11 +2310,6 @@ pub fn selftest(
         "judges": rows,
         "reading": "a flip rate above the repeat floor means the answer depends on something irrelevant to the images; trust such a judge less on every question",
     })
-}
-
-/// Hex digest helper shared with the vote store.
-pub(crate) fn sha_hex(text: &str) -> String {
-    hex(&Sha256::digest(text.as_bytes()))
 }
 
 /// The map from a vote-page answer back to a stable answer is the same as

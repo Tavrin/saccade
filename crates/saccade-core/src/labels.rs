@@ -1,11 +1,16 @@
 //! Human final label collection with immutable evidence identities and provenance.
+#[cfg(feature = "evaluation")]
 use crate::judge::{EvidenceOptions, JudgeItem, JudgeQuestion, PixelSource, report_items};
-use crate::report::{Hotspot, Report};
+use crate::report::Hotspot;
+#[cfg(feature = "evaluation")]
+use crate::report::Report;
 use crate::{Error, Result};
 use serde::{Deserialize, Serialize};
 use serde_json::{Value, json};
 use std::collections::BTreeMap;
-use std::path::{Path, PathBuf};
+use std::path::Path;
+#[cfg(feature = "evaluation")]
+use std::path::PathBuf;
 
 /// Labels schema identifier.
 pub const SCHEMA: &str = "saccade-labels.v1";
@@ -57,7 +62,7 @@ pub fn identity(label: &Label) -> String {
     } else {
         [label.state.clone(), label.state.clone()]
     };
-    crate::review::hash(&json!([
+    hash(&json!([
         label.entry,
         label.question,
         states,
@@ -78,12 +83,13 @@ impl Labels {
         }
         let mut seen = BTreeMap::new();
         for i in &set.items {
-            let q = JudgeQuestion::parse(&i.question)
-                .ok_or_else(|| Error::Config("unknown label question".into()))?;
-            let valid = if q == JudgeQuestion::Preference {
+            let valid = if i.question == "preference" {
                 ["a", "b", "tie"].contains(&i.answer.as_str())
             } else {
-                q.wire_answers().contains(&i.answer) && !crate::judge_stats::is_abstain(&i.answer)
+                let q = crate::decision::Question::parse(&i.question)
+                    .ok_or_else(|| Error::Config("unknown label question".into()))?;
+                q.allowed_answers().contains(&i.answer.as_str())
+                    && !crate::judge_stats::is_abstain(&i.answer)
             };
             if i.evidence_hash != identity(i) {
                 return Err(Error::Config(format!(
@@ -109,6 +115,7 @@ impl Labels {
 }
 
 /// Create a replay item, verifying stored image identities before any upload.
+#[cfg(feature = "evaluation")]
 pub fn replay(label: &Label, document: &Path) -> Result<JudgeItem> {
     if label.evidence_hash != identity(label) {
         return Err(Error::Config("label evidence identity mismatch".into()));
@@ -151,6 +158,7 @@ pub fn replay(label: &Label, document: &Path) -> Result<JudgeItem> {
     })
 }
 
+#[cfg(feature = "evaluation")]
 fn add(out: &mut BTreeMap<(String, String), Label>, label: Label) -> Result<()> {
     let key = (label.evidence_hash.clone(), label.question.clone());
     if let Some(old) = out.get_mut(&key) {
@@ -177,6 +185,7 @@ fn add(out: &mut BTreeMap<(String, String), Label>, label: Label) -> Result<()> 
     Ok(())
 }
 
+#[cfg(feature = "evaluation")]
 fn from_report(
     path: &Path,
     entry: &str,
@@ -238,7 +247,7 @@ fn from_report(
     let evidence_hash = item
         .as_ref()
         .map(|i| crate::review::evidence_hash(i, &report))
-        .unwrap_or_else(|| crate::review::hash(&json!([state, sha256])));
+        .unwrap_or_else(|| hash(&json!([state, sha256])));
     let mut label = Label {
         entry: entry.into(),
         question: question.into(),
@@ -262,6 +271,7 @@ fn from_report(
 
 /// Harvest report decisions, serve sessions, answered review inbox items and
 /// consistent human votes in both orders. Model proposals and promoted gates are excluded.
+#[cfg(feature = "evaluation")]
 pub fn collect(decisions_dir: Option<&Path>, reports: &[PathBuf], out: &Path) -> Result<Labels> {
     let mut labels = BTreeMap::new();
     let mut files = Vec::new();
@@ -537,4 +547,16 @@ pub fn collect(decisions_dir: Option<&Path>, reports: &[PathBuf], out: &Path) ->
     }
     crate::review::write_json(out, &serde_json::to_value(&set)?)?;
     Ok(set)
+}
+
+pub(crate) fn hash(value: &Value) -> String {
+    use sha2::{Digest, Sha256};
+    let digest = Sha256::digest(value.to_string().as_bytes());
+    format!(
+        "sha256:{}",
+        digest
+            .iter()
+            .map(|b| format!("{b:02x}"))
+            .collect::<String>()
+    )
 }

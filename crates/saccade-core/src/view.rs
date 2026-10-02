@@ -817,6 +817,7 @@ struct Side<'a> {
     /// The source file.
     file: &'a Path,
     /// The directory the file came from (its sidecar lives there).
+    #[cfg(feature = "graphics")]
     dir: &'a Path,
 }
 
@@ -841,7 +842,7 @@ fn diagnose_pane(
     target: &DiagTarget<'_>,
 ) {
     use crate::diagnostics::{DiagOut, DiagnoseRequest, Pixels, diagnose};
-    let (flip, opts, meta) = ctx;
+    let (flip, opts, _meta) = ctx;
     fn pixels<'a>(s: &Side<'a>) -> Pixels<'a> {
         match s.hdr {
             Some(h) => Pixels::Hdr(h),
@@ -870,15 +871,20 @@ fn diagnose_pane(
         }),
     };
     match diagnose(&req) {
-        Ok(mut out) => {
-            (out.diagnostics.perf, out.diagnostics.perf_not_comparable) =
-                crate::diagnostics::perf_pairs(
-                    meta,
-                    &opts.diagnostics,
-                    reference.dir,
-                    capture.dir,
-                    target.name,
-                );
+        Ok(out) => {
+            #[cfg(feature = "graphics")]
+            let mut out = out;
+            #[cfg(feature = "graphics")]
+            {
+                (out.diagnostics.perf, out.diagnostics.perf_not_comparable) =
+                    crate::diagnostics::perf_pairs(
+                        _meta,
+                        &opts.diagnostics,
+                        reference.dir,
+                        capture.dir,
+                        target.name,
+                    );
+            }
             pane.signed_diff = out.signed_diff;
             pane.nonfinite_mask = out.nonfinite_mask;
             pane.diagnostics = Some(out.diagnostics);
@@ -922,6 +928,12 @@ pub fn build_view(dirs: &[PathBuf], out_dir: &Path, opts: &ViewOptions) -> Resul
     crate::compare::check_ppd(opts.pixels_per_degree)?;
     opts.diagnostics.validate()?;
     opts.perf.validate()?;
+    #[cfg(not(feature = "graphics"))]
+    if opts.perf != crate::perf::PerfOptions::default() {
+        return Err(Error::FeatureUnavailable {
+            feature: "graphics",
+        });
+    }
     let meta = opts.meta.checker()?;
     let reference = resolve_reference(opts.reference.as_deref(), dirs, &labels)?;
     // Blind pages carry neutral labels only; the true ones go to the key file.
@@ -1147,6 +1159,7 @@ pub fn build_view(dirs: &[PathBuf], out_dir: &Path, opts: &ViewOptions) -> Resul
                                                             img: r,
                                                             hdr: ref_hdr,
                                                             file: ref_src,
+                                                            #[cfg(feature = "graphics")]
                                                             dir: &dirs[reference],
                                                         },
                                                         &Side {
@@ -1155,6 +1168,7 @@ pub fn build_view(dirs: &[PathBuf], out_dir: &Path, opts: &ViewOptions) -> Resul
                                                                 .get(i)
                                                                 .and_then(Option::as_ref),
                                                             file: src,
+                                                            #[cfg(feature = "graphics")]
                                                             dir: &dirs[i],
                                                         },
                                                     ),
@@ -1254,8 +1268,14 @@ pub fn build_view(dirs: &[PathBuf], out_dir: &Path, opts: &ViewOptions) -> Resul
     };
     let mut perf_diff = Vec::new();
     if !opts.blind {
-        for (i, dir) in dirs.iter().enumerate().filter(|(i, _)| *i != reference) {
-            let (diff, mut errors) = crate::perf::pair(&dirs[reference], dir, &opts.perf)?;
+        for (i, _dir) in dirs.iter().enumerate().filter(|(i, _)| *i != reference) {
+            #[cfg(feature = "graphics")]
+            let (diff, mut errors) = crate::perf::pair(&dirs[reference], _dir, &opts.perf)?;
+            #[cfg(not(feature = "graphics"))]
+            let (diff, mut errors): (
+                Option<crate::perf::PerfDiff>,
+                Vec<crate::perf::PerfError>,
+            ) = (None, Vec::new());
             for error in &mut errors {
                 if !opts.record_absolute_paths {
                     error.path = crate::paths::record(Path::new(&error.path), out_dir, false);

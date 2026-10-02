@@ -1,20 +1,28 @@
-//! Bisect/watch/ask command wiring and loopback-only inbox client.
-use std::io::{Read, Write};
+//! Bisect/ask command wiring and loopback-only inbox client.
+#[cfg(feature = "workbench")]
+use std::io::Read;
+#[cfg(feature = "workbench")]
+use std::io::Write;
+#[cfg(feature = "workbench")]
 use std::net::{Ipv4Addr, SocketAddrV4, TcpStream};
-use std::path::{Path, PathBuf};
-use std::sync::Arc;
-use std::sync::atomic::{AtomicBool, Ordering};
+#[cfg(feature = "workbench")]
+use std::path::Path;
+use std::path::PathBuf;
+#[cfg(feature = "workbench")]
 use std::time::{Duration, Instant};
 
 use clap::Args;
+#[cfg(feature = "graphics")]
 use saccade_core::bisect::{self, BisectOptions, Probe};
+#[cfg(feature = "workbench")]
 use saccade_core::inbox::{AskResult, Item, Question, ServeInfo};
-use saccade_core::watch::WatchOptions;
+#[cfg(feature = "workbench")]
 use serde_json::Value;
 
-use crate::agent::{CliError, DEFAULT_TOP_FAILING, result_value};
+use crate::agent::CliError;
 
 #[derive(Args)]
+#[cfg(feature = "graphics")]
 pub(crate) struct BisectArgs {
     /// Ordered run directories, oldest first (repeatable).
     #[arg(long, num_args = 1..)]
@@ -51,6 +59,7 @@ pub(crate) struct BisectArgs {
     pub json: bool,
 }
 
+#[cfg(feature = "graphics")]
 pub(crate) fn options(
     threshold: Option<f64>,
     metric: Option<&str>,
@@ -77,10 +86,12 @@ pub(crate) fn options(
     })
 }
 
+#[cfg(feature = "graphics")]
 fn shell_quote(s: &str) -> String {
     format!("'{}'", s.replace('\'', "'\\''"))
 }
 
+#[cfg(feature = "graphics")]
 pub(crate) fn bisect(args: BisectArgs) -> Result<u8, CliError> {
     let opts = options(args.threshold, args.metric.as_deref(), args.entries)?;
     let result = if let Some(range) = args.git {
@@ -217,118 +228,7 @@ pub(crate) fn bisect(args: BisectArgs) -> Result<u8, CliError> {
 }
 
 #[derive(Args)]
-pub(crate) struct WatchArgs {
-    pub baseline: PathBuf,
-    pub capture: PathBuf,
-    #[arg(long, default_value = "watch-report")]
-    pub out: PathBuf,
-    #[arg(long)]
-    pub config: Option<PathBuf>,
-    #[arg(long, default_value_t = 500)]
-    pub debounce_ms: u64,
-    #[arg(long)]
-    pub once: bool,
-    #[arg(long)]
-    pub json: bool,
-}
-
-pub(crate) fn watch_text(report: &saccade_core::Report) -> String {
-    let worst = crate::agent::failing_entries(report)
-        .first()
-        .copied()
-        .or_else(|| {
-            report
-                .entries
-                .iter()
-                .max_by(|a, b| a.value.unwrap_or(0.0).total_cmp(&b.value.unwrap_or(0.0)))
-        });
-    let description = worst
-        .and_then(|e| e.diagnostics.as_ref())
-        .map(|d| d.description.as_str())
-        .unwrap_or("no diagnosed change");
-    let t = &report.totals;
-    format!(
-        "{}: {} pass, {} fail, {} error, {} missing, {} new; worst: {}; {}",
-        if report.is_regression() {
-            "regression"
-        } else {
-            "pass"
-        },
-        t.pass,
-        t.fail,
-        t.error,
-        t.missing,
-        t.new,
-        worst.map_or("none", |e| e.name.as_str()),
-        description
-    )
-}
-
-pub(crate) fn watch(args: WatchArgs) -> Result<u8, CliError> {
-    let opts = WatchOptions {
-        baseline: args.baseline,
-        capture: args.capture,
-        out: args.out,
-        config: crate::load_config(args.config.as_deref())?,
-        debounce: Duration::from_millis(args.debounce_ms),
-    };
-    let stop = Arc::new(AtomicBool::new(false));
-    if !args.once {
-        let ctrl_stop = stop.clone();
-        ctrlc::set_handler(move || ctrl_stop.store(true, Ordering::SeqCst))
-            .map_err(|e| CliError::io(format!("installing Ctrl-C handler: {e}")))?;
-    }
-    let mut code = 2;
-    let mut emit_error = None;
-    let mut callback = |result: saccade_core::Result<saccade_core::Report>| {
-        let output = match result {
-            Ok(report) => {
-                code = u8::from(report.is_regression());
-                if args.json {
-                    serde_json::to_string(&result_value(
-                        &report,
-                        &opts.out.join(saccade_core::report::REPORT_FILE_NAME),
-                        DEFAULT_TOP_FAILING,
-                        false,
-                    ))
-                    .map_err(CliError::from)
-                } else {
-                    Ok(watch_text(&report))
-                }
-            }
-            Err(e) => {
-                code = 2;
-                let e: CliError = e.into();
-                if args.json {
-                    serde_json::to_string(&e.value()).map_err(CliError::from)
-                } else {
-                    Ok(format!("error: {e}"))
-                }
-            }
-        };
-        if let Err(e) = output.and_then(|line| {
-            emit_line(&if args.json {
-                line
-            } else {
-                crate::escape_control(&line)
-            })
-        }) {
-            emit_error = Some(e);
-            stop.store(true, Ordering::SeqCst);
-        }
-    };
-    if args.once {
-        callback(saccade_core::watch::once(&opts));
-    } else {
-        saccade_core::watch::run(opts.clone(), stop.clone(), &mut callback)?;
-    }
-    if let Some(e) = emit_error {
-        return Err(e);
-    }
-    Ok(code)
-}
-
-#[derive(Args)]
+#[cfg(feature = "workbench")]
 pub(crate) struct AskArgs {
     /// Local serve URL; only literal 127.0.0.1 is allowed.
     #[arg(long)]
@@ -355,10 +255,12 @@ pub(crate) struct AskArgs {
 }
 
 /// Strict loopback client, no DNS, proxies or redirect following.
+#[cfg(feature = "workbench")]
 pub(crate) struct InboxClient {
     port: u16,
     token: String,
 }
+#[cfg(feature = "workbench")]
 impl InboxClient {
     pub fn new(serve: &str, cache: &Path) -> Result<Self, CliError> {
         let port = serve
@@ -506,12 +408,13 @@ impl InboxClient {
     }
 }
 
+#[cfg(feature = "workbench")]
 pub(crate) fn ask(args: AskArgs) -> Result<u8, CliError> {
     let client = InboxClient::new(
         &args.serve,
         &args
             .cache_dir
-            .unwrap_or_else(saccade_core::serve::default_cache_dir),
+            .unwrap_or_else(saccade_core::local::default_cache_dir),
     )?;
     let result = client.ask(
         Question {
@@ -541,6 +444,7 @@ pub(crate) fn ask(args: AskArgs) -> Result<u8, CliError> {
     Ok(if result.timed_out { 2 } else { 0 })
 }
 
+#[cfg(feature = "graphics")]
 fn core_io(context: &str) -> impl FnOnce(std::io::Error) -> saccade_core::Error {
     let context = context.to_owned();
     move |source| saccade_core::Error::Io { context, source }

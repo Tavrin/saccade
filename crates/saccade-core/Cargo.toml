@@ -12,7 +12,7 @@ categories.workspace = true
 [dependencies]
 image.workspace = true
 exr = "1"
-flip-rs.workspace = true
+flip-rs = { workspace = true, default-features = false }
 serde.workspace = true
 serde_json.workspace = true
 thiserror.workspace = true
@@ -23,23 +23,55 @@ toml = "0.8"
 rayon = "1"
 rustfft = "6"
 sha2 = "0.10"
-tiny_http = "0.12"
+tiny_http = { version = "0.12", optional = true }
 # Blocking HTTP client for the judge-mode providers (MIT OR Apache-2.0); no async runtime.
-ureq = "3"
+ureq = { version = "3", optional = true }
 tempfile = "3"
-notify = "7"
 schemars = { version = "1", optional = true }
 
 [features]
 default = ["parallel"]
 # Parallel FLIP filtering; disable for the sequential FLIP backend on wasm.
 parallel = ["flip-rs/parallel"]
+# Graphics computations; their report types remain available in every build.
+graphics = []
+# Provider adapters and review orchestration.
+ai = ["dep:ureq"]
+# Local HTTP workbench, independent of AI.
+workbench = ["dep:tiny_http"]
+# Replay, calibration and provider conformance.
+evaluation = ["ai"]
+# Experimental safety/accessibility checks.
+prechecks = []
 # Derives `schemars::JsonSchema` on the report, decisions and explain types.
 schema = ["dep:schemars"]
 
 [dev-dependencies]
 tempfile = "3"
-saccade-core = { path = ".", features = ["schema"] }
 
 [lints]
 workspace = true
+
+[[example]]
+name = "build_review_labels"
+required-features = ["evaluation"]
+
+[[test]]
+name = "perf"
+required-features = ["graphics"]
+
+[[test]]
+name = "v1_sequences_rank"
+required-features = ["graphics"]
+
+[[test]]
+name = "v1_buffers"
+required-features = ["graphics"]
+
+[[test]]
+name = "prechecks"
+required-features = ["prechecks"]
+
+[[test]]
+name = "schemas"
+required-features = ["schema"]

@@ -4,6 +4,7 @@ use std::path::Path;
 
 use serde::{Deserialize, Serialize};
 
+#[cfg(feature = "graphics")]
 use crate::compare::{Comparison, metrics_of};
 use crate::error::{Error, Result};
 use crate::report::{Entry, Metric};
@@ -160,6 +161,7 @@ pub struct BufferResult {
     pub heatmap_max: f64,
 }
 
+#[cfg(feature = "graphics")]
 fn open(path: &Path) -> Result<image::DynamicImage> {
     image::open(path).map_err(|source| Error::Decode {
         path: path.to_path_buf(),
@@ -168,6 +170,7 @@ fn open(path: &Path) -> Result<image::DynamicImage> {
 }
 
 /// Decodes an EXR's R channel, including a single-channel EXR.
+#[cfg(feature = "graphics")]
 pub(crate) fn decode_r32f(path: &Path) -> Result<image::DynamicImage> {
     use exr::prelude::{ReadChannels, ReadLayers, ReadSpecificChannel};
     if !path
@@ -202,6 +205,7 @@ pub(crate) fn decode_r32f(path: &Path) -> Result<image::DynamicImage> {
     ))
 }
 
+#[cfg(feature = "graphics")]
 pub(crate) fn decode(path: &Path, spec: &BufferSpec) -> Result<image::DynamicImage> {
     if spec.encoding() == "r32f" {
         decode_r32f(path)
@@ -210,6 +214,7 @@ pub(crate) fn decode(path: &Path, spec: &BufferSpec) -> Result<image::DynamicIma
     }
 }
 
+#[cfg(feature = "graphics")]
 fn normal(p: [f32; 3], oct: bool) -> Result<[f64; 3]> {
     let mut n = p.map(|v| f64::from(v) * 2.0 - 1.0);
     if oct {
@@ -230,6 +235,7 @@ fn normal(p: [f32; 3], oct: bool) -> Result<[f64; 3]> {
 }
 
 /// Compares a numerical pair and writes its error heatmap into a normal report.
+#[cfg(feature = "graphics")]
 pub(crate) fn fill_pair(
     entry: &mut Entry,
     baseline: &Path,
@@ -389,4 +395,23 @@ pub(crate) fn fill_pair(
         },
     });
     Ok(())
+}
+
+#[cfg(not(feature = "graphics"))]
+pub(crate) fn decode(_path: &Path, _spec: &BufferSpec) -> Result<image::DynamicImage> {
+    Err(Error::FeatureUnavailable {
+        feature: "graphics",
+    })
+}
+#[cfg(not(feature = "graphics"))]
+pub(crate) fn fill_pair(
+    _entry: &mut Entry,
+    _baseline: &Path,
+    _capture: &Path,
+    _out: &Path,
+    _spec: &BufferSpec,
+) -> Result<()> {
+    Err(Error::FeatureUnavailable {
+        feature: "graphics",
+    })
 }

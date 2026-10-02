@@ -10,14 +10,20 @@ use clap::{Args, Subcommand};
 use saccade_core::config::RunConfig;
 use saccade_core::decision::DecisionsConfig;
 use saccade_core::judge::{
-    EvidenceOptions, JUDGE_FILE_NAME, JudgeQuestion, Panel, RunOptions, SelftestOptions,
-    dry_run_value, execute, make_plan, rank_items, record, report_items, selftest,
+    EvidenceOptions, JUDGE_FILE_NAME, JudgeQuestion, Panel, RunOptions, dry_run_value, execute,
+    make_plan, rank_items, record, report_items,
 };
+#[cfg(feature = "evaluation")]
+use saccade_core::judge::{SelftestOptions, selftest};
 use saccade_core::judge_provider::{Keys, LiveBackend, Retry};
-use saccade_core::judge_stats::{CALIBRATION_SCHEMA, CalibrateOptions, calibrate};
+use saccade_core::judge_stats::CALIBRATION_SCHEMA;
+#[cfg(feature = "evaluation")]
+use saccade_core::judge_stats::{CalibrateOptions, calibrate};
 use saccade_core::rank::{RANK_SCHEMA, RankReport};
 use saccade_core::report::{REPORT_SCHEMA, Report};
-use serde_json::{Map, Value, json};
+#[cfg(feature = "mcp")]
+use serde_json::Map;
+use serde_json::{Value, json};
 
 use crate::agent::CliError;
 
@@ -36,12 +42,16 @@ pub struct JudgeArgs {
 #[derive(Subcommand)]
 pub enum JudgeSub {
     /// Measure each judge against human labels and write `saccade-calibration.v1`.
+    #[cfg(feature = "evaluation")]
     Calibrate(CalibrateArgs),
     /// Re-ask with irrelevant perturbations and report the answer flip rates.
+    #[cfg(feature = "evaluation")]
     Selftest(SelftestArgs),
     /// Benchmark the pinned model chain and Jev against human finals.
+    #[cfg(feature = "evaluation")]
     Bench(crate::review_cmd::BenchArgs),
     /// Harvest evidence-bound human final labels.
+    #[cfg(feature = "evaluation")]
     CollectLabels(crate::review_cmd::CollectArgs),
 }
 
@@ -105,6 +115,7 @@ pub struct RunArgs {
 
 /// Arguments of `judge calibrate`.
 #[derive(Args)]
+#[cfg(feature = "evaluation")]
 pub struct CalibrateArgs {
     /// Decisions files with human final decisions (and the judges' proposals).
     #[arg(long, required = true, num_args = 1..)]
@@ -125,6 +136,7 @@ pub struct CalibrateArgs {
 
 /// Arguments of `judge selftest`.
 #[derive(Args)]
+#[cfg(feature = "evaluation")]
 pub struct SelftestArgs {
     /// A `saccade-report.v1.json`.
     pub target: PathBuf,
@@ -314,7 +326,7 @@ pub fn run(job: &Job) -> Result<(Value, String), CliError> {
         decisions_dir: Some(
             job.decisions_dir
                 .clone()
-                .unwrap_or_else(saccade_core::serve::default_decisions_dir),
+                .unwrap_or_else(saccade_core::local::default_decisions_dir),
         ),
         calibration,
     };
@@ -441,6 +453,7 @@ fn summary(v: &Value) -> String {
 }
 
 /// `saccade judge calibrate`.
+#[cfg(feature = "evaluation")]
 pub fn run_calibrate(
     labels: &[PathBuf],
     runs: &[PathBuf],
@@ -452,6 +465,7 @@ pub fn run_calibrate(
     Ok(v)
 }
 
+#[cfg(feature = "evaluation")]
 fn selftest_run(a: &SelftestArgs) -> Result<Value, CliError> {
     let panel = Panel::from_file(&a.panel)?;
     let question = question_of(&a.question)?;
@@ -504,14 +518,17 @@ pub fn judge(args: JudgeArgs) -> Result<u8, CliError> {
         "judge mode is experimental: answers are proposals; validate against your own decisions with `saccade judge calibrate`"
     );
     match args.sub {
+        #[cfg(feature = "evaluation")]
         Some(JudgeSub::Bench(b)) => {
             let v = crate::review_cmd::bench(b, None)?;
             emit(&format!("{}\n", serde_json::to_string_pretty(&v)?))?;
         }
+        #[cfg(feature = "evaluation")]
         Some(JudgeSub::CollectLabels(c)) => {
             let v = crate::review_cmd::collect(c)?;
             emit(&format!("{}\n", serde_json::to_string_pretty(&v)?))?;
         }
+        #[cfg(feature = "evaluation")]
         Some(JudgeSub::Calibrate(c)) => {
             let v = run_calibrate(
                 &c.labels,
@@ -525,6 +542,7 @@ pub fn judge(args: JudgeArgs) -> Result<u8, CliError> {
             emit(&format!("{}\n", serde_json::to_string_pretty(&v)?))?;
             eprintln!("calibration written to {}", c.out.display());
         }
+        #[cfg(feature = "evaluation")]
         Some(JudgeSub::Selftest(s)) => {
             let v = selftest_run(&s)?;
             emit(&format!("{}\n", serde_json::to_string_pretty(&v)?))?;
@@ -545,201 +563,213 @@ pub fn judge(args: JudgeArgs) -> Result<u8, CliError> {
 // ---- MCP ------------------------------------------------------------------
 
 /// The tool definitions `saccade_judge` and `saccade_judge_calibrate`.
-pub fn mcp_schemas() -> Vec<Value> {
-    let path = |what: &str| json!({"type": "string", "minLength": 1, "description": what});
-    vec![
-        json!({
-            "name": "saccade_judge",
-            "title": "Judge a report or ranking with a panel",
-            "description": "Experimental judge mode: answers are proposals; validate against your own decisions with `saccade judge calibrate`. Asks a panel of decision models (and, through `saccade serve`, people) a bounded question per failing entry, or pairwise preferences between the candidates of a ranking. Every question is typed (checkable, rubric or preference) and the result states what that kind of answer can and cannot tell you; text-only judges get an evidence encoding, never pixels, and vision judges only blind hotspot strips. Answers are recorded as proposals; disagreement or low confidence escalates to needs_human. Sends evidence to the panel's providers: use only data you may share. Set dry_run to see the requests without making any.",
-            "inputSchema": {
-                "type": "object",
-                "properties": {
-                    "target": path("Path to saccade-report.v1.json or saccade-rank.v1.json."),
-                    "panel": path("Path to the panel TOML file."),
-                    "question": {"type": "string", "enum": JudgeQuestion::NAMES, "description": "Question type (default accept); a ranking takes preference."},
-                    "intent": {"type": "string", "description": "What the change is for, or the preference criterion."},
-                    "entry": {"type": "array", "items": {"type": "string"}, "description": "Entries to judge (default: every failing one)."},
-                    "both_orders": {"type": "boolean", "description": "Ask text judges in both presentation orders as well."},
-                    "dry_run": {"type": "boolean", "description": "Return the requests that would be made and call no one."},
-                    "canary_rate": {"type": "number", "minimum": 0, "maximum": 1},
-                    "max_calls": {"type": "integer", "minimum": 1, "maximum": 1000},
-                    "max_pairs": {"type": "integer", "minimum": 1, "maximum": 200, "description": "For a ranking: most pairwise items."},
-                    "calibration": path("A saccade-calibration.v1 file."),
-                    "record": {"type": "boolean", "description": "Record proposals into the decisions file (default true)."}
+#[cfg(feature = "mcp")]
+mod bindings {
+    use super::*;
+    pub fn mcp_schemas() -> Vec<Value> {
+        let path = |what: &str| json!({"type": "string", "minLength": 1, "description": what});
+        vec![
+            json!({
+                "name": "saccade_judge",
+                "title": "Judge a report or ranking with a panel",
+                "description": "Experimental judge mode: answers are proposals; validate against your own decisions with `saccade judge calibrate`. Asks a panel of decision models (and, through `saccade serve`, people) a bounded question per failing entry, or pairwise preferences between the candidates of a ranking. Every question is typed (checkable, rubric or preference) and the result states what that kind of answer can and cannot tell you; text-only judges get an evidence encoding, never pixels, and vision judges only blind hotspot strips. Answers are recorded as proposals; disagreement or low confidence escalates to needs_human. Sends evidence to the panel's providers: use only data you may share. Set dry_run to see the requests without making any.",
+                "inputSchema": {
+                    "type": "object",
+                    "properties": {
+                        "target": path("Path to saccade-report.v1.json or saccade-rank.v1.json."),
+                        "panel": path("Path to the panel TOML file."),
+                        "question": {"type": "string", "enum": JudgeQuestion::NAMES, "description": "Question type (default accept); a ranking takes preference."},
+                        "intent": {"type": "string", "description": "What the change is for, or the preference criterion."},
+                        "entry": {"type": "array", "items": {"type": "string"}, "description": "Entries to judge (default: every failing one)."},
+                        "both_orders": {"type": "boolean", "description": "Ask text judges in both presentation orders as well."},
+                        "dry_run": {"type": "boolean", "description": "Return the requests that would be made and call no one."},
+                        "canary_rate": {"type": "number", "minimum": 0, "maximum": 1},
+                        "max_calls": {"type": "integer", "minimum": 1, "maximum": 1000},
+                        "max_pairs": {"type": "integer", "minimum": 1, "maximum": 200, "description": "For a ranking: most pairwise items."},
+                        "calibration": path("A saccade-calibration.v1 file."),
+                        "record": {"type": "boolean", "description": "Record proposals into the decisions file (default true)."}
+                    },
+                    "required": ["target", "panel"],
+                    "additionalProperties": false
                 },
-                "required": ["target", "panel"],
-                "additionalProperties": false
-            },
-            "outputSchema": {"type": "object", "required": ["schema"], "properties": {"schema": {"const": "saccade-judge.v1"}, "run_id": {"type": "string"}, "dry_run": {"type": "boolean"}, "items": {"type": "array", "items": {"type": "object"}}, "requests": {"type": "array", "items": {"type": "object"}}}},
-            "annotations": {"title": "Judge a report or ranking with a panel", "readOnlyHint": false, "destructiveHint": false, "idempotentHint": false, "openWorldHint": true}
-        }),
-        json!({
-            "name": "saccade_judge_calibrate",
-            "title": "Calibrate judges against human labels",
-            "description": "Experimental judge mode: validate proposal answers against your own human decisions before using a gate. Measures each judge per question type against human final decisions: accuracy, agreement with humans, expected calibration error with a reliability table, position bias and the human-human ceiling (Krippendorff's alpha), and suggests gate thresholds. Writes and returns saccade-calibration.v1. Reads local files only.",
-            "inputSchema": {
-                "type": "object",
-                "properties": {
-                    "labels": {"type": "array", "minItems": 1, "items": {"type": "string"}, "description": "Decisions files with human final decisions."},
-                    "runs": {"type": "array", "items": {"type": "string"}, "description": "saccade-judge.v1 result files, for position bias."},
-                    "out": path("Where to write the calibration (default saccade-calibration.v1.json under the server root)."),
-                    "target_accuracy": {"type": "number", "minimum": 0, "maximum": 1},
-                    "min_support": {"type": "integer", "minimum": 1}
+                "outputSchema": {"type": "object", "required": ["schema"], "properties": {"schema": {"const": "saccade-judge.v1"}, "run_id": {"type": "string"}, "dry_run": {"type": "boolean"}, "items": {"type": "array", "items": {"type": "object"}}, "requests": {"type": "array", "items": {"type": "object"}}}},
+                "annotations": {"title": "Judge a report or ranking with a panel", "readOnlyHint": false, "destructiveHint": false, "idempotentHint": false, "openWorldHint": true}
+            }),
+            json!({
+                "name": "saccade_judge_calibrate",
+                "title": "Calibrate judges against human labels",
+                "description": "Experimental judge mode: validate proposal answers against your own human decisions before using a gate. Measures each judge per question type against human final decisions: accuracy, agreement with humans, expected calibration error with a reliability table, position bias and the human-human ceiling (Krippendorff's alpha), and suggests gate thresholds. Writes and returns saccade-calibration.v1. Reads local files only.",
+                "inputSchema": {
+                    "type": "object",
+                    "properties": {
+                        "labels": {"type": "array", "minItems": 1, "items": {"type": "string"}, "description": "Decisions files with human final decisions."},
+                        "runs": {"type": "array", "items": {"type": "string"}, "description": "saccade-judge.v1 result files, for position bias."},
+                        "out": path("Where to write the calibration (default saccade-calibration.v1.json under the server root)."),
+                        "target_accuracy": {"type": "number", "minimum": 0, "maximum": 1},
+                        "min_support": {"type": "integer", "minimum": 1}
+                    },
+                    "required": ["labels"],
+                    "additionalProperties": false
                 },
-                "required": ["labels"],
-                "additionalProperties": false
+                "outputSchema": {"type": "object", "required": ["schema", "judges"], "properties": {"schema": {"const": "saccade-calibration.v1"}, "judges": {"type": "array", "items": {"type": "object"}}, "human_ceiling": {"type": "array", "items": {"type": "object"}}}},
+                "annotations": {"title": "Calibrate judges against human labels", "readOnlyHint": false, "destructiveHint": false, "idempotentHint": true, "openWorldHint": false}
+            }),
+        ]
+    }
+
+    type Resolve<'a> = &'a dyn Fn(&str, &str) -> Result<PathBuf, CliError>;
+
+    fn str_arg(args: &Map<String, Value>, key: &str) -> Result<Option<String>, CliError> {
+        match args.get(key) {
+            None | Some(Value::Null) => Ok(None),
+            Some(Value::String(s)) => Ok(Some(s.clone())),
+            Some(_) => Err(CliError::usage(format!("`{key}` must be a string"))),
+        }
+    }
+
+    fn strings(args: &Map<String, Value>, key: &str) -> Result<Vec<String>, CliError> {
+        match args.get(key) {
+            None | Some(Value::Null) => Ok(Vec::new()),
+            Some(Value::Array(a)) => a
+                .iter()
+                .map(|v| {
+                    v.as_str()
+                        .map(str::to_owned)
+                        .ok_or_else(|| CliError::usage(format!("`{key}` must be strings")))
+                })
+                .collect(),
+            Some(_) => Err(CliError::usage(format!(
+                "`{key}` must be an array of strings"
+            ))),
+        }
+    }
+
+    fn only(args: &Map<String, Value>, known: &[&str]) -> Result<(), CliError> {
+        match args.keys().find(|k| !known.contains(&k.as_str())) {
+            Some(k) => Err(CliError::usage(format!(
+                "unknown argument `{k}`; accepted: {}",
+                known.join(", ")
+            ))),
+            None => Ok(()),
+        }
+    }
+
+    fn flag(args: &Map<String, Value>, key: &str) -> bool {
+        args.get(key).and_then(Value::as_bool).unwrap_or(false)
+    }
+
+    fn number(args: &Map<String, Value>, key: &str) -> Option<f64> {
+        args.get(key).and_then(Value::as_f64)
+    }
+
+    /// Runs the MCP tool `name`, or `None` when it is not a judge tool.
+    pub fn mcp_call(
+        name: &str,
+        args: &Map<String, Value>,
+        resolve: Resolve<'_>,
+    ) -> Option<Result<(Value, String), CliError>> {
+        match name {
+            "saccade_judge" => Some(mcp_judge(args, resolve)),
+            #[cfg(feature = "evaluation")]
+            "saccade_judge_calibrate" => Some(mcp_calibrate(args, resolve)),
+            _ => None,
+        }
+    }
+
+    fn mcp_judge(
+        args: &Map<String, Value>,
+        resolve: Resolve<'_>,
+    ) -> Result<(Value, String), CliError> {
+        only(
+            args,
+            &[
+                "target",
+                "panel",
+                "question",
+                "intent",
+                "entry",
+                "both_orders",
+                "dry_run",
+                "canary_rate",
+                "max_calls",
+                "max_pairs",
+                "calibration",
+                "record",
+            ],
+        )?;
+        let need = |k: &str| -> Result<PathBuf, CliError> {
+            let v =
+                str_arg(args, k)?.ok_or_else(|| CliError::usage(format!("`{k}` is required")))?;
+            resolve(k, &v)
+        };
+        let calibration = match str_arg(args, "calibration")? {
+            Some(c) => Some(resolve("calibration", &c)?),
+            None => None,
+        };
+        let job = Job {
+            target: need("target")?,
+            panel: need("panel")?,
+            question: str_arg(args, "question")?.unwrap_or_else(|| "accept".into()),
+            intent: str_arg(args, "intent")?,
+            entries: strings(args, "entry")?,
+            both_orders: flag(args, "both_orders"),
+            dry_run: flag(args, "dry_run"),
+            keys_dir: None,
+            ocr_cmd: None,
+            canary_rate: number(args, "canary_rate"),
+            max_calls: number(args, "max_calls").map_or(100, |n| n as usize),
+            max_pairs: number(args, "max_pairs").map_or(12, |n| n as usize),
+            calibration,
+            decisions_dir: Some(resolve("decisions_dir", "judge-decisions")?),
+            config: {
+                let c = resolve("config", "saccade.toml")?;
+                c.is_file().then_some(c)
             },
-            "outputSchema": {"type": "object", "required": ["schema", "judges"], "properties": {"schema": {"const": "saccade-calibration.v1"}, "judges": {"type": "array", "items": {"type": "object"}}, "human_ceiling": {"type": "array", "items": {"type": "object"}}}},
-            "annotations": {"title": "Calibrate judges against human labels", "readOnlyHint": false, "destructiveHint": false, "idempotentHint": true, "openWorldHint": false}
-        }),
-    ]
-}
+            out: None,
+            record: args.get("record").and_then(Value::as_bool).unwrap_or(true),
+            read_root: Some(
+                saccade_core::paths::canonicalize(resolve("root", ".")?)
+                    .map_err(|e| CliError::io(format!("resolving the MCP root: {e}")))?,
+            ),
+        };
+        run(&job)
+    }
 
-type Resolve<'a> = &'a dyn Fn(&str, &str) -> Result<PathBuf, CliError>;
-
-fn str_arg(args: &Map<String, Value>, key: &str) -> Result<Option<String>, CliError> {
-    match args.get(key) {
-        None | Some(Value::Null) => Ok(None),
-        Some(Value::String(s)) => Ok(Some(s.clone())),
-        Some(_) => Err(CliError::usage(format!("`{key}` must be a string"))),
+    #[cfg(feature = "evaluation")]
+    fn mcp_calibrate(
+        args: &Map<String, Value>,
+        resolve: Resolve<'_>,
+    ) -> Result<(Value, String), CliError> {
+        only(
+            args,
+            &["labels", "runs", "out", "target_accuracy", "min_support"],
+        )?;
+        let paths = |k: &str| -> Result<Vec<PathBuf>, CliError> {
+            strings(args, k)?.iter().map(|p| resolve(k, p)).collect()
+        };
+        let labels = paths("labels")?;
+        if labels.is_empty() {
+            return Err(CliError::usage(
+                "`labels` needs at least one decisions file",
+            ));
+        }
+        let out = resolve(
+            "out",
+            &str_arg(args, "out")?.unwrap_or_else(|| "saccade-calibration.v1.json".into()),
+        )?;
+        let opts = CalibrateOptions {
+            target_accuracy: number(args, "target_accuracy").unwrap_or(0.95),
+            min_support: number(args, "min_support").map_or(10, |n| n as usize),
+        };
+        let v = run_calibrate(&labels, &paths("runs")?, &out, &opts)?;
+        let text = format!(
+            "saccade judge calibrate: {} judge row(s) from {} labelled unit(s); written to {}",
+            v["judges"].as_array().map_or(0, Vec::len),
+            v["labelled_units"],
+            out.display()
+        );
+        Ok((v, text))
     }
 }
-
-fn strings(args: &Map<String, Value>, key: &str) -> Result<Vec<String>, CliError> {
-    match args.get(key) {
-        None | Some(Value::Null) => Ok(Vec::new()),
-        Some(Value::Array(a)) => a
-            .iter()
-            .map(|v| {
-                v.as_str()
-                    .map(str::to_owned)
-                    .ok_or_else(|| CliError::usage(format!("`{key}` must be strings")))
-            })
-            .collect(),
-        Some(_) => Err(CliError::usage(format!(
-            "`{key}` must be an array of strings"
-        ))),
-    }
-}
-
-fn only(args: &Map<String, Value>, known: &[&str]) -> Result<(), CliError> {
-    match args.keys().find(|k| !known.contains(&k.as_str())) {
-        Some(k) => Err(CliError::usage(format!(
-            "unknown argument `{k}`; accepted: {}",
-            known.join(", ")
-        ))),
-        None => Ok(()),
-    }
-}
-
-fn flag(args: &Map<String, Value>, key: &str) -> bool {
-    args.get(key).and_then(Value::as_bool).unwrap_or(false)
-}
-
-fn number(args: &Map<String, Value>, key: &str) -> Option<f64> {
-    args.get(key).and_then(Value::as_f64)
-}
-
-/// Runs the MCP tool `name`, or `None` when it is not a judge tool.
-pub fn mcp_call(
-    name: &str,
-    args: &Map<String, Value>,
-    resolve: Resolve<'_>,
-) -> Option<Result<(Value, String), CliError>> {
-    match name {
-        "saccade_judge" => Some(mcp_judge(args, resolve)),
-        "saccade_judge_calibrate" => Some(mcp_calibrate(args, resolve)),
-        _ => None,
-    }
-}
-
-fn mcp_judge(args: &Map<String, Value>, resolve: Resolve<'_>) -> Result<(Value, String), CliError> {
-    only(
-        args,
-        &[
-            "target",
-            "panel",
-            "question",
-            "intent",
-            "entry",
-            "both_orders",
-            "dry_run",
-            "canary_rate",
-            "max_calls",
-            "max_pairs",
-            "calibration",
-            "record",
-        ],
-    )?;
-    let need = |k: &str| -> Result<PathBuf, CliError> {
-        let v = str_arg(args, k)?.ok_or_else(|| CliError::usage(format!("`{k}` is required")))?;
-        resolve(k, &v)
-    };
-    let calibration = match str_arg(args, "calibration")? {
-        Some(c) => Some(resolve("calibration", &c)?),
-        None => None,
-    };
-    let job = Job {
-        target: need("target")?,
-        panel: need("panel")?,
-        question: str_arg(args, "question")?.unwrap_or_else(|| "accept".into()),
-        intent: str_arg(args, "intent")?,
-        entries: strings(args, "entry")?,
-        both_orders: flag(args, "both_orders"),
-        dry_run: flag(args, "dry_run"),
-        keys_dir: None,
-        ocr_cmd: None,
-        canary_rate: number(args, "canary_rate"),
-        max_calls: number(args, "max_calls").map_or(100, |n| n as usize),
-        max_pairs: number(args, "max_pairs").map_or(12, |n| n as usize),
-        calibration,
-        decisions_dir: Some(resolve("decisions_dir", "judge-decisions")?),
-        config: {
-            let c = resolve("config", "saccade.toml")?;
-            c.is_file().then_some(c)
-        },
-        out: None,
-        record: args.get("record").and_then(Value::as_bool).unwrap_or(true),
-        read_root: Some(
-            saccade_core::paths::canonicalize(resolve("root", ".")?)
-                .map_err(|e| CliError::io(format!("resolving the MCP root: {e}")))?,
-        ),
-    };
-    run(&job)
-}
-
-fn mcp_calibrate(
-    args: &Map<String, Value>,
-    resolve: Resolve<'_>,
-) -> Result<(Value, String), CliError> {
-    only(
-        args,
-        &["labels", "runs", "out", "target_accuracy", "min_support"],
-    )?;
-    let paths = |k: &str| -> Result<Vec<PathBuf>, CliError> {
-        strings(args, k)?.iter().map(|p| resolve(k, p)).collect()
-    };
-    let labels = paths("labels")?;
-    if labels.is_empty() {
-        return Err(CliError::usage(
-            "`labels` needs at least one decisions file",
-        ));
-    }
-    let out = resolve(
-        "out",
-        &str_arg(args, "out")?.unwrap_or_else(|| "saccade-calibration.v1.json".into()),
-    )?;
-    let opts = CalibrateOptions {
-        target_accuracy: number(args, "target_accuracy").unwrap_or(0.95),
-        min_support: number(args, "min_support").map_or(10, |n| n as usize),
-    };
-    let v = run_calibrate(&labels, &paths("runs")?, &out, &opts)?;
-    let text = format!(
-        "saccade judge calibrate: {} judge row(s) from {} labelled unit(s); written to {}",
-        v["judges"].as_array().map_or(0, Vec::len),
-        v["labelled_units"],
-        out.display()
-    );
-    Ok((v, text))
-}
+#[cfg(feature = "mcp")]
+pub use bindings::{mcp_call, mcp_schemas};

@@ -161,7 +161,17 @@ pub fn noise_with_perf_options(
         ));
     }
     perf.validate()?;
+    #[cfg(not(feature = "graphics"))]
+    if perf != &crate::perf::PerfOptions::default() {
+        return Err(Error::FeatureUnavailable {
+            feature: "graphics",
+        });
+    }
+    #[cfg(feature = "graphics")]
     let (perf_noise, perf_warnings) = crate::perf::noise_with_options(dirs, perf)?;
+    #[cfg(not(feature = "graphics"))]
+    let (perf_noise, perf_warnings): (Option<crate::perf::PerfNoise>, Vec<String>) =
+        (None, Vec::new());
     let temp = tempfile::tempdir().map_err(crate::run::io_err(
         "creating noise scratch directory".into(),
     ))?;

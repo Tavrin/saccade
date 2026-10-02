@@ -149,7 +149,7 @@ fn path(dir: &Path, id: &str) -> Result<PathBuf> {
 
 fn save(dir: &Path, item: &Item) -> Result<()> {
     let dest = path(dir, &item.id)?;
-    let tmp = dir.join(format!(".{}.tmp", crate::serve::random_token()));
+    let tmp = dir.join(format!(".{}.tmp", crate::local::random_token()));
     let mut file = std::fs::OpenOptions::new()
         .write(true)
         .create_new(true)
@@ -171,7 +171,7 @@ pub fn post(dir: &Path, q: Question) -> Result<Item> {
     validate(&q)?;
     let item = Item {
         schema: "saccade-inbox-item.v1".into(),
-        id: crate::serve::random_token(),
+        id: crate::local::random_token(),
         question: q.question,
         allowed_answers: q.allowed_answers,
         context: q.context,
@@ -243,7 +243,7 @@ pub fn answer(dir: &Path, id: &str, answer: String, note: Option<String>) -> Res
 
 /// Write discovery atomically, with mode 0600 from creation on Unix.
 pub fn write_discovery(cache: &Path, port: u16, token: String) -> Result<()> {
-    let tmp = cache.join(format!(".serve-{}.tmp", crate::serve::random_token()));
+    let tmp = cache.join(format!(".serve-{}.tmp", crate::local::random_token()));
     let mut options = std::fs::OpenOptions::new();
     options.write(true).create_new(true);
     #[cfg(unix)]

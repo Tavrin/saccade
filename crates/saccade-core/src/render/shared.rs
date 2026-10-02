@@ -43,6 +43,7 @@ pub(crate) fn page_js(parts: &[&str]) -> String {
 }
 
 /// Applies the shared stylesheet to auxiliary served pages which have no page renderer.
+#[cfg(feature = "workbench")]
 pub(crate) fn complete_html(body: String) -> String {
     if body.contains(TOKENS_CSS) {
         return body;

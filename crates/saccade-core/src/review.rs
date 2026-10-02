@@ -165,17 +165,8 @@ impl Backend for Replay {
 
 /// Content hash used by labels and provider-independent evidence identities.
 pub fn hash(value: &Value) -> String {
-    use sha2::{Digest, Sha256};
-    let digest = Sha256::digest(value.to_string().as_bytes());
-    format!(
-        "sha256:{}",
-        digest
-            .iter()
-            .map(|b| format!("{b:02x}"))
-            .collect::<String>()
-    )
+    crate::labels::hash(value)
 }
-
 /// Stable evidence identity, including image hashes, encoded state and intent.
 pub fn evidence_hash(item: &JudgeItem, report: &Report) -> String {
     let entry = report.entries.iter().find(|e| e.name == item.entry);

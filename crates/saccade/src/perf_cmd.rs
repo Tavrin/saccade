@@ -29,6 +29,20 @@ pub(crate) struct PerfArgs {
 }
 impl PerfArgs {
     pub fn apply(&self, opts: &mut saccade_core::perf::PerfOptions) -> Result<(), CliError> {
+        #[cfg(not(feature = "graphics"))]
+        if self.perf_name.is_some()
+            || self.perf_noise.is_some()
+            || self.perf_noise_k.is_some()
+            || self.perf_resolution.is_some()
+            || self.perf_resolution_ticks.is_some()
+            || self.perf_min_delta_ms.is_some()
+            || self.perf_min_delta_pct.is_some()
+        {
+            return Err(saccade_core::Error::FeatureUnavailable {
+                feature: "graphics",
+            }
+            .into());
+        }
         if let Some(n) = &self.perf_name {
             opts.name.clone_from(n);
         }
@@ -55,6 +69,7 @@ impl PerfArgs {
     }
 }
 #[derive(Args)]
+#[cfg(feature = "graphics")]
 pub(crate) struct AblateArgs {
     base: PathBuf,
     #[arg(required = true, num_args = 1..)]
@@ -71,6 +86,7 @@ pub(crate) struct AblateArgs {
     #[command(flatten)]
     perf: PerfArgs,
 }
+#[cfg(feature = "graphics")]
 pub(crate) fn ablate(args: AblateArgs, absolute: bool) -> Result<u8, CliError> {
     let mut cfg = crate::load_config(args.config.as_deref())?;
     cfg.record_absolute_paths = absolute;

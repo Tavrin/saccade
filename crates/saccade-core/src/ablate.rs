@@ -175,6 +175,7 @@ impl Ablation {
         ))
     }
 }
+#[cfg(feature = "graphics")]
 pub fn run(
     base: &Path,
     arms: &[PathBuf],
@@ -232,4 +233,18 @@ pub fn run(
     std::fs::remove_file(out.join(crate::run::RUN_SENTINEL))
         .map_err(crate::run::io_err("removing ablation marker".into()))?;
     Ok(model)
+}
+
+/// Returns `feature_unavailable` when graphics computation is not compiled.
+#[cfg(not(feature = "graphics"))]
+pub fn run(
+    _base: &Path,
+    _arms: &[PathBuf],
+    _out: &Path,
+    _cfg: &crate::config::RunConfig,
+    _top: usize,
+) -> Result<Ablation> {
+    Err(crate::Error::FeatureUnavailable {
+        feature: "graphics",
+    })
 }

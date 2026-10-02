@@ -16,9 +16,9 @@ use std::sync::Mutex;
 use serde::{Deserialize, Serialize};
 use serde_json::{Value, json};
 
-use crate::judge::{
-    JudgeItem, JudgeQuestion, JudgeSpec, Judgement, Plan, now_ms, sha_hex, stable_for, vote_strips,
-};
+#[cfg(feature = "ai")]
+use crate::judge::{JudgeItem, JudgeQuestion, JudgeSpec, Judgement, Plan, stable_for, vote_strips};
+#[cfg(feature = "ai")]
 use crate::judge_stats::is_abstain;
 
 /// Schema identifier of the vote-run file.
@@ -125,6 +125,7 @@ pub fn clean_voter(name: &str) -> Option<String> {
     .then(|| n.to_owned())
 }
 
+#[cfg(feature = "ai")]
 fn choices_for(item: &JudgeItem) -> Vec<Choice> {
     if item.question == JudgeQuestion::Preference {
         return vec![
@@ -167,6 +168,7 @@ fn choices_for(item: &JudgeItem) -> Vec<Choice> {
     out
 }
 
+#[cfg(feature = "ai")]
 fn context_for(item: &JudgeItem, order: &str) -> String {
     if item.question == JudgeQuestion::Preference {
         return format!(
@@ -186,6 +188,7 @@ fn context_for(item: &JudgeItem, order: &str) -> String {
     s
 }
 
+#[cfg(feature = "ai")]
 fn write_atomic(path: &Path, bytes: &[u8]) -> Result<(), String> {
     let tmp = path.with_extension("tmp");
     std::fs::write(&tmp, bytes).map_err(|e| format!("writing {}: {e}", tmp.display()))?;
@@ -193,6 +196,7 @@ fn write_atomic(path: &Path, bytes: &[u8]) -> Result<(), String> {
 }
 
 /// Writes the vote run (items and strips) for the real items of `plan`, once.
+#[cfg(feature = "ai")]
 pub fn ensure_run(dir: &Path, run_id: &str, plan: &Plan) -> Result<VoteRun, String> {
     let file = dir.join("run.json");
     if let Ok(text) = std::fs::read_to_string(&file)
@@ -423,6 +427,7 @@ pub fn page(token: &str, run_id: &str) -> String {
 
 /// Writes the vote run (when missing) and turns the votes cast so far into
 /// judgements, one judge per voter. Returns them with a summary for the result.
+#[cfg(feature = "ai")]
 pub(crate) fn collect(
     decisions: &Path,
     run_id: &str,
@@ -483,4 +488,18 @@ pub(crate) fn collect(
         "note": "open the path on a running `saccade serve`; run the same command again to include votes cast since",
     });
     (out, info)
+}
+
+fn now_ms() -> u64 {
+    std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .map_or(0, |d| d.as_millis() as u64)
+}
+
+pub(crate) fn sha_hex(text: &str) -> String {
+    use sha2::{Digest, Sha256};
+    Sha256::digest(text.as_bytes())
+        .iter()
+        .map(|b| format!("{b:02x}"))
+        .collect()
 }

@@ -10,13 +10,23 @@ keywords.workspace = true
 categories.workspace = true
 
 [dependencies]
-saccade-core.workspace = true
+saccade-core = { workspace = true, default-features = false }
 image.workspace = true
 serde.workspace = true
 serde_json.workspace = true
 clap = { version = "4", features = ["derive"] }
-ctrlc = "3.5"
 tempfile = "3"
+
+[features]
+default = ["parallel", "graphics", "ai", "workbench", "mcp", "evaluation"]
+parallel = ["saccade-core/parallel"]
+graphics = ["saccade-core/graphics"]
+ai = ["saccade-core/ai"]
+workbench = ["saccade-core/workbench"]
+mcp = []
+evaluation = ["ai", "saccade-core/evaluation"]
+prechecks = ["saccade-core/prechecks"]
+schema = ["saccade-core/schema"]
 
 [dev-dependencies]
 tempfile = "3"
@@ -25,3 +35,47 @@ jsonschema = { version = "0.30", default-features = false }
 
 [lints]
 workspace = true
+
+[[test]]
+name = "precheck_contract"
+required-features = ["prechecks", "mcp"]
+
+[[test]]
+name = "judge_contract"
+required-features = ["evaluation", "workbench", "mcp", "graphics"]
+
+[[test]]
+name = "review_contract"
+required-features = ["evaluation", "mcp"]
+
+[[test]]
+name = "s6_contract"
+required-features = ["graphics", "workbench", "mcp"]
+
+[[test]]
+name = "perf_evidence"
+required-features = ["graphics", "workbench", "mcp"]
+
+[[test]]
+name = "perf_comparability"
+required-features = ["graphics"]
+
+[[test]]
+name = "runs_cli"
+required-features = ["mcp"]
+
+[[test]]
+name = "v1_contract"
+required-features = ["graphics", "mcp"]
+
+[[test]]
+name = "agent_contract"
+required-features = ["mcp"]
+
+[[test]]
+name = "agent_native"
+required-features = ["mcp"]
+
+[[test]]
+name = "f1_contract"
+required-features = ["ai", "mcp"]

@@ -52,7 +52,6 @@ type ToolResult = Result<ToolOutput, CliError>;
 /// The server: the root every path must stay under.
 pub struct Server {
     root: PathBuf,
-    watches: crate::s6_mcp::Watches,
 }
 
 fn tool_schemas() -> Value {
@@ -612,7 +611,6 @@ impl Server {
         }
         Ok(Self {
             root: absolute(root),
-            watches: crate::s6_mcp::Watches::default(),
         })
     }
 
@@ -801,6 +799,7 @@ impl Server {
         Ok(())
     }
 
+    #[cfg(feature = "graphics")]
     fn tool_ablate(&self, args: &Map<String, Value>) -> ToolResult {
         reject_unknown(
             args,
@@ -871,6 +870,7 @@ impl Server {
         self.run_and_explain((&baseline, &capture, &out), &cfg, images)
     }
 
+    #[cfg(feature = "graphics")]
     fn sequence_rank_config(&self, args: &Map<String, Value>) -> Result<RunConfig, CliError> {
         let config = match arg_str(args, "config")? {
             Some(p) => Some(self.existing_file("config", &p)?),
@@ -895,6 +895,7 @@ impl Server {
         Ok(cfg)
     }
 
+    #[cfg(feature = "graphics")]
     fn tool_sequence(&self, args: &Map<String, Value>) -> ToolResult {
         let mut known: Vec<_> = RUN_ARGS
             .iter()
@@ -931,6 +932,7 @@ impl Server {
         })
     }
 
+    #[cfg(feature = "graphics")]
     fn tool_rank(&self, args: &Map<String, Value>) -> ToolResult {
         let mut known: Vec<_> = RUN_ARGS
             .iter()
@@ -1290,6 +1292,23 @@ impl Server {
     }
 
     fn call_tool(&self, name: &str, args: &Map<String, Value>) -> Option<ToolResult> {
+        if let Some(feature) = crate::unavailable_feature(name) {
+            return Some(Err(
+                saccade_core::Error::FeatureUnavailable { feature }.into()
+            ));
+        }
+        #[cfg(not(feature = "graphics"))]
+        if matches!(
+            name,
+            "saccade_compare" | "saccade_identity" | "saccade_compare_runs"
+        ) && args.keys().any(|key| key.starts_with("perf_"))
+        {
+            return Some(Err(saccade_core::Error::FeatureUnavailable {
+                feature: "graphics",
+            }
+            .into()));
+        }
+        #[cfg(feature = "prechecks")]
         if let Some(result) = crate::precheck_mcp::call(name, args, &|key, p| self.resolve(key, p))
         {
             return Some(result.map(|(structured, text)| ToolOutput {
@@ -1298,6 +1317,7 @@ impl Server {
                 images: Vec::new(),
             }));
         }
+        #[cfg(feature = "ai")]
         if let Some(result) = crate::review_cmd::call(name, args, &|key, p| self.resolve(key, p)) {
             return Some(result.map(|(structured, text)| ToolOutput {
                 structured,
@@ -1305,6 +1325,7 @@ impl Server {
                 images: Vec::new(),
             }));
         }
+        #[cfg(feature = "ai")]
         if let Some(result) = crate::judge_cmd::mcp_call(name, args, &|key, p| self.resolve(key, p))
         {
             return Some(result.map(|(structured, text)| ToolOutput {
@@ -1313,9 +1334,7 @@ impl Server {
                 images: Vec::new(),
             }));
         }
-        if let Some(result) =
-            crate::s6_mcp::call(name, args, &self.watches, &|key, p| self.resolve(key, p))
-        {
+        if let Some(result) = crate::s6_mcp::call(name, args, &|key, p| self.resolve(key, p)) {
             return Some(result.map(|(structured, text)| ToolOutput {
                 structured,
                 text,
@@ -1323,9 +1342,12 @@ impl Server {
             }));
         }
         Some(match name {
+            #[cfg(feature = "graphics")]
             "saccade_ablate" => self.tool_ablate(args),
             "saccade_compare_runs" => self.tool_compare_runs(args),
+            #[cfg(feature = "graphics")]
             "saccade_sequence" => self.tool_sequence(args),
+            #[cfg(feature = "graphics")]
             "saccade_rank" => self.tool_rank(args),
             "saccade_compare" => self.tool_compare(args),
             "saccade_identity" => self.tool_identity(args),
@@ -1359,9 +1381,6 @@ impl Server {
             // A response or garbage from the client: nothing to answer.
             return id.map(|id| rpc_error(id, -32600, "invalid request: missing method"));
         };
-        if method == "notifications/initialized" {
-            self.watches.activate();
-        }
         // No id: a notification such as notifications/initialized, never answered.
         let id = id?;
         let params = obj.get("params").and_then(Value::as_object);
@@ -1376,11 +1395,26 @@ impl Server {
             "tools/list" => {
                 let mut tools = tool_schemas();
                 if let Some(list) = tools.as_array_mut() {
+                    #[cfg(feature = "prechecks")]
                     list.extend(crate::precheck_mcp::schemas());
                     list.extend(crate::agent_ui::mcp_schemas());
+                    #[cfg(feature = "ai")]
                     list.extend(crate::judge_cmd::mcp_schemas());
+                    #[cfg(feature = "ai")]
                     list.extend(crate::review_cmd::schemas());
                     list.extend(crate::s6_mcp::schemas());
+                }
+                if let Some(list) = tools.as_array_mut() {
+                    list.retain(|t| crate::operation_available(t["name"].as_str().unwrap_or("")));
+                }
+                #[cfg(not(feature = "graphics"))]
+                if let Some(list) = tools.as_array_mut() {
+                    for tool in list {
+                        if let Some(properties) = tool["inputSchema"]["properties"].as_object_mut()
+                        {
+                            properties.retain(|key, _| !key.starts_with("perf_"));
+                        }
+                    }
                 }
                 json!({"tools": tools})
             }
@@ -1432,16 +1466,13 @@ fn rpc_error(id: Value, code: i64, message: &str) -> Value {
 
 /// Serves MCP on stdin/stdout until stdin closes. `root` defaults to the
 /// working directory.
-pub fn serve_stdio(root: Option<&Path>, watch: &[String]) -> Result<(), CliError> {
+pub fn serve_stdio(root: Option<&Path>) -> Result<(), CliError> {
     let root = match root {
         Some(r) => r.to_path_buf(),
         None => std::env::current_dir()
             .map_err(|e| CliError::io(format!("reading the working directory: {e}")))?,
     };
-    let mut server = Server::new(&root)?;
-    let mut watches = crate::s6_mcp::Watches::default();
-    watches.start(watch, &|key, p| server.resolve(key, p))?;
-    server.watches = watches;
+    let server = Server::new(&root)?;
     let stdin = std::io::stdin();
     let stdout = std::io::stdout();
     for line in stdin.lock().lines() {

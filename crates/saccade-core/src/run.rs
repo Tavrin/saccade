@@ -429,6 +429,7 @@ pub fn run(
                 if file_pair && baseline_dir.file_name() != capture_dir.file_name() {
                     entry.warnings.push("per-image timing pairing is unavailable for differently named file inputs; use same-named directory entries for timing comparisons".into());
                 } else {
+                #[cfg(feature = "graphics")]
                 apply_perf(
                     &mut entry,
                     &meta,
@@ -445,11 +446,17 @@ pub fn run(
             entry
         })
         .collect();
+    #[cfg(feature = "graphics")]
     let (perf_diff, mut perf_errors) = crate::perf::pair(
         input_root(baseline_dir, file_pair),
         input_root(capture_dir, file_pair),
         &config.perf,
     )?;
+    #[cfg(not(feature = "graphics"))]
+    let (perf_diff, mut perf_errors): (
+        Option<crate::perf::PerfDiff>,
+        Vec<crate::perf::PerfError>,
+    ) = (None, Vec::new());
     for error in &mut perf_errors {
         if !config.record_absolute_paths {
             error.path = crate::paths::record(Path::new(&error.path), report_dir, false);
@@ -636,6 +643,7 @@ fn apply_meta(
 }
 
 /// Pairs the timing keys of both sidecars next to the image verdict.
+#[cfg(feature = "graphics")]
 fn apply_perf(
     entry: &mut Entry,
     meta: &crate::meta::MetaChecker,

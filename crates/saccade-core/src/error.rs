@@ -63,6 +63,12 @@ pub enum Error {
     /// A run performance sidecar is malformed.
     #[error(transparent)]
     Perf(#[from] crate::perf::PerfError),
+    /// The requested computation was not compiled into this build.
+    #[error("feature_unavailable: requires feature {feature}")]
+    FeatureUnavailable {
+        /// Cargo feature required for the operation.
+        feature: &'static str,
+    },
     /// Report (de)serialization failed.
     #[error("report JSON error: {0}")]
     Json(#[from] serde_json::Error),

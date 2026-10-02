@@ -3,7 +3,11 @@ use crate::agent::CliError;
 use clap::Args;
 use saccade_core::judge_provider::{Keys, LiveBackend, Retry};
 use saccade_core::review::{self, Options, Profile};
-use serde_json::{Map, Value, json};
+#[cfg(feature = "mcp")]
+use serde_json::Map;
+use serde_json::Value;
+#[cfg(feature = "mcp")]
+use serde_json::json;
 use std::path::{Path, PathBuf};
 use std::time::Duration;
 
@@ -39,6 +43,7 @@ pub(crate) struct ReviewArgs {
 }
 
 #[derive(Args)]
+#[cfg(feature = "evaluation")]
 pub(crate) struct BenchArgs {
     #[arg(long)]
     pub labels: PathBuf,
@@ -62,6 +67,7 @@ pub(crate) struct BenchArgs {
     pub gemini_call_limit: usize,
 }
 #[derive(Args)]
+#[cfg(feature = "evaluation")]
 pub(crate) struct CollectArgs {
     #[arg(long)]
     pub decisions_dir: Option<PathBuf>,
@@ -91,7 +97,7 @@ fn live(
         Duration::from_secs(60),
     )
     .with_policy(
-        cache.unwrap_or_else(saccade_core::serve::default_cache_dir),
+        cache.unwrap_or_else(saccade_core::local::default_cache_dir),
         profile.cooldown_secs,
         budget,
         budget,
@@ -144,7 +150,7 @@ fn review_run(args: &ReviewArgs, read_root: Option<&Path>) -> Result<(Value, Str
         decisions_dir: args
             .decisions_dir
             .clone()
-            .unwrap_or_else(saccade_core::serve::default_decisions_dir),
+            .unwrap_or_else(saccade_core::local::default_decisions_dir),
         serve_root: root(args.serve_root.as_deref())?,
         ocr_cmd: args.ocr_cmd.clone(),
     };
@@ -212,6 +218,7 @@ pub(crate) fn review(args: ReviewArgs) -> Result<u8, CliError> {
     })?;
     Ok(0)
 }
+#[cfg(feature = "evaluation")]
 pub(crate) fn bench(args: BenchArgs, read_root: Option<&Path>) -> Result<Value, CliError> {
     let labels = saccade_core::labels::Labels::read(&args.labels)?;
     if let Some(root) = read_root {
@@ -244,7 +251,7 @@ pub(crate) fn bench(args: BenchArgs, read_root: Option<&Path>) -> Result<Value, 
     )
     .with_policy(
         args.cache_dir
-            .unwrap_or_else(saccade_core::serve::default_cache_dir),
+            .unwrap_or_else(saccade_core::local::default_cache_dir),
         profile.cooldown_secs,
         args.budget_calls,
         args.jev_call_limit,
@@ -261,148 +268,165 @@ pub(crate) fn bench(args: BenchArgs, read_root: Option<&Path>) -> Result<Value, 
     review::write_json(&args.out, &value)?;
     Ok(value)
 }
+#[cfg(feature = "evaluation")]
 pub(crate) fn collect(args: CollectArgs) -> Result<Value, CliError> {
     let dir = args
         .decisions_dir
-        .unwrap_or_else(saccade_core::serve::default_decisions_dir);
+        .unwrap_or_else(saccade_core::local::default_decisions_dir);
     let labels = saccade_core::labels::collect(Some(&dir), &args.reports, &args.out)?;
     Ok(serde_json::to_value(labels)?)
 }
 
-pub(crate) fn schemas() -> Vec<Value> {
-    vec![
-        json!({"name":"saccade_review","description":"Experimental cascade: deterministic gate, batched Jev, Gemini only on escalation, human inbox and blind votes. Never approves on model output. budget_calls counts actual HTTP attempts including retries. Sends evidence to providers.",
+#[cfg(feature = "mcp")]
+mod bindings {
+    use super::*;
+    pub(crate) fn schemas() -> Vec<Value> {
+        vec![
+            json!({"name":"saccade_review","description":"Experimental cascade: deterministic gate, batched Jev, Gemini only on escalation, human inbox and blind votes. Never approves on model output. budget_calls counts actual HTTP attempts including retries. Sends evidence to providers.",
             "inputSchema":{"type":"object","properties":{"report_json":{"type":"string"},"profile":{"type":"string"},"intent":{"type":"string"},
                 "budget_calls":{"type":"integer","minimum":0,"maximum":1000},"max_gemini":{"type":"integer","minimum":0,"maximum":100},
                 "dry_run":{"type":"boolean"}},"required":["report_json"],"additionalProperties":false},
             "outputSchema":{"type":"object","properties":{"schema":{"const":review::SCHEMA},"entries":{"type":"array","items":{"type":"object"}}},"required":["schema","entries"]},
             "annotations":{"readOnlyHint":false,"destructiveHint":false,"openWorldHint":true}}),
-        json!({"name":"saccade_judge_bench","description":"Benchmark the same evidence-bound human labels across Jev and every pinned Gemini model, in both orders. Measures accuracy, ECE, latency and position bias; suggests an empirically measured chain. Actual HTTP budget includes retries.",
+            #[cfg(feature = "evaluation")]
+            json!({"name":"saccade_judge_bench","description":"Benchmark the same evidence-bound human labels across Jev and every pinned Gemini model, in both orders. Measures accuracy, ECE, latency and position bias; suggests an empirically measured chain. Actual HTTP budget includes retries.",
             "inputSchema":{"type":"object","properties":{"labels":{"type":"string"},"models":{"type":"array","items":{"type":"string"}},
                 "questions":{"type":"array","items":{"type":"string"}},"budget_calls":{"type":"integer","minimum":0,"maximum":1000},
                 "out":{"type":"string"}},"required":["labels"],"additionalProperties":false},
             "outputSchema":{"type":"object","properties":{"schema":{"const":saccade_core::judge_bench::SCHEMA},"models":{"type":"array","items":{"type":"object"}}},"required":["schema","models"]},
             "annotations":{"readOnlyHint":false,"destructiveHint":false,"openWorldHint":true}}),
-    ]
-}
-type Resolve<'a> = &'a dyn Fn(&str, &str) -> Result<PathBuf, CliError>;
-fn string(args: &Map<String, Value>, key: &str) -> Result<Option<String>, CliError> {
-    match args.get(key) {
-        None => Ok(None),
-        Some(Value::String(s)) => Ok(Some(s.clone())),
-        _ => Err(CliError::usage(format!("{key} must be a string"))),
+        ]
     }
-}
-fn number(args: &Map<String, Value>, key: &str, default: usize) -> Result<usize, CliError> {
-    match args.get(key) {
-        None => Ok(default),
-        Some(v) => v
-            .as_u64()
-            .filter(|n| *n <= 1000)
-            .map(|n| n as usize)
-            .ok_or_else(|| CliError::usage(format!("{key} must be an integer from 0 to 1000"))),
-    }
-}
-fn strings(args: &Map<String, Value>, key: &str) -> Result<Vec<String>, CliError> {
-    match args.get(key) {
-        None => Ok(Vec::new()),
-        Some(Value::Array(a)) => a
-            .iter()
-            .map(|s| {
-                s.as_str()
-                    .map(str::to_owned)
-                    .ok_or_else(|| CliError::usage(format!("{key} must contain strings")))
-            })
-            .collect(),
-        _ => Err(CliError::usage(format!("{key} must be an array"))),
-    }
-}
-pub(crate) fn call(
-    name: &str,
-    args: &Map<String, Value>,
-    resolve: Resolve<'_>,
-) -> Option<Result<(Value, String), CliError>> {
-    if !["saccade_review", "saccade_judge_bench"].contains(&name) {
-        return None;
-    }
-    Some((|| {
-        let known = if name == "saccade_review" {
-            vec![
-                "report_json",
-                "profile",
-                "intent",
-                "budget_calls",
-                "max_gemini",
-                "dry_run",
-            ]
-        } else {
-            vec!["labels", "models", "questions", "budget_calls", "out"]
-        };
-        if let Some(k) = args.keys().find(|k| !known.contains(&k.as_str())) {
-            return Err(CliError::usage(format!("unknown argument {k}")));
+    type Resolve<'a> = &'a dyn Fn(&str, &str) -> Result<PathBuf, CliError>;
+    fn string(args: &Map<String, Value>, key: &str) -> Result<Option<String>, CliError> {
+        match args.get(key) {
+            None => Ok(None),
+            Some(Value::String(s)) => Ok(Some(s.clone())),
+            _ => Err(CliError::usage(format!("{key} must be a string"))),
         }
-        let root = root(Some(&resolve("root", ".")?))?;
-        if name == "saccade_review" {
-            let path = string(args, "report_json")?
-                .ok_or_else(|| CliError::usage("report_json is required"))?;
-            let profile = string(args, "profile")?.unwrap_or_else(|| "nightly".into());
-            let profile = if Profile::template(&profile).is_some() {
-                profile
+    }
+    fn number(args: &Map<String, Value>, key: &str, default: usize) -> Result<usize, CliError> {
+        match args.get(key) {
+            None => Ok(default),
+            Some(v) => v
+                .as_u64()
+                .filter(|n| *n <= 1000)
+                .map(|n| n as usize)
+                .ok_or_else(|| CliError::usage(format!("{key} must be an integer from 0 to 1000"))),
+        }
+    }
+    #[cfg(feature = "evaluation")]
+    fn strings(args: &Map<String, Value>, key: &str) -> Result<Vec<String>, CliError> {
+        match args.get(key) {
+            None => Ok(Vec::new()),
+            Some(Value::Array(a)) => a
+                .iter()
+                .map(|s| {
+                    s.as_str()
+                        .map(str::to_owned)
+                        .ok_or_else(|| CliError::usage(format!("{key} must contain strings")))
+                })
+                .collect(),
+            _ => Err(CliError::usage(format!("{key} must be an array"))),
+        }
+    }
+    pub(crate) fn call(
+        name: &str,
+        args: &Map<String, Value>,
+        resolve: Resolve<'_>,
+    ) -> Option<Result<(Value, String), CliError>> {
+        if !["saccade_review", "saccade_judge_bench"].contains(&name) {
+            return None;
+        }
+        Some((|| {
+            let known = if name == "saccade_review" {
+                vec![
+                    "report_json",
+                    "profile",
+                    "intent",
+                    "budget_calls",
+                    "max_gemini",
+                    "dry_run",
+                ]
             } else {
-                saccade_core::paths::portable(&resolve("profile", &profile)?)
+                vec!["labels", "models", "questions", "budget_calls", "out"]
             };
-            let dry = match args.get("dry_run") {
-                None => false,
-                Some(Value::Bool(b)) => *b,
-                _ => return Err(CliError::usage("dry_run must be boolean")),
-            };
-            review_run(
-                &ReviewArgs {
-                    report_json: resolve("report_json", &path)?,
-                    profile,
-                    intent: string(args, "intent")?,
-                    intent_file: None,
-                    budget_calls: number(args, "budget_calls", 30)?,
-                    max_gemini: args
-                        .get("max_gemini")
-                        .map(|_| number(args, "max_gemini", 5))
-                        .transpose()?,
-                    json: true,
-                    dry_run: dry,
-                    keys_dir: None,
-                    cache_dir: Some(resolve("cache_dir", ".saccade-review/cache")?),
-                    decisions_dir: Some(resolve("decisions_dir", "judge-decisions")?),
-                    serve_root: Some(root.clone()),
-                    ocr_cmd: None,
-                },
-                Some(&root),
-            )
-        } else {
-            let labels =
-                string(args, "labels")?.ok_or_else(|| CliError::usage("labels is required"))?;
-            let value = bench(
-                BenchArgs {
-                    labels: resolve("labels", &labels)?,
-                    models: strings(args, "models")?,
-                    questions: strings(args, "questions")?,
-                    budget_calls: number(args, "budget_calls", 30)?,
-                    keys_dir: None,
-                    cache_dir: Some(resolve("cache_dir", ".saccade-review/cache")?),
-                    jev_call_limit: 15,
-                    gemini_call_limit: 30,
-                    out: resolve(
-                        "out",
-                        &string(args, "out")?
-                            .unwrap_or_else(|| "saccade-judge-bench.v1.json".into()),
-                    )?,
-                },
-                Some(&root),
-            )?;
-            let text = format!(
-                "bench: {} items; {} calls; suggested chain: {}",
-                value["items"], value["calls_used"], value["suggested_chain"]
-            );
-            Ok((value, text))
-        }
-    })())
+            if let Some(k) = args.keys().find(|k| !known.contains(&k.as_str())) {
+                return Err(CliError::usage(format!("unknown argument {k}")));
+            }
+            let root = root(Some(&resolve("root", ".")?))?;
+            if name == "saccade_review" {
+                let path = string(args, "report_json")?
+                    .ok_or_else(|| CliError::usage("report_json is required"))?;
+                let profile = string(args, "profile")?.unwrap_or_else(|| "nightly".into());
+                let profile = if Profile::template(&profile).is_some() {
+                    profile
+                } else {
+                    saccade_core::paths::portable(&resolve("profile", &profile)?)
+                };
+                let dry = match args.get("dry_run") {
+                    None => false,
+                    Some(Value::Bool(b)) => *b,
+                    _ => return Err(CliError::usage("dry_run must be boolean")),
+                };
+                review_run(
+                    &ReviewArgs {
+                        report_json: resolve("report_json", &path)?,
+                        profile,
+                        intent: string(args, "intent")?,
+                        intent_file: None,
+                        budget_calls: number(args, "budget_calls", 30)?,
+                        max_gemini: args
+                            .get("max_gemini")
+                            .map(|_| number(args, "max_gemini", 5))
+                            .transpose()?,
+                        json: true,
+                        dry_run: dry,
+                        keys_dir: None,
+                        cache_dir: Some(resolve("cache_dir", ".saccade-review/cache")?),
+                        decisions_dir: Some(resolve("decisions_dir", "judge-decisions")?),
+                        serve_root: Some(root.clone()),
+                        ocr_cmd: None,
+                    },
+                    Some(&root),
+                )
+            } else {
+                #[cfg(not(feature = "evaluation"))]
+                return Err(saccade_core::Error::FeatureUnavailable {
+                    feature: "evaluation",
+                }
+                .into());
+                #[cfg(feature = "evaluation")]
+                {
+                    let labels = string(args, "labels")?
+                        .ok_or_else(|| CliError::usage("labels is required"))?;
+                    let value = bench(
+                        BenchArgs {
+                            labels: resolve("labels", &labels)?,
+                            models: strings(args, "models")?,
+                            questions: strings(args, "questions")?,
+                            budget_calls: number(args, "budget_calls", 30)?,
+                            keys_dir: None,
+                            cache_dir: Some(resolve("cache_dir", ".saccade-review/cache")?),
+                            jev_call_limit: 15,
+                            gemini_call_limit: 30,
+                            out: resolve(
+                                "out",
+                                &string(args, "out")?
+                                    .unwrap_or_else(|| "saccade-judge-bench.v1.json".into()),
+                            )?,
+                        },
+                        Some(&root),
+                    )?;
+                    let text = format!(
+                        "bench: {} items; {} calls; suggested chain: {}",
+                        value["items"], value["calls_used"], value["suggested_chain"]
+                    );
+                    Ok((value, text))
+                }
+            }
+        })())
+    }
 }
+#[cfg(feature = "mcp")]
+pub(crate) use bindings::{call, schemas};

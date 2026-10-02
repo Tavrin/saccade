@@ -69,6 +69,7 @@ fn exit_codes_and_approve() {
     );
 }
 
+#[cfg(feature = "workbench")]
 #[test]
 fn serve_skips_unresolvable_symlink_targets_but_requires_positional_roots() {
     use std::io::{Read, Write};

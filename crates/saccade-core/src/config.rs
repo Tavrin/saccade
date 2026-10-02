@@ -412,6 +412,12 @@ impl RunConfig {
             }
         }
         self.perf.validate()?;
+        #[cfg(not(feature = "graphics"))]
+        if !self.buffers.is_empty() || self.perf != crate::perf::PerfOptions::default() {
+            return Err(Error::FeatureUnavailable {
+                feature: "graphics",
+            });
+        }
         self.hdr.validate()?;
         self.diagnostics.validate()?;
         self.meta.checker()?;

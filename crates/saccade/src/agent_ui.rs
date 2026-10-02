@@ -23,6 +23,7 @@ use crate::agent::CliError;
 pub const DECIDE_RESULT_SCHEMA: &str = "saccade-decide-result.v1";
 
 /// Widest image an MCP result carries.
+#[cfg(feature = "mcp")]
 const MCP_MAX_WIDTH: u32 = 1600;
 
 impl From<DecideError> for CliError {
@@ -340,7 +341,7 @@ pub fn record(
         let id = target.to_string_lossy();
         if id.len() >= 16 && id.bytes().all(|b| b.is_ascii_hexdigit()) {
             let dir = decisions_dir.map_or_else(
-                saccade_core::serve::default_decisions_dir,
+                saccade_core::local::default_decisions_dir,
                 Path::to_path_buf,
             );
             let file = dir.join(format!("{id}.saccade-decisions.v1.json"));
@@ -425,298 +426,307 @@ pub fn decide(args: &DecideArgs) -> Result<u8, CliError> {
 // ---- MCP --------------------------------------------------------------------
 
 /// The tool definitions `saccade_snapshot`, `saccade_decision_request` and `saccade_decide`.
-pub fn mcp_schemas() -> Vec<Value> {
-    let path = |what: &str| json!({"type": "string", "minLength": 1, "description": what});
-    let question = json!({"type": "string", "enum": Question::ALL.map(Question::as_str), "description": "The question type (default accept): accept = intended change or regression; triage = what kind of difference; cause = most likely cause; ask_human = does a person need to look; mask_suggest = per hotspot, noise worth masking or a real change."});
-    vec![
-        json!({
-            "name": "saccade_snapshot",
-            "title": "Render a view state to an image",
-            "description": "Draws one entry of a report (or one set of a view directory) as a PNG, with no browser: the state uses the same hash grammar as the HTML pages (layout=side|swipe|flicker|heatmap, split, vertical, zoom, at=x,y, heat, channel, ev, roi=x,y,w,h, hotspot=n). Use it to look at a hotspot at zoom, a swipe at a given split or the heatmap overlay. Returns the image (at most 1600 px wide; flicker returns one image per frame) and its path.",
-            "inputSchema": {
-                "type": "object",
-                "properties": {
-                    "report_json": path("Path to saccade-report.v1.json. Give this or view_dir."),
-                    "view_dir": path("A view directory written by `saccade view`. Give this or report_json."),
-                    "entry": path("The entry or set name. Default: the state's set/entry, else the first failing entry."),
-                    "state": {"type": "string", "description": "Hash-state string, for example `layout=swipe&split=0.3&zoom=4&at=120,80&hotspot=1`. Unknown keys are ignored."},
-                    "width": {"type": "integer", "minimum": 64, "maximum": MCP_MAX_WIDTH, "description": "Stage width in pixels (default 1600)."}
+#[cfg(feature = "mcp")]
+mod bindings {
+    use super::*;
+    pub fn mcp_schemas() -> Vec<Value> {
+        let path = |what: &str| json!({"type": "string", "minLength": 1, "description": what});
+        let question = json!({"type": "string", "enum": Question::ALL.map(Question::as_str), "description": "The question type (default accept): accept = intended change or regression; triage = what kind of difference; cause = most likely cause; ask_human = does a person need to look; mask_suggest = per hotspot, noise worth masking or a real change."});
+        vec![
+            json!({
+                "name": "saccade_snapshot",
+                "title": "Render a view state to an image",
+                "description": "Draws one entry of a report (or one set of a view directory) as a PNG, with no browser: the state uses the same hash grammar as the HTML pages (layout=side|swipe|flicker|heatmap, split, vertical, zoom, at=x,y, heat, channel, ev, roi=x,y,w,h, hotspot=n). Use it to look at a hotspot at zoom, a swipe at a given split or the heatmap overlay. Returns the image (at most 1600 px wide; flicker returns one image per frame) and its path.",
+                "inputSchema": {
+                    "type": "object",
+                    "properties": {
+                        "report_json": path("Path to saccade-report.v1.json. Give this or view_dir."),
+                        "view_dir": path("A view directory written by `saccade view`. Give this or report_json."),
+                        "entry": path("The entry or set name. Default: the state's set/entry, else the first failing entry."),
+                        "state": {"type": "string", "description": "Hash-state string, for example `layout=swipe&split=0.3&zoom=4&at=120,80&hotspot=1`. Unknown keys are ignored."},
+                        "width": {"type": "integer", "minimum": 64, "maximum": MCP_MAX_WIDTH, "description": "Stage width in pixels (default 1600)."}
+                    },
+                    "additionalProperties": false
                 },
-                "additionalProperties": false
-            },
-            "outputSchema": {"type": "object", "required": ["paths", "width", "height"], "properties": {"paths": {"type": "array", "items": {"type": "string"}}, "width": {"type": "integer"}, "height": {"type": "integer"}}},
-            "annotations": {"title": "Render a view state to an image", "readOnlyHint": false, "destructiveHint": false, "idempotentHint": true, "openWorldHint": false}
-        }),
-        json!({
-            "name": "saccade_decision_request",
-            "title": "Ask bounded questions about a report",
-            "description": "Read-only: emits saccade-decision-request.v1 for a report: per entry a fixed question, its allowed answers and a compact state (verdict, metrics, hotspots, flags, config differences, diagnostics, your intent). Answer from the allowed set only, then record with saccade_decide. Deterministic failures (broken or non-finite frames, config mismatches, identity breaks, errors) are listed under `skipped`: they are not questions for a model.",
-            "inputSchema": {
-                "type": "object",
-                "properties": {
-                    "report_json": path("Path to saccade-report.v1.json."),
-                    "entry": {"type": "array", "items": {"type": "string"}, "description": "Entries to ask about."},
-                    "all_failing": {"type": "boolean", "description": "Ask about every failing entry a model may answer."},
-                    "question": question,
-                    "intent": {"type": "string", "description": "What the change is for (commit message or PR text); judged against by the accept question."}
+                "outputSchema": {"type": "object", "required": ["paths", "width", "height"], "properties": {"paths": {"type": "array", "items": {"type": "string"}}, "width": {"type": "integer"}, "height": {"type": "integer"}}},
+                "annotations": {"title": "Render a view state to an image", "readOnlyHint": false, "destructiveHint": false, "idempotentHint": true, "openWorldHint": false}
+            }),
+            json!({
+                "name": "saccade_decision_request",
+                "title": "Ask bounded questions about a report",
+                "description": "Read-only: emits saccade-decision-request.v1 for a report: per entry a fixed question, its allowed answers and a compact state (verdict, metrics, hotspots, flags, config differences, diagnostics, your intent). Answer from the allowed set only, then record with saccade_decide. Deterministic failures (broken or non-finite frames, config mismatches, identity breaks, errors) are listed under `skipped`: they are not questions for a model.",
+                "inputSchema": {
+                    "type": "object",
+                    "properties": {
+                        "report_json": path("Path to saccade-report.v1.json."),
+                        "entry": {"type": "array", "items": {"type": "string"}, "description": "Entries to ask about."},
+                        "all_failing": {"type": "boolean", "description": "Ask about every failing entry a model may answer."},
+                        "question": question,
+                        "intent": {"type": "string", "description": "What the change is for (commit message or PR text); judged against by the accept question."}
+                    },
+                    "required": ["report_json"],
+                    "additionalProperties": false
                 },
-                "required": ["report_json"],
-                "additionalProperties": false
-            },
-            "outputSchema": {"type": "object", "required": ["schema", "items", "skipped"], "properties": {"schema": {"const": "saccade-decision-request.v1"}, "question_type": {"type": "string"}, "items": {"type": "array", "items": {"type": "object"}}, "skipped": {"type": "array", "items": {"type": "object"}}}},
-            "annotations": {"title": "Ask bounded questions about a report", "readOnlyHint": true, "destructiveHint": false, "idempotentHint": true, "openWorldHint": false}
-        }),
-        json!({
-            "name": "saccade_decide",
-            "title": "Record an answer to a decision-request question",
-            "description": "Records an answer into the report's decisions file (a model's answer is a proposal that a person confirms with one click; the [decisions] confidence gate in saccade.toml may promote an accept or reject above its threshold). Refused for deterministic failures. Never changes a baseline: approve reads final decisions only.",
-            "inputSchema": {
-                "type": "object",
-                "properties": {
-                    "report_json": path("Path to saccade-report.v1.json (or a view directory, or a decisions file)."),
-                    "entry": path("The entry the answer is about."),
-                    "answer": {"type": "string", "description": "One of the question's allowed answers."},
-                    "prob": {"type": "number", "minimum": 0, "maximum": 1, "description": "Your probability for the answer (required unless source is human)."},
-                    "source": {"type": "string", "minLength": 1, "description": "Who answered: jev, openai-decisions, a model name or human."},
-                    "question": question,
-                    "hotspot": {"type": "integer", "minimum": 1, "description": "For mask_suggest: the hotspot the answer is about."},
-                    "note": {"type": "string"},
-                    "request_hash": {"type": "string", "description": "The request_hash of the item you answered."}
+                "outputSchema": {"type": "object", "required": ["schema", "items", "skipped"], "properties": {"schema": {"const": "saccade-decision-request.v1"}, "question_type": {"type": "string"}, "items": {"type": "array", "items": {"type": "object"}}, "skipped": {"type": "array", "items": {"type": "object"}}}},
+                "annotations": {"title": "Ask bounded questions about a report", "readOnlyHint": true, "destructiveHint": false, "idempotentHint": true, "openWorldHint": false}
+            }),
+            json!({
+                "name": "saccade_decide",
+                "title": "Record an answer to a decision-request question",
+                "description": "Records an answer into the report's decisions file (a model's answer is a proposal that a person confirms with one click; the [decisions] confidence gate in saccade.toml may promote an accept or reject above its threshold). Refused for deterministic failures. Never changes a baseline: approve reads final decisions only.",
+                "inputSchema": {
+                    "type": "object",
+                    "properties": {
+                        "report_json": path("Path to saccade-report.v1.json (or a view directory, or a decisions file)."),
+                        "entry": path("The entry the answer is about."),
+                        "answer": {"type": "string", "description": "One of the question's allowed answers."},
+                        "prob": {"type": "number", "minimum": 0, "maximum": 1, "description": "Your probability for the answer (required unless source is human)."},
+                        "source": {"type": "string", "minLength": 1, "description": "Who answered: jev, openai-decisions, a model name or human."},
+                        "question": question,
+                        "hotspot": {"type": "integer", "minimum": 1, "description": "For mask_suggest: the hotspot the answer is about."},
+                        "note": {"type": "string"},
+                        "request_hash": {"type": "string", "description": "The request_hash of the item you answered."}
+                    },
+                    "required": ["report_json", "entry", "answer", "source"],
+                    "additionalProperties": false
                 },
-                "required": ["report_json", "entry", "answer", "source"],
-                "additionalProperties": false
-            },
-            "outputSchema": {"type": "object", "required": ["schema", "entry", "answer", "proposed", "decided"], "properties": {"schema": {"const": "saccade-decide-result.v1"}, "entry": {"type": "string"}, "answer": {"type": "string"}, "proposed": {"type": "boolean"}, "decided": {"type": "boolean"}, "decision": {"type": ["string", "null"]}, "reason": {"type": ["string", "null"]}, "file": {"type": "string"}}},
-            "annotations": {"title": "Record an answer to a decision-request question", "readOnlyHint": false, "destructiveHint": false, "idempotentHint": true, "openWorldHint": false}
-        }),
-    ]
-}
-
-/// The path-resolving callback the MCP server passes in: `(argument name, value)`
-/// to an absolute path confined to the server root.
-pub type Resolve<'a> = &'a dyn Fn(&str, &str) -> Result<PathBuf, CliError>;
-
-/// What an MCP tool returns: structured content, text and image blocks.
-pub type McpOutput = (Value, String, Vec<Value>);
-
-fn str_arg(args: &Map<String, Value>, key: &str) -> Result<Option<String>, CliError> {
-    match args.get(key) {
-        None | Some(Value::Null) => Ok(None),
-        Some(Value::String(s)) => Ok(Some(s.clone())),
-        Some(_) => Err(CliError::usage(format!("`{key}` must be a string"))),
+                "outputSchema": {"type": "object", "required": ["schema", "entry", "answer", "proposed", "decided"], "properties": {"schema": {"const": "saccade-decide-result.v1"}, "entry": {"type": "string"}, "answer": {"type": "string"}, "proposed": {"type": "boolean"}, "decided": {"type": "boolean"}, "decision": {"type": ["string", "null"]}, "reason": {"type": ["string", "null"]}, "file": {"type": "string"}}},
+                "annotations": {"title": "Record an answer to a decision-request question", "readOnlyHint": false, "destructiveHint": false, "idempotentHint": true, "openWorldHint": false}
+            }),
+        ]
     }
-}
 
-fn need(args: &Map<String, Value>, key: &str) -> Result<String, CliError> {
-    str_arg(args, key)?.ok_or_else(|| CliError::usage(format!("`{key}` is required")))
-}
+    /// The path-resolving callback the MCP server passes in: `(argument name, value)`
+    /// to an absolute path confined to the server root.
+    pub type Resolve<'a> = &'a dyn Fn(&str, &str) -> Result<PathBuf, CliError>;
 
-fn only(args: &Map<String, Value>, known: &[&str]) -> Result<(), CliError> {
-    match args.keys().find(|k| !known.contains(&k.as_str())) {
-        Some(k) => Err(CliError::usage(format!(
-            "unknown argument `{k}`; accepted: {}",
-            known.join(", ")
-        ))),
-        None => Ok(()),
+    /// What an MCP tool returns: structured content, text and image blocks.
+    pub type McpOutput = (Value, String, Vec<Value>);
+
+    fn str_arg(args: &Map<String, Value>, key: &str) -> Result<Option<String>, CliError> {
+        match args.get(key) {
+            None | Some(Value::Null) => Ok(None),
+            Some(Value::String(s)) => Ok(Some(s.clone())),
+            Some(_) => Err(CliError::usage(format!("`{key}` must be a string"))),
+        }
     }
-}
 
-fn fnv(s: &str) -> u32 {
-    s.bytes().fold(0x811c_9dc5_u32, |h, b| {
-        (h ^ u32::from(b)).wrapping_mul(0x0100_0193)
-    })
-}
+    fn need(args: &Map<String, Value>, key: &str) -> Result<String, CliError> {
+        str_arg(args, key)?.ok_or_else(|| CliError::usage(format!("`{key}` is required")))
+    }
 
-fn sanitize(name: &str) -> String {
-    name.chars()
-        .map(|c| {
-            if c.is_ascii_alphanumeric() || c == '-' {
-                c
-            } else {
-                '_'
-            }
+    fn only(args: &Map<String, Value>, known: &[&str]) -> Result<(), CliError> {
+        match args.keys().find(|k| !known.contains(&k.as_str())) {
+            Some(k) => Err(CliError::usage(format!(
+                "unknown argument `{k}`; accepted: {}",
+                known.join(", ")
+            ))),
+            None => Ok(()),
+        }
+    }
+
+    fn fnv(s: &str) -> u32 {
+        s.bytes().fold(0x811c_9dc5_u32, |h, b| {
+            (h ^ u32::from(b)).wrapping_mul(0x0100_0193)
         })
-        .collect()
-}
+    }
 
-fn mcp_snapshot(args: &Map<String, Value>, resolve: Resolve<'_>) -> Result<McpOutput, CliError> {
-    only(
-        args,
-        &["report_json", "view_dir", "entry", "state", "width"],
-    )?;
-    let (target, dir) = match (str_arg(args, "report_json")?, str_arg(args, "view_dir")?) {
-        (Some(r), None) => {
-            let p = resolve("report_json", &r)?;
-            let dir = p
-                .parent()
-                .map_or_else(|| PathBuf::from("."), Path::to_path_buf);
-            (p, dir)
-        }
-        (None, Some(v)) => {
-            let p = resolve("view_dir", &v)?;
-            (p.clone(), p)
-        }
-        _ => {
-            return Err(CliError::usage(
-                "give exactly one of `report_json` and `view_dir`",
-            ));
-        }
-    };
-    let entry = str_arg(args, "entry")?;
-    let state = str_arg(args, "state")?;
-    let width = match args.get("width") {
-        None | Some(Value::Null) => MCP_MAX_WIDTH,
-        Some(v) => v
-            .as_u64()
-            .and_then(|w| u32::try_from(w).ok())
-            .filter(|w| (64..=MCP_MAX_WIDTH).contains(w))
-            .ok_or_else(|| {
-                CliError::usage(format!(
-                    "`width` must be an integer from 64 to {MCP_MAX_WIDTH}"
-                ))
-            })?,
-    };
-    let key = format!(
-        "{}|{}|{width}",
-        entry.as_deref().unwrap_or(""),
-        state.as_deref().unwrap_or("")
-    );
-    let out = dir.join("snapshots").join(format!(
-        "{}.{:08x}.png",
-        sanitize(entry.as_deref().unwrap_or("snapshot")),
-        fnv(&key)
-    ));
-    let snap = render_snapshot(&target, entry.as_deref(), state.as_deref(), width, &out)?;
-    let mut images = Vec::new();
-    for p in &snap.paths {
-        let bytes =
-            std::fs::read(p).map_err(|e| CliError::io(format!("reading {}: {e}", p.display())))?;
-        images.push(
+    fn sanitize(name: &str) -> String {
+        name.chars()
+            .map(|c| {
+                if c.is_ascii_alphanumeric() || c == '-' {
+                    c
+                } else {
+                    '_'
+                }
+            })
+            .collect()
+    }
+
+    fn mcp_snapshot(
+        args: &Map<String, Value>,
+        resolve: Resolve<'_>,
+    ) -> Result<McpOutput, CliError> {
+        only(
+            args,
+            &["report_json", "view_dir", "entry", "state", "width"],
+        )?;
+        let (target, dir) = match (str_arg(args, "report_json")?, str_arg(args, "view_dir")?) {
+            (Some(r), None) => {
+                let p = resolve("report_json", &r)?;
+                let dir = p
+                    .parent()
+                    .map_or_else(|| PathBuf::from("."), Path::to_path_buf);
+                (p, dir)
+            }
+            (None, Some(v)) => {
+                let p = resolve("view_dir", &v)?;
+                (p.clone(), p)
+            }
+            _ => {
+                return Err(CliError::usage(
+                    "give exactly one of `report_json` and `view_dir`",
+                ));
+            }
+        };
+        let entry = str_arg(args, "entry")?;
+        let state = str_arg(args, "state")?;
+        let width = match args.get("width") {
+            None | Some(Value::Null) => MCP_MAX_WIDTH,
+            Some(v) => v
+                .as_u64()
+                .and_then(|w| u32::try_from(w).ok())
+                .filter(|w| (64..=MCP_MAX_WIDTH).contains(w))
+                .ok_or_else(|| {
+                    CliError::usage(format!(
+                        "`width` must be an integer from 64 to {MCP_MAX_WIDTH}"
+                    ))
+                })?,
+        };
+        let key = format!(
+            "{}|{}|{width}",
+            entry.as_deref().unwrap_or(""),
+            state.as_deref().unwrap_or("")
+        );
+        let out = dir.join("snapshots").join(format!(
+            "{}.{:08x}.png",
+            sanitize(entry.as_deref().unwrap_or("snapshot")),
+            fnv(&key)
+        ));
+        let snap = render_snapshot(&target, entry.as_deref(), state.as_deref(), width, &out)?;
+        let mut images = Vec::new();
+        for p in &snap.paths {
+            let bytes = std::fs::read(p)
+                .map_err(|e| CliError::io(format!("reading {}: {e}", p.display())))?;
+            images.push(
             json!({"type": "image", "data": crate::mcp::base64(&bytes), "mimeType": "image/png"}),
         );
-    }
-    let paths: Vec<String> = snap
-        .paths
-        .iter()
-        .map(|p| saccade_core::paths::portable(p))
-        .collect();
-    let text = format!(
-        "saccade snapshot: {}x{}{}; {}",
-        snap.width,
-        snap.height,
-        if paths.len() > 1 {
-            format!(", {} frames", paths.len())
-        } else {
-            String::new()
-        },
-        paths.join(", ")
-    );
-    Ok((
-        json!({"paths": paths, "width": snap.width, "height": snap.height}),
-        text,
-        images,
-    ))
-}
-
-fn mcp_request(args: &Map<String, Value>, resolve: Resolve<'_>) -> Result<McpOutput, CliError> {
-    only(
-        args,
-        &["report_json", "entry", "all_failing", "question", "intent"],
-    )?;
-    let path = resolve("report_json", &need(args, "report_json")?)?;
-    let report = read_report(&path)?;
-    let entries = match args.get("entry") {
-        None | Some(Value::Null) => Vec::new(),
-        Some(Value::Array(a)) => a
-            .iter()
-            .map(|v| {
-                v.as_str()
-                    .map(str::to_owned)
-                    .ok_or_else(|| CliError::usage("`entry` must be strings"))
-            })
-            .collect::<Result<_, _>>()?,
-        Some(Value::String(s)) => vec![s.clone()],
-        Some(_) => return Err(CliError::usage("`entry` must be an array of strings")),
-    };
-    let all = args
-        .get("all_failing")
-        .and_then(Value::as_bool)
-        .unwrap_or(false);
-    let question = str_arg(args, "question")?.unwrap_or_else(|| "accept".to_owned());
-    let value = request_value(&report, entries, all, &question, str_arg(args, "intent")?)?;
-    let n = value["items"].as_array().map_or(0, Vec::len);
-    let text = format!(
-        "saccade decision request: {n} item(s), question {question}; answer each from `allowed_answers`, then call saccade_decide with the item's `request_hash`.\n{value}"
-    );
-    Ok((value, text, Vec::new()))
-}
-
-fn mcp_decide(args: &Map<String, Value>, resolve: Resolve<'_>) -> Result<McpOutput, CliError> {
-    only(
-        args,
-        &[
-            "report_json",
-            "entry",
-            "answer",
-            "prob",
-            "source",
-            "question",
-            "hotspot",
-            "note",
-            "request_hash",
-        ],
-    )?;
-    let target = resolve("report_json", &need(args, "report_json")?)?;
-    let defaults = DecideArgs {
-        target: target.clone(),
-        entry: None,
-        question: "accept".into(),
-        hotspot: None,
-        answer: None,
-        prob: None,
-        confidence: None,
-        source: None,
-        note: None,
-        request_hash: None,
-        config: None,
-        decisions_dir: None,
-        json: true,
-    };
-    let answer = answer_from(args, &defaults)?;
-    let cfg_path = resolve("config", "saccade.toml")?;
-    let cfg = decisions_config(
-        Some(&cfg_path)
-            .filter(|p| p.is_file())
-            .map(PathBuf::as_path),
-    )?;
-    let outcome = record(&target, &answer, &cfg, None)?;
-    let value = outcome_value(&answer, &outcome);
-    let text = format!(
-        "saccade decide: {} {} from {} recorded{}",
-        answer.entry,
-        answer.answer,
-        answer.source,
-        if outcome.decided {
-            " and decided"
-        } else if outcome.proposed {
-            " as a proposal"
-        } else {
-            ""
         }
-    );
-    Ok((value, text, Vec::new()))
-}
+        let paths: Vec<String> = snap
+            .paths
+            .iter()
+            .map(|p| saccade_core::paths::portable(p))
+            .collect();
+        let text = format!(
+            "saccade snapshot: {}x{}{}; {}",
+            snap.width,
+            snap.height,
+            if paths.len() > 1 {
+                format!(", {} frames", paths.len())
+            } else {
+                String::new()
+            },
+            paths.join(", ")
+        );
+        Ok((
+            json!({"paths": paths, "width": snap.width, "height": snap.height}),
+            text,
+            images,
+        ))
+    }
 
-/// Runs the MCP tool `name`, or `None` when it is not one of these.
-pub fn mcp_call(
-    name: &str,
-    args: &Map<String, Value>,
-    resolve: Resolve<'_>,
-) -> Option<Result<McpOutput, CliError>> {
-    Some(match name {
-        "saccade_snapshot" => mcp_snapshot(args, resolve),
-        "saccade_decision_request" => mcp_request(args, resolve),
-        "saccade_decide" => mcp_decide(args, resolve),
-        _ => return None,
-    })
+    fn mcp_request(args: &Map<String, Value>, resolve: Resolve<'_>) -> Result<McpOutput, CliError> {
+        only(
+            args,
+            &["report_json", "entry", "all_failing", "question", "intent"],
+        )?;
+        let path = resolve("report_json", &need(args, "report_json")?)?;
+        let report = read_report(&path)?;
+        let entries = match args.get("entry") {
+            None | Some(Value::Null) => Vec::new(),
+            Some(Value::Array(a)) => a
+                .iter()
+                .map(|v| {
+                    v.as_str()
+                        .map(str::to_owned)
+                        .ok_or_else(|| CliError::usage("`entry` must be strings"))
+                })
+                .collect::<Result<_, _>>()?,
+            Some(Value::String(s)) => vec![s.clone()],
+            Some(_) => return Err(CliError::usage("`entry` must be an array of strings")),
+        };
+        let all = args
+            .get("all_failing")
+            .and_then(Value::as_bool)
+            .unwrap_or(false);
+        let question = str_arg(args, "question")?.unwrap_or_else(|| "accept".to_owned());
+        let value = request_value(&report, entries, all, &question, str_arg(args, "intent")?)?;
+        let n = value["items"].as_array().map_or(0, Vec::len);
+        let text = format!(
+            "saccade decision request: {n} item(s), question {question}; answer each from `allowed_answers`, then call saccade_decide with the item's `request_hash`.\n{value}"
+        );
+        Ok((value, text, Vec::new()))
+    }
+
+    fn mcp_decide(args: &Map<String, Value>, resolve: Resolve<'_>) -> Result<McpOutput, CliError> {
+        only(
+            args,
+            &[
+                "report_json",
+                "entry",
+                "answer",
+                "prob",
+                "source",
+                "question",
+                "hotspot",
+                "note",
+                "request_hash",
+            ],
+        )?;
+        let target = resolve("report_json", &need(args, "report_json")?)?;
+        let defaults = DecideArgs {
+            target: target.clone(),
+            entry: None,
+            question: "accept".into(),
+            hotspot: None,
+            answer: None,
+            prob: None,
+            confidence: None,
+            source: None,
+            note: None,
+            request_hash: None,
+            config: None,
+            decisions_dir: None,
+            json: true,
+        };
+        let answer = answer_from(args, &defaults)?;
+        let cfg_path = resolve("config", "saccade.toml")?;
+        let cfg = decisions_config(
+            Some(&cfg_path)
+                .filter(|p| p.is_file())
+                .map(PathBuf::as_path),
+        )?;
+        let outcome = record(&target, &answer, &cfg, None)?;
+        let value = outcome_value(&answer, &outcome);
+        let text = format!(
+            "saccade decide: {} {} from {} recorded{}",
+            answer.entry,
+            answer.answer,
+            answer.source,
+            if outcome.decided {
+                " and decided"
+            } else if outcome.proposed {
+                " as a proposal"
+            } else {
+                ""
+            }
+        );
+        Ok((value, text, Vec::new()))
+    }
+
+    /// Runs the MCP tool `name`, or `None` when it is not one of these.
+    pub fn mcp_call(
+        name: &str,
+        args: &Map<String, Value>,
+        resolve: Resolve<'_>,
+    ) -> Option<Result<McpOutput, CliError>> {
+        Some(match name {
+            "saccade_snapshot" => mcp_snapshot(args, resolve),
+            "saccade_decision_request" => mcp_request(args, resolve),
+            "saccade_decide" => mcp_decide(args, resolve),
+            _ => return None,
+        })
+    }
 }
+#[cfg(feature = "mcp")]
+pub use bindings::{mcp_call, mcp_schemas};

@@ -396,7 +396,7 @@ impl LiveBackend {
             counts: [Cell::new(0), Cell::new(0)],
             cache: None,
             cooldown_secs: 600,
-            run_id: crate::serve::random_token(),
+            run_id: crate::local::random_token(),
             #[cfg(test)]
             mock_replies: None,
         }

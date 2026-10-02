@@ -6,6 +6,7 @@ use saccade_core::meta::DEFAULT_META_NAME;
 
 use crate::Command;
 use crate::agent::CliError;
+#[cfg(all(feature = "ai", feature = "evaluation"))]
 use crate::judge_cmd::JudgeSub;
 
 pub(crate) fn warn(command: &Command, allow: bool) -> Result<(), CliError> {
@@ -15,9 +16,9 @@ pub(crate) fn warn(command: &Command, allow: bool) -> Result<(), CliError> {
     let out = match command {
         Command::Compare { out, .. }
         | Command::Identity { out, .. }
-        | Command::View { out, .. }
-        | Command::Sequence { out, .. }
-        | Command::Rank { out, .. } => Some(out.clone()),
+        | Command::View { out, .. } => Some(out.clone()),
+        #[cfg(feature = "graphics")]
+        Command::Sequence { out, .. } | Command::Rank { out, .. } => Some(out.clone()),
         Command::Runs { out, json, .. } => out
             .clone()
             .or_else(|| (!json).then(|| PathBuf::from(crate::runs_cmd::DEFAULT_OUT))),
@@ -30,16 +31,26 @@ pub(crate) fn warn(command: &Command, allow: bool) -> Result<(), CliError> {
         })),
         Command::Unblind { out, .. } => out.clone(),
         Command::Snapshot(args) => Some(args.out.clone()),
+        #[cfg(feature = "graphics")]
         Command::Ablate(args) => Some(args.out.clone()),
+        #[cfg(feature = "prechecks")]
         Command::Safety(args) => Some(args.out.clone()),
+        #[cfg(feature = "prechecks")]
         Command::A11y(args) => Some(args.out.clone()),
+        #[cfg(feature = "graphics")]
         Command::Bisect(args) => Some(args.out.clone()),
-        Command::Watch(args) => Some(args.out.clone()),
+        #[cfg(feature = "ai")]
         Command::Judge(args) => match &args.sub {
+            #[cfg(feature = "evaluation")]
             Some(JudgeSub::Bench(args)) => Some(args.out.clone()),
+            #[cfg(feature = "evaluation")]
             Some(JudgeSub::CollectLabels(args)) => Some(args.out.clone()),
+            #[cfg(feature = "evaluation")]
             Some(JudgeSub::Calibrate(args)) => Some(args.out.clone()),
+            #[cfg(feature = "evaluation")]
             Some(JudgeSub::Selftest(args)) => args.out.clone(),
+            #[cfg(not(feature = "evaluation"))]
+            Some(_) => None,
             None => args.run.out.clone().or_else(|| {
                 args.run.target.as_ref().map(|target| {
                     target
@@ -49,20 +60,7 @@ pub(crate) fn warn(command: &Command, allow: bool) -> Result<(), CliError> {
                 })
             }),
         },
-        // MCP has its own root confinement; commands without --out do not warn.
-        Command::Init(_)
-        | Command::Config(_)
-        | Command::Entries(_)
-        | Command::Noise(_)
-        | Command::Demo(_)
-        | Command::Mcp { .. }
-        | Command::Approve { .. }
-        | Command::Serve { .. }
-        | Command::Summary { .. }
-        | Command::DecisionRequest(_)
-        | Command::Decide(_)
-        | Command::Ask(_)
-        | Command::Review(_) => None,
+        _ => None,
     };
     let Some(out) = out else {
         return Ok(());
@@ -71,14 +69,18 @@ pub(crate) fn warn(command: &Command, allow: bool) -> Result<(), CliError> {
         Command::Compare { config, meta, .. }
         | Command::Identity { config, meta, .. }
         | Command::View { config, meta, .. }
-        | Command::Sequence { config, meta, .. }
-        | Command::Rank { config, meta, .. }
         | Command::Runs { config, meta, .. } => {
             let mut options = crate::load_config(config.as_deref())?.meta;
             meta.apply(&mut options);
             Some(options.name)
         }
-        Command::Watch(args) => Some(crate::load_config(args.config.as_deref())?.meta.name),
+        #[cfg(feature = "graphics")]
+        Command::Sequence { config, meta, .. } | Command::Rank { config, meta, .. } => {
+            let mut options = crate::load_config(config.as_deref())?.meta;
+            meta.apply(&mut options);
+            Some(options.name)
+        }
+        #[cfg(feature = "ai")]
         Command::Judge(args) if args.sub.is_none() => {
             Some(crate::load_config(args.run.config.as_deref())?.meta.name)
         }

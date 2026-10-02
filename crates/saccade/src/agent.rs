@@ -42,6 +42,9 @@ impl CliError {
             "--out is inside an input dir: choose a sibling dir like ./saccade-report"
         } else {
             match code {
+                "feature_unavailable" => {
+                    "rebuild with the required feature; inspect enabled modules with `saccade inspect capabilities`"
+                }
                 "config" => {
                     "check the named config setting or glob, correct its value, and rerun `saccade config --explain NAME`"
                 }
@@ -109,6 +112,7 @@ impl From<saccade_core::Error> for CliError {
         use saccade_core::Error;
         let code = match e {
             Error::Config(_) => "config",
+            Error::FeatureUnavailable { .. } => "feature_unavailable",
             Error::NotEmptyOutDir(_) => "not_empty_out_dir",
             _ => "io",
         };
@@ -245,6 +249,7 @@ pub fn summary_value(report: &Report, report_json: &Path, top: usize) -> Value {
 }
 
 /// A few lines of plain text for a tool's text content block.
+#[cfg(feature = "mcp")]
 pub fn summary_text(report: &Report, value: &Value) -> String {
     let t = &report.totals;
     let mut out = format!(

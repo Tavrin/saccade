@@ -42,6 +42,7 @@ use crate::compare::{CompareOptions, Comparison, compare_rgba};
 use crate::error::{Error, Result};
 use crate::hdr::{HdrImage, compare_hdr};
 use crate::hotspots::{HotspotOptions, find_hotspots};
+#[cfg(feature = "graphics")]
 use crate::meta::MetaChecker;
 use crate::report::{Hotspot, Properties};
 
@@ -1855,6 +1856,7 @@ fn describe(f: &Facts<'_>) -> String {
 // Perf pairing
 // ---------------------------------------------------------------------------
 
+#[cfg(feature = "graphics")]
 fn numeric(v: &serde_json::Value) -> Option<f64> {
     match v {
         serde_json::Value::Number(n) => n.as_f64(),
@@ -1868,6 +1870,7 @@ fn numeric(v: &serde_json::Value) -> Option<f64> {
 /// sidecars of image `name`, largest relative change first, plus timing keys
 /// present on only one side (in key order). An absent sidecar is an empty side;
 /// unreadable sidecars give no results (the meta check reports them).
+#[cfg(feature = "graphics")]
 pub fn perf_pairs(
     checker: &MetaChecker,
     cfg: &DiagnosticsConfig,
@@ -2200,6 +2203,7 @@ mod tests {
         assert_eq!(d.class, ChangeClass::Noise, "{}", d.description);
     }
 
+    #[cfg(feature = "graphics")]
     #[test]
     fn timing_keys_of_both_sidecars_are_paired() {
         let dir = tempfile::tempdir().expect("tempdir");

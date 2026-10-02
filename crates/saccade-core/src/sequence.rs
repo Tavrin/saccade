@@ -1,14 +1,23 @@
 //! Numbered image sequences and added temporal instability.
 
-use std::path::{Path, PathBuf};
+use std::path::Path;
+#[cfg(any(feature = "graphics", feature = "prechecks"))]
+use std::path::PathBuf;
+#[cfg(feature = "graphics")]
 use std::time::{SystemTime, UNIX_EPOCH};
 
 use serde::{Deserialize, Serialize};
 
+#[cfg(feature = "graphics")]
 use crate::compare::CompareOptions;
-use crate::config::{RunConfig, compile_glob};
+use crate::config::RunConfig;
+#[cfg(any(feature = "graphics", feature = "prechecks"))]
+use crate::config::compile_glob;
 use crate::error::{Error, Result};
-use crate::report::{Entry, REPORT_FILE_NAME, REPORT_SCHEMA, Report, ReportConfig, Status, Totals};
+use crate::report::{Entry, Totals};
+#[cfg(feature = "graphics")]
+use crate::report::{REPORT_FILE_NAME, REPORT_SCHEMA, Report, ReportConfig, Status};
+#[cfg(feature = "graphics")]
 use crate::run::{Source, io_err};
 
 /// Sequence JSON schema identifier.
@@ -123,6 +132,7 @@ impl SequenceReport {
     }
 }
 
+#[cfg(any(feature = "graphics", feature = "prechecks"))]
 struct Frame {
     name: String,
     number: u64,
@@ -130,6 +140,7 @@ struct Frame {
     problem: Option<String>,
 }
 
+#[cfg(feature = "graphics")]
 impl Frame {
     fn source(&self) -> Option<Source<'_>> {
         match (&self.path, &self.problem) {
@@ -140,6 +151,7 @@ impl Frame {
     }
 }
 
+#[cfg(any(feature = "graphics", feature = "prechecks"))]
 fn collect(root: &Path, pattern: &str, cfg: &RunConfig) -> Result<Vec<Frame>> {
     let matcher = compile_glob(pattern)?;
     let ignores = cfg
@@ -199,6 +211,7 @@ fn collect(root: &Path, pattern: &str, cfg: &RunConfig) -> Result<Vec<Frame>> {
 
 /// Shared numbered-frame collector for the safety pre-check, retaining the
 /// existing sorting, duplicate-number and unreadable/symlink rules.
+#[cfg(feature = "prechecks")]
 pub(crate) fn numbered_frames(root: &Path) -> Result<Vec<(String, u64, PathBuf)>> {
     collect(root, "**", &RunConfig::default())?
         .into_iter()
@@ -213,6 +226,7 @@ pub(crate) fn numbered_frames(root: &Path) -> Result<Vec<(String, u64, PathBuf)>
         .collect()
 }
 
+#[cfg(feature = "graphics")]
 fn temporal(
     frames: &[Frame],
     cfg: &RunConfig,
@@ -266,6 +280,7 @@ fn temporal(
 }
 
 /// Compare numbered colour frames by sorted index and write both report formats.
+#[cfg(feature = "graphics")]
 pub fn run_sequence(
     baseline: &Path,
     capture: &Path,
@@ -498,4 +513,18 @@ pub fn run_sequence(
     crate::render::render_sequence_html(&report, &full, out)?;
     std::fs::remove_file(&sentinel).map_err(io_err(format!("removing {}", sentinel.display())))?;
     Ok(full)
+}
+
+/// Returns `feature_unavailable` when graphics computation is not compiled.
+#[cfg(not(feature = "graphics"))]
+pub fn run_sequence(
+    _baseline: &Path,
+    _capture: &Path,
+    _out: &Path,
+    _pattern: &str,
+    _cfg: &RunConfig,
+) -> Result<SequenceReport> {
+    Err(Error::FeatureUnavailable {
+        feature: "graphics",
+    })
 }

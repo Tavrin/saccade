@@ -14,8 +14,11 @@ pub(crate) enum Template {
     Ui,
     Identity,
     Ml,
+    #[cfg(feature = "ai")]
     Ci,
+    #[cfg(feature = "ai")]
     Nightly,
+    #[cfg(feature = "ai")]
     Lookdev,
 }
 
@@ -40,8 +43,11 @@ pub(crate) fn template(t: Template) -> &'static str {
         Template::Identity => {
             "# Pixel-preserving refactors and optimizations.\nmetric = \"max\"\nthreshold = 0\n"
         }
+        #[cfg(feature = "ai")]
         Template::Ci => saccade_core::review::Profile::template("ci").unwrap_or(""),
+        #[cfg(feature = "ai")]
         Template::Nightly => saccade_core::review::Profile::template("nightly").unwrap_or(""),
+        #[cfg(feature = "ai")]
         Template::Lookdev => saccade_core::review::Profile::template("lookdev").unwrap_or(""),
         Template::Ml => {
             "# Compare the same seeds/prompts across model checkpoints.\nmetric = \"p95\"\nthreshold = 0.01\n# Rank: saccade rank reference checkpoint-a checkpoint-b --out ranking\n# Judge: saccade judge ranking/saccade-rank.v1.json --panel examples/panel.toml --dry-run\n"
@@ -52,13 +58,19 @@ pub(crate) fn template(t: Template) -> &'static str {
 pub(crate) fn init(args: InitArgs) -> Result<u8, CliError> {
     std::fs::create_dir_all(&args.dir)
         .map_err(|e| CliError::io(format!("creating {}: {e}", args.dir.display())))?;
+    #[cfg(feature = "ai")]
     let review = match args.template {
+        #[cfg(feature = "ai")]
         Template::Ci => Some("ci"),
+        #[cfg(feature = "ai")]
         Template::Nightly => Some("nightly"),
+        #[cfg(feature = "ai")]
         Template::Lookdev => Some("lookdev"),
         Template::Ui => Some("ui"),
         _ => None,
     };
+    #[cfg(not(feature = "ai"))]
+    let review: Option<&str> = None;
     let path = args.dir.join(
         if review.is_some() && !matches!(args.template, Template::Ui) {
             "saccade-review.toml"
@@ -89,6 +101,7 @@ pub(crate) fn init(args: InitArgs) -> Result<u8, CliError> {
             path.display()
         ))
     })?;
+    #[cfg(feature = "ai")]
     if let Some(name) = review {
         if matches!(args.template, Template::Ui) {
             let profile = args.dir.join("saccade-review.toml");
@@ -441,6 +454,7 @@ pub(crate) fn approve_dirs(
     Ok((c, b))
 }
 
+#[cfg(feature = "graphics")]
 pub(crate) fn junit_reports(out: &Path, path: &Path, rank: bool) -> Result<(), CliError> {
     let report = if rank {
         let document: saccade_core::rank::RankReport = serde_json::from_str(

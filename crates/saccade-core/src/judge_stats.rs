@@ -8,11 +8,14 @@
 //! [`calibrate`].
 
 use std::collections::BTreeMap;
+#[cfg(feature = "evaluation")]
 use std::path::PathBuf;
 
 use serde_json::{Value, json};
 
+#[cfg(feature = "evaluation")]
 use crate::error::Error;
+#[cfg(feature = "evaluation")]
 use crate::view::{Decisions, read_decisions};
 
 /// Schema identifier of a calibration file.
@@ -141,6 +144,7 @@ pub fn krippendorff_alpha(units: &[Vec<String>]) -> Option<f64> {
 
 /// One prediction found in a decisions file.
 #[derive(Debug, Clone)]
+#[cfg(feature = "evaluation")]
 struct Pred {
     answer: String,
     prob: Option<f64>,
@@ -193,12 +197,14 @@ pub fn suggest_threshold(
 }
 
 #[derive(Default)]
+#[cfg(feature = "evaluation")]
 struct UnitData {
     humans: BTreeMap<String, String>,
     preds: BTreeMap<(String, String), Pred>,
     question: String,
 }
 
+#[cfg(feature = "evaluation")]
 fn unit_key(
     d: &Decisions,
     set: &crate::view::SetDecision,
@@ -219,6 +225,7 @@ fn unit_key(
     )
 }
 
+#[cfg(feature = "evaluation")]
 fn collect(files: &[PathBuf]) -> Result<BTreeMap<String, UnitData>, Error> {
     let mut units: BTreeMap<String, UnitData> = BTreeMap::new();
     for file in files {
@@ -287,6 +294,7 @@ fn collect(files: &[PathBuf]) -> Result<BTreeMap<String, UnitData>, Error> {
 }
 
 /// The majority label of a unit's human raters; `None` on a tie or no labels.
+#[cfg(feature = "evaluation")]
 fn consensus(humans: &BTreeMap<String, String>) -> Option<String> {
     let mut counts: BTreeMap<&str, usize> = BTreeMap::new();
     for v in humans.values() {
@@ -303,6 +311,7 @@ fn consensus(humans: &BTreeMap<String, String>) -> Option<String> {
 ///
 /// `runs` are optional `saccade-judge.v1` result files; they add each
 /// judge's position bias, which a decisions file does not carry.
+#[cfg(feature = "evaluation")]
 pub fn calibrate(
     files: &[PathBuf],
     runs: &[PathBuf],
@@ -564,6 +573,7 @@ impl Bias {
     }
 }
 
+#[cfg(feature = "evaluation")]
 fn position_bias_from_runs(runs: &[PathBuf]) -> Result<BTreeMap<String, Value>, Error> {
     let mut out = BTreeMap::new();
     for path in runs {

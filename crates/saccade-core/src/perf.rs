@@ -7,6 +7,7 @@ use std::collections::{BTreeMap, BTreeSet};
 use std::path::{Path, PathBuf};
 
 pub const DEFAULT_PERF_NAME: &str = "saccade-perf.json";
+#[cfg(feature = "graphics")]
 const QUANTUM_TOLERANCE_MS: f64 = 1e-6;
 fn default_ticks() -> u32 {
     2
@@ -414,10 +415,12 @@ pub struct Delta {
     /// paired, appeared, disappeared, or not_comparable.
     pub status: String,
 }
+#[cfg(feature = "graphics")]
 fn finite(v: f64) -> Option<f64> {
     v.is_finite().then_some(v)
 }
 impl Delta {
+    #[cfg(feature = "graphics")]
     fn new(
         before: Option<f64>,
         after: Option<f64>,
@@ -508,6 +511,7 @@ pub struct PerfDiff {
     pub warnings: Vec<String>,
 }
 impl PerfDiff {
+    #[cfg(feature = "graphics")]
     pub fn between(b: &CapturePerf, a: &CapturePerf, floor: Option<&PerfNoise>, k: f64) -> Self {
         Self::between_with_options(
             b,
@@ -519,6 +523,7 @@ impl PerfDiff {
             },
         )
     }
+    #[cfg(feature = "graphics")]
     pub fn between_with_options(
         b: &CapturePerf,
         a: &CapturePerf,
@@ -788,6 +793,7 @@ fn describe(d: &Delta, k: f64) -> String {
 }
 
 /// Diff once per run; callers record malformed inputs as error entries.
+#[cfg(feature = "graphics")]
 pub fn pair(
     before: &Path,
     after: &Path,
@@ -812,6 +818,7 @@ pub fn pair(
 }
 
 /// Repeat range for keys present with the same kind and parent in every capture.
+#[cfg(feature = "graphics")]
 pub fn noise(dirs: &[PathBuf], name: &str) -> crate::Result<(Option<PerfNoise>, Vec<String>)> {
     noise_with_options(
         dirs,
@@ -821,6 +828,7 @@ pub fn noise(dirs: &[PathBuf], name: &str) -> crate::Result<(Option<PerfNoise>, 
         },
     )
 }
+#[cfg(feature = "graphics")]
 pub fn noise_with_options(
     dirs: &[PathBuf],
     opts: &PerfOptions,
@@ -892,6 +900,7 @@ pub fn noise_with_options(
 
 // Adjacent distinct values contain the same GCD as all pairwise differences.
 // Approximate Euclid tolerates decimal/floating roundoff below 1e-6 ms.
+#[cfg(feature = "graphics")]
 fn estimate_quantum(mut values: Vec<f64>) -> Option<f64> {
     values.sort_by(f64::total_cmp);
     let mut previous = None;
@@ -923,4 +932,33 @@ fn estimate_quantum(mut values: Vec<f64>) -> Option<f64> {
         quantum = Some(small);
     }
     quantum
+}
+
+/// Returns `feature_unavailable` when graphics computation is not compiled.
+#[cfg(not(feature = "graphics"))]
+pub fn pair(
+    _before: &Path,
+    _after: &Path,
+    _opts: &PerfOptions,
+) -> crate::Result<(Option<PerfDiff>, Vec<PerfError>)> {
+    Err(crate::Error::FeatureUnavailable {
+        feature: "graphics",
+    })
+}
+/// Returns `feature_unavailable` when graphics computation is not compiled.
+#[cfg(not(feature = "graphics"))]
+pub fn noise_with_options(
+    _dirs: &[PathBuf],
+    _opts: &PerfOptions,
+) -> crate::Result<(Option<PerfNoise>, Vec<String>)> {
+    Err(crate::Error::FeatureUnavailable {
+        feature: "graphics",
+    })
+}
+/// Returns `feature_unavailable` when graphics computation is not compiled.
+#[cfg(not(feature = "graphics"))]
+pub fn noise(_dirs: &[PathBuf], _name: &str) -> crate::Result<(Option<PerfNoise>, Vec<String>)> {
+    Err(crate::Error::FeatureUnavailable {
+        feature: "graphics",
+    })
 }

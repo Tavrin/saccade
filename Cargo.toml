@@ -12,9 +12,9 @@ keywords = ["visual-regression", "flip", "rendering", "image-diff", "ci"]
 categories = ["graphics", "development-tools::testing", "command-line-utilities"]
 
 [workspace.dependencies]
-saccade-core = { path = "crates/saccade-core", version = "0.1.0" }
+saccade-core = { path = "crates/saccade-core", version = "0.1.0", default-features = false }
 image = { version = "0.25", default-features = false, features = ["png", "jpeg", "exr", "hdr"] }
-flip-rs = "0.1.2"
+flip-rs = { version = "0.1.2", default-features = false }
 serde = { version = "1", features = ["derive"] }
 serde_json = { version = "1", features = ["float_roundtrip"] }
 thiserror = "2"

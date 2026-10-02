@@ -1,5 +1,6 @@
 //! Rank candidate image directories against one common reference.
 
+#[cfg(feature = "graphics")]
 use std::collections::BTreeSet;
 use std::path::{Path, PathBuf};
 
@@ -7,7 +8,10 @@ use serde::{Deserialize, Serialize};
 
 use crate::config::RunConfig;
 use crate::error::{Error, Result};
-use crate::report::{Metric, REPORT_FILE_NAME, Report, Status, Totals};
+use crate::report::{Metric, Status, Totals};
+#[cfg(feature = "graphics")]
+use crate::report::{REPORT_FILE_NAME, Report};
+#[cfg(feature = "graphics")]
 use crate::run::io_err;
 
 /// Ranking JSON schema identifier.
@@ -175,6 +179,7 @@ fn number(v: Option<f64>) -> String {
     v.map_or_else(|| "-".into(), |v| format!("{v:.6}"))
 }
 
+#[cfg(feature = "graphics")]
 fn labels(dirs: &[PathBuf], supplied: Option<&[String]>) -> Result<Vec<String>> {
     let names = supplied.map_or_else(
         || {
@@ -222,6 +227,7 @@ fn labels(dirs: &[PathBuf], supplied: Option<&[String]>) -> Result<Vec<String>> 
 }
 
 /// Compare each candidate against the reference and write rankings and child reports.
+#[cfg(feature = "graphics")]
 pub fn run_rank(
     reference: &Path,
     candidates: &[PathBuf],
@@ -436,4 +442,19 @@ pub fn run_rank(
     crate::render::render_rank_html(&result, out)?;
     std::fs::remove_file(&sentinel).map_err(io_err(format!("removing {}", sentinel.display())))?;
     Ok(result)
+}
+
+/// Returns `feature_unavailable` when graphics computation is not compiled.
+#[cfg(not(feature = "graphics"))]
+pub fn run_rank(
+    _reference: &Path,
+    _candidates: &[PathBuf],
+    _labels: Option<&[String]>,
+    _metric: Metric,
+    _out: &Path,
+    _cfg: &RunConfig,
+) -> Result<RankReport> {
+    Err(Error::FeatureUnavailable {
+        feature: "graphics",
+    })
 }

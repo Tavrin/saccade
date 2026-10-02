@@ -84,7 +84,7 @@ fn inputs(req: &RunsRequest) -> Result<(RunInput, Vec<RunInput>), CliError> {
 
 /// The cache directory shared with `saccade serve`.
 fn cache_dir() -> PathBuf {
-    saccade_core::serve::default_cache_dir().join("runs")
+    saccade_core::local::default_cache_dir().join("runs")
 }
 
 /// The text summary: one line per run.
@@ -128,6 +128,7 @@ fn text(model: &RunsModel, page: Option<&Path>) -> String {
 
 /// The model as lean JSON for agents: no thumbnails or heatmaps exist, so the
 /// fields that would be `null` are left out.
+#[cfg(feature = "mcp")]
 pub fn lean_value(model: &RunsModel) -> Result<serde_json::Value, CliError> {
     fn strip(v: &mut serde_json::Value) {
         match v {
@@ -145,6 +146,7 @@ pub fn lean_value(model: &RunsModel) -> Result<serde_json::Value, CliError> {
 }
 
 /// The text summary of an overview (one line per run).
+#[cfg(feature = "mcp")]
 pub fn summary_text(model: &RunsModel) -> String {
     text(model, None)
 }

@@ -6,8 +6,10 @@ use crate::{Error, Result};
 use image::RgbImage;
 use serde::{Deserialize, Serialize};
 use std::collections::{BTreeMap, VecDeque};
+#[cfg(feature = "ai")]
 use std::io::Cursor;
 use std::path::{Path, PathBuf};
+#[cfg(feature = "ai")]
 use std::time::Duration;
 
 /// Report marker.
@@ -490,6 +492,7 @@ fn information_loss(image: &RgbImage, scale: u32, kind: usize) -> (Vec<Finding>,
     (findings, heat)
 }
 
+#[cfg(feature = "ai")]
 fn proposals(image: &RgbImage, keys_dir: Option<PathBuf>) -> Result<Vec<Proposal>> {
     use crate::judge_provider::{AskRequest, Backend, Keys, LiveBackend, Prompt, Retry};
     // Parse the repo's panel, so fallback models and key policy cannot drift
@@ -668,4 +671,9 @@ pub fn run(input: &Path, out: &Path, options: &Options) -> Result<A11yReport> {
         "Accessibility pre-check",
     )?;
     Ok(report)
+}
+
+#[cfg(not(feature = "ai"))]
+fn proposals(_image: &RgbImage, _keys_dir: Option<PathBuf>) -> Result<Vec<Proposal>> {
+    Err(Error::FeatureUnavailable { feature: "ai" })
 }
