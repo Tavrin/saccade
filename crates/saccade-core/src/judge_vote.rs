@@ -193,12 +193,13 @@ fn write_atomic(path: &Path, bytes: &[u8]) -> Result<(), String> {
 }
 
 /// Writes the vote run (items and strips) for the real items of `plan`, once.
-fn ensure_run(dir: &Path, run_id: &str, plan: &Plan) -> Result<VoteRun, String> {
+pub fn ensure_run(dir: &Path, run_id: &str, plan: &Plan) -> Result<VoteRun, String> {
     let file = dir.join("run.json");
     if let Ok(text) = std::fs::read_to_string(&file)
         && let Ok(run) = serde_json::from_str::<VoteRun>(&text)
         && run.schema == VOTES_SCHEMA
         && run.run_id == run_id
+        && dir.join("human-label-items.json").is_file()
     {
         return Ok(run);
     }
@@ -250,6 +251,48 @@ fn ensure_run(dir: &Path, run_id: &str, plan: &Plan) -> Result<VoteRun, String> 
         created_at_unix: now_ms() / 1000,
         items,
     };
+    // Server-side replay evidence for collection of settled human votes.
+    // This file is never served to the blind vote client.
+    let mut labels = Vec::new();
+    for item in plan.items.iter().filter(|i| i.canary.is_none()) {
+        let mut images = Vec::new();
+        let mut sha256 = Vec::new();
+        if let Some((a, b)) = item
+            .source
+            .as_ref()
+            .and_then(crate::judge::PixelSource::load)
+        {
+            let pair_dir = dir.join("label-pairs").join(&sha_hex(&item.id)[..16]);
+            std::fs::create_dir_all(&pair_dir).map_err(|e| e.to_string())?;
+            for (name, img) in [("a.png", a), ("b.png", b)] {
+                let path = pair_dir.join(name);
+                img.save(&path).map_err(|e| e.to_string())?;
+                sha256.push(Some(
+                    crate::run::sha256_file(&path).map_err(|e| e.to_string())?,
+                ));
+                images.push(crate::paths::record(&path, dir, false));
+            }
+        }
+        let mut label = crate::labels::Label {
+            entry: item.id.clone(),
+            question: item.question.as_str().into(),
+            answer: "unsure".into(),
+            evidence_hash: String::new(),
+            state: serde_json::json!({"ab":item.states[0],"ba":item.states[1]}),
+            intent: item.intent.clone(),
+            images,
+            sha256,
+            hotspots: item.hotspots.clone(),
+            report: None,
+            provenance: Vec::new(),
+        };
+        label.evidence_hash = crate::labels::identity(&label);
+        labels.push(label);
+    }
+    write_atomic(
+        &dir.join("human-label-items.json"),
+        &serde_json::to_vec_pretty(&labels).map_err(|e| e.to_string())?,
+    )?;
     let text = serde_json::to_vec_pretty(&run).map_err(|e| e.to_string())?;
     write_atomic(&file, &text)?;
     Ok(run)

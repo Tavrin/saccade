@@ -8,7 +8,7 @@ binary, then writes:
   assets/   tokens.css and components.css copied from crates/saccade-core
   index.html
 
-Usage: python3 docs/showcase/build.py --saccade target/release/saccade --out /tmp/saccade-pages/showcase
+Usage: python3 docs/showcase/build.py --saccade target/release/saccade --out .work/saccade-pages/showcase
 Default output: $CARGO_TARGET_DIR/showcase (or target/showcase). Sources are never rewritten.
 Requires Python 3, Pillow. Nothing is downloaded.
 """

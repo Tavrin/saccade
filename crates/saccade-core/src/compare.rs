@@ -56,8 +56,10 @@ impl Comparison {
         else {
             return fallback();
         };
-        let coloured = flip_map
-            .colorize()
+        let Ok(coloured) = flip_map.colorize() else {
+            return fallback();
+        };
+        let coloured = coloured
             .into_pixels()
             .into_iter()
             .map(|v| (v.clamp(0.0, 1.0) * 255.0 + 0.5) as u8)

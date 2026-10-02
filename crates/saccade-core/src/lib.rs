@@ -3,6 +3,7 @@
 //!
 //! See `docs/design.md` for the frozen contracts.
 
+pub mod a11y;
 pub mod ablate;
 pub mod bisect;
 pub mod buffer;
@@ -17,11 +18,13 @@ pub mod hdr;
 pub mod hotspots;
 pub mod inbox;
 pub mod judge;
+pub mod judge_bench;
 pub mod judge_canary;
 pub mod judge_evidence;
 pub mod judge_provider;
 pub mod judge_stats;
 pub mod judge_vote;
+pub mod labels;
 pub mod meta;
 pub mod paths;
 pub mod perf;
@@ -30,8 +33,10 @@ pub mod rank;
 pub mod regions;
 pub mod render;
 pub mod report;
+pub mod review;
 pub mod run;
 pub mod runs;
+pub mod safety;
 pub mod sequence;
 pub mod serve;
 pub mod snapshot;

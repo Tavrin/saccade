@@ -33,6 +33,7 @@ pub(crate) fn page_css(parts: &[&str]) -> String {
 /// The script of one page: the shared script followed by `parts`.
 pub(crate) fn page_js(parts: &[&str]) -> String {
     let mut js = String::from(UI_JS);
+    js.push_str(include_str!("../../assets/a11y-display.js"));
     js.push_str(include_str!("../../assets/perf.js"));
     for part in parts {
         js.push('\n');

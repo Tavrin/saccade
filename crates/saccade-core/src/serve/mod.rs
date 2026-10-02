@@ -51,6 +51,7 @@ pub struct ServeOptions {
     /// symlink to anywhere else stays refused).
     pub follow_symlinks_within_roots: bool,
     /// Extra directories that symlinks reached under a root may resolve into.
+    /// Unavailable targets warn and are skipped at startup.
     pub symlink_targets: Vec<PathBuf>,
     /// Deadline for storage requests; default 3000 milliseconds.
     pub fs_timeout_ms: u64,
@@ -266,17 +267,23 @@ pub fn start(opts: ServeOptions) -> Result<ServeHandle> {
     let mut symlink_targets = Vec::new();
     for given in &opts.symlink_targets {
         let probe = given.clone();
-        let target = storage
-            .run(move || {
-                let p = crate::paths::canonicalize(&probe)?;
-                if !p.is_dir() {
-                    return Err(std::io::Error::other("not a directory"));
-                }
-                Ok(p)
-            })
-            .map_err(|_| Error::Config("symlink target storage not reachable".into()))?
-            .map_err(io_err("resolving symlink target".into()))?;
-        symlink_targets.push(target);
+        match storage.run(move || {
+            let p = crate::paths::canonicalize(&probe)?;
+            if !p.is_dir() {
+                return Err(std::io::Error::other("not a directory"));
+            }
+            Ok(p)
+        }) {
+            Ok(Ok(target)) => symlink_targets.push(target),
+            Ok(Err(error)) => eprintln!(
+                "warning: skipping --symlink-target {}: {error}",
+                given.display()
+            ),
+            Err(()) => eprintln!(
+                "warning: skipping --symlink-target {}: storage not reachable within the probe limit",
+                given.display()
+            ),
+        }
     }
     let mut dirs = Vec::new();
     for (what, dir) in [

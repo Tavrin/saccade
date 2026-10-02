@@ -17,6 +17,9 @@
 //! <https://ai.google.dev/gemini-api/docs> (Gemini `generateContent`, key in
 //! the `x-goog-api-key` header, JSON mode through `responseMimeType`).
 
+use std::cell::Cell;
+#[cfg(test)]
+use std::cell::RefCell;
 use std::collections::BTreeMap;
 use std::path::PathBuf;
 use std::process::{Command, Stdio};
@@ -209,6 +212,11 @@ pub struct CallOutcome {
 
 /// Something that can answer a question: the live providers, or a test double.
 pub trait Backend {
+    /// Actual network attempts when the backend tracks them; mocks may omit this.
+    fn http_counts(&self) -> Option<[usize; 2]> {
+        None
+    }
+
     /// Asks one judge one question.
     fn ask(&self, req: &AskRequest<'_>) -> CallOutcome;
     /// Batch compatible questions. The default asks individually; Jev sends
@@ -362,6 +370,13 @@ pub struct LiveBackend {
     keys: Keys,
     retry: Retry,
     agent: ureq::Agent,
+    limits: Option<(usize, usize, usize)>,
+    counts: [Cell<usize>; 2],
+    cache: Option<PathBuf>,
+    cooldown_secs: u64,
+    run_id: String,
+    #[cfg(test)]
+    mock_replies: Option<RefCell<Vec<(u16, Value)>>>,
 }
 
 impl LiveBackend {
@@ -373,7 +388,76 @@ impl LiveBackend {
             .http_status_as_error(false)
             .build()
             .into();
-        Self { keys, retry, agent }
+        Self {
+            keys,
+            retry,
+            agent,
+            limits: None,
+            counts: [Cell::new(0), Cell::new(0)],
+            cache: None,
+            cooldown_secs: 600,
+            run_id: crate::serve::random_token(),
+            #[cfg(test)]
+            mock_replies: None,
+        }
+    }
+
+    /// Bound actual HTTP attempts, including retries and fallback probes.
+    /// Cooldowns are persisted per Gemini model in the cache.
+    pub fn with_policy(
+        mut self,
+        cache: PathBuf,
+        cooldown_secs: u64,
+        total: usize,
+        jev: usize,
+        gemini: usize,
+    ) -> Self {
+        self.cache = Some(cache);
+        self.cooldown_secs = cooldown_secs;
+        self.limits = Some((total, jev, gemini));
+        self
+    }
+
+    /// Actual Jev and Gemini HTTP attempts sent.
+    pub fn counts(&self) -> [usize; 2] {
+        [self.counts[0].get(), self.counts[1].get()]
+    }
+
+    fn cooldown_path(&self, model: &str) -> Option<PathBuf> {
+        use sha2::{Digest, Sha256};
+        let hash: String = Sha256::digest(model.as_bytes())
+            .iter()
+            .map(|b| format!("{b:02x}"))
+            .collect();
+        self.cache
+            .as_ref()
+            .map(|c| c.join("gemini-cooldowns").join(format!("{hash}.json")))
+    }
+
+    fn cooling(&self, model: &str) -> bool {
+        self.cooldown_path(model)
+            .and_then(|p| std::fs::read(p).ok())
+            .and_then(|b| serde_json::from_slice::<Value>(&b).ok())
+            .is_some_and(|v| {
+                v["until_ms"]
+                    .as_u64()
+                    .is_some_and(|t| t > crate::judge::now_ms())
+            })
+    }
+
+    fn mark_failed(&self, model: &str) -> Result<(), String> {
+        if let Some(p) = self.cooldown_path(model) {
+            let parent = p.parent().ok_or("invalid cooldown path")?;
+            std::fs::create_dir_all(parent).map_err(|e| format!("creating cooldown cache: {e}"))?;
+            use std::io::Write;
+            let mut tmp = tempfile::NamedTempFile::new_in(parent).map_err(|e| e.to_string())?;
+            let body = json!({"model": model, "until_ms": crate::judge::now_ms().saturating_add(self.cooldown_secs.saturating_mul(1000))});
+            tmp.write_all(body.to_string().as_bytes())
+                .map_err(|e| e.to_string())?;
+            tmp.persist(p)
+                .map_err(|e| format!("persisting cooldown: {e}"))?;
+        }
+        Ok(())
     }
 
     fn post(
@@ -383,6 +467,43 @@ impl LiveBackend {
         body: &Value,
         secret: Option<&Secret>,
     ) -> Result<Value, CallError> {
+        let index = usize::from(url.contains("generativelanguage.googleapis.com"));
+        let counts = self.counts();
+        if self.limits.is_some_and(|(total, jev, gemini)| {
+            counts.iter().sum::<usize>() >= total || counts[index] >= [jev, gemini][index]
+        }) {
+            return Err(CallError::fatal("HTTP call budget reached"));
+        }
+        if let Some(cache) = &self.cache {
+            std::fs::create_dir_all(cache)
+                .map_err(|_| CallError::fatal("cannot create provider attempt ledger"))?;
+            use std::io::Write;
+            let mut log = std::fs::OpenOptions::new()
+                .create(true)
+                .append(true)
+                .open(cache.join("http-attempts.jsonl"))
+                .map_err(|_| CallError::fatal("cannot open provider attempt ledger"))?;
+            let entry = json!({"run_id":self.run_id,"provider":if index==0 {"jev"}else{"gemini"},
+                "model":body["model"].as_str().map(str::to_owned).unwrap_or_else(||url.rsplit('/').next().unwrap_or("").trim_end_matches(":generateContent").to_owned()),
+                "started_ms":crate::judge::now_ms()});
+            writeln!(log, "{entry}")
+                .and_then(|()| log.flush())
+                .map_err(|_| CallError::fatal("cannot persist provider attempt ledger"))?;
+        }
+        self.counts[index].set(counts[index] + 1);
+        #[cfg(test)]
+        if let Some(replies) = &self.mock_replies {
+            let (status, value) = replies.borrow_mut().remove(0);
+            if status == 200 {
+                return Ok(value);
+            }
+            return Err(CallError {
+                status: Some(status),
+                message: format!("mock HTTP {status}"),
+                retryable: matches!(status, 429 | 503),
+                retry_after: None,
+            });
+        }
         let scrub = |s: String| secret.map_or(s.clone(), |k| k.scrub(&s));
         let mut req = self
             .agent
@@ -549,6 +670,116 @@ impl LiveBackend {
         })
     }
 
+    fn ask_gemini_many(&self, reqs: &[AskRequest<'_>]) -> Vec<CallOutcome> {
+        let spec = reqs[0].spec;
+        let key = match self.keys.for_spec(spec) {
+            Ok(Some(k)) => k,
+            _ => return reqs.iter().map(|r| self.ask(r)).collect(),
+        };
+        let mut attempts = Vec::new();
+        let mut last = "no available Gemini model".to_owned();
+        let started = Instant::now();
+        for model in std::iter::once(&spec.model).chain(&spec.fallback) {
+            if self.cooling(model) {
+                attempts.push(Attempt {
+                    model: model.clone(),
+                    tries: 0,
+                    statuses: Vec::new(),
+                    error: Some("model in persistent cooldown".into()),
+                    ok: false,
+                });
+                continue;
+            }
+            let mut parts = Vec::new();
+            for (i, r) in reqs.iter().enumerate() {
+                parts.push(json!({"text":format!("Item {i}: {}\nThe following images belong only to item {i}.",r.prompt.user)}));
+                for img in r.images {
+                    parts.push(json!({"inline_data":{"mime_type":"image/png","data":b64(img)}}));
+                }
+            }
+            let body = json!({
+                "systemInstruction":{"parts":[{"text":format!("{}\nAnswer every indexed item independently. Return {{\"answers\":[{{\"index\":0,\"answer\":\"...\",\"probability\":0.9}}]}}. Do not omit any item.",reqs[0].prompt.system)}]},
+                "contents":[{"role":"user","parts":parts}],
+                "generationConfig":{"maxOutputTokens":8192,"responseMimeType":"application/json",
+                    "responseSchema":{"type":"OBJECT","properties":{"answers":{"type":"ARRAY","items":{
+                        "type":"OBJECT","properties":{"index":{"type":"INTEGER"},"answer":{"type":"STRING"},"probability":{"type":"NUMBER"}},
+                        "required":["index","answer","probability"]}}},"required":["answers"]}}
+            });
+            let mut att = Attempt {
+                model: model.clone(),
+                tries: 0,
+                statuses: Vec::new(),
+                error: None,
+                ok: false,
+            };
+            let mut backoff = self.retry.base_ms;
+            loop {
+                att.tries += 1;
+                let parsed = self.post(&format!("https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent"),
+                    &[("x-goog-api-key",key.expose())],&body,Some(&key)).and_then(|v| {
+                    let text = v["candidates"][0]["content"]["parts"].as_array().into_iter().flatten()
+                        .filter_map(|p|p["text"].as_str()).collect::<String>();
+                    let value = first_object(&text).ok_or_else(||CallError::fatal("Gemini batch contains no JSON"))?;
+                    let answers = value["answers"].as_array().ok_or_else(||CallError::fatal("missing Gemini batch answers"))?;
+                    if answers.len()!=reqs.len() { return Err(CallError::fatal("incomplete Gemini batch")); }
+                    reqs.iter().enumerate().map(|(i,r)| {
+                        let matches: Vec<_> = answers.iter().filter(|a|a["index"].as_u64()==Some(i as u64)).collect();
+                        if matches.len()!=1 { return Err(CallError::fatal("duplicate or missing Gemini batch index")); }
+                        let (answer,prob) = parse_llm_answer(&matches[0].to_string(),r.wire_answers).map_err(CallError::fatal)?;
+                        Ok(Raw { answer,prob,confidence:None,probs:BTreeMap::new(),prob_source:"verbalized",
+                            model_version:v["modelVersion"].as_str().unwrap_or(model).into(),model:model.clone(),
+                            latency_ms:started.elapsed().as_millis() as u64,usage:v["usageMetadata"].clone() })
+                    }).collect::<Result<Vec<_>,CallError>>()
+                });
+                match parsed {
+                    Ok(raws) => {
+                        att.ok = true;
+                        attempts.push(att);
+                        return raws
+                            .into_iter()
+                            .map(|r| CallOutcome {
+                                result: Ok(r),
+                                attempts: attempts.clone(),
+                            })
+                            .collect();
+                    }
+                    Err(e) => {
+                        if e.message == "HTTP call budget reached" {
+                            att.tries = att.tries.saturating_sub(1);
+                        }
+                        att.statuses.extend(e.status);
+                        att.error = Some(e.message.clone());
+                        last = e.message;
+                        if !e.retryable || att.tries > self.retry.max_retries {
+                            break;
+                        }
+                        std::thread::sleep(Duration::from_millis(
+                            e.retry_after
+                                .map_or(backoff, |s| s.saturating_mul(1000))
+                                .min(30_000),
+                        ));
+                        backoff = backoff.saturating_mul(2);
+                    }
+                }
+            }
+            if last != "HTTP call budget reached"
+                && let Err(e) = self.mark_failed(model)
+            {
+                last.push_str(&format!("; {e}"));
+            }
+            attempts.push(att);
+            if last == "HTTP call budget reached" {
+                break;
+            }
+        }
+        reqs.iter()
+            .map(|_| CallOutcome {
+                result: Err(last.clone()),
+                attempts: attempts.clone(),
+            })
+            .collect()
+    }
+
     fn ask_openai(
         &self,
         req: &AskRequest<'_>,
@@ -713,10 +944,17 @@ impl LiveBackend {
 }
 
 impl Backend for LiveBackend {
+    fn http_counts(&self) -> Option<[usize; 2]> {
+        Some(self.counts())
+    }
+
     fn ask_many(&self, reqs: &[AskRequest<'_>]) -> Vec<CallOutcome> {
         let Some(first) = reqs.first() else {
             return Vec::new();
         };
+        if first.spec.provider == Provider::Gemini && reqs.len() > 1 {
+            return self.ask_gemini_many(reqs);
+        }
         if first.spec.provider != Provider::Jev || reqs.len() == 1 {
             return reqs.iter().map(|r| self.ask(r)).collect();
         }
@@ -727,9 +965,10 @@ impl Backend for LiveBackend {
         let questions: serde_json::Map<String, Value> = reqs.iter().enumerate().map(|(i,r)| {
             let criteria: serde_json::Map<String, Value> = r.wire_answers.iter()
                 .map(|a| (a.clone(), json!(answer_help(a)))).collect();
-            (format!("q{i}"), json!({"type":"choice", "instructions":format!(
+            let noul=r.question=="needs_eyes";
+            (format!("q{i}"), json!({"type":if noul {"noul"}else{"choice"}, "instructions":format!(
                 "Use ONLY state[{i}] for this question. {}\n{}\n{}", r.question_text, r.prompt.system, r.prompt.user),
-                "criteria":criteria}))
+                "criteria":if noul {json!({"true":"A human must inspect the evidence, including any uncertainty.","false":"The encoded evidence settles this without a human."})}else{Value::Object(criteria)}}))
         }).collect();
         let mut attempts = Vec::new();
         let mut last = "no model to ask".to_owned();
@@ -758,6 +997,31 @@ impl Backend for LiveBackend {
                             .enumerate()
                             .map(|(i, r)| {
                                 let a = &v["answers"][format!("q{i}")];
+                                if r.question == "needs_eyes" {
+                                    let p = a["noul"]
+                                        .as_f64()
+                                        .filter(|p| p.is_finite() && (0.0..=1.0).contains(p))
+                                        .ok_or_else(|| {
+                                            CallError::fatal(
+                                                "invalid Jev needs_eyes noul probability",
+                                            )
+                                        })?;
+                                    let answer = if p >= 0.5 { "yes" } else { "no" };
+                                    return Ok(Raw {
+                                        answer: answer.into(),
+                                        prob: Some(if p >= 0.5 { p } else { 1.0 - p }),
+                                        confidence: None,
+                                        probs: BTreeMap::from([
+                                            ("yes".into(), p),
+                                            ("no".into(), 1.0 - p),
+                                        ]),
+                                        prob_source: "model_distribution",
+                                        model_version: v["model"].as_str().unwrap_or(model).into(),
+                                        model: model.clone(),
+                                        latency_ms: started.elapsed().as_millis() as u64,
+                                        usage: v["usage"].clone(),
+                                    });
+                                }
                                 let choice = a["choice"]
                                     .as_str()
                                     .ok_or_else(|| CallError::fatal("missing Jev batch choice"))?;
@@ -805,6 +1069,9 @@ impl Backend for LiveBackend {
                             .collect();
                     }
                     Err(e) => {
+                        if e.message == "HTTP call budget reached" {
+                            att.tries = att.tries.saturating_sub(1);
+                        }
                         att.statuses.extend(e.status);
                         att.error = Some(e.message.clone());
                         last = e.message;
@@ -844,6 +1111,17 @@ impl Backend for LiveBackend {
         let chain = std::iter::once(&req.spec.model).chain(&req.spec.fallback);
         let mut last = String::from("no model to ask");
         for model in chain {
+            if req.spec.provider == Provider::Gemini && self.cooling(model) {
+                attempts.push(Attempt {
+                    model: model.clone(),
+                    tries: 0,
+                    statuses: Vec::new(),
+                    error: Some("model in persistent cooldown".into()),
+                    ok: false,
+                });
+                last = "all remaining models are in cooldown".into();
+                continue;
+            }
             let mut att = Attempt {
                 model: model.clone(),
                 tries: 0,
@@ -864,6 +1142,9 @@ impl Backend for LiveBackend {
                         };
                     }
                     Err(e) => {
+                        if e.message == "HTTP call budget reached" {
+                            att.tries = att.tries.saturating_sub(1);
+                        }
                         att.statuses.extend(e.status);
                         att.error = Some(e.message.clone());
                         last.clone_from(&e.message);
@@ -879,11 +1160,97 @@ impl Backend for LiveBackend {
                     }
                 }
             }
+            if req.spec.provider == Provider::Gemini
+                && last != "HTTP call budget reached"
+                && let Err(e) = self.mark_failed(model)
+            {
+                last.push_str(&format!("; {e}"));
+            }
             attempts.push(att);
+            if last == "HTTP call budget reached" {
+                break;
+            }
         }
         CallOutcome {
             result: Err(last),
             attempts,
         }
+    }
+}
+
+#[cfg(test)]
+mod review_chain_tests {
+    #![allow(clippy::unwrap_used)]
+    use super::*;
+    use crate::review::Profile;
+
+    #[test]
+    fn bounded_fallback_persists_and_skips_cooldown_without_network() {
+        let tmp = tempfile::tempdir().unwrap();
+        std::fs::write(
+            tmp.path().join("gemini.env"),
+            "SACCADE_GEMINI_API_KEY=offline-secret",
+        )
+        .unwrap();
+        let spec = Profile::default().spec(Provider::Gemini).unwrap();
+        let replies = || {
+            Some(RefCell::new(vec![
+                (503, json!({})),
+                (503, json!({})),
+                (
+                    200,
+                    json!({"candidates":[{"content":{"parts":[{"text":"{\"answer\":\"P2\",\"probability\":0.9}"}]}}]}),
+                ),
+            ]))
+        };
+        let mut backend = LiveBackend::new(
+            Keys::new(Some(tmp.path().into())),
+            Retry {
+                max_retries: 1,
+                base_ms: 0,
+            },
+            Duration::from_secs(1),
+        )
+        .with_policy(tmp.path().join("cache"), 600, 10, 0, 10);
+        backend.mock_replies = replies();
+        let answers = vec!["P1".into(), "P2".into(), "tie".into(), "unsure".into()];
+        let prompt = Prompt {
+            system: "blind".into(),
+            user: "choose".into(),
+        };
+        let state = json!({});
+        let req = AskRequest {
+            spec: &spec,
+            question: "preference",
+            question_text: "choose",
+            kind: "preference",
+            wire_answers: &answers,
+            state: &state,
+            prompt: &prompt,
+            images: &[],
+        };
+        let out = backend.ask(&req);
+        assert_eq!(out.result.unwrap().model, "gemini-3.7-flash");
+        assert_eq!(out.attempts[0].statuses, vec![503, 503]);
+        assert_eq!(backend.counts(), [0, 3]);
+        let mut later = LiveBackend::new(
+            Keys::new(Some(tmp.path().into())),
+            Retry {
+                max_retries: 0,
+                base_ms: 0,
+            },
+            Duration::from_secs(1),
+        )
+        .with_policy(tmp.path().join("cache"), 600, 1, 0, 1);
+        later.mock_replies = Some(RefCell::new(vec![(
+            200,
+            json!({"candidates":[{"content":{"parts":[{"text":"{\"answer\":\"P2\",\"probability\":0.9}"}]}}]}),
+        )]));
+        let out = later.ask(&req);
+        assert_eq!(out.attempts[0].tries, 0);
+        assert_eq!(out.result.unwrap().model, "gemini-3.7-flash");
+        assert_eq!(later.counts(), [0, 1]);
+        assert!(later.ask(&req).result.is_err());
+        assert_eq!(later.counts(), [0, 1]);
     }
 }

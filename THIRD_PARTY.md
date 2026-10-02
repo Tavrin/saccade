@@ -5,8 +5,8 @@ saccade itself is licensed `MIT OR Apache-2.0` (see `LICENSE-MIT`, `LICENSE-APAC
 ## flip-rs / NVIDIA FLIP (BSD-3-Clause)
 
 FLIP and HDR-FLIP are implemented by the pure-Rust
-[flip-rs](https://github.com/Tavrin/flip-rs) port of NVIDIA FLIP v1.7, pinned to
-revision `5f4d5c29a0dc40fed2bda8e1d6f6ccc1772d412e`. No FLIP C++ code or FFI
+[flip-rs 0.1.2](https://crates.io/crates/flip-rs/0.1.2) port of NVIDIA FLIP v1.7,
+published on crates.io and resolved in `Cargo.lock`. No FLIP C++ code or FFI
 wrapper is built or bundled. The display-only HDR tone-mapping coefficients
 in `crates/saccade-core/src/hdr.rs` are also derived from NVIDIA's reference.
 

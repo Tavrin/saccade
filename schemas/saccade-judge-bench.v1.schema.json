@@ -1,0 +1,114 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/Tavrin/saccade/schemas/saccade-judge-bench.v1.schema.json",
+  "type": "object",
+  "required": [
+    "schema",
+    "items",
+    "models",
+    "suggested_chain",
+    "calls_used",
+    "budget_calls",
+    "estimated_cost_usd"
+  ],
+  "properties": {
+    "schema": {
+      "const": "saccade-judge-bench.v1"
+    },
+    "items": {
+      "type": "integer",
+      "minimum": 1
+    },
+    "models": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": [
+          "provider",
+          "model",
+          "accuracy",
+          "coverage",
+          "ece",
+          "latency_ms",
+          "position_bias",
+          "estimated_cost_usd",
+          "predictions"
+        ],
+        "properties": {
+          "provider": {
+            "enum": [
+              "jev",
+              "gemini"
+            ]
+          },
+          "model": {
+            "type": "string"
+          },
+          "accuracy": {
+            "type": [
+              "number",
+              "null"
+            ],
+            "minimum": 0,
+            "maximum": 1
+          },
+          "coverage": {
+            "type": [
+              "number",
+              "null"
+            ],
+            "minimum": 0,
+            "maximum": 1
+          },
+          "ece": {
+            "type": [
+              "number",
+              "null"
+            ],
+            "minimum": 0,
+            "maximum": 1
+          },
+          "latency_ms": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "position_bias": {
+            "type": "object"
+          },
+          "estimated_cost_usd": {
+            "type": [
+              "number",
+              "null"
+            ]
+          },
+          "predictions": {
+            "type": "array",
+            "items": {
+              "type": "object"
+            }
+          }
+        }
+      }
+    },
+    "suggested_chain": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "calls_used": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "budget_calls": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "estimated_cost_usd": {
+      "type": [
+        "number",
+        "null"
+      ]
+    }
+  }
+}

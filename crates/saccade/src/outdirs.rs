@@ -31,9 +31,13 @@ pub(crate) fn warn(command: &Command, allow: bool) -> Result<(), CliError> {
         Command::Unblind { out, .. } => out.clone(),
         Command::Snapshot(args) => Some(args.out.clone()),
         Command::Ablate(args) => Some(args.out.clone()),
+        Command::Safety(args) => Some(args.out.clone()),
+        Command::A11y(args) => Some(args.out.clone()),
         Command::Bisect(args) => Some(args.out.clone()),
         Command::Watch(args) => Some(args.out.clone()),
         Command::Judge(args) => match &args.sub {
+            Some(JudgeSub::Bench(args)) => Some(args.out.clone()),
+            Some(JudgeSub::CollectLabels(args)) => Some(args.out.clone()),
             Some(JudgeSub::Calibrate(args)) => Some(args.out.clone()),
             Some(JudgeSub::Selftest(args)) => args.out.clone(),
             None => args.run.out.clone().or_else(|| {
@@ -57,7 +61,8 @@ pub(crate) fn warn(command: &Command, allow: bool) -> Result<(), CliError> {
         | Command::Summary { .. }
         | Command::DecisionRequest(_)
         | Command::Decide(_)
-        | Command::Ask(_) => None,
+        | Command::Ask(_)
+        | Command::Review(_) => None,
     };
     let Some(out) = out else {
         return Ok(());

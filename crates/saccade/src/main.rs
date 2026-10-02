@@ -22,6 +22,9 @@ mod judge_cmd;
 mod mcp;
 mod outdirs;
 mod perf_cmd;
+mod precheck;
+mod precheck_mcp;
+mod review_cmd;
 mod runs_cmd;
 mod s6;
 mod s6_mcp;
@@ -162,6 +165,10 @@ enum Format {
 
 #[derive(Subcommand)]
 enum Command {
+    /// Photosensitivity PRE-CHECK only; not certification or formal compliance.
+    Safety(precheck::SafetyArgs),
+    /// Accessibility PRE-CHECK only; not certification or formal compliance.
+    A11y(precheck::A11yArgs),
     /// Bootstrap a commented configuration and print baseline adoption steps.
     Init(f1::InitArgs),
     /// Inspect effective configuration and the sources of image-specific settings.
@@ -176,6 +183,8 @@ enum Command {
     Demo(f1::DemoArgs),
     /// Judge a report or ranking with a panel of models and humans.
     Judge(judge_cmd::JudgeArgs),
+    /// Run the proposal-only AI review cascade on a report.
+    Review(review_cmd::ReviewArgs),
     /// Find the first diverging run or revision in an ordered series.
     Bisect(s6::BisectArgs),
     /// Compare initially and after debounced capture-directory changes.
@@ -756,6 +765,8 @@ fn emit_run(report: &Report, out: &Path, json: Option<RunJson>) -> Result<(), Cl
 
 fn dispatch(command: Command, record_absolute_paths: bool) -> Result<u8, CliError> {
     match command {
+        Command::Safety(args) => precheck::safety(args),
+        Command::A11y(args) => precheck::a11y(args),
         Command::Init(args) => f1::init(args),
         Command::Config(args) => f1::config(args),
         Command::Entries(args) => f1::entries(args),
@@ -763,6 +774,7 @@ fn dispatch(command: Command, record_absolute_paths: bool) -> Result<u8, CliErro
         Command::Ablate(args) => perf_cmd::ablate(args, record_absolute_paths),
         Command::Demo(args) => f1::demo(args, record_absolute_paths),
         Command::Judge(args) => judge_cmd::judge(args),
+        Command::Review(args) => review_cmd::review(args),
         Command::Bisect(args) => s6::bisect(args),
         Command::Watch(args) => s6::watch(args),
         Command::Ask(args) => s6::ask(args),
@@ -1331,14 +1343,28 @@ fn dispatch(command: Command, record_absolute_paths: bool) -> Result<u8, CliErro
             }
             let report = read_report(&report_json)?;
             match format {
-                Format::Markdown => emit(&render_markdown(
-                    &report,
-                    &MarkdownOptions {
-                        artifact_url,
-                        comment_key,
-                        max_bytes: None,
-                    },
-                ))?,
+                Format::Markdown => {
+                    let mut text = render_markdown(
+                        &report,
+                        &MarkdownOptions {
+                            artifact_url,
+                            comment_key,
+                            max_bytes: None,
+                        },
+                    );
+                    let review = report_json
+                        .parent()
+                        .unwrap_or(Path::new("."))
+                        .join("saccade-review.md");
+                    if review.is_file() {
+                        text.push_str(
+                            &std::fs::read_to_string(&review).map_err(|e| {
+                                CliError::io(format!("reading review summary: {e}"))
+                            })?,
+                        );
+                    }
+                    emit(&text)?;
+                }
                 Format::Text => emit(&text_table(&report))?,
                 Format::Json => {
                     let value =

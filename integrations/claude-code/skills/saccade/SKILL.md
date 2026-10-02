@@ -9,8 +9,22 @@ Use saccade for screenshot regressions, renderer refactors, ablations and captur
 1. Checking new captures against an approved reference? Use `compare`. Checking a refactor that should change no samples? Use `identity` and inspect `bit_identical` as well as the perceptual verdict.
 2. Comparing alternatives? Use `rank` for reference error, `runs` for a run matrix, or `view --blind` for human preference. Reference error is not a preference judgement.
 3. Comparing animation frames? Use `sequence`. Locating the first changed revision in ordered captures? Use `bisect --runs`. Iterating on captures? Use `watch`.
-4. A comparison failed? Read its lean JSON, then use `summary`, `explain` and `snapshot` to inspect evidence. Request bounded questions with `decision-request`, and record answers as proposals with `decide`.
-5. Intent is ambiguous? Use `ask` with a local evidence link and wait for a human. An experimental `judge` panel can suggest answers; calibrate it against the project's own human finals before trusting a gate.
+4. Want AI proposals for an existing comparison? Use `review --profile ci|nightly|lookdev|ui`, with intent and an explicit call budget. Gemini only on escalation (except the lookdev profile); retries/fallback probes consume the budget. Never approve on model output.
+5. A comparison failed? Read its lean JSON, then use `summary`, `explain` and `snapshot` to inspect evidence. Request bounded questions with `decision-request`, and record answers as proposals with `decide`.
+6. Intent is ambiguous? Use `ask` with a local evidence link and wait for a human. An experimental `judge` panel can suggest answers; calibrate it against the project's own human finals before trusting a gate.
+
+Use `compare` first for deterministic measurements, `explain` for local crops and
+diagnostics, and `review` when bounded AI proposals will help a person judge the
+change. CI review is advisory and never changes comparison exit status.
+`judge bench` measures a model chain against human finals before choosing its
+order; collect labels with `judge collect-labels`. Review never promotes an
+answer, including when a calibrated gate exists.
+
+```sh
+saccade review .saccade-agent/report/saccade-report.v1.json --profile nightly --intent 'Soften the shadow' --budget-calls 12 --max-gemini 2 --dry-run --json
+saccade judge collect-labels --reports .saccade-agent/report/saccade-report.v1.json --out .saccade-agent/labels.json
+saccade judge bench --labels .saccade-agent/labels.json --budget-calls 12 --out .saccade-agent/bench.json
+```
 
 ## Copyable CLI commands
 
@@ -81,6 +95,8 @@ Start MCP with `saccade mcp --root .`. Names and input keys differ from CLI flag
 | `saccade watch` | `saccade_watch_status` | Start server with `--watch examples/baseline:examples/capture`; query `capture_dir` |
 | `saccade ask` | `saccade_ask_human` | `serve`, `question`, `allowed_answers`, optional `wait`, `timeout`, `link`, `cache_dir` |
 | `saccade ask --wait` (answer included) | `saccade_inbox_get` (read existing item) | `serve`, `id`, optional `cache_dir`; no separate CLI get command |
+| `saccade review` (experimental) | `saccade_review` | `report_json`, optional `profile`, `intent`, `budget_calls`, `max_gemini`, `dry_run` |
+| `saccade judge bench` | `saccade_judge_bench` | `labels`, optional `models`, `questions`, `budget_calls`, `out` |
 | `saccade judge` (experimental) | `saccade_judge` | `target`, `panel`, optional `intent`, `dry_run`, `calibration` |
 | `saccade judge calibrate` (experimental) | `saccade_judge_calibrate` | `labels`, optional `runs`, `out`, `target_accuracy`, `min_support` |
 | `saccade view`, `saccade serve`, `saccade approve`, `saccade judge selftest` | CLI only | No corresponding MCP tool |

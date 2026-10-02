@@ -5,7 +5,7 @@
   'use strict';
   var VERSION = 1;
   var LAYOUTS = ['side', 'swipe', 'flicker', 'heatmap', 'diff'];
-  var CHANNELS = ['rgb', 'r', 'g', 'b', 'luma'];
+  var CHANNELS = ['rgb', 'r', 'g', 'b', 'luma', 'protan', 'deutan', 'tritan'];
 
   function num(v) { var n = typeof v === 'number' ? v : (typeof v === 'string' && v.trim() !== '' ? Number(v) : NaN); return isFinite(n) ? n : null; }
   function clamp(n, lo, hi) { return Math.max(lo, Math.min(hi, n)); }

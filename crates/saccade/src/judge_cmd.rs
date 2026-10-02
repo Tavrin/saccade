@@ -39,6 +39,10 @@ pub enum JudgeSub {
     Calibrate(CalibrateArgs),
     /// Re-ask with irrelevant perturbations and report the answer flip rates.
     Selftest(SelftestArgs),
+    /// Benchmark the pinned model chain and Jev against human finals.
+    Bench(crate::review_cmd::BenchArgs),
+    /// Harvest evidence-bound human final labels.
+    CollectLabels(crate::review_cmd::CollectArgs),
 }
 
 /// Arguments of a panel run.
@@ -374,7 +378,7 @@ pub fn run(job: &Job) -> Result<(Value, String), CliError> {
     Ok((value.clone(), summary(&value)))
 }
 
-fn confined_document(doc: &Value, dir: &Path, root: &Path) -> Result<(), CliError> {
+pub(crate) fn confined_document(doc: &Value, dir: &Path, root: &Path) -> Result<(), CliError> {
     let check = |p: PathBuf| -> Result<PathBuf, CliError> {
         let canon = saccade_core::paths::canonicalize(&p)
             .map_err(|e| CliError::io(format!("{}: {e}", p.display())))?;
@@ -500,6 +504,14 @@ pub fn judge(args: JudgeArgs) -> Result<u8, CliError> {
         "judge mode is experimental: answers are proposals; validate against your own decisions with `saccade judge calibrate`"
     );
     match args.sub {
+        Some(JudgeSub::Bench(b)) => {
+            let v = crate::review_cmd::bench(b, None)?;
+            emit(&format!("{}\n", serde_json::to_string_pretty(&v)?))?;
+        }
+        Some(JudgeSub::CollectLabels(c)) => {
+            let v = crate::review_cmd::collect(c)?;
+            emit(&format!("{}\n", serde_json::to_string_pretty(&v)?))?;
+        }
         Some(JudgeSub::Calibrate(c)) => {
             let v = run_calibrate(
                 &c.labels,

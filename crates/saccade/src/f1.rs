@@ -14,6 +14,9 @@ pub(crate) enum Template {
     Ui,
     Identity,
     Ml,
+    Ci,
+    Nightly,
+    Lookdev,
 }
 
 #[derive(Args)]
@@ -37,6 +40,9 @@ pub(crate) fn template(t: Template) -> &'static str {
         Template::Identity => {
             "# Pixel-preserving refactors and optimizations.\nmetric = \"max\"\nthreshold = 0\n"
         }
+        Template::Ci => saccade_core::review::Profile::template("ci").unwrap_or(""),
+        Template::Nightly => saccade_core::review::Profile::template("nightly").unwrap_or(""),
+        Template::Lookdev => saccade_core::review::Profile::template("lookdev").unwrap_or(""),
         Template::Ml => {
             "# Compare the same seeds/prompts across model checkpoints.\nmetric = \"p95\"\nthreshold = 0.01\n# Rank: saccade rank reference checkpoint-a checkpoint-b --out ranking\n# Judge: saccade judge ranking/saccade-rank.v1.json --panel examples/panel.toml --dry-run\n"
         }
@@ -46,7 +52,20 @@ pub(crate) fn template(t: Template) -> &'static str {
 pub(crate) fn init(args: InitArgs) -> Result<u8, CliError> {
     std::fs::create_dir_all(&args.dir)
         .map_err(|e| CliError::io(format!("creating {}: {e}", args.dir.display())))?;
-    let path = args.dir.join("saccade.toml");
+    let review = match args.template {
+        Template::Ci => Some("ci"),
+        Template::Nightly => Some("nightly"),
+        Template::Lookdev => Some("lookdev"),
+        Template::Ui => Some("ui"),
+        _ => None,
+    };
+    let path = args.dir.join(
+        if review.is_some() && !matches!(args.template, Template::Ui) {
+            "saccade-review.toml"
+        } else {
+            "saccade.toml"
+        },
+    );
     // create_new makes the refusal race-free; even --force never follows a symlink.
     if std::fs::symlink_metadata(&path).is_ok_and(|m| m.file_type().is_symlink()) {
         return Err(CliError::new(
@@ -70,6 +89,37 @@ pub(crate) fn init(args: InitArgs) -> Result<u8, CliError> {
             path.display()
         ))
     })?;
+    if let Some(name) = review {
+        if matches!(args.template, Template::Ui) {
+            let profile = args.dir.join("saccade-review.toml");
+            if std::fs::symlink_metadata(&profile).is_ok_and(|m| m.file_type().is_symlink()) {
+                return Err(CliError::new(
+                    "unsafe_path",
+                    "refusing review profile symlink",
+                ));
+            }
+            let mut file = std::fs::OpenOptions::new()
+                .write(true)
+                .create_new(!args.force)
+                .create(args.force)
+                .truncate(args.force)
+                .open(&profile)
+                .map_err(|e| CliError::io(e.to_string()))?;
+            file.write_all(
+                saccade_core::review::Profile::template(name)
+                    .unwrap_or("")
+                    .as_bytes(),
+            )
+            .map_err(|e| CliError::io(e.to_string()))?;
+        }
+        crate::emit(&format!(
+            "wrote review profile; use saccade review REPORT_JSON --profile {}\n",
+            args.dir.join("saccade-review.toml").display()
+        ))?;
+        if !matches!(args.template, Template::Ui) {
+            return Ok(0);
+        }
+    }
     crate::emit(&format!(
         "wrote {}\nBootstrap baselines from {}:\n  mkdir -p baseline\n  saccade compare baseline capture --out report\n  saccade approve --report report/saccade-report.v1.json --all-failing\n  Commit the baseline directory with your project.\nFirst run exits 1 because no baseline pairs exist yet.\n",
         path.display(),

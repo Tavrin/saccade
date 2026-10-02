@@ -488,8 +488,9 @@ dependencies = [
 
 [[package]]
 name = "flip-rs"
-version = "0.1.0"
-source = "git+https://github.com/Tavrin/flip-rs?rev=5f4d5c29a0dc40fed2bda8e1d6f6ccc1772d412e#5f4d5c29a0dc40fed2bda8e1d6f6ccc1772d412e"
+version = "0.1.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "9c9b6b63e1846015bbe3da269ecb374a427800ef66613d3e2241d7f51b211ce2"
 dependencies = [
  "rayon",
 ]

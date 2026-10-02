@@ -1,0 +1,6 @@
+# Supply ocr_cmd or --ocr-cmd to include a local text diff in Jev evidence.
+name = "ui"
+gemini = "layout"
+confidence = 0.75
+max_gemini = 5
+# ocr_cmd = "ocr-wrapper {image}"

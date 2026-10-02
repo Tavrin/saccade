@@ -1106,3 +1106,57 @@ MCP tools enforce confinement on explicit and config-provided noise paths.
 Combined verdicts reach full/lean pair JSON, text, Markdown, explain summaries
 (except blind packs) and MCP text/structured results. All recorded paths use
 the canonical path helper and `/` separators.
+
+## 24. AI review cascade and label benchmark
+
+The review coordinator reuses report_items, the bounded question encoder,
+provider transport, propose_report, inbox and the vote store. Every non-identical
+compared entry is eligible, including perceptual passes. Deterministic facts
+(short-circuited before encoding) never enter any model batch. Jev asks accept,
+cause and ask_human together per eight-entry chunk. Gemini escalates uncertain,
+human-requested, region-failing or frame-wide evidence; UI additionally escalates
+structural/layout diagnostics. Entry severity orders bounded escalations.
+
+Gemini requests contain preference prompts, intent and anonymous explain-style
+crops in both orders, with no role-revealing state. The server maps stable a/b
+preferences to reject/accept; tie is an accept proposal. Strong proposals need
+confident Jev/Gemini agreement, consistent Gemini orders and no Jev request
+for human review. Gemini agreement cannot clear an explicit needs_eyes answer
+or uncertain Jev triage. All other necessary
+escalations create persistent inbox questions and blind votes. Only
+propose_report records review results; review never calls the promotion gate.
+
+LiveBackend counts actual HTTP attempts before transport, across batch calls,
+retries and fallback models. Independent provider ceilings support a shared live
+allowance. Availability probes are lazy requests; cooldown records are atomic
+per-model files in the configured cache, so a new process skips failed models.
+The audit preserves requested and answering model identities and statuses.
+
+saccade-labels.v1 contains human finals, encoded state, image paths and SHA-256,
+hotspots, intent and provenance. Model promotion is excluded from label truth.
+Inbox finals and paired human votes retain the originating evidence identity;
+changed images or conflicting answers fail closed. Label replay verifies file
+hashes before making provider calls. Paths use the canonical path helper and
+slash-separated portable provenance.
+
+Benchmark calls each individually pinned model on the same labels in both
+orders, with batches of up to eight items, without fallback substitution.
+saccade-judge-bench.v1 retains per-item predictions and HTTP attempts; metrics
+include all expected predictions in the accuracy denominator, report coverage
+and ECE, and measure preference position flips. Only complete models enter
+suggested_chain, sorted by accuracy descending then latency ascending. Costs
+remain null without known pinned rates. Calibrate accepts labels documents
+and joins review/bench predictions on evidence hash and question.
+
+Schemas ship for review, labels and bench. The new acceptance suite uses
+offline mocked providers only, including a transport-level 503/retry/cooldown
+test. Public live validation is bounded separately and never runs in CI.
+
+## Photosensitivity and accessibility pre-checks
+
+`safety` and `a11y` are PRE-CHECKS, not certification. They do not replace
+platform-holder required testing (e.g. Harding FPA) or formal compliance
+processes and make no compliance claims. Their standalone modules, versioned
+schemas, published criteria, threshold review notes, artifact contracts,
+viewer simulations and optional explicit AI proposal flow are documented in
+[safety-a11y.md](safety-a11y.md).

@@ -15,7 +15,7 @@ git clone https://github.com/Tavrin/saccade && cd saccade
 cargo run --release -p saccade -- compare examples/baseline examples/capture --out report
 ```
 
-**[Showcase](https://tavrin.github.io/saccade/showcase/)**: eight reproducible use cases with the exact commands, images and output. Pages regenerates the gallery and reports from [`docs/showcase/`](docs/showcase). For an offline copy, run `python3 docs/showcase/build.py --out /tmp/saccade-pages/showcase` with `saccade` on PATH, then open `/tmp/saccade-pages/showcase/index.html`.
+**[Showcase](https://tavrin.github.io/saccade/showcase/)**: eight reproducible use cases with the exact commands, images and output. Pages regenerates the gallery and reports from [`docs/showcase/`](docs/showcase). For an offline copy, run `python3 docs/showcase/build.py --out .work/saccade-pages/showcase` with `saccade` on PATH, then open `.work/saccade-pages/showcase/index.html`.
 
 ## Use cases at a glance
 
@@ -24,7 +24,7 @@ cargo run --release -p saccade -- compare examples/baseline examples/capture --o
 <tr><td width="25%" valign="top"><a href="https://tavrin.github.io/saccade/showcase/#lod-transition"><img src="docs/showcase/media/lod-transition/thumb.png" alt="LOD pops: baseline and FLIP heatmap" width="100%"></a><br><b><a href="https://tavrin.github.io/saccade/showcase/#lod-transition">LOD pops</a></b><br>One frame loses its detail. Which one?</td><td width="25%" valign="top"><a href="https://tavrin.github.io/saccade/showcase/#ml-image-model"><img src="docs/showcase/media/ml-image-model/thumb.png" alt="Image-model checkpoints: baseline and FLIP heatmap" width="100%"></a><br><b><a href="https://tavrin.github.io/saccade/showcase/#ml-image-model">Image-model checkpoints</a></b><br>Same seeds, two checkpoints, judge-ready crops.</td><td width="25%" valign="top"><a href="https://tavrin.github.io/saccade/showcase/#render-gbuffer"><img src="docs/showcase/media/render-gbuffer/thumb.png" alt="G-buffers: baseline and FLIP heatmap" width="100%"></a><br><b><a href="https://tavrin.github.io/saccade/showcase/#render-gbuffer">G-buffers</a></b><br>Depth, normals and motion in their own units.</td><td width="25%" valign="top"><a href="https://tavrin.github.io/saccade/showcase/#perf-identity"><img src="docs/showcase/media/perf-identity/thumb.png" alt="Optimization identity: baseline and FLIP heatmap" width="100%"></a><br><b><a href="https://tavrin.github.io/saccade/showcase/#perf-identity">Optimization identity</a></b><br>Bit-identity per image; one pixel moved.</td></tr>
 </table>
 
-The data is procedural ([`showcases/`](showcases)); `scripts/run-showcases.sh` reproduces each case's output byte for byte after replacing the output-root path with `@REPORTS@`. Set `SACCADE_SHOWCASE_REPORTS` to choose the output directory (default `/tmp/saccade-showcase-reports`). Thumbnails show the baseline on the left and the capture under its FLIP heatmap on the right.
+The data is procedural ([`showcases/`](showcases)); `scripts/run-showcases.sh` reproduces each case's output byte for byte after replacing the output-root path with `@REPORTS@`. Set `SACCADE_SHOWCASE_REPORTS` to choose the output directory (default `target/showcase-reports`). Thumbnails show the baseline on the left and the capture under its FLIP heatmap on the right.
 
 ## Try it in 30 seconds
 
@@ -597,8 +597,14 @@ served root with `--follow-symlinks-within-roots`, or inside an explicit
 thumbnails and images. `symlink_targets = ["/mnt/nas/captures"]` and
 `fs_timeout_ms = 3000` may also be set in `saccade.toml`; relative config targets
 are based on that file's directory. CLI targets extend the config allowlist,
-and the CLI timeout overrides the config. Storage probes run in helper threads
-with a bounded channel and a default 3-second deadline. At most eight probes
+and the CLI timeout overrides the config.
+
+Unavailable, unresolvable or non-directory symlink targets emit a warning on
+stderr and are skipped at startup, so an unmounted optional NAS target does
+not prevent serving local captures. Restart after mounting it to include it.
+Missing or unreachable positional archive roots still fail startup.
+
+Storage probes run in helper threads with a bounded channel and a default 3-second deadline. At most eight probes
 can remain active, including timed-out operations; a timeout or saturation
 returns a styled 503 naming only the root-relative path. Comparison inputs are
 copied into the local cache before background work starts.
@@ -824,7 +830,7 @@ jobs:
           capture-dir: captures
 ```
 
-The action installs a prebuilt `saccade-<target>.tar.gz` (`.zip` on Windows) from the GitHub release for the requested ref, checks it against the `.sha256` file published next to it and runs `saccade --version`. If there is no matching release asset, the checksum is missing or wrong, or the binary does not run, it falls back to `cargo install --git`, which needs Rust 1.88 or newer on the runner and access to the private flip-rs repository. For source builds in GitHub CI, load `FLIP_RS_DEPLOY_KEY` with `webfactory/ssh-agent`, enable `CARGO_NET_GIT_FETCH_WITH_CLI` and rewrite the flip-rs HTTPS URL to SSH, as in this repository's workflows. It then runs `compare`, uploads the report directory as an artifact, writes the summary to the job summary, updates one pull-request comment (found by the `<!-- saccade-summary -->` marker), and fails the job with the exit code of `compare`. It runs `compare` only; `identity` and `view` are CLI commands.
+The action installs a prebuilt `saccade-<target>.tar.gz` (`.zip` on Windows) from the GitHub release for the requested ref, checks it against the `.sha256` file published next to it and runs `saccade --version`. If there is no matching release asset, the checksum is missing or wrong, or the binary does not run, it falls back to `cargo install --git`, which needs Rust 1.88 or newer on the runner. Source builds fetch the published `flip-rs = "0.1.2"` dependency from crates.io. It then runs `compare`, uploads the report directory as an artifact, writes the summary to the job summary, updates one pull-request comment (found by the `<!-- saccade-summary -->` marker), and fails the job with the exit code of `compare`. It runs `compare` only; `identity` and `view` are CLI commands.
 
 The workflow that uses the action must be able to see this repository: it must be public, or, if it is private or internal, the repository's Actions settings must grant access to the repositories that use it.
 
@@ -1270,6 +1276,102 @@ API: `POST /api/inbox` accepts `{question, allowed_answers, context?, link?, fro
 
 [Installation and small instruction packs](integrations/README.md) cover Claude Code MCP, a skill and `/saccade` command, plus a Codex MCP configuration and `AGENTS.md` snippet. The workflow is compare → snapshot/explain → propose a decision → ask a human when ambiguous. Never auto-approve a baseline.
 
+## AI review (experimental)
+
+Use `compare` to measure a change, `explain` to inspect its evidence, and
+`review` to get budgeted proposals about an existing report. **Never approve on
+model output.** Review always records through the proposal-only `decide` path,
+even if a project has configured a promotion gate. Models cannot override
+identical pairs, broken frames, config mismatches, identity breaks or errors.
+Unpaired entries remain deterministic facts.
+
+```sh
+saccade review report/saccade-report.v1.json --profile nightly --intent 'Soften the shadow' --dry-run --json
+saccade review report/saccade-report.v1.json --profile nightly --intent-file intent.txt --budget-calls 15 --max-gemini 3 --json
+saccade serve . --decisions-dir ../saccade-review-decisions
+saccade review report/saccade-report.v1.json --profile lookdev --decisions-dir ../saccade-review-decisions --serve-root .
+saccade init --template nightly --dir .
+saccade review report/saccade-report.v1.json --profile saccade-review.toml
+```
+
+| Profile | Behaviour |
+|---|---|
+| `ci` | Deterministic facts plus one Jev batch per chunk. Adds proposal advice to the Markdown summary; model outcomes never change comparison verdicts or block CI. |
+| `nightly` | Jev on every eligible non-identical entry, Gemini on the worst uncertain or high-stakes entries, up to five by default. |
+| `lookdev` | Jev summarises; Gemini inspects anonymous pairwise crops in both orders. Always prepares a human vote page. |
+| `ui` | Optional `--ocr-cmd 'ocr-wrapper {image}'` (or profile `ocr_cmd`) feeds a local OCR text diff to Jev; layout, uncertain and high-stakes changes escalate to Gemini. `init --template ui` writes both comparison and review configs. |
+
+Built-in templates are in
+[`review_profiles/`](crates/saccade-core/src/review_profiles). Custom TOML accepts
+`name`, `gemini` (`never|escalation|always|layout`), `confidence`,
+`max_gemini`, `chunk_entries`, `gemini_models`, `max_retries`,
+`cooldown_secs`, `human_votes` and `ocr_cmd`. Other init templates write
+`saccade-review.toml`; comparison templates retain `saccade.toml`.
+
+Jev receives the existing deterministic evidence encoding, asking `accept`,
+`cause` and `needs_eyes` (a Jev `noul` probability, stored as `ask_human`) together in
+each batch of eight entries. Gemini receives only anonymous hotspot crops and
+intent, with both A/B and B/A presentations. It chooses the image that best
+satisfies intent; a stable candidate preference or tie becomes an accept
+proposal, reference preference becomes reject. These are rubric judgements.
+No baseline identity, filenames, heatmap or deterministic metrics reach the
+blind vision request. Missing crops, capped escalation, uncertainty, disagreement
+or an order flip produces `needs_human`, an inbox item with exact view state,
+and a human vote page. Agreement with both judges confident is marked
+`strong_proposal`; it is still advice.
+
+`--budget-calls` counts actual HTTP attempts, including retries and fallback
+probes; `--max-gemini` caps entries, each needing two presentation calls.
+Availability is probed only by a real request. The default chain is
+`gemini-3.8-flash, gemini-3.7-flash, gemini-3.6-flash, gemini-3.5-flash`.
+429/503 and transient failures get bounded exponential backoff (at most 30 seconds
+per wait), then the next model is tried. Failed models get a persistent ten-minute
+cooldown under `<cache-dir>/gemini-cooldowns/`; later runs skip them without
+a request. Override with profile `gemini_models`, `cooldown_secs` and
+`max_retries`, and CLI `--cache-dir`.
+
+Text and `saccade-review.v1` JSON show every entry's route, answers,
+probability, reported confidence, actual model, latency, agreement, final
+proposal status and totals. `saccade-review.v1.json`, `saccade-review.md` and
+an HTML report section are written next to the report; `summary --format markdown`
+includes the advice. No pinned pricing table is shipped, so estimated costs are
+explicitly unknown; provider usage is retained rather than invented.
+
+```sh
+saccade judge collect-labels --decisions-dir ../saccade-review-decisions --reports report/saccade-report.v1.json --out labels.json
+saccade judge bench --labels examples/labels/showcase-truths.json --out bench.json
+saccade judge bench --labels labels.json --models gemini-3.5-flash,gemini-3.6-flash --questions accept --budget-calls 12 --out bench.json
+saccade judge calibrate --labels labels.json --runs bench.json --out calibration.json
+```
+
+Labels use `saccade-labels.v1`, with evidence hashes, image hashes and human
+provenance. Collection deduplicates human FINAL report/view/session decisions,
+answered review inbox items and consistent votes in both presentation orders.
+Model proposals, promoted gates, abstentions and unfinished votes are excluded;
+conflicting finals or changed evidence fail collection. Supply `--reports`
+to bind report decisions to their richer encoded evidence. The review vote
+metadata stays server-side.
+
+Bench asks the same labelled items across Jev and every individually pinned
+Gemini model, batching eight items per HTTP request in each presentation order.
+It reports accuracy (abstentions/missing predictions count as wrong), coverage,
+ECE, latency, unknown cost, first-position share and order flips. Only models
+with complete answer coverage enter the suggested chain, ranked by measured
+accuracy then latency. A newer model is never assumed better. The twenty
+procedural public labels in [`examples/labels/`](examples/labels) are a smoke
+test with known source-fidelity truths, not a production calibration set.
+`--jev-call-limit` and `--gemini-call-limit` additionally bound actual provider
+attempts for a live-check allowance shared across commands.
+
+MCP exposes `saccade_review` (`report_json`, `profile`, `intent`,
+`budget_calls`, `max_gemini`, `dry_run`) and `saccade_judge_bench`
+(`labels`, `models`, `questions`, `budget_calls`, `out`).
+Nested input paths stay under the MCP root; local OCR execution is CLI-only.
+Review uses the same key-file-only policy as judge mode:
+`~/.config/saccade/{jev,gemini}.env` or `--keys-dir`. Ambient API keys are
+ignored and secrets are never recorded. `--dry-run` makes no network calls or
+writes, but may execute an explicitly configured local OCR hook.
+
 ## Judge mode (experimental)
 
 `saccade judge` asks a bounded question of a panel and records its answers as
@@ -1288,9 +1390,9 @@ Individual judges, including human voters, remain proposals. Only the settled
 remain refused, and `approve` continues to read final decisions only.
 
 ```sh
-saccade compare examples/baseline examples/capture --out /tmp/saccade-judge-example
-saccade judge /tmp/saccade-judge-example/saccade-report.v1.json --panel examples/panel.toml --intent 'Soften the shadow' --both-orders --dry-run
-saccade judge /tmp/saccade-judge-example/saccade-report.v1.json --panel examples/panel.toml --intent 'Soften the shadow' --both-orders
+saccade compare examples/baseline examples/capture --out .work/saccade-judge-example
+saccade judge .work/saccade-judge-example/saccade-report.v1.json --panel examples/panel.toml --intent 'Soften the shadow' --both-orders --dry-run
+saccade judge .work/saccade-judge-example/saccade-report.v1.json --panel examples/panel.toml --intent 'Soften the shadow' --both-orders
 saccade judge rank/saccade-rank.v1.json --panel examples/panel.toml --question preference --intent 'Best shadow quality'
 ```
 
@@ -1350,7 +1452,7 @@ shifts. Ranking uses individual merged pairwise votes in Bradley–Terry with
 deterministic bootstrap confidence intervals; sparse or disconnected votes
 produce warnings instead of confident ordering.
 
-For human votes, run `saccade serve examples --decisions-dir /tmp/saccade-votes`,
+For human votes, run `saccade serve examples --decisions-dir .work/saccade-votes`,
 then judge with the same `--decisions-dir`. Open the returned
 `/vote/<panel-run-id>` link on that server. Each voter chooses a name (remembered
 in localStorage with storage errors caught), sees shuffled anonymous strips in
@@ -1383,3 +1485,83 @@ are confined to the MCP root.
 
 Public-data live answers, probabilities, latencies, errors and exact commands are
 recorded in [the 2026-10-01 acceptance transcript](docs/judge-live-2026-10-01.md).
+
+## Photosensitivity pre-check
+
+`saccade safety` checks numbered SDR sRGB frames for general flashes, saturated
+red flashes and regular stripe/grid patterns. **PRE-CHECK only, not a
+certification**: it does not replace platform-holder required testing (e.g.
+Harding FPA) or formal compliance processes and makes no compliance claims.
+
+```sh
+saccade safety frames --fps 60 --display 1920x1080@55,4 \
+  --standard itu-bt1702 --out safety-report --junit safety.xml
+saccade safety clip.mp4 --standard wcag --out safety-report --json
+```
+
+Video decoding uses optional external `ffmpeg` on PATH; metadata FPS uses
+`ffprobe` unless overridden by `--fps`. Frame directories read `fps` from
+`saccade-meta.json`, otherwise warn and assume 60 fps. Default viewing geometry
+is a 55-inch 1920x1080 TV at 4 metres; specify the actual display and distance.
+Red flashing uses the legacy WCAG 2.0/2.1 numeric working definition;
+WCAG 2.2's UCS red-colour difference is not implemented. Pattern criteria use
+BT.1702-3 Annex 1 Attachment 1: more than five pairs and greater than 40%
+stationary or 25% changing area.
+
+BT.1702 absolute luminance uses an explicit 200 cd/m² SDR peak assumption;
+WCAG uses relative luminance and geometry-derived local solid angles.
+
+Output includes PASS/WARN/FAIL, risk intervals with frame indices/timestamps,
+peak flash rate, affected area, heatmaps, text, `saccade-safety.v1` JSON and an
+HTML timeline with clickable **static** frames. No flashing playback starts
+automatically. Exit 0 means PASS/WARN, 1 means pre-check FAIL, 2 means error.
+MCP exposes the root-confined `saccade_safety` tool.
+
+The [design and published criteria](docs/safety-a11y.md) document the detector's
+limits and the single [THRESHOLDS review table](crates/saccade-core/src/safety/thresholds.rs).
+Broadcast wording and heuristic values marked `verify` require human review.
+[The photosensitivity showcase](showcases/photosensitivity/README.md) is a small,
+deterministically generated 4 Hz failure fixture.
+
+## Accessibility checks
+
+`saccade a11y` generates Machado (2009) severity-1.0 protan/deutan/tritan
+colour-vision simulations, candidate information-loss heatmaps/boxes using
+CIEDE2000, and contrast estimates for **user-declared** text/UI regions.
+**PRE-CHECK only, not a certification**: it does not replace platform-holder
+required testing (e.g. Harding FPA) or formal compliance processes and makes no
+compliance claims. Existing viewers and comparison reports also offer
+**Simulate: protan/deutan/tritan** display modes.
+
+```sh
+saccade a11y screenshots --config a11y.toml --out a11y-report \
+  --json --junit a11y.xml
+```
+
+```toml
+[a11y]
+scale = 4 # neighbouring colour blocks, in pixels
+
+[[region]]
+name = "score"
+kind = "text" # or "ui"
+rect = [0.05, 0.05, 0.25, 0.10] # x, y, width, height fractions
+large = false # user confirms >=18pt, or >=14pt bold
+level = "AA" # or AAA
+```
+
+Use these region declarations with `a11y --config`; compare's own region parser
+has different keys. Robust two-colour clustering estimates foreground/background
+and reports their swatches. Normal text uses 4.5:1 AA/7:1 AAA, declared large
+text 3:1 AA/4.5:1 AAA, and essential UI boundaries 3:1. Gradients, antialiasing,
+complex UI regions and undeclared coverage require human interpretation. No
+declared regions means contrast is not checked. Candidate colour information
+loss produces WARN, because pixel neighbours do not establish semantics.
+
+Output includes `saccade-a11y.v1` JSON, HTML simulation selection, text, PNGs and
+optional JUnit. The root-confined MCP tool `saccade_a11y` performs deterministic
+checks. **No network runs by default.** Explicit `--suggest-regions` uploads
+16 coarse crops/image to the existing judge Gemini model chain, using the same
+`gemini.env`/`SACCADE_GEMINI_API_KEY` key policy (optional `--keys-dir`). Boxes
+are unconfirmed proposals, excluded from verdicts until the user refines and
+copies them into config. See [the method and limits](docs/safety-a11y.md).

@@ -1285,6 +1285,21 @@ impl Server {
     }
 
     fn call_tool(&self, name: &str, args: &Map<String, Value>) -> Option<ToolResult> {
+        if let Some(result) = crate::precheck_mcp::call(name, args, &|key, p| self.resolve(key, p))
+        {
+            return Some(result.map(|(structured, text)| ToolOutput {
+                structured,
+                text,
+                images: Vec::new(),
+            }));
+        }
+        if let Some(result) = crate::review_cmd::call(name, args, &|key, p| self.resolve(key, p)) {
+            return Some(result.map(|(structured, text)| ToolOutput {
+                structured,
+                text,
+                images: Vec::new(),
+            }));
+        }
         if let Some(result) = crate::judge_cmd::mcp_call(name, args, &|key, p| self.resolve(key, p))
         {
             return Some(result.map(|(structured, text)| ToolOutput {
@@ -1356,8 +1371,10 @@ impl Server {
             "tools/list" => {
                 let mut tools = tool_schemas();
                 if let Some(list) = tools.as_array_mut() {
+                    list.extend(crate::precheck_mcp::schemas());
                     list.extend(crate::agent_ui::mcp_schemas());
                     list.extend(crate::judge_cmd::mcp_schemas());
+                    list.extend(crate::review_cmd::schemas());
                     list.extend(crate::s6_mcp::schemas());
                 }
                 json!({"tools": tools})

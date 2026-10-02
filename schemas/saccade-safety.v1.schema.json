@@ -1,0 +1,212 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/Tavrin/saccade/schemas/saccade-safety.v1.schema.json",
+  "title": "safety PRE-CHECK only; not certification or formal compliance",
+  "type": "object",
+  "properties": {
+    "schema": {
+      "const": "saccade-safety.v1"
+    },
+    "verdict": {
+      "enum": [
+        "PASS",
+        "WARN",
+        "FAIL"
+      ]
+    },
+    "disclaimer": {
+      "type": "string"
+    },
+    "thresholds": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string"
+          },
+          "value": {
+            "type": "number",
+            "minimum": 0
+          },
+          "citation": {
+            "type": "string"
+          },
+          "verify": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "name",
+          "value",
+          "citation",
+          "verify"
+        ],
+        "additionalProperties": false
+      }
+    },
+    "warnings": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "standard": {
+      "enum": [
+        "itu-bt1702",
+        "wcag"
+      ]
+    },
+    "fps": {
+      "type": "number",
+      "exclusiveMinimum": 0
+    },
+    "display": {
+      "type": "object",
+      "properties": {
+        "width": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "height": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "diagonal_inches": {
+          "type": "number",
+          "exclusiveMinimum": 0
+        },
+        "distance_m": {
+          "type": "number",
+          "exclusiveMinimum": 0
+        }
+      },
+      "required": [
+        "width",
+        "height",
+        "diagonal_inches",
+        "distance_m"
+      ],
+      "additionalProperties": false
+    },
+    "area_threshold_percent": {
+      "type": "number",
+      "minimum": 0,
+      "maximum": 100
+    },
+    "frames": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "index": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "number": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "name": {
+            "type": "string"
+          },
+          "timestamp": {
+            "type": "number",
+            "minimum": 0
+          },
+          "image": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "index",
+          "number",
+          "name",
+          "timestamp",
+          "image"
+        ],
+        "additionalProperties": false
+      }
+    },
+    "segments": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "kind": {
+            "enum": [
+              "general_flash",
+              "red_flash",
+              "pattern"
+            ]
+          },
+          "verdict": {
+            "enum": [
+              "WARN",
+              "FAIL"
+            ]
+          },
+          "start_frame": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "end_frame": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "start_seconds": {
+            "type": "number",
+            "minimum": 0
+          },
+          "end_seconds": {
+            "type": "number",
+            "minimum": 0
+          },
+          "peak_flash_rate": {
+            "type": "number",
+            "minimum": 0
+          },
+          "flashing_area_percent": {
+            "type": "number",
+            "minimum": 0,
+            "maximum": 100
+          },
+          "area_sr": {
+            "type": "number",
+            "minimum": 0
+          },
+          "heatmap": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "kind",
+          "verdict",
+          "start_frame",
+          "end_frame",
+          "start_seconds",
+          "end_seconds",
+          "peak_flash_rate",
+          "flashing_area_percent",
+          "area_sr",
+          "heatmap"
+        ],
+        "additionalProperties": false
+      }
+    }
+  },
+  "required": [
+    "schema",
+    "verdict",
+    "disclaimer",
+    "thresholds",
+    "warnings",
+    "standard",
+    "fps",
+    "display",
+    "area_threshold_percent",
+    "frames",
+    "segments"
+  ],
+  "additionalProperties": false
+}

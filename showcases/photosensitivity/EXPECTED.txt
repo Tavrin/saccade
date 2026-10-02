@@ -1,0 +1,9 @@
+=== safety (exit 1) ===
+safety: FAIL (64 frames, 32.000 fps, itu-bt1702)
+PRE-CHECK only. Not a certification; does not replace platform-holder required testing (e.g. Harding FPA) or formal compliance processes. No compliance claims. PASS means no trigger detected in this capture under these checks; review coverage and limitations below.
+flash area threshold: 25.000% of screen
+risk segments: 1
+FAIL general_flash: frames 3..63, 0.094..2.000s, peak 4 flashes/s, area 100.000%
+warning: SDR only; opaque sRGB, assumed 200 cd/m2 peak for BT.1702. Verify THRESHOLDS against the published edition.
+warning: Pattern scanline autocorrelation is approximate; all changing patterns use the five-pair limit. WCAG mode includes supplementary BT.1702 pattern guidance.
+warning: Red-flash detection uses the legacy WCAG 2.0/2.1 numeric working definition, not the WCAG 2.2 UCS definition; verify the required edition.

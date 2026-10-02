@@ -525,7 +525,7 @@ pub enum PixelSource {
 }
 
 impl PixelSource {
-    fn load(&self) -> Option<(RgbImage, RgbImage)> {
+    pub(crate) fn load(&self) -> Option<(RgbImage, RgbImage)> {
         match self {
             Self::Mem(m) => Some((m.0.clone(), m.1.clone())),
             Self::Files(a, b) => {
@@ -1100,7 +1100,7 @@ pub fn build_prompt(
     (Prompt { system, user }, state)
 }
 
-fn strips_for(item: &JudgeItem, order: Order) -> Vec<Vec<u8>> {
+pub(crate) fn strips_for(item: &JudgeItem, order: Order) -> Vec<Vec<u8>> {
     let Some((a, b)) = item.source.as_ref().and_then(PixelSource::load) else {
         return Vec::new();
     };
@@ -1583,7 +1583,7 @@ pub struct ItemOutcome {
     pub notes: BTreeMap<String, String>,
 }
 
-fn judge_one(
+pub(crate) fn judge_one(
     backend: &dyn Backend,
     spec: &JudgeSpec,
     item: &JudgeItem,

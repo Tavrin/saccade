@@ -5,6 +5,7 @@ TASK_ROOT=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/.." && pwd)
 cd -- "$TASK_ROOT"
 command -v saccade >/dev/null || { echo 'Put the release saccade binary on PATH.' >&2; exit 2; }
 python3 scripts/gen-showcases.py
+python3 scripts/gen-photosensitivity.py
 python3 - <<'PY'
 import difflib
 import json
@@ -14,7 +15,7 @@ import subprocess
 import sys
 
 root = Path.cwd()
-reports = Path(os.environ.get('SACCADE_SHOWCASE_REPORTS', '/tmp/saccade-showcase-reports'))
+reports = Path(os.environ.get('SACCADE_SHOWCASE_REPORTS', 'target/showcase-reports'))
 reports.mkdir(parents=True, exist_ok=True)
 env = dict(os.environ, LC_ALL='C', NO_COLOR='1')
 failed = False

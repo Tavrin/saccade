@@ -1,0 +1,6 @@
+# CI advice never changes the deterministic verdict or approves baselines.
+name = "ci"
+gemini = "never"
+confidence = 0.75
+max_gemini = 0
+chunk_entries = 8

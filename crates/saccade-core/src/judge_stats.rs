@@ -222,6 +222,24 @@ fn unit_key(
 fn collect(files: &[PathBuf]) -> Result<BTreeMap<String, UnitData>, Error> {
     let mut units: BTreeMap<String, UnitData> = BTreeMap::new();
     for file in files {
+        let doc: Value = serde_json::from_slice(
+            &std::fs::read(file)
+                .map_err(crate::run::io_err("reading calibration labels".into()))?,
+        )?;
+        if doc["schema"] == crate::labels::SCHEMA {
+            let labels = crate::labels::Labels::read(file)?;
+            for i in labels.items {
+                let u = units
+                    .entry(format!("{}|{}", i.evidence_hash, i.question))
+                    .or_default();
+                u.question = i.question;
+                for p in i.provenance {
+                    let source = p["human"].as_str().unwrap_or("human");
+                    u.humans.insert(format!("human:{source}"), i.answer.clone());
+                }
+            }
+            continue;
+        }
         let d = read_decisions(file)?;
         let stem = file
             .file_name()
@@ -232,7 +250,7 @@ fn collect(files: &[PathBuf]) -> Result<BTreeMap<String, UnitData>, Error> {
                 let key = unit_key(&d, set, &p.question, p.hotspot);
                 let u = units.entry(key).or_default();
                 u.question.clone_from(&p.question);
-                if is_human_source(&p.source) {
+                if is_human_source(&p.source) && !p.proposed && !p.promoted {
                     if p.question == "accept" {
                         human_seen_accept = true;
                     }
@@ -298,7 +316,72 @@ pub fn calibrate(
             "calibration needs target_accuracy in [0, 1] and min_support above zero".into(),
         ));
     }
-    let units = collect(files)?;
+    let mut units = collect(files)?;
+    for run in runs {
+        let value: Value = serde_json::from_slice(
+            &std::fs::read(run).map_err(crate::run::io_err("reading calibration run".into()))?,
+        )?;
+        if value["schema"] == crate::judge_bench::SCHEMA {
+            for model in value["models"].as_array().into_iter().flatten() {
+                for p in model["predictions"].as_array().into_iter().flatten() {
+                    let key = format!(
+                        "{}|{}",
+                        p["evidence_hash"].as_str().unwrap_or(""),
+                        p["question"].as_str().unwrap_or("")
+                    );
+                    if let Some(u) = units.get_mut(&key) {
+                        u.preds.insert(
+                            (
+                                format!(
+                                    "{}:{}",
+                                    model["model"].as_str().unwrap_or(""),
+                                    p["order"].as_str().unwrap_or("")
+                                ),
+                                u.question.clone(),
+                            ),
+                            Pred {
+                                answer: p["answer"].as_str().unwrap_or("unsure").into(),
+                                prob: p["prob"].as_f64(),
+                            },
+                        );
+                    }
+                }
+            }
+        } else if value["schema"] == crate::review::SCHEMA {
+            for e in value["entries"].as_array().into_iter().flatten() {
+                let key = format!("{}|accept", e["evidence_hash"].as_str().unwrap_or(""));
+                if let Some(u) = units.get_mut(&key) {
+                    for j in e["judges"].as_array().into_iter().flatten() {
+                        if j["provider"] == "jev"
+                            && !j["item"].as_str().is_some_and(|s| s.ends_with(":accept"))
+                        {
+                            continue;
+                        }
+                        let answer = j["answer"].as_str().unwrap_or("unsure");
+                        let answer = if j["provider"] == "gemini" {
+                            crate::review::candidate_answer(answer)
+                        } else {
+                            answer
+                        };
+                        u.preds.insert(
+                            (
+                                format!(
+                                    "{}:{}",
+                                    j["answered_model"].as_str().unwrap_or(""),
+                                    j["order"].as_str().unwrap_or("")
+                                ),
+                                "accept".into(),
+                            ),
+                            Pred {
+                                answer: answer.into(),
+                                prob: j["prob"].as_f64(),
+                            },
+                        );
+                    }
+                }
+            }
+        }
+    }
     type CalibrationCounts = (Vec<Scored>, usize, usize, usize, usize);
     let mut by_judge: BTreeMap<(String, String), CalibrationCounts> = BTreeMap::new();
     // (scored, abstained, agree_pairs, agree_hits, unlabelled)

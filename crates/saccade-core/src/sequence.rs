@@ -197,6 +197,22 @@ fn collect(root: &Path, pattern: &str, cfg: &RunConfig) -> Result<Vec<Frame>> {
     Ok(frames)
 }
 
+/// Shared numbered-frame collector for the safety pre-check, retaining the
+/// existing sorting, duplicate-number and unreadable/symlink rules.
+pub(crate) fn numbered_frames(root: &Path) -> Result<Vec<(String, u64, PathBuf)>> {
+    collect(root, "**", &RunConfig::default())?
+        .into_iter()
+        .map(|f| match (f.path, f.problem) {
+            (Some(path), None) => Ok((f.name, f.number, path)),
+            (_, problem) => Err(Error::Config(format!(
+                "unreadable sequence frame {:?}: {}",
+                f.name,
+                problem.as_deref().unwrap_or("no readable path")
+            ))),
+        })
+        .collect()
+}
+
 fn temporal(
     frames: &[Frame],
     cfg: &RunConfig,

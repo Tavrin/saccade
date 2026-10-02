@@ -1,0 +1,6 @@
+# Blind pairwise inspection and a human vote page; Jev supplies the summary.
+name = "lookdev"
+gemini = "always"
+confidence = 0.75
+max_gemini = 5
+human_votes = true

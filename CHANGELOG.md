@@ -5,6 +5,28 @@ newest first.
 
 ## Unreleased
 
+- Serve skips unavailable optional symlink targets with a stderr warning,
+  allowing local archives to remain available while a NAS is unmounted.
+  Positional archive roots still fail startup when unavailable.
+
+- Photosensitivity PRE-CHECK: `safety` CLI/MCP, optional external ffmpeg,
+  general/red flash sliding windows, viewing-area geometry and autocorrelation
+  stripe/grid candidates. Versioned JSON/schema, static HTML timeline, text,
+  heatmaps and JUnit; published criteria with explicit verification notes.
+- Accessibility PRE-CHECK: `a11y` CLI/MCP, Machado colour-vision display modes,
+  CIEDE2000 information-loss candidates, confirmed-region contrast clustering,
+  and explicitly requested Gemini region proposals. These are not certification,
+  make no compliance claims and do not replace platform-holder required testing
+  (e.g. Harding FPA) or formal compliance processes. Seven offline acceptance
+  tests and a deterministic photosensitivity showcase.
+
+- Experimental AI review cascade with CI/nightly/lookdev/UI profiles, deterministic
+  gates, batched Jev triage, blind Gemini escalation and persistent cooldowns.
+  Every result stays a proposal; disagreement reaches the inbox and vote page.
+- Human final label collection and model-chain benchmarking with evidence hashes,
+  accuracy, ECE, latency, position bias, actual HTTP budgets and shipped schemas.
+  Added CLI/MCP surfaces and review sections in HTML/Markdown reports.
+
 - Engine-neutral run performance sidecars with strict validation, exact-ID
   attribution/counter diffs, nested scopes and stacked frame composition.
 - Repeat performance noise ranges, configurable beyond-noise gates, CLI/MCP
@@ -15,7 +37,8 @@ newest first.
   HDR-FLIP now evaluates float exposures using NVIDIA's reference algorithm;
   LDR keeps sRGB input and saccade's nearest-rank statistics. Rust 1.88 is
   required, HDR exposure counts start at two, and automatic all-black HDR
-  baselines require explicit endpoints. CI fetches flip-rs with a deploy key.
+  baselines require explicit endpoints. Builds use the published flip-rs 0.1.2
+  crate from crates.io; CI no longer needs a private dependency deploy key.
 
 - Dashboard deep links: single-run and single-image pages, repeated `run=`
   parameters, absolute-path `/open` redirects and `/api/roots`. Explicit external

@@ -6,7 +6,7 @@ const path = require('node:path');
 const assert = require('node:assert/strict');
 const staticBase = process.env.SACCADE_STATIC_URL || 'http://127.0.0.1:18879';
 const serveBase = process.env.SACCADE_SERVE_URL || 'http://127.0.0.1:18878';
-const out = process.env.SACCADE_SHOTS || '/mnt/linux-extra/moss-cargo-targets/codex-saccade-u1-shots';
+const out = process.env.SACCADE_SHOTS || path.join(__dirname, '..', 'target', 'qa-ui-shots');
 const results = { pages: [], checks: [], errors: [] };
 const pause = ms => new Promise(r => setTimeout(r, ms));
 (async () => {

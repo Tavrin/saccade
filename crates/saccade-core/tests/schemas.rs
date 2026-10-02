@@ -38,6 +38,10 @@ fn committed_schemas_match_the_rust_types() {
     let update = std::env::var_os("UPDATE_SCHEMAS").is_some();
     let all = [
         (
+            "saccade-labels.v1.schema.json",
+            generated::<saccade_core::labels::Labels>("saccade-labels.v1.schema.json"),
+        ),
+        (
             "saccade-perf.v1.schema.json",
             generated::<saccade_core::perf::CapturePerf>("saccade-perf.v1.schema.json"),
         ),
@@ -119,6 +123,9 @@ fn committed_schemas_match_the_rust_types() {
 
     // Every schema id the tools emit has a file with a matching `$id`.
     for name in [
+        "review",
+        "labels",
+        "judge-bench",
         "noise",
         "entries",
         "judge",

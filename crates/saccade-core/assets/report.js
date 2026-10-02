@@ -7,6 +7,7 @@
   var IDENTITY = (report.config || {}).mode === "identity";
 
   var UI = window.__saccadeUI;
+  UI.installCvd();
   var reg = UI.use(UI.actions());
   var A = window.__saccadeAgent;
   // The view state the URL hash and window.saccade describe; compare() reads it
@@ -684,7 +685,7 @@
       zoomAt(UI.xf.wheel(ev, ev.ctrlKey ? 0.01 : 0.0015), ev.clientX - rc.left, ev.clientY - rc.top);
     }, { passive: false });
 
-    var chanSel = h("select", { "aria-label": "Display channel", title: "Display channel" }, [["rgb", "RGB"], ["r", "R"], ["g", "G"], ["b", "B"], ["luma", "Luma"]].map(function (o) { return h("option", { value: o[0], text: o[1] }); }));
+    var chanSel = h("select", { "aria-label": "Display channel", title: "Machado 2009, severity 1.0. PRE-CHECK display aid, not certification or formal compliance." }, [["rgb", "RGB"], ["r", "R"], ["g", "G"], ["b", "B"], ["luma", "Luma"]].concat(UI.cvdChoices).map(function (o) { return h("option", { value: o[0], text: o[1] }); }));
     chanSel.value = V.channel;
     chanSel.addEventListener("change", function () { V.channel = chanSel.value; applyFilter(); notify(); });
     var evInp = h("input", { type: "range", min: "-4", max: "4", step: "0.1", value: String(V.ev), class: "evr", "aria-label": "Exposure in stops", title: "Exposure (EV)" });
@@ -899,7 +900,7 @@
     reg.add({ id: "hold", title: "Hold to compare", group: "Tools", keys: ["c"], hold: { down: function () { var c = currentCmp(); if (c) c.hold(true); }, up: function () { var c = currentCmp(); if (c) c.hold(false); } } });
     window.addEventListener("blur", function () { var c = currentCmp(); if (c) c.hold(false); });
     cmp("snapshot", "Snapshot: download PNG", [], function (c) { c.snapshot(); });
-    ["rgb", "r", "g", "b", "luma"].forEach(function (ch) { add("channel." + ch, "Channel: " + ch, [], function () { agent.set({ channel: ch }); }, "Display"); });
+    ["rgb", "r", "g", "b", "luma", "protan", "deutan", "tritan"].forEach(function (ch) { add("channel." + ch, "Channel: " + ch, [], function () { agent.set({ channel: ch }); }, "Display"); });
     [-1, 0, 1].forEach(function (ev) { add("exposure." + ev, "Exposure: " + ev + " EV", [], function () { agent.set({ ev: ev }); }, "Display"); });
     cmp("display.reset", "Reset display", [], function (c) { c.resetDisplay(); }, "Display");
     cmp("contrast.up", "Contrast: increase", [], function (c) { c.contrast(.1); }, "Display");

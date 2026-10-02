@@ -3,6 +3,7 @@
   var D = JSON.parse(document.getElementById('saccade-data').textContent);
   if (!D.blind && D.perf_diff && D.perf_diff.length) { var perf=document.createElement('section');document.querySelector('main').prepend(perf);D.perf_diff.forEach(function(p){window.saccadePerf.diff(perf,p.diff,p.combined_verdict,D.labels[p.run]);p.errors.forEach(function(e){var row=document.createElement('p');row.textContent=e.path+': '+e.message;perf.appendChild(row);});}); }
   var UI = window.__saccadeUI;
+  UI.installCvd();
   var $ = function (id) { return document.getElementById(id); };
   var LS_KEY = 'saccade-view.v1:' + D.id;
   var LETTERS = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ';
@@ -1099,7 +1100,7 @@
     A({ id: 'view.hotspots', group: G.Z, title: 'Show hotspot boxes', enabled: function () { return HAS.hot && !hideInfo(); }, on: function () { return S.hot; }, run: toggleHot });
     A({ id: 'view.mask', group: G.Z, title: 'Show the non-finite mask', keys: ['m'], enabled: function () { return hasMask(cur()); }, on: function () { return S.mask; }, run: toggleMask });
     // display
-    [['rgb', 'RGB'], ['r', 'red'], ['g', 'green'], ['b', 'blue'], ['l', 'luma']].forEach(function (c) {
+    [['rgb', 'RGB'], ['r', 'red'], ['g', 'green'], ['b', 'blue'], ['l', 'luma']].concat(UI.cvdChoices).forEach(function (c) {
       A({ id: 'display.channel.' + c[0], group: G.V, title: 'Channel: ' + c[1], on: function () { return S.channel === c[0]; }, run: function () { setChannel(c[0]); } });
     });
     A({ id: 'display.ev.up', group: G.V, title: 'Exposure: brighter by 1 stop', run: function () { S.exposure = Math.min(4, S.exposure + 1); $('exp').value = String(S.exposure); applyFilter(); } });
@@ -1290,6 +1291,7 @@
   }
 
   function init() {
+    UI.cvdChoices.forEach(function (c) { var b=document.createElement('button');b.type='button';b.setAttribute('data-v',c[0]);b.textContent=c[1];b.title='Machado 2009, severity 1.0. PRE-CHECK display aid; not certification or formal compliance.';document.getElementById('seg-chan').appendChild(b); });
     load();
     mergeDecisions(window.__saccadeDecisions);
     var sv0 = window.SACCADE_SERVE;
