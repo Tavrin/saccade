@@ -323,3 +323,92 @@ pub struct Labels {
     /// Human answers referencing exact cases and questions.
     pub items: Vec<Label>,
 }
+
+/// Authority reported by canonical readers. Automated authority is reserved for
+/// P5; neither a policy identifier nor evidence equality is human attestation.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
+#[serde(tag = "level", rename_all = "snake_case", deny_unknown_fields)]
+pub enum Authority {
+    /// Workbench-attested human authority, subject to trusted session verification.
+    Human,
+    /// Unattested explicit CLI operation.
+    Cli,
+    /// Reserved policy authority, distinct from a human disposition.
+    Automated {
+        /// Policy which authorized the record in a future producer.
+        policy_id: String,
+        /// Exact evidence case evaluated by the policy.
+        evidence_digest: Digest,
+    },
+}
+impl Authority {
+    /// Display label; reserved automation never displays as human.
+    pub fn label(&self) -> &'static str {
+        match self {
+            Self::Human => "human",
+            Self::Cli => "cli",
+            Self::Automated { .. } => "automated",
+        }
+    }
+    /// Checks the authority level only. Human session attestation must also be
+    /// verified by its trusted issuer; source labels cannot construct authority.
+    pub fn satisfies_human_required(&self) -> bool {
+        matches!(self, Self::Human)
+    }
+}
+impl std::fmt::Display for Authority {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_str(self.label())
+    }
+}
+
+/// Read-only reserved P5 record. It is never converted to HumanDecision or an
+/// approval receipt and no supported writer may emit it in R1.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
+#[serde(deny_unknown_fields)]
+pub struct AutomatedDecision {
+    /// Identity of policy, exact binding and disposition.
+    pub decision_id: Digest,
+    /// Exactly reviewed evidence and scope.
+    pub binding: ReviewBinding,
+    /// Must be automated, with a policy ID and matching case evidence digest.
+    pub authority: Authority,
+    /// Reserved policy disposition, never human acceptance.
+    pub disposition: Disposition,
+}
+impl AutomatedDecision {
+    /// Computes the immutable reserved record identity; not an issuance API.
+    pub fn identity(&self) -> Result<Digest> {
+        canonical::digest(&json!({"binding":{"case_id":self.binding.case_id,
+            "input_hashes":self.binding.input_hashes,"scope":self.binding.scope,
+            "request_ids":self.binding.request_ids,"reviewed_content":self.binding.reviewed_content.sha256},
+            "authority":self.authority,"disposition":self.disposition}))
+    }
+    /// Validates a read record without giving it human or CLI authority.
+    pub fn validate(&self) -> Result<()> {
+        let Authority::Automated {
+            policy_id,
+            evidence_digest,
+        } = &self.authority
+        else {
+            return Err(super::ContractError::Invalid(
+                "automated record needs automated authority".into(),
+            ));
+        };
+        require(
+            !policy_id.trim().is_empty() && evidence_digest == &self.binding.case_id,
+            "automated authority needs a policy ID and the exact evidence digest",
+        )?;
+        self.binding.reviewed_content.validate()?;
+        require(
+            !self.binding.input_hashes.is_empty() && !self.binding.scope.entries.is_empty(),
+            "automated record needs bound inputs and scope",
+        )?;
+        require(
+            self.decision_id == self.identity()?,
+            "stale automated decision",
+        )
+    }
+}

@@ -55,6 +55,8 @@ pub enum Artifact {
     DecisionProposal(Box<proposal::DecisionProposal>),
     /// Explicit human disposition with reviewed content bindings.
     HumanDecision(Box<human::HumanDecision>),
+    /// Reserved read-only policy record; never human authority.
+    AutomatedDecision(Box<human::AutomatedDecision>),
     /// Applied baseline-change audit.
     ApprovalReceipt(Box<human::ApprovalReceipt>),
     /// Private mapping, excluded from anonymous exports.
@@ -98,11 +100,36 @@ impl Document {
             Artifact::DecisionRequest(r) => r.validate(),
             Artifact::DecisionProposal(p) => p.validate(),
             Artifact::HumanDecision(h) => h.validate(),
+            Artifact::AutomatedDecision(a) => a.validate(),
             Artifact::ApprovalReceipt(r) => r.validate(),
             Artifact::PresentationMap(m) => m.validate(),
             Artifact::NextAction { action } => action.validate(),
             Artifact::ExecutionAudit(a) => a.validate(),
         }
+    }
+
+    /// Reports attested human, unattested CLI or reserved automated authority.
+    /// A workbench decision without its receipt remains unattested.
+    pub fn authority(&self) -> Option<human::Authority> {
+        use human::{Authority, Channel};
+        match &self.artifact {
+            Artifact::AutomatedDecision(a) => Some(a.authority.clone()),
+            Artifact::HumanDecision(d) if d.channel == Channel::Cli => Some(Authority::Cli),
+            Artifact::ApprovalReceipt(r) if r.channel == Channel::Cli => Some(Authority::Cli),
+            Artifact::ApprovalReceipt(r) if r.human_attestation.is_some() => Some(Authority::Human),
+            _ => None,
+        }
+    }
+
+    /// Checks the structural human-required boundary. A trusted workbench must
+    /// additionally verify the receipt's live session attestation (R8).
+    pub fn require_human_authority(&self) -> Result<()> {
+        self.validate()?;
+        require(
+            self.authority()
+                .is_some_and(|a| a.satisfies_human_required()),
+            "human-required operation needs a workbench-attested receipt; cli and automated authority are insufficient",
+        )
     }
 
     /// Reads a complete document and rejects malformed semantic identities.
@@ -117,6 +144,10 @@ impl Document {
     pub fn write_bundle(&self, directory: &std::path::Path) -> Result<()> {
         use std::io::Write;
         self.validate()?;
+        require(
+            !matches!(self.artifact, Artifact::AutomatedDecision(_)),
+            "automated authority is reserved; no writer is enabled",
+        )?;
         let bytes = serde_json::to_vec_pretty(self)?;
         std::fs::create_dir_all(crate::paths::native(directory))?;
         let marker = directory.join(".saccade-run");

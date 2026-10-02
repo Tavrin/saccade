@@ -7,8 +7,8 @@
 //! every judge of a [`Panel`] in one or both presentation orders, measures
 //! position bias, aggregates by weight with agreement metrics and escalates
 //! disagreement to a person instead of guessing. Results are recorded as
-//! proposals through the existing `decide` path, so the confidence gate, the
-//! chips and the approve rules all apply.
+//! proposals through the existing `decide` path. No panel answer becomes a
+//! final decision or grants approval authority.
 //!
 //! The statistics live in [`crate::judge_stats`], the evidence encoder in
 //! [`crate::judge_evidence`], the providers in [`crate::judge_provider`], the
@@ -26,7 +26,7 @@ use sha2::{Digest, Sha256};
 
 use crate::compare::{CompareOptions, compare_rgba};
 use crate::decision::{
-    Answer, DecideError, DecisionsConfig, Question, RequestOptions, build_request, decide_report,
+    Answer, DecideError, DecisionsConfig, Question, RequestOptions, build_request,
 };
 use crate::error::Error;
 use crate::hotspots::{HotspotOptions, find_hotspots};
@@ -2085,29 +2085,20 @@ fn ranking_value(plan: &Plan, outcomes: &[ItemOutcome]) -> Value {
 
 /// Records a run's answers as proposals through the `decide` path.
 ///
-/// Each judge's merged answer is recorded under its own id with the gate off
-/// (a single judge never decides anything); the panel's aggregate is recorded
-/// as `panel` under the real `[decisions]` gate, so only a settled panel can be
-/// promoted. An escalation is recorded as `needs_human` for the `accept`
-/// question and as `ask_human: yes` for the others. Preference results are not
-/// decision-request questions and stay in the result file.
+/// Individual answers and panel aggregates are advice only, including human
+/// source labels. Escalations remain unresolved; no confidence gate is used.
 pub fn record(
     run: &RunResult,
     report_json: &Path,
     report: &Report,
-    cfg: &DecisionsConfig,
+    _cfg: &DecisionsConfig,
 ) -> Vec<Value> {
     let mut rows = Vec::new();
     for o in &run.outcomes {
         let JudgeQuestion::Decision(q) = o.item.question else {
             continue;
         };
-        let mut push = |source: &str,
-                        question: Question,
-                        answer: &str,
-                        prob: f64,
-                        note: String,
-                        gate: &DecisionsConfig| {
+        let mut push = |source: &str, question: Question, answer: &str, prob: f64, note: String| {
             let a = Answer {
                 entry: o.item.entry.clone(),
                 question,
@@ -2119,11 +2110,7 @@ pub fn record(
                 note,
                 request_hash: Some(o.item.request_hash.clone()),
             };
-            let result = if source == PANEL_SOURCE {
-                decide_report(report_json, report, gate, &a)
-            } else {
-                crate::decision::propose_report(report_json, report, &a)
-            };
+            let result = crate::decision::propose_report(report_json, report, &a);
             rows.push(match result {
                 Ok(out) => {
                     json!({"entry": a.entry, "source": source, "question": question.as_str(),
@@ -2133,7 +2120,6 @@ pub fn record(
                     "answer": answer, "error": e.to_string()}),
             });
         };
-        let off = DecisionsConfig::default();
         for v in &o.votes {
             if let Some(a) = v.answer.as_deref().filter(|a| !is_abstain(a)) {
                 let prob = v.probs.get(a).copied().unwrap_or(1.0);
@@ -2142,7 +2128,7 @@ pub fn record(
                     run.value["run_id"].as_str().unwrap_or(""),
                     o.notes.get(&v.judge).cloned().unwrap_or_default()
                 );
-                push(&v.judge, q, a, prob, note, &off);
+                push(&v.judge, q, a, prob, note);
             }
         }
         let note = format!(
@@ -2152,13 +2138,13 @@ pub fn record(
             o.aggregate.answering
         );
         match &o.aggregate.answer {
-            Some(a) => push(PANEL_SOURCE, q, a, o.aggregate.prob, note, cfg),
+            Some(a) => push(PANEL_SOURCE, q, a, o.aggregate.prob, note),
             None => {
                 let note = format!("escalated: {}", o.aggregate.reasons.join("; "));
                 if q == Question::Accept {
-                    push(PANEL_SOURCE, q, "needs_human", 1.0, note, cfg);
+                    push(PANEL_SOURCE, q, "needs_human", 1.0, note);
                 } else {
-                    push(PANEL_SOURCE, Question::AskHuman, "yes", 1.0, note, cfg);
+                    push(PANEL_SOURCE, Question::AskHuman, "yes", 1.0, note);
                 }
             }
         }

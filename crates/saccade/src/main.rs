@@ -2,7 +2,6 @@
 //!
 //! Exit codes: `0` no regression, `1` regression, `2` usage/config/IO error.
 
-use std::collections::BTreeMap;
 use std::io::Write;
 use std::path::{Path, PathBuf};
 use std::process::ExitCode;
@@ -12,11 +11,12 @@ use saccade_core::config::RunConfig;
 use saccade_core::render::{MarkdownOptions, is_valid_comment_key, render_markdown};
 use saccade_core::report::{Labels, Metric, Mode, Report, Status};
 use saccade_core::view::{
-    Verdict, ViewOptions, build_view, is_safe_name, read_blind_key, read_decisions, unblind,
+    ViewOptions, build_view, is_safe_name, read_blind_key, read_decisions, unblind,
 };
 
 mod agent;
 mod agent_ui;
+mod approval;
 mod f1;
 #[cfg(feature = "ai")]
 mod judge_cmd;
@@ -403,11 +403,13 @@ enum Command {
         report: Option<PathBuf>,
         /// Image names (relative paths) to approve.
         names: Vec<String>,
+        /// Select a report entry without positional directories; repeatable.
+        #[arg(long = "entry", value_name = "NAME")]
+        entries: Vec<String>,
         /// Also approve every fail and new entry of this report JSON.
         #[arg(long, value_name = "REPORT_JSON", num_args = 0..=1, default_missing_value = "__report__")]
         all_failing: Option<PathBuf>,
-        /// Also approve every "accept" entry of a decisions file exported by
-        /// `saccade view`.
+        /// Explicit canonical CLI decision bound to this report, inputs and scope.
         #[arg(long, value_name = "DECISIONS_JSON")]
         decisions: Option<PathBuf>,
         /// With --all-failing: also approve `error` entries (for example a size
@@ -423,11 +425,15 @@ enum Command {
         /// instead of one line per file.
         #[arg(long)]
         json: bool,
-        /// Approve even when the directories or the capture files differ from
-        /// what the report or decisions file recorded (they are checked by
-        /// default: approving unreviewed pixels is refused).
+        /// Removed: stale reviewed content cannot be overridden.
         #[arg(long)]
         force: bool,
+        /// Prepare a selected update manifest and unattested CLI decision draft.
+        #[arg(long)]
+        dry_run: bool,
+        /// Empty directory for the plan, decision and applied receipt.
+        #[arg(long)]
+        out: Option<PathBuf>,
     },
     /// Write a self-contained review viewer for 2 to 6 image directories.
     View {
@@ -632,9 +638,9 @@ enum Command {
     /// Record an answer to a decision-request question; a model's answer is a
     /// proposal a person confirms, never a baseline change.
     Decide(agent_ui::DecideArgs),
-    /// Print a summary of a report JSON.
+    /// Print a summary of a measured report or canonical authority record.
     Summary {
-        /// Path to `saccade-report.v1.json`.
+        /// Path to a measured report or canonical evidence document.
         report_json: PathBuf,
         /// Output format.
         #[arg(long, value_enum, default_value = "markdown")]
@@ -1069,7 +1075,8 @@ fn dispatch(command: Command, record_absolute_paths: bool) -> Result<u8, CliErro
         Command::Approve {
             capture_dir,
             baseline_dir,
-            names,
+            mut names,
+            entries,
             report,
             all_failing,
             decisions,
@@ -1077,7 +1084,10 @@ fn dispatch(command: Command, record_absolute_paths: bool) -> Result<u8, CliErro
             prune_missing,
             json,
             force,
+            dry_run,
+            out,
         } => {
+            names.extend(entries);
             let report_path = report.or_else(|| {
                 all_failing
                     .as_ref()
@@ -1098,24 +1108,37 @@ fn dispatch(command: Command, record_absolute_paths: bool) -> Result<u8, CliErro
                     "--include-errors and --prune-missing need --report REPORT_JSON or --all-failing REPORT_JSON",
                 ));
             }
-            let (capture, baseline) = f1::approve_dirs(
-                capture_dir,
-                baseline_dir,
-                report_path.as_deref(),
-                decisions.as_deref(),
-            )?;
-            approve(
+            for name in &names {
+                if !is_safe_name(name) {
+                    return Err(CliError::new(
+                        "unsafe_path",
+                        format!("unsafe image name {name:?}"),
+                    ));
+                }
+            }
+            if force {
+                return Err(CliError::new(
+                    "approve_mismatch",
+                    "--force was removed; stale content must be reviewed again",
+                ));
+            }
+            let report_path = report_path.ok_or_else(|| CliError::new("approve_mismatch", "approval requires --report and a canonical --decisions file; legacy finals must be reviewed again"))?;
+            let (capture, baseline) =
+                f1::approve_dirs(capture_dir, baseline_dir, Some(&report_path), None)?;
+            approval::run(
+                &report_path,
                 &capture,
                 &baseline,
-                names,
-                report_path.as_deref(),
                 decisions.as_deref(),
-                ApproveFlags {
+                approval::Options {
+                    names,
+                    all_failing: all_failing.is_some(),
                     include_errors,
                     prune_missing,
+                    dry_run,
+                    out,
                     json,
-                    force,
-                    record_absolute_paths,
+                    absolute: record_absolute_paths,
                 },
             )
         }
@@ -1387,6 +1410,9 @@ fn dispatch(command: Command, record_absolute_paths: bool) -> Result<u8, CliErro
                     "--comment-key must be 1-64 characters of A-Z a-z 0-9 . _ -",
                 ));
             }
+            if approval::inspect_authority(&report_json, matches!(format, Format::Json))? {
+                return Ok(0);
+            }
             let report = read_report(&report_json)?;
             match format {
                 Format::Markdown => {
@@ -1533,344 +1559,6 @@ fn check_no_symlinks(baseline_dir: &Path, rel: &Path) -> Result<(), CliError> {
         }
     }
     Ok(())
-}
-
-/// The switches of `approve`.
-struct ApproveFlags {
-    include_errors: bool,
-    prune_missing: bool,
-    json: bool,
-    force: bool,
-    record_absolute_paths: bool,
-}
-
-/// Whether `recorded` (a path stored in a report or decisions file) and
-/// `given` (a path on the command line) name the same directory.
-fn same_dir(recorded: &str, given: &Path) -> bool {
-    saccade_core::run::normalise_path(Path::new(recorded))
-        == saccade_core::run::normalise_path(given)
-}
-
-/// Checks the directories recorded in a report against the ones `approve` was
-/// given. A report from before directories were recorded cannot be checked.
-fn bind_report_dirs(report: &Report, capture_dir: &Path, baseline_dir: &Path) -> Vec<String> {
-    let mut problems = Vec::new();
-    for (what, recorded, given) in [
-        ("capture", report.capture_dir.as_deref(), capture_dir),
-        ("baseline", report.baseline_dir.as_deref(), baseline_dir),
-    ] {
-        match recorded {
-            Some(r) if !same_dir(r, given) => problems.push(format!(
-                "the report compared the {what} directory {r}, not {}",
-                given.display()
-            )),
-            Some(_) => {}
-            None => eprintln!(
-                "saccade: warning: the report records no {what} directory, so it cannot be checked against {}",
-                given.display()
-            ),
-        }
-    }
-    problems
-}
-
-/// Checks a decisions file against the directories `approve` was given and
-/// records, per accepted set, the capture hash that was judged.
-fn bind_decisions(
-    d: &saccade_core::view::Decisions,
-    capture_dir: &Path,
-    baseline_dir: &Path,
-    expected_capture: &mut BTreeMap<String, String>,
-) -> Vec<String> {
-    let mut problems = Vec::new();
-    if d.dirs.is_empty() {
-        eprintln!(
-            "saccade: warning: the decisions file records no directories, so it cannot be checked against {} and {}",
-            capture_dir.display(),
-            baseline_dir.display()
-        );
-        return problems;
-    }
-    let find = |dir: &Path| d.dirs.iter().position(|r| same_dir(r, dir));
-    let cap_idx = find(capture_dir);
-    for (what, dir, idx) in [
-        ("capture", capture_dir, cap_idx),
-        ("baseline", baseline_dir, find(baseline_dir)),
-    ] {
-        if idx.is_none() {
-            problems.push(format!(
-                "the {what} directory {} is not one of the directories the decisions were made on ({})",
-                dir.display(),
-                d.dirs.join(", ")
-            ));
-        }
-    }
-    for set in d
-        .sets
-        .iter()
-        .filter(|s| s.decision == Some(Verdict::Accept))
-    {
-        if let Some(chosen) = set
-            .chosen_dir
-            .as_deref()
-            .filter(|c| !same_dir(c, capture_dir))
-        {
-            problems.push(format!(
-                "{}: the judge preferred {chosen}, which is not the capture directory",
-                set.name
-            ));
-        }
-        let Some(idx) = cap_idx else { continue };
-        match set.sha256.get(idx) {
-            Some(Some(hash)) => {
-                expected_capture.insert(set.name.clone(), hash.clone());
-            }
-            _ if set.sha256.is_empty() => {}
-            _ => problems.push(format!(
-                "{}: the capture directory had no such image when it was judged",
-                set.name
-            )),
-        }
-    }
-    problems
-}
-
-/// Compares recorded file hashes with the files on disk (only for names that
-/// are about to be touched), returning one problem per difference.
-fn check_hashes(dir: &Path, what: &str, expected: &BTreeMap<String, String>) -> Vec<String> {
-    expected
-        .iter()
-        .filter_map(|(name, recorded)| {
-            let path = dir.join(name);
-            if !path.is_file() {
-                return None;
-            }
-            match saccade_core::run::sha256_file(&path) {
-                Ok(actual) if actual == *recorded => None,
-                Ok(_) => Some(format!(
-                    "{name}: the {what} file changed since it was reviewed"
-                )),
-                Err(e) => Some(format!("{name}: {e}")),
-            }
-        })
-        .collect()
-}
-
-fn approve(
-    capture_dir: &Path,
-    baseline_dir: &Path,
-    mut names: Vec<String>,
-    all_failing: Option<&Path>,
-    decisions: Option<&Path>,
-    flags: ApproveFlags,
-) -> Result<u8, CliError> {
-    let ApproveFlags {
-        include_errors,
-        prune_missing,
-        json,
-        force,
-        record_absolute_paths,
-    } = flags;
-    let mut copied: Vec<serde_json::Value> = Vec::new();
-    let mut pruned: Vec<String> = Vec::new();
-    let mut prune: Vec<String> = Vec::new();
-    // What the report or decisions recorded about the files being approved.
-    let mut problems: Vec<String> = Vec::new();
-    let mut expected_capture: BTreeMap<String, String> = BTreeMap::new();
-    let mut expected_baseline: BTreeMap<String, String> = BTreeMap::new();
-    if let Some(path) = decisions {
-        let mut d = read_decisions(path)?;
-        for dir in &mut d.dirs {
-            *dir = saccade_core::paths::resolve(dir, path)
-                .display()
-                .to_string();
-        }
-        for set in &mut d.sets {
-            if let Some(dir) = &mut set.chosen_dir {
-                *dir = saccade_core::paths::resolve(dir, path)
-                    .display()
-                    .to_string();
-            }
-        }
-        if d.blind {
-            return Err(CliError::new(
-                "approve_mismatch",
-                format!(
-                    "{} is a blind decisions file: its labels and directories are still hidden. \
-                     Run `saccade unblind` on it first and approve the unblinded file",
-                    path.display()
-                ),
-            ));
-        }
-        problems.extend(bind_decisions(
-            &d,
-            capture_dir,
-            baseline_dir,
-            &mut expected_capture,
-        ));
-        names.extend(d.accepted());
-    }
-    if let Some(path) = all_failing {
-        let mut report = read_report(path)?;
-        for dir in [&mut report.baseline_dir, &mut report.capture_dir]
-            .into_iter()
-            .flatten()
-        {
-            *dir = saccade_core::paths::resolve(dir, path)
-                .display()
-                .to_string();
-        }
-        problems.extend(bind_report_dirs(&report, capture_dir, baseline_dir));
-        if prune_missing {
-            prune = report
-                .entries
-                .iter()
-                .filter(|e| e.status == Status::Missing)
-                .map(|e| e.name.clone())
-                .collect();
-            prune.sort();
-            prune.dedup();
-            for e in report
-                .entries
-                .iter()
-                .filter(|e| e.status == Status::Missing)
-            {
-                if let Some(h) = &e.baseline_sha256 {
-                    expected_baseline.insert(e.name.clone(), h.clone());
-                }
-            }
-        }
-        let chosen: Vec<_> = report
-            .entries
-            .into_iter()
-            .filter(|e| match e.status {
-                Status::Fail | Status::New => true,
-                Status::Error => {
-                    include_errors
-                        && e.paths.capture.is_some()
-                        && is_safe_name(&e.name)
-                        && saccade_core::run::is_decodable(&capture_dir.join(&e.name))
-                }
-                _ => false,
-            })
-            .collect();
-        for e in &chosen {
-            if let Some(h) = &e.capture_sha256 {
-                expected_capture.insert(e.name.clone(), h.clone());
-            }
-            if let Some(h) = &e.baseline_sha256 {
-                expected_baseline.insert(e.name.clone(), h.clone());
-            }
-        }
-        names.extend(chosen.into_iter().map(|e| e.name));
-    } else if names.is_empty() && decisions.is_none() {
-        return Err(CliError::usage(
-            "name at least one image, or pass --all-failing <REPORT_JSON> or --decisions <FILE>",
-        ));
-    }
-    names.sort();
-    names.dedup();
-    // Validate every name before copying anything.
-    for name in &names {
-        if !is_safe_name(name) {
-            return Err(CliError::new(
-                "unsafe_path",
-                format!("unsafe image name {name:?}"),
-            ));
-        }
-        let src = capture_dir.join(name);
-        if !src.is_file() {
-            return Err(CliError::io(format!(
-                "capture {} does not exist",
-                src.display()
-            )));
-        }
-        check_no_symlinks(baseline_dir, Path::new(name))?;
-    }
-    for name in &prune {
-        if !is_safe_name(name) {
-            return Err(CliError::new(
-                "unsafe_path",
-                format!("unsafe image name {name:?}"),
-            ));
-        }
-        check_no_symlinks(baseline_dir, Path::new(name))?;
-    }
-    // Only files about to be copied over or removed are checked.
-    expected_capture.retain(|n, _| names.contains(n));
-    expected_baseline.retain(|n, _| names.contains(n) || prune.contains(n));
-    problems.extend(check_hashes(capture_dir, "capture", &expected_capture));
-    problems.extend(check_hashes(baseline_dir, "baseline", &expected_baseline));
-    if !problems.is_empty() {
-        if !force {
-            return Err(CliError::new(
-                "approve_mismatch",
-                format!(
-                    "refusing to approve what was not reviewed: {}; pass --force to override",
-                    problems.join("; ")
-                ),
-            ));
-        }
-        for p in &problems {
-            eprintln!("saccade: warning: --force overrides: {}", escape_control(p));
-        }
-    }
-    for name in &names {
-        let rel = Path::new(name);
-        let src = capture_dir.join(rel);
-        let dest = baseline_dir.join(rel);
-        if let Some(parent) = dest.parent() {
-            std::fs::create_dir_all(parent)
-                .map_err(|e| CliError::io(format!("creating {}: {e}", parent.display())))?;
-        }
-        std::fs::copy(&src, &dest).map_err(|e| {
-            CliError::io(format!(
-                "copying {} to {}: {e}",
-                src.display(),
-                dest.display()
-            ))
-        })?;
-        if json {
-            copied.push(serde_json::json!({
-                "name": name,
-                "from": saccade_core::paths::cwd(&src, record_absolute_paths),
-                "to": saccade_core::paths::cwd(&dest, record_absolute_paths),
-            }));
-        } else {
-            emit(&format!(
-                "{} -> {}\n",
-                escape_control(&src.display().to_string()),
-                escape_control(&dest.display().to_string())
-            ))?;
-        }
-    }
-    for name in &prune {
-        let target = baseline_dir.join(name);
-        // The report says `missing`; only delete when the capture is still absent.
-        if capture_dir.join(name).exists() || !target.is_file() {
-            continue;
-        }
-        std::fs::remove_file(&target)
-            .map_err(|e| CliError::io(format!("removing {}: {e}", target.display())))?;
-        if json {
-            pruned.push(saccade_core::paths::cwd(&target, record_absolute_paths));
-        } else {
-            emit(&format!(
-                "removed {}\n",
-                escape_control(&target.display().to_string())
-            ))?;
-        }
-    }
-    if json {
-        let value = serde_json::json!({
-            "schema": "saccade-approve.v1",
-            "copied": copied,
-            "pruned": pruned,
-        });
-        let text = serde_json::to_string_pretty(&value)?;
-        emit(&format!("{text}\n"))?;
-    }
-    Ok(0)
 }
 
 fn status_label(s: Status) -> &'static str {

@@ -1,9 +1,3 @@
----
-name: saccade
-description: Measure visual changes, inspect evidence, and apply baseline updates only with explicit human authorization.
----
-
-<!-- Generated from integrations/agent-guide.md; keep this pack in sync. -->
 # Saccade agent guide
 
 Establish the selected captures, intended change and invariants. Measure first:

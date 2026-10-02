@@ -1,6 +1,8 @@
 //! Safety and CI-correctness rules of `compare`, `view` and `approve`.
 #![allow(clippy::expect_used, clippy::unwrap_used, clippy::panic, missing_docs)]
 
+#[path = "support/approval.rs"]
+mod approval_support;
 use std::path::Path;
 use std::process::{Command, Output};
 
@@ -250,6 +252,7 @@ fn approve_refuses_captures_that_changed_after_review() {
     );
     assert_eq!(run.status.code(), Some(1), "{}", text(&run));
 
+    let decision = approval_support::draft(&report, &tmp.path().join("plan"), &[], false);
     // Another capture lands in place after the report was reviewed.
     save(&cap, "a.png", 250);
     let approve = |extra: &[&str], baseline: &Path| {
@@ -258,7 +261,14 @@ fn approve_refuses_captures_that_changed_after_review() {
         saccade(
             tmp.path(),
             &args,
-            &[&cap, baseline, Path::new("--all-failing"), &report],
+            &[
+                &cap,
+                baseline,
+                Path::new("--all-failing"),
+                &report,
+                Path::new("--decisions"),
+                &decision,
+            ],
         )
     };
     let refused = approve(&[], &base);
@@ -284,6 +294,6 @@ fn approve_refuses_captures_that_changed_after_review() {
     assert!(text(&wrong).contains("not "), "{}", text(&wrong));
 
     let forced = approve(&["--force"], &base);
-    assert_eq!(forced.status.code(), Some(0), "{}", text(&forced));
-    assert_eq!(px(&base), 250);
+    assert_eq!(forced.status.code(), Some(2), "{}", text(&forced));
+    assert_eq!(px(&base), 100);
 }

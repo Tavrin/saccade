@@ -370,6 +370,7 @@ fn bench_ordering_and_calibration_maths_count_missing_coverage() {
         request_hash: None,
     };
     saccade_core::decision::decide_report(&path, &report, &Default::default(), &answer).unwrap();
+    seed_historical_final(&path);
     let labels_path = tmp.path().join("labels.json");
     let labels = saccade_core::labels::collect(None, &[path], &labels_path).unwrap();
     let models = vec!["older".into(), "newer".into()];
@@ -436,6 +437,7 @@ fn never_final_and_cli_mcp_contracts_are_enforced() {
         request_hash: None,
     };
     saccade_core::decision::decide_report(&path, &report, &Default::default(), &human).unwrap();
+    seed_historical_final(&path);
     let labels_path = tmp.path().join("labels.json");
     saccade_core::labels::collect(None, std::slice::from_ref(&path), &labels_path).unwrap();
     let mut mcp = Command::new(BIN)
@@ -489,4 +491,25 @@ fn never_final_and_cli_mcp_contracts_are_enforced() {
         schema(name, &reply["result"]["structuredContent"]);
         assert_eq!(reply["result"]["structuredContent"]["calls_used"], 0);
     }
+}
+
+// Reader-only historical evaluation input; no current source-label promotion.
+fn seed_historical_final(report: &Path) {
+    let path = report.parent().unwrap().join("saccade-decisions.v1.json");
+    let mut d = saccade_core::view::read_decisions(&path).unwrap();
+    for set in &mut d.sets {
+        set.decision = Some(saccade_core::view::Verdict::Accept);
+        for p in &mut set.proposals {
+            if p.source == "human" {
+                p.proposed = false;
+            }
+        }
+    }
+    std::fs::write(path, serde_json::to_vec(&d).unwrap()).unwrap();
+}
+
+#[test]
+fn blind_ties_never_become_accept_proposals() {
+    assert_eq!(saccade_core::review::candidate_answer("tie"), "needs_human");
+    assert_eq!(saccade_core::review::candidate_answer("b"), "accept");
 }

@@ -434,6 +434,9 @@ pub fn collect(decisions_dir: Option<&Path>, reports: &[PathBuf], out: &Path) ->
                     if v.len() != 2 || v[0].0 == v[1].0 || v[0].1 != v[1].1 {
                         continue;
                     }
+                    if v[0].1 == "tie" {
+                        continue;
+                    }
                     let Some(m) = metadata.iter().find(|m| m["item"] == id) else {
                         continue;
                     };

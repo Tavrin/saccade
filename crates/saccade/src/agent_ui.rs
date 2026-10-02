@@ -402,15 +402,12 @@ pub fn decide(args: &DecideArgs) -> Result<u8, CliError> {
         if args.json {
             emit(&format!("{}\n", outcome_value(a, &o)))?;
         } else {
-            let how = match (o.decided, o.proposed) {
-                (true, false) => "decided".to_owned(),
-                (true, true) => "proposed and promoted by the confidence gate".to_owned(),
-                (false, false) => "recorded".to_owned(),
-                (false, true) => format!(
-                    "proposed only ({})",
-                    o.reason.as_deref().unwrap_or("not promoted")
-                ),
-            };
+            let how = format!(
+                "proposed only ({})",
+                o.reason
+                    .as_deref()
+                    .unwrap_or("explicit hash-bound review is required")
+            );
             emit(&format!(
                 "{}: {} {} from {}: {how}\n",
                 a.entry,
@@ -473,7 +470,7 @@ mod bindings {
             json!({
                 "name": "saccade_decide",
                 "title": "Record an answer to a decision-request question",
-                "description": "Records an answer into the report's decisions file (a model's answer is a proposal that a person confirms with one click; the [decisions] confidence gate in saccade.toml may promote an accept or reject above its threshold). Refused for deterministic failures. Never changes a baseline: approve reads final decisions only.",
+                "description": "Records attributed proposals only, including source labels such as human. Confidence, calibration and panel agreement never create a final decision. Refused for deterministic failures. Never changes a baseline: approval requires a separate explicit hash-bound disposition.",
                 "inputSchema": {
                     "type": "object",
                     "properties": {

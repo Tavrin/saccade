@@ -53,7 +53,7 @@ impl CliError {
                     "choose an empty --out directory or an existing saccade report directory"
                 }
                 "approve_mismatch" => {
-                    "rerun the comparison on the current inputs and approve its report"
+                    "rerun the comparison, prepare --dry-run --out PLAN, review the exact decision, then apply --decisions PLAN/decision.json under explicit human authorization"
                 }
                 "nothing_compared" => {
                     "check the input paths and --entries filters; bootstrap with `saccade approve --report REPORT_JSON --all-failing`"
@@ -383,7 +383,8 @@ fn next_step(report: &Report, report_json: &Path, explain_written: bool) -> Stri
     if report.is_empty_run() {
         return "nothing was compared: no image exists in both directories; check the two paths and selected scope".to_string();
     }
-    let approve = format!("saccade approve --report {rj} --all-failing");
+    let approve =
+        format!("saccade approve --report {rj} --all-failing --dry-run --out approval-plan");
     if failing.is_empty() {
         return match report.totals.new {
             0 => "no regression: nothing to do".to_string(),

@@ -1,5 +1,5 @@
 //! The review viewer model (`saccade view`, see `docs/design.md`) and the decisions file
-//! it exports (`saccade approve --decisions`).
+//! it exports. Historical viewer finals are readable but cannot authorize updates.
 //!
 //! [`build_view`] pairs 2 to 6 directories by relative path, compares every
 //! non-reference image against the reference with FLIP, copies the images under
@@ -350,8 +350,8 @@ pub struct SetDecision {
     #[serde(default)]
     pub sha256: Vec<Option<String>>,
     /// Answers recorded by `saccade decide` (an agent, a bounded-decision
-    /// model or a person). They never change [`SetDecision::decision`] unless
-    /// the confidence gate promoted them; `approve` reads `decision` only.
+    /// model or a person). New answers never change [`SetDecision::decision`].
+    /// Historical finals require a new canonical review before approval.
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub proposals: Vec<Proposal>,
 }
@@ -385,9 +385,9 @@ pub struct Proposal {
     /// Free-text note from the answerer.
     #[serde(default, skip_serializing_if = "String::is_empty")]
     pub note: String,
-    /// True for every non-human source: the answer is advice, not a decision.
+    /// True for every new answer: source labels never grant authority.
     pub proposed: bool,
-    /// True when the confidence gate turned this answer into the set's decision.
+    /// Historical promotion flag, retained for readers; new answers set false.
     #[serde(default)]
     pub promoted: bool,
 }

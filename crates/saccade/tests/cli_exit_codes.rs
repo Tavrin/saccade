@@ -1,5 +1,7 @@
 #![allow(clippy::expect_used, clippy::unwrap_used, clippy::panic, missing_docs)]
 
+#[path = "support/approval.rs"]
+mod approval_support;
 use std::path::Path;
 use std::process::Command;
 
@@ -48,11 +50,14 @@ fn exit_codes_and_approve() {
 
     // Approving it makes the next run clean again.
     let report = out.join("saccade-report.v1.json");
+    let decision = approval_support::draft(&report, &tmp.path().join("plan"), &[], false);
     let approve = Command::new(env!("CARGO_BIN_EXE_saccade"))
         .args(["approve"])
         .args([&cap, &base])
         .arg("--all-failing")
         .arg(&report)
+        .arg("--decisions")
+        .arg(&decision)
         .output()
         .expect("spawn");
     assert_eq!(approve.status.code(), Some(0));

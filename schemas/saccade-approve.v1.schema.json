@@ -2,7 +2,7 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://github.com/Tavrin/saccade/schemas/saccade-approve.v1.schema.json",
   "title": "saccade-approve.v1",
-  "description": "Printed by `saccade approve --json`; paths are absolute.",
+  "description": "CLI approval summary; exact decisions and unattested receipts are canonical evidence artifacts. Paths are relative by default.",
   "type": "object",
   "required": [
     "schema",
@@ -42,6 +42,21 @@
       "items": {
         "type": "string"
       }
+    },
+    "dry_run": {
+      "type": "boolean"
+    },
+    "manifest": {
+      "type": "string"
+    },
+    "decision": {
+      "type": "string"
+    },
+    "receipt": {
+      "type": [
+        "string",
+        "null"
+      ]
     }
   }
 }

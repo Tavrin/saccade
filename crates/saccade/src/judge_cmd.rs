@@ -102,7 +102,7 @@ pub struct RunArgs {
     /// Where `saccade serve` keeps decisions (human votes live under `judge/`).
     #[arg(long)]
     pub decisions_dir: Option<PathBuf>,
-    /// Config file with the `[decisions]` gate (default `./saccade.toml` when present).
+    /// Measurement config (default `./saccade.toml` when present); no approval gate.
     #[arg(long)]
     pub config: Option<PathBuf>,
     /// Where to write the result (default `saccade-judge.v1.json` next to the report).
@@ -242,7 +242,7 @@ pub struct Job {
     pub calibration: Option<PathBuf>,
     /// Decisions directory.
     pub decisions_dir: Option<PathBuf>,
-    /// Config file for the gate.
+    /// Measurement config; it cannot grant approval authority.
     pub config: Option<PathBuf>,
     /// Result file.
     pub out: Option<PathBuf>,
@@ -377,10 +377,7 @@ pub fn run(job: &Job) -> Result<(Value, String), CliError> {
         }
     }
     if let (true, Some(r)) = (job.record, &report) {
-        let mut cfg = gate_config(job.config.as_deref())?;
-        if job.calibration.is_some() {
-            cfg.calibration.clone_from(&job.calibration);
-        }
+        let cfg = gate_config(job.config.as_deref())?;
         let rows = record(&result, &job.target, r, &cfg);
         value["recorded"] = Value::Array(rows);
     }
@@ -598,7 +595,7 @@ mod bindings {
             json!({
                 "name": "saccade_judge_calibrate",
                 "title": "Calibrate judges against human labels",
-                "description": "Experimental judge mode: validate proposal answers against your own human decisions before using a gate. Measures each judge per question type against human final decisions: accuracy, agreement with humans, expected calibration error with a reliability table, position bias and the human-human ceiling (Krippendorff's alpha), and suggests gate thresholds. Writes and returns saccade-calibration.v1. Reads local files only.",
+                "description": "Experimental judge mode: evaluate proposal answers against historical human labels; calibration never grants baseline approval authority. Measures each judge per question type against human final decisions: accuracy, agreement with humans, expected calibration error with a reliability table, position bias and the human-human ceiling (Krippendorff's alpha), and suggests gate thresholds. Writes and returns saccade-calibration.v1. Reads local files only.",
                 "inputSchema": {
                     "type": "object",
                     "properties": {

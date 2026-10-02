@@ -201,7 +201,7 @@ pub fn blind(item: &JudgeItem) -> JudgeItem {
 pub fn candidate_answer(answer: &str) -> &str {
     match answer {
         "a" => "reject",
-        "b" | "tie" => "accept",
+        "b" => "accept",
         _ => "needs_human",
     }
 }

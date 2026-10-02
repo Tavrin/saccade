@@ -39,11 +39,11 @@
         },
         "promoted": {
           "default": false,
-          "description": "True when the confidence gate turned this answer into the set's decision.",
+          "description": "Historical promotion flag, retained for readers; new answers set false.",
           "type": "boolean"
         },
         "proposed": {
-          "description": "True for every non-human source: the answer is advice, not a decision.",
+          "description": "True for every new answer: source labels never grant authority.",
           "type": "boolean"
         },
         "question": {
@@ -157,7 +157,7 @@
           "type": "string"
         },
         "proposals": {
-          "description": "Answers recorded by `saccade decide` (an agent, a bounded-decision\nmodel or a person). They never change [`SetDecision::decision`] unless\nthe confidence gate promoted them; `approve` reads `decision` only.",
+          "description": "Answers recorded by `saccade decide` (an agent, a bounded-decision\nmodel or a person). New answers never change [`SetDecision::decision`].\nHistorical finals require a new canonical review before approval.",
           "items": {
             "$ref": "#/$defs/Proposal"
           },

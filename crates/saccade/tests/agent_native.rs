@@ -2,6 +2,8 @@
 
 #![allow(clippy::expect_used, clippy::unwrap_used, clippy::panic, missing_docs)]
 
+#[path = "support/approval.rs"]
+mod approval_support;
 use std::io::Write;
 use std::path::Path;
 use std::process::{Command, Stdio};
@@ -264,11 +266,19 @@ fn approve_json_lists_copied_and_pruned_files() {
         .stdout(Stdio::null())
         .status()
         .expect("spawn");
+    let decision = approval_support::draft(
+        &report.join("saccade-report.v1.json"),
+        &tmp.path().join("plan"),
+        &[],
+        true,
+    );
     let out = Command::new(BIN)
         .arg("approve")
         .args([&cap, &base])
         .arg("--all-failing")
         .arg(report.join("saccade-report.v1.json"))
+        .arg("--decisions")
+        .arg(&decision)
         .args(["--prune-missing", "--json"])
         .output()
         .expect("spawn");

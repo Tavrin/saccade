@@ -1,6 +1,8 @@
 //! Generated-fixture acceptance checks for the F1 release spec.
 #![allow(clippy::unwrap_used, clippy::expect_used, missing_docs)]
 
+#[path = "support/approval.rs"]
+mod approval_support;
 use serde_json::{Value, json};
 use std::io::Write;
 use std::path::Path;
@@ -216,17 +218,17 @@ fn no_absolute_paths_by_default() {
         ],
     );
     assert_eq!(out.status.code(), Some(0));
+    let resolved = saccade_core::view::read_decisions(&root.join("moved/judged.json")).unwrap();
+    assert!(!resolved.blind);
     let out = run(
         root,
         &["approve", "--decisions", "moved/judged.json", "--json"],
     );
     assert_eq!(
         out.status.code(),
-        Some(0),
-        "{}",
-        String::from_utf8_lossy(&out.stderr)
+        Some(2),
+        "legacy viewer finals require new review"
     );
-    no_prefix(&value(&out), root.to_str().unwrap());
 }
 #[test]
 fn approve_report_resolves_and_binds_inputs() {
@@ -234,6 +236,12 @@ fn approve_report_resolves_and_binds_inputs() {
     let root = tmp.path();
     fixture(root);
     report(root);
+    let decision = approval_support::draft(
+        &root.join("report/saccade-report.v1.json"),
+        &root.join("plan"),
+        &[],
+        false,
+    );
     let other = root.join("elsewhere");
     std::fs::create_dir(&other).unwrap();
     let out = run(
@@ -242,70 +250,34 @@ fn approve_report_resolves_and_binds_inputs() {
             "approve",
             "--report",
             "../report/saccade-report.v1.json",
-            "--all-failing",
+            "--decisions",
+            "../plan/decision.json",
             "--json",
         ],
     );
-    assert_eq!(
-        out.status.code(),
-        Some(0),
-        "{}",
-        String::from_utf8_lossy(&out.stderr)
-    );
+    assert_eq!(out.status.code(), Some(0), "{out:?}");
     assert_eq!(value(&out)["copied"].as_array().unwrap().len(), 2);
+    no_prefix(&value(&out), root.to_str().unwrap());
     assert_eq!(
         std::fs::read(root.join("baseline/b.png")).unwrap(),
         std::fs::read(root.join("capture/b.png")).unwrap()
     );
-    assert_eq!(
-        run(root, &["compare", "baseline", "capture", "--out", "report"])
-            .status
-            .code(),
-        Some(0)
-    );
-    image(&root.join("capture"), "b.png", 45);
-    let out = run(
-        root,
-        &[
-            "approve",
-            "--report",
-            "report/saccade-report.v1.json",
-            "--all-failing",
-            "--json",
-        ],
-    );
-    // The reviewed pairs now pass; use decisions to exercise adopted-image hash binding.
-    assert_eq!(out.status.code(), Some(0));
-    let hash = saccade_core::run::sha256_file(&root.join("capture/b.png")).unwrap();
-    let d = json!({"schema":"saccade-decisions.v1","seed":0,"labels":["baseline","capture"],"dirs":["../baseline","../capture"],"sets":[{"name":"b.png","decision":"accept","sha256":[null,hash]}]});
-    std::fs::write(
-        root.join("report/decisions.json"),
-        serde_json::to_vec(&d).unwrap(),
-    )
-    .unwrap();
-    let out = run(
-        &other,
-        &[
-            "approve",
-            "--decisions",
-            "../report/decisions.json",
-            "--json",
-        ],
-    );
-    assert_eq!(out.status.code(), Some(0));
     image(&root.join("capture"), "b.png", 46);
     let out = run(
         &other,
         &[
             "approve",
+            "--report",
+            "../report/saccade-report.v1.json",
             "--decisions",
-            "../report/decisions.json",
+            decision.to_str().unwrap(),
             "--json",
         ],
     );
     assert_eq!(out.status.code(), Some(2));
     schema("error", &value(&out));
 }
+
 #[test]
 fn entries_pagination_filters_full_entries() {
     let tmp = tempfile::tempdir().unwrap();

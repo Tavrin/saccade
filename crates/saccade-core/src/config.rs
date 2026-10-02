@@ -242,11 +242,6 @@ impl RunConfig {
                 }
             }
         }
-        if let (Some(dir), Some(cal)) = (&cfg.config_dir, cfg.decisions.calibration.as_mut())
-            && cal.is_relative()
-        {
-            *cal = dir.join(&*cal);
-        }
         Ok(cfg)
     }
 
@@ -491,8 +486,7 @@ impl RunConfig {
                     "shift_min_px": c.diagnostics.shift_min_px, "shift_min_confidence": c.diagnostics.shift_min_confidence,
                     "noise_max_flip": c.diagnostics.noise_max_flip, "explained_min": c.diagnostics.explained_min,
                     "partial_min": c.diagnostics.partial_min, "perf_keys": c.diagnostics.perf_keys},
-                "decisions": {"auto_accept_min_prob": c.decisions.auto_accept_min_prob,
-                    "allow_sources": c.decisions.allow_sources, "gate_on": c.decisions.gate_on, "calibration": c.decisions.calibration.as_ref().map(|p| crate::paths::cwd(p, false))}
+                "decisions": {}
             })
         }
         let raw: Value = match file {

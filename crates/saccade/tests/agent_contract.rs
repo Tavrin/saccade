@@ -387,6 +387,7 @@ fn shipped_schemas_validate_what_the_tools_print() {
             &base,
             &"--all-failing",
             &rj,
+            &"--dry-run",
             &"--json",
         ])),
     );

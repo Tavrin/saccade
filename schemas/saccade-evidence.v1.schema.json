@@ -199,6 +199,63 @@
       ],
       "type": "object"
     },
+    "Authority": {
+      "description": "Authority reported by canonical readers. Automated authority is reserved for\nP5; neither a policy identifier nor evidence equality is human attestation.",
+      "oneOf": [
+        {
+          "additionalProperties": false,
+          "description": "Workbench-attested human authority, subject to trusted session verification.",
+          "properties": {
+            "level": {
+              "const": "human",
+              "type": "string"
+            }
+          },
+          "required": [
+            "level"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "description": "Unattested explicit CLI operation.",
+          "properties": {
+            "level": {
+              "const": "cli",
+              "type": "string"
+            }
+          },
+          "required": [
+            "level"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "description": "Reserved policy authority, distinct from a human disposition.",
+          "properties": {
+            "evidence_digest": {
+              "$ref": "#/$defs/Digest",
+              "description": "Exact evidence case evaluated by the policy."
+            },
+            "level": {
+              "const": "automated",
+              "type": "string"
+            },
+            "policy_id": {
+              "description": "Policy which authorized the record in a future producer.",
+              "type": "string"
+            }
+          },
+          "required": [
+            "level",
+            "policy_id",
+            "evidence_digest"
+          ],
+          "type": "object"
+        }
+      ]
+    },
     "Availability": {
       "description": "Missing and failed observations are distinct from an available zero or abstention.",
       "oneOf": [
@@ -2083,6 +2140,39 @@
         "channel",
         "exposure",
         "note"
+      ],
+      "type": "object"
+    },
+    {
+      "description": "Reserved read-only policy record; never human authority.",
+      "properties": {
+        "authority": {
+          "$ref": "#/$defs/Authority",
+          "description": "Must be automated, with a policy ID and matching case evidence digest."
+        },
+        "binding": {
+          "$ref": "#/$defs/ReviewBinding",
+          "description": "Exactly reviewed evidence and scope."
+        },
+        "decision_id": {
+          "$ref": "#/$defs/Digest",
+          "description": "Identity of policy, exact binding and disposition."
+        },
+        "disposition": {
+          "$ref": "#/$defs/Disposition",
+          "description": "Reserved policy disposition, never human acceptance."
+        },
+        "kind": {
+          "const": "automated_decision",
+          "type": "string"
+        }
+      },
+      "required": [
+        "kind",
+        "decision_id",
+        "binding",
+        "authority",
+        "disposition"
       ],
       "type": "object"
     },

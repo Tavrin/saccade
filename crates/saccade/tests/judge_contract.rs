@@ -257,22 +257,39 @@ fn aggregation_escalates_and_panel_members_remain_proposals() {
     };
     let out = saccade_core::decision::propose_report(&p, &r, &answer).unwrap();
     assert!(out.proposed && !out.decided);
+    let items = report_items(
+        &r,
+        p.parent().unwrap(),
+        JudgeQuestion::Decision(Question::Accept),
+        None,
+        &[],
+        &EvidenceOptions::default(),
+    )
+    .unwrap()
+    .0;
+    let opts = options(None);
+    let panel = Panel::parse("[panel]\nmin_judges=1\nmin_agreement=0.0\nmin_prob=0.0\ncanary_rate=0\n[[judge]]\nprovider='jev'\nmodel='fixture'\n").unwrap();
+    let plan = make_plan(items, Vec::new(), &panel, &opts);
+    let run = execute(&plan, &panel, &mock(), &opts);
+    let rows = record(&run, &p, &r, &DecisionsConfig::default());
+    assert!(rows.iter().any(|row| row["source"] == "panel"));
+    assert!(rows.iter().all(|row| row["decided"] == false));
+    let saved =
+        saccade_core::view::read_decisions(&p.parent().unwrap().join("saccade-decisions.v1.json"))
+            .unwrap();
+    assert!(
+        saved
+            .sets
+            .iter()
+            .all(|s| s.decision.is_none() && s.proposals.iter().all(|p| p.proposed && !p.promoted))
+    );
     r.config.mode = saccade_core::report::Mode::Identity;
     let model = saccade_core::decision::Answer {
         source: "panel".into(),
         ..answer
     };
     assert!(
-        saccade_core::decision::decide_report(
-            &p,
-            &r,
-            &DecisionsConfig {
-                auto_accept_min_prob: Some(0.0),
-                ..Default::default()
-            },
-            &model
-        )
-        .is_err()
+        saccade_core::decision::decide_report(&p, &r, &DecisionsConfig::default(), &model).is_err()
     );
 }
 
@@ -357,6 +374,15 @@ fn calibration_ece_alpha_and_human_final_labels() {
         saccade_core::decision::decide_report(&p, &r, &Default::default(), &a(source)).unwrap();
     }
     let file = p.parent().unwrap().join("saccade-decisions.v1.json");
+    // Read-only historical calibration fixture, not a current promotion path.
+    let mut old = saccade_core::view::read_decisions(&file).unwrap();
+    old.sets[0].decision = Some(saccade_core::view::Verdict::Reject);
+    for p in &mut old.sets[0].proposals {
+        if p.source.starts_with("human:") {
+            p.proposed = false;
+        }
+    }
+    std::fs::write(&file, serde_json::to_vec(&old).unwrap()).unwrap();
     let cal = calibrate(
         &[file],
         &[],

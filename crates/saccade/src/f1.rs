@@ -134,7 +134,7 @@ pub(crate) fn init(args: InitArgs) -> Result<u8, CliError> {
         }
     }
     crate::emit(&format!(
-        "wrote {}\nBootstrap baselines from {}:\n  mkdir -p baseline\n  saccade compare baseline capture --out report\n  saccade approve --report report/saccade-report.v1.json --all-failing\n  Commit the baseline directory with your project.\nFirst run exits 1 because no baseline pairs exist yet.\n",
+        "wrote {}\nBootstrap baselines from {}:\n  mkdir -p baseline\n  saccade compare baseline capture --out report\n  saccade approve --report report/saccade-report.v1.json --all-failing --dry-run --out plan\n  Review plan/manifest.json and plan/decision.json, then under explicit human authorization:\n  saccade approve --report report/saccade-report.v1.json --decisions plan/decision.json --out approval\n  Commit the baseline directory with your project.\nFirst run exits 1 because no baseline pairs exist yet.\n",
         path.display(),
         args.dir.display()
     ))?;

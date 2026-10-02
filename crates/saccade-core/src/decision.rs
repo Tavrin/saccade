@@ -7,13 +7,9 @@
 //! `state`. The output is deterministic, so the same report gives the same
 //! bytes and each item's `request_hash` identifies exactly what was asked.
 //!
-//! [`decide_report`] records an answer into the report directory's
-//! `saccade-decisions.v1.json`. A model's answer is a *proposal*; the
-//! confidence gate ([`DecisionsConfig`]) may promote an `accept` or `reject`
-//! answer to the set's decision, and deterministic failures (a broken or
-//! non-finite frame, a config mismatch, an identity break, an error status)
-//! can never be answered by a model at all. `approve` reads final decisions
-//! only, so a proposal never moves a baseline.
+//! [`decide_report`] records attributed proposals only. Source labels, confidence,
+//! calibration and panel agreement cannot create a final decision. Baseline
+//! updates consume a separate, exact-content-bound CLI or workbench disposition.
 
 use std::path::{Path, PathBuf};
 
@@ -41,30 +37,10 @@ const STATE_HOTSPOTS: usize = 3;
 /// Most `mask_suggest` items one entry produces.
 const MASK_HOTSPOTS: usize = 5;
 
-/// The `[decisions]` table of `saccade.toml`: when a model's answer may become
-/// a final decision.
+/// Empty legacy configuration table. Promotion settings are no longer accepted.
 #[derive(Debug, Clone, Default, PartialEq, Deserialize)]
 #[serde(deny_unknown_fields)]
-pub struct DecisionsConfig {
-    /// Smallest probability at which a model's `accept` or `reject` answer is
-    /// promoted to the set's decision. `None` (the default) never promotes.
-    #[serde(default)]
-    pub auto_accept_min_prob: Option<f64>,
-    /// Sources (case-insensitive) whose answers may be promoted; empty allows
-    /// any source.
-    #[serde(default)]
-    pub allow_sources: Vec<String>,
-    /// Which figure the threshold applies to: `prob` (default) or `confidence`.
-    #[serde(default)]
-    pub gate_on: Option<String>,
-    /// A `saccade-calibration.v1` file (from `saccade judge calibrate`). When
-    /// it suggests a threshold for the answering source and question, that
-    /// threshold replaces `auto_accept_min_prob` for that source; other
-    /// sources keep `auto_accept_min_prob`. A relative path is resolved from
-    /// the config file's directory.
-    #[serde(default)]
-    pub calibration: Option<PathBuf>,
-}
+pub struct DecisionsConfig {}
 
 /// A decision-request question.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -487,9 +463,9 @@ pub struct Answer {
 pub struct Outcome {
     /// The decisions file written.
     pub file: PathBuf,
-    /// Whether the answer is a proposal (every non-human source).
+    /// Always true: source labels cannot confer approval authority.
     pub proposed: bool,
-    /// Whether the gate (or a person) made it the set's decision.
+    /// Always false: recording an answer never creates a final decision.
     pub decided: bool,
     /// The set's decision after recording.
     pub decision: Option<Verdict>,
@@ -499,20 +475,6 @@ pub struct Outcome {
 
 fn is_human(source: &str) -> bool {
     crate::judge_stats::is_human_source(source)
-}
-
-/// The gate threshold a calibration file suggests for `source` and `question`.
-fn calibrated_min_prob(path: &Path, source: &str, question: &str) -> Option<f64> {
-    let v: Value = serde_json::from_str(&std::fs::read_to_string(path).ok()?).ok()?;
-    if v["schema"] != crate::judge_stats::CALIBRATION_SCHEMA {
-        return None;
-    }
-    v["judges"].as_array()?.iter().find_map(|j| {
-        (j["judge"] == source && j["question"] == question)
-            .then(|| j["suggested_gate"]["min_prob"].as_f64())
-            .flatten()
-            .filter(|p| p.is_finite() && (0.0..=1.0).contains(p))
-    })
 }
 
 fn validate(a: &Answer) -> Result<(), DecideError> {
@@ -552,56 +514,8 @@ fn now_ms() -> u64 {
         .map_or(0, |d| d.as_millis() as u64)
 }
 
-/// Why the gate does not promote `a`, or `None` when it does.
-fn gate_refusal(cfg: &DecisionsConfig, a: &Answer, current: Option<Verdict>) -> Option<String> {
-    if a.question != Question::Accept || !matches!(a.answer.as_str(), "accept" | "reject") {
-        return Some(format!(
-            "only an accept or reject answer to the accept question can become a decision (got {} for {})",
-            a.answer,
-            a.question.as_str()
-        ));
-    }
-    let calibrated = cfg
-        .calibration
-        .as_deref()
-        .and_then(|p| calibrated_min_prob(p, a.source.trim(), a.question.as_str()));
-    let Some(min) = calibrated.or(cfg.auto_accept_min_prob) else {
-        return Some(
-            "the confidence gate is off ([decisions] auto_accept_min_prob is not set and the calibration suggests no threshold for this source)".into(),
-        );
-    };
-    if !cfg.allow_sources.is_empty()
-        && !cfg
-            .allow_sources
-            .iter()
-            .any(|s| s.eq_ignore_ascii_case(a.source.trim()))
-    {
-        return Some(format!(
-            "source {:?} is not in [decisions] allow_sources",
-            a.source
-        ));
-    }
-    let prob = if cfg.gate_on.as_deref() == Some("confidence") {
-        a.confidence.unwrap_or(0.0)
-    } else {
-        a.prob.unwrap_or(0.0)
-    };
-    if prob < min {
-        return Some(format!(
-            "probability {prob} is below auto_accept_min_prob {min}"
-        ));
-    }
-    current.map(|_| "the set already has a decision; a model never replaces one".to_owned())
-}
-
 /// Applies `a` to `d`, returning the outcome (without a file path).
-fn apply(
-    d: &mut Decisions,
-    a: &Answer,
-    hash: String,
-    gate: Option<Option<String>>,
-    proposal_only: bool,
-) -> (bool, Option<Verdict>, Option<String>) {
+fn apply(d: &mut Decisions, a: &Answer, hash: String) -> (bool, Option<Verdict>, Option<String>) {
     let ms = now_ms();
     let idx = match d.sets.iter().position(|s| s.name == a.entry) {
         Some(i) => i,
@@ -622,31 +536,6 @@ fn apply(
         }
     };
     let set = &mut d.sets[idx];
-    let human = is_human(&a.source) && !proposal_only;
-    let verdict = match (a.question, a.answer.as_str()) {
-        (Question::Accept, "accept") => Some(Verdict::Accept),
-        (Question::Accept, "reject") => Some(Verdict::Reject),
-        _ => None,
-    };
-    let (mut promoted, mut reason) = (false, None);
-    if human {
-        if let Some(v) = verdict {
-            set.decision = Some(v);
-            promoted = true;
-        }
-    } else if let Some(refusal) = gate {
-        match refusal {
-            None => {
-                set.decision = verdict;
-                promoted = true;
-            }
-            Some(r) => reason = Some(r),
-        }
-    } else {
-        reason = Some(
-            "no report to check the answer against; proposals in a session are advice only".into(),
-        );
-    }
     set.timestamp_ms = ms;
     let p = Proposal {
         question: a.question.as_str().to_owned(),
@@ -658,13 +547,20 @@ fn apply(
         timestamp_ms: ms,
         request_hash: hash,
         note: a.note.clone(),
-        proposed: !human,
-        promoted: promoted && !human,
+        proposed: true,
+        promoted: false,
     };
     set.proposals
         .retain(|q| !(q.question == p.question && q.hotspot == p.hotspot && q.source == p.source));
     set.proposals.push(p);
-    (promoted, set.decision, reason)
+    (
+        false,
+        set.decision,
+        Some(
+            "answers are proposals; an explicit hash-bound disposition is required for approval"
+                .into(),
+        ),
+    )
 }
 
 /// Writes the decisions file and its script twin atomically.
@@ -758,31 +654,23 @@ pub fn decide_report(
     cfg: &DecisionsConfig,
     answer: &Answer,
 ) -> Result<Outcome, DecideError> {
-    decide_report_inner(report_json, report, cfg, answer, false)
+    let _ = cfg;
+    decide_report_inner(report_json, report, answer)
 }
 
-/// Records an individual panel member as a proposal, including human voters.
-/// Only the panel aggregate may use the configured promotion gate.
+/// Records a panel member or aggregate as a proposal, including human source labels.
 pub fn propose_report(
     report_json: &Path,
     report: &Report,
     answer: &Answer,
 ) -> Result<Outcome, DecideError> {
-    decide_report_inner(
-        report_json,
-        report,
-        &DecisionsConfig::default(),
-        answer,
-        true,
-    )
+    decide_report_inner(report_json, report, answer)
 }
 
 fn decide_report_inner(
     report_json: &Path,
     report: &Report,
-    cfg: &DecisionsConfig,
     answer: &Answer,
-    proposal_only: bool,
 ) -> Result<Outcome, DecideError> {
     validate(answer)?;
     let entry = report
@@ -792,8 +680,7 @@ fn decide_report_inner(
         .ok_or_else(|| {
             DecideError::Invalid(format!("the report has no entry {:?}", answer.entry))
         })?;
-    let human = is_human(&answer.source) && !proposal_only;
-    if !human && let Some(why) = deterministic_failure(report, entry) {
+    if let Some(why) = deterministic_failure(report, entry) {
         return Err(DecideError::Refused(format!(
             "{}: {why}; a model cannot decide this, a person must",
             answer.entry
@@ -822,13 +709,7 @@ fn decide_report_inner(
             item_hash(answer.question, answer.hotspot.map(|n| n as usize), &state)
         }
     };
-    let current = d
-        .sets
-        .iter()
-        .find(|s| s.name == answer.entry)
-        .and_then(|s| s.decision);
-    let refusal = gate_refusal(cfg, answer, current);
-    let (decided, decision, reason) = apply(&mut d, answer, hash, Some(refusal), proposal_only);
+    let (decided, decision, reason) = apply(&mut d, answer, hash);
     // The images the answer is about, so `approve` can check what it copies.
     if let Some(set) = d.sets.iter_mut().find(|s| s.name == answer.entry)
         && set.sha256.is_empty()
@@ -839,7 +720,7 @@ fn decide_report_inner(
     write_decisions(&file, &d, true)?;
     Ok(Outcome {
         file,
-        proposed: !human,
+        proposed: true,
         decided,
         decision,
         reason,
@@ -871,8 +752,7 @@ pub fn view_skeleton(view_dir: &Path) -> Result<Decisions, Error> {
 
 /// Records `answer` into a decisions file: a serve session's, one exported
 /// from a viewer, or (with `skeleton`, when the file does not exist yet) the
-/// one of a view directory. There is no report to check it against, so a
-/// non-human answer stays a proposal.
+/// one of a view directory. Every answer stays a proposal.
 pub fn decide_file(
     file: &Path,
     answer: &Answer,
@@ -884,12 +764,12 @@ pub fn decide_file(
         _ => read_decisions(file)?,
     };
     let hash = answer.request_hash.clone().unwrap_or_default();
-    let (decided, decision, reason) = apply(&mut d, answer, hash, None, false);
+    let (decided, decision, reason) = apply(&mut d, answer, hash);
     let sidecar = file.file_name().is_some_and(|n| n == DECISIONS_FILE_NAME);
     write_decisions(file, &d, sidecar)?;
     Ok(Outcome {
         file: file.to_path_buf(),
-        proposed: !is_human(&answer.source),
+        proposed: true,
         decided,
         decision,
         reason,
@@ -1015,36 +895,41 @@ mod tests {
     }
 
     #[test]
-    fn gate_promotes_only_above_its_threshold() {
+    fn sources_and_confidence_never_promote_answers() {
         let r = report(vec![entry("a.png", Status::Fail)], Mode::Regression);
         let tmp = tempfile::tempdir().unwrap();
         let rj = tmp.path().join(REPORT_FILE_NAME);
-        let cfg = DecisionsConfig {
-            auto_accept_min_prob: Some(0.9),
-            allow_sources: vec![],
-            gate_on: None,
-            calibration: None,
-        };
-        let low = decide_report(&rj, &r, &cfg, &answer("a.png", "accept", 0.8, "jev")).unwrap();
-        assert!(low.proposed && !low.decided && low.decision.is_none());
-        let off = decide_report(
-            &rj,
-            &r,
-            &DecisionsConfig::default(),
-            &answer("a.png", "accept", 0.99, "jev"),
-        )
-        .unwrap();
-        assert!(!off.decided);
-        let high = decide_report(&rj, &r, &cfg, &answer("a.png", "accept", 0.93, "jev")).unwrap();
-        assert!(high.decided && high.decision == Some(Verdict::Accept));
+        for source in ["jev", "panel", "human", "human:forged"] {
+            let out = decide_report(
+                &rj,
+                &r,
+                &DecisionsConfig::default(),
+                &answer("a.png", "accept", 1.0, source),
+            )
+            .unwrap();
+            assert!(out.proposed && !out.decided && out.decision.is_none());
+        }
         let saved = read_decisions(&tmp.path().join(DECISIONS_FILE_NAME)).unwrap();
-        assert_eq!(saved.accepted(), vec!["a.png".to_owned()]);
-        assert!(saved.sets[0].proposals.iter().all(|p| p.proposed));
+        assert!(saved.accepted().is_empty());
+        assert!(
+            saved.sets[0]
+                .proposals
+                .iter()
+                .all(|p| p.proposed && !p.promoted)
+        );
+        for settings in [
+            "auto_accept_min_prob = 0.0",
+            "allow_sources = ['human']",
+            "gate_on = 'confidence'",
+            "calibration = 'calibration.json'",
+        ] {
+            assert!(toml::from_str::<DecisionsConfig>(settings).is_err());
+        }
         assert!(tmp.path().join(DECISIONS_SIDECAR_NAME).is_file());
     }
 
     #[test]
-    fn deterministic_failures_are_refused_for_models_only() {
+    fn deterministic_failures_are_refused_even_with_human_source_labels() {
         let mut broken = entry("b.png", Status::Fail);
         broken.properties = Some(Properties {
             is_all_black: true,
@@ -1059,18 +944,12 @@ mod tests {
         let r = report(vec![broken, entry("c.png", Status::Fail)], Mode::Identity);
         let tmp = tempfile::tempdir().unwrap();
         let rj = tmp.path().join(REPORT_FILE_NAME);
-        let cfg = DecisionsConfig {
-            auto_accept_min_prob: Some(0.5),
-            allow_sources: vec![],
-            gate_on: None,
-            calibration: None,
-        };
+        let cfg = DecisionsConfig::default();
         for name in ["b.png", "c.png"] {
             let err =
                 decide_report(&rj, &r, &cfg, &answer(name, "accept", 1.0, "jev")).unwrap_err();
             assert!(matches!(err, DecideError::Refused(_)), "{name}: {err}");
         }
-        let human = decide_report(&rj, &r, &cfg, &answer("b.png", "reject", 1.0, "human")).unwrap();
-        assert!(!human.proposed && human.decision == Some(Verdict::Reject));
+        assert!(decide_report(&rj, &r, &cfg, &answer("b.png", "reject", 1.0, "human")).is_err());
     }
 }

@@ -527,3 +527,38 @@ fn portable_bundles_keep_markers_and_verify_relocated_content() {
     std::fs::write(moved.join("input with spaces.txt"), b"changed").unwrap();
     assert!(reference.verify(&relocated).is_err());
 }
+
+#[test]
+fn reserved_automated_authority_is_readable_distinct_and_never_human() {
+    use saccade_core::evidence::human::{Authority as CurrentAuthority, AutomatedDecision};
+    let h = human();
+    let mut reserved = AutomatedDecision {
+        decision_id: Digest::of_bytes(b""),
+        binding: h.binding.clone(),
+        disposition: h.disposition,
+        authority: CurrentAuthority::Automated {
+            policy_id: "P5/reserved-policy".into(),
+            evidence_digest: h.binding.case_id.clone(),
+        },
+    };
+    reserved.decision_id = reserved.identity().unwrap();
+    let doc = Document::new(Artifact::AutomatedDecision(Box::new(reserved)));
+    let tmp = tempfile::tempdir().unwrap();
+    let path = tmp.path().join("reserved.json");
+    std::fs::write(&path, canonical::bytes(&doc).unwrap()).unwrap();
+    let read = Document::read(&path).unwrap();
+    let authority = read.authority().unwrap();
+    assert_eq!(authority.to_string(), "automated");
+    assert!(!authority.satisfies_human_required());
+    assert!(read.require_human_authority().is_err());
+    assert!(read.write_bundle(&tmp.path().join("forbidden")).is_err());
+    assert!(!tmp.path().join("forbidden").exists());
+    let mut forged = serde_json::to_value(&read).unwrap();
+    forged["authority"] = json!({"level":"human"});
+    assert!(
+        canonical::decode::<Document>(&serde_json::to_vec(&forged).unwrap())
+            .unwrap()
+            .validate()
+            .is_err()
+    );
+}
