@@ -1,0 +1,527 @@
+{
+  "$defs": {
+    "ActionArguments": {
+      "additionalProperties": false,
+      "description": "Typed local action arguments; no provider-generated arbitrary payload.",
+      "properties": {
+        "artifact": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/ArtifactRef"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "Existing hashed artifact."
+        },
+        "entry": {
+          "description": "Selected entry.",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "include_images": {
+          "description": "Explicit image request; false by default in summaries.",
+          "type": "boolean"
+        },
+        "request_id": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Digest"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "Exact question instance when relevant."
+        },
+        "retry_unix_ms": {
+          "description": "Retry time for retry_at.",
+          "format": "uint64",
+          "minimum": 0,
+          "type": [
+            "integer",
+            "null"
+          ]
+        }
+      },
+      "required": [
+        "include_images"
+      ],
+      "type": "object"
+    },
+    "ActionKind": {
+      "description": "Closed deterministic next-action catalog.",
+      "oneOf": [
+        {
+          "const": "inspect_evidence",
+          "description": "Inspect existing evidence.",
+          "type": "string"
+        },
+        {
+          "const": "collect_missing_evidence",
+          "description": "Collect missing measurements.",
+          "type": "string"
+        },
+        {
+          "const": "repair_capture",
+          "description": "Fix a capture's validity.",
+          "type": "string"
+        },
+        {
+          "const": "request_vision",
+          "description": "Obtain attributed visual observations.",
+          "type": "string"
+        },
+        {
+          "const": "request_human",
+          "description": "Ask a person to resolve the case.",
+          "type": "string"
+        },
+        {
+          "const": "retry_at",
+          "description": "Retry at a specified time.",
+          "type": "string"
+        },
+        {
+          "const": "prepare_baseline_change",
+          "description": "Prepare an immutable reviewed update manifest.",
+          "type": "string"
+        },
+        {
+          "const": "none",
+          "description": "No executable recommendation.",
+          "type": "string"
+        }
+      ]
+    },
+    "ArtifactRef": {
+      "additionalProperties": false,
+      "description": "Exact local content reference. Paths are provenance, not semantic identity.",
+      "properties": {
+        "path": {
+          "description": "Relative to its containing document by default, using `/` separators.",
+          "type": "string"
+        },
+        "sha256": {
+          "$ref": "#/$defs/Digest",
+          "description": "Hash of exact file bytes."
+        }
+      },
+      "required": [
+        "path",
+        "sha256"
+      ],
+      "type": "object"
+    },
+    "Digest": {
+      "description": "Validated lowercase SHA-256 identity or content hash.",
+      "pattern": "^sha256:[0-9a-f]{64}$",
+      "type": "string"
+    },
+    "EntrySummary": {
+      "additionalProperties": false,
+      "description": "Bounded entry summary.",
+      "properties": {
+        "entry_id": {
+          "description": "Stable report entry ID.",
+          "type": "string"
+        },
+        "error": {
+          "description": "Error when a computation failed.",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "measurement": {
+          "$ref": "#/$defs/MeasurementStatus",
+          "description": "Measurement status."
+        }
+      },
+      "required": [
+        "entry_id",
+        "measurement"
+      ],
+      "type": "object"
+    },
+    "Execution": {
+      "description": "Execution state separate from measurement, capture validity and review.",
+      "oneOf": [
+        {
+          "const": "complete",
+          "description": "Completed execution, possibly with a regression.",
+          "type": "string"
+        },
+        {
+          "const": "pending",
+          "description": "An unresolved job/request.",
+          "type": "string"
+        },
+        {
+          "const": "error",
+          "description": "Tool/computation failed.",
+          "type": "string"
+        }
+      ]
+    },
+    "Failure": {
+      "additionalProperties": false,
+      "description": "Structured tool error shared by CLI and MCP; regressions are measurement status.",
+      "properties": {
+        "code": {
+          "description": "Stable targeted error code.",
+          "type": "string"
+        },
+        "message": {
+          "description": "Short explanation.",
+          "type": "string"
+        },
+        "required_feature": {
+          "description": "Compiled feature needed for feature_unavailable.",
+          "type": [
+            "string",
+            "null"
+          ]
+        }
+      },
+      "required": [
+        "code",
+        "message"
+      ],
+      "type": "object"
+    },
+    "MeasurementStatus": {
+      "description": "Measurement finding, not approval authority.",
+      "oneOf": [
+        {
+          "const": "identical",
+          "description": "Selected native decoded samples matched.",
+          "type": "string"
+        },
+        {
+          "const": "different",
+          "description": "Selected samples differed.",
+          "type": "string"
+        },
+        {
+          "const": "pass",
+          "description": "Measurement acceptance criteria passed.",
+          "type": "string"
+        },
+        {
+          "const": "regression",
+          "description": "Measurement criteria failed.",
+          "type": "string"
+        },
+        {
+          "const": "unknown",
+          "description": "Evidence unavailable.",
+          "type": "string"
+        }
+      ]
+    },
+    "NextAction": {
+      "additionalProperties": false,
+      "description": "Deterministically generated bounded recommendation, never model executable text.",
+      "properties": {
+        "arguments": {
+          "$ref": "#/$defs/ActionArguments",
+          "description": "Structured arguments."
+        },
+        "cli_argv": {
+          "description": "Argument array; consumers never pass it to a shell.",
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "expected_case_id": {
+          "$ref": "#/$defs/Digest",
+          "description": "Case precondition, checked at execution."
+        },
+        "id": {
+          "description": "Stable recommendation ID.",
+          "type": "string"
+        },
+        "kind": {
+          "$ref": "#/$defs/ActionKind",
+          "description": "One permitted action kind."
+        },
+        "priority": {
+          "description": "Deterministic priority, lower first.",
+          "format": "uint32",
+          "minimum": 0,
+          "type": "integer"
+        },
+        "reason_code": {
+          "description": "Typed policy explanation.",
+          "type": "string"
+        },
+        "requires": {
+          "description": "Required external authority.",
+          "items": {
+            "$ref": "#/$defs/Requirement"
+          },
+          "type": "array"
+        },
+        "tool": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Tool"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "Known local tool or no executable tool."
+        }
+      },
+      "required": [
+        "id",
+        "kind",
+        "reason_code",
+        "priority",
+        "requires",
+        "arguments",
+        "cli_argv",
+        "expected_case_id"
+      ],
+      "type": "object"
+    },
+    "Page": {
+      "additionalProperties": false,
+      "description": "Pagination retains omitted counts instead of truncating JSON bytes.",
+      "properties": {
+        "next_cursor": {
+          "description": "Opaque continuation or null.",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "omitted": {
+          "description": "Number of omitted records.",
+          "format": "uint64",
+          "minimum": 0,
+          "type": "integer"
+        }
+      },
+      "required": [
+        "omitted"
+      ],
+      "type": "object"
+    },
+    "Requirement": {
+      "description": "Authority which the caller must obtain before execution.",
+      "oneOf": [
+        {
+          "const": "human_decision",
+          "description": "Explicit human disposition.",
+          "type": "string"
+        },
+        {
+          "const": "network_authorization",
+          "description": "Startup/invocation network authorization.",
+          "type": "string"
+        },
+        {
+          "const": "capture_execution",
+          "description": "External capture producer execution.",
+          "type": "string"
+        }
+      ]
+    },
+    "ReviewStatus": {
+      "description": "Human review status, independent of measurement.",
+      "oneOf": [
+        {
+          "const": "pending",
+          "description": "Awaiting review.",
+          "type": "string"
+        },
+        {
+          "const": "accepted",
+          "description": "Explicitly accepted disposition.",
+          "type": "string"
+        },
+        {
+          "const": "rejected",
+          "description": "Explicitly rejected disposition.",
+          "type": "string"
+        },
+        {
+          "const": "unresolved",
+          "description": "Review is unresolved.",
+          "type": "string"
+        }
+      ]
+    },
+    "Tool": {
+      "description": "Named MCP tools only; no arbitrary shell or baseline-write operation.",
+      "oneOf": [
+        {
+          "const": "saccade_measure",
+          "description": "Measurement transport.",
+          "type": "string"
+        },
+        {
+          "const": "saccade_inspect",
+          "description": "Local bounded inspection.",
+          "type": "string"
+        },
+        {
+          "const": "saccade_evidence",
+          "description": "Prepare evidence.",
+          "type": "string"
+        },
+        {
+          "const": "saccade_review",
+          "description": "Authorized review.",
+          "type": "string"
+        },
+        {
+          "const": "saccade_propose",
+          "description": "Proposed answers only.",
+          "type": "string"
+        },
+        {
+          "const": "saccade_ask_human",
+          "description": "Human review item.",
+          "type": "string"
+        }
+      ]
+    },
+    "ValidityStatus": {
+      "description": "Separate capture-comparability state.",
+      "oneOf": [
+        {
+          "const": "valid",
+          "description": "Required capture checks passed.",
+          "type": "string"
+        },
+        {
+          "const": "invalid",
+          "description": "At least one capture check failed.",
+          "type": "string"
+        },
+        {
+          "const": "unknown",
+          "description": "Required context is missing.",
+          "type": "string"
+        }
+      ]
+    }
+  },
+  "$id": "https://github.com/Tavrin/saccade/schemas/saccade-result.v2.schema.json",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "description": "Future bounded CLI/MCP envelope. Existing v1 writers are migrated by R5.",
+  "properties": {
+    "artifact": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/ArtifactRef"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "description": "Immutable full artifact, when produced."
+    },
+    "counts": {
+      "additionalProperties": {
+        "format": "uint64",
+        "minimum": 0,
+        "type": "integer"
+      },
+      "description": "Retained total counts.",
+      "type": "object"
+    },
+    "entries": {
+      "description": "Up to five default entry summaries.",
+      "items": {
+        "$ref": "#/$defs/EntrySummary"
+      },
+      "maxItems": 5,
+      "type": "array"
+    },
+    "errors": {
+      "description": "Execution errors, distinct from measurement regressions.",
+      "items": {
+        "$ref": "#/$defs/Failure"
+      },
+      "type": "array"
+    },
+    "execution": {
+      "$ref": "#/$defs/Execution",
+      "description": "Execution state."
+    },
+    "limits": {
+      "description": "Missing evidence and unsupported claims.",
+      "items": {
+        "type": "string"
+      },
+      "type": "array"
+    },
+    "measurement": {
+      "$ref": "#/$defs/MeasurementStatus",
+      "description": "Measurement finding."
+    },
+    "next_actions": {
+      "description": "Up to three deterministic recommendations.",
+      "items": {
+        "$ref": "#/$defs/NextAction"
+      },
+      "maxItems": 3,
+      "type": "array"
+    },
+    "operation": {
+      "description": "Named operation.",
+      "type": "string"
+    },
+    "page": {
+      "$ref": "#/$defs/Page",
+      "description": "Omitted counts and continuation."
+    },
+    "review": {
+      "$ref": "#/$defs/ReviewStatus",
+      "description": "Human review state."
+    },
+    "schema": {
+      "const": "saccade-result.v2",
+      "description": "Always saccade-result.v2.",
+      "type": "string"
+    },
+    "validity": {
+      "$ref": "#/$defs/ValidityStatus",
+      "description": "Independent capture validity."
+    },
+    "validity_reasons": {
+      "description": "Validity reasons must survive bounded summaries.",
+      "items": {
+        "type": "string"
+      },
+      "type": "array"
+    }
+  },
+  "required": [
+    "schema",
+    "operation",
+    "execution",
+    "measurement",
+    "validity",
+    "validity_reasons",
+    "review",
+    "counts",
+    "entries",
+    "next_actions",
+    "limits",
+    "errors",
+    "page"
+  ],
+  "title": "ResultEnvelope",
+  "type": "object"
+}

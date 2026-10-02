@@ -1,0 +1,31 @@
+{
+  "schema": "saccade-evidence.v1",
+  "kind": "next_action",
+  "action": {
+    "kind": "inspect_evidence",
+    "id": "inspect-scene",
+    "reason_code": "native_samples_differ",
+    "priority": 1,
+    "requires": [],
+    "tool": "saccade_evidence",
+    "arguments": {
+      "artifact": {
+        "path": "../report/saccade-report.v1.json",
+        "sha256": "sha256:845e91831319e89c4d656bdb80c278ac09a7230d61e5dfd2e1b1fbb436ac8917"
+      },
+      "entry": "scene.png",
+      "include_images": true,
+      "request_id": null,
+      "retry_unix_ms": null
+    },
+    "cli_argv": [
+      "saccade",
+      "inspect",
+      "evidence",
+      "../report/saccade-report.v1.json",
+      "--entry",
+      "scene.png"
+    ],
+    "expected_case_id": "sha256:95059de47ec6a2a0dabb094cba3746d013823fd6c99f13d5d8bb2ec382e70311"
+  }
+}

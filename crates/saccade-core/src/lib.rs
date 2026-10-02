@@ -14,6 +14,7 @@ pub mod decision;
 pub mod diagnostics;
 pub mod ergonomics;
 pub mod error;
+pub mod evidence;
 pub mod explain;
 pub mod hdr;
 pub mod hotspots;

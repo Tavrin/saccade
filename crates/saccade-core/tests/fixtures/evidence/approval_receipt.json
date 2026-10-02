@@ -1,0 +1,35 @@
+{
+  "schema": "saccade-evidence.v1",
+  "kind": "approval_receipt",
+  "decision_id": "sha256:75da8f718eddcafe7097c8380fdd52cb706b7097e3bd4bd712aaaef88c731267",
+  "binding": {
+    "case_id": "sha256:95059de47ec6a2a0dabb094cba3746d013823fd6c99f13d5d8bb2ec382e70311",
+    "input_hashes": {
+      "baseline": "sha256:8ba8496a2525ae171ffd104d632dede6ef418d9b95962a9d88e2fcdbc8d48d24",
+      "candidate": "sha256:dda18a0e21ae47c53b4309434cbc02ae8bf764fa83a6defbb719431242722aa7"
+    },
+    "scope": {
+      "entries": [
+        "scene.png"
+      ],
+      "exclusions": []
+    },
+    "request_ids": [
+      "sha256:754108f8acd99e9fa741be78e9ae338d9290539f37763fbb09f5c3c3c4ab54d9"
+    ],
+    "reviewed_content": {
+      "path": "reviewed-view.html",
+      "sha256": "sha256:4992b897d13202502fcf16d958ee743cd89af3a671f68f553212958701bf0ab5"
+    }
+  },
+  "channel": "cli",
+  "human_attestation": null,
+  "applied": [
+    {
+      "entry_id": "scene.png",
+      "before": "sha256:8ba8496a2525ae171ffd104d632dede6ef418d9b95962a9d88e2fcdbc8d48d24",
+      "after": "sha256:dda18a0e21ae47c53b4309434cbc02ae8bf764fa83a6defbb719431242722aa7"
+    }
+  ],
+  "timestamp_unix_ms": 0
+}

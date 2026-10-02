@@ -1,0 +1,63 @@
+{
+  "schema": "saccade-result.v2",
+  "operation": "identity",
+  "execution": "complete",
+  "measurement": "different",
+  "validity": "unknown",
+  "validity_reasons": [
+    "capture identity missing"
+  ],
+  "review": "pending",
+  "artifact": {
+    "path": "evidence.json",
+    "sha256": "sha256:bbfcd4160a1e8674dac62292ae48be4785262ad7078f9ec11b74a254ce70fa06"
+  },
+  "counts": {
+    "compared": 1,
+    "different": 1
+  },
+  "entries": [
+    {
+      "entry_id": "scene.png",
+      "measurement": "different",
+      "error": null
+    }
+  ],
+  "next_actions": [
+    {
+      "id": "inspect-scene",
+      "kind": "inspect_evidence",
+      "reason_code": "native_samples_differ",
+      "priority": 1,
+      "requires": [],
+      "tool": "saccade_evidence",
+      "arguments": {
+        "artifact": {
+          "path": "../report/saccade-report.v1.json",
+          "sha256": "sha256:845e91831319e89c4d656bdb80c278ac09a7230d61e5dfd2e1b1fbb436ac8917"
+        },
+        "entry": "scene.png",
+        "include_images": true,
+        "request_id": null,
+        "retry_unix_ms": null
+      },
+      "cli_argv": [
+        "saccade",
+        "inspect",
+        "evidence",
+        "../report/saccade-report.v1.json",
+        "--entry",
+        "scene.png"
+      ],
+      "expected_case_id": "sha256:95059de47ec6a2a0dabb094cba3746d013823fd6c99f13d5d8bb2ec382e70311"
+    }
+  ],
+  "limits": [
+    "sample equality does not qualify capture comparability"
+  ],
+  "errors": [],
+  "page": {
+    "omitted": 0,
+    "next_cursor": null
+  }
+}

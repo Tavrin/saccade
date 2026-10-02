@@ -1,0 +1,50 @@
+{
+  "schema": "saccade-decisions.v1",
+  "seed": 0,
+  "labels": [
+    "baseline",
+    "candidate"
+  ],
+  "blind": false,
+  "dirs": [],
+  "sets": [
+    {
+      "name": "model.png",
+      "decision": "accept",
+      "proposals": [
+        {
+          "question": "accept",
+          "answer": "accept",
+          "source": "jev",
+          "prob": 0.99,
+          "timestamp_ms": 0,
+          "proposed": true,
+          "promoted": true
+        }
+      ]
+    },
+    {
+      "name": "human.png",
+      "decision": "reject",
+      "proposals": [
+        {
+          "question": "accept",
+          "answer": "reject",
+          "source": "human",
+          "prob": null,
+          "timestamp_ms": 0,
+          "proposed": false,
+          "promoted": false
+        }
+      ]
+    },
+    {
+      "name": "unknown.png",
+      "decision": "needs-work"
+    },
+    {
+      "name": "missing.png",
+      "decision": null
+    }
+  ]
+}

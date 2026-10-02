@@ -1,0 +1,35 @@
+{
+  "schema": "saccade-evidence.v1",
+  "kind": "decision_proposal",
+  "proposal_id": "sha256:e7ba548b3fba1957236070e37b743c4416620feef491a85326e25bcaa3149bc8",
+  "case_id": "sha256:95059de47ec6a2a0dabb094cba3746d013823fd6c99f13d5d8bb2ec382e70311",
+  "request_id": "sha256:754108f8acd99e9fa741be78e9ae338d9290539f37763fbb09f5c3c3c4ab54d9",
+  "response": {
+    "request_id": "sha256:754108f8acd99e9fa741be78e9ae338d9290539f37763fbb09f5c3c3c4ab54d9",
+    "answer": "consistent",
+    "probabilities": null,
+    "reason_codes": [
+      "expected_region_changed"
+    ],
+    "evidence_ids": [
+      "fact-1",
+      "observation-1"
+    ],
+    "missing_evidence": [
+      "capture context"
+    ],
+    "depends_on_model_observation": true,
+    "note": "Observed change matches the supplied intent."
+  },
+  "provider": {
+    "identity": {
+      "provider": "jev",
+      "model": "fixture-decision",
+      "revision": "1"
+    },
+    "payload_sha256": "sha256:239f59ed55e737c77147cf55ad0c1b030b6d7ee748a7426952f9b852d5a935e5",
+    "response_sha256": "sha256:a9f4b3d22a523fdada41c85c175425bcd15b32b4cd0f54d9433accd52d7195a1",
+    "execution_ref": null,
+    "timestamp_unix_ms": 0
+  }
+}

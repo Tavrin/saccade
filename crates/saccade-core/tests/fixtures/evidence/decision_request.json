@@ -1,0 +1,98 @@
+{
+  "schema": "saccade-evidence.v1",
+  "kind": "decision_request",
+  "request_id": "sha256:754108f8acd99e9fa741be78e9ae338d9290539f37763fbb09f5c3c3c4ab54d9",
+  "case_id": "sha256:95059de47ec6a2a0dabb094cba3746d013823fd6c99f13d5d8bb2ec382e70311",
+  "question": {
+    "id": "intent.match.v1",
+    "text": "Does the observed change match intent?",
+    "answers": [
+      "consistent",
+      "contradicts",
+      "abstain"
+    ]
+  },
+  "evidence": {
+    "encoder_version": "structured-evidence/1",
+    "facts": [
+      {
+        "id": "fact-1",
+        "name": "max_flip",
+        "units": "flip",
+        "scope": {
+          "entries": [
+            "scene.png"
+          ],
+          "exclusions": []
+        },
+        "source": "measured",
+        "artifact": {
+          "path": "../report/saccade-report.v1.json",
+          "sha256": "sha256:845e91831319e89c4d656bdb80c278ac09a7230d61e5dfd2e1b1fbb436ac8917"
+        },
+        "value": {
+          "availability": "available",
+          "value": {
+            "type": "number",
+            "value": 0.05
+          }
+        },
+        "depends_on_model_observation": false,
+        "observation_refs": [],
+        "source_identity": "sha256:b37d8236d7d1295bc619a3cd9c62bafab086ee78dea00903453685e8dd46c006"
+      }
+    ],
+    "observations": [
+      {
+        "id": "observation-1",
+        "name": "HUD change",
+        "units": "category",
+        "scope": {
+          "entries": [
+            "scene.png"
+          ],
+          "exclusions": []
+        },
+        "source": "model_observation",
+        "artifact": {
+          "path": "observations.json",
+          "sha256": "sha256:772c6953848bf5b19aedf9a34ccb066f31eacca29bdbfcb1b9821765f1060149"
+        },
+        "value": {
+          "availability": "available",
+          "value": {
+            "type": "text",
+            "value": "HUD unchanged"
+          }
+        },
+        "depends_on_model_observation": false,
+        "observation_refs": [],
+        "source_identity": "sha256:772c6953848bf5b19aedf9a34ccb066f31eacca29bdbfcb1b9821765f1060149"
+      }
+    ],
+    "intent_ref": "intent-1",
+    "missing": [
+      "capture context"
+    ],
+    "observation_context": {
+      "extractor": {
+        "provider": "gemini",
+        "model": "fixture-vision",
+        "revision": "1"
+      },
+      "rubric_version": "visual-observation/1",
+      "transform_identity": "sha256:c762c37928caccdca4e2ca0a1ee928999d5422d5480bc802db79cc80eea479b8",
+      "fallback_chain_identity": "sha256:e09647ceaed64442168b02999c956ef980332c227b1b93936749eb61cb0362a5",
+      "fallback_outcome_identity": "sha256:51ee22b49d4cd8852d2161a7ced116a6d22682f1b2339f3b715e6cc1bfddbc74"
+    },
+    "presentation_identity": "sha256:2dfab43823c8fcdd725a31215000fdff2110abb039e31ddfae4465e1783049f2"
+  },
+  "constraints": {
+    "role": "proposal",
+    "required_citations": true,
+    "max_reason_chars": 600
+  },
+  "policy": {
+    "routing": "human-final/1"
+  }
+}

@@ -1,0 +1,13 @@
+{
+  "schema": "saccade-evidence.v1",
+  "kind": "presentation_map",
+  "case_id": "sha256:95059de47ec6a2a0dabb094cba3746d013823fd6c99f13d5d8bb2ec382e70311",
+  "presentation_identity": "sha256:2dfab43823c8fcdd725a31215000fdff2110abb039e31ddfae4465e1783049f2",
+  "entries": {
+    "scene.png": {
+      "P1": "candidate",
+      "P2": "baseline"
+    }
+  },
+  "unblinding_ref": null
+}

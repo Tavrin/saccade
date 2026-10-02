@@ -1,0 +1,17 @@
+{
+  "request_id": "sha256:754108f8acd99e9fa741be78e9ae338d9290539f37763fbb09f5c3c3c4ab54d9",
+  "answer": "consistent",
+  "probabilities": null,
+  "reason_codes": [
+    "expected_region_changed"
+  ],
+  "evidence_ids": [
+    "fact-1",
+    "observation-1"
+  ],
+  "missing_evidence": [
+    "capture context"
+  ],
+  "depends_on_model_observation": true,
+  "note": "Observed change matches the supplied intent."
+}

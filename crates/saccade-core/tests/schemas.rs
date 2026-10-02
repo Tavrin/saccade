@@ -38,6 +38,20 @@ fn committed_schemas_match_the_rust_types() {
     let update = std::env::var_os("UPDATE_SCHEMAS").is_some();
     let all = [
         (
+            "saccade-evidence.v1.schema.json",
+            generated::<saccade_core::evidence::Document>("saccade-evidence.v1.schema.json"),
+        ),
+        (
+            "saccade-result.v2.schema.json",
+            generated::<saccade_core::evidence::action::ResultEnvelope>(
+                "saccade-result.v2.schema.json",
+            ),
+        ),
+        (
+            "saccade-labels.v2.schema.json",
+            generated::<saccade_core::evidence::human::Labels>("saccade-labels.v2.schema.json"),
+        ),
+        (
             "saccade-labels.v1.schema.json",
             generated::<saccade_core::labels::Labels>("saccade-labels.v1.schema.json"),
         ),
