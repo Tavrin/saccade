@@ -1,5 +1,14 @@
 {
   "$defs": {
+    "Attribution": {
+      "enum": [
+        "complete",
+        "partial",
+        "inconsistent",
+        "unavailable"
+      ],
+      "type": "string"
+    },
     "BufferKind": {
       "description": "Meaning of the samples in a non-colour image.",
       "oneOf": [
@@ -212,6 +221,14 @@
           "type": "string"
         }
       ]
+    },
+    "Comparability": {
+      "enum": [
+        "qualified",
+        "rejected",
+        "unknown"
+      ],
+      "type": "string"
     },
     "CounterDiff": {
       "properties": {
@@ -466,6 +483,11 @@
         "description"
       ],
       "type": "object"
+    },
+    "Digest": {
+      "description": "Validated lowercase SHA-256 identity or content hash.",
+      "pattern": "^sha256:[0-9a-f]{64}$",
+      "type": "string"
     },
     "Entry": {
       "description": "One image name's comparison result.",
@@ -726,6 +748,15 @@
       },
       "type": "object"
     },
+    "FrameChange": {
+      "enum": [
+        "faster",
+        "slower",
+        "within_measured_noise",
+        "unknown"
+      ],
+      "type": "string"
+    },
     "HdrInfo": {
       "description": "HDR comparison settings actually used for an entry (HDR-FLIP).",
       "properties": {
@@ -853,6 +884,38 @@
       "required": [
         "baseline",
         "capture"
+      ],
+      "type": "object"
+    },
+    "Materiality": {
+      "properties": {
+        "blocks_no_effect": {
+          "type": "boolean"
+        },
+        "floor_ms": {
+          "format": "double",
+          "type": [
+            "number",
+            "null"
+          ]
+        },
+        "reasons": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "unexplained_upper_bound_ms": {
+          "format": "double",
+          "type": [
+            "number",
+            "null"
+          ]
+        }
+      },
+      "required": [
+        "blocks_no_effect",
+        "reasons"
       ],
       "type": "object"
     },
@@ -1118,6 +1181,119 @@
       ],
       "type": "object"
     },
+    "PerfContext": {
+      "additionalProperties": false,
+      "properties": {
+        "aggregation": {
+          "description": "joint_partition means terms account for this frame's measured window.\nindependent_statistics never supplies an additive frame remainder.",
+          "type": "string"
+        },
+        "attribution_coverage": {
+          "format": "double",
+          "type": [
+            "number",
+            "null"
+          ]
+        },
+        "capture_hash": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Digest"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "configuration_hash": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Digest"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "hardware": {
+          "additionalProperties": {
+            "type": "string"
+          },
+          "type": "object"
+        },
+        "measurement": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/SourceRef"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "producer": {
+          "type": "string"
+        },
+        "producer_version": {
+          "type": "string"
+        },
+        "qualification": {
+          "$ref": "#/$defs/Qualification"
+        },
+        "quantum_ms": {
+          "format": "double",
+          "type": [
+            "number",
+            "null"
+          ]
+        },
+        "raw_samples": {
+          "items": {
+            "$ref": "#/$defs/SourceRef"
+          },
+          "type": "array"
+        },
+        "sample_window": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/SourceRef"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "timer": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "unavailable_terms": {
+          "default": [],
+          "items": {
+            "$ref": "#/$defs/UnavailableTerm"
+          },
+          "type": "array"
+        },
+        "unresolved_remainder_ms": {
+          "format": "double",
+          "type": [
+            "number",
+            "null"
+          ]
+        }
+      },
+      "required": [
+        "raw_samples",
+        "hardware",
+        "aggregation",
+        "producer",
+        "producer_version",
+        "qualification"
+      ],
+      "type": "object"
+    },
     "PerfDelta": {
       "description": "One timing key present on both sides.",
       "properties": {
@@ -1159,8 +1335,52 @@
     },
     "PerfDiff": {
       "properties": {
+        "attribution": {
+          "$ref": "#/$defs/Attribution",
+          "default": "unavailable"
+        },
+        "comparability": {
+          "$ref": "#/$defs/Comparability",
+          "default": "unknown"
+        },
+        "context_after": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/PerfContext"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "context_before": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/PerfContext"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Producer evidence is retained in analytical reports, including its hashes."
+        },
         "frame": {
           "$ref": "#/$defs/Delta"
+        },
+        "frame_change": {
+          "$ref": "#/$defs/FrameChange",
+          "default": "unknown"
+        },
+        "materiality": {
+          "$ref": "#/$defs/Materiality",
+          "default": {
+            "blocks_no_effect": false,
+            "floor_ms": null,
+            "reasons": [],
+            "unexplained_upper_bound_ms": null
+          }
         },
         "min_delta_ms": {
           "default": 0.05,
@@ -1178,9 +1398,28 @@
           "format": "double",
           "type": "number"
         },
+        "noise_comparability": {
+          "$ref": "#/$defs/Comparability",
+          "default": "unknown"
+        },
         "noise_k": {
           "format": "double",
           "type": "number"
+        },
+        "policy_sources": {
+          "additionalProperties": {
+            "type": "string"
+          },
+          "default": {},
+          "description": "Effective policy sources: explicit options, repeat calibration or defaults.",
+          "type": "object"
+        },
+        "qualification_reasons": {
+          "default": [],
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
         },
         "resolution_ms": {
           "default": null,
@@ -1207,11 +1446,17 @@
         },
         "unattributed_after": {
           "format": "double",
-          "type": "number"
+          "type": [
+            "number",
+            "null"
+          ]
         },
         "unattributed_before": {
           "format": "double",
-          "type": "number"
+          "type": [
+            "number",
+            "null"
+          ]
         },
         "unit": {
           "type": "string"
@@ -1228,8 +1473,6 @@
         "unit",
         "noise_k",
         "frame",
-        "unattributed_before",
-        "unattributed_after",
         "terms",
         "warnings"
       ],
@@ -1337,6 +1580,44 @@
         "mean_luminance",
         "min_luminance",
         "max_luminance"
+      ],
+      "type": "object"
+    },
+    "Qualification": {
+      "additionalProperties": false,
+      "properties": {
+        "checks": {
+          "additionalProperties": {
+            "type": [
+              "boolean",
+              "null"
+            ]
+          },
+          "description": "Missing checks remain unknown; matching false checks reject both sides.",
+          "type": "object"
+        },
+        "reasons": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "rule": {
+          "type": "string"
+        },
+        "status": {
+          "$ref": "#/$defs/Comparability"
+        },
+        "version": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "status",
+        "rule",
+        "version",
+        "checks",
+        "reasons"
       ],
       "type": "object"
     },
@@ -1601,6 +1882,22 @@
         "frac_brighter",
         "frac_darker",
         "scale"
+      ],
+      "type": "object"
+    },
+    "SourceRef": {
+      "additionalProperties": false,
+      "properties": {
+        "hash": {
+          "$ref": "#/$defs/Digest"
+        },
+        "source": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "source",
+        "hash"
       ],
       "type": "object"
     },
@@ -1879,6 +2176,31 @@
         "new",
         "missing",
         "error"
+      ],
+      "type": "object"
+    },
+    "UnavailableTerm": {
+      "additionalProperties": false,
+      "properties": {
+        "id": {
+          "type": "string"
+        },
+        "parent": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "upper_bound_ms": {
+          "format": "double",
+          "type": [
+            "number",
+            "null"
+          ]
+        }
+      },
+      "required": [
+        "id"
       ],
       "type": "object"
     },

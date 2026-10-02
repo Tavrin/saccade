@@ -112,6 +112,7 @@ impl From<saccade_core::Error> for CliError {
         use saccade_core::Error;
         let code = match e {
             Error::Config(_) => "config",
+            Error::WrongNoiseKind { .. } => "wrong_noise_kind",
             Error::FeatureUnavailable { .. } => "feature_unavailable",
             Error::NotEmptyOutDir(_) => "not_empty_out_dir",
             _ => "io",

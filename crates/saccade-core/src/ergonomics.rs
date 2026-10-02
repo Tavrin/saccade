@@ -98,6 +98,12 @@ pub struct NoiseEntry {
 pub struct NoiseReport {
     /// Always `saccade-noise.v1`.
     pub schema: String,
+    /// Image-noise discriminant; historical records can omit it.
+    #[serde(default = "image_noise_kind")]
+    pub kind: String,
+    /// Dimensionless FLIP error units; historical records can omit it.
+    #[serde(default = "image_noise_unit")]
+    pub unit: String,
     /// Metric used for suggestions.
     pub metric: Metric,
     /// Multiplier over the largest observed value.
@@ -111,6 +117,12 @@ pub struct NoiseReport {
     /// Raw repeat ranges, timer quantum and minimum meaningful delta settings.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub perf_noise: Option<crate::perf::PerfNoise>,
+}
+fn image_noise_kind() -> String {
+    "image_noise".into()
+}
+fn image_noise_unit() -> String {
+    "FLIP".into()
 }
 
 /// Compares every distinct pair of unchanged-build captures and writes TOML overrides.
@@ -252,6 +264,19 @@ pub fn noise_with_perf_options(
         if let Some(q) = floor.resolution_ms {
             toml.push_str(&format!("resolution_ms = {q:.17}\n"));
         }
+        toml.push_str(&format!(
+            "comparability = {}\n",
+            serde_json::to_string(&floor.comparability)?
+        ));
+        if let Some(timer) = &floor.timer {
+            toml.push_str(&format!("timer = {}\n", serde_json::to_string(timer)?));
+        }
+        if let Some(identity) = &floor.context_identity {
+            toml.push_str(&format!(
+                "context_identity = {}\n",
+                serde_json::to_string(identity)?
+            ));
+        }
         toml.push_str("\n[perf_noise.terms]\n");
         for (id, value) in &floor.terms {
             toml.push_str(&format!("{} = {:.17}\n", serde_json::to_string(id)?, value));
@@ -264,6 +289,8 @@ pub fn noise_with_perf_options(
     )))?;
     Ok(NoiseReport {
         schema: "saccade-noise.v1".into(),
+        kind: image_noise_kind(),
+        unit: image_noise_unit(),
         metric,
         margin,
         runs: dirs

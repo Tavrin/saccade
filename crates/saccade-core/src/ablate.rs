@@ -42,6 +42,10 @@ pub struct Arm {
     pub label: String,
     pub path: String,
     pub image_verdict: String,
+    #[serde(default)]
+    pub image_effect: ImageEffect,
+    #[serde(default)]
+    pub frame_change: crate::perf::FrameChange,
     pub frame_delta: Option<f64>,
     pub top_deltas: Vec<TermDiff>,
     pub config_differs: Vec<String>,
@@ -53,6 +57,15 @@ pub struct Arm {
     pub errors: Vec<String>,
     pub perf_errors: Vec<PerfError>,
     pub report_html: String,
+}
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum ImageEffect {
+    Identical,
+    Changed,
+    #[default]
+    Unknown,
 }
 impl Arm {
     pub fn from_report(
@@ -68,6 +81,9 @@ impl Arm {
             .perf_diff
             .as_ref()
             .map_or((false, false), |d| d.flags(identical));
+        let valid = report.capture_validity().status != crate::meta::Validity::Invalid
+            && report.perf_errors.is_empty();
+        let (no_effect, perf_only) = (no_effect && valid, perf_only && valid);
         let flag = if no_effect {
             "NO-EFFECT"
         } else if perf_only {
@@ -99,6 +115,17 @@ impl Arm {
                 .clone()
                 .unwrap_or_else(|| format!("{image} · performance unavailable")),
             image_verdict: image,
+            image_effect: if identical {
+                ImageEffect::Identical
+            } else if flag == "IMAGE-CHANGE" {
+                ImageEffect::Changed
+            } else {
+                ImageEffect::Unknown
+            },
+            frame_change: report
+                .perf_diff
+                .as_ref()
+                .map_or(crate::perf::FrameChange::Unknown, |d| d.frame_change),
             config_differs,
             no_effect,
             perf_only,

@@ -56,6 +56,14 @@ pub enum Error {
     /// A configuration file or glob pattern is invalid.
     #[error("invalid configuration: {0}")]
     Config(String),
+    /// An image/performance noise input was supplied to the other consumer.
+    #[error("wrong_noise_kind: expected {expected} noise; generate it with `saccade {command}`")]
+    WrongNoiseKind {
+        /// Required noise kind.
+        expected: &'static str,
+        /// Command producing the correct input.
+        command: &'static str,
+    },
     /// An output directory exists, is not empty and is not a previous saccade
     /// output; nothing in it is cleared or overwritten.
     #[error("{0}")]

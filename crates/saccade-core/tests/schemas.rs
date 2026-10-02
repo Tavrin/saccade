@@ -19,6 +19,20 @@ const BASE: &str = "https://github.com/Tavrin/saccade/schemas";
 fn generated<T: schemars::JsonSchema>(file: &str) -> String {
     let schema = schemars::schema_for!(T);
     let mut value = serde_json::to_value(&schema).expect("schema serializes");
+
+    if file == "saccade-perf.v2.schema.json" {
+        value["$defs"]["CapturePerf"]["properties"]["schema"]["const"] = "saccade-perf.v2".into();
+        value["$defs"]["CapturePerf"]["properties"]["kind"]["const"] = "measurement".into();
+        value["$defs"]["CapturePerf"]["required"]
+            .as_array_mut()
+            .expect("required fields")
+            .push("kind".into());
+        value["$defs"]["PerformanceNoiseRecord"]["properties"]["schema"]["const"] =
+            "saccade-perf.v2".into();
+        value["$defs"]["PerformanceNoiseRecord"]["properties"]["kind"]["const"] =
+            "performance_noise".into();
+        value["$defs"]["PerformanceNoiseRecord"]["properties"]["unit"]["const"] = "ms".into();
+    }
     let obj = value.as_object_mut().expect("schema is an object");
     // `$id` right after `$schema`, as in the hand-written files.
     let mut ordered = serde_json::Map::new();
@@ -57,7 +71,11 @@ fn committed_schemas_match_the_rust_types() {
         ),
         (
             "saccade-perf.v1.schema.json",
-            generated::<saccade_core::perf::CapturePerf>("saccade-perf.v1.schema.json"),
+            generated::<saccade_core::perf::LegacyCapturePerf>("saccade-perf.v1.schema.json"),
+        ),
+        (
+            "saccade-perf.v2.schema.json",
+            generated::<saccade_core::perf::PerfDocument>("saccade-perf.v2.schema.json"),
         ),
         (
             "saccade-perf-diff.v1.schema.json",

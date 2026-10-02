@@ -28,7 +28,15 @@ fn save(root: &Path, name: &str, pass: f64, grey: u8) -> PathBuf {
     image::RgbImage::from_pixel(32, 24, image::Rgb([grey, 90, 110]))
         .save(dir.join("scene.png"))
         .unwrap();
-    std::fs::write(dir.join("saccade-perf.json"),json!({"schema":"saccade-perf.v1","unit":"ms","frame":{"value":pass+2.0,"samples":5,"stat":"p50"},"terms":[{"id":"render","kind":"pass","value":pass},{"id":"gap","kind":"gap","value":2.0},{"id":"detail","kind":"scope","parent":"render","value":pass/2.0}],"counters":{"render":{"work":pass*100.0}}}).to_string()).unwrap();
+    let mut context: Value = serde_json::from_str(include_str!(
+        "../../saccade-core/tests/fixtures/perf/context.json"
+    ))
+    .unwrap();
+    context["capture_hash"] = json!(saccade_core::evidence::canonical::Digest::of_bytes(
+        name.as_bytes()
+    ));
+    context["sample_window"]["hash"] = context["capture_hash"].clone();
+    std::fs::write(dir.join("saccade-perf.json"),json!({"schema":"saccade-perf.v2","kind":"measurement","context":context,"unit":"ms","frame":{"value":pass+2.0,"samples":5,"stat":"p50"},"terms":[{"id":"render","kind":"pass","value":pass},{"id":"gap","kind":"gap","value":2.0},{"id":"detail","kind":"scope","parent":"render","value":pass/2.0}],"counters":{"render":{"work":pass*100.0}}}).to_string()).unwrap();
     std::fs::write(
         dir.join("saccade-meta.json"),
         json!({"quality":if name=="image" {"low"} else {"high"}}).to_string(),
@@ -132,7 +140,19 @@ fn noise_ablation_compare_identity_markdown_and_explain_share_evidence() {
     ));
     schema("saccade-noise.v1", &noise);
     assert!((noise["perf_noise"]["frame"].as_f64().unwrap() - 0.1).abs() < 1e-12);
-    std::fs::write(root.join("floor.json"), noise.to_string()).unwrap();
+    value(&run(
+        root,
+        &[
+            "noise",
+            "base",
+            "repeat",
+            "--kind",
+            "performance",
+            "--out",
+            "floor.json",
+            "--json",
+        ],
+    ));
     let a = value(&run(
         root,
         &[
@@ -417,5 +437,134 @@ fn mcp_ablate_and_pair_results_validate_and_confine_noise_paths() {
     assert_eq!(
         replies[3]["result"]["structuredContent"]["code"],
         "unsafe_path"
+    );
+}
+
+#[test]
+fn typed_performance_noise_and_cross_kind_inputs_have_explicit_units_and_errors() {
+    let tmp = tempfile::tempdir().unwrap();
+    let root = tmp.path();
+    fixture(root);
+    let noise = value(&run(
+        root,
+        &[
+            "noise",
+            "base",
+            "repeat",
+            "--kind",
+            "performance",
+            "--out",
+            "performance.json",
+            "--json",
+        ],
+    ));
+    schema("saccade-perf.v2", &noise);
+    assert_eq!(noise["kind"], "performance_noise");
+    assert_eq!(noise["unit"], "ms");
+    assert_eq!(noise["comparability"], "qualified");
+    let a = value(&run(
+        root,
+        &[
+            "ablate",
+            "base",
+            "same",
+            "--perf-noise",
+            "performance.json",
+            "--out",
+            "typed-ablation",
+            "--json",
+        ],
+    ));
+    assert_eq!(a["arms"][0]["flag"], "NO-EFFECT");
+    let wrong = run(
+        root,
+        &[
+            "noise",
+            "base",
+            "repeat",
+            "--kind",
+            "image",
+            "--config",
+            "performance.json",
+            "--out",
+            "image.toml",
+            "--json",
+        ],
+    );
+    assert_eq!(wrong.status.code(), Some(2));
+    let error: Value = serde_json::from_slice(&wrong.stdout).unwrap();
+    assert_eq!(error["code"], "wrong_noise_kind");
+    assert!(error["message"].as_str().unwrap().contains("--kind image"));
+    std::fs::write(
+        root.join("legacy-performance.toml"),
+        "[perf_noise]\nframe = 0.0\n",
+    )
+    .unwrap();
+    let wrong = run(
+        root,
+        &[
+            "noise",
+            "base",
+            "repeat",
+            "--kind",
+            "image",
+            "--config",
+            "legacy-performance.toml",
+            "--out",
+            "legacy-image.toml",
+            "--json",
+        ],
+    );
+    let error: Value = serde_json::from_slice(&wrong.stdout).unwrap();
+    assert_eq!(wrong.status.code(), Some(2));
+    assert_eq!(error["code"], "wrong_noise_kind");
+    std::fs::write(
+        root.join("mixed-config.toml"),
+        "threshold = 0.01\n[perf_noise]\nframe = 0.0\n",
+    )
+    .unwrap();
+    let image = value(&run(
+        root,
+        &[
+            "noise",
+            "base",
+            "repeat",
+            "--kind",
+            "image",
+            "--config",
+            "mixed-config.toml",
+            "--out",
+            "mixed-image.toml",
+            "--json",
+        ],
+    ));
+    assert_eq!(image["kind"], "image_noise");
+    assert_eq!(image["unit"], "FLIP");
+    std::fs::write(
+        root.join("image.json"),
+        json!({"schema":"saccade-noise.v1","kind":"image_noise","unit":"FLIP"}).to_string(),
+    )
+    .unwrap();
+    let wrong = run(
+        root,
+        &[
+            "ablate",
+            "base",
+            "same",
+            "--perf-noise",
+            "image.json",
+            "--out",
+            "wrong",
+            "--json",
+        ],
+    );
+    assert_eq!(wrong.status.code(), Some(2));
+    let error: Value = serde_json::from_slice(&wrong.stdout).unwrap();
+    assert_eq!(error["code"], "wrong_noise_kind");
+    assert!(
+        error["message"]
+            .as_str()
+            .unwrap()
+            .contains("--kind performance")
     );
 }

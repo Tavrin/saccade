@@ -1,0 +1,41 @@
+{
+  "measurement": {
+    "source": "measurements.json",
+    "hash": "sha256:1111111111111111111111111111111111111111111111111111111111111111"
+  },
+  "timer": "fixture-timer",
+  "quantum_ms": 0.0001,
+  "sample_window": {
+    "source": "window.json",
+    "hash": "sha256:2222222222222222222222222222222222222222222222222222222222222222"
+  },
+  "raw_samples": [
+    {
+      "source": "raw.json",
+      "hash": "sha256:3333333333333333333333333333333333333333333333333333333333333333"
+    }
+  ],
+  "hardware": {
+    "gpu": "fixture-gpu",
+    "driver": "fixture-driver"
+  },
+  "aggregation": "joint_partition",
+  "attribution_coverage": 1.0,
+  "unresolved_remainder_ms": 0.0,
+  "capture_hash": "sha256:4444444444444444444444444444444444444444444444444444444444444444",
+  "configuration_hash": "sha256:5555555555555555555555555555555555555555555555555555555555555555",
+  "producer": "synthetic-fixture",
+  "producer_version": "1",
+  "qualification": {
+    "status": "qualified",
+    "rule": "fixture-rule",
+    "version": "1",
+    "checks": {
+      "window_complete": true,
+      "clock_qualified": true,
+      "warmup_complete": true
+    },
+    "reasons": []
+  },
+  "unavailable_terms": []
+}

@@ -240,6 +240,9 @@ pub(crate) fn entries(args: EntriesArgs) -> Result<u8, CliError> {
 
 #[derive(Args)]
 pub(crate) struct NoiseArgs {
+    /// Image calibration (default) or qualified performance noise in ms.
+    #[arg(long, value_enum, default_value = "image")]
+    kind: crate::perf_cmd::NoiseKind,
     #[command(flatten)]
     perf: crate::perf_cmd::PerfArgs,
     #[arg(long)]
@@ -257,8 +260,22 @@ pub(crate) struct NoiseArgs {
 }
 
 pub(crate) fn noise(args: NoiseArgs, record_absolute_paths: bool) -> Result<u8, CliError> {
+    if matches!(args.kind, crate::perf_cmd::NoiseKind::Image)
+        && let Some(path) = &args.config
+    {
+        crate::perf_cmd::check_image_noise_config(path)?;
+    }
     let mut cfg = crate::load_config(args.config.as_deref())?;
     args.perf.apply(&mut cfg.perf)?;
+    if matches!(args.kind, crate::perf_cmd::NoiseKind::Performance) {
+        return crate::perf_cmd::noise(
+            &args.dirs,
+            &args.out,
+            &cfg.perf,
+            args.json,
+            record_absolute_paths,
+        );
+    }
     let mut report = saccade_core::ergonomics::noise_with_perf_options(
         &args.dirs,
         args.margin,
@@ -276,6 +293,7 @@ pub(crate) fn noise(args: NoiseArgs, record_absolute_paths: bool) -> Result<u8, 
     if args.json {
         crate::emit(&format!("{}\n", serde_json::to_string_pretty(&report)?))?;
     } else {
+        crate::emit("image noise (FLIP)\n")?;
         for e in &report.entries {
             crate::emit(&format!(
                 "{}: mean {:.5}, p95 {:.5}, max {:.5}; suggested {:.5} ({:?})\n",

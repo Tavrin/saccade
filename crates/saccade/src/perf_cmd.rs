@@ -3,6 +3,75 @@ use crate::agent::CliError;
 use clap::Args;
 use std::path::PathBuf;
 
+#[derive(Clone, Copy, clap::ValueEnum)]
+pub(crate) enum NoiseKind {
+    Image,
+    Performance,
+}
+
+pub(crate) fn check_image_noise_config(path: &std::path::Path) -> Result<(), CliError> {
+    let text = std::fs::read_to_string(path).map_err(|e| {
+        CliError::io(format!(
+            "reading {}: {e}",
+            saccade_core::paths::portable(path)
+        ))
+    })?;
+    if saccade_core::perf::is_performance_noise_document(&text) {
+        return Err(saccade_core::perf::wrong_noise_kind(
+            "image",
+            "noise BASE REPEAT... --kind image",
+        )
+        .into());
+    }
+    Ok(())
+}
+
+pub(crate) fn noise(
+    dirs: &[PathBuf],
+    out: &std::path::Path,
+    opts: &saccade_core::perf::PerfOptions,
+    json: bool,
+    absolute: bool,
+) -> Result<u8, CliError> {
+    #[cfg(not(feature = "graphics"))]
+    {
+        let _ = (dirs, out, opts, json, absolute);
+        Err(saccade_core::Error::FeatureUnavailable {
+            feature: "graphics",
+        }
+        .into())
+    }
+    #[cfg(feature = "graphics")]
+    {
+        let mut record = saccade_core::perf::noise_record(dirs, opts)?;
+        for (source, dir) in record.sources.iter_mut().zip(dirs) {
+            source.source = saccade_core::paths::record(
+                &dir.join(&opts.name),
+                out.parent().unwrap_or(std::path::Path::new(".")),
+                absolute,
+            );
+        }
+        let text = serde_json::to_string_pretty(&record)?;
+        std::fs::write(out, format!("{text}\n")).map_err(|e| {
+            CliError::io(format!(
+                "writing {}: {e}",
+                saccade_core::paths::portable(out)
+            ))
+        })?;
+        if json {
+            crate::emit(&format!("{text}\n"))?;
+        } else {
+            crate::emit(&format!(
+                "performance noise (ms): frame {:.6}; qualification {:?}\nwrote {}\n",
+                record.perf_noise.frame,
+                record.comparability,
+                saccade_core::paths::cwd(out, absolute)
+            ))?;
+        }
+        Ok(0)
+    }
+}
+
 #[derive(Args)]
 pub(crate) struct PerfArgs {
     /// Run performance sidecar file name (default saccade-perf.json).
@@ -51,18 +120,27 @@ impl PerfArgs {
         }
         if let Some(k) = self.perf_noise_k {
             opts.k = k;
+            opts.policy_sources.insert("noise_k".into(), "cli".into());
         }
         if let Some(v) = self.perf_resolution {
             opts.resolution_ms = Some(v);
+            opts.policy_sources
+                .insert("resolution_ms".into(), "cli".into());
         }
         if let Some(v) = self.perf_resolution_ticks {
             opts.resolution_ticks = Some(v);
+            opts.policy_sources
+                .insert("resolution_ticks".into(), "cli".into());
         }
         if let Some(v) = self.perf_min_delta_ms {
             opts.min_delta_ms = Some(v);
+            opts.policy_sources
+                .insert("min_delta_ms".into(), "cli".into());
         }
         if let Some(v) = self.perf_min_delta_pct {
             opts.min_delta_pct = Some(v);
+            opts.policy_sources
+                .insert("min_delta_pct".into(), "cli".into());
         }
         opts.validate()?;
         Ok(())

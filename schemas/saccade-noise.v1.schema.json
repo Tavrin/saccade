@@ -1,5 +1,18 @@
 {
   "$defs": {
+    "Comparability": {
+      "enum": [
+        "qualified",
+        "rejected",
+        "unknown"
+      ],
+      "type": "string"
+    },
+    "Digest": {
+      "description": "Validated lowercase SHA-256 identity or content hash.",
+      "pattern": "^sha256:[0-9a-f]{64}$",
+      "type": "string"
+    },
     "Metric": {
       "description": "Which statistic of the FLIP error map decides pass/fail.",
       "oneOf": [
@@ -72,6 +85,20 @@
     "PerfNoise": {
       "additionalProperties": false,
       "properties": {
+        "comparability": {
+          "$ref": "#/$defs/Comparability",
+          "default": "unknown"
+        },
+        "context_identity": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Digest"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
         "frame": {
           "format": "double",
           "type": "number"
@@ -109,6 +136,12 @@
           },
           "default": {},
           "type": "object"
+        },
+        "timer": {
+          "type": [
+            "string",
+            "null"
+          ]
         }
       },
       "required": [
@@ -127,6 +160,11 @@
         "$ref": "#/$defs/NoiseEntry"
       },
       "type": "array"
+    },
+    "kind": {
+      "default": "image_noise",
+      "description": "Image-noise discriminant; historical records can omit it.",
+      "type": "string"
     },
     "margin": {
       "description": "Multiplier over the largest observed value.",
@@ -157,6 +195,11 @@
     },
     "schema": {
       "description": "Always `saccade-noise.v1`.",
+      "type": "string"
+    },
+    "unit": {
+      "default": "FLIP",
+      "description": "Dimensionless FLIP error units; historical records can omit it.",
       "type": "string"
     },
     "warnings": {

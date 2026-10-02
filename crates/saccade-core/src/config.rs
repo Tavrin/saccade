@@ -247,6 +247,15 @@ impl RunConfig {
 
     /// Parses `saccade.toml` contents.
     pub fn from_toml_str(text: &str) -> Result<Self> {
+        if text.trim_start().starts_with('{') {
+            let value: serde_json::Value = serde_json::from_str(text)?;
+            if value.get("schema").and_then(|v| v.as_str()) == Some("saccade-perf.v2") {
+                return Err(crate::perf::wrong_noise_kind(
+                    "image",
+                    "noise BASE REPEAT... --kind image",
+                ));
+            }
+        }
         let file: FileConfig = toml::from_str(text).map_err(|e| Error::Config(e.to_string()))?;
         let mut cfg = Self {
             explicit_tolerances: file.threshold.is_some() || file.metric.is_some(),
@@ -280,6 +289,19 @@ impl RunConfig {
         cfg.perf.resolution_ticks = file.perf_resolution_ticks;
         cfg.perf.min_delta_ms = file.perf_min_delta_ms;
         cfg.perf.min_delta_pct = file.perf_min_delta_pct;
+        for (key, present) in [
+            ("noise_k", file.perf_noise_k.is_some()),
+            ("resolution_ms", file.perf_resolution_ms.is_some()),
+            ("resolution_ticks", file.perf_resolution_ticks.is_some()),
+            ("min_delta_ms", file.perf_min_delta_ms.is_some()),
+            ("min_delta_pct", file.perf_min_delta_pct.is_some()),
+        ] {
+            if present {
+                cfg.perf
+                    .policy_sources
+                    .insert(key.into(), "project_config".into());
+            }
+        }
         if let Some(v) = file.threshold {
             cfg.default_threshold = v;
         }

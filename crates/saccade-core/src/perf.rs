@@ -37,6 +37,7 @@ pub struct PerfOptions {
     pub resolution_ticks: Option<u32>,
     pub min_delta_ms: Option<f64>,
     pub min_delta_pct: Option<f64>,
+    pub policy_sources: BTreeMap<String, String>,
 }
 impl Default for PerfOptions {
     fn default() -> Self {
@@ -49,6 +50,7 @@ impl Default for PerfOptions {
             resolution_ticks: None,
             min_delta_ms: None,
             min_delta_pct: None,
+            policy_sources: BTreeMap::new(),
         }
     }
 }
@@ -150,10 +152,111 @@ pub struct Term {
 #[serde(deny_unknown_fields)]
 pub struct CapturePerf {
     pub schema: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub kind: Option<String>,
     pub unit: String,
     pub frame: Frame,
     pub terms: Vec<Term>,
     pub counters: BTreeMap<String, BTreeMap<String, f64>>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub context: Option<PerfContext>,
+}
+
+// Historical input shape; its validator stays unchanged.
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+#[cfg_attr(feature = "schema", schemars(rename = "CapturePerf"))]
+pub struct LegacyCapturePerf {
+    pub schema: String,
+    pub unit: String,
+    pub frame: Frame,
+    pub terms: Vec<Term>,
+    pub counters: BTreeMap<String, BTreeMap<String, f64>>,
+}
+
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum Comparability {
+    Qualified,
+    Rejected,
+    #[default]
+    Unknown,
+}
+
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct SourceRef {
+    pub source: String,
+    pub hash: crate::evidence::canonical::Digest,
+}
+
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct Qualification {
+    pub status: Comparability,
+    pub rule: String,
+    pub version: String,
+    /// Missing checks remain unknown; matching false checks reject both sides.
+    pub checks: BTreeMap<String, Option<bool>>,
+    pub reasons: Vec<String>,
+}
+
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct UnavailableTerm {
+    pub id: String,
+    pub parent: Option<String>,
+    pub upper_bound_ms: Option<f64>,
+}
+
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct PerfContext {
+    pub measurement: Option<SourceRef>,
+    pub timer: Option<String>,
+    pub quantum_ms: Option<f64>,
+    pub sample_window: Option<SourceRef>,
+    pub raw_samples: Vec<SourceRef>,
+    pub hardware: BTreeMap<String, String>,
+    /// joint_partition means terms account for this frame's measured window.
+    /// independent_statistics never supplies an additive frame remainder.
+    pub aggregation: String,
+    pub attribution_coverage: Option<f64>,
+    pub unresolved_remainder_ms: Option<f64>,
+    pub capture_hash: Option<crate::evidence::canonical::Digest>,
+    pub configuration_hash: Option<crate::evidence::canonical::Digest>,
+    pub producer: String,
+    pub producer_version: String,
+    pub qualification: Qualification,
+    #[serde(default)]
+    pub unavailable_terms: Vec<UnavailableTerm>,
+}
+
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct PerformanceNoiseRecord {
+    pub schema: String,
+    pub kind: String,
+    pub unit: String,
+    pub perf_noise: PerfNoise,
+    pub comparability: Comparability,
+    pub sources: Vec<SourceRef>,
+    pub reasons: Vec<String>,
+}
+
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(untagged)]
+pub enum PerfDocument {
+    Measurement(Box<CapturePerf>),
+    Noise(Box<PerformanceNoiseRecord>),
 }
 // serde maps otherwise silently overwrite duplicate counter names. Check every
 // object before decoding into typed records, including nested counter maps.
@@ -223,8 +326,18 @@ impl CapturePerf {
         Ok(p)
     }
     fn validate(&self) -> Result<(), String> {
-        if self.schema != "saccade-perf.v1" || self.unit != "ms" {
-            return Err("expected schema saccade-perf.v1 and unit ms".into());
+        if !["saccade-perf.v1", "saccade-perf.v2"].contains(&self.schema.as_str())
+            || self.unit != "ms"
+        {
+            return Err("expected schema saccade-perf.v1/v2 and unit ms".into());
+        }
+        if self.schema == "saccade-perf.v1" && self.context.is_some() {
+            return Err("v1 cannot carry v2 qualification context".into());
+        }
+        if (self.schema == "saccade-perf.v2" && self.kind.as_deref() != Some("measurement"))
+            || (self.schema == "saccade-perf.v1" && self.kind.is_some())
+        {
+            return Err("perf.v2 measurement needs kind measurement; v1 has no kind".into());
         }
         if !nonnegative(self.frame.value)
             || self.frame.samples == 0
@@ -282,7 +395,115 @@ impl CapturePerf {
                 return Err(format!("invalid counter for {id:?}"));
             }
         }
+        if let Some(c) = &self.context {
+            if !["joint_partition", "independent_statistics"].contains(&c.aggregation.as_str())
+                || c.quantum_ms.is_some_and(|q| !q.is_finite() || q <= 0.0)
+                || c.attribution_coverage
+                    .is_some_and(|v| !nonnegative(v) || v > 1.0)
+                || c.unresolved_remainder_ms.is_some_and(|v| !nonnegative(v))
+                || c.measurement
+                    .iter()
+                    .chain(c.sample_window.iter())
+                    .chain(&c.raw_samples)
+                    .any(|s| s.source.trim().is_empty())
+            {
+                return Err("invalid performance context, aggregation or bound".into());
+            }
+            let mut parents: BTreeMap<&str, Option<&str>> = self
+                .terms
+                .iter()
+                .map(|t| (t.id.as_str(), t.parent.as_deref()))
+                .collect();
+            for t in &c.unavailable_terms {
+                if t.id.trim().is_empty()
+                    || t.upper_bound_ms.is_some_and(|v| !nonnegative(v))
+                    || parents.insert(&t.id, t.parent.as_deref()).is_some()
+                {
+                    return Err("invalid or duplicate unavailable term".into());
+                }
+            }
+            for id in parents.keys() {
+                let mut seen = BTreeSet::from([*id]);
+                let mut parent = parents[id];
+                while let Some(p) = parent {
+                    if !seen.insert(p) {
+                        return Err("unavailable term parent cycle".into());
+                    }
+                    parent = *parents.get(p).ok_or("unknown unavailable term parent")?;
+                }
+            }
+        }
         Ok(())
+    }
+    pub fn qualification(&self) -> (Comparability, Vec<String>) {
+        let Some(c) = &self.context else {
+            return (
+                Comparability::Unknown,
+                vec!["qualification context missing (historical v1 or unavailable v2)".into()],
+            );
+        };
+        let q = &c.qualification;
+        if q.status == Comparability::Rejected || q.checks.values().any(|v| *v == Some(false)) {
+            let mut reasons = q.reasons.clone();
+            reasons.push("producer qualification rejected or a check failed".into());
+            reasons.extend(
+                q.checks
+                    .iter()
+                    .filter(|(_, v)| **v == Some(false))
+                    .map(|(name, _)| format!("qualification check failed: {name}")),
+            );
+            return (Comparability::Rejected, reasons);
+        }
+        let complete = c.measurement.is_some()
+            && c.sample_window.is_some()
+            && !c.raw_samples.is_empty()
+            && c.timer.as_ref().is_some_and(|s| !s.trim().is_empty())
+            && c.quantum_ms.is_some()
+            && c.capture_hash.is_some()
+            && c.configuration_hash.is_some()
+            && ["gpu", "driver"]
+                .iter()
+                .all(|k| c.hardware.get(*k).is_some_and(|v| !v.trim().is_empty()))
+            && !c.producer.trim().is_empty()
+            && !c.producer_version.trim().is_empty()
+            && !q.rule.trim().is_empty()
+            && !q.version.trim().is_empty()
+            && ["window_complete", "clock_qualified", "warmup_complete"]
+                .iter()
+                .all(|name| q.checks.get(*name) == Some(&Some(true)))
+            && q.checks.values().all(|v| *v == Some(true));
+        if q.status != Comparability::Qualified || !complete || self.validate().is_err() {
+            return (
+                Comparability::Unknown,
+                vec![
+                    "qualification or required source/timer/window/hardware identity missing"
+                        .into(),
+                ],
+            );
+        }
+        (Comparability::Qualified, Vec::new())
+    }
+
+    /// Calibration identity excludes capture/window identity, retaining pair conditions.
+    pub fn comparison_identity(&self) -> Option<crate::evidence::canonical::Digest> {
+        let c = self.context.as_ref()?;
+        crate::evidence::canonical::digest(&serde_json::json!({
+            "timer":c.timer,"quantum_ms":c.quantum_ms,"hardware":c.hardware,
+            "configuration_hash":c.configuration_hash,"aggregation":c.aggregation,
+            "stat":self.frame.stat,"rule":c.qualification.rule,"version":c.qualification.version,
+            "checks":c.qualification.checks.keys().collect::<Vec<_>>()
+        }))
+        .ok()
+    }
+
+    #[cfg(feature = "graphics")]
+    fn accounting_remainder(&self) -> Option<f64> {
+        let c = self.context.as_ref()?;
+        if c.aggregation == "joint_partition" {
+            Some(self.remainder())
+        } else {
+            None
+        }
     }
     pub fn additive(&self) -> f64 {
         self.terms
@@ -295,6 +516,9 @@ impl CapturePerf {
         self.frame.value - self.additive()
     }
     pub fn read(dir: &Path, name: &str) -> Result<Option<Self>, PerfError> {
+        Self::read_with_source(dir, name).map(|value| value.map(|(capture, _)| capture))
+    }
+    fn read_with_source(dir: &Path, name: &str) -> Result<Option<(Self, SourceRef)>, PerfError> {
         let path = dir.join(name);
         let err = |message: String| PerfError {
             path: crate::paths::portable(&path),
@@ -311,7 +535,14 @@ impl CapturePerf {
             ));
         }
         let text = std::fs::read_to_string(&path).map_err(|e| err(e.to_string()))?;
-        Self::parse(&text, &crate::paths::portable(&path)).map(Some)
+        let capture = Self::parse(&text, &crate::paths::portable(&path))?;
+        Ok(Some((
+            capture,
+            SourceRef {
+                source: crate::paths::portable(&path),
+                hash: crate::evidence::canonical::Digest::of_bytes(text.as_bytes()),
+            },
+        )))
     }
 }
 
@@ -332,6 +563,12 @@ pub struct PerfNoise {
     /// Percentage of the baseline frame, shared by frame and term thresholds.
     #[serde(default = "default_min_delta_pct")]
     pub min_delta_pct: f64,
+    #[serde(default)]
+    pub comparability: Comparability,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub timer: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub context_identity: Option<crate::evidence::canonical::Digest>,
 }
 impl Default for PerfNoise {
     fn default() -> Self {
@@ -342,6 +579,9 @@ impl Default for PerfNoise {
             resolution_ticks: default_ticks(),
             min_delta_ms: default_min_delta_ms(),
             min_delta_pct: default_min_delta_pct(),
+            comparability: Comparability::Unknown,
+            timer: None,
+            context_identity: None,
         }
     }
 }
@@ -379,13 +619,58 @@ impl PerfNoise {
             path.display()
         )))?;
         let floor = if text.trim_start().starts_with('{') {
+            serde_json::from_str::<JsonKeys>(&text)?;
             let v: serde_json::Value = serde_json::from_str(&text)?;
-            serde_json::from_value::<Self>(
-                v.get("perf_noise")
-                    .cloned()
-                    .ok_or_else(|| crate::Error::Config("noise JSON needs perf_noise".into()))?,
-            )?
+            if v.get("kind")
+                .and_then(|v| v.as_str())
+                .is_some_and(|k| k != "performance_noise")
+                || (v.get("schema").and_then(|v| v.as_str()) == Some("saccade-noise.v1")
+                    && v.get("perf_noise").is_none())
+            {
+                return Err(wrong_noise_kind(
+                    "performance",
+                    "noise BASE REPEAT... --kind performance",
+                ));
+            }
+            if v.get("schema").and_then(|v| v.as_str()) == Some("saccade-perf.v2") {
+                if v.get("kind").and_then(|v| v.as_str()) != Some("performance_noise") {
+                    return Err(wrong_noise_kind(
+                        "performance",
+                        "noise BASE REPEAT... --kind performance",
+                    ));
+                }
+                let record: PerformanceNoiseRecord = serde_json::from_value(v)?;
+                if record.kind != "performance_noise" || record.unit != "ms" {
+                    return Err(wrong_noise_kind(
+                        "performance",
+                        "noise BASE REPEAT... --kind performance",
+                    ));
+                }
+                let mut floor = record.perf_noise;
+                // The outer record cannot promote unavailable/legacy calibration.
+                if record.comparability != Comparability::Qualified || record.sources.len() < 2 {
+                    floor.comparability = record.comparability;
+                    if floor.comparability == Comparability::Qualified {
+                        floor.comparability = Comparability::Unknown;
+                    }
+                }
+                floor.validate()?;
+                return Ok(floor);
+            }
+            serde_json::from_value::<Self>(v.get("perf_noise").cloned().ok_or_else(|| {
+                wrong_noise_kind("performance", "noise BASE REPEAT... --kind performance")
+            })?)?
         } else {
+            let v: toml::Value =
+                toml::from_str(&text).map_err(|e| crate::Error::Config(e.to_string()))?;
+            if v.get("perf_noise").is_none()
+                && (v.get("override").is_some() || v.get("threshold").is_some())
+            {
+                return Err(wrong_noise_kind(
+                    "performance",
+                    "noise BASE REPEAT... --kind performance",
+                ));
+            }
             #[derive(Deserialize)]
             struct Document {
                 perf_noise: PerfNoise,
@@ -396,6 +681,27 @@ impl PerfNoise {
         };
         floor.validate()?;
         Ok(floor)
+    }
+}
+
+pub fn wrong_noise_kind(expected: &'static str, command: &'static str) -> crate::Error {
+    crate::Error::WrongNoiseKind { expected, command }
+}
+
+/// Distinguishes dedicated noise artifacts from ordinary mixed image/perf configuration.
+pub fn is_performance_noise_document(text: &str) -> bool {
+    if text.trim_start().starts_with('{') {
+        serde_json::from_str::<serde_json::Value>(text)
+            .is_ok_and(|v| v.get("schema").and_then(|s| s.as_str()) == Some("saccade-perf.v2"))
+    } else {
+        toml::from_str::<toml::Value>(text).is_ok_and(|v| {
+            v.as_table().is_some_and(|table| {
+                table.get("perf_noise").is_some_and(toml::Value::is_table)
+                    && table
+                        .keys()
+                        .all(|k| ["perf_noise", "perf_noise_k"].contains(&k.as_str()))
+            })
+        })
     }
 }
 
@@ -426,7 +732,7 @@ impl Delta {
         after: Option<f64>,
         floor: Option<f64>,
         threshold: Option<f64>,
-        minimum: Option<f64>,
+        _minimum: Option<f64>,
         comparable: bool,
     ) -> Self {
         let status = match (before, after, comparable) {
@@ -444,13 +750,7 @@ impl Delta {
             .zip(before)
             .filter(|(_, b)| *b != 0.0)
             .and_then(|(d, b)| finite(d / b * 100.0));
-        let beyond_noise = delta.and_then(|d| {
-            if minimum.is_some_and(|m| d.abs() <= m) {
-                Some(false)
-            } else {
-                threshold.map(|limit| d.abs() > limit)
-            }
-        });
+        let beyond_noise = delta.and_then(|d| threshold.map(|limit| d.abs() > limit));
         Self {
             before,
             after,
@@ -505,10 +805,61 @@ pub struct PerfDiff {
     #[serde(default)]
     pub minimum_delta_ms: f64,
     pub frame: Delta,
-    pub unattributed_before: f64,
-    pub unattributed_after: f64,
+    pub unattributed_before: Option<f64>,
+    pub unattributed_after: Option<f64>,
     pub terms: Vec<TermDiff>,
     pub warnings: Vec<String>,
+    #[serde(default)]
+    pub comparability: Comparability,
+    #[serde(default)]
+    pub noise_comparability: Comparability,
+    #[serde(default)]
+    pub qualification_reasons: Vec<String>,
+    #[serde(default)]
+    pub frame_change: FrameChange,
+    #[serde(default)]
+    pub attribution: Attribution,
+    #[serde(default)]
+    pub materiality: Materiality,
+    /// Effective policy sources: explicit options, repeat calibration or defaults.
+    #[serde(default)]
+    pub policy_sources: BTreeMap<String, String>,
+    /// Producer evidence is retained in analytical reports, including its hashes.
+    #[serde(default)]
+    pub context_before: Option<PerfContext>,
+    #[serde(default)]
+    pub context_after: Option<PerfContext>,
+}
+
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum FrameChange {
+    Faster,
+    Slower,
+    WithinMeasuredNoise,
+    #[default]
+    Unknown,
+}
+
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum Attribution {
+    Complete,
+    Partial,
+    Inconsistent,
+    #[default]
+    Unavailable,
+}
+
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
+#[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize)]
+pub struct Materiality {
+    pub floor_ms: Option<f64>,
+    pub unexplained_upper_bound_ms: Option<f64>,
+    pub blocks_no_effect: bool,
+    pub reasons: Vec<String>,
 }
 impl PerfDiff {
     #[cfg(feature = "graphics")]
@@ -531,14 +882,33 @@ impl PerfDiff {
         opts: &PerfOptions,
     ) -> Self {
         let k = opts.k;
-        let policy = opts.policy(floor);
+        let mut policy = opts.policy(floor);
+        if policy.resolution_ms.is_none() {
+            policy.resolution_ms = b
+                .context
+                .as_ref()
+                .and_then(|c| c.quantum_ms)
+                .zip(a.context.as_ref().and_then(|c| c.quantum_ms))
+                .map(|(b, a)| b.max(a));
+        }
         let minimum = policy
             .min_delta_ms
             .max(b.frame.value * (policy.min_delta_pct / 100.0))
             .min(f64::MAX);
-        let hard_floor =
-            minimum.max(policy.resolution_ms.unwrap_or(0.0) * f64::from(policy.resolution_ticks));
-        let threshold = |spread: Option<f64>| spread.and_then(|s| finite((k * s).max(hard_floor)));
+        let hard_floor = policy
+            .resolution_ms
+            .and_then(|q| finite(minimum.max(q * f64::from(policy.resolution_ticks))));
+        let threshold = |spread: Option<f64>| {
+            spread
+                .zip(hard_floor)
+                .and_then(|(s, h)| finite((k * s).max(h)))
+        };
+        let (mut comparability, mut qualification_reasons) = pair_qualification(b, a);
+        if opts.validate().is_err() || floor.is_some_and(|f| f.validate().is_err()) {
+            comparability = Comparability::Rejected;
+            qualification_reasons
+                .push("invalid performance threshold policy or repeat calibration".into());
+        }
         let bm: BTreeMap<_, _> = b.terms.iter().map(|t| (&t.id, t)).collect();
         let am: BTreeMap<_, _> = a.terms.iter().map(|t| (&t.id, t)).collect();
         let ids: BTreeSet<_> = bm.keys().chain(am.keys()).copied().collect();
@@ -590,7 +960,7 @@ impl PerfDiff {
                     at.map(|t| t.value),
                     floor.and_then(|f| f.terms.get(id).copied()),
                     threshold(floor.and_then(|f| f.terms.get(id).copied())),
-                    finite(hard_floor),
+                    None,
                     comparable,
                 ),
                 share_before: bt
@@ -604,13 +974,105 @@ impl PerfDiff {
         }
         let mut warnings = Vec::new();
         for (side, p) in [("before", b), ("after", a)] {
-            if p.remainder().abs() > p.frame.value * 0.01 {
+            if p.accounting_remainder()
+                .is_some_and(|r| r.abs() > p.frame.value * 0.01)
+            {
                 warnings.push(format!("{side}: unattributed remainder {:.6} ms exceeds 1% of frame (negative means over-attribution)", p.remainder()));
             }
         }
         if b.frame.stat != a.frame.stat {
             warnings.push("frame statistics differ; frame delta is not comparable".into());
         }
+        let materiality = assess_materiality(b, a, &terms, hard_floor);
+        let attribution = if [b, a].iter().any(|p| {
+            p.accounting_remainder()
+                .is_some_and(|r| r < -QUANTUM_TOLERANCE_MS)
+        }) {
+            Attribution::Inconsistent
+        } else if [b, a].iter().all(|p| {
+            p.accounting_remainder()
+                .is_some_and(|r| r.abs() <= QUANTUM_TOLERANCE_MS)
+                && p.context.as_ref().is_some_and(|c| {
+                    c.unavailable_terms.is_empty()
+                        && c.attribution_coverage == Some(1.0)
+                        && c.unresolved_remainder_ms == Some(0.0)
+                })
+        }) {
+            Attribution::Complete
+        } else if materiality.unexplained_upper_bound_ms.is_some() {
+            Attribution::Partial
+        } else {
+            Attribution::Unavailable
+        };
+        let frame = Delta::new(
+            Some(b.frame.value),
+            Some(a.frame.value),
+            floor.map(|f| f.frame),
+            threshold(floor.map(|f| f.frame)),
+            None,
+            b.frame.stat == a.frame.stat,
+        );
+        let noise_comparability = floor.map_or(Comparability::Unknown, |f| {
+            if f.comparability == Comparability::Qualified
+                && f.timer.is_some()
+                && b.context.as_ref().is_some_and(|c| c.timer == f.timer)
+                && a.context.as_ref().is_some_and(|c| c.timer == f.timer)
+                && f.context_identity.is_some()
+                && b.comparison_identity() == f.context_identity
+                && a.comparison_identity() == f.context_identity
+            {
+                Comparability::Qualified
+            } else if f.comparability == Comparability::Rejected {
+                Comparability::Rejected
+            } else {
+                Comparability::Unknown
+            }
+        });
+        let frame_change = if comparability != Comparability::Qualified
+            || noise_comparability != Comparability::Qualified
+        {
+            FrameChange::Unknown
+        } else {
+            match (frame.beyond_noise, frame.delta) {
+                (Some(false), _) => FrameChange::WithinMeasuredNoise,
+                (Some(true), Some(d)) if d < 0.0 => FrameChange::Faster,
+                (Some(true), Some(_)) => FrameChange::Slower,
+                _ => FrameChange::Unknown,
+            }
+        };
+        let mut policy_sources = BTreeMap::new();
+        for (key, explicit) in [
+            ("resolution_ticks", opts.resolution_ticks.is_some()),
+            ("min_delta_ms", opts.min_delta_ms.is_some()),
+            ("min_delta_pct", opts.min_delta_pct.is_some()),
+        ] {
+            policy_sources.insert(
+                key.into(),
+                if explicit {
+                    "explicit_options"
+                } else if floor.is_some() {
+                    "repeat_calibration"
+                } else {
+                    "default"
+                }
+                .into(),
+            );
+        }
+        policy_sources.insert(
+            "resolution_ms".into(),
+            if opts.resolution_ms.is_some() {
+                "explicit_options"
+            } else if floor.is_some_and(|f| f.resolution_ms.is_some()) {
+                "repeat_calibration"
+            } else if policy.resolution_ms.is_some() {
+                "measurement_timer"
+            } else {
+                "unknown"
+            }
+            .into(),
+        );
+        policy_sources.insert("noise_k".into(), "effective_options".into());
+        policy_sources.extend(opts.policy_sources.clone());
         Self {
             schema: "saccade-perf-diff.v1".into(),
             unit: "ms".into(),
@@ -620,18 +1082,20 @@ impl PerfDiff {
             min_delta_ms: policy.min_delta_ms,
             min_delta_pct: policy.min_delta_pct,
             minimum_delta_ms: minimum,
-            frame: Delta::new(
-                Some(b.frame.value),
-                Some(a.frame.value),
-                floor.map(|f| f.frame),
-                threshold(floor.map(|f| f.frame)),
-                finite(hard_floor),
-                b.frame.stat == a.frame.stat,
-            ),
-            unattributed_before: b.remainder(),
-            unattributed_after: a.remainder(),
+            frame,
+            unattributed_before: b.accounting_remainder(),
+            unattributed_after: a.accounting_remainder(),
             terms,
             warnings,
+            comparability,
+            noise_comparability,
+            qualification_reasons,
+            frame_change,
+            attribution,
+            materiality,
+            policy_sources,
+            context_before: b.context.clone(),
+            context_after: a.context.clone(),
         }
     }
     pub fn top(&self, n: usize, beyond_only: bool) -> Vec<&TermDiff> {
@@ -659,13 +1123,26 @@ impl PerfDiff {
                 .terms
                 .iter()
                 .any(|t| t.change.beyond_noise == Some(true));
-        let complete = self.frame.noise_floor.is_some()
+        let complete = self.resolution_ms.is_some()
+            && self.frame.noise_floor.is_some()
             && self.frame.beyond_noise == Some(false)
             && self
                 .terms
                 .iter()
                 .all(|t| t.change.status != "paired" || t.change.beyond_noise == Some(false));
-        (identical && complete && !moved, identical && moved)
+        let qualified = self.comparability == Comparability::Qualified
+            && self.noise_comparability == Comparability::Qualified;
+        (
+            identical
+                && qualified
+                && complete
+                && !moved
+                && self.materiality.floor_ms.is_some()
+                && self.materiality.unexplained_upper_bound_ms.is_some()
+                && !self.materiality.blocks_no_effect
+                && self.attribution != Attribution::Inconsistent,
+            identical && qualified && moved,
+        )
     }
     /// Compact verdict prioritises established beyond-noise changes.
     pub fn verdict(&self) -> String {
@@ -680,6 +1157,14 @@ impl PerfDiff {
             .map(|t| format!("{} {}", clean(&t.id), describe(&t.change, self.noise_k)))
             .collect();
         parts.push(format!("frame {}", describe(&self.frame, self.noise_k)));
+        if self.comparability != Comparability::Qualified
+            || self.noise_comparability != Comparability::Qualified
+        {
+            parts.push(format!(
+                "performance {:?}; repeat qualification {:?}",
+                self.comparability, self.noise_comparability
+            ));
+        }
         let incomplete = self
             .terms
             .iter()
@@ -768,6 +1253,166 @@ impl PerfDiff {
         )
     }
 }
+#[cfg(feature = "graphics")]
+fn pair_qualification(b: &CapturePerf, a: &CapturePerf) -> (Comparability, Vec<String>) {
+    let (bs, mut reasons) = b.qualification();
+    let (as_, ar) = a.qualification();
+    reasons.extend(ar);
+    if bs == Comparability::Rejected || as_ == Comparability::Rejected {
+        return (Comparability::Rejected, reasons);
+    }
+    if b.frame.stat != a.frame.stat {
+        reasons.push("frame aggregation statistics differ".into());
+        return (Comparability::Rejected, reasons);
+    }
+    if let Some((bc, ac)) = b.context.as_ref().zip(a.context.as_ref())
+        && (bc.timer != ac.timer
+            || bc.hardware != ac.hardware
+            || bc.configuration_hash != ac.configuration_hash
+            || bc.aggregation != ac.aggregation
+            || bc.qualification.rule != ac.qualification.rule
+            || bc.qualification.version != ac.qualification.version
+            || bc
+                .qualification
+                .checks
+                .keys()
+                .ne(ac.qualification.checks.keys()))
+    {
+        reasons.push(
+            "timer, hardware, configuration, aggregation or qualification rules differ".into(),
+        );
+        return (Comparability::Rejected, reasons);
+    }
+    if bs != Comparability::Qualified || as_ != Comparability::Qualified {
+        (Comparability::Unknown, reasons)
+    } else {
+        (Comparability::Qualified, reasons)
+    }
+}
+
+#[cfg(feature = "graphics")]
+fn assess_materiality(
+    b: &CapturePerf,
+    a: &CapturePerf,
+    terms: &[TermDiff],
+    floor_ms: Option<f64>,
+) -> Materiality {
+    let unexplained: BTreeSet<_> = terms
+        .iter()
+        .filter(|t| t.change.status != "paired")
+        .map(|t| t.id.as_str())
+        .collect();
+    fn side_bound(p: &CapturePerf, unexplained: &BTreeSet<&str>) -> Option<f64> {
+        let c = p.context.as_ref()?;
+        let mut nodes: BTreeMap<&str, (Option<&str>, Option<f64>)> = p
+            .terms
+            .iter()
+            .filter(|t| unexplained.contains(t.id.as_str()))
+            .map(|t| {
+                (
+                    t.id.as_str(),
+                    (
+                        t.parent.as_deref(),
+                        Some(t.spread.as_ref().map_or(t.value, |s| s.max)),
+                    ),
+                )
+            })
+            .collect();
+        for t in &c.unavailable_terms {
+            nodes.insert(&t.id, (t.parent.as_deref(), t.upper_bound_ms));
+        }
+        // Find each selected node's closest selected ancestor, through resolved scopes too.
+        let parents: BTreeMap<&str, Option<&str>> = p
+            .terms
+            .iter()
+            .map(|t| (t.id.as_str(), t.parent.as_deref()))
+            .chain(
+                c.unavailable_terms
+                    .iter()
+                    .map(|t| (t.id.as_str(), t.parent.as_deref())),
+            )
+            .collect();
+        let mut children: BTreeMap<Option<&str>, Vec<&str>> = BTreeMap::new();
+        for (id, (parent, _)) in &nodes {
+            let mut ancestor = *parent;
+            while let Some(par) = ancestor {
+                if nodes.contains_key(par) {
+                    break;
+                }
+                ancestor = *parents.get(par)?;
+            }
+            children.entry(ancestor).or_default().push(id);
+        }
+        let mut pending: BTreeMap<&str, usize> = nodes
+            .keys()
+            .map(|id| (*id, children.get(&Some(*id)).map_or(0, Vec::len)))
+            .collect();
+        let mut ready: Vec<&str> = pending
+            .iter()
+            .filter(|(_, n)| **n == 0)
+            .map(|(id, _)| *id)
+            .collect();
+        let mut nested: BTreeMap<&str, f64> = BTreeMap::new();
+        let mut total = 0.0;
+        while let Some(id) = ready.pop() {
+            let own = nodes.get(id)?.1?;
+            let value = finite(own.max(nested.get(id).copied().unwrap_or(0.0)))?;
+            let mut ancestor = nodes.get(id)?.0;
+            while let Some(par) = ancestor {
+                if nodes.contains_key(par) {
+                    break;
+                }
+                ancestor = *parents.get(par)?;
+            }
+            if let Some(parent) = ancestor {
+                *nested.entry(parent).or_default() += value;
+                let count = pending.get_mut(parent)?;
+                *count -= 1;
+                if *count == 0 {
+                    ready.push(parent);
+                }
+            } else {
+                total += value;
+            }
+        }
+        let remainder = match p.accounting_remainder() {
+            Some(r) => r.abs().max(c.unresolved_remainder_ms?),
+            None => c.unresolved_remainder_ms?,
+        };
+        finite(total + remainder)
+    }
+    let upper = if b.validate().is_ok() && a.validate().is_ok() {
+        side_bound(b, &unexplained)
+            .zip(side_bound(a, &unexplained))
+            .map(|(b, a)| b.max(a))
+    } else {
+        None
+    };
+    let mut reasons = Vec::new();
+    if floor_ms.is_none() {
+        reasons.push("materiality floor unavailable: missing frame/timer bound".into());
+    }
+    if upper.is_none() {
+        reasons.push("unexplained term or frame remainder has no usable bound".into());
+    }
+    let blocks_no_effect = match upper.zip(floor_ms) {
+        Some((u, f)) if u < f => false,
+        Some((u, f)) => {
+            reasons.push(format!(
+                "unexplained aggregate {u:.6} ms is at least materiality floor {f:.6} ms"
+            ));
+            true
+        }
+        None => true,
+    };
+    Materiality {
+        floor_ms,
+        unexplained_upper_bound_ms: upper,
+        blocks_no_effect,
+        reasons,
+    }
+}
+
 pub fn clean(s: &str) -> String {
     s.chars()
         .map(|c| if c.is_control() { ' ' } else { c })
@@ -838,11 +1483,19 @@ pub fn noise_with_options(
         .iter()
         .map(|d| CapturePerf::read(d, &opts.name).map_err(crate::Error::Perf))
         .collect::<crate::Result<_>>()?;
+    noise_from_captures(&captures, opts)
+}
+
+#[cfg(feature = "graphics")]
+fn noise_from_captures(
+    captures: &[Option<CapturePerf>],
+    opts: &PerfOptions,
+) -> crate::Result<(Option<PerfNoise>, Vec<String>)> {
     let present: Vec<_> = captures.iter().flatten().collect();
     if present.is_empty() {
         return Ok((None, Vec::new()));
     }
-    if present.len() != dirs.len() {
+    if present.len() != captures.len() {
         return Err(crate::Error::Config(
             "perf noise needs a sidecar in every repeat when any repeat has one".into(),
         ));
@@ -887,15 +1540,78 @@ pub fn noise_with_options(
     calibration.frame = range(present.iter().map(|p| p.frame.value).collect());
     calibration.terms = terms;
     if calibration.resolution_ms.is_none() {
-        calibration.resolution_ms = estimate_quantum(
-            present
-                .iter()
-                .flat_map(|p| p.terms.iter().map(|t| t.value))
-                .collect(),
-        );
+        calibration.resolution_ms = present
+            .iter()
+            .filter_map(|p| p.context.as_ref().and_then(|c| c.quantum_ms))
+            .max_by(f64::total_cmp)
+            .or_else(|| {
+                estimate_quantum(
+                    present
+                        .iter()
+                        .flat_map(|p| p.terms.iter().map(|t| t.value))
+                        .collect(),
+                )
+            });
+    }
+    calibration.comparability = Comparability::Qualified;
+    calibration.timer = first.context.as_ref().and_then(|c| c.timer.clone());
+    calibration.context_identity = first.comparison_identity();
+    if captures.len() < 2 {
+        calibration.comparability = Comparability::Unknown;
+        warnings.push("repeat noise needs at least two captures".into());
+    }
+    for p in &present {
+        let (status, reasons) = pair_qualification(first, p);
+        if status == Comparability::Rejected {
+            calibration.comparability = Comparability::Rejected;
+        } else if status == Comparability::Unknown
+            && calibration.comparability != Comparability::Rejected
+        {
+            calibration.comparability = Comparability::Unknown;
+        }
+        warnings.extend(reasons);
+    }
+    let windows: BTreeSet<_> = present
+        .iter()
+        .filter_map(|p| p.context.as_ref()?.sample_window.as_ref().map(|s| &s.hash))
+        .collect();
+    if calibration.comparability == Comparability::Qualified && windows.len() != captures.len() {
+        calibration.comparability = Comparability::Unknown;
+        warnings.push("unchanged repeats require distinct measured sample windows".into());
     }
     calibration.validate()?;
     Ok((Some(calibration), warnings))
+}
+
+/// Typed performance noise output. Sources hash the exact sidecars used above.
+#[cfg(feature = "graphics")]
+pub fn noise_record(dirs: &[PathBuf], opts: &PerfOptions) -> crate::Result<PerformanceNoiseRecord> {
+    opts.validate()?;
+    let mut captures = Vec::new();
+    let mut sources = Vec::new();
+    for dir in dirs {
+        let (capture, source) =
+            CapturePerf::read_with_source(dir, &opts.name)?.ok_or_else(|| {
+                crate::Error::Config(
+                    "performance noise requires a performance sidecar in every repeat".into(),
+                )
+            })?;
+        captures.push(Some(capture));
+        sources.push(source);
+    }
+    let (floor, reasons) = noise_from_captures(&captures, opts)?;
+    let floor = floor.ok_or_else(|| {
+        crate::Error::Config("performance noise needs at least two captures".into())
+    })?;
+    Ok(PerformanceNoiseRecord {
+        schema: "saccade-perf.v2".into(),
+        kind: "performance_noise".into(),
+        unit: "ms".into(),
+        comparability: floor.comparability,
+        perf_noise: floor,
+        sources,
+        reasons,
+    })
 }
 
 // Adjacent distinct values contain the same GCD as all pairwise differences.
