@@ -1,6 +1,7 @@
-# Blind pairwise inspection and a human vote page; Jev supplies the summary.
+# Request observation extraction and separate blind comparison directly.
+# Enriched Jev interpretation remains dependent advice for human review.
 name = "lookdev"
 gemini = "always"
 confidence = 0.75
-max_gemini = 5
+max_gemini = 3
 human_votes = true

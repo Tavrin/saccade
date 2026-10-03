@@ -1,9 +1,7 @@
-# Batch Jev on every eligible entry, then inspect the worst uncertain entries.
-name = "nightly"
+# Jev routing first; visual extraction requires authorization and a pixel route.
+name = "triage"
 gemini = "escalation"
 confidence = 0.75
 max_gemini = 3
 chunk_entries = 8
 gemini_models = ["gemini-3.8-flash", "gemini-3.7-flash", "gemini-3.6-flash", "gemini-3.5-flash"]
-cooldown_secs = 600
-max_retries = 2

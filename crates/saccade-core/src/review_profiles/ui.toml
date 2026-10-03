@@ -2,5 +2,5 @@
 name = "ui"
 gemini = "layout"
 confidence = 0.75
-max_gemini = 5
+max_gemini = 3
 # ocr_cmd = "ocr-wrapper {image}"

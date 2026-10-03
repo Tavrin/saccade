@@ -10,6 +10,9 @@ use serde::Serialize;
 
 use crate::report::Hotspot;
 
+/// Anonymous visual evidence, with a private source and presentation binding.
+pub mod vision;
+
 use crate::evidence::canonical::{self, Digest};
 use crate::evidence::case::{
     Availability, EvidenceCase, Fact, FactSource, FactValue, IntentAssurance,
@@ -28,7 +31,7 @@ pub const MAX_EVIDENCE_BYTES: usize = 64 * 1024;
 pub struct EncodingOptions {
     /// Display/crop/transform identity, even for a direct request.
     pub presentation_identity: Digest,
-    /// Already attributed model observations; extraction belongs to R10.
+    /// Already attributed model observations from a completed extraction.
     pub observations: Vec<Fact>,
     /// Actual model/rubric/transform/fallback identities, never guessed.
     pub observation_context: Option<ObservationContext>,

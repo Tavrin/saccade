@@ -1,0 +1,14 @@
+{
+  "rubric_version": "visual-observation/1",
+  "full_frame_dimensions": [1536, 768],
+  "native_crop_dimensions": [5, 7],
+  "view_ids": [
+    "full-frame-P1", "full-frame-P2",
+    "crop-r1-raw-P1", "crop-r1-raw-P2",
+    "crop-r1-enhanced-P1", "crop-r1-enhanced-P2",
+    "crop-r2-raw-P1", "crop-r2-raw-P2",
+    "crop-r2-enhanced-P1", "crop-r2-enhanced-P2",
+    "crop-r3-raw-P1", "crop-r3-raw-P2",
+    "crop-r3-enhanced-P1", "crop-r3-enhanced-P2"
+  ]
+}

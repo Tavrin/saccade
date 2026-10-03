@@ -30,6 +30,9 @@ use serde_json::{Value, json};
 
 use crate::judge::{JudgeSpec, Provider};
 
+/// Canonical observation and structured decision adapters, with injectable transport.
+pub mod observations;
+
 /// A secret that never prints.
 #[derive(Clone)]
 pub struct Secret(String);

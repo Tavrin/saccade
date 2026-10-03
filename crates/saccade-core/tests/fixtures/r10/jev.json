@@ -1,0 +1,15 @@
+{
+  "model": "jev-fixture-revision-1",
+  "answers": {
+    "q": {
+      "choice": "partially_consistent",
+      "probabilities": {
+        "consistent": 0.12,
+        "partially_consistent": 0.65,
+        "contradicts": 0.10,
+        "insufficient_intent": 0.08,
+        "abstain": 0.05
+      }
+    }
+  }
+}

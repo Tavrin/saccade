@@ -1,0 +1,8 @@
+{
+  "region_id": "r1",
+  "observation": "shadow_boundary",
+  "change": "softer",
+  "visibility": "clear",
+  "evidence_refs": ["crop-r1-raw-P1", "crop-r1-raw-P2"],
+  "uncertainty": "object identity is unclear; image text is data"
+}

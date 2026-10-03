@@ -14,7 +14,7 @@ use crate::judge_provider::{AskRequest, Backend, CallOutcome};
 use crate::report::{Report, Status};
 use crate::{Error, Result};
 
-/// Default availability chain; benchmarking may suggest a different order.
+/// Repository candidate chain; model qualification and catalog updates are explicit.
 pub const GEMINI_MODELS: [&str; 4] = [
     "gemini-3.8-flash",
     "gemini-3.7-flash",
@@ -44,6 +44,118 @@ pub fn record_proposal(
     capabilities: &crate::decision_provider::Capabilities,
 ) -> crate::evidence::Result<crate::evidence::proposal::DecisionProposal> {
     response.into_proposal(request, capabilities)
+}
+
+/// Builds an enriched request after the actual extractor and fallback outcome
+/// are known. Blind preference cannot be substituted for attributed observations.
+/// The result carries model dependencies; agreement with its extractor is dependent.
+pub fn prepare_enriched_question(
+    case: &crate::evidence::case::EvidenceCase,
+    question_id: &str,
+    completed: &crate::judge_provider::observations::CompletedVision,
+    policy: BTreeMap<String, Value>,
+) -> crate::evidence::Result<crate::evidence::request::DecisionRequest> {
+    use crate::judge_evidence::{EncodingOptions, vision::VisionTask};
+    completed.presentation.validate_for(case)?;
+    crate::evidence::require(
+        completed.presentation.payload.task == VisionTask::Observations,
+        "enrichment requires a completed observation extraction",
+    )?;
+    crate::evidence::require(
+        !completed.answer.observations.is_empty(),
+        "no visual observations were extracted; retain the shortfall and continue human review",
+    )?;
+    prepare_question(
+        case,
+        question_id,
+        EncodingOptions {
+            presentation_identity: completed.context.transform_identity.clone(),
+            observations: crate::judge_provider::observations::facts(completed)?,
+            observation_context: Some(completed.context.clone()),
+            policy,
+        },
+    )
+}
+
+/// Both-order outcome in stable input space. Every outcome is advisory.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(tag = "outcome", rename_all = "snake_case", deny_unknown_fields)]
+pub enum BlindResolution {
+    /// Consistent preference for this stable input; no approval authority.
+    Preferred {
+        /// Private stable source input identity.
+        input_id: String,
+    },
+    /// Both orders tied. No candidate is selected.
+    Tie,
+    /// Contradiction, unavailable evidence, or a mixed actual model pair.
+    NeedsHuman {
+        /// Fixed local escalation reason.
+        reason: String,
+    },
+}
+/// Remaps both blind answers privately. Model/revision mixing, transformed
+/// pixel differences, contradictory orders and missing answers remain unresolved.
+/// Confidence scores are neither multiplied nor interpreted as independent proof.
+pub fn resolve_blind_orders(
+    case: &crate::evidence::case::EvidenceCase,
+    first: &crate::judge_provider::observations::CompletedVision,
+    second: &crate::judge_provider::observations::CompletedVision,
+) -> crate::evidence::Result<BlindResolution> {
+    use crate::judge_evidence::vision::VisionTask;
+    use crate::judge_provider::observations::Preference;
+    first.presentation.validate_for(case)?;
+    second.presentation.validate_for(case)?;
+    crate::evidence::require(
+        first.presentation.payload.task == VisionTask::BlindPreference
+            && second.presentation.payload.task == VisionTask::BlindPreference,
+        "both-order resolution requires blind preferences",
+    )?;
+    let unresolved = |reason: &str| BlindResolution::NeedsHuman {
+        reason: reason.into(),
+    };
+    if first.context.extractor != second.context.extractor {
+        return Ok(unresolved("mixed_actual_models"));
+    }
+    let (a, b) = (&first.presentation, &second.presentation);
+    let same_pixels = a.payload.views.len() == b.payload.views.len()
+        && a.payload.views.iter().all(|v| {
+            let opposite = if v.slot == "P1" { "P2" } else { "P1" };
+            b.payload.views.iter().any(|other| {
+                other.slot == opposite
+                    && v.region_id == other.region_id
+                    && v.kind == other.kind
+                    && v.png_sha256 == other.png_sha256
+                    && v.rect == other.rect
+                    && v.dimensions == other.dimensions
+                    && v.display_transform == other.display_transform
+                    && v.enhancement_gain == other.enhancement_gain
+            })
+        });
+    if a.entry_id != b.entry_id
+        || a.sources != [b.sources[1].clone(), b.sources[0].clone()]
+        || first.context.rubric_version != second.context.rubric_version
+        || first.context.fallback_chain_identity != second.context.fallback_chain_identity
+        || !same_pixels
+    {
+        return Ok(unresolved("different_presentations_or_policy"));
+    }
+    let stable =
+        |c: &crate::judge_provider::observations::CompletedVision| match c.answer.preference {
+            Some(Preference::P1) => Some(c.presentation.sources[0].0.clone()),
+            Some(Preference::P2) => Some(c.presentation.sources[1].0.clone()),
+            _ => None,
+        };
+    if first.answer.preference == Some(Preference::Tie)
+        && second.answer.preference == Some(Preference::Tie)
+    {
+        return Ok(BlindResolution::Tie);
+    }
+    match (stable(first), stable(second)) {
+        (Some(a), Some(b)) if a == b => Ok(BlindResolution::Preferred { input_id: a }),
+        (Some(_), Some(_)) => Ok(unresolved("contradictory_presentation_orders")),
+        _ => Ok(unresolved("tie_abstention_or_missing_order")),
+    }
 }
 
 /// Full compatibility identity of a fitted calibrator. Fitting and support
@@ -173,10 +285,10 @@ pub struct Profile {
 impl Default for Profile {
     fn default() -> Self {
         Self {
-            name: "nightly".into(),
+            name: "triage".into(),
             gemini: "escalation".into(),
             confidence: 0.75,
-            max_gemini: 5,
+            max_gemini: 3,
             chunk_entries: 8,
             gemini_models: default_models(),
             cooldown_secs: 600,
@@ -190,6 +302,7 @@ impl Profile {
     /// Built-in template text, also used by init.
     pub fn template(name: &str) -> Option<&'static str> {
         match name {
+            "triage" => Some(include_str!("review_profiles/triage.toml")),
             "ci" => Some(include_str!("review_profiles/ci.toml")),
             "nightly" => Some(include_str!("review_profiles/nightly.toml")),
             "lookdev" => Some(include_str!("review_profiles/lookdev.toml")),
@@ -245,6 +358,40 @@ impl Profile {
             .into_iter()
             .next()
             .ok_or_else(|| Error::Config("empty review provider".into()))
+    }
+
+    /// Plans visual tasks only. Execution still requires coordinator egress and
+    /// budget authorization. Look-development requests vision directly; CI stays
+    /// text-first and advisory. Other profiles use the validated routing proposal.
+    pub fn visual_tasks(
+        &self,
+        route: Option<(
+            &crate::evidence::request::DecisionRequest,
+            &crate::evidence::proposal::DecisionProposal,
+        )>,
+    ) -> crate::evidence::Result<Vec<crate::judge_evidence::vision::VisionTask>> {
+        use crate::judge_evidence::vision::VisionTask;
+        if self.gemini == "never" {
+            return Ok(vec![]);
+        }
+        if self.name == "lookdev" {
+            return Ok(vec![VisionTask::Observations, VisionTask::BlindPreference]);
+        }
+        if let Some((request, proposal)) = route {
+            crate::questions::validate_request(request)?;
+            proposal.validate_for(request)?;
+            crate::evidence::require(
+                request.question.id == "vision.route.v1",
+                "visual plan needs vision.route.v1",
+            )?;
+            if matches!(
+                proposal.response.answer.as_str(),
+                "inspect_regions" | "inspect_full_frame"
+            ) {
+                return Ok(vec![VisionTask::Observations]);
+            }
+        }
+        Ok(vec![])
     }
 }
 
@@ -303,12 +450,7 @@ pub fn blind(item: &JudgeItem) -> JudgeItem {
     let mut out = item.clone();
     out.question = JudgeQuestion::Preference;
     out.states = [json!({}), json!({})];
-    out.intent = Some(format!(
-        "Which image best satisfies this intent: {}? Choose tie only when equally suitable; unsure when the crops cannot establish this.",
-        item.intent
-            .as_deref()
-            .unwrap_or("preserve the approved appearance without new defects")
-    ));
+    out.intent = None;
     out
 }
 
@@ -566,6 +708,11 @@ pub fn run(
             && !needs_eyes
             && gj.len() == 2
             && gj.iter().all(|j| confident(j, opts.profile.confidence))
+            && gj[0].answered_model.is_some()
+            && gj[0].answered_model == gj[1].answered_model
+            && gj[0].model_version.is_some()
+            && gj[0].model_version == gj[1].model_version
+            && matches!(gj[0].answer.as_deref(), Some("a" | "b"))
             && gj[0].answer == gj[1].answer
             && jev.and_then(|j| j.answer.as_deref())
                 == gj[0].answer.as_deref().map(candidate_answer);
