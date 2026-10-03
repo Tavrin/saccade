@@ -1,6 +1,6 @@
 # CI containment and Showcase Pages repair
 
-Binding brief: `/home/etienne/dev/specs/saccade/lanes/SPEC-ci-fix.md`.
+Binding brief: `<coordinator-specs>/SPEC-ci-fix.md`.
 Checkout: `~/dev/saccade-wt/ci-fix`, branch `lane/ci-fix`, starting at
 `2c0c248c4d44e87c751ae5a10d69826a50b38fa4`.
 
@@ -48,7 +48,7 @@ Checkout: `~/dev/saccade-wt/ci-fix`, branch `lane/ci-fix`, starting at
 
 Native Windows/macOS acceptance belongs to the coordinator's GitHub CI run
 after pushing. Only files are edited; no Git mutations or subagents are used.
-Cargo used `/mnt/linux-extra/moss-cargo-targets/codex-saccade-ci-fix`, two
+Cargo used `<local-scratch>`, two
 build jobs, no incremental compilation, and no dev/test debug information.
 The full tests and required verifier ran offline. The mandated lane target
 was deleted after verification. The supplied verifier selects its own
