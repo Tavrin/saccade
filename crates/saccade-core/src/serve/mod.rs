@@ -57,6 +57,8 @@ pub struct ServeOptions {
     #[cfg(test)]
     pub(crate) probe_delay_ms: u64,
     #[cfg(test)]
+    pub(crate) review_ttl_ms: u64,
+    #[cfg(test)]
     pub(crate) probe_timeout_ms: Option<u64>,
     /// TCP port on `127.0.0.1`; 0 picks a free one.
     pub port: u16,
@@ -83,6 +85,8 @@ impl ServeOptions {
             fs_timeout_ms: 3000,
             #[cfg(test)]
             probe_delay_ms: 0,
+            #[cfg(test)]
+            review_ttl_ms: 600_000,
             #[cfg(test)]
             probe_timeout_ms: None,
             port: 0,
@@ -112,6 +116,8 @@ pub(crate) struct State {
     pub sessions: Mutex<HashMap<String, session::SessionState>>,
     pub overviews: Mutex<HashMap<String, Arc<overview::Job>>>,
     pub inbox_lock: Mutex<()>,
+    pub reviews: Mutex<HashMap<String, api::review_api::ReviewSession>>,
+    pub review_ttl: Duration,
 }
 
 impl State {
@@ -325,6 +331,11 @@ pub fn start(opts: ServeOptions) -> Result<ServeHandle> {
         sessions: Mutex::new(HashMap::new()),
         overviews: Mutex::new(HashMap::new()),
         inbox_lock: Mutex::new(()),
+        reviews: Mutex::new(HashMap::new()),
+        #[cfg(test)]
+        review_ttl: Duration::from_millis(opts.review_ttl_ms),
+        #[cfg(not(test))]
+        review_ttl: Duration::from_secs(600),
     });
     let server = Arc::new(server);
     let stop = Arc::new(AtomicBool::new(false));

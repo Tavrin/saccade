@@ -985,10 +985,14 @@
     render();
   }
   // The decisions file, as `saccade approve --decisions` reads it; proposals travel along.
+  function reviewerExposure() {
+    var v = document.getElementById('reviewer-context').value;
+    return { mapping_access: true ? {availability:'available',value:true} : {availability:'missing',reason:'mapping exposure not declared'}, implementation_context: v === 'unknown' ? {availability:'missing',reason:'implementation exposure not declared'} : {availability:'available',value:v === 'true'}, reviewer: null };
+  }
   function buildDecisions() {
     var dirs = report.baseline_dir && report.capture_dir ? [report.baseline_dir, report.capture_dir] : [];
     return {
-      schema: "saccade-decisions.v1", seed: 0, labels: [LB.baseline, LB.capture], blind: false, dirs: dirs,
+      reviewer_exposure: reviewerExposure(), saw_model_proposals: {availability:'available',value:Object.keys(props).some(function(k){return props[k].length > 0;})}, schema: "saccade-decisions.v1", seed: 0, labels: [LB.baseline, LB.capture], blind: false, dirs: dirs,
       sets: entries.filter(function (e) { return dec[e.name] || (props[e.name] || []).length; }).map(function (e) {
         var d = dec[e.name] || {};
         var o = { name: e.name, decision: d.decision || null, chosen_label: null, no_difference: false, note: d.note || "", roi: null, timestamp_ms: d.timestamp_ms || 0, chosen_dir: null, sha256: dirs.length ? [e.baseline_sha256 || null, e.capture_sha256 || null] : [] };
@@ -1078,7 +1082,7 @@
   if (init.hotspot) V.hotspotReq = init.hotspot;
   applyFilter();
   if (report.perf_diff || (report.perf_errors || []).length) {
-    var perfHost = document.createElement("section"); document.querySelector("main").prepend(perfHost);
+    var perfHost = document.createElement("section"); document.querySelector(".review-summary").after(perfHost);
     window.saccadePerf.diff(perfHost, report.perf_diff, report.combined_verdict);
     (report.perf_errors || []).forEach(function(e) {var p=document.createElement("p");p.textContent=e.path+": "+e.message;perfHost.appendChild(p);});
   }

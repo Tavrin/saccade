@@ -22,11 +22,14 @@ pub(crate) fn embed_json(report: &Report) -> Result<String> {
     Ok(json.replace("</", "<\\/").replace("<!--", "<\\u0021--"))
 }
 
-pub(crate) fn build_html(report: &Report) -> Result<String> {
+pub(crate) fn build_html(
+    report: &Report,
+    case: Option<&crate::evidence::case::EvidenceCase>,
+) -> Result<String> {
     let data = embed_json(report)?;
-    // The user-controlled payload is substituted last so that nothing in it can
-    // be mistaken for another placeholder.
-    Ok(TEMPLATE
+    // Partition the template before inserting either user-controlled payload.
+    // A literal placeholder in an intent/name must never trigger substitution.
+    let template = TEMPLATE
         .replace(
             "/*__SACCADE_CSS__*/",
             &super::shared::page_css(&[AGENT_CSS, CSS]),
@@ -34,8 +37,15 @@ pub(crate) fn build_html(report: &Report) -> Result<String> {
         .replace(
             "/*__SACCADE_JS__*/",
             &super::shared::page_js(&[AGENT_JS, JS]),
-        )
-        .replace("__SACCADE_DATA__", &data))
+        );
+    let (before, tail) = template
+        .split_once("__SACCADE_SUMMARY__")
+        .ok_or_else(|| Error::Config("report template lacks summary slot".into()))?;
+    let (middle, after) = tail
+        .split_once("__SACCADE_DATA__")
+        .ok_or_else(|| Error::Config("report template lacks data slot".into()))?;
+    let summary = super::bundle::summary(report, case)?;
+    Ok(format!("{before}{summary}{middle}{data}{after}"))
 }
 
 fn escape(text: &str) -> String {
@@ -74,7 +84,8 @@ pub(crate) fn render_sequence_html(
         escape(&sequence.text())
     );
     write_pixel_data(report, out)?;
-    let html = build_html(report)?.replacen("<main>", &format!("<main>{block}"), 1);
+    let case = super::bundle::prepare(report, out)?;
+    let html = build_html(report, case.as_ref())?.replacen("<main>", &format!("<main>{block}"), 1);
     let path = out.join("index.html");
     std::fs::write(&path, html).map_err(|source| Error::Io {
         context: format!("writing {}", path.display()),
@@ -159,7 +170,8 @@ fn write_pixel_data(report: &Report, report_dir: &Path) -> Result<()> {
 }
 
 pub(crate) fn render_html(report: &Report, report_dir: &Path) -> Result<PathBuf> {
-    let html = build_html(report)?;
+    let case = super::bundle::prepare(report, report_dir)?;
+    let html = build_html(report, case.as_ref())?;
     write_pixel_data(report, report_dir)?;
     let path = report_dir.join("index.html");
     std::fs::write(&path, html).map_err(|source| Error::Io {

@@ -1,0 +1,2 @@
+[   80216ms] [ERROR] Failed to load resource: the server responded with a status of 400 (Bad Request) @ http://127.0.0.1:46807/img?path=%2Fimages%2Fsphere_identical.png.d%2Fbaseline.png:0
+[   80241ms] [ERROR] Failed to load resource: the server responded with a status of 400 (Bad Request) @ http://127.0.0.1:46807/img?path=%2Fimages%2Fsphere_identical.png.d%2Fcapture.png:0

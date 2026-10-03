@@ -20,6 +20,8 @@
   <div class="chips" id="chips" role="list" aria-label="Totals by status"></div>
 </header>
 <main>
+<details class="reviewer-exposure"><summary>Reviewer exposure</summary><label>Implementation or input context <select id="reviewer-context"><option value="unknown">Unknown</option><option value="false">No access</option><option value="true">Has access</option></select></label><p>The blind key cannot blind someone who created the pair or knows its inputs. Offline decisions do not attest a human session.</p></details>
+  __SACCADE_SUMMARY__
   <div class="toolbar">
     <div class="seg" role="group" aria-label="Row filter">
       <button type="button" id="f-issues" aria-pressed="false">Failures only</button>
@@ -29,7 +31,7 @@
     <span class="grow"></span>
     <button type="button" class="btn small" id="palette-btn">Search actions <kbd>Ctrl K</kbd></button>
     <button type="button" class="btn small copy-link" id="copy-link" title="Copy a link that reopens this exact view">Copy link to this view</button>
-    <button type="button" class="btn small" id="export" title="Download the decisions file (saccade approve --decisions reads it)">Export decisions</button>
+    <button type="button" class="btn small" id="export" title="Download offline proposals; baseline approval needs an exact-content-bound decision">Export decisions</button>
   </div>
   <div class="table-wrap">
     <table id="tbl">

@@ -198,6 +198,7 @@ fn build(state: &State, id: &str, spec: &Spec) -> Result<(), String> {
     let mut opts = state.view.clone();
     opts.labels.clone_from(&spec.labels);
     opts.blind = spec.blind;
+    opts.key_out = Some(state.decisions.join(format!("{id}-blind-key.json")));
     // A deterministic seed keeps a blind session's order stable across reuse.
     opts.seed = Some(u64::from_str_radix(&id[..13], 16).map_or(1, |s| s & MAX_SEED));
     let build_dirs = if spec.dirs.len() == 1 {

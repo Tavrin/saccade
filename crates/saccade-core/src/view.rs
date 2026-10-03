@@ -23,10 +23,10 @@ pub const VIEW_SCHEMA: &str = "saccade-view.v1";
 /// Schema tag of the decisions file exported by the viewer.
 pub const DECISIONS_SCHEMA: &str = "saccade-decisions.v1";
 
-/// Schema tag of the blind key written next to a `--blind` view.
+/// Schema tag of the private blind key written outside a `--blind` view.
 pub const BLIND_KEY_SCHEMA: &str = "saccade-blind-key.v1";
-/// File name of the blind key inside the view directory. The page never
-/// references it; the judge loads it through a file picker to reveal labels.
+/// Historical blind key filename, retained for readers. New keys stay outside
+/// the anonymous directory; the reviewer loads one explicitly to reveal labels.
 pub const BLIND_KEY_FILE: &str = "blind-key.json";
 
 /// Minimum and maximum number of directories a view accepts.
@@ -57,8 +57,8 @@ pub struct ViewOptions {
     /// Shuffle seed. `None` draws one from the operating system's randomness
     /// in blind mode and from the clock otherwise.
     pub seed: Option<u64>,
-    /// Where a blind view's key goes (default: `blind-key.json` inside the
-    /// view directory, which must then be kept from the judge).
+    /// Where the private key goes (default: a sibling `<view>-blind-key.json`).
+    /// A destination inside the anonymous directory is refused.
     pub key_out: Option<PathBuf>,
     /// FLIP pixels per degree.
     pub pixels_per_degree: f32,
@@ -396,6 +396,12 @@ pub struct Proposal {
 #[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct Decisions {
+    /// Declared exposure; absent in historical files, never inferred from blinding.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub reviewer_exposure: Option<crate::evidence::human::ReviewerExposure>,
+    /// Whether model proposals were available in the reviewed presentation.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub saw_model_proposals: Option<crate::evidence::case::Availability<bool>>,
     /// Always [`DECISIONS_SCHEMA`].
     pub schema: String,
     /// The shuffle seed of the view the decisions were made in.
@@ -438,6 +444,18 @@ pub struct BlindKey {
     /// is the label behind the set's neutral label `P<n>`.
     #[serde(default)]
     pub sets: BTreeMap<String, Vec<String>>,
+    /// Anonymous entry IDs to original names; private and absent in old keys.
+    #[serde(default, skip_serializing_if = "BTreeMap::is_empty")]
+    pub names: BTreeMap<String, String>,
+    /// Original content hashes in directory order; never in anonymous exports.
+    #[serde(default, skip_serializing_if = "BTreeMap::is_empty")]
+    pub hashes: BTreeMap<String, Vec<Option<String>>>,
+}
+
+/// Default private key destination outside the exported directory.
+pub fn private_key_path(view: &Path) -> PathBuf {
+    let name = view.file_name().unwrap_or_default().to_string_lossy();
+    view.with_file_name(format!("{name}-blind-key.json"))
 }
 
 /// Reads and validates a blind key file.
@@ -479,7 +497,11 @@ pub fn unblind(decisions: &Decisions, key: &BlindKey) -> Result<Decisions> {
     out.dirs = key.dirs.clone();
     // The result carries the true labels: it is no longer a blind file.
     out.blind = false;
+    if let Some(exposure) = &mut out.reviewer_exposure {
+        exposure.mapping_access = crate::evidence::case::Availability::Available { value: true };
+    }
     for set in &mut out.sets {
+        let anonymous_name = set.name.clone();
         if let Some(neutral) = &set.chosen_label {
             let idx = decisions
                 .labels
@@ -508,6 +530,12 @@ pub fn unblind(decisions: &Decisions, key: &BlindKey) -> Result<Decisions> {
                 }
             }
             set.sha256 = by_dir;
+        }
+        if let Some(hashes) = key.hashes.get(&anonymous_name) {
+            set.sha256 = hashes.clone();
+        }
+        if let Some(name) = key.names.get(&anonymous_name) {
+            set.name = name.clone();
         }
     }
     Ok(out)
@@ -905,6 +933,13 @@ pub fn build_view(dirs: &[PathBuf], out_dir: &Path, opts: &ViewOptions) -> Resul
             dirs.len()
         )));
     }
+    let key_path = opts
+        .key_out
+        .clone()
+        .unwrap_or_else(|| private_key_path(out_dir));
+    if opts.blind {
+        crate::explain::check_key_out(out_dir, &key_path)?;
+    }
     let dirs: Vec<PathBuf> = dirs.iter().map(|d| crate::run::normalise_path(d)).collect();
     let dirs = dirs.as_slice();
     let labels = match &opts.labels {
@@ -966,6 +1001,18 @@ pub fn build_view(dirs: &[PathBuf], out_dir: &Path, opts: &ViewOptions) -> Resul
 
     let input_dirs: Vec<&Path> = dirs.iter().map(PathBuf::as_path).collect();
     crate::run::guard_output_dir(out_dir, &input_dirs, &[VIEW_MARKER_FILE])?;
+    // A prior named view or review record can reveal the private mapping even
+    // after the new page is anonymized. Never carry files into a blind export.
+    if opts.blind && out_dir.exists() {
+        let mut entries =
+            std::fs::read_dir(out_dir).map_err(io_err(format!("reading {}", out_dir.display())))?;
+        if entries.next().is_some() {
+            return Err(Error::Config(
+                "blind exports require an empty or new output directory to avoid retaining private mappings"
+                    .into(),
+            ));
+        }
+    }
     std::fs::create_dir_all(out_dir).map_err(io_err(format!("creating {}", out_dir.display())))?;
     let marker_path = out_dir.join(VIEW_MARKER_FILE);
     std::fs::write(
@@ -1004,6 +1051,8 @@ pub fn build_view(dirs: &[PathBuf], out_dir: &Path, opts: &ViewOptions) -> Resul
         shuffle_seed
     };
     let mut key_sets: BTreeMap<String, Vec<String>> = BTreeMap::new();
+    let mut key_names = BTreeMap::new();
+    let mut key_hashes = BTreeMap::new();
     let compare_opts = CompareOptions {
         pixels_per_degree: opts.pixels_per_degree,
         hdr: opts.hdr,
@@ -1076,12 +1125,40 @@ pub fn build_view(dirs: &[PathBuf], out_dir: &Path, opts: &ViewOptions) -> Resul
                     } else {
                         format!("pane{i}")
                     };
-                    let shown = pane_files(
-                        src,
-                        hdr_imgs.get(i).and_then(Option::as_ref),
-                        (out_dir, name, &stem),
-                        opts.hdr.tonemapper,
-                    )?;
+                    let shown = if opts.blind {
+                        let anonymous = format!("entry-{set_idx:04}");
+                        let rel = format!("images/{anonymous}.d/{stem}.png");
+                        let dest = out_dir.join(&rel);
+                        std::fs::create_dir_all(dest.parent().unwrap_or(out_dir))
+                            .map_err(io_err("creating anonymous image directory".into()))?;
+                        let display: Option<image::RgbaImage> =
+                            match hdr_imgs.get(i).and_then(Option::as_ref) {
+                                Some(h) => Some(
+                                    image::DynamicImage::ImageRgb8(crate::hdr::display_image(
+                                        h,
+                                        opts.hdr.tonemapper,
+                                    ))
+                                    .to_rgba8(),
+                                ),
+                                None => match &decoded[i] {
+                                    Some(Ok(image)) => Some(image.clone()),
+                                    _ => None,
+                                },
+                            };
+                        if let Some(display) = display {
+                            display
+                                .save(&dest)
+                                .map_err(|source| Error::Encode { path: dest, source })?;
+                        }
+                        rel
+                    } else {
+                        pane_files(
+                            src,
+                            hdr_imgs.get(i).and_then(Option::as_ref),
+                            (out_dir, name, &stem),
+                            opts.hdr.tonemapper,
+                        )?
+                    };
                     // The inspector reads what the page shows: the decoded file, or the
                     // tone-mapped PNG of an HDR file.
                     let shown_img = if hdr_imgs.get(i).is_some_and(Option::is_some) {
@@ -1093,7 +1170,11 @@ pub fn build_view(dirs: &[PathBuf], out_dir: &Path, opts: &ViewOptions) -> Resul
                         }
                     };
                     pane.path = Some(shown);
-                    pane.sha256 = crate::run::sha256_file(src).ok();
+                    pane.sha256 = if opts.blind {
+                        None
+                    } else {
+                        crate::run::sha256_file(src).ok()
+                    };
                     let mut flip_uri = None;
                     if i != reference
                         && !opts.blind
@@ -1227,6 +1308,7 @@ pub fn build_view(dirs: &[PathBuf], out_dir: &Path, opts: &ViewOptions) -> Resul
                     panes.get(reference)
                 };
                 let presets = ref_pane
+                    .filter(|_| !opts.blind)
                     .map(|p| preset_rois(&opts.regions, name, p.width, p.height))
                     .unwrap_or_default();
                 let (status, worst_flip) = if opts.blind {
@@ -1251,8 +1333,20 @@ pub fn build_view(dirs: &[PathBuf], out_dir: &Path, opts: &ViewOptions) -> Resul
         )
         .collect::<Result<Vec<_>>>()?;
     let mut sets = Vec::with_capacity(built.len());
-    for (set, key_entry) in built {
+    for (index, (mut set, key_entry)) in built.into_iter().enumerate() {
         if let Some(labels) = key_entry {
+            let anonymous = format!("entry-{index:04}");
+            key_hashes.insert(
+                anonymous.clone(),
+                maps.iter()
+                    .map(|m| {
+                        m.get(&set.name)
+                            .and_then(|p| crate::run::sha256_file(p).ok())
+                    })
+                    .collect(),
+            );
+            key_names.insert(anonymous.clone(), set.name.clone());
+            set.name = anonymous;
             key_sets.insert(set.name.clone(), labels);
         }
         sets.push(set);
@@ -1347,6 +1441,8 @@ pub fn build_view(dirs: &[PathBuf], out_dir: &Path, opts: &ViewOptions) -> Resul
             }
         }
     }
+    std::fs::write(out_dir.join(".saccade-run"), b"saccade view bundle\n")
+        .map_err(io_err("writing bundle marker".into()))?;
     write_view_html(&model, out_dir)?;
     if opts.blind {
         let key = BlindKey {
@@ -1357,18 +1453,13 @@ pub fn build_view(dirs: &[PathBuf], out_dir: &Path, opts: &ViewOptions) -> Resul
             dirs: abs_dirs,
             view_dir: Some(crate::paths::record(
                 out_dir,
-                opts.key_out
-                    .as_deref()
-                    .and_then(Path::parent)
-                    .unwrap_or(out_dir),
+                key_path.parent().unwrap_or(out_dir),
                 opts.record_absolute_paths,
             )),
             sets: key_sets,
+            names: key_names,
+            hashes: key_hashes,
         };
-        let key_path = opts
-            .key_out
-            .clone()
-            .unwrap_or_else(|| out_dir.join(BLIND_KEY_FILE));
         if let Some(parent) = key_path.parent().filter(|p| !p.as_os_str().is_empty()) {
             std::fs::create_dir_all(parent)
                 .map_err(io_err(format!("creating {}", parent.display())))?;
@@ -1534,6 +1625,8 @@ mod tests {
     #[test]
     fn decisions_round_trip_and_accepted_names() {
         let d = Decisions {
+            reviewer_exposure: None,
+            saw_model_proposals: None,
             schema: DECISIONS_SCHEMA.into(),
             seed: 42,
             labels: vec!["a".into(), "b".into()],
@@ -1623,7 +1716,7 @@ mod tests {
         for secret in ["zz_parent_label", "zz_candidate_label", "zz_other_label"] {
             assert!(!html.contains(secret), "page leaks {secret:?}");
         }
-        let key = read_blind_key(&out.join(BLIND_KEY_FILE)).unwrap();
+        let key = read_blind_key(&private_key_path(&out)).unwrap();
         assert_eq!(
             key.labels,
             ["zz_parent_label", "zz_candidate_label", "zz_other_label"]
@@ -1631,13 +1724,21 @@ mod tests {
         assert_eq!(key.shuffle_seed, 5);
         assert_ne!(m.seed, 5, "the page carries a token, not the shuffle seed");
         let decisions = Decisions {
+            reviewer_exposure: None,
+            saw_model_proposals: None,
             schema: DECISIONS_SCHEMA.into(),
             seed: m.seed,
             labels: m.labels.clone(),
             blind: true,
             dirs: Vec::new(),
             sets: vec![SetDecision {
-                name: "x.png".into(),
+                name: m
+                    .sets
+                    .iter()
+                    .find(|s| key.names.get(&s.name).is_some_and(|n| n == "x.png"))
+                    .unwrap()
+                    .name
+                    .clone(),
                 decision: None,
                 chosen_label: Some("P2".into()),
                 no_difference: false,
@@ -1652,7 +1753,7 @@ mod tests {
         let back = unblind(&decisions, &key).unwrap();
         // Every set shuffles its own panes: P2 is whichever directory the key
         // lists second for this set.
-        let second = key.sets["x.png"][1].clone();
+        let second = key.sets[&decisions.sets[0].name][1].clone();
         assert_eq!(back.sets[0].chosen_label.as_deref(), Some(second.as_str()));
         assert_eq!(back.labels, key.labels);
         assert!(!back.blind, "an unblinded file is not blind");

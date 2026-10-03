@@ -11,12 +11,32 @@
       },
       "type": "array"
     },
+    "hashes": {
+      "additionalProperties": {
+        "items": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "type": "array"
+      },
+      "description": "Original content hashes in directory order; never in anonymous exports.",
+      "type": "object"
+    },
     "labels": {
       "description": "True labels, in directory order.",
       "items": {
         "type": "string"
       },
       "type": "array"
+    },
+    "names": {
+      "additionalProperties": {
+        "type": "string"
+      },
+      "description": "Anonymous entry IDs to original names; private and absent in old keys.",
+      "type": "object"
     },
     "schema": {
       "description": "Always [`BLIND_KEY_SCHEMA`].",

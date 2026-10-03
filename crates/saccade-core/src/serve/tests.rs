@@ -23,6 +23,10 @@ fn write_png(path: &Path, rgb: [u8; 3]) {
 }
 
 fn fixture(max_upload: u64) -> Fixture {
+    fixture_review_ttl(max_upload, 600_000)
+}
+
+fn fixture_review_ttl(max_upload: u64, ttl: u64) -> Fixture {
     let tmp = tempfile::tempdir().unwrap();
     let root = tmp.path().join("root");
     for (run, rgb) in [
@@ -44,6 +48,7 @@ fn fixture(max_upload: u64) -> Fixture {
     opts.cache_dir = cache.clone();
     opts.decisions_dir = decisions.clone();
     opts.max_upload_bytes = max_upload;
+    opts.review_ttl_ms = ttl;
     let handle = start(opts).unwrap();
     Fixture {
         root: canonicalize(&root).unwrap(),
@@ -897,4 +902,184 @@ fn deeplink_storage_timeout_and_probe_cap() {
     }
     assert!(storage.run(|| panic!("ninth probe must not run")).is_err());
     release.wait();
+}
+
+fn review_case(f: &Fixture) {
+    std::fs::copy(
+        f.root.join("g/a/saccade-meta.json"),
+        f.root.join("g/b/saccade-meta.json"),
+    )
+    .unwrap();
+    crate::run::run(
+        &f.root.join("g/a"),
+        &f.root.join("g/b"),
+        &f.root.join("report"),
+        &crate::config::RunConfig::default(),
+    )
+    .unwrap();
+}
+fn review_session(f: &Fixture) -> serde_json::Value {
+    let response = post(
+        f,
+        "/api/review/session",
+        br#"{"case":"report/evidence.json","scope":["x.png"]}"#,
+    );
+    assert_eq!(response.status, 200, "{}", response.text());
+    serde_json::from_slice(&response.body).unwrap()
+}
+fn review_answer(session: &serde_json::Value) -> serde_json::Value {
+    serde_json::json!({"token":session["token"],"case_id":session["binding"]["case_id"],"scope":["x.png"],"disposition":"accept","approve_deletions":false,"exposure":{"mapping_access":{"availability":"available","value":false},"implementation_context":{"availability":"available","value":true},"reviewer":"local reviewer"},"note":"Reviewed the selected change"})
+}
+fn review_attest(f: &Fixture, answer: &serde_json::Value) -> Reply {
+    post(
+        f,
+        "/api/review/attest",
+        &serde_json::to_vec(answer).unwrap(),
+    )
+}
+#[test]
+fn workbench_attests_matching_live_case_and_applies_only_local_snapshot() {
+    use crate::evidence::{Artifact, Document};
+    let f = fixture(4096);
+    review_case(&f);
+    let baseline = std::fs::read(f.root.join("g/a/x.png")).unwrap();
+    let session = review_session(&f);
+    let response = review_attest(&f, &review_answer(&session));
+    assert_eq!(response.status, 200, "{}", response.text());
+    let value: serde_json::Value = serde_json::from_slice(&response.body).unwrap();
+    let dir = f
+        .decisions
+        .join("reviews")
+        .join(value["review_id"].as_str().unwrap());
+    let receipt_doc = Document::read(&dir.join("receipt.json")).unwrap();
+    receipt_doc.require_human_authority().unwrap();
+    let Artifact::ApprovalReceipt(receipt) = receipt_doc.artifact else {
+        panic!("receipt");
+    };
+    let Artifact::HumanDecision(decision) =
+        Document::read(&dir.join("decision.json")).unwrap().artifact
+    else {
+        panic!("decision");
+    };
+    let Artifact::Case(case) = Document::read(&dir.join("reviewed/evidence.json"))
+        .unwrap()
+        .artifact
+    else {
+        panic!("case");
+    };
+    receipt.validate_for(&decision, &case).unwrap();
+    receipt
+        .binding
+        .reviewed_content
+        .verify(&dir.join("receipt.json"))
+        .unwrap();
+    receipt
+        .human_attestation
+        .as_ref()
+        .unwrap()
+        .audit_ref
+        .verify(&dir.join("receipt.json"))
+        .unwrap();
+    assert_eq!(
+        std::fs::read(dir.join("approved/x.png")).unwrap(),
+        std::fs::read(f.root.join("g/b/x.png")).unwrap()
+    );
+    assert_eq!(std::fs::read(f.root.join("g/a/x.png")).unwrap(), baseline);
+    for entry in walkdir::WalkDir::new(&dir) {
+        let entry = entry.unwrap();
+        if entry.file_type().is_file() {
+            let bytes = std::fs::read(entry.path()).unwrap();
+            assert!(!String::from_utf8_lossy(&bytes).contains(session["token"].as_str().unwrap()));
+        }
+    }
+    let page = get(&f, "/review?case=report/evidence.json");
+    assert_eq!(page.status, 200);
+    assert!(!page.text().contains(session["token"].as_str().unwrap()));
+}
+#[test]
+fn workbench_rejects_missing_scoped_token() {
+    let f = fixture(4096);
+    review_case(&f);
+    let session = review_session(&f);
+    let mut answer = review_answer(&session);
+    answer.as_object_mut().unwrap().remove("token");
+    assert_eq!(review_attest(&f, &answer).status, 409);
+    answer["token"] = serde_json::json!(f.handle.token());
+    assert_eq!(
+        review_attest(&f, &answer).status,
+        409,
+        "process CSRF token is not a scoped session"
+    );
+}
+#[test]
+fn workbench_rejects_stale_case_input_or_presentation() {
+    for name in [
+        "images/x.png.d/capture.png",
+        "index.html",
+        "saccade-report.v1.json",
+        "evidence.json",
+    ] {
+        let f = fixture(4096);
+        review_case(&f);
+        let session = review_session(&f);
+        let path = f.root.join("report").join(name);
+        let mut bytes = std::fs::read(&path).unwrap();
+        bytes.push(b' ');
+        std::fs::write(path, bytes).unwrap();
+        assert_eq!(
+            review_attest(&f, &review_answer(&session)).status,
+            409,
+            "{name}"
+        );
+        assert!(!f.decisions.join("reviews").exists());
+    }
+}
+#[test]
+fn workbench_scoped_tokens_are_single_use() {
+    let f = fixture(4096);
+    review_case(&f);
+    let session = review_session(&f);
+    let answer = review_answer(&session);
+    assert_eq!(review_attest(&f, &answer).status, 200);
+    assert_eq!(review_attest(&f, &answer).status, 409);
+}
+#[test]
+fn workbench_rejects_wrong_case_scope_and_origin() {
+    let f = fixture(4096);
+    review_case(&f);
+    for field in ["case_id", "scope"] {
+        let session = review_session(&f);
+        let mut answer = review_answer(&session);
+        answer[field] = if field == "case_id" {
+            serde_json::json!(crate::evidence::canonical::Digest::of_bytes(
+                b"another case"
+            ))
+        } else {
+            serde_json::json!(["another.png"])
+        };
+        assert_eq!(review_attest(&f, &answer).status, 409);
+    }
+    let session = review_session(&f);
+    assert_eq!(
+        http(
+            &f,
+            "POST",
+            "/api/review/attest",
+            &[
+                ("Origin", "http://foreign.invalid"),
+                ("X-Saccade-Token", f.handle.token())
+            ],
+            &serde_json::to_vec(&review_answer(&session)).unwrap()
+        )
+        .status,
+        403
+    );
+    assert!(!f.decisions.join("reviews").exists());
+}
+#[test]
+fn workbench_rejects_expired_scoped_token() {
+    let f = fixture_review_ttl(4096, 0);
+    review_case(&f);
+    let session = review_session(&f);
+    assert_eq!(review_attest(&f, &review_answer(&session)).status, 409);
 }

@@ -3,6 +3,7 @@
 //!
 //! Both read only the [`Report`] model (see `docs/design.md`).
 
+pub mod bundle;
 mod html;
 mod markdown;
 pub(crate) mod shared;

@@ -119,10 +119,14 @@
   // The decisions document: what was decided, and what it was decided on. `dirs`
   // (empty in a blind view until `saccade unblind` fills it from the key) and the
   // per-set image hashes let `saccade approve` refuse to promote anything else.
+  function reviewerExposure() {
+    var v = document.getElementById('reviewer-context').value;
+    return { mapping_access: S.revealed || !D.blind ? {availability:'available',value:true} : {availability:'missing',reason:'mapping exposure not declared'}, implementation_context: v === 'unknown' ? {availability:'missing',reason:'implementation exposure not declared'} : {availability:'available',value:v === 'true'}, reviewer: null };
+  }
   function buildDecisions() {
     var dirs = D.dirs || [];
     return {
-      schema: 'saccade-decisions.v1', seed: D.seed, labels: D.labels, blind: D.blind, dirs: dirs,
+      reviewer_exposure: reviewerExposure(), saw_model_proposals: {availability:'available',value:Object.keys(props).some(function(k){return props[k].length > 0;})}, schema: 'saccade-decisions.v1', seed: D.seed, labels: D.labels, blind: D.blind, dirs: dirs,
       sets: D.sets.map(function (s) {
         var e = dec[s.name] || {};
         var ci = e.chosen_label ? D.labels.indexOf(e.chosen_label) : -1;

@@ -1,0 +1,5 @@
+- main [ref=e2]:
+  - heading "Human review" [level=1] [ref=e3]
+  - paragraph [ref=e4]: Review the exact case and selected entries. Accept applies this selection to a local snapshot in the decisions directory. The receipt records its hashes and approval channel.
+  - button "Open scoped review session" [ref=e5]
+  - paragraph [ref=e6]: Human-final is an application policy and audit boundary. A local session does not authenticate a person against an agent with unrestricted shell access.

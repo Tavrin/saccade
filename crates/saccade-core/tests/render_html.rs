@@ -50,15 +50,28 @@ fn html_is_self_contained() {
         assert!(!html.contains(needle), "found external reference: {needle}");
     }
     assert!(!html.contains("/*__SACCADE"), "unfilled placeholder");
+    assert!(!html.contains("__SACCADE_SUMMARY__"));
+    assert!(!html.contains("__SACCADE_DATA__"));
     assert!(html.contains("<style>") && html.contains("id=\"saccade-data\""));
 }
 
 #[test]
 fn embedded_json_round_trips_and_escapes_script_breakouts() {
     let mut report = sample();
-    report.entries[0].name = "</script><script>alert(1)</script><!-- x".to_string();
+    report.entries[0].name =
+        "</script><script>alert(1)</script><!-- x __SACCADE_DATA__ __SACCADE_SUMMARY__".to_string();
     report.entries[0].error = Some("a </b> & \"quoted\"".to_string());
+    report.config.labels.baseline =
+        "baseline __SACCADE_DATA__ __SACCADE_SUMMARY__ /*__SACCADE_JS__*/".into();
     let html = render(&report, "roundtrip");
+    let summary = html
+        .split_once("<section class=\"review-summary\"")
+        .expect("review summary")
+        .1
+        .split_once("</section>")
+        .expect("summary closes")
+        .0;
+    assert!(summary.contains(&report.config.labels.baseline));
     let data = embedded_json(&html);
     assert!(!data.contains("</"), "raw `</` leaked into the data script");
     assert!(

@@ -1,5 +1,67 @@
 {
   "$defs": {
+    "Availability": {
+      "description": "Missing and failed observations are distinct from an available zero or abstention.",
+      "oneOf": [
+        {
+          "additionalProperties": false,
+          "description": "Evidence was supplied.",
+          "properties": {
+            "availability": {
+              "const": "available",
+              "type": "string"
+            },
+            "value": {
+              "description": "Supplied value.",
+              "type": "boolean"
+            }
+          },
+          "required": [
+            "availability",
+            "value"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "description": "No measurement or response was supplied.",
+          "properties": {
+            "availability": {
+              "const": "missing",
+              "type": "string"
+            },
+            "reason": {
+              "description": "What is needed.",
+              "type": "string"
+            }
+          },
+          "required": [
+            "availability",
+            "reason"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "description": "An attempted computation or response failed.",
+          "properties": {
+            "availability": {
+              "const": "unavailable",
+              "type": "string"
+            },
+            "reason": {
+              "description": "Failure without invented evidence.",
+              "type": "string"
+            }
+          },
+          "required": [
+            "availability",
+            "reason"
+          ],
+          "type": "object"
+        }
+      ]
+    },
     "Proposal": {
       "description": "One answer to a decision-request question, as recorded by `saccade decide`.",
       "properties": {
@@ -72,6 +134,32 @@
         "answer",
         "source",
         "proposed"
+      ],
+      "type": "object"
+    },
+    "ReviewerExposure": {
+      "additionalProperties": false,
+      "description": "What the reviewer could know; independent blinding cannot be inferred from a key.",
+      "properties": {
+        "implementation_context": {
+          "$ref": "#/$defs/Availability",
+          "description": "Whether the reviewer knew implementation/input context."
+        },
+        "mapping_access": {
+          "$ref": "#/$defs/Availability",
+          "description": "Whether the reviewer had access to the mapping."
+        },
+        "reviewer": {
+          "description": "Declared reviewer/session identity; not authentication.",
+          "type": [
+            "string",
+            "null"
+          ]
+        }
+      },
+      "required": [
+        "mapping_access",
+        "implementation_context"
       ],
       "type": "object"
     },
@@ -243,6 +331,28 @@
         "type": "string"
       },
       "type": "array"
+    },
+    "reviewer_exposure": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/ReviewerExposure"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "description": "Declared exposure; absent in historical files, never inferred from blinding."
+    },
+    "saw_model_proposals": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/Availability"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "description": "Whether model proposals were available in the reviewed presentation."
     },
     "schema": {
       "description": "Always [`DECISIONS_SCHEMA`].",

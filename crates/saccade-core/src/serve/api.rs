@@ -1,5 +1,8 @@
 //! Request routing and the security gate of `saccade serve`.
 
+#[path = "review_api.rs"]
+pub(super) mod review_api;
+
 use std::collections::HashMap;
 use std::io::{Read, Write};
 use std::path::PathBuf;
@@ -469,6 +472,9 @@ fn page(state: &State, mode: &str, session: Option<&str>) -> Resp {
 }
 
 fn route_get(state: &Arc<State>, path: &str, q: &Query) -> Resp {
+    if let Some(response) = review_api::get(state, path, q) {
+        return response;
+    }
     if let Some(response) = inbox_api::get(state, path) {
         return response;
     }
@@ -1073,6 +1079,9 @@ fn route_post(
     path: &str,
     q: &HashMap<String, String>,
 ) -> Resp {
+    if path.starts_with("/api/review/") {
+        return review_api::post(state, req, path);
+    }
     if path == "/api/inbox" || path.starts_with("/api/inbox/") {
         return inbox_api::post(state, req, path);
     }

@@ -1134,7 +1134,7 @@ fn dispatch(command: Command, record_absolute_paths: bool) -> Result<u8, CliErro
                 opts.pixels_per_degree = p;
             }
             let model = build_view(&dirs, &out, &opts)?;
-            let key = key_out.unwrap_or_else(|| out.join(saccade_core::view::BLIND_KEY_FILE));
+            let key = key_out.unwrap_or_else(|| saccade_core::view::private_key_path(&out));
             if json {
                 let mut value = local_cmd::base_result("view");
                 value["artifact"] =

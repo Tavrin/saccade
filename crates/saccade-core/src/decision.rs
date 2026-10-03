@@ -634,6 +634,8 @@ fn skeleton(report: &Report) -> Decisions {
         _ => Vec::new(),
     };
     Decisions {
+        reviewer_exposure: None,
+        saw_model_proposals: None,
         schema: DECISIONS_SCHEMA.to_owned(),
         seed: 0,
         labels: vec![
@@ -741,6 +743,8 @@ pub fn view_skeleton(view_dir: &Path) -> Result<Decisions, Error> {
             .unwrap_or_default()
     };
     Ok(Decisions {
+        reviewer_exposure: None,
+        saw_model_proposals: None,
         schema: DECISIONS_SCHEMA.to_owned(),
         seed: m["seed"].as_u64().unwrap_or(0),
         labels: strings("labels"),

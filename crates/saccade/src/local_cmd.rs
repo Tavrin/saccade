@@ -531,52 +531,55 @@ fn export(
             saccade_core::ergonomics::junit(&crate::read_report(artifact)?, out)?
         }
         ExportFormat::Labels => {
-            let doc = Document::read(artifact)?;
-            let Artifact::Case(case) = doc.artifact else {
-                return Err(CliError::usage("label export requires an evidence case"));
+            let case_path = if artifact.is_dir() {
+                let direct = artifact.join("evidence.json");
+                if direct.is_file() {
+                    direct
+                } else {
+                    artifact.join("reviewed/evidence.json")
+                }
+            } else {
+                artifact.to_owned()
             };
-            let items = case
-                .human_decisions
-                .iter()
-                .filter(|d| {
-                    matches!(
-                        d.disposition,
-                        saccade_core::evidence::human::Disposition::Accept
-                            | saccade_core::evidence::human::Disposition::Reject
-                    )
-                })
-                .flat_map(|decision| {
-                    case.requests
+            let doc = Document::read(&case_path)?;
+            let Artifact::Case(mut case) = doc.artifact else {
+                return Err(CliError::usage(
+                    "label export requires an evidence case or review collection",
+                ));
+            };
+            let collection = if artifact.is_dir() {
+                artifact
+            } else {
+                artifact.parent().unwrap_or(Path::new("."))
+            };
+            if collection.join("decision.json").is_file() {
+                let decision = Document::read(&collection.join("decision.json"))?;
+                if let Artifact::HumanDecision(decision) = decision.artifact {
+                    decision.validate_for(&case)?;
+                    if !case
+                        .human_decisions
                         .iter()
-                        .filter(|r| decision.binding.request_ids.contains(&r.request_id))
-                        .map(move |request| (decision, request))
-                })
-                .filter_map(|(decision, request)| {
-                    let answer = match decision.disposition {
-                        saccade_core::evidence::human::Disposition::Accept => "accept",
-                        saccade_core::evidence::human::Disposition::Reject => "reject",
-                        _ => return None,
-                    };
-                    if !request.question.answers.iter().any(|a| a == answer) {
-                        return None;
+                        .any(|d| d.decision_id == decision.decision_id)
+                    {
+                        case.human_decisions.push(*decision);
                     }
-                    Some(saccade_core::evidence::human::Label {
-                        case_id: case.case_id.clone(),
-                        request_id: request.request_id.clone(),
-                        question_id: request.question.id.clone(),
-                        answer: answer.into(),
-                        human_decision_id: decision.decision_id.clone(),
-                        exposure: decision.exposure.clone(),
-                    })
-                })
-                .collect::<Vec<_>>();
-            write_value(
-                out,
-                &serde_json::to_value(saccade_core::evidence::human::Labels {
+                }
+            }
+            let records = collection.join("human-label-records.json");
+            let labels = if records.is_file() {
+                saccade_core::labels::QuestionLabels::read(
+                    &records,
+                    &case.requests,
+                    &case.human_decisions,
+                )?
+                .eligible_labels(&case.requests, &case.human_decisions)?
+            } else {
+                saccade_core::evidence::human::Labels {
                     schema: "saccade-labels.v2".into(),
-                    items,
-                })?,
-            )?;
+                    items: Vec::new(),
+                }
+            };
+            write_value(out, &serde_json::to_value(labels)?)?;
         }
     }
     Ok(())
@@ -1011,10 +1014,31 @@ pub(crate) fn persist_case(
         return Ok(());
     }
     let source = report_file.with_file_name("evidence.json");
+    let dir = report_file.parent().unwrap_or(Path::new("."));
+    if let Some(bundled) = saccade_core::render::bundle::measured_case(report, dir)? {
+        for (index, input) in case.inputs.iter_mut().enumerate() {
+            let copy = bundled
+                .inputs
+                .iter()
+                .find(|i| i.id == input.id)
+                .ok_or_else(|| CliError::new("invalid_evidence", "missing portable input"))?;
+            input.content = copy.content.clone();
+            for (sidecar_index, sidecar) in input.sidecars.iter_mut().enumerate() {
+                sidecar.verify(&source)?;
+                let bytes = std::fs::read(saccade_core::paths::resolve(&sidecar.path, &source))
+                    .map_err(|e| CliError::io(e.to_string()))?;
+                let target = dir.join(format!("assets/input-{index}-sidecar-{sidecar_index}.json"));
+                std::fs::write(&target, bytes).map_err(|e| CliError::io(e.to_string()))?;
+                *sidecar = ArtifactRef::from_file(&target, &source, false)?;
+            }
+        }
+    }
     if let Some(file) = &args.intent_file {
         let mut intent: Intent = serde_json::from_value(read_value(file)?)?;
         intent.assurance = IntentAssurance::Structured;
-        intent.source = Some(ArtifactRef::from_file(file, &source, false)?);
+        let target = dir.join("assets/intent.json");
+        std::fs::copy(file, &target).map_err(|e| CliError::io(e.to_string()))?;
+        intent.source = Some(ArtifactRef::from_file(&target, &source, false)?);
         case.intent = Availability::Available { value: intent };
     } else if let Some(text) = &args.intent {
         case.intent = Availability::Available {
@@ -1045,7 +1069,9 @@ pub(crate) fn persist_case(
     write_value(
         &source,
         &serde_json::to_value(Document::new(Artifact::Case(Box::new(case))))?,
-    )
+    )?;
+    saccade_core::render::render_html(report, dir)?;
+    Ok(())
 }
 pub(crate) fn case_for_result(
     report: &saccade_core::Report,
