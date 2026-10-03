@@ -1,9 +1,10 @@
 name: Example usage
-# (dispatch-only; run from the Actions tab)
-
-# Runs the action from this checkout on the generated examples/ set.
-# examples/ contains a deliberate regression, so the final step is expected to fail.
+# The procedural examples contain deliberate regressions; failure is expected.
+# A consuming repository can use Tavrin/saccade@v1 once released, with binary
+# installation. This unreleased local checkout explicitly selects source.
 on:
+  pull_request:
+    paths: [action.yml, '.github/workflows/example-usage.yml', 'examples/baseline/**', 'examples/capture/**']
   workflow_dispatch:
 
 permissions:
@@ -14,10 +15,22 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
       - uses: dtolnay/rust-toolchain@stable
       - uses: ./
+        id: comparison
         with:
+          install-mode: source
           baseline-dir: examples/baseline
           capture-dir: examples/capture
           report-dir: saccade-report
           comment: 'false'
+      - name: Record comparison outputs
+        if: ${{ always() }}
+        env:
+          VERDICT: ${{ steps.comparison.outputs.verdict }}
+          EXIT_CODE: ${{ steps.comparison.outputs.exit-code }}
+          REPORT_URL: ${{ steps.comparison.outputs.report-url }}
+          ARTIFACT_ID: ${{ steps.comparison.outputs.artifact-id }}
+        run: printf 'verdict=%s exit-code=%s report-url=%s artifact-id=%s\n' "$VERDICT" "$EXIT_CODE" "$REPORT_URL" "$ARTIFACT_ID"

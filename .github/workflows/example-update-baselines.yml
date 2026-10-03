@@ -2,25 +2,75 @@ name: Example baseline-update pull request
 
 on:
   workflow_dispatch:
+    inputs:
+      evidence-run-id:
+        description: Run ID that uploaded the reviewed evidence bundle
+        required: true
+        type: string
+      evidence-artifact-id:
+        description: Immutable artifact ID of that reviewed bundle (not a latest/name lookup)
+        required: true
+        type: string
+      manifest-sha256:
+        description: SHA-256 of the exact reviewed saccade-plan/manifest.json bytes
+        required: true
+        type: string
 
 permissions:
-  contents: write
-  pull-requests: write
+  contents: read
 
 jobs:
   update:
+    if: ${{ github.ref_type == 'branch' && github.ref_name == github.event.repository.default_branch }}
     runs-on: ubuntu-latest
+    permissions:
+      actions: read
+      contents: write
+      pull-requests: write
     steps:
       - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
       - uses: dtolnay/rust-toolchain@stable
-      # Replace examples/capture with your generated captures in a real workflow.
+      # Download into temporary storage, keeping artifact contents away from
+      # trusted workflow/action code. Copy only the three documented data trees.
+      - uses: actions/download-artifact@v4
+        with:
+          run-id: ${{ inputs.evidence-run-id }}
+          artifact-ids: ${{ inputs.evidence-artifact-id }}
+          github-token: ${{ github.token }}
+          path: ${{ runner.temp }}/saccade-reviewed
+          merge-multiple: true
+      - name: Restore reviewed data
+        env:
+          BUNDLE: ${{ runner.temp }}/saccade-reviewed
+        run: |
+          python3 - <<'PY'
+          import os
+          from pathlib import Path
+          import shutil
+          bundle = Path(os.environ['BUNDLE'])
+          names = ('examples/capture', 'saccade-report', 'saccade-plan')
+          for name in names:
+              source = bundle / name
+              if not source.is_dir() or any(p.is_symlink() for p in (source, *source.parents, *source.rglob('*'))):
+                  raise SystemExit(f'Expected a regular reviewed data tree: {name}')
+          for name in names:
+              destination = Path(name)
+              if destination.exists():
+                  shutil.rmtree(destination)
+              shutil.copytree(bundle / name, destination)
+          PY
       - uses: ./
         with:
+          install-mode: source
           baseline-dir: examples/baseline
           capture-dir: examples/capture
-          report-dir: saccade-update-report
+          report-dir: saccade-report
           artifact-name: saccade-update-report
           comment: 'false'
           update-baselines: 'true'
+          update-manifest: saccade-plan/manifest.json
+          update-manifest-sha256: ${{ inputs.manifest-sha256 }}
           update-branch-prefix: saccade/update-baselines
           update-prune-missing: 'false'

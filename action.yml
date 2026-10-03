@@ -1,5 +1,5 @@
 name: saccade
-description: Perceptual (NVIDIA FLIP) visual-regression check for renderer output. Compares baseline and capture images, uploads an HTML report, writes a job summary and keeps one pull-request comment up to date.
+description: Compare images, preserve report and JUnit evidence, and write a job summary. Reviewed baseline updates create a pull request.
 author: saccade contributors
 branding:
   icon: image
@@ -25,7 +25,7 @@ inputs:
     required: false
     default: ''
   report-dir:
-    description: Directory the report is written to, relative to the workspace. An absolute path works for the comparison and the summary, but the report is then not uploaded as an artifact.
+    description: Report bundle directory. For updates, the restored immutable reviewed report directory; it is never regenerated.
     required: false
     default: saccade-report
   artifact-name:
@@ -37,38 +37,59 @@ inputs:
     required: false
     default: ''
   fail-on-new:
-    description: Treat captures without a baseline as a regression. Set to 'true' to enable.
+    description: Require new captures to fail, overriding onboarding configuration. Empty preserves configuration (new captures fail by default).
+    required: false
+    default: ''
+  comment:
+    description: Opt in to a sticky comment on same-repository pull requests; requires pull-requests write. Fork comments are skipped.
     required: false
     default: 'false'
-  comment:
-    description: Create or update one pull-request comment with the summary (pull_request events only; needs pull-requests write permission, and is skipped with a warning when the token is read-only, for example on fork PRs). Set to 'false' to disable.
-    required: false
-    default: 'true'
   update-baselines:
-    description: Open a baseline-update PR on workflow_dispatch only. Requires contents write and pull-requests write; never runs on fork PRs.
+    description: Apply a selected reviewed manifest on trusted default-branch workflow_dispatch only, then open a review PR. Requires contents write and pull-requests write.
     required: false
     default: 'false'
   update-branch-prefix:
     description: Prefix for the new baseline-update branch, suffixed with the run ID.
     required: false
     default: saccade/update-baselines
+  update-manifest:
+    description: Path to the reviewed approve --dry-run manifest.json. Its adjacent decision.json and the original report/captures must be restored from the same immutable evidence artifact.
+    required: false
+    default: ''
+  update-manifest-sha256:
+    description: SHA-256 of the exact reviewed manifest bytes, supplied by the trusted dispatcher. Required for updates.
+    required: false
+    default: ''
   update-prune-missing:
-    description: With update-baselines, also delete missing baselines through approve --prune-missing. Explicit opt-in.
+    description: Permit only the deletions selected by the reviewed decision and manifest. Explicit opt-in.
     required: false
     default: 'false'
   github-token:
-    description: Token used to post the comment and to download the prebuilt release binary.
+    description: Token for release downloads, optional same-repository comments and explicitly dispatched update PRs. Ordinary comparisons need read permission only.
     required: false
     default: ${{ github.token }}
   version:
-    description: Git ref (tag, branch or commit) of the saccade repository to install. Uses a release binary for that ref if one exists, otherwise a build from source with cargo. Empty uses the ref this action was invoked with.
+    description: Release tag for binary installation, or exact git revision for explicit source installation. Empty uses the action ref in binary mode and the downloaded action checkout in source mode.
     required: false
     default: ''
+  install-mode:
+    description: 'binary verifies a release checksum and never falls back; source explicitly builds with Cargo.'
+    required: false
+    default: binary
 
 outputs:
+  verdict:
+    description: pass, fail (completed comparison gate), or command-error (installation/configuration/execution failure).
+    value: ${{ steps.result.outputs.verdict || 'command-error' }}
   exit-code:
-    description: Exit code of saccade compare, which is also the job's result (0 no regression, 1 regression, 2 usage, config or IO error).
-    value: ${{ steps.compare.outputs.exit-code }}
+    description: Action result (0 comparison gate passes, 1 comparison gate fails, 2 installation, configuration or workflow error).
+    value: ${{ steps.result.outputs.exit-code || '2' }}
+  report-url:
+    description: Download URL for the uploaded report artifact, including JUnit.
+    value: ${{ steps.upload.outputs.artifact-url }}
+  artifact-id:
+    description: Immutable ID of the uploaded report artifact.
+    value: ${{ steps.upload.outputs.artifact-id }}
   failed:
     description: Number of images over their threshold.
     value: ${{ steps.compare.outputs.failed }}
@@ -83,8 +104,10 @@ runs:
   using: composite
   steps:
     - name: Install saccade
+      id: install
       shell: bash
       env:
+        INSTALL_MODE: ${{ inputs.install-mode }}
         INPUT_VERSION: ${{ inputs.version }}
         ACTION_REF: ${{ github.action_ref }}
         ACTION_REPO: ${{ github.action_repository }}
@@ -94,70 +117,59 @@ runs:
         set -euo pipefail
         ref="${INPUT_VERSION:-$ACTION_REF}"
         repo="${ACTION_REPO:-}"
-        bin_dir="$RUNNER_TEMP/saccade-bin"
+        fail() { echo "::error::Installation error: $*"; exit 2; }
+        bin_dir="$(mktemp -d "$RUNNER_TEMP/saccade-bin.XXXXXX")"
         mkdir -p "$bin_dir"
+        exe=saccade
+        [ "$RUNNER_OS" != Windows ] || exe=saccade.exe
 
-        case "$RUNNER_OS-$RUNNER_ARCH" in
-          Linux-X64)    target=x86_64-unknown-linux-gnu;  ext=tar.gz ;;
-          Linux-ARM64)  target=aarch64-unknown-linux-gnu; ext=tar.gz ;;
-          macOS-ARM64)  target=aarch64-apple-darwin;      ext=tar.gz ;;
-          Windows-X64)  target=x86_64-pc-windows-msvc;    ext=zip ;;
-          *)            target=''; ext='' ;;
+        case "$INSTALL_MODE" in
+          source)
+            command -v cargo >/dev/null 2>&1 || fail 'source mode requires Rust/Cargo on PATH'
+            root="$(mktemp -d "$RUNNER_TEMP/saccade-root.XXXXXX")"
+            if [ -n "$INPUT_VERSION" ]; then
+              [ -n "$repo" ] || fail 'a source version requires the action repository'
+              cargo install --git "https://github.com/$repo" --rev "$INPUT_VERSION" saccade --locked --root "$root" || fail 'source build failed'
+            else
+              cargo install --path "$ACTION_PATH/crates/saccade" --locked --root "$root" || fail 'source build failed'
+            fi
+            cp "$root/bin/$exe" "$bin_dir/$exe" || fail 'source build produced no executable'
+            ;;
+          binary)
+            [[ -n "$ref" && -n "$repo" ]] || fail 'binary mode requires a release version and repository; local actions must select source explicitly'
+
+            case "$RUNNER_OS-$RUNNER_ARCH" in
+              Linux-X64)    target=x86_64-unknown-linux-gnu;  ext=tar.gz ;;
+              Linux-ARM64)  target=aarch64-unknown-linux-gnu; ext=tar.gz ;;
+              macOS-ARM64)  target=aarch64-apple-darwin;      ext=tar.gz ;;
+              Windows-X64)  target=x86_64-pc-windows-msvc;    ext=zip ;;
+              *)            fail "no release target for $RUNNER_OS-$RUNNER_ARCH; select source explicitly" ;;
+            esac
+
+            asset="saccade-$target.$ext"
+            dl="$(mktemp -d "$RUNNER_TEMP/saccade-dl.XXXXXX")"
+            sha256_of() {
+              if command -v sha256sum >/dev/null 2>&1; then
+                sha256sum "$1" | cut -d' ' -f1
+              else
+                shasum -a 256 "$1" | cut -d' ' -f1
+              fi
+            }
+            gh release download "$ref" --repo "$repo" --pattern "$asset" --pattern "$asset.sha256" --dir "$dl" || fail "release asset unavailable for $ref ($target)"
+            [[ -f "$dl/$asset" && -f "$dl/$asset.sha256" ]] || fail 'release archive or checksum is missing'
+            want="$(awk 'NR == 1 {print tolower($1)}' "$dl/$asset.sha256")"
+            got="$(sha256_of "$dl/$asset")" || fail 'could not hash release archive'
+            [[ "$want" =~ ^[0-9a-f]{64}$ && "$want" = "$got" ]] || fail "checksum mismatch for $asset"
+            if [ "$ext" = zip ]; then
+              unzip -q -o "$dl/$asset" "$exe" -d "$bin_dir" || fail 'invalid release archive'
+            else
+              tar -xzf "$dl/$asset" -C "$bin_dir" "$exe" || fail 'invalid release archive'
+            fi
+            echo "Installed release $ref ($target), checksum verified"
+            ;;
+          *) fail 'install-mode must be binary or source' ;;
         esac
-
-        installed=false
-        if [ -n "$target" ] && [ -n "$ref" ] && [ -n "$repo" ]; then
-          asset="saccade-$target.$ext"
-          dl="$RUNNER_TEMP/saccade-dl"
-          rm -rf "$dl"; mkdir -p "$dl"
-          sha256_of() {
-            if command -v sha256sum >/dev/null 2>&1; then
-              sha256sum "$1" | cut -d' ' -f1
-            else
-              shasum -a 256 "$1" | cut -d' ' -f1
-            fi
-          }
-          if gh release download "$ref" --repo "$repo" --pattern "$asset" --pattern "$asset.sha256" --dir "$dl" 2>/dev/null; then
-            want=''
-            if [ -f "$dl/$asset.sha256" ]; then
-              want="$(head -n 1 "$dl/$asset.sha256" | cut -d' ' -f1 | tr 'A-F' 'a-f')"
-            fi
-            got="$(sha256_of "$dl/$asset" || true)"
-            if [ -n "$want" ] && [ "$want" = "$got" ]; then
-              if [ "$ext" = zip ]; then
-                unzip -q -o "$dl/$asset" -d "$bin_dir"
-              else
-                tar -xzf "$dl/$asset" -C "$bin_dir"
-              fi
-              if "$bin_dir/saccade" --version >/dev/null 2>&1; then
-                installed=true
-                echo "Installed prebuilt saccade from release $ref ($target), checksum verified"
-              else
-                echo "::warning::The prebuilt saccade does not run; building from source."
-                rm -rf "$bin_dir"; mkdir -p "$bin_dir"
-              fi
-            else
-              echo "::warning::Checksum of $asset is missing or does not match; building from source."
-            fi
-          fi
-        fi
-
-        if [ "$installed" != true ]; then
-          echo "No prebuilt binary for ref '${ref:-<none>}' on $RUNNER_OS-$RUNNER_ARCH; building from source with cargo."
-          if ! command -v cargo >/dev/null 2>&1; then
-            echo "::error::cargo is not available on this runner. Install Rust (for example with dtolnay/rust-toolchain) before this action."
-            exit 2
-          fi
-          root="$RUNNER_TEMP/saccade-root"
-          if [ -n "$ref" ] && [ -n "$repo" ]; then
-            cargo install --git "https://github.com/$repo" --rev "$ref" saccade --locked --root "$root"
-          elif [ -n "$repo" ]; then
-            cargo install --git "https://github.com/$repo" saccade --locked --root "$root"
-          else
-            cargo install --path "$ACTION_PATH/crates/saccade" --locked --root "$root"
-          fi
-          cp "$root"/bin/saccade* "$bin_dir"/
-        fi
+        "$bin_dir/$exe" --version >/dev/null 2>&1 || fail 'installed executable does not run'
         echo "$bin_dir" >> "$GITHUB_PATH"
 
     - name: Compare images
@@ -171,44 +183,82 @@ runs:
         METRIC: ${{ inputs.metric }}
         CONFIG: ${{ inputs.config }}
         FAIL_ON_NEW: ${{ inputs.fail-on-new }}
+        UPDATE_BASELINES: ${{ inputs.update-baselines }}
+        EVENT_NAME: ${{ github.event_name }}
+        FORK: ${{ github.event.pull_request.head.repo.fork }}
+        REF_TYPE: ${{ github.ref_type }}
+        BASE_BRANCH: ${{ github.ref_name }}
+        DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}
       run: |
         set -uo pipefail
-        args=(compare "$BASELINE_DIR" "$CAPTURE_DIR" --out "$REPORT_DIR")
-        [ -n "$THRESHOLD" ] && args+=(--threshold "$THRESHOLD")
-        [ -n "$METRIC" ] && args+=(--metric "$METRIC")
-        [ -n "$CONFIG" ] && args+=(--config "$CONFIG")
-        [ "$FAIL_ON_NEW" = true ] && args+=(--fail-on-new)
+        report="$REPORT_DIR/saccade-report.v1.json"
+        written=false
+        code=2
+        if [ "$UPDATE_BASELINES" = true ]; then
+          if [ "$EVENT_NAME" = workflow_dispatch ] && [ "$FORK" != true ] && [ "$REF_TYPE" = branch ] && [ "$BASE_BRANCH" = "$DEFAULT_BRANCH" ] && [ -f "$report" ]; then
+            # Keep the original reviewed bytes; do not compare again.
+            code=$(jq -r 'if (.totals.fail + .totals.error + .totals.missing + (if .config.fail_on_new then .totals.new else 0 end)) > 0 or .totals.total == 0 then 1 else 0 end' "$report") || code=2
+            written=true
+          else
+            echo '::error::Updates require trusted default-branch dispatch and a restored reviewed report.'
+          fi
+        elif [ "$UPDATE_BASELINES" = false ] && [ ! -e "$report" ]; then
+          args=(compare "$BASELINE_DIR" "$CAPTURE_DIR" --out "$REPORT_DIR")
+          [ -n "$THRESHOLD" ] && args+=(--threshold "$THRESHOLD")
+          [ -n "$METRIC" ] && args+=(--metric "$METRIC")
+          [ -n "$CONFIG" ] && args+=(--config "$CONFIG")
+          [ "$FAIL_ON_NEW" = true ] && args+=(--fail-on-new)
 
-        set +e
-        saccade "${args[@]}"
-        code=$?
-        set -e
+          set +e
+          saccade "${args[@]}"
+          code=$?
+          [ ! -f "$report" ] || written=true
+        else
+          echo '::error::Invalid update-baselines setting or an existing report; use a fresh report directory.'
+        fi
+        case "$code" in 0|1|2) ;; *) code=2 ;; esac
 
         failed=0
         new=0
-        report="$REPORT_DIR/saccade-report.v1.json"
-        if [ -f "$report" ] && command -v jq >/dev/null 2>&1; then
-          failed=$(jq -r '.totals.fail' "$report")
-          new=$(jq -r '.totals.new' "$report")
+        if [ "$written" = true ]; then
+          if jq -e '.schema == "saccade-report.v1" and ([.totals.pass, .totals.fail, .totals.error, .totals.missing, .totals.new, .totals.total] | all(type == "number" and . >= 0 and floor == .))' "$report" >/dev/null; then
+            failed=$(jq -r '.totals.fail' "$report")
+            new=$(jq -r '.totals.new' "$report")
+          else
+            code=2
+          fi
         fi
+        case "$code" in 0) verdict=pass ;; 1) verdict=fail ;; *) verdict=command-error ;; esac
         {
           echo "exit-code=$code"
+          echo "verdict=$verdict"
+          echo "report-written=$written"
           echo "failed=$failed"
           echo "new=$new"
         } >> "$GITHUB_OUTPUT"
 
+    - name: Export JUnit
+      id: junit
+      if: ${{ always() && steps.compare.outputs.report-written == 'true' }}
+      shell: bash
+      env:
+        REPORT_DIR: ${{ inputs.report-dir }}
+      run: |
+        saccade inspect export "$REPORT_DIR/saccade-report.v1.json" --format junit --out "$REPORT_DIR/junit.xml"
+
     - name: Upload report
       id: upload
-      if: ${{ always() && hashFiles(format('{0}/saccade-report.v1.json', inputs.report-dir)) != '' }}
+      if: ${{ always() && steps.compare.outputs.report-written == 'true' }}
       uses: actions/upload-artifact@v4
       with:
         name: ${{ inputs.artifact-name }}
         path: ${{ inputs.report-dir }}
-        if-no-files-found: warn
+        if-no-files-found: error
+        include-hidden-files: true
 
     - name: Write job summary
       id: summary
-      if: ${{ always() }}
+      if: ${{ always() && steps.compare.outputs.report-written == 'true' }}
       shell: bash
       env:
         REPORT_DIR: ${{ inputs.report-dir }}
@@ -241,7 +291,7 @@ runs:
         } >> "$GITHUB_OUTPUT"
 
     - name: Pull request comment
-      if: ${{ always() && github.event_name == 'pull_request' && inputs.comment == 'true' && steps.summary.outputs.path != '' }}
+      if: ${{ always() && github.event_name == 'pull_request' && !github.event.pull_request.head.repo.fork && github.event.pull_request.head.repo.full_name == github.repository && inputs.comment == 'true' && steps.summary.outputs.path != '' }}
       shell: bash
       env:
         GH_TOKEN: ${{ inputs.github-token }}
@@ -251,9 +301,8 @@ runs:
         MARKER: ${{ steps.summary.outputs.marker }}
       run: |
         set -uo pipefail
-        marker="$MARKER"
         id=$(gh api --paginate "repos/$REPO/issues/$PR_NUMBER/comments" \
-          --jq ".[] | select(.body | contains(\"$marker\")) | .id" | head -n 1) || id=''
+          --jq ".[] | select(.body | contains(\"$MARKER\")) | .id" | head -n 1) || id=''
         if [ -n "$id" ]; then
           gh api --method PATCH "repos/$REPO/issues/comments/$id" -F body=@"$SUMMARY_PATH" >/dev/null \
             || echo "::warning::Could not update the saccade comment (read-only token on a fork PR?)."
@@ -264,13 +313,14 @@ runs:
 
     - name: Open baseline-update pull request
       id: update
-      if: ${{ inputs.update-baselines == 'true' && github.event_name == 'workflow_dispatch' && !github.event.pull_request.head.repo.fork && (steps.compare.outputs.exit-code == '0' || steps.compare.outputs.exit-code == '1') && steps.summary.outputs.path != '' && steps.upload.outputs.artifact-url != '' }}
+      if: ${{ inputs.update-baselines == 'true' && github.event_name == 'workflow_dispatch' && !github.event.pull_request.head.repo.fork && github.ref_type == 'branch' && github.ref_name == github.event.repository.default_branch && (steps.compare.outputs.exit-code == '0' || steps.compare.outputs.exit-code == '1') && steps.summary.outputs.path != '' && steps.upload.outputs.artifact-url != '' }}
       shell: bash
       env:
         GH_TOKEN: ${{ inputs.github-token }}
         REPO: ${{ github.repository }}
         SERVER_URL: ${{ github.server_url }}
         BASE_BRANCH: ${{ github.ref_name }}
+        DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}
         REF_TYPE: ${{ github.ref_type }}
         EVENT_NAME: ${{ github.event_name }}
         FORK: ${{ github.event.pull_request.head.repo.fork }}
@@ -280,12 +330,14 @@ runs:
         CAPTURE_DIR: ${{ inputs.capture-dir }}
         REPORT_DIR: ${{ inputs.report-dir }}
         PRUNE_MISSING: ${{ inputs.update-prune-missing }}
+        UPDATE_MANIFEST: ${{ inputs.update-manifest }}
+        MANIFEST_SHA256: ${{ inputs.update-manifest-sha256 }}
         SUMMARY_PATH: ${{ steps.summary.outputs.path }}
       run: |
         set -euo pipefail
         # Keep the event/fork checks at the write boundary as well as in `if`.
-        if [ "$EVENT_NAME" != workflow_dispatch ] || [ "$FORK" = true ] || [ "$REF_TYPE" != branch ]; then
-          echo "::error::Baseline updates require a trusted workflow_dispatch on a branch."
+        if [ "$EVENT_NAME" != workflow_dispatch ] || [ "$FORK" = true ] || [ "$REF_TYPE" != branch ] || [ "$BASE_BRANCH" != "$DEFAULT_BRANCH" ]; then
+          echo "::error::Baseline updates require a trusted default-branch workflow_dispatch."
           exit 2
         fi
         cd -P "$GITHUB_WORKSPACE"
@@ -301,15 +353,37 @@ runs:
           echo "::error::Baseline updates require a clean tracked checkout and no staged changes."
           exit 2
         fi
-        # The checkout's credentials must allow contents: write; gh uses GH_TOKEN
-        # for pull-requests: write. Fail rather than swallowing permission errors.
-        args=(approve "$CAPTURE_DIR" "$baseline_abs" --all-failing "$REPORT_DIR/saccade-report.v1.json" --json)
+        fail() { echo "::error::Reviewed update error: $*"; exit 2; }
+        [[ "$MANIFEST_SHA256" =~ ^[0-9a-f]{64}$ && -f "$UPDATE_MANIFEST" ]] || fail 'a reviewed manifest and its SHA-256 are required'
+        if command -v sha256sum >/dev/null 2>&1; then
+          got="$(sha256sum "$UPDATE_MANIFEST" | cut -d' ' -f1)"
+        else
+          got="$(shasum -a 256 "$UPDATE_MANIFEST" | cut -d' ' -f1)"
+        fi
+        [ "$got" = "$MANIFEST_SHA256" ] || fail 'manifest checksum mismatch'
+        decision="$(dirname -- "$UPDATE_MANIFEST")/decision.json"
+        jq -e --slurpfile d "$decision" '
+          .case_id == $d[0].binding.case_id and .decision_id == $d[0].decision_id and
+          .channel == "cli" and .human_attestation == null and
+          (.entries | type == "array" and length > 0) and
+          ([.entries[].entry_id] | length == (unique | length))
+        ' "$UPDATE_MANIFEST" >/dev/null || fail 'manifest is not the selected CLI decision plan'
+        selected="$RUNNER_TEMP/saccade-selected-$RUN_ID.paths"
+        jq -j '.entries[].entry_id + "\u0000"' "$UPDATE_MANIFEST" > "$selected"
+        args=(approve "$CAPTURE_DIR" "$baseline_abs" --report "$REPORT_DIR/saccade-report.v1.json" --decisions "$decision" --json)
+        while IFS= read -r -d '' entry; do args+=(--entry "$entry"); done < "$selected"
         [ "$PRUNE_MISSING" = true ] && args+=(--prune-missing)
+        plan="$(mktemp -d "$RUNNER_TEMP/saccade-plan.XXXXXX")"
+        saccade "${args[@]}" --dry-run --out "$plan"
+        [ "$(jq -S -c . "$UPDATE_MANIFEST")" = "$(jq -S -c . "$plan/manifest.json")" ] || fail 'current dry-run differs from the reviewed manifest'
+        receipt="$(mktemp -d "$RUNNER_TEMP/saccade-receipt.XXXXXX")"
         approval="$RUNNER_TEMP/saccade-approved-$RUN_ID.json"
-        saccade "${args[@]}" > "$approval"
-        changed_paths="$RUNNER_TEMP/saccade-approved-$RUN_ID.paths"
-        jq -j '(.data // .) | .copied[].to, .pruned[] | . + "\u0000"' "$approval" > "$changed_paths"
-        while IFS= read -r -d '' changed; do
+        saccade "${args[@]}" --out "$receipt" > "$approval"
+        # The result envelope is bounded. Stage every selected manifest entry,
+        # rather than the first five copied/pruned paths in the CLI summary.
+        changed_paths=()
+        while IFS= read -r -d '' entry; do
+          changed="$baseline_abs/$entry"
           # Resolve directory aliases (including macOS /var and Git Bash drive
           # spellings). Pruned files no longer exist, but their parents do.
           changed_dir="$(cd -P "$(dirname -- "$changed")" && pwd -P)" || {
@@ -322,10 +396,11 @@ runs:
           esac
           changed_abs="$changed_dir/$changed_name"
           case "$changed_abs" in
-            "$baseline_abs"/*) git --literal-pathspecs add -- "$changed_abs" ;;
+            "$baseline_abs"/*) changed_paths+=("$changed_abs") ;;
             *) echo "::error::approve returned a path outside the baseline directory."; exit 2 ;;
           esac
-        done < "$changed_paths"
+        done < "$selected"
+        git --literal-pathspecs add -- "${changed_paths[@]}"
         if git diff --cached --quiet; then
           echo "No baselines changed; no pull request needed."
           exit 0
@@ -333,18 +408,37 @@ runs:
         git switch -c "$branch"
         git -c user.name='github-actions[bot]' -c user.email='41898282+github-actions[bot]@users.noreply.github.com' \
           commit -m "Update saccade baselines (run $RUN_ID)"
-        git push "$SERVER_URL/$REPO.git" "HEAD:refs/heads/$branch"
+        # Supply credentials only for this push, without persisting checkout
+        # credentials or printing the token in command arguments.
+        auth="$(printf 'x-access-token:%s' "$GH_TOKEN" | base64 | tr -d '\r\n')"
+        GIT_CONFIG_COUNT=1 GIT_CONFIG_KEY_0="http.$SERVER_URL/.extraheader" GIT_CONFIG_VALUE_0="AUTHORIZATION: basic $auth" \
+          git push "$SERVER_URL/$REPO.git" "HEAD:refs/heads/$branch"
         gh pr create --repo "$REPO" --base "$BASE_BRANCH" --head "$branch" \
           --title "Update saccade baselines (run $RUN_ID)" --body-file "$SUMMARY_PATH"
 
     - name: Fail on regression
+      id: result
       if: ${{ always() }}
       shell: bash
       env:
         EXIT_CODE: ${{ steps.compare.outputs.exit-code }}
+        INSTALL_OUTCOME: ${{ steps.install.outcome }}
+        COMPARE_OUTCOME: ${{ steps.compare.outcome }}
+        JUNIT_OUTCOME: ${{ steps.junit.outcome }}
+        UPLOAD_OUTCOME: ${{ steps.upload.outcome }}
+        SUMMARY_OUTCOME: ${{ steps.summary.outcome }}
+        UPDATE_OUTCOME: ${{ steps.update.outcome }}
       run: |
         code="${EXIT_CODE:-2}"
+        for outcome in "$INSTALL_OUTCOME" "$COMPARE_OUTCOME" "$JUNIT_OUTCOME" "$UPLOAD_OUTCOME" "$SUMMARY_OUTCOME" "$UPDATE_OUTCOME"; do
+          [ "$outcome" != failure ] || code=2
+        done
+        case "$code" in 0) verdict=pass ;; 1) verdict=fail ;; *) code=2; verdict=command-error ;; esac
+        {
+          echo "exit-code=$code"
+          echo "verdict=$verdict"
+        } >> "$GITHUB_OUTPUT"
         if [ "$code" != 0 ]; then
-          echo "::error::saccade exited with code $code (1 = regression, 2 = usage or IO error)."
+          echo "::error::saccade Action exit code $code (1 = comparison gate failure, 2 = installation, configuration or workflow error)."
         fi
         exit "$code"
