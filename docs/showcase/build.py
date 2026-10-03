@@ -10,7 +10,7 @@ binary, then writes:
 
 Usage: python3 docs/showcase/build.py --saccade target/release/saccade --out .work/saccade-pages/showcase
 Default output: $CARGO_TARGET_DIR/showcase (or target/showcase). Sources are never rewritten.
-Requires Python 3, Pillow. Nothing is downloaded.
+Requires Python 3, Pillow, and saccade built with --features prechecks. Nothing is downloaded.
 """
 import argparse
 import html

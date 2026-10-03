@@ -108,17 +108,12 @@ impl RootPolicy {
             .any(|r| (r.path == home || self.follow) && canonical.starts_with(&r.path))
             || self.targets.iter().any(|t| canonical.starts_with(t))
     }
-    /// Resolve an input, including a generated artifact, while retaining the alias route.
-    pub fn read(&self, given: &Path) -> Result<PathBuf> {
-        let joined = if given.is_absolute() {
-            given.to_owned()
-        } else {
-            self.roots[0].path.join(given)
-        };
-        let canonical = crate::paths::canonicalize(&joined)
-            .map_err(|e| Error::Config(format!("resolving {}: {e}", joined.display())))?;
+    // Canonicalize through the first registry/output boundary, retaining the
+    // suffix as a lexical route. Resolving the whole route would turn a symlink
+    // into another root into direct access, bypassing `follow` and alias rules.
+    fn route(&self, path: &Path) -> PathBuf {
         let mut route = PathBuf::new();
-        for component in joined.components() {
+        for component in path.components() {
             match component {
                 Component::ParentDir => {
                     route.pop();
@@ -127,6 +122,35 @@ impl RootPolicy {
                 other => route.push(other.as_os_str()),
             }
         }
+        let mut prefix = PathBuf::new();
+        let mut components = route.components();
+        while let Some(component) = components.next() {
+            prefix.push(component.as_os_str());
+            // Outputs may not exist yet; this uses paths::canonicalize on the
+            // longest existing prefix, with the same policy as startup roots.
+            let canonical = crate::run::normalise_path(&prefix);
+            if self.root_of(&canonical).is_some()
+                || self
+                    .output
+                    .as_ref()
+                    .is_some_and(|out| canonical.starts_with(out))
+            {
+                return canonical.join(components.as_path());
+            }
+        }
+        route
+    }
+    /// Resolve an input, including a generated artifact, while retaining the alias route.
+    pub fn read(&self, given: &Path) -> Result<PathBuf> {
+        let given = crate::paths::native(given);
+        let joined = if given.is_absolute() {
+            given.to_path_buf()
+        } else {
+            self.roots[0].path.join(given.as_ref())
+        };
+        let canonical = crate::paths::canonicalize(&joined)
+            .map_err(|e| Error::Config(format!("resolving {}: {e}", joined.display())))?;
+        let route = self.route(&joined);
         let allowed = self
             .root_of(&route)
             .is_some_and(|r| self.allows(&r.path, &canonical))
@@ -141,6 +165,7 @@ impl RootPolicy {
     }
     /// Resolve a new output using its existing parent, never a capture permission.
     pub fn write(&self, given: &Path) -> Result<PathBuf> {
+        let given = crate::paths::native(given);
         let out = self
             .output
             .as_ref()
@@ -152,12 +177,12 @@ impl RootPolicy {
             return Err(Error::Config("output traversal is forbidden".into()));
         }
         let path = if given.is_absolute() {
-            given.to_owned()
+            given.to_path_buf()
         } else {
-            out.join(given)
+            out.join(given.as_ref())
         };
         let canonical = crate::run::normalise_path(&path);
-        if !path.starts_with(out)
+        if !self.route(&path).starts_with(out)
             || !canonical.starts_with(out)
             || self.roots.iter().any(|r| canonical.starts_with(&r.path))
             || self.targets.iter().any(|t| canonical.starts_with(t))

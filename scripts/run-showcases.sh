@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
 # Regenerate datasets, execute their documented commands and compare real stdout.
+# Build the saccade binary on PATH with --features prechecks.
 set -euo pipefail
 TASK_ROOT=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/.." && pwd)
 cd -- "$TASK_ROOT"

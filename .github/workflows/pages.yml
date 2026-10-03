@@ -36,7 +36,7 @@ jobs:
         with:
           python-version: '3.x'
       - run: python3 -m pip install Pillow
-      - run: cargo build --release --locked -p saccade
+      - run: cargo build --release --locked -p saccade --features prechecks
       - name: Build gallery and reports
         run: python3 docs/showcase/build.py --saccade "$CARGO_TARGET_DIR/release/saccade" --out "$RUNNER_TEMP/saccade-pages/showcase"
       - uses: actions/upload-pages-artifact@v3
