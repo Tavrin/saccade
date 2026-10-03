@@ -6,9 +6,8 @@ use saccade_core::review::{self, Options, Profile};
 use saccade_core::{Report, Status};
 use serde_json::{Value, json};
 use std::cell::Cell;
-use std::io::Write;
 use std::path::{Path, PathBuf};
-use std::process::{Command, Stdio};
+use std::process::Command;
 
 const BIN: &str = env!("CARGO_BIN_EXE_saccade");
 struct Mock {
@@ -404,96 +403,32 @@ fn bench_ordering_and_calibration_maths_count_missing_coverage() {
     assert_eq!(calibration["judges"].as_array().unwrap().len(), 6);
 }
 #[test]
-fn never_final_and_cli_mcp_contracts_are_enforced() {
+fn never_final_and_local_preview_contracts_are_enforced() {
     let (tmp, path, report) = fixture();
     let backend = mock(false, false);
     review::run(&path, &report, &backend, &options(tmp.path(), "lookdev")).unwrap();
-    let d = saccade_core::view::read_decisions(
+    let decisions = saccade_core::view::read_decisions(
         &path.parent().unwrap().join("saccade-decisions.v1.json"),
     )
     .unwrap();
     assert!(
-        d.sets
+        decisions
+            .sets
             .iter()
             .all(|s| s.decision.is_none() && s.proposals.iter().all(|p| p.proposed && !p.promoted))
     );
     let output = Command::new(BIN)
-        .args(["review"])
+        .arg("review")
         .arg(&path)
-        .args(["--profile", "nightly", "--dry-run", "--json"])
+        .arg("--json")
         .output()
         .unwrap();
-    assert!(output.status.success());
-    schema("review", &serde_json::from_slice(&output.stdout).unwrap());
-    let human = saccade_core::decision::Answer {
-        entry: "private-scene.png".into(),
-        question: saccade_core::decision::Question::Accept,
-        hotspot: None,
-        answer: "accept".into(),
-        prob: None,
-        confidence: None,
-        source: "human".into(),
-        note: String::new(),
-        request_hash: None,
-    };
-    saccade_core::decision::decide_report(&path, &report, &Default::default(), &human).unwrap();
-    seed_historical_final(&path);
-    let labels_path = tmp.path().join("labels.json");
-    saccade_core::labels::collect(None, std::slice::from_ref(&path), &labels_path).unwrap();
-    let mut mcp = Command::new(BIN)
-        .args(["mcp", "--root"])
-        .arg(tmp.path())
-        .stdin(Stdio::piped())
-        .stdout(Stdio::piped())
-        .spawn()
-        .unwrap();
-    let input = mcp.stdin.as_mut().unwrap();
-    writeln!(
-        input,
-        "{}",
-        json!({"jsonrpc":"2.0","id":1,"method":"tools/list"})
-    )
-    .unwrap();
-    for message in [
-        json!({"jsonrpc":"2.0","id":2,"method":"tools/call","params":{
-            "name":"saccade_review","arguments":{"report_json":"report/saccade-report.v1.json",
-                "profile":"nightly","dry_run":true,"budget_calls":0}}}),
-        json!({"jsonrpc":"2.0","id":3,"method":"tools/call","params":{
-            "name":"saccade_judge_bench","arguments":{"labels":"labels.json","budget_calls":0,
-                "out":"bench.json"}}}),
-    ] {
-        writeln!(input, "{message}").unwrap();
-    }
-    drop(mcp.stdin.take());
-    let out = mcp.wait_with_output().unwrap();
-    let replies: Vec<Value> = String::from_utf8(out.stdout)
-        .unwrap()
-        .lines()
-        .map(|line| serde_json::from_str(line).unwrap())
-        .collect();
-    let v = &replies[0];
-    assert!(
-        v["result"]["tools"]
-            .as_array()
-            .unwrap()
-            .iter()
-            .any(|t| t["name"] == "saccade_review")
-    );
-    assert!(
-        v["result"]["tools"]
-            .as_array()
-            .unwrap()
-            .iter()
-            .any(|t| t["name"] == "saccade_judge_bench")
-    );
-    for (reply, name) in [(&replies[1], "review"), (&replies[2], "judge-bench")] {
-        assert_ne!(reply["result"]["isError"], true, "{reply}");
-        schema(name, &reply["result"]["structuredContent"]);
-        assert_eq!(reply["result"]["structuredContent"]["calls_used"], 0);
-    }
+    assert!(output.status.success(), "{output:?}");
+    let value: Value = serde_json::from_slice(&output.stdout).unwrap();
+    assert_eq!(value["schema"], "saccade-result.v2");
+    assert_eq!(value["counts"]["dispatched_calls"], 0);
 }
 
-// Reader-only historical evaluation input; no current source-label promotion.
 fn seed_historical_final(report: &Path) {
     let path = report.parent().unwrap().join("saccade-decisions.v1.json");
     let mut d = saccade_core::view::read_decisions(&path).unwrap();

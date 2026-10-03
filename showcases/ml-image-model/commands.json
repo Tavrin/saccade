@@ -14,22 +14,23 @@
   {
     "name": "explain",
     "args": [
-      "explain",
+      "inspect",
+      "evidence",
       "@REPORTS@/compare/saccade-report.v1.json"
     ],
     "out": "explain",
     "exit": 0
   },
   {
-    "name": "decision-request",
+    "name": "export",
     "args": [
-      "decision-request",
+      "inspect",
+      "export",
       "@REPORTS@/compare/saccade-report.v1.json",
-      "--all-failing",
-      "--question",
-      "accept",
-      "--intent",
-      "Checkpoint B must preserve colour and structure."
+      "--format",
+      "markdown",
+      "--out",
+      "@REPORTS@/summary.md"
     ],
     "exit": 0
   }

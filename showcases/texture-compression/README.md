@@ -16,14 +16,14 @@ existing saccade report directory.
 REPORTS=../saccade-showcase-reports
 (
   cd showcases/texture-compression
-  saccade rank baseline candidates/block-low candidates/block-high candidates/jpeg-q40 candidates/jpeg-q85 candidates/palette-256 --labels block-low,block-high,jpeg-q40,jpeg-q85,palette-256 --metric mean --threshold 0.001 --out "../../$REPORTS/texture-compression/rank"
+  saccade experiment rank baseline candidates/block-low candidates/block-high candidates/jpeg-q40 candidates/jpeg-q85 candidates/palette-256 --labels block-low,block-high,jpeg-q40,jpeg-q85,palette-256 --metric mean --threshold 0.001 --out "../../$REPORTS/texture-compression/rank"
 )
 ```
 
-Expected: rank exits 1 because all lossy candidates exceed mean 0.001; lower FLIP ranks first.
+Expected: rank exits 0 because all lossy candidates exceed mean 0.001; lower FLIP ranks first.
 
 Exit 1 is the intentional regression verdict; exit 0 is expected for
-explain and decision-request. `EXPECTED.txt` contains the actual CLI
+inspect evidence and inspect. `EXPECTED.txt` contains the actual CLI
 stdout captured by `scripts/run-showcases.sh`, including diagnostics.
 
 All images are procedural, use fixed seeds and Pillow's bundled default

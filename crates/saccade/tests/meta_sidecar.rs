@@ -27,14 +27,16 @@ fn compare(tmp: &Path, extra: &[&str]) -> Output {
         .args([tmp.join("base"), tmp.join("cap")])
         .arg("--out")
         .arg(tmp.join("out"))
-        .arg("--json=full")
+        .arg("--json")
         .args(extra)
         .output()
         .expect("spawn")
 }
 
 fn report(o: &Output) -> serde_json::Value {
-    serde_json::from_slice(&o.stdout).expect("report json")
+    let result: serde_json::Value = serde_json::from_slice(&o.stdout).expect("result json");
+    serde_json::from_slice(&std::fs::read(result["artifact"]["path"].as_str().unwrap()).unwrap())
+        .expect("report json")
 }
 
 fn entry<'a>(r: &'a serde_json::Value, name: &str) -> &'a serde_json::Value {

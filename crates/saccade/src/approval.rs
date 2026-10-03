@@ -495,12 +495,12 @@ pub(crate) fn run(
         }
     }
     if opts.json {
-        crate::emit(&format!(
-            "{}\n",
-            serde_json::to_string_pretty(
-                &json!({"schema":"saccade-approve.v1","copied":copied,"pruned":pruned,"dry_run":opts.dry_run,"manifest":paths::cwd(&out.join("manifest.json"),opts.absolute),"decision":paths::cwd(&output_doc,opts.absolute),"receipt":if opts.dry_run { None } else { Some(paths::cwd(&out.join("receipt.json"),opts.absolute)) }})
-            )?
-        ))?;
+        let mut value = crate::local_cmd::base_result("approve");
+        value["artifact"] = crate::local_cmd::reference(&output_doc)?;
+        value["review"] = json!(if opts.dry_run { "pending" } else { "accepted" });
+        value["counts"] = json!({"copied":copied.len(),"pruned":pruned.len()});
+        value["data"] = json!({"copied":copied.into_iter().take(5).collect::<Vec<_>>(),"pruned":pruned.into_iter().take(5).collect::<Vec<_>>(),"dry_run":opts.dry_run,"authority":"cli","human_attestation":null});
+        crate::local_cmd::print(&crate::local_cmd::bounded(value, 4096)?, true)?;
     } else {
         crate::emit(&format!(
             "{}: {}\n",
@@ -520,48 +520,4 @@ pub(crate) fn run(
         ))?;
     }
     Ok(0)
-}
-
-/// Read-only authority display for canonical records. This never echoes a new
-/// automated decision or supplies an accepting result envelope.
-pub(crate) fn inspect_authority(path: &Path, json_output: bool) -> Result<bool, CliError> {
-    use saccade_core::evidence::action::{
-        Execution, MeasurementStatus, Page, ResultEnvelope, ReviewStatus,
-    };
-    let raw = std::fs::read(paths::native(path)).map_err(io)?;
-    let value: serde_json::Value = serde_json::from_slice(&raw)?;
-    if value["schema"] != saccade_core::evidence::SCHEMA {
-        return Ok(false);
-    }
-    let doc = Document::read(path).map_err(contract)?;
-    let label = doc
-        .authority()
-        .map_or("unattested".into(), |a| a.to_string());
-    let limit = format!("authority: {label}; reading a record grants no application authority");
-    if json_output {
-        let envelope = ResultEnvelope {
-            schema: "saccade-result.v2".into(),
-            operation: "summary".into(),
-            execution: Execution::Complete,
-            measurement: MeasurementStatus::Unknown,
-            validity: ValidityStatus::Unknown,
-            validity_reasons: vec!["record inspection does not verify current captures".into()],
-            review: ReviewStatus::Unresolved,
-            artifact: Some(ArtifactRef::from_file(path, path, false).map_err(contract)?),
-            counts: BTreeMap::new(),
-            entries: Vec::new(),
-            next_actions: Vec::new(),
-            limits: vec![limit],
-            errors: Vec::new(),
-            page: Page {
-                omitted: 0,
-                next_cursor: None,
-            },
-        };
-        envelope.validate().map_err(contract)?;
-        crate::emit(&format!("{}\n", serde_json::to_string_pretty(&envelope)?))?;
-    } else {
-        crate::emit(&format!("{limit}\n"))?;
-    }
-    Ok(true)
 }

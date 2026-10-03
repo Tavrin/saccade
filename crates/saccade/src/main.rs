@@ -1,4 +1,4 @@
-//! `saccade` command-line interface: `compare`, `identity`, `approve`, `view`, `unblind`, `summary`.
+//! Twelve top-level commands for local measurement and evidence workflows.
 //!
 //! Exit codes: `0` no regression, `1` regression, `2` usage/config/IO error.
 
@@ -8,18 +8,15 @@ use std::process::ExitCode;
 
 use clap::{Parser, Subcommand, ValueEnum};
 use saccade_core::config::RunConfig;
-use saccade_core::render::{MarkdownOptions, is_valid_comment_key, render_markdown};
 use saccade_core::report::{Labels, Metric, Mode, Report, Status};
-use saccade_core::view::{
-    ViewOptions, build_view, is_safe_name, read_blind_key, read_decisions, unblind,
-};
+use saccade_core::view::{ViewOptions, build_view, is_safe_name};
 
 mod agent;
 mod agent_ui;
 mod approval;
 mod f1;
-#[cfg(feature = "ai")]
-mod judge_cmd;
+mod local_cmd;
+
 #[cfg(feature = "mcp")]
 mod mcp;
 mod outdirs;
@@ -28,13 +25,9 @@ mod perf_cmd;
 mod precheck;
 #[cfg(all(feature = "prechecks", feature = "mcp"))]
 mod precheck_mcp;
-#[cfg(feature = "ai")]
-mod review_cmd;
-mod runs_cmd;
-#[cfg(any(feature = "graphics", feature = "workbench"))]
+
+#[cfg(feature = "graphics")]
 mod s6;
-#[cfg(feature = "mcp")]
-mod s6_mcp;
 
 use agent::CliError;
 
@@ -42,6 +35,7 @@ use agent::CliError;
 #[command(
     name = "saccade",
     version,
+    disable_help_subcommand = true,
     about = "Perceptual (FLIP) visual-regression diffing"
 )]
 struct Cli {
@@ -79,6 +73,16 @@ impl HdrArgs {
     }
 }
 
+/// Structured intent and predeclared changes bound into local evidence.
+#[derive(clap::Args, Clone, Default)]
+struct IntentArgs {
+    #[arg(long, conflicts_with = "intent_file")]
+    intent: Option<String>,
+    #[arg(long)]
+    intent_file: Option<PathBuf>,
+    #[arg(long)]
+    changes_file: Option<PathBuf>,
+}
 /// Metadata-sidecar flags shared by `compare`, `identity` and `view`.
 #[derive(clap::Args, Clone, Default)]
 struct MetaArgs {
@@ -143,143 +147,12 @@ impl From<MetricArg> for Metric {
     }
 }
 
-/// How much `compare --json` and `identity --json` print.
-#[derive(Clone, Copy, ValueEnum)]
-enum RunJson {
-    /// The lean `saccade-result.v1`.
-    Lean,
-    /// The whole `saccade-report.v1`.
-    Full,
-    /// A `saccade-decision-request.v1` for every failing entry.
-    Decision,
-}
-
-/// How much `sequence --json` and `rank --json` print.
-#[derive(Clone, Copy, ValueEnum)]
-#[cfg(feature = "graphics")]
-enum JsonMode {
-    /// The lean `saccade-result.v1`.
-    Lean,
-    /// The whole `saccade-report.v1`.
-    Full,
-}
-
-#[derive(Clone, Copy, ValueEnum)]
-enum Format {
-    Markdown,
-    Text,
-    Json,
-}
-
 #[derive(Subcommand)]
 enum Command {
-    /// Inspect the features, operations and contracts available in this build.
-    Inspect {
-        #[command(subcommand)]
-        operation: InspectOperation,
-    },
-    /// Photosensitivity PRE-CHECK only; not certification or formal compliance.
-    #[cfg(feature = "prechecks")]
-    Safety(precheck::SafetyArgs),
-    /// Accessibility PRE-CHECK only; not certification or formal compliance.
-    #[cfg(feature = "prechecks")]
-    A11y(precheck::A11yArgs),
     /// Bootstrap a commented configuration and print baseline adoption steps.
     Init(f1::InitArgs),
-    /// Inspect effective configuration and the sources of image-specific settings.
-    Config(f1::ConfigArgs),
-    /// Filter and paginate full entries from an existing report.
-    Entries(f1::EntriesArgs),
-    /// Calibrate thresholds from repeated captures of an unchanged build.
-    Noise(f1::NoiseArgs),
-    /// Compare ablation arms against a base with image and performance evidence.
-    #[cfg(feature = "graphics")]
-    Ablate(perf_cmd::AblateArgs),
     /// Run the bundled example and explain its expected regression.
     Demo(f1::DemoArgs),
-    /// Judge a report or ranking with a panel of models and humans.
-    #[cfg(feature = "ai")]
-    Judge(judge_cmd::JudgeArgs),
-    /// Run the proposal-only AI review cascade on a report.
-    #[cfg(feature = "ai")]
-    Review(review_cmd::ReviewArgs),
-    /// Find the first diverging run or revision in an ordered series.
-    #[cfg(feature = "graphics")]
-    Bisect(s6::BisectArgs),
-    /// Post a closed-answer question to a local human inbox.
-    #[cfg(feature = "workbench")]
-    Ask(s6::AskArgs),
-    /// Compare numbered colour frames by sorted index and measure added flicker.
-    #[cfg(feature = "graphics")]
-    Sequence {
-        baseline_dir: PathBuf,
-        capture_dir: PathBuf,
-        /// Relative-name glob; frames must end in an integer before the extension.
-        #[arg(long, default_value = "*")]
-        pattern: String,
-        #[arg(long, default_value = "sequence-report")]
-        out: PathBuf,
-        #[arg(long)]
-        threshold: Option<f64>,
-        #[arg(long, value_enum)]
-        metric: Option<MetricArg>,
-        #[arg(long)]
-        config: Option<PathBuf>,
-        #[arg(long)]
-        ppd: Option<f32>,
-        #[arg(long)]
-        fail_on_new: bool,
-        #[arg(long)]
-        allow_empty: bool,
-        #[arg(long, value_delimiter = ',')]
-        labels: Option<Vec<String>>,
-        #[arg(long, value_enum, num_args = 0..=1, require_equals = true, default_missing_value = "lean")]
-        json: Option<JsonMode>,
-        #[command(flatten)]
-        hdr: HdrArgs,
-        /// Write one JUnit testcase per entry.
-        #[arg(long, value_name = "FILE.xml")]
-        junit: Option<PathBuf>,
-        #[command(flatten)]
-        meta: MetaArgs,
-        #[command(flatten)]
-        require: MetaRequireArgs,
-    },
-    /// Rank candidate directories against one common FLIP reference.
-    #[cfg(feature = "graphics")]
-    Rank {
-        reference_dir: PathBuf,
-        #[arg(required = true, num_args = 1..)]
-        candidate_dirs: Vec<PathBuf>,
-        /// One unique, safe directory label per candidate, comma separated.
-        #[arg(long, value_delimiter = ',')]
-        labels: Option<Vec<String>>,
-        #[arg(long, value_enum, default_value = "mean")]
-        metric: MetricArg,
-        #[arg(long, default_value = "rank-report")]
-        out: PathBuf,
-        #[arg(long)]
-        config: Option<PathBuf>,
-        #[arg(long)]
-        threshold: Option<f64>,
-        #[arg(long)]
-        ppd: Option<f32>,
-        #[arg(long)]
-        fail_on_new: bool,
-        #[arg(long)]
-        allow_empty: bool,
-        #[arg(long, value_enum, num_args = 0..=1, require_equals = true, default_missing_value = "lean")]
-        json: Option<JsonMode>,
-        #[command(flatten)]
-        hdr: HdrArgs,
-        /// Write one JUnit testcase per entry.
-        #[arg(long, value_name = "FILE.xml")]
-        junit: Option<PathBuf>,
-        #[command(flatten)]
-        meta: MetaArgs,
-        #[command(flatten)]
-        require: MetaRequireArgs,
-    },
     /// Compare a directory of captures against a directory of baselines.
     Compare {
         /// Directory of approved baseline images.
@@ -305,18 +178,9 @@ enum Command {
         /// an empty baseline directory). Without it, nothing compared exits 1.
         #[arg(long)]
         allow_empty: bool,
-        /// Print JSON instead of the table: a lean `saccade-result.v1` (verdict,
-        /// totals, failing entries, paths, next step), or with `--json=full`
-        /// the whole report.
-        #[arg(
-            long,
-            value_enum,
-            num_args = 0..=1,
-            require_equals = true,
-            default_missing_value = "lean",
-            value_name = "full"
-        )]
-        json: Option<RunJson>,
+        /// Print a bounded machine-readable result.
+        #[arg(long)]
+        json: bool,
         /// FLIP pixels per degree.
         #[arg(long)]
         ppd: Option<f32>,
@@ -326,7 +190,7 @@ enum Command {
         #[command(flatten)]
         hdr: HdrArgs,
         /// Include only matching names (repeatable; union of globs).
-        #[arg(long, value_name = "GLOB")]
+        #[arg(long = "entry", value_name = "GLOB")]
         entries: Vec<String>,
         /// Write one JUnit testcase per entry.
         #[arg(long, value_name = "FILE.xml")]
@@ -337,8 +201,9 @@ enum Command {
         require: MetaRequireArgs,
         #[command(flatten)]
         perf: perf_cmd::PerfArgs,
+        #[command(flatten)]
+        intent: IntentArgs,
     },
-    /// Check that a candidate build matches its parent: strict defaults
     /// (metric max, threshold 0), bit-identity reported per image.
     Identity {
         /// Directory of images from the parent build.
@@ -361,18 +226,9 @@ enum Command {
         /// Config file; defaults to ./saccade.toml when it exists.
         #[arg(long)]
         config: Option<PathBuf>,
-        /// Print JSON instead of the table: a lean `saccade-result.v1` (verdict,
-        /// totals, failing entries, paths, next step), or with `--json=full`
-        /// the whole report.
-        #[arg(
-            long,
-            value_enum,
-            num_args = 0..=1,
-            require_equals = true,
-            default_missing_value = "lean",
-            value_name = "full"
-        )]
-        json: Option<RunJson>,
+        /// Print a bounded machine-readable result.
+        #[arg(long)]
+        json: bool,
         /// FLIP pixels per degree.
         #[arg(long)]
         ppd: Option<f32>,
@@ -380,7 +236,7 @@ enum Command {
         #[arg(long, value_delimiter = ',', value_name = "A,B")]
         labels: Option<Vec<String>>,
         /// Include only matching names (repeatable; union of globs).
-        #[arg(long, value_name = "GLOB")]
+        #[arg(long = "entry", value_name = "GLOB")]
         entries: Vec<String>,
         /// Write one JUnit testcase per entry.
         #[arg(long, value_name = "FILE.xml")]
@@ -389,6 +245,60 @@ enum Command {
         meta: MetaArgs,
         #[command(flatten)]
         require: MetaRequireArgs,
+        #[command(flatten)]
+        perf: perf_cmd::PerfArgs,
+        #[command(flatten)]
+        intent: IntentArgs,
+    },
+    /// Calibrate thresholds from repeated captures of an unchanged build.
+    Noise(f1::NoiseArgs),
+    /// Write a self-contained review viewer for 2 to 6 image directories.
+    View {
+        /// Directories to compare, paired by relative image path (2 to 6).
+        #[arg(num_args = 1..=6, required_unless_present = "unblind")]
+        dirs: Vec<PathBuf>,
+        /// Resolve recorded anonymous choices after review.
+        #[arg(long, requires = "key", conflicts_with = "dirs")]
+        unblind: Option<PathBuf>,
+        #[arg(long, requires = "unblind")]
+        key: Option<PathBuf>,
+        /// Comma-separated labels, one per directory (default: directory names).
+        #[arg(long, value_delimiter = ',')]
+        labels: Option<Vec<String>>,
+        /// FLIP reference: a label or one of the directories (default: the first).
+        #[arg(long)]
+        reference: Option<String>,
+        /// Pairwise judging: shuffle panes and hide labels until "Reveal".
+        #[arg(long)]
+        blind: bool,
+        /// Seed for the blind shuffle (default: random). A blind page never
+        /// embeds it; it is recorded in the key.
+        #[arg(long)]
+        seed: Option<u64>,
+        /// Where a blind view's key goes (default: `blind-key.json` inside
+        /// `--out`; put it elsewhere to hand the view directory to a judge).
+        #[arg(long, value_name = "PATH", requires = "blind")]
+        key_out: Option<PathBuf>,
+        /// Output directory.
+        #[arg(long, default_value = "view")]
+        out: PathBuf,
+        /// FLIP pixels per degree.
+        #[arg(long)]
+        ppd: Option<f32>,
+        /// Config file whose `[[region]]` tables become preset ROIs
+        /// (default: `./saccade.toml` when present).
+        #[arg(long)]
+        config: Option<PathBuf>,
+        /// Print a JSON summary (`saccade-view-summary.v1`) instead of text.
+        #[arg(long)]
+        json: bool,
+        #[command(flatten)]
+        hdr: HdrArgs,
+        /// Include only matching names (repeatable; union of globs).
+        #[arg(long = "entry", value_name = "GLOB")]
+        entries: Vec<String>,
+        #[command(flatten)]
+        meta: MetaArgs,
         #[command(flatten)]
         perf: perf_cmd::PerfArgs,
     },
@@ -435,59 +345,19 @@ enum Command {
         #[arg(long)]
         out: Option<PathBuf>,
     },
-    /// Write a self-contained review viewer for 2 to 6 image directories.
-    View {
-        /// Directories to compare, paired by relative image path (2 to 6).
-        #[arg(required = true, num_args = 2..=6)]
-        dirs: Vec<PathBuf>,
-        /// Comma-separated labels, one per directory (default: directory names).
-        #[arg(long, value_delimiter = ',')]
-        labels: Option<Vec<String>>,
-        /// FLIP reference: a label or one of the directories (default: the first).
-        #[arg(long)]
-        reference: Option<String>,
-        /// Pairwise judging: shuffle panes and hide labels until "Reveal".
-        #[arg(long)]
-        blind: bool,
-        /// Seed for the blind shuffle (default: random). A blind page never
-        /// embeds it; it is recorded in the key.
-        #[arg(long)]
-        seed: Option<u64>,
-        /// Where a blind view's key goes (default: `blind-key.json` inside
-        /// `--out`; put it elsewhere to hand the view directory to a judge).
-        #[arg(long, value_name = "PATH", requires = "blind")]
-        key_out: Option<PathBuf>,
-        /// Output directory.
-        #[arg(long, default_value = "view")]
-        out: PathBuf,
-        /// FLIP pixels per degree.
-        #[arg(long)]
-        ppd: Option<f32>,
-        /// Config file whose `[[region]]` tables become preset ROIs
-        /// (default: `./saccade.toml` when present).
-        #[arg(long)]
-        config: Option<PathBuf>,
-        /// Print a JSON summary (`saccade-view-summary.v1`) instead of text.
-        #[arg(long)]
-        json: bool,
-        #[command(flatten)]
-        hdr: HdrArgs,
-        /// Include only matching names (repeatable; union of globs).
-        #[arg(long, value_name = "GLOB")]
-        entries: Vec<String>,
-        #[command(flatten)]
-        meta: MetaArgs,
-        #[command(flatten)]
-        perf: perf_cmd::PerfArgs,
-    },
-    /// Serve a local web app for browsing a capture archive and comparing runs
     /// (127.0.0.1 only; the archive is never written to).
     #[cfg(feature = "workbench")]
     Serve {
         /// Archive roots to browse (read-only). With several, each is a
         /// top-level entry named after its directory.
-        #[arg(required = true, num_args = 1..)]
+        #[arg(num_args = 1..)]
         roots: Vec<PathBuf>,
+        /// Additional read-only archive roots (repeatable).
+        #[arg(long = "root")]
+        registered_roots: Vec<PathBuf>,
+        /// Explicit generated-artifact root.
+        #[arg(long)]
+        out_root: Option<PathBuf>,
         /// Let a symlink that resolves inside any of the roots be browsed and
         /// served; a symlink to anywhere else stays refused.
         #[arg(long)]
@@ -526,142 +396,116 @@ enum Command {
         #[command(flatten)]
         perf: perf_cmd::PerfArgs,
     },
-    /// Compare whole runs against a reference run: per-run summary, an image
-    /// matrix tinted by FLIP severity and a contact sheet, as a static HTML
-    /// page (`--out`) or `saccade-runs.v1` JSON (`--json`).
-    Runs {
-        /// The reference run: a directory of images.
-        ref_dir: PathBuf,
-        /// The runs to compare against it (1 to 5), paired by relative image
-        /// path.
-        #[arg(required = true, num_args = 1..=5)]
-        run_dirs: Vec<PathBuf>,
-        /// Comma-separated labels, one per directory, the reference first
-        /// (default: directory names).
-        #[arg(long, value_delimiter = ',')]
-        labels: Option<Vec<String>>,
-        /// Pair the images of every run with the reference's by sorted
-        /// position instead of by name (for runs whose file names differ).
-        #[arg(long)]
-        pair_by_position: bool,
-        /// Print `saccade-runs.v1` JSON instead of text; the page is then
-        /// written only when `--out` is given too.
-        #[arg(long)]
-        json: bool,
-        /// Directory for the static page (`index.html`, thumbnails,
-        /// `saccade-runs.v1.json`); default `runs`.
-        #[arg(long)]
-        out: Option<PathBuf>,
-        /// FLIP pixels per degree.
-        #[arg(long)]
-        ppd: Option<f32>,
-        /// Config file for sidecar settings (default: `./saccade.toml` when
-        /// present).
-        #[arg(long)]
-        config: Option<PathBuf>,
-        #[command(flatten)]
-        hdr: HdrArgs,
-        /// Include only matching names (repeatable; union of globs).
-        #[arg(long, value_name = "GLOB")]
-        entries: Vec<String>,
-        #[command(flatten)]
-        meta: MetaArgs,
-        #[command(flatten)]
-        perf: perf_cmd::PerfArgs,
-    },
-    /// Turn a decisions file exported from a `--blind` view into one with the
-    /// true directory labels, using the view's `blind-key.json`.
-    Unblind {
-        /// Decisions file exported by the blind viewer.
-        decisions_json: PathBuf,
-        /// `blind-key.json` written next to the view.
-        blind_key_json: PathBuf,
-        /// Write the result here instead of stdout.
-        #[arg(long)]
-        out: Option<PathBuf>,
-    },
-    /// Write crops and data that explain where and how a report's failing
-    /// images differ: per-hotspot strips for agents and vision-model judges.
-    Explain {
-        /// Path to `saccade-report.v1.json`.
-        report_json: PathBuf,
-        /// Output directory (default: `explain/` next to the report JSON).
-        #[arg(long)]
-        out: Option<PathBuf>,
-        /// Hotspots per entry.
-        #[arg(long, default_value_t = 3)]
-        top: usize,
-        /// Pixels of context around each hotspot.
-        #[arg(long, default_value_t = 16)]
-        pad: u32,
-        /// Contrast-stretch dark crops (same gain on both images).
-        #[arg(long)]
-        stretch: bool,
-        /// Shuffle which side is A or B per hotspot and omit the heatmap; the
-        /// pack names neither the report nor the sides, and the key goes to
-        /// `--key-out`.
-        #[arg(long, requires = "key_out")]
-        blind: bool,
-        /// Where the blind key is written (required with `--blind`; must be
-        /// outside `--out`, so the pack can be handed to a judge as is).
-        #[arg(long, value_name = "PATH", requires = "blind")]
-        key_out: Option<PathBuf>,
-        /// Seed for the blind shuffle (default: from the clock; recorded in the key).
-        #[arg(long, requires = "blind")]
-        seed: Option<u64>,
-        /// Leave out hotspots carrying less than this share of the total
-        /// error, 0 to 1.
-        #[arg(long, default_value_t = 0.01, value_name = "SHARE")]
-        hotspot_min_share: f64,
-        /// Explain only these entries (default: every failing entry).
-        #[arg(long, value_delimiter = ',', value_name = "NAME,...")]
-        entries: Vec<String>,
-        /// Print the pack's `explain.json` instead of `explain.md`.
-        #[arg(long)]
-        json: bool,
-    },
-    /// Serve the Model Context Protocol over stdio, so an AI agent can run
-    /// comparisons and read their hotspots as a tool. Every path an agent
     /// passes must resolve under `--root`.
     #[cfg(feature = "mcp")]
     Mcp {
-        /// Directory the agent may read and write (default: the working directory).
-        #[arg(long, value_name = "DIR")]
-        root: Option<PathBuf>,
+        /// Read-only roots (repeatable).
+        #[arg(long = "root", required = true)]
+        roots: Vec<PathBuf>,
+        /// Generated artifacts require this separate root.
+        #[arg(long)]
+        out_root: Option<PathBuf>,
+        #[arg(long)]
+        follow_symlinks_within_roots: bool,
+        #[arg(long = "symlink-target")]
+        symlink_targets: Vec<PathBuf>,
     },
-    /// Render a view state (layout, split, zoom, heatmap...) of a report entry
-    /// or view set to a PNG, with no browser.
-    Snapshot(agent_ui::SnapshotArgs),
-    /// Print the bounded questions an agent or decision model can answer about
-    /// a report's entries (`saccade-decision-request.v1`).
-    DecisionRequest(agent_ui::DecisionRequestArgs),
-    /// Record an answer to a decision-request question; a model's answer is a
-    /// proposal a person confirms, never a baseline change.
-    Decide(agent_ui::DecideArgs),
-    /// Print a summary of a measured report or canonical authority record.
-    Summary {
-        /// Path to a measured report or canonical evidence document.
-        report_json: PathBuf,
-        /// Output format.
-        #[arg(long, value_enum, default_value = "markdown")]
-        format: Format,
-        /// Link to the uploaded report artifact (markdown only).
-        #[arg(long)]
-        artifact_url: Option<String>,
-        /// Marker key for the sticky comment, so matrix jobs keep separate
-        /// comments (ASCII letters, digits, `.`, `_`, `-`; at most 64).
-        #[arg(long)]
-        comment_key: Option<String>,
+    /// Read, explain, prepare or export existing evidence.
+    Inspect(local_cmd::InspectArgs),
+    /// Preview a review plan or handle a local closed decision request.
+    Review(local_cmd::ReviewArgs),
+    /// Analyze existing graphics captures.
+    Experiment {
+        #[command(subcommand)]
+        operation: ExperimentOperation,
     },
 }
 
 #[derive(Subcommand)]
-enum InspectOperation {
-    /// List compiled features, implemented operations and contract versions.
-    Capabilities {
+enum ExperimentOperation {
+    /// Compare ablation arms against a base with image and performance evidence.
+    #[cfg(feature = "graphics")]
+    Ablate(perf_cmd::AblateArgs),
+    /// Compare numbered colour frames by sorted index and measure added flicker.
+    #[cfg(feature = "graphics")]
+    Sequence {
+        baseline_dir: PathBuf,
+        capture_dir: PathBuf,
+        /// Relative-name glob; frames must end in an integer before the extension.
+        #[arg(long, default_value = "*")]
+        pattern: String,
+        #[arg(long, default_value = "sequence-report")]
+        out: PathBuf,
+        #[arg(long)]
+        threshold: Option<f64>,
+        #[arg(long, value_enum)]
+        metric: Option<MetricArg>,
+        #[arg(long)]
+        config: Option<PathBuf>,
+        #[arg(long)]
+        ppd: Option<f32>,
+        #[arg(long)]
+        fail_on_new: bool,
+        #[arg(long)]
+        allow_empty: bool,
+        #[arg(long, value_delimiter = ',')]
+        labels: Option<Vec<String>>,
         #[arg(long)]
         json: bool,
+        #[command(flatten)]
+        hdr: HdrArgs,
+        /// Write one JUnit testcase per entry.
+        #[arg(long, value_name = "FILE.xml")]
+        junit: Option<PathBuf>,
+        #[command(flatten)]
+        meta: MetaArgs,
+        #[command(flatten)]
+        require: MetaRequireArgs,
     },
+    /// Rank candidate directories against one common FLIP reference.
+    #[cfg(feature = "graphics")]
+    Rank {
+        reference_dir: PathBuf,
+        #[arg(required = true, num_args = 1..)]
+        candidate_dirs: Vec<PathBuf>,
+        /// One unique, safe directory label per candidate, comma separated.
+        #[arg(long, value_delimiter = ',')]
+        labels: Option<Vec<String>>,
+        #[arg(long, value_enum, default_value = "mean")]
+        metric: MetricArg,
+        #[arg(long, default_value = "rank-report")]
+        out: PathBuf,
+        #[arg(long)]
+        config: Option<PathBuf>,
+        #[arg(long)]
+        threshold: Option<f64>,
+        #[arg(long)]
+        ppd: Option<f32>,
+        #[arg(long)]
+        fail_on_new: bool,
+        #[arg(long)]
+        allow_empty: bool,
+        #[arg(long)]
+        json: bool,
+        #[command(flatten)]
+        hdr: HdrArgs,
+        /// Write one JUnit testcase per entry.
+        #[arg(long, value_name = "FILE.xml")]
+        junit: Option<PathBuf>,
+        #[command(flatten)]
+        meta: MetaArgs,
+        #[command(flatten)]
+        require: MetaRequireArgs,
+    },
+    /// Find the first diverging run or revision in an ordered series.
+    #[cfg(feature = "graphics")]
+    Bisect(s6::BisectArgs),
+    /// Photosensitivity PRE-CHECK only; not certification or formal compliance.
+    #[cfg(feature = "prechecks")]
+    Safety(precheck::SafetyArgs),
+    /// Accessibility PRE-CHECK only; not certification or formal compliance.
+    #[cfg(feature = "prechecks")]
+    A11y(precheck::A11yArgs),
 }
 
 /// Whether the command line asks for JSON output (`--json`, `--json=full`,
@@ -715,6 +559,15 @@ fn main() -> ExitCode {
 
 fn cli_main() -> ExitCode {
     let args: Vec<std::ffi::OsString> = std::env::args_os().collect();
+    if let Some(message) = local_cmd::migration(&args) {
+        let err = CliError::new("interface_removed", message);
+        if args_want_json(&args) {
+            emit_json_error(&err);
+        } else {
+            eprintln!("saccade: {err}");
+        }
+        return ExitCode::from(2);
+    }
     let cli = match Cli::try_parse_from(&args) {
         Ok(cli) => cli,
         Err(e) => {
@@ -774,93 +627,78 @@ fn cli_main() -> ExitCode {
 }
 
 /// Prints a run's result: the table, the lean result or the whole report.
-fn emit_run(report: &Report, out: &Path, json: Option<RunJson>) -> Result<(), CliError> {
-    match json {
-        None => {
-            emit(&text_table(report))?;
-            if report.config.mode == Mode::Identity
-                && (!report.config.entries.is_empty() || !report.config.ignore.is_empty())
-            {
-                emit(&format!(
-                    "scope: selected {:?}; excluded {:?}\n",
-                    report.config.entries, report.config.ignore
-                ))?;
-            }
-            Ok(())
+fn emit_run(report: &Report, out: &Path, json: bool) -> Result<(), CliError> {
+    if json {
+        let mut value = agent::result_value(
+            report,
+            &out.join(saccade_core::report::REPORT_FILE_NAME),
+            agent::DEFAULT_TOP_FAILING,
+            false,
+        );
+        // SPEC-r5 explicitly freezes the identity discriminator parsed by Moss.
+        // The payload is the bounded shared envelope; no old-format mode exists.
+        if report.config.mode == Mode::Identity {
+            value["schema"] = serde_json::json!("saccade-result.v1");
         }
-        Some(RunJson::Lean) => {
-            let report_json = out.join(saccade_core::report::REPORT_FILE_NAME);
-            // An empty run prints an error object, on stdout, with exit code 1.
-            if let Some(err) = agent::nothing_compared(report, &report_json) {
-                return emit(&format!(
-                    "{}\n",
-                    serde_json::to_string_pretty(&err.value())?
-                ));
-            }
-            let value = agent::result_value(
-                report,
-                &out.join(saccade_core::report::REPORT_FILE_NAME),
-                agent::DEFAULT_TOP_FAILING,
-                false,
-            );
-            emit(&format!("{}\n", serde_json::to_string_pretty(&value)?))
+        emit(&format!("{}\n", serde_json::to_string(&value)?))
+    } else {
+        emit(&text_table(report))?;
+        if report.config.mode == Mode::Identity
+            && (!report.config.entries.is_empty() || !report.config.ignore.is_empty())
+        {
+            emit(&format!(
+                "scope: selected {:?}; excluded {:?}\n",
+                report.config.entries, report.config.ignore
+            ))?;
         }
-        Some(RunJson::Full) => emit(&format!("{}\n", serde_json::to_string_pretty(report)?)),
-        Some(RunJson::Decision) => {
-            let request = saccade_core::decision::build_request(
-                report,
-                &saccade_core::decision::RequestOptions {
-                    all_failing: true,
-                    ..Default::default()
-                },
-            )?;
-            emit(&format!("{}\n", serde_json::to_string_pretty(&request)?))
-        }
+        Ok(())
     }
 }
 
 fn dispatch(command: Command, record_absolute_paths: bool) -> Result<u8, CliError> {
     match command {
-        Command::Inspect {
-            operation: InspectOperation::Capabilities { json },
-        } => capabilities(json),
+        Command::Inspect(args) => local_cmd::inspect(args, record_absolute_paths),
+        Command::Review(args) => local_cmd::review(args, record_absolute_paths),
         #[cfg(feature = "prechecks")]
-        Command::Safety(args) => precheck::safety(args),
+        Command::Experiment {
+            operation: ExperimentOperation::Safety(args),
+        } => precheck::safety(args),
         #[cfg(feature = "prechecks")]
-        Command::A11y(args) => precheck::a11y(args),
+        Command::Experiment {
+            operation: ExperimentOperation::A11y(args),
+        } => precheck::a11y(args),
         Command::Init(args) => f1::init(args),
-        Command::Config(args) => f1::config(args),
-        Command::Entries(args) => f1::entries(args),
         Command::Noise(args) => f1::noise(args, record_absolute_paths),
         #[cfg(feature = "graphics")]
-        Command::Ablate(args) => perf_cmd::ablate(args, record_absolute_paths),
+        Command::Experiment {
+            operation: ExperimentOperation::Ablate(args),
+        } => perf_cmd::ablate(args, record_absolute_paths),
         Command::Demo(args) => f1::demo(args, record_absolute_paths),
-        #[cfg(feature = "ai")]
-        Command::Judge(args) => judge_cmd::judge(args),
-        #[cfg(feature = "ai")]
-        Command::Review(args) => review_cmd::review(args),
         #[cfg(feature = "graphics")]
-        Command::Bisect(args) => s6::bisect(args),
-        #[cfg(feature = "workbench")]
-        Command::Ask(args) => s6::ask(args),
+        Command::Experiment {
+            operation: ExperimentOperation::Bisect(args),
+        } => s6::bisect(args),
         #[cfg(feature = "graphics")]
-        Command::Sequence {
-            baseline_dir,
-            capture_dir,
-            pattern,
-            out,
-            threshold,
-            metric,
-            config,
-            ppd,
-            fail_on_new,
-            allow_empty,
-            labels,
-            json,
-            hdr,
-            junit,
-            meta,
-            require,
+        Command::Experiment {
+            operation:
+                ExperimentOperation::Sequence {
+                    baseline_dir,
+                    capture_dir,
+                    pattern,
+                    out,
+                    threshold,
+                    metric,
+                    config,
+                    ppd,
+                    fail_on_new,
+                    allow_empty,
+                    labels,
+                    json,
+                    hdr,
+                    junit,
+                    meta,
+                    require,
+                },
         } => {
             let mut cfg = load_config(config.as_deref())?;
             cfg.record_absolute_paths = record_absolute_paths;
@@ -892,38 +730,38 @@ fn dispatch(command: Command, record_absolute_paths: bool) -> Result<u8, CliErro
             if let Some(path) = junit {
                 f1::junit_reports(&out, &path, false)?;
             }
-            match json {
-                None => emit(&report.text())?,
-                Some(mode) => {
-                    let mut value = serde_json::to_value(match mode {
-                        JsonMode::Lean => report.lean(),
-                        JsonMode::Full => report.clone(),
-                    })?;
-                    if matches!(mode, JsonMode::Lean) {
-                        agent::round_floats(&mut value);
-                    }
-                    emit(&format!("{}\n", serde_json::to_string_pretty(&value)?))?;
-                }
+            if json {
+                let value = local_cmd::analysis_result(&serde_json::to_value(&report)?, &out)?;
+                emit(&format!(
+                    "{}
+",
+                    serde_json::to_string(&value)?
+                ))?;
+            } else {
+                emit(&report.text())?;
             }
             Ok(u8::from(report.is_regression()))
         }
         #[cfg(feature = "graphics")]
-        Command::Rank {
-            reference_dir,
-            candidate_dirs,
-            labels,
-            metric,
-            out,
-            config,
-            threshold,
-            ppd,
-            fail_on_new,
-            allow_empty,
-            json,
-            hdr,
-            junit,
-            meta,
-            require,
+        Command::Experiment {
+            operation:
+                ExperimentOperation::Rank {
+                    reference_dir,
+                    candidate_dirs,
+                    labels,
+                    metric,
+                    out,
+                    config,
+                    threshold,
+                    ppd,
+                    fail_on_new,
+                    allow_empty,
+                    json,
+                    hdr,
+                    junit,
+                    meta,
+                    require,
+                },
         } => {
             let mut cfg = load_config(config.as_deref())?;
             cfg.record_absolute_paths = record_absolute_paths;
@@ -956,20 +794,28 @@ fn dispatch(command: Command, record_absolute_paths: bool) -> Result<u8, CliErro
             if let Some(path) = junit {
                 f1::junit_reports(&out, &path, true)?;
             }
-            match json {
-                None => emit(&report.text())?,
-                Some(mode) => {
-                    let mut value = serde_json::to_value(match mode {
-                        JsonMode::Lean => report.lean(),
-                        JsonMode::Full => report.clone(),
-                    })?;
-                    if matches!(mode, JsonMode::Lean) {
-                        agent::round_floats(&mut value);
-                    }
-                    emit(&format!("{}\n", serde_json::to_string_pretty(&value)?))?;
-                }
+            if json {
+                let value = local_cmd::analysis_result(&serde_json::to_value(&report)?, &out)?;
+                emit(&format!(
+                    "{}
+",
+                    serde_json::to_string(&value)?
+                ))?;
+            } else {
+                emit(&report.text())?;
             }
-            Ok(u8::from(report.is_regression()))
+            Ok(
+                if report.common_images != report.reference_images
+                    || report
+                        .overall
+                        .iter()
+                        .any(|c| c.totals.error > 0 || c.totals.missing > 0 || c.totals.new > 0)
+                {
+                    2
+                } else {
+                    0
+                },
+            )
         }
         Command::Compare {
             baseline_dir,
@@ -989,6 +835,7 @@ fn dispatch(command: Command, record_absolute_paths: bool) -> Result<u8, CliErro
             meta,
             require,
             perf,
+            intent,
         } => {
             let mut cfg = load_config(config.as_deref())?;
             cfg.record_absolute_paths = record_absolute_paths;
@@ -1018,6 +865,11 @@ fn dispatch(command: Command, record_absolute_paths: bool) -> Result<u8, CliErro
             if let Some(path) = junit {
                 saccade_core::ergonomics::junit(&report, &path)?;
             }
+            local_cmd::persist_case(
+                &report,
+                &out.join(saccade_core::report::REPORT_FILE_NAME),
+                &intent,
+            )?;
             emit_run(&report, &out, json)?;
             Ok(u8::from(report.is_regression()))
         }
@@ -1037,6 +889,7 @@ fn dispatch(command: Command, record_absolute_paths: bool) -> Result<u8, CliErro
             meta,
             require,
             perf,
+            intent,
         } => {
             let mut cfg = load_config(config.as_deref())?;
             cfg.record_absolute_paths = record_absolute_paths;
@@ -1069,6 +922,11 @@ fn dispatch(command: Command, record_absolute_paths: bool) -> Result<u8, CliErro
             if let Some(path) = junit {
                 saccade_core::ergonomics::junit(&report, &path)?;
             }
+            local_cmd::persist_case(
+                &report,
+                &out.join(saccade_core::report::REPORT_FILE_NAME),
+                &intent,
+            )?;
             emit_run(&report, &out, json)?;
             Ok(u8::from(report.is_regression()))
         }
@@ -1145,6 +1003,8 @@ fn dispatch(command: Command, record_absolute_paths: bool) -> Result<u8, CliErro
         #[cfg(feature = "workbench")]
         Command::Serve {
             mut roots,
+            registered_roots,
+            out_root,
             follow_symlinks_within_roots,
             symlink_targets,
             fs_timeout_ms,
@@ -1158,14 +1018,35 @@ fn dispatch(command: Command, record_absolute_paths: bool) -> Result<u8, CliErro
             meta,
             perf,
         } => {
+            roots.extend(registered_roots);
+            if roots.is_empty() {
+                return Err(CliError::usage("serve requires ROOT or --root DIR"));
+            }
             let loaded = load_config(config.as_deref())?;
+            if !loaded.symlink_targets.is_empty() {
+                return Err(CliError::usage(
+                    "project config cannot authorize symlink targets; pass --symlink-target at startup",
+                ));
+            }
             let mut opts = saccade_core::serve::ServeOptions::new(roots.remove(0));
             opts.extra_roots = roots;
             opts.follow_symlinks_within_roots = follow_symlinks_within_roots;
-            opts.symlink_targets = loaded.symlink_targets;
             opts.symlink_targets.extend(symlink_targets);
             opts.fs_timeout_ms = fs_timeout_ms.unwrap_or(loaded.fs_timeout_ms);
             opts.port = port;
+            if let Some(root) = out_root {
+                let all_roots = std::iter::once(opts.root.clone())
+                    .chain(opts.extra_roots.clone())
+                    .collect::<Vec<_>>();
+                let policy = saccade_core::root_policy::RootPolicy::new(
+                    &all_roots,
+                    Some(&root),
+                    opts.follow_symlinks_within_roots,
+                    &opts.symlink_targets,
+                )?;
+                opts.cache_dir = policy.write(Path::new("cache"))?;
+                opts.decisions_dir = policy.write(Path::new("decisions"))?;
+            }
             if let Some(d) = cache_dir {
                 opts.cache_dir = d;
             }
@@ -1196,36 +1077,10 @@ fn dispatch(command: Command, record_absolute_paths: bool) -> Result<u8, CliErro
             handle.wait();
             Ok(0)
         }
-        Command::Unblind {
-            decisions_json,
-            blind_key_json,
-            out,
-        } => {
-            let decisions = read_decisions(&decisions_json)?;
-            let key = read_blind_key(&blind_key_json)?;
-            let mut resolved = unblind(&decisions, &key)?;
-            let source = key
-                .view_dir
-                .as_deref()
-                .map(|d| saccade_core::paths::resolve(d, &blind_key_json).join("index.html"))
-                .unwrap_or_else(|| blind_key_json.clone());
-            let destination = out.as_deref().unwrap_or(&decisions_json);
-            saccade_core::paths::rebase_decisions(
-                &mut resolved,
-                &source,
-                destination,
-                record_absolute_paths,
-            );
-            let text = serde_json::to_string_pretty(&resolved)?;
-            match out {
-                Some(path) => std::fs::write(&path, format!("{text}\n"))
-                    .map_err(|e| CliError::io(format!("writing {}: {e}", path.display())))?,
-                None => emit(&format!("{text}\n"))?,
-            }
-            Ok(0)
-        }
         Command::View {
             dirs,
+            unblind,
+            key,
             labels,
             reference,
             blind,
@@ -1240,6 +1095,23 @@ fn dispatch(command: Command, record_absolute_paths: bool) -> Result<u8, CliErro
             meta,
             perf,
         } => {
+            if let Some(decisions) = unblind {
+                return local_cmd::unblind(
+                    &decisions,
+                    key.as_deref()
+                        .ok_or_else(|| CliError::usage("--unblind requires --key"))?,
+                    &out,
+                    record_absolute_paths,
+                );
+            }
+            if dirs.len() == 1 {
+                return local_cmd::view_artifact(&dirs[0], &out, json);
+            }
+            if blind && key_out.is_none() {
+                return Err(CliError::usage(
+                    "--blind requires --key-out outside the view bundle",
+                ));
+            }
             let loaded = load_config(config.as_deref())?;
             let mut opts = ViewOptions {
                 entries,
@@ -1262,24 +1134,15 @@ fn dispatch(command: Command, record_absolute_paths: bool) -> Result<u8, CliErro
                 opts.pixels_per_degree = p;
             }
             let model = build_view(&dirs, &out, &opts)?;
-            let abs = |p: &Path| PathBuf::from(saccade_core::paths::cwd(p, record_absolute_paths));
             let key = key_out.unwrap_or_else(|| out.join(saccade_core::view::BLIND_KEY_FILE));
             if json {
-                let value = serde_json::json!({
-                    "schema": "saccade-view-summary.v1",
-                    "index_html": abs(&out.join("index.html")).display().to_string(),
-                    "out_dir": abs(&out).display().to_string(),
-                    "sets": model.sets.len(),
-                    "set_names": model.sets.iter().map(|s| s.name.as_str()).collect::<Vec<_>>(),
-                    "directories": model.labels.len(),
-                    // A blind view's labels stay out of the output.
-                    "labels": (!blind).then(|| model.labels.clone()),
-                    "blind": blind,
-                    // A blind page's token is not the shuffle seed; the key has both.
-                    "seed": (!blind).then_some(model.seed),
-                    "blind_key": blind.then(|| abs(&key).display().to_string()),
-                });
-                emit(&format!("{}\n", serde_json::to_string_pretty(&value)?))?;
+                let mut value = local_cmd::base_result("view");
+                value["artifact"] =
+                    local_cmd::reference(&out.join(saccade_core::view::VIEW_MARKER_FILE))?;
+                value["counts"] =
+                    serde_json::json!({"sets":model.sets.len(),"directories":model.labels.len()});
+                value["data"] = serde_json::json!({"blind":blind});
+                emit(&format!("{}\n", serde_json::to_string(&value)?))?;
                 return Ok(0);
             }
             emit(&format!(
@@ -1296,155 +1159,19 @@ fn dispatch(command: Command, record_absolute_paths: bool) -> Result<u8, CliErro
             }
             Ok(0)
         }
-        Command::Runs {
-            ref_dir,
-            run_dirs,
-            labels,
-            pair_by_position,
-            json,
-            out,
-            ppd,
-            config,
-            hdr,
-            entries,
-            meta,
-            perf,
-        } => {
-            let loaded = load_config(config.as_deref())?;
-            let mut opts = saccade_core::runs::RunsOptions {
-                entries,
-                meta: loaded.meta,
-                perf: loaded.perf,
-                ..saccade_core::runs::RunsOptions::default()
-            };
-            perf.apply(&mut opts.perf)?;
-            hdr.apply(&mut opts.hdr)?;
-            meta.apply(&mut opts.meta);
-            if let Some(p) = ppd {
-                opts.pixels_per_degree = p;
-            }
-            runs_cmd::run(&runs_cmd::RunsRequest {
-                ref_dir,
-                run_dirs,
-                labels,
-                json,
-                out,
-                by_position: pair_by_position,
-                opts,
-                record_absolute_paths,
-            })
-        }
         #[cfg(feature = "mcp")]
-        Command::Mcp { root } => {
-            mcp::serve_stdio(root.as_deref())?;
-            Ok(0)
-        }
-        Command::Explain {
-            report_json,
-            out,
-            top,
-            pad,
-            stretch,
-            blind,
-            key_out,
-            seed,
-            hotspot_min_share,
-            entries,
-            json,
+        Command::Mcp {
+            roots,
+            out_root,
+            follow_symlinks_within_roots,
+            symlink_targets,
         } => {
-            let out = out.unwrap_or_else(|| {
-                report_json
-                    .parent()
-                    .map_or_else(|| PathBuf::from("explain"), |p| p.join("explain"))
-            });
-            let opts = saccade_core::explain::ExplainOptions {
-                top,
-                pad,
-                stretch,
-                blind,
-                seed,
-                entries,
-                key_out: key_out.clone(),
-                hotspot_min_share,
-                record_absolute_paths,
-            };
-            if let Some(key) = &key_out {
-                saccade_core::explain::check_key_out(&out, key)
-                    .map_err(|e| CliError::new("unsafe_path", strip_config_prefix(&e)))?;
-            }
-            let pack = saccade_core::explain::explain(&report_json, &out, &opts)?;
-            if json {
-                let text = serde_json::to_string_pretty(&pack)?;
-                emit(&format!("{text}\n"))?;
-            } else {
-                let md = std::fs::read_to_string(out.join(saccade_core::explain::EXPLAIN_MD_FILE))
-                    .map_err(|e| CliError::io(format!("reading explain.md: {e}")))?;
-                emit(&md)?;
-                emit(&format!(
-                    "\npack: {}\n",
-                    escape_control(&out.display().to_string())
-                ))?;
-                if let Some(key) = &key_out {
-                    emit(&format!(
-                        "blind key (keep it away from the judge): {}\n",
-                        escape_control(&key.display().to_string())
-                    ))?;
-                }
-            }
-            Ok(0)
-        }
-        Command::Snapshot(args) => agent_ui::snapshot(&args),
-        Command::DecisionRequest(args) => agent_ui::decision_request(&args),
-        Command::Decide(args) => agent_ui::decide(&args),
-        Command::Summary {
-            report_json,
-            format,
-            artifact_url,
-            comment_key,
-        } => {
-            if comment_key
-                .as_deref()
-                .is_some_and(|k| !is_valid_comment_key(k))
-            {
-                return Err(CliError::usage(
-                    "--comment-key must be 1-64 characters of A-Z a-z 0-9 . _ -",
-                ));
-            }
-            if approval::inspect_authority(&report_json, matches!(format, Format::Json))? {
-                return Ok(0);
-            }
-            let report = read_report(&report_json)?;
-            match format {
-                Format::Markdown => {
-                    let mut text = render_markdown(
-                        &report,
-                        &MarkdownOptions {
-                            artifact_url,
-                            comment_key,
-                            max_bytes: None,
-                        },
-                    );
-                    let review = report_json
-                        .parent()
-                        .unwrap_or(Path::new("."))
-                        .join("saccade-review.md");
-                    if review.is_file() {
-                        text.push_str(
-                            &std::fs::read_to_string(&review).map_err(|e| {
-                                CliError::io(format!("reading review summary: {e}"))
-                            })?,
-                        );
-                    }
-                    emit(&text)?;
-                }
-                Format::Text => emit(&text_table(&report))?,
-                Format::Json => {
-                    let value =
-                        agent::summary_value(&report, &report_json, agent::DEFAULT_TOP_FAILING);
-                    let text = serde_json::to_string_pretty(&value)?;
-                    emit(&format!("{text}\n"))?;
-                }
-            }
+            mcp::serve_stdio(
+                &roots,
+                out_root.as_deref(),
+                follow_symlinks_within_roots,
+                &symlink_targets,
+            )?;
             Ok(0)
         }
     }
@@ -1470,13 +1197,6 @@ fn load_config(explicit: Option<&Path>) -> Result<RunConfig, CliError> {
         Some(p) => Ok(RunConfig::from_toml_file(p)?),
         None => Ok(RunConfig::default()),
     }
-}
-
-/// The message of a configuration error without its "invalid configuration: " prefix.
-fn strip_config_prefix(e: &saccade_core::Error) -> String {
-    let text = e.to_string();
-    text.strip_prefix("invalid configuration: ")
-        .map_or_else(|| text.clone(), str::to_string)
 }
 
 /// Opens `url` in the default browser; failures are ignored.
@@ -1705,7 +1425,7 @@ fn required_feature(operation: &str) -> Option<&'static str> {
     match operation {
         "ablate" | "bisect" | "sequence" | "rank" | "saccade_ablate" | "saccade_bisect"
         | "saccade_sequence" | "saccade_rank" => Some("graphics"),
-        "judge" | "review" | "saccade_judge" | "saccade_review" => Some("ai"),
+        "saccade_review" => Some("ai"),
         "calibrate"
         | "selftest"
         | "bench"
@@ -1731,11 +1451,6 @@ fn unavailable_feature(operation: &str) -> Option<&'static str> {
     required_feature(operation).filter(|f| !feature_enabled(f))
 }
 
-#[cfg(feature = "mcp")]
-fn operation_available(operation: &str) -> bool {
-    operation != "saccade_watch_status" && unavailable_feature(operation).is_none()
-}
-
 fn requested_feature(args: &[std::ffi::OsString]) -> Option<&'static str> {
     let operation = args
         .iter()
@@ -1743,7 +1458,7 @@ fn requested_feature(args: &[std::ffi::OsString]) -> Option<&'static str> {
         .find(|a| !a.to_string_lossy().starts_with('-'))?
         .to_str()?;
     unavailable_feature(operation).or_else(|| {
-        if operation == "judge" {
+        if operation == "experiment" {
             args.iter()
                 .skip(2)
                 .find_map(|a| a.to_str().and_then(unavailable_feature))
@@ -1760,7 +1475,7 @@ fn requested_feature(args: &[std::ffi::OsString]) -> Option<&'static str> {
     })
 }
 
-fn capabilities(json: bool) -> Result<u8, CliError> {
+pub(crate) fn capabilities(json: bool) -> Result<u8, CliError> {
     use clap::CommandFactory;
     fn operations(command: &clap::Command, prefix: &str, out: &mut Vec<String>) {
         for child in command.get_subcommands() {
@@ -1783,10 +1498,12 @@ fn capabilities(json: bool) -> Result<u8, CliError> {
     let value = serde_json::json!({
         "features": features,
         "operations": names,
-        "contract_versions": ["saccade-report.v1", "saccade-result.v1", "saccade-decisions.v1", "saccade-noise.v1"],
+        "contract_versions": ["saccade-report.v1", "saccade-result.v2", "saccade-evidence.v1", "saccade-noise.v1"],
     });
     if json {
-        emit(&format!("{}\n", serde_json::to_string_pretty(&value)?))?;
+        let mut result = local_cmd::base_result("capabilities");
+        result["data"] = value.clone();
+        emit(&format!("{}\n", serde_json::to_string_pretty(&result)?))?;
     } else {
         emit(&format!(
             "features: {}\noperations: {}\ncontracts: {}\n",

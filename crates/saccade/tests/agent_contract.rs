@@ -1,646 +1,444 @@
-//! The machine-readable contract: blind outputs that leak nothing, JSON errors,
-//! the lean result, shipped schemas, and the MCP root policy and image blocks.
-
+//! R5 local command, bounded output and transport permission contracts.
 #![allow(clippy::expect_used, clippy::unwrap_used, clippy::panic, missing_docs)]
-
+use image::{Rgb, RgbImage};
+use saccade_core::evidence::action::ResultEnvelope;
+use serde_json::{Value, json};
 use std::io::Write;
 use std::path::{Path, PathBuf};
 use std::process::{Command, Output, Stdio};
-
-use image::{Rgb, RgbImage};
-use serde_json::{Value, json};
-
 const BIN: &str = env!("CARGO_BIN_EXE_saccade");
-
-/// A grey `w` x `h` frame with a bright `patch` (x, y, w, h) when given.
-fn save(dir: &Path, name: &str, (w, h): (u32, u32), patch: Option<[u32; 4]>) {
-    std::fs::create_dir_all(dir).expect("mkdir");
-    let mut img = RgbImage::from_pixel(w, h, Rgb([90, 90, 90]));
-    if let Some([px, py, pw, ph]) = patch {
-        for y in py..py + ph {
-            for x in px..px + pw {
-                img.put_pixel(x, y, Rgb([230, 230, 230]));
-            }
-        }
-    }
-    img.save(dir.join(name)).expect("save");
+fn image(dir: &Path, name: &str, shade: u8) {
+    std::fs::create_dir_all(dir).unwrap();
+    RgbImage::from_pixel(16, 16, Rgb([shade; 3]))
+        .save(dir.join(name))
+        .unwrap();
 }
-
-/// Two directories with unmistakable names: `scene.png` differs, `same.png` does not.
-fn dirs(tmp: &Path) -> (PathBuf, PathBuf) {
-    let (base, cap) = (tmp.join("zz_alpha_dir"), tmp.join("zz_omega_dir"));
-    for (d, patch) in [(&base, None), (&cap, Some([60, 80, 40, 30]))] {
-        save(d, "scene.png", (160, 120), patch);
-        save(d, "same.png", (160, 120), None);
-    }
-    (base, cap)
+fn json_output(output: Output) -> Value {
+    serde_json::from_slice(&output.stdout).unwrap_or_else(|e| panic!("{e}: {output:?}"))
 }
-
-fn run(args: &[&dyn AsRef<std::ffi::OsStr>]) -> Output {
-    Command::new(BIN)
-        .args(args.iter().map(|a| a.as_ref()))
-        .output()
-        .expect("spawn")
+fn call(id: u32, name: &str, args: Value) -> Value {
+    json!({"jsonrpc":"2.0","id":id,"method":"tools/call","params":{"name":name,"arguments":args}})
 }
-
-fn stdout_json(o: &Output) -> Value {
-    serde_json::from_slice(&o.stdout).unwrap_or_else(|e| {
-        panic!(
-            "stdout is not JSON ({e}): {}",
-            String::from_utf8_lossy(&o.stdout)
-        )
-    })
-}
-
-/// Every file under `dir` that is text (the page, scripts, JSON), as one string.
-fn text_of_tree(dir: &Path) -> String {
-    let mut all = String::new();
-    for e in walk(dir) {
-        if image::open(&e).is_err()
-            && let Ok(t) = std::fs::read_to_string(&e)
-        {
-            all.push_str(&t);
-        }
+fn mcp(roots: &[&Path], out: Option<&Path>, extra: &[&str], messages: &[Value]) -> Vec<Value> {
+    let mut command = Command::new(BIN);
+    command.arg("mcp");
+    for root in roots {
+        command.arg("--root").arg(root);
     }
-    all
-}
-
-fn walk(dir: &Path) -> Vec<PathBuf> {
-    let mut out = Vec::new();
-    for e in std::fs::read_dir(dir).expect("read_dir") {
-        let p = e.expect("entry").path();
-        if p.is_dir() {
-            out.extend(walk(&p));
-        } else {
-            out.push(p);
-        }
+    if let Some(out) = out {
+        command.arg("--out-root").arg(out);
     }
-    out
-}
-
-fn schema_check(file: &str, instance: &Value) {
-    let path = Path::new(env!("CARGO_MANIFEST_DIR"))
-        .join("../../schemas")
-        .join(file);
-    let schema: Value =
-        serde_json::from_str(&std::fs::read_to_string(&path).expect("schema file")).expect("json");
-    let validator = jsonschema::validator_for(&schema).expect("schema compiles");
-    let errors: Vec<String> = validator
-        .iter_errors(instance)
-        .map(|e| format!("{e} at {}", e.instance_path))
-        .collect();
-    assert!(errors.is_empty(), "{file}: {errors:?}\n{instance}");
-}
-
-#[test]
-fn blind_outputs_name_neither_the_reference_nor_the_sides() {
-    let tmp = tempfile::tempdir().unwrap();
-    let (base, cap) = dirs(tmp.path());
-    let (view, keys) = (tmp.path().join("view"), tmp.path().join("keys"));
-    let o = run(&[
-        &"view",
-        &base,
-        &cap,
-        &"--labels",
-        &"lbl_one,lbl_two",
-        &"--blind",
-        &"--seed",
-        &"31",
-        &"--out",
-        &view,
-        &"--key-out",
-        &keys.join("view-key.json"),
-        &"--json",
-    ]);
-    assert!(o.status.success(), "{}", String::from_utf8_lossy(&o.stderr));
-    let secrets = ["zz_alpha", "zz_omega", "lbl_one", "lbl_two"];
-    let page = text_of_tree(&view);
-    for s in secrets {
-        assert!(!page.contains(s), "the view leaks {s:?}");
-    }
-    let html = std::fs::read_to_string(view.join("index.html")).unwrap();
-    let embedded = html
-        .split("id=\"saccade-data\">")
-        .nth(1)
-        .and_then(|t| t.split("</script>").next())
-        .expect("embedded model");
-    let model: Value = serde_json::from_str(&embedded.replace("<\\/", "</")).expect("model json");
-    assert_eq!(model["blind"], true);
-    assert_eq!(model["reference"], 2, "no pane is the reference");
-    assert_ne!(model["seed"], 31, "the shuffle seed is not embedded");
-    for set in model["sets"].as_array().unwrap() {
-        assert_eq!(set["order"], json!([0, 1]), "no per-set order");
-        for pane in set["panes"].as_array().unwrap() {
-            assert!(pane["heatmap"].is_null() && pane["metrics"].is_null());
-            assert!(pane["hotspots"].as_array().unwrap().is_empty());
-            let path = pane["path"].as_str().unwrap();
-            assert!(path.contains("/p_"), "neutral pane file name: {path}");
-        }
-    }
-    let key: Value =
-        serde_json::from_str(&std::fs::read_to_string(keys.join("view-key.json")).unwrap())
-            .unwrap();
-    assert_eq!(key["labels"], json!(["lbl_one", "lbl_two"]));
-    assert_eq!(key["shuffle_seed"], 31);
-
-    // The explain pack of a blind run: no report path, no labels, key elsewhere.
-    let report = tmp.path().join("report");
-    run(&[
-        &"compare",
-        &base,
-        &cap,
-        &"--labels",
-        &"lbl_one,lbl_two",
-        &"--out",
-        &report,
-    ]);
-    let pack = tmp.path().join("pack");
-    let o = run(&[
-        &"explain",
-        &report.join("saccade-report.v1.json"),
-        &"--blind",
-        &"--out",
-        &pack,
-        &"--key-out",
-        &keys.join("explain-key.json"),
-    ]);
-    assert!(o.status.success(), "{}", String::from_utf8_lossy(&o.stderr));
-    let text = text_of_tree(&pack);
-    for s in secrets.into_iter().chain(["report", "baseline", "capture"]) {
-        assert!(!text.contains(s), "the blind pack leaks {s:?}");
-    }
-    assert!(keys.join("explain-key.json").is_file());
-    assert!(!walk(&pack).iter().any(|p| p.ends_with("blind-key.json")));
-    let key: Value =
-        serde_json::from_str(&std::fs::read_to_string(keys.join("explain-key.json")).unwrap())
-            .unwrap();
-    assert!(key["items"][0]["a"].as_str().unwrap().starts_with("lbl_"));
-}
-
-#[test]
-fn every_failure_is_a_json_error_with_the_same_exit_code() {
-    let tmp = tempfile::tempdir().unwrap();
-    let (base, cap) = dirs(tmp.path());
-    let missing = tmp.path().join("nope");
-    let report = tmp.path().join("report");
-    run(&[&"compare", &base, &cap, &"--out", &report]);
-    let rj = report.join("saccade-report.v1.json");
-    let cases: Vec<(Output, &str)> = vec![
-        // runtime I/O failure
-        (run(&[&"compare", &missing, &cap, &"--json"]), "io"),
-        // clap rejects the command line
-        (run(&[&"compare", &"--json"]), "usage"),
-        (
-            run(&[&"summary", &rj, &"--format", &"json", &"--bogus"]),
-            "usage",
-        ),
-        // a report that is not there, under --format json
-        (run(&[&"summary", &missing, &"--format", &"json"]), "io"),
-        // a name that escapes the baseline directory
-        (
-            run(&[&"approve", &cap, &base, &"../x", &"--json"]),
-            "unsafe_path",
-        ),
-        // a blind key inside the pack it must stay out of
-        (
-            run(&[
-                &"explain",
-                &rj,
-                &"--blind",
-                &"--out",
-                &tmp.path().join("p"),
-                &"--key-out",
-                &tmp.path().join("p/k.json"),
-                &"--json",
-            ]),
-            "unsafe_path",
-        ),
-        (run(&[&"view", &base, &"--json"]), "usage"),
-    ];
-    for (o, code) in cases {
-        assert_eq!(
-            o.status.code(),
-            Some(2),
-            "{}",
-            String::from_utf8_lossy(&o.stderr)
-        );
-        let v = stdout_json(&o);
-        assert_eq!(v["schema"], "saccade-error.v1");
-        assert_eq!(v["code"], code, "{v}");
-        assert!(!v["message"].as_str().unwrap().is_empty());
-        schema_check("saccade-error.v1.schema.json", &v);
-    }
-    // Without --json the error stays on stderr.
-    let o = run(&[&"compare", &missing, &cap]);
-    assert!(o.stdout.is_empty() && !o.stderr.is_empty());
-}
-
-#[test]
-fn compare_json_is_a_lean_result_and_full_is_the_report() {
-    let tmp = tempfile::tempdir().unwrap();
-    let (base, cap) = dirs(tmp.path());
-    let out = tmp.path().join("report");
-    // Lean paths are relative to cwd, which may be on a different drive from
-    // the runner's temp directory. Keep cwd, inputs and report on one root.
-    let compare = |format: &str| {
-        Command::new(BIN)
-            .current_dir(tmp.path())
-            .arg("compare")
-            .args([&base, &cap])
-            .arg("--out")
-            .arg(&out)
-            .arg(format)
-            .output()
-            .expect("spawn")
-    };
-    let o = compare("--json");
-    assert_eq!(o.status.code(), Some(1));
-    let v = stdout_json(&o);
-    assert_eq!(v["schema"], "saccade-result.v1");
-    assert_eq!(v["verdict"], "regression");
-    assert_eq!(v["totals"]["fail"], 1);
-    let f = &v["failing"][0];
-    assert_eq!(f["name"], "scene.png");
-    assert!(f["hotspots"].as_array().unwrap().len() <= 3);
-    assert!(f["hotspots"][0]["share_of_total_error"].as_f64().unwrap() > 0.5);
-    for p in ["report_json", "index_html"] {
-        let path = v["paths"][p].as_str().unwrap();
-        assert!(Path::new(path).is_relative());
-        assert!(!path.contains('\\'), "{p}: {path}");
-        assert!(tmp.path().join(path).is_file(), "{p}: {path}");
-    }
-    assert!(v["next_step"].as_str().unwrap().contains("saccade explain"));
-    // Every float has at most 4 significant digits.
-    fn floats(v: &Value, out: &mut Vec<f64>) {
-        match v {
-            Value::Number(n) if n.is_f64() => out.extend(n.as_f64()),
-            Value::Array(a) => a.iter().for_each(|x| floats(x, out)),
-            Value::Object(m) => m.values().for_each(|x| floats(x, out)),
-            _ => {}
-        }
-    }
-    let mut all = Vec::new();
-    floats(&v, &mut all);
-    assert!(!all.is_empty());
-    for x in all {
-        assert_eq!(
-            format!("{x:.3e}").parse::<f64>().unwrap(),
-            x,
-            "{x} is not rounded"
-        );
-    }
-    let full = stdout_json(&compare("--json=full"));
-    assert_eq!(full["schema"], "saccade-report.v1");
-    for (key, expected) in [("baseline_dir", &base), ("capture_dir", &cap)] {
-        let path = full[key].as_str().unwrap();
-        assert!(Path::new(path).is_relative());
-        assert!(!path.contains('\\'), "{key}: {path}");
-        assert_eq!(
-            saccade_core::paths::canonicalize(out.join(path)).unwrap(),
-            saccade_core::paths::canonicalize(expected).unwrap()
-        );
-    }
-    assert!(full["entries"].as_array().unwrap().len() == 2);
-    assert!(serde_json::to_string(&v).unwrap().len() < serde_json::to_string(&full).unwrap().len());
-}
-
-#[test]
-fn shipped_schemas_validate_what_the_tools_print() {
-    let tmp = tempfile::tempdir().unwrap();
-    let (base, cap) = dirs(tmp.path());
-    let out = tmp.path().join("report");
-    let rj = out.join("saccade-report.v1.json");
-    let result = stdout_json(&run(&[&"compare", &base, &cap, &"--out", &out, &"--json"]));
-    schema_check("saccade-result.v1.schema.json", &result);
-    let ident = stdout_json(&run(&[
-        &"identity",
-        &base,
-        &base,
-        &"--out",
-        &tmp.path().join("id"),
-        &"--json",
-    ]));
-    schema_check("saccade-result.v1.schema.json", &ident);
-    schema_check(
-        "saccade-report.v1.schema.json",
-        &stdout_json(&run(&[
-            &"compare",
-            &base,
-            &cap,
-            &"--out",
-            &out,
-            &"--json=full",
-        ])),
-    );
-    schema_check(
-        "saccade-summary.v1.schema.json",
-        &stdout_json(&run(&[&"summary", &rj, &"--format", &"json"])),
-    );
-    schema_check(
-        "saccade-explain.v1.schema.json",
-        &stdout_json(&run(&[
-            &"explain",
-            &rj,
-            &"--out",
-            &tmp.path().join("pack"),
-            &"--json",
-        ])),
-    );
-    let key = tmp.path().join("keys/explain-key.json");
-    run(&[
-        &"explain",
-        &rj,
-        &"--blind",
-        &"--out",
-        &tmp.path().join("bpack"),
-        &"--key-out",
-        &key,
-    ]);
-    schema_check(
-        "saccade-explain-blind-key.v1.schema.json",
-        &serde_json::from_str(&std::fs::read_to_string(&key).unwrap()).unwrap(),
-    );
-    let vkey = tmp.path().join("keys/view-key.json");
-    schema_check(
-        "saccade-view-summary.v1.schema.json",
-        &stdout_json(&run(&[
-            &"view",
-            &base,
-            &cap,
-            &"--blind",
-            &"--out",
-            &tmp.path().join("v"),
-            &"--key-out",
-            &vkey,
-            &"--json",
-        ])),
-    );
-    schema_check(
-        "saccade-blind-key.v1.schema.json",
-        &serde_json::from_str(&std::fs::read_to_string(&vkey).unwrap()).unwrap(),
-    );
-    schema_check(
-        "saccade-approve.v1.schema.json",
-        &stdout_json(&run(&[
-            &"approve",
-            &cap,
-            &base,
-            &"--all-failing",
-            &rj,
-            &"--dry-run",
-            &"--json",
-        ])),
-    );
-    // Decisions as the viewer exports them.
-    let decisions = json!({"schema": "saccade-decisions.v1", "seed": 1, "labels": ["a", "b"],
-        "blind": false, "sets": [{"name": "scene.png", "decision": "accept", "note": "", "timestamp_ms": 0}]});
-    schema_check("saccade-decisions.v1.schema.json", &decisions);
-    // MCP: the explain result and the summary result.
-    let replies = mcp(
-        tmp.path(),
-        &[
-            call(
-                1,
-                "saccade_explain",
-                json!({"report_json": rj, "out_dir": tmp.path().join("mpack")}),
-            ),
-            call(2, "saccade_summary", json!({"report_json": rj})),
-        ],
-    );
-    schema_check(
-        "saccade-explain-result.v1.schema.json",
-        &replies[0]["result"]["structuredContent"],
-    );
-    schema_check(
-        "saccade-summary.v1.schema.json",
-        &replies[1]["result"]["structuredContent"],
-    );
-}
-
-/// Sends `requests` (one JSON message per line) to `saccade mcp --root root`.
-fn mcp(root: &Path, requests: &[Value]) -> Vec<Value> {
-    let mut child = Command::new(BIN)
-        .arg("mcp")
-        .arg("--root")
-        .arg(root)
+    command.args(extra);
+    let mut child = command
         .stdin(Stdio::piped())
         .stdout(Stdio::piped())
-        .stderr(Stdio::null())
+        .stderr(Stdio::piped())
         .spawn()
-        .expect("spawn");
-    let mut stdin = child.stdin.take().expect("stdin");
-    for r in requests {
-        writeln!(stdin, "{r}").expect("write");
+        .unwrap();
+    let mut stdin = child.stdin.take().unwrap();
+    for message in messages {
+        writeln!(stdin, "{message}").unwrap();
     }
     drop(stdin);
-    let out = child.wait_with_output().expect("wait");
-    String::from_utf8(out.stdout)
-        .expect("utf8")
+    let output = child.wait_with_output().unwrap();
+    assert!(output.status.success(), "{output:?}");
+    String::from_utf8(output.stdout)
+        .unwrap()
         .lines()
-        .map(|l| serde_json::from_str(l).expect("each stdout line is JSON"))
+        .map(|line| serde_json::from_str(line).unwrap())
         .collect()
 }
-
-fn call(id: u32, tool: &str, args: Value) -> Value {
-    json!({"jsonrpc": "2.0", "id": id, "method": "tools/call",
-           "params": {"name": tool, "arguments": args}})
+fn report(root: &Path, n: usize) -> PathBuf {
+    for i in 0..n {
+        let name = format!("entry-{i:03}.png");
+        image(&root.join("base"), &name, 40);
+        image(&root.join("capture"), &name, 200);
+    }
+    let output = Command::new(BIN)
+        .arg("compare")
+        .args([root.join("base"), root.join("capture")])
+        .arg("--out")
+        .arg(root.join("report"))
+        .arg("--json")
+        .current_dir(root)
+        .output()
+        .unwrap();
+    assert_eq!(output.status.code(), Some(1), "{output:?}");
+    let result = json_output(output);
+    let typed: ResultEnvelope = serde_json::from_value(result.clone()).unwrap();
+    typed.validate().unwrap();
+    assert!(result["entries"].as_array().unwrap().len() <= 5);
+    assert!(serde_json::to_vec(&result).unwrap().len() <= 4096);
+    root.join("report/saccade-report.v1.json")
 }
-
 #[test]
-fn mcp_refuses_every_path_outside_the_root() {
+fn help_has_twelve_commands_and_removed_interfaces_fail_with_migration() {
+    let value = json_output(
+        Command::new(BIN)
+            .args(["inspect", "capabilities", "--json"])
+            .output()
+            .unwrap(),
+    );
+    let operations = value["data"]["operations"].as_array().unwrap();
+    let top = operations
+        .iter()
+        .filter_map(Value::as_str)
+        .filter(|s| !s.contains(' '))
+        .collect::<Vec<_>>();
+    assert_eq!(top.len(), 12, "{top:?}");
+    for name in [
+        "init",
+        "demo",
+        "compare",
+        "identity",
+        "noise",
+        "inspect",
+        "view",
+        "review",
+        "approve",
+        "experiment",
+        "serve",
+        "mcp",
+    ] {
+        assert!(top.contains(&name));
+    }
+    for name in [
+        "inspect evidence",
+        "inspect export",
+        "inspect config",
+        "inspect capabilities",
+        "review request",
+        "review propose",
+        "review ask",
+        "review eval",
+    ] {
+        assert!(operations.iter().any(|s| s == name));
+    }
+    for old in [
+        "ablate",
+        "sequence",
+        "rank",
+        "bisect",
+        "explain",
+        "summary",
+        "entries",
+        "config",
+        "snapshot",
+        "decision-request",
+        "decide",
+        "judge",
+        "ask",
+        "runs",
+        "unblind",
+        "watch",
+    ] {
+        let output = Command::new(BIN).args([old, "--json"]).output().unwrap();
+        assert_eq!(output.status.code(), Some(2));
+        let value = json_output(output);
+        assert_eq!(value["errors"][0]["code"], "interface_removed");
+        assert!(
+            value["errors"][0]["message"]
+                .as_str()
+                .unwrap()
+                .contains("use")
+        );
+    }
+    for flag in ["--json=full", "--json=decision", "--compat"] {
+        let output = Command::new(BIN).args(["identity", flag]).output().unwrap();
+        assert_eq!(output.status.code(), Some(2));
+    }
+}
+#[test]
+fn pagination_and_actions_are_bounded_and_bound_to_content_and_selection() {
+    let tmp = tempfile::tempdir().unwrap();
+    let file = report(tmp.path(), 25);
+    let read = |cursor: Option<&str>, limit: &str| {
+        let mut command = Command::new(BIN);
+        command
+            .arg("inspect")
+            .arg(&file)
+            .args(["--json", "--limit", limit]);
+        if let Some(cursor) = cursor {
+            command.args(["--cursor", cursor]);
+        }
+        command.output().unwrap()
+    };
+    let page = json_output(read(None, "10"));
+    assert_eq!(page["entries"].as_array().unwrap().len(), 10);
+    assert_eq!(page["page"]["omitted"], 15);
+    assert!(serde_json::to_vec(&page).unwrap().len() <= 8192);
+    let cursor = page["page"]["next_cursor"].as_str().unwrap();
+    let second = json_output(read(Some(cursor), "10"));
+    assert_eq!(second["entries"][0]["entry_id"], "entry-010.png");
+    assert_eq!(second["page"]["omitted"], 5);
+    assert_eq!(
+        json_output(read(Some(cursor), "5"))["errors"][0]["code"],
+        "stale_cursor"
+    );
+    let output = Command::new(BIN)
+        .arg("identity")
+        .args([tmp.path().join("base"), tmp.path().join("capture")])
+        .args(["--out", "proof", "--json"])
+        .current_dir(tmp.path())
+        .output()
+        .unwrap();
+    let result = json_output(output);
+    let continuation = result["page"]["next_cursor"].as_str().unwrap();
+    let continued = json_output(
+        Command::new(BIN)
+            .arg("inspect")
+            .arg(tmp.path().join("proof/saccade-report.v1.json"))
+            .args(["--json", "--cursor", continuation])
+            .output()
+            .unwrap(),
+    );
+    assert_eq!(continued["entries"][0]["entry_id"], "entry-005.png");
+    assert_eq!(continued["page"]["omitted"], 10);
+    let actions = result["next_actions"].as_array().unwrap();
+    assert!(actions.len() <= 3);
+    let action = actions[0].clone();
+    assert!(action["cli_argv"].is_array());
+    assert_eq!(action["tool"], "saccade_inspect");
+    let artifact = tmp.path().join("proof/saccade-report.v1.json");
+    let replies = mcp(
+        &[tmp.path()],
+        None,
+        &[],
+        &[
+            call(1, "saccade_inspect", {
+                let mut arguments = action["arguments"].clone();
+                arguments["expected_case_id"] = action["expected_case_id"].clone();
+                // The CLI reference is relative to its invocation directory.
+                arguments["artifact"]["path"] = json!(artifact);
+                arguments
+            }),
+            call(
+                2,
+                "saccade_inspect",
+                json!({"operation":"summary","artifact":artifact,"expected_case_id":"0000000000000000000000000000000000000000000000000000000000000000"}),
+            ),
+        ],
+    );
+    assert_eq!(replies[0]["result"]["isError"], false, "{}", replies[0]);
+    assert_eq!(
+        replies[1]["result"]["structuredContent"]["errors"][0]["code"],
+        "stale_action"
+    );
+    image(&tmp.path().join("capture"), "entry-000.png", 50);
+    let replies = mcp(
+        &[tmp.path()],
+        None,
+        &[],
+        &[call(
+            1,
+            "saccade_inspect",
+            json!({"operation":"summary","artifact":artifact,"expected_case_id":action["expected_case_id"]}),
+        )],
+    );
+    assert_eq!(
+        replies[0]["result"]["structuredContent"]["errors"][0]["code"],
+        "stale_evidence"
+    );
+}
+#[test]
+fn roots_are_read_only_and_output_permissions_never_grant_capture_writes() {
     let tmp = tempfile::tempdir().unwrap();
     let root = tmp.path().join("root");
-    let outside = tmp.path().join("outside");
-    std::fs::create_dir_all(&root).unwrap();
-    let (base, cap) = dirs(&root);
-    let (obase, _) = dirs(&outside);
-    #[cfg(unix)]
-    std::os::unix::fs::symlink(&obase, root.join("sneaky")).unwrap();
-    let ok = json!({"baseline_dir": "zz_alpha_dir", "capture_dir": cap, "out_dir": "out"});
-    let with = |k: &str, v: Value| {
-        let mut a = ok.clone();
-        a[k] = v;
-        a
+    let other = tmp.path().join("other");
+    let out = tmp.path().join("output");
+    image(&root.join("base"), "a.png", 40);
+    image(&other, "a.png", 40);
+    let measure = |out: Value| {
+        call(
+            1,
+            "saccade_measure",
+            json!({"operation":"identity","parent_dir":root.join("base"),"candidate_dir":other,"out":out}),
+        )
     };
-    let mut requests = vec![
-        call(1, "saccade_compare", ok.clone()),
-        call(2, "saccade_compare", with("baseline_dir", json!(obase))),
-        call(
-            3,
-            "saccade_compare",
-            with("baseline_dir", json!("../outside/zz_alpha_dir")),
-        ),
-        call(
-            4,
-            "saccade_compare",
-            with("out_dir", json!(outside.join("o"))),
-        ),
-        call(
-            5,
-            "saccade_compare",
-            with("config", json!(outside.join("c.toml"))),
-        ),
-        call(
-            6,
-            "saccade_summary",
-            json!({"report_json": "../outside/x.json"}),
-        ),
-        call(
-            7,
-            "saccade_explain",
-            json!({"report_json": "out/saccade-report.v1.json", "out_dir": "p", "blind": true, "key_out": outside.join("k.json")}),
-        ),
-    ];
-    if cfg!(unix) {
-        requests.push(call(
-            8,
-            "saccade_compare",
-            with("baseline_dir", json!("sneaky")),
-        ));
-        requests.push(call(
-            9,
-            "saccade_compare",
-            with("out_dir", json!("sneaky/../new-output")),
-        ));
-    }
-    let replies = mcp(&root, &requests);
-    let _ = base;
-    let first = &replies[0]["result"];
-    assert_eq!(first["isError"], false, "{first}");
-    assert!(root.join("out/saccade-report.v1.json").is_file());
-    for (i, r) in replies.iter().enumerate().skip(1) {
-        let r = &r["result"];
-        assert_eq!(r["isError"], true, "request {}: {r}", i + 1);
+    let replies = mcp(
+        &[&root, &other],
+        Some(&out),
+        &[],
+        &[
+            measure(json!("report")),
+            measure(json!(root.join("write"))),
+            measure(json!("../escape")),
+        ],
+    );
+    assert_eq!(replies[0]["result"]["isError"], false, "{}", replies[0]);
+    for reply in &replies[1..] {
         assert_eq!(
-            r["structuredContent"]["code"],
-            "unsafe_path",
-            "request {}: {r}",
-            i + 1
+            reply["result"]["structuredContent"]["errors"][0]["code"],
+            "unsafe_path"
         );
     }
-}
-
-/// Decodes standard base64.
-fn unbase64(s: &str) -> Vec<u8> {
-    let val = |c: u8| match c {
-        b'A'..=b'Z' => c - b'A',
-        b'a'..=b'z' => c - b'a' + 26,
-        b'0'..=b'9' => c - b'0' + 52,
-        b'+' => 62,
-        _ => 63,
-    };
-    let bytes: Vec<u8> = s.bytes().filter(|&c| c != b'=').collect();
-    let mut out = Vec::new();
-    for chunk in bytes.chunks(4) {
-        let mut n = 0u32;
-        for (i, &c) in chunk.iter().enumerate() {
-            n |= u32::from(val(c)) << (18 - 6 * i);
-        }
-        out.extend(&n.to_be_bytes()[1..chunk.len()]);
-    }
-    out
-}
-
-#[test]
-fn mcp_results_carry_downscaled_strip_images_unless_asked_not_to() {
-    let tmp = tempfile::tempdir().unwrap();
-    let (base, cap) = (tmp.path().join("base"), tmp.path().join("cap"));
-    save(&base, "big.png", (1000, 700), None);
-    save(&cap, "big.png", (1000, 700), Some([50, 40, 850, 600]));
+    assert!(!root.join("write").exists());
+    assert!(out.join("report/.saccade-run").is_file());
+    let replies = mcp(&[&root, &other], None, &[], &[measure(json!("report"))]);
+    assert_eq!(replies[0]["result"]["isError"], true);
+    let before = std::fs::read(root.join("base/a.png")).unwrap();
     let replies = mcp(
-        tmp.path(),
+        &[&root],
+        Some(&out),
+        &[],
         &[
-            call(
-                1,
-                "saccade_compare",
-                json!({"baseline_dir": base, "capture_dir": cap, "out_dir": "a"}),
-            ),
+            call(1, "saccade_approve", json!({})),
             call(
                 2,
-                "saccade_explain",
-                json!({"report_json": "a/saccade-report.v1.json", "out_dir": "n", "include_images": false}),
-            ),
-            call(
-                3,
-                "saccade_explain",
-                json!({"report_json": "a/saccade-report.v1.json", "out_dir": "e", "top": 3}),
-            ),
-            json!({"jsonrpc": "2.0", "id": 4, "method": "tools/list"}),
-        ],
-    );
-    let blocks = |r: &Value| -> Vec<Value> {
-        r["result"]["content"]
-            .as_array()
-            .unwrap()
-            .iter()
-            .filter(|c| c["type"] == "image")
-            .cloned()
-            .collect()
-    };
-    for idx in [0, 2] {
-        let images = blocks(&replies[idx]);
-        assert!(
-            (1..=3).contains(&images.len()),
-            "{} image blocks",
-            images.len()
-        );
-        for b in &images {
-            assert_eq!(b["mimeType"], "image/png");
-            let img = image::load_from_memory(&unbase64(b["data"].as_str().unwrap())).unwrap();
-            assert_eq!(img.width(), 1024, "a 1536 px strip is shown at 1024 px");
-        }
-    }
-    assert!(blocks(&replies[1]).is_empty(), "include_images=false");
-    // The strips on disk never exceed 1536 px.
-    let strip = image::open(tmp.path().join("a/explain/hotspots/big.png.d/h1.png")).unwrap();
-    assert!(strip.width() <= 1536);
-    // Every tool declares an output schema and annotations.
-    for t in replies[3]["result"]["tools"].as_array().unwrap() {
-        assert!(t["outputSchema"].is_object() && t["annotations"]["destructiveHint"] == false);
-    }
-}
-
-#[test]
-fn mcp_snapshot_returns_an_image_block_and_a_decision_request_is_schema_valid() {
-    let tmp = tempfile::tempdir().unwrap();
-    let (base, cap) = (tmp.path().join("base"), tmp.path().join("cap"));
-    save(&base, "big.png", (400, 300), None);
-    save(&cap, "big.png", (400, 300), Some([50, 40, 200, 150]));
-    let replies = mcp(
-        tmp.path(),
-        &[
-            call(
-                1,
-                "saccade_compare",
-                json!({"baseline_dir": base, "capture_dir": cap, "out_dir": "a", "include_images": false}),
-            ),
-            call(
-                2,
-                "saccade_snapshot",
-                json!({"report_json": "a/saccade-report.v1.json", "entry": "big.png", "state": "layout=swipe&split=0.25&zoom=2&at=200,150", "width": 800}),
-            ),
-            call(
-                3,
-                "saccade_decision_request",
-                json!({"report_json": "a/saccade-report.v1.json", "all_failing": true, "intent": "brighten the patch"}),
+                "saccade_measure",
+                json!({"operation":"approve","out":"plan"}),
             ),
         ],
     );
-    let content = replies[1]["result"]["content"].as_array().unwrap();
-    let image = content
-        .iter()
-        .find(|c| c["type"] == "image")
-        .expect("an image block");
-    assert_eq!(image["mimeType"], "image/png");
-    let png = image::load_from_memory(&unbase64(image["data"].as_str().unwrap())).unwrap();
-    assert_eq!(png.width(), 800);
-    let path = replies[1]["result"]["structuredContent"]["paths"][0]
-        .as_str()
-        .unwrap();
-    assert!(Path::new(path).is_file(), "{path}");
-    assert!(!path.contains('\\'), "{path}");
-    schema_check(
-        "saccade-decision-request.v1.schema.json",
-        &replies[2]["result"]["structuredContent"],
+    assert!(replies[0]["error"].is_object());
+    assert_eq!(replies[1]["result"]["isError"], true);
+    assert_eq!(before, std::fs::read(root.join("base/a.png")).unwrap());
+}
+#[cfg(unix)]
+#[test]
+fn aliases_authorize_registered_storage_but_not_direct_roots_or_escape_outputs() {
+    use std::os::unix::fs::symlink;
+    let tmp = tempfile::tempdir().unwrap();
+    let root = tmp.path().join("root");
+    let storage = tmp.path().join("storage");
+    let out = tmp.path().join("out");
+    std::fs::create_dir_all(&root).unwrap();
+    image(&storage, "a.png", 40);
+    symlink(&storage, root.join("alias")).unwrap();
+    let message = call(
+        1,
+        "saccade_measure",
+        json!({"operation":"identity","parent_dir":root.join("alias"),"candidate_dir":root.join("alias"),"out":"report"}),
+    );
+    let reply = mcp(&[&root], Some(&out), &[], std::slice::from_ref(&message));
+    assert_eq!(reply[0]["result"]["isError"], true);
+    let extra = ["--symlink-target", storage.to_str().unwrap()];
+    let reply = mcp(
+        &[&root],
+        Some(&out),
+        &extra,
+        &[
+            message,
+            call(
+                2,
+                "saccade_measure",
+                json!({"operation":"identity","parent_dir":storage,"candidate_dir":storage,"out":"direct"}),
+            ),
+        ],
+    );
+    assert_eq!(reply[0]["result"]["isError"], false, "{}", reply[0]);
+    assert_eq!(reply[1]["result"]["isError"], true);
+    std::fs::create_dir_all(&out).unwrap();
+    symlink(&root, out.join("escape")).unwrap();
+    let reply = mcp(
+        &[&root],
+        Some(&out),
+        &extra,
+        &[call(
+            1,
+            "saccade_evidence",
+            json!({"operation":"context","artifact":out.join("report/saccade-report.v1.json"),"out":"escape/new"}),
+        )],
+    );
+    assert_eq!(reply[0]["result"]["isError"], true);
+    assert!(!root.join("new").exists());
+    symlink(tmp.path().join("secret.json"), root.join("base-card.json")).unwrap();
+    std::fs::write(tmp.path().join("secret.json"), b"{}").unwrap();
+    std::fs::write(
+        root.join("saccade.toml"),
+        "[[mask]]\nimage='base-card.json'\n",
+    )
+    .unwrap();
+    let reply = mcp(
+        &[&root],
+        Some(&out),
+        &extra,
+        &[call(
+            1,
+            "saccade_measure",
+            json!({"operation":"compare","baseline_dir":root.join("alias"),"capture_dir":root.join("alias"),"out":"masked"}),
+        )],
+    );
+    assert_eq!(
+        reply[0]["result"]["structuredContent"]["errors"][0]["code"],
+        "unsafe_path"
+    );
+}
+#[test]
+fn local_tools_and_preview_never_authorize_network_and_images_are_explicit() {
+    let tmp = tempfile::tempdir().unwrap();
+    let root = tmp.path().join("root");
+    let out = tmp.path().join("out");
+    image(&root.join("base"), "a.png", 40);
+    image(&root.join("capture"), "a.png", 200);
+    let replies = mcp(
+        &[&root],
+        Some(&out),
+        &[],
+        &[
+            json!({"jsonrpc":"2.0","id":1,"method":"tools/list"}),
+            call(
+                2,
+                "saccade_measure",
+                json!({"operation":"compare","baseline_dir":"base","capture_dir":"capture","out":"report"}),
+            ),
+            call(
+                3,
+                "saccade_measure",
+                json!({"operation":"compare","baseline_dir":"base","capture_dir":"capture","out":"images","include_images":true}),
+            ),
+            call(4, "saccade_review", json!({"run":true})),
+            call(
+                5,
+                "saccade_measure",
+                json!({"operation":"compare","baseline_dir":"base","capture_dir":"capture","out":"forged","provider_url":"http://127.0.0.1:1"}),
+            ),
+        ],
+    );
+    let tools = replies[0]["result"]["tools"].as_array().unwrap();
+    assert_eq!(tools.len(), 5);
+    for tool in tools {
+        assert!(tool["inputSchema"]["oneOf"].is_array());
+        assert!(!matches!(
+            tool["name"].as_str(),
+            Some("saccade_review" | "saccade_approve")
+        ));
+    }
+    assert_eq!(replies[1]["result"]["isError"], false);
+    assert_eq!(
+        replies[1]["result"]["structuredContent"]["measurement"],
+        "regression"
+    );
+    assert_eq!(replies[1]["result"]["content"].as_array().unwrap().len(), 1);
+    assert!(
+        replies[2]["result"]["content"].as_array().unwrap().len() > 1,
+        "{}",
+        replies[2]
+    );
+    assert!(replies[3]["error"].is_object());
+    assert_eq!(replies[4]["result"]["isError"], true);
+    let report = out.join("report/saccade-report.v1.json");
+    let preview = json_output(
+        Command::new(BIN)
+            .arg("review")
+            .arg(&report)
+            .arg("--json")
+            .env("JEV_API_KEY", "synthetic-never-send")
+            .env("GEMINI_API_KEY", "synthetic-never-send")
+            .output()
+            .unwrap(),
+    );
+    assert_eq!(preview["counts"]["dispatched_calls"], 0);
+    let denied = json_output(
+        Command::new(BIN)
+            .arg("review")
+            .arg(&report)
+            .args(["--run", "--budget-calls", "1", "--json"])
+            .output()
+            .unwrap(),
+    );
+    assert_eq!(
+        denied["errors"][0]["code"],
+        "network_authorization_required"
     );
 }

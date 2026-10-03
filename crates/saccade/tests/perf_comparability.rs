@@ -63,9 +63,10 @@ fn timing_names_pair_exactly_and_one_sided_keys_reach_all_outputs() {
             expected
         );
         let summary = Command::new(BIN)
-            .arg("summary")
+            .args(["inspect", "export"])
             .arg(&report)
-            .args(["--format", "markdown"])
+            .args(["--format", "markdown", "--out"])
+            .arg(out.join("export.md"))
             .output()
             .unwrap();
         assert_eq!(summary.status.code(), Some(0));
@@ -75,7 +76,8 @@ fn timing_names_pair_exactly_and_one_sided_keys_reach_all_outputs() {
             .iter()
             .map(|p| p["key"].as_str().unwrap())
             .collect::<Vec<_>>();
-        for output in [&run.stdout, &summary.stdout] {
+        let markdown = std::fs::read(out.join("export.md")).unwrap();
+        for output in [&run.stdout, &markdown] {
             let text = String::from_utf8_lossy(output);
             if keys.is_empty() {
                 assert!(!text.contains("not comparable:"));

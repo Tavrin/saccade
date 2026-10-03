@@ -1,21 +1,10 @@
-//! Machine-readable output shared by the CLI and the MCP tools: the lean
-//! `saccade-result.v1` of a run, the `saccade-summary.v1` of a report, and
-//! the `saccade-error.v1` every failing command prints in JSON mode.
+//! Bounded measurement results and errors shared by CLI and local MCP.
 
-use std::path::{Path, PathBuf};
+use std::path::Path;
 
 use saccade_core::Entry;
-use saccade_core::report::{Metric, Report, Status};
+use saccade_core::report::{Report, Status};
 use serde_json::{Value, json};
-
-/// Schema identifier of the summary object.
-pub const SUMMARY_SCHEMA: &str = "saccade-summary.v1";
-
-/// Schema identifier of the lean result of `compare` / `identity`.
-pub const RESULT_SCHEMA: &str = "saccade-result.v1";
-
-/// Schema identifier of the error object.
-pub const ERROR_SCHEMA: &str = "saccade-error.v1";
 
 /// A failed command: a stable machine-readable `code` and a message.
 ///
@@ -46,7 +35,7 @@ impl CliError {
                     "rebuild with the required feature; inspect enabled modules with `saccade inspect capabilities`"
                 }
                 "config" => {
-                    "check the named config setting or glob, correct its value, and rerun `saccade config --explain NAME`"
+                    "check the named config setting or glob, correct its value, and rerun `saccade inspect config --entry NAME`"
                 }
                 "unsafe_path" => "choose a path inside the allowed root without symlink escapes",
                 "not_empty_out_dir" => {
@@ -56,7 +45,7 @@ impl CliError {
                     "rerun the comparison, prepare --dry-run --out PLAN, review the exact decision, then apply --decisions PLAN/decision.json under explicit human authorization"
                 }
                 "nothing_compared" => {
-                    "check the input paths and --entries filters; bootstrap with `saccade approve --report REPORT_JSON --all-failing`"
+                    "check the input paths and --entry filters; bootstrap with `saccade approve --report REPORT_JSON --all-failing`"
                 }
                 "io" => {
                     "check the named path exists, is readable or writable as needed, and images decode"
@@ -83,9 +72,14 @@ impl CliError {
         Self::new("io", message)
     }
 
-    /// The `saccade-error.v1` object.
+    /// The shared result envelope carrying an execution error.
     pub fn value(&self) -> Value {
-        json!({"schema": ERROR_SCHEMA, "code": self.code, "message": self.message, "hint": self.hint})
+        {
+            let mut value = crate::local_cmd::base_result("error");
+            value["execution"] = json!("error");
+            value["errors"] = json!([{"code":self.code,"message":self.message.chars().take(512).collect::<String>(),"required_feature":if self.code=="feature_unavailable" {["graphics","evaluation","workbench","prechecks","mcp","ai"].iter().find(|name|self.message.contains(**name)).copied()}else{None}}]);
+            value
+        }
     }
 }
 
@@ -122,11 +116,9 @@ impl From<saccade_core::Error> for CliError {
 }
 
 /// How many failing entries a summary lists by default.
-pub const DEFAULT_TOP_FAILING: usize = 10;
+pub const DEFAULT_TOP_FAILING: usize = 5;
 
 /// Hotspots listed per failing entry.
-const HOTSPOTS_PER_ENTRY: usize = 3;
-
 fn status_str(s: Status) -> &'static str {
     match s {
         Status::Pass => "pass",
@@ -136,17 +128,6 @@ fn status_str(s: Status) -> &'static str {
         Status::Error => "error",
     }
 }
-
-fn metric_str(m: Metric) -> &'static str {
-    match m {
-        Metric::Mean => "mean",
-        Metric::P95 => "p95",
-        Metric::P99 => "p99",
-        Metric::Max => "max",
-    }
-}
-
-/// Whether `e` counts against the verdict.
 fn is_failing(report: &Report, e: &Entry) -> bool {
     match e.status {
         Status::Fail | Status::Error | Status::Missing => true,
@@ -182,111 +163,6 @@ pub fn failing_entries(report: &Report) -> Vec<&Entry> {
     v
 }
 
-fn absolute(p: &Path) -> PathBuf {
-    saccade_core::run::normalise_path(p)
-}
-
-fn entry_value(e: &Entry) -> Value {
-    json!({
-        "name": e.name,
-        "status": status_str(e.status),
-        "metric": metric_str(e.metric_used),
-        "value": e.value,
-        "threshold": e.threshold,
-        "error": e.error,
-        "bit_identical": e.bit_identical,
-        "failing_regions": e.regions.iter()
-            .filter(|r| r.status == Some(Status::Fail))
-            .map(|r| r.name.as_str())
-            .collect::<Vec<_>>(),
-        "config_differs": e.meta_diff.iter().map(|d| d.key.as_str()).collect::<Vec<_>>(),
-        "hotspots": e.hotspots.iter().take(HOTSPOTS_PER_ENTRY).collect::<Vec<_>>(),
-        "buffer": e.buffer,
-        "class": e.diagnostics.as_ref().map(|d| d.class.as_str()),
-        "description": e.diagnostics.as_ref().map(|d| d.description.as_str()),
-    })
-}
-
-/// The `saccade-summary.v1` object for a report that lives at `report_json`.
-///
-/// `paths` lists the report JSON, its directory and, when they exist, the
-/// `index.html` and the explain pack in `<report dir>/explain`.
-pub fn summary_value(report: &Report, report_json: &Path, top: usize) -> Value {
-    let failing = failing_entries(report);
-    let shown: Vec<Value> = failing.iter().take(top).map(|e| entry_value(e)).collect();
-    let report_json = absolute(report_json);
-    let dir = report_json
-        .parent()
-        .map_or_else(|| PathBuf::from("."), Path::to_path_buf);
-    let abs_paths = report
-        .baseline_dir
-        .as_deref()
-        .is_some_and(|p| Path::new(p).is_absolute());
-    let display = |p: &Path| saccade_core::paths::cwd(p, abs_paths);
-    let existing = |p: PathBuf| p.is_file().then(|| display(&p));
-    let explain_dir = dir.join("explain");
-    json!({
-        "schema": SUMMARY_SCHEMA,
-        "verdict": if report.is_regression() { "regression" } else { "pass" },
-        "regression": report.is_regression(),
-        "mode": serde_json::to_value(report.config.mode).unwrap_or(Value::Null),
-        "labels": report.config.labels,
-        "totals": report.totals,
-        "perf_diff": report.perf_diff,
-        "perf_errors": report.perf_errors,
-        "combined_verdict": report.combined_verdict,
-        "failing": shown,
-        "failing_omitted": failing.len().saturating_sub(top),
-        "paths": {
-            "report_json": display(&report_json),
-            "report_dir": display(&dir),
-            "index_html": existing(dir.join("index.html")),
-            "explain_dir": explain_dir.join("explain.json").is_file()
-                .then(|| display(&explain_dir)),
-            "explain_json": existing(explain_dir.join("explain.json")),
-            "explain_md": existing(explain_dir.join("explain.md")),
-        },
-    })
-}
-
-/// A few lines of plain text for a tool's text content block.
-#[cfg(feature = "mcp")]
-pub fn summary_text(report: &Report, value: &Value) -> String {
-    let t = &report.totals;
-    let mut out = format!(
-        "saccade: {} ({} fail, {} error, {} missing, {} new, {} pass of {})",
-        value["verdict"].as_str().unwrap_or("?"),
-        t.fail,
-        t.error,
-        t.missing,
-        t.new,
-        t.pass,
-        t.total
-    );
-    if let Some(v) = &report.combined_verdict {
-        out.push_str(&format!("\n{v}"));
-    }
-    for e in failing_entries(report).into_iter().take(3) {
-        let v = e.value.map_or(String::new(), |v| {
-            format!(" {} {v:.4} > {}", metric_str(e.metric_used), e.threshold)
-        });
-        out.push_str(&format!("\n- {} {}{v}", status_str(e.status), e.name));
-        if let Some(d) = &e.diagnostics {
-            out.push_str(&format!("\n  {}: {}", d.class.as_str(), d.description));
-        }
-        if let Some(line) = saccade_core::hotspots::summary_line(&e.hotspots) {
-            out.push_str(&format!("\n  {line}"));
-        }
-    }
-    if let Some(p) = value["paths"]["index_html"].as_str() {
-        out.push_str(&format!("\nreport: {p}"));
-    }
-    if let Some(p) = value["paths"]["explain_md"].as_str() {
-        out.push_str(&format!("\nexplain: {p}"));
-    }
-    out
-}
-
 /// Rounds every non-integer number in `value` to 4 significant digits.
 pub fn round_floats(value: &mut Value) {
     match value {
@@ -307,178 +183,97 @@ pub fn round_floats(value: &mut Value) {
     }
 }
 
-fn lean_entry(e: &Entry) -> Value {
-    let mut v = json!({
-        "name": e.name,
-        "status": status_str(e.status),
-        "metric": metric_str(e.metric_used),
-        "value": e.value,
-        "threshold": e.threshold,
-    });
-    let Some(obj) = v.as_object_mut() else {
-        return v;
-    };
-    if let Some(err) = &e.error {
-        obj.insert("error".into(), json!(err));
-    }
-    if let Some(buffer) = &e.buffer {
-        obj.insert("buffer".into(), json!(buffer));
-    }
-    let keys: Vec<&str> = e.meta_diff.iter().map(|d| d.key.as_str()).collect();
-    if !keys.is_empty() {
-        obj.insert("config_differs".into(), json!(keys));
-    }
-    let failing_regions: Vec<&str> = e
-        .regions
-        .iter()
-        .filter(|r| r.status == Some(Status::Fail))
-        .map(|r| r.name.as_str())
-        .collect();
-    if !failing_regions.is_empty() {
-        obj.insert("failing_regions".into(), json!(failing_regions));
-    }
-    if let Some(d) = &e.diagnostics {
-        obj.insert("class".into(), json!(d.class.as_str()));
-        obj.insert("description".into(), json!(d.description));
-        if let Some(perf) = saccade_core::diagnostics::perf_summary(&d.perf) {
-            obj.insert("perf".into(), json!(perf));
-        }
-    }
-    let spots: Vec<Value> = e
-        .hotspots
-        .iter()
-        .take(HOTSPOTS_PER_ENTRY)
-        .map(|h| {
-            json!({
-                "rect_px": h.rect_px,
-                "position": h.position,
-                "share_of_total_error": h.share_of_total_error,
-                "mean_flip": h.mean_flip,
-                "max_flip": h.max_flip,
-            })
-        })
-        .collect();
-    if !spots.is_empty() {
-        obj.insert("hotspots".into(), Value::Array(spots));
-    }
-    v
-}
-
-/// The error for a run that compared no pair in JSON mode; exits 1.
-pub fn nothing_compared(report: &Report, report_json: &Path) -> Option<CliError> {
-    report.is_empty_run().then(|| {
-        CliError::new(
-            "nothing_compared",
-            format!(
-                "no image exists in both directories, so nothing was compared (report: {}); empty comparisons are not evidence",
-                absolute(report_json).display()
-            ),
-        )
-    })
-}
-
-/// What the agent should do next, as one sentence.
-fn next_step(report: &Report, report_json: &Path, explain_written: bool) -> String {
-    let failing = failing_entries(report);
-    let rj = saccade_core::paths::cwd(report_json, false);
-    if report.is_empty_run() {
-        return "nothing was compared: no image exists in both directories; check the two paths and selected scope".to_string();
-    }
-    let approve =
-        format!("saccade approve --report {rj} --all-failing --dry-run --out approval-plan");
-    if failing.is_empty() {
-        return match report.totals.new {
-            0 => "no regression: nothing to do".to_string(),
-            n => format!(
-                "no regression; {n} new image(s) have no baseline: adopt them with `{approve}` if intended"
-            ),
-        };
-    }
-    let only_config = failing
-        .iter()
-        .all(|e| e.status == Status::Error && !e.meta_diff.is_empty());
-    if only_config {
-        return "config differs: declare the keys with --declare (and --require-matching-meta) or fix the capture setup, then rerun".to_string();
-    }
-    let has_fail = failing.iter().any(|e| e.status == Status::Fail);
-    if has_fail {
-        let look = if explain_written {
-            "inspect the strips in the explain pack (paths.explain_md)".to_string()
-        } else {
-            format!("run `saccade explain {rj}` and inspect the strips")
-        };
-        return format!("{look}; approve with `{approve}` if the change is intended");
-    }
-    if failing.iter().any(|e| e.status == Status::Missing) {
-        return format!(
-            "captures are missing for some baselines: capture them, or drop the baselines with `{approve} --prune-missing`"
-        );
-    }
-    "fix the errors listed in `failing[].error` (unreadable or mismatched images), then rerun"
-        .to_string()
-}
-
-/// The lean `saccade-result.v1` printed by `compare --json` and
-/// `identity --json` and returned by the MCP run tools: verdict, totals, the
-/// failing entries (value, threshold, top-3 hotspots, config-diff keys), the
-/// report paths and a `next_step`. Floats carry 4 significant digits; paths
-/// are absolute.
+/// Bounded v2 measurement envelope with the named Moss fields retained.
 pub fn result_value(
     report: &Report,
     report_json: &Path,
     top: usize,
-    explain_written: bool,
+    _explain_written: bool,
 ) -> Value {
-    let failing = failing_entries(report);
-    let report_json = absolute(report_json);
-    let dir = report_json
-        .parent()
-        .map_or_else(|| PathBuf::from("."), Path::to_path_buf);
-    let abs_paths = report
-        .baseline_dir
-        .as_deref()
-        .is_some_and(|p| Path::new(p).is_absolute());
-    let display = |p: &Path| saccade_core::paths::cwd(p, abs_paths);
-    let existing = |p: PathBuf| p.is_file().then(|| display(&p));
-    let explain_dir = dir.join("explain");
-    let validity = report.capture_validity();
-    let mut v = json!({
-        "schema": RESULT_SCHEMA,
-        "verdict": if report.is_regression() { "regression" } else { "pass" },
-        "mode": serde_json::to_value(report.config.mode).unwrap_or(Value::Null),
-        "totals": report.totals,
-        "sample_equality": report.sample_equality(),
-        "capture_validity": {"status": validity.status,
-            "reasons": validity.reasons.iter().take(5).collect::<Vec<_>>(),
-            "reasons_omitted": validity.reasons.len().saturating_sub(5)},
-        "scope": {"entries": report.config.entries, "ignore": report.config.ignore},
-        "perf_diff": report.perf_diff,
-        "perf_errors": report.perf_errors,
-        "combined_verdict": report.combined_verdict,
-        "failing": failing.iter().take(top).map(|e| lean_entry(e)).collect::<Vec<_>>(),
-        "failing_omitted": failing.len().saturating_sub(top),
-        "paths": {
-            "report_json": display(&report_json),
-            "index_html": existing(dir.join("index.html")),
-            "explain_md": existing(explain_dir.join("explain.md")),
+    let mut value = crate::local_cmd::base_result(
+        if report.config.mode == saccade_core::report::Mode::Identity {
+            "identity"
+        } else {
+            "compare"
         },
-        "next_step": ({
-            let mut next = next_step(report, &report_json, explain_written);
-            if report.entries.len() > failing.len().min(top) {
-                next.push_str(&format!("; inspect omitted entries with `saccade entries {}` or MCP saccade_list_entries / saccade_get_entry", saccade_core::paths::cwd(&report_json, false)));
-            }
-            next
-        }),
+    );
+    let reference = crate::local_cmd::reference(report_json).ok();
+    value["artifact"] = reference.clone().unwrap_or(Value::Null);
+    value["mode"] = json!(report.config.mode);
+    value["verdict"] = json!(if report.is_regression() {
+        "regression"
+    } else {
+        "pass"
     });
-    let warnings: Vec<String> = report
-        .entries
+    value["totals"] = json!(report.totals);
+    let equality = report.sample_equality();
+    value["sample_equality"] = json!(equality);
+    value["measurement"] = json!(
+        if report.config.mode == saccade_core::report::Mode::Identity {
+            match equality {
+                Some(true) => "identical",
+                Some(false) => "different",
+                _ => "unknown",
+            }
+        } else if report.is_regression() {
+            "regression"
+        } else {
+            "pass"
+        }
+    );
+    let validity = report.capture_validity();
+    value["validity"] = json!(validity.status);
+    // Group identical invariant failures; the full report binds all affected entries.
+    let reasons = validity
+        .reasons
         .iter()
-        .flat_map(|e| e.warnings.iter().map(move |w| format!("{}: {w}", e.name)))
-        .take(5)
-        .collect();
-    if let (false, Some(obj)) = (warnings.is_empty(), v.as_object_mut()) {
-        obj.insert("warnings".into(), json!(warnings));
+        .cloned()
+        .collect::<std::collections::BTreeSet<_>>()
+        .into_iter()
+        .collect::<Vec<_>>();
+    value["validity_reasons"] = crate::local_cmd::validity_summary(&reasons);
+    value["capture_validity"] = json!({"status":validity.status,"reasons":crate::local_cmd::validity_summary(&validity.reasons)});
+    value["counts"]["validity_reasons"] = json!(validity.reasons.len());
+    value["scope"] = json!({"entries":report.config.entries,"ignore":report.config.ignore});
+    value["counts"] = json!({"total":report.totals.total,"pass":report.totals.pass,"fail":report.totals.fail,"error":report.totals.error,"missing":report.totals.missing,"new":report.totals.new});
+    value["counts"]["validity_reasons"] = json!(validity.reasons.len());
+    let failing = failing_entries(report);
+    let summaries=failing.iter().take(top.min(5)).map(|e|json!({"entry_id":e.name,"measurement":if e.status==Status::Fail{"regression"}else{"unknown"},"error":e.error.as_ref().map(|s|crate::local_cmd::short(s,256))})).collect::<Vec<_>>();
+    value["entries"] = json!(summaries);
+    value["failing"]=json!(failing.iter().take(top.min(5)).map(|e|json!({"name":e.name,"status":status_str(e.status),"value":e.value,"threshold":e.threshold,"error":e.error.as_ref().map(|s|crate::local_cmd::short(s,256))})).collect::<Vec<_>>());
+    let report_path = saccade_core::paths::cwd(
+        report_json,
+        report
+            .baseline_dir
+            .as_deref()
+            .is_some_and(|p| Path::new(p).is_absolute()),
+    );
+    value["paths"] = json!({"report_json":report_path,"index_html":saccade_core::paths::cwd(&report_json.with_file_name("index.html"),report.baseline_dir.as_deref().is_some_and(|p|Path::new(p).is_absolute()))});
+    let omitted = failing.len().saturating_sub(top.min(5));
+    value["page"] = json!({"omitted":omitted,"next_cursor":crate::local_cmd::failing_cursor(report_json,top.min(5),failing.len()).ok().flatten()});
+    if let Ok(case) = crate::local_cmd::case_for_result(report, report_json)
+        && !failing.is_empty()
+    {
+        value["next_actions"] = json!([{
+            "id":"inspect-evidence","kind":"inspect_evidence","reason_code":"measured_change_or_missing_evidence","priority":1,"requires":[],"tool":"saccade_inspect",
+            "arguments":{"operation":"summary","artifact":reference},
+            "cli_argv":["saccade","inspect",report_path,"--json","--expected-case-id",case.case_id],"expected_case_id":case.case_id
+        }]);
     }
-    round_floats(&mut v);
-    v
+    if report.is_empty_run() {
+        value["limits"] = json!(["Empty comparisons are not evidence."]);
+    }
+    round_floats(&mut value);
+    match crate::local_cmd::bounded(value, 4096) {
+        Ok(mut value) => {
+            let shown = value["entries"].as_array().map_or(0, Vec::len);
+            value["page"]["next_cursor"] = json!(
+                crate::local_cmd::failing_cursor(report_json, shown, failing.len())
+                    .ok()
+                    .flatten()
+            );
+            value
+        }
+        Err(error) => error.value(),
+    }
 }

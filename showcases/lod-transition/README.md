@@ -16,14 +16,14 @@ existing saccade report directory.
 REPORTS=../saccade-showcase-reports
 (
   cd showcases/lod-transition
-  saccade sequence baseline capture --pattern 'frame_*.png' --threshold 0.005 --out "../../$REPORTS/lod-transition/sequence"
+  saccade experiment sequence baseline capture --pattern 'frame_*.png' --threshold 0.005 --out "../../$REPORTS/lod-transition/sequence"
 )
 ```
 
 Expected: sequence exits 1 with 1 frame over threshold; worst frame is frame 6 and temporal instability is positive.
 
 Exit 1 is the intentional regression verdict; exit 0 is expected for
-explain and decision-request. `EXPECTED.txt` contains the actual CLI
+inspect evidence and inspect. `EXPECTED.txt` contains the actual CLI
 stdout captured by `scripts/run-showcases.sh`, including diagnostics.
 
 All images are procedural, use fixed seeds and Pillow's bundled default

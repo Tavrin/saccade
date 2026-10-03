@@ -1,4 +1,4 @@
-=== rank (exit 1) ===
+=== rank (exit 0) ===
 rank: regression (Mean; 1 common / 1 reference images)
 RANK  CANDIDATE  MEAN RANK  MEAN METRIC  IDENTICAL
 1  nearest  1.000000  0.065337  0

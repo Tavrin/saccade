@@ -224,14 +224,14 @@ runs:
         fi
         url="${ARTIFACT_URL:-$RUN_URL}"
         out="$RUNNER_TEMP/saccade-summary.md"
-        sargs=(summary "$report" --format markdown --artifact-url "$url")
+        sargs=(inspect export "$report" --format markdown --out "$out" --artifact-url "$url")
         marker='<!-- saccade-summary -->'
         if [ -n "$COMMENT_KEY" ]; then
           sargs+=(--comment-key "$COMMENT_KEY")
           marker="<!-- saccade-summary:$COMMENT_KEY -->"
         fi
-        if ! saccade "${sargs[@]}" > "$out"; then
-          echo "::error::saccade summary failed (is comment-key valid?)."
+        if ! saccade "${sargs[@]}"; then
+          echo "::error::saccade inspect export failed (is comment-key valid?)."
           exit 1
         fi
         cat "$out" >> "$GITHUB_STEP_SUMMARY"
@@ -308,7 +308,7 @@ runs:
         approval="$RUNNER_TEMP/saccade-approved-$RUN_ID.json"
         saccade "${args[@]}" > "$approval"
         changed_paths="$RUNNER_TEMP/saccade-approved-$RUN_ID.paths"
-        jq -j '.copied[].to, .pruned[] | . + "\u0000"' "$approval" > "$changed_paths"
+        jq -j '(.data // .) | .copied[].to, .pruned[] | . + "\u0000"' "$approval" > "$changed_paths"
         while IFS= read -r -d '' changed; do
           # Resolve directory aliases (including macOS /var and Git Bash drive
           # spellings). Pruned files no longer exist, but their parents do.

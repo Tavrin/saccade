@@ -26,6 +26,13 @@
           "description": "Explicit image request; false by default in summaries.",
           "type": "boolean"
         },
+        "operation": {
+          "description": "Discriminator required by the local tool's input contract.",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
         "request_id": {
           "anyOf": [
             {
@@ -47,9 +54,6 @@
           ]
         }
       },
-      "required": [
-        "include_images"
-      ],
       "type": "object"
     },
     "ActionKind": {

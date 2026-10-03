@@ -16,15 +16,15 @@ existing saccade report directory.
 REPORTS=../saccade-showcase-reports
 (
   cd showcases/upscaler
-  saccade rank baseline candidates/nearest candidates/bilinear candidates/bicubic candidates/lanczos candidates/sharpened-bicubic --labels nearest,bilinear,bicubic,lanczos,sharpened-bicubic --metric mean --threshold 0.001 --out "../../$REPORTS/upscaler/rank"
-  saccade sequence sequence/baseline sequence/capture --pattern 'frame_*.png' --threshold 0.005 --out "../../$REPORTS/upscaler/sequence"
+  saccade experiment rank baseline candidates/nearest candidates/bilinear candidates/bicubic candidates/lanczos candidates/sharpened-bicubic --labels nearest,bilinear,bicubic,lanczos,sharpened-bicubic --metric mean --threshold 0.001 --out "../../$REPORTS/upscaler/rank"
+  saccade experiment sequence sequence/baseline sequence/capture --pattern 'frame_*.png' --threshold 0.005 --out "../../$REPORTS/upscaler/sequence"
 )
 ```
 
-Expected: rank and sequence exit 1; the shimmer sequence adds positive temporal instability.
+Expected: rank exits 0 and sequence exits 1; the shimmer sequence adds positive temporal instability.
 
 Exit 1 is the intentional regression verdict; exit 0 is expected for
-explain and decision-request. `EXPECTED.txt` contains the actual CLI
+inspect evidence and inspect. `EXPECTED.txt` contains the actual CLI
 stdout captured by `scripts/run-showcases.sh`, including diagnostics.
 
 All images are procedural, use fixed seeds and Pillow's bundled default

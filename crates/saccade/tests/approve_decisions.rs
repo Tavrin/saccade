@@ -194,17 +194,16 @@ fn reserved_automation_has_no_cli_writer_or_approval_path() {
     let reserved = root.join("plan/reserved.json");
     std::fs::write(&reserved, serde_json::to_vec(&doc).unwrap()).unwrap();
     let display = Command::new(env!("CARGO_BIN_EXE_saccade"))
-        .arg("summary")
+        .arg("inspect")
         .arg(&reserved)
-        .args(["--format", "text"])
         .output()
         .unwrap();
     assert_eq!(display.status.code(), Some(0));
     assert!(String::from_utf8_lossy(&display.stdout).contains("authority: automated;"));
     let display = Command::new(env!("CARGO_BIN_EXE_saccade"))
-        .arg("summary")
+        .arg("inspect")
         .arg(&reserved)
-        .args(["--format", "json"])
+        .arg("--json")
         .output()
         .unwrap();
     let envelope: saccade_core::evidence::action::ResultEnvelope =

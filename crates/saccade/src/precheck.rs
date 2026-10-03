@@ -72,7 +72,10 @@ pub(crate) fn safety(args: SafetyArgs) -> Result<u8, CliError> {
         )?;
     }
     if args.json {
-        crate::emit(&format!("{}\n", serde_json::to_string_pretty(&report)?))?;
+        crate::local_cmd::print(
+            &crate::local_cmd::analysis_result(&serde_json::to_value(&report)?, &args.out)?,
+            true,
+        )?;
     } else {
         crate::emit(&report.text())?;
     }
@@ -99,7 +102,10 @@ pub(crate) fn a11y(args: A11yArgs) -> Result<u8, CliError> {
         )?;
     }
     if args.json {
-        crate::emit(&format!("{}\n", serde_json::to_string_pretty(&report)?))?;
+        crate::local_cmd::print(
+            &crate::local_cmd::analysis_result(&serde_json::to_value(&report)?, &args.out)?,
+            true,
+        )?;
     } else {
         crate::emit(&report.text())?;
     }

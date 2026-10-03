@@ -54,10 +54,10 @@ def compare(config=True, mode="compare", **extra):
 
 
 def rank(labels):
-    return dict(name="rank", args=["rank", "baseline"] +
+    return dict(name="rank", args=["experiment", "rank", "baseline"] +
                 ["candidates/" + label for label in labels] +
                 ["--labels", ",".join(labels), "--metric", "mean", "--threshold", "0.001"],
-                out="rank", exit=1)
+                out="rank", exit=0)
 
 
 def case(name, description, expected, commands, config=None):
@@ -82,7 +82,7 @@ def case(name, description, expected, commands, config=None):
         lines += ["  " + text]
     lines += [")", "```", "", "Expected: " + expected, "",
               "Exit 1 is the intentional regression verdict; exit 0 is expected for",
-              "explain and decision-request. `EXPECTED.txt` contains the actual CLI",
+              "inspect evidence and inspect. `EXPECTED.txt` contains the actual CLI",
               "stdout captured by `scripts/run-showcases.sh`, including diagnostics.", "",
               "All images are procedural, use fixed seeds and Pillow's bundled default",
               "font, and contain no third-party source imagery. The timestamp variation",
@@ -185,7 +185,7 @@ def texture():
              "detail. Block candidates use 4x4 line palettes (4 colours/RGB565 or 8/RGB888): "
              "these approximate two block-compression qualities and are simulations. "
              "Real BC/ASTC encoders, format bitrates and encoder speed are out of scope.",
-             "rank exits 1 because all lossy candidates exceed mean 0.001; lower FLIP ranks first.",
+             "rank exits 0 because all lossy candidates exceed mean 0.001; lower FLIP ranks first.",
              [rank(labels)])
     y, x = np.mgrid[:192, :192]
     rng = np.random.default_rng(1701)
@@ -220,7 +220,7 @@ def scene(pan=0):
 
 def upscaler():
     labels = ["nearest", "bilinear", "bicubic", "lanczos", "sharpened-bicubic"]
-    commands = [rank(labels), dict(name="sequence", args=["sequence", "sequence/baseline",
+    commands = [rank(labels), dict(name="sequence", args=["experiment", "sequence", "sequence/baseline",
                 "sequence/capture", "--pattern", "frame_*.png", "--threshold", "0.005"],
                 out="sequence", exit=1)]
     p = case("upscaler", "A native procedural scene with thin lines, text and a checkerboard "
@@ -228,7 +228,7 @@ def upscaler():
              "are separate filters. The 12-frame camera pan uses a Lanczos reconstruction "
              "with alternating floor highlights to simulate temporal shimmer. Temporal "
              "instability is informational and is not a motion-compensated metric.",
-             "rank and sequence exit 1; the shimmer sequence adds positive temporal instability.",
+             "rank exits 0 and sequence exits 1; the shimmer sequence adds positive temporal instability.",
              commands)
     image = scene()
     half = image.resize((128, 96), RESAMPLE.LANCZOS)
@@ -270,7 +270,7 @@ def lod():
              "spike and adds temporal variation at the pop and recovery.",
              "sequence exits 1 with 1 frame over threshold; worst frame is frame 6 "
              "and temporal instability is positive.",
-             [dict(name="sequence", args=["sequence", "baseline", "capture", "--pattern",
+             [dict(name="sequence", args=["experiment", "sequence", "baseline", "capture", "--pattern",
                                          "frame_*.png", "--threshold", "0.005"],
                    out="sequence", exit=1)])
     for n in range(12):
@@ -297,17 +297,15 @@ def model_image(seed, moved=False):
 
 
 def ml():
-    commands = [compare(), dict(name="explain", args=["explain",
+    commands = [compare(), dict(name="explain", args=["inspect", "evidence",
                 "@REPORTS@/compare/saccade-report.v1.json"], out="explain", exit=0),
-                dict(name="decision-request", args=["decision-request",
-                "@REPORTS@/compare/saccade-report.v1.json", "--all-failing", "--question",
-                "accept", "--intent", "Checkpoint B must preserve colour and structure."], exit=0)]
+                dict(name="export", args=["inspect", "export", "@REPORTS@/compare/saccade-report.v1.json", "--format", "markdown", "--out", "@REPORTS@/summary.md"], exit=0)]
     p = case("ml-image-model", "Six fixed procedural seeds stand in for shared prompts "
              "across checkpoints A and B. B adds a colour cast to seeds 101 and 104, moves "
              "one shape for seed 105 and preserves the other three outputs. Compare, "
-             "explain strips and a bounded decision-request provide judge-ready evidence; "
+             "explain strips and a portable Markdown export provides judge-ready evidence; "
              "no model or external judge is invoked.",
-             "compare exits 1 with 3 fail and 3 pass; explain and decision-request exit 0.",
+             "compare exits 1 with 3 fail and 3 pass; inspect evidence and inspect export exit 0.",
              commands, 'threshold = 0.001')
     for seed in range(100, 106):
         base = model_image(seed)

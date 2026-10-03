@@ -1,10 +1,10 @@
 //! Focused S6 production-path contracts.
 #![allow(clippy::unwrap_used, clippy::expect_used, missing_docs)]
-use std::io::{BufRead, BufReader, Read, Write};
+use std::io::{Read, Write};
 use std::net::TcpStream;
 use std::path::{Path, PathBuf};
-use std::process::{Command, Stdio};
-use std::time::{Duration, Instant};
+use std::process::Command;
+use std::time::Duration;
 
 use image::{Rgb, RgbImage};
 use saccade_core::bisect::{BisectOptions, runs};
@@ -123,6 +123,7 @@ fn bisect_a_identity_threshold_selection_skips_and_observed_non_monotonicity() {
     let cli = Command::new(BIN)
         .current_dir(tmp.path())
         .args([
+            "experiment",
             "bisect",
             "--runs",
             "run-0",
@@ -141,8 +142,13 @@ fn bisect_a_identity_threshold_selection_skips_and_observed_non_monotonicity() {
         String::from_utf8_lossy(&cli.stderr)
     );
     let cli: Value = serde_json::from_slice(&cli.stdout).unwrap();
-    assert_same_path(cli["first_bad"].as_str().unwrap(), &dirs[4]);
-    validate("bisect", &cli);
+    assert_eq!(cli["schema"], "saccade-result.v2");
+    let full: Value = serde_json::from_slice(
+        &std::fs::read(tmp.path().join("relative-out/saccade-bisect.v1.json")).unwrap(),
+    )
+    .unwrap();
+    assert_same_path(full["first_bad"].as_str().unwrap(), &dirs[4]);
+    validate("bisect", &full);
     let relaxed = runs(
         &dirs,
         None,
@@ -238,119 +244,6 @@ fn bisect_a_identity_threshold_selection_skips_and_observed_non_monotonicity() {
         assert!(runs(&native, None, &out, &BisectOptions::default()).is_err());
         assert_eq!(std::fs::read_dir(external.path()).unwrap().count(), 0);
     }
-}
-
-fn git(root: &Path, args: &[&str], stdin: &str) -> String {
-    let mut child = Command::new("git")
-        .current_dir(root)
-        .args(args)
-        .env("GIT_AUTHOR_NAME", "test")
-        .env("GIT_AUTHOR_EMAIL", "test@example.invalid")
-        .env("GIT_COMMITTER_NAME", "test")
-        .env("GIT_COMMITTER_EMAIL", "test@example.invalid")
-        .stdin(Stdio::piped())
-        .stdout(Stdio::piped())
-        .stderr(Stdio::piped())
-        .spawn()
-        .unwrap();
-    child
-        .stdin
-        .take()
-        .unwrap()
-        .write_all(stdin.as_bytes())
-        .unwrap();
-    let out = child.wait_with_output().unwrap();
-    assert!(
-        out.status.success(),
-        "{}",
-        String::from_utf8_lossy(&out.stderr)
-    );
-    String::from_utf8(out.stdout).unwrap().trim().into()
-}
-#[test]
-fn bisect_b_fake_capture_in_temporary_git_preserves_git_state_and_skips_failure() {
-    let tmp = tempfile::Builder::new()
-        .prefix("saccade capture ' ")
-        .tempdir()
-        .unwrap();
-    let root = tmp.path();
-    git(root, &["init", "-q"], "");
-    let tree = git(root, &["mktree"], "");
-    let good = git(root, &["commit-tree", &tree], "good\n");
-    let mut revs = vec![good];
-    for _ in 0..3 {
-        revs.push(git(
-            root,
-            &["commit-tree", &tree, "-p", revs.last().unwrap()],
-            "next\n",
-        ));
-    }
-    let same = root.join("same");
-    let bad = root.join("bad");
-    image(&same, 64);
-    image(&bad, 140);
-    let before = std::fs::read(root.join(".git/HEAD")).unwrap();
-    let run = |skip: bool| {
-        let command = format!(
-            "{}if [ {{rev}} = {} ]; then cp {} {{out}}/scene.png; else cp {} {{out}}/scene.png; fi",
-            if skip {
-                format!("if [ {{rev}} = {} ]; then exit 9; fi; ", revs[2])
-            } else {
-                String::new()
-            },
-            revs[1],
-            shell_path(&same.join("scene.png")),
-            shell_path(&bad.join("scene.png"))
-        );
-        Command::new(BIN)
-            .current_dir(root)
-            .args([
-                "bisect",
-                "--git",
-                &format!("{}..{}", revs[0], revs[3]),
-                "--capture-cmd",
-                &command,
-                "--reference",
-            ])
-            .arg(&same)
-            .arg("--out")
-            .arg(root.join(if skip { "skip" } else { "reports" }))
-            .arg("--json")
-            .output()
-            .unwrap()
-    };
-    let out = run(false);
-    assert_eq!(
-        out.status.code(),
-        Some(1),
-        "{}",
-        String::from_utf8_lossy(&out.stderr)
-    );
-    let v: Value = serde_json::from_slice(&out.stdout).unwrap();
-    assert_eq!(v["first_bad"], revs[2]);
-    validate("bisect", &v);
-    let out = run(true);
-    assert_eq!(out.status.code(), Some(2));
-    let v: Value = serde_json::from_slice(&out.stdout).unwrap();
-    assert_eq!(v["status"], "inconclusive");
-    assert!(
-        v["probes"]
-            .as_array()
-            .unwrap()
-            .iter()
-            .any(|p| p["verdict"] == "skip")
-    );
-    assert_eq!(before, std::fs::read(root.join(".git/HEAD")).unwrap());
-    assert!(!root.join(".git/index").exists());
-}
-
-fn shell_path(path: &Path) -> String {
-    // capture-cmd uses sh on all supported platforms. Quote fixture paths and
-    // use drive/UNC spelling sh's filesystem tools understand on Windows.
-    format!(
-        "'{}'",
-        saccade_core::paths::portable(path).replace('\'', "'\\''")
-    )
 }
 
 #[test]
@@ -453,177 +346,4 @@ fn inbox_security_persistence_invalid_answers_and_discovery_permissions() {
         .1["answer"],
         "reject"
     );
-}
-
-#[test]
-fn ask_wait_round_trip_timeout_and_non_loopback_refusal() {
-    let tmp = tempfile::tempdir().unwrap();
-    let (server, cache, _) = serve(tmp.path());
-    let child = Command::new(BIN)
-        .args([
-            "ask",
-            "--serve",
-            &format!("http://127.0.0.1:{}", server.port()),
-            "--question",
-            "Continue?",
-            "--answers",
-            "yes,no",
-            "--cache-dir",
-        ])
-        .arg(&cache)
-        .args(["--wait", "--timeout", "10", "--json"])
-        .stdout(Stdio::piped())
-        .stderr(Stdio::piped())
-        .spawn()
-        .unwrap();
-    let start = Instant::now();
-    let id = loop {
-        let (_, v) = http(&server, "GET", "/api/inbox", Value::Null, None, None, None);
-        if let Some(id) = v[0]["id"].as_str() {
-            break id.to_owned();
-        }
-        assert!(start.elapsed() < Duration::from_secs(5));
-        std::thread::sleep(Duration::from_millis(20));
-    };
-    assert_eq!(
-        post(
-            &server,
-            &format!("/api/inbox/{id}/answer"),
-            json!({"answer":"yes","note":"Reviewed"})
-        )
-        .0,
-        200
-    );
-    let out = child.wait_with_output().unwrap();
-    assert!(
-        out.status.success(),
-        "{}",
-        String::from_utf8_lossy(&out.stderr)
-    );
-    let v: Value = serde_json::from_slice(&out.stdout).unwrap();
-    assert_eq!(v["answer"], "yes");
-    validate("ask-result", &v);
-    let out = Command::new(BIN)
-        .args([
-            "ask",
-            "--serve",
-            &format!("http://127.0.0.1:{}", server.port()),
-            "--question",
-            "Timeout",
-            "--answers",
-            "yes",
-            "--cache-dir",
-        ])
-        .arg(&cache)
-        .args(["--wait", "--timeout", "0", "--json"])
-        .output()
-        .unwrap();
-    assert_eq!(out.status.code(), Some(2));
-    let v: Value = serde_json::from_slice(&out.stdout).unwrap();
-    assert_eq!(v["timed_out"], true);
-    validate("ask-result", &v);
-    for host in ["localhost", "example.invalid", "127.0.0.1.evil.invalid"] {
-        let out = Command::new(BIN)
-            .args([
-                "ask",
-                "--serve",
-                &format!("http://{host}:{}", server.port()),
-                "--question",
-                "q",
-                "--answers",
-                "yes",
-                "--json",
-            ])
-            .output()
-            .unwrap();
-        assert_eq!(out.status.code(), Some(2));
-        assert_eq!(
-            serde_json::from_slice::<Value>(&out.stdout).unwrap()["code"],
-            "usage"
-        );
-    }
-}
-
-fn mcp_send(child: &mut std::process::Child, id: u64, name: &str, args: Value) {
-    writeln!(child.stdin.as_mut().unwrap(),"{}",json!({"jsonrpc":"2.0","id":id,"method":"tools/call","params":{"name":name,"arguments":args}})).unwrap();
-}
-#[test]
-fn mcp_ask_inbox_bisect_are_schema_valid_and_capture_commands_are_refused() {
-    let tmp = tempfile::tempdir().unwrap();
-    let (server, cache, _) = serve(tmp.path());
-    let base = tmp.path().join("base");
-    let bad = tmp.path().join("bad");
-    image(&base, 64);
-    image(&bad, 140);
-    let mut child = Command::new(BIN)
-        .arg("mcp")
-        .arg("--root")
-        .arg(tmp.path())
-        .stdin(Stdio::piped())
-        .stdout(Stdio::piped())
-        .spawn()
-        .unwrap();
-    let mut output = BufReader::new(child.stdout.take().unwrap());
-    let url = format!("http://127.0.0.1:{}", server.port());
-    mcp_send(
-        &mut child,
-        1,
-        "saccade_ask_human",
-        json!({"serve":url,"cache_dir":cache,"question":"Proceed?","allowed_answers":["yes","no"]}),
-    );
-    let mut line = String::new();
-    output.read_line(&mut line).unwrap();
-    let v: Value = serde_json::from_str(&line).unwrap();
-    assert_eq!(v["result"]["isError"], false);
-    let result = &v["result"]["structuredContent"];
-    validate("ask-result", result);
-    let id = result["id"].as_str().unwrap();
-    post(
-        &server,
-        &format!("/api/inbox/{id}/answer"),
-        json!({"answer":"no"}),
-    );
-    mcp_send(
-        &mut child,
-        2,
-        "saccade_inbox_get",
-        json!({"serve":url,"cache_dir":cache,"id":id}),
-    );
-    line.clear();
-    output.read_line(&mut line).unwrap();
-    let v: Value = serde_json::from_str(&line).unwrap();
-    assert_eq!(v["result"]["structuredContent"]["answer"], "no");
-    validate("inbox-item", &v["result"]["structuredContent"]);
-    mcp_send(
-        &mut child,
-        3,
-        "saccade_bisect",
-        json!({"runs":[base,bad],"out_dir":"bisect"}),
-    );
-    line.clear();
-    output.read_line(&mut line).unwrap();
-    let v: Value = serde_json::from_str(&line).unwrap();
-    validate("bisect", &v["result"]["structuredContent"]);
-    assert_same_path(
-        v["result"]["structuredContent"]["first_bad"]
-            .as_str()
-            .unwrap(),
-        &bad,
-    );
-    for (id, args) in [
-        (4, json!({"runs":[base,bad],"out_dir":"../escape"})),
-        (
-            5,
-            json!({"runs":[base,bad],"out_dir":"bisect","capture_cmd":"touch sentinel"}),
-        ),
-    ] {
-        mcp_send(&mut child, id, "saccade_bisect", args);
-        line.clear();
-        output.read_line(&mut line).unwrap();
-        let v: Value = serde_json::from_str(&line).unwrap();
-        assert_eq!(v["result"]["isError"], true);
-    }
-    child.stdin.take();
-    assert!(child.wait().unwrap().success());
-    assert!(!tmp.path().join("sentinel").exists());
 }

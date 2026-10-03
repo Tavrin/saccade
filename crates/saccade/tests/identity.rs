@@ -109,11 +109,14 @@ fn identity_markdown_headline() {
     let json = tmp.path().join("out/saccade-report.v1.json");
     let summary = |json: &Path| {
         let o = Command::new(env!("CARGO_BIN_EXE_saccade"))
-            .arg("summary")
+            .args(["inspect", "export"])
             .arg(json)
+            .args(["--format", "markdown", "--out"])
+            .arg(json.with_file_name("export.md"))
             .output()
             .expect("spawn");
-        String::from_utf8(o.stdout).expect("utf8")
+        assert!(o.status.success());
+        std::fs::read_to_string(json.with_file_name("export.md")).unwrap()
     };
     assert!(summary(&json).contains("identity: ✅ 2/2 bit-identical"));
     pair(tmp.path(), true);
@@ -177,7 +180,7 @@ fn moss_json_retains_its_contract_and_separates_equality_from_validity() {
     pair(tmp.path(), false);
     let o = identity(
         tmp.path(),
-        &["--json", "--require-matching-meta", "--entries", "a.png"],
+        &["--json", "--require-matching-meta", "--entry", "a.png"],
     );
     assert_eq!(o.status.code(), Some(1), "{o:?}");
     let v: serde_json::Value = serde_json::from_slice(&o.stdout).expect("json");

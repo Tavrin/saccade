@@ -33,8 +33,8 @@ echo "== step 3: upload artifact (skipped: needs GitHub)"
 
 echo "== step 4: job summary"
 if [ -f "$report_dir/saccade-report.v1.json" ]; then
-  saccade summary "$report_dir/saccade-report.v1.json" --format markdown \
-    --artifact-url "file://$report_dir/index.html" >> "$GITHUB_STEP_SUMMARY"
+  saccade inspect export "$report_dir/saccade-report.v1.json" --format markdown --out "$GITHUB_STEP_SUMMARY" \
+    --artifact-url "file://$report_dir/index.html"
   cat "$GITHUB_STEP_SUMMARY"
 else
   echo "no report written"

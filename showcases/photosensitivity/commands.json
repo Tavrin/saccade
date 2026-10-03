@@ -1,7 +1,15 @@
 [
   {
     "name": "safety",
-    "args": ["safety", "frames", "--fps", "32", "--standard", "itu-bt1702"],
+    "args": [
+      "experiment",
+      "safety",
+      "frames",
+      "--fps",
+      "32",
+      "--standard",
+      "itu-bt1702"
+    ],
     "out": "safety",
     "exit": 1
   }

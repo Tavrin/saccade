@@ -96,19 +96,12 @@ impl ServeOptions {
 
 pub use crate::local::{default_cache_dir, default_decisions_dir};
 
-/// One browsable root.
-pub(crate) struct Root {
-    /// Name of the top-level entry it forms when there are several roots.
-    pub name: String,
-    /// Canonical directory used by dashboard links and containment checks.
-    pub path: PathBuf,
-}
+use crate::root_policy::{Egress, Root, RootPolicy};
 
 /// Shared server state.
 pub(crate) struct State {
     pub roots: Vec<Root>,
-    pub follow_links: bool,
-    pub symlink_targets: Vec<PathBuf>,
+    pub policy: RootPolicy,
     pub storage: storage::Storage,
     pub cache: PathBuf,
     pub decisions: PathBuf,
@@ -138,10 +131,7 @@ impl State {
     /// Whether a canonical path reached from `home` may be served: it stays
     /// inside `home`, or (with `--follow-symlinks-within-roots`) inside any root.
     pub fn allows(&self, home: &Path, canon: &Path) -> bool {
-        self.roots
-            .iter()
-            .any(|r| (r.path == home || self.follow_links) && canon.starts_with(&r.path))
-            || self.symlink_targets.iter().any(|p| canon.starts_with(p))
+        self.policy.allows(home, canon)
     }
 }
 
@@ -236,7 +226,11 @@ pub fn start(opts: ServeOptions) -> Result<ServeHandle> {
             name = format!("{base}-{n}");
             n += 1;
         }
-        roots.push(Root { name, path });
+        roots.push(Root {
+            name,
+            path,
+            egress: Egress::Deny,
+        });
     }
     let mut symlink_targets = Vec::new();
     for given in &opts.symlink_targets {
@@ -259,6 +253,12 @@ pub fn start(opts: ServeOptions) -> Result<ServeHandle> {
             ),
         }
     }
+    let policy = RootPolicy::from_normalized(
+        roots.clone(),
+        None,
+        opts.follow_symlinks_within_roots,
+        symlink_targets,
+    )?;
     let mut dirs = Vec::new();
     for (what, dir) in [
         ("cache", &opts.cache_dir),
@@ -270,7 +270,7 @@ pub fn start(opts: ServeOptions) -> Result<ServeHandle> {
         )))?;
         let canon = crate::paths::canonicalize(dir)
             .map_err(io_err(format!("resolving {}", dir.display())))?;
-        if roots.iter().any(|r| is_within(&canon, &r.path)) {
+        if roots.iter().any(|r| is_within(&canon, &r.path)) || !policy.allows_output(&canon) {
             return Err(Error::Config(format!(
                 "the {what} directory {} is inside an archive root; serve never writes under a root",
                 canon.display()
@@ -314,8 +314,7 @@ pub fn start(opts: ServeOptions) -> Result<ServeHandle> {
     };
     let state = Arc::new(State {
         roots,
-        follow_links: opts.follow_symlinks_within_roots,
-        symlink_targets,
+        policy,
         storage,
         cache,
         decisions,

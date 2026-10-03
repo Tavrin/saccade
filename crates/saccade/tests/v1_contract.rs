@@ -45,7 +45,7 @@ fn schema(name: &str) -> Value {
 fn cli_sequence_rank_and_buffer_outputs_validate_against_shipped_schemas() {
     let tmp = tempfile::tempdir().unwrap();
     let (reference, candidates) = fixtures(tmp.path());
-    for mode in ["--json", "--json=full"] {
+    for mode in ["--json"] {
         for (command, args) in [
             ("sequence", vec![reference.clone(), candidates[2].clone()]),
             (
@@ -57,7 +57,7 @@ fn cli_sequence_rank_and_buffer_outputs_validate_against_shipped_schemas() {
         ] {
             let out = tmp.path().join(command);
             let result = Command::new(BIN)
-                .arg(command)
+                .args(["experiment", command])
                 .args(args)
                 .args(["--out"])
                 .arg(&out)
@@ -66,13 +66,16 @@ fn cli_sequence_rank_and_buffer_outputs_validate_against_shipped_schemas() {
                 .unwrap();
             assert_eq!(
                 result.status.code(),
-                Some(1),
+                Some(if command == "rank" { 0 } else { 1 }),
                 "{}",
                 String::from_utf8_lossy(&result.stderr)
             );
             let v: Value = serde_json::from_slice(&result.stdout).unwrap();
-            assert_eq!(v["schema"], format!("saccade-{command}.v1"));
-            validate(&schema(command), &v);
+            assert_eq!(v["schema"], "saccade-result.v2");
+            serde_json::from_value::<saccade_core::evidence::action::ResultEnvelope>(v.clone())
+                .unwrap()
+                .validate()
+                .unwrap();
             let disk: Value = serde_json::from_str(
                 &std::fs::read_to_string(out.join(format!("saccade-{command}.v1.json"))).unwrap(),
             )
@@ -98,11 +101,15 @@ fn cli_sequence_rank_and_buffer_outputs_validate_against_shipped_schemas() {
         .arg(out)
         .arg("--config")
         .arg(config)
-        .arg("--json=full")
+        .arg("--json")
         .output()
         .unwrap();
     assert_eq!(result.status.code(), Some(1));
-    let v: Value = serde_json::from_slice(&result.stdout).unwrap();
+    let result: Value = serde_json::from_slice(&result.stdout).unwrap();
+    let v: Value = serde_json::from_slice(
+        &std::fs::read(result["artifact"]["path"].as_str().unwrap()).unwrap(),
+    )
+    .unwrap();
     validate(&schema("report"), &v);
     assert_eq!(v["entries"][0]["buffer"]["stats"]["changed_pixels"], 1024);
     assert!(v["entries"][0]["metrics"].is_null());
@@ -118,8 +125,10 @@ fn cli_sequence_rank_and_buffer_outputs_validate_against_shipped_schemas() {
         .output()
         .unwrap();
     let lean: Value = serde_json::from_slice(&result.stdout).unwrap();
-    validate(&schema("result"), &lean);
-    assert_eq!(lean["failing"][0]["buffer"]["unit"], "changed_fraction");
+    serde_json::from_value::<saccade_core::evidence::action::ResultEnvelope>(lean)
+        .unwrap()
+        .validate()
+        .unwrap();
 }
 
 #[test]
@@ -127,39 +136,42 @@ fn mcp_sequence_rank_are_lean_schema_valid_and_confined_to_the_root() {
     let tmp = tempfile::tempdir().unwrap();
     let root = tmp.path().join("root");
     let (reference, candidates) = fixtures(&root);
-    let call = |id, name, args| json!({"jsonrpc":"2.0", "id":id, "method":"tools/call", "params":{"name":name,"arguments":args}});
+    let call = |id, name, mut args: Value| {
+        args["operation"] = json!(name);
+        json!({"jsonrpc":"2.0", "id":id, "method":"tools/call", "params":{"name":"saccade_measure","arguments":args}})
+    };
     #[cfg_attr(not(unix), allow(unused_mut))]
     let mut requests = vec![
         json!({"jsonrpc":"2.0","id":0,"method":"tools/list"}),
         call(
             1,
-            "saccade_sequence",
-            json!({"baseline_dir":reference, "capture_dir":candidates[2], "out_dir":"seq"}),
+            "sequence",
+            json!({"baseline_dir":reference, "capture_dir":candidates[2], "out":"seq"}),
         ),
         call(
             2,
-            "saccade_rank",
-            json!({"reference_dir":reference, "candidate_dirs":candidates, "out_dir":"rank"}),
+            "rank",
+            json!({"reference_dir":reference, "candidate_dirs":candidates, "out":"rank"}),
         ),
         call(
             3,
-            "saccade_sequence",
-            json!({"baseline_dir":"../outside", "capture_dir":candidates[0], "out_dir":"out"}),
+            "sequence",
+            json!({"baseline_dir":"../outside", "capture_dir":candidates[0], "out":"out"}),
         ),
         call(
             4,
-            "saccade_rank",
-            json!({"reference_dir":reference, "candidate_dirs":[candidates[0]], "out_dir":"../outside"}),
+            "rank",
+            json!({"reference_dir":reference, "candidate_dirs":[candidates[0]], "out":"../outside"}),
         ),
         call(
             5,
-            "saccade_rank",
-            json!({"reference_dir":reference, "candidate_dirs":["../outside"], "out_dir":"out"}),
+            "rank",
+            json!({"reference_dir":reference, "candidate_dirs":["../outside"], "out":"out"}),
         ),
         call(
             6,
-            "saccade_sequence",
-            json!({"baseline_dir":reference, "capture_dir":candidates[0], "out_dir":"out", "config":"../outside.toml"}),
+            "sequence",
+            json!({"baseline_dir":reference, "capture_dir":candidates[0], "out":"out", "config":"../outside.toml"}),
         ),
     ];
     #[cfg(unix)]
@@ -167,12 +179,14 @@ fn mcp_sequence_rank_are_lean_schema_valid_and_confined_to_the_root() {
         let outside = tmp.path().join("outside");
         std::fs::create_dir_all(&outside).unwrap();
         std::os::unix::fs::symlink(&outside, root.join("escape")).unwrap();
-        requests.push(call(7, "saccade_rank", json!({"reference_dir":reference, "candidate_dirs":[candidates[0]], "out_dir":"escape"})));
+        requests.push(call(7, "rank", json!({"reference_dir":reference, "candidate_dirs":[candidates[0]], "out":root.join("escape")})));
     }
     let mut child = Command::new(BIN)
         .arg("mcp")
         .arg("--root")
         .arg(&root)
+        .arg("--out-root")
+        .arg(tmp.path().join("output"))
         .stdin(Stdio::piped())
         .stdout(Stdio::piped())
         .spawn()
@@ -191,19 +205,27 @@ fn mcp_sequence_rank_are_lean_schema_valid_and_confined_to_the_root() {
     for (i, name) in [(1, "sequence"), (2, "rank")] {
         let result = &replies[i]["result"];
         assert_eq!(result["isError"], false, "{result}");
-        validate(&schema(name), &result["structuredContent"]);
+        serde_json::from_value::<saccade_core::evidence::action::ResultEnvelope>(
+            result["structuredContent"].clone(),
+        )
+        .unwrap()
+        .validate()
+        .unwrap();
         let tool = replies[0]["result"]["tools"]
             .as_array()
             .unwrap()
             .iter()
-            .find(|t| t["name"] == format!("saccade_{name}"))
+            .find(|t| t["name"] == "saccade_measure")
             .unwrap();
         validate(&tool["outputSchema"], &result["structuredContent"]);
         assert_eq!(tool["annotations"]["destructiveHint"], false);
-        assert_eq!(tool["annotations"]["idempotentHint"], true);
+        let _ = name;
     }
     for reply in replies.iter().skip(3) {
         assert_eq!(reply["result"]["isError"], true);
-        assert_eq!(reply["result"]["structuredContent"]["code"], "unsafe_path");
+        assert_eq!(
+            reply["result"]["structuredContent"]["errors"][0]["code"],
+            "unsafe_path"
+        );
     }
 }

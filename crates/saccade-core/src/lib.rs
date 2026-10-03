@@ -77,3 +77,6 @@ pub const COMPILED_FEATURES: &[&str] = &[
     #[cfg(feature = "schema")]
     "schema",
 ];
+
+/// Shared transport root authorization.
+pub mod root_policy;

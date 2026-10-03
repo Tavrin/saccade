@@ -23,7 +23,7 @@ REPORTS=../saccade-showcase-reports
 Expected: 3 fail, 2 pass; button-shift, label and token fail, identical and timestamp-only pass.
 
 Exit 1 is the intentional regression verdict; exit 0 is expected for
-explain and decision-request. `EXPECTED.txt` contains the actual CLI
+inspect evidence and inspect. `EXPECTED.txt` contains the actual CLI
 stdout captured by `scripts/run-showcases.sh`, including diagnostics.
 
 All images are procedural, use fixed seeds and Pillow's bundled default

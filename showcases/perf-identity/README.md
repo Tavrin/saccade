@@ -23,7 +23,7 @@ REPORTS=../saccade-showcase-reports
 Expected: identity exits 1: 1 fail, 2 pass, with bit-identical and gpu_ms timing text.
 
 Exit 1 is the intentional regression verdict; exit 0 is expected for
-explain and decision-request. `EXPECTED.txt` contains the actual CLI
+inspect evidence and inspect. `EXPECTED.txt` contains the actual CLI
 stdout captured by `scripts/run-showcases.sh`, including diagnostics.
 
 All images are procedural, use fixed seeds and Pillow's bundled default

@@ -2,6 +2,7 @@
   {
     "name": "sequence",
     "args": [
+      "experiment",
       "sequence",
       "baseline",
       "capture",

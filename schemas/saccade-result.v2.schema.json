@@ -26,6 +26,13 @@
           "description": "Explicit image request; false by default in summaries.",
           "type": "boolean"
         },
+        "operation": {
+          "description": "Discriminator required by the local tool's input contract.",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
         "request_id": {
           "anyOf": [
             {
@@ -47,9 +54,6 @@
           ]
         }
       },
-      "required": [
-        "include_images"
-      ],
       "type": "object"
     },
     "ActionKind": {
@@ -431,6 +435,9 @@
       ],
       "description": "Immutable full artifact, when produced."
     },
+    "capture_validity": {
+      "description": "Preserved independent validity record."
+    },
     "counts": {
       "additionalProperties": {
         "format": "uint64",
@@ -440,12 +447,15 @@
       "description": "Retained total counts.",
       "type": "object"
     },
+    "data": {
+      "description": "Operation-specific local capability/config data."
+    },
     "entries": {
       "description": "Up to five default entry summaries.",
       "items": {
         "$ref": "#/$defs/EntrySummary"
       },
-      "maxItems": 5,
+      "maxItems": 10,
       "type": "array"
     },
     "errors": {
@@ -459,6 +469,12 @@
       "$ref": "#/$defs/Execution",
       "description": "Execution state."
     },
+    "failing": {
+      "description": "Bounded failing entries; full errors remain in the report.",
+      "items": true,
+      "maxItems": 5,
+      "type": "array"
+    },
     "limits": {
       "description": "Missing evidence and unsupported claims.",
       "items": {
@@ -469,6 +485,13 @@
     "measurement": {
       "$ref": "#/$defs/MeasurementStatus",
       "description": "Measurement finding."
+    },
+    "mode": {
+      "description": "Measurement mode, retained for Moss.",
+      "type": [
+        "string",
+        "null"
+      ]
     },
     "next_actions": {
       "description": "Up to three deterministic recommendations.",
@@ -486,14 +509,45 @@
       "$ref": "#/$defs/Page",
       "description": "Omitted counts and continuation."
     },
+    "paths": {
+      "additionalProperties": {
+        "type": [
+          "string",
+          "null"
+        ]
+      },
+      "description": "Portable report and rendered artifact paths.",
+      "type": [
+        "object",
+        "null"
+      ]
+    },
     "review": {
       "$ref": "#/$defs/ReviewStatus",
       "description": "Human review state."
+    },
+    "sample_equality": {
+      "description": "Separate native decoded-sample equality."
     },
     "schema": {
       "const": "saccade-result.v2",
       "description": "Always saccade-result.v2.",
       "type": "string"
+    },
+    "scope": {
+      "description": "Named selected scope and exclusions."
+    },
+    "totals": {
+      "additionalProperties": {
+        "format": "uint64",
+        "minimum": 0,
+        "type": "integer"
+      },
+      "description": "Exact pass/fail/error/missing/new/total counts.",
+      "type": [
+        "object",
+        "null"
+      ]
     },
     "validity": {
       "$ref": "#/$defs/ValidityStatus",
@@ -505,6 +559,13 @@
         "type": "string"
       },
       "type": "array"
+    },
+    "verdict": {
+      "description": "Gate verdict, independent of review authority.",
+      "type": [
+        "string",
+        "null"
+      ]
     }
   },
   "required": [

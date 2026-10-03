@@ -3,12 +3,6 @@ use crate::agent::CliError;
 use clap::Args;
 use std::path::PathBuf;
 
-#[derive(Clone, Copy, clap::ValueEnum)]
-pub(crate) enum NoiseKind {
-    Image,
-    Performance,
-}
-
 pub(crate) fn check_image_noise_config(path: &std::path::Path) -> Result<(), CliError> {
     let text = std::fs::read_to_string(path).map_err(|e| {
         CliError::io(format!(
@@ -30,12 +24,11 @@ pub(crate) fn noise(
     dirs: &[PathBuf],
     out: &std::path::Path,
     opts: &saccade_core::perf::PerfOptions,
-    json: bool,
     absolute: bool,
-) -> Result<u8, CliError> {
+) -> Result<serde_json::Value, CliError> {
     #[cfg(not(feature = "graphics"))]
     {
-        let _ = (dirs, out, opts, json, absolute);
+        let _ = (dirs, out, opts, absolute);
         Err(saccade_core::Error::FeatureUnavailable {
             feature: "graphics",
         }
@@ -51,24 +44,22 @@ pub(crate) fn noise(
                 absolute,
             );
         }
-        let text = serde_json::to_string_pretty(&record)?;
-        std::fs::write(out, format!("{text}\n")).map_err(|e| {
-            CliError::io(format!(
-                "writing {}: {e}",
-                saccade_core::paths::portable(out)
-            ))
-        })?;
-        if json {
-            crate::emit(&format!("{text}\n"))?;
-        } else {
-            crate::emit(&format!(
-                "performance noise (ms): frame {:.6}; qualification {:?}\nwrote {}\n",
-                record.perf_noise.frame,
-                record.comparability,
-                saccade_core::paths::cwd(out, absolute)
-            ))?;
-        }
-        Ok(0)
+        crate::local_cmd::write_value(out, &serde_json::to_value(&record)?)?;
+        let mut value = crate::local_cmd::base_result("noise.performance");
+        value["artifact"] = crate::local_cmd::reference(out)?;
+        value["counts"] = serde_json::json!({"runs":dirs.len()});
+        value["data"] = serde_json::json!({
+            "kind":record.kind,"unit":record.unit,"comparability":record.comparability
+        });
+        value["limits"] = serde_json::json!(
+            record
+                .reasons
+                .iter()
+                .take(3)
+                .map(|reason| crate::local_cmd::short(reason, 200))
+                .collect::<Vec<_>>()
+        );
+        Ok(value)
     }
 }
 
@@ -171,7 +162,10 @@ pub(crate) fn ablate(args: AblateArgs, absolute: bool) -> Result<u8, CliError> {
     args.perf.apply(&mut cfg.perf)?;
     let model = saccade_core::ablate::run(&args.base, &args.arms, &args.out, &cfg, args.top)?;
     if args.json {
-        crate::emit(&format!("{}\n", serde_json::to_string_pretty(&model)?))?;
+        crate::local_cmd::print(
+            &crate::local_cmd::analysis_result(&serde_json::to_value(&model)?, &args.out)?,
+            true,
+        )?;
     } else {
         crate::emit(&model.text())?;
         crate::emit(&format!(

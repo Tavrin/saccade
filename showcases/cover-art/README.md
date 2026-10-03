@@ -23,7 +23,7 @@ REPORTS=../saccade-showcase-reports
 Expected: 3 fail: warmer is global_tone; crop and jpeg-q40 are local_structure with structural descriptions. These are measured diagnostics, not hardcoded labels.
 
 Exit 1 is the intentional regression verdict; exit 0 is expected for
-explain and decision-request. `EXPECTED.txt` contains the actual CLI
+inspect evidence and inspect. `EXPECTED.txt` contains the actual CLI
 stdout captured by `scripts/run-showcases.sh`, including diagnostics.
 
 All images are procedural, use fixed seeds and Pillow's bundled default

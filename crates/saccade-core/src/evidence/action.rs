@@ -67,15 +67,22 @@ pub enum Tool {
 #[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 #[serde(deny_unknown_fields)]
 pub struct ActionArguments {
+    /// Discriminator required by the local tool's input contract.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub operation: Option<String>,
     /// Existing hashed artifact.
     pub artifact: Option<ArtifactRef>,
     /// Selected entry.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
     pub entry: Option<String>,
     /// Explicit image request; false by default in summaries.
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
     pub include_images: bool,
     /// Exact question instance when relevant.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
     pub request_id: Option<Digest>,
     /// Retry time for retry_at.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
     pub retry_unix_ms: Option<u64>,
 }
 /// Deterministically generated bounded recommendation, never model executable text.
@@ -261,6 +268,36 @@ pub struct Failure {
     /// Compiled feature needed for feature_unavailable.
     pub required_feature: Option<String>,
 }
+/// Preserved measurement integration fields, part of the v2 contract.
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
+pub struct MeasurementIntegration {
+    /// Measurement mode, retained for Moss.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub mode: Option<String>,
+    /// Gate verdict, independent of review authority.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub verdict: Option<String>,
+    /// Exact pass/fail/error/missing/new/total counts.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub totals: Option<BTreeMap<String, u64>>,
+    /// Bounded failing entries; full errors remain in the report.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    #[cfg_attr(feature = "schema", schemars(length(max = 5)))]
+    pub failing: Vec<serde_json::Value>,
+    /// Portable report and rendered artifact paths.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub paths: Option<BTreeMap<String, Option<String>>>,
+    /// Separate native decoded-sample equality.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub sample_equality: Option<serde_json::Value>,
+    /// Preserved independent validity record.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub capture_validity: Option<serde_json::Value>,
+    /// Named selected scope and exclusions.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub scope: Option<serde_json::Value>,
+}
 /// Future bounded CLI/MCP envelope. Existing v1 writers are migrated by R5.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
@@ -286,7 +323,7 @@ pub struct ResultEnvelope {
     /// Retained total counts.
     pub counts: BTreeMap<String, u64>,
     /// Up to five default entry summaries.
-    #[cfg_attr(feature = "schema", schemars(length(max = 5)))]
+    #[cfg_attr(feature = "schema", schemars(length(max = 10)))]
     pub entries: Vec<EntrySummary>,
     /// Up to three deterministic recommendations.
     #[cfg_attr(feature = "schema", schemars(length(max = 3)))]
@@ -295,6 +332,12 @@ pub struct ResultEnvelope {
     pub limits: Vec<String>,
     /// Execution errors, distinct from measurement regressions.
     pub errors: Vec<Failure>,
+    /// Preserved named measurement integration contracts.
+    #[serde(default, flatten)]
+    pub integration: MeasurementIntegration,
+    /// Operation-specific local capability/config data.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub data: Option<serde_json::Value>,
     /// Omitted counts and continuation.
     pub page: Page,
 }
@@ -306,7 +349,9 @@ impl ResultEnvelope {
             "unsupported result envelope",
         )?;
         require(
-            self.entries.len() <= 5 && self.next_actions.len() <= 3,
+            self.entries.len() <= if self.operation == "inspect" { 10 } else { 5 }
+                && self.next_actions.len() <= 3
+                && self.integration.failing.len() <= 5,
             "default result bounds exceeded",
         )?;
         if let Some(reference) = &self.artifact {
@@ -316,7 +361,12 @@ impl ResultEnvelope {
             action.validate()?;
         }
         require(
-            serde_json::to_vec(self)?.len() <= 4096,
+            serde_json::to_vec(self)?.len()
+                <= if self.operation == "inspect" {
+                    8192
+                } else {
+                    4096
+                },
             "summary exceeds the 4 KiB serialized text budget",
         )
     }

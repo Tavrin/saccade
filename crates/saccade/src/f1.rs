@@ -50,7 +50,7 @@ pub(crate) fn template(t: Template) -> &'static str {
         #[cfg(feature = "ai")]
         Template::Lookdev => saccade_core::review::Profile::template("lookdev").unwrap_or(""),
         Template::Ml => {
-            "# Compare the same seeds/prompts across model checkpoints.\nmetric = \"p95\"\nthreshold = 0.01\n# Rank: saccade rank reference checkpoint-a checkpoint-b --out ranking\n# Judge: saccade judge ranking/saccade-rank.v1.json --panel examples/panel.toml --dry-run\n"
+            "# Compare the same seeds/prompts across model checkpoints.\nmetric = \"p95\"\nthreshold = 0.01\n# Rank: saccade experiment rank reference checkpoint-a checkpoint-b --out ranking\n# Review: saccade review ranking/saccade-rank.v1.json\n"
         }
     }
 }
@@ -146,6 +146,7 @@ pub(crate) struct ConfigArgs {
     #[arg(long)]
     config: Option<PathBuf>,
     #[arg(long, value_name = "PATH_OR_NAME")]
+    #[arg(long = "entry")]
     explain: Option<String>,
     #[arg(long)]
     json: bool,
@@ -176,7 +177,13 @@ pub(crate) fn config(args: ConfigArgs) -> Result<u8, CliError> {
     });
     let value = cfg.explain_settings(file, reason, name.as_deref())?;
     if args.json {
-        crate::emit(&format!("{}\n", serde_json::to_string_pretty(&value)?))?;
+        let mut result = crate::local_cmd::base_result("config");
+        result["data"] = value;
+        if let Some(data) = result["data"].as_object_mut() {
+            // Settings already contain every default together with its source.
+            data.remove("defaults");
+        }
+        crate::local_cmd::print(&crate::local_cmd::bounded(result, 4096)?, true)?;
     } else {
         crate::emit(&format!(
             "config: {} ({reason})\n",
@@ -190,59 +197,16 @@ pub(crate) fn config(args: ConfigArgs) -> Result<u8, CliError> {
     Ok(0)
 }
 
-#[derive(Args)]
-pub(crate) struct EntriesArgs {
-    report_json: PathBuf,
-    #[arg(long, value_delimiter = ',')]
-    status: Vec<String>,
-    #[arg(long)]
-    name: Option<String>,
-    #[arg(long, default_value_t = 0)]
-    offset: usize,
-    #[arg(long, default_value_t = 50)]
-    limit: usize,
-    #[arg(long)]
-    json: bool,
+#[derive(Clone, Copy, ValueEnum)]
+pub(crate) enum NoiseKind {
+    Image,
+    Performance,
 }
-
-pub(crate) fn entries(args: EntriesArgs) -> Result<u8, CliError> {
-    let report = crate::read_report(&args.report_json)?;
-    let page = saccade_core::ergonomics::entries(
-        &report,
-        &args.status,
-        args.name.as_deref(),
-        args.offset,
-        args.limit,
-    )?;
-    if args.json {
-        crate::emit(&format!("{}\n", serde_json::to_string_pretty(&page)?))?;
-    } else {
-        for e in &page.entries {
-            crate::emit(&format!(
-                "{:?}\t{}\t{:?} {:?} / {}\n",
-                e.status,
-                crate::escape_control(&e.name),
-                e.metric_used,
-                e.value,
-                e.threshold
-            ))?;
-        }
-        crate::emit(&format!(
-            "{} matching; offset {}; returned {}; next {}\n",
-            page.total,
-            page.offset,
-            page.entries.len(),
-            page.next_cursor.as_deref().unwrap_or("end")
-        ))?;
-    }
-    Ok(0)
-}
-
 #[derive(Args)]
 pub(crate) struct NoiseArgs {
     /// Image calibration (default) or qualified performance noise in ms.
     #[arg(long, value_enum, default_value = "image")]
-    kind: crate::perf_cmd::NoiseKind,
+    kind: NoiseKind,
     #[command(flatten)]
     perf: crate::perf_cmd::PerfArgs,
     #[arg(long)]
@@ -260,21 +224,26 @@ pub(crate) struct NoiseArgs {
 }
 
 pub(crate) fn noise(args: NoiseArgs, record_absolute_paths: bool) -> Result<u8, CliError> {
-    if matches!(args.kind, crate::perf_cmd::NoiseKind::Image)
+    if matches!(args.kind, NoiseKind::Image)
         && let Some(path) = &args.config
     {
         crate::perf_cmd::check_image_noise_config(path)?;
     }
     let mut cfg = crate::load_config(args.config.as_deref())?;
     args.perf.apply(&mut cfg.perf)?;
-    if matches!(args.kind, crate::perf_cmd::NoiseKind::Performance) {
-        return crate::perf_cmd::noise(
-            &args.dirs,
-            &args.out,
-            &cfg.perf,
-            args.json,
-            record_absolute_paths,
-        );
+    if matches!(args.kind, NoiseKind::Performance) {
+        let value =
+            crate::perf_cmd::noise(&args.dirs, &args.out, &cfg.perf, record_absolute_paths)?;
+        if args.json {
+            crate::local_cmd::print(&value, true)?;
+        } else {
+            crate::emit(&format!(
+                "performance noise (ms): qualification {}\nwrote {}\n",
+                value["data"]["comparability"].as_str().unwrap_or("unknown"),
+                args.out.display()
+            ))?;
+        }
+        return Ok(0);
     }
     let mut report = saccade_core::ergonomics::noise_with_perf_options(
         &args.dirs,
@@ -290,8 +259,16 @@ pub(crate) fn noise(args: NoiseArgs, record_absolute_paths: bool) -> Result<u8, 
             .map(|p| saccade_core::paths::cwd(p, true))
             .collect();
     }
+    let artifact = args.out.with_extension("json");
+    let full = serde_json::to_value(&report)?;
+    crate::local_cmd::write_value(&artifact, &full)?;
     if args.json {
-        crate::emit(&format!("{}\n", serde_json::to_string_pretty(&report)?))?;
+        let mut value = crate::local_cmd::base_result("noise.image");
+        value["artifact"] = crate::local_cmd::reference(&artifact)?;
+        value["counts"] =
+            serde_json::json!({"entries":report.entries.len(),"runs":report.runs.len()});
+        value["data"] = serde_json::json!({"kind":"image_noise","unit":"FLIP"});
+        crate::local_cmd::print(&value, true)?;
     } else {
         crate::emit("image noise (FLIP)\n")?;
         for e in &report.entries {

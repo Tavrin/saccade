@@ -9,18 +9,33 @@ fn run(root: &Path, args: &[&str]) -> Output {
     Command::new(BIN)
         .current_dir(root)
         .args(args)
+        .arg("--record-absolute-paths")
         .env("XDG_CACHE_HOME", root.join("cache"))
         .output()
         .unwrap()
 }
-fn value(o: &Output) -> Value {
+fn value(root: &Path, o: &Output) -> Value {
     assert!(
         o.status.success(),
         "{} {}",
         String::from_utf8_lossy(&o.stdout),
         String::from_utf8_lossy(&o.stderr)
     );
-    serde_json::from_slice(&o.stdout).unwrap()
+    let result: Value = serde_json::from_slice(&o.stdout).unwrap();
+    if result["schema"] == "saccade-result.v2" {
+        schema("saccade-result.v2", &result);
+    }
+    if result["schema"] == "saccade-result.v2"
+        && result["artifact"].is_object()
+        && result["operation"] != "compare"
+        && result["operation"] != "identity"
+    {
+        return serde_json::from_slice(
+            &std::fs::read(root.join(result["artifact"]["path"].as_str().unwrap())).unwrap(),
+        )
+        .unwrap();
+    }
+    result
 }
 fn save(root: &Path, name: &str, pass: f64, grey: u8) -> PathBuf {
     let dir = root.join(name);
@@ -82,92 +97,114 @@ fn noise_ablation_compare_identity_markdown_and_explain_share_evidence() {
     fixture(root);
     std::fs::write(root.join("perf-options.toml"),
         "perf_resolution_ms = 0.02\nperf_resolution_ticks = 4\nperf_min_delta_ms = 0.4\nperf_min_delta_pct = 1.2\n").unwrap();
-    let configured = value(&run(
+    let configured = value(
         root,
-        &[
-            "noise",
-            "base",
-            "repeat",
-            "--config",
-            "perf-options.toml",
-            "--perf-resolution",
-            "0.03",
-            "--out",
-            "configured.toml",
-            "--json",
-        ],
-    ));
+        &run(
+            root,
+            &[
+                "noise",
+                "base",
+                "repeat",
+                "--config",
+                "perf-options.toml",
+                "--perf-resolution",
+                "0.03",
+                "--out",
+                "configured.toml",
+                "--json",
+            ],
+        ),
+    );
     schema("saccade-noise.v1", &configured);
     assert_eq!(configured["perf_noise"]["resolution_ms"], 0.03);
     assert_eq!(configured["perf_noise"]["resolution_ticks"], 4);
     assert_eq!(configured["perf_noise"]["min_delta_ms"], 0.4);
     assert_eq!(configured["perf_noise"]["min_delta_pct"], 1.2);
-    let recalibrated = value(&run(
+    let recalibrated = value(
         root,
-        &[
-            "noise",
-            "base",
-            "repeat",
-            "--config",
-            "configured.toml",
-            "--out",
-            "recalibrated.toml",
-            "--json",
-        ],
-    ));
+        &run(
+            root,
+            &[
+                "noise",
+                "base",
+                "repeat",
+                "--config",
+                "configured.toml",
+                "--out",
+                "recalibrated.toml",
+                "--json",
+            ],
+        ),
+    );
     assert_eq!(recalibrated["perf_noise"], configured["perf_noise"]);
-    let custom = value(&run(
+    let custom = value(
         root,
-        &[
-            "ablate",
-            "base",
-            "fast",
-            "--perf-noise",
-            "configured.toml",
-            "--perf-min-delta-ms",
-            "10",
-            "--out",
-            "configured-ablation",
-            "--json",
-        ],
-    ));
+        &run(
+            root,
+            &[
+                "experiment",
+                "ablate",
+                "base",
+                "fast",
+                "--perf-noise",
+                "configured.toml",
+                "--perf-min-delta-ms",
+                "10",
+                "--out",
+                "configured-ablation",
+                "--json",
+            ],
+        ),
+    );
     assert_eq!(custom["arms"][0]["perf_diff"]["resolution_ms"], 0.03);
     assert_eq!(custom["arms"][0]["perf_diff"]["min_delta_ms"], 10.0);
     assert_eq!(custom["arms"][0]["flag"], "NO-EFFECT");
-    let noise = value(&run(
+    let noise = value(
         root,
-        &["noise", "base", "repeat", "--out", "floor.toml", "--json"],
-    ));
+        &run(
+            root,
+            &["noise", "base", "repeat", "--out", "floor.toml", "--json"],
+        ),
+    );
     schema("saccade-noise.v1", &noise);
     assert!((noise["perf_noise"]["frame"].as_f64().unwrap() - 0.1).abs() < 1e-12);
-    value(&run(
+    let floor = value(
         root,
-        &[
-            "noise",
-            "base",
-            "repeat",
-            "--kind",
-            "performance",
-            "--out",
-            "floor.json",
-            "--json",
-        ],
-    ));
-    let a = value(&run(
+        &run(
+            root,
+            &[
+                "noise",
+                "base",
+                "repeat",
+                "--kind",
+                "performance",
+                "--out",
+                "floor.json",
+                "--json",
+            ],
+        ),
+    );
+    schema("saccade-perf.v2", &floor);
+    assert_eq!(floor["comparability"], "qualified");
+    let a = value(
         root,
-        &[
-            "ablate",
-            "base",
-            "same",
-            "fast",
-            "image",
-            "--perf-noise",
-            "floor.toml",
-            "--out",
-            "ablation",
-            "--json",
-        ],
-    ));
+        &run(
+            root,
+            &[
+                "experiment",
+                "ablate",
+                "base",
+                "same",
+                "fast",
+                "image",
+                "--perf-noise",
+                "floor.toml",
+                "--out",
+                "ablation",
+                "--json",
+            ],
+        ),
+    );
     schema("saccade-ablate.v1", &a);
     assert_eq!(a["arms"][0]["flag"], "NO-EFFECT");
     assert_eq!(a["arms"][1]["flag"], "PERF-ONLY");
@@ -178,46 +215,67 @@ fn noise_ablation_compare_identity_markdown_and_explain_share_evidence() {
     assert!(html.contains("saccadePerf.ablation"));
     assert!(html.contains("--surface"));
     for command in ["compare", "identity"] {
-        let lean = value(&run(
+        let lean = value(
             root,
-            &[
-                command,
-                "base",
-                "fast",
-                "--perf-noise",
-                "floor.json",
-                "--out",
-                "pair",
-                "--json",
-            ],
-        ));
-        schema("saccade-result.v1", &lean);
-        assert!(
-            lean["combined_verdict"]
-                .as_str()
-                .unwrap()
-                .contains("beyond noise")
+            &run(
+                root,
+                &[
+                    command,
+                    "base",
+                    "fast",
+                    "--perf-noise",
+                    "floor.json",
+                    "--out",
+                    "pair",
+                    "--json",
+                ],
+            ),
         );
-        assert_eq!(lean["perf_diff"]["terms"].as_array().unwrap().len(), 3);
+        if command == "compare" {
+            schema("saccade-result.v2", &lean);
+        } else {
+            assert_eq!(lean["schema"], "saccade-result.v1");
+        }
         let full: Value = serde_json::from_slice(
             &std::fs::read(root.join("pair/saccade-report.v1.json")).unwrap(),
         )
         .unwrap();
+        assert!(
+            full["combined_verdict"]
+                .as_str()
+                .unwrap()
+                .contains("beyond noise")
+        );
+        assert_eq!(full["perf_diff"]["terms"].as_array().unwrap().len(), 3);
         schema("saccade-report.v1", &full);
         assert!(full["entries"][0].get("perf_diff").is_none());
         let markdown = run(
             root,
             &[
-                "summary",
+                "inspect",
+                "export",
                 "pair/saccade-report.v1.json",
                 "--format",
                 "markdown",
+                "--out",
+                "summary.md",
             ],
         );
-        assert!(String::from_utf8_lossy(&markdown.stdout).contains("beyond noise"));
+        assert!(markdown.status.success());
+        assert!(
+            std::fs::read_to_string(root.join("summary.md"))
+                .unwrap()
+                .contains("beyond noise")
+        );
         let explain = run(
             root,
-            &["explain", "pair/saccade-report.v1.json", "--out", "explain"],
+            &[
+                "inspect",
+                "evidence",
+                "pair/saccade-report.v1.json",
+                "--out",
+                "explain",
+            ],
         );
         assert!(explain.status.success());
         assert!(
@@ -226,13 +284,35 @@ fn noise_ablation_compare_identity_markdown_and_explain_share_evidence() {
                 .contains("beyond noise")
         );
     }
-    let unknown = value(&run(
+    let unknown = value(
         root,
-        &["ablate", "base", "same", "--out", "unknown", "--json"],
-    ));
+        &run(
+            root,
+            &[
+                "experiment",
+                "ablate",
+                "base",
+                "same",
+                "--out",
+                "unknown",
+                "--json",
+            ],
+        ),
+    );
     assert_eq!(unknown["arms"][0]["flag"], "INCONCLUSIVE");
     let original = std::fs::read(root.join("base/saccade-perf.json")).unwrap();
-    let unsafe_out = run(root, &["ablate", "base", "fast", "--out", "base", "--json"]);
+    let unsafe_out = run(
+        root,
+        &[
+            "experiment",
+            "ablate",
+            "base",
+            "fast",
+            "--out",
+            "base",
+            "--json",
+        ],
+    );
     assert_eq!(unsafe_out.status.code(), Some(2));
     assert_eq!(
         std::fs::read(root.join("base/saccade-perf.json")).unwrap(),
@@ -245,31 +325,38 @@ fn runs_and_serve_sessions_refresh_performance_and_blind_views_withhold_it() {
     let tmp = tempfile::tempdir().unwrap();
     let root = tmp.path();
     fixture(root);
-    value(&run(
+    value(
         root,
-        &["noise", "base", "repeat", "--out", "floor.toml", "--json"],
-    ));
-    let r = value(&run(
+        &run(
+            root,
+            &["noise", "base", "repeat", "--out", "floor.toml", "--json"],
+        ),
+    );
+    let r = value(
         root,
-        &[
-            "runs",
-            "base",
-            "fast",
-            "same",
-            "--perf-noise",
-            "floor.toml",
-            "--out",
-            "runs",
-            "--json",
-        ],
-    ));
-    schema("saccade-runs.v1", &r);
-    assert_eq!(r["runs"][0]["flag"], "PERF-ONLY");
-    assert_eq!(r["runs"][1]["flag"], "NO-EFFECT");
+        &run(
+            root,
+            &[
+                "experiment",
+                "ablate",
+                "base",
+                "fast",
+                "same",
+                "--perf-noise",
+                "floor.toml",
+                "--out",
+                "runs",
+                "--json",
+            ],
+        ),
+    );
+    schema("saccade-ablate.v1", &r);
+    assert_eq!(r["arms"][0]["flag"], "PERF-ONLY");
+    assert_eq!(r["arms"][1]["flag"], "NO-EFFECT");
     assert!(
         std::fs::read_to_string(root.join("runs/index.html"))
             .unwrap()
-            .contains("show-ablation")
+            .contains("PERF-ONLY")
     );
     assert!(
         run(
@@ -290,9 +377,21 @@ fn runs_and_serve_sessions_refresh_performance_and_blind_views_withhold_it() {
     let v = model(&std::fs::read_to_string(root.join("view/index.html")).unwrap());
     assert_eq!(v["perf_diff"][0]["diff"]["frame"]["delta"], -4.0);
     assert!(
-        run(root, &["view", "base", "fast", "--blind", "--out", "blind"])
-            .status
-            .success()
+        run(
+            root,
+            &[
+                "view",
+                "base",
+                "fast",
+                "--blind",
+                "--key-out",
+                "blind-key.json",
+                "--out",
+                "blind"
+            ]
+        )
+        .status
+        .success()
     );
     assert!(
         model(&std::fs::read_to_string(root.join("blind/index.html")).unwrap())
@@ -355,34 +454,58 @@ fn runs_and_serve_sessions_refresh_performance_and_blind_views_withhold_it() {
 fn mcp_ablate_and_pair_results_validate_and_confine_noise_paths() {
     let tmp = tempfile::tempdir().unwrap();
     let root = tmp.path();
+    let outputs = tempfile::tempdir().unwrap();
     fixture(root);
-    value(&run(
+    value(
         root,
-        &["noise", "base", "repeat", "--out", "floor.toml", "--json"],
-    ));
-    let call = |id, name, args| json!({"jsonrpc":"2.0","id":id,"method":"tools/call","params":{"name":name,"arguments":args}});
+        &run(
+            root,
+            &["noise", "base", "repeat", "--out", "floor.toml", "--json"],
+        ),
+    );
+    let call = |id, name, mut args: Value| {
+        args["operation"] = json!(name);
+        json!({"jsonrpc":"2.0","id":id,"method":"tools/call","params":{"name":"saccade_measure","arguments":args}})
+    };
     let requests = [
         json!({"jsonrpc":"2.0","id":1,"method":"tools/list"}),
         call(
             2,
-            "saccade_ablate",
-            json!({"base_dir":"base","arm_dirs":["fast","same"],"perf_noise":"floor.toml","out_dir":"ablation",
+            "ablate",
+            json!({"base_dir":"base","arm_dirs":["fast","same"],"perf_noise":"floor.toml","out":"ablation",
                 "perf_resolution_ms":0.25,"perf_resolution_ticks":3,"perf_min_delta_ms":1.0,"perf_min_delta_pct":1.0}),
         ),
         call(
             3,
-            "saccade_compare",
-            json!({"baseline_dir":"base","capture_dir":"fast","perf_noise":"floor.toml","out_dir":"pair","include_images":false}),
+            "compare",
+            json!({"baseline_dir":"base","capture_dir":"fast","perf_noise":"floor.toml","out":"pair","include_images":false}),
         ),
         call(
             4,
-            "saccade_ablate",
-            json!({"base_dir":"base","arm_dirs":["fast"],"perf_noise":"../outside.toml","out_dir":"outside"}),
+            "ablate",
+            json!({"base_dir":"base","arm_dirs":["fast"],"perf_noise":"../outside.toml","out":"outside"}),
+        ),
+        call(
+            5,
+            "noise",
+            json!({"dirs":["base","repeat"],"kind":"performance","out":"performance.json"}),
+        ),
+        call(
+            6,
+            "noise",
+            json!({"dirs":["base","repeat"],"out":"image.toml"}),
+        ),
+        call(
+            7,
+            "ablate",
+            json!({"base_dir":"base","arm_dirs":["same"],"perf_noise":"floor.json","out":"wrong-kind"}),
         ),
     ];
     let mut c = Command::new(BIN)
         .args(["mcp", "--root"])
         .arg(root)
+        .arg("--out-root")
+        .arg(outputs.path())
         .stdin(Stdio::piped())
         .stdout(Stdio::piped())
         .spawn()
@@ -402,41 +525,73 @@ fn mcp_ablate_and_pair_results_validate_and_confine_noise_paths() {
         .as_array()
         .unwrap()
         .iter()
-        .find(|t| t["name"] == "saccade_ablate")
+        .find(|t| t["name"] == "saccade_measure")
         .unwrap();
     assert_eq!(tool["annotations"]["destructiveHint"], false);
     let a = &replies[1]["result"];
     assert_eq!(a["isError"], false, "{a}");
-    schema("saccade-ablate.v1", &a["structuredContent"]);
-    assert_eq!(a["structuredContent"]["arms"][0]["flag"], "PERF-ONLY");
-    assert_eq!(
-        a["structuredContent"]["arms"][0]["perf_diff"]["resolution_ms"],
-        0.25
-    );
-    assert_eq!(
-        a["structuredContent"]["arms"][0]["perf_diff"]["resolution_ticks"],
-        3
-    );
-    assert_eq!(
-        a["structuredContent"]["arms"][0]["perf_diff"]["min_delta_ms"],
-        1.0
-    );
+    schema("saccade-result.v2", &a["structuredContent"]);
+    let full: Value = serde_json::from_slice(
+        &std::fs::read(outputs.path().join("ablation/saccade-ablate.v1.json")).unwrap(),
+    )
+    .unwrap();
+    assert_eq!(full["arms"][0]["flag"], "PERF-ONLY");
+    assert_eq!(full["arms"][0]["perf_diff"]["resolution_ms"], 0.25);
+    assert_eq!(full["arms"][0]["perf_diff"]["resolution_ticks"], 3);
+    assert_eq!(full["arms"][0]["perf_diff"]["min_delta_ms"], 1.0);
     let validator = jsonschema::validator_for(&tool["outputSchema"]).unwrap();
     assert!(validator.is_valid(&a["structuredContent"]));
     schema(
-        "saccade-result.v1",
+        "saccade-result.v2",
         &replies[2]["result"]["structuredContent"],
     );
+    let pair: Value = serde_json::from_slice(
+        &std::fs::read(outputs.path().join("pair/saccade-report.v1.json")).unwrap(),
+    )
+    .unwrap();
     assert!(
-        replies[2]["result"]["structuredContent"]["combined_verdict"]
+        pair["combined_verdict"]
             .as_str()
             .unwrap()
             .contains("beyond noise")
     );
     assert_eq!(replies[3]["result"]["isError"], true);
     assert_eq!(
-        replies[3]["result"]["structuredContent"]["code"],
+        replies[3]["result"]["structuredContent"]["errors"][0]["code"],
         "unsafe_path"
+    );
+    for (index, file, family, kind, unit) in [
+        (
+            4,
+            "performance.json",
+            "saccade-perf.v2",
+            "performance_noise",
+            "ms",
+        ),
+        (5, "image.json", "saccade-noise.v1", "image_noise", "FLIP"),
+    ] {
+        let reply = &replies[index]["result"];
+        assert_eq!(reply["isError"], false, "{reply}");
+        let envelope = &reply["structuredContent"];
+        schema("saccade-result.v2", envelope);
+        assert_eq!(envelope["data"]["kind"], kind);
+        assert_eq!(envelope["data"]["unit"], unit);
+        let record: Value =
+            serde_json::from_slice(&std::fs::read(outputs.path().join(file)).unwrap()).unwrap();
+        schema(family, &record);
+        assert_eq!(record["kind"], kind);
+        assert_eq!(record["unit"], unit);
+        assert!(record.get("units").is_none());
+        if kind == "performance_noise" {
+            assert_eq!(record["comparability"], "qualified");
+            assert_eq!(envelope["data"]["comparability"], "qualified");
+            assert_eq!(record["sources"].as_array().unwrap().len(), 2);
+        }
+    }
+    assert_eq!(replies[6]["result"]["isError"], true);
+    assert_eq!(
+        replies[6]["result"]["structuredContent"]["errors"][0]["code"],
+        "wrong_noise_kind"
     );
 }
 
@@ -445,36 +600,43 @@ fn typed_performance_noise_and_cross_kind_inputs_have_explicit_units_and_errors(
     let tmp = tempfile::tempdir().unwrap();
     let root = tmp.path();
     fixture(root);
-    let noise = value(&run(
+    let noise = value(
         root,
-        &[
-            "noise",
-            "base",
-            "repeat",
-            "--kind",
-            "performance",
-            "--out",
-            "performance.json",
-            "--json",
-        ],
-    ));
+        &run(
+            root,
+            &[
+                "noise",
+                "base",
+                "repeat",
+                "--kind",
+                "performance",
+                "--out",
+                "performance.json",
+                "--json",
+            ],
+        ),
+    );
     schema("saccade-perf.v2", &noise);
     assert_eq!(noise["kind"], "performance_noise");
     assert_eq!(noise["unit"], "ms");
     assert_eq!(noise["comparability"], "qualified");
-    let a = value(&run(
+    let a = value(
         root,
-        &[
-            "ablate",
-            "base",
-            "same",
-            "--perf-noise",
-            "performance.json",
-            "--out",
-            "typed-ablation",
-            "--json",
-        ],
-    ));
+        &run(
+            root,
+            &[
+                "experiment",
+                "ablate",
+                "base",
+                "same",
+                "--perf-noise",
+                "performance.json",
+                "--out",
+                "typed-ablation",
+                "--json",
+            ],
+        ),
+    );
     assert_eq!(a["arms"][0]["flag"], "NO-EFFECT");
     let wrong = run(
         root,
@@ -493,8 +655,13 @@ fn typed_performance_noise_and_cross_kind_inputs_have_explicit_units_and_errors(
     );
     assert_eq!(wrong.status.code(), Some(2));
     let error: Value = serde_json::from_slice(&wrong.stdout).unwrap();
-    assert_eq!(error["code"], "wrong_noise_kind");
-    assert!(error["message"].as_str().unwrap().contains("--kind image"));
+    assert_eq!(error["errors"][0]["code"], "wrong_noise_kind");
+    assert!(
+        error["errors"][0]["message"]
+            .as_str()
+            .unwrap()
+            .contains("--kind image")
+    );
     std::fs::write(
         root.join("legacy-performance.toml"),
         "[perf_noise]\nframe = 0.0\n",
@@ -517,27 +684,30 @@ fn typed_performance_noise_and_cross_kind_inputs_have_explicit_units_and_errors(
     );
     let error: Value = serde_json::from_slice(&wrong.stdout).unwrap();
     assert_eq!(wrong.status.code(), Some(2));
-    assert_eq!(error["code"], "wrong_noise_kind");
+    assert_eq!(error["errors"][0]["code"], "wrong_noise_kind");
     std::fs::write(
         root.join("mixed-config.toml"),
         "threshold = 0.01\n[perf_noise]\nframe = 0.0\n",
     )
     .unwrap();
-    let image = value(&run(
+    let image = value(
         root,
-        &[
-            "noise",
-            "base",
-            "repeat",
-            "--kind",
-            "image",
-            "--config",
-            "mixed-config.toml",
-            "--out",
-            "mixed-image.toml",
-            "--json",
-        ],
-    ));
+        &run(
+            root,
+            &[
+                "noise",
+                "base",
+                "repeat",
+                "--kind",
+                "image",
+                "--config",
+                "mixed-config.toml",
+                "--out",
+                "mixed-image.toml",
+                "--json",
+            ],
+        ),
+    );
     assert_eq!(image["kind"], "image_noise");
     assert_eq!(image["unit"], "FLIP");
     std::fs::write(
@@ -548,6 +718,7 @@ fn typed_performance_noise_and_cross_kind_inputs_have_explicit_units_and_errors(
     let wrong = run(
         root,
         &[
+            "experiment",
             "ablate",
             "base",
             "same",
@@ -560,9 +731,9 @@ fn typed_performance_noise_and_cross_kind_inputs_have_explicit_units_and_errors(
     );
     assert_eq!(wrong.status.code(), Some(2));
     let error: Value = serde_json::from_slice(&wrong.stdout).unwrap();
-    assert_eq!(error["code"], "wrong_noise_kind");
+    assert_eq!(error["errors"][0]["code"], "wrong_noise_kind");
     assert!(
-        error["message"]
+        error["errors"][0]["message"]
             .as_str()
             .unwrap()
             .contains("--kind performance")

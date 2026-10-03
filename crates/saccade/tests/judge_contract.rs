@@ -5,7 +5,7 @@ use std::collections::BTreeMap;
 use std::io::{Read, Write};
 use std::net::TcpStream;
 use std::path::{Path, PathBuf};
-use std::process::{Command, Stdio};
+use std::process::Command;
 use std::sync::atomic::{AtomicUsize, Ordering};
 use std::time::Duration;
 
@@ -460,33 +460,17 @@ fn both_orders_detect_bias_and_escalate_flips() {
 fn keys_come_only_from_allowed_files_and_ignore_ambient_values() {
     let tmp = tempfile::tempdir().unwrap();
     let (r, p) = report(tmp.path());
-    let panel_file = tmp.path().join("panel.toml");
-    std::fs::write(
-        &panel_file,
-        "[panel]\ncanary_rate=0\n[[judge]]\nprovider='jev'\n",
-    )
-    .unwrap();
     let out = Command::new(BIN)
-        .arg("judge")
+        .arg("review")
         .arg(&p)
-        .arg("--panel")
-        .arg(panel_file)
-        .arg("--keys-dir")
-        .arg(tmp.path())
-        .arg("--no-record")
+        .arg("--json")
         .env("JEV_API_KEY", "ambient-secret-must-be-ignored")
         .env("GEMINI_API_KEY", "ignored")
         .output()
         .unwrap();
-    assert!(
-        out.status.success(),
-        "{}",
-        String::from_utf8_lossy(&out.stderr)
-    );
+    assert!(out.status.success(), "{out:?}");
     let v: Value = serde_json::from_slice(&out.stdout).unwrap();
-    let j = &v["items"][0]["judgements"][0];
-    assert!(j["abstain_reason"].as_str().unwrap().contains("no key"));
-    assert!(j["attempts"].as_array().unwrap().is_empty());
+    assert_eq!(v["counts"]["dispatched_calls"], 0);
     assert!(!v.to_string().contains("ambient-secret"));
     let keys = Keys::new(Some(tmp.path().into()));
     assert!(keys.load("../secret", "JEV_API_KEY").is_err());
@@ -580,72 +564,12 @@ fn vote_api_round_trip_reuses_security_and_requires_both_orders() {
 }
 
 #[test]
-fn dry_run_requests_and_mcp_tools_match_schemas_without_calls() {
-    let tmp = tempfile::tempdir().unwrap();
-    let (_r, target) = report(tmp.path());
-    let p = tmp.path().join("panel.toml");
-    std::fs::write(&p,"[panel]\ncanary_rate=0\n[[judge]]\nprovider='jev'\n[[judge]]\nprovider='gemini'\nvision=true\n").unwrap();
+fn retired_judge_transport_has_no_provider_dispatch() {
     let output = Command::new(BIN)
-        .arg("judge")
-        .arg(&target)
-        .arg("--panel")
-        .arg(&p)
-        .arg("--dry-run")
+        .args(["judge", "--json"])
         .output()
         .unwrap();
-    assert!(
-        output.status.success(),
-        "{}",
-        String::from_utf8_lossy(&output.stderr)
-    );
-    let v: Value = serde_json::from_slice(&output.stdout).unwrap();
-    check_schema("judge", &v);
-    assert_eq!(v["calls_planned"], 3);
-    assert!(v["requests"].as_array().unwrap().iter().all(|r| {
-        r["allowed_answers"]
-            .as_array()
-            .unwrap()
-            .iter()
-            .any(|a| a == "needs_human" || a == "unsure")
-    }));
-    assert!(
-        !target
-            .parent()
-            .unwrap()
-            .join("saccade-judge.v1.json")
-            .exists()
-    );
-    assert!(
-        !target
-            .parent()
-            .unwrap()
-            .join("saccade-decisions.v1.json")
-            .exists()
-    );
-    let mut child = Command::new(BIN)
-        .args(["mcp", "--root"])
-        .arg(tmp.path())
-        .stdin(Stdio::piped())
-        .stdout(Stdio::piped())
-        .spawn()
-        .unwrap();
-    let stdin = child.stdin.as_mut().unwrap();
-    writeln!(
-        stdin,
-        "{}",
-        json!({"jsonrpc":"2.0","id":1,"method":"tools/list"})
-    )
-    .unwrap();
-    writeln!(stdin,"{}",json!({"jsonrpc":"2.0","id":2,"method":"tools/call","params":{"name":"saccade_judge","arguments":{"target":target,"panel":p,"dry_run":true}}})).unwrap();
-    child.stdin.take();
-    let result = child.wait_with_output().unwrap();
-    assert!(result.status.success());
-    let lines = String::from_utf8(result.stdout).unwrap();
-    let values: Vec<Value> = lines
-        .lines()
-        .map(|l| serde_json::from_str(l).unwrap())
-        .collect();
-    let tools = values[0]["result"]["tools"].as_array().unwrap();
-    assert!(tools.iter().any(|t| t["name"] == "saccade_judge_calibrate"));
-    check_schema("judge", &values[1]["result"]["structuredContent"]);
+    assert_eq!(output.status.code(), Some(2));
+    let value: Value = serde_json::from_slice(&output.stdout).unwrap();
+    assert_eq!(value["errors"][0]["code"], "interface_removed");
 }

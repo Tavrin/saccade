@@ -1,35 +1,20 @@
-//! `saccade mcp [--root DIR]`: a Model Context Protocol server over stdio.
-//!
-//! Hand-rolled JSON-RPC 2.0, one JSON message per line (the stdio transport of
-//! protocol version `2025-06-18`). It implements `initialize`,
-//! `notifications/initialized`, `ping`, `tools/list` and `tools/call`.
-//!
-//! **Path policy.** Every path an agent passes (inputs, outputs, report and
-//! config files, the blind key) is resolved against the root (`--root`, default
-//! the working directory), canonicalised, and refused with `unsafe_path` unless
-//! it lies under the root. `..` and symlinks cannot escape it.
-//!
-//! Tool failures are tool results with `isError: true` and a stable code in
-//! `structuredContent.code`: `usage` (bad or missing argument), `unsafe_path`
-//! (outside the root), `io` (a path cannot be read or written, an image or
-//! report does not decode) or `config` (a config file or setting is invalid). A
-//! regression is not an error: the result says `verdict: "regression"`.
-//!
-//! Run and explain results carry up to three image content blocks (the top
-//! hotspot strips, at most 1024 px wide) unless `include_images` is false.
+//! Five local discriminated MCP tools over newline-delimited JSON-RPC 2.0.
+//! Capture roots are read-only. Generated files require a separate out-root;
+//! shared RootPolicy containment checks aliases and transitive references.
+//! Provider review is reserved for R11. Images require include_images=true,
+//! are capped at three blocks and 1024 pixels wide, and confer no authority.
 
 use std::io::{BufRead, Cursor, Write};
 use std::path::{Path, PathBuf};
 
 use saccade_core::config::RunConfig;
-use saccade_core::explain::{ExplainOptions, ExplainPack, absolute, explain};
+use saccade_core::explain::{ExplainOptions, ExplainPack, explain};
 use saccade_core::report::{Labels, Metric, Mode, Report};
 use serde_json::{Map, Value, json};
 
-use crate::agent::{
-    CliError, DEFAULT_TOP_FAILING, nothing_compared, result_value, round_floats, summary_text,
-    summary_value,
-};
+#[cfg(feature = "graphics")]
+use crate::agent::round_floats;
+use crate::agent::{CliError, DEFAULT_TOP_FAILING, result_value};
 
 /// MCP protocol version this server speaks.
 pub const PROTOCOL_VERSION: &str = "2025-06-18";
@@ -52,42 +37,34 @@ type ToolResult = Result<ToolOutput, CliError>;
 /// The server: the root every path must stay under.
 pub struct Server {
     root: PathBuf,
+    policy: saccade_core::root_policy::RootPolicy,
 }
 
-fn tool_schemas() -> Value {
-    let dir = |what: &str| json!({"type": "string", "minLength": 1, "description": what});
-    let report_json = json!({
-        "type": "string", "minLength": 1,
-        "description": "Path to saccade-report.v1.json (the `paths.report_json` of a compare/identity result). Relative paths resolve against the server root."
-    });
-    let include_images = json!({
-        "type": "boolean",
-        "description": "Attach up to 3 image content blocks: the top hotspot strips [baseline | capture | heatmap], each at most 1024 px wide. Default true; set false to save tokens."
-    });
-    let run_props = |a: &str, b: &str| {
+fn measurement_schemas() -> Value {
+    let run_props = |baseline: &str, capture: &str| {
         json!({
-            "out_dir": dir("Report output directory (created if missing, inside the server root). A previous report in it is replaced; it must not be inside either input directory."),
-            "threshold": {"type": "number", "minimum": 0, "description": "Pass threshold in FLIP units (0 = identical, 1 = maximal error). Default 0.01 for compare, 0 for identity."},
-            "metric": {"type": "string", "enum": ["mean", "p95", "p99", "max"], "description": "Deciding metric: mean (default for compare; whole-image drift), p95 or p99 (large or local areas) or max (any single bad pixel; identity default)."},
-            "ppd": {"type": "number", "exclusiveMinimum": 0, "description": "FLIP pixels per degree of visual angle (default 67, a 0.7 m viewing distance on a 4K monitor)."},
-            "labels": {"type": "array", "items": {"type": "string", "minLength": 1}, "minItems": 2, "maxItems": 2, "description": format!("Display names of the two sides, [\"{a}\", \"{b}\"].")},
-            "perf_name": {"type":"string","minLength":1},
-            "perf_noise": {"type":"string","minLength":1},
-            "perf_noise_k": {"type":"number","exclusiveMinimum":0},
+            "out_dir":{"type":"string","minLength":1},
+            "threshold":{"type":"number","minimum":0,"maximum":1},
+            "metric":{"type":"string","enum":["mean","p95","p99","max"]},
+            "ppd":{"type":"number","exclusiveMinimum":0},
+            "labels":{"type":"array","items":{"type":"string"},"default":[baseline,capture]},
+            "meta_name":{"type":"string"},
+            "require_matching_meta":{"type":"boolean","default":false},
+            "declare":{"type":"array","items":{"type":"string"}},
+            "fail_on_new":{"type":"boolean","default":true},
+            "allow_empty":{"type":"boolean","default":false},
+            "include_images":{"type":"boolean","default":false},
+            "entries":{"type":"array","items":{"type":"string"}},
+            "record_absolute_paths":{"type":"boolean","default":false},
+            "perf_name":{"type":"string"},"perf_noise":{"type":"string"},
+            "perf_noise_k":{"type":"number","exclusiveMinimum":0},
             "perf_resolution_ms":{"type":"number","exclusiveMinimum":0},
             "perf_resolution_ticks":{"type":"integer","minimum":1},
             "perf_min_delta_ms":{"type":"number","minimum":0},
-            "perf_min_delta_pct":{"type":"number","minimum":0},
-            "meta_name": {"type": "string", "minLength": 1, "description": "Metadata sidecar file name (default saccade-meta.json); `<stem>.<name>` next to an image overrides the directory-level one."},
-            "require_matching_meta": {"type": "boolean", "description": "Make an undeclared metadata-sidecar difference an error for that image."},
-            "declare": {"type": "array", "items": {"type": "string"}, "description": "Sidecar keys or globs allowed to differ; needs require_matching_meta."},
-            "fail_on_new": {"type": "boolean", "description": "Count an image with no baseline as a regression."},
-            "allow_empty": {"type": "boolean", "description": "Accept a run that compared no image pair (otherwise that is a regression)."},
-            "include_images": include_images,
-            "entries": {"type":"array","items":{"type":"string"}},
-            "record_absolute_paths": {"type":"boolean","default":false},
+            "perf_min_delta_pct":{"type":"number","minimum":0}
         })
     };
+    let dir = |what: &str| json!({"type": "string", "minLength": 1, "description": what});
     let mut compare_props = run_props("baseline", "capture");
     let mut identity_props = run_props("parent", "candidate");
     if let (Some(c), Some(i)) = (
@@ -144,7 +121,7 @@ fn tool_schemas() -> Value {
     }
     json!([
         {
-            "name":"saccade_ablate", "title":"Compare ablation arms",
+            "operation":"ablate", "title":"Compare ablation arms",
             "description":"One row per arm against a common base: image identity/FLIP class, frame and beyond-noise term changes, configuration differences, NO-EFFECT and PERF-ONLY flags, and a combined verdict. Writes HTML, JSON and text evidence.",
             "inputSchema":{"type":"object","properties":{
                 "base_dir":dir("Base capture directory"),
@@ -159,45 +136,24 @@ fn tool_schemas() -> Value {
                 "perf_min_delta_pct":{"type":"number","minimum":0,"default":0.5},
                 "record_absolute_paths":{"type":"boolean","default":false}
             },"required":["base_dir","arm_dirs","out_dir"],"additionalProperties":false},
-            "outputSchema":serde_json::from_str::<Value>(include_str!("../../../schemas/saccade-ablate.v1.schema.json")).unwrap_or_else(|_|json!({"type":"object"})),
             "annotations":{"readOnlyHint":false,"destructiveHint":false,"idempotentHint":true,"openWorldHint":false}
         },
         {
-            "name": "saccade_list_entries", "title": "Inspect report entries",
-            "description": "Read-only filtered pagination of full entries. Keep status/name/limit unchanged when following next_cursor. Paths are relative to the report directory.",
-            "inputSchema": {"type":"object", "properties": {
-                "report_json": report_json, "status":{"type":"array","items":{"enum":["pass","fail","error","new","missing"]}},
-                "name":{"type":"string"}, "offset":{"type":"integer","minimum":0}, "limit":{"type":"integer","minimum":1,"maximum":1000},
-                "cursor":{"type":"string"}
-            },"required":["report_json"],"additionalProperties":false},
-            "outputSchema": serde_json::from_str::<Value>(include_str!("../../../schemas/saccade-entries.v1.schema.json")).unwrap_or_else(|_| json!({"type":"object"})),
-            "annotations":{"readOnlyHint":true,"destructiveHint":false,"idempotentHint":true,"openWorldHint":false}
-        },
-        {
-            "name":"saccade_get_entry", "title":"Read one full entry",
-            "description":"Read-only exact-name lookup including all hotspots, diagnostics, metadata differences, hashes and report-relative image paths.",
-            "inputSchema":{"type":"object","properties":{"report_json":report_json,"name":{"type":"string","minLength":1}},"required":["report_json","name"],"additionalProperties":false},
-            "outputSchema":{"type":"object","properties":{"name":{"type":"string"},"status":{"enum":["pass","fail","error","new","missing"]},"hotspots":{"type":"array"},"meta_diff":{"type":"array"},"paths":{"type":"object"}},"required":["name","status","paths"]},
-            "annotations":{"readOnlyHint":true,"destructiveHint":false,"idempotentHint":true,"openWorldHint":false}
-        },
-        {
-            "name": "saccade_sequence",
+            "operation": "sequence",
             "title": "Compare numbered frame sequences",
             "description": "Pair colour frames by numeric sorted index, measure per-frame FLIP and added temporal instability (capture consecutive-frame mean minus baseline). Writes saccade-sequence.v1.json and a normal per-frame HTML report with a server-rendered SVG curve. Returns a lean saccade-sequence.v1; full frame details stay on disk. Same exit/verdict rules as compare; temporal decode errors are regressions.",
             "inputSchema": {"type": "object", "properties": sequence_props, "required": ["baseline_dir", "capture_dir", "out_dir"], "additionalProperties": false},
-            "outputSchema": sequence_output_schema(),
             "annotations": {"readOnlyHint": false, "destructiveHint": false, "idempotentHint": true, "openWorldHint": false}
         },
         {
-            "name": "saccade_rank",
+            "operation": "rank",
             "title": "Rank candidate image directories",
             "description": "Compare each candidate directory against one reference using mean, p95, p99 or max FLIP. Writes rankings, Markdown tables and one normal report per candidate under out_dir/label. Returns lean saccade-rank.v1 with overall competition ranks, mean ranks/metrics, bit-identical counts and report paths. Missing/error comparisons cannot win an overall ranking.",
             "inputSchema": {"type": "object", "properties": rank_props, "required": ["reference_dir", "candidate_dirs", "out_dir"], "additionalProperties": false},
-            "outputSchema": rank_output_schema(),
             "annotations": {"readOnlyHint": false, "destructiveHint": false, "idempotentHint": true, "openWorldHint": false}
         },
         {
-            "name": "saccade_compare",
+            "operation": "compare",
             "title": "Compare captures against baselines",
             "description": "Start here for a visual-regression check. Compares every image in capture_dir with the same-named image in baseline_dir using NVIDIA FLIP (a perceptual metric: invisible differences score ~0, visible ones score high), writes the report (index.html, saccade-report.v1.json, heatmaps) to out_dir and, when anything fails, an explain pack with hotspot crops to out_dir/explain. A regression is a normal result (verdict \"regression\"), not an error. Read structuredContent.failing[] (value vs threshold, hotspots = where the error is concentrated, config_differs = capture-setup keys that changed), then the attached images, then follow structuredContent.next_step. Re-running with the same arguments is safe.",
             "inputSchema": {
@@ -206,11 +162,10 @@ fn tool_schemas() -> Value {
                 "required": ["baseline_dir", "capture_dir", "out_dir"],
                 "additionalProperties": false
             },
-            "outputSchema": result_output_schema(),
             "annotations": {"title": "Compare captures against baselines", "readOnlyHint": false, "destructiveHint": false, "idempotentHint": true, "openWorldHint": false}
         },
         {
-            "name": "saccade_identity",
+            "operation": "identity",
             "title": "Check a candidate build against its parent",
             "description": "Use after a change that should not alter any pixel (a refactor, an optimisation): strict defaults (metric max, threshold 0), and bit-identity is reported per image. Same output and next steps as saccade_compare. No config file is read.",
             "inputSchema": {
@@ -219,173 +174,9 @@ fn tool_schemas() -> Value {
                 "required": ["parent_dir", "candidate_dir", "out_dir"],
                 "additionalProperties": false
             },
-            "outputSchema": result_output_schema(),
             "annotations": {"title": "Check a candidate build against its parent", "readOnlyHint": false, "destructiveHint": false, "idempotentHint": true, "openWorldHint": false}
         },
-        {
-            "name": "saccade_explain",
-            "title": "Write the hotspot judge pack",
-            "description": "Cut per-hotspot strips [baseline | capture | heatmap], a whole-frame strip with the hotspot boxes, explain.json and explain.md from a report JSON, and attach the top strips as images. saccade_compare already does this for failing runs; call this to change `top`, or for a blind pairwise judgement: with blind, strips are [A | B] in a random order without the heatmap, the pack names neither the report nor the sides, and the key goes to key_out (required, outside out_dir, inside the server root; keep it from whoever judges).",
-            "inputSchema": {
-                "type": "object",
-                "properties": {
-                    "report_json": report_json,
-                    "out_dir": dir("Directory for the pack (inside the server root). Only the pack's own files are replaced."),
-                    "top": {"type": "integer", "minimum": 1, "maximum": 20, "description": "Hotspots per entry (default 3)."},
-                    "hotspot_min_share": {"type": "number", "minimum": 0, "maximum": 1, "description": "Leave out hotspots carrying less than this share of the total error (default 0.01)."},
-                    "blind": {"type": "boolean", "description": "Hide which side is which and omit the heatmap; needs key_out."},
-                    "key_out": dir("Blind key file to write, outside out_dir and inside the server root. Required with blind."),
-                    "include_images": include_images
-                },
-                "required": ["report_json", "out_dir"],
-                "additionalProperties": false
-            },
-            "outputSchema": explain_output_schema(),
-            "annotations": {"title": "Write the hotspot judge pack", "readOnlyHint": false, "destructiveHint": false, "idempotentHint": true, "openWorldHint": false}
-        },
-        {
-            "name": "saccade_summary",
-            "title": "Summarise a report",
-            "description": "Read-only: verdict, totals, the worst failing entries with their hotspots and the report's file paths, from an existing report JSON, without re-running anything.",
-            "inputSchema": {
-                "type": "object",
-                "properties": { "report_json": report_json },
-                "required": ["report_json"],
-                "additionalProperties": false
-            },
-            "outputSchema": summary_output_schema(),
-            "annotations": {"title": "Summarise a report", "readOnlyHint": true, "destructiveHint": false, "idempotentHint": true, "openWorldHint": false}
-        },
-        {
-            "name": "saccade_compare_runs",
-            "title": "Compare whole runs against a reference run",
-            "description": "Read-only overview for ablations and A/B runs: compares every run in run_dirs (1 to 5 directories of images) with ref_dir, image by image, and returns the matrix summary (saccade-runs.v1). Per run: counts of identical (bit-identical), changed (worst image and its mean FLIP), only-in-ref and only-in-run images, the sidecar keys that differ at run level, and `no_visible_effect: true` when every image is bit-identical (the run changed nothing). `images[]` is the matrix: one row per image name, one cell per run (status, FLIP metrics). Few shared file names set `mismatch`; retry with pair_by_position. Nothing is written.",
-            "inputSchema": {
-                "type": "object",
-                "properties": {
-                    "ref_dir": dir("The reference run: a directory of images (inside the server root)."),
-                    "run_dirs": {"type": "array", "items": {"type": "string", "minLength": 1}, "minItems": 1, "maxItems": 5, "description": "Runs to compare against the reference, paired by relative image path (inside the server root)."},
-                    "labels": {"type": "array", "items": {"type": "string", "minLength": 1}, "description": "One label per directory, the reference first (default: directory names)."},
-                    "pair_by_position": {"type": "boolean", "description": "Pair each run's images with the reference's by sorted position instead of by name."},
-                    "perf_name":{"type":"string"},"perf_noise":{"type":"string"},"perf_noise_k":{"type":"number","exclusiveMinimum":0},
-                    "perf_resolution_ms":{"type":"number","exclusiveMinimum":0},
-                    "perf_resolution_ticks":{"type":"integer","minimum":1},
-                    "perf_min_delta_ms":{"type":"number","minimum":0},
-                    "perf_min_delta_pct":{"type":"number","minimum":0},"config":{"type":"string"},
-                    "ppd": {"type": "number", "exclusiveMinimum": 0, "description": "FLIP pixels per degree of visual angle (default 67)."},
-                    "meta_name": {"type": "string", "minLength": 1, "description": "Run-level sidecar file name (default saccade-meta.json); its keys that differ from the reference's are listed per run."}
-                },
-                "required": ["ref_dir", "run_dirs"],
-                "additionalProperties": false
-            },
-            "outputSchema": runs_output_schema(),
-            "annotations": {"title": "Compare whole runs against a reference run", "readOnlyHint": true, "destructiveHint": false, "idempotentHint": true, "openWorldHint": false}
-        }
     ])
-}
-
-fn runs_output_schema() -> Value {
-    json!({"type": "object",
-        "description": "saccade-runs.v1 (schemas/saccade-runs.v1.schema.json); with isError, saccade-error.v1.",
-        "properties": {
-            "schema": {"const": "saccade-runs.v1"},
-            "ref": {"type": "object", "properties": {"label": {"type": "string"}, "path": {"type": "string"}, "images": {"type": "array", "items": {"type": "object"}}}},
-            "runs": {"type": "array", "items": {"type": "object", "properties": {
-                "label": {"type": "string"},
-                "identical": {"type": "integer"}, "changed": {"type": "integer"}, "errors": {"type": "integer"},
-                "only_in_ref": {"type": "integer"}, "only_in_run": {"type": "integer"},
-                "mismatch": {"type": "boolean"}, "no_visible_effect": {"type": "boolean"},
-                "worst": {"type": "object", "properties": {"name": {"type": "string"}, "mean": {"type": "number"}}},
-                "config_differs": {"type": "array", "items": {"type": "string"}},
-                "summary": {"type": "string"}
-            }, "required": ["label", "identical", "changed", "only_in_ref", "only_in_run", "no_visible_effect", "config_differs", "summary"]}},
-            "config_differences": {"type": "array", "items": {"type": "object"}},
-            "images": {"type": "array", "items": {"type": "object"}},
-            "progress": {"type": "object"}
-        },
-        "required": ["schema", "ref", "runs", "config_differences", "images", "progress"]})
-}
-
-fn sequence_output_schema() -> Value {
-    json!({"type": "object", "properties": {
-        "schema": {"const": "saccade-sequence.v1"},
-        "verdict": {"enum": ["pass", "regression"]},
-        "totals": totals_schema(),
-        "baseline_frames": {"type": "integer"}, "capture_frames": {"type": "integer"},
-        "baseline_temporal_mean": {"type": ["number", "null"]},
-        "capture_temporal_mean": {"type": ["number", "null"]},
-        "temporal_instability": {"type": ["number", "null"]},
-        "frames_over_threshold": {"type": "integer"},
-        "worst_frame": {"type": ["object", "null"]},
-        "temporal_errors": {"type": "array", "items": {"type": "string"}},
-        "report_json": {"type": "string"}, "frames_report_json": {"type": "string"}, "index_html": {"type": "string"}
-    }, "required": ["schema", "verdict", "totals", "temporal_instability", "frames_over_threshold", "report_json", "index_html"]})
-}
-
-fn rank_output_schema() -> Value {
-    json!({"type": "object", "properties": {
-        "schema": {"const": "saccade-rank.v1"}, "verdict": {"enum": ["pass", "regression"]},
-        "metric": {"enum": ["mean", "p95", "p99", "max"]},
-        "overall": {"type": "array", "items": {"type": "object", "properties": {
-            "label": {"type": "string"}, "rank": {"type": ["integer", "null"]},
-            "mean_rank": {"type": ["number", "null"]}, "mean_metric": {"type": ["number", "null"]},
-            "bit_identical": {"type": "integer"}, "report_json": {"type": "string"}, "report_html": {"type": "string"}
-        }, "required": ["label", "rank", "mean_rank", "mean_metric", "bit_identical", "report_json", "report_html"]}},
-        "reference_images": {"type": "integer"}, "common_images": {"type": "integer"},
-        "report_json": {"type": "string"}, "index_html": {"type": "string"}, "markdown": {"type": "string"}
-    }, "required": ["schema", "verdict", "metric", "overall", "report_json", "index_html", "markdown"]})
-}
-
-fn totals_schema() -> Value {
-    json!({
-        "type": "object",
-        "properties": {
-            "total": {"type": "integer"}, "pass": {"type": "integer"}, "fail": {"type": "integer"},
-            "new": {"type": "integer"}, "missing": {"type": "integer"}, "error": {"type": "integer"}
-        },
-        "required": ["total", "pass", "fail", "new", "missing", "error"]
-    })
-}
-
-fn result_output_schema() -> Value {
-    serde_json::from_str(include_str!(
-        "../../../schemas/saccade-result.v1.schema.json"
-    ))
-    .unwrap_or_else(|_| json!({"type":"object"}))
-}
-
-fn explain_output_schema() -> Value {
-    json!({
-        "type": "object",
-        "description": "saccade-explain-result.v1 (schemas/saccade-explain-result.v1.schema.json); with isError, saccade-error.v1.",
-        "properties": {
-            "schema": {"const": "saccade-explain-result.v1"},
-            "blind": {"type": "boolean"},
-            "paths": {"type": "object", "properties": {
-                "dir": {"type": "string"},
-                "explain_json": {"type": "string"},
-                "explain_md": {"type": "string"},
-                "blind_key": {"type": ["string", "null"]}
-            }, "required": ["dir", "explain_json", "explain_md"]},
-            "entries": {"type": "array", "items": {"type": "object"}}
-        },
-        "required": ["schema", "blind", "paths", "entries"]
-    })
-}
-
-fn summary_output_schema() -> Value {
-    json!({
-        "type": "object",
-        "description": "saccade-summary.v1 (schemas/saccade-summary.v1.schema.json); with isError, saccade-error.v1.",
-        "properties": {
-            "schema": {"const": "saccade-summary.v1"},
-            "verdict": {"enum": ["pass", "regression"]},
-            "totals": totals_schema(),
-            "failing": {"type": "array", "items": {"type": "object"}},
-            "paths": {"type": "object"}
-        },
-        "required": ["schema", "verdict", "totals", "failing", "paths"]
-    })
 }
 
 fn arg_str(args: &Map<String, Value>, key: &str) -> Result<Option<String>, CliError> {
@@ -399,7 +190,21 @@ fn arg_str(args: &Map<String, Value>, key: &str) -> Result<Option<String>, CliEr
 }
 
 fn require_str(args: &Map<String, Value>, key: &str) -> Result<String, CliError> {
-    arg_str(args, key)?.ok_or_else(|| CliError::usage(format!("`{key}` is required")))
+    if key == "artifact"
+        && let Some(reference) = args.get(key).and_then(Value::as_object)
+    {
+        if reference.len() != 2 || !reference.contains_key("sha256") {
+            return Err(CliError::usage(
+                "artifact reference requires path and sha256",
+            ));
+        }
+        return reference
+            .get("path")
+            .and_then(Value::as_str)
+            .map(str::to_owned)
+            .ok_or_else(|| CliError::usage("artifact path must be a string"));
+    }
+    arg_str(args, key)?.ok_or_else(|| CliError::usage(format!("missing {key}")))
 }
 
 fn arg_bool(args: &Map<String, Value>, key: &str) -> Result<Option<bool>, CliError> {
@@ -601,44 +406,170 @@ fn top_strips(pack: &ExplainPack, dir: &Path) -> Vec<Value> {
 }
 
 impl Server {
-    /// A server confined to `root`.
-    pub fn new(root: &Path) -> Result<Self, CliError> {
-        if !root.is_dir() {
-            return Err(CliError::io(format!(
-                "--root {} is not a directory",
-                root.display()
-            )));
-        }
+    /// Build a local transport from human-controlled startup permissions.
+    pub fn new(
+        roots: &[PathBuf],
+        output: Option<&Path>,
+        follow: bool,
+        targets: &[PathBuf],
+    ) -> Result<Self, CliError> {
+        let policy = saccade_core::root_policy::RootPolicy::new(roots, output, follow, targets)?;
         Ok(Self {
-            root: absolute(root),
+            root: policy.roots[0].path.clone(),
+            policy,
         })
     }
-
-    /// Resolves an agent-supplied path against the root, canonicalising what
-    /// exists, and refuses anything that ends up outside it.
-    fn resolve(&self, key: &str, p: &str) -> Result<PathBuf, CliError> {
-        let raw = Path::new(p);
-        let joined = if raw.is_absolute() {
-            raw.to_path_buf()
+    fn resolve(&self, key: &str, path: &str) -> Result<PathBuf, CliError> {
+        let write = matches!(key, "out" | "out_dir" | "key_out");
+        let result = if write {
+            self.policy.write(Path::new(path))
         } else {
-            self.root.join(raw)
+            self.policy.read(Path::new(path))
         };
-        let abs = absolute(&joined);
-        if abs.starts_with(&self.root) {
-            Ok(abs)
-        } else {
-            Err(CliError::new(
-                "unsafe_path",
-                format!(
-                    "`{key}`: {} is outside the server root {}",
-                    abs.display(),
-                    self.root.display()
-                ),
-            ))
+        result.map_err(|e| CliError::new("unsafe_path", format!("{key}: {e}")))
+    }
+    /// Resolve transitive file references relative to their owning document.
+    fn document_inputs(&self, path: &Path) -> Result<(), CliError> {
+        let value = crate::local_cmd::read_value(path)?;
+        self.check_references(&value, path.parent().unwrap_or(Path::new(".")), "")?;
+        if value["schema"] == saccade_core::report::REPORT_SCHEMA {
+            let report: Report = serde_json::from_value(value)?;
+            for entry in &report.entries {
+                for (baseline, hash) in [
+                    (true, &entry.baseline_sha256),
+                    (false, &entry.capture_sha256),
+                ] {
+                    if let (Some(file), Some(hash)) = (
+                        crate::local_cmd::report_input(&report, path, &entry.name, baseline),
+                        hash,
+                    ) {
+                        let file = self
+                            .policy
+                            .read(&file)
+                            .map_err(|e| CliError::new("unsafe_path", e.to_string()))?;
+                        if saccade_core::run::sha256_file(&file)? != *hash {
+                            return Err(CliError::new("stale_evidence", "measured input changed"));
+                        }
+                    }
+                }
+            }
         }
+        Ok(())
+    }
+    fn check_references(&self, value: &Value, base: &Path, context: &str) -> Result<(), CliError> {
+        match value {
+            Value::Array(values) => {
+                for value in values {
+                    self.check_references(value, base, context)?;
+                }
+            }
+            Value::Object(map) => {
+                for (key, value) in map {
+                    if (context == "paths"
+                        && matches!(key.as_str(), "baseline" | "capture" | "heatmap")
+                        || matches!(
+                            key.as_str(),
+                            "path" | "baseline_dir" | "capture_dir" | "view_dir" | "report_json"
+                        ))
+                        && let Some(path) = value.as_str()
+                    {
+                        let resolved = saccade_core::paths::native(Path::new(path));
+                        let joined = if resolved.is_absolute() {
+                            resolved.into_owned()
+                        } else {
+                            base.join(resolved)
+                        };
+                        let path = self.policy.read(&joined).map_err(|e| {
+                            CliError::new("unsafe_path", format!("referenced {key}: {e}"))
+                        })?;
+                        if let Some(hash) = map.get("sha256").and_then(Value::as_str) {
+                            let actual = saccade_core::run::sha256_file(&path)?;
+                            if actual != hash.strip_prefix("sha256:").unwrap_or(hash) {
+                                return Err(CliError::new(
+                                    "stale_evidence",
+                                    "referenced content hash changed",
+                                ));
+                            }
+                        }
+                    }
+                    self.check_references(value, base, key)?;
+                }
+            }
+            _ => {}
+        }
+        Ok(())
+    }
+    /// Validate descendants before computations open images, masks or sidecars.
+    fn input_tree(&self, path: &Path) -> Result<(), CliError> {
+        if path.is_file() {
+            self.policy
+                .read(path)
+                .map_err(|e| CliError::new("unsafe_path", e.to_string()))?;
+            return Ok(());
+        }
+        let mut queue = vec![(path.to_owned(), 0)];
+        let mut seen = std::collections::HashSet::new();
+        while let Some((dir, depth)) = queue.pop() {
+            if depth > 64 {
+                return Err(CliError::new("unsafe_path", "input tree exceeds 64 levels"));
+            }
+            let canonical =
+                saccade_core::paths::canonicalize(&dir).map_err(|e| CliError::io(e.to_string()))?;
+            if !seen.insert(canonical) {
+                continue;
+            }
+            for child in std::fs::read_dir(dir).map_err(|e| CliError::io(e.to_string()))? {
+                let child = child.map_err(|e| CliError::io(e.to_string()))?.path();
+                let allowed = self
+                    .policy
+                    .read(&child)
+                    .map_err(|e| CliError::new("unsafe_path", e.to_string()))?;
+                if allowed.is_dir() {
+                    queue.push((allowed, depth + 1));
+                }
+            }
+        }
+        Ok(())
+    }
+    fn validate_config(&self, cfg: &RunConfig) -> Result<(), CliError> {
+        if !cfg.symlink_targets.is_empty() {
+            return Err(CliError::new(
+                "unsafe_path",
+                "project settings cannot authorize symlink targets",
+            ));
+        }
+        for mask in &cfg.masks {
+            if let Some(path) = &mask.image {
+                self.policy
+                    .read(&cfg.config_dir.as_deref().unwrap_or(&self.root).join(path))
+                    .map_err(|e| CliError::new("unsafe_path", e.to_string()))?;
+            }
+        }
+        if let Some(path) = &cfg.perf.noise {
+            self.policy
+                .read(path)
+                .map_err(|e| CliError::new("unsafe_path", e.to_string()))?;
+        }
+        cfg.meta.checker()?;
+        Ok(())
     }
 
     fn output_paths(&self, value: &mut Value, absolute_paths: bool) {
+        if let Some(reference) = value.get_mut("artifact")
+            && let Some(path) = reference.get_mut("path")
+            && let Some(s) = path.as_str()
+        {
+            *path = json!(saccade_core::paths::record(
+                &saccade_core::explain::absolute(Path::new(s)),
+                &self.root,
+                absolute_paths
+            ));
+        }
+        if let Some(actions) = value.get_mut("next_actions").and_then(Value::as_array_mut) {
+            for action in actions {
+                self.output_paths(&mut action["arguments"], absolute_paths);
+            }
+        }
         for key in [
             "report_json",
             "frames_report_json",
@@ -649,7 +580,7 @@ impl Server {
                 && let Some(s) = path.as_str()
             {
                 *path = Value::String(saccade_core::paths::record(
-                    Path::new(s),
+                    &saccade_core::explain::absolute(Path::new(s)),
                     &self.root,
                     absolute_paths,
                 ));
@@ -665,7 +596,7 @@ impl Server {
             for path in paths.values_mut() {
                 if let Some(s) = path.as_str() {
                     *path = Value::String(saccade_core::paths::record(
-                        Path::new(s),
+                        &saccade_core::explain::absolute(Path::new(s)),
                         &self.root,
                         absolute_paths,
                     ));
@@ -677,6 +608,7 @@ impl Server {
     fn existing_dir(&self, key: &str, p: &str) -> Result<PathBuf, CliError> {
         let path = self.resolve(key, p)?;
         if path.is_dir() {
+            self.input_tree(&path)?;
             Ok(path)
         } else {
             Err(CliError::io(format!(
@@ -713,11 +645,22 @@ impl Server {
         include_images: bool,
     ) -> ToolResult {
         cfg.validate()?;
-        let report: Report = saccade_core::run::run(baseline, capture, out, cfg)?;
+        self.validate_config(cfg)?;
+        self.input_tree(baseline)?;
+        self.input_tree(capture)?;
+        let mut report: Report = saccade_core::run::run(baseline, capture, out, cfg)?;
+        // Retain the authorized alias route in references so downstream reads
+        // do not turn a registered target into an independently browsable root.
+        let base = out;
+        report.baseline_dir = Some(crate::local_cmd::lexical_record(baseline, base));
+        report.capture_dir = Some(crate::local_cmd::lexical_record(capture, base));
+        std::fs::write(
+            out.join(saccade_core::report::REPORT_FILE_NAME),
+            serde_json::to_vec_pretty(&report)?,
+        )
+        .map_err(|e| CliError::io(e.to_string()))?;
         let report_json = out.join(saccade_core::report::REPORT_FILE_NAME);
-        if let Some(e) = nothing_compared(&report, &report_json) {
-            return Err(e);
-        }
+        crate::local_cmd::persist_case(&report, &report_json, &crate::IntentArgs::default())?;
         let explain_dir = out.join("explain");
         let mut explain_error = None;
         let mut images = Vec::new();
@@ -744,14 +687,7 @@ impl Server {
         if let (Some(err), Some(obj)) = (explain_error, value.as_object_mut()) {
             obj.insert("explain_error".into(), Value::String(err));
         }
-        self.output_paths(
-            &mut value,
-            report
-                .baseline_dir
-                .as_deref()
-                .is_some_and(|d| Path::new(d).is_absolute()),
-        );
-        let text = summary_text(&report, &value);
+        let text = "Measurement completed.".into();
         Ok(ToolOutput {
             structured: value,
             text,
@@ -838,6 +774,7 @@ impl Server {
                 .ok_or_else(|| CliError::usage("top must be a nonnegative integer"))?,
             None => 5,
         };
+        self.validate_config(&cfg)?;
         let model = saccade_core::ablate::run(&base, &arms, &out, &cfg, top)?;
         Ok(ToolOutput {
             structured: serde_json::to_value(&model)?,
@@ -858,7 +795,9 @@ impl Server {
             None => {
                 let auto = self.root.join("saccade.toml");
                 if auto.is_file() {
-                    RunConfig::from_toml_file(&auto)?
+                    RunConfig::from_toml_file(
+                        &self.existing_file("config", &saccade_core::paths::portable(&auto))?,
+                    )?
                 } else {
                     RunConfig::default()
                 }
@@ -866,7 +805,7 @@ impl Server {
         };
         apply_run_args(args, &mut cfg)?;
         self.apply_perf_args(args, &mut cfg.perf)?;
-        let images = arg_bool(args, "include_images")?.unwrap_or(true);
+        let images = arg_bool(args, "include_images")?.unwrap_or(false);
         self.run_and_explain((&baseline, &capture, &out), &cfg, images)
     }
 
@@ -892,6 +831,7 @@ impl Server {
         if let Some(e) = arg_str(args, "hdr_exposures")? {
             cfg.hdr.parse_exposures(&e)?;
         }
+        self.validate_config(&cfg)?;
         Ok(cfg)
     }
 
@@ -1007,7 +947,7 @@ impl Server {
         };
         apply_run_args(args, &mut cfg)?;
         self.apply_perf_args(args, &mut cfg.perf)?;
-        let images = arg_bool(args, "include_images")?.unwrap_or(true);
+        let images = arg_bool(args, "include_images")?.unwrap_or(false);
         self.run_and_explain((&parent, &candidate, &out), &cfg, images)
     }
 
@@ -1022,6 +962,9 @@ impl Server {
                 "blind",
                 "key_out",
                 "include_images",
+                "entries",
+                "stretch",
+                "seed",
             ],
         )?;
         let report_json = self.existing_file("report_json", &require_str(args, "report_json")?)?;
@@ -1046,7 +989,16 @@ impl Server {
             })?;
         }
         let mut opts = ExplainOptions {
-            top: arg_top(args)?,
+            top: arg_top(args)?.min(5),
+            stretch: arg_bool(args, "stretch")?.unwrap_or(false),
+            entries: arg_strings(args, "entries")?,
+            seed: args
+                .get("seed")
+                .map(|v| {
+                    v.as_u64()
+                        .ok_or_else(|| CliError::usage("seed must be an integer"))
+                })
+                .transpose()?,
             blind,
             key_out: key_out.clone(),
             ..ExplainOptions::default()
@@ -1057,54 +1009,16 @@ impl Server {
             }
             opts.hotspot_min_share = s;
         }
+        self.document_inputs(&report_json)?;
         let pack = explain(&report_json, &out, &opts)?;
-        let abs = |rel: &str| saccade_core::paths::record(&out.join(rel), &self.root, false);
-        let entries: Vec<Value> = pack
-            .entries
-            .iter()
-            .map(|e| {
-                json!({
-                    "name": e.name,
-                    "status": e.status,
-                    "value": e.value,
-                    "thumbnail": e.thumbnail.as_deref().map(abs),
-                    "note": e.note,
-                    "hotspots": e.hotspots.iter().map(|h| json!({
-                        "index": h.index,
-                        "strip": abs(&h.strip),
-                        "position": h.hotspot.position,
-                        "rect_px": h.hotspot.rect_px,
-                        "share_of_total_error": h.hotspot.share_of_total_error,
-                        "panels": h.panels,
-                    })).collect::<Vec<_>>(),
-                })
-            })
-            .collect();
-        let strips: usize = pack.entries.iter().map(|e| e.hotspots.len()).sum();
-        let mut value = json!({
-            "schema": "saccade-explain-result.v1",
-            "blind": blind,
-            "paths": {
-                "dir": saccade_core::paths::record(&out, &self.root, false),
-                "explain_json": abs(saccade_core::explain::EXPLAIN_FILE),
-                "explain_md": abs(saccade_core::explain::EXPLAIN_MD_FILE),
-                "blind_key": key_out.as_ref().map(|k| saccade_core::paths::record(k, &self.root, false)),
-            },
-            "entries": entries,
-        });
-        round_floats(&mut value);
-        let text = format!(
-            "saccade explain: {}, {}{}\nsummary: {}",
-            saccade_core::explain::plural(pack.entries.len(), "entry", "entries"),
-            saccade_core::explain::plural(strips, "hotspot strip", "hotspot strips"),
-            if blind {
-                " (blind; key written to key_out, keep it from the judge)"
-            } else {
-                ""
-            },
-            abs(saccade_core::explain::EXPLAIN_MD_FILE)
-        );
-        let images = if arg_bool(args, "include_images")?.unwrap_or(true) {
+        let mut value = crate::local_cmd::base_result("evidence");
+        value["artifact"] =
+            crate::local_cmd::reference(&out.join(saccade_core::explain::EXPLAIN_FILE))?;
+        value["limits"] = json!([
+            "Independent blind review must exclude the private key and implementation context."
+        ]);
+        let text = "Prepared local evidence.".into();
+        let images = if arg_bool(args, "include_images")?.unwrap_or(false) {
             top_strips(&pack, &out)
         } else {
             Vec::new()
@@ -1116,255 +1030,410 @@ impl Server {
         })
     }
 
-    fn tool_entries(&self, args: &Map<String, Value>, single: bool) -> ToolResult {
-        reject_unknown(
-            args,
-            if single {
-                &["report_json", "name"]
-            } else {
-                &["report_json", "status", "name", "offset", "limit", "cursor"]
-            },
-        )?;
-        let path = self.existing_file("report_json", &require_str(args, "report_json")?)?;
-        let report = crate::read_report(&path)?;
-        let value = if single {
-            let name = require_str(args, "name")?;
-            let entry = report
-                .entries
-                .iter()
-                .find(|e| e.name == name)
-                .ok_or_else(|| {
-                    CliError::usage(format!("name {name:?} is absent from {}", path.display()))
-                })?;
-            serde_json::to_value(entry)?
-        } else {
-            let integer = |key: &str, default: usize| -> Result<usize, CliError> {
-                match args.get(key) {
-                    None => Ok(default),
-                    Some(v) => v
-                        .as_u64()
-                        .and_then(|n| usize::try_from(n).ok())
-                        .ok_or_else(|| {
-                            CliError::usage(format!("`{key}` must be a nonnegative integer"))
-                        }),
-                }
-            };
-            let offset = match arg_str(args, "cursor")? {
-                Some(c) => {
-                    if args.contains_key("offset") {
-                        return Err(CliError::usage("use cursor or offset, not both"));
-                    }
-                    c.parse().map_err(|_| {
-                        CliError::usage(
-                            "`cursor` must be the numeric next_cursor from the previous page",
-                        )
-                    })?
-                }
-                None => integer("offset", 0)?,
-            };
-            let limit = integer("limit", 50)?;
-            if !(1..=1000).contains(&limit) {
-                return Err(CliError::usage("`limit` must be from 1 to 1000"));
-            }
-            let page = saccade_core::ergonomics::entries(
-                &report,
-                &arg_strings(args, "status")?,
-                arg_str(args, "name")?.as_deref(),
-                offset,
-                limit,
-            )?;
-            serde_json::to_value(page)?
-        };
-        Ok(ToolOutput {
-            text: serde_json::to_string(&value)?,
-            structured: value,
-            images: Vec::new(),
-        })
-    }
-
-    fn tool_summary(&self, args: &Map<String, Value>) -> ToolResult {
-        reject_unknown(args, &["report_json"])?;
-        let path = self.existing_file("report_json", &require_str(args, "report_json")?)?;
-        let text = std::fs::read_to_string(&path)
-            .map_err(|e| CliError::io(format!("reading {}: {e}", path.display())))?;
-        let report: Report = serde_json::from_str(&text)
-            .map_err(|e| CliError::io(format!("parsing {}: {e}", path.display())))?;
-        let mut value = summary_value(&report, &path, DEFAULT_TOP_FAILING);
-        round_floats(&mut value);
-        self.output_paths(
-            &mut value,
-            report
-                .baseline_dir
-                .as_deref()
-                .is_some_and(|d| Path::new(d).is_absolute()),
-        );
-        let text = summary_text(&report, &value);
-        Ok(ToolOutput {
-            structured: value,
-            text,
-            images: Vec::new(),
-        })
-    }
-
-    fn tool_compare_runs(&self, args: &Map<String, Value>) -> ToolResult {
-        use saccade_core::runs::{
-            NoAssets, Pairing, RunInput, RunsOptions, overview, unique_labels,
-        };
-        reject_unknown(
-            args,
-            &[
-                "ref_dir",
-                "run_dirs",
-                "labels",
-                "pair_by_position",
-                "perf_name",
-                "perf_noise",
-                "perf_noise_k",
-                "perf_resolution_ms",
-                "perf_resolution_ticks",
-                "perf_min_delta_ms",
-                "perf_min_delta_pct",
-                "config",
-                "ppd",
-                "meta_name",
-            ],
-        )?;
-        let mut dirs = vec![self.existing_dir("ref_dir", &require_str(args, "ref_dir")?)?];
-        let given = arg_strings(args, "run_dirs")?;
-        if given.is_empty() || given.len() > saccade_core::runs::MAX_RUNS {
-            return Err(CliError::usage(format!(
-                "`run_dirs` takes 1 to {} directories",
-                saccade_core::runs::MAX_RUNS
-            )));
-        }
-        for g in &given {
-            dirs.push(self.existing_dir("run_dirs", g)?);
-        }
-        let labels = match arg_strings(args, "labels")? {
-            l if l.is_empty() => unique_labels(&dirs),
-            l if l.len() == dirs.len() => l,
-            l => {
-                return Err(CliError::usage(format!(
-                    "`labels` takes one label per directory ({}), got {}",
-                    dirs.len(),
-                    l.len()
-                )));
-            }
-        };
-        let by_position = arg_bool(args, "pair_by_position")?.unwrap_or(false);
-        let mut opts = RunsOptions::default();
-        if let Some(p) = arg_str(args, "config")? {
-            let cfg = RunConfig::from_toml_file(&self.existing_file("config", &p)?)?;
-            opts.perf = cfg.perf;
-            opts.meta = cfg.meta;
-        }
-        self.apply_perf_args(args, &mut opts.perf)?;
-        if let Some(p) = arg_f64(args, "ppd")? {
-            opts.pixels_per_degree = p as f32;
-        }
-        if let Some(n) = arg_str(args, "meta_name")? {
-            opts.meta.name = n;
-        }
-        let mut inputs: Vec<RunInput> = dirs
-            .into_iter()
-            .zip(labels)
-            .enumerate()
-            .map(|(i, (dir, label))| RunInput {
-                display: saccade_core::paths::record(&dir, &self.root, false),
-                dir,
-                label,
-                pairing: if by_position && i > 0 {
-                    Pairing::Position
-                } else {
-                    Pairing::Name
-                },
-            })
-            .collect();
-        let reference = inputs.remove(0);
-        let model = overview(&reference, &inputs, &opts, None, &NoAssets)?;
-        let mut value = crate::runs_cmd::lean_value(&model)?;
-        round_floats(&mut value);
-        Ok(ToolOutput {
-            structured: value,
-            text: crate::runs_cmd::summary_text(&model),
-            images: Vec::new(),
-        })
-    }
-
     fn call_tool(&self, name: &str, args: &Map<String, Value>) -> Option<ToolResult> {
-        if let Some(feature) = crate::unavailable_feature(name) {
-            return Some(Err(
-                saccade_core::Error::FeatureUnavailable { feature }.into()
-            ));
-        }
-        #[cfg(not(feature = "graphics"))]
-        if matches!(
+        if !matches!(
             name,
-            "saccade_compare" | "saccade_identity" | "saccade_compare_runs"
-        ) && args.keys().any(|key| key.starts_with("perf_"))
-        {
-            return Some(Err(saccade_core::Error::FeatureUnavailable {
-                feature: "graphics",
+            "saccade_measure"
+                | "saccade_inspect"
+                | "saccade_evidence"
+                | "saccade_propose"
+                | "saccade_ask_human"
+        ) {
+            return None;
+        }
+        Some(self.local_tool(name, args))
+    }
+    fn local_tool(&self, name: &str, args: &Map<String, Value>) -> ToolResult {
+        let operation = require_str(args, "operation")?;
+        if let Some(case) = arg_str(args, "expected_case_id")? {
+            let artifact = self.existing_file("artifact", &require_str(args, "artifact")?)?;
+            let value = crate::local_cmd::read_value(&artifact)?;
+            self.document_inputs(&artifact)?;
+            if artifact.with_file_name("evidence.json").is_file() {
+                self.document_inputs(&artifact.with_file_name("evidence.json"))?;
             }
-            .into()));
+            let current = if let Some(case) = value["case_id"].as_str() {
+                case.to_owned()
+            } else {
+                crate::local_cmd::case_for_result(&crate::read_report(&artifact)?, &artifact)?
+                    .case_id
+                    .as_str()
+                    .to_owned()
+            };
+            if current != case {
+                return Err(CliError::new(
+                    "stale_action",
+                    "expected_case_id does not match current evidence",
+                ));
+            }
         }
-        #[cfg(feature = "prechecks")]
-        if let Some(result) = crate::precheck_mcp::call(name, args, &|key, p| self.resolve(key, p))
-        {
-            return Some(result.map(|(structured, text)| ToolOutput {
-                structured,
-                text,
-                images: Vec::new(),
-            }));
+        if let Some(reference) = args.get("artifact").filter(|v| v.is_object()) {
+            let path = self.existing_file("artifact", &require_str(args, "artifact")?)?;
+            let actual = format!("sha256:{}", saccade_core::run::sha256_file(&path)?);
+            if reference["sha256"].as_str() != Some(actual.as_str()) {
+                return Err(CliError::new("stale_action", "artifact digest changed"));
+            }
         }
-        #[cfg(feature = "ai")]
-        if let Some(result) = crate::review_cmd::call(name, args, &|key, p| self.resolve(key, p)) {
-            return Some(result.map(|(structured, text)| ToolOutput {
-                structured,
-                text,
-                images: Vec::new(),
-            }));
+        let mut mapped = args.clone();
+        mapped.remove("operation");
+        mapped.remove("expected_case_id");
+        if let Some(out) = mapped.remove("out") {
+            mapped.insert("out_dir".into(), out);
         }
-        #[cfg(feature = "ai")]
-        if let Some(result) = crate::judge_cmd::mcp_call(name, args, &|key, p| self.resolve(key, p))
-        {
-            return Some(result.map(|(structured, text)| ToolOutput {
-                structured,
-                text,
-                images: Vec::new(),
-            }));
+        if let Some(entry) = mapped.remove("entry") {
+            mapped.insert(
+                "entries".into(),
+                if entry.is_array() {
+                    entry
+                } else {
+                    json!([entry])
+                },
+            );
         }
-        if let Some(result) = crate::s6_mcp::call(name, args, &|key, p| self.resolve(key, p)) {
-            return Some(result.map(|(structured, text)| ToolOutput {
-                structured,
-                text,
-                images: Vec::new(),
-            }));
-        }
-        Some(match name {
+        let result = match (name, operation.as_str()) {
+            ("saccade_measure", "noise") => {
+                reject_unknown(
+                    args,
+                    &[
+                        "operation",
+                        "dirs",
+                        "out",
+                        "kind",
+                        "margin",
+                        "metric",
+                        "perf_name",
+                        "perf_noise",
+                        "perf_noise_k",
+                        "perf_resolution_ms",
+                        "perf_resolution_ticks",
+                        "perf_min_delta_ms",
+                        "perf_min_delta_pct",
+                    ],
+                )?;
+                let dirs = arg_strings(args, "dirs")?
+                    .iter()
+                    .map(|p| self.existing_dir("dirs", p))
+                    .collect::<Result<Vec<_>, _>>()?;
+                let out = self.resolve("out", &require_str(args, "out")?)?;
+                let mut perf = saccade_core::perf::PerfOptions::default();
+                self.apply_perf_args(args, &mut perf)?;
+                let metric = match arg_str(args, "metric")?.as_deref().unwrap_or("p95") {
+                    "mean" => Metric::Mean,
+                    "p95" => Metric::P95,
+                    "p99" => Metric::P99,
+                    "max" => Metric::Max,
+                    _ => return Err(CliError::usage("invalid noise metric")),
+                };
+                let value = crate::local_cmd::measure_noise(
+                    &dirs,
+                    &out,
+                    arg_str(args, "kind")?.as_deref().unwrap_or("image"),
+                    arg_f64(args, "margin")?.unwrap_or(1.5),
+                    metric,
+                    &perf,
+                )?;
+                ToolOutput {
+                    structured: value,
+                    text: "Measured local repeat variation.".into(),
+                    images: Vec::new(),
+                }
+            }
             #[cfg(feature = "graphics")]
-            "saccade_ablate" => self.tool_ablate(args),
-            "saccade_compare_runs" => self.tool_compare_runs(args),
-            #[cfg(feature = "graphics")]
-            "saccade_sequence" => self.tool_sequence(args),
-            #[cfg(feature = "graphics")]
-            "saccade_rank" => self.tool_rank(args),
-            "saccade_compare" => self.tool_compare(args),
-            "saccade_identity" => self.tool_identity(args),
-            "saccade_explain" => self.tool_explain(args),
-            "saccade_summary" => self.tool_summary(args),
-            "saccade_list_entries" => self.tool_entries(args, false),
-            "saccade_get_entry" => self.tool_entries(args, true),
-            _ => {
-                let resolved =
-                    crate::agent_ui::mcp_call(name, args, &|key, p| self.resolve(key, p))?;
-                resolved.map(|(structured, text, images)| ToolOutput {
+            ("saccade_measure", "bisect") => {
+                reject_unknown(
+                    args,
+                    &[
+                        "operation",
+                        "runs",
+                        "good",
+                        "out",
+                        "threshold",
+                        "metric",
+                        "entry",
+                    ],
+                )?;
+                let runs = arg_strings(args, "runs")?
+                    .iter()
+                    .map(|p| self.existing_dir("runs", p))
+                    .collect::<Result<Vec<_>, _>>()?;
+                let good = arg_str(args, "good")?
+                    .map(|p| self.existing_dir("good", &p))
+                    .transpose()?;
+                let out = self.resolve("out", &require_str(args, "out")?)?;
+                let options = crate::s6::options(
+                    arg_f64(args, "threshold")?,
+                    arg_str(args, "metric")?.as_deref(),
+                    arg_str(args, "entry")?,
+                )?;
+                let report = saccade_core::bisect::runs(&runs, good.as_deref(), &out, &options)?;
+                ToolOutput {
+                    structured: crate::local_cmd::analysis_result(
+                        &serde_json::to_value(&report)?,
+                        &out,
+                    )?,
+                    text: "Analyzed ordered existing captures.".into(),
+                    images: Vec::new(),
+                }
+            }
+            #[cfg(feature = "prechecks")]
+            ("saccade_measure", op @ ("safety" | "a11y")) => {
+                let name = format!("saccade_{op}");
+                let (structured, text) =
+                    crate::precheck_mcp::call(&name, &mapped, &|key, path| self.resolve(key, path))
+                        .ok_or_else(|| CliError::usage("unavailable precheck"))??;
+                ToolOutput {
                     structured,
                     text,
-                    images,
-                })
+                    images: Vec::new(),
+                }
             }
-        })
+            ("saccade_inspect", "config") => {
+                reject_unknown(args, &["operation", "config", "entry"])?;
+                let file = arg_str(args, "config")?
+                    .map(|p| self.existing_file("config", &p))
+                    .transpose()?;
+                let cfg = match &file {
+                    Some(p) => RunConfig::from_toml_file(p)?,
+                    None => RunConfig::default(),
+                };
+                self.validate_config(&cfg)?;
+                let mut value = crate::local_cmd::base_result("config");
+                value["data"] = cfg.explain_settings(
+                    file.as_deref(),
+                    if file.is_some() {
+                        "explicit config"
+                    } else {
+                        "built-in defaults"
+                    },
+                    arg_str(args, "entry")?.as_deref(),
+                )?;
+                if let Some(data) = value["data"].as_object_mut() {
+                    data.remove("defaults");
+                }
+                ToolOutput {
+                    structured: crate::local_cmd::bounded(value, 4096)?,
+                    text: "Inspected local effective settings.".into(),
+                    images: Vec::new(),
+                }
+            }
+            ("saccade_measure", "compare") => self.tool_compare(&mapped)?,
+            ("saccade_measure", "identity") => self.tool_identity(&mapped)?,
+            #[cfg(feature = "graphics")]
+            ("saccade_measure", "ablate") => self.tool_ablate(&mapped)?,
+            #[cfg(feature = "graphics")]
+            ("saccade_measure", "sequence") => self.tool_sequence(&mapped)?,
+            #[cfg(feature = "graphics")]
+            ("saccade_measure", "rank") => self.tool_rank(&mapped)?,
+            ("saccade_inspect", "capabilities") => {
+                reject_unknown(args, &["operation"])?;
+                let mut value = crate::local_cmd::base_result("capabilities");
+                value["limits"] = json!([
+                    "Only compiled local operations are advertised. Provider review arrives in R11."
+                ]);
+                value["counts"] = json!({"tools":5});
+                value["data"] = json!({"features":saccade_core::COMPILED_FEATURES,"tools":tool_schemas().as_array().map(|a|a.iter().map(|t|t["name"].clone()).collect::<Vec<_>>()),"contracts":["saccade-result.v2","saccade-evidence.v1","saccade-report.v1"]});
+                return Ok(ToolOutput {
+                    structured: value,
+                    text: "Five local tools; provider review is unavailable.".into(),
+                    images: Vec::new(),
+                });
+            }
+            ("saccade_inspect", "summary" | "entries" | "request_status") => {
+                reject_unknown(
+                    args,
+                    &[
+                        "operation",
+                        "artifact",
+                        "entry",
+                        "status",
+                        "limit",
+                        "cursor",
+                        "expected_case_id",
+                    ],
+                )?;
+                let path = self.existing_file("artifact", &require_str(args, "artifact")?)?;
+                self.document_inputs(&path)?;
+                let limit = args
+                    .get("limit")
+                    .map(|v| {
+                        v.as_u64()
+                            .and_then(|n| usize::try_from(n).ok())
+                            .ok_or_else(|| CliError::usage("limit must be an integer"))
+                    })
+                    .transpose()?
+                    .unwrap_or(if operation == "entries" { 10 } else { 5 });
+                if operation != "entries" && limit > 5 {
+                    return Err(CliError::usage(
+                        "summaries list at most five entries; use the entries operation for pages",
+                    ));
+                }
+                let value = crate::local_cmd::inspect_page(
+                    &path,
+                    arg_str(args, "entry")?.as_deref(),
+                    &arg_strings(args, "status")?,
+                    limit,
+                    arg_str(args, "cursor")?.as_deref(),
+                )?;
+                return Ok(ToolOutput {
+                    text: format!("Inspected evidence; {} omitted.", value["page"]["omitted"]),
+                    structured: value,
+                    images: Vec::new(),
+                });
+            }
+            ("saccade_evidence", "context" | "crops") => {
+                mapped.remove("artifact");
+                mapped.insert("report_json".into(), json!(require_str(args, "artifact")?));
+                self.tool_explain(&mapped)?
+            }
+            ("saccade_evidence", "request") => {
+                reject_unknown(
+                    args,
+                    &[
+                        "operation",
+                        "artifact",
+                        "question",
+                        "out",
+                        "expected_case_id",
+                    ],
+                )?;
+                let path = self.existing_file("artifact", &require_str(args, "artifact")?)?;
+                self.document_inputs(&path)?;
+                let out = self.resolve("out", &require_str(args, "out")?)?;
+                let value =
+                    crate::local_cmd::request(&path, &require_str(args, "question")?, &out)?;
+                return Ok(ToolOutput {
+                    structured: value,
+                    text: "Prepared existing closed request locally.".into(),
+                    images: Vec::new(),
+                });
+            }
+            ("saccade_evidence", "snapshot") => {
+                reject_unknown(
+                    args,
+                    &[
+                        "operation",
+                        "artifact",
+                        "entry",
+                        "out",
+                        "state",
+                        "width",
+                        "include_images",
+                        "expected_case_id",
+                    ],
+                )?;
+                let path = self.existing_file("artifact", &require_str(args, "artifact")?)?;
+                self.document_inputs(&path)?;
+                let out = self.resolve("out", &require_str(args, "out")?)?;
+                let width = args
+                    .get("width")
+                    .map(|v| {
+                        v.as_u64()
+                            .and_then(|v| u32::try_from(v).ok())
+                            .filter(|v| *v > 0 && *v <= 4096)
+                            .ok_or_else(|| CliError::usage("width must be 1..4096"))
+                    })
+                    .transpose()?
+                    .unwrap_or(1024);
+                let snap = crate::agent_ui::render_snapshot(
+                    &path,
+                    Some(&require_str(args, "entry")?),
+                    arg_str(args, "state")?.as_deref(),
+                    width,
+                    &out,
+                )?;
+                let mut value = crate::local_cmd::base_result("snapshot");
+                value["artifact"] = crate::local_cmd::reference(
+                    snap.paths
+                        .first()
+                        .ok_or_else(|| CliError::io("snapshot produced no frame"))?,
+                )?;
+                let images = if arg_bool(args, "include_images")?.unwrap_or(false) {
+                    snap.paths
+                        .iter()
+                        .take(MAX_IMAGES)
+                        .filter_map(|p| image_block(p))
+                        .collect()
+                } else {
+                    Vec::new()
+                };
+                return Ok(ToolOutput {
+                    structured: value,
+                    text: format!("Snapshot: {} × {}.", snap.width, snap.height),
+                    images,
+                });
+            }
+            ("saccade_propose", "answers") => {
+                reject_unknown(
+                    args,
+                    &[
+                        "operation",
+                        "artifact",
+                        "answers",
+                        "out",
+                        "expected_case_id",
+                    ],
+                )?;
+                let request = self.existing_file("artifact", &require_str(args, "artifact")?)?;
+                self.document_inputs(&request)?;
+                let answers = self.existing_file("answers", &require_str(args, "answers")?)?;
+                self.document_inputs(&answers)?;
+                let out = self.resolve("out", &require_str(args, "out")?)?;
+                let value = crate::local_cmd::propose(&request, &answers, Some(&out))?;
+                return Ok(ToolOutput {
+                    structured: value,
+                    text: "Recorded a proposal; human review remains unresolved.".into(),
+                    images: Vec::new(),
+                });
+            }
+            ("saccade_ask_human", "request") => {
+                reject_unknown(args, &["operation", "artifact", "out", "expected_case_id"])?;
+                let request = self.existing_file("artifact", &require_str(args, "artifact")?)?;
+                self.document_inputs(&request)?;
+                let out = self.resolve("out", &require_str(args, "out")?)?;
+                let value = crate::local_cmd::ask(&request, Some(&out))?;
+                return Ok(ToolOutput {
+                    structured: value,
+                    text: "Human review item is unresolved.".into(),
+                    images: Vec::new(),
+                });
+            }
+            ("saccade_measure", op) if crate::unavailable_feature(op).is_some() => {
+                return Err(saccade_core::Error::FeatureUnavailable {
+                    feature: crate::unavailable_feature(op).unwrap_or("graphics"),
+                }
+                .into());
+            }
+            _ => {
+                return Err(CliError::usage(
+                    "operation is not implemented for this local tool",
+                ));
+            }
+        };
+        let mut result = result;
+        if result.structured["schema"] != "saccade-result.v2" {
+            let mut value = crate::local_cmd::base_result(&operation);
+            if let Some(out) = args.get("out").and_then(Value::as_str) {
+                let out = self.resolve("out", out)?;
+                let file = out.join(format!(
+                    "{}.json",
+                    result.structured["schema"].as_str().unwrap_or("explain")
+                ));
+                if file.is_file() {
+                    value["artifact"] = crate::local_cmd::reference(&file)?;
+                } else if out.join("explain.json").is_file() {
+                    value["artifact"] = crate::local_cmd::reference(&out.join("explain.json"))?;
+                }
+            }
+            result.structured = value;
+        }
+        result.text = format!(
+            "{} completed; measurement {}.",
+            operation,
+            result.structured["measurement"]
+                .as_str()
+                .unwrap_or("unknown")
+        );
+        Ok(result)
     }
 
     /// Handles one JSON-RPC message; `None` for notifications (no reply).
@@ -1389,35 +1458,10 @@ impl Server {
                 "protocolVersion": PROTOCOL_VERSION,
                 "capabilities": {"tools": {"listChanged": false}, "logging": {}},
                 "serverInfo": {"name": "saccade", "version": env!("CARGO_PKG_VERSION")},
-                "instructions": format!("Perceptual (FLIP) image regression. Call saccade_compare (or saccade_identity for a no-pixel-change refactor): it writes a report plus hotspot crops, attaches the top strips as images, and returns structuredContent.next_step. Read failing[].hotspots for where the visible difference is. Every path must be under the server root ({}); relative paths resolve against it.", self.root.display()),
+                "instructions": "Measure locally with saccade_measure, inspect bounded results, then prepare evidence or ask a human. Capture roots are read-only; generated artifacts require --out-root. Provider calls are unavailable in this lane. Images are returned only when requested.",
             }),
             "ping" => json!({}),
-            "tools/list" => {
-                let mut tools = tool_schemas();
-                if let Some(list) = tools.as_array_mut() {
-                    #[cfg(feature = "prechecks")]
-                    list.extend(crate::precheck_mcp::schemas());
-                    list.extend(crate::agent_ui::mcp_schemas());
-                    #[cfg(feature = "ai")]
-                    list.extend(crate::judge_cmd::mcp_schemas());
-                    #[cfg(feature = "ai")]
-                    list.extend(crate::review_cmd::schemas());
-                    list.extend(crate::s6_mcp::schemas());
-                }
-                if let Some(list) = tools.as_array_mut() {
-                    list.retain(|t| crate::operation_available(t["name"].as_str().unwrap_or("")));
-                }
-                #[cfg(not(feature = "graphics"))]
-                if let Some(list) = tools.as_array_mut() {
-                    for tool in list {
-                        if let Some(properties) = tool["inputSchema"]["properties"].as_object_mut()
-                        {
-                            properties.retain(|key, _| !key.starts_with("perf_"));
-                        }
-                    }
-                }
-                json!({"tools": tools})
-            }
+            "tools/list" => json!({"tools": tool_schemas()}),
             "tools/call" => {
                 let Some(name) = params.and_then(|p| p.get("name")).and_then(Value::as_str) else {
                     return Some(rpc_error(id, -32602, "tools/call needs a string `name`"));
@@ -1431,7 +1475,10 @@ impl Server {
                     }
                 };
                 match self.call_tool(name, args) {
-                    Some(r) => tool_response(r),
+                    Some(r) => tool_response(r.map(|mut out| {
+                        self.output_paths(&mut out.structured, false);
+                        out
+                    })),
                     None => return Some(rpc_error(id, -32602, &format!("unknown tool {name:?}"))),
                 }
             }
@@ -1453,7 +1500,7 @@ fn tool_response(result: ToolResult) -> Value {
             })
         }
         Err(e) => json!({
-            "content": [{"type": "text", "text": format!("saccade error [{}]: {}", e.code, e.message)}],
+            "content": [{"type": "text", "text": format!("saccade error [{}]: {}", e.code, crate::local_cmd::short(&e.message, 256))}],
             "structuredContent": e.value(),
             "isError": true,
         }),
@@ -1464,15 +1511,14 @@ fn rpc_error(id: Value, code: i64, message: &str) -> Value {
     json!({"jsonrpc": "2.0", "id": id, "error": {"code": code, "message": message}})
 }
 
-/// Serves MCP on stdin/stdout until stdin closes. `root` defaults to the
-/// working directory.
-pub fn serve_stdio(root: Option<&Path>) -> Result<(), CliError> {
-    let root = match root {
-        Some(r) => r.to_path_buf(),
-        None => std::env::current_dir()
-            .map_err(|e| CliError::io(format!("reading the working directory: {e}")))?,
-    };
-    let server = Server::new(&root)?;
+/// Serves the explicit startup registry on stdin/stdout until stdin closes.
+pub fn serve_stdio(
+    roots: &[PathBuf],
+    output: Option<&Path>,
+    follow: bool,
+    targets: &[PathBuf],
+) -> Result<(), CliError> {
+    let server = Server::new(roots, output, follow, targets)?;
     let stdin = std::io::stdin();
     let stdout = std::io::stdout();
     for line in stdin.lock().lines() {
@@ -1498,4 +1544,113 @@ pub fn serve_stdio(root: Option<&Path>) -> Result<(), CliError> {
         }
     }
     Ok(())
+}
+
+fn tool_schemas() -> Value {
+    let historical = measurement_schemas();
+    let mut measures = Vec::new();
+    for (name, operation) in [
+        ("compare", "compare"),
+        ("identity", "identity"),
+        ("ablate", "ablate"),
+        ("sequence", "sequence"),
+        ("rank", "rank"),
+    ] {
+        if crate::unavailable_feature(operation).is_some() {
+            continue;
+        }
+        if let Some(old) = historical
+            .as_array()
+            .and_then(|a| a.iter().find(|t| t["operation"] == name))
+        {
+            let mut schema = old["inputSchema"].clone();
+            if let Some(props) = schema["properties"].as_object_mut() {
+                props.insert(
+                    "operation".into(),
+                    json!({"const":operation,"type":"string"}),
+                );
+                if let Some(mut out) = props.remove("out_dir") {
+                    out["description"] =
+                        json!("Generated artifact path inside the separately authorized out-root.");
+                    props.insert("out".into(), out);
+                }
+                if let Some(entry) = props.remove("entries") {
+                    props.insert("entry".into(), entry);
+                }
+                if let Some(include) = props.get_mut("include_images") {
+                    include["default"] = json!(false);
+                }
+                #[cfg(not(feature = "graphics"))]
+                props.retain(|k, _| !k.starts_with("perf_"));
+            }
+            if let Some(required) = schema["required"].as_array_mut() {
+                for r in required.iter_mut() {
+                    if *r == "out_dir" {
+                        *r = json!("out");
+                    }
+                }
+                required.push(json!("operation"));
+            }
+            measures.push(schema);
+        }
+    }
+    measures.push(json!({"type":"object","properties":{"operation":{"const":"noise","type":"string"},"dirs":{"type":"array","items":{"type":"string"},"minItems":2},"out":{"type":"string"},"kind":{"type":"string","enum":if cfg!(feature="graphics"){vec!["image","performance"]}else{vec!["image"]}},"margin":{"type":"number","minimum":1},"metric":{"enum":["mean","p95","p99","max"]},"perf_name":{"type":"string"},"perf_noise":{"type":"string"},"perf_noise_k":{"type":"number","exclusiveMinimum":0},"perf_resolution_ms":{"type":"number","exclusiveMinimum":0},"perf_resolution_ticks":{"type":"integer","minimum":1},"perf_min_delta_ms":{"type":"number","minimum":0},"perf_min_delta_pct":{"type":"number","minimum":0}},"required":["operation","dirs","out"],"additionalProperties":false}));
+    #[cfg(feature="graphics")]
+    measures.push(json!({"type":"object","properties":{"operation":{"const":"bisect","type":"string"},"runs":{"type":"array","items":{"type":"string"},"minItems":2},"good":{"type":"string"},"out":{"type":"string"},"threshold":{"type":"number","minimum":0,"maximum":1},"metric":{"enum":["mean","p95","p99","max"]},"entry":{"type":"string"}},"required":["operation","runs","out"],"additionalProperties":false}));
+    #[cfg(feature = "prechecks")]
+    for old in crate::precheck_mcp::schemas() {
+        let mut schema = old["inputSchema"].clone();
+        if let Some(props) = schema["properties"].as_object_mut() {
+            props.insert("operation".into(),json!({"const":if old["name"]=="saccade_safety"{"safety"}else{"a11y"},"type":"string"}));
+            if let Some(out) = props.remove("out_dir") {
+                props.insert("out".into(), out);
+            }
+        }
+        if let Some(required) = schema["required"].as_array_mut() {
+            for r in required.iter_mut() {
+                if *r == "out_dir" {
+                    *r = json!("out");
+                }
+            }
+            required.push(json!("operation"));
+        }
+        measures.push(schema);
+    }
+    #[cfg(not(feature = "graphics"))]
+    for schema in &mut measures {
+        if let Some(props) = schema["properties"].as_object_mut() {
+            props.retain(|key, _| !key.starts_with("perf_"));
+        }
+    }
+    let common = json!({"artifact":{"oneOf":[{"type":"string"},{"type":"object","properties":{"path":{"type":"string"},"sha256":{"type":"string","pattern":"^sha256:[0-9a-f]{64}$"}},"required":["path","sha256"],"additionalProperties":false}]},"out":{"type":"string"},"entry":{"type":"string"},"include_images":{"type":"boolean","default":false},"expected_case_id":{"type":"string","pattern":"^sha256:[0-9a-f]{64}$"}});
+    let make = |name: &str, description: &str, operations: Vec<(&str, Vec<&str>, Value)>| {
+        let variants=operations.into_iter().map(|(op,required,extra)|{
+            let mut properties=common.as_object().cloned().unwrap_or_default();
+            properties.retain(|key,_|match key.as_str(){
+                "artifact"=>op!="capabilities" && op!="config",
+                "out"=>name!="saccade_inspect",
+                "entry"=>matches!(op,"summary"|"entries"|"context"|"crops"|"snapshot"|"config"),
+                "include_images"=>name=="saccade_evidence" && matches!(op,"context"|"crops"|"snapshot"),
+                "expected_case_id"=>op!="capabilities" && op!="config",_=>false});
+            properties.insert("operation".into(),json!({"type":"string","const":op}));
+            if let Some(extra)=extra.as_object(){properties.extend(extra.clone());}
+            let mut fields=vec!["operation"];fields.extend(required);
+            json!({"type":"object","properties":properties,"required":fields,"additionalProperties":false})
+        }).collect::<Vec<_>>();
+        json!({"name":name,"description":description,"inputSchema":{"type":"object","oneOf":variants},"outputSchema":{"type":"object","properties":{"schema":{"const":"saccade-result.v2"}},"required":["schema"]},"annotations":{"destructiveHint":false,"openWorldHint":false}})
+    };
+    json!([
+        {"name":"saccade_measure","description":"Local measurements; regressions remain normal results. Inputs are read-only; outputs require out-root. No images by default.","inputSchema":{"type":"object","oneOf":measures},"outputSchema":{"type":"object"},"annotations":{"destructiveHint":false,"openWorldHint":false}},
+        make("saccade_inspect","Read bounded evidence pages and local capabilities.",vec![
+            ("summary",vec!["artifact"],json!({"limit":{"type":"integer","minimum":1,"maximum":10},"status":{"type":"array","items":{"type":"string"}},"cursor":{"type":"string"}})),
+            ("entries",vec!["artifact"],json!({"limit":{"type":"integer","minimum":1,"maximum":10},"status":{"type":"array","items":{"type":"string"}},"cursor":{"type":"string"}})),
+            ("request_status",vec!["artifact"],json!({})),("capabilities",vec![],json!({})),("config",vec![],json!({"config":{"type":"string"}}))]),
+        make("saccade_evidence","Prepare local context/crops, an existing closed request, or a selected snapshot.",vec![
+            ("context",vec!["artifact","out"],json!({"top":{"type":"integer","minimum":0,"maximum":5},"stretch":{"type":"boolean"},"blind":{"type":"boolean"},"key_out":{"type":"string"},"seed":{"type":"integer"}})),
+            ("crops",vec!["artifact","out"],json!({"top":{"type":"integer","minimum":0,"maximum":5},"stretch":{"type":"boolean"}})),
+            ("request",vec!["artifact","question","out"],json!({"question":{"type":"string"}})),
+            ("snapshot",vec!["artifact","entry","out"],json!({"state":{"type":"string"},"width":{"type":"integer","minimum":1,"maximum":4096}}))]),
+        make("saccade_propose","Validate and record a proposal against an existing closed request; never approval.",vec![("answers",vec!["artifact","answers","out"],json!({"answers":{"type":"string"}}))]),
+        make("saccade_ask_human","Create or retrieve an unresolved closed-request item locally.",vec![("request",vec!["artifact","out"],json!({}))])
+    ])
 }

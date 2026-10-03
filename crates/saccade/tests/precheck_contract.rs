@@ -40,6 +40,7 @@ fn cli_artifacts_schemas_junit_and_root_confined_mcp() {
     let out = root.join("safety");
     let xml = root.join("safety.xml");
     let result = cli(&[
+        "experiment",
         "safety",
         frames.to_str().unwrap(),
         "--fps",
@@ -56,7 +57,9 @@ fn cli_artifacts_schemas_junit_and_root_confined_mcp() {
         "{}",
         String::from_utf8_lossy(&result.stderr)
     );
-    let value: Value = serde_json::from_slice(&result.stdout).unwrap();
+    let value: Value =
+        serde_json::from_slice(&std::fs::read(out.join("saccade-safety.v1.json")).unwrap())
+            .unwrap();
     schema(&value, "saccade-safety.v1.schema.json");
     assert!(out.join("index.html").exists());
     assert!(out.join("report.txt").exists());
@@ -64,6 +67,7 @@ fn cli_artifacts_schemas_junit_and_root_confined_mcp() {
     let picture = frames.join("frame_000.png");
     let aout = root.join("a11y");
     let a = cli(&[
+        "experiment",
         "a11y",
         picture.to_str().unwrap(),
         "--out",
@@ -72,10 +76,12 @@ fn cli_artifacts_schemas_junit_and_root_confined_mcp() {
     ]);
     assert_eq!(a.status.code(), Some(0));
     schema(
-        &serde_json::from_slice(&a.stdout).unwrap(),
+        &serde_json::from_slice(&std::fs::read(aout.join("saccade-a11y.v1.json")).unwrap())
+            .unwrap(),
         "saccade-a11y.v1.schema.json",
     );
     let bad = cli(&[
+        "experiment",
         "safety",
         frames.to_str().unwrap(),
         "--fps",
@@ -87,10 +93,13 @@ fn cli_artifacts_schemas_junit_and_root_confined_mcp() {
     assert_eq!(bad.status.code(), Some(2));
     assert_eq!(
         serde_json::from_slice::<Value>(&bad.stdout).unwrap()["schema"],
-        "saccade-error.v1"
+        "saccade-result.v2"
     );
+    let outputs = tempfile::tempdir().unwrap();
     let mut child = Command::new(env!("CARGO_BIN_EXE_saccade"))
         .args(["mcp", "--root", root.to_str().unwrap()])
+        .arg("--out-root")
+        .arg(outputs.path())
         .stdin(Stdio::piped())
         .stdout(Stdio::piped())
         .spawn()
@@ -98,9 +107,9 @@ fn cli_artifacts_schemas_junit_and_root_confined_mcp() {
     let mut stdin = child.stdin.take().unwrap();
     for msg in [
         json!({"jsonrpc":"2.0","id":1,"method":"tools/list"}),
-        json!({"jsonrpc":"2.0","id":2,"method":"tools/call","params":{"name":"saccade_safety","arguments":{"input":"frames","fps":32,"out_dir":"mcp-safety"}}}),
-        json!({"jsonrpc":"2.0","id":3,"method":"tools/call","params":{"name":"saccade_a11y","arguments":{"input":"frames/frame_000.png","out_dir":"mcp-a11y"}}}),
-        json!({"jsonrpc":"2.0","id":4,"method":"tools/call","params":{"name":"saccade_safety","arguments":{"input":"../escape","out_dir":"mcp-unsafe"}}}),
+        json!({"jsonrpc":"2.0","id":2,"method":"tools/call","params":{"name":"saccade_measure","arguments":{"operation":"safety","input":"frames","fps":32,"out":"mcp-safety"}}}),
+        json!({"jsonrpc":"2.0","id":3,"method":"tools/call","params":{"name":"saccade_measure","arguments":{"operation":"a11y","input":"frames/frame_000.png","out":"mcp-a11y"}}}),
+        json!({"jsonrpc":"2.0","id":4,"method":"tools/call","params":{"name":"saccade_measure","arguments":{"operation":"safety","input":"../escape","out":"mcp-unsafe"}}}),
     ] {
         writeln!(stdin, "{msg}").unwrap();
     }
@@ -117,19 +126,19 @@ fn cli_artifacts_schemas_junit_and_root_confined_mcp() {
             .as_array()
             .unwrap()
             .iter()
-            .any(|t| t["name"] == "saccade_a11y")
+            .any(|t| t["name"] == "saccade_measure")
     );
     schema(
         &replies[1]["result"]["structuredContent"],
-        "saccade-safety.v1.schema.json",
+        "saccade-result.v2.schema.json",
     );
     schema(
         &replies[2]["result"]["structuredContent"],
-        "saccade-a11y.v1.schema.json",
+        "saccade-result.v2.schema.json",
     );
     assert_eq!(replies[3]["result"]["isError"], true);
     assert_eq!(
-        replies[3]["result"]["structuredContent"]["code"],
+        replies[3]["result"]["structuredContent"]["errors"][0]["code"],
         "unsafe_path"
     );
 }
@@ -163,6 +172,7 @@ fn video_metadata_and_missing_optional_ffmpeg() {
         );
         let out = tmp.path().join("video-report");
         let result = cli(&[
+            "experiment",
             "safety",
             video.to_str().unwrap(),
             "--json",
@@ -175,7 +185,9 @@ fn video_metadata_and_missing_optional_ffmpeg() {
             "{}",
             String::from_utf8_lossy(&result.stderr)
         );
-        let value: Value = serde_json::from_slice(&result.stdout).unwrap();
+        let value: Value =
+            serde_json::from_slice(&std::fs::read(out.join("saccade-safety.v1.json")).unwrap())
+                .unwrap();
         assert_eq!(value["fps"], 24.0);
         schema(&value, "saccade-safety.v1.schema.json");
     } else {
@@ -184,6 +196,7 @@ fn video_metadata_and_missing_optional_ffmpeg() {
     let result = Command::new(env!("CARGO_BIN_EXE_saccade"))
         .env("PATH", tmp.path())
         .args([
+            "experiment",
             "safety",
             video.to_str().unwrap(),
             "--fps",
