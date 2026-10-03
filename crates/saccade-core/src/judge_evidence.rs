@@ -1,13 +1,6 @@
-//! The evidence encoder of judge mode: what a judge that cannot see pixels is
-//! told about a pair of images, and the blind strips a vision judge sees.
-//!
-//! The encoder never emits raw pixels. For a text judge it adds to the
-//! decision-request state a coarse 8x8 FLIP grid (means rounded to 2
-//! decimals), the colour change inside each changed region as English colour
-//! names (nearest neighbour over CIELAB in a small built-in table), and an
-//! optional OCR text difference from an external command (`--ocr-cmd`, no
-//! dependency). A vision judge gets only hotspot crops, contrast-stretched,
-//! labelled `1` and `2` in either order, never a full frame.
+//! Structured evidence for the five decision questions, with explicit missing
+//! features and references to authoritative artifacts. Legacy grid, color, OCR
+//! and strip helpers remain available to historical review consumers.
 
 use std::path::Path;
 use std::process::{Command, Stdio};
@@ -16,6 +9,509 @@ use image::{Rgb, RgbImage, imageops};
 use serde::Serialize;
 
 use crate::report::Hotspot;
+
+use crate::evidence::canonical::{self, Digest};
+use crate::evidence::case::{
+    Availability, EvidenceCase, Fact, FactSource, FactValue, IntentAssurance,
+};
+use crate::evidence::request::{DecisionRequest, ObservationContext, RequestEvidence};
+use crate::evidence::{Result as EvidenceResult, require};
+use serde_json::{Value, json};
+use std::collections::BTreeMap;
+
+/// Version of the unrounded, question-selected structured encoder.
+pub const ENCODER_VERSION: &str = "structured-evidence/1";
+/// Maximum encoded size; unlimited text, logs and source trees are excluded.
+pub const MAX_EVIDENCE_BYTES: usize = 64 * 1024;
+
+/// Exact presentation and completed observations, supplied by the coordinator.
+pub struct EncodingOptions {
+    /// Display/crop/transform identity, even for a direct request.
+    pub presentation_identity: Digest,
+    /// Already attributed model observations; extraction belongs to R10.
+    pub observations: Vec<Fact>,
+    /// Actual model/rubric/transform/fallback identities, never guessed.
+    pub observation_context: Option<ObservationContext>,
+    /// Effective authorized policy, without endpoints or credentials.
+    pub policy: BTreeMap<String, Value>,
+}
+impl Default for EncodingOptions {
+    fn default() -> Self {
+        Self {
+            presentation_identity: Digest::of_bytes(b"structured-only/1"),
+            observations: Vec::new(),
+            observation_context: None,
+            policy: BTreeMap::new(),
+        }
+    }
+}
+
+fn encoded_fact(
+    case: &EvidenceCase,
+    name: &str,
+    units: &str,
+    value: Availability<FactValue>,
+    source: FactSource,
+) -> Fact {
+    Fact {
+        id: format!("encoded-{name}"),
+        name: name.into(),
+        units: units.into(),
+        scope: case.scope.clone(),
+        source,
+        artifact: case.measurement.report.clone(),
+        source_identity: case.measurement.semantic_sha256.clone(),
+        value,
+        depends_on_model_observation: false,
+        observation_refs: Vec::new(),
+    }
+}
+fn available(value: FactValue) -> Availability<FactValue> {
+    Availability::Available { value }
+}
+fn text(value: &impl serde::Serialize) -> EvidenceResult<Availability<FactValue>> {
+    Ok(available(FactValue::Text(
+        String::from_utf8(canonical::bytes(value)?)
+            .map_err(|_| crate::evidence::ContractError::Invalid("non-UTF8 evidence".into()))?,
+    )))
+}
+fn intent_projection(
+    intent: &crate::evidence::case::Intent,
+) -> EvidenceResult<Availability<FactValue>> {
+    let mut value = serde_json::to_value(intent)?;
+    if let Some(object) = value.as_object_mut() {
+        object.remove("provenance");
+        if let Some(source) = &intent.source {
+            object.insert("source".into(), json!({"sha256":source.sha256}));
+        }
+    }
+    text(&value)
+}
+fn replace_feature(case: &mut EvidenceCase, fact: Fact) {
+    if let Some(existing) = case.facts.iter_mut().find(|f| f.id == fact.id) {
+        *existing = fact;
+    } else {
+        case.facts.push(fact);
+    }
+}
+
+/// Adds compact projections of canonical context before computing case identity.
+/// Existing workflow records must be rebuilt if this changes their underlying case.
+pub fn prepare_context(case: &mut EvidenceCase) -> EvidenceResult<()> {
+    case.validate()?;
+    let old_id = case.case_id.clone();
+    let validity = match case.validity.status {
+        crate::evidence::case::ValidityStatus::Valid => "valid",
+        crate::evidence::case::ValidityStatus::Invalid => "invalid",
+        crate::evidence::case::ValidityStatus::Unknown => "unknown",
+    };
+    let intent = case.intent.value();
+    let source_roots: std::collections::BTreeSet<_> = case
+        .provenance
+        .source_roots
+        .iter()
+        .chain(case.inputs.iter().flat_map(|i| &i.provenance.source_roots))
+        .collect();
+    let projections = [
+        encoded_fact(
+            case,
+            "validity",
+            "category",
+            available(FactValue::Text(validity.into())),
+            FactSource::Measured,
+        ),
+        encoded_fact(
+            case,
+            "intent",
+            "structured_declaration",
+            match intent {
+                Some(i) => intent_projection(i)?,
+                None => Availability::missing("declared intent absent"),
+            },
+            FactSource::Declared,
+        ),
+        encoded_fact(
+            case,
+            "structured_intent",
+            "structured_declaration",
+            match intent.filter(|i| i.assurance == IntentAssurance::Structured) {
+                Some(i) => intent_projection(i)?,
+                None => {
+                    Availability::missing("structured intent absent; free text has lower assurance")
+                }
+            },
+            FactSource::Declared,
+        ),
+        encoded_fact(
+            case,
+            "declared_intervention",
+            "structured_declaration",
+            match intent.filter(|i| !i.expected_changes.is_empty()) {
+                Some(i) => text(&i.expected_changes)?,
+                None => Availability::missing("predeclared intervention absent"),
+            },
+            FactSource::Declared,
+        ),
+        encoded_fact(
+            case,
+            "capture_context",
+            "capture_identity",
+            if case.inputs.iter().all(|i| i.capture.value().is_some()) {
+                text(
+                    &case
+                        .inputs
+                        .iter()
+                        .map(|i| (&i.id, &i.capture))
+                        .collect::<Vec<_>>(),
+                )?
+            } else {
+                Availability::missing("capture context is incomplete")
+            },
+            FactSource::Measured,
+        ),
+        encoded_fact(
+            case,
+            "provenance",
+            "content_identity",
+            text(
+                &json!({"inputs":case.inputs.iter().map(|i| json!({"id":i.id,"content":i.content.sha256,"sidecars":i.sidecars.iter().map(|s| &s.sha256).collect::<Vec<_>>(),"build":i.build})).collect::<Vec<_>>(),
+            "report":case.measurement.report.sha256,"semantic_report":case.measurement.semantic_sha256,
+            "config":canonical::digest(&case.effective_config)?,"producer":case.measurement.metric_version,
+            "source_roots":source_roots}),
+            )?,
+            FactSource::Measured,
+        ),
+        encoded_fact(
+            case,
+            "structured_evidence",
+            "content_identity",
+            text(
+                &json!({"report":case.measurement.semantic_sha256,"scope":case.scope,"validity":case.validity}),
+            )?,
+            FactSource::Measured,
+        ),
+    ];
+    // Apply transactionally so an error cannot leave the caller with stale records.
+    let mut next = case.clone();
+    for fact in projections {
+        replace_feature(&mut next, fact);
+    }
+    next.refresh_id()?;
+    require(
+        next.case_id == old_id
+            || (case.requests.is_empty()
+                && case.proposals.is_empty()
+                && case.human_decisions.is_empty()
+                && case.next_actions.is_empty()),
+        "context encoding changed a case with existing workflow records; rebuild the records",
+    )?;
+    next.validate()?;
+    *case = next;
+    Ok(())
+}
+
+/// Selects bounded features per question, retaining provenance, units and omissions.
+/// Unknown features are omitted and referenced through the immutable report.
+pub fn encode(
+    case: &EvidenceCase,
+    question_id: &str,
+    options: EncodingOptions,
+) -> EvidenceResult<DecisionRequest> {
+    case.validate()?;
+    let schema = crate::questions::lookup(question_id)?;
+    let mut names: Vec<_> = schema.required_evidence.iter().map(|r| r.name).collect();
+    names.extend(schema.optional_evidence);
+    names.push("provenance");
+    let mut facts = Vec::new();
+    let mut missing = Vec::new();
+    for name in names {
+        if name == "attributed_visual_observations" && !options.observations.is_empty() {
+            continue;
+        }
+        let matches: Vec<_> = case
+            .facts
+            .iter()
+            .filter(|f| f.name == name && f.source != FactSource::ModelObservation)
+            .collect();
+        require(matches.len() <= 1, "duplicate structured feature names")?;
+        if let Some(fact) = matches.first() {
+            if fact.value.value().is_none() {
+                missing.push(name.into());
+            }
+            facts.push((*fact).clone());
+        } else {
+            missing.push(name.into());
+            if schema.required_evidence.iter().any(|r| r.name == name) {
+                // Missing projections must be present in the case before request creation.
+                return Err(crate::evidence::ContractError::Invalid(format!(
+                    "case lacks feature {name}; encode its availability first"
+                )));
+            }
+        }
+    }
+    let expected_validity = match case.validity.status {
+        crate::evidence::case::ValidityStatus::Valid => "valid",
+        crate::evidence::case::ValidityStatus::Invalid => "invalid",
+        crate::evidence::case::ValidityStatus::Unknown => "unknown",
+    };
+    if let Some(validity) = facts.iter().find(|f| f.name == "validity") {
+        require(
+            validity.value.value() == Some(&FactValue::Text(expected_validity.into()))
+                && validity.source == FactSource::Measured,
+            "encoded validity differs from deterministic case validity",
+        )?;
+    }
+    // Include constituents of selected aggregates without flattening additivity.
+    let mut index = 0;
+    while index < facts.len() {
+        if let Some(FactValue::Aggregate(group)) = facts[index].value.value() {
+            for id in group.members.clone() {
+                if !facts.iter().any(|f| f.id == id) {
+                    let member = case.facts.iter().find(|f| f.id == id).ok_or_else(|| {
+                        crate::evidence::ContractError::Invalid(
+                            "unknown encoded aggregate member".into(),
+                        )
+                    })?;
+                    require(
+                        member.source != FactSource::ModelObservation,
+                        "observations must use typed observation references",
+                    )?;
+                    facts.push(member.clone());
+                }
+            }
+        }
+        index += 1;
+    }
+    for fact in &case.facts {
+        if !facts.iter().any(|f| f.id == fact.id) {
+            missing.push(format!(
+                "omitted:{}; full artifact: {}",
+                fact.id,
+                case.measurement.report.sha256.as_str()
+            ));
+        }
+    }
+    let mut request = DecisionRequest {
+        request_id: Digest::of_bytes(b""),
+        case_id: case.case_id.clone(),
+        question: schema.question(),
+        evidence: RequestEvidence {
+            encoder_version: ENCODER_VERSION.into(),
+            facts,
+            observations: options.observations,
+            intent_ref: case.intent.value().map(|i| i.id.clone()),
+            missing,
+            observation_context: options.observation_context,
+            presentation_identity: options.presentation_identity,
+        },
+        constraints: schema.constraints(),
+        policy: options.policy,
+    };
+    request.refresh_id()?;
+    crate::questions::validate_request(&request)?;
+    request.validate_for(case)?;
+    require(
+        canonical::bytes(&request)?.len() <= MAX_EVIDENCE_BYTES,
+        "structured evidence exceeds 64 KiB; select a smaller case scope",
+    )?;
+    Ok(request)
+}
+
+/// Reuses an authoritative report's diagnostics; no timing qualification or
+/// semantic meaning is inferred from labels, filenames or unqualified timing.
+pub fn report_features(case: &mut EvidenceCase, report: &crate::Report) -> EvidenceResult<()> {
+    case.validate()?;
+    require(
+        crate::evidence::case::Measurement::report_identity(report)?
+            == case.measurement.semantic_sha256,
+        "report differs from the case measurement",
+    )?;
+    let mut next = case.clone();
+    let entries: Vec<_> = report
+        .entries
+        .iter()
+        .filter(|e| case.scope.entries.contains(&e.name))
+        .collect();
+    require(
+        entries.len() == case.scope.entries.len(),
+        "report scope is incomplete",
+    )?;
+    let values = [
+        ("deltas", "flip_or_buffer_units", if entries.iter().all(|e| e.metrics.is_some() || e.buffer.is_some()) { text(&entries.iter().map(|e| json!({"entry":e.name,"metrics":e.metrics,"metric":e.metric_used,"threshold":e.threshold,"value":e.value,"buffer":e.buffer})).collect::<Vec<_>>())? } else { Availability::missing("some inputs lack decoded difference measurements") }),
+        ("region_facts", "normalized_geometry", text(&entries.iter().map(|e| json!({"entry":e.name,"regions":e.regions,"hotspots":e.hotspots,"mask_fraction":e.masked_fraction,
+            "box_geometry":e.hotspots.iter().map(|h| json!({"box_centroid":[h.rect_frac[0]+h.rect_frac[2]/2.0,h.rect_frac[1]+h.rect_frac[3]/2.0],
+                "border_contact":h.rect_frac[0]<=0.0 || h.rect_frac[1]<=0.0 || h.rect_frac[0]+h.rect_frac[2]>=1.0 || h.rect_frac[1]+h.rect_frac[3]>=1.0})).collect::<Vec<_>>()})).collect::<Vec<_>>())?),
+        ("affected_regions", "normalized_geometry", text(&entries.iter().map(|e| json!({"entry":e.name,"hotspots":e.hotspots,"regions":e.regions})).collect::<Vec<_>>())?),
+        ("changed_regions_passes", "normalized_geometry", text(&entries.iter().map(|e| json!({"entry":e.name,"hotspots":e.hotspots,"regions":e.regions,"metadata_disagreements":e.meta_diff})).collect::<Vec<_>>())?),
+        ("capture_checks", "validity_checks", text(&entries.iter().map(|e| json!({"entry":e.name,"status":e.status,"error":e.error,"validity":e.capture_validity,"metadata_disagreements":e.meta_diff,"warnings":e.warnings,"baseline_properties":e.baseline_properties,"properties":e.properties})).collect::<Vec<_>>())?),
+        ("color_tone", "diagnostic", if entries.iter().any(|e| e.diagnostics.is_some()) { text(&entries.iter().map(|e| json!({"entry":e.name,"tone":e.diagnostics.as_ref().and_then(|d| d.tone.as_ref()),"signed":e.diagnostics.as_ref().and_then(|d| d.signed.as_ref()),"residual":e.diagnostics.as_ref().and_then(|d| d.residual.as_ref()),"hdr_assumptions":e.hdr})).collect::<Vec<_>>())? } else { Availability::missing("color diagnostics were not computed") }),
+        ("structure", "pixels", if entries.iter().any(|e| e.diagnostics.is_some() || e.buffer.is_some()) { text(&entries.iter().map(|e| json!({"entry":e.name,"alignment":e.diagnostics.as_ref().and_then(|d| d.shift.as_ref()),"buffer":e.buffer,"properties":e.properties,"nonfinite":e.diagnostics.as_ref().and_then(|d| d.nonfinite.as_ref())})).collect::<Vec<_>>())? } else { Availability::missing("structure diagnostics were not computed") }),
+    ];
+    for (name, units, value) in values {
+        replace_feature(
+            &mut next,
+            encoded_fact(case, name, units, value, FactSource::Measured),
+        );
+    }
+    if let Some(perf) = &report.perf_diff {
+        let qualified = perf.comparability == crate::perf::Comparability::Qualified;
+        let repeats = match (&perf.context_before, &perf.context_after) {
+            (Some(before), Some(after))
+                if !before.raw_samples.is_empty() && !after.raw_samples.is_empty() =>
+            {
+                text(
+                    &json!({"before":before.raw_samples,"after":after.raw_samples,"noise_comparability":perf.noise_comparability,"noise_floor_ms":perf.frame.noise_floor}),
+                )?
+            }
+            _ => Availability::missing("qualified repeat sources were not supplied"),
+        };
+        let counters: Vec<_> = perf
+            .terms
+            .iter()
+            .filter(|t| !t.counters.is_empty())
+            .map(|t| json!({"term":t.id,"counters":t.counters}))
+            .collect();
+        let features = [
+            (
+                "qualification",
+                "boolean",
+                available(FactValue::Boolean(qualified)),
+            ),
+            (
+                "deterministic_findings",
+                "performance_disposition",
+                text(
+                    &json!({"frame_change":perf.frame_change,"attribution":perf.attribution,
+                "materiality":perf.materiality,"qualification_reasons":perf.qualification_reasons,"warnings":perf.warnings}),
+                )?,
+            ),
+            ("repeats", "source_hashes", repeats),
+            (
+                "attribution",
+                "ms",
+                text(
+                    &json!({"status":perf.attribution,"terms":perf.terms,"unattributed_before":perf.unattributed_before,
+                "unattributed_after":perf.unattributed_after,"materiality":perf.materiality}),
+                )?,
+            ),
+            (
+                "counters",
+                "producer_units",
+                if counters.is_empty() {
+                    Availability::missing("performance counters absent")
+                } else {
+                    text(&counters)?
+                },
+            ),
+            ("performance", "ms", text(perf)?),
+        ];
+        for (name, units, value) in features {
+            replace_feature(
+                &mut next,
+                encoded_fact(case, name, units, value, FactSource::Measured),
+            );
+        }
+    }
+    for name in [
+        "noise",
+        "repeats",
+        "attribution",
+        "counters",
+        "qualification",
+        "deterministic_findings",
+        "convergence",
+        "expected_content",
+        "semantic_uncertainty",
+        "missing_features",
+        "attributed_visual_observations",
+        "temporal",
+        "spatial_summary",
+        "semantics",
+        "performance",
+    ] {
+        if !next.facts.iter().any(|f| f.name == name) {
+            let fact = encoded_fact(
+                case,
+                name,
+                "feature",
+                Availability::missing("not supplied by the authoritative producer"),
+                FactSource::Measured,
+            );
+            next.facts.push(fact);
+        }
+    }
+    next.refresh_id()?;
+    require(
+        next.case_id == case.case_id
+            || (case.requests.is_empty()
+                && case.proposals.is_empty()
+                && case.human_decisions.is_empty()
+                && case.next_actions.is_empty()),
+        "report encoding changed a case with existing workflow records",
+    )?;
+    next.validate()?;
+    *case = next;
+    Ok(())
+}
+
+/// Grid means and maxima retain finite f32 precision rather than rounding to
+/// two decimals; empty/non-finite cells stay unavailable with explicit counts.
+#[derive(Debug, Clone, PartialEq, Serialize)]
+pub struct SpatialSummary {
+    /// Cell means, rows top to bottom; absent when no finite sample exists.
+    pub mean: Vec<Vec<Option<f64>>>,
+    /// Cell maxima, same layout.
+    pub maximum: Vec<Vec<Option<f64>>>,
+    /// Explicit numerical representation.
+    pub precision: &'static str,
+    /// Dimensionless FLIP units.
+    pub units: &'static str,
+    /// Finite input sample count.
+    pub finite_count: usize,
+    /// Non-finite input sample count.
+    pub nonfinite_count: usize,
+}
+
+/// Computes the spatial feature only from a complete, dimensioned error map.
+pub fn spatial_summary(map: &[f32], width: u32, height: u32) -> EvidenceResult<SpatialSummary> {
+    let (w, h) = (width as usize, height as usize);
+    require(
+        w > 0 && h > 0 && w.checked_mul(h) == Some(map.len()),
+        "error map dimensions differ",
+    )?;
+    let mut mean = vec![vec![None; GRID]; GRID];
+    let mut maximum = mean.clone();
+    for gy in 0..GRID {
+        for gx in 0..GRID {
+            let mut sum = 0.0;
+            let mut n = 0;
+            let mut max = f64::NEG_INFINITY;
+            for y in gy * h / GRID..(gy + 1) * h / GRID {
+                for &v in &map[y * w + gx * w / GRID..y * w + (gx + 1) * w / GRID] {
+                    if v.is_finite() {
+                        let v = f64::from(v);
+                        sum += v;
+                        n += 1;
+                        max = max.max(v);
+                    }
+                }
+            }
+            if n > 0 {
+                mean[gy][gx] = Some(sum / n as f64);
+                maximum[gy][gx] = Some(max);
+            }
+        }
+    }
+    let finite_count = map.iter().filter(|v| v.is_finite()).count();
+    Ok(SpatialSummary {
+        mean,
+        maximum,
+        precision: "f32 samples; f64 aggregation; no decimal rounding",
+        units: "flip",
+        finite_count,
+        nonfinite_count: map.len() - finite_count,
+    })
+}
 
 /// Cells per side of the FLIP grid.
 pub const GRID: usize = 8;

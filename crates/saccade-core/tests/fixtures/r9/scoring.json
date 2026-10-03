@@ -1,0 +1,7 @@
+[
+  {"question":"triage.route.v1","human":"suspected_regression","proposed":"likely_noise","harmful_miss":true},
+  {"question":"vision.route.v1","human":"inspect_full_frame","proposed":"inspect_regions","harmful_miss":false},
+  {"question":"perf.interpret.v1","human":"unexplained_change","proposed":"consistent_with_intent","unsupported_claim":true,"harmful_miss":true},
+  {"question":"capture.disposition.v1","human":"recapture","proposed":"continue_review","capture_invalid":true,"harmful_miss":true},
+  {"question":"intent.match.v1","human":"contradicts","proposed":"consistent","harmful_miss":true}
+]

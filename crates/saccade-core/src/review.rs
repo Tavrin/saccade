@@ -26,6 +26,121 @@ pub const SCHEMA: &str = "saccade-review.v1";
 /// Review result filename.
 pub const FILE: &str = "saccade-review.v1.json";
 
+/// Prepares a catalog question locally. The case must already contain encoded
+/// feature availability; this does not authorize dispatch or modify evidence.
+pub fn prepare_question(
+    case: &crate::evidence::case::EvidenceCase,
+    question_id: &str,
+    options: crate::judge_evidence::EncodingOptions,
+) -> crate::evidence::Result<crate::evidence::request::DecisionRequest> {
+    crate::judge_evidence::encode(case, question_id, options)
+}
+
+/// Validates and records advice against an exact catalog request; no promotion,
+/// approval, threshold change or external action is produced.
+pub fn record_proposal(
+    request: &crate::evidence::request::DecisionRequest,
+    response: crate::decision_provider::ProviderResponse,
+    capabilities: &crate::decision_provider::Capabilities,
+) -> crate::evidence::Result<crate::evidence::proposal::DecisionProposal> {
+    response.into_proposal(request, capabilities)
+}
+
+/// Full compatibility identity of a fitted calibrator. Fitting and support
+/// qualification belong to evaluation; this identity grants no authority.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct CalibratorIdentity {
+    /// Project/profile version.
+    pub project: String,
+    /// Exact versioned question.
+    pub question_id: String,
+    /// Actual answering provider/model/revision.
+    pub decision_provider: crate::evidence::request::ProviderIdentity,
+    /// Encoder version.
+    pub encoder_version: String,
+    /// Exact eligible human label set.
+    pub label_set_hash: crate::evidence::canonical::Digest,
+    /// Declared calibration split, separate from development and held-out test.
+    pub split_hash: crate::evidence::canonical::Digest,
+    /// Actual observation identities; null means direct structured evidence.
+    pub observation_context: Option<crate::evidence::request::ObservationContext>,
+    /// Exact presentation/transform identity.
+    pub presentation_identity: crate::evidence::canonical::Digest,
+    /// Effective fallback/routing policy identity.
+    pub policy_identity: crate::evidence::canonical::Digest,
+}
+impl CalibratorIdentity {
+    /// Constructs the complete domain only after actual observation identity is known.
+    pub fn for_request(
+        project: String,
+        request: &crate::evidence::request::DecisionRequest,
+        decision_provider: crate::evidence::request::ProviderIdentity,
+        label_set_hash: crate::evidence::canonical::Digest,
+        split_hash: crate::evidence::canonical::Digest,
+    ) -> crate::evidence::Result<Self> {
+        crate::questions::validate_request(request)?;
+        crate::evidence::require(
+            !project.trim().is_empty()
+                && !decision_provider.provider.trim().is_empty()
+                && !decision_provider.model.trim().is_empty(),
+            "calibrator needs project and actual decision model",
+        )?;
+        Ok(Self {
+            project,
+            question_id: request.question.id.clone(),
+            decision_provider,
+            encoder_version: request.evidence.encoder_version.clone(),
+            label_set_hash,
+            split_hash,
+            observation_context: request.evidence.observation_context.clone(),
+            presentation_identity: request.evidence.presentation_identity.clone(),
+            policy_identity: crate::evidence::canonical::digest(&request.policy)?,
+        })
+    }
+    /// All fields, including label and split hashes, bind the fitted calibrator.
+    pub fn digest(&self) -> crate::evidence::Result<crate::evidence::canonical::Digest> {
+        crate::questions::lookup(&self.question_id)?;
+        crate::evidence::require(
+            !self.project.trim().is_empty()
+                && self.encoder_version == crate::judge_evidence::ENCODER_VERSION
+                && !self.decision_provider.provider.trim().is_empty()
+                && !self.decision_provider.model.trim().is_empty(),
+            "invalid calibrator identity",
+        )?;
+        if let Some(c) = &self.observation_context {
+            crate::evidence::require(
+                !c.extractor.provider.trim().is_empty()
+                    && !c.extractor.model.trim().is_empty()
+                    && !c.rubric_version.trim().is_empty()
+                    && c.transform_identity == self.presentation_identity,
+                "incomplete calibrator observation identity",
+            )?;
+        }
+        crate::evidence::canonical::digest(self)
+    }
+    /// Direct/enriched requests or changed actual models/rubrics/fallbacks cannot
+    /// silently reuse a calibrator. Pooled calibrators require evaluated support.
+    pub fn validate_for(
+        &self,
+        request: &crate::evidence::request::DecisionRequest,
+        provider: &crate::evidence::request::ProviderIdentity,
+    ) -> crate::evidence::Result<()> {
+        self.digest()?;
+        let expected = Self::for_request(
+            self.project.clone(),
+            request,
+            provider.clone(),
+            self.label_set_hash.clone(),
+            self.split_hash.clone(),
+        )?;
+        crate::evidence::require(
+            self == &expected,
+            "calibrator differs from actual question/model/encoder/observations/policy",
+        )
+    }
+}
+
 fn default_models() -> Vec<String> {
     GEMINI_MODELS.map(str::to_owned).to_vec()
 }

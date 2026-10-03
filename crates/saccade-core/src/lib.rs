@@ -11,6 +11,8 @@ pub mod buffer;
 pub mod compare;
 pub mod config;
 pub mod decision;
+#[cfg(feature = "ai")]
+pub mod decision_provider;
 pub mod diagnostics;
 pub mod ergonomics;
 pub mod error;
@@ -37,6 +39,7 @@ pub mod meta;
 pub mod paths;
 pub mod perf;
 pub mod properties;
+pub mod questions;
 pub mod rank;
 pub mod regions;
 pub mod render;
