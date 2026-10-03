@@ -45,7 +45,7 @@ Sources for human verification:
 
 ## Safety pipeline
 
-`saccade safety FRAMES_DIR|VIDEO --fps N --display WxH@inches,distance_m
+`saccade experiment safety FRAMES_DIR|VIDEO --fps N --display WxH@inches,distance_m
 --standard itu-bt1702|wcag --out DIR [--json] [--junit FILE.xml]`.
 
 The default standard is `itu-bt1702`. Frame collection reuses sequence's numeric
@@ -128,7 +128,7 @@ union while the reported area is the peak instantaneous risk-mask area.
 
 ## Accessibility pipeline
 
-`saccade a11y IMAGES_DIR|IMAGE [--config saccade.toml] --out DIR [--json]
+`saccade experiment a11y IMAGES_DIR|IMAGE [--config saccade.toml] --out DIR [--json]
 [--junit FILE.xml] [--suggest-regions --keys-dir DIR]`.
 
 Machado severity-1.0 matrices act on linear RGB, clip to display gamut and
@@ -153,7 +153,7 @@ colours require additional human inspection. WARN does not fail CI.
 Only confirmed `[[region]]` entries with `kind = "text"` or `"ui"` participate
 in contrast checks. Region tables without kind are left to compare's format.
 The a11y parser tolerates other config tables; use the a11y-specific declarations
-with `a11y --config` (compare's region parser does not accept these extra keys).
+with `experiment a11y --config` (compare's region parser does not accept these extra keys).
 Region/glob/name/level errors and declared regions matching no input are errors.
 No automatic config discovery or OCR changes the user's intended coverage.
 
@@ -218,7 +218,7 @@ Schemas are `schemas/saccade-safety.v1.schema.json` and
 the disclaimer and threshold verification notes. `--junit` emits failures only
 for FAIL findings; WARN stays a passing testcase with explanatory system-out.
 Exit 0 = PASS/WARN, 1 = pre-check FAIL, 2 = usage/config/IO/tool error. MCP tools
-`saccade_safety` and `saccade_a11y` preserve server root confinement for every
+`saccade_measure` operations `safety` and `a11y` preserve server root confinement for every
 input, output, config and JUnit path, return full structured content and the
 same disclaimer, and represent a pre-check FAIL as a successful tool result.
 

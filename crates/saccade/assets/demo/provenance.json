@@ -1,0 +1,33 @@
+{
+  "schema": "saccade-demo-provenance.v1",
+  "license": "MIT OR Apache-2.0",
+  "publication_permission": "Repository license grants redistribution of repository-owned code and generated assets.",
+  "clearance_basis": "Existing repository LICENSE-MIT and LICENSE-APACHE; no imported source imagery or private captures.",
+  "rendering_example": "Local CPU analytic sphere render: Lambert diffuse, Blinn-Phong highlight and analytic soft shadow.",
+  "limits": [
+    "Procedural scene; not a Moss GPU capture or performance benchmark.",
+    "Review provider responses and human resolution are illustrative offline fixtures, not live observations or attestation."
+  ],
+  "sources": {
+    "scripts/gen-examples.py": "sha256:74e48d45b265fa04883cf75fbe90f830f5ea85d7ceb11d32ecc481f485d78fc7",
+    "scripts/gen-showcases.py": "sha256:6c03f787074fff15ef2c99e63b16cb467ba53148b57ec4e3d1a51b16c3c0442e",
+    "scripts/gen-demo.py": "sha256:f0093cf005fcde82665cfcdae711ff034483724f2a96a38b4c085e491cf3bee8"
+  },
+  "assets": {
+    "baseline/sphere_identical.png": "sha256:5fc7228d326fc3cedbee5554e0aa83a2a408ded1cfb3cc7ff411207dbf56ca5a",
+    "baseline/sphere_missing.png": "sha256:8d0ca3428ea5bf3fdf3b2f56b77f352c11f99fcb6db3afabf6185792c1d52031",
+    "baseline/sphere_shadow.png": "sha256:2207d5c0fa7b8c68c128921a668c1fdcbf862dca695d97b7e7b48fa005e25b98",
+    "baseline/sphere_subtle.png": "sha256:e445f9b2c04e9c78bc17293ecc902ecb4220e0fb7f1eddba33c0243acb18459e",
+    "baseline/ui_label.png": "sha256:75edf29c5b6dd9cb2c2bc2ba024f0d511cd67889861c15607baca3d88659e5fb",
+    "capture/sphere_identical.png": "sha256:5fc7228d326fc3cedbee5554e0aa83a2a408ded1cfb3cc7ff411207dbf56ca5a",
+    "capture/sphere_new.png": "sha256:40514a84c97c9f73bded0a4b77aa45d9a232f770c5ae25d8dbb027942a03dab5",
+    "capture/sphere_shadow.png": "sha256:1cb26a2041c3bb21eb5d4ad9840d1ef30a6dd0c31c1b55e0ca4fb0a155cfd1a9",
+    "capture/sphere_subtle.png": "sha256:3fa1718684b3f6121526a8f94c8e0c5ca4e689dfc2cebc4c3431059ea98537e7",
+    "capture/ui_label.png": "sha256:cfef72877300d74bed5e25084f77fa9610bc657e2b9b81d6fcb78e6797b18bdb",
+    "identity/baseline/sphere.png": "sha256:396b8a96a859a9f02e060ba8b752ba48099253d58444055a0bc652f7db3d1747",
+    "identity/capture/sphere.png": "sha256:5fc7228d326fc3cedbee5554e0aa83a2a408ded1cfb3cc7ff411207dbf56ca5a",
+    "review/baseline/sphere.png": "sha256:0e2acc28aa8fceb52ebf7a6364a8ae68f8dbc1c2cceb7870a0cddfbcdb918976",
+    "review/capture/sphere.png": "sha256:e8bc693b220925988b1d87d0ba88bfdb1bcbdcd1a8d368256b96acd83d46319e",
+    "review/intent.json": "sha256:2aa5daf26c067b5f3e8513d940deaf04f22fdde088dda3dc229fcb8f17a4b2e3"
+  }
+}

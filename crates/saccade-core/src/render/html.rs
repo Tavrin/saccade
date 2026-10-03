@@ -45,7 +45,48 @@ pub(crate) fn build_html(
         .split_once("__SACCADE_DATA__")
         .ok_or_else(|| Error::Config("report template lacks data slot".into()))?;
     let summary = super::bundle::summary(report, case)?;
-    Ok(format!("{before}{summary}{middle}{data}{after}"))
+    let (head, tail) = before
+        .split_once("__SACCADE_META__")
+        .ok_or_else(|| Error::Config("report template lacks metadata slot".into()))?;
+    let metadata = header_metadata(report);
+    Ok(format!(
+        "{head}{metadata}{tail}{summary}{middle}{data}{after}"
+    ))
+}
+
+fn header_metadata(report: &Report) -> String {
+    let cfg = &report.config;
+    let mut fields = vec![
+        ("version", format!("v{}", report.tool_version)),
+        (
+            "mode",
+            format!(
+                "{:?} ({} vs {})",
+                cfg.mode, cfg.labels.baseline, cfg.labels.capture
+            ),
+        ),
+    ];
+    if cfg.mode == crate::report::Mode::Identity {
+        fields.push((
+            "proof",
+            "Exact native decoded samples, dimensions, channel interpretation and sample type"
+                .into(),
+        ));
+        fields.push(("scope", format!("Supplied captures: {}; selection: {}; exclusions: {}. Capture comparability and performance remain separate.",
+            report.entries.iter().map(|e| e.name.as_str()).collect::<Vec<_>>().join(", "),
+            if cfg.entries.is_empty() { "all names".into() } else { cfg.entries.join(", ") },
+            if cfg.ignore.is_empty() { "none".into() } else { cfg.ignore.join(", ") })));
+    } else {
+        fields.extend([
+            ("threshold", cfg.default_threshold.to_string()),
+            ("metric", format!("{:?}", cfg.default_metric)),
+            ("ppd", cfg.pixels_per_degree.to_string()),
+        ]);
+    }
+    fields
+        .into_iter()
+        .map(|(key, value)| format!("<div><dt>{key}</dt><dd>{}</dd></div>", escape(&value)))
+        .collect()
 }
 
 fn escape(text: &str) -> String {

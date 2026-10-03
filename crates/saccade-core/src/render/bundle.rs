@@ -167,7 +167,62 @@ pub(crate) fn summary(report: &Report, case: Option<&EvidenceCase>) -> Result<St
             report.totals.new
         )
     };
-    let mut rows = vec![("Claim", claim.to_owned()), ("Captures and configuration", format!("{} vs {}; mode {:?}; metric {:?}; threshold {}; {} pixels per degree", report.config.labels.baseline, report.config.labels.capture, report.config.mode, report.config.default_metric, report.config.default_threshold, report.config.pixels_per_degree)), ("Comparison validity", format!("{:?}: {} recorded validity findings. {}", validity.status, validity.reasons.len(), validity.reasons.first().map_or("No missing capture checks recorded.", String::as_str))), ("What changed", changes), ("Acceptance criteria", "Per-entry numerical criteria appear below. Missing/error entries are unresolved evidence.".into()), ("Next action", if report.totals.fail + report.totals.error + report.totals.missing + report.totals.new > 0 { "Inspect the failing entries and numbered hotspots; resolve missing evidence before approval.".into() } else { "Review capture validity and performance qualification before making a broader claim.".into() })];
+    let configuration = if identity {
+        format!(
+            "{} vs {}; exact native decoded-sample equality for supplied captures: {}. Capture comparability and performance are separate findings.",
+            report.config.labels.baseline,
+            report.config.labels.capture,
+            report
+                .entries
+                .iter()
+                .map(|e| e.name.as_str())
+                .collect::<Vec<_>>()
+                .join(", ")
+        )
+    } else {
+        format!(
+            "{} vs {}; mode {:?}; metric {:?}; threshold {}; {} pixels per degree",
+            report.config.labels.baseline,
+            report.config.labels.capture,
+            report.config.mode,
+            report.config.default_metric,
+            report.config.default_threshold,
+            report.config.pixels_per_degree
+        )
+    };
+    let criteria = if identity {
+        "All selected pairs must exist and decode with equal native samples, dimensions, channel interpretation and sample type. No tolerance or mask establishes identity."
+    } else {
+        "Per-entry numerical criteria appear below. Missing/error entries are unresolved evidence."
+    };
+    let mut rows = vec![
+        ("Claim", claim.to_owned()),
+        ("Captures and configuration", configuration),
+        (
+            "Comparison validity",
+            format!(
+                "{:?}: {} recorded validity findings. {}",
+                validity.status,
+                validity.reasons.len(),
+                validity
+                    .reasons
+                    .first()
+                    .map_or("No missing capture checks recorded.", String::as_str)
+            ),
+        ),
+        ("What changed", changes),
+        ("Acceptance criteria", criteria.into()),
+        (
+            "Next action",
+            if report.totals.fail + report.totals.error + report.totals.missing + report.totals.new
+                > 0
+            {
+                "Inspect the failing entries and numbered hotspots; resolve missing evidence before approval.".into()
+            } else {
+                "Review capture validity and performance qualification before making a broader claim.".into()
+            },
+        ),
+    ];
     if let Some(case) = case {
         if let Some(intent) = case.intent.value() {
             rows.push((

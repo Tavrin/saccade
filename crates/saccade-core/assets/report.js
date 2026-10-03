@@ -69,18 +69,7 @@
   // ---- header ------------------------------------------------------------
 
   function renderHeader() {
-    var cfg = report.config || {};
-    var meta = document.getElementById("meta");
-    [
-      ["version", "v" + report.tool_version],
-      ["generated", fmtTime(report.generated_at_unix)],
-      ["threshold", fmt(cfg.default_threshold) || String(cfg.default_threshold)],
-      ["metric", cfg.default_metric],
-      ["ppd", String(cfg.pixels_per_degree)],
-      ["mode", (cfg.mode || "regression") + " (" + LB.baseline + " vs " + LB.capture + ")"]
-    ].forEach(function (kv) {
-      meta.appendChild(h("div", null, h("dt", { text: kv[0] }), h("dd", { text: String(kv[1]) })));
-    });
+    // Metadata is rendered from the report in Rust, including identity proof scope.
     var t = report.totals || {};
     var chips = document.getElementById("chips");
     chips.appendChild(h("span", { class: "chip total", role: "listitem" }, h("b", { text: String(t.total || 0) }), "total"));

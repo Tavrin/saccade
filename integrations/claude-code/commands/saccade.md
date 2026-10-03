@@ -1,5 +1,12 @@
 ---
-description: Inspect a visual change with saccade and ask for a human decision when needed.
+description: Measure a visual change and request human review when needed.
 argument-hint: BASELINE_DIR CAPTURE_DIR
 ---
-Compare $ARGUMENTS with `saccade compare ... --out saccade-report --json` or `saccade_compare` MCP. Read verdict, totals and failing hotspots. Inspect `saccade explain` strips and a `saccade snapshot` for the worst entry. Summarize the visible change with evidence paths. If intent is unclear, post a closed-answer question via `saccade_ask_human` or `saccade ask` and link the exact view. Record proposals with `decide`; never auto-approve or update a baseline without explicit human authorization. Exit 1 is a regression, not a tool failure; exit 2 needs investigation.
+Compare $ARGUMENTS with `saccade compare ... --out saccade-report --json` or
+`saccade_measure` with operation `compare`. Read validity, limits, totals and
+next actions. Inspect the worst entry with `saccade inspect evidence` and
+`saccade inspect export --format png`. Preview `saccade review` locally, prepare
+a closed request with `saccade review request`, and use `saccade review ask`
+when unresolved. `saccade review propose` records advice. Never approve a
+baseline without explicit human authorization. Respect egress and call budgets.
+Exit 1 is a failed measurement gate; exit 2 needs investigation.

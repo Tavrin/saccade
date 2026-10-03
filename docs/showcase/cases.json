@@ -1,0 +1,41 @@
+{
+  "count": 9,
+  "cases": [
+    {
+      "id": "cover-art",
+      "validated": true
+    },
+    {
+      "id": "lod-transition",
+      "validated": true
+    },
+    {
+      "id": "ml-image-model",
+      "validated": true
+    },
+    {
+      "id": "perf-identity",
+      "validated": true
+    },
+    {
+      "id": "photosensitivity",
+      "validated": true
+    },
+    {
+      "id": "render-gbuffer",
+      "validated": true
+    },
+    {
+      "id": "texture-compression",
+      "validated": true
+    },
+    {
+      "id": "upscaler",
+      "validated": true
+    },
+    {
+      "id": "webapp-ui",
+      "validated": true
+    }
+  ]
+}

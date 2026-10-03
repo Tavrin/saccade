@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>saccade showcase</title>
-<meta name="description" content="saccade: perceptual (NVIDIA FLIP) visual-regression testing. Eight reproducible use cases with their real commands, images and output.">
+<meta name="description" content="saccade: perceptual (NVIDIA FLIP) visual-regression testing. 9 reproducible use cases with their real commands, images and output.">
 <meta name="color-scheme" content="light dark">
 <link rel="stylesheet" href="assets/tokens.css">
 <link rel="stylesheet" href="assets/components.css">
@@ -34,11 +34,11 @@
   <div class="wrap">
     <div>
       <p class="eyebrow">NVIDIA FLIP · CLI · GitHub Action · MCP</p>
-      <h1>Visual regression tests that score what a <em>person would notice</em>.</h1>
+      <h1>Compare images and inspect the measured differences.</h1>
       <p class="lead">saccade compares baseline images with fresh captures using NVIDIA FLIP, a perceptual error metric. It boxes the regions where the error is, describes the change in plain English and exits 1 on a regression.</p>
       <ul class="points">
-        <li>Scores how visible a change is, so a 1-bit dither change and a visible colour error do not count alike.</li>
-        <li>Given capture metadata, reports an error instead of a verdict when the two runs used different settings.</li>
+        <li>Measures perceptual difference under configured viewing conditions. Threshold passes do not prove invisibility.</li>
+        <li>With <code>--require-matching-meta</code>, undeclared metadata differences are errors.</li>
         <li>Built for agents: lean JSON results, hotspot crops, server-side snapshots and an MCP server.</li>
       </ul>
       <div class="term"><div class="term-h">Try it: Rust 1.88+<button class="copy" type="button">Copy</button></div><pre data-copy="git clone https://github.com/Tavrin/saccade
@@ -47,7 +47,7 @@ cargo run --release -p saccade -- compare examples/baseline examples/capture --o
 <span class="p">$ </span>cd saccade
 <span class="p">$ </span>cargo run --release -p saccade -- <span class="c">compare</span> examples/baseline examples/capture --out report</pre></div>
       <div class="cta">
-        <a class="btn primary" href="#cases">See the eight use cases</a>
+        <a class="btn primary" href="#cases">See the 9 use cases</a>
         <a class="btn" href="https://github.com/Tavrin/saccade#readme">Read the docs</a>
       </div>
     </div>
@@ -79,8 +79,8 @@ cargo run --release -p saccade -- compare examples/baseline examples/capture --o
   <div class="wrap">
     <header class="sec-h">
       <p class="eyebrow">Use cases</p>
-      <h2 id="cases-h">Eight cases, with the real commands and output</h2>
-      <p class="lead">Every image, number and output line below comes from running the command shown against the procedural datasets in <code>showcases/</code>. <code>scripts/run-showcases.sh</code> reproduces each case's <code>EXPECTED.txt</code> byte for byte. Drag on any image to compare.</p>
+      <h2 id="cases-h">9 cases, with the real commands and output</h2>
+      <p class="lead">The gallery runs the commands shown against the procedural datasets in <code>showcases/</code>. <code>scripts/run-showcases.sh</code> reproduces each case's <code>EXPECTED.txt</code> byte for byte with a <code>--features prechecks</code> build. The experimental fixture is listed as unvalidated when that feature is absent. Drag an image to compare.</p>
     </header>
     <div class="cases-grid">
 <a class="uc" href="#webapp-ui"><div class="th"><img src="media/webapp-ui/thumb.png" alt=""></div><div class="bd"><span class="n">01 · webapp-ui</span><h3>UI screenshots</h3><p>A dashboard screenshot where a button label changed and the clock changes on every run.</p><span class="chip s-fail">3 fail · 2 pass</span></div></a>
@@ -91,6 +91,7 @@ cargo run --release -p saccade -- compare examples/baseline examples/capture --o
 <a class="uc" href="#ml-image-model"><div class="th"><img src="media/ml-image-model/thumb.png" alt=""></div><div class="bd"><span class="n">06 · ml-image-model</span><h3>Image-model checkpoints</h3><p>Checkpoint B must keep the colour and structure of checkpoint A for the same seeds.</p><span class="chip s-fail">3 fail · 3 pass</span></div></a>
 <a class="uc" href="#render-gbuffer"><div class="th"><img src="media/render-gbuffer/thumb.png" alt=""></div><div class="bd"><span class="n">07 · render-gbuffer</span><h3>G-buffers: depth, normals, motion</h3><p>Depth, normals and motion vectors are data, not pictures. Compare them in their own units.</p><span class="chip s-fail">2 fail · 2 pass</span></div></a>
 <a class="uc" href="#perf-identity"><div class="th"><img src="media/perf-identity/thumb.png" alt=""></div><div class="bd"><span class="n">08 · perf-identity</span><h3>Optimization identity proof</h3><p>A faster build must produce the same image. Two views are bit-identical; one pixel moved in the third.</p><span class="chip s-fail">1 fail · 2 pass</span></div></a>
+<a class="uc" href="#photosensitivity"><div class="th"><img src="media/photosensitivity/thumb.png" alt="Static black frame"></div><div class="bd"><span class="n">09 · photosensitivity</span><h3>Photosensitivity precheck</h3><p>Procedural 4 Hz fixture; static previews only. No certification claim.</p></div></a>
     </div>
   </div>
 </section>
@@ -187,13 +188,13 @@ STATUS  NAME          METRIC  VALUE    THRESHOLD
 </div></div></div>
 <figcaption class="cmp-foot"><div class="diag s-fail"><div class="dh"><span class="badge">local_structure</span></div><p class="dcap">Local structural change below the hotspot threshold and spread across the frame (mean FLIP 0.0338, max 0.10).</p></div><div class="row"><span class="legend flip">0 <i></i> 1 FLIP</span></div></figcaption></figure><div class="extra"><h3>Ranking</h3><table class="rank" data-for="w-texture-compression"><thead><tr><th>#</th><th>Candidate</th><th>mean FLIP</th><th></th></tr></thead><tbody><tr data-pick="0" tabindex="0" aria-selected="true"><td>1</td><td>palette-256</td><td class="num">0.03385</td><td class="bar"><span class="b" style="width:27.1%"></span></td></tr><tr data-pick="1" tabindex="0" aria-selected="false"><td>2</td><td>jpeg-q85</td><td class="num">0.06706</td><td class="bar"><span class="b" style="width:53.7%"></span></td></tr><tr data-pick="2" tabindex="0" aria-selected="false"><td>3</td><td>block-high</td><td class="num">0.11693</td><td class="bar"><span class="b" style="width:93.6%"></span></td></tr><tr data-pick="3" tabindex="0" aria-selected="false"><td>4</td><td>block-low</td><td class="num">0.12313</td><td class="bar"><span class="b" style="width:98.5%"></span></td></tr><tr data-pick="4" tabindex="0" aria-selected="false"><td>5</td><td>jpeg-q40</td><td class="num">0.12497</td><td class="bar"><span class="b" style="width:100.0%"></span></td></tr></tbody></table></div></div>
 <div class="case-side">
-<div><h3>What this shows</h3><p>The block candidates are simulations of two block-compression qualities, not real BC or ASTC encoders. All five exceed mean FLIP 0.001, so the ranking exits 1.</p></div>
+<div><h3>What this shows</h3><p>The block candidates are simulations of two block-compression qualities, not real BC or ASTC encoders. All five exceed mean FLIP 0.001. Ranking completes with exit 0; inspect its findings.</p></div>
 <div class="term"><div class="term-h">Command<button class="copy" type="button">Copy</button></div><pre class="" data-copy="cd showcases/texture-compression
 OUT=$(mktemp -d)
-saccade rank baseline candidates/block-low candidates/block-high candidates/jpeg-q40 candidates/jpeg-q85 candidates/palette-256 --labels block-low,block-high,jpeg-q40,jpeg-q85,palette-256 --metric mean --threshold 0.001 --out &quot;$OUT/rank&quot;"><span class="p">$ </span>cd showcases/texture-compression
+saccade experiment rank baseline candidates/block-low candidates/block-high candidates/jpeg-q40 candidates/jpeg-q85 candidates/palette-256 --labels block-low,block-high,jpeg-q40,jpeg-q85,palette-256 --metric mean --threshold 0.001 --out &quot;$OUT/rank&quot;"><span class="p">$ </span>cd showcases/texture-compression
 <span class="p">$ </span>OUT=$(mktemp -d)
-<span class="p">$ </span><span class="c">saccade</span>rank baseline candidates/block-low candidates/block-high candidates/jpeg-q40 candidates/jpeg-q85 candidates/palette-256 --labels block-low,block-high,jpeg-q40,jpeg-q85,palette-256 --metric mean --threshold 0.001 --out &quot;$OUT/rank&quot;</pre></div>
-<div class="term"><div class="term-h">Output</div><pre class="out">=== rank (exit 1) ===
+<span class="p">$ </span><span class="c">saccade</span>experiment rank baseline candidates/block-low candidates/block-high candidates/jpeg-q40 candidates/jpeg-q85 candidates/palette-256 --labels block-low,block-high,jpeg-q40,jpeg-q85,palette-256 --metric mean --threshold 0.001 --out &quot;$OUT/rank&quot;</pre></div>
+<div class="term"><div class="term-h">Output</div><pre class="out">=== rank (exit 0) ===
 rank: regression (Mean; 1 common / 1 reference images)
 RANK  CANDIDATE  MEAN RANK  MEAN METRIC  IDENTICAL
 1  palette-256  1.000000  0.033848  0
@@ -201,7 +202,7 @@ RANK  CANDIDATE  MEAN RANK  MEAN METRIC  IDENTICAL
 3  block-high  3.000000  0.116925  0
 4  block-low  4.000000  0.123128  0
 5  jpeg-q40  5.000000  0.124969  0
-report: $OUT/rank/index.html</pre></div>
+report: ../../../../../../..$OUT/rank/index.html</pre></div>
 <div class="links"><a class="btn" href="reports/texture-compression/rank/index.html">Open the rank report</a><a class="btn ghost" href="https://github.com/Tavrin/saccade/tree/main/showcases/texture-compression">Dataset</a></div>
 </div></div></div></section>
 <section class="case" id="upscaler" aria-labelledby="upscaler-h">
@@ -223,12 +224,12 @@ report: $OUT/rank/index.html</pre></div>
 <div><h3>What this shows</h3><p>On this scene nearest-neighbour has the lowest mean FLIP. A ranking reports which output differs least visibly from the reference, not which one people prefer. Temporal instability is informational and not motion-compensated.</p></div>
 <div class="term"><div class="term-h">Command<button class="copy" type="button">Copy</button></div><pre class="" data-copy="cd showcases/upscaler
 OUT=$(mktemp -d)
-saccade rank baseline candidates/nearest candidates/bilinear candidates/bicubic candidates/lanczos candidates/sharpened-bicubic --labels nearest,bilinear,bicubic,lanczos,sharpened-bicubic --metric mean --threshold 0.001 --out &quot;$OUT/rank&quot;
-saccade sequence sequence/baseline sequence/capture --pattern &#x27;frame_*.png&#x27; --threshold 0.005 --out &quot;$OUT/sequence&quot;"><span class="p">$ </span>cd showcases/upscaler
+saccade experiment rank baseline candidates/nearest candidates/bilinear candidates/bicubic candidates/lanczos candidates/sharpened-bicubic --labels nearest,bilinear,bicubic,lanczos,sharpened-bicubic --metric mean --threshold 0.001 --out &quot;$OUT/rank&quot;
+saccade experiment sequence sequence/baseline sequence/capture --pattern &#x27;frame_*.png&#x27; --threshold 0.005 --out &quot;$OUT/sequence&quot;"><span class="p">$ </span>cd showcases/upscaler
 <span class="p">$ </span>OUT=$(mktemp -d)
-<span class="p">$ </span><span class="c">saccade</span>rank baseline candidates/nearest candidates/bilinear candidates/bicubic candidates/lanczos candidates/sharpened-bicubic --labels nearest,bilinear,bicubic,lanczos,sharpened-bicubic --metric mean --threshold 0.001 --out &quot;$OUT/rank&quot;
-<span class="p">$ </span><span class="c">saccade</span>sequence sequence/baseline sequence/capture --pattern &#x27;frame_*.png&#x27; --threshold 0.005 --out &quot;$OUT/sequence&quot;</pre></div>
-<div class="term"><div class="term-h">Output</div><pre class="out">=== rank (exit 1) ===
+<span class="p">$ </span><span class="c">saccade</span>experiment rank baseline candidates/nearest candidates/bilinear candidates/bicubic candidates/lanczos candidates/sharpened-bicubic --labels nearest,bilinear,bicubic,lanczos,sharpened-bicubic --metric mean --threshold 0.001 --out &quot;$OUT/rank&quot;
+<span class="p">$ </span><span class="c">saccade</span>experiment sequence sequence/baseline sequence/capture --pattern &#x27;frame_*.png&#x27; --threshold 0.005 --out &quot;$OUT/sequence&quot;</pre></div>
+<div class="term"><div class="term-h">Output</div><pre class="out">=== rank (exit 0) ===
 rank: regression (Mean; 1 common / 1 reference images)
 RANK  CANDIDATE  MEAN RANK  MEAN METRIC  IDENTICAL
 1  nearest  1.000000  0.065337  0
@@ -236,13 +237,13 @@ RANK  CANDIDATE  MEAN RANK  MEAN METRIC  IDENTICAL
 3  bicubic  3.000000  0.075615  0
 4  sharpened-bicubic  4.000000  0.089922  0
 5  bilinear  5.000000  0.092189  0
-report: $OUT/rank/index.html
+report: ../../../../../../..$OUT/rank/index.html
 === sequence (exit 1) ===
 sequence: regression (12 baseline, 12 capture frames)
 temporal instability: 0.226255 (capture 0.318896 - baseline 0.092641)
 frames over threshold: 12
 worst frame: 0 (mean FLIP 0.229671)
-report: $OUT/sequence/index.html</pre></div>
+report: ../../../../../../..$OUT/sequence/index.html</pre></div>
 <div class="links"><a class="btn" href="reports/upscaler/rank/index.html">Open the rank report</a><a class="btn" href="reports/upscaler/sequence/index.html">Open the sequence report</a><a class="btn ghost" href="https://github.com/Tavrin/saccade/tree/main/showcases/upscaler">Dataset</a></div>
 </div></div></div></section>
 <section class="case" id="lod-transition" aria-labelledby="lod-transition-h">
@@ -264,15 +265,15 @@ report: $OUT/sequence/index.html</pre></div>
 <div><h3>What this shows</h3><p>Twelve frames compared by sorted index. Only frame 6 crosses the threshold; the pop and the recovery also add temporal instability.</p></div>
 <div class="term"><div class="term-h">Command<button class="copy" type="button">Copy</button></div><pre class="" data-copy="cd showcases/lod-transition
 OUT=$(mktemp -d)
-saccade sequence baseline capture --pattern &#x27;frame_*.png&#x27; --threshold 0.005 --out &quot;$OUT/sequence&quot;"><span class="p">$ </span>cd showcases/lod-transition
+saccade experiment sequence baseline capture --pattern &#x27;frame_*.png&#x27; --threshold 0.005 --out &quot;$OUT/sequence&quot;"><span class="p">$ </span>cd showcases/lod-transition
 <span class="p">$ </span>OUT=$(mktemp -d)
-<span class="p">$ </span><span class="c">saccade</span>sequence baseline capture --pattern &#x27;frame_*.png&#x27; --threshold 0.005 --out &quot;$OUT/sequence&quot;</pre></div>
+<span class="p">$ </span><span class="c">saccade</span>experiment sequence baseline capture --pattern &#x27;frame_*.png&#x27; --threshold 0.005 --out &quot;$OUT/sequence&quot;</pre></div>
 <div class="term"><div class="term-h">Output</div><pre class="out">=== sequence (exit 1) ===
 sequence: regression (12 baseline, 12 capture frames)
 temporal instability: 0.007413 (capture 0.062165 - baseline 0.054752)
 frames over threshold: 1
 worst frame: 6 (mean FLIP 0.076637)
-report: $OUT/sequence/index.html</pre></div>
+report: ../../../../../../..$OUT/sequence/index.html</pre></div>
 <div class="links"><a class="btn" href="reports/lod-transition/sequence/index.html">Open the sequence report</a><a class="btn ghost" href="https://github.com/Tavrin/saccade/tree/main/showcases/lod-transition">Dataset</a></div>
 </div></div></div></section>
 <section class="case" id="ml-image-model" aria-labelledby="ml-image-model-h">
@@ -291,16 +292,16 @@ report: $OUT/sequence/index.html</pre></div>
 </div></div></div>
 <figcaption class="cmp-foot"><div class="diag s-fail"><div class="dh"><span class="badge">global_tone</span></div><p class="dcap">Whole frame tint warmer (red +34.7%, blue -19.2% vs green) (tone shift explains 92% of the difference); no structural change.</p></div><div class="row"><span class="legend flip">0 <i></i> 1 FLIP</span></div></figcaption></figure><div class="extra"><h3>Explain strip (what a vision model is given)</h3><figure class="shot"><img class="px" src="media/ml-image-model/explain-seed_105-h1.png" alt="Explain strip for seed_105: baseline, capture and heatmap crops of the moved shape"><figcaption><code>hotspots/seed_105.png.d/h1.png</code>: [baseline | capture | heatmap], one per hotspot.</figcaption></figure></div></div>
 <div class="case-side">
-<div><h3>What this shows</h3><p>Six fixed procedural seeds stand in for shared prompts. B adds a colour cast to two seeds and moves one shape. The case also writes explain strips and a bounded decision request; no model or judge is called.</p></div>
+<div><h3>What this shows</h3><p>Six fixed procedural seeds stand in for shared prompts. B adds a colour cast to two seeds and moves one shape. The case also prepares evidence strips and a Markdown export; no model is called.</p></div>
 <div class="term"><div class="term-h">Command<button class="copy" type="button">Copy</button></div><pre class="" data-copy="cd showcases/ml-image-model
 OUT=$(mktemp -d)
 saccade compare baseline capture --config saccade.toml --out &quot;$OUT/compare&quot;
-saccade explain &quot;$OUT/compare/saccade-report.v1.json&quot; --out &quot;$OUT/explain&quot;
-saccade decision-request &quot;$OUT/compare/saccade-report.v1.json&quot; --all-failing --question accept --intent &#x27;Checkpoint B must preserve colour and structure.&#x27;"><span class="p">$ </span>cd showcases/ml-image-model
+saccade inspect evidence &quot;$OUT/compare/saccade-report.v1.json&quot; --out &quot;$OUT/explain&quot;
+saccade inspect export &quot;$OUT/compare/saccade-report.v1.json&quot; --format markdown --out &quot;$OUT/summary.md&quot;"><span class="p">$ </span>cd showcases/ml-image-model
 <span class="p">$ </span>OUT=$(mktemp -d)
 <span class="p">$ </span><span class="c">saccade</span>compare baseline capture --config saccade.toml --out &quot;$OUT/compare&quot;
-<span class="p">$ </span><span class="c">saccade</span>explain &quot;$OUT/compare/saccade-report.v1.json&quot; --out &quot;$OUT/explain&quot;
-<span class="p">$ </span><span class="c">saccade</span>decision-request &quot;$OUT/compare/saccade-report.v1.json&quot; --all-failing --question accept --intent &#x27;Checkpoint B must preserve colour and structure.&#x27;</pre></div>
+<span class="p">$ </span><span class="c">saccade</span>inspect evidence &quot;$OUT/compare/saccade-report.v1.json&quot; --out &quot;$OUT/explain&quot;
+<span class="p">$ </span><span class="c">saccade</span>inspect export &quot;$OUT/compare/saccade-report.v1.json&quot; --format markdown --out &quot;$OUT/summary.md&quot;</pre></div>
 <div class="term"><div class="term-h">Output</div><pre class="out">=== compare (exit 1) ===
 STATUS  NAME          METRIC  VALUE    THRESHOLD
 <span class="k-fail">FAIL</span>    seed_101.png  mean    0.18755  0.001
@@ -318,41 +319,10 @@ STATUS  NAME          METRIC  VALUE    THRESHOLD
 
 3 fail, 0 error, 0 missing, 0 new, 3 pass (6 total)
 === explain (exit 0) ===
-# saccade explain: 3 entries (baseline vs capture); 3 fail, 3 pass of 6
-Strips are [baseline | capture | heatmap]; error scale 0 (none) to 1.
-
-## seed_101.png Fail Mean=0.1876 (limit 0.001)
-frame: thumbs/seed_101.png
-global_tone: Whole frame tint warmer (red +34.7%, blue -19.2% vs green) (tone shift explains 92% of the difference); no structural change.
-1. center 192x144 at (0,0) 100% of error, mean 0.19 max 0.32, hot px 27648 (100.00% of frame), box 100.0% of frame: hotspots/seed_101.png.d/h1.png
-
-## seed_104.png Fail Mean=0.1824 (limit 0.001)
-frame: thumbs/seed_104.png
-global_tone: Whole frame tint warmer (red +37.3%, blue -17.9% vs green) (tone shift explains 92% of the difference); no structural change.
-1. center 192x144 at (0,0) 100% of error, mean 0.18 max 0.35, hot px 27648 (100.00% of frame), box 100.0% of frame: hotspots/seed_104.png.d/h1.png
-
-## seed_105.png Fail Mean=0.0240 (limit 0.001)
-frame: thumbs/seed_105.png
-local_structure: Local structural change at center (67×45, 93% of error); rest of frame within noise.
-1. center 67x45 at (78,55) 93% of error, mean 0.22 max 0.76, hot px 1841 (6.66% of frame), box 10.9% of frame: hotspots/seed_105.png.d/h1.png
-
-pack: $OUT/explain
-=== decision-request (exit 0) ===
-{
-  &quot;items&quot;: [
-    {
-      &quot;allowed_answers&quot;: [
-        &quot;accept&quot;,
-        &quot;reject&quot;,
-        &quot;needs_human&quot;
-      ],
-      &quot;entry&quot;: &quot;seed_101.png&quot;,
-      &quot;id&quot;: &quot;seed_101.png&quot;,
-      &quot;question&quot;: &quot;Is this visual change intended, or a regression? Judge it against the intent text when present.&quot;,
-      &quot;question_type&quot;: &quot;accept&quot;,
-      &quot;request_hash&quot;: &quot;sha256:baa66aac3f9f128fbf09156a761c98127e124693fdb573a17d34040a9ad7925a&quot;,
-      &quot;state&quot;: {
-        &quot;bit_identical&quot;: false,
+evidence: complete
+artifact: ../../../../../../..$OUT/explain/explain.json
+limit: The agent preparing this evidence has implementation context; independent blind review must exclude the key and that context.
+=== export (exit 0) ===
   … (3 items; full JSON in the README of this case)</pre></div>
 <div class="links"><a class="btn" href="reports/ml-image-model/compare/index.html">Open the compare report</a><a class="btn ghost" href="https://github.com/Tavrin/saccade/tree/main/showcases/ml-image-model">Dataset</a></div>
 </div></div></div></section>
@@ -360,7 +330,7 @@ pack: $OUT/explain
 <div class="wrap">
 <header class="case-h"><span class="num">07</span><h2 id="render-gbuffer-h"><a href="#render-gbuffer">G-buffers: depth, normals, motion</a></h2><p class="problem">Depth, normals and motion vectors are data, not pictures. Compare them in their own units.</p></header>
 <div class="case-b">
-<div class="case-main"><script type="application/json" id="w-render-gbuffer-data">{"left":"baseline","right":"capture","entries":[{"name":"lit.png","b":"media/render-gbuffer/lit.png-b.png","c":"media/render-gbuffer/lit.png-c.png","h":"media/render-gbuffer/lit.png-h.png","ar":1.33333,"w":192,"hgt":144,"status":"fail","metric":"mean","value":0.06202573886209951,"thr":0.001,"hs":[[0.29688,0.34722,0.38542,0.38889,0.9765]],"diag":"Local structural change at center (74\u00d756, 98% of error); rest of frame within noise.","cls":"local_structure","bit":false,"meta":[],"buffer":null,"foot":"<div class=\"diag s-fail\"><div class=\"dh\"><span class=\"badge\">local_structure<\/span><\/div><p class=\"dcap\">Local structural change at center (74\u00d756, 98% of error); rest of frame within noise.<\/p><\/div><div class=\"row\"><span class=\"legend flip\">0 <i><\/i> 1 FLIP<\/span><\/div>"},{"name":"depth.png","b":"media/render-gbuffer/depth.png-b.png","c":"media/render-gbuffer/depth.png-c.png","h":"media/render-gbuffer/depth.png-h.png","ar":1.33333,"w":128,"hgt":96,"status":"fail","metric":"mean (depth)","value":0.008086833918544775,"thr":0.002,"hs":[],"diag":null,"cls":null,"bit":false,"meta":[],"buffer":{"kind":"depth","encoding":"linear01","unit":"depth","scale":1.0,"metric":"mean","value":0.008086833918544775,"threshold":0.002,"stats":{"mean":0.008086833918544775,"max":0.0161287784576416,"p95":0.015609979629516602,"p99":0.0159609317779541,"mean_relative":0.018705819732297197,"max_relative":0.12776741131135966,"exact_match_fraction":null,"changed_pixels":null},"heatmap_max":1.0},"hlabel":"error map (depth)","foot":"<div class=\"diag s-fail\"><p class=\"dcap\">depth buffer, linear01: mean 0.00809, max 0.01613 depth (limit 0.002). Compared numerically, not with FLIP.<\/p><\/div><div class=\"row\"><span class=\"legend flip\">0 <i><\/i> 1 depth<\/span><\/div>"},{"name":"normal.png","b":"media/render-gbuffer/normal.png-b.png","c":"media/render-gbuffer/normal.png-c.png","h":"media/render-gbuffer/normal.png-h.png","ar":1.33333,"w":128,"hgt":96,"status":"pass","metric":"mean (degrees)","value":0.0,"thr":1.0,"hs":[],"diag":null,"cls":null,"bit":true,"meta":[],"buffer":{"kind":"normal","encoding":"rgb_snorm","unit":"degrees","scale":1.0,"metric":"mean","value":0.0,"threshold":1.0,"stats":{"mean":0.0,"max":0.0,"p95":0.0,"p99":0.0,"mean_relative":null,"max_relative":null,"exact_match_fraction":null,"changed_pixels":null},"heatmap_max":180.0},"hlabel":"error map (degrees)","foot":"<div class=\"diag s-pass\"><p class=\"dcap\">normal buffer, rgb_snorm: mean 0.00000, max 0.00000 degrees (limit 1.0). Compared numerically, not with FLIP.<\/p><\/div><div class=\"row\"><span class=\"legend flip\">0 <i><\/i> 180 degrees<\/span><span class=\"badge pass\">bit-identical<\/span><\/div>"},{"name":"motion.png","b":"media/render-gbuffer/motion.png-b.png","c":"media/render-gbuffer/motion.png-c.png","h":"media/render-gbuffer/motion.png-h.png","ar":1.33333,"w":128,"hgt":96,"status":"pass","metric":"mean (pixels)","value":0.0,"thr":0.5,"hs":[],"diag":null,"cls":null,"bit":true,"meta":[],"buffer":{"kind":"motion","encoding":"rg_snorm","unit":"pixels","scale":32.0,"metric":"mean","value":0.0,"threshold":0.5,"stats":{"mean":0.0,"max":0.0,"p95":0.0,"p99":0.0,"mean_relative":null,"max_relative":null,"exact_match_fraction":null,"changed_pixels":null},"heatmap_max":90.50966799187809},"hlabel":"error map (pixels)","foot":"<div class=\"diag s-pass\"><p class=\"dcap\">motion buffer, rg_snorm: mean 0.00000, max 0.00000 pixels (limit 0.5). Compared numerically, not with FLIP.<\/p><\/div><div class=\"row\"><span class=\"legend flip\">0 <i><\/i> 90.5097 pixels<\/span><span class=\"badge pass\">bit-identical<\/span><\/div>"}]}</script><figure class="cmp" id="w-render-gbuffer" data-src="w-render-gbuffer-data" data-split="50">
+<div class="case-main"><script type="application/json" id="w-render-gbuffer-data">{"left":"baseline","right":"capture","entries":[{"name":"lit.png","b":"media/render-gbuffer/lit.png-b.png","c":"media/render-gbuffer/lit.png-c.png","h":"media/render-gbuffer/lit.png-h.png","ar":1.33333,"w":192,"hgt":144,"status":"fail","metric":"mean","value":0.06202573886209951,"thr":0.001,"hs":[[0.29688,0.34722,0.38542,0.38889,0.9765]],"diag":"Local structural change at center (74\u00d756, 98% of error); rest of frame within noise.","cls":"local_structure","bit":false,"meta":[],"buffer":null,"foot":"<div class=\"diag s-fail\"><div class=\"dh\"><span class=\"badge\">local_structure<\/span><\/div><p class=\"dcap\">Local structural change at center (74\u00d756, 98% of error); rest of frame within noise.<\/p><\/div><div class=\"row\"><span class=\"legend flip\">0 <i><\/i> 1 FLIP<\/span><\/div>"},{"name":"depth.png","b":"media/render-gbuffer/depth.png-b.png","c":"media/render-gbuffer/depth.png-c.png","h":"media/render-gbuffer/depth.png-h.png","ar":1.33333,"w":128,"hgt":96,"status":"fail","metric":"mean (depth)","value":0.008086833918544775,"thr":0.002,"hs":[],"diag":null,"cls":null,"bit":false,"meta":[],"buffer":{"kind":"depth","encoding":"linear01","unit":"depth","scale":1.0,"metric":"mean","value":0.008086833918544775,"threshold":0.002,"stats":{"mean":0.008086833918544775,"max":0.0161287784576416,"p95":0.015609979629516602,"p99":0.0159609317779541,"mean_relative":0.018705819732297197,"max_relative":0.12776741131135966,"exact_match_fraction":null,"changed_pixels":null},"heatmap_max":0.0159609317779541},"hlabel":"error map (depth)","foot":"<div class=\"diag s-fail\"><p class=\"dcap\">depth buffer, linear01: mean 0.00809, max 0.01613 depth (limit 0.002). Compared numerically, not with FLIP.<\/p><\/div><div class=\"row\"><span class=\"legend flip\">0 <i><\/i> 0.0159609 depth<\/span><\/div>"},{"name":"normal.png","b":"media/render-gbuffer/normal.png-b.png","c":"media/render-gbuffer/normal.png-c.png","h":"media/render-gbuffer/normal.png-h.png","ar":1.33333,"w":128,"hgt":96,"status":"pass","metric":"mean (degrees)","value":0.0,"thr":1.0,"hs":[],"diag":null,"cls":null,"bit":true,"meta":[],"buffer":{"kind":"normal","encoding":"rgb_snorm","unit":"degrees","scale":1.0,"metric":"mean","value":0.0,"threshold":1.0,"stats":{"mean":0.0,"max":0.0,"p95":0.0,"p99":0.0,"mean_relative":null,"max_relative":null,"exact_match_fraction":null,"changed_pixels":null},"heatmap_max":1.0},"hlabel":"error map (degrees)","foot":"<div class=\"diag s-pass\"><p class=\"dcap\">normal buffer, rgb_snorm: mean 0.00000, max 0.00000 degrees (limit 1.0). Compared numerically, not with FLIP.<\/p><\/div><div class=\"row\"><span class=\"legend flip\">0 <i><\/i> 1 degrees<\/span><span class=\"badge pass\">bit-identical<\/span><\/div>"},{"name":"motion.png","b":"media/render-gbuffer/motion.png-b.png","c":"media/render-gbuffer/motion.png-c.png","h":"media/render-gbuffer/motion.png-h.png","ar":1.33333,"w":128,"hgt":96,"status":"pass","metric":"mean (pixels)","value":0.0,"thr":0.5,"hs":[],"diag":null,"cls":null,"bit":true,"meta":[],"buffer":{"kind":"motion","encoding":"rg_snorm","unit":"pixels","scale":32.0,"metric":"mean","value":0.0,"threshold":0.5,"stats":{"mean":0.0,"max":0.0,"p95":0.0,"p99":0.0,"mean_relative":null,"max_relative":null,"exact_match_fraction":null,"changed_pixels":null},"heatmap_max":0.5},"hlabel":"error map (pixels)","foot":"<div class=\"diag s-pass\"><p class=\"dcap\">motion buffer, rg_snorm: mean 0.00000, max 0.00000 pixels (limit 0.5). Compared numerically, not with FLIP.<\/p><\/div><div class=\"row\"><span class=\"legend flip\">0 <i><\/i> 0.5 pixels<\/span><span class=\"badge pass\">bit-identical<\/span><\/div>"}]}</script><figure class="cmp" id="w-render-gbuffer" data-src="w-render-gbuffer-data" data-split="50">
 <div class="cmp-bar"><span class="chip s-fail">FAIL</span><span class="name">lit.png</span><span class="val">mean 0.06203 (limit 0.001)</span><div class="tools"><div class="seg small" data-role="layer" role="group" aria-label="Right-hand layer"><button type="button" data-layer="cap" aria-pressed="true">Capture</button><button type="button" data-layer="heat" aria-pressed="false">Heatmap</button></div><button type="button" class="btn small" data-role="boxes" aria-pressed="true">Hotspots</button><button type="button" class="btn small" data-role="zoom" aria-pressed="false" title="Zoom to the largest hotspot">Zoom</button></div></div>
 <div class="picker" data-for="w-render-gbuffer" role="group" aria-label="Image"><button type="button" class="s-fail" data-pick="0" aria-pressed="true">lit.png</button><button type="button" class="s-fail" data-pick="1" aria-pressed="false">depth.png</button><button type="button" class="s-pass" data-pick="2" aria-pressed="false">normal.png</button><button type="button" class="s-pass" data-pick="3" aria-pressed="false">motion.png</button></div><div class="stagebox"><div class="stg" style="--ar:1.33333;">
 <div class="stg-l" aria-hidden="true"><span class="tag l">baseline</span><span class="tag r">capture</span></div>
@@ -406,7 +376,7 @@ STATUS  NAME        METRIC          VALUE    THRESHOLD
 </div></div></div>
 <figcaption class="cmp-foot"><div class="diag s-fail"><div class="dh"><span class="badge">local_structure</span></div><p class="dcap">Local structural change at center (5×5, 38% of error).</p></div><div class="row"><span class="legend flip">0 <i></i> 1 FLIP</span><span class="badge">timing.gpu_ms 4.85 → 2.71</span></div></figcaption></figure></div>
 <div class="case-side">
-<div><h3>What this shows</h3><p><code>identity</code> uses max FLIP with threshold 0 and reports bit-identity per image. Timings come from metadata sidecars and are paired, not gated. The numbers are illustrative, not benchmark measurements.</p></div>
+<div><h3>What this shows</h3><p><code>identity</code> proves exact native decoded-sample equality for selected captures. Timings come from metadata sidecars and are paired, not qualified. The numbers are illustrative, not benchmark measurements.</p></div>
 <div class="term"><div class="term-h">Command<button class="copy" type="button">Copy</button></div><pre class="" data-copy="cd showcases/perf-identity
 OUT=$(mktemp -d)
 saccade identity baseline capture --config saccade.toml --out &quot;$OUT/identity&quot;"><span class="p">$ </span>cd showcases/perf-identity
@@ -428,67 +398,85 @@ STATUS  NAME        METRIC  VALUE    THRESHOLD
 1 fail, 0 error, 0 missing, 0 new, 2 pass (3 total)</pre></div>
 <div class="links"><a class="btn" href="reports/perf-identity/identity/index.html">Open the identity report</a><a class="btn ghost" href="https://github.com/Tavrin/saccade/tree/main/showcases/perf-identity">Dataset</a></div>
 </div></div></div></section>
+<section class="case" id="photosensitivity" aria-labelledby="photosensitivity-h"><div class="wrap"><h2 id="photosensitivity-h">09 · Photosensitivity precheck</h2><p>Procedural 4 Hz fixture; static previews only. No certification claim.</p><div class="term"><div class="term-h">Command (requires prechecks)<button class="copy" type="button">Copy</button></div><pre class="" data-copy="cd showcases/photosensitivity
+OUT=$(mktemp -d)
+saccade experiment safety frames --fps 32 --standard itu-bt1702 --out &quot;$OUT/safety&quot;"><span class="p">$ </span>cd showcases/photosensitivity
+<span class="p">$ </span>OUT=$(mktemp -d)
+<span class="p">$ </span><span class="c">saccade</span>experiment safety frames --fps 32 --standard itu-bt1702 --out &quot;$OUT/safety&quot;</pre></div><div class="term"><div class="term-h">Validation</div><pre class="out">safety: FAIL (64 frames, 32.000 fps, itu-bt1702)
+PRE-CHECK only. Not a certification; does not replace platform-holder required testing (e.g. Harding FPA) or formal compliance processes. No compliance claims. PASS means no trigger detected in this capture under these checks; review coverage and limitations below.
+flash area threshold: 25.000% of screen
+risk segments: 1
+<span class="k-fail">FAIL</span> general_flash: frames 3..63, 0.094..2.000s, peak 4 flashes/s, area 100.000%
+warning: SDR only; opaque sRGB, assumed 200 cd/m2 peak for BT.1702. Verify THRESHOLDS against the published edition.
+warning: Pattern scanline autocorrelation is approximate; all changing patterns use the five-pair limit. WCAG mode includes supplementary BT.1702 pattern guidance.
+warning: Red-flash detection uses the legacy WCAG 2.0/2.1 numeric working definition, not the WCAG 2.2 UCS definition; verify the required edition.</pre></div><a class="btn" href="reports/photosensitivity/safety/index.html">Open static report</a></div></section>
 
 <section class="sec" id="agents" aria-labelledby="agents-h">
   <div class="wrap">
     <header class="sec-h">
       <p class="eyebrow">Built for AI agents</p>
-      <h2 id="agents-h">An agent that cannot open the report still gets where and how much</h2>
-      <p class="lead">Every command takes <code>--json</code>. Failures carry hotspots, a change class and a <code>next_step</code>. Images an agent needs to look at come as small crops or a rendered snapshot.</p>
+      <h2 id="agents-h">Bounded evidence for agents</h2>
+      <p class="lead">Measurement summaries use <code>--json</code>. They preserve validity, missingness, counts and typed <code>next_actions</code>. Images an agent needs to look at come as small crops or a rendered snapshot.</p>
     </header>
     <div class="feat">
       <article class="fc">
         <h3>MCP server: <code>saccade mcp</code></h3>
         <p>A Model Context Protocol server over stdio. Every path the agent passes must resolve under <code>--root</code>; a path that escapes it, through <code>..</code> or a symlink, is refused with <code>unsafe_path</code>. Every tool declares an output schema.</p>
-        <div class="term"><div class="term-h">Claude Code<button class="copy" type="button">Copy</button></div><pre data-copy="claude mcp add saccade -- saccade mcp"><span class="p">$ </span>claude mcp add saccade -- <span class="c">saccade</span> mcp</pre></div>
-        <p>The 16 tools:</p>
+        <div class="term"><div class="term-h">Claude Code<button class="copy" type="button">Copy</button></div><pre data-copy="claude mcp add saccade -- saccade mcp --root examples --out-root agent-reports"><span class="p">$ </span>claude mcp add saccade -- <span class="c">saccade</span> mcp --root examples --out-root agent-reports</pre></div>
+        <p>Six bounded tools. Input roots are read-only; outputs require an explicit out-root. Provider calls require human startup authorization, a finite budget and allowed source-root egress.</p>
         <div class="tools-list">
-          <span class="badge">saccade_compare</span><span class="badge">saccade_identity</span><span class="badge">saccade_sequence</span><span class="badge">saccade_rank</span><span class="badge">saccade_compare_runs</span><span class="badge">saccade_explain</span><span class="badge">saccade_summary</span><span class="badge">saccade_snapshot</span><span class="badge">saccade_decision_request</span><span class="badge">saccade_decide</span><span class="badge">saccade_judge</span><span class="badge">saccade_judge_calibrate</span><span class="badge">saccade_bisect</span><span class="badge">saccade_watch_status</span><span class="badge">saccade_ask_human</span><span class="badge">saccade_inbox_get</span>
+          <span class="badge">saccade_measure</span><span class="badge">saccade_inspect</span><span class="badge">saccade_evidence</span><span class="badge">saccade_review</span><span class="badge">saccade_propose</span><span class="badge">saccade_ask_human</span>
         </div>
       </article>
       <article class="fc">
         <h3>A lean result instead of a report</h3>
-        <p><code>compare --json</code> prints <code>saccade-result.v1</code>: the verdict, the totals and each failing entry with its top hotspots. The exit code is the verdict: 0 no regression, 1 regression, 2 usage, config or IO error.</p>
+        <p><code>compare --json</code> prints <code>saccade-result.v2</code>: the verdict, the totals and each failing entry with its top hotspots. The exit code is the verdict: 0 no regression, 1 regression, 2 usage, config or IO error.</p>
         <div class="term"><div class="term-h">compare --json on the UI case (abridged)</div><pre class="out">{
-  &quot;schema&quot;: &quot;saccade-result.v1&quot;,
-  &quot;verdict&quot;: &quot;regression&quot;,
-  &quot;totals&quot;: {&quot;error&quot;: 0, &quot;fail&quot;: 3, &quot;missing&quot;: 0, &quot;new&quot;: 0, &quot;pass&quot;: 2, &quot;total&quot;: 5},
-  &quot;failing&quot;: [
+  &quot;schema&quot;: &quot;saccade-result.v2&quot;,
+  &quot;execution&quot;: &quot;complete&quot;,
+  &quot;measurement&quot;: &quot;regression&quot;,
+  &quot;validity&quot;: &quot;unknown&quot;,
+  &quot;review&quot;: &quot;pending&quot;,
+  &quot;counts&quot;: {&quot;error&quot;: 0, &quot;fail&quot;: 3, &quot;missing&quot;: 0, &quot;new&quot;: 0, &quot;pass&quot;: 2, &quot;total&quot;: 5, &quot;validity_reasons&quot;: 10},
+  &quot;page&quot;: {&quot;next_cursor&quot;: null, &quot;omitted&quot;: 0},
+  &quot;next_actions&quot;: [
     {
-      &quot;class&quot;: &quot;local_structure&quot;,
-      &quot;description&quot;: &quot;Local structural change at bottom-right (55×14, 89% of error); rest of frame unchanged.&quot;,
-      &quot;hotspots&quot;: [
-        {
-          &quot;max_flip&quot;: 0.7419,
-          &quot;mean_flip&quot;: 0.2317,
-          &quot;position&quot;: &quot;bottom-right&quot;,
-          &quot;rect_px&quot;: [347, 266, 55, 14],
-          &quot;share_of_total_error&quot;: 0.8896
-        }
+      &quot;arguments&quot;: {
+        &quot;artifact&quot;: {&quot;path&quot;: &quot;../../../../../../..$OUT/saccade-report.v1.json&quot;, &quot;sha256&quot;: &quot;sha256:62074caa27234aff8b29930cb03aa22dd49d57157fadc02eb68b279d838cccf6&quot;},
+        &quot;operation&quot;: &quot;summary&quot;
+      },
+      &quot;cli_argv&quot;: [
+        &quot;saccade&quot;,
+        &quot;inspect&quot;,
+        &quot;../../../../../../..$OUT/saccade-report.v1.json&quot;,
+        &quot;--json&quot;,
+        &quot;--expected-case-id&quot;,
+        &quot;sha256:cd823c2aa49ce9ade30d6e01fe09e8381f3afa83b72270a6de2ecefa93872e1d&quot;
       ],
-      &quot;metric&quot;: &quot;max&quot;,
-      &quot;name&quot;: &quot;label.png&quot;,
-      &quot;status&quot;: &quot;fail&quot;,
-      &quot;threshold&quot;: 0.02,
-      &quot;value&quot;: 0.7419
+      &quot;expected_case_id&quot;: &quot;sha256:cd823c2aa49ce9ade30d6e01fe09e8381f3afa83b72270a6de2ecefa93872e1d&quot;,
+      &quot;id&quot;: &quot;inspect-evidence&quot;,
+      &quot;kind&quot;: &quot;inspect_evidence&quot;,
+      &quot;priority&quot;: 1,
+      &quot;reason_code&quot;: &quot;measured_change_or_missing_evidence&quot;,
+      &quot;requires&quot;: [],
+      &quot;tool&quot;: &quot;saccade_inspect&quot;
     }
-  ],
-  &quot;next_step&quot;: &quot;…&quot;
+  ]
 }</pre></div>
       </article>
       <article class="fc">
-        <h3>Judge packs: <code>saccade explain</code></h3>
+        <h3>Judge packs: <code>saccade inspect evidence</code></h3>
         <p>Turns a report into one <code>[baseline | capture | heatmap]</code> strip per hotspot, plus <code>explain.json</code> and <code>explain.md</code>. With <code>--blind</code>, each strip is <code>[A | B]</code> in a random order with no heatmap, and the key is written outside the pack.</p>
         <figure class="shot"><img src="media/ml-image-model/explain-seed_105-h1.png" class="px" alt="Explain strip: baseline, capture and heatmap crops of a moved shape"><figcaption>The strip for <code>seed_105.png</code> in the image-model case.</figcaption></figure>
       </article>
       <article class="fc">
-        <h3>Snapshots without a browser: <code>saccade snapshot</code></h3>
+        <h3>Snapshots without a browser: <code>saccade inspect export --format png</code></h3>
         <p>Renders any view state of a report entry to a PNG on the command line: layout, split, zoom, heatmap and hotspot boxes. Pages also keep their whole view in the URL hash and expose <code>window.saccade</code> for browser automation.</p>
-        <figure class="shot"><img src="media/agents/snapshot-label.png" alt="Server-side snapshot: swipe at 3x zoom on the changed button, heatmap over the capture side, hotspot 1 boxed"><figcaption><code>saccade snapshot report.json --entry label.png --state 'layout=swipe&amp;heat=0.6&amp;hotspot=1&amp;zoom=3'</code></figcaption></figure>
+        <figure class="shot"><img src="media/agents/snapshot-label.png" alt="Server-side snapshot: swipe at 3x zoom on the changed button, heatmap over the capture side, hotspot 1 boxed"><figcaption><code>saccade inspect export report.json --format png --entry label.png --out snapshot.png</code></figcaption></figure>
       </article>
       <article class="fc span2">
         <h3>Model answers are proposals</h3>
-        <p><code>saccade decision-request</code> asks fixed questions with closed answer sets (<code>accept</code>, <code>triage</code>, <code>cause</code>, <code>ask_human</code>, <code>mask_suggest</code>) and a deterministic request hash. <code>saccade decide</code> records a model's answer as a proposal that a person confirms or overrides. <code>approve</code> reads final decisions only, so a proposal never moves a baseline. An optional confidence gate in <code>saccade.toml</code> can promote <code>accept</code> or <code>reject</code> answers above a probability you set, from sources you allow.</p>
+        <p><code>saccade review request</code> prepares one of five closed questions bound to exact evidence. <code>saccade review propose</code> records attributed advice. Models never approve baselines. A human reviews the selected content and authorizes an update; CLI receipts disclose that they have no human attestation.</p>
       </article>
     </div>
   </div>
@@ -498,36 +486,36 @@ STATUS  NAME        METRIC  VALUE    THRESHOLD
   <div class="wrap">
     <header class="sec-h">
       <p class="eyebrow">Decisions you can trust</p>
-      <h2 id="trust-h">What keeps a verdict from being wrong in silence</h2>
-      <p class="lead">A verdict is only useful if it fails loudly when its inputs are wrong. These checks are part of the tool, not advice.</p>
+      <h2 id="trust-h">Evidence validity and review limits</h2>
+      <p class="lead">Validity findings, missing evidence and review authority remain explicit.</p>
     </header>
     <div class="feat three">
       <article class="fc">
         <h3>Mismatched captures are refused</h3>
-        <p>Metadata sidecars record how each image was captured: renderer mode, resolution, driver. With <code>--require-matching-meta</code>, a difference that was not declared is an error, not a pass or a fail. Timing keys are paired and shown, never gated.</p>
+        <p>Metadata sidecars record how each image was captured: renderer mode, resolution, driver. With <code>--require-matching-meta</code>, a difference that was not declared is an error, not a pass or a fail. Timing illustrations are paired and shown; performance conclusions require separately qualified evidence.</p>
       </article>
       <article class="fc">
-        <h3>Deterministic failures never go to a model</h3>
-        <p>A NaN or all-black capture, a config mismatch, an identity break and an <code>error</code> status are listed under <code>skipped</code> in a decision request and refused by <code>decide</code>. Only a person can decide them.</p>
+        <h3>Validity remains separate</h3>
+        <p>Missing capture context stays unknown. Models cannot establish native equality, qualify timing or repair invalid evidence by agreement.</p>
       </article>
       <article class="fc">
         <h3>Both orders</h3>
         <p>Vision judges see anonymous, contrast-stretched hotspot strips in both orders. An answer that changes with the order becomes <code>needs_human</code>. Results report answer flip rates and first-slot preference rates.</p>
       </article>
       <article class="fc">
-        <h3>Canaries</h3>
-        <p>Generated gold questions (identical images, an obvious shadow change, pure noise, a tone shift) are mixed into a judge run. A judge that fails one is flagged and loses weight. A canary pass is an easy-case sanity check, not evidence that hard answers are reliable.</p>
+        <h3>Synthetic controls</h3>
+        <p>Offline controls test contracts and scoring denominators. They do not count as real model-quality support and are not injected into production review.</p>
       </article>
       <article class="fc">
         <h3>Calibration against people</h3>
-        <p><code>saccade judge calibrate</code> compares judge answers with human labels: accuracy, agreement, ECE, a reliability table, position bias and Krippendorff's alpha between humans. A threshold is suggested only with at least 10 labelled predictions (<code>--min-support</code>).</p>
+        <p><code>saccade review eval --manifest FILE</code> plans score, calibration or conformance jobs. Qualification needs sufficient independent human labels for each question. Incomplete runs remain unqualified; single-labeler test–retest limitations remain visible.</p>
       </article>
       <article class="fc">
         <h3>Reproducible evidence</h3>
         <p>This page is generated from real runs. <code>scripts/run-showcases.sh</code> regenerates the datasets and fails on any byte of difference from <code>EXPECTED.txt</code>; it never accepts new output on its own.</p>
       </article>
     </div>
-    <p class="caveat"><b>Limits.</b> FLIP measures how visible a difference is, not whether it is a bug: a large change can be intended and an invisible one can be wrong. HDR-FLIP uses the reference float algorithm through flip-rs; an all-black baseline needs explicit exposures. Nondeterministic captures need a measured threshold, masks or fixed seeds. <a href="https://github.com/Tavrin/saccade#limits">All limits</a>.</p>
+    <p class="caveat"><b>Limits.</b> FLIP measures how visible a difference is, not whether it is a bug: a large change can be intended and a small one can be wrong. HDR-FLIP uses the reference float algorithm through flip-rs; an all-black baseline needs explicit exposures. Nondeterministic captures need a measured threshold, masks or fixed seeds. <a href="https://github.com/Tavrin/saccade#limits">All limits</a>.</p>
   </div>
 </section>
 </main>

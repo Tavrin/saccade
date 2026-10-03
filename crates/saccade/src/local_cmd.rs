@@ -777,6 +777,9 @@ pub(crate) fn ask(request_file: &Path, out: Option<&Path>) -> Result<Value, CliE
     Ok(value)
 }
 pub(crate) fn view_artifact(path: &Path, out: &Path, json: bool) -> Result<u8, CliError> {
+    if path.is_dir() && path.join(".saccade-demo").is_file() {
+        return view_artifact(&path.join("report"), out, json);
+    }
     let parent = if path.is_dir() {
         path
     } else {

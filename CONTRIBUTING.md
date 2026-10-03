@@ -4,17 +4,14 @@ Bug reports, feature requests and pull requests are welcome.
 
 ## Build
 
-You need Rust 1.88 or newer. FLIP is implemented in pure Rust by `flip-rs`,
-pinned to an immutable git revision. The repository is currently private,
-so source builds need GitHub access to `Tavrin/flip-rs`. CI loads the
-`FLIP_RS_DEPLOY_KEY` secret with `webfactory/ssh-agent`, fetches git through
-the CLI and rewrites the dependency's HTTPS URL to SSH.
+You need Rust 1.88 or newer. FLIP is implemented by the published pure-Rust
+`flip-rs` dependency. No private dependency checkout or deploy key is needed.
 
 ```sh
 git clone https://github.com/Tavrin/saccade
 cd saccade
 cargo build --workspace
-cargo run -p saccade -- compare examples/baseline examples/capture --out /tmp/saccade-report
+cargo run -p saccade -- compare examples/baseline examples/capture --out target/contributor-report
 ```
 
 The workspace has two crates: `saccade-core` (comparison, report model, HTML
@@ -40,8 +37,7 @@ Code conventions that the lints enforce:
   (and, per image, an `error` entry in the report), not a panic.
 
 Tests live next to the code (`#[cfg(test)]`) and in `crates/*/tests/`. Generate
-image fixtures in code. Do not add binary fixtures; the only committed images
-are in `examples/`.
+image fixtures in code. Use deterministic generated fixtures and record their provenance.
 
 To try the GitHub Action's shell steps locally against `examples/`, without
 GitHub, run `scripts/action-dry-run.sh`.
@@ -64,7 +60,7 @@ commit the regenerated images with it and check that the README output for
 ## Documentation
 
 If a change alters a flag, a default, an output or a file format, update the
-README and [docs/design.md](docs/design.md) in the same pull request, and add a
+README and the relevant task documentation in the same pull request, and add a
 line to [CHANGELOG.md](CHANGELOG.md). Paste real output into the README: run
 the command and copy what it prints.
 

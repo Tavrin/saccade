@@ -206,7 +206,7 @@ enum Command {
         #[command(flatten)]
         intent: IntentArgs,
     },
-    /// (metric max, threshold 0), bit-identity reported per image.
+    /// Establish exact native decoded-sample equality in the selected scope.
     Identity {
         /// Directory of images from the parent build.
         parent_dir: PathBuf,

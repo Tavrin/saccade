@@ -13,6 +13,7 @@ Default output: $CARGO_TARGET_DIR/showcase (or target/showcase). Sources are nev
 Requires Python 3, Pillow, and saccade built with --features prechecks. Nothing is downloaded.
 """
 import argparse
+import hashlib
 import html
 import json
 import os
@@ -41,17 +42,23 @@ E = html.escape
 # --------------------------------------------------------------------- run
 def run_cases(binary, out_root):
     env = dict(os.environ, LC_ALL='C', NO_COLOR='1')
+    capabilities = subprocess.run([binary, 'inspect', 'capabilities', '--json'],
+                                  check=True, capture_output=True, text=True, encoding="utf-8", env=env)
+    features = json.loads(capabilities.stdout)['data']['features']
     results = {}
     for manifest in sorted(SHOW.glob('*/commands.json')):
         case = manifest.parent
         out = out_root / case.name
         out.mkdir(parents=True, exist_ok=True)
+        if case.name == 'photosensitivity' and 'prechecks' not in features:
+            results[case.name] = {'out': out, 'runs': [], 'unvalidated': True}
+            continue
         runs = []
-        for c in json.loads(manifest.read_text()):
+        for c in json.loads(manifest.read_text(encoding="utf-8")):
             args = [binary] + [a.replace('@REPORTS@', str(out)) for a in c['args']]
             if c.get('out'):
                 args += ['--out', str(out / c['out'])]
-            r = subprocess.run(args, cwd=case, env=env, capture_output=True, text=True)
+            r = subprocess.run(args, cwd=case, env=env, capture_output=True, text=True, encoding="utf-8")
             if r.returncode != c['exit']:
                 sys.exit(f'{case.name}/{c["name"]}: exit {r.returncode}, expected {c["exit"]}\n{r.stderr}')
             runs.append({'cmd': c, 'stdout': r.stdout, 'exit': r.returncode})
@@ -60,7 +67,8 @@ def run_cases(binary, out_root):
 
 
 def sanitizer(case_out):
-    pairs = [(str(case_out), '$OUT'), (str(SHOW) + '/', 'showcases/'), (str(REPO) + '/', '')]
+    pairs = [(str(case_out), '$OUT'), (str(case_out.parent), '$RUNS'),
+             (str(SHOW) + '/', 'showcases/'), (str(REPO) + '/', '')]
     def clean(text):
         for a, b in pairs:
             text = text.replace(a, b)
@@ -78,15 +86,36 @@ def copy_report(src, dst, clean):
         q = dst / p.relative_to(src)
         q.parent.mkdir(parents=True, exist_ok=True)
         if p.suffix in TEXT_EXT:
-            q.write_text(clean(p.read_text()))
+            q.write_text(clean(p.read_text(encoding="utf-8")), encoding="utf-8", newline="\n")
         else:
             shutil.copyfile(p, q)
+    # Redacting relocatable paths changes report bytes, but not measured semantics.
+    # Keep exact artifact references correct without rebinding reviewed content.
+    for document in dst.rglob('evidence.json'):
+        case = json.loads(document.read_text(encoding="utf-8"))
+        if case.get('kind') != 'case':
+            continue
+        reference = case['measurement']['report']
+        report = document.parent / reference['path']
+        actual = 'sha256:' + hashlib.sha256(report.read_bytes()).hexdigest()
+        previous = reference['sha256']
+        if actual == previous:
+            continue
+        if any(case.get(key) for key in ('requests', 'proposals', 'human_decisions', 'next_actions')):
+            raise ValueError('Cannot redact a report with bound workflow records: ' + str(document))
+        reference['sha256'] = actual
+        for fact in case['facts']:
+            artifact = fact['artifact']
+            if artifact['path'] == reference['path'] and artifact['sha256'] == previous:
+                artifact['sha256'] = actual
+        # Case and fact identities deliberately exclude relocatable artifact references.
+        document.write_text(json.dumps(case, indent=2, ensure_ascii=False) + '\n', encoding='utf-8', newline='\n')
     # Some report renderers leave this optional sidecar absent until a decision
     # is recorded. Static galleries have no decisions; keep their script links valid.
     for page in dst.rglob('index.html'):
         sidecar = page.parent / 'saccade-decisions.v1.js'
-        if 'src="saccade-decisions.v1.js"' in page.read_text() and not sidecar.exists():
-            sidecar.write_text('window.__saccadeDecisions=null;\n')
+        if 'src="saccade-decisions.v1.js"' in page.read_text(encoding="utf-8") and not sidecar.exists():
+            sidecar.write_text('window.__saccadeDecisions=null;\n', encoding='utf-8', newline='\n')
 
 
 # ------------------------------------------------------------------- media
@@ -336,7 +365,7 @@ CASES = [
         'id': 'texture-compression', 'title': 'Texture compression',
         'problem': 'Five lossy encodings of one texture, ranked by how visible their error is.',
         'about': 'The block candidates are simulations of two block-compression qualities, not real BC or ASTC encoders. '
-                 'All five exceed mean FLIP 0.001, so the ranking exits 1.',
+                 'All five exceed mean FLIP 0.001. Ranking completes with exit 0; inspect its findings.',
     },
     {
         'id': 'upscaler', 'title': 'Upscalers and temporal shimmer',
@@ -353,7 +382,7 @@ CASES = [
         'id': 'ml-image-model', 'title': 'Image-model checkpoints',
         'problem': 'Checkpoint B must keep the colour and structure of checkpoint A for the same seeds.',
         'about': 'Six fixed procedural seeds stand in for shared prompts. B adds a colour cast to two seeds and moves one shape. '
-                 'The case also writes explain strips and a bounded decision request; no model or judge is called.',
+                 'The case also prepares evidence strips and a Markdown export; no model is called.',
         'pick': ['seed_101.png', 'seed_105.png', 'seed_104.png', 'seed_100.png'],
     },
     {
@@ -366,7 +395,7 @@ CASES = [
     {
         'id': 'perf-identity', 'title': 'Optimization identity proof',
         'problem': 'A faster build must produce the same image. Two views are bit-identical; one pixel moved in the third.',
-        'about': '`identity` uses max FLIP with threshold 0 and reports bit-identity per image. Timings come from metadata sidecars and are paired, not gated. '
+        'about': '`identity` proves exact native decoded-sample equality for selected captures. Timings come from metadata sidecars and are paired, not qualified. '
                  'The numbers are illustrative, not benchmark measurements.',
         'pick': ['view_2.png', 'view_0.png', 'view_1.png'], 'zoom': True, 'split': 30,
     },
@@ -391,7 +420,7 @@ def build_case(spec, res, n):
     px = False
     wid = f'w-{case}'
     if first in ('compare', 'identity'):
-        rep = json.loads((rep_dir / 'saccade-report.v1.json').read_text())
+        rep = json.loads((rep_dir / 'saccade-report.v1.json').read_text(encoding="utf-8"))
         labels = (rep.get('config') or {}).get('labels') or {}
         left, right = labels.get('baseline', 'baseline'), labels.get('capture', 'capture')
         by = {e['name']: e for e in rep['entries']}
@@ -400,11 +429,11 @@ def build_case(spec, res, n):
         data = {'left': left, 'right': right, 'entries': ents}
         px = ents[0]['w'] <= 256
     elif first == 'rank':
-        rk = json.loads((rep_dir / 'saccade-rank.v1.json').read_text())
+        rk = json.loads((rep_dir / 'saccade-rank.v1.json').read_text(encoding="utf-8"))
         ents = []
         for o in rk['overall']:
             sub = rep_dir / o['label']
-            rep = json.loads((sub / 'saccade-report.v1.json').read_text())
+            rep = json.loads((sub / 'saccade-report.v1.json').read_text(encoding="utf-8"))
             e = rep['entries'][0]
             ents.append(entry_from_report(case, sub, e, f'{o["label"]}', left='reference', right=o['label']))
         data = {'left': 'reference', 'right': 'candidate', 'entries': ents}
@@ -412,7 +441,7 @@ def build_case(spec, res, n):
         extra = '<h3>Ranking</h3>' + rank_table(wid, rk['overall'], rk['metric'])
         px = ents[0]['w'] <= 256
     elif first == 'sequence':
-        seq = json.loads((rep_dir / 'saccade-sequence.v1.json').read_text())
+        seq = json.loads((rep_dir / 'saccade-sequence.v1.json').read_text(encoding="utf-8"))
         thr = seq['frames'][0]['entry']['threshold']
         ents = []
         for f in seq['frames']:
@@ -426,7 +455,7 @@ def build_case(spec, res, n):
         px = True
     if case == 'upscaler':
         sq_dir = out / runs[1]['cmd']['out']
-        seq = json.loads((sq_dir / 'saccade-sequence.v1.json').read_text())
+        seq = json.loads((sq_dir / 'saccade-sequence.v1.json').read_text(encoding="utf-8"))
         extra += '<h3>Camera pan: mean FLIP per frame</h3>' + seq_chart(wid + '-seq', seq, seq['frames'][0]['entry']['threshold'], False)
     tn = data['entries'][data.get('default', 0)]
     th = thumb(case, OUTPUT / tn['b'], OUTPUT / tn['c'], OUTPUT / (tn['h'] or tn['c']),
@@ -444,7 +473,7 @@ def build_case(spec, res, n):
                   f'<img class="px" src="{strip}" alt="Explain strip for seed_105: baseline, capture and heatmap crops of the moved shape">'
                   '<figcaption><code>hotspots/seed_105.png.d/h1.png</code>: [baseline | capture | heatmap], one per hotspot.</figcaption></figure>')
     if case == 'render-gbuffer':
-        rep = json.loads((rep_dir / 'saccade-report.v1.json').read_text())
+        rep = json.loads((rep_dir / 'saccade-report.v1.json').read_text(encoding="utf-8"))
         rows = ''.join(
             f'<tr><td>{E(e["name"])}</td><td>{E((e.get("buffer") or {}).get("kind", "colour"))}</td>'
             f'<td>{E((e.get("buffer") or {}).get("unit", "FLIP"))}</td><td class="num">{e["value"]:.5f}</td><td class="num">{e["threshold"]:g}</td>'
@@ -470,6 +499,30 @@ def build_case(spec, res, n):
     card = (f'<a class="uc" href="#{case}"><div class="th"><img src="{th}" alt=""></div>'
             f'<div class="bd"><span class="n">{n:02d} · {E(case)}</span><h3>{E(spec["title"])}</h3><p>{E(spec["problem"])}</p>{totals}</div></a>')
     return section, card, {'thumb': th, 'title': spec['title'], 'problem': spec['problem']}
+
+
+def build_precheck(res, n):
+    case = 'photosensitivity'
+    title = 'Photosensitivity precheck'
+    description = 'Procedural 4 Hz fixture; static previews only. No certification claim.'
+    image = save_media(SHOW / case / 'frames/frame_000.png', case + '/thumb.png')
+    if res.get('unvalidated'):
+        body = 'Unvalidated in this build. Showcase validation requires cargo build --release -p saccade --features prechecks.'
+        link = ''
+    else:
+        body = res['runs'][0]['stdout']
+        destination = REPORTS / case / 'safety'
+        copy_report(res['out'] / 'safety', destination, sanitizer(res['out']))
+        link = '<a class="btn" href="reports/photosensitivity/safety/index.html">Open static report</a>'
+    commands = json.loads((SHOW / case / 'commands.json').read_text(encoding="utf-8"))
+    command = command_text(case, [{'cmd': c} for c in commands])
+    section = (f'<section class="case" id="{case}" aria-labelledby="{case}-h"><div class="wrap">'
+               f'<h2 id="{case}-h">{n:02d} · {title}</h2><p>{description}</p>'
+               f'{term("Command (requires prechecks)", command_html(command), copy=command)}'
+               f'{term("Validation", color_output(body), cls="out")}{link}</div></section>')
+    card = (f'<a class="uc" href="#{case}"><div class="th"><img src="{image}" alt="Static black frame"></div>'
+            f'<div class="bd"><span class="n">{n:02d} · {case}</span><h3>{title}</h3><p>{description}</p></div></a>')
+    return section, card
 
 
 def summary_chip(runs):
@@ -518,11 +571,17 @@ def main():
         s, c, _ = build_case(spec, results[spec['id']], n)
         sections.append(s)
         cards.append(c)
+    extra = set(results) - {spec['id'] for spec in CASES}
+    if extra != {'photosensitivity'}:
+        ap.error('Gallery cases do not match showcase manifests: ' + ', '.join(sorted(extra)))
+    section, card = build_precheck(results['photosensitivity'], len(CASES) + 1)
+    sections.append(section)
+    cards.append(card)
 
     # hero: the label regression from webapp-ui, at higher scale
     out = results['webapp-ui']['out']
     rep_dir = out / 'compare'
-    rep = json.loads((rep_dir / 'saccade-report.v1.json').read_text())
+    rep = json.loads((rep_dir / 'saccade-report.v1.json').read_text(encoding="utf-8"))
     lab = entry_from_report('hero', rep_dir, next(e for e in rep['entries'] if e['name'] == 'label.png'), 'label.png')
     hero = widget('w-hero', {'left': 'baseline', 'right': 'capture', 'entries': [lab]}, split=50, intro=True)
     hero_lines = [l for l in sanitizer(out)(results['webapp-ui']['runs'][0]['stdout']).splitlines()]
@@ -532,29 +591,37 @@ def main():
     # agent evidence: a real CLI snapshot and the lean JSON result
     snap = MEDIA / 'agents/snapshot-label.png'
     snap.parent.mkdir(parents=True, exist_ok=True)
-    subprocess.run([binary, 'snapshot', str(rep_dir / 'saccade-report.v1.json'), '--entry', 'label.png',
+    subprocess.run([binary, 'inspect', 'export', str(rep_dir / 'saccade-report.v1.json'), '--format', 'png', '--entry', 'label.png',
                     '--state', 'layout=swipe&split=0.5&heat=0.6&hotspot=1&zoom=3', '--out', str(snap), '--width', '1200'],
                    check=True, capture_output=True)
     Image.open(snap).save(snap, optimize=True)
     lean = subprocess.run([binary, 'compare', 'baseline', 'capture', '--config', 'saccade.toml', '--out', str(tmp / 'lean'), '--json'],
-                          cwd=SHOW / 'webapp-ui', capture_output=True, text=True, env=dict(os.environ, LC_ALL='C', NO_COLOR='1'))
+                          cwd=SHOW / 'webapp-ui', capture_output=True, text=True, encoding="utf-8", env=dict(os.environ, LC_ALL='C', NO_COLOR='1'))
+    if lean.returncode != 1:
+        sys.exit(f'UI JSON comparison: expected exit 1, got {lean.returncode}\n{lean.stderr}')
     lj = json.loads(lean.stdout)
-    lean_view = {'schema': lj['schema'], 'verdict': lj['verdict'], 'totals': lj['totals'],
-                 'failing': [dict(lj['failing'][0], hotspots=lj['failing'][0]['hotspots'][:1])], 'next_step': '…'}
+    lean_view = {k: lj[k] for k in ('schema', 'execution', 'measurement', 'validity', 'review', 'counts', 'page')}
+    lean_view['next_actions'] = lj['next_actions'][:1]
+    lean_view = json.loads(sanitizer(tmp / 'lean')(json.dumps(lean_view)))
     lean_txt = json.dumps(lean_view, indent=2, ensure_ascii=False)
     # keep short objects on one line so the excerpt reads like the real output, only shorter
     lean_txt = re.sub(r'\{\n\s+([^{}\[\]]{0,160}?)\n\s*\}', lambda m: '{' + re.sub(r'\n\s+', ' ', m.group(1)) + '}', lean_txt)
     lean_txt = re.sub(r'\[\n\s+([^{}\[\]]{0,200}?)\n\s*\]', lambda m: '[' + re.sub(r'\n\s+', ' ', m.group(1)) + ']', lean_txt)
 
-    page = (HERE / 'template.html').read_text()
+    page = (HERE / 'template.html').read_text(encoding="utf-8")
     page = (page.replace('{{HERO}}', hero)
                 .replace('{{HERO_OUT}}', color_output(hero_out))
                 .replace('{{CARDS}}', '\n'.join(cards))
                 .replace('{{SECTIONS}}', '\n'.join(sections))
+                .replace('{{CASE_COUNT}}', str(len(results)))
                 .replace('{{LEAN_JSON}}', E(lean_txt)))
-    (OUTPUT / 'index.html').write_text(page)
+    (OUTPUT / 'index.html').write_text(page, encoding='utf-8', newline='\n')
+    (OUTPUT / 'cases.json').write_text(json.dumps({
+        'count': len(results),
+        'cases': [{'id': name, 'validated': not res.get('unvalidated', False)}
+                  for name, res in sorted(results.items())]}, indent=2) + '\n', encoding='utf-8', newline='\n')
     leftovers = [str(p) for p in OUTPUT.rglob('*') if p.suffix in TEXT_EXT and p.is_file()
-                 and (str(REPO) in p.read_text(errors='ignore') or str(tmp) in p.read_text(errors='ignore'))]
+                 and (str(REPO) in p.read_text(encoding='utf-8', errors='ignore') or str(tmp) in p.read_text(encoding='utf-8', errors='ignore'))]
     if leftovers:
         sys.exit('local paths left in: ' + ', '.join(leftovers))
     size = sum(p.stat().st_size for p in MEDIA.rglob('*') if p.is_file())

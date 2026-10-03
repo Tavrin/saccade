@@ -5,6 +5,18 @@ set -euo pipefail
 TASK_ROOT=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/.." && pwd)
 cd -- "$TASK_ROOT"
 command -v saccade >/dev/null || { echo 'Put the release saccade binary on PATH.' >&2; exit 2; }
+# Validate the build before generating or running any case.
+python3 - <<'PY'
+import json
+import subprocess
+import sys
+result = subprocess.run(['saccade', 'inspect', 'capabilities', '--json'], capture_output=True, text=True)
+if result.returncode != 0:
+    sys.exit('Cannot inspect Saccade capabilities. Build with cargo build --release -p saccade --features prechecks and put that binary on PATH.')
+features = json.loads(result.stdout).get('data', {}).get('features', [])
+if not {'graphics', 'prechecks'}.issubset(features):
+    sys.exit('Showcase validation requires cargo build --release -p saccade --features prechecks. Put that binary on PATH.')
+PY
 python3 scripts/gen-showcases.py
 python3 scripts/gen-photosensitivity.py
 python3 - <<'PY'

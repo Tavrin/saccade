@@ -8,6 +8,9 @@ use saccade_core::report::REPORT_FILE_NAME;
 
 use crate::agent::CliError;
 
+#[path = "demo_assets.rs"]
+mod demo_assets;
+
 #[derive(Clone, Copy, ValueEnum)]
 pub(crate) enum Template {
     Renderer,
@@ -357,7 +360,7 @@ pub(crate) fn demo(args: DemoArgs, record_absolute_paths: bool) -> Result<u8, Cl
         .map_err(|e| CliError::io(format!("creating {}: {e}", dir.display())))?;
     std::fs::write(dir.join(".saccade-demo"), b"saccade demo\n")
         .map_err(|e| CliError::io(format!("writing demo marker: {e}")))?;
-    for (name, bytes) in EXAMPLES {
+    for (name, bytes) in EXAMPLES.iter().chain(demo_assets::FILES) {
         let path = dir.join(name);
         crate::check_no_symlinks(&dir, Path::new(name))?;
         if let Some(parent) = path.parent() {
@@ -367,6 +370,7 @@ pub(crate) fn demo(args: DemoArgs, record_absolute_paths: bool) -> Result<u8, Cl
         std::fs::write(&path, bytes)
             .map_err(|e| CliError::io(format!("writing {}: {e}", path.display())))?;
     }
+    demo_assets::reports(&dir, record_absolute_paths)?;
     let out = dir.join("report");
     let report = saccade_core::run::run(
         &dir.join("baseline"),
@@ -379,7 +383,7 @@ pub(crate) fn demo(args: DemoArgs, record_absolute_paths: bool) -> Result<u8, Cl
     )?;
     crate::emit(&crate::text_table(&report))?;
     crate::emit(&format!(
-        "report: {}\nOpen {}: inspect sphere_shadow.png's moved light/shadow and numbered hotspots.\nExpected exit 1: the shadow fails and sphere_missing.png has no capture.\n",
+        "report: {}\nOpen {}: inspect the moved shadow, changed UI label and numbered hotspots.\nIdentity: identity/report/index.html proves equal native samples with different PNG encodings.\nReview: review/report/index.html contains a declared material change; offline responses and resolution are illustrative.\nExpected exit 1: regressions and sphere_missing.png's missing capture fail the gate.\n",
         saccade_core::paths::cwd(&out.join(REPORT_FILE_NAME), record_absolute_paths),
         saccade_core::paths::cwd(&out.join("index.html"), record_absolute_paths)
     ))?;

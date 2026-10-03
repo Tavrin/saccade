@@ -1,0 +1,35 @@
+{
+  "id": "demo-warmer-material",
+  "objective": "Increase sphere red albedo; preserve geometry and background.",
+  "assurance": "structured",
+  "expected_changes": [
+    {
+      "key": "sphere.albedo.red",
+      "reason": "Declared material adjustment",
+      "expected_before": 0.8,
+      "expected_after": 0.82
+    }
+  ],
+  "invariants": [
+    "Sphere geometry, light, camera, resolution and background remain fixed."
+  ],
+  "criteria": [
+    {
+      "id": "bounded-mean-error",
+      "fact_id": "demo-mean-flip",
+      "comparator": "less_or_equal",
+      "expected": {
+        "type": "number",
+        "value": 0.02
+      },
+      "units": "FLIP"
+    }
+  ],
+  "source": null,
+  "provenance": {
+    "timestamp_unix_ms": null,
+    "paths": [],
+    "source_roots": [],
+    "source": "repository-owned demo declaration"
+  }
+}

@@ -82,3 +82,37 @@ fn embedded_json_round_trips_and_escapes_script_breakouts() {
     let parsed: Report = serde_json::from_str(data).expect("embedded JSON parses");
     assert_eq!(parsed, report);
 }
+
+#[test]
+fn identity_header_names_native_proof_and_selected_scope_instead_of_metric_settings() {
+    let mut report = sample();
+    report.config.mode = saccade_core::report::Mode::Identity;
+    report.config.entries = vec!["scene*.png".into()];
+    report.config.ignore = vec!["excluded.png".into()];
+    let html = render(&report, "identity-scope");
+    let meta = html
+        .split_once("<dl class=\"meta\" id=\"meta\">")
+        .unwrap()
+        .1
+        .split_once("</dl>")
+        .unwrap()
+        .0;
+    assert!(meta.contains("Exact native decoded samples"));
+    assert!(meta.contains("scene*.png") && meta.contains("excluded.png"));
+    assert!(meta.contains(&report.entries[0].name));
+    for key in ["threshold", "metric", "ppd"] {
+        assert!(!meta.contains(&format!("<dt>{key}</dt>")));
+    }
+    let summary = html
+        .split_once("<section class=\"review-summary\"")
+        .unwrap()
+        .1
+        .split_once("</section>")
+        .unwrap()
+        .0;
+    assert!(!summary.contains("pixels per degree"));
+    assert!(summary.contains("No tolerance or mask establishes identity"));
+    report.config.mode = saccade_core::report::Mode::Regression;
+    let html = render(&report, "regression-header");
+    assert!(html.contains("<dt>threshold</dt>") && html.contains("<dt>ppd</dt>"));
+}

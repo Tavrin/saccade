@@ -1,0 +1,254 @@
+[
+  {
+    "document": "README.md",
+    "args": [
+      "demo",
+      "--out",
+      "saccade-demo"
+    ],
+    "exit": 1
+  },
+  {
+    "document": "README.md",
+    "args": [
+      "view",
+      "saccade-demo"
+    ],
+    "exit": 0
+  },
+  {
+    "document": "README.md",
+    "args": [
+      "compare",
+      "examples/baseline/sphere_shadow.png",
+      "examples/capture/sphere_shadow.png",
+      "--out",
+      "file-report"
+    ],
+    "exit": 1
+  },
+  {
+    "document": "README.md",
+    "args": [
+      "compare",
+      "examples/baseline",
+      "examples/capture",
+      "--out",
+      "directory-report",
+      "--json"
+    ],
+    "exit": 1
+  },
+  {
+    "document": "README.md",
+    "args": [
+      "inspect",
+      "directory-report/saccade-report.v1.json",
+      "--status",
+      "fail,error,missing,new",
+      "--limit",
+      "5",
+      "--json"
+    ],
+    "exit": 0
+  },
+  {
+    "document": "README.md",
+    "args": [
+      "inspect",
+      "evidence",
+      "directory-report/saccade-report.v1.json",
+      "--entry",
+      "sphere_shadow.png",
+      "--out",
+      "evidence-pack"
+    ],
+    "exit": 0
+  },
+  {
+    "document": "README.md",
+    "args": [
+      "inspect",
+      "export",
+      "directory-report/saccade-report.v1.json",
+      "--format",
+      "png",
+      "--entry",
+      "sphere_shadow.png",
+      "--out",
+      "shadow.png"
+    ],
+    "exit": 0
+  },
+  {
+    "document": "README.md",
+    "args": [
+      "init",
+      "--template",
+      "renderer",
+      "--dir",
+      "capture-project"
+    ],
+    "exit": 0
+  },
+  {
+    "document": "README.md",
+    "args": [
+      "inspect",
+      "config",
+      "--config",
+      "capture-project/saccade.toml",
+      "--entry",
+      "scene.png",
+      "--json"
+    ],
+    "exit": 0
+  },
+  {
+    "document": "README.md",
+    "args": [
+      "identity",
+      "saccade-demo/identity/baseline",
+      "saccade-demo/identity/capture",
+      "--out",
+      "identity-report",
+      "--json"
+    ],
+    "exit": 0
+  },
+  {
+    "document": "README.md",
+    "args": [
+      "review",
+      "directory-report/saccade-report.v1.json",
+      "--out",
+      "review-plan",
+      "--json"
+    ],
+    "exit": 0
+  },
+  {
+    "document": "README.md",
+    "args": [
+      "review",
+      "request",
+      "file-report/saccade-report.v1.json",
+      "--question",
+      "triage.route.v1",
+      "--out",
+      "triage-request.json"
+    ],
+    "exit": 0
+  },
+  {
+    "document": "README.md",
+    "args": [
+      "review",
+      "ask",
+      "triage-request.json",
+      "--out",
+      "human-review"
+    ],
+    "exit": 0
+  },
+  {
+    "document": "README.md",
+    "args": [
+      "mcp",
+      "--root",
+      "examples",
+      "--out-root",
+      "agent-reports"
+    ],
+    "exit": 0
+  },
+  {
+    "document": "docs/identity-and-performance.md",
+    "args": [
+      "identity",
+      "examples/baseline",
+      "examples/baseline",
+      "--out",
+      "identity-proof",
+      "--json"
+    ],
+    "exit": 0
+  },
+  {
+    "document": "docs/captures.md",
+    "args": [
+      "compare",
+      "examples/baseline",
+      "examples/capture",
+      "--out",
+      "capture-report",
+      "--json"
+    ],
+    "exit": 1
+  },
+  {
+    "document": "docs/review.md",
+    "args": [
+      "compare",
+      "examples/baseline",
+      "examples/capture",
+      "--entry",
+      "sphere_shadow.png",
+      "--out",
+      "review-report",
+      "--json"
+    ],
+    "exit": 1
+  },
+  {
+    "document": "docs/review.md",
+    "args": [
+      "review",
+      "review-report/saccade-report.v1.json",
+      "--out",
+      "review-plan-2",
+      "--json"
+    ],
+    "exit": 0,
+    "spelling": "saccade review review-report/saccade-report.v1.json --out review-plan --json"
+  },
+  {
+    "document": "docs/review.md",
+    "args": [
+      "review",
+      "request",
+      "review-report/saccade-report.v1.json",
+      "--question",
+      "triage.route.v1",
+      "--out",
+      "request.json"
+    ],
+    "exit": 0
+  },
+  {
+    "document": "docs/review.md",
+    "args": [
+      "review",
+      "ask",
+      "request.json",
+      "--out",
+      "human-review-2"
+    ],
+    "exit": 0,
+    "spelling": "saccade review ask request.json --out human-review"
+  },
+  {
+    "document": "docs/review.md",
+    "args": [
+      "approve",
+      "--report",
+      "review-report/saccade-report.v1.json",
+      "--entry",
+      "sphere_shadow.png",
+      "--dry-run",
+      "--out",
+      "update-plan"
+    ],
+    "exit": 0
+  }
+]
