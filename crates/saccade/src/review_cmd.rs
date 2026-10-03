@@ -14,7 +14,7 @@ use saccade_core::judge_provider::{
     transport::{self, Authorization, UserConfig},
 };
 use serde_json::{Value, json};
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, BTreeSet};
 use std::path::{Path, PathBuf};
 use std::time::Duration;
 
@@ -104,6 +104,31 @@ fn verify_inputs(
         }
     }
     Ok(())
+}
+// Presentation references never replace the full provenance used by egress
+// checks, provider dispatch, or the saved review plan.
+fn source_references(
+    sources: &[String],
+    roots: &saccade_core::root_policy::RootPolicy,
+) -> Vec<String> {
+    sources
+        .iter()
+        .map(|source| {
+            let path = saccade_core::run::normalise_path(
+                saccade_core::paths::native(Path::new(source)).as_ref(),
+            );
+            if let Some(root) = roots.root_of(&path)
+                && let Ok(relative) = path.strip_prefix(&root.path)
+            {
+                saccade_core::paths::portable(&Path::new(&root.name).join(relative))
+            } else {
+                let canonical = saccade_core::paths::portable(&path);
+                format!("source:{}", Digest::of_bytes(canonical.as_bytes()).as_str())
+            }
+        })
+        .collect::<BTreeSet<_>>()
+        .into_iter()
+        .collect()
 }
 /// Prepare exact payload hashes and decisions, without creating credentials or dispatching.
 #[allow(clippy::too_many_arguments)]
@@ -370,6 +395,10 @@ pub(crate) fn review(
         std::fs::write(parent.join(".saccade-run"), b"")
             .map_err(|e| CliError::io(e.to_string()))?;
     }
+    let source_references = json!(source_references(&sources, &policy));
+    for payload in &mut payloads {
+        payload["source_roots"] = source_references.clone();
+    }
     let mut result = local_cmd::base_result(if run { "review.run" } else { "review.preview" });
     result["review"] = json!("unresolved");
     if run && !failures.is_empty() {
@@ -379,7 +408,7 @@ pub(crate) fn review(
     result["data"] = json!({"payloads":payloads,"policy":if egress.is_ok(){"allow"}else{"deny"},"provider_calls_authorized":auth.enabled,"shortfalls":shortfalls,"visual_results":visual_results,"failures":failures});
     result["limits"] = json!([
         "Model answers remain proposals. Human review is unresolved.",
-        "Payload previews contain hashes and provenance; exact requests are retained in the local artifact."
+        "Payload previews use root-relative sources or source IDs; full provenance stays in the local artifact."
     ]);
     if let Some(out) = out {
         result["artifact"] = local_cmd::reference(out)?;

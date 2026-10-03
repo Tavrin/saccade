@@ -93,9 +93,11 @@ fn mcp_startup_requires_flag_and_budget_and_tools_cannot_raise_authority() {
 #[test]
 fn six_tools_share_local_evidence_requests_proposals_and_human_escalation() {
     let t = tempfile::tempdir().unwrap();
-    let root = t.path().join("root");
-    let out = t.path().join("out");
-    std::fs::create_dir(&root).unwrap();
+    // Exercise long platform temp prefixes even on hosts with a short /tmp path.
+    let parent = t.path().join("platform-temp-prefix-".repeat(4));
+    let root = parent.join("root");
+    let out = parent.join("out");
+    std::fs::create_dir_all(&root).unwrap();
     for name in ["base", "capture"] {
         std::fs::create_dir(root.join(name)).unwrap();
         image::RgbImage::from_pixel(
@@ -106,8 +108,9 @@ fn six_tools_share_local_evidence_requests_proposals_and_human_escalation() {
         .save(root.join(name).join("a.png"))
         .unwrap();
     }
+    // Equivalent path spellings must not duplicate sources in the preview.
     let report = out
-        .join("report/saccade-report.v1.json")
+        .join("report/../report/saccade-report.v1.json")
         .to_string_lossy()
         .into_owned();
     let request = out.join("request.json").to_string_lossy().into_owned();
@@ -135,7 +138,7 @@ fn six_tools_share_local_evidence_requests_proposals_and_human_escalation() {
             tool(
                 4,
                 "saccade_review",
-                json!({"operation":"preview","artifact":report}),
+                json!({"operation":"preview","artifact":report,"out":"preview/evidence.json"}),
             ),
             tool(
                 5,
@@ -163,6 +166,42 @@ fn six_tools_share_local_evidence_requests_proposals_and_human_escalation() {
         replies[4]["result"]["structuredContent"]["counts"]["dispatched_calls"],
         0
     );
+    let preview = &replies[4]["result"]["structuredContent"];
+    assert!(serde_json::to_vec(preview).unwrap().len() <= 4096);
+    let payloads = preview["data"]["payloads"].as_array().unwrap();
+    assert!(!payloads.is_empty());
+    assert_eq!(preview["counts"]["scheduled_questions"], payloads.len());
+    let plan: Value =
+        serde_json::from_slice(&std::fs::read(out.join("preview/review-plan.json")).unwrap())
+            .unwrap();
+    for payload in payloads {
+        assert_eq!(payload["policy"], "deny");
+        let sources = payload["source_roots"].as_array().unwrap();
+        assert_eq!(sources.len(), 4);
+        assert_eq!(sources[0], "root/base");
+        assert_eq!(sources[1], "root/capture");
+        // Generated image copies are outside capture roots and use opaque IDs.
+        for source in &sources[2..] {
+            let digest = source.as_str().unwrap().strip_prefix("source:").unwrap();
+            saccade_core::evidence::canonical::Digest::parse(digest).unwrap();
+        }
+    }
+    // Compact responses must preserve full source provenance in the saved plan.
+    assert_eq!(plan["payloads"].as_array().unwrap().len(), payloads.len());
+    for (payload, preview) in plan["payloads"].as_array().unwrap().iter().zip(payloads) {
+        assert_eq!(payload["policy"], "deny");
+        assert_eq!(payload["request_id"], preview["request_id"]);
+        assert_eq!(payload["payload_sha256"], preview["payload_sha256"]);
+        assert!(
+            payload["source_roots"]
+                .as_array()
+                .unwrap()
+                .iter()
+                .all(|source| {
+                    saccade_core::paths::native(Path::new(source.as_str().unwrap())).is_absolute()
+                })
+        );
+    }
     let doc = saccade_core::evidence::Document::read(Path::new(&request)).unwrap();
     let saccade_core::evidence::Artifact::DecisionRequest(r) = doc.artifact else {
         panic!("request")

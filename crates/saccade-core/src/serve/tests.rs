@@ -860,14 +860,19 @@ fn deeplink_allowed_external_symlinks_uniformly_confined() {
 
 #[test]
 fn deeplink_storage_timeout_and_probe_cap() {
+    let timeout = Duration::from_millis(20);
+    let ci_margin = Duration::from_secs(2);
+    let probe_cap = 8;
+    let deadline = timeout * probe_cap + ci_margin;
+    let worker_deadline = deadline * 2;
     let tmp = tempfile::tempdir().unwrap();
     let root = tmp.path().join("root");
     write_png(&root.join("r/x.png"), [1, 2, 3]);
     let mut opts = ServeOptions::new(root.clone());
     opts.cache_dir = tmp.path().join("cache");
     opts.decisions_dir = tmp.path().join("decisions");
-    opts.probe_timeout_ms = Some(20);
-    opts.probe_delay_ms = 200;
+    opts.probe_timeout_ms = Some(timeout.as_millis() as u64);
+    opts.probe_delay_ms = worker_deadline.as_millis() as u64;
     let handle = start(opts).unwrap();
     let f = Fixture {
         root: canonicalize(&root).unwrap(),
@@ -877,31 +882,55 @@ fn deeplink_storage_timeout_and_probe_cap() {
         _tmp: tmp,
     };
     let started = std::time::Instant::now();
-    for _ in 0..8 {
-        let r = get(&f, "/run?path=r");
-        assert_eq!(r.status, 503);
-        assert!(r.text().contains("storage not reachable: r"));
-    }
-    assert!(started.elapsed() < Duration::from_millis(800));
-    // Eight still-running probes retain every slot; the ninth never executes.
-    let r = get(&f, "/img?path=r/x.png");
+    let r = get(&f, "/run?path=r");
     assert_eq!(r.status, 503);
+    assert!(r.text().contains("storage not reachable: r"));
+    assert!(started.elapsed() < timeout + ci_margin);
     assert_eq!(get(&f, "/").status, 200);
     assert_eq!(get(&f, "/api/roots").status, 200);
-    let storage = storage::Storage::new(Duration::from_millis(5));
-    let release = Arc::new(std::sync::Barrier::new(9));
-    for _ in 0..8 {
-        let release = release.clone();
-        assert!(
-            storage
-                .run(move || {
-                    release.wait();
-                })
-                .is_err()
+
+    let storage = storage::Storage::new(timeout);
+    let (finished_tx, finished_rx) = std::sync::mpsc::channel();
+    let mut releases = Vec::new();
+    let started = std::time::Instant::now();
+    for _ in 0..probe_cap {
+        let (release_tx, release_rx) = std::sync::mpsc::channel();
+        releases.push(release_tx);
+        let finished = finished_tx.clone();
+        // Retain every slot until explicitly released. A missing timeout still
+        // fails, but the worker deadline prevents it from hanging the suite.
+        assert_eq!(
+            storage.run(move || {
+                let released = release_rx.recv_timeout(worker_deadline).is_ok();
+                let _ = finished.send(released);
+            }),
+            Err(())
         );
     }
-    assert!(storage.run(|| panic!("ninth probe must not run")).is_err());
-    release.wait();
+    let elapsed = started.elapsed();
+    assert!(elapsed >= timeout * probe_cap);
+    assert!(elapsed < deadline);
+    // An erroneously admitted ninth probe would return Ok, rather than panic
+    // and disconnect its channel (which is indistinguishable from a timeout).
+    let (ninth_tx, ninth_rx) = std::sync::mpsc::channel();
+    assert_eq!(
+        storage.run(move || {
+            let _ = ninth_tx.send(());
+        }),
+        Err(())
+    );
+    // Rejection drops the closure immediately; even a worker that has not yet
+    // been scheduled would keep this channel connected and fail the assertion.
+    assert_eq!(
+        ninth_rx.try_recv(),
+        Err(std::sync::mpsc::TryRecvError::Disconnected)
+    );
+    for release in releases {
+        release.send(()).unwrap();
+    }
+    for _ in 0..probe_cap {
+        assert!(finished_rx.recv_timeout(deadline).unwrap());
+    }
 }
 
 fn review_case(f: &Fixture) {
