@@ -7,6 +7,8 @@
 pub mod a11y;
 pub mod ablate;
 pub mod bisect;
+#[cfg(feature = "ai")]
+pub mod budget_ledger;
 pub mod buffer;
 pub mod compare;
 pub mod config;
@@ -80,3 +82,24 @@ pub const COMPILED_FEATURES: &[&str] = &[
 
 /// Shared transport root authorization.
 pub mod root_policy;
+
+/// All transitive declared roots, available to review without the evaluator feature.
+#[cfg(feature = "ai")]
+pub fn judge_bench_sources(case: &evidence::case::EvidenceCase) -> Vec<String> {
+    if case.provenance.source_roots.is_empty()
+        || case
+            .inputs
+            .iter()
+            .any(|i| i.provenance.source_roots.is_empty())
+    {
+        return vec![];
+    }
+    case.provenance
+        .source_roots
+        .iter()
+        .chain(case.inputs.iter().flat_map(|i| &i.provenance.source_roots))
+        .cloned()
+        .collect::<std::collections::BTreeSet<_>>()
+        .into_iter()
+        .collect()
+}

@@ -111,6 +111,9 @@ fn fixture() -> (tempfile::TempDir, PathBuf, Report) {
     report.entries[0].hotspots[0].rect_frac = [0.0, 0.0, 0.3, 0.3];
     report.entries[0].hotspots[0].rect_px = [0, 0, 20, 20];
     std::fs::write(&path, serde_json::to_vec_pretty(&report).unwrap()).unwrap();
+    // This historical fixture edits its measured report. Remove the now-stale
+    // canonical case so preview derives a case bound to that edited report.
+    std::fs::remove_file(out.join("evidence.json")).unwrap();
     (tmp, path, report)
 }
 fn options(tmp: &Path, name: &str) -> Options {

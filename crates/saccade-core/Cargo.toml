@@ -26,6 +26,8 @@ sha2 = "0.10"
 tiny_http = { version = "0.12", optional = true }
 # Blocking HTTP client for the judge-mode providers (MIT OR Apache-2.0); no async runtime.
 ureq = { version = "3", optional = true }
+fs2 = { version = "0.4.3", optional = true }
+httpdate = { version = "1", optional = true }
 tempfile = "3"
 schemars = { version = "1", optional = true }
 
@@ -36,7 +38,7 @@ parallel = ["flip-rs/parallel"]
 # Graphics computations; their report types remain available in every build.
 graphics = []
 # Provider adapters and review orchestration.
-ai = ["dep:ureq"]
+ai = ["dep:ureq", "dep:fs2", "dep:httpdate"]
 # Local HTTP workbench, independent of AI.
 workbench = ["dep:tiny_http"]
 # Replay, calibration and provider conformance.

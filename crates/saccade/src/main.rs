@@ -16,6 +16,8 @@ mod agent_ui;
 mod approval;
 mod f1;
 mod local_cmd;
+#[cfg(feature = "ai")]
+mod review_cmd;
 
 #[cfg(feature = "mcp")]
 mod mcp;
@@ -409,6 +411,9 @@ enum Command {
         follow_symlinks_within_roots: bool,
         #[arg(long = "symlink-target")]
         symlink_targets: Vec<PathBuf>,
+        #[cfg(feature = "ai")]
+        #[command(flatten)]
+        providers: review_cmd::Startup,
     },
     /// Read, explain, prepare or export existing evidence.
     Inspect(local_cmd::InspectArgs),
@@ -1165,12 +1170,16 @@ fn dispatch(command: Command, record_absolute_paths: bool) -> Result<u8, CliErro
             out_root,
             follow_symlinks_within_roots,
             symlink_targets,
+            #[cfg(feature = "ai")]
+            providers,
         } => {
             mcp::serve_stdio(
                 &roots,
                 out_root.as_deref(),
                 follow_symlinks_within_roots,
                 &symlink_targets,
+                #[cfg(feature = "ai")]
+                providers,
             )?;
             Ok(0)
         }

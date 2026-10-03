@@ -387,7 +387,11 @@ fn local_tools_and_preview_never_authorize_network_and_images_are_explicit() {
                 "saccade_measure",
                 json!({"operation":"compare","baseline_dir":"base","capture_dir":"capture","out":"images","include_images":true}),
             ),
-            call(4, "saccade_review", json!({"run":true})),
+            call(
+                4,
+                "saccade_review",
+                json!({"operation":"run","artifact":"missing.json","out":"review.json"}),
+            ),
             call(
                 5,
                 "saccade_measure",
@@ -396,13 +400,10 @@ fn local_tools_and_preview_never_authorize_network_and_images_are_explicit() {
         ],
     );
     let tools = replies[0]["result"]["tools"].as_array().unwrap();
-    assert_eq!(tools.len(), 5);
+    assert_eq!(tools.len(), if cfg!(feature = "ai") { 6 } else { 5 });
     for tool in tools {
         assert!(tool["inputSchema"]["oneOf"].is_array());
-        assert!(!matches!(
-            tool["name"].as_str(),
-            Some("saccade_review" | "saccade_approve")
-        ));
+        assert!(!matches!(tool["name"].as_str(), Some("saccade_approve")));
     }
     assert_eq!(replies[1]["result"]["isError"], false);
     assert_eq!(
@@ -415,7 +416,14 @@ fn local_tools_and_preview_never_authorize_network_and_images_are_explicit() {
         "{}",
         replies[2]
     );
-    assert!(replies[3]["error"].is_object());
+    if cfg!(feature = "ai") {
+        assert_eq!(
+            replies[3]["result"]["structuredContent"]["errors"][0]["code"],
+            "network_authorization_required"
+        );
+    } else {
+        assert!(replies[3]["error"].is_object());
+    }
     assert_eq!(replies[4]["result"]["isError"], true);
     let report = out.join("report/saccade-report.v1.json");
     let preview = json_output(
@@ -439,6 +447,10 @@ fn local_tools_and_preview_never_authorize_network_and_images_are_explicit() {
     );
     assert_eq!(
         denied["errors"][0]["code"],
-        "network_authorization_required"
+        if cfg!(feature = "ai") {
+            "egress_denied"
+        } else {
+            "feature_unavailable"
+        }
     );
 }

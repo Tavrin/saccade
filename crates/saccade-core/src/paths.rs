@@ -94,6 +94,20 @@ pub fn resolve(recorded: &str, document: &Path) -> PathBuf {
     }
 }
 
+/// Retain both the original alias route and physical location for egress checks.
+/// Unlike presentation paths, source provenance must survive canonicalization.
+pub fn source_paths(path: &Path) -> std::io::Result<Vec<String>> {
+    let route = if path.is_absolute() {
+        path.to_owned()
+    } else {
+        std::env::current_dir()?.join(path)
+    };
+    let mut sources = vec![portable(&route), portable(&canonicalize(&route)?)];
+    sources.sort();
+    sources.dedup();
+    Ok(sources)
+}
+
 /// Whether a name matches any selection glob (or the selection is empty).
 /// Callers validate globs before using this predicate.
 pub fn matches_entries(globs: &[String], name: &str) -> bool {

@@ -210,7 +210,7 @@ pub fn run(
         }
         let expected = selected.len() * 2;
         rows.push(json!({"provider":provider.as_str(),"model":model,"items":selected.len(),"predictions":predictions,
-            "accuracy":correct as f64/expected as f64,"coverage":answered as f64/expected as f64,
+            "accuracy":(answered>0).then(||correct as f64/answered as f64),"coverage":answered as f64/expected as f64,
             "ece":ece(&scores),"latency_ms":latency,"estimated_cost_usd":null,
             "position_bias":{"p1_share":(pair_observations>0).then(||first_choices as f64/pair_observations as f64),
                 "order_flips":flips,"paired_items":selected.iter().filter(|l|l.question=="preference").count()}}));
@@ -220,6 +220,9 @@ pub fn run(
         json!({"schema":SCHEMA,"labels":crate::paths::portable(document),"items":selected.len(),
         "models":rows,"suggested_chain":suggested,"calls_used":used,"http_attempts":backend.http_counts(),
         "budget_calls":budget,"estimated_cost_usd":null,
-        "limits":"A small public set is a smoke test, not evidence of production accuracy. Abstentions count as incorrect; incomplete models are excluded from chain suggestions."}),
+        "limits":"A small public set is a smoke test, not evidence of production accuracy. Accuracy is conditional on committed answers; incomplete models are excluded from chain suggestions."}),
     )
 }
+
+/// Canonical manifest evaluator with resumable isolated budgets.
+pub mod evaluator;

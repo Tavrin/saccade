@@ -102,7 +102,7 @@ fn local_tools_list_exactly_the_operations_this_binary_implements() {
     assert!(output.status.success());
     let reply: Value = serde_json::from_slice(&output.stdout).unwrap();
     let tools = reply["result"]["tools"].as_array().unwrap();
-    assert_eq!(tools.len(), 5);
+    assert_eq!(tools.len(), if cfg!(feature = "ai") { 6 } else { 5 });
     let measure = tools
         .iter()
         .find(|t| t["name"] == "saccade_measure")

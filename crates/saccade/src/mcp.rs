@@ -1,7 +1,7 @@
-//! Five local discriminated MCP tools over newline-delimited JSON-RPC 2.0.
+//! Six discriminated MCP tools over newline-delimited JSON-RPC 2.0.
 //! Capture roots are read-only. Generated files require a separate out-root;
 //! shared RootPolicy containment checks aliases and transitive references.
-//! Provider review is reserved for R11. Images require include_images=true,
+//! Provider review requires explicit startup authorization and shared budgets. Images require include_images=true,
 //! are capped at three blocks and 1024 pixels wide, and confer no authority.
 
 use std::io::{BufRead, Cursor, Write};
@@ -38,6 +38,10 @@ type ToolResult = Result<ToolOutput, CliError>;
 pub struct Server {
     root: PathBuf,
     policy: saccade_core::root_policy::RootPolicy,
+    #[cfg(feature = "ai")]
+    providers: crate::review_cmd::Startup,
+    #[cfg(feature = "ai")]
+    run_id: String,
 }
 
 fn measurement_schemas() -> Value {
@@ -417,6 +421,10 @@ impl Server {
         Ok(Self {
             root: policy.roots[0].path.clone(),
             policy,
+            #[cfg(feature = "ai")]
+            providers: Default::default(),
+            #[cfg(feature = "ai")]
+            run_id: saccade_core::budget_ledger::new_id(),
         })
     }
     fn resolve(&self, key: &str, path: &str) -> Result<PathBuf, CliError> {
@@ -1038,10 +1046,107 @@ impl Server {
                 | "saccade_evidence"
                 | "saccade_propose"
                 | "saccade_ask_human"
-        ) {
+                | "saccade_review"
+        ) || (name == "saccade_review" && !cfg!(feature = "ai"))
+        {
             return None;
         }
+        #[cfg(feature = "ai")]
+        if name == "saccade_review" {
+            return Some(self.provider_review(args));
+        }
         Some(self.local_tool(name, args))
+    }
+    #[cfg(feature = "ai")]
+    fn provider_review(&self, args: &Map<String, Value>) -> ToolResult {
+        reject_unknown(
+            args,
+            &[
+                "operation",
+                "artifact",
+                "out",
+                "budget_calls",
+                "expected_case_id",
+            ],
+        )?;
+        let operation = require_str(args, "operation")?;
+        if !["preview", "run"].contains(&operation.as_str()) {
+            return Err(CliError::usage("review operation must be preview or run"));
+        }
+        let run = operation == "run";
+        let config = crate::review_cmd::user_file(self.providers.user_config.as_deref());
+        let user = crate::review_cmd::load_user(&config)?;
+        let startup_budget = self.providers.budget_calls.unwrap_or(0);
+        let auth = crate::review_cmd::authorization(
+            self.providers.allow_provider_calls,
+            startup_budget,
+            &self.run_id,
+            &user,
+        );
+        if run {
+            auth.check()
+                .map_err(|e| CliError::new("network_authorization_required", e))?;
+        }
+        let budget = match args.get("budget_calls") {
+            None => startup_budget,
+            Some(v) => v
+                .as_u64()
+                .filter(|n| *n > 0 && *n <= startup_budget)
+                .ok_or_else(|| {
+                    CliError::usage(
+                        "tool budget must be positive and cannot exceed startup authorization",
+                    )
+                })?,
+        };
+        let file = self.existing_file("artifact", &require_str(args, "artifact")?)?;
+        self.document_inputs(&file)?;
+        if let Some(reference) = args.get("artifact").and_then(Value::as_object) {
+            let actual = format!("sha256:{}", saccade_core::run::sha256_file(&file)?);
+            if reference.get("sha256").and_then(Value::as_str) != Some(actual.as_str()) {
+                return Err(CliError::new("stale_action", "artifact digest changed"));
+            }
+        }
+        if let Some(expected) = arg_str(args, "expected_case_id")? {
+            let value = crate::local_cmd::read_value(&file)?;
+            let actual = value["case_id"].as_str().map(str::to_owned).or_else(|| {
+                crate::read_report(&file)
+                    .ok()
+                    .and_then(|r| crate::local_cmd::case_for_result(&r, &file).ok())
+                    .map(|c| c.case_id.as_str().to_owned())
+            });
+            if actual.as_deref() != Some(expected.as_str()) {
+                return Err(CliError::new(
+                    "stale_action",
+                    "review case identity changed",
+                ));
+            }
+        }
+        let out = arg_str(args, "out")?
+            .map(|p| self.resolve("out", &p))
+            .transpose()?;
+        if run && out.is_none() {
+            return Err(CliError::usage("review run requires an out artifact"));
+        }
+        let value = crate::review_cmd::review(
+            &file,
+            out.as_deref(),
+            run,
+            budget,
+            &config,
+            &self.policy,
+            &auth,
+            None,
+        )?;
+        Ok(ToolOutput {
+            structured: value,
+            text: if run {
+                "Recorded budgeted review proposals; human review remains unresolved."
+            } else {
+                "Prepared a local review plan; zero provider dispatches."
+            }
+            .into(),
+            images: vec![],
+        })
     }
     fn local_tool(&self, name: &str, args: &Map<String, Value>) -> ToolResult {
         let operation = require_str(args, "operation")?;
@@ -1228,13 +1333,13 @@ impl Server {
                 reject_unknown(args, &["operation"])?;
                 let mut value = crate::local_cmd::base_result("capabilities");
                 value["limits"] = json!([
-                    "Only compiled local operations are advertised. Provider review arrives in R11."
+                    "Provider review requires explicit startup authorization, a budget and allowed provenance."
                 ]);
-                value["counts"] = json!({"tools":5});
+                value["counts"] = json!({"tools":tool_schemas().as_array().map_or(0,Vec::len)});
                 value["data"] = json!({"features":saccade_core::COMPILED_FEATURES,"tools":tool_schemas().as_array().map(|a|a.iter().map(|t|t["name"].clone()).collect::<Vec<_>>()),"contracts":["saccade-result.v2","saccade-evidence.v1","saccade-report.v1"]});
                 return Ok(ToolOutput {
                     structured: value,
-                    text: "Five local tools; provider review is unavailable.".into(),
+                    text: "Compiled tools and provider authorization policy.".into(),
                     images: Vec::new(),
                 });
             }
@@ -1458,7 +1563,7 @@ impl Server {
                 "protocolVersion": PROTOCOL_VERSION,
                 "capabilities": {"tools": {"listChanged": false}, "logging": {}},
                 "serverInfo": {"name": "saccade", "version": env!("CARGO_PKG_VERSION")},
-                "instructions": "Measure locally with saccade_measure, inspect bounded results, then prepare evidence or ask a human. Capture roots are read-only; generated artifacts require --out-root. Provider calls are unavailable in this lane. Images are returned only when requested.",
+                "instructions": "Measure locally with saccade_measure, inspect bounded results, then prepare evidence or ask a human. Capture roots are read-only; generated artifacts require --out-root. Provider calls require explicit human startup authorization, a finite budget and permitted source provenance. Images are returned only when requested.",
             }),
             "ping" => json!({}),
             "tools/list" => json!({"tools": tool_schemas()}),
@@ -1517,8 +1622,19 @@ pub fn serve_stdio(
     output: Option<&Path>,
     follow: bool,
     targets: &[PathBuf],
+    #[cfg(feature = "ai")] providers: crate::review_cmd::Startup,
 ) -> Result<(), CliError> {
-    let server = Server::new(roots, output, follow, targets)?;
+    #[allow(unused_mut)]
+    let mut server = Server::new(roots, output, follow, targets)?;
+    #[cfg(feature = "ai")]
+    {
+        if providers.allow_provider_calls != providers.budget_calls.is_some() {
+            return Err(CliError::usage(
+                "MCP provider calls require both --allow-provider-calls and a positive --budget-calls",
+            ));
+        }
+        server.providers = providers;
+    }
     let stdin = std::io::stdin();
     let stdout = std::io::stdout();
     for line in stdin.lock().lines() {
@@ -1639,7 +1755,8 @@ fn tool_schemas() -> Value {
         }).collect::<Vec<_>>();
         json!({"name":name,"description":description,"inputSchema":{"type":"object","oneOf":variants},"outputSchema":{"type":"object","properties":{"schema":{"const":"saccade-result.v2"}},"required":["schema"]},"annotations":{"destructiveHint":false,"openWorldHint":false}})
     };
-    json!([
+    #[allow(unused_mut)]
+    let mut schemas = json!([
         {"name":"saccade_measure","description":"Local measurements; regressions remain normal results. Inputs are read-only; outputs require out-root. No images by default.","inputSchema":{"type":"object","oneOf":measures},"outputSchema":{"type":"object"},"annotations":{"destructiveHint":false,"openWorldHint":false}},
         make("saccade_inspect","Read bounded evidence pages and local capabilities.",vec![
             ("summary",vec!["artifact"],json!({"limit":{"type":"integer","minimum":1,"maximum":10},"status":{"type":"array","items":{"type":"string"}},"cursor":{"type":"string"}})),
@@ -1652,5 +1769,27 @@ fn tool_schemas() -> Value {
             ("snapshot",vec!["artifact","entry","out"],json!({"state":{"type":"string"},"width":{"type":"integer","minimum":1,"maximum":4096}}))]),
         make("saccade_propose","Validate and record a proposal against an existing closed request; never approval.",vec![("answers",vec!["artifact","answers","out"],json!({"answers":{"type":"string"}}))]),
         make("saccade_ask_human","Create or retrieve an unresolved closed-request item locally.",vec![("request",vec!["artifact","out"],json!({}))])
-    ])
+    ]);
+    #[cfg(feature = "ai")]
+    if let Some(list) = schemas.as_array_mut() {
+        let mut tool = make(
+            "saccade_review",
+            "Preview or execute review under human startup authority and shared attempt budgets; models propose only.",
+            vec![
+                (
+                    "preview",
+                    vec!["artifact"],
+                    json!({"budget_calls":{"type":"integer","minimum":1}}),
+                ),
+                (
+                    "run",
+                    vec!["artifact", "out"],
+                    json!({"budget_calls":{"type":"integer","minimum":1}}),
+                ),
+            ],
+        );
+        tool["annotations"]["openWorldHint"] = json!(true);
+        list.push(tool);
+    }
+    schemas
 }

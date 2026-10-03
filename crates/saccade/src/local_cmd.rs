@@ -96,6 +96,10 @@ pub(crate) struct ReviewArgs {
     #[arg(long, value_parser=clap::value_parser!(u64).range(1..))]
     pub budget_calls: Option<u64>,
     #[arg(long)]
+    pub out: Option<PathBuf>,
+    #[arg(long, global = true)]
+    pub user_config: Option<PathBuf>,
+    #[arg(long)]
     pub intent_file: Option<PathBuf>,
     #[arg(long, conflicts_with = "intent_file")]
     pub intent: Option<String>,
@@ -126,7 +130,7 @@ pub(crate) enum ReviewOperation {
         #[arg(long)]
         out: Option<PathBuf>,
     },
-    /// Preview an evaluation manifest. Execution requires the later evaluator.
+    /// Plan or run a resumable evaluation manifest.
     Eval {
         #[arg(long)]
         manifest: PathBuf,
@@ -599,35 +603,35 @@ pub(crate) fn review(args: ReviewArgs, _absolute: bool) -> Result<u8, CliError> 
             } => propose(&request, &answers, out.as_deref())?,
             ReviewOperation::Ask { request, out } => ask(&request, out.as_deref())?,
             ReviewOperation::Eval { manifest, run } => {
-                if run {
+                #[cfg(feature = "evaluation")]
+                {
+                    crate::review_cmd::evaluate(&manifest, run, args.user_config.as_deref())?
+                }
+                #[cfg(not(feature = "evaluation"))]
+                {
+                    let _ = (manifest, run);
                     return Err(CliError::new(
-                        "operation_unavailable",
-                        "evaluation execution requires R11",
+                        "feature_unavailable",
+                        "evaluation requires evaluation",
                     ));
                 }
-                let job = read_value(&manifest)?;
-                if !matches!(
-                    job["job"].as_str(),
-                    Some("score" | "calibrate" | "conformance")
-                ) {
-                    return Err(CliError::usage(
-                        "evaluation manifest job must be score, calibrate or conformance",
-                    ));
-                }
-                let mut value = base_result("review.eval");
-                value["artifact"] = reference(&manifest)?;
-                value["limits"] =
-                    json!(["Plan only; evaluator and shared attempt ledger arrive in R11."]);
-                value
             }
         }
     } else {
+        #[cfg(feature = "ai")]
+        if args.run || args.user_config.is_some() {
+            let value = crate::review_cmd::cli(&args)?;
+            print(&value, args.json)?;
+            return Ok(0);
+        }
+        #[cfg(not(feature = "ai"))]
         if args.run {
             return Err(CliError::new(
-                "network_authorization_required",
-                "provider execution is unavailable until R9–R11 supply transport authorization and shared budgets",
+                "feature_unavailable",
+                "review execution requires ai",
             ));
         }
+
         let report = args
             .report
             .ok_or_else(|| CliError::usage("review requires REPORT or a named operation"))?;
@@ -647,51 +651,77 @@ pub(crate) fn preview(
     intent: Option<&str>,
     intent_file: Option<&Path>,
 ) -> Result<Value, CliError> {
-    let mut value = inspect_page(report, None, &[], 5, None)?;
-    value["operation"] = json!("review.preview");
-    if let Some(p) = intent_file {
-        read_value(p)?;
-    }
-    value["counts"]["budget_calls"] = json!(budget.unwrap_or(0));
-    value["counts"]["dispatched_calls"] = json!(0);
-    value["limits"] = json!([
-        "Local plan only. External payload preparation and execution require R9–R11.",
-        if intent.is_some() {
-            "Text intent has lower assurance."
-        } else {
-            "No structured intent was supplied."
+    #[cfg(feature = "ai")]
+    {
+        if let Some(p) = intent_file {
+            read_value(p)?;
         }
-    ]);
-    bounded(value, 4096)
+        let intent = crate::review_cmd::read_intent(intent, intent_file, report)?;
+        crate::review_cmd::preview_local(report, budget.unwrap_or(24), intent)
+    }
+    #[cfg(not(feature = "ai"))]
+    let mut value = inspect_page(report, None, &[], 5, None)?;
+    #[cfg(not(feature = "ai"))]
+    {
+        value["operation"] = json!("review.preview");
+        if let Some(p) = intent_file {
+            read_value(p)?;
+        }
+        value["counts"]["budget_calls"] = json!(budget.unwrap_or(0));
+        value["counts"]["dispatched_calls"] = json!(0);
+        value["limits"] = json!([
+            "Local plan only. External payload preparation and execution require R9–R11.",
+            if intent.is_some() {
+                "Text intent has lower assurance."
+            } else {
+                "No structured intent was supplied."
+            }
+        ]);
+        bounded(value, 4096)
+    }
 }
 pub(crate) fn request(case_file: &Path, question_id: &str, out: &Path) -> Result<Value, CliError> {
-    let doc = Document::read(case_file)?;
-    let Artifact::Case(case) = doc.artifact else {
-        return Err(CliError::new(
-            "operation_unavailable",
-            "R5 can export an existing closed request from a case; report question generation arrives in R9",
-        ));
-    };
-    let request = case
-        .requests
-        .iter()
-        .find(|r| r.question.id == question_id)
-        .ok_or_else(|| {
-            CliError::new(
+    #[cfg(feature = "ai")]
+    {
+        let request = crate::review_cmd::prepare_request(case_file, question_id)?;
+        let mut document =
+            serde_json::to_value(Document::new(Artifact::DecisionRequest(Box::new(request))))?;
+        crate::review_cmd::rebase(&mut document, case_file, out)?;
+        write_value(out, &document)?;
+        let mut value = base_result("review.request");
+        value["artifact"] = reference(out)?;
+        Ok(value)
+    }
+    #[cfg(not(feature = "ai"))]
+    {
+        let doc = Document::read(case_file)?;
+        let Artifact::Case(case) = doc.artifact else {
+            return Err(CliError::new(
                 "operation_unavailable",
-                "question is not present in this case; the question catalog arrives in R9",
-            )
-        })?;
-    request.validate_for(&case)?;
-    write_value(
-        out,
-        &serde_json::to_value(Document::new(Artifact::DecisionRequest(Box::new(
-            request.clone(),
-        ))))?,
-    )?;
-    let mut value = base_result("review.request");
-    value["artifact"] = reference(out)?;
-    Ok(value)
+                "R5 can export an existing closed request from a case; report question generation arrives in R9",
+            ));
+        };
+        let request = case
+            .requests
+            .iter()
+            .find(|r| r.question.id == question_id)
+            .ok_or_else(|| {
+                CliError::new(
+                    "operation_unavailable",
+                    "question is not present in this case; the question catalog arrives in R9",
+                )
+            })?;
+        request.validate_for(&case)?;
+        write_value(
+            out,
+            &serde_json::to_value(Document::new(Artifact::DecisionRequest(Box::new(
+                request.clone(),
+            ))))?,
+        )?;
+        let mut value = base_result("review.request");
+        value["artifact"] = reference(out)?;
+        Ok(value)
+    }
 }
 fn read_request(path: &Path) -> Result<saccade_core::evidence::request::DecisionRequest, CliError> {
     let document = Document::read(path)?;
@@ -893,7 +923,11 @@ pub(crate) fn case_from_report(
                     ),
                     capture: Availability::missing("No typed capture context was supplied."),
                     build: Availability::missing("No build identity was supplied."),
-                    provenance: Provenance::default(),
+                    provenance: Provenance {
+                        source_roots: saccade_core::paths::source_paths(&root)
+                            .map_err(|e| CliError::io(e.to_string()))?,
+                        ..Default::default()
+                    },
                 });
             }
         }
@@ -907,6 +941,10 @@ pub(crate) fn case_from_report(
         },
         reasons: valid.reasons,
     };
+    let source_roots = inputs
+        .iter()
+        .flat_map(|i| i.provenance.source_roots.clone())
+        .collect();
     let mut case = EvidenceCase {
         case_id: Digest::of_bytes(b""),
         inputs,
@@ -925,7 +963,10 @@ pub(crate) fn case_from_report(
         human_decisions: Vec::new(),
         next_actions: Vec::new(),
         limits: vec!["Measurement does not confer human approval.".into()],
-        provenance: Provenance::default(),
+        provenance: Provenance {
+            source_roots,
+            ..Default::default()
+        },
     };
     for entry in &report.entries {
         case.facts.push(Fact {
@@ -973,6 +1014,7 @@ pub(crate) fn validity_summary(reasons: &[String]) -> Value {
         )])
     }
 }
+#[cfg(feature = "mcp")]
 pub(crate) fn measure_noise(
     dirs: &[PathBuf],
     out: &Path,

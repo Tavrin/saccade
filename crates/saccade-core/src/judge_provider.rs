@@ -3,9 +3,9 @@
 //!
 //! **Keys** are read from exactly two kinds of place: the files
 //! `jev.env` (`JEV_API_KEY`) and `gemini.env` (`SACCADE_GEMINI_API_KEY`) in
-//! `~/.config/saccade` (or the directory given with `--keys-dir`), and, for
-//! the generic `openai_compatible` provider, a file named by the panel inside
-//! that same directory. The ambient environment (`GEMINI_API_KEY` and the
+//! `~/.config/saccade` (or a human-selected user configuration directory), and, for
+//! custom providers, a dedicated file bound by user-level configuration inside
+//! that same directory. Project files cannot bind endpoints or credentials. The ambient environment (`GEMINI_API_KEY` and the
 //! like), other projects' `.env` files and global configs are never read. A
 //! key is never printed, logged, stored in a result or sent anywhere but its
 //! provider's endpoint, and it travels in an HTTP header inside this process,
@@ -22,7 +22,6 @@ use std::cell::Cell;
 use std::cell::RefCell;
 use std::collections::BTreeMap;
 use std::path::PathBuf;
-use std::process::{Command, Stdio};
 use std::time::{Duration, Instant};
 
 use serde::Serialize;
@@ -32,6 +31,8 @@ use crate::judge::{JudgeSpec, Provider};
 
 /// Canonical observation and structured decision adapters, with injectable transport.
 pub mod observations;
+/// Shared authorization, endpoint and ledger boundary.
+pub mod transport;
 
 /// A secret that never prints.
 #[derive(Clone)]
@@ -59,16 +60,13 @@ impl Secret {
 #[derive(Debug, Clone)]
 pub struct Keys {
     dir: PathBuf,
-    explicit: bool,
 }
 
 impl Keys {
     /// Keys in `dir`, or in `~/.config/saccade` without one.
     pub fn new(dir: Option<PathBuf>) -> Self {
-        let explicit = dir.is_some();
         Self {
             dir: dir.unwrap_or_else(Self::default_dir),
-            explicit,
         }
     }
 
@@ -107,18 +105,15 @@ impl Keys {
 
     /// The key a provider needs, per the key policy.
     pub fn for_spec(&self, spec: &JudgeSpec) -> Result<Option<Secret>, String> {
+        if spec.base_url.is_some() || spec.key_file.is_some() || spec.key_var.is_some() {
+            return Err("project endpoint and credential overrides are forbidden".into());
+        }
         match spec.provider {
             Provider::Jev => self.load("jev.env", "JEV_API_KEY").map(Some),
             Provider::Gemini => self.load("gemini.env", "SACCADE_GEMINI_API_KEY").map(Some),
-            Provider::OpenaiCompatible => match &spec.key_file {
-                Some(_) if !self.explicit => {
-                    Err("openai_compatible keys require an explicit --keys-dir".into())
-                }
-                Some(f) => self
-                    .load(f, spec.key_var.as_deref().unwrap_or("SACCADE_API_KEY"))
-                    .map(Some),
-                None => Ok(None),
-            },
+            Provider::OpenaiCompatible => {
+                Err("custom credential bindings must come from user configuration".into())
+            }
             Provider::Opencode | Provider::Human => Ok(None),
         }
     }
@@ -261,7 +256,7 @@ pub struct Retry {
 impl Default for Retry {
     fn default() -> Self {
         Self {
-            max_retries: 3,
+            max_retries: 2,
             base_ms: 1000,
         }
     }
@@ -368,16 +363,28 @@ fn answer_help(a: &str) -> &'static str {
     }
 }
 
+/// Human-owned dispatch context for the historical adapter bridge.
+pub struct SecurityContext {
+    /// User-owned endpoints and root settings.
+    pub user: transport::UserConfig,
+    /// Shared root resolver.
+    pub roots: crate::root_policy::RootPolicy,
+    /// Explicit startup authority.
+    pub authorization: transport::Authorization,
+    /// Persistent shared ledger.
+    pub ledger: crate::budget_ledger::Ledger,
+    /// Transitive source roots for all evidence in this backend.
+    pub sources: Vec<String>,
+}
+
 /// The real providers.
 pub struct LiveBackend {
     keys: Keys,
     retry: Retry,
-    agent: ureq::Agent,
+    timeout: Duration,
     limits: Option<(usize, usize, usize)>,
     counts: [Cell<usize>; 2],
-    cache: Option<PathBuf>,
-    cooldown_secs: u64,
-    run_id: String,
+    security: Option<SecurityContext>,
     #[cfg(test)]
     mock_replies: Option<RefCell<Vec<(u16, Value)>>>,
 }
@@ -385,38 +392,34 @@ pub struct LiveBackend {
 impl LiveBackend {
     /// A backend with the given key directory and retry policy.
     pub fn new(keys: Keys, retry: Retry, timeout: Duration) -> Self {
-        let agent: ureq::Agent = ureq::Agent::config_builder()
-            .timeout_global(Some(timeout))
-            .max_redirects(0)
-            .http_status_as_error(false)
-            .build()
-            .into();
         Self {
             keys,
             retry,
-            agent,
+            timeout,
             limits: None,
             counts: [Cell::new(0), Cell::new(0)],
-            cache: None,
-            cooldown_secs: 600,
-            run_id: crate::local::random_token(),
+            security: None,
             #[cfg(test)]
             mock_replies: None,
         }
+    }
+
+    /// Install explicit authority; new backends deny dispatch by default.
+    pub fn with_authorization(mut self, security: SecurityContext) -> Self {
+        self.security = Some(security);
+        self
     }
 
     /// Bound actual HTTP attempts, including retries and fallback probes.
     /// Cooldowns are persisted per Gemini model in the cache.
     pub fn with_policy(
         mut self,
-        cache: PathBuf,
-        cooldown_secs: u64,
+        _cache: PathBuf,
+        _cooldown_secs: u64,
         total: usize,
         jev: usize,
         gemini: usize,
     ) -> Self {
-        self.cache = Some(cache);
-        self.cooldown_secs = cooldown_secs;
         self.limits = Some((total, jev, gemini));
         self
     }
@@ -426,49 +429,27 @@ impl LiveBackend {
         [self.counts[0].get(), self.counts[1].get()]
     }
 
-    fn cooldown_path(&self, model: &str) -> Option<PathBuf> {
-        use sha2::{Digest, Sha256};
-        let hash: String = Sha256::digest(model.as_bytes())
-            .iter()
-            .map(|b| format!("{b:02x}"))
-            .collect();
-        self.cache
-            .as_ref()
-            .map(|c| c.join("gemini-cooldowns").join(format!("{hash}.json")))
-    }
-
     fn cooling(&self, model: &str) -> bool {
-        self.cooldown_path(model)
-            .and_then(|p| std::fs::read(p).ok())
-            .and_then(|b| serde_json::from_slice::<Value>(&b).ok())
-            .is_some_and(|v| {
-                v["until_ms"]
-                    .as_u64()
-                    .is_some_and(|t| t > crate::judge::now_ms())
-            })
+        self.security.as_ref().is_some_and(|s| {
+            s.ledger
+                .retry_at("gemini", model)
+                .map_or(true, |at| at > crate::judge::now_ms())
+        })
     }
-
-    fn mark_failed(&self, model: &str) -> Result<(), String> {
-        if let Some(p) = self.cooldown_path(model) {
-            let parent = p.parent().ok_or("invalid cooldown path")?;
-            std::fs::create_dir_all(parent).map_err(|e| format!("creating cooldown cache: {e}"))?;
-            use std::io::Write;
-            let mut tmp = tempfile::NamedTempFile::new_in(parent).map_err(|e| e.to_string())?;
-            let body = json!({"model": model, "until_ms": crate::judge::now_ms().saturating_add(self.cooldown_secs.saturating_mul(1000))});
-            tmp.write_all(body.to_string().as_bytes())
-                .map_err(|e| e.to_string())?;
-            tmp.persist(p)
-                .map_err(|e| format!("persisting cooldown: {e}"))?;
-        }
-        Ok(())
+    fn mark_failed(&self, _model: &str) -> Result<(), String> {
+        // Each failed reservation already records the shared retry deadline.
+        self.security
+            .as_ref()
+            .ok_or_else(|| "network_authorization_required".into())
+            .map(|_| ())
     }
 
     fn post(
         &self,
         url: &str,
-        headers: &[(&str, &str)],
+        _headers: &[(&str, &str)],
         body: &Value,
-        secret: Option<&Secret>,
+        _secret: Option<&Secret>,
     ) -> Result<Value, CallError> {
         let index = usize::from(url.contains("generativelanguage.googleapis.com"));
         let counts = self.counts();
@@ -477,71 +458,125 @@ impl LiveBackend {
         }) {
             return Err(CallError::fatal("HTTP call budget reached"));
         }
-        if let Some(cache) = &self.cache {
-            std::fs::create_dir_all(cache)
-                .map_err(|_| CallError::fatal("cannot create provider attempt ledger"))?;
-            use std::io::Write;
-            let mut log = std::fs::OpenOptions::new()
-                .create(true)
-                .append(true)
-                .open(cache.join("http-attempts.jsonl"))
-                .map_err(|_| CallError::fatal("cannot open provider attempt ledger"))?;
-            let entry = json!({"run_id":self.run_id,"provider":if index==0 {"jev"}else{"gemini"},
-                "model":body["model"].as_str().map(str::to_owned).unwrap_or_else(||url.rsplit('/').next().unwrap_or("").trim_end_matches(":generateContent").to_owned()),
-                "started_ms":crate::judge::now_ms()});
-            writeln!(log, "{entry}")
-                .and_then(|()| log.flush())
-                .map_err(|_| CallError::fatal("cannot persist provider attempt ledger"))?;
+        let security = self
+            .security
+            .as_ref()
+            .ok_or_else(|| CallError::fatal("network_authorization_required"))?;
+        let model = body["model"].as_str().unwrap_or_else(|| {
+            url.rsplit('/')
+                .next()
+                .unwrap_or("")
+                .trim_end_matches(":generateContent")
+        });
+        let provider = if index == 0 { "jev" } else { "gemini" };
+        if !url.starts_with(if index == 0 {
+            "https://api.typesafe.ai/"
+        } else {
+            "https://generativelanguage.googleapis.com/"
+        }) {
+            return Err(CallError::fatal(
+                "custom endpoints require the user-owned canonical transport",
+            ));
         }
-        self.counts[index].set(counts[index] + 1);
+        let payload =
+            serde_json::to_vec(body).map_err(|_| CallError::fatal("invalid provider payload"))?;
+        let batch_size = body["questions"].as_object().map_or(1, |q| q.len());
         #[cfg(test)]
-        if let Some(replies) = &self.mock_replies {
-            let (status, value) = replies.borrow_mut().remove(0);
-            if status == 200 {
-                return Ok(value);
+        struct MockHttp<'a>(&'a RefCell<Vec<(u16, Value)>>);
+        #[cfg(test)]
+        impl transport::Http for MockHttp<'_> {
+            fn post(
+                &self,
+                _: &str,
+                _: (&str, &str),
+                _: &[u8],
+                _: Duration,
+            ) -> Result<transport::HttpReply, String> {
+                let (status, value) = self.0.borrow_mut().remove(0);
+                Ok(transport::HttpReply {
+                    status,
+                    retry_after_secs: None,
+                    body: value.to_string().into_bytes(),
+                })
             }
-            return Err(CallError {
-                status: Some(status),
-                message: format!("mock HTTP {status}"),
-                retryable: matches!(status, 429 | 503),
-                retry_after: None,
-            });
         }
-        let scrub = |s: String| secret.map_or(s.clone(), |k| k.scrub(&s));
-        let mut req = self
-            .agent
-            .post(url)
-            .header("Content-Type", "application/json");
-        for (k, v) in headers {
-            req = req.header(*k, *v);
+        #[cfg(test)]
+        let mock = self.mock_replies.as_ref().map(MockHttp);
+        #[cfg(test)]
+        let http: &dyn transport::Http = mock
+            .as_ref()
+            .map_or(&transport::Network as &dyn transport::Http, |m| m);
+        #[cfg(not(test))]
+        let http: &dyn transport::Http = &transport::Network;
+        let boundary = transport::Transport {
+            user: &security.user,
+            roots: &security.roots,
+            authorization: &security.authorization,
+            ledger: &security.ledger,
+            keys: &self.keys,
+            http,
+        };
+        let outcome = boundary.once(
+            provider,
+            model,
+            &payload,
+            &security.sources,
+            batch_size,
+            self.timeout,
+            false,
+        );
+        match outcome {
+            Ok((bytes, id)) => {
+                self.counts[index].set(counts[index] + 1);
+                let parsed = serde_json::from_slice(&bytes)
+                    .map_err(|_| CallError::fatal("provider reply is not JSON"));
+                security
+                    .ledger
+                    .finish(
+                        &id,
+                        if parsed.is_ok() {
+                            "answered"
+                        } else {
+                            "invalid"
+                        },
+                        false,
+                        None,
+                    )
+                    .map_err(CallError::fatal)?;
+                parsed
+            }
+            Err(e) => {
+                if let Some(id) = e.message.split("reservation=").nth(1) {
+                    self.counts[index].set(counts[index] + 1);
+                    security
+                        .ledger
+                        .finish(
+                            id,
+                            "unavailable",
+                            matches!(
+                                e.class,
+                                crate::decision_provider::RetryClass::AuthenticationOrConfiguration
+                            ),
+                            None,
+                        )
+                        .map_err(CallError::fatal)?;
+                }
+                Err(CallError {
+                    status: e
+                        .message
+                        .strip_prefix("HTTP ")
+                        .and_then(|s| s.split_whitespace().next())
+                        .and_then(|s| s.parse().ok()),
+                    message: e.message,
+                    retryable: matches!(
+                        e.class,
+                        crate::decision_provider::RetryClass::Transient
+                            | crate::decision_provider::RetryClass::RateLimited
+                    ),
+                    retry_after: e.retry_after_secs,
+                })
+            }
         }
-        let mut resp = req.send(body.to_string().as_str()).map_err(|e| CallError {
-            status: None,
-            message: scrub(format!("transport error: {e}")),
-            retryable: true,
-            retry_after: None,
-        })?;
-        let status = resp.status().as_u16();
-        let retry_after = resp
-            .headers()
-            .get("retry-after")
-            .and_then(|v| v.to_str().ok())
-            .and_then(|v| v.trim().parse::<u64>().ok());
-        let text = resp
-            .body_mut()
-            .read_to_string()
-            .map_err(|e| CallError::fatal(scrub(format!("reading the reply: {e}"))))?;
-        if !(200..300).contains(&status) {
-            let snippet: String = text.chars().take(200).collect();
-            return Err(CallError {
-                status: Some(status),
-                message: scrub(format!("HTTP {status}: {snippet}")),
-                retryable: matches!(status, 429 | 500 | 502 | 503 | 504),
-                retry_after,
-            });
-        }
-        serde_json::from_str(&scrub(text))
-            .map_err(|e| CallError::fatal(scrub(format!("the reply is not JSON: {e}"))))
     }
 
     fn ask_jev(&self, req: &AskRequest<'_>, model: &str, key: &Secret) -> Result<Raw, CallError> {
@@ -753,13 +788,11 @@ impl LiveBackend {
                         att.statuses.extend(e.status);
                         att.error = Some(e.message.clone());
                         last = e.message;
-                        if !e.retryable || att.tries > self.retry.max_retries {
+                        if !e.retryable || att.tries > self.retry.max_retries.min(2) {
                             break;
                         }
                         std::thread::sleep(Duration::from_millis(
-                            e.retry_after
-                                .map_or(backoff, |s| s.saturating_mul(1000))
-                                .min(30_000),
+                            e.retry_after.map_or(backoff, |s| s.saturating_mul(1000)),
                         ));
                         backoff = backoff.saturating_mul(2);
                     }
@@ -841,93 +874,10 @@ impl LiveBackend {
         })
     }
 
-    fn ask_opencode(&self, req: &AskRequest<'_>, model: &str) -> Result<Raw, CallError> {
-        let prompt = format!("{}\n\n{}", req.prompt.system, req.prompt.user);
-        let started = Instant::now();
-        // Free models need no credentials. Isolate all config and project files.
-        let isolated = tempfile::tempdir().map_err(|e| CallError::fatal(e.to_string()))?;
-        let mut command = Command::new("opencode");
-        command.env_clear();
-        if let Some(path) = std::env::var_os("PATH") {
-            command.env("PATH", path);
-        }
-        command
-            .env("HOME", isolated.path())
-            .env("XDG_CONFIG_HOME", isolated.path())
-            .env("XDG_DATA_HOME", isolated.path())
-            .env("XDG_CACHE_HOME", isolated.path())
-            .env(
-                "OPENCODE_CONFIG_CONTENT",
-                "{\"permission\":{\"*\":\"deny\"}}",
-            )
-            .current_dir(isolated.path())
-            .args(["run", "--pure", "-m", model]);
-        let mut attachments = Vec::new();
-        let stderr_path = isolated.path().join("stderr.txt");
-        let stderr =
-            std::fs::File::create(&stderr_path).map_err(|e| CallError::fatal(e.to_string()))?;
-        for (i, png) in req.images.iter().enumerate() {
-            let path = isolated.path().join(format!("strip-{i}.png"));
-            std::fs::write(&path, png).map_err(|e| CallError::fatal(e.to_string()))?;
-            attachments.push(path);
-        }
-        for path in &attachments {
-            command.arg("--file").arg(path);
-        }
-        let mut child = command
-            .args(["--", &prompt])
-            .stdin(Stdio::null())
-            .stdout(Stdio::piped())
-            .stderr(Stdio::from(stderr))
-            .spawn()
-            .map_err(|e| CallError::fatal(format!("running `opencode`: {e}")))?;
-        let mut stdout = child
-            .stdout
-            .take()
-            .ok_or_else(|| CallError::fatal("no stdout from opencode"))?;
-        let (tx, rx) = std::sync::mpsc::channel();
-        std::thread::spawn(move || {
-            let mut buf = Vec::new();
-            let _ = std::io::Read::read_to_end(&mut stdout, &mut buf);
-            let _ = tx.send(buf);
-        });
-        let out = match rx.recv_timeout(Duration::from_secs(u64::from(req.spec.timeout_secs))) {
-            Ok(o) => o,
-            Err(_) => {
-                let _ = child.kill();
-                let _ = child.wait();
-                return Err(CallError {
-                    status: None,
-                    message: "opencode timed out".into(),
-                    retryable: true,
-                    retry_after: None,
-                });
-            }
-        };
-        let status = child.wait().map_err(|e| CallError::fatal(e.to_string()))?;
-        if !status.success() {
-            let detail: String = std::fs::read_to_string(stderr_path)
-                .unwrap_or_default()
-                .chars()
-                .take(400)
-                .collect();
-            return Err(CallError::fatal(format!(
-                "opencode exited with {status}: {detail}"
-            )));
-        }
-        let text = String::from_utf8_lossy(&out);
-        let (answer, prob) = parse_llm_answer(&text, req.wire_answers).map_err(CallError::fatal)?;
-        Ok(Raw {
-            answer,
-            prob,
-            confidence: None,
-            probs: BTreeMap::new(),
-            prob_source: "verbalized",
-            model_version: model.to_owned(),
-            model: model.to_owned(),
-            latency_ms: started.elapsed().as_millis() as u64,
-            usage: Value::Null,
-        })
+    fn ask_opencode(&self, _req: &AskRequest<'_>, _model: &str) -> Result<Raw, CallError> {
+        Err(CallError::fatal(
+            "subprocess providers are unsupported; select a user-approved HTTP provider",
+        ))
     }
 
     fn once(
@@ -1078,13 +1028,11 @@ impl Backend for LiveBackend {
                         att.statuses.extend(e.status);
                         att.error = Some(e.message.clone());
                         last = e.message;
-                        if !e.retryable || att.tries > self.retry.max_retries {
+                        if !e.retryable || att.tries > self.retry.max_retries.min(2) {
                             break;
                         }
                         std::thread::sleep(Duration::from_millis(
-                            e.retry_after
-                                .map_or(backoff, |s| s.saturating_mul(1000))
-                                .min(30_000),
+                            e.retry_after.map_or(backoff, |s| s.saturating_mul(1000)),
                         ));
                         backoff = backoff.saturating_mul(2);
                     }
@@ -1151,13 +1099,10 @@ impl Backend for LiveBackend {
                         att.statuses.extend(e.status);
                         att.error = Some(e.message.clone());
                         last.clone_from(&e.message);
-                        if !e.retryable || att.tries > self.retry.max_retries {
+                        if !e.retryable || att.tries > self.retry.max_retries.min(2) {
                             break;
                         }
-                        let wait = e
-                            .retry_after
-                            .map_or(backoff, |s| s.saturating_mul(1000))
-                            .min(30_000);
+                        let wait = e.retry_after.map_or(backoff, |s| s.saturating_mul(1000));
                         std::thread::sleep(Duration::from_millis(wait));
                         backoff = backoff.saturating_mul(2);
                     }
@@ -1187,6 +1132,36 @@ mod review_chain_tests {
     use super::*;
     use crate::review::Profile;
 
+    fn security(tmp: &std::path::Path, run: &str, budget: u64) -> SecurityContext {
+        let mut roots =
+            crate::root_policy::RootPolicy::new(&[tmp.into()], None, false, &[]).unwrap();
+        let user = transport::UserConfig {
+            roots: vec![transport::RootSetting {
+                id: "fixture".into(),
+                path: tmp.into(),
+                egress: transport::EgressSetting::Allow,
+            }],
+            ..Default::default()
+        };
+        user.apply(&mut roots).unwrap();
+        SecurityContext {
+            user,
+            roots,
+            authorization: transport::Authorization {
+                enabled: true,
+                scopes: vec![crate::budget_ledger::Scope {
+                    id: run.into(),
+                    caps: crate::budget_ledger::Caps {
+                        total: budget,
+                        providers: BTreeMap::from([("gemini".into(), budget)]),
+                    },
+                }],
+            },
+            ledger: crate::budget_ledger::Ledger::new(&tmp.join("ledger"), false),
+            sources: vec!["fixture".into()],
+        }
+    }
+
     #[test]
     fn bounded_fallback_persists_and_skips_cooldown_without_network() {
         let tmp = tempfile::tempdir().unwrap();
@@ -1214,7 +1189,8 @@ mod review_chain_tests {
             },
             Duration::from_secs(1),
         )
-        .with_policy(tmp.path().join("cache"), 600, 10, 0, 10);
+        .with_policy(tmp.path().join("cache"), 600, 10, 0, 10)
+        .with_authorization(security(tmp.path(), "first", 10));
         backend.mock_replies = replies();
         let answers = vec!["P1".into(), "P2".into(), "tie".into(), "unsure".into()];
         let prompt = Prompt {
@@ -1244,7 +1220,8 @@ mod review_chain_tests {
             },
             Duration::from_secs(1),
         )
-        .with_policy(tmp.path().join("cache"), 600, 1, 0, 1);
+        .with_policy(tmp.path().join("cache"), 600, 1, 0, 1)
+        .with_authorization(security(tmp.path(), "later", 1));
         later.mock_replies = Some(RefCell::new(vec![(
             200,
             json!({"candidates":[{"content":{"parts":[{"text":"{\"answer\":\"P2\",\"probability\":0.9}"}]}}]}),

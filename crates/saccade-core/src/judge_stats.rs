@@ -787,3 +787,6 @@ fn connected(n: usize, votes: &[Vote]) -> bool {
     let r0 = root(&mut parent, 0);
     (1..n).all(|i| root(&mut parent, i) == r0)
 }
+
+/// Evaluation accounting with availability separated from conditional quality.
+pub mod evaluation;

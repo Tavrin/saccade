@@ -1,432 +1,813 @@
-//! CLI and MCP surfaces for the review cascade and label benchmark.
-use crate::agent::CliError;
-use clap::Args;
-use saccade_core::judge_provider::{Keys, LiveBackend, Retry};
-use saccade_core::review::{self, Options, Profile};
-#[cfg(feature = "mcp")]
-use serde_json::Map;
-use serde_json::Value;
-#[cfg(feature = "mcp")]
-use serde_json::json;
+//! Authorized canonical review shared by CLI and the final MCP tool.
+use crate::{agent::CliError, local_cmd};
+use saccade_core::budget_ledger::{Caps, Ledger, Scope};
+use saccade_core::decision_provider::DecisionProvider;
+use saccade_core::evidence::{
+    Artifact, Document,
+    canonical::{self, Digest},
+    case::EvidenceCase,
+    request::ProviderIdentity,
+};
+use saccade_core::judge_provider::{
+    Keys,
+    observations::JevAdapter,
+    transport::{self, Authorization, UserConfig},
+};
+use serde_json::{Value, json};
+use std::collections::BTreeMap;
 use std::path::{Path, PathBuf};
 use std::time::Duration;
 
-#[derive(Args)]
-pub(crate) struct ReviewArgs {
-    /// Existing comparison report.
-    pub report_json: PathBuf,
-    #[arg(long, default_value = "nightly")]
-    pub profile: String,
-    #[arg(long, conflicts_with = "intent_file")]
-    pub intent: Option<String>,
+/// Human startup configuration, kept outside tool input schemas.
+#[derive(clap::Args, Clone, Default)]
+pub(crate) struct Startup {
+    /// Explicitly authorize provider calls for this MCP server lifetime.
     #[arg(long)]
-    pub intent_file: Option<PathBuf>,
-    #[arg(long, default_value_t = 30)]
-    pub budget_calls: usize,
+    pub allow_provider_calls: bool,
+    /// Finite startup attempt cap; no implicit MCP allowance.
+    #[arg(long, value_parser=clap::value_parser!(u64).range(1..))]
+    pub budget_calls: Option<u64>,
+    /// Human-owned endpoints, credential bindings and root egress policy.
     #[arg(long)]
-    pub max_gemini: Option<usize>,
-    #[arg(long)]
-    pub json: bool,
-    #[arg(long)]
-    pub dry_run: bool,
-    #[arg(long)]
-    pub keys_dir: Option<PathBuf>,
-    #[arg(long)]
-    pub cache_dir: Option<PathBuf>,
-    #[arg(long)]
-    pub decisions_dir: Option<PathBuf>,
-    /// Root passed to saccade serve, used for exact local deep links.
-    #[arg(long)]
-    pub serve_root: Option<PathBuf>,
-    #[arg(long)]
-    pub ocr_cmd: Option<String>,
+    pub user_config: Option<PathBuf>,
 }
-
-#[derive(Args)]
-#[cfg(feature = "evaluation")]
-pub(crate) struct BenchArgs {
-    #[arg(long)]
-    pub labels: PathBuf,
-    #[arg(long,value_delimiter=',',num_args=1..)]
-    pub models: Vec<String>,
-    #[arg(long,value_delimiter=',',num_args=1..)]
-    pub questions: Vec<String>,
-    #[arg(long, default_value_t = 30)]
-    pub budget_calls: usize,
-    #[arg(long)]
-    pub keys_dir: Option<PathBuf>,
-    #[arg(long)]
-    pub cache_dir: Option<PathBuf>,
-    #[arg(long, default_value = "saccade-judge-bench.v1.json")]
-    pub out: PathBuf,
-    /// Provider-specific HTTP cap, including retries (use remaining live allowance).
-    #[arg(long, default_value_t = 15)]
-    pub jev_call_limit: usize,
-    /// Provider-specific HTTP cap, including retries.
-    #[arg(long, default_value_t = 30)]
-    pub gemini_call_limit: usize,
+pub(crate) fn user_file(selected: Option<&Path>) -> PathBuf {
+    selected.map_or_else(|| Keys::default_dir().join("user.toml"), Path::to_owned)
 }
-#[derive(Args)]
-#[cfg(feature = "evaluation")]
-pub(crate) struct CollectArgs {
-    #[arg(long)]
-    pub decisions_dir: Option<PathBuf>,
-    #[arg(long,num_args=1..)]
-    pub reports: Vec<PathBuf>,
-    #[arg(long)]
-    pub out: PathBuf,
+pub(crate) fn load_user(file: &Path) -> Result<UserConfig, CliError> {
+    UserConfig::load(file).map_err(|e| CliError::new("invalid_user_policy", e))
 }
-
-fn read(path: &Path) -> Result<Value, CliError> {
-    let bytes = std::fs::read(path)
-        .map_err(|e| CliError::io(format!("reading {}: {e}", path.display())))?;
-    Ok(serde_json::from_slice(&bytes)?)
-}
-fn live(
-    keys: Option<PathBuf>,
-    cache: Option<PathBuf>,
-    profile: &Profile,
-    budget: usize,
-) -> LiveBackend {
-    LiveBackend::new(
-        Keys::new(keys),
-        Retry {
-            max_retries: profile.max_retries,
-            base_ms: 500,
-        },
-        Duration::from_secs(60),
-    )
-    .with_policy(
-        cache.unwrap_or_else(saccade_core::local::default_cache_dir),
-        profile.cooldown_secs,
-        budget,
-        budget,
-        budget,
-    )
-}
-fn root(path: Option<&Path>) -> Result<PathBuf, CliError> {
-    let p = path
-        .map(Path::to_path_buf)
-        .unwrap_or(std::env::current_dir().map_err(|e| CliError::io(e.to_string()))?);
-    saccade_core::paths::canonicalize(p)
-        .map_err(|e| CliError::io(format!("resolving serve root: {e}")))
-}
-
-fn review_run(args: &ReviewArgs, read_root: Option<&Path>) -> Result<(Value, String), CliError> {
-    let document = saccade_core::paths::canonicalize(&args.report_json)
-        .map_err(|e| CliError::io(e.to_string()))?;
-    let doc = read(&document)?;
-    if doc["schema"] != saccade_core::report::REPORT_SCHEMA {
-        return Err(CliError::usage("review needs a saccade-report.v1 document"));
-    }
-    if let Some(r) = read_root {
-        crate::judge_cmd::confined_document(&doc, document.parent().unwrap_or(Path::new(".")), r)?;
-    }
-    let report = serde_json::from_value(doc)?;
-    let profile = Profile::load(&args.profile)?;
-    if read_root.is_some() && profile.ocr_cmd.is_some() {
-        return Err(CliError::usage(
-            "configured OCR execution is CLI-only; use a profile without ocr_cmd for MCP",
-        ));
-    }
-    let intent = match &args.intent_file {
-        Some(p) => Some(
-            std::fs::read_to_string(p).map_err(|e| CliError::io(format!("reading intent: {e}")))?,
-        ),
-        None => args.intent.clone(),
+pub(crate) fn authorization(
+    enabled: bool,
+    budget: u64,
+    run: &str,
+    user: &UserConfig,
+) -> Authorization {
+    let caps = Caps {
+        total: budget,
+        providers: BTreeMap::from([
+            ("jev".into(), budget.min(6)),
+            ("gemini".into(), budget.min(18)),
+        ]),
     };
-    let backend = live(
-        args.keys_dir.clone(),
-        args.cache_dir.clone(),
-        &profile,
-        args.budget_calls,
-    );
-    let opts = Options {
-        profile,
-        intent,
-        budget_calls: args.budget_calls,
-        max_gemini: args.max_gemini,
-        dry_run: args.dry_run,
-        decisions_dir: args
-            .decisions_dir
-            .clone()
-            .unwrap_or_else(saccade_core::local::default_decisions_dir),
-        serve_root: root(args.serve_root.as_deref())?,
-        ocr_cmd: args.ocr_cmd.clone(),
-    };
-    let value = review::run(&document, &report, &backend, &opts)?;
-    let text = review::text(&value);
-    if !args.dry_run {
-        let dir = document.parent().unwrap_or(Path::new("."));
-        review::write_json(&dir.join(review::FILE), &value)?;
-        report_sections(dir, &text)?;
+    let mut scopes = vec![Scope {
+        id: format!("run/{run}"),
+        caps,
+    }];
+    if let Some(cap) = &user.parent_budget {
+        scopes.push(Scope {
+            id: "parent/user".into(),
+            caps: cap.clone(),
+        });
     }
-    Ok((value, text))
+    Authorization { enabled, scopes }
 }
-
-fn escape(s: &str) -> String {
-    s.replace('&', "&amp;")
-        .replace('<', "&lt;")
-        .replace('>', "&gt;")
-        .replace('"', "&quot;")
-}
-fn report_sections(dir: &Path, text: &str) -> Result<(), CliError> {
-    let html = dir.join("index.html");
-    if html.is_file() {
-        let mut content =
-            std::fs::read_to_string(&html).map_err(|e| CliError::io(e.to_string()))?;
-        const START: &str = "<!-- saccade-review:start -->";
-        const END: &str = "<!-- saccade-review:end -->";
-        if let Some(start) = content.find(START)
-            && let Some(end) = content[start..].find(END)
-        {
-            content.replace_range(start..start + end + END.len(), "");
+fn case(file: &Path) -> Result<EvidenceCase, CliError> {
+    let value = local_cmd::read_value(file)?;
+    transport::reject_project_overrides(&value)
+        .map_err(|e| CliError::new("invalid_project_policy", e))?;
+    if value["schema"] == saccade_core::report::REPORT_SCHEMA {
+        let report = crate::read_report(file)?;
+        let mut c = local_cmd::case_for_result(&report, file)?;
+        if c.requests.is_empty() {
+            saccade_core::judge_evidence::report_features(&mut c, &report)?;
         }
-        let block = format!(
-            "{START}<section aria-label=\"AI review\"><h2>AI review (experimental)</h2><p>Proposals only. Human approval required.</p><pre>{}</pre></section>{END}",
-            escape(text)
-        );
-        content = content.replacen("<main>", &format!("<main>{block}"), 1);
-        std::fs::write(html, content).map_err(|e| CliError::io(e.to_string()))?;
+        Ok(c)
+    } else {
+        let doc = Document::read(file)?;
+        let Artifact::Case(c) = doc.artifact else {
+            return Err(CliError::usage(
+                "review requires a report or canonical case",
+            ));
+        };
+        Ok(*c)
     }
-    let md = dir.join("saccade-review.md");
-    std::fs::write(&md,format!("### AI review (experimental)\n\nProposals only. Never approve on model output.\n\n\u{0060}\u{0060}\u{0060}text\n{text}\u{0060}\u{0060}\u{0060}\n")).map_err(|e|CliError::io(e.to_string()))?;
-    // Compare's canonical CI summary is summary.md.
-    let summary = dir.join("summary.md");
-    if summary.is_file() {
-        let existing =
-            std::fs::read_to_string(&summary).map_err(|e| CliError::io(e.to_string()))?;
-        let existing = existing
-            .split("<!-- saccade-review-summary -->")
-            .next()
-            .unwrap_or("");
-        let block = std::fs::read_to_string(md).map_err(|e| CliError::io(e.to_string()))?;
-        std::fs::write(
-            summary,
-            format!("{existing}\n<!-- saccade-review-summary -->\n{block}"),
-        )
-        .map_err(|e| CliError::io(e.to_string()))?;
+}
+fn verify_inputs(
+    c: &EvidenceCase,
+    file: &Path,
+    roots: &saccade_core::root_policy::RootPolicy,
+) -> Result<(), CliError> {
+    let document = if file
+        .file_name()
+        .is_some_and(|n| n == "saccade-report.v1.json")
+    {
+        file.with_file_name("evidence.json")
+    } else {
+        file.to_owned()
+    };
+    for input in &c.inputs {
+        for reference in std::iter::once(&input.content).chain(&input.sidecars) {
+            let resolved = saccade_core::paths::resolve(&reference.path, &document);
+            roots.read(&resolved)?;
+            reference.verify(&document)?;
+        }
     }
     Ok(())
 }
-pub(crate) fn review(args: ReviewArgs) -> Result<u8, CliError> {
-    let (value, text) = review_run(&args, None)?;
-    crate::emit(&if args.json {
-        format!("{}\n", serde_json::to_string_pretty(&value)?)
-    } else {
-        text
-    })?;
-    Ok(0)
-}
-#[cfg(feature = "evaluation")]
-pub(crate) fn bench(args: BenchArgs, read_root: Option<&Path>) -> Result<Value, CliError> {
-    let labels = saccade_core::labels::Labels::read(&args.labels)?;
-    if let Some(root) = read_root {
-        for i in &labels.items {
-            for image in &i.images {
-                let path = saccade_core::paths::canonicalize(saccade_core::paths::resolve(
-                    image,
-                    &args.labels,
-                ))
-                .map_err(|e| CliError::io(e.to_string()))?;
-                if !path.starts_with(root) {
-                    return Err(CliError::new("unsafe_path", "label image escapes MCP root"));
-                }
+/// Prepare exact payload hashes and decisions, without creating credentials or dispatching.
+#[allow(clippy::too_many_arguments)]
+pub(crate) fn review(
+    file: &Path,
+    out: Option<&Path>,
+    run: bool,
+    budget: u64,
+    config: &Path,
+    roots: &saccade_core::root_policy::RootPolicy,
+    auth: &Authorization,
+    intent: Option<saccade_core::evidence::case::Intent>,
+) -> Result<Value, CliError> {
+    if run {
+        auth.check()
+            .map_err(|e| CliError::new("network_authorization_required", e))?;
+    }
+    let user = load_user(config)?;
+    let mut policy = roots.clone();
+    user.apply(&mut policy)
+        .map_err(|e| CliError::new("invalid_user_policy", e))?;
+    let mut c = case(file)?;
+    apply_intent(&mut c, intent)?;
+    verify_inputs(&c, file, &policy)?;
+    if c.requests.is_empty() {
+        saccade_core::judge_evidence::prepare_context(&mut c)?;
+    }
+    let (mut requests, shortfalls) = prepare_requests(&c)?;
+    let (project, project_scopes) = project_policy(file, &policy)?;
+    let budget = budget.min(project.budget_calls.unwrap_or(budget));
+    let mut authorization = auth.clone();
+    authorization.scopes.extend(project_scopes);
+    for scope in &mut authorization.scopes {
+        scope.caps.total = scope.caps.total.min(budget);
+        if !project.providers.is_empty() {
+            scope
+                .caps
+                .providers
+                .retain(|p, _| project.providers.contains(p));
+        }
+    }
+    let mut sources = saccade_core::judge_bench_sources(&c);
+    if !sources.is_empty() {
+        for input in &c.inputs {
+            for reference in std::iter::once(&input.content).chain(&input.sidecars) {
+                sources.extend(
+                    saccade_core::paths::source_paths(&saccade_core::paths::resolve(
+                        &reference.path,
+                        file,
+                    ))
+                    .map_err(|e| CliError::io(e.to_string()))?,
+                );
             }
         }
     }
-    let profile = Profile::default();
-    let models = if args.models.is_empty() {
-        profile.gemini_models.clone()
-    } else {
-        args.models
-    };
-    let backend = LiveBackend::new(
-        Keys::new(args.keys_dir),
-        Retry {
-            max_retries: profile.max_retries,
-            base_ms: 500,
-        },
-        Duration::from_secs(60),
-    )
-    .with_policy(
-        args.cache_dir
-            .unwrap_or_else(saccade_core::local::default_cache_dir),
-        profile.cooldown_secs,
-        args.budget_calls,
-        args.jev_call_limit,
-        args.gemini_call_limit,
+    let egress = user.authorize(&sources, &policy);
+    let model = project.model.unwrap_or_else(|| "jev-latest".into());
+    let keys = Keys::new(Some(config.parent().unwrap_or(Path::new(".")).into()));
+    let ledger = Ledger::new(
+        &config.parent().unwrap_or(Path::new(".")).join("attempts"),
+        false,
     );
-    let value = saccade_core::judge_bench::run(
-        &args.labels,
-        &labels,
-        &models,
-        &args.questions,
-        &backend,
-        args.budget_calls,
+    let transport = transport::Transport {
+        user: &user,
+        roots: &policy,
+        authorization: &authorization,
+        ledger: &ledger,
+        keys: &keys,
+        http: &transport::Network,
+    };
+    let mut payloads = Vec::new();
+    let mut proposals = Vec::new();
+    let mut failures = Vec::new();
+    for request in &requests {
+        saccade_core::questions::validate_request(request)?;
+        let payload = saccade_core::judge_provider::observations::jev_payload(request, &model)?;
+        payloads.push(json!({"request_id":request.request_id,"question":request.question.id,"provider":"jev","model":model,"payload_sha256":Digest::of_bytes(&payload),"source_roots":sources,"policy":if egress.is_ok(){"allow"}else{"deny"}}));
+        if run && project.profile.as_deref() != Some("lookdev") {
+            egress
+                .as_ref()
+                .map_err(|e| CliError::new("egress_denied", e.clone()))?;
+            let bridge = transport::JevTransport {
+                transport: &transport,
+                model: model.clone(),
+                sources: sources.clone(),
+                deadline: Duration::from_secs(30),
+            };
+            let adapter = JevAdapter {
+                identity: ProviderIdentity {
+                    provider: "jev".into(),
+                    model: model.clone(),
+                    revision: None,
+                },
+                transport: &bridge,
+            };
+            match adapter.answer(request){
+                Ok(response)=>proposals.push(response.into_proposal(request,&adapter.capabilities())?),
+                Err(e)=>failures.push(json!({"request_id":request.request_id,"class":e.class,"message":e.message,"retry_at":e.retry_after_secs.map(|s|saccade_core::budget_ledger::now_ms().saturating_add(s.saturating_mul(1000)))})),
+            }
+        }
+    }
+    let wants_vision = project.profile.as_deref() == Some("lookdev")
+        || proposals.iter().any(|p| {
+            matches!(
+                p.response.answer.as_str(),
+                "needs_eyes" | "inspect_regions" | "inspect_full_frame"
+            )
+        });
+    let mut visual_results = Vec::new();
+    if run && wants_vision && project.profile.as_deref() != Some("ci") {
+        egress
+            .as_ref()
+            .map_err(|e| CliError::new("egress_denied", e.clone()))?;
+        let parent = out
+            .and_then(Path::parent)
+            .ok_or_else(|| CliError::usage("visual review requires an output artifact"))?;
+        let models = if project.gemini_models.is_empty() {
+            saccade_core::review::GEMINI_MODELS
+                .iter()
+                .map(|m| m.to_string())
+                .collect::<Vec<_>>()
+        } else {
+            project.gemini_models.clone()
+        };
+        let vision_policy = saccade_core::judge_provider::observations::FallbackPolicy {
+            models: models.clone(),
+            version: "budgeted-fallback/1".into(),
+        };
+        for (index, entry) in c.scope.entries.iter().take(3).enumerate() {
+            let pair = match display_pair(&c, file, entry) {
+                Ok(p) => p,
+                Err(e) => {
+                    failures.push(json!({"entry":entry,"message":e.message}));
+                    continue;
+                }
+            };
+            let first = saccade_core::judge_evidence::vision::prepare_visual(
+                &c,
+                entry,
+                [&pair[0], &pair[1]],
+                &[],
+                saccade_core::judge_evidence::vision::VisionTask::BlindPreference,
+                false,
+            )?;
+            let first = transport::vision(
+                &transport,
+                &c,
+                &first,
+                &vision_policy,
+                &sources,
+                &parent.join(format!("vision-{index}-ab.json")),
+                Duration::from_secs(30),
+                None,
+            );
+            let result = match first {
+                Ok(first) => {
+                    // Both orders stay on the actual first model. No fallback may mix the pair.
+                    let second = saccade_core::judge_evidence::vision::prepare_visual(
+                        &c,
+                        entry,
+                        [&pair[0], &pair[1]],
+                        &[],
+                        saccade_core::judge_evidence::vision::VisionTask::BlindPreference,
+                        true,
+                    )?;
+                    let model = first.context().extractor.model.clone();
+                    match transport::vision(
+                        &transport,
+                        &c,
+                        &second,
+                        &vision_policy,
+                        &sources,
+                        &parent.join(format!("vision-{index}-ba.json")),
+                        Duration::from_secs(30),
+                        Some(&model),
+                    ) {
+                        Ok(second) => serde_json::to_value(
+                            saccade_core::review::resolve_blind_orders(&c, &first, &second)?,
+                        )?,
+                        Err(e) => json!({"outcome":"needs_human","reason":e}),
+                    }
+                }
+                Err(e) => json!({"outcome":"needs_human","reason":e}),
+            };
+            visual_results.push(json!({"entry":entry,"blind_comparison":result}));
+            let presentation = saccade_core::judge_evidence::vision::prepare_visual(
+                &c,
+                entry,
+                [&pair[0], &pair[1]],
+                &[],
+                saccade_core::judge_evidence::vision::VisionTask::Observations,
+                false,
+            )?;
+            match transport::vision(
+                &transport,
+                &c,
+                &presentation,
+                &vision_policy,
+                &sources,
+                &parent.join(format!("vision-{index}-observations.json")),
+                Duration::from_secs(30),
+                None,
+            ) {
+                Ok(completed) => {
+                    match saccade_core::review::prepare_enriched_question(
+                        &c,
+                        "intent.match.v1",
+                        &completed,
+                        BTreeMap::new(),
+                    ) {
+                        Ok(enriched) => {
+                            let bridge = transport::JevTransport {
+                                transport: &transport,
+                                model: model.clone(),
+                                sources: sources.clone(),
+                                deadline: Duration::from_secs(30),
+                            };
+                            let adapter = JevAdapter {
+                                identity: ProviderIdentity {
+                                    provider: "jev".into(),
+                                    model: model.clone(),
+                                    revision: None,
+                                },
+                                transport: &bridge,
+                            };
+                            match adapter.answer(&enriched) {
+                                Ok(response) => proposals.push(
+                                    response.into_proposal(&enriched, &adapter.capabilities())?,
+                                ),
+                                Err(e) => failures.push(
+                                    json!({"entry":entry,"class":e.class,"message":e.message}),
+                                ),
+                            };
+                            requests.push(enriched);
+                        }
+                        Err(e) => failures.push(json!({"entry":entry,"message":e.to_string()})),
+                    }
+                }
+                Err(e) => failures.push(json!({"entry":entry,"message":e})),
+            }
+        }
+    }
+    let dispatched_calls = if run {
+        auth.scopes
+            .first()
+            .map(|s| ledger.used(&s.id))
+            .transpose()
+            .map_err(CliError::io)?
+            .unwrap_or(0)
+    } else {
+        0
+    };
+    if let Some(out) = out {
+        let plan = json!({"schema":"saccade-evaluation.v1","kind":"review_plan","case_id":c.case_id,"payloads":payloads,"shortfalls":shortfalls,"visual_results":visual_results,"failures":failures,"budget_calls":budget,"dispatched_calls":dispatched_calls});
+        c.requests = requests.clone();
+        c.proposals = proposals.clone();
+        // Canonical case artifacts remain the source of requests/proposals. Rebase
+        // portable file references without changing semantic evidence identities.
+        let mut value = serde_json::to_value(Document::new(Artifact::Case(Box::new(c))))?;
+        rebase(&mut value, file, out)?;
+        local_cmd::write_value(out, &value)?;
+        let parent = out.parent().unwrap_or(Path::new("."));
+        local_cmd::write_value(&parent.join("review-plan.json"), &plan)?;
+        std::fs::write(parent.join(".saccade-run"), b"")
+            .map_err(|e| CliError::io(e.to_string()))?;
+    }
+    let mut result = local_cmd::base_result(if run { "review.run" } else { "review.preview" });
+    result["review"] = json!("unresolved");
+    if run && !failures.is_empty() {
+        result["execution"] = json!("pending");
+    }
+    result["counts"] = json!({"budget_calls":budget,"scheduled_questions":requests.len(),"proposals":proposals.len(),"dispatched_calls":dispatched_calls});
+    result["data"] = json!({"payloads":payloads,"policy":if egress.is_ok(){"allow"}else{"deny"},"provider_calls_authorized":auth.enabled,"shortfalls":shortfalls,"visual_results":visual_results,"failures":failures});
+    result["limits"] = json!([
+        "Model answers remain proposals. Human review is unresolved.",
+        "Payload previews contain hashes and provenance; exact requests are retained in the local artifact."
+    ]);
+    if let Some(out) = out {
+        result["artifact"] = local_cmd::reference(out)?;
+    }
+    local_cmd::bounded(result, 4096)
+}
+fn toml_policy(path: &Path) -> Result<transport::ProjectPolicy, CliError> {
+    let text = std::fs::read_to_string(path).map_err(|e| CliError::io(e.to_string()))?;
+    // Deserialize with strict fields: URL/key/root/startup fields are rejected.
+    saccade_core::judge_provider::transport::parse_project_policy(&text)
+        .map_err(|e| CliError::new("invalid_project_policy", e))
+}
+pub(crate) fn cli(args: &local_cmd::ReviewArgs) -> Result<Value, CliError> {
+    let file = args
+        .report
+        .as_deref()
+        .ok_or_else(|| CliError::usage("review requires REPORT"))?;
+    let config = user_file(args.user_config.as_deref());
+    let user = load_user(&config)?;
+    if user.roots.is_empty() {
+        return Err(CliError::new(
+            "egress_denied",
+            "review execution requires user-owned source roots and export permission",
+        ));
+    }
+    let mut roots = saccade_core::root_policy::RootPolicy::new(
+        &user
+            .roots
+            .iter()
+            .map(|r| r.path.clone())
+            .collect::<Vec<_>>(),
+        user.out_root.as_deref(),
+        false,
+        &[],
     )?;
-    review::write_json(&args.out, &value)?;
-    Ok(value)
+    user.apply(&mut roots)
+        .map_err(|e| CliError::new("invalid_user_policy", e))?;
+    let budget = args.budget_calls.unwrap_or(24);
+    let auth = authorization(
+        args.run,
+        budget,
+        &saccade_core::budget_ledger::new_id(),
+        &user,
+    );
+    let input = roots.read(file)?;
+    let out = if let Some(out) = args.out.as_deref() {
+        Some(roots.write(out)?)
+    } else if args.run {
+        Some(roots.write(Path::new(&format!(
+            "review-{}.json",
+            saccade_core::budget_ledger::new_id()
+        )))?)
+    } else {
+        None
+    };
+    let intent = read_intent(args.intent.as_deref(), args.intent_file.as_deref(), &input)?;
+    if let Some(file) = &args.intent_file {
+        roots.read(file)?;
+    }
+    review(
+        &input,
+        out.as_deref(),
+        args.run,
+        budget,
+        &config,
+        &roots,
+        &auth,
+        intent,
+    )
 }
 #[cfg(feature = "evaluation")]
-pub(crate) fn collect(args: CollectArgs) -> Result<Value, CliError> {
-    let dir = args
-        .decisions_dir
-        .unwrap_or_else(saccade_core::local::default_decisions_dir);
-    let labels = saccade_core::labels::collect(Some(&dir), &args.reports, &args.out)?;
-    Ok(serde_json::to_value(labels)?)
+pub(crate) fn evaluate(
+    manifest: &Path,
+    run: bool,
+    user_config: Option<&Path>,
+) -> Result<Value, CliError> {
+    let config = user_file(user_config);
+    let user = load_user(&config)?;
+    let mut roots = saccade_core::root_policy::RootPolicy::new(
+        &user
+            .roots
+            .iter()
+            .map(|r| r.path.clone())
+            .collect::<Vec<_>>(),
+        user.out_root.as_deref(),
+        false,
+        &[],
+    )?;
+    user.apply(&mut roots)
+        .map_err(|e| CliError::new("invalid_user_policy", e))?;
+    let manifest = roots.read(manifest)?;
+    let job = saccade_core::judge_bench::evaluator::read(&manifest)?;
+    // Every nested immutable reference receives the same containment check.
+    for task in &job.tasks {
+        for reference in [&task.case, &task.request]
+            .into_iter()
+            .chain(task.labels.iter())
+            .chain(task.human_decision.iter())
+        {
+            roots.read(&saccade_core::paths::resolve(&reference.path, &manifest))?;
+        }
+    }
+    let id = canonical::digest(&job)?;
+    let mut auth = authorization(run, job.budget_calls, id.as_str(), &user);
+    // Evaluation budgets/providers are separate from production caps.
+    auth.scopes[0] = Scope {
+        id: format!("evaluation/{}", id.as_str()),
+        caps: Caps {
+            total: job.budget_calls,
+            providers: job
+                .tasks
+                .iter()
+                .map(|t| (t.provider.clone(), job.budget_calls))
+                .collect(),
+        },
+    };
+    let ledger = Ledger::new(
+        &config.parent().unwrap_or(Path::new(".")).join("attempts"),
+        true,
+    );
+    let keys = Keys::new(Some(config.parent().unwrap_or(Path::new(".")).into()));
+    let transport = transport::Transport {
+        user: &user,
+        roots: &roots,
+        authorization: &auth,
+        ledger: &ledger,
+        keys: &keys,
+        http: &transport::Network,
+    };
+    let mut result = local_cmd::base_result("review.eval");
+    if run {
+        let state = roots.write(Path::new(&format!(
+            "eval-{}.json",
+            id.as_str().trim_start_matches("sha256:")
+        )))?;
+        result["data"] =
+            saccade_core::judge_bench::evaluator::run(&job, &manifest, &state, &transport)?;
+    } else {
+        result["data"] = saccade_core::judge_bench::evaluator::plan(&job, &manifest, &transport)?;
+    }
+    local_cmd::bounded(result, 4096)
+}
+/// Offline default preview also works before the user configures export permissions.
+pub(crate) fn preview_local(
+    file: &Path,
+    budget: u64,
+    intent: Option<saccade_core::evidence::case::Intent>,
+) -> Result<Value, CliError> {
+    let mut c = case(file)?;
+    apply_intent(&mut c, intent)?;
+    if c.requests.is_empty() {
+        saccade_core::judge_evidence::prepare_context(&mut c)?;
+    }
+    let (requests, shortfalls) = prepare_requests(&c)?;
+    let mut value = local_cmd::base_result("review.preview");
+    value["counts"] =
+        json!({"budget_calls":budget,"scheduled_questions":requests.len(),"dispatched_calls":0});
+    value["data"] = json!({"payloads":requests.iter().map(|r|saccade_core::judge_provider::observations::jev_payload(r,"jev-latest").map(|b|json!({"request_id":r.request_id,"question":r.question.id,"provider":"jev","model":"jev-latest","payload_sha256":Digest::of_bytes(&b),"source_roots":saccade_core::judge_bench_sources(&c),"policy":"deny"}))).collect::<saccade_core::evidence::Result<Vec<_>>>()?,"provider_calls_authorized":false,"shortfalls":shortfalls});
+    value["limits"] = json!([
+        "Local preview; explicit execution, user root permissions and finite attempt budget are required.",
+        "Every model answer is a proposal; human review remains unresolved."
+    ]);
+    local_cmd::bounded(value, 4096)
 }
 
-#[cfg(feature = "mcp")]
-mod bindings {
-    use super::*;
-    pub(crate) fn schemas() -> Vec<Value> {
-        vec![
-            json!({"name":"saccade_review","description":"Experimental cascade: deterministic gate, batched Jev, Gemini only on escalation, human inbox and blind votes. Never approves on model output. budget_calls counts actual HTTP attempts including retries. Sends evidence to providers.",
-            "inputSchema":{"type":"object","properties":{"report_json":{"type":"string"},"profile":{"type":"string"},"intent":{"type":"string"},
-                "budget_calls":{"type":"integer","minimum":0,"maximum":1000},"max_gemini":{"type":"integer","minimum":0,"maximum":100},
-                "dry_run":{"type":"boolean"}},"required":["report_json"],"additionalProperties":false},
-            "outputSchema":{"type":"object","properties":{"schema":{"const":review::SCHEMA},"entries":{"type":"array","items":{"type":"object"}}},"required":["schema","entries"]},
-            "annotations":{"readOnlyHint":false,"destructiveHint":false,"openWorldHint":true}}),
-            #[cfg(feature = "evaluation")]
-            json!({"name":"saccade_judge_bench","description":"Benchmark the same evidence-bound human labels across Jev and every pinned Gemini model, in both orders. Measures accuracy, ECE, latency and position bias; suggests an empirically measured chain. Actual HTTP budget includes retries.",
-            "inputSchema":{"type":"object","properties":{"labels":{"type":"string"},"models":{"type":"array","items":{"type":"string"}},
-                "questions":{"type":"array","items":{"type":"string"}},"budget_calls":{"type":"integer","minimum":0,"maximum":1000},
-                "out":{"type":"string"}},"required":["labels"],"additionalProperties":false},
-            "outputSchema":{"type":"object","properties":{"schema":{"const":saccade_core::judge_bench::SCHEMA},"models":{"type":"array","items":{"type":"object"}}},"required":["schema","models"]},
-            "annotations":{"readOnlyHint":false,"destructiveHint":false,"openWorldHint":true}}),
-        ]
-    }
-    type Resolve<'a> = &'a dyn Fn(&str, &str) -> Result<PathBuf, CliError>;
-    fn string(args: &Map<String, Value>, key: &str) -> Result<Option<String>, CliError> {
-        match args.get(key) {
-            None => Ok(None),
-            Some(Value::String(s)) => Ok(Some(s.clone())),
-            _ => Err(CliError::usage(format!("{key} must be a string"))),
-        }
-    }
-    fn number(args: &Map<String, Value>, key: &str, default: usize) -> Result<usize, CliError> {
-        match args.get(key) {
-            None => Ok(default),
-            Some(v) => v
-                .as_u64()
-                .filter(|n| *n <= 1000)
-                .map(|n| n as usize)
-                .ok_or_else(|| CliError::usage(format!("{key} must be an integer from 0 to 1000"))),
-        }
-    }
-    #[cfg(feature = "evaluation")]
-    fn strings(args: &Map<String, Value>, key: &str) -> Result<Vec<String>, CliError> {
-        match args.get(key) {
-            None => Ok(Vec::new()),
-            Some(Value::Array(a)) => a
-                .iter()
-                .map(|s| {
-                    s.as_str()
-                        .map(str::to_owned)
-                        .ok_or_else(|| CliError::usage(format!("{key} must contain strings")))
-                })
-                .collect(),
-            _ => Err(CliError::usage(format!("{key} must be an array"))),
-        }
-    }
-    pub(crate) fn call(
-        name: &str,
-        args: &Map<String, Value>,
-        resolve: Resolve<'_>,
-    ) -> Option<Result<(Value, String), CliError>> {
-        if !["saccade_review", "saccade_judge_bench"].contains(&name) {
-            return None;
-        }
-        Some((|| {
-            let known = if name == "saccade_review" {
-                vec![
-                    "report_json",
-                    "profile",
-                    "intent",
-                    "budget_calls",
-                    "max_gemini",
-                    "dry_run",
-                ]
-            } else {
-                vec!["labels", "models", "questions", "budget_calls", "out"]
-            };
-            if let Some(k) = args.keys().find(|k| !known.contains(&k.as_str())) {
-                return Err(CliError::usage(format!("unknown argument {k}")));
+pub(crate) fn rebase(value: &mut Value, source: &Path, destination: &Path) -> Result<(), CliError> {
+    match value {
+        Value::Object(fields) => {
+            if fields.contains_key("sha256")
+                && let Some(path) = fields.get_mut("path")
+                && let Some(p) = path.as_str()
+            {
+                let original = saccade_core::paths::resolve(p, source);
+                *path = json!(saccade_core::paths::record(
+                    &original,
+                    destination.parent().unwrap_or(Path::new(".")),
+                    false
+                ));
             }
-            let root = root(Some(&resolve("root", ".")?))?;
-            if name == "saccade_review" {
-                let path = string(args, "report_json")?
-                    .ok_or_else(|| CliError::usage("report_json is required"))?;
-                let profile = string(args, "profile")?.unwrap_or_else(|| "nightly".into());
-                let profile = if Profile::template(&profile).is_some() {
-                    profile
-                } else {
-                    saccade_core::paths::portable(&resolve("profile", &profile)?)
-                };
-                let dry = match args.get("dry_run") {
-                    None => false,
-                    Some(Value::Bool(b)) => *b,
-                    _ => return Err(CliError::usage("dry_run must be boolean")),
-                };
-                review_run(
-                    &ReviewArgs {
-                        report_json: resolve("report_json", &path)?,
-                        profile,
-                        intent: string(args, "intent")?,
-                        intent_file: None,
-                        budget_calls: number(args, "budget_calls", 30)?,
-                        max_gemini: args
-                            .get("max_gemini")
-                            .map(|_| number(args, "max_gemini", 5))
-                            .transpose()?,
-                        json: true,
-                        dry_run: dry,
-                        keys_dir: None,
-                        cache_dir: Some(resolve("cache_dir", ".saccade-review/cache")?),
-                        decisions_dir: Some(resolve("decisions_dir", "judge-decisions")?),
-                        serve_root: Some(root.clone()),
-                        ocr_cmd: None,
-                    },
-                    Some(&root),
+            for v in fields.values_mut() {
+                rebase(v, source, destination)?;
+            }
+        }
+        Value::Array(values) => {
+            for v in values {
+                rebase(v, source, destination)?;
+            }
+        }
+        _ => {}
+    }
+    Ok(())
+}
+
+fn display_pair(
+    c: &EvidenceCase,
+    file: &Path,
+    entry: &str,
+) -> Result<[saccade_core::judge_evidence::vision::DisplayImage; 2], CliError> {
+    use saccade_core::judge_evidence::vision::{DisplayImage, DisplayTransform};
+    let load = |roles: &[&str]| -> Result<DisplayImage, CliError> {
+        let input = c
+            .inputs
+            .iter()
+            .find(|i| {
+                roles
+                    .iter()
+                    .any(|r| i.id == *r || i.id == format!("{r}:{entry}"))
+            })
+            .ok_or_else(|| {
+                CliError::new(
+                    "visual_evidence_unavailable",
+                    "entry has no verified image pair",
                 )
+            })?;
+        let path = saccade_core::paths::resolve(&input.content.path, file);
+        let transform = if saccade_core::hdr::is_hdr_path(&path) {
+            DisplayTransform::Hdr {
+                version: "hdr-display/1".into(),
+                tonemapper: "aces".into(),
+                exposure_stops: 0.0,
+            }
+        } else {
+            DisplayTransform::Srgb { background: 128 }
+        };
+        Ok(DisplayImage::load(&input.id, &path, transform)?)
+    };
+    Ok([
+        load(&["baseline", "reference"])?,
+        load(&["capture", "candidate"])?,
+    ])
+}
+/// Generate a fixed catalog request locally; request creation never enables transport.
+pub(crate) fn prepare_request(
+    file: &Path,
+    question: &str,
+) -> Result<saccade_core::evidence::request::DecisionRequest, CliError> {
+    let mut c = case(file)?;
+    if let Some(request) = c.requests.iter().find(|r| r.question.id == question) {
+        request.validate_for(&c)?;
+        return Ok(request.clone());
+    }
+    saccade_core::judge_evidence::prepare_context(&mut c)?;
+    Ok(saccade_core::judge_evidence::encode(
+        &c,
+        question,
+        Default::default(),
+    )?)
+}
+
+pub(crate) fn read_intent(
+    text: Option<&str>,
+    file: Option<&Path>,
+    document: &Path,
+) -> Result<Option<saccade_core::evidence::case::Intent>, CliError> {
+    use saccade_core::evidence::case::{ArtifactRef, Intent, IntentAssurance, Provenance};
+    if let Some(file) = file {
+        let mut intent: Intent = serde_json::from_value(local_cmd::read_value(file)?)?;
+        intent.assurance = IntentAssurance::Structured;
+        intent.source = Some(ArtifactRef::from_file(file, document, false)?);
+        intent.provenance.source_roots =
+            saccade_core::paths::source_paths(file).map_err(|e| CliError::io(e.to_string()))?;
+        return Ok(Some(intent));
+    }
+    Ok(text.map(|objective| Intent {
+        id: "cli-text-intent".into(),
+        objective: objective.into(),
+        assurance: IntentAssurance::Text,
+        expected_changes: vec![],
+        invariants: vec![],
+        criteria: vec![],
+        source: None,
+        provenance: Provenance::default(),
+    }))
+}
+fn apply_intent(
+    c: &mut EvidenceCase,
+    intent: Option<saccade_core::evidence::case::Intent>,
+) -> Result<(), CliError> {
+    if let Some(mut intent) = intent {
+        if intent.objective.trim().is_empty() {
+            return Err(CliError::usage("intent objective must be nonempty"));
+        }
+        if intent.provenance.source_roots.is_empty() {
+            intent.provenance.source_roots = c.provenance.source_roots.clone();
+        }
+        c.provenance
+            .source_roots
+            .extend(intent.provenance.source_roots.clone());
+        c.intent = saccade_core::evidence::case::Availability::Available { value: intent };
+        c.requests.clear();
+        c.proposals.clear();
+        c.human_decisions.clear();
+        c.next_actions.clear();
+        c.refresh_id()?;
+    }
+    Ok(())
+}
+
+fn prepare_requests(
+    case: &EvidenceCase,
+) -> Result<
+    (
+        Vec<saccade_core::evidence::request::DecisionRequest>,
+        Vec<Value>,
+    ),
+    CliError,
+> {
+    if !case.requests.is_empty() {
+        for request in &case.requests {
+            saccade_core::questions::validate_request(request)?;
+        }
+        return Ok((case.requests.clone(), vec![]));
+    }
+    let mut requests = Vec::new();
+    let mut shortfalls = Vec::new();
+    for question in saccade_core::questions::CATALOG {
+        match saccade_core::judge_evidence::encode(case, question.id, Default::default()) {
+            Ok(request) => requests.push(request),
+            Err(error) => shortfalls.push(
+                json!({"question":question.id,"status":"inapplicable","reason":error.to_string()}),
+            ),
+        }
+    }
+    Ok((requests, shortfalls))
+}
+
+fn project_policy(
+    file: &Path,
+    roots: &saccade_core::root_policy::RootPolicy,
+) -> Result<(transport::ProjectPolicy, Vec<Scope>), CliError> {
+    let mut paths = roots
+        .roots
+        .iter()
+        .map(|r| r.path.join("saccade-review.toml"))
+        .collect::<Vec<_>>();
+    paths.push(
+        file.parent()
+            .unwrap_or(Path::new("."))
+            .join("saccade-review.toml"),
+    );
+    let mut seen = std::collections::BTreeSet::new();
+    let mut effective = transport::ProjectPolicy::default();
+    let mut scopes = Vec::new();
+    for file in paths {
+        if !file.is_file() {
+            continue;
+        }
+        let file = roots.read(&file)?;
+        let normalized =
+            saccade_core::paths::canonicalize(&file).map_err(|e| CliError::io(e.to_string()))?;
+        if !seen.insert(normalized.clone()) {
+            continue;
+        }
+        let project = toml_policy(&file)?;
+        if let Some(cap) = project.budget_calls {
+            effective.budget_calls = Some(effective.budget_calls.map_or(cap, |old| old.min(cap)));
+            scopes.push(Scope {
+                id: format!(
+                    "project/{}",
+                    canonical::digest(&saccade_core::paths::portable(&normalized))?.as_str()
+                ),
+                caps: Caps {
+                    total: cap,
+                    providers: BTreeMap::from([("jev".into(), cap), ("gemini".into(), cap)]),
+                },
+            });
+        }
+        if !project.providers.is_empty() {
+            if effective.providers.is_empty() {
+                effective.providers = project.providers.clone();
             } else {
-                #[cfg(not(feature = "evaluation"))]
-                return Err(saccade_core::Error::FeatureUnavailable {
-                    feature: "evaluation",
-                }
-                .into());
-                #[cfg(feature = "evaluation")]
-                {
-                    let labels = string(args, "labels")?
-                        .ok_or_else(|| CliError::usage("labels is required"))?;
-                    let value = bench(
-                        BenchArgs {
-                            labels: resolve("labels", &labels)?,
-                            models: strings(args, "models")?,
-                            questions: strings(args, "questions")?,
-                            budget_calls: number(args, "budget_calls", 30)?,
-                            keys_dir: None,
-                            cache_dir: Some(resolve("cache_dir", ".saccade-review/cache")?),
-                            jev_call_limit: 15,
-                            gemini_call_limit: 30,
-                            out: resolve(
-                                "out",
-                                &string(args, "out")?
-                                    .unwrap_or_else(|| "saccade-judge-bench.v1.json".into()),
-                            )?,
-                        },
-                        Some(&root),
-                    )?;
-                    let text = format!(
-                        "bench: {} items; {} calls; suggested chain: {}",
-                        value["items"], value["calls_used"], value["suggested_chain"]
-                    );
-                    Ok((value, text))
+                effective
+                    .providers
+                    .retain(|p| project.providers.contains(p));
+                if effective.providers.is_empty() {
+                    return Err(CliError::new(
+                        "invalid_project_policy",
+                        "project provider restrictions have no common provider",
+                    ));
                 }
             }
-        })())
+        }
+        if project.model.is_some() {
+            effective.model = project.model;
+        }
+        if project.profile.is_some() {
+            effective.profile = project.profile;
+        }
+        if !project.gemini_models.is_empty() {
+            effective.gemini_models = project.gemini_models;
+        }
+    }
+    Ok((effective, scopes))
+}
+
+#[cfg(test)]
+mod budget_scope_tests {
+    #![allow(clippy::unwrap_used)]
+    use super::*;
+
+    #[test]
+    fn editing_project_policy_cannot_reset_its_consumed_budget() {
+        let root = tempfile::tempdir().unwrap();
+        let project = root.path().join("saccade-review.toml");
+        let case = root.path().join("case.json");
+        let roots =
+            saccade_core::root_policy::RootPolicy::new(&[root.path().to_owned()], None, false, &[])
+                .unwrap();
+        std::fs::write(&project, "budget_calls = 4\n").unwrap();
+        let (_, first) = project_policy(&case, &roots).unwrap();
+        let ledger = Ledger::new(&root.path().join("ledger"), false);
+        let attempt = || saccade_core::budget_ledger::Attempt {
+            id: saccade_core::budget_ledger::new_id(),
+            provider: "jev".into(),
+            model: "fixture".into(),
+            payload_sha256: Digest::of_bytes(b"fixture"),
+            source_roots: vec!["fixture".into()],
+            batch_size: 1,
+            started_ms: saccade_core::budget_ledger::now_ms(),
+            outcome: "reserved".into(),
+        };
+        for _ in 0..4 {
+            ledger.reserve(&first, attempt(), false).unwrap();
+        }
+        std::fs::write(&project, "budget_calls = 8\nprofile = 'ci'\n").unwrap();
+        let (_, edited) = project_policy(&case, &roots).unwrap();
+        assert_eq!(first[0].id, edited[0].id);
+        assert!(ledger.reserve(&edited, attempt(), false).is_err());
+        assert_eq!(ledger.used(&first[0].id).unwrap(), 4);
     }
 }
-#[cfg(feature = "mcp")]
-pub(crate) use bindings::{call, schemas};
