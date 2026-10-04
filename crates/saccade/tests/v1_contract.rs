@@ -36,8 +36,9 @@ fn validate(schema: &Value, v: &Value) {
 }
 
 fn schema(name: &str) -> Value {
-    let path = Path::new(env!("CARGO_MANIFEST_DIR"))
-        .join(format!("../../schemas/saccade-{name}.v1.schema.json"));
+    let path = Path::new(env!("CARGO_MANIFEST_DIR")).join(format!(
+        "../saccade-core/schemas/saccade-{name}.v1.schema.json"
+    ));
     serde_json::from_str(&std::fs::read_to_string(path).unwrap()).unwrap()
 }
 

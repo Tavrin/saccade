@@ -193,7 +193,7 @@ declared regions means contrast was not checked, explicitly reported.
 
 AI region assist is off by default. **Only `--suggest-regions`** sends 16 coarse
 4x4 crops/image through judge's existing Gemini vision chain from
-`examples/panel.toml`, with the existing provider/retry/key policy. Only
+`crates/saccade-core/examples/panel.toml`, with the existing provider/retry/key policy. Only
 `gemini.env`'s `SACCADE_GEMINI_API_KEY` in `~/.config/saccade` or `--keys-dir`
 is read. No ambient key, unrelated project .env, shell or automatic network is
 used. Closed `text/ui/none/abstain` answers become coarse boxes tagged
@@ -213,8 +213,8 @@ shows its static frames and heatmap; a11y has simulation selection, finding
 boxes, heatmaps, confirmed contrast checks and unconfirmed proposals. Reports
 never automatically animate synthetic flashing sequences.
 
-Schemas are `schemas/saccade-safety.v1.schema.json` and
-`schemas/saccade-a11y.v1.schema.json`. `--json` prints the full report including
+Schemas are `crates/saccade-core/schemas/saccade-safety.v1.schema.json` and
+`crates/saccade-core/schemas/saccade-a11y.v1.schema.json`. `--json` prints the full report including
 the disclaimer and threshold verification notes. `--junit` emits failures only
 for FAIL findings; WARN stays a passing testcase with explanatory system-out.
 Exit 0 = PASS/WARN, 1 = pre-check FAIL, 2 = usage/config/IO/tool error. MCP tools

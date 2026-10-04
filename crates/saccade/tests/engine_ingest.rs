@@ -66,7 +66,7 @@ fn unreal_manifest_rejects_parent_absolute_and_symlink_escape() {
     image(&root.join("inside.png"), 220);
     #[cfg(unix)]
     std::os::unix::fs::symlink(&outside, root.join("link.png")).unwrap();
-    let paths = vec![
+    let paths = [
         "../outside.png".to_string(),
         outside.to_string_lossy().into_owned(),
     ];

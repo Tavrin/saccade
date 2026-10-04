@@ -12,7 +12,10 @@ fn shared_cli_mcp_and_provider_contracts_validate_against_the_same_schema() {
     let root = Path::new(env!("CARGO_MANIFEST_DIR")).join("../..");
     let fixtures = root.join("crates/saccade-core/tests/fixtures/evidence");
     let schema: Value = serde_json::from_str(
-        &std::fs::read_to_string(root.join("schemas/saccade-evidence.v1.schema.json")).unwrap(),
+        &std::fs::read_to_string(
+            root.join("crates/saccade-core/schemas/saccade-evidence.v1.schema.json"),
+        )
+        .unwrap(),
     )
     .unwrap();
     let validator = jsonschema::validator_for(&schema).unwrap();
@@ -53,9 +56,10 @@ fn shared_cli_mcp_and_provider_contracts_validate_against_the_same_schema() {
     ] {
         let body: Value =
             serde_json::from_slice(&std::fs::read(fixtures.join(file)).unwrap()).unwrap();
-        let schema: Value =
-            serde_json::from_slice(&std::fs::read(root.join("schemas").join(schema)).unwrap())
-                .unwrap();
+        let schema: Value = serde_json::from_slice(
+            &std::fs::read(root.join("crates/saccade-core/schemas").join(schema)).unwrap(),
+        )
+        .unwrap();
         jsonschema::validator_for(&schema)
             .unwrap()
             .validate(&body)

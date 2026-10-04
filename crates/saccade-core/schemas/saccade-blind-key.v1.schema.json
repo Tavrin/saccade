@@ -1,0 +1,84 @@
+{
+  "$id": "https://github.com/Tavrin/saccade/crates/saccade-core/schemas/saccade-blind-key.v1.schema.json",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "description": "The mapping from a blind view's neutral labels (`P1`, `P2`, ...) to the true\ndirectory labels, per image set (every set shuffles its own panes). Never\nembedded in the page.",
+  "properties": {
+    "dirs": {
+      "default": [],
+      "description": "Input paths relative to the viewer directory, absolute only by opt-in.",
+      "items": {
+        "type": "string"
+      },
+      "type": "array"
+    },
+    "hashes": {
+      "additionalProperties": {
+        "items": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "type": "array"
+      },
+      "description": "Original content hashes in directory order; never in anonymous exports.",
+      "type": "object"
+    },
+    "labels": {
+      "description": "True labels, in directory order.",
+      "items": {
+        "type": "string"
+      },
+      "type": "array"
+    },
+    "names": {
+      "additionalProperties": {
+        "type": "string"
+      },
+      "description": "Anonymous entry IDs to original names; private and absent in old keys.",
+      "type": "object"
+    },
+    "schema": {
+      "description": "Always [`BLIND_KEY_SCHEMA`].",
+      "type": "string"
+    },
+    "seed": {
+      "description": "The page's random token (`ViewModel::seed`); must match the decisions file.",
+      "format": "uint64",
+      "minimum": 0,
+      "type": "integer"
+    },
+    "sets": {
+      "additionalProperties": {
+        "items": {
+          "type": "string"
+        },
+        "type": "array"
+      },
+      "default": {},
+      "description": "Per image set, the true label of each pane as displayed: entry `n - 1`\nis the label behind the set's neutral label `P<n>`.",
+      "type": "object"
+    },
+    "shuffle_seed": {
+      "default": 0,
+      "description": "The seed the panes were shuffled with (`--seed` reproduces the view).",
+      "format": "uint64",
+      "minimum": 0,
+      "type": "integer"
+    },
+    "view_dir": {
+      "description": "Viewer directory relative to the key file, anchoring the recorded dirs.",
+      "type": [
+        "string",
+        "null"
+      ]
+    }
+  },
+  "required": [
+    "schema",
+    "seed",
+    "labels"
+  ],
+  "title": "BlindKey",
+  "type": "object"
+}

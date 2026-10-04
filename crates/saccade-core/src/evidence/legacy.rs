@@ -14,139 +14,139 @@ use std::path::Path;
 pub const HISTORICAL_SCHEMAS: &[(&str, &str)] = &[
     (
         "saccade-a11y.v1",
-        include_str!("../../../../schemas/saccade-a11y.v1.schema.json"),
+        include_str!("../../schemas/saccade-a11y.v1.schema.json"),
     ),
     (
         "saccade-ablate.v1",
-        include_str!("../../../../schemas/saccade-ablate.v1.schema.json"),
+        include_str!("../../schemas/saccade-ablate.v1.schema.json"),
     ),
     (
         "saccade-approve.v1",
-        include_str!("../../../../schemas/saccade-approve.v1.schema.json"),
+        include_str!("../../schemas/saccade-approve.v1.schema.json"),
     ),
     (
         "saccade-ask-result.v1",
-        include_str!("../../../../schemas/saccade-ask-result.v1.schema.json"),
+        include_str!("../../schemas/saccade-ask-result.v1.schema.json"),
     ),
     (
         "saccade-bisect.v1",
-        include_str!("../../../../schemas/saccade-bisect.v1.schema.json"),
+        include_str!("../../schemas/saccade-bisect.v1.schema.json"),
     ),
     (
         "saccade-blind-key.v1",
-        include_str!("../../../../schemas/saccade-blind-key.v1.schema.json"),
+        include_str!("../../schemas/saccade-blind-key.v1.schema.json"),
     ),
     (
         "saccade-calibration.v1",
-        include_str!("../../../../schemas/saccade-calibration.v1.schema.json"),
+        include_str!("../../schemas/saccade-calibration.v1.schema.json"),
     ),
     (
         "saccade-decide-result.v1",
-        include_str!("../../../../schemas/saccade-decide-result.v1.schema.json"),
+        include_str!("../../schemas/saccade-decide-result.v1.schema.json"),
     ),
     (
         "saccade-decision-request.v1",
-        include_str!("../../../../schemas/saccade-decision-request.v1.schema.json"),
+        include_str!("../../schemas/saccade-decision-request.v1.schema.json"),
     ),
     (
         "saccade-decisions.v1",
-        include_str!("../../../../schemas/saccade-decisions.v1.schema.json"),
+        include_str!("../../schemas/saccade-decisions.v1.schema.json"),
     ),
     (
         "saccade-entries.v1",
-        include_str!("../../../../schemas/saccade-entries.v1.schema.json"),
+        include_str!("../../schemas/saccade-entries.v1.schema.json"),
     ),
     (
         "saccade-error.v1",
-        include_str!("../../../../schemas/saccade-error.v1.schema.json"),
+        include_str!("../../schemas/saccade-error.v1.schema.json"),
     ),
     (
         "saccade-explain-blind-key.v1",
-        include_str!("../../../../schemas/saccade-explain-blind-key.v1.schema.json"),
+        include_str!("../../schemas/saccade-explain-blind-key.v1.schema.json"),
     ),
     (
         "saccade-explain-result.v1",
-        include_str!("../../../../schemas/saccade-explain-result.v1.schema.json"),
+        include_str!("../../schemas/saccade-explain-result.v1.schema.json"),
     ),
     (
         "saccade-explain.v1",
-        include_str!("../../../../schemas/saccade-explain.v1.schema.json"),
+        include_str!("../../schemas/saccade-explain.v1.schema.json"),
     ),
     (
         "saccade-inbox-item.v1",
-        include_str!("../../../../schemas/saccade-inbox-item.v1.schema.json"),
+        include_str!("../../schemas/saccade-inbox-item.v1.schema.json"),
     ),
     (
         "saccade-judge-bench.v1",
-        include_str!("../../../../schemas/saccade-judge-bench.v1.schema.json"),
+        include_str!("../../schemas/saccade-judge-bench.v1.schema.json"),
     ),
     (
         "saccade-judge-selftest.v1",
-        include_str!("../../../../schemas/saccade-judge-selftest.v1.schema.json"),
+        include_str!("../../schemas/saccade-judge-selftest.v1.schema.json"),
     ),
     (
         "saccade-judge-vote-api.v1",
-        include_str!("../../../../schemas/saccade-judge-vote-api.v1.schema.json"),
+        include_str!("../../schemas/saccade-judge-vote-api.v1.schema.json"),
     ),
     (
         "saccade-judge-votes.v1",
-        include_str!("../../../../schemas/saccade-judge-votes.v1.schema.json"),
+        include_str!("../../schemas/saccade-judge-votes.v1.schema.json"),
     ),
     (
         "saccade-judge.v1",
-        include_str!("../../../../schemas/saccade-judge.v1.schema.json"),
+        include_str!("../../schemas/saccade-judge.v1.schema.json"),
     ),
     (
         "saccade-labels.v1",
-        include_str!("../../../../schemas/saccade-labels.v1.schema.json"),
+        include_str!("../../schemas/saccade-labels.v1.schema.json"),
     ),
     (
         "saccade-noise.v1",
-        include_str!("../../../../schemas/saccade-noise.v1.schema.json"),
+        include_str!("../../schemas/saccade-noise.v1.schema.json"),
     ),
     (
         "saccade-perf-diff.v1",
-        include_str!("../../../../schemas/saccade-perf-diff.v1.schema.json"),
+        include_str!("../../schemas/saccade-perf-diff.v1.schema.json"),
     ),
     (
         "saccade-perf.v1",
-        include_str!("../../../../schemas/saccade-perf.v1.schema.json"),
+        include_str!("../../schemas/saccade-perf.v1.schema.json"),
     ),
     (
         "saccade-rank.v1",
-        include_str!("../../../../schemas/saccade-rank.v1.schema.json"),
+        include_str!("../../schemas/saccade-rank.v1.schema.json"),
     ),
     (
         "saccade-report.v1",
-        include_str!("../../../../schemas/saccade-report.v1.schema.json"),
+        include_str!("../../schemas/saccade-report.v1.schema.json"),
     ),
     (
         "saccade-result.v1",
-        include_str!("../../../../schemas/saccade-result.v1.schema.json"),
+        include_str!("../../schemas/saccade-result.v1.schema.json"),
     ),
     (
         "saccade-review.v1",
-        include_str!("../../../../schemas/saccade-review.v1.schema.json"),
+        include_str!("../../schemas/saccade-review.v1.schema.json"),
     ),
     (
         "saccade-runs.v1",
-        include_str!("../../../../schemas/saccade-runs.v1.schema.json"),
+        include_str!("../../schemas/saccade-runs.v1.schema.json"),
     ),
     (
         "saccade-safety.v1",
-        include_str!("../../../../schemas/saccade-safety.v1.schema.json"),
+        include_str!("../../schemas/saccade-safety.v1.schema.json"),
     ),
     (
         "saccade-sequence.v1",
-        include_str!("../../../../schemas/saccade-sequence.v1.schema.json"),
+        include_str!("../../schemas/saccade-sequence.v1.schema.json"),
     ),
     (
         "saccade-summary.v1",
-        include_str!("../../../../schemas/saccade-summary.v1.schema.json"),
+        include_str!("../../schemas/saccade-summary.v1.schema.json"),
     ),
     (
         "saccade-view-summary.v1",
-        include_str!("../../../../schemas/saccade-view-summary.v1.schema.json"),
+        include_str!("../../schemas/saccade-view-summary.v1.schema.json"),
     ),
 ];
 

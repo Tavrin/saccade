@@ -28,6 +28,7 @@ run all-features-build cargo build -p saccade --all-features --locked
 run all-features-tests cargo test -p saccade --all-features --locked
 run historical-readers cargo test -p saccade-core --test evidence_contracts --locked historical_
 run package-inventory python3 scripts/check-packages.py
+run packaged-workspace cargo package --workspace --all-features --allow-dirty --locked
 notices="$(mktemp)"
 run dependency-notices python3 scripts/generate-third-party-notices.py "$notices"
 rm -f "$notices"
@@ -38,7 +39,7 @@ else
   failed=1
 fi
 run shellcheck shellcheck scripts/release-check.sh scripts/run-showcases.sh
-run showcase-binary cargo build --release -p saccade --features prechecks --locked
+run showcase-binary cargo build --release -p saccade --all-features --locked
 target_dir="$(cargo metadata --locked --no-deps --format-version 1 | python3 -c 'import json,sys; print(json.load(sys.stdin)["target_directory"])')"
 binary="$target_dir/release/saccade"
 export PATH="$target_dir/release:$PATH"

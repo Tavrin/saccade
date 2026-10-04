@@ -497,7 +497,7 @@ fn proposals(image: &RgbImage, keys_dir: Option<PathBuf>) -> Result<Vec<Proposal
     use crate::judge_provider::{AskRequest, Backend, Keys, LiveBackend, Prompt, Retry};
     // Parse the repo's panel, so fallback models and key policy cannot drift
     // into an independently maintained a11y provider implementation.
-    let panel = crate::judge::Panel::parse(include_str!("../../../examples/panel.toml"))?;
+    let panel = crate::judge::Panel::parse(include_str!("../examples/panel.toml"))?;
     let spec = panel
         .judges
         .iter()

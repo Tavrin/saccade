@@ -2,10 +2,10 @@
 
 Generated from compiled capabilities and `--help`; do not edit by hand.
 
-Generation: `python3 scripts/gen-docs.py --saccade target/release/saccade`.
-Use the official default features plus `prechecks` to include every supported operation.
+Generation: `cargo build --release -p saccade --all-features`, then `python3 scripts/gen-docs.py --saccade target/release/saccade`.
+The all-features binary includes every supported operation.
 
-Compiled features: `ai`, `evaluation`, `graphics`, `mcp`, `parallel`, `workbench`.
+Compiled features: `ai`, `evaluation`, `graphics`, `mcp`, `parallel`, `prechecks`, `schema`, `workbench`.
 
 Exit 1 means a failed image measurement/evaluation gate or located divergence.
 Exit 0 for compare/identity means no image regression; inspect `performance` for qualification.
@@ -1032,6 +1032,8 @@ Commands:
   sequence  Compare numbered colour frames by sorted index and measure added flicker
   rank      Rank candidate directories against one common FLIP reference
   bisect    Find the first diverging run or revision in an ordered series
+  safety    Photosensitivity PRE-CHECK only; not certification or formal compliance
+  a11y      Accessibility PRE-CHECK only; not certification or formal compliance
 
 Options:
   -h, --help  Print help
@@ -1198,6 +1200,54 @@ Options:
       --out <OUT>              Report directory, separate from inputs [default: bisect-report]
       --json                   Print saccade-bisect.v1 JSON
   -h, --help                   Print help
+
+Global options:
+      --allow-out-near-captures  Silence warnings when --out is next to capture metadata
+      --record-absolute-paths    Opt in to absolute local paths in reports and machine-readable output
+```
+
+## saccade experiment safety
+
+```text
+Photosensitivity PRE-CHECK only; not certification or formal compliance
+
+Usage: saccade experiment safety [OPTIONS] <INPUT>
+
+Arguments:
+  <INPUT>  Numbered frames or mp4/mov/mkv (requires external ffmpeg)
+
+Options:
+      --fps <FPS>            Frame rate override; otherwise metadata, or 60 for frame directories
+      --display <DISPLAY>    WxH@diagonal_inches,distance_metres (default 1920x1080@55,4)
+      --standard <STANDARD>  itu-bt1702 or wcag. PRE-CHECK only, never certification [default: itu-bt1702]
+      --json                 Print full saccade-safety.v1 JSON
+      --out <OUT>            Output directory for JSON, text, HTML, static frames and risk heatmaps [default: safety-report]
+      --junit <JUNIT>        Optional JUnit XML destination
+  -h, --help                 Print help
+
+Global options:
+      --allow-out-near-captures  Silence warnings when --out is next to capture metadata
+      --record-absolute-paths    Opt in to absolute local paths in reports and machine-readable output
+```
+
+## saccade experiment a11y
+
+```text
+Accessibility PRE-CHECK only; not certification or formal compliance
+
+Usage: saccade experiment a11y [OPTIONS] <INPUT>
+
+Arguments:
+  <INPUT>  Opaque sRGB image or image directory
+
+Options:
+      --config <CONFIG>      Explicit saccade.toml with [[region]] kind="text" or "ui"
+      --json                 Print full saccade-a11y.v1 JSON
+      --out <OUT>            Output directory for JSON, text, HTML and simulation/heatmap artifacts [default: a11y-report]
+      --junit <JUNIT>        Optional JUnit XML destination
+      --suggest-regions      Explicitly upload 16 crops/image to Gemini for unconfirmed region proposals
+      --keys-dir <KEYS_DIR>  Judge key policy: gemini.env/SACCADE_GEMINI_API_KEY, never ambient keys
+  -h, --help                 Print help
 
 Global options:
       --allow-out-near-captures  Silence warnings when --out is next to capture metadata

@@ -181,7 +181,7 @@ fn reserved_automation_has_no_cli_writer_or_approval_path() {
     let schema: serde_json::Value = serde_json::from_slice(
         &std::fs::read(
             Path::new(env!("CARGO_MANIFEST_DIR"))
-                .join("../../schemas/saccade-evidence.v1.schema.json"),
+                .join("../saccade-core/schemas/saccade-evidence.v1.schema.json"),
         )
         .unwrap(),
     )

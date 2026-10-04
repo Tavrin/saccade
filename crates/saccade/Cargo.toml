@@ -1,6 +1,7 @@
 [package]
 name = "saccade"
 description = "Visual-regression CLI for renderers and graphics code, built on NVIDIA FLIP"
+readme = "README.md"
 version.workspace = true
 edition.workspace = true
 rust-version.workspace = true

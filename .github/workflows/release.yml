@@ -28,6 +28,19 @@ env:
   RUSTC_WRAPPER: ''
 
 jobs:
+  package:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          persist-credentials: false
+      - uses: dtolnay/rust-toolchain@7e38f4b43b4db5c8dd498af069a4f6196df1d067 # stable
+        with:
+          toolchain: stable
+      - run: python3 scripts/check-packages.py
+      - run: cargo package --workspace --all-features --locked
+
   build:
     name: build (${{ matrix.target }})
     runs-on: ${{ matrix.os }}
@@ -107,7 +120,7 @@ jobs:
           if-no-files-found: error
 
   assemble:
-    needs: build
+    needs: [build, package]
     runs-on: ubuntu-latest
     steps:
       - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4

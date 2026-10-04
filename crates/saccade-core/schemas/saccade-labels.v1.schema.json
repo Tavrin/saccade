@@ -1,0 +1,189 @@
+{
+  "$defs": {
+    "Hotspot": {
+      "description": "One concentration of FLIP error on the frame, in pixels of the compared\nimages. Masked pixels never count.",
+      "properties": {
+        "area_frac": {
+          "description": "`area_px` as a fraction of the frame.",
+          "format": "double",
+          "type": "number"
+        },
+        "area_px": {
+          "description": "Number of pixels above the hotspot threshold that make up the hotspot.",
+          "format": "uint64",
+          "minimum": 0,
+          "type": "integer"
+        },
+        "max_flip": {
+          "description": "Largest FLIP error inside `rect_px`.",
+          "format": "double",
+          "type": "number"
+        },
+        "mean_flip": {
+          "description": "Mean FLIP error over the unmasked pixels inside `rect_px`.",
+          "format": "double",
+          "type": "number"
+        },
+        "pixel_runs": {
+          "description": "Exact row-major runs of pixels in this component: [start, length].\nEmpty only for reports produced before exact-mask support.",
+          "items": {
+            "items": {
+              "format": "uint32",
+              "minimum": 0,
+              "type": "integer"
+            },
+            "maxItems": 2,
+            "minItems": 2,
+            "type": "array"
+          },
+          "type": "array"
+        },
+        "position": {
+          "description": "Coarse 3x3 position of the box centre: `top-left`, `top-center`,\n`top-right`, `middle-left`, `center`, `middle-right`, `bottom-left`,\n`bottom-center`, `bottom-right`.",
+          "type": "string"
+        },
+        "rect_frac": {
+          "description": "The same box as fractions of the frame, `[x, y, w, h]`.",
+          "items": {
+            "format": "double",
+            "type": "number"
+          },
+          "maxItems": 4,
+          "minItems": 4,
+          "type": "array"
+        },
+        "rect_px": {
+          "description": "Bounding box `[x, y, w, h]` in pixels.",
+          "items": {
+            "format": "uint32",
+            "minimum": 0,
+            "type": "integer"
+          },
+          "maxItems": 4,
+          "minItems": 4,
+          "type": "array"
+        },
+        "share_of_total_error": {
+          "description": "Summed error of the hotspot's pixels over the summed error of every\nunmasked pixel of the frame, in `[0, 1]`.",
+          "format": "double",
+          "type": "number"
+        }
+      },
+      "required": [
+        "rect_px",
+        "rect_frac",
+        "area_px",
+        "area_frac",
+        "mean_flip",
+        "max_flip",
+        "share_of_total_error",
+        "position"
+      ],
+      "type": "object"
+    },
+    "Label": {
+      "additionalProperties": false,
+      "description": "One human final label, usable without a live server.",
+      "properties": {
+        "answer": {
+          "description": "Human final answer in stable order (a/b for preference).",
+          "type": "string"
+        },
+        "entry": {
+          "description": "Entry name.",
+          "type": "string"
+        },
+        "evidence_hash": {
+          "description": "Hash of the exact evidence this final is about.",
+          "type": "string"
+        },
+        "hotspots": {
+          "description": "Crop selection.",
+          "items": {
+            "$ref": "#/$defs/Hotspot"
+          },
+          "type": "array"
+        },
+        "images": {
+          "description": "Reference and candidate paths, relative to the labels document.",
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "intent": {
+          "description": "Intent or rubric.",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "provenance": {
+          "description": "Human identity, timestamp and source file(s).",
+          "items": true,
+          "type": "array"
+        },
+        "question": {
+          "description": "Bounded question name.",
+          "type": "string"
+        },
+        "report": {
+          "description": "Report path, relative to the labels document, when available.",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "sha256": {
+          "description": "SHA-256 of image file bytes in the same order.",
+          "items": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "type": "array"
+        },
+        "state": {
+          "description": "Encoded evidence in stable order."
+        }
+      },
+      "required": [
+        "entry",
+        "question",
+        "answer",
+        "evidence_hash",
+        "state",
+        "images",
+        "sha256",
+        "hotspots",
+        "provenance"
+      ],
+      "type": "object"
+    }
+  },
+  "$id": "https://github.com/Tavrin/saccade/crates/saccade-core/schemas/saccade-labels.v1.schema.json",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "description": "Deduplicated label set.",
+  "properties": {
+    "items": {
+      "description": "Evidence-bound human finals.",
+      "items": {
+        "$ref": "#/$defs/Label"
+      },
+      "type": "array"
+    },
+    "schema": {
+      "const": "saccade-labels.v1",
+      "description": "Always saccade-labels.v1.",
+      "type": "string"
+    }
+  },
+  "required": [
+    "schema",
+    "items"
+  ],
+  "title": "Labels",
+  "type": "object"
+}

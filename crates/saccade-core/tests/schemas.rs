@@ -14,7 +14,7 @@ use saccade_core::explain::{ExplainBlindKey, ExplainPack};
 use saccade_core::report::Report;
 use saccade_core::view::{BlindKey, Decisions};
 
-const BASE: &str = "https://github.com/Tavrin/saccade/schemas";
+const BASE: &str = "https://github.com/Tavrin/saccade/crates/saccade-core/schemas";
 
 fn generated<T: schemars::JsonSchema>(file: &str) -> String {
     let schema = schemars::schema_for!(T);
@@ -48,7 +48,7 @@ fn generated<T: schemars::JsonSchema>(file: &str) -> String {
 
 #[test]
 fn committed_schemas_match_the_rust_types() {
-    let dir = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../schemas");
+    let dir = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("schemas");
     let update = std::env::var_os("UPDATE_SCHEMAS").is_some();
     let all = [
         (

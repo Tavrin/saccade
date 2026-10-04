@@ -1,0 +1,138 @@
+{
+  "$defs": {
+    "Frame": {
+      "additionalProperties": false,
+      "properties": {
+        "samples": {
+          "format": "uint64",
+          "minimum": 0,
+          "type": "integer"
+        },
+        "stat": {
+          "type": "string"
+        },
+        "value": {
+          "format": "double",
+          "type": "number"
+        }
+      },
+      "required": [
+        "value",
+        "samples",
+        "stat"
+      ],
+      "type": "object"
+    },
+    "Kind": {
+      "enum": [
+        "pass",
+        "gap",
+        "scope"
+      ],
+      "type": "string"
+    },
+    "Spread": {
+      "additionalProperties": false,
+      "properties": {
+        "max": {
+          "format": "double",
+          "type": "number"
+        },
+        "min": {
+          "format": "double",
+          "type": "number"
+        }
+      },
+      "required": [
+        "min",
+        "max"
+      ],
+      "type": "object"
+    },
+    "Term": {
+      "additionalProperties": false,
+      "properties": {
+        "id": {
+          "type": "string"
+        },
+        "kind": {
+          "$ref": "#/$defs/Kind"
+        },
+        "label": {
+          "default": null,
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "parent": {
+          "default": null,
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "spread": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Spread"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "value": {
+          "format": "double",
+          "type": "number"
+        }
+      },
+      "required": [
+        "id",
+        "kind",
+        "value"
+      ],
+      "type": "object"
+    }
+  },
+  "$id": "https://github.com/Tavrin/saccade/crates/saccade-core/schemas/saccade-perf.v1.schema.json",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "properties": {
+    "counters": {
+      "additionalProperties": {
+        "additionalProperties": {
+          "format": "double",
+          "type": "number"
+        },
+        "type": "object"
+      },
+      "type": "object"
+    },
+    "frame": {
+      "$ref": "#/$defs/Frame"
+    },
+    "schema": {
+      "type": "string"
+    },
+    "terms": {
+      "items": {
+        "$ref": "#/$defs/Term"
+      },
+      "type": "array"
+    },
+    "unit": {
+      "type": "string"
+    }
+  },
+  "required": [
+    "schema",
+    "unit",
+    "frame",
+    "terms",
+    "counters"
+  ],
+  "title": "CapturePerf",
+  "type": "object"
+}

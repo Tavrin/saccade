@@ -1,0 +1,2384 @@
+{
+  "$defs": {
+    "ActionArguments": {
+      "additionalProperties": false,
+      "description": "Typed local action arguments; no provider-generated arbitrary payload.",
+      "properties": {
+        "artifact": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/ArtifactRef"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "Existing hashed artifact."
+        },
+        "entry": {
+          "description": "Selected entry.",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "include_images": {
+          "description": "Explicit image request; false by default in summaries.",
+          "type": "boolean"
+        },
+        "operation": {
+          "description": "Discriminator required by the local tool's input contract.",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "request_id": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Digest"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "Exact question instance when relevant."
+        },
+        "retry_unix_ms": {
+          "description": "Retry time for retry_at.",
+          "format": "uint64",
+          "minimum": 0,
+          "type": [
+            "integer",
+            "null"
+          ]
+        }
+      },
+      "type": "object"
+    },
+    "ActionKind": {
+      "description": "Closed deterministic next-action catalog.",
+      "oneOf": [
+        {
+          "const": "inspect_evidence",
+          "description": "Inspect existing evidence.",
+          "type": "string"
+        },
+        {
+          "const": "collect_missing_evidence",
+          "description": "Collect missing measurements.",
+          "type": "string"
+        },
+        {
+          "const": "repair_capture",
+          "description": "Fix a capture's validity.",
+          "type": "string"
+        },
+        {
+          "const": "request_vision",
+          "description": "Obtain attributed visual observations.",
+          "type": "string"
+        },
+        {
+          "const": "request_human",
+          "description": "Ask a person to resolve the case.",
+          "type": "string"
+        },
+        {
+          "const": "retry_at",
+          "description": "Retry at a specified time.",
+          "type": "string"
+        },
+        {
+          "const": "prepare_baseline_change",
+          "description": "Prepare an immutable reviewed update manifest.",
+          "type": "string"
+        },
+        {
+          "const": "none",
+          "description": "No executable recommendation.",
+          "type": "string"
+        }
+      ]
+    },
+    "Aggregate": {
+      "additionalProperties": false,
+      "description": "Fact references retain producer aggregation semantics rather than summing scopes.",
+      "properties": {
+        "members": {
+          "description": "Ordered constituent fact IDs.",
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "semantics": {
+          "$ref": "#/$defs/Aggregation",
+          "description": "Producer-declared relationship; validation does not manufacture a frame total."
+        }
+      },
+      "required": [
+        "members",
+        "semantics"
+      ],
+      "type": "object"
+    },
+    "Aggregation": {
+      "description": "Closed aggregation relationships.",
+      "oneOf": [
+        {
+          "const": "ordered",
+          "description": "Ordered paired findings, without addition.",
+          "type": "string"
+        },
+        {
+          "const": "additive",
+          "description": "Producer validated additive terms.",
+          "type": "string"
+        },
+        {
+          "const": "non_additive",
+          "description": "Values cannot be added, for example unrelated distribution medians.",
+          "type": "string"
+        },
+        {
+          "const": "nested",
+          "description": "Nested scopes overlap and cannot establish additive frame time.",
+          "type": "string"
+        }
+      ]
+    },
+    "AppliedEntry": {
+      "additionalProperties": false,
+      "description": "One applied update, preserving before/after missingness for additions/deletions.",
+      "properties": {
+        "after": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Digest"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "Baseline after applying, null for an explicitly approved deletion."
+        },
+        "before": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Digest"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "Baseline before applying, null for an addition."
+        },
+        "entry_id": {
+          "description": "Selected report entry.",
+          "type": "string"
+        }
+      },
+      "required": [
+        "entry_id"
+      ],
+      "type": "object"
+    },
+    "ArtifactRef": {
+      "additionalProperties": false,
+      "description": "Exact local content reference. Paths are provenance, not semantic identity.",
+      "properties": {
+        "path": {
+          "description": "Relative to its containing document by default, using `/` separators.",
+          "type": "string"
+        },
+        "sha256": {
+          "$ref": "#/$defs/Digest",
+          "description": "Hash of exact file bytes."
+        }
+      },
+      "required": [
+        "path",
+        "sha256"
+      ],
+      "type": "object"
+    },
+    "Authority": {
+      "description": "Authority reported by canonical readers. Automated authority is reserved for\nP5; neither a policy identifier nor evidence equality is human attestation.",
+      "oneOf": [
+        {
+          "additionalProperties": false,
+          "description": "Workbench-attested human authority, subject to trusted session verification.",
+          "properties": {
+            "level": {
+              "const": "human",
+              "type": "string"
+            }
+          },
+          "required": [
+            "level"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "description": "Unattested explicit CLI operation.",
+          "properties": {
+            "level": {
+              "const": "cli",
+              "type": "string"
+            }
+          },
+          "required": [
+            "level"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "description": "Reserved policy authority, distinct from a human disposition.",
+          "properties": {
+            "evidence_digest": {
+              "$ref": "#/$defs/Digest",
+              "description": "Exact evidence case evaluated by the policy."
+            },
+            "level": {
+              "const": "automated",
+              "type": "string"
+            },
+            "policy_id": {
+              "description": "Policy which authorized the record in a future producer.",
+              "type": "string"
+            }
+          },
+          "required": [
+            "level",
+            "policy_id",
+            "evidence_digest"
+          ],
+          "type": "object"
+        }
+      ]
+    },
+    "Availability": {
+      "description": "Missing and failed observations are distinct from an available zero or abstention.",
+      "oneOf": [
+        {
+          "additionalProperties": false,
+          "description": "Evidence was supplied.",
+          "properties": {
+            "availability": {
+              "const": "available",
+              "type": "string"
+            },
+            "value": {
+              "$ref": "#/$defs/NativeSamples",
+              "description": "Supplied value."
+            }
+          },
+          "required": [
+            "availability",
+            "value"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "description": "No measurement or response was supplied.",
+          "properties": {
+            "availability": {
+              "const": "missing",
+              "type": "string"
+            },
+            "reason": {
+              "description": "What is needed.",
+              "type": "string"
+            }
+          },
+          "required": [
+            "availability",
+            "reason"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "description": "An attempted computation or response failed.",
+          "properties": {
+            "availability": {
+              "const": "unavailable",
+              "type": "string"
+            },
+            "reason": {
+              "description": "Failure without invented evidence.",
+              "type": "string"
+            }
+          },
+          "required": [
+            "availability",
+            "reason"
+          ],
+          "type": "object"
+        }
+      ]
+    },
+    "Availability2": {
+      "description": "Missing and failed observations are distinct from an available zero or abstention.",
+      "oneOf": [
+        {
+          "additionalProperties": false,
+          "description": "Evidence was supplied.",
+          "properties": {
+            "availability": {
+              "const": "available",
+              "type": "string"
+            },
+            "value": {
+              "additionalProperties": true,
+              "description": "Supplied value.",
+              "type": "object"
+            }
+          },
+          "required": [
+            "availability",
+            "value"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "description": "No measurement or response was supplied.",
+          "properties": {
+            "availability": {
+              "const": "missing",
+              "type": "string"
+            },
+            "reason": {
+              "description": "What is needed.",
+              "type": "string"
+            }
+          },
+          "required": [
+            "availability",
+            "reason"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "description": "An attempted computation or response failed.",
+          "properties": {
+            "availability": {
+              "const": "unavailable",
+              "type": "string"
+            },
+            "reason": {
+              "description": "Failure without invented evidence.",
+              "type": "string"
+            }
+          },
+          "required": [
+            "availability",
+            "reason"
+          ],
+          "type": "object"
+        }
+      ]
+    },
+    "Availability3": {
+      "description": "Missing and failed observations are distinct from an available zero or abstention.",
+      "oneOf": [
+        {
+          "additionalProperties": false,
+          "description": "Evidence was supplied.",
+          "properties": {
+            "availability": {
+              "const": "available",
+              "type": "string"
+            },
+            "value": {
+              "$ref": "#/$defs/Digest",
+              "description": "Supplied value."
+            }
+          },
+          "required": [
+            "availability",
+            "value"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "description": "No measurement or response was supplied.",
+          "properties": {
+            "availability": {
+              "const": "missing",
+              "type": "string"
+            },
+            "reason": {
+              "description": "What is needed.",
+              "type": "string"
+            }
+          },
+          "required": [
+            "availability",
+            "reason"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "description": "An attempted computation or response failed.",
+          "properties": {
+            "availability": {
+              "const": "unavailable",
+              "type": "string"
+            },
+            "reason": {
+              "description": "Failure without invented evidence.",
+              "type": "string"
+            }
+          },
+          "required": [
+            "availability",
+            "reason"
+          ],
+          "type": "object"
+        }
+      ]
+    },
+    "Availability4": {
+      "description": "Missing and failed observations are distinct from an available zero or abstention.",
+      "oneOf": [
+        {
+          "additionalProperties": false,
+          "description": "Evidence was supplied.",
+          "properties": {
+            "availability": {
+              "const": "available",
+              "type": "string"
+            },
+            "value": {
+              "$ref": "#/$defs/FactValue",
+              "description": "Supplied value."
+            }
+          },
+          "required": [
+            "availability",
+            "value"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "description": "No measurement or response was supplied.",
+          "properties": {
+            "availability": {
+              "const": "missing",
+              "type": "string"
+            },
+            "reason": {
+              "description": "What is needed.",
+              "type": "string"
+            }
+          },
+          "required": [
+            "availability",
+            "reason"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "description": "An attempted computation or response failed.",
+          "properties": {
+            "availability": {
+              "const": "unavailable",
+              "type": "string"
+            },
+            "reason": {
+              "description": "Failure without invented evidence.",
+              "type": "string"
+            }
+          },
+          "required": [
+            "availability",
+            "reason"
+          ],
+          "type": "object"
+        }
+      ]
+    },
+    "Availability5": {
+      "description": "Missing and failed observations are distinct from an available zero or abstention.",
+      "oneOf": [
+        {
+          "additionalProperties": false,
+          "description": "Evidence was supplied.",
+          "properties": {
+            "availability": {
+              "const": "available",
+              "type": "string"
+            },
+            "value": {
+              "$ref": "#/$defs/Intent",
+              "description": "Supplied value."
+            }
+          },
+          "required": [
+            "availability",
+            "value"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "description": "No measurement or response was supplied.",
+          "properties": {
+            "availability": {
+              "const": "missing",
+              "type": "string"
+            },
+            "reason": {
+              "description": "What is needed.",
+              "type": "string"
+            }
+          },
+          "required": [
+            "availability",
+            "reason"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "description": "An attempted computation or response failed.",
+          "properties": {
+            "availability": {
+              "const": "unavailable",
+              "type": "string"
+            },
+            "reason": {
+              "description": "Failure without invented evidence.",
+              "type": "string"
+            }
+          },
+          "required": [
+            "availability",
+            "reason"
+          ],
+          "type": "object"
+        }
+      ]
+    },
+    "Availability6": {
+      "description": "Missing and failed observations are distinct from an available zero or abstention.",
+      "oneOf": [
+        {
+          "additionalProperties": false,
+          "description": "Evidence was supplied.",
+          "properties": {
+            "availability": {
+              "const": "available",
+              "type": "string"
+            },
+            "value": {
+              "description": "Supplied value.",
+              "type": "boolean"
+            }
+          },
+          "required": [
+            "availability",
+            "value"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "description": "No measurement or response was supplied.",
+          "properties": {
+            "availability": {
+              "const": "missing",
+              "type": "string"
+            },
+            "reason": {
+              "description": "What is needed.",
+              "type": "string"
+            }
+          },
+          "required": [
+            "availability",
+            "reason"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "description": "An attempted computation or response failed.",
+          "properties": {
+            "availability": {
+              "const": "unavailable",
+              "type": "string"
+            },
+            "reason": {
+              "description": "Failure without invented evidence.",
+              "type": "string"
+            }
+          },
+          "required": [
+            "availability",
+            "reason"
+          ],
+          "type": "object"
+        }
+      ]
+    },
+    "Channel": {
+      "description": "Application approval channel; providers and MCP cannot issue receipts.",
+      "oneOf": [
+        {
+          "const": "cli",
+          "description": "Explicit CLI operation; no human attestation.",
+          "type": "string"
+        },
+        {
+          "const": "workbench",
+          "description": "Token-gated local workbench session.",
+          "type": "string"
+        }
+      ]
+    },
+    "Comparator": {
+      "description": "Supported computable comparisons.",
+      "oneOf": [
+        {
+          "const": "equal",
+          "description": "Exact equality.",
+          "type": "string"
+        },
+        {
+          "const": "less_or_equal",
+          "description": "At most.",
+          "type": "string"
+        },
+        {
+          "const": "greater_or_equal",
+          "description": "At least.",
+          "type": "string"
+        }
+      ]
+    },
+    "Constraints": {
+      "additionalProperties": false,
+      "description": "Boundaries validated before accepting an answer.",
+      "properties": {
+        "max_reason_chars": {
+          "description": "Maximum explanatory Unicode characters.",
+          "format": "uint",
+          "minimum": 0,
+          "type": "integer"
+        },
+        "required_citations": {
+          "description": "Require fact citations for non-abstaining answers.",
+          "type": "boolean"
+        },
+        "role": {
+          "$ref": "#/$defs/Role",
+          "description": "Always proposal."
+        }
+      },
+      "required": [
+        "role",
+        "required_citations",
+        "max_reason_chars"
+      ],
+      "type": "object"
+    },
+    "Criterion": {
+      "additionalProperties": false,
+      "description": "A computable acceptance criterion rather than an aesthetic score.",
+      "properties": {
+        "comparator": {
+          "$ref": "#/$defs/Comparator",
+          "description": "Closed numerical or equality comparator."
+        },
+        "expected": {
+          "$ref": "#/$defs/FactValue",
+          "description": "Expected value in named units."
+        },
+        "fact_id": {
+          "description": "Referenced measurement/fact.",
+          "type": "string"
+        },
+        "id": {
+          "description": "Stable criterion ID.",
+          "type": "string"
+        },
+        "units": {
+          "description": "Units of the acceptance bound.",
+          "type": "string"
+        }
+      },
+      "required": [
+        "id",
+        "fact_id",
+        "comparator",
+        "expected",
+        "units"
+      ],
+      "type": "object"
+    },
+    "DecisionProposal": {
+      "additionalProperties": false,
+      "description": "Advice with adapter audit identity. No promotion or approval fields exist.",
+      "properties": {
+        "case_id": {
+          "$ref": "#/$defs/Digest",
+          "description": "Underlying case identity."
+        },
+        "proposal_id": {
+          "$ref": "#/$defs/Digest",
+          "description": "Content-derived answer/audit identity."
+        },
+        "provider": {
+          "$ref": "#/$defs/ProviderAudit",
+          "description": "Adapter-assigned identity and payload references."
+        },
+        "request_id": {
+          "$ref": "#/$defs/Digest",
+          "description": "Exact request answered."
+        },
+        "response": {
+          "$ref": "#/$defs/ProviderAnswer",
+          "description": "Validated untrusted answer."
+        }
+      },
+      "required": [
+        "proposal_id",
+        "case_id",
+        "request_id",
+        "response",
+        "provider"
+      ],
+      "type": "object"
+    },
+    "DecisionRequest": {
+      "additionalProperties": false,
+      "description": "Shared CLI/MCP/provider request body; HTTP wrappers remain outside this type.",
+      "properties": {
+        "case_id": {
+          "$ref": "#/$defs/Digest",
+          "description": "Underlying evidence and intent identity."
+        },
+        "constraints": {
+          "$ref": "#/$defs/Constraints",
+          "description": "Answer validation constraints."
+        },
+        "evidence": {
+          "$ref": "#/$defs/RequestEvidence",
+          "description": "Precisely selected evidence."
+        },
+        "policy": {
+          "additionalProperties": true,
+          "description": "Effective routing/egress/decision policy identity inputs, not credentials.",
+          "type": "object"
+        },
+        "question": {
+          "$ref": "#/$defs/Question",
+          "description": "Closed versioned question."
+        },
+        "request_id": {
+          "$ref": "#/$defs/Digest",
+          "description": "Question/evidence/encoding/policy identity."
+        }
+      },
+      "required": [
+        "request_id",
+        "case_id",
+        "question",
+        "evidence",
+        "constraints",
+        "policy"
+      ],
+      "type": "object"
+    },
+    "DeclaredChange": {
+      "additionalProperties": false,
+      "description": "A predeclared permitted intervention. Unchanged keys remain visible.",
+      "properties": {
+        "expected_after": {
+          "description": "Optional expected result."
+        },
+        "expected_before": {
+          "description": "Optional expected values; absent values do not prove an intervention."
+        },
+        "key": {
+          "description": "Capture/configuration key.",
+          "type": "string"
+        },
+        "reason": {
+          "description": "Why this difference is intended.",
+          "type": "string"
+        }
+      },
+      "required": [
+        "key",
+        "reason"
+      ],
+      "type": "object"
+    },
+    "Digest": {
+      "description": "Validated lowercase SHA-256 identity or content hash.",
+      "pattern": "^sha256:[0-9a-f]{64}$",
+      "type": "string"
+    },
+    "Disposition": {
+      "description": "Explicit scoped human disposition.",
+      "oneOf": [
+        {
+          "const": "accept",
+          "description": "Accept reviewed change.",
+          "type": "string"
+        },
+        {
+          "const": "reject",
+          "description": "Reject reviewed change.",
+          "type": "string"
+        },
+        {
+          "const": "needs_work",
+          "description": "Unresolved; requires further work.",
+          "type": "string"
+        },
+        {
+          "const": "tie",
+          "description": "No preference; never acceptance.",
+          "type": "string"
+        }
+      ]
+    },
+    "Fact": {
+      "additionalProperties": false,
+      "description": "Observation with explicit availability, scope and source content.",
+      "properties": {
+        "artifact": {
+          "$ref": "#/$defs/ArtifactRef",
+          "description": "Underlying immutable artifact."
+        },
+        "depends_on_model_observation": {
+          "description": "Model-observation dependency, verified against references.",
+          "type": "boolean"
+        },
+        "id": {
+          "description": "Unique reference within the evidence selection.",
+          "type": "string"
+        },
+        "name": {
+          "description": "Named observation or measurement.",
+          "type": "string"
+        },
+        "observation_refs": {
+          "description": "IDs of observations used for this conclusion.",
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "scope": {
+          "$ref": "#/$defs/Scope",
+          "description": "Named entry, region, pass or scope."
+        },
+        "source": {
+          "$ref": "#/$defs/FactSource",
+          "description": "Measured, declared, observed or inferred."
+        },
+        "source_identity": {
+          "$ref": "#/$defs/Digest",
+          "description": "Source semantics; measured report facts use its semantic digest. Model\nobservations use the actual response content hash, not a model name alone."
+        },
+        "units": {
+          "description": "Units, including explicit dimensionless/category units.",
+          "type": "string"
+        },
+        "value": {
+          "$ref": "#/$defs/Availability4",
+          "description": "Available zero is different from missing evidence."
+        }
+      },
+      "required": [
+        "id",
+        "name",
+        "units",
+        "scope",
+        "source",
+        "artifact",
+        "source_identity",
+        "value",
+        "depends_on_model_observation",
+        "observation_refs"
+      ],
+      "type": "object"
+    },
+    "FactSource": {
+      "description": "Attribution category; declarations and models are never measured facts.",
+      "oneOf": [
+        {
+          "const": "measured",
+          "description": "Computed from files or validated producer data.",
+          "type": "string"
+        },
+        {
+          "const": "declared",
+          "description": "Supplied by a project or reviewer.",
+          "type": "string"
+        },
+        {
+          "const": "model_observation",
+          "description": "Extracted by an attributed vision model.",
+          "type": "string"
+        },
+        {
+          "const": "inference",
+          "description": "A decision model's interpretation.",
+          "type": "string"
+        }
+      ]
+    },
+    "FactValue": {
+      "description": "Typed scalar observations or aggregate references, with no editable metric report copy.",
+      "oneOf": [
+        {
+          "additionalProperties": false,
+          "description": "Numeric result; must be finite.",
+          "properties": {
+            "type": {
+              "const": "number",
+              "type": "string"
+            },
+            "value": {
+              "format": "double",
+              "type": "number"
+            }
+          },
+          "required": [
+            "type",
+            "value"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "description": "Boolean observation.",
+          "properties": {
+            "type": {
+              "const": "boolean",
+              "type": "string"
+            },
+            "value": {
+              "type": "boolean"
+            }
+          },
+          "required": [
+            "type",
+            "value"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "description": "Closed category or descriptive observation.",
+          "properties": {
+            "type": {
+              "const": "text",
+              "type": "string"
+            },
+            "value": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "type",
+            "value"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "description": "Constituent facts with explicit additivity semantics.",
+          "properties": {
+            "type": {
+              "const": "aggregate",
+              "type": "string"
+            },
+            "value": {
+              "$ref": "#/$defs/Aggregate"
+            }
+          },
+          "required": [
+            "type",
+            "value"
+          ],
+          "type": "object"
+        }
+      ]
+    },
+    "HumanAttestation": {
+      "additionalProperties": false,
+      "description": "Audit evidence from a verified scoped workbench session; never the session token.",
+      "properties": {
+        "audit_ref": {
+          "$ref": "#/$defs/ArtifactRef",
+          "description": "Local attestation audit reference; secrets/tokens are excluded."
+        },
+        "binding": {
+          "$ref": "#/$defs/ReviewBinding",
+          "description": "Exact case/hashes/scope/displayed content verified."
+        },
+        "decision_id": {
+          "$ref": "#/$defs/Digest",
+          "description": "Decision verified by the workbench."
+        },
+        "timestamp_unix_ms": {
+          "description": "Issuance time checked by the issuer.",
+          "format": "uint64",
+          "minimum": 0,
+          "type": "integer"
+        }
+      },
+      "required": [
+        "decision_id",
+        "binding",
+        "audit_ref",
+        "timestamp_unix_ms"
+      ],
+      "type": "object"
+    },
+    "HumanDecision": {
+      "additionalProperties": false,
+      "description": "Human disposition. Source text alone never establishes attestation.",
+      "properties": {
+        "approve_deletions": {
+          "description": "Explicit deletion approval; separate from accepting additions/changes.",
+          "type": "boolean"
+        },
+        "binding": {
+          "$ref": "#/$defs/ReviewBinding",
+          "description": "Exact content reviewed."
+        },
+        "channel": {
+          "$ref": "#/$defs/Channel",
+          "description": "Application channel of the recorded decision."
+        },
+        "decision_id": {
+          "$ref": "#/$defs/Digest",
+          "description": "Identity of reviewed content, disposition and exposure."
+        },
+        "disposition": {
+          "$ref": "#/$defs/Disposition",
+          "description": "Accept/reject/unresolved/tie."
+        },
+        "exposure": {
+          "$ref": "#/$defs/ReviewerExposure",
+          "description": "Reviewer exposure, retained even when unknown."
+        },
+        "note": {
+          "description": "Human supplied explanation.",
+          "type": "string"
+        },
+        "timestamp_unix_ms": {
+          "description": "Audit time, excluded from semantic decision identity.",
+          "format": "uint64",
+          "minimum": 0,
+          "type": [
+            "integer",
+            "null"
+          ]
+        }
+      },
+      "required": [
+        "decision_id",
+        "binding",
+        "disposition",
+        "approve_deletions",
+        "channel",
+        "exposure",
+        "note"
+      ],
+      "type": "object"
+    },
+    "Input": {
+      "additionalProperties": false,
+      "description": "A selected input and relevant sidecar content.",
+      "properties": {
+        "build": {
+          "$ref": "#/$defs/Availability2",
+          "description": "Binary/source/build identity."
+        },
+        "capture": {
+          "$ref": "#/$defs/Availability2",
+          "description": "Capture identity and context, absent rather than guessed."
+        },
+        "content": {
+          "$ref": "#/$defs/ArtifactRef",
+          "description": "Exact image or buffer content."
+        },
+        "id": {
+          "description": "Stable input role/name in the named scope.",
+          "type": "string"
+        },
+        "native_samples": {
+          "$ref": "#/$defs/Availability",
+          "description": "Explicit native interpretation or missing decode evidence."
+        },
+        "provenance": {
+          "$ref": "#/$defs/Provenance",
+          "description": "Time, locations and policy lineage."
+        },
+        "sidecars": {
+          "description": "Relevant sidecars, in declared order.",
+          "items": {
+            "$ref": "#/$defs/ArtifactRef"
+          },
+          "type": "array"
+        }
+      },
+      "required": [
+        "id",
+        "content",
+        "sidecars",
+        "native_samples",
+        "capture",
+        "build",
+        "provenance"
+      ],
+      "type": "object"
+    },
+    "Intent": {
+      "additionalProperties": false,
+      "description": "Intent bound to the case, with explicit provenance assurance.",
+      "properties": {
+        "assurance": {
+          "$ref": "#/$defs/IntentAssurance",
+          "description": "Structured file or lower-assurance text provenance."
+        },
+        "criteria": {
+          "description": "Computable acceptance criteria.",
+          "items": {
+            "$ref": "#/$defs/Criterion"
+          },
+          "type": "array"
+        },
+        "expected_changes": {
+          "description": "Predeclared differences.",
+          "items": {
+            "$ref": "#/$defs/DeclaredChange"
+          },
+          "type": "array"
+        },
+        "id": {
+          "description": "Local reference used by requests.",
+          "type": "string"
+        },
+        "invariants": {
+          "description": "Properties required to remain unchanged.",
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "mask_sources": {
+          "description": "Immutable mask bytes referenced by a structured visual intent.",
+          "items": {
+            "$ref": "#/$defs/ArtifactRef"
+          },
+          "type": "array"
+        },
+        "objective": {
+          "description": "Claim or objective supplied before reviewing results.",
+          "type": "string"
+        },
+        "provenance": {
+          "$ref": "#/$defs/Provenance",
+          "description": "Attribution and creation time."
+        },
+        "source": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/ArtifactRef"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "Optional immutable source file."
+        }
+      },
+      "required": [
+        "id",
+        "objective",
+        "assurance",
+        "expected_changes",
+        "invariants",
+        "criteria",
+        "provenance"
+      ],
+      "type": "object"
+    },
+    "IntentAssurance": {
+      "description": "Structured declarations and free text carry different assurance.",
+      "oneOf": [
+        {
+          "const": "structured",
+          "description": "Human/project supplied structured file.",
+          "type": "string"
+        },
+        {
+          "const": "text",
+          "description": "Lower-assurance command-line text.",
+          "type": "string"
+        }
+      ]
+    },
+    "Measurement": {
+      "additionalProperties": false,
+      "description": "Reference to the authoritative measurement, without copying its metrics.",
+      "properties": {
+        "config_version": {
+          "description": "Effective-configuration format/version.",
+          "type": "string"
+        },
+        "entry_ids": {
+          "description": "Entry IDs selected from that report.",
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "metric_version": {
+          "description": "Measurement algorithm/version.",
+          "type": "string"
+        },
+        "report": {
+          "$ref": "#/$defs/ArtifactRef",
+          "description": "Exact report bytes for verification and reviewer binding."
+        },
+        "semantic_sha256": {
+          "$ref": "#/$defs/Digest",
+          "description": "Report semantics excluding the report's explicit time/location fields."
+        }
+      },
+      "required": [
+        "report",
+        "semantic_sha256",
+        "entry_ids",
+        "metric_version",
+        "config_version"
+      ],
+      "type": "object"
+    },
+    "NativeSamples": {
+      "additionalProperties": false,
+      "description": "Native decoded sample interpretation, separate from file-byte equality.",
+      "properties": {
+        "channels": {
+          "description": "Ordered channel interpretation, including alpha when present.",
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "color": {
+          "description": "Color interpretation used by the comparison.",
+          "type": "string"
+        },
+        "height": {
+          "description": "Height in pixels.",
+          "format": "uint32",
+          "minimum": 0,
+          "type": "integer"
+        },
+        "sample_type": {
+          "description": "Native representation, for example u8, u16 or f32.",
+          "type": "string"
+        },
+        "width": {
+          "description": "Width in pixels.",
+          "format": "uint32",
+          "minimum": 0,
+          "type": "integer"
+        }
+      },
+      "required": [
+        "width",
+        "height",
+        "channels",
+        "sample_type",
+        "color"
+      ],
+      "type": "object"
+    },
+    "NextAction": {
+      "additionalProperties": false,
+      "description": "Deterministically generated bounded recommendation, never model executable text.",
+      "properties": {
+        "arguments": {
+          "$ref": "#/$defs/ActionArguments",
+          "description": "Structured arguments."
+        },
+        "cli_argv": {
+          "description": "Argument array; consumers never pass it to a shell.",
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "cwd": {
+          "description": "Working directory in which relative CLI arguments resolve.",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "expected_case_id": {
+          "$ref": "#/$defs/Digest",
+          "description": "Case precondition, checked at execution."
+        },
+        "id": {
+          "description": "Stable recommendation ID.",
+          "type": "string"
+        },
+        "kind": {
+          "$ref": "#/$defs/ActionKind",
+          "description": "One permitted action kind."
+        },
+        "priority": {
+          "description": "Deterministic priority, lower first.",
+          "format": "uint32",
+          "minimum": 0,
+          "type": "integer"
+        },
+        "reason_code": {
+          "description": "Typed policy explanation.",
+          "type": "string"
+        },
+        "requires": {
+          "description": "Required external authority.",
+          "items": {
+            "$ref": "#/$defs/Requirement"
+          },
+          "type": "array"
+        },
+        "tool": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Tool"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "Known local tool or no executable tool."
+        }
+      },
+      "required": [
+        "id",
+        "kind",
+        "reason_code",
+        "priority",
+        "requires",
+        "arguments",
+        "cli_argv",
+        "expected_case_id"
+      ],
+      "type": "object"
+    },
+    "ObservationContext": {
+      "additionalProperties": false,
+      "description": "Completed extractor identity; enriched requests cannot use unresolved placeholders.",
+      "properties": {
+        "extractor": {
+          "$ref": "#/$defs/ProviderIdentity",
+          "description": "Actual feature extractor, including a fallback model when used."
+        },
+        "fallback_chain_identity": {
+          "$ref": "#/$defs/Digest",
+          "description": "Hash of configured fallback chain and policy, not only the successful model."
+        },
+        "fallback_outcome_identity": {
+          "$ref": "#/$defs/Digest",
+          "description": "Hash of actual fallback attempts/outcomes."
+        },
+        "rubric_version": {
+          "description": "Observation rubric/version.",
+          "type": "string"
+        },
+        "transform_identity": {
+          "$ref": "#/$defs/Digest",
+          "description": "Hash of presentation transforms and crop selection."
+        }
+      },
+      "required": [
+        "extractor",
+        "rubric_version",
+        "transform_identity",
+        "fallback_chain_identity",
+        "fallback_outcome_identity"
+      ],
+      "type": "object"
+    },
+    "PolicyResult": {
+      "description": "Recorded result of payload policy evaluation.",
+      "oneOf": [
+        {
+          "const": "allowed",
+          "description": "Allowed by the effective root/startup policy.",
+          "type": "string"
+        },
+        {
+          "const": "denied",
+          "description": "Explicitly denied.",
+          "type": "string"
+        },
+        {
+          "const": "unknown",
+          "description": "Incomplete provenance/authorization.",
+          "type": "string"
+        }
+      ]
+    },
+    "Provenance": {
+      "additionalProperties": false,
+      "description": "Provenance excluded from semantic digests; source policy follows relocation.",
+      "properties": {
+        "paths": {
+          "description": "Original portable path spellings.",
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "source": {
+          "description": "Human or producer attribution; never an authority grant.",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "source_roots": {
+          "description": "Transitive root identifiers, retained for later transport authorization.",
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "timestamp_unix_ms": {
+          "description": "Creation or observation time, when known.",
+          "format": "uint64",
+          "minimum": 0,
+          "type": [
+            "integer",
+            "null"
+          ]
+        }
+      },
+      "required": [
+        "paths",
+        "source_roots"
+      ],
+      "type": "object"
+    },
+    "ProviderAnswer": {
+      "additionalProperties": false,
+      "description": "Untrusted provider body; no source labels, audit fields or executable actions.",
+      "properties": {
+        "answer": {
+          "description": "One of the request's closed choices.",
+          "type": "string"
+        },
+        "depends_on_model_observation": {
+          "description": "Verified against the cited evidence, never trusted blindly.",
+          "type": "boolean"
+        },
+        "evidence_ids": {
+          "description": "Cited facts or observations from this request.",
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "missing_evidence": {
+          "description": "Declared evidence shortfalls.",
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "note": {
+          "description": "Short non-executable explanation.",
+          "type": "string"
+        },
+        "probabilities": {
+          "additionalProperties": {
+            "format": "double",
+            "type": "number"
+          },
+          "description": "Optional complete distribution; absent probabilities remain null.",
+          "type": [
+            "object",
+            "null"
+          ]
+        },
+        "reason_codes": {
+          "description": "Bounded explanatory codes, not commands.",
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "request_id": {
+          "$ref": "#/$defs/Digest",
+          "description": "Exact request identity echoed by the response."
+        }
+      },
+      "required": [
+        "request_id",
+        "answer",
+        "reason_codes",
+        "evidence_ids",
+        "missing_evidence",
+        "depends_on_model_observation",
+        "note"
+      ],
+      "type": "object"
+    },
+    "ProviderAudit": {
+      "additionalProperties": false,
+      "description": "Adapter-assigned local audit fields; model output cannot self-assign them.",
+      "properties": {
+        "execution_ref": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/ArtifactRef"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "Reference to the local execution ledger, when available."
+        },
+        "identity": {
+          "$ref": "#/$defs/ProviderIdentity",
+          "description": "Resolved answering provider/model."
+        },
+        "payload_sha256": {
+          "$ref": "#/$defs/Digest",
+          "description": "Exact dispatched payload bytes."
+        },
+        "response_sha256": {
+          "$ref": "#/$defs/Digest",
+          "description": "Exact returned response bytes."
+        },
+        "timestamp_unix_ms": {
+          "description": "Time is provenance, excluded from proposal semantic identity.",
+          "format": "uint64",
+          "minimum": 0,
+          "type": [
+            "integer",
+            "null"
+          ]
+        }
+      },
+      "required": [
+        "identity",
+        "payload_sha256",
+        "response_sha256"
+      ],
+      "type": "object"
+    },
+    "ProviderIdentity": {
+      "additionalProperties": false,
+      "description": "Actual resolved provider/model identity, supplied by the adapter.",
+      "properties": {
+        "model": {
+          "description": "Actual model used.",
+          "type": "string"
+        },
+        "provider": {
+          "description": "User-approved provider identifier, not an endpoint.",
+          "type": "string"
+        },
+        "revision": {
+          "description": "Resolved revision/version when the provider exposes one.",
+          "type": [
+            "string",
+            "null"
+          ]
+        }
+      },
+      "required": [
+        "provider",
+        "model"
+      ],
+      "type": "object"
+    },
+    "Question": {
+      "additionalProperties": false,
+      "description": "Question instance; the catalog and scoring rules belong to R9.",
+      "properties": {
+        "answers": {
+          "description": "Closed, ordered answer set, including abstain.",
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "id": {
+          "description": "Versioned question ID, for example intent.match.v1.",
+          "type": "string"
+        },
+        "text": {
+          "description": "Fixed rubric text used for this instance.",
+          "type": "string"
+        }
+      },
+      "required": [
+        "id",
+        "text",
+        "answers"
+      ],
+      "type": "object"
+    },
+    "RequestEvidence": {
+      "additionalProperties": false,
+      "description": "Selected evidence, without a second editable pair report.",
+      "properties": {
+        "encoder_version": {
+          "description": "Encoder format/version.",
+          "type": "string"
+        },
+        "facts": {
+          "description": "Selected measured or declared facts and attributed inferences.",
+          "items": {
+            "$ref": "#/$defs/Fact"
+          },
+          "type": "array"
+        },
+        "intent_ref": {
+          "description": "Intent ID when intent exists; absent intent is recorded in missing.",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "missing": {
+          "description": "Explicit evidence shortfalls; no response is never synthesized as abstention.",
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "observation_context": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/ObservationContext"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "Required whenever model observations are present."
+        },
+        "observations": {
+          "description": "Actual model observations, distinct from deterministic facts.",
+          "items": {
+            "$ref": "#/$defs/Fact"
+          },
+          "type": "array"
+        },
+        "presentation_identity": {
+          "$ref": "#/$defs/Digest",
+          "description": "Transform identity even for requests without model observations."
+        }
+      },
+      "required": [
+        "encoder_version",
+        "facts",
+        "observations",
+        "missing",
+        "presentation_identity"
+      ],
+      "type": "object"
+    },
+    "Requirement": {
+      "description": "Authority which the caller must obtain before execution.",
+      "oneOf": [
+        {
+          "const": "human_decision",
+          "description": "Explicit human disposition.",
+          "type": "string"
+        },
+        {
+          "const": "network_authorization",
+          "description": "Startup/invocation network authorization.",
+          "type": "string"
+        },
+        {
+          "const": "capture_execution",
+          "description": "External capture producer execution.",
+          "type": "string"
+        }
+      ]
+    },
+    "ReviewBinding": {
+      "additionalProperties": false,
+      "description": "Exact inputs, scope and displayed content checked during human review.",
+      "properties": {
+        "case_id": {
+          "$ref": "#/$defs/Digest",
+          "description": "Underlying case identity."
+        },
+        "input_hashes": {
+          "additionalProperties": {
+            "$ref": "#/$defs/Digest"
+          },
+          "description": "Content hashes by stable input ID.",
+          "type": "object"
+        },
+        "request_ids": {
+          "description": "Exact questions included in the reviewed presentation, when applicable.",
+          "items": {
+            "$ref": "#/$defs/Digest"
+          },
+          "type": "array"
+        },
+        "reviewed_content": {
+          "$ref": "#/$defs/ArtifactRef",
+          "description": "Exact artifact shown to the reviewer, including transforms/observations."
+        },
+        "scope": {
+          "$ref": "#/$defs/Scope",
+          "description": "Exactly selected entries/exclusions."
+        }
+      },
+      "required": [
+        "case_id",
+        "input_hashes",
+        "scope",
+        "request_ids",
+        "reviewed_content"
+      ],
+      "type": "object"
+    },
+    "ReviewerExposure": {
+      "additionalProperties": false,
+      "description": "What the reviewer could know; independent blinding cannot be inferred from a key.",
+      "properties": {
+        "implementation_context": {
+          "$ref": "#/$defs/Availability6",
+          "description": "Whether the reviewer knew implementation/input context."
+        },
+        "mapping_access": {
+          "$ref": "#/$defs/Availability6",
+          "description": "Whether the reviewer had access to the mapping."
+        },
+        "reviewer": {
+          "description": "Declared reviewer/session identity; not authentication.",
+          "type": [
+            "string",
+            "null"
+          ]
+        }
+      },
+      "required": [
+        "mapping_access",
+        "implementation_context"
+      ],
+      "type": "object"
+    },
+    "Role": {
+      "description": "Providers supply advice only.",
+      "oneOf": [
+        {
+          "const": "proposal",
+          "description": "A model answer is a proposal.",
+          "type": "string"
+        }
+      ]
+    },
+    "Scope": {
+      "additionalProperties": false,
+      "description": "Named scope and ordered exclusions.",
+      "properties": {
+        "entries": {
+          "description": "Selected report entry IDs.",
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "exclusions": {
+          "description": "Excluded entries, regions or masks; ordering is preserved.",
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        }
+      },
+      "required": [
+        "entries",
+        "exclusions"
+      ],
+      "type": "object"
+    },
+    "Tool": {
+      "description": "Named MCP tools only; no arbitrary shell or baseline-write operation.",
+      "oneOf": [
+        {
+          "const": "saccade_measure",
+          "description": "Measurement transport.",
+          "type": "string"
+        },
+        {
+          "const": "saccade_inspect",
+          "description": "Local bounded inspection.",
+          "type": "string"
+        },
+        {
+          "const": "saccade_evidence",
+          "description": "Prepare evidence.",
+          "type": "string"
+        },
+        {
+          "const": "saccade_review",
+          "description": "Authorized review.",
+          "type": "string"
+        },
+        {
+          "const": "saccade_propose",
+          "description": "Proposed answers only.",
+          "type": "string"
+        },
+        {
+          "const": "saccade_ask_human",
+          "description": "Human review item.",
+          "type": "string"
+        }
+      ]
+    },
+    "Validity": {
+      "additionalProperties": false,
+      "description": "Capture validity with retained reasons.",
+      "properties": {
+        "reasons": {
+          "description": "Failed or missing requirements.",
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "status": {
+          "$ref": "#/$defs/ValidityStatus",
+          "description": "Independent of native sample equality."
+        }
+      },
+      "required": [
+        "status",
+        "reasons"
+      ],
+      "type": "object"
+    },
+    "ValidityStatus": {
+      "description": "Separate capture-comparability state.",
+      "oneOf": [
+        {
+          "const": "valid",
+          "description": "Required capture checks passed.",
+          "type": "string"
+        },
+        {
+          "const": "invalid",
+          "description": "At least one capture check failed.",
+          "type": "string"
+        },
+        {
+          "const": "unknown",
+          "description": "Required context is missing.",
+          "type": "string"
+        }
+      ]
+    }
+  },
+  "$id": "https://github.com/Tavrin/saccade/crates/saccade-core/schemas/saccade-evidence.v1.schema.json",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "description": "Versioned on-disk document. Provider HTTP bodies are adapter details.",
+  "oneOf": [
+    {
+      "description": "Underlying evidence and intent.",
+      "properties": {
+        "calibration": {
+          "$ref": "#/$defs/Availability3",
+          "description": "Calibration content identity or explicit missingness."
+        },
+        "case_id": {
+          "$ref": "#/$defs/Digest",
+          "description": "Content-derived semantic identity."
+        },
+        "effective_config": {
+          "additionalProperties": true,
+          "description": "Effective settings; no path-based configuration identity.",
+          "type": "object"
+        },
+        "facts": {
+          "description": "Attributed observations.",
+          "items": {
+            "$ref": "#/$defs/Fact"
+          },
+          "type": "array"
+        },
+        "human_decisions": {
+          "description": "Reviewed human dispositions, never inferred from proposals.",
+          "items": {
+            "$ref": "#/$defs/HumanDecision"
+          },
+          "type": "array"
+        },
+        "inputs": {
+          "description": "Selected inputs and sidecars.",
+          "items": {
+            "$ref": "#/$defs/Input"
+          },
+          "type": "array"
+        },
+        "intent": {
+          "$ref": "#/$defs/Availability5",
+          "description": "Declared objective and criteria, or explicit absent intent."
+        },
+        "kind": {
+          "const": "case",
+          "type": "string"
+        },
+        "limits": {
+          "description": "Missing evidence and unsupported claims.",
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "measurement": {
+          "$ref": "#/$defs/Measurement",
+          "description": "Authoritative report reference."
+        },
+        "next_actions": {
+          "description": "Bounded deterministic recommendations.",
+          "items": {
+            "$ref": "#/$defs/NextAction"
+          },
+          "type": "array"
+        },
+        "proposals": {
+          "description": "Proposed answers, separate from decisions.",
+          "items": {
+            "$ref": "#/$defs/DecisionProposal"
+          },
+          "type": "array"
+        },
+        "provenance": {
+          "$ref": "#/$defs/Provenance",
+          "description": "Relocatable provenance retained for auditing and policy."
+        },
+        "requests": {
+          "description": "Exact closed questions about this evidence.",
+          "items": {
+            "$ref": "#/$defs/DecisionRequest"
+          },
+          "type": "array"
+        },
+        "scope": {
+          "$ref": "#/$defs/Scope",
+          "description": "Ordered scope and exclusions."
+        },
+        "validity": {
+          "$ref": "#/$defs/Validity",
+          "description": "Independent validity with reasons."
+        }
+      },
+      "required": [
+        "kind",
+        "case_id",
+        "inputs",
+        "measurement",
+        "scope",
+        "effective_config",
+        "calibration",
+        "validity",
+        "facts",
+        "intent",
+        "requests",
+        "proposals",
+        "human_decisions",
+        "next_actions",
+        "limits",
+        "provenance"
+      ],
+      "type": "object"
+    },
+    {
+      "description": "Exact question instance.",
+      "properties": {
+        "case_id": {
+          "$ref": "#/$defs/Digest",
+          "description": "Underlying evidence and intent identity."
+        },
+        "constraints": {
+          "$ref": "#/$defs/Constraints",
+          "description": "Answer validation constraints."
+        },
+        "evidence": {
+          "$ref": "#/$defs/RequestEvidence",
+          "description": "Precisely selected evidence."
+        },
+        "kind": {
+          "const": "decision_request",
+          "type": "string"
+        },
+        "policy": {
+          "additionalProperties": true,
+          "description": "Effective routing/egress/decision policy identity inputs, not credentials.",
+          "type": "object"
+        },
+        "question": {
+          "$ref": "#/$defs/Question",
+          "description": "Closed versioned question."
+        },
+        "request_id": {
+          "$ref": "#/$defs/Digest",
+          "description": "Question/evidence/encoding/policy identity."
+        }
+      },
+      "required": [
+        "kind",
+        "request_id",
+        "case_id",
+        "question",
+        "evidence",
+        "constraints",
+        "policy"
+      ],
+      "type": "object"
+    },
+    {
+      "description": "Attributed advice; never an approval.",
+      "properties": {
+        "case_id": {
+          "$ref": "#/$defs/Digest",
+          "description": "Underlying case identity."
+        },
+        "kind": {
+          "const": "decision_proposal",
+          "type": "string"
+        },
+        "proposal_id": {
+          "$ref": "#/$defs/Digest",
+          "description": "Content-derived answer/audit identity."
+        },
+        "provider": {
+          "$ref": "#/$defs/ProviderAudit",
+          "description": "Adapter-assigned identity and payload references."
+        },
+        "request_id": {
+          "$ref": "#/$defs/Digest",
+          "description": "Exact request answered."
+        },
+        "response": {
+          "$ref": "#/$defs/ProviderAnswer",
+          "description": "Validated untrusted answer."
+        }
+      },
+      "required": [
+        "kind",
+        "proposal_id",
+        "case_id",
+        "request_id",
+        "response",
+        "provider"
+      ],
+      "type": "object"
+    },
+    {
+      "description": "Explicit human disposition with reviewed content bindings.",
+      "properties": {
+        "approve_deletions": {
+          "description": "Explicit deletion approval; separate from accepting additions/changes.",
+          "type": "boolean"
+        },
+        "binding": {
+          "$ref": "#/$defs/ReviewBinding",
+          "description": "Exact content reviewed."
+        },
+        "channel": {
+          "$ref": "#/$defs/Channel",
+          "description": "Application channel of the recorded decision."
+        },
+        "decision_id": {
+          "$ref": "#/$defs/Digest",
+          "description": "Identity of reviewed content, disposition and exposure."
+        },
+        "disposition": {
+          "$ref": "#/$defs/Disposition",
+          "description": "Accept/reject/unresolved/tie."
+        },
+        "exposure": {
+          "$ref": "#/$defs/ReviewerExposure",
+          "description": "Reviewer exposure, retained even when unknown."
+        },
+        "kind": {
+          "const": "human_decision",
+          "type": "string"
+        },
+        "note": {
+          "description": "Human supplied explanation.",
+          "type": "string"
+        },
+        "timestamp_unix_ms": {
+          "description": "Audit time, excluded from semantic decision identity.",
+          "format": "uint64",
+          "minimum": 0,
+          "type": [
+            "integer",
+            "null"
+          ]
+        }
+      },
+      "required": [
+        "kind",
+        "decision_id",
+        "binding",
+        "disposition",
+        "approve_deletions",
+        "channel",
+        "exposure",
+        "note"
+      ],
+      "type": "object"
+    },
+    {
+      "description": "Reserved read-only policy record; never human authority.",
+      "properties": {
+        "authority": {
+          "$ref": "#/$defs/Authority",
+          "description": "Must be automated, with a policy ID and matching case evidence digest."
+        },
+        "binding": {
+          "$ref": "#/$defs/ReviewBinding",
+          "description": "Exactly reviewed evidence and scope."
+        },
+        "decision_id": {
+          "$ref": "#/$defs/Digest",
+          "description": "Identity of policy, exact binding and disposition."
+        },
+        "disposition": {
+          "$ref": "#/$defs/Disposition",
+          "description": "Reserved policy disposition, never human acceptance."
+        },
+        "kind": {
+          "const": "automated_decision",
+          "type": "string"
+        }
+      },
+      "required": [
+        "kind",
+        "decision_id",
+        "binding",
+        "authority",
+        "disposition"
+      ],
+      "type": "object"
+    },
+    {
+      "description": "Applied baseline-change audit.",
+      "properties": {
+        "applied": {
+          "description": "Only selected entries actually applied.",
+          "items": {
+            "$ref": "#/$defs/AppliedEntry"
+          },
+          "type": "array"
+        },
+        "binding": {
+          "$ref": "#/$defs/ReviewBinding",
+          "description": "Exact reviewed case and content."
+        },
+        "channel": {
+          "$ref": "#/$defs/Channel",
+          "description": "CLI or workbench, with different attestation semantics."
+        },
+        "decision_id": {
+          "$ref": "#/$defs/Digest",
+          "description": "Exact decision consumed."
+        },
+        "human_attestation": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/HumanAttestation"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "Always null for CLI; workbench issuers verify the session before recording it."
+        },
+        "kind": {
+          "const": "approval_receipt",
+          "type": "string"
+        },
+        "timestamp_unix_ms": {
+          "description": "Application time.",
+          "format": "uint64",
+          "minimum": 0,
+          "type": "integer"
+        }
+      },
+      "required": [
+        "kind",
+        "decision_id",
+        "binding",
+        "channel",
+        "applied",
+        "timestamp_unix_ms"
+      ],
+      "type": "object"
+    },
+    {
+      "description": "Private mapping, excluded from anonymous exports.",
+      "properties": {
+        "case_id": {
+          "$ref": "#/$defs/Digest",
+          "description": "Case shown anonymously."
+        },
+        "entries": {
+          "additionalProperties": {
+            "additionalProperties": {
+              "type": "string"
+            },
+            "type": "object"
+          },
+          "description": "Anonymous slot to stable input ID, per entry.",
+          "type": "object"
+        },
+        "kind": {
+          "const": "presentation_map",
+          "type": "string"
+        },
+        "presentation_identity": {
+          "$ref": "#/$defs/Digest",
+          "description": "Digest of exact anonymous presentation/transforms."
+        },
+        "unblinding_ref": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/ArtifactRef"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "Exact private unblinding audit record, when unblinded."
+        }
+      },
+      "required": [
+        "kind",
+        "case_id",
+        "presentation_identity",
+        "entries"
+      ],
+      "type": "object"
+    },
+    {
+      "description": "Bounded action with a case precondition.",
+      "properties": {
+        "action": {
+          "$ref": "#/$defs/NextAction",
+          "description": "Bounded recommendation with its own action-kind discriminator."
+        },
+        "kind": {
+          "const": "next_action",
+          "type": "string"
+        }
+      },
+      "required": [
+        "kind",
+        "action"
+      ],
+      "type": "object"
+    },
+    {
+      "description": "Local external-attempt audit reference.",
+      "properties": {
+        "case_id": {
+          "$ref": "#/$defs/Digest",
+          "description": "Exact case identity."
+        },
+        "kind": {
+          "const": "execution_audit",
+          "type": "string"
+        },
+        "ledger": {
+          "$ref": "#/$defs/ArtifactRef",
+          "description": "Ledger containing attempts, retries and outcomes."
+        },
+        "payload_sha256": {
+          "$ref": "#/$defs/Digest",
+          "description": "Exact outbound payload hash."
+        },
+        "policy_result": {
+          "$ref": "#/$defs/PolicyResult",
+          "description": "Denial/unknown provenance must block dispatch."
+        },
+        "provider": {
+          "$ref": "#/$defs/ProviderIdentity",
+          "description": "Actual or intended provider/model."
+        },
+        "request_id": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Digest"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "Optional exact request."
+        },
+        "source_roots": {
+          "description": "All transitive root IDs checked for this payload.",
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        }
+      },
+      "required": [
+        "kind",
+        "case_id",
+        "provider",
+        "payload_sha256",
+        "source_roots",
+        "policy_result",
+        "ledger"
+      ],
+      "type": "object"
+    }
+  ],
+  "properties": {
+    "schema": {
+      "const": "saccade-evidence.v1",
+      "description": "Always `saccade-evidence.v1`.",
+      "type": "string"
+    }
+  },
+  "required": [
+    "schema"
+  ],
+  "title": "Document",
+  "type": "object"
+}

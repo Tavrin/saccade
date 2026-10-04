@@ -8,7 +8,7 @@ import jsonschema
 root = pathlib.Path(__file__).resolve().parent.parent
 report_root = pathlib.Path(sys.argv[1]) if len(sys.argv) > 1 else root / 'target/showcase-reports'
 schemas = {}
-for path in (root / 'schemas').glob('*.schema.json'):
+for path in (root / 'crates/saccade-core/schemas').glob('*.schema.json'):
     schema = json.loads(path.read_text())
     schemas[path.name.removesuffix('.schema.json')] = jsonschema.validators.validator_for(schema)(schema)
 count = 0

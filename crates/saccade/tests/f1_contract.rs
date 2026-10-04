@@ -29,7 +29,7 @@ fn value(out: &Output) -> Value {
 }
 fn schema(name: &str, v: &Value) {
     let path = Path::new(env!("CARGO_MANIFEST_DIR"))
-        .join("../../schemas")
+        .join("../saccade-core/schemas")
         .join(format!(
             "saccade-{}.{}.schema.json",
             if name == "error" { "result" } else { name },

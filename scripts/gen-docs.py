@@ -5,6 +5,7 @@ import json
 import re
 import shutil
 import subprocess
+import tomllib
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -34,9 +35,9 @@ def generated(binary=None):
         f'[{count} reproducible cases](showcases/README.md) with commands, expected exits and measured output.\n'
         '[Pages gallery](https://tavrin.github.io/saccade/showcase/).')
     schemas = []
-    for source in sorted((ROOT / 'schemas').glob('*.schema.json')):
+    for source in sorted((ROOT / 'crates/saccade-core/schemas').glob('*.schema.json')):
         data = json.loads(source.read_text(encoding="utf-8"))
-        schemas.append(f'- [{source.name}](../schemas/{source.name}) — {data.get("title", "Historical reader contract")}')
+        schemas.append(f'- [{source.name}](../crates/saccade-core/schemas/{source.name}) — {data.get("title", "Historical reader contract")}')
     packs['docs/contracts.md'] = replace_section((ROOT / 'docs/contracts.md').read_text(encoding="utf-8"), 'schema-index', '\n'.join(schemas))
     lines = ['# Reproducible showcases', '', f'{count} cases discovered from `*/commands.json`.', '',
         'Generate with `python3 scripts/gen-showcases.py` and `python3 scripts/gen-photosensitivity.py`.',
@@ -61,10 +62,14 @@ def generated(binary=None):
         binary = shutil.which(binary) or str(Path(binary).resolve())
         result = subprocess.run([binary, 'inspect', 'capabilities', '--json'], check=True, capture_output=True, text=True, encoding="utf-8")
         data = json.loads(result.stdout)['data']
+        manifest = tomllib.loads((ROOT / 'crates/saccade/Cargo.toml').read_text(encoding="utf-8"))
+        missing = set(manifest['features']) - {'default'} - set(data['features'])
+        if missing:
+            raise ValueError('CLI reference requires an --all-features binary; missing: ' + ', '.join(sorted(missing)))
         operations = data['operations']
         lines = ['# Command reference', '', 'Generated from compiled capabilities and `--help`; do not edit by hand.', '',
-            'Generation: `python3 scripts/gen-docs.py --saccade target/release/saccade`.',
-            'Use the official default features plus `prechecks` to include every supported operation.', '',
+            'Generation: `cargo build --release -p saccade --all-features`, then `python3 scripts/gen-docs.py --saccade target/release/saccade`.',
+            'The all-features binary includes every supported operation.', '',
             'Compiled features: ' + ', '.join(f'`{f}`' for f in data['features']) + '.', '',
             'Exit 1 means a failed image measurement/evaluation gate or located divergence.',
             'Exit 0 for compare/identity means no image regression; inspect `performance` for qualification.',

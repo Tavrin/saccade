@@ -1,0 +1,160 @@
+{
+  "$defs": {
+    "Availability": {
+      "description": "Missing and failed observations are distinct from an available zero or abstention.",
+      "oneOf": [
+        {
+          "additionalProperties": false,
+          "description": "Evidence was supplied.",
+          "properties": {
+            "availability": {
+              "const": "available",
+              "type": "string"
+            },
+            "value": {
+              "description": "Supplied value.",
+              "type": "boolean"
+            }
+          },
+          "required": [
+            "availability",
+            "value"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "description": "No measurement or response was supplied.",
+          "properties": {
+            "availability": {
+              "const": "missing",
+              "type": "string"
+            },
+            "reason": {
+              "description": "What is needed.",
+              "type": "string"
+            }
+          },
+          "required": [
+            "availability",
+            "reason"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "description": "An attempted computation or response failed.",
+          "properties": {
+            "availability": {
+              "const": "unavailable",
+              "type": "string"
+            },
+            "reason": {
+              "description": "Failure without invented evidence.",
+              "type": "string"
+            }
+          },
+          "required": [
+            "availability",
+            "reason"
+          ],
+          "type": "object"
+        }
+      ]
+    },
+    "Digest": {
+      "description": "Validated lowercase SHA-256 identity or content hash.",
+      "pattern": "^sha256:[0-9a-f]{64}$",
+      "type": "string"
+    },
+    "Label": {
+      "additionalProperties": false,
+      "description": "Evidence-bound human label for a particular question instance.",
+      "properties": {
+        "answer": {
+          "description": "Closed human answer.",
+          "type": "string"
+        },
+        "case_id": {
+          "$ref": "#/$defs/Digest",
+          "description": "Underlying case identity."
+        },
+        "exposure": {
+          "$ref": "#/$defs/ReviewerExposure",
+          "description": "Reviewer exposure for interpretation of blind labels."
+        },
+        "human_decision_id": {
+          "$ref": "#/$defs/Digest",
+          "description": "Human disposition/label audit reference."
+        },
+        "question_id": {
+          "description": "Versioned question ID.",
+          "type": "string"
+        },
+        "request_id": {
+          "$ref": "#/$defs/Digest",
+          "description": "Exact question/encoder/observation identity."
+        }
+      },
+      "required": [
+        "case_id",
+        "request_id",
+        "question_id",
+        "answer",
+        "human_decision_id",
+        "exposure"
+      ],
+      "type": "object"
+    },
+    "ReviewerExposure": {
+      "additionalProperties": false,
+      "description": "What the reviewer could know; independent blinding cannot be inferred from a key.",
+      "properties": {
+        "implementation_context": {
+          "$ref": "#/$defs/Availability",
+          "description": "Whether the reviewer knew implementation/input context."
+        },
+        "mapping_access": {
+          "$ref": "#/$defs/Availability",
+          "description": "Whether the reviewer had access to the mapping."
+        },
+        "reviewer": {
+          "description": "Declared reviewer/session identity; not authentication.",
+          "type": [
+            "string",
+            "null"
+          ]
+        }
+      },
+      "required": [
+        "mapping_access",
+        "implementation_context"
+      ],
+      "type": "object"
+    }
+  },
+  "$id": "https://github.com/Tavrin/saccade/crates/saccade-core/schemas/saccade-labels.v2.schema.json",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "description": "Versioned human label collection, readable without evaluation/AI features.",
+  "properties": {
+    "items": {
+      "description": "Human answers referencing exact cases and questions.",
+      "items": {
+        "$ref": "#/$defs/Label"
+      },
+      "type": "array"
+    },
+    "schema": {
+      "const": "saccade-labels.v2",
+      "description": "Always saccade-labels.v2.",
+      "type": "string"
+    }
+  },
+  "required": [
+    "schema",
+    "items"
+  ],
+  "title": "Labels",
+  "type": "object"
+}

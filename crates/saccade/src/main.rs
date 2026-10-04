@@ -598,10 +598,10 @@ Example:
 #[derive(Subcommand)]
 enum ProveOperation {
     /// Prove exact native decoded-sample equality over the selected images.
-    Identity(ProveIdentityArgs),
+    Identity(Box<ProveIdentityArgs>),
     /// Evaluate performance claims from ablation arms and repeat noise.
     #[cfg(feature = "graphics")]
-    Performance(perf_cmd::AblateArgs),
+    Performance(Box<perf_cmd::AblateArgs>),
 }
 
 #[derive(clap::Args)]
@@ -978,7 +978,7 @@ fn dispatch(command: Command, record_absolute_paths: bool) -> Result<u8, CliErro
         #[cfg(feature = "graphics")]
         Command::Prove {
             operation: ProveOperation::Performance(args),
-        } => perf_cmd::ablate(args, record_absolute_paths),
+        } => perf_cmd::ablate(*args, record_absolute_paths),
         Command::Doctor { json } => doctor(json),
         Command::Bisect(args) => git_bisect::run(args),
         Command::Ingest(args) => ingest::run(args, record_absolute_paths),

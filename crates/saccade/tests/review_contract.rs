@@ -138,7 +138,7 @@ fn mock(uncertain: bool, disagree: bool) -> Mock {
 }
 fn schema(name: &str, v: &Value) {
     let path = Path::new(env!("CARGO_MANIFEST_DIR"))
-        .join("../../schemas")
+        .join("../saccade-core/schemas")
         .join(format!("saccade-{name}.v1.schema.json"));
     let s: Value = serde_json::from_slice(&std::fs::read(path).unwrap()).unwrap();
     assert!(jsonschema::validator_for(&s).unwrap().is_valid(v), "{v}");

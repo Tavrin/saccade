@@ -28,8 +28,9 @@ fn assert_same_path(recorded: &str, expected: &Path) {
     );
 }
 fn validate(name: &str, value: &Value) {
-    let path = Path::new(env!("CARGO_MANIFEST_DIR"))
-        .join(format!("../../schemas/saccade-{name}.v1.schema.json"));
+    let path = Path::new(env!("CARGO_MANIFEST_DIR")).join(format!(
+        "../saccade-core/schemas/saccade-{name}.v1.schema.json"
+    ));
     let schema: Value = serde_json::from_slice(&std::fs::read(path).unwrap()).unwrap();
     let check = jsonschema::validator_for(&schema).unwrap();
     let errors: Vec<_> = check.iter_errors(value).map(|e| e.to_string()).collect();

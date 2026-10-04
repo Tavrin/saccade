@@ -73,7 +73,7 @@ fn fixture(root: &Path) {
 }
 fn schema(name: &str, v: &Value) {
     let p = Path::new(env!("CARGO_MANIFEST_DIR"))
-        .join("../../schemas")
+        .join("../saccade-core/schemas")
         .join(format!("{name}.schema.json"));
     let s: Value = serde_json::from_str(&std::fs::read_to_string(p).unwrap()).unwrap();
     let validator = jsonschema::validator_for(&s).unwrap();

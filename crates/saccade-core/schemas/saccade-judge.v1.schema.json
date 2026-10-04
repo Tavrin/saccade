@@ -1,0 +1,239 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/Tavrin/saccade/crates/saccade-core/schemas/saccade-judge.v1.schema.json",
+  "type": "object",
+  "required": [
+    "schema",
+    "dry_run",
+    "run_id",
+    "question",
+    "panel",
+    "both_orders",
+    "skipped"
+  ],
+  "properties": {
+    "schema": {
+      "const": "saccade-judge.v1"
+    },
+    "dry_run": {
+      "type": "boolean"
+    },
+    "run_id": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{16}$"
+    },
+    "question": {
+      "type": "object",
+      "required": [
+        "type",
+        "kind",
+        "kind_limits"
+      ],
+      "properties": {
+        "type": {
+          "enum": [
+            "accept",
+            "triage",
+            "cause",
+            "ask_human",
+            "mask_suggest",
+            "preference"
+          ]
+        },
+        "kind": {
+          "enum": [
+            "checkable",
+            "rubric",
+            "preference"
+          ]
+        },
+        "kind_limits": {
+          "type": "string"
+        }
+      }
+    },
+    "panel": {
+      "type": "object"
+    },
+    "both_orders": {
+      "type": "boolean"
+    },
+    "skipped": {
+      "type": "array"
+    }
+  },
+  "allOf": [
+    {
+      "if": {
+        "properties": {
+          "dry_run": {
+            "const": true
+          }
+        }
+      },
+      "then": {
+        "required": [
+          "requests",
+          "calls_planned"
+        ],
+        "properties": {
+          "requests": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "required": [
+                "judge",
+                "provider",
+                "model",
+                "order",
+                "kind",
+                "allowed_answers",
+                "state",
+                "evidence_hash"
+              ],
+              "properties": {
+                "allowed_answers": {
+                  "type": "array",
+                  "minItems": 2,
+                  "items": {
+                    "type": "string"
+                  }
+                },
+                "order": {
+                  "enum": [
+                    "ab",
+                    "ba"
+                  ]
+                },
+                "state": {
+                  "type": "object"
+                }
+              }
+            }
+          }
+        }
+      },
+      "else": {
+        "required": [
+          "items",
+          "calls",
+          "canaries",
+          "position_bias"
+        ],
+        "properties": {
+          "items": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "required": [
+                "id",
+                "entry",
+                "question",
+                "kind",
+                "judgements",
+                "result"
+              ],
+              "properties": {
+                "result": {
+                  "type": "object",
+                  "required": [
+                    "status",
+                    "answer",
+                    "prob",
+                    "agreement",
+                    "trust"
+                  ],
+                  "properties": {
+                    "status": {
+                      "enum": [
+                        "decided",
+                        "needs_human"
+                      ]
+                    },
+                    "prob": {
+                      "type": "number",
+                      "minimum": 0,
+                      "maximum": 1
+                    },
+                    "agreement": {
+                      "type": "number",
+                      "minimum": 0,
+                      "maximum": 1
+                    },
+                    "trust": {
+                      "type": "string"
+                    }
+                  }
+                },
+                "judgements": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/$defs/judgement"
+                  }
+                }
+              }
+            }
+          },
+          "canaries": {
+            "type": "object"
+          },
+          "calls": {
+            "type": "integer",
+            "minimum": 0
+          }
+        }
+      }
+    }
+  ],
+  "$defs": {
+    "judgement": {
+      "type": "object",
+      "required": [
+        "judge",
+        "provider",
+        "model",
+        "order",
+        "item",
+        "answer",
+        "prob",
+        "abstained",
+        "latency_ms",
+        "attempts",
+        "fallback_used",
+        "rubric_version",
+        "evidence_hash",
+        "timestamp_ms"
+      ],
+      "properties": {
+        "order": {
+          "enum": [
+            "ab",
+            "ba"
+          ]
+        },
+        "answer": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "prob": {
+          "type": [
+            "number",
+            "null"
+          ],
+          "minimum": 0,
+          "maximum": 1
+        },
+        "latency_ms": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "evidence_hash": {
+          "type": "string",
+          "pattern": "^sha256:[0-9a-f]{64}$"
+        }
+      }
+    }
+  }
+}

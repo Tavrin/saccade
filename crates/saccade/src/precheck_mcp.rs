@@ -4,10 +4,16 @@ use crate::agent::CliError;
 use serde_json::{Map, Value, json};
 use std::path::PathBuf;
 
+fn schema(id: &str) -> Value {
+    saccade_core::evidence::legacy::schema(id)
+        .and_then(|source| serde_json::from_str(&source).ok())
+        .unwrap_or_else(|| json!({"type":"object"}))
+}
+
 pub(crate) fn schemas() -> Vec<Value> {
     vec![
-        json!({"name":"saccade_safety","description":"Photosensitivity PRE-CHECK only. Not certification; does not replace Harding FPA/platform required testing or formal compliance. Deterministic numbered frames, or optional ffmpeg video.","annotations":{"readOnlyHint":false,"destructiveHint":false,"idempotentHint":true,"openWorldHint":false},"inputSchema":{"type":"object","additionalProperties":false,"properties":{"input":{"type":"string","minLength":1},"out_dir":{"type":"string","minLength":1},"fps":{"type":"number","exclusiveMinimum":0},"display":{"type":"string"},"standard":{"enum":["itu-bt1702","wcag"]},"junit":{"type":"string","minLength":1}},"required":["input","out_dir"]},"outputSchema":serde_json::from_str::<Value>(include_str!("../../../schemas/saccade-safety.v1.schema.json")).unwrap_or_else(|_|json!({"type":"object"}))}),
-        json!({"name":"saccade_a11y","description":"Accessibility PRE-CHECK only: Machado colour-vision simulations, candidate information loss and contrast of confirmed config regions. Not certification or formal compliance. No network.","annotations":{"readOnlyHint":false,"destructiveHint":false,"idempotentHint":true,"openWorldHint":false},"inputSchema":{"type":"object","additionalProperties":false,"properties":{"input":{"type":"string","minLength":1},"out_dir":{"type":"string","minLength":1},"config":{"type":"string","minLength":1},"junit":{"type":"string","minLength":1}},"required":["input","out_dir"]},"outputSchema":serde_json::from_str::<Value>(include_str!("../../../schemas/saccade-a11y.v1.schema.json")).unwrap_or_else(|_|json!({"type":"object"}))}),
+        json!({"name":"saccade_safety","description":"Photosensitivity PRE-CHECK only. Not certification; does not replace Harding FPA/platform required testing or formal compliance. Deterministic numbered frames, or optional ffmpeg video.","annotations":{"readOnlyHint":false,"destructiveHint":false,"idempotentHint":true,"openWorldHint":false},"inputSchema":{"type":"object","additionalProperties":false,"properties":{"input":{"type":"string","minLength":1},"out_dir":{"type":"string","minLength":1},"fps":{"type":"number","exclusiveMinimum":0},"display":{"type":"string"},"standard":{"enum":["itu-bt1702","wcag"]},"junit":{"type":"string","minLength":1}},"required":["input","out_dir"]},"outputSchema":schema("saccade-safety.v1")}),
+        json!({"name":"saccade_a11y","description":"Accessibility PRE-CHECK only: Machado colour-vision simulations, candidate information loss and contrast of confirmed config regions. Not certification or formal compliance. No network.","annotations":{"readOnlyHint":false,"destructiveHint":false,"idempotentHint":true,"openWorldHint":false},"inputSchema":{"type":"object","additionalProperties":false,"properties":{"input":{"type":"string","minLength":1},"out_dir":{"type":"string","minLength":1},"config":{"type":"string","minLength":1},"junit":{"type":"string","minLength":1}},"required":["input","out_dir"]},"outputSchema":schema("saccade-a11y.v1")}),
     ]
 }
 fn string(args: &Map<String, Value>, key: &str) -> Result<Option<String>, CliError> {

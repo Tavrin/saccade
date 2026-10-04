@@ -1,0 +1,56 @@
+{
+  "$id": "https://github.com/Tavrin/saccade/crates/saccade-core/schemas/saccade-ask-result.v1.schema.json",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "description": "Result of posting or waiting for an answer (`saccade-ask-result.v1`).",
+  "properties": {
+    "answer": {
+      "description": "Answer, when available.",
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "id": {
+      "description": "Inbox item id.",
+      "pattern": "^[0-9a-f]{32}$",
+      "type": "string"
+    },
+    "note": {
+      "description": "Human note, when available.",
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "schema": {
+      "const": "saccade-ask-result.v1",
+      "description": "Schema identifier.",
+      "type": "string"
+    },
+    "status": {
+      "description": "open or answered.",
+      "enum": [
+        "open",
+        "answered"
+      ],
+      "type": "string"
+    },
+    "timed_out": {
+      "description": "True when a wait elapsed without an answer.",
+      "type": "boolean"
+    },
+    "url": {
+      "description": "URL for the human's browser.",
+      "type": "string"
+    }
+  },
+  "required": [
+    "schema",
+    "id",
+    "status",
+    "timed_out",
+    "url"
+  ],
+  "title": "AskResult",
+  "type": "object"
+}

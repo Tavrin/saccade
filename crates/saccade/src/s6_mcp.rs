@@ -156,13 +156,15 @@ pub(crate) fn call(
 }
 
 fn output(name: &str) -> Value {
-    let source = match name {
-        "bisect" => include_str!("../../../schemas/saccade-bisect.v1.schema.json"),
-        "inbox" => include_str!("../../../schemas/saccade-inbox-item.v1.schema.json"),
-        "ask" => include_str!("../../../schemas/saccade-ask-result.v1.schema.json"),
-        _ => include_str!("../../../schemas/saccade-result.v1.schema.json"),
+    let id = match name {
+        "bisect" => "saccade-bisect.v1",
+        "inbox" => "saccade-inbox-item.v1",
+        "ask" => "saccade-ask-result.v1",
+        _ => "saccade-result.v1",
     };
-    serde_json::from_str(source).unwrap_or_else(|_| json!({"type":"object"}))
+    saccade_core::evidence::legacy::schema(id)
+        .and_then(|source| serde_json::from_str(&source).ok())
+        .unwrap_or_else(|| json!({"type":"object"}))
 }
 
 pub(crate) fn schemas() -> Vec<Value> {
