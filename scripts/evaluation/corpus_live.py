@@ -124,7 +124,10 @@ def jev_payload(reqs):
 
 def checked_dispatch(config, manifest, case, job, model, payload, dest):
     """No response or prediction is ever accepted as a source of truth or budget authority."""
-    if pilot.file_hash(corpus.MANIFEST) != corpus.load(corpus.HERE/'corpus-freeze.json')['manifest_sha256']:
+    expected = (corpus.load(corpus.HERE/'freeze-amendment.json')['expanded_manifest_sha256']
+                if corpus.MANIFEST.name == 'moss-pilot-expanded.toml'
+                else corpus.load(corpus.HERE/'corpus-freeze.json')['manifest_sha256'])
+    if pilot.file_hash(corpus.MANIFEST) != expected:
         raise ValueError('frozen manifest changed before dispatch')
     run_state = corpus.load(Path(config['root'])/'run-state.json')
     if time.time()*1000 >= window_end(manifest, run_state):

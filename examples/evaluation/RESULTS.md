@@ -145,3 +145,42 @@ The second manifest (`moss-pilot-expanded.toml`, SHA-256 `73fa53df42348eff4ac882
 Truth-known held-out support is 110 cases each for `triage.route.v1`, `vision.route.v1`, `capture.disposition.v1` and `intent.match.v1`, and 62 for `perf.interpret.v1`. Thus the numeric 50-case gate is met for all five questions. New performance evidence comprises 97 producer-rejected or incomparable pairs and one qualified whole-frame pair. The latter uses three independently rendered unchanged captures and a hash-bound projection that excludes unstable pass-gap attribution and dynamic measured fields from configuration identity. Production noise and comparison qualify its frame measurement, but the unattributed frame bound prevents a no-effect conclusion; its `perf.interpret.v1` truth is `collect_more_evidence`. No pass-level or causal performance claim follows.
 
 The provider jobs in the expanded manifest remain unattempted. No question is newly qualified for automatic routing: completion, calibration identity and the declared important-miss tolerance still require a later evaluation. Older recorded private inputs remain absent, so the original public freeze is sealed and preserved but those source files were not revalidated in this lane.
+
+## R12q expanded qualification epoch
+
+Frozen expansion `sha256:73fa53df42348eff4ac8821b38f18fa029222bcbc4ff43ff8c1533539dbeca86`; 90 new held-out and 36 calibration cases evaluated, 54 development cases and the original 86 not redispatched. Provider jobs collected: Gemini 268/268, Jev 630/630.
+
+Gemini upper token-count reservation $4.5312 of $8; observed usage estimate $3.5883 from [batch pricing](https://ai.google.dev/gemini-api/docs/pricing); 0 responses lack usage. Gemini finish reasons: `{'STOP': 219, 'MAX_TOKENS': 49}`. Jev attempts 788/788; usage: `{'input_tokens': 16472325, 'output_tokens': 144164}`.
+
+| Question | Provider / encoding | n committed | Coverage | Accuracy | Wilson 95% | Rule baseline | Margin | Gate |
+|---|---|---:|---:|---:|---|---:|---:|---|
+| triage.route.v1 | rules / deterministic | 110 | 100.0% | 10.0% | 5.7%–17.0% | 10.0% | 0.0% | not qualified |
+| triage.route.v1 | jev / direct | 47 | 42.7% | 29.8% | 18.6%–44.0% | 10.0% | 19.8% | not qualified |
+| triage.route.v1 | jev / enriched | 110 | 50.0% | 44.5% | 35.6%–53.9% | 10.0% | 34.5% | not qualified |
+| triage.route.v1 | jev / enriched_without_priors | 88 | 40.0% | 37.5% | 28.1%–47.9% | 10.0% | 27.5% | not qualified |
+| triage.route.v1 | gemini / gemini_alone | 172 | 78.2% | 61.0% | 53.6%–68.0% | 10.0% | 51.0% | not qualified |
+| vision.route.v1 | rules / deterministic | 110 | 100.0% | 60.9% | 51.6%–69.5% | 60.9% | 0.0% | not qualified |
+| vision.route.v1 | jev / direct | 54 | 49.1% | 77.8% | 65.1%–86.8% | 60.9% | 16.9% | not qualified |
+| vision.route.v1 | jev / enriched | 102 | 46.4% | 70.6% | 61.1%–78.5% | 60.9% | 9.7% | not qualified |
+| vision.route.v1 | jev / enriched_without_priors | 103 | 46.8% | 69.9% | 60.5%–77.9% | 60.9% | 9.0% | not qualified |
+| vision.route.v1 | gemini / gemini_alone | 197 | 89.5% | 88.3% | 83.1%–92.1% | 60.9% | 27.4% | not qualified |
+| perf.interpret.v1 | rules / deterministic | 62 | 100.0% | 100.0% | 94.2%–100.0% | 100.0% | 0.0% | not qualified |
+| perf.interpret.v1 | jev / direct | 61 | 98.4% | 100.0% | 94.1%–100.0% | 100.0% | 0.0% | not qualified |
+| perf.interpret.v1 | jev / enriched | 25 | 20.2% | 100.0% | 86.7%–100.0% | 100.0% | 0.0% | not qualified |
+| perf.interpret.v1 | jev / enriched_without_priors | 64 | 51.6% | 100.0% | 94.3%–100.0% | 100.0% | 0.0% | not qualified |
+| perf.interpret.v1 | gemini / gemini_alone | 0 | — | — | — | 100.0% | — | not qualified |
+| capture.disposition.v1 | rules / deterministic | 110 | 100.0% | 100.0% | 96.6%–100.0% | 100.0% | 0.0% | not qualified |
+| capture.disposition.v1 | jev / direct | 50 | 45.5% | 18.0% | 9.8%–30.8% | 100.0% | -82.0% | not qualified |
+| capture.disposition.v1 | jev / enriched | 75 | 34.1% | 24.0% | 15.8%–34.8% | 100.0% | -76.0% | not qualified |
+| capture.disposition.v1 | jev / enriched_without_priors | 46 | 20.9% | 39.1% | 26.4%–53.5% | 100.0% | -60.9% | not qualified |
+| capture.disposition.v1 | gemini / gemini_alone | 0 | — | — | — | 100.0% | — | not qualified |
+| intent.match.v1 | rules / deterministic | 34 | 30.9% | 100.0% | 89.8%–100.0% | 100.0% | 0.0% | not qualified |
+| intent.match.v1 | jev / direct | 34 | 30.9% | 100.0% | 89.8%–100.0% | 100.0% | 0.0% | not qualified |
+| intent.match.v1 | jev / enriched | 177 | 80.5% | 83.6% | 77.5%–88.3% | 100.0% | -16.4% | not qualified |
+| intent.match.v1 | jev / enriched_without_priors | 177 | 80.5% | 84.2% | 78.1%–88.8% | 100.0% | -15.8% | not qualified |
+| intent.match.v1 | gemini / gemini_alone | 194 | 88.2% | 93.3% | 88.9%–96.0% | 100.0% | -6.7% | not qualified |
+
+Wilson answer intervals use committed responses; paired presentation orders are correlated. Important-miss Wilson bounds in RESULTS.json group by case. These intervals cannot authorize routing.
+Original recorded upstream sources remain unavailable for revalidation; the sealed original aggregate epoch is retained.
+
+No question qualifies: the frozen important-miss tolerance is undeclared. Other failed gates are recorded per row in RESULTS.json.

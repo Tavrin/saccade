@@ -61,13 +61,35 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         ..Default::default()
     };
     user.apply(&mut roots)?;
+    let expanded = input
+        .manifest
+        .file_name()
+        .is_some_and(|n| n == "moss-pilot-expanded.toml");
+    if expanded
+        && serde_json::to_value(input.manifest_sha256)?
+            != json!("sha256:73fa53df42348eff4ac8821b38f18fa029222bcbc4ff43ff8c1533539dbeca86")
+    {
+        return Err("expanded manifest seal mismatch".into());
+    }
     let authorization = Authorization {
         enabled: true,
         scopes: vec![Scope {
-            id: "r12-constructed-truth-run/1".into(),
-            caps: Caps {
-                total: 650,
-                providers: BTreeMap::from([("jev".into(), 400), ("gemini".into(), 250)]),
+            id: if expanded {
+                "r12q-expanded/1"
+            } else {
+                "r12-constructed-truth-run/1"
+            }
+            .into(),
+            caps: if expanded {
+                Caps {
+                    total: 1123,
+                    providers: BTreeMap::from([("jev".into(), 788), ("gemini".into(), 335)]),
+                }
+            } else {
+                Caps {
+                    total: 650,
+                    providers: BTreeMap::from([("jev".into(), 400), ("gemini".into(), 250)]),
+                }
             },
         }],
     };

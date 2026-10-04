@@ -1,5 +1,57 @@
 # R12 decisions
 
+## R12q no-model policy freeze (2026-10-04 17:56:39 UTC)
+
+This policy was fixed before reading any new held-out truth. It uses only the
+existing structured request facts; it never reads images, truth, model output,
+or case family. It is applied to both the old and new held-out cases. Values
+are read only when the fact's availability is `available`; an absent or
+malformed fact never becomes a positive signal.
+Its feature vocabulary comes from the frozen rubric and the development and
+calibration packet schema; no held-out labels or response outcomes selected a
+rule or threshold.
+
+* `triage.route.v1`: invalid validity gives `needs_eyes`; otherwise measured
+  repeat noise with a within-noise finding gives `likely_noise`; a declared
+  structured intent with an explicitly consistent deterministic finding gives
+  `likely_intended`; a measured delta above 0.1 with a local hotspot gives
+  `suspected_regression`; all other cases give `needs_eyes`.
+* `vision.route.v1`: a declared semantic uncertainty gives `human_directly`;
+  otherwise a nonempty affected-region list gives `inspect_regions`; an
+  explicitly empty region list gives `text_sufficient`; missing region scope
+  gives `inspect_full_frame`.
+* `perf.interpret.v1`: `collect_more_evidence` unless qualified repeats and
+  attribution are both explicitly present; with both, an explicitly consistent
+  finding gives `consistent_with_intent`, an explicitly unexplained finding
+  gives `unexplained_change`, and anything else gives `needs_human`.
+* `capture.disposition.v1`: invalid capture with an explicit settings mismatch
+  gives `inspect_configuration`; other invalid capture gives `recapture`;
+  valid capture gives `continue_review`; missing validity gives `needs_human`.
+* `intent.match.v1`: without structured intent, return `insufficient_intent`;
+  with structured intent, only an explicit deterministic contradiction gives
+  `contradicts`, explicit consistency gives `consistent`, and otherwise return
+  `abstain`.
+
+The frozen gate requires matching calibration identity, so the 36 new
+calibration cases are needed. The 54 development cases are never dispatched.
+The important-miss tolerance remains undeclared in the frozen plan; this
+policy does not amend that gate.
+
+## R12q post-score findings
+
+The frozen 788-call Jev cap was reached: 476 jobs answered, six were budget
+blocked, and 148 enriched jobs had no valid same-model Gemini order pair.
+Gemini returned all 268 batch cells, including 49 `MAX_TOKENS` responses at
+the frozen 4,096-token output limit. These are recorded as invalid provider
+answers; the prompt, model, output limit and split were not changed. The
+frozen important-miss tolerance is still undeclared, so no question
+qualifies. The deterministic baseline reaches 100% conditional accuracy on
+performance and capture disposition in this constructed corpus; Jev offers
+no demonstrated accuracy margin there. The exact original per-case response
+records are unavailable in this worktree, so combined accuracy Wilson
+intervals use committed answers and disclose paired-order correlation;
+case-grouped important-miss bounds remain published separately.
+
 The owner’s design section 16 supplies egress authorization and removes mandatory human labeling. Every case is eligible for private Jev and Gemini evaluation. Publication retains hashes and aggregates only. The earlier workbench is optional and dispatch-disabled.
 
 Whole scenes remain in one split. Scene aliases for recorded Bistro cases are grouped together. Shared image hashes across splits are rejected. This is stricter than grouping only by scene and change family, because several constructed interventions use the same real source capture. Frames, crops, repeats and presentation orders do not increase independent support.

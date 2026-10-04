@@ -20307,4 +20307,2147 @@
   "terminal_invalid_provider_jobs": 1,
   "unattempted_jobs": 4,
   "unresolved_provider_jobs": 5
+,
+  "epochs": [
+  {
+    "epoch": "r12q-expanded/1",
+    "expanded_manifest_sha256": "sha256:73fa53df42348eff4ac8821b38f18fa029222bcbc4ff43ff8c1533539dbeca86",
+    "baseline_sha256": "sha256:e41731919d7268aa43f4987db1a854550218fd8a204b322ac700985febb092ef",
+    "runner_sha256": "sha256:f97f92afdcebecdff80bba4f25603fb07db3d92ca199a4097ef3a3ddf0f78b1e",
+    "batch_transport_source_sha256": "sha256:6f1ed014b8397e23380551353f684b4e32e236c82a2663c437f32e02a15384eb",
+    "original_source_revalidation": {
+      "frozen_generated_packets_rehashed": true,
+      "original_source_revalidation_complete": false,
+      "recorded_source_files_missing": 244
+    },
+    "calibration_needed": true,
+    "development_cases_dispatched": 0,
+    "new_held_out_cases": 90,
+    "new_calibration_cases": 36,
+    "original_cases_redispatched": 0,
+    "combined_held_out_known_truth": {
+      "capture.disposition.v1": 110,
+      "intent.match.v1": 110,
+      "perf.interpret.v1": 62,
+      "triage.route.v1": 110,
+      "vision.route.v1": 110
+    },
+    "new_jobs_scheduled": {
+      "rules": 126,
+      "jev": 630,
+      "gemini": 268
+    },
+    "new_jobs_completed": {
+      "gemini": 268,
+      "jev": 630
+    },
+    "gemini_finish_reasons": {
+      "STOP": 219,
+      "MAX_TOKENS": 49
+    },
+    "gemini_budget": {
+      "cap_usd": 8.0,
+      "mode": "prompt tokens plus maximum output tokens; no further paid Gemini submission allowed",
+      "reserved_usd": 4.531213,
+      "source": "https://ai.google.dev/gemini-api/docs/pricing"
+    },
+    "gemini_actual_usage_estimate_usd": 3.588253,
+    "gemini_usage_missing": 0,
+    "gemini_response_models": {
+      "gemini-3.8-flash": 256,
+      "gemini-3.7-flash": 4,
+      "gemini-3.6-flash": 4,
+      "gemini-3.5-flash": 4
+    },
+    "gemini_usage_by_model": {
+      "gemini-3.5-flash": {
+        "responses": 4,
+        "input_tokens": 95261,
+        "output_tokens": 6142,
+        "estimated_usd": 0.099085
+      },
+      "gemini-3.6-flash": {
+        "responses": 4,
+        "input_tokens": 95261,
+        "output_tokens": 6118,
+        "estimated_usd": 0.098977
+      },
+      "gemini-3.7-flash": {
+        "responses": 4,
+        "input_tokens": 95261,
+        "output_tokens": 5102,
+        "estimated_usd": 0.094405
+      },
+      "gemini-3.8-flash": {
+        "responses": 256,
+        "input_tokens": 5678964,
+        "output_tokens": 621960,
+        "estimated_usd": 3.295787
+      }
+    },
+    "gemini_pricing_limit": "3.6 and 3.7 are absent from the current price page; their eight frozen probes use the published 3.5 batch rate as a conservative assumption, not an invoice",
+    "jev_usage": {
+      "input_tokens": 16472325,
+      "output_tokens": 144164
+    },
+    "jev_attempts": 788,
+    "jev_attempt_cap": 788,
+    "jev_job_outcomes": {
+      "answered": 476,
+      "unavailable": 148,
+      "budget_blocked": 6
+    },
+    "rows": [
+      {
+        "question": "triage.route.v1",
+        "provider": "rules",
+        "encoding": "deterministic",
+        "held_out_cases": 110,
+        "n": 110,
+        "correct": 11,
+        "accuracy": 0.1,
+        "wilson_95": [
+          0.0568,
+          0.1702
+        ],
+        "coverage": 1.0,
+        "ci_unit": "committed answers; presentation orders are correlated",
+        "baseline_accuracy": 0.1,
+        "margin": 0.0,
+        "important_miss_cases": 110,
+        "important_misses": 0,
+        "important_miss_wilson_95": [
+          0,
+          0.0337
+        ],
+        "deterministic_constraint_violations": 0,
+        "matching_calibration_identity": null,
+        "attempted_completion_new": 1.0,
+        "qualified": false,
+        "failed_gates": [
+          "important-miss tolerance undeclared"
+        ]
+      },
+      {
+        "question": "triage.route.v1",
+        "provider": "jev",
+        "encoding": "direct",
+        "held_out_cases": 110,
+        "n": 47,
+        "correct": 14,
+        "accuracy": 0.2978723404255319,
+        "wilson_95": [
+          0.1865,
+          0.4398
+        ],
+        "coverage": 0.42727272727272725,
+        "ci_unit": "committed answers; presentation orders are correlated",
+        "baseline_accuracy": 0.1,
+        "margin": 0.1978723404255319,
+        "important_miss_cases": 110,
+        "important_misses": 0,
+        "important_miss_wilson_95": [
+          0,
+          0.0337
+        ],
+        "deterministic_constraint_violations": 0,
+        "matching_calibration_identity": true,
+        "attempted_completion_new": 1.0,
+        "qualified": false,
+        "failed_gates": [
+          "important-miss tolerance undeclared"
+        ]
+      },
+      {
+        "question": "triage.route.v1",
+        "provider": "jev",
+        "encoding": "enriched",
+        "held_out_cases": 110,
+        "n": 110,
+        "correct": 49,
+        "accuracy": 0.44545454545454544,
+        "wilson_95": [
+          0.356,
+          0.5386
+        ],
+        "coverage": 0.5,
+        "ci_unit": "committed answers; presentation orders are correlated",
+        "baseline_accuracy": 0.1,
+        "margin": 0.34545454545454546,
+        "important_miss_cases": 90,
+        "important_misses": 0,
+        "important_miss_wilson_95": [
+          0,
+          0.0409
+        ],
+        "deterministic_constraint_violations": 0,
+        "matching_calibration_identity": true,
+        "attempted_completion_new": 0.6944444444444444,
+        "qualified": false,
+        "failed_gates": [
+          "important-miss tolerance undeclared",
+          "attempted completion below 95%"
+        ]
+      },
+      {
+        "question": "triage.route.v1",
+        "provider": "jev",
+        "encoding": "enriched_without_priors",
+        "held_out_cases": 110,
+        "n": 88,
+        "correct": 33,
+        "accuracy": 0.375,
+        "wilson_95": [
+          0.2811,
+          0.4794
+        ],
+        "coverage": 0.4,
+        "ci_unit": "committed answers; presentation orders are correlated",
+        "baseline_accuracy": 0.1,
+        "margin": 0.275,
+        "important_miss_cases": 90,
+        "important_misses": 0,
+        "important_miss_wilson_95": [
+          0,
+          0.0409
+        ],
+        "deterministic_constraint_violations": 0,
+        "matching_calibration_identity": true,
+        "attempted_completion_new": 0.6944444444444444,
+        "qualified": false,
+        "failed_gates": [
+          "important-miss tolerance undeclared",
+          "attempted completion below 95%"
+        ]
+      },
+      {
+        "question": "triage.route.v1",
+        "provider": "gemini",
+        "encoding": "gemini_alone",
+        "held_out_cases": 110,
+        "n": 172,
+        "correct": 105,
+        "accuracy": 0.6104651162790697,
+        "wilson_95": [
+          0.5359,
+          0.6802
+        ],
+        "coverage": 0.7818181818181819,
+        "ci_unit": "committed answers; presentation orders are correlated",
+        "baseline_accuracy": 0.1,
+        "margin": 0.5104651162790698,
+        "important_miss_cases": 110,
+        "important_misses": 13,
+        "important_miss_wilson_95": [
+          0.0704,
+          0.1918
+        ],
+        "deterministic_constraint_violations": 25,
+        "matching_calibration_identity": false,
+        "attempted_completion_new": 1.0,
+        "qualified": false,
+        "failed_gates": [
+          "important-miss tolerance undeclared",
+          "matching qualified calibration absent",
+          "deterministic constraint violation observed"
+        ]
+      },
+      {
+        "question": "vision.route.v1",
+        "provider": "rules",
+        "encoding": "deterministic",
+        "held_out_cases": 110,
+        "n": 110,
+        "correct": 67,
+        "accuracy": 0.6090909090909091,
+        "wilson_95": [
+          0.5157,
+          0.6951
+        ],
+        "coverage": 1.0,
+        "ci_unit": "committed answers; presentation orders are correlated",
+        "baseline_accuracy": 0.6090909090909091,
+        "margin": 0.0,
+        "important_miss_cases": 110,
+        "important_misses": 0,
+        "important_miss_wilson_95": [
+          0,
+          0.0337
+        ],
+        "deterministic_constraint_violations": 0,
+        "matching_calibration_identity": null,
+        "attempted_completion_new": 1.0,
+        "qualified": false,
+        "failed_gates": [
+          "important-miss tolerance undeclared"
+        ]
+      },
+      {
+        "question": "vision.route.v1",
+        "provider": "jev",
+        "encoding": "direct",
+        "held_out_cases": 110,
+        "n": 54,
+        "correct": 42,
+        "accuracy": 0.7777777777777778,
+        "wilson_95": [
+          0.6506,
+          0.868
+        ],
+        "coverage": 0.4909090909090909,
+        "ci_unit": "committed answers; presentation orders are correlated",
+        "baseline_accuracy": 0.6090909090909091,
+        "margin": 0.16868686868686866,
+        "important_miss_cases": 110,
+        "important_misses": 0,
+        "important_miss_wilson_95": [
+          0,
+          0.0337
+        ],
+        "deterministic_constraint_violations": 0,
+        "matching_calibration_identity": true,
+        "attempted_completion_new": 1.0,
+        "qualified": false,
+        "failed_gates": [
+          "important-miss tolerance undeclared"
+        ]
+      },
+      {
+        "question": "vision.route.v1",
+        "provider": "jev",
+        "encoding": "enriched",
+        "held_out_cases": 110,
+        "n": 102,
+        "correct": 72,
+        "accuracy": 0.7058823529411765,
+        "wilson_95": [
+          0.6113,
+          0.7855
+        ],
+        "coverage": 0.4636363636363636,
+        "ci_unit": "committed answers; presentation orders are correlated",
+        "baseline_accuracy": 0.6090909090909091,
+        "margin": 0.09679144385026739,
+        "important_miss_cases": 90,
+        "important_misses": 0,
+        "important_miss_wilson_95": [
+          0,
+          0.0409
+        ],
+        "deterministic_constraint_violations": 0,
+        "matching_calibration_identity": true,
+        "attempted_completion_new": 0.6944444444444444,
+        "qualified": false,
+        "failed_gates": [
+          "important-miss tolerance undeclared",
+          "attempted completion below 95%"
+        ]
+      },
+      {
+        "question": "vision.route.v1",
+        "provider": "jev",
+        "encoding": "enriched_without_priors",
+        "held_out_cases": 110,
+        "n": 103,
+        "correct": 72,
+        "accuracy": 0.6990291262135923,
+        "wilson_95": [
+          0.6046,
+          0.7791
+        ],
+        "coverage": 0.4681818181818182,
+        "ci_unit": "committed answers; presentation orders are correlated",
+        "baseline_accuracy": 0.6090909090909091,
+        "margin": 0.08993821712268313,
+        "important_miss_cases": 90,
+        "important_misses": 0,
+        "important_miss_wilson_95": [
+          0,
+          0.0409
+        ],
+        "deterministic_constraint_violations": 0,
+        "matching_calibration_identity": true,
+        "attempted_completion_new": 0.6944444444444444,
+        "qualified": false,
+        "failed_gates": [
+          "important-miss tolerance undeclared",
+          "attempted completion below 95%"
+        ]
+      },
+      {
+        "question": "vision.route.v1",
+        "provider": "gemini",
+        "encoding": "gemini_alone",
+        "held_out_cases": 110,
+        "n": 197,
+        "correct": 174,
+        "accuracy": 0.883248730964467,
+        "wilson_95": [
+          0.8309,
+          0.9209
+        ],
+        "coverage": 0.8954545454545455,
+        "ci_unit": "committed answers; presentation orders are correlated",
+        "baseline_accuracy": 0.6090909090909091,
+        "margin": 0.27415782187355786,
+        "important_miss_cases": 110,
+        "important_misses": 0,
+        "important_miss_wilson_95": [
+          0,
+          0.0337
+        ],
+        "deterministic_constraint_violations": 0,
+        "matching_calibration_identity": false,
+        "attempted_completion_new": 1.0,
+        "qualified": false,
+        "failed_gates": [
+          "important-miss tolerance undeclared",
+          "matching qualified calibration absent"
+        ]
+      },
+      {
+        "question": "perf.interpret.v1",
+        "provider": "rules",
+        "encoding": "deterministic",
+        "held_out_cases": 62,
+        "n": 62,
+        "correct": 62,
+        "accuracy": 1.0,
+        "wilson_95": [
+          0.9417,
+          1.0
+        ],
+        "coverage": 1.0,
+        "ci_unit": "committed answers; presentation orders are correlated",
+        "baseline_accuracy": 1.0,
+        "margin": 0.0,
+        "important_miss_cases": 62,
+        "important_misses": 0,
+        "important_miss_wilson_95": [
+          0,
+          0.0583
+        ],
+        "deterministic_constraint_violations": 0,
+        "matching_calibration_identity": null,
+        "attempted_completion_new": 1.0,
+        "qualified": false,
+        "failed_gates": [
+          "important-miss tolerance undeclared"
+        ]
+      },
+      {
+        "question": "perf.interpret.v1",
+        "provider": "jev",
+        "encoding": "direct",
+        "held_out_cases": 62,
+        "n": 61,
+        "correct": 61,
+        "accuracy": 1.0,
+        "wilson_95": [
+          0.9408,
+          1
+        ],
+        "coverage": 0.9838709677419355,
+        "ci_unit": "committed answers; presentation orders are correlated",
+        "baseline_accuracy": 1.0,
+        "margin": 0.0,
+        "important_miss_cases": 62,
+        "important_misses": 0,
+        "important_miss_wilson_95": [
+          0,
+          0.0583
+        ],
+        "deterministic_constraint_violations": 0,
+        "matching_calibration_identity": true,
+        "attempted_completion_new": 1.0,
+        "qualified": false,
+        "failed_gates": [
+          "important-miss tolerance undeclared"
+        ]
+      },
+      {
+        "question": "perf.interpret.v1",
+        "provider": "jev",
+        "encoding": "enriched",
+        "held_out_cases": 62,
+        "n": 25,
+        "correct": 25,
+        "accuracy": 1.0,
+        "wilson_95": [
+          0.8668,
+          1.0
+        ],
+        "coverage": 0.20161290322580644,
+        "ci_unit": "committed answers; presentation orders are correlated",
+        "baseline_accuracy": 1.0,
+        "margin": 0.0,
+        "important_miss_cases": 45,
+        "important_misses": 0,
+        "important_miss_wilson_95": [
+          0,
+          0.0787
+        ],
+        "deterministic_constraint_violations": 0,
+        "matching_calibration_identity": false,
+        "attempted_completion_new": 0.6166666666666667,
+        "qualified": false,
+        "failed_gates": [
+          "important-miss tolerance undeclared",
+          "matching qualified calibration absent",
+          "attempted completion below 95%"
+        ]
+      },
+      {
+        "question": "perf.interpret.v1",
+        "provider": "jev",
+        "encoding": "enriched_without_priors",
+        "held_out_cases": 62,
+        "n": 64,
+        "correct": 64,
+        "accuracy": 1.0,
+        "wilson_95": [
+          0.9434,
+          1
+        ],
+        "coverage": 0.5161290322580645,
+        "ci_unit": "committed answers; presentation orders are correlated",
+        "baseline_accuracy": 1.0,
+        "margin": 0.0,
+        "important_miss_cases": 45,
+        "important_misses": 0,
+        "important_miss_wilson_95": [
+          0,
+          0.0787
+        ],
+        "deterministic_constraint_violations": 0,
+        "matching_calibration_identity": false,
+        "attempted_completion_new": 0.6166666666666667,
+        "qualified": false,
+        "failed_gates": [
+          "important-miss tolerance undeclared",
+          "matching qualified calibration absent",
+          "attempted completion below 95%"
+        ]
+      },
+      {
+        "question": "perf.interpret.v1",
+        "provider": "gemini",
+        "encoding": "gemini_alone",
+        "held_out_cases": 62,
+        "n": 0,
+        "correct": 0,
+        "accuracy": null,
+        "wilson_95": null,
+        "coverage": null,
+        "ci_unit": "committed answers; presentation orders are correlated",
+        "baseline_accuracy": 1.0,
+        "margin": null,
+        "important_miss_cases": 0,
+        "important_misses": 0,
+        "important_miss_wilson_95": null,
+        "deterministic_constraint_violations": 0,
+        "matching_calibration_identity": false,
+        "attempted_completion_new": null,
+        "qualified": false,
+        "failed_gates": [
+          "important-miss tolerance undeclared",
+          "matching qualified calibration absent"
+        ]
+      },
+      {
+        "question": "capture.disposition.v1",
+        "provider": "rules",
+        "encoding": "deterministic",
+        "held_out_cases": 110,
+        "n": 110,
+        "correct": 110,
+        "accuracy": 1.0,
+        "wilson_95": [
+          0.9663,
+          1.0
+        ],
+        "coverage": 1.0,
+        "ci_unit": "committed answers; presentation orders are correlated",
+        "baseline_accuracy": 1.0,
+        "margin": 0.0,
+        "important_miss_cases": 110,
+        "important_misses": 0,
+        "important_miss_wilson_95": [
+          0,
+          0.0337
+        ],
+        "deterministic_constraint_violations": 0,
+        "matching_calibration_identity": null,
+        "attempted_completion_new": 1.0,
+        "qualified": false,
+        "failed_gates": [
+          "important-miss tolerance undeclared"
+        ]
+      },
+      {
+        "question": "capture.disposition.v1",
+        "provider": "jev",
+        "encoding": "direct",
+        "held_out_cases": 110,
+        "n": 50,
+        "correct": 9,
+        "accuracy": 0.18,
+        "wilson_95": [
+          0.0977,
+          0.308
+        ],
+        "coverage": 0.45454545454545453,
+        "ci_unit": "committed answers; presentation orders are correlated",
+        "baseline_accuracy": 1.0,
+        "margin": -0.8200000000000001,
+        "important_miss_cases": 110,
+        "important_misses": 0,
+        "important_miss_wilson_95": [
+          0,
+          0.0337
+        ],
+        "deterministic_constraint_violations": 0,
+        "matching_calibration_identity": true,
+        "attempted_completion_new": 1.0,
+        "qualified": false,
+        "failed_gates": [
+          "important-miss tolerance undeclared"
+        ]
+      },
+      {
+        "question": "capture.disposition.v1",
+        "provider": "jev",
+        "encoding": "enriched",
+        "held_out_cases": 110,
+        "n": 75,
+        "correct": 18,
+        "accuracy": 0.24,
+        "wilson_95": [
+          0.1575,
+          0.3478
+        ],
+        "coverage": 0.3409090909090909,
+        "ci_unit": "committed answers; presentation orders are correlated",
+        "baseline_accuracy": 1.0,
+        "margin": -0.76,
+        "important_miss_cases": 90,
+        "important_misses": 0,
+        "important_miss_wilson_95": [
+          0,
+          0.0409
+        ],
+        "deterministic_constraint_violations": 0,
+        "matching_calibration_identity": false,
+        "attempted_completion_new": 0.6944444444444444,
+        "qualified": false,
+        "failed_gates": [
+          "important-miss tolerance undeclared",
+          "matching qualified calibration absent",
+          "attempted completion below 95%"
+        ]
+      },
+      {
+        "question": "capture.disposition.v1",
+        "provider": "jev",
+        "encoding": "enriched_without_priors",
+        "held_out_cases": 110,
+        "n": 46,
+        "correct": 18,
+        "accuracy": 0.391304347826087,
+        "wilson_95": [
+          0.2639,
+          0.5354
+        ],
+        "coverage": 0.20909090909090908,
+        "ci_unit": "committed answers; presentation orders are correlated",
+        "baseline_accuracy": 1.0,
+        "margin": -0.6086956521739131,
+        "important_miss_cases": 90,
+        "important_misses": 0,
+        "important_miss_wilson_95": [
+          0,
+          0.0409
+        ],
+        "deterministic_constraint_violations": 0,
+        "matching_calibration_identity": false,
+        "attempted_completion_new": 0.6944444444444444,
+        "qualified": false,
+        "failed_gates": [
+          "important-miss tolerance undeclared",
+          "matching qualified calibration absent",
+          "attempted completion below 95%"
+        ]
+      },
+      {
+        "question": "capture.disposition.v1",
+        "provider": "gemini",
+        "encoding": "gemini_alone",
+        "held_out_cases": 110,
+        "n": 0,
+        "correct": 0,
+        "accuracy": null,
+        "wilson_95": null,
+        "coverage": null,
+        "ci_unit": "committed answers; presentation orders are correlated",
+        "baseline_accuracy": 1.0,
+        "margin": null,
+        "important_miss_cases": 0,
+        "important_misses": 0,
+        "important_miss_wilson_95": null,
+        "deterministic_constraint_violations": 0,
+        "matching_calibration_identity": false,
+        "attempted_completion_new": null,
+        "qualified": false,
+        "failed_gates": [
+          "important-miss tolerance undeclared",
+          "matching qualified calibration absent"
+        ]
+      },
+      {
+        "question": "intent.match.v1",
+        "provider": "rules",
+        "encoding": "deterministic",
+        "held_out_cases": 110,
+        "n": 34,
+        "correct": 34,
+        "accuracy": 1.0,
+        "wilson_95": [
+          0.8985,
+          1.0
+        ],
+        "coverage": 0.3090909090909091,
+        "ci_unit": "committed answers; presentation orders are correlated",
+        "baseline_accuracy": 1.0,
+        "margin": 0.0,
+        "important_miss_cases": 110,
+        "important_misses": 0,
+        "important_miss_wilson_95": [
+          0,
+          0.0337
+        ],
+        "deterministic_constraint_violations": 0,
+        "matching_calibration_identity": null,
+        "attempted_completion_new": 1.0,
+        "qualified": false,
+        "failed_gates": [
+          "important-miss tolerance undeclared"
+        ]
+      },
+      {
+        "question": "intent.match.v1",
+        "provider": "jev",
+        "encoding": "direct",
+        "held_out_cases": 110,
+        "n": 34,
+        "correct": 34,
+        "accuracy": 1.0,
+        "wilson_95": [
+          0.8985,
+          1.0
+        ],
+        "coverage": 0.3090909090909091,
+        "ci_unit": "committed answers; presentation orders are correlated",
+        "baseline_accuracy": 1.0,
+        "margin": 0.0,
+        "important_miss_cases": 110,
+        "important_misses": 51,
+        "important_miss_wilson_95": [
+          0.3733,
+          0.5565
+        ],
+        "deterministic_constraint_violations": 51,
+        "matching_calibration_identity": true,
+        "attempted_completion_new": 1.0,
+        "qualified": false,
+        "failed_gates": [
+          "important-miss tolerance undeclared",
+          "deterministic constraint violation observed"
+        ]
+      },
+      {
+        "question": "intent.match.v1",
+        "provider": "jev",
+        "encoding": "enriched",
+        "held_out_cases": 110,
+        "n": 177,
+        "correct": 148,
+        "accuracy": 0.8361581920903954,
+        "wilson_95": [
+          0.7746,
+          0.8834
+        ],
+        "coverage": 0.8045454545454546,
+        "ci_unit": "committed answers; presentation orders are correlated",
+        "baseline_accuracy": 1.0,
+        "margin": -0.16384180790960456,
+        "important_miss_cases": 90,
+        "important_misses": 1,
+        "important_miss_wilson_95": [
+          0.002,
+          0.0603
+        ],
+        "deterministic_constraint_violations": 1,
+        "matching_calibration_identity": true,
+        "attempted_completion_new": 0.6944444444444444,
+        "qualified": false,
+        "failed_gates": [
+          "important-miss tolerance undeclared",
+          "attempted completion below 95%",
+          "deterministic constraint violation observed"
+        ]
+      },
+      {
+        "question": "intent.match.v1",
+        "provider": "jev",
+        "encoding": "enriched_without_priors",
+        "held_out_cases": 110,
+        "n": 177,
+        "correct": 149,
+        "accuracy": 0.8418079096045198,
+        "wilson_95": [
+          0.7809,
+          0.8882
+        ],
+        "coverage": 0.8045454545454546,
+        "ci_unit": "committed answers; presentation orders are correlated",
+        "baseline_accuracy": 1.0,
+        "margin": -0.1581920903954802,
+        "important_miss_cases": 90,
+        "important_misses": 1,
+        "important_miss_wilson_95": [
+          0.002,
+          0.0603
+        ],
+        "deterministic_constraint_violations": 1,
+        "matching_calibration_identity": true,
+        "attempted_completion_new": 0.6944444444444444,
+        "qualified": false,
+        "failed_gates": [
+          "important-miss tolerance undeclared",
+          "attempted completion below 95%",
+          "deterministic constraint violation observed"
+        ]
+      },
+      {
+        "question": "intent.match.v1",
+        "provider": "gemini",
+        "encoding": "gemini_alone",
+        "held_out_cases": 110,
+        "n": 194,
+        "correct": 181,
+        "accuracy": 0.9329896907216495,
+        "wilson_95": [
+          0.8887,
+          0.9604
+        ],
+        "coverage": 0.8818181818181818,
+        "ci_unit": "committed answers; presentation orders are correlated",
+        "baseline_accuracy": 1.0,
+        "margin": -0.0670103092783505,
+        "important_miss_cases": 110,
+        "important_misses": 3,
+        "important_miss_wilson_95": [
+          0.0093,
+          0.0771
+        ],
+        "deterministic_constraint_violations": 3,
+        "matching_calibration_identity": false,
+        "attempted_completion_new": 1.0,
+        "qualified": false,
+        "failed_gates": [
+          "important-miss tolerance undeclared",
+          "matching qualified calibration absent",
+          "deterministic constraint violation observed"
+        ]
+      }
+    ],
+    "calibrators": [
+      {
+        "question": "triage.route.v1",
+        "provider": "gemini",
+        "encoding": "gemini_alone",
+        "mode": "production_policy",
+        "model": "gemini-3.8-flash",
+        "vision_model": "gemini-3.8-flash",
+        "depends_on_model_observation": true,
+        "identity_sha256": "sha256:ecaa6954f8712e1e8ecdf2a7fc48d8b988fbe175baad49554f6d04ae39807cc9",
+        "fit": {
+          "blocks": [],
+          "fitted": false,
+          "method": "binned-isotonic/1",
+          "qualified": false,
+          "support": 0
+        },
+        "fit_cases": 0
+      },
+      {
+        "question": "vision.route.v1",
+        "provider": "gemini",
+        "encoding": "gemini_alone",
+        "mode": "production_policy",
+        "model": "gemini-3.8-flash",
+        "vision_model": "gemini-3.8-flash",
+        "depends_on_model_observation": true,
+        "identity_sha256": "sha256:27bb80b4328b79117eecbb0ebba17d8dbca1a3ed75fbc9e60442dd9fe7b5e5a2",
+        "fit": {
+          "blocks": [],
+          "fitted": false,
+          "method": "binned-isotonic/1",
+          "qualified": false,
+          "support": 0
+        },
+        "fit_cases": 0
+      },
+      {
+        "question": "intent.match.v1",
+        "provider": "gemini",
+        "encoding": "gemini_alone",
+        "mode": "production_policy",
+        "model": "gemini-3.8-flash",
+        "vision_model": "gemini-3.8-flash",
+        "depends_on_model_observation": true,
+        "identity_sha256": "sha256:cc79b40829637b75facbec9ff80ae437b0c088ab6ca5ac46d3373fd509fdd1dc",
+        "fit": {
+          "blocks": [],
+          "fitted": false,
+          "method": "binned-isotonic/1",
+          "qualified": false,
+          "support": 0
+        },
+        "fit_cases": 0
+      },
+      {
+        "question": "triage.route.v1",
+        "provider": "gemini",
+        "encoding": "gemini_alone",
+        "mode": "production_policy",
+        "model": "unresolved",
+        "vision_model": null,
+        "depends_on_model_observation": false,
+        "identity_sha256": "sha256:801b4bf67e13ebac11dc980a28508958ba4223ad6d9af140b416f2c75a171a10",
+        "fit": {
+          "blocks": [],
+          "fitted": false,
+          "method": "binned-isotonic/1",
+          "qualified": false,
+          "support": 0
+        },
+        "fit_cases": 0
+      },
+      {
+        "question": "vision.route.v1",
+        "provider": "gemini",
+        "encoding": "gemini_alone",
+        "mode": "production_policy",
+        "model": "unresolved",
+        "vision_model": null,
+        "depends_on_model_observation": false,
+        "identity_sha256": "sha256:e0fdac5c90d774b4d2b8aa5b6290f400fe389069f4a860fa0c1377a6e8ab7cc1",
+        "fit": {
+          "blocks": [],
+          "fitted": false,
+          "method": "binned-isotonic/1",
+          "qualified": false,
+          "support": 0
+        },
+        "fit_cases": 0
+      },
+      {
+        "question": "intent.match.v1",
+        "provider": "gemini",
+        "encoding": "gemini_alone",
+        "mode": "production_policy",
+        "model": "unresolved",
+        "vision_model": null,
+        "depends_on_model_observation": false,
+        "identity_sha256": "sha256:224f7ced7f69202757217c3735d437de13984337e4d9babb5e1e13eedadfe566",
+        "fit": {
+          "blocks": [],
+          "fitted": false,
+          "method": "binned-isotonic/1",
+          "qualified": false,
+          "support": 0
+        },
+        "fit_cases": 0
+      },
+      {
+        "question": "triage.route.v1",
+        "provider": "gemini",
+        "encoding": "gemini_alone",
+        "mode": "pinned_provider",
+        "model": "gemini-3.8-flash",
+        "vision_model": null,
+        "depends_on_model_observation": false,
+        "identity_sha256": "sha256:96c4896da9b75825b3a48fc628ae2c64fcf8c5f20856b00c06f721029a2f2b17",
+        "fit": {
+          "blocks": [],
+          "fitted": false,
+          "method": "binned-isotonic/1",
+          "qualified": false,
+          "support": 0
+        },
+        "fit_cases": 0
+      },
+      {
+        "question": "vision.route.v1",
+        "provider": "gemini",
+        "encoding": "gemini_alone",
+        "mode": "pinned_provider",
+        "model": "gemini-3.8-flash",
+        "vision_model": null,
+        "depends_on_model_observation": false,
+        "identity_sha256": "sha256:0beebe5fc3a8b0b9a6cc794830c2d03c246861ad416b90c1a5a1a898646ce572",
+        "fit": {
+          "blocks": [],
+          "fitted": false,
+          "method": "binned-isotonic/1",
+          "qualified": false,
+          "support": 0
+        },
+        "fit_cases": 0
+      },
+      {
+        "question": "intent.match.v1",
+        "provider": "gemini",
+        "encoding": "gemini_alone",
+        "mode": "pinned_provider",
+        "model": "gemini-3.8-flash",
+        "vision_model": null,
+        "depends_on_model_observation": false,
+        "identity_sha256": "sha256:8c169f1a1e9dd07e41672372d30ea508a1fa90db22995f6352b72aeec44c0896",
+        "fit": {
+          "blocks": [],
+          "fitted": false,
+          "method": "binned-isotonic/1",
+          "qualified": false,
+          "support": 0
+        },
+        "fit_cases": 0
+      },
+      {
+        "question": "triage.route.v1",
+        "provider": "gemini",
+        "encoding": "gemini_alone",
+        "mode": "pinned_provider",
+        "model": "gemini-3.8-flash",
+        "vision_model": "gemini-3.8-flash",
+        "depends_on_model_observation": true,
+        "identity_sha256": "sha256:4fa081456fa4cf61b78e44a95034fa32c43bc6e9c54d95ee21411136810ebcf8",
+        "fit": {
+          "blocks": [],
+          "fitted": false,
+          "method": "binned-isotonic/1",
+          "qualified": false,
+          "support": 0
+        },
+        "fit_cases": 0
+      },
+      {
+        "question": "vision.route.v1",
+        "provider": "gemini",
+        "encoding": "gemini_alone",
+        "mode": "pinned_provider",
+        "model": "gemini-3.8-flash",
+        "vision_model": "gemini-3.8-flash",
+        "depends_on_model_observation": true,
+        "identity_sha256": "sha256:2a8cbaf2a071a54b6dcee3468329777a1fe0629b3df660de5df61e68811c68f1",
+        "fit": {
+          "blocks": [],
+          "fitted": false,
+          "method": "binned-isotonic/1",
+          "qualified": false,
+          "support": 0
+        },
+        "fit_cases": 0
+      },
+      {
+        "question": "intent.match.v1",
+        "provider": "gemini",
+        "encoding": "gemini_alone",
+        "mode": "pinned_provider",
+        "model": "gemini-3.8-flash",
+        "vision_model": "gemini-3.8-flash",
+        "depends_on_model_observation": true,
+        "identity_sha256": "sha256:0cc9208d5894982e5346dda98284e31f39f97ccf2c24cc639297395785450979",
+        "fit": {
+          "blocks": [],
+          "fitted": false,
+          "method": "binned-isotonic/1",
+          "qualified": false,
+          "support": 0
+        },
+        "fit_cases": 0
+      },
+      {
+        "question": "triage.route.v1",
+        "provider": "gemini",
+        "encoding": "gemini_alone",
+        "mode": "pinned_provider",
+        "model": "gemini-3.7-flash",
+        "vision_model": "gemini-3.7-flash",
+        "depends_on_model_observation": true,
+        "identity_sha256": "sha256:20e15285b8cecd89caa078749ed37d4b17225d37aa27e616fcdbb9856e3ae887",
+        "fit": {
+          "blocks": [],
+          "fitted": false,
+          "method": "binned-isotonic/1",
+          "qualified": false,
+          "support": 0
+        },
+        "fit_cases": 0
+      },
+      {
+        "question": "vision.route.v1",
+        "provider": "gemini",
+        "encoding": "gemini_alone",
+        "mode": "pinned_provider",
+        "model": "gemini-3.7-flash",
+        "vision_model": "gemini-3.7-flash",
+        "depends_on_model_observation": true,
+        "identity_sha256": "sha256:8a30deb3d343f0296271db77529fbb896df075c3a424ab11000a57d61f2876e2",
+        "fit": {
+          "blocks": [],
+          "fitted": false,
+          "method": "binned-isotonic/1",
+          "qualified": false,
+          "support": 0
+        },
+        "fit_cases": 0
+      },
+      {
+        "question": "intent.match.v1",
+        "provider": "gemini",
+        "encoding": "gemini_alone",
+        "mode": "pinned_provider",
+        "model": "gemini-3.7-flash",
+        "vision_model": "gemini-3.7-flash",
+        "depends_on_model_observation": true,
+        "identity_sha256": "sha256:c6128fc3b04b62d0956ac4ee7728eeb478a97b735f6e048bb76399196498ac7b",
+        "fit": {
+          "blocks": [],
+          "fitted": false,
+          "method": "binned-isotonic/1",
+          "qualified": false,
+          "support": 0
+        },
+        "fit_cases": 0
+      },
+      {
+        "question": "triage.route.v1",
+        "provider": "gemini",
+        "encoding": "gemini_alone",
+        "mode": "pinned_provider",
+        "model": "gemini-3.6-flash",
+        "vision_model": "gemini-3.6-flash",
+        "depends_on_model_observation": true,
+        "identity_sha256": "sha256:9fdbfa2b407a05fecc8ab60a46eb100e9723e0ca94cbbdb4c1d6c7ecbf6bf1fa",
+        "fit": {
+          "blocks": [],
+          "fitted": false,
+          "method": "binned-isotonic/1",
+          "qualified": false,
+          "support": 0
+        },
+        "fit_cases": 0
+      },
+      {
+        "question": "vision.route.v1",
+        "provider": "gemini",
+        "encoding": "gemini_alone",
+        "mode": "pinned_provider",
+        "model": "gemini-3.6-flash",
+        "vision_model": "gemini-3.6-flash",
+        "depends_on_model_observation": true,
+        "identity_sha256": "sha256:67d4963ff0906fc7722bef620e674e39b5bde5a3cace6c7534b1479443006ed1",
+        "fit": {
+          "blocks": [],
+          "fitted": false,
+          "method": "binned-isotonic/1",
+          "qualified": false,
+          "support": 0
+        },
+        "fit_cases": 0
+      },
+      {
+        "question": "intent.match.v1",
+        "provider": "gemini",
+        "encoding": "gemini_alone",
+        "mode": "pinned_provider",
+        "model": "gemini-3.6-flash",
+        "vision_model": "gemini-3.6-flash",
+        "depends_on_model_observation": true,
+        "identity_sha256": "sha256:75bd10761dba7626ad03ada25a1fe3a9d1c3b3a419444317d000e451e92d2cd3",
+        "fit": {
+          "blocks": [],
+          "fitted": false,
+          "method": "binned-isotonic/1",
+          "qualified": false,
+          "support": 0
+        },
+        "fit_cases": 0
+      },
+      {
+        "question": "triage.route.v1",
+        "provider": "gemini",
+        "encoding": "gemini_alone",
+        "mode": "pinned_provider",
+        "model": "gemini-3.5-flash",
+        "vision_model": "gemini-3.5-flash",
+        "depends_on_model_observation": true,
+        "identity_sha256": "sha256:cc3bb73b56f705470d7b2785a55d9deab15a629dee83c174f04bc90fc2302633",
+        "fit": {
+          "blocks": [],
+          "fitted": false,
+          "method": "binned-isotonic/1",
+          "qualified": false,
+          "support": 0
+        },
+        "fit_cases": 0
+      },
+      {
+        "question": "vision.route.v1",
+        "provider": "gemini",
+        "encoding": "gemini_alone",
+        "mode": "pinned_provider",
+        "model": "gemini-3.5-flash",
+        "vision_model": "gemini-3.5-flash",
+        "depends_on_model_observation": true,
+        "identity_sha256": "sha256:ca20d16d743763c6db018d6d0de0143851e1f23ab9a69128395ed14bb4945a9b",
+        "fit": {
+          "blocks": [],
+          "fitted": false,
+          "method": "binned-isotonic/1",
+          "qualified": false,
+          "support": 0
+        },
+        "fit_cases": 0
+      },
+      {
+        "question": "intent.match.v1",
+        "provider": "gemini",
+        "encoding": "gemini_alone",
+        "mode": "pinned_provider",
+        "model": "gemini-3.5-flash",
+        "vision_model": "gemini-3.5-flash",
+        "depends_on_model_observation": true,
+        "identity_sha256": "sha256:21d731037b0cd2dd3b40d9b6c2af9cd8e6dc445c5e4f8b07557e372eaa192dec",
+        "fit": {
+          "blocks": [],
+          "fitted": false,
+          "method": "binned-isotonic/1",
+          "qualified": false,
+          "support": 0
+        },
+        "fit_cases": 0
+      },
+      {
+        "question": "triage.route.v1",
+        "provider": "jev",
+        "encoding": "enriched",
+        "mode": "production_policy",
+        "model": "jev-1.13.0",
+        "vision_model": null,
+        "depends_on_model_observation": true,
+        "identity_sha256": "sha256:6bbbfc0160efc70d9e7350de560e61c14fd59ec194ced28eea609d0fe1037ad8",
+        "fit": {
+          "blocks": [
+            {
+              "calibrated_probability": 0.16666666666666666,
+              "hi": 0.5,
+              "lo": 0.4,
+              "n": 6
+            },
+            {
+              "calibrated_probability": 0.4666666666666667,
+              "hi": 0.9,
+              "lo": 0.5,
+              "n": 15
+            }
+          ],
+          "fitted": true,
+          "method": "binned-isotonic/1",
+          "qualified": false,
+          "support": 21
+        },
+        "fit_cases": 11
+      },
+      {
+        "question": "vision.route.v1",
+        "provider": "jev",
+        "encoding": "enriched",
+        "mode": "production_policy",
+        "model": "jev-1.13.0",
+        "vision_model": null,
+        "depends_on_model_observation": true,
+        "identity_sha256": "sha256:4dfc6b4b7a844eb011cbce7d05b98b798a1d8a0167c4af7bd246b902042e94ba",
+        "fit": {
+          "blocks": [
+            {
+              "calibrated_probability": 0.0,
+              "hi": 0.3,
+              "lo": 0.2,
+              "n": 1
+            },
+            {
+              "calibrated_probability": 0.3125,
+              "hi": 0.6,
+              "lo": 0.3,
+              "n": 16
+            },
+            {
+              "calibrated_probability": 0.6,
+              "hi": 0.8,
+              "lo": 0.6,
+              "n": 5
+            }
+          ],
+          "fitted": true,
+          "method": "binned-isotonic/1",
+          "qualified": false,
+          "support": 22
+        },
+        "fit_cases": 12
+      },
+      {
+        "question": "capture.disposition.v1",
+        "provider": "jev",
+        "encoding": "enriched",
+        "mode": "production_policy",
+        "model": "jev-1.13.0",
+        "vision_model": null,
+        "depends_on_model_observation": true,
+        "identity_sha256": "sha256:648efaa85b99179e3e8ac26e03bb4b4856215bbb27838a2ac24ea3545b18ae4a",
+        "fit": {
+          "blocks": [
+            {
+              "calibrated_probability": 0.0,
+              "hi": 0.4,
+              "lo": 0.3,
+              "n": 8
+            },
+            {
+              "calibrated_probability": 0.0,
+              "hi": 0.5,
+              "lo": 0.4,
+              "n": 9
+            },
+            {
+              "calibrated_probability": 1.0,
+              "hi": 0.6,
+              "lo": 0.5,
+              "n": 1
+            },
+            {
+              "calibrated_probability": 1.0,
+              "hi": 0.7,
+              "lo": 0.6,
+              "n": 1
+            }
+          ],
+          "fitted": true,
+          "method": "binned-isotonic/1",
+          "qualified": false,
+          "support": 19
+        },
+        "fit_cases": 11
+      },
+      {
+        "question": "intent.match.v1",
+        "provider": "jev",
+        "encoding": "enriched",
+        "mode": "production_policy",
+        "model": "jev-1.13.0",
+        "vision_model": null,
+        "depends_on_model_observation": true,
+        "identity_sha256": "sha256:4ab4588daf04466b21b91e79eb9ce26e3135e62fdd32518d383cf6233d2520b3",
+        "fit": {
+          "blocks": [
+            {
+              "calibrated_probability": 0.6206896551724138,
+              "hi": 0.7,
+              "lo": 0.3,
+              "n": 29
+            },
+            {
+              "calibrated_probability": 1.0,
+              "hi": 1.0,
+              "lo": 0.9,
+              "n": 6
+            }
+          ],
+          "fitted": true,
+          "method": "binned-isotonic/1",
+          "qualified": false,
+          "support": 35
+        },
+        "fit_cases": 18
+      },
+      {
+        "question": "triage.route.v1",
+        "provider": "jev",
+        "encoding": "enriched_without_priors",
+        "mode": "production_policy",
+        "model": "jev-1.13.0",
+        "vision_model": null,
+        "depends_on_model_observation": true,
+        "identity_sha256": "sha256:a23155c9bb3b3499dc9379d690564084fcd9efef1baa4b004c855e46c14e5776",
+        "fit": {
+          "blocks": [
+            {
+              "calibrated_probability": 0.0,
+              "hi": 0.4,
+              "lo": 0.3,
+              "n": 1
+            },
+            {
+              "calibrated_probability": 0.5,
+              "hi": 0.5,
+              "lo": 0.4,
+              "n": 4
+            },
+            {
+              "calibrated_probability": 0.6,
+              "hi": 0.6,
+              "lo": 0.5,
+              "n": 5
+            },
+            {
+              "calibrated_probability": 0.6666666666666666,
+              "hi": 0.7,
+              "lo": 0.6,
+              "n": 6
+            },
+            {
+              "calibrated_probability": 0.6666666666666666,
+              "hi": 0.8,
+              "lo": 0.7,
+              "n": 3
+            }
+          ],
+          "fitted": true,
+          "method": "binned-isotonic/1",
+          "qualified": false,
+          "support": 19
+        },
+        "fit_cases": 11
+      },
+      {
+        "question": "vision.route.v1",
+        "provider": "jev",
+        "encoding": "enriched_without_priors",
+        "mode": "production_policy",
+        "model": "jev-1.13.0",
+        "vision_model": null,
+        "depends_on_model_observation": true,
+        "identity_sha256": "sha256:5835b2d0ea0da61209b6f0e3ad98821eae8ad35486a59a7f015fdeb92b149903",
+        "fit": {
+          "blocks": [
+            {
+              "calibrated_probability": 0.0,
+              "hi": 0.3,
+              "lo": 0.2,
+              "n": 1
+            },
+            {
+              "calibrated_probability": 0.16666666666666666,
+              "hi": 0.4,
+              "lo": 0.3,
+              "n": 6
+            },
+            {
+              "calibrated_probability": 0.3333333333333333,
+              "hi": 0.5,
+              "lo": 0.4,
+              "n": 3
+            },
+            {
+              "calibrated_probability": 0.5,
+              "hi": 0.6,
+              "lo": 0.5,
+              "n": 6
+            },
+            {
+              "calibrated_probability": 0.5,
+              "hi": 0.9,
+              "lo": 0.6,
+              "n": 6
+            }
+          ],
+          "fitted": true,
+          "method": "binned-isotonic/1",
+          "qualified": false,
+          "support": 22
+        },
+        "fit_cases": 12
+      },
+      {
+        "question": "perf.interpret.v1",
+        "provider": "jev",
+        "encoding": "enriched_without_priors",
+        "mode": "production_policy",
+        "model": "jev-1.13.0",
+        "vision_model": null,
+        "depends_on_model_observation": true,
+        "identity_sha256": "sha256:4c954896963363539dcc85d03e90936b99845c3234bdaeaa6a2776ec62a27415",
+        "fit": {
+          "blocks": [
+            {
+              "calibrated_probability": 1.0,
+              "hi": 0.5,
+              "lo": 0.4,
+              "n": 11
+            },
+            {
+              "calibrated_probability": 1.0,
+              "hi": 0.6,
+              "lo": 0.5,
+              "n": 5
+            }
+          ],
+          "fitted": true,
+          "method": "binned-isotonic/1",
+          "qualified": false,
+          "support": 16
+        },
+        "fit_cases": 12
+      },
+      {
+        "question": "capture.disposition.v1",
+        "provider": "jev",
+        "encoding": "enriched_without_priors",
+        "mode": "production_policy",
+        "model": "jev-1.13.0",
+        "vision_model": null,
+        "depends_on_model_observation": true,
+        "identity_sha256": "sha256:b95567d040ff8606ad1ebd5c1287a59634ec3e131864f2754be808e9c4504033",
+        "fit": {
+          "blocks": [
+            {
+              "calibrated_probability": 0.0,
+              "hi": 0.4,
+              "lo": 0.3,
+              "n": 8
+            },
+            {
+              "calibrated_probability": 0.0,
+              "hi": 0.5,
+              "lo": 0.4,
+              "n": 8
+            },
+            {
+              "calibrated_probability": 1.0,
+              "hi": 0.8,
+              "lo": 0.7,
+              "n": 2
+            }
+          ],
+          "fitted": true,
+          "method": "binned-isotonic/1",
+          "qualified": false,
+          "support": 18
+        },
+        "fit_cases": 12
+      },
+      {
+        "question": "intent.match.v1",
+        "provider": "jev",
+        "encoding": "enriched_without_priors",
+        "mode": "production_policy",
+        "model": "jev-1.13.0",
+        "vision_model": null,
+        "depends_on_model_observation": true,
+        "identity_sha256": "sha256:5c2f50181809c6b4cb2ac62a2cfd34942a7dc7d7685d11c91f9fb52fe346e946",
+        "fit": {
+          "blocks": [
+            {
+              "calibrated_probability": 0.42857142857142855,
+              "hi": 0.5,
+              "lo": 0.3,
+              "n": 14
+            },
+            {
+              "calibrated_probability": 0.8,
+              "hi": 0.7,
+              "lo": 0.5,
+              "n": 15
+            },
+            {
+              "calibrated_probability": 1.0,
+              "hi": 1.0,
+              "lo": 0.9,
+              "n": 6
+            }
+          ],
+          "fitted": true,
+          "method": "binned-isotonic/1",
+          "qualified": false,
+          "support": 35
+        },
+        "fit_cases": 18
+      },
+      {
+        "question": "triage.route.v1",
+        "provider": "jev",
+        "encoding": "direct",
+        "mode": "pinned_provider",
+        "model": "jev-1.13.0",
+        "vision_model": null,
+        "depends_on_model_observation": false,
+        "identity_sha256": "sha256:e8266c9c9ba7335750e30d16ee42346266e4e53e1259e9cb02c817906574e68f",
+        "fit": {
+          "blocks": [
+            {
+              "calibrated_probability": 0.13333333333333333,
+              "hi": 0.6,
+              "lo": 0.3,
+              "n": 15
+            }
+          ],
+          "fitted": true,
+          "method": "binned-isotonic/1",
+          "qualified": false,
+          "support": 15
+        },
+        "fit_cases": 15
+      },
+      {
+        "question": "vision.route.v1",
+        "provider": "jev",
+        "encoding": "direct",
+        "mode": "pinned_provider",
+        "model": "jev-1.13.0",
+        "vision_model": null,
+        "depends_on_model_observation": false,
+        "identity_sha256": "sha256:b3d55099b68cfcac874033d87ec469bda1cf2eab984afaadc008440b253e3780",
+        "fit": {
+          "blocks": [
+            {
+              "calibrated_probability": 0.0,
+              "hi": 0.4,
+              "lo": 0.3,
+              "n": 1
+            },
+            {
+              "calibrated_probability": 0.0,
+              "hi": 0.5,
+              "lo": 0.4,
+              "n": 9
+            },
+            {
+              "calibrated_probability": 0.5,
+              "hi": 0.6,
+              "lo": 0.5,
+              "n": 2
+            },
+            {
+              "calibrated_probability": 0.6666666666666666,
+              "hi": 0.8,
+              "lo": 0.6,
+              "n": 3
+            },
+            {
+              "calibrated_probability": 1.0,
+              "hi": 0.9,
+              "lo": 0.8,
+              "n": 1
+            }
+          ],
+          "fitted": true,
+          "method": "binned-isotonic/1",
+          "qualified": false,
+          "support": 16
+        },
+        "fit_cases": 16
+      },
+      {
+        "question": "capture.disposition.v1",
+        "provider": "jev",
+        "encoding": "direct",
+        "mode": "pinned_provider",
+        "model": "jev-1.13.0",
+        "vision_model": null,
+        "depends_on_model_observation": false,
+        "identity_sha256": "sha256:921860368f33ab34c3961ac435f932a0abea84ace1539f503822e7ede7aa9ba2",
+        "fit": {
+          "blocks": [
+            {
+              "calibrated_probability": 0.0,
+              "hi": 0.4,
+              "lo": 0.3,
+              "n": 11
+            },
+            {
+              "calibrated_probability": 0.0,
+              "hi": 0.5,
+              "lo": 0.4,
+              "n": 14
+            },
+            {
+              "calibrated_probability": 1.0,
+              "hi": 0.7,
+              "lo": 0.6,
+              "n": 1
+            }
+          ],
+          "fitted": true,
+          "method": "binned-isotonic/1",
+          "qualified": false,
+          "support": 26
+        },
+        "fit_cases": 26
+      },
+      {
+        "question": "intent.match.v1",
+        "provider": "jev",
+        "encoding": "direct",
+        "mode": "pinned_provider",
+        "model": "jev-1.13.0",
+        "vision_model": null,
+        "depends_on_model_observation": false,
+        "identity_sha256": "sha256:5afe19ea456dea4227839cce22df470c1f1c2263e0f7a7525f9401f03d446122",
+        "fit": {
+          "blocks": [
+            {
+              "calibrated_probability": 1.0,
+              "hi": 1.0,
+              "lo": 0.9,
+              "n": 4
+            }
+          ],
+          "fitted": true,
+          "method": "binned-isotonic/1",
+          "qualified": false,
+          "support": 4
+        },
+        "fit_cases": 4
+      },
+      {
+        "question": "triage.route.v1",
+        "provider": "jev",
+        "encoding": "enriched_without_priors",
+        "mode": "production_policy",
+        "model": "unresolved",
+        "vision_model": null,
+        "depends_on_model_observation": false,
+        "identity_sha256": "sha256:75dd5397cb00beab816d7739936c96728a9fb50be91b6b38ee6ca1857f5ef547",
+        "fit": {
+          "blocks": [],
+          "fitted": false,
+          "method": "binned-isotonic/1",
+          "qualified": false,
+          "support": 0
+        },
+        "fit_cases": 0
+      },
+      {
+        "question": "vision.route.v1",
+        "provider": "jev",
+        "encoding": "enriched_without_priors",
+        "mode": "production_policy",
+        "model": "unresolved",
+        "vision_model": null,
+        "depends_on_model_observation": false,
+        "identity_sha256": "sha256:540e1508a55a6f42bc06c3e16d232a89a2902cc7af436d6580f07ebc9f0e8079",
+        "fit": {
+          "blocks": [],
+          "fitted": false,
+          "method": "binned-isotonic/1",
+          "qualified": false,
+          "support": 0
+        },
+        "fit_cases": 0
+      },
+      {
+        "question": "perf.interpret.v1",
+        "provider": "jev",
+        "encoding": "enriched_without_priors",
+        "mode": "production_policy",
+        "model": "unresolved",
+        "vision_model": null,
+        "depends_on_model_observation": false,
+        "identity_sha256": "sha256:67627e43f5d31199d0394ba0ecdd5707e4eab7710709fe6139476751245ddaf1",
+        "fit": {
+          "blocks": [],
+          "fitted": false,
+          "method": "binned-isotonic/1",
+          "qualified": false,
+          "support": 0
+        },
+        "fit_cases": 0
+      },
+      {
+        "question": "capture.disposition.v1",
+        "provider": "jev",
+        "encoding": "enriched_without_priors",
+        "mode": "production_policy",
+        "model": "unresolved",
+        "vision_model": null,
+        "depends_on_model_observation": false,
+        "identity_sha256": "sha256:8f0343859ce25bd2d2cfa1e3d56253a0d2cead87e1443d572414dcfef8787ef7",
+        "fit": {
+          "blocks": [],
+          "fitted": false,
+          "method": "binned-isotonic/1",
+          "qualified": false,
+          "support": 0
+        },
+        "fit_cases": 0
+      },
+      {
+        "question": "intent.match.v1",
+        "provider": "jev",
+        "encoding": "enriched_without_priors",
+        "mode": "production_policy",
+        "model": "unresolved",
+        "vision_model": null,
+        "depends_on_model_observation": false,
+        "identity_sha256": "sha256:07110d01f2db83e388bf640ad37550a7f44c37c8578b4f388c2346d7657681e4",
+        "fit": {
+          "blocks": [],
+          "fitted": false,
+          "method": "binned-isotonic/1",
+          "qualified": false,
+          "support": 0
+        },
+        "fit_cases": 0
+      },
+      {
+        "question": "perf.interpret.v1",
+        "provider": "jev",
+        "encoding": "enriched",
+        "mode": "production_policy",
+        "model": "jev-1.13.0",
+        "vision_model": null,
+        "depends_on_model_observation": true,
+        "identity_sha256": "sha256:1dbbafc75f0ad1b3502e2f0f63ed4fa5a00c2e57e4588d0c7f0226f8c3231519",
+        "fit": {
+          "blocks": [
+            {
+              "calibrated_probability": 1.0,
+              "hi": 0.4,
+              "lo": 0.3,
+              "n": 7
+            },
+            {
+              "calibrated_probability": 1.0,
+              "hi": 0.5,
+              "lo": 0.4,
+              "n": 1
+            }
+          ],
+          "fitted": true,
+          "method": "binned-isotonic/1",
+          "qualified": false,
+          "support": 8
+        },
+        "fit_cases": 5
+      },
+      {
+        "question": "perf.interpret.v1",
+        "provider": "jev",
+        "encoding": "direct",
+        "mode": "pinned_provider",
+        "model": "jev-1.13.0",
+        "vision_model": null,
+        "depends_on_model_observation": false,
+        "identity_sha256": "sha256:051cbefb340e7b8b082ca267f1c51d2a933fa2d64bf5a99506f7d8d00e6bf00f",
+        "fit": {
+          "blocks": [
+            {
+              "calibrated_probability": 1.0,
+              "hi": 0.5,
+              "lo": 0.4,
+              "n": 7
+            },
+            {
+              "calibrated_probability": 1.0,
+              "hi": 0.6,
+              "lo": 0.5,
+              "n": 17
+            }
+          ],
+          "fitted": true,
+          "method": "binned-isotonic/1",
+          "qualified": false,
+          "support": 24
+        },
+        "fit_cases": 24
+      },
+      {
+        "question": "triage.route.v1",
+        "provider": "jev",
+        "encoding": "enriched",
+        "mode": "production_policy",
+        "model": "unresolved",
+        "vision_model": null,
+        "depends_on_model_observation": false,
+        "identity_sha256": "sha256:f69a892be5004a98afd901b0c612bebdaa5af387a420469f9fae7e9d622ef6b6",
+        "fit": {
+          "blocks": [],
+          "fitted": false,
+          "method": "binned-isotonic/1",
+          "qualified": false,
+          "support": 0
+        },
+        "fit_cases": 0
+      },
+      {
+        "question": "vision.route.v1",
+        "provider": "jev",
+        "encoding": "enriched",
+        "mode": "production_policy",
+        "model": "unresolved",
+        "vision_model": null,
+        "depends_on_model_observation": false,
+        "identity_sha256": "sha256:d8c376a20685d601dc86d1c80071799d944b8d2dc8805fa9107486abdab4b7c2",
+        "fit": {
+          "blocks": [],
+          "fitted": false,
+          "method": "binned-isotonic/1",
+          "qualified": false,
+          "support": 0
+        },
+        "fit_cases": 0
+      },
+      {
+        "question": "perf.interpret.v1",
+        "provider": "jev",
+        "encoding": "enriched",
+        "mode": "production_policy",
+        "model": "unresolved",
+        "vision_model": null,
+        "depends_on_model_observation": false,
+        "identity_sha256": "sha256:f06e9447890942c152c3e5bb3da59818604f758270fa66680ac53fd19d43a77d",
+        "fit": {
+          "blocks": [],
+          "fitted": false,
+          "method": "binned-isotonic/1",
+          "qualified": false,
+          "support": 0
+        },
+        "fit_cases": 0
+      },
+      {
+        "question": "capture.disposition.v1",
+        "provider": "jev",
+        "encoding": "enriched",
+        "mode": "production_policy",
+        "model": "unresolved",
+        "vision_model": null,
+        "depends_on_model_observation": false,
+        "identity_sha256": "sha256:03d410eb8045df6c64d41b3449247764d1a5a920e6f717607fb151bbed0c5d8c",
+        "fit": {
+          "blocks": [],
+          "fitted": false,
+          "method": "binned-isotonic/1",
+          "qualified": false,
+          "support": 0
+        },
+        "fit_cases": 0
+      },
+      {
+        "question": "intent.match.v1",
+        "provider": "jev",
+        "encoding": "enriched",
+        "mode": "production_policy",
+        "model": "unresolved",
+        "vision_model": null,
+        "depends_on_model_observation": false,
+        "identity_sha256": "sha256:76a50e08eb3abe7cf44b103bcca44f268252a66b96c68f4022dc32b8ff8e8f7f",
+        "fit": {
+          "blocks": [],
+          "fitted": false,
+          "method": "binned-isotonic/1",
+          "qualified": false,
+          "support": 0
+        },
+        "fit_cases": 0
+      },
+      {
+        "question": "triage.route.v1",
+        "provider": "jev",
+        "encoding": "enriched",
+        "mode": "production_policy",
+        "model": "jev-latest",
+        "vision_model": null,
+        "depends_on_model_observation": true,
+        "identity_sha256": "sha256:90210ee737be19bfb64a2edcf412af24684a7932e096e9278b7403e24c6b3bbc",
+        "fit": {
+          "blocks": [],
+          "fitted": false,
+          "method": "binned-isotonic/1",
+          "qualified": false,
+          "support": 0
+        },
+        "fit_cases": 0
+      },
+      {
+        "question": "vision.route.v1",
+        "provider": "jev",
+        "encoding": "enriched",
+        "mode": "production_policy",
+        "model": "jev-latest",
+        "vision_model": null,
+        "depends_on_model_observation": true,
+        "identity_sha256": "sha256:799ff1ffc20fe5ef7fd6854d8b9ba23cbe1ab0bca5c1ab55df8d3b56e9ef2e81",
+        "fit": {
+          "blocks": [],
+          "fitted": false,
+          "method": "binned-isotonic/1",
+          "qualified": false,
+          "support": 0
+        },
+        "fit_cases": 0
+      },
+      {
+        "question": "capture.disposition.v1",
+        "provider": "jev",
+        "encoding": "enriched",
+        "mode": "production_policy",
+        "model": "jev-latest",
+        "vision_model": null,
+        "depends_on_model_observation": true,
+        "identity_sha256": "sha256:80be4b5d93f9b0e41f490168cee1f3a272928b5b1262d7cb3f12edbd3f6746fc",
+        "fit": {
+          "blocks": [],
+          "fitted": false,
+          "method": "binned-isotonic/1",
+          "qualified": false,
+          "support": 0
+        },
+        "fit_cases": 0
+      },
+      {
+        "question": "intent.match.v1",
+        "provider": "jev",
+        "encoding": "enriched",
+        "mode": "production_policy",
+        "model": "jev-latest",
+        "vision_model": null,
+        "depends_on_model_observation": true,
+        "identity_sha256": "sha256:e6389049dab2c74e101e5eb08434e9d93a2023c2bf52402425235661442292d6",
+        "fit": {
+          "blocks": [],
+          "fitted": false,
+          "method": "binned-isotonic/1",
+          "qualified": false,
+          "support": 0
+        },
+        "fit_cases": 0
+      },
+      {
+        "question": "triage.route.v1",
+        "provider": "jev",
+        "encoding": "enriched_without_priors",
+        "mode": "production_policy",
+        "model": "jev-latest",
+        "vision_model": null,
+        "depends_on_model_observation": true,
+        "identity_sha256": "sha256:de22f18c42c2a582c902a2ebad234378c9c0ba338a2585a0dfa9e15f4af7bbd8",
+        "fit": {
+          "blocks": [],
+          "fitted": false,
+          "method": "binned-isotonic/1",
+          "qualified": false,
+          "support": 0
+        },
+        "fit_cases": 0
+      },
+      {
+        "question": "vision.route.v1",
+        "provider": "jev",
+        "encoding": "enriched_without_priors",
+        "mode": "production_policy",
+        "model": "jev-latest",
+        "vision_model": null,
+        "depends_on_model_observation": true,
+        "identity_sha256": "sha256:8b5fec6fcd7f3c795ce6d5b15cdd6c58626003a507958b14c2e424fd040660b0",
+        "fit": {
+          "blocks": [],
+          "fitted": false,
+          "method": "binned-isotonic/1",
+          "qualified": false,
+          "support": 0
+        },
+        "fit_cases": 0
+      },
+      {
+        "question": "perf.interpret.v1",
+        "provider": "jev",
+        "encoding": "enriched_without_priors",
+        "mode": "production_policy",
+        "model": "jev-latest",
+        "vision_model": null,
+        "depends_on_model_observation": true,
+        "identity_sha256": "sha256:02cd1844e21c8a13eda5ceb5a2761fbf067eab1e6d3ee6891fc6c8820d166411",
+        "fit": {
+          "blocks": [],
+          "fitted": false,
+          "method": "binned-isotonic/1",
+          "qualified": false,
+          "support": 0
+        },
+        "fit_cases": 0
+      },
+      {
+        "question": "capture.disposition.v1",
+        "provider": "jev",
+        "encoding": "enriched_without_priors",
+        "mode": "production_policy",
+        "model": "jev-latest",
+        "vision_model": null,
+        "depends_on_model_observation": true,
+        "identity_sha256": "sha256:c78ac941dec417b2940a11483455c0642f6711b3e41eb5d69fa887465850c034",
+        "fit": {
+          "blocks": [],
+          "fitted": false,
+          "method": "binned-isotonic/1",
+          "qualified": false,
+          "support": 0
+        },
+        "fit_cases": 0
+      },
+      {
+        "question": "intent.match.v1",
+        "provider": "jev",
+        "encoding": "enriched_without_priors",
+        "mode": "production_policy",
+        "model": "jev-latest",
+        "vision_model": null,
+        "depends_on_model_observation": true,
+        "identity_sha256": "sha256:de83dae4e9d9bda6b877be1c43811777084c67a963237c030ff76b082b9214ef",
+        "fit": {
+          "blocks": [],
+          "fitted": false,
+          "method": "binned-isotonic/1",
+          "qualified": false,
+          "support": 0
+        },
+        "fit_cases": 0
+      },
+      {
+        "question": "perf.interpret.v1",
+        "provider": "jev",
+        "encoding": "enriched",
+        "mode": "production_policy",
+        "model": "jev-latest",
+        "vision_model": null,
+        "depends_on_model_observation": true,
+        "identity_sha256": "sha256:f69db20a89bb597ea64871b59dc1f638f13dd4d647bf499926c2864923a9566d",
+        "fit": {
+          "blocks": [],
+          "fitted": false,
+          "method": "binned-isotonic/1",
+          "qualified": false,
+          "support": 0
+        },
+        "fit_cases": 0
+      }
+    ],
+    "qualified_questions": [],
+    "processing_complete": true,
+    "pricing_url": "https://ai.google.dev/gemini-api/docs/pricing",
+    "batch_api_url": "https://ai.google.dev/gemini-api/docs/batch-api"
+  }
+]
 }
