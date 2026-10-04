@@ -36,7 +36,7 @@ use agent::CliError;
 #[derive(Parser)]
 #[command(
     name = "saccade",
-    version,
+    version = env!("SACCADE_DISPLAY_VERSION"),
     disable_help_subcommand = true,
     about = "Perceptual (FLIP) visual-regression diffing"
 )]
@@ -1218,9 +1218,46 @@ fn doctor(json: bool) -> Result<u8, CliError> {
         features.push("mcp");
     }
     features.sort_unstable();
+    // These names are a script-facing contract. Add new names; keep existing
+    // ones until they have an explicit deprecation path.
+    let mut capabilities = vec![
+        "compat-aliases",
+        "removed-flag-errors",
+        "version-skew-errors",
+        "provenance-warnings",
+        "repeat-detection",
+        "perf-v2",
+        "identity-json-v1",
+    ];
+    if cfg!(feature = "prechecks") {
+        capabilities.push("prechecks");
+    }
+    if cfg!(feature = "mcp") {
+        capabilities.push("mcp");
+    }
+    if cfg!(feature = "ai") {
+        capabilities.push("review");
+    }
+    capabilities.sort_unstable();
+    let git_commit = option_env!("SACCADE_GIT_COMMIT").filter(|value| !value.is_empty());
+    let git_commit_short =
+        option_env!("SACCADE_GIT_COMMIT_SHORT").filter(|value| !value.is_empty());
+    let git_dirty = match option_env!("SACCADE_GIT_DIRTY") {
+        Some("true") => Some(true),
+        Some("false") => Some(false),
+        _ => None,
+    };
     let value = serde_json::json!({
         "version": env!("CARGO_PKG_VERSION"),
+        "build": {
+            "git_commit": git_commit,
+            "git_commit_short": git_commit_short,
+            "git_dirty": git_dirty,
+            "profile": env!("SACCADE_BUILD_PROFILE"),
+            "rustc_version": env!("SACCADE_RUSTC_VERSION"),
+        },
         "features": features,
+        "capabilities": capabilities,
         "schemas": {
             "report": ["saccade-report.v1"],
             "result": ["saccade-result.v1", "saccade-result.v2"],
@@ -1233,9 +1270,11 @@ fn doctor(json: bool) -> Result<u8, CliError> {
         emit(&format!("{}\n", serde_json::to_string(&value)?))?;
     } else {
         emit(&format!(
-            "saccade {}\nfeatures: {}\nschemas: {}\n",
-            value["version"].as_str().unwrap_or("unknown"),
+            "saccade {}\nbuild: {}\nfeatures: {}\ncapabilities: {}\nschemas: {}\n",
+            env!("SACCADE_DISPLAY_VERSION"),
+            value["build"],
             features.join(", "),
+            capabilities.join(", "),
             value["schemas"]
         ))?;
     }

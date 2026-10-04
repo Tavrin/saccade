@@ -31,6 +31,35 @@ The official CLI enables graphics analysis, optional AI review, the local
 workbench, MCP and evaluation. AI execution requires authorization.
 The library defaults to parallel comparison only. Experimental prechecks are off.
 
+## Build identity and behavior capabilities
+
+`saccade doctor --json` reports the package `version`, a `build` object, and a
+sorted `capabilities` array. `build.git_commit` (full hash),
+`build.git_commit_short`, and `build.git_dirty` describe the checkout at build
+time. They are `null` for a published crate tarball or when Git is unavailable.
+`build.profile` and `build.rustc_version` identify the Cargo profile and compiler.
+`saccade --version` adds `+g<short commit>` and, for a dirty checkout, `.dirty`
+to the package version. The suffix is absent without a Git identity.
+
+Scripts should gate on capability names, rather than the package version or
+the presence of a CLI command. Names are append-only; an existing name will
+not be renamed or removed without a deprecation period.
+
+| Capability | Guarantee |
+| --- | --- |
+| `compat-aliases` | Legacy command aliases remain accepted with a replacement warning. |
+| `removed-flag-errors` | Removed flags fail with a targeted replacement or removal error. |
+| `version-skew-errors` | Newer persisted report versions fail with a distinct version skew error. |
+| `provenance-warnings` | Missing capture provenance is reported as a warning. |
+| `repeat-detection` | Repeated capture evidence is detected and reported. |
+| `perf-v2` | Performance evidence schema `saccade-perf.v2` is supported. |
+| `identity-json-v1` | Identity can emit its versioned JSON result. |
+| `prechecks` | The `prechecks` feature adds safety and accessibility prechecks. |
+| `mcp` | The `mcp` feature adds the local MCP server. |
+| `review` | The `ai` feature adds provider-backed review execution. Local review preview remains available without it. |
+
+The last three names appear only when the corresponding feature is compiled in.
+
 ## Demo
 
 ```sh
