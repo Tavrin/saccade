@@ -69,27 +69,28 @@ pub(crate) fn noise(
 }
 
 #[derive(Args)]
+#[command(next_help_heading = "Performance")]
 pub(crate) struct PerfArgs {
     /// Run performance sidecar file name (default saccade-perf.json).
-    #[arg(long)]
+    #[arg(long, value_name = "NAME")]
     pub perf_name: Option<String>,
     /// Noise JSON or TOML from unchanged-build repeats.
-    #[arg(long)]
+    #[arg(long, value_name = "FILE")]
     pub perf_noise: Option<PathBuf>,
     /// Repeat spread multiplier in the effective noise threshold (default 3).
-    #[arg(long)]
+    #[arg(long, value_name = "K")]
     pub perf_noise_k: Option<f64>,
     /// Timer quantum in ms; overrides the estimate from repeated captures.
-    #[arg(long)]
+    #[arg(long, value_name = "MS")]
     pub perf_resolution: Option<f64>,
     /// Minimum timer ticks in the noise threshold (default 2).
-    #[arg(long)]
+    #[arg(long, value_name = "N")]
     pub perf_resolution_ticks: Option<u32>,
     /// Minimum meaningful delta in ms (default 0.05).
-    #[arg(long)]
+    #[arg(long, value_name = "MS")]
     pub perf_min_delta_ms: Option<f64>,
     /// Minimum meaningful delta as a percentage of the baseline frame (default 0.5).
-    #[arg(long)]
+    #[arg(long, value_name = "PCT")]
     pub perf_min_delta_pct: Option<f64>,
 }
 impl PerfArgs {

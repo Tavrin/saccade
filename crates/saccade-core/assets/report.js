@@ -177,7 +177,7 @@
       toggle(e.name);
     } },
       h("td", null, h("span", { class: "st s-" + e.status, text: e.status })),
-      h("td", { class: "name" }, h("button", { type: "button", "aria-expanded": open ? "true" : "false", onclick: function () { toggle(e.name); } }, e.name),
+      h("td", { class: "name" }, h("button", { type: "button", "aria-expanded": open ? "true" : "false", onclick: function () { toggle(e.name); } }, UI.breakable(e.name)),
         (e.meta_diff || []).length ? h("span", { class: "badge cfg", title: e.meta_diff.map(function (d) { return d.key; }).join(", "), text: "config differs" }) : null,
         (e.warnings || []).length ? h("span", { class: "badge warn", title: e.warnings.join("\n"), text: "warning" }) : null,
         frameWide(e) ? h("span", { class: "badge wide", title: "The largest hotspot covers at least half of the frame", text: "frame-wide change" }) : null),
@@ -191,6 +191,7 @@
     return tr;
   }
 
+  var rowCache = {};
   function render() {
     timers.forEach(clearInterval);
     timers = [];
@@ -199,12 +200,21 @@
     var shown = entries.filter(function (e) { return state.filter === "all" || e.status !== "pass"; });
     var body = document.getElementById("tbody");
     body.textContent = "";
+    // Rows depend only on the entry and its open state, so a large run reuses
+    // them: opening one entry rebuilds one row and its detail, not all of them.
     sorted(shown).forEach(function (e) {
-      body.appendChild(renderRow(e));
+      var open = !!state.open[e.name], cached = rowCache[e.name];
+      if (!cached || cached.open !== open) cached = rowCache[e.name] = { open: open, el: renderRow(e) };
+      body.appendChild(cached.el);
       if (state.open[e.name]) body.appendChild(renderDetail(e));
     });
     cmps.forEach(function (c) { c.refresh(); });
-    document.getElementById("empty").hidden = shown.length > 0;
+    var empty = document.getElementById("empty");
+    empty.hidden = shown.length > 0;
+    empty.textContent = !entries.length
+      ? "This run has no entries: neither directory held a readable image."
+      : "No failures: all " + entries.length + " entries passed. Choose All to list them.";
+    document.getElementById("open-hint").hidden = !shown.length || Object.keys(state.open).length > 0;
     document.getElementById("count").textContent = "showing " + shown.length + " of " + entries.length;
     document.getElementById("f-issues").setAttribute("aria-pressed", state.filter === "issues");
     document.getElementById("f-all").setAttribute("aria-pressed", state.filter === "all");

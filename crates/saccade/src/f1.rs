@@ -307,6 +307,7 @@ pub(crate) fn noise(args: NoiseArgs, record_absolute_paths: bool) -> Result<u8, 
 
 #[derive(Args)]
 pub(crate) struct DemoArgs {
+    /// Directory for the demo images and reports (default: a new temporary directory).
     #[arg(long)]
     out: Option<PathBuf>,
 }
@@ -382,10 +383,20 @@ pub(crate) fn demo(args: DemoArgs, record_absolute_paths: bool) -> Result<u8, Cl
         },
     )?;
     crate::emit(&crate::text_table(&report))?;
+    let shown =
+        |p: &Path| crate::escape_control(&saccade_core::paths::cwd(p, record_absolute_paths));
     crate::emit(&format!(
-        "report: {}\nOpen {}: inspect the moved shadow, changed UI label and numbered hotspots.\nIdentity: identity/report/index.html proves equal native samples with different PNG encodings.\nReview: review/report/index.html contains a declared material change; offline responses and resolution are illustrative.\nExpected exit 1: regressions and sphere_missing.png's missing capture fail the gate.\n",
-        saccade_core::paths::cwd(&out.join(REPORT_FILE_NAME), record_absolute_paths),
-        saccade_core::paths::cwd(&out.join("index.html"), record_absolute_paths)
+        "\nThis exit 1 is expected: the demo contains a regression and a missing capture.\n\n\
+Open these three reports in a browser:\n  \
+regression  {}\n              the moved shadow, the changed UI label and their numbered hotspots\n  \
+identity    {}\n              equal pixels saved with different PNG encodings: identity passes\n  \
+review      {}\n              a declared change with illustrative offline responses and resolution\n\n\
+Measurement: {}\n\
+Next: compare your own images with `saccade compare BASELINE_DIR CAPTURE_DIR --out report`.\n",
+        shown(&out.join("index.html")),
+        shown(&dir.join("identity/report/index.html")),
+        shown(&dir.join("review/report/index.html")),
+        shown(&out.join(REPORT_FILE_NAME)),
     ))?;
     Ok(u8::from(report.is_regression()))
 }

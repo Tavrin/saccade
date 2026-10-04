@@ -217,7 +217,7 @@
     if (!l.run) { rb.hidden = true; return; }
     rb.hidden = false;
     rb.appendChild(el('div', { cls: 'head' }, [
-      el('span', null, [el('b', { text: 'This directory is a run' }), el('span', { cls: 'sub', text: '  ' + l.run.images + ' images, ' + size(l.run.bytes) })]),
+      el('span', null, [el('b', { text: 'This directory is a run' }), el('span', { cls: 'sub', text: '  ' + l.run.images + (l.run.images === 1 ? ' image, ' : ' images, ') + size(l.run.bytes) })]),
       selectBtn(l.path)
     ]));
     if (l.run.meta_error) rb.appendChild(el('p', { cls: 'hint err', text: 'sidecar: ' + l.run.meta_error }));
@@ -261,7 +261,7 @@
       nm.addEventListener('click', function () { navigate(r.path); });
       var row = el('li', { cls: 'row' }, [
         thumb(r.path, r.sample),
-        el('div', { cls: 'main' }, [nm, el('span', { cls: 'sub', text: r.images + ' images · ' + when(r.mtime) }), pairsEl(r.meta, 3, diff)])
+        el('div', { cls: 'main' }, [nm, el('span', { cls: 'sub', text: r.images + (r.images === 1 ? ' image · ' : ' images · ') + when(r.mtime) }), pairsEl(r.meta, 3, diff)])
       ]);
       row.appendChild(rowActions(row, r.path));
       ul.appendChild(row);

@@ -31,6 +31,16 @@
     return el;
   };
   var h = UI.h;
+  // A file name as text nodes with line-break opportunities after `/ _ . -`,
+  // so narrow screens wrap `sphere_shadow.png` at `_` instead of mid-word.
+  UI.breakable = function (name) {
+    var out = [];
+    String(name).split(/(?<=[\/_.\-])/).forEach(function (part, i) {
+      if (i) out.push(document.createElement('wbr'));
+      out.push(part);
+    });
+    return out;
+  };
 
   UI.typing = function (t) {
     if (!t || !t.tagName) return false;

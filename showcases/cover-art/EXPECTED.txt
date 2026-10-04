@@ -1,25 +1,24 @@
 === compare (exit 1) ===
+compare: ❌ regression: 3 fail of 3 images
+
 STATUS  NAME          METRIC  VALUE    THRESHOLD
 FAIL    crop.png      mean    0.19122  0.001
   ↳ local_structure: Structural change across most of the frame (largest region center, 224×248, 80% of error).
   ↳ 2 hotspots: 224x248 @ center (80% of error), 101x29 @ top-left (10%) [frame-wide change]
-  ↳ warning: baseline binary_sha256 provenance is absent
-  ↳ warning: baseline source_head provenance is absent
-  ↳ warning: capture binary_sha256 provenance is absent
-  ↳ warning: capture source_head provenance is absent
 FAIL    jpeg-q40.png  mean    0.07436  0.001
   ↳ local_structure: Structural change across most of the frame (largest region center, 224×229, 35% of error).
   ↳ 2 hotspots: 224x229 @ center (35% of error), 90x17 @ top-left (3%)
-  ↳ warning: baseline binary_sha256 provenance is absent
-  ↳ warning: baseline source_head provenance is absent
-  ↳ warning: capture binary_sha256 provenance is absent
-  ↳ warning: capture source_head provenance is absent
 FAIL    warmer.png    mean    0.18931  0.001
   ↳ global_tone: Whole frame 0.06 stops brighter, tint warmer (red +22.5%, blue -25.6% vs green) (tone shift explains 94% of the difference); no structural change.
   ↳ 1 hotspot: 224x288 @ center (100% of error) [frame-wide change]
+
+Shared by all 3 compared pairs:
   ↳ warning: baseline binary_sha256 provenance is absent
   ↳ warning: baseline source_head provenance is absent
   ↳ warning: capture binary_sha256 provenance is absent
   ↳ warning: capture source_head provenance is absent
 
 3 fail, 0 error, 0 missing, 0 new, 0 pass (3 total)
+report: @REPORTS@/cover-art/compare/index.html
+next:   open the report and check the numbered hotspots; if a change is intended, plan its approval with
+        saccade approve --report @REPORTS@/cover-art/compare/saccade-report.v1.json --entry NAME --dry-run --out plan

@@ -20,8 +20,8 @@
   <div class="chips" id="chips" role="list" aria-label="Totals by status"></div>
 </header>
 <main>
-<details class="reviewer-exposure"><summary>Reviewer exposure</summary><label>Implementation or input context <select id="reviewer-context"><option value="unknown">Unknown</option><option value="false">No access</option><option value="true">Has access</option></select></label><p>The blind key cannot blind someone who created the pair or knows its inputs. Offline decisions do not attest a human session.</p></details>
   __SACCADE_SUMMARY__
+<details class="reviewer-exposure"><summary>Reviewer exposure</summary><label>Implementation or input context <select id="reviewer-context"><option value="unknown">Unknown</option><option value="false">No access</option><option value="true">Has access</option></select></label><p>The blind key cannot blind someone who created the pair or knows its inputs. Offline decisions do not attest a human session.</p></details>
   <div class="toolbar">
     <div class="seg" role="group" aria-label="Row filter">
       <button type="button" id="f-issues" aria-pressed="false">Failures only</button>
@@ -29,16 +29,18 @@
     </div>
     <span class="count" id="count" aria-live="polite"></span>
     <span class="grow"></span>
+    <span class="kbd-hint" aria-hidden="true"><kbd>[</kbd> <kbd>]</kbd> previous / next · <kbd>?</kbd> all shortcuts</span>
     <button type="button" class="btn small" id="palette-btn">Search actions <kbd>Ctrl K</kbd></button>
     <button type="button" class="btn small copy-link" id="copy-link" title="Copy a link that reopens this exact view">Copy link to this view</button>
     <button type="button" class="btn small" id="export" title="Download offline proposals; baseline approval needs an exact-content-bound decision">Export decisions</button>
   </div>
+  <p class="open-hint" id="open-hint" hidden>Select a row to compare its images: swipe, flicker, heatmap and numbered hotspots.</p>
   <div class="table-wrap">
     <table id="tbl">
       <thead><tr id="thead-row"></tr></thead>
       <tbody id="tbody"></tbody>
     </table>
-    <p class="empty" id="empty" hidden>Nothing to show with this filter.</p>
+    <p class="empty" id="empty" hidden>No failures. Choose All to list every entry.</p>
   </div>
 </main>
 <noscript><p class="noscript">This report needs JavaScript to render its table. The raw data is in the JSON script tag of this page and in saccade-report.v1.json.</p></noscript>

@@ -279,9 +279,58 @@ pub(crate) fn summary(report: &Report, case: Option<&EvidenceCase>) -> Result<St
         .collect::<Vec<_>>();
     let detail = fields.split_off(4).join("");
     let fields = fields.join("");
+    let (verdict_class, verdict) = verdict_line(report);
     Ok(format!(
-        "<section class=\"review-summary\" aria-label=\"Evidence and review\"><h2>Evidence and review</h2><dl>{fields}</dl><details><summary>Configuration, criteria, scope and review records</summary><dl>{detail}</dl></details><p><a href=\"saccade-report.v1.json\">Measurement</a> · <a href=\"evidence.json\">Evidence case</a> · <a href=\"decisions.json\">Recorded decisions</a></p></section>"
+        "<section class=\"review-summary\" aria-label=\"Evidence and review\"><p class=\"verdict {verdict_class}\" role=\"status\">{}</p><h2>Evidence and review</h2><dl>{fields}</dl><details><summary>Configuration, criteria, scope and review records</summary><dl>{detail}</dl></details><p><a href=\"saccade-report.v1.json\">Measurement</a> · <a href=\"evidence.json\">Evidence case</a> · <a href=\"decisions.json\">Recorded decisions</a></p></section>",
+        escape(&verdict)
     ))
+}
+
+/// The report's one-line result and its status class, shown first on the page.
+fn verdict_line(report: &Report) -> (&'static str, String) {
+    let t = &report.totals;
+    let class = if report.is_empty_run() {
+        "v-empty"
+    } else if report.is_regression() {
+        "v-fail"
+    } else {
+        "v-pass"
+    };
+    if let Some(headline) = super::identity_headline(report) {
+        return (class, headline);
+    }
+    let images = if t.total == 1 { "image" } else { "images" };
+    let problems: Vec<String> = [
+        (t.fail, "fail"),
+        (t.error, "error"),
+        (t.missing, "missing"),
+        (t.new, "new"),
+    ]
+    .iter()
+    .filter(|(n, _)| *n > 0)
+    .map(|(n, what)| format!("{n} {what}"))
+    .collect();
+    let text = if report.is_empty_run() {
+        format!(
+            "Nothing compared: no image exists in both directories ({} {images} found)",
+            t.total
+        )
+    } else if report.is_regression() {
+        format!(
+            "Regression: {} of {} {images}",
+            problems.join(", "),
+            t.total
+        )
+    } else if problems.is_empty() {
+        format!("No regression: {} of {} {images} passed", t.pass, t.total)
+    } else {
+        format!(
+            "No regression: {} passed; {} not gated",
+            t.pass,
+            problems.join(", ")
+        )
+    };
+    (class, text)
 }
 
 pub(crate) fn prepare(report: &Report, dir: &Path) -> Result<Option<EvidenceCase>> {

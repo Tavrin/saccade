@@ -14,30 +14,45 @@ Exit 2 means the operation cannot run. Demo intentionally exits 1.
 ## saccade
 
 ```text
-Perceptual (FLIP) visual-regression diffing
+Find and explain visual changes between two sets of rendered images
 
 Usage: saccade [OPTIONS] <COMMAND>
 
+saccade scores each image pair with FLIP, a perceptual error metric, locates the
+changed regions, and writes an offline HTML report next to a JSON result.
+
+Start here:
+  saccade demo --out saccade-demo               Run the bundled example (exits 1 on purpose)
+  saccade compare baseline/ captures/ --out report
+                                                Compare fresh captures with approved baselines
+  saccade identity parent/ candidate/ --out report
+                                                Check that two builds render identical pixels
+
+Exit codes: 0 no regression, 1 regression found, 2 the command could not run.
+Run `saccade COMMAND --help` for that command's flags and examples.
+
 Commands:
-  doctor      Print installed version, features and supported evidence schemas
-  init        Bootstrap a commented configuration and print baseline adoption steps
   demo        Run the bundled example and explain its expected regression
   compare     Compare a directory of captures against a directory of baselines
   identity    Establish exact native decoded-sample equality in the selected scope
-  noise       Calibrate thresholds from repeated captures of an unchanged build
   view        Write a self-contained review viewer for 2 to 6 image directories
-  approve     Copy captures over baselines
-  serve       (127.0.0.1 only; the archive is never written to)
-  mcp         passes must resolve under `--root`
+  approve     Copy reviewed captures over baselines
+  serve       Browse report and image archives in a local web workbench
+  init        Bootstrap a commented configuration and print baseline adoption steps
+  noise       Calibrate thresholds from repeated captures of an unchanged build
   inspect     Read, explain, prepare or export existing evidence
   review      Preview a review plan or handle a local closed decision request
-  experiment  Analyze existing graphics captures
+  experiment  Analyze existing graphics captures: ablation, sequences, ranking, bisection
+  mcp         Serve the agent tools over MCP on stdio, confined to the given roots
+  doctor      Print installed version, features and supported evidence schemas
 
 Options:
+  -h, --help     Print help
+  -V, --version  Print version
+
+Global options:
       --allow-out-near-captures  Silence warnings when --out is next to capture metadata
       --record-absolute-paths    Opt in to absolute local paths in reports and machine-readable output
-  -h, --help                     Print help
-  -V, --version                  Print version
 ```
 
 ## saccade doctor
@@ -48,10 +63,12 @@ Print installed version, features and supported evidence schemas
 Usage: saccade doctor [OPTIONS]
 
 Options:
+      --json  Print machine-readable JSON
+  -h, --help  Print help
+
+Global options:
       --allow-out-near-captures  Silence warnings when --out is next to capture metadata
-      --json                     Print machine-readable JSON
       --record-absolute-paths    Opt in to absolute local paths in reports and machine-readable output
-  -h, --help                     Print help
 ```
 
 ## saccade init
@@ -62,12 +79,14 @@ Bootstrap a commented configuration and print baseline adoption steps
 Usage: saccade init [OPTIONS]
 
 Options:
+      --template <TEMPLATE>  [default: renderer] [possible values: renderer, ui, identity, ml, ci, nightly, lookdev]
+      --dir <DIR>            [default: .]
+      --force                
+  -h, --help                 Print help
+
+Global options:
       --allow-out-near-captures  Silence warnings when --out is next to capture metadata
-      --template <TEMPLATE>      [default: renderer] [possible values: renderer, ui, identity, ml, ci, nightly, lookdev]
-      --dir <DIR>                [default: .]
       --record-absolute-paths    Opt in to absolute local paths in reports and machine-readable output
-      --force                    
-  -h, --help                     Print help
 ```
 
 ## saccade demo
@@ -77,11 +96,19 @@ Run the bundled example and explain its expected regression
 
 Usage: saccade demo [OPTIONS]
 
+Example:
+  saccade demo --out saccade-demo
+  saccade view saccade-demo          Print where the demo report is
+
+The demo exits 1 on purpose: it contains a regression and a missing capture.
+
 Options:
+      --out <OUT>  Directory for the demo images and reports (default: a new temporary directory)
+  -h, --help       Print help
+
+Global options:
       --allow-out-near-captures  Silence warnings when --out is next to capture metadata
-      --out <OUT>                
       --record-absolute-paths    Opt in to absolute local paths in reports and machine-readable output
-  -h, --help                     Print help
 ```
 
 ## saccade compare
@@ -91,71 +118,69 @@ Compare a directory of captures against a directory of baselines
 
 Usage: saccade compare [OPTIONS] <BASELINE_DIR> <CAPTURE_DIR>
 
+Images are paired by relative path. Each pair gets a FLIP score; a pair fails when
+its deciding metric is above the threshold. The report directory holds index.html
+(open it in a browser) and saccade-report.v1.json.
+
+Examples:
+  saccade compare baseline/ captures/ --out report
+  saccade compare baseline/ captures/ --threshold 0.02 --metric p95
+  saccade compare baseline/ captures/ --entry 'ui/*' --junit report/junit.xml
+  saccade compare baseline/ captures/ --json        One bounded JSON result on stdout
+
+Exit codes: 0 no regression, 1 regression found, 2 the command could not run.
+
 Arguments:
   <BASELINE_DIR>  Directory of approved baseline images
   <CAPTURE_DIR>   Directory of fresh captures
 
 Options:
-      --allow-out-near-captures
-          Silence warnings when --out is next to capture metadata
-      --out <OUT>
-          Report output directory [default: report]
-      --record-absolute-paths
-          Opt in to absolute local paths in reports and machine-readable output
-      --threshold <THRESHOLD>
-          Default pass threshold (overrides the config file's top level)
-      --metric <METRIC>
-          Default deciding metric (overrides the config file's top level) [possible values: mean, p95, p99, max]
-      --config <CONFIG>
-          Config file; defaults to ./saccade.toml when it exists
-      --fail-on-new
-          Treat new images (no baseline) as a regression
-      --allow-empty
-          Accept a run that compared no pair (for example the first run, with an empty baseline directory). Without it, nothing compared exits 1
-      --json
-          Print a bounded machine-readable result
-      --ppd <PPD>
-          FLIP pixels per degree
-      --labels <A,B>
-          Display names of the two sides, `baseline,capture`
-      --hdr-tonemapper <NAME>
-          Tone mapper for `.exr`/`.hdr` images: aces (default), hable or reinhard
-      --hdr-exposures <START:STOP:N>
-          Exposure range in stops and count, `START:STOP:N` (default: computed from the baseline image)
-      --entry <GLOB>
-          Include only matching names (repeatable; union of globs)
-      --junit <FILE.xml>
-          Write one JUnit testcase per entry
-      --meta-name <NAME>
-          Sidecar file name (default `saccade-meta.json`); the per-image sidecar is `<stem>.<name>` and overrides the directory-level one
-      --meta-ignore <GLOB,...>
-          Extra sidecar key globs to ignore, added to the built-in timing, timestamp and run-id defaults
-      --require-matching-meta
-          Make an entry an error when a sidecar key differs and is not declared
-      --declare <KEY,...>
-          Sidecar keys (or globs) that may differ with --require-matching-meta
-      --perf-name <PERF_NAME>
-          Run performance sidecar file name (default saccade-perf.json)
-      --perf-noise <PERF_NOISE>
-          Noise JSON or TOML from unchanged-build repeats
-      --perf-noise-k <PERF_NOISE_K>
-          Repeat spread multiplier in the effective noise threshold (default 3)
-      --perf-resolution <PERF_RESOLUTION>
-          Timer quantum in ms; overrides the estimate from repeated captures
-      --perf-resolution-ticks <PERF_RESOLUTION_TICKS>
-          Minimum timer ticks in the noise threshold (default 2)
-      --perf-min-delta-ms <PERF_MIN_DELTA_MS>
-          Minimum meaningful delta in ms (default 0.05)
-      --perf-min-delta-pct <PERF_MIN_DELTA_PCT>
-          Minimum meaningful delta as a percentage of the baseline frame (default 0.5)
-      --intent <INTENT>
-          
-      --intent-file <INTENT_FILE>
-          
-      --changes-file <CHANGES_FILE>
-          
-  -h, --help
-          Print help
+  -h, --help  Print help
+
+Output:
+      --out <OUT>         Report output directory [default: report]
+      --json              Print a bounded machine-readable result
+      --labels <A,B>      Display names of the two sides, `baseline,capture`
+      --junit <FILE.xml>  Write one JUnit testcase per entry
+
+Gate:
+      --threshold <THRESHOLD>  Default pass threshold (overrides the config file's top level)
+      --metric <METRIC>        Default deciding metric (overrides the config file's top level) [possible values: mean, p95, p99, max]
+      --config <CONFIG>        Config file; defaults to ./saccade.toml when it exists
+      --fail-on-new            Treat new images (no baseline) as a regression
+      --allow-empty            Accept a run that compared no pair (for example the first run, with an empty baseline directory). Without it, nothing compared exits 1
+      --ppd <PPD>              FLIP pixels per degree
+
+HDR images:
+      --hdr-tonemapper <NAME>         Tone mapper for `.exr`/`.hdr` images: aces (default), hable or reinhard
+      --hdr-exposures <START:STOP:N>  Exposure range in stops and count, `START:STOP:N` (default: computed from the baseline image)
+
+Selection:
+      --entry <GLOB>  Include only matching names (repeatable; union of globs)
+
+Metadata sidecars:
+      --meta-name <NAME>        Sidecar file name (default `saccade-meta.json`); the per-image sidecar is `<stem>.<name>` and overrides the directory-level one
+      --meta-ignore <GLOB,...>  Extra sidecar key globs to ignore, added to the built-in timing, timestamp and run-id defaults
+      --require-matching-meta   Make an entry an error when a sidecar key differs and is not declared
+      --declare <KEY,...>       Sidecar keys (or globs) that may differ with --require-matching-meta
+
+Performance:
+      --perf-name <NAME>           Run performance sidecar file name (default saccade-perf.json)
+      --perf-noise <FILE>          Noise JSON or TOML from unchanged-build repeats
+      --perf-noise-k <K>           Repeat spread multiplier in the effective noise threshold (default 3)
+      --perf-resolution <MS>       Timer quantum in ms; overrides the estimate from repeated captures
+      --perf-resolution-ticks <N>  Minimum timer ticks in the noise threshold (default 2)
+      --perf-min-delta-ms <MS>     Minimum meaningful delta in ms (default 0.05)
+      --perf-min-delta-pct <PCT>   Minimum meaningful delta as a percentage of the baseline frame (default 0.5)
+
+Review context:
+      --intent <TEXT>        What the change is meant to do, in one sentence, recorded in the evidence
+      --intent-file <FILE>   Structured intent JSON with objective and criteria
+      --changes-file <FILE>  JSON list of expected changes; needs --intent or --intent-file
+
+Global options:
+      --allow-out-near-captures  Silence warnings when --out is next to capture metadata
+      --record-absolute-paths    Opt in to absolute local paths in reports and machine-readable output
 ```
 
 ## saccade identity
@@ -165,65 +190,60 @@ Establish exact native decoded-sample equality in the selected scope
 
 Usage: saccade identity [OPTIONS] <PARENT_DIR> <CANDIDATE_DIR>
 
+Use it to prove a refactor or optimization renders the same pixels. There is no
+threshold: any differing sample fails. Different file encodings of equal pixels pass.
+
+Examples:
+  saccade identity parent/ candidate/ --out report
+  saccade identity parent/ candidate/ --json      One bounded JSON result on stdout
+
+Exit codes: 0 every pair identical, 1 identity not proven (a pair differs, is missing,
+new or unreadable), 2 the command could not run.
+
 Arguments:
   <PARENT_DIR>     Directory of images from the parent build
   <CANDIDATE_DIR>  Directory of images from the candidate build
 
 Options:
-      --allow-out-near-captures
-          Silence warnings when --out is next to capture metadata
-      --out <OUT>
-          Report output directory [default: report]
-      --allow-empty
-          Accept a run that compared no pair. Without it, nothing compared exits 1
-      --record-absolute-paths
-          Opt in to absolute local paths in reports and machine-readable output
-      --threshold <THRESHOLD>
-          Rejected for identity; use compare for perceptual thresholds
-      --metric <METRIC>
-          Rejected for identity; use compare for perceptual metrics [possible values: mean, p95, p99, max]
-      --config <CONFIG>
-          Config file; defaults to ./saccade.toml when it exists
-      --json
-          Print a bounded machine-readable result
-      --ppd <PPD>
-          FLIP pixels per degree
-      --labels <A,B>
-          Display names of the two sides, `parent,candidate`
-      --entry <GLOB>
-          Include only matching names (repeatable; union of globs)
-      --junit <FILE.xml>
-          Write one JUnit testcase per entry
-      --meta-name <NAME>
-          Sidecar file name (default `saccade-meta.json`); the per-image sidecar is `<stem>.<name>` and overrides the directory-level one
-      --meta-ignore <GLOB,...>
-          Extra sidecar key globs to ignore, added to the built-in timing, timestamp and run-id defaults
-      --require-matching-meta
-          Make an entry an error when a sidecar key differs and is not declared
-      --declare <KEY,...>
-          Sidecar keys (or globs) that may differ with --require-matching-meta
-      --perf-name <PERF_NAME>
-          Run performance sidecar file name (default saccade-perf.json)
-      --perf-noise <PERF_NOISE>
-          Noise JSON or TOML from unchanged-build repeats
-      --perf-noise-k <PERF_NOISE_K>
-          Repeat spread multiplier in the effective noise threshold (default 3)
-      --perf-resolution <PERF_RESOLUTION>
-          Timer quantum in ms; overrides the estimate from repeated captures
-      --perf-resolution-ticks <PERF_RESOLUTION_TICKS>
-          Minimum timer ticks in the noise threshold (default 2)
-      --perf-min-delta-ms <PERF_MIN_DELTA_MS>
-          Minimum meaningful delta in ms (default 0.05)
-      --perf-min-delta-pct <PERF_MIN_DELTA_PCT>
-          Minimum meaningful delta as a percentage of the baseline frame (default 0.5)
-      --intent <INTENT>
-          
-      --intent-file <INTENT_FILE>
-          
-      --changes-file <CHANGES_FILE>
-          
-  -h, --help
-          Print help
+  -h, --help  Print help
+
+Output:
+      --out <OUT>         Report output directory [default: report]
+      --json              Print a bounded machine-readable result
+      --labels <A,B>      Display names of the two sides, `parent,candidate`
+      --junit <FILE.xml>  Write one JUnit testcase per entry
+
+Gate:
+      --allow-empty      Accept a run that compared no pair. Without it, nothing compared exits 1
+      --config <CONFIG>  Config file; defaults to ./saccade.toml when it exists
+      --ppd <PPD>        FLIP pixels per degree, used only to describe differences
+
+Selection:
+      --entry <GLOB>  Include only matching names (repeatable; union of globs)
+
+Metadata sidecars:
+      --meta-name <NAME>        Sidecar file name (default `saccade-meta.json`); the per-image sidecar is `<stem>.<name>` and overrides the directory-level one
+      --meta-ignore <GLOB,...>  Extra sidecar key globs to ignore, added to the built-in timing, timestamp and run-id defaults
+      --require-matching-meta   Make an entry an error when a sidecar key differs and is not declared
+      --declare <KEY,...>       Sidecar keys (or globs) that may differ with --require-matching-meta
+
+Performance:
+      --perf-name <NAME>           Run performance sidecar file name (default saccade-perf.json)
+      --perf-noise <FILE>          Noise JSON or TOML from unchanged-build repeats
+      --perf-noise-k <K>           Repeat spread multiplier in the effective noise threshold (default 3)
+      --perf-resolution <MS>       Timer quantum in ms; overrides the estimate from repeated captures
+      --perf-resolution-ticks <N>  Minimum timer ticks in the noise threshold (default 2)
+      --perf-min-delta-ms <MS>     Minimum meaningful delta in ms (default 0.05)
+      --perf-min-delta-pct <PCT>   Minimum meaningful delta as a percentage of the baseline frame (default 0.5)
+
+Review context:
+      --intent <TEXT>        What the change is meant to do, in one sentence, recorded in the evidence
+      --intent-file <FILE>   Structured intent JSON with objective and criteria
+      --changes-file <FILE>  JSON list of expected changes; needs --intent or --intent-file
+
+Global options:
+      --allow-out-near-captures  Silence warnings when --out is next to capture metadata
+      --record-absolute-paths    Opt in to absolute local paths in reports and machine-readable output
 ```
 
 ## saccade noise
@@ -233,42 +253,28 @@ Calibrate thresholds from repeated captures of an unchanged build
 
 Usage: saccade noise [OPTIONS] <DIRS> <DIRS>...
 
-Arguments:
-  <DIRS> <DIRS>...  
-
 Options:
-      --allow-out-near-captures
-          Silence warnings when --out is next to capture metadata
-      --kind <KIND>
-          Image calibration (default) or qualified performance noise in ms [default: image] [possible values: image, performance]
-      --perf-name <PERF_NAME>
-          Run performance sidecar file name (default saccade-perf.json)
-      --record-absolute-paths
-          Opt in to absolute local paths in reports and machine-readable output
-      --perf-noise <PERF_NOISE>
-          Noise JSON or TOML from unchanged-build repeats
-      --perf-noise-k <PERF_NOISE_K>
-          Repeat spread multiplier in the effective noise threshold (default 3)
-      --perf-resolution <PERF_RESOLUTION>
-          Timer quantum in ms; overrides the estimate from repeated captures
-      --perf-resolution-ticks <PERF_RESOLUTION_TICKS>
-          Minimum timer ticks in the noise threshold (default 2)
-      --perf-min-delta-ms <PERF_MIN_DELTA_MS>
-          Minimum meaningful delta in ms (default 0.05)
-      --perf-min-delta-pct <PERF_MIN_DELTA_PCT>
-          Minimum meaningful delta as a percentage of the baseline frame (default 0.5)
-      --config <CONFIG>
-          
-      --margin <MARGIN>
-          [default: 1.5]
-      --metric <METRIC>
-          [default: p95] [possible values: mean, p95, p99, max]
-      --out <OUT>
-          [default: saccade.noise.toml]
-      --json
-          
-  -h, --help
-          Print help
+      --kind <KIND>  Image calibration (default) or qualified performance noise in ms [default: image] [possible values: image, performance]
+  -h, --help         Print help
+
+Performance:
+      --perf-name <NAME>           Run performance sidecar file name (default saccade-perf.json)
+      --perf-noise <FILE>          Noise JSON or TOML from unchanged-build repeats
+      --perf-noise-k <K>           Repeat spread multiplier in the effective noise threshold (default 3)
+      --perf-resolution <MS>       Timer quantum in ms; overrides the estimate from repeated captures
+      --perf-resolution-ticks <N>  Minimum timer ticks in the noise threshold (default 2)
+      --perf-min-delta-ms <MS>     Minimum meaningful delta in ms (default 0.05)
+      --perf-min-delta-pct <PCT>   Minimum meaningful delta as a percentage of the baseline frame (default 0.5)
+      --config <CONFIG>            
+      --margin <MARGIN>            [default: 1.5]
+      --metric <METRIC>            [default: p95] [possible values: mean, p95, p99, max]
+      --out <OUT>                  [default: saccade.noise.toml]
+      --json                       
+  <DIRS> <DIRS>...                 
+
+Global options:
+      --allow-out-near-captures  Silence warnings when --out is next to capture metadata
+      --record-absolute-paths    Opt in to absolute local paths in reports and machine-readable output
 ```
 
 ## saccade view
@@ -278,70 +284,73 @@ Write a self-contained review viewer for 2 to 6 image directories
 
 Usage: saccade view [OPTIONS] [DIRS]...
 
+Examples:
+  saccade view before/ after/ --out view          Swipe, flicker and heatmap viewer
+  saccade view a/ b/ c/ --labels a,b,c --reference a
+  saccade view my-report                          Print where an existing report's page is
+  saccade view a/ b/ --blind --key-out ../key.json --out judge-view
+
 Arguments:
   [DIRS]...  Directories to compare, paired by relative image path (2 to 6)
 
 Options:
-      --allow-out-near-captures
-          Silence warnings when --out is next to capture metadata
-      --unblind <UNBLIND>
-          Resolve recorded anonymous choices after review
-      --key <KEY>
-          
-      --record-absolute-paths
-          Opt in to absolute local paths in reports and machine-readable output
-      --labels <LABELS>
-          Comma-separated labels, one per directory (default: directory names)
-      --reference <REFERENCE>
-          FLIP reference: a label or one of the directories (default: the first)
-      --blind
-          Pairwise judging: shuffle panes and hide labels until "Reveal"
-      --seed <SEED>
-          Seed for the blind shuffle (default: random). A blind page never embeds it; it is recorded in the key
-      --key-out <PATH>
-          Where a blind view's key goes (default: `blind-key.json` inside `--out`; put it elsewhere to hand the view directory to a judge)
-      --out <OUT>
-          Output directory [default: view]
-      --ppd <PPD>
-          FLIP pixels per degree
-      --config <CONFIG>
-          Config file whose `[[region]]` tables become preset ROIs (default: `./saccade.toml` when present)
-      --json
-          Print a JSON summary (`saccade-view-summary.v1`) instead of text
-      --hdr-tonemapper <NAME>
-          Tone mapper for `.exr`/`.hdr` images: aces (default), hable or reinhard
-      --hdr-exposures <START:STOP:N>
-          Exposure range in stops and count, `START:STOP:N` (default: computed from the baseline image)
-      --entry <GLOB>
-          Include only matching names (repeatable; union of globs)
-      --meta-name <NAME>
-          Sidecar file name (default `saccade-meta.json`); the per-image sidecar is `<stem>.<name>` and overrides the directory-level one
-      --meta-ignore <GLOB,...>
-          Extra sidecar key globs to ignore, added to the built-in timing, timestamp and run-id defaults
-      --perf-name <PERF_NAME>
-          Run performance sidecar file name (default saccade-perf.json)
-      --perf-noise <PERF_NOISE>
-          Noise JSON or TOML from unchanged-build repeats
-      --perf-noise-k <PERF_NOISE_K>
-          Repeat spread multiplier in the effective noise threshold (default 3)
-      --perf-resolution <PERF_RESOLUTION>
-          Timer quantum in ms; overrides the estimate from repeated captures
-      --perf-resolution-ticks <PERF_RESOLUTION_TICKS>
-          Minimum timer ticks in the noise threshold (default 2)
-      --perf-min-delta-ms <PERF_MIN_DELTA_MS>
-          Minimum meaningful delta in ms (default 0.05)
-      --perf-min-delta-pct <PERF_MIN_DELTA_PCT>
-          Minimum meaningful delta as a percentage of the baseline frame (default 0.5)
-  -h, --help
-          Print help
+  -h, --help  Print help
+
+Blind judging:
+      --unblind <UNBLIND>  Resolve recorded anonymous choices after review
+      --key <KEY>          The key written by --blind, used with --unblind
+      --blind              Pairwise judging: shuffle panes and hide labels until "Reveal"
+      --seed <SEED>        Seed for the blind shuffle (default: random). A blind page never embeds it; it is recorded in the key
+      --key-out <PATH>     Where a blind view's key goes. Required with --blind; keep it outside --out so the judge never receives it
+
+Output:
+      --labels <LABELS>  Comma-separated labels, one per directory (default: directory names)
+      --out <OUT>        Output directory [default: view]
+      --json             Print a JSON summary (`saccade-view-summary.v1`) instead of text
+
+Comparison:
+      --reference <REFERENCE>  FLIP reference: a label or one of the directories (default: the first)
+      --ppd <PPD>              FLIP pixels per degree
+      --config <CONFIG>        Config file whose `[[region]]` tables become preset ROIs (default: `./saccade.toml` when present)
+
+HDR images:
+      --hdr-tonemapper <NAME>         Tone mapper for `.exr`/`.hdr` images: aces (default), hable or reinhard
+      --hdr-exposures <START:STOP:N>  Exposure range in stops and count, `START:STOP:N` (default: computed from the baseline image)
+
+Selection:
+      --entry <GLOB>  Include only matching names (repeatable; union of globs)
+
+Metadata sidecars:
+      --meta-name <NAME>        Sidecar file name (default `saccade-meta.json`); the per-image sidecar is `<stem>.<name>` and overrides the directory-level one
+      --meta-ignore <GLOB,...>  Extra sidecar key globs to ignore, added to the built-in timing, timestamp and run-id defaults
+
+Performance:
+      --perf-name <NAME>           Run performance sidecar file name (default saccade-perf.json)
+      --perf-noise <FILE>          Noise JSON or TOML from unchanged-build repeats
+      --perf-noise-k <K>           Repeat spread multiplier in the effective noise threshold (default 3)
+      --perf-resolution <MS>       Timer quantum in ms; overrides the estimate from repeated captures
+      --perf-resolution-ticks <N>  Minimum timer ticks in the noise threshold (default 2)
+      --perf-min-delta-ms <MS>     Minimum meaningful delta in ms (default 0.05)
+      --perf-min-delta-pct <PCT>   Minimum meaningful delta as a percentage of the baseline frame (default 0.5)
+
+Global options:
+      --allow-out-near-captures  Silence warnings when --out is next to capture metadata
+      --record-absolute-paths    Opt in to absolute local paths in reports and machine-readable output
 ```
 
 ## saccade approve
 
 ```text
-Copy captures over baselines
+Copy reviewed captures over baselines
 
 Usage: saccade approve [OPTIONS] [CAPTURE_DIR] [BASELINE_DIR] [NAMES]...
+
+Example (two steps: plan, then apply the reviewed decision):
+  saccade approve --report report/saccade-report.v1.json --entry ui.png --dry-run --out plan
+  saccade approve --report report/saccade-report.v1.json --decisions plan/decision.json --out receipt
+
+Review the report, plan/manifest.json and plan/decision.json between the two steps.
+The dry run writes no baseline; content hashes must still match when applying.
 
 Arguments:
   [CAPTURE_DIR]   Directory of fresh captures
@@ -349,40 +358,44 @@ Arguments:
   [NAMES]...      Image names (relative paths) to approve
 
 Options:
-      --allow-out-near-captures      Silence warnings when --out is next to capture metadata
       --report <REPORT>              Derive the input directories from this report
       --entry <NAME>                 Select a report entry without positional directories; repeatable
-      --record-absolute-paths        Opt in to absolute local paths in reports and machine-readable output
       --all-failing [<REPORT_JSON>]  Also approve every fail and new entry of this report JSON
       --decisions <DECISIONS_JSON>   Explicit canonical CLI decision bound to this report, inputs and scope
       --include-errors               With --all-failing: also approve `error` entries (for example a size change) whose capture exists and decodes
       --prune-missing                With --all-failing: delete the baselines of every `missing` entry of the report (capture absent). Only files inside the baseline directory are removed; each removal is printed
       --json                         Print `{"schema":"saccade-approve.v1","copied":[...],"pruned":[...]}` instead of one line per file
-      --force                        Removed: stale reviewed content cannot be overridden
       --dry-run                      Prepare a selected update manifest and unattested CLI decision draft
       --out <OUT>                    Empty directory for the plan, decision and applied receipt
   -h, --help                         Print help
+
+Global options:
+      --allow-out-near-captures  Silence warnings when --out is next to capture metadata
+      --record-absolute-paths    Opt in to absolute local paths in reports and machine-readable output
 ```
 
 ## saccade serve
 
 ```text
-(127.0.0.1 only; the archive is never written to)
+Browse report and image archives in a local web workbench
 
 Usage: saccade serve [OPTIONS] [ROOTS]...
+
+The server listens on 127.0.0.1 only. Archive roots are read-only: sessions,
+thumbnails and uploads go to the cache directory, decisions to the decisions directory.
+
+Examples:
+  saccade serve captures/ --open               Browse and compare runs in the browser
+  saccade serve captures/ reports/ --port 0    Several roots; pick a free port
 
 Arguments:
   [ROOTS]...  Archive roots to browse (read-only). With several, each is a top-level entry named after its directory
 
 Options:
-      --allow-out-near-captures
-          Silence warnings when --out is next to capture metadata
       --root <REGISTERED_ROOTS>
           Additional read-only archive roots (repeatable)
       --out-root <OUT_ROOT>
           Explicit generated-artifact root
-      --record-absolute-paths
-          Opt in to absolute local paths in reports and machine-readable output
       --follow-symlinks-within-roots
           Let a symlink that resolves inside any of the roots be browsed and served; a symlink to anywhere else stays refused
       --symlink-target <SYMLINK_TARGETS>
@@ -401,60 +414,57 @@ Options:
           FLIP pixels per degree
       --open
           Open the page in the default browser
-      --hdr-tonemapper <NAME>
-          Tone mapper for `.exr`/`.hdr` images: aces (default), hable or reinhard
-      --hdr-exposures <START:STOP:N>
-          Exposure range in stops and count, `START:STOP:N` (default: computed from the baseline image)
-      --meta-name <NAME>
-          Sidecar file name (default `saccade-meta.json`); the per-image sidecar is `<stem>.<name>` and overrides the directory-level one
-      --meta-ignore <GLOB,...>
-          Extra sidecar key globs to ignore, added to the built-in timing, timestamp and run-id defaults
-      --perf-name <PERF_NAME>
-          Run performance sidecar file name (default saccade-perf.json)
-      --perf-noise <PERF_NOISE>
-          Noise JSON or TOML from unchanged-build repeats
-      --perf-noise-k <PERF_NOISE_K>
-          Repeat spread multiplier in the effective noise threshold (default 3)
-      --perf-resolution <PERF_RESOLUTION>
-          Timer quantum in ms; overrides the estimate from repeated captures
-      --perf-resolution-ticks <PERF_RESOLUTION_TICKS>
-          Minimum timer ticks in the noise threshold (default 2)
-      --perf-min-delta-ms <PERF_MIN_DELTA_MS>
-          Minimum meaningful delta in ms (default 0.05)
-      --perf-min-delta-pct <PERF_MIN_DELTA_PCT>
-          Minimum meaningful delta as a percentage of the baseline frame (default 0.5)
   -h, --help
           Print help
+
+HDR images:
+      --hdr-tonemapper <NAME>         Tone mapper for `.exr`/`.hdr` images: aces (default), hable or reinhard
+      --hdr-exposures <START:STOP:N>  Exposure range in stops and count, `START:STOP:N` (default: computed from the baseline image)
+
+Metadata sidecars:
+      --meta-name <NAME>        Sidecar file name (default `saccade-meta.json`); the per-image sidecar is `<stem>.<name>` and overrides the directory-level one
+      --meta-ignore <GLOB,...>  Extra sidecar key globs to ignore, added to the built-in timing, timestamp and run-id defaults
+
+Performance:
+      --perf-name <NAME>           Run performance sidecar file name (default saccade-perf.json)
+      --perf-noise <FILE>          Noise JSON or TOML from unchanged-build repeats
+      --perf-noise-k <K>           Repeat spread multiplier in the effective noise threshold (default 3)
+      --perf-resolution <MS>       Timer quantum in ms; overrides the estimate from repeated captures
+      --perf-resolution-ticks <N>  Minimum timer ticks in the noise threshold (default 2)
+      --perf-min-delta-ms <MS>     Minimum meaningful delta in ms (default 0.05)
+      --perf-min-delta-pct <PCT>   Minimum meaningful delta as a percentage of the baseline frame (default 0.5)
+
+Global options:
+      --allow-out-near-captures  Silence warnings when --out is next to capture metadata
+      --record-absolute-paths    Opt in to absolute local paths in reports and machine-readable output
 ```
 
 ## saccade mcp
 
 ```text
-passes must resolve under `--root`
+Serve the agent tools over MCP on stdio, confined to the given roots
 
 Usage: saccade mcp [OPTIONS] --root <ROOTS>
 
+Every path a client passes must resolve under a --root. Generated reports go under
+--out-root, which must be separate from the read-only roots.
+
+Example:
+  saccade mcp --root examples --out-root agent-reports
+
 Options:
-      --allow-out-near-captures
-          Silence warnings when --out is next to capture metadata
-      --root <ROOTS>
-          Read-only roots (repeatable)
-      --out-root <OUT_ROOT>
-          Generated artifacts require this separate root
-      --record-absolute-paths
-          Opt in to absolute local paths in reports and machine-readable output
-      --follow-symlinks-within-roots
-          
-      --symlink-target <SYMLINK_TARGETS>
-          
-      --allow-provider-calls
-          Explicitly authorize provider calls for this MCP server lifetime
-      --budget-calls <BUDGET_CALLS>
-          Finite startup attempt cap; no implicit MCP allowance
-      --user-config <USER_CONFIG>
-          Human-owned endpoints, credential bindings and root egress policy
-  -h, --help
-          Print help
+      --root <ROOTS>                  Read-only roots (repeatable)
+      --out-root <OUT_ROOT>           Generated artifacts require this separate root
+      --follow-symlinks-within-roots  Let a symlink that resolves inside any of the roots be read
+      --symlink-target <DIR>          Allow symlinks reached below a root to resolve into DIR (repeatable)
+      --allow-provider-calls          Explicitly authorize provider calls for this MCP server lifetime
+      --budget-calls <BUDGET_CALLS>   Finite startup attempt cap; no implicit MCP allowance
+      --user-config <USER_CONFIG>     Human-owned endpoints, credential bindings and root egress policy
+  -h, --help                          Print help
+
+Global options:
+      --allow-out-near-captures  Silence warnings when --out is next to capture metadata
+      --record-absolute-paths    Opt in to absolute local paths in reports and machine-readable output
 ```
 
 ## saccade inspect
@@ -474,24 +484,17 @@ Arguments:
   [ARTIFACT]  
 
 Options:
-      --allow-out-near-captures
-          Silence warnings when --out is next to capture metadata
-      --record-absolute-paths
-          Opt in to absolute local paths in reports and machine-readable output
-      --entry <ENTRY>
-          
-      --status <STATUS>
-          
-      --limit <LIMIT>
-          [default: 10]
-      --cursor <CURSOR>
-          
-      --expected-case-id <EXPECTED_CASE_ID>
-          
-      --json
-          
-  -h, --help
-          Print help
+      --entry <ENTRY>                        
+      --status <STATUS>                      
+      --limit <LIMIT>                        [default: 10]
+      --cursor <CURSOR>                      
+      --expected-case-id <EXPECTED_CASE_ID>  
+      --json                                 
+  -h, --help                                 Print help
+
+Global options:
+      --allow-out-near-captures  Silence warnings when --out is next to capture metadata
+      --record-absolute-paths    Opt in to absolute local paths in reports and machine-readable output
 ```
 
 ## saccade inspect evidence
@@ -505,17 +508,19 @@ Arguments:
   <REPORT>  
 
 Options:
+      --out <OUT>          
+      --entry <ENTRIES>    
+      --top <TOP>          [default: 5]
+      --stretch            
+      --blind              
+      --key-out <KEY_OUT>  
+      --seed <SEED>        
+      --json               
+  -h, --help               Print help
+
+Global options:
       --allow-out-near-captures  Silence warnings when --out is next to capture metadata
-      --out <OUT>                
-      --entry <ENTRIES>          
       --record-absolute-paths    Opt in to absolute local paths in reports and machine-readable output
-      --top <TOP>                [default: 5]
-      --stretch                  
-      --blind                    
-      --key-out <KEY_OUT>        
-      --seed <SEED>              
-      --json                     
-  -h, --help                     Print help
 ```
 
 ## saccade inspect export
@@ -529,16 +534,18 @@ Arguments:
   <ARTIFACT>  
 
 Options:
-      --allow-out-near-captures      Silence warnings when --out is next to capture metadata
       --format <FORMAT>              [possible values: json, markdown, junit, png, labels]
       --out <OUT>                    
-      --record-absolute-paths        Opt in to absolute local paths in reports and machine-readable output
       --entry <ENTRY>                
       --state <STATE>                
       --width <WIDTH>                [default: 1024]
       --artifact-url <ARTIFACT_URL>  
       --comment-key <COMMENT_KEY>    
   -h, --help                         Print help
+
+Global options:
+      --allow-out-near-captures  Silence warnings when --out is next to capture metadata
+      --record-absolute-paths    Opt in to absolute local paths in reports and machine-readable output
 ```
 
 ## saccade inspect config
@@ -549,12 +556,14 @@ Explain effective measurement settings and their sources
 Usage: saccade inspect config [OPTIONS]
 
 Options:
+      --config <CONFIG>       
+      --entry <PATH_OR_NAME>  
+      --json                  
+  -h, --help                  Print help
+
+Global options:
       --allow-out-near-captures  Silence warnings when --out is next to capture metadata
-      --config <CONFIG>          
-      --entry <PATH_OR_NAME>     
       --record-absolute-paths    Opt in to absolute local paths in reports and machine-readable output
-      --json                     
-  -h, --help                     Print help
 ```
 
 ## saccade inspect capabilities
@@ -565,10 +574,12 @@ List compiled modules, operations and contracts
 Usage: saccade inspect capabilities [OPTIONS]
 
 Options:
+      --json  
+  -h, --help  Print help
+
+Global options:
       --allow-out-near-captures  Silence warnings when --out is next to capture metadata
-      --json                     
       --record-absolute-paths    Opt in to absolute local paths in reports and machine-readable output
-  -h, --help                     Print help
 ```
 
 ## saccade review
@@ -588,8 +599,6 @@ Arguments:
   [REPORT]  
 
 Options:
-      --allow-out-near-captures      Silence warnings when --out is next to capture metadata
-      --record-absolute-paths        Opt in to absolute local paths in reports and machine-readable output
       --run                          
       --budget-calls <BUDGET_CALLS>  
       --out <OUT>                    
@@ -598,6 +607,10 @@ Options:
       --intent <INTENT>              
       --json                         
   -h, --help                         Print help
+
+Global options:
+      --allow-out-near-captures  Silence warnings when --out is next to capture metadata
+      --record-absolute-paths    Opt in to absolute local paths in reports and machine-readable output
 ```
 
 ## saccade review request
@@ -611,13 +624,15 @@ Arguments:
   <REPORT>  
 
 Options:
-      --allow-out-near-captures    Silence warnings when --out is next to capture metadata
       --question <QUESTION>        
       --out <OUT>                  
-      --record-absolute-paths      Opt in to absolute local paths in reports and machine-readable output
       --user-config <USER_CONFIG>  
       --json                       
   -h, --help                       Print help
+
+Global options:
+      --allow-out-near-captures  Silence warnings when --out is next to capture metadata
+      --record-absolute-paths    Opt in to absolute local paths in reports and machine-readable output
 ```
 
 ## saccade review propose
@@ -631,13 +646,15 @@ Arguments:
   <REQUEST>  
 
 Options:
-      --allow-out-near-captures    Silence warnings when --out is next to capture metadata
       --answers <ANSWERS>          
       --out <OUT>                  
-      --record-absolute-paths      Opt in to absolute local paths in reports and machine-readable output
       --user-config <USER_CONFIG>  
       --json                       
   -h, --help                       Print help
+
+Global options:
+      --allow-out-near-captures  Silence warnings when --out is next to capture metadata
+      --record-absolute-paths    Opt in to absolute local paths in reports and machine-readable output
 ```
 
 ## saccade review ask
@@ -651,12 +668,14 @@ Arguments:
   <REQUEST>  
 
 Options:
-      --allow-out-near-captures    Silence warnings when --out is next to capture metadata
       --out <OUT>                  
-      --record-absolute-paths      Opt in to absolute local paths in reports and machine-readable output
       --user-config <USER_CONFIG>  
       --json                       
   -h, --help                       Print help
+
+Global options:
+      --allow-out-near-captures  Silence warnings when --out is next to capture metadata
+      --record-absolute-paths    Opt in to absolute local paths in reports and machine-readable output
 ```
 
 ## saccade review eval
@@ -667,19 +686,21 @@ Plan or run a resumable evaluation manifest
 Usage: saccade review eval [OPTIONS] --manifest <MANIFEST>
 
 Options:
-      --allow-out-near-captures    Silence warnings when --out is next to capture metadata
       --manifest <MANIFEST>        
-      --record-absolute-paths      Opt in to absolute local paths in reports and machine-readable output
       --run                        
       --user-config <USER_CONFIG>  
       --json                       
   -h, --help                       Print help
+
+Global options:
+      --allow-out-near-captures  Silence warnings when --out is next to capture metadata
+      --record-absolute-paths    Opt in to absolute local paths in reports and machine-readable output
 ```
 
 ## saccade experiment
 
 ```text
-Analyze existing graphics captures
+Analyze existing graphics captures: ablation, sequences, ranking, bisection
 
 Usage: saccade experiment [OPTIONS] <COMMAND>
 
@@ -692,9 +713,11 @@ Commands:
   a11y      Accessibility PRE-CHECK only; not certification or formal compliance
 
 Options:
+  -h, --help  Print help
+
+Global options:
       --allow-out-near-captures  Silence warnings when --out is next to capture metadata
       --record-absolute-paths    Opt in to absolute local paths in reports and machine-readable output
-  -h, --help                     Print help
 ```
 
 ## saccade experiment ablate
@@ -709,34 +732,24 @@ Arguments:
   <ARMS>...  
 
 Options:
-      --allow-out-near-captures
-          Silence warnings when --out is next to capture metadata
-      --out <OUT>
-          [default: ablation]
-      --config <CONFIG>
-          
-      --record-absolute-paths
-          Opt in to absolute local paths in reports and machine-readable output
-      --json
-          
-      --top <TOP>
-          Per-term deltas beyond noise to show per arm [default: 5]
-      --perf-name <PERF_NAME>
-          Run performance sidecar file name (default saccade-perf.json)
-      --perf-noise <PERF_NOISE>
-          Noise JSON or TOML from unchanged-build repeats
-      --perf-noise-k <PERF_NOISE_K>
-          Repeat spread multiplier in the effective noise threshold (default 3)
-      --perf-resolution <PERF_RESOLUTION>
-          Timer quantum in ms; overrides the estimate from repeated captures
-      --perf-resolution-ticks <PERF_RESOLUTION_TICKS>
-          Minimum timer ticks in the noise threshold (default 2)
-      --perf-min-delta-ms <PERF_MIN_DELTA_MS>
-          Minimum meaningful delta in ms (default 0.05)
-      --perf-min-delta-pct <PERF_MIN_DELTA_PCT>
-          Minimum meaningful delta as a percentage of the baseline frame (default 0.5)
-  -h, --help
-          Print help
+      --out <OUT>        [default: ablation]
+      --config <CONFIG>  
+      --json             
+      --top <TOP>        Per-term deltas beyond noise to show per arm [default: 5]
+  -h, --help             Print help
+
+Performance:
+      --perf-name <NAME>           Run performance sidecar file name (default saccade-perf.json)
+      --perf-noise <FILE>          Noise JSON or TOML from unchanged-build repeats
+      --perf-noise-k <K>           Repeat spread multiplier in the effective noise threshold (default 3)
+      --perf-resolution <MS>       Timer quantum in ms; overrides the estimate from repeated captures
+      --perf-resolution-ticks <N>  Minimum timer ticks in the noise threshold (default 2)
+      --perf-min-delta-ms <MS>     Minimum meaningful delta in ms (default 0.05)
+      --perf-min-delta-pct <PCT>   Minimum meaningful delta as a percentage of the baseline frame (default 0.5)
+
+Global options:
+      --allow-out-near-captures  Silence warnings when --out is next to capture metadata
+      --record-absolute-paths    Opt in to absolute local paths in reports and machine-readable output
 ```
 
 ## saccade experiment sequence
@@ -751,26 +764,32 @@ Arguments:
   <CAPTURE_DIR>   
 
 Options:
-      --allow-out-near-captures       Silence warnings when --out is next to capture metadata
-      --pattern <PATTERN>             Relative-name glob; frames must end in an integer before the extension [default: *]
-      --out <OUT>                     [default: sequence-report]
-      --record-absolute-paths         Opt in to absolute local paths in reports and machine-readable output
-      --threshold <THRESHOLD>         
-      --metric <METRIC>               [possible values: mean, p95, p99, max]
-      --config <CONFIG>               
-      --ppd <PPD>                     
-      --fail-on-new                   
-      --allow-empty                   
-      --labels <LABELS>               
-      --json                          
+      --pattern <PATTERN>      Relative-name glob; frames must end in an integer before the extension [default: *]
+      --out <OUT>              [default: sequence-report]
+      --threshold <THRESHOLD>  
+      --metric <METRIC>        [possible values: mean, p95, p99, max]
+      --config <CONFIG>        
+      --ppd <PPD>              
+      --fail-on-new            
+      --allow-empty            
+      --labels <LABELS>        
+      --json                   
+  -h, --help                   Print help
+
+HDR images:
       --hdr-tonemapper <NAME>         Tone mapper for `.exr`/`.hdr` images: aces (default), hable or reinhard
       --hdr-exposures <START:STOP:N>  Exposure range in stops and count, `START:STOP:N` (default: computed from the baseline image)
       --junit <FILE.xml>              Write one JUnit testcase per entry
-      --meta-name <NAME>              Sidecar file name (default `saccade-meta.json`); the per-image sidecar is `<stem>.<name>` and overrides the directory-level one
-      --meta-ignore <GLOB,...>        Extra sidecar key globs to ignore, added to the built-in timing, timestamp and run-id defaults
-      --require-matching-meta         Make an entry an error when a sidecar key differs and is not declared
-      --declare <KEY,...>             Sidecar keys (or globs) that may differ with --require-matching-meta
-  -h, --help                          Print help
+
+Metadata sidecars:
+      --meta-name <NAME>        Sidecar file name (default `saccade-meta.json`); the per-image sidecar is `<stem>.<name>` and overrides the directory-level one
+      --meta-ignore <GLOB,...>  Extra sidecar key globs to ignore, added to the built-in timing, timestamp and run-id defaults
+      --require-matching-meta   Make an entry an error when a sidecar key differs and is not declared
+      --declare <KEY,...>       Sidecar keys (or globs) that may differ with --require-matching-meta
+
+Global options:
+      --allow-out-near-captures  Silence warnings when --out is next to capture metadata
+      --record-absolute-paths    Opt in to absolute local paths in reports and machine-readable output
 ```
 
 ## saccade experiment rank
@@ -785,25 +804,31 @@ Arguments:
   <CANDIDATE_DIRS>...  
 
 Options:
-      --allow-out-near-captures       Silence warnings when --out is next to capture metadata
-      --labels <LABELS>               One unique, safe directory label per candidate, comma separated
-      --metric <METRIC>               [default: mean] [possible values: mean, p95, p99, max]
-      --record-absolute-paths         Opt in to absolute local paths in reports and machine-readable output
-      --out <OUT>                     [default: rank-report]
-      --config <CONFIG>               
-      --threshold <THRESHOLD>         
-      --ppd <PPD>                     
-      --fail-on-new                   
-      --allow-empty                   
-      --json                          
+      --labels <LABELS>        One unique, safe directory label per candidate, comma separated
+      --metric <METRIC>        [default: mean] [possible values: mean, p95, p99, max]
+      --out <OUT>              [default: rank-report]
+      --config <CONFIG>        
+      --threshold <THRESHOLD>  
+      --ppd <PPD>              
+      --fail-on-new            
+      --allow-empty            
+      --json                   
+  -h, --help                   Print help
+
+HDR images:
       --hdr-tonemapper <NAME>         Tone mapper for `.exr`/`.hdr` images: aces (default), hable or reinhard
       --hdr-exposures <START:STOP:N>  Exposure range in stops and count, `START:STOP:N` (default: computed from the baseline image)
       --junit <FILE.xml>              Write one JUnit testcase per entry
-      --meta-name <NAME>              Sidecar file name (default `saccade-meta.json`); the per-image sidecar is `<stem>.<name>` and overrides the directory-level one
-      --meta-ignore <GLOB,...>        Extra sidecar key globs to ignore, added to the built-in timing, timestamp and run-id defaults
-      --require-matching-meta         Make an entry an error when a sidecar key differs and is not declared
-      --declare <KEY,...>             Sidecar keys (or globs) that may differ with --require-matching-meta
-  -h, --help                          Print help
+
+Metadata sidecars:
+      --meta-name <NAME>        Sidecar file name (default `saccade-meta.json`); the per-image sidecar is `<stem>.<name>` and overrides the directory-level one
+      --meta-ignore <GLOB,...>  Extra sidecar key globs to ignore, added to the built-in timing, timestamp and run-id defaults
+      --require-matching-meta   Make an entry an error when a sidecar key differs and is not declared
+      --declare <KEY,...>       Sidecar keys (or globs) that may differ with --require-matching-meta
+
+Global options:
+      --allow-out-near-captures  Silence warnings when --out is next to capture metadata
+      --record-absolute-paths    Opt in to absolute local paths in reports and machine-readable output
 ```
 
 ## saccade experiment bisect
@@ -814,17 +839,19 @@ Find the first diverging run or revision in an ordered series
 Usage: saccade experiment bisect [OPTIONS]
 
 Options:
+      --runs <RUNS>...         Ordered run directories, oldest first (repeatable)
+      --runs-from <RUNS_FROM>  One ordered run path per line
+      --good <GOOD>            Reference for existing runs (default: first run)
+      --threshold <THRESHOLD>  Explicit FLIP threshold relaxes native sample identity
+      --metric <METRIC>        mean, p95, p99 or max (default max)
+      --entries <ENTRIES>      Select image names by glob
+      --out <OUT>              Report directory, separate from inputs [default: bisect-report]
+      --json                   Print saccade-bisect.v1 JSON
+  -h, --help                   Print help
+
+Global options:
       --allow-out-near-captures  Silence warnings when --out is next to capture metadata
-      --runs <RUNS>...           Ordered run directories, oldest first (repeatable)
       --record-absolute-paths    Opt in to absolute local paths in reports and machine-readable output
-      --runs-from <RUNS_FROM>    One ordered run path per line
-      --good <GOOD>              Reference for existing runs (default: first run)
-      --threshold <THRESHOLD>    Explicit FLIP threshold relaxes native sample identity
-      --metric <METRIC>          mean, p95, p99 or max (default max)
-      --entries <ENTRIES>        Select image names by glob
-      --out <OUT>                Report directory, separate from inputs [default: bisect-report]
-      --json                     Print saccade-bisect.v1 JSON
-  -h, --help                     Print help
 ```
 
 ## saccade experiment safety
@@ -838,15 +865,17 @@ Arguments:
   <INPUT>  Numbered frames or mp4/mov/mkv (requires external ffmpeg)
 
 Options:
+      --fps <FPS>            Frame rate override; otherwise metadata, or 60 for frame directories
+      --display <DISPLAY>    WxH@diagonal_inches,distance_metres (default 1920x1080@55,4)
+      --standard <STANDARD>  itu-bt1702 or wcag. PRE-CHECK only, never certification [default: itu-bt1702]
+      --json                 Print full saccade-safety.v1 JSON
+      --out <OUT>            Output directory for JSON, text, HTML, static frames and risk heatmaps [default: safety-report]
+      --junit <JUNIT>        Optional JUnit XML destination
+  -h, --help                 Print help
+
+Global options:
       --allow-out-near-captures  Silence warnings when --out is next to capture metadata
-      --fps <FPS>                Frame rate override; otherwise metadata, or 60 for frame directories
-      --display <DISPLAY>        WxH@diagonal_inches,distance_metres (default 1920x1080@55,4)
       --record-absolute-paths    Opt in to absolute local paths in reports and machine-readable output
-      --standard <STANDARD>      itu-bt1702 or wcag. PRE-CHECK only, never certification [default: itu-bt1702]
-      --json                     Print full saccade-safety.v1 JSON
-      --out <OUT>                Output directory for JSON, text, HTML, static frames and risk heatmaps [default: safety-report]
-      --junit <JUNIT>            Optional JUnit XML destination
-  -h, --help                     Print help
 ```
 
 ## saccade experiment a11y
@@ -860,13 +889,15 @@ Arguments:
   <INPUT>  Opaque sRGB image or image directory
 
 Options:
+      --config <CONFIG>      Explicit saccade.toml with [[region]] kind="text" or "ui"
+      --json                 Print full saccade-a11y.v1 JSON
+      --out <OUT>            Output directory for JSON, text, HTML and simulation/heatmap artifacts [default: a11y-report]
+      --junit <JUNIT>        Optional JUnit XML destination
+      --suggest-regions      Explicitly upload 16 crops/image to Gemini for unconfirmed region proposals
+      --keys-dir <KEYS_DIR>  Judge key policy: gemini.env/SACCADE_GEMINI_API_KEY, never ambient keys
+  -h, --help                 Print help
+
+Global options:
       --allow-out-near-captures  Silence warnings when --out is next to capture metadata
-      --config <CONFIG>          Explicit saccade.toml with [[region]] kind="text" or "ui"
-      --json                     Print full saccade-a11y.v1 JSON
       --record-absolute-paths    Opt in to absolute local paths in reports and machine-readable output
-      --out <OUT>                Output directory for JSON, text, HTML and simulation/heatmap artifacts [default: a11y-report]
-      --junit <JUNIT>            Optional JUnit XML destination
-      --suggest-regions          Explicitly upload 16 crops/image to Gemini for unconfirmed region proposals
-      --keys-dir <KEYS_DIR>      Judge key policy: gemini.env/SACCADE_GEMINI_API_KEY, never ambient keys
-  -h, --help                     Print help
 ```

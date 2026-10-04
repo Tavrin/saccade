@@ -18,7 +18,7 @@ pub struct CliError {
     pub code: &'static str,
     /// Human-readable message.
     pub message: String,
-    /// Path/argument context and an actionable repair.
+    /// The actionable repair, printed under the message on stderr.
     pub hint: String,
 }
 
@@ -57,7 +57,7 @@ impl CliError {
         };
         Self {
             code,
-            hint: format!("{message}; {fix}"),
+            hint: fix.to_owned(),
             message,
         }
     }

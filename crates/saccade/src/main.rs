@@ -33,19 +33,37 @@ mod s6;
 
 use agent::CliError;
 
+/// Purpose, usage, then the explanation and examples, then the grouped flags.
+const HELP_TEMPLATE: &str =
+    "{about-with-newline}\n{usage-heading} {usage}{after-help}\n\n{all-args}";
+
 #[derive(Parser)]
 #[command(
     name = "saccade",
     version = env!("SACCADE_DISPLAY_VERSION"),
     disable_help_subcommand = true,
-    about = "Perceptual (FLIP) visual-regression diffing"
+    help_template = HELP_TEMPLATE,
+    about = "Find and explain visual changes between two sets of rendered images",
+    after_help = "\
+saccade scores each image pair with FLIP, a perceptual error metric, locates the
+changed regions, and writes an offline HTML report next to a JSON result.
+
+Start here:
+  saccade demo --out saccade-demo               Run the bundled example (exits 1 on purpose)
+  saccade compare baseline/ captures/ --out report
+                                                Compare fresh captures with approved baselines
+  saccade identity parent/ candidate/ --out report
+                                                Check that two builds render identical pixels
+
+Exit codes: 0 no regression, 1 regression found, 2 the command could not run.
+Run `saccade COMMAND --help` for that command's flags and examples."
 )]
 struct Cli {
     /// Silence warnings when --out is next to capture metadata.
-    #[arg(long, global = true)]
+    #[arg(long, global = true, help_heading = "Global options")]
     allow_out_near_captures: bool,
     /// Opt in to absolute local paths in reports and machine-readable output.
-    #[arg(long, global = true)]
+    #[arg(long, global = true, help_heading = "Global options")]
     record_absolute_paths: bool,
     #[command(subcommand)]
     command: Command,
@@ -53,6 +71,7 @@ struct Cli {
 
 /// HDR-FLIP flags shared by `compare` and `view`.
 #[derive(clap::Args, Clone, Default)]
+#[command(next_help_heading = "HDR images")]
 struct HdrArgs {
     /// Tone mapper for `.exr`/`.hdr` images: aces (default), hable or reinhard.
     #[arg(long, value_name = "NAME")]
@@ -77,16 +96,21 @@ impl HdrArgs {
 
 /// Structured intent and predeclared changes bound into local evidence.
 #[derive(clap::Args, Clone, Default)]
+#[command(next_help_heading = "Review context")]
 struct IntentArgs {
-    #[arg(long, conflicts_with = "intent_file")]
+    /// What the change is meant to do, in one sentence, recorded in the evidence.
+    #[arg(long, value_name = "TEXT", conflicts_with = "intent_file")]
     intent: Option<String>,
-    #[arg(long)]
+    /// Structured intent JSON with objective and criteria.
+    #[arg(long, value_name = "FILE")]
     intent_file: Option<PathBuf>,
-    #[arg(long)]
+    /// JSON list of expected changes; needs --intent or --intent-file.
+    #[arg(long, value_name = "FILE")]
     changes_file: Option<PathBuf>,
 }
 /// Metadata-sidecar flags shared by `compare`, `identity` and `view`.
 #[derive(clap::Args, Clone, Default)]
+#[command(next_help_heading = "Metadata sidecars")]
 struct MetaArgs {
     /// Sidecar file name (default `saccade-meta.json`); the per-image sidecar is
     /// `<stem>.<name>` and overrides the directory-level one.
@@ -100,6 +124,7 @@ struct MetaArgs {
 
 /// Metadata enforcement flags for `compare` and `identity`.
 #[derive(clap::Args, Clone, Default)]
+#[command(next_help_heading = "Metadata sidecars")]
 struct MetaRequireArgs {
     /// Make an entry an error when a sidecar key differs and is not declared.
     #[arg(long)]
@@ -152,56 +177,89 @@ impl From<MetricArg> for Metric {
 #[derive(Subcommand)]
 enum Command {
     /// Print installed version, features and supported evidence schemas.
+    #[command(display_order = 13)]
     Doctor {
         /// Print machine-readable JSON.
         #[arg(long)]
         json: bool,
     },
     /// Bootstrap a commented configuration and print baseline adoption steps.
+    #[command(display_order = 7)]
     Init(f1::InitArgs),
     /// Run the bundled example and explain its expected regression.
+    #[command(
+        display_order = 1,
+        help_template = HELP_TEMPLATE,
+        after_help = "\
+Example:
+  saccade demo --out saccade-demo
+  saccade view saccade-demo          Print where the demo report is
+
+The demo exits 1 on purpose: it contains a regression and a missing capture."
+    )]
     Demo(f1::DemoArgs),
     /// Compare a directory of captures against a directory of baselines.
+    #[command(
+        display_order = 2,
+        help_template = HELP_TEMPLATE,
+        after_help = "\
+Images are paired by relative path. Each pair gets a FLIP score; a pair fails when
+its deciding metric is above the threshold. The report directory holds index.html
+(open it in a browser) and saccade-report.v1.json.
+
+Examples:
+  saccade compare baseline/ captures/ --out report
+  saccade compare baseline/ captures/ --threshold 0.02 --metric p95
+  saccade compare baseline/ captures/ --entry 'ui/*' --junit report/junit.xml
+  saccade compare baseline/ captures/ --json        One bounded JSON result on stdout
+
+Exit codes: 0 no regression, 1 regression found, 2 the command could not run."
+    )]
     Compare {
         /// Directory of approved baseline images.
         baseline_dir: PathBuf,
         /// Directory of fresh captures.
         capture_dir: PathBuf,
         /// Report output directory.
-        #[arg(long, default_value = "report")]
+        #[arg(long, default_value = "report", help_heading = "Output")]
         out: PathBuf,
         /// Default pass threshold (overrides the config file's top level).
-        #[arg(long)]
+        #[arg(long, help_heading = "Gate")]
         threshold: Option<f64>,
         /// Default deciding metric (overrides the config file's top level).
-        #[arg(long, value_enum)]
+        #[arg(long, value_enum, help_heading = "Gate")]
         metric: Option<MetricArg>,
         /// Config file; defaults to ./saccade.toml when it exists.
-        #[arg(long)]
+        #[arg(long, help_heading = "Gate")]
         config: Option<PathBuf>,
         /// Treat new images (no baseline) as a regression.
-        #[arg(long)]
+        #[arg(long, help_heading = "Gate")]
         fail_on_new: bool,
         /// Accept a run that compared no pair (for example the first run, with
         /// an empty baseline directory). Without it, nothing compared exits 1.
-        #[arg(long)]
+        #[arg(long, help_heading = "Gate")]
         allow_empty: bool,
         /// Print a bounded machine-readable result.
-        #[arg(long)]
+        #[arg(long, help_heading = "Output")]
         json: bool,
         /// FLIP pixels per degree.
-        #[arg(long)]
+        #[arg(long, help_heading = "Gate")]
         ppd: Option<f32>,
         /// Display names of the two sides, `baseline,capture`.
-        #[arg(long, value_delimiter = ',', value_name = "A,B")]
+        #[arg(
+            long,
+            value_delimiter = ',',
+            value_name = "A,B",
+            help_heading = "Output"
+        )]
         labels: Option<Vec<String>>,
         #[command(flatten)]
         hdr: HdrArgs,
         /// Include only matching names (repeatable; union of globs).
-        #[arg(long = "entry", value_name = "GLOB")]
+        #[arg(long = "entry", value_name = "GLOB", help_heading = "Selection")]
         entries: Vec<String>,
         /// Write one JUnit testcase per entry.
-        #[arg(long, value_name = "FILE.xml")]
+        #[arg(long, value_name = "FILE.xml", help_heading = "Output")]
         junit: Option<PathBuf>,
         #[command(flatten)]
         meta: MetaArgs,
@@ -213,41 +271,60 @@ enum Command {
         intent: IntentArgs,
     },
     /// Establish exact native decoded-sample equality in the selected scope.
+    #[command(
+        display_order = 3,
+        help_template = HELP_TEMPLATE,
+        after_help = "\
+Use it to prove a refactor or optimization renders the same pixels. There is no
+threshold: any differing sample fails. Different file encodings of equal pixels pass.
+
+Examples:
+  saccade identity parent/ candidate/ --out report
+  saccade identity parent/ candidate/ --json      One bounded JSON result on stdout
+
+Exit codes: 0 every pair identical, 1 identity not proven (a pair differs, is missing,
+new or unreadable), 2 the command could not run."
+    )]
     Identity {
         /// Directory of images from the parent build.
         parent_dir: PathBuf,
         /// Directory of images from the candidate build.
         candidate_dir: PathBuf,
         /// Report output directory.
-        #[arg(long, default_value = "report")]
+        #[arg(long, default_value = "report", help_heading = "Output")]
         out: PathBuf,
         /// Accept a run that compared no pair. Without it, nothing compared
         /// exits 1.
-        #[arg(long)]
+        #[arg(long, help_heading = "Gate")]
         allow_empty: bool,
         /// Rejected for identity; use compare for perceptual thresholds.
-        #[arg(long)]
+        #[arg(long, hide = true)]
         threshold: Option<f64>,
         /// Rejected for identity; use compare for perceptual metrics.
-        #[arg(long, value_enum)]
+        #[arg(long, value_enum, hide = true)]
         metric: Option<MetricArg>,
         /// Config file; defaults to ./saccade.toml when it exists.
-        #[arg(long)]
+        #[arg(long, help_heading = "Gate")]
         config: Option<PathBuf>,
         /// Print a bounded machine-readable result.
-        #[arg(long)]
+        #[arg(long, help_heading = "Output")]
         json: bool,
-        /// FLIP pixels per degree.
-        #[arg(long)]
+        /// FLIP pixels per degree, used only to describe differences.
+        #[arg(long, help_heading = "Gate")]
         ppd: Option<f32>,
         /// Display names of the two sides, `parent,candidate`.
-        #[arg(long, value_delimiter = ',', value_name = "A,B")]
+        #[arg(
+            long,
+            value_delimiter = ',',
+            value_name = "A,B",
+            help_heading = "Output"
+        )]
         labels: Option<Vec<String>>,
         /// Include only matching names (repeatable; union of globs).
-        #[arg(long = "entry", value_name = "GLOB")]
+        #[arg(long = "entry", value_name = "GLOB", help_heading = "Selection")]
         entries: Vec<String>,
         /// Write one JUnit testcase per entry.
-        #[arg(long, value_name = "FILE.xml")]
+        #[arg(long, value_name = "FILE.xml", help_heading = "Output")]
         junit: Option<PathBuf>,
         #[command(flatten)]
         meta: MetaArgs,
@@ -259,58 +336,91 @@ enum Command {
         intent: IntentArgs,
     },
     /// Calibrate thresholds from repeated captures of an unchanged build.
+    #[command(display_order = 8)]
     Noise(f1::NoiseArgs),
     /// Write a self-contained review viewer for 2 to 6 image directories.
+    #[command(
+        display_order = 4,
+        help_template = HELP_TEMPLATE,
+        after_help = "\
+Examples:
+  saccade view before/ after/ --out view          Swipe, flicker and heatmap viewer
+  saccade view a/ b/ c/ --labels a,b,c --reference a
+  saccade view my-report                          Print where an existing report's page is
+  saccade view a/ b/ --blind --key-out ../key.json --out judge-view"
+    )]
     View {
         /// Directories to compare, paired by relative image path (2 to 6).
         #[arg(num_args = 1..=6, required_unless_present = "unblind")]
         dirs: Vec<PathBuf>,
         /// Resolve recorded anonymous choices after review.
-        #[arg(long, requires = "key", conflicts_with = "dirs")]
+        #[arg(
+            long,
+            requires = "key",
+            conflicts_with = "dirs",
+            help_heading = "Blind judging"
+        )]
         unblind: Option<PathBuf>,
-        #[arg(long, requires = "unblind")]
+        /// The key written by --blind, used with --unblind.
+        #[arg(long, requires = "unblind", help_heading = "Blind judging")]
         key: Option<PathBuf>,
         /// Comma-separated labels, one per directory (default: directory names).
-        #[arg(long, value_delimiter = ',')]
+        #[arg(long, value_delimiter = ',', help_heading = "Output")]
         labels: Option<Vec<String>>,
         /// FLIP reference: a label or one of the directories (default: the first).
-        #[arg(long)]
+        #[arg(long, help_heading = "Comparison")]
         reference: Option<String>,
         /// Pairwise judging: shuffle panes and hide labels until "Reveal".
-        #[arg(long)]
+        #[arg(long, help_heading = "Blind judging")]
         blind: bool,
         /// Seed for the blind shuffle (default: random). A blind page never
         /// embeds it; it is recorded in the key.
-        #[arg(long)]
+        #[arg(long, help_heading = "Blind judging")]
         seed: Option<u64>,
-        /// Where a blind view's key goes (default: `blind-key.json` inside
-        /// `--out`; put it elsewhere to hand the view directory to a judge).
-        #[arg(long, value_name = "PATH", requires = "blind")]
+        /// Where a blind view's key goes. Required with --blind; keep it
+        /// outside --out so the judge never receives it.
+        #[arg(
+            long,
+            value_name = "PATH",
+            requires = "blind",
+            help_heading = "Blind judging"
+        )]
         key_out: Option<PathBuf>,
         /// Output directory.
-        #[arg(long, default_value = "view")]
+        #[arg(long, default_value = "view", help_heading = "Output")]
         out: PathBuf,
         /// FLIP pixels per degree.
-        #[arg(long)]
+        #[arg(long, help_heading = "Comparison")]
         ppd: Option<f32>,
         /// Config file whose `[[region]]` tables become preset ROIs
         /// (default: `./saccade.toml` when present).
-        #[arg(long)]
+        #[arg(long, help_heading = "Comparison")]
         config: Option<PathBuf>,
         /// Print a JSON summary (`saccade-view-summary.v1`) instead of text.
-        #[arg(long)]
+        #[arg(long, help_heading = "Output")]
         json: bool,
         #[command(flatten)]
         hdr: HdrArgs,
         /// Include only matching names (repeatable; union of globs).
-        #[arg(long = "entry", value_name = "GLOB")]
+        #[arg(long = "entry", value_name = "GLOB", help_heading = "Selection")]
         entries: Vec<String>,
         #[command(flatten)]
         meta: MetaArgs,
         #[command(flatten)]
         perf: perf_cmd::PerfArgs,
     },
-    /// Copy captures over baselines.
+    /// Copy reviewed captures over baselines.
+    #[command(
+        display_order = 5,
+        help_template = HELP_TEMPLATE,
+        after_help = "\
+Example (two steps: plan, then apply the reviewed decision):
+  saccade approve --report report/saccade-report.v1.json --entry ui.png --dry-run --out plan
+  saccade approve --report report/saccade-report.v1.json --decisions plan/decision.json --out receipt
+
+Review the report, plan/manifest.json and plan/decision.json between the two steps.
+The dry run writes no baseline; content hashes must still match when applying."
+    )]
     Approve {
         /// Directory of fresh captures.
         capture_dir: Option<PathBuf>,
@@ -344,7 +454,7 @@ enum Command {
         #[arg(long)]
         json: bool,
         /// Removed: stale reviewed content cannot be overridden.
-        #[arg(long)]
+        #[arg(long, hide = true)]
         force: bool,
         /// Prepare a selected update manifest and unattested CLI decision draft.
         #[arg(long)]
@@ -353,8 +463,19 @@ enum Command {
         #[arg(long)]
         out: Option<PathBuf>,
     },
-    /// (127.0.0.1 only; the archive is never written to).
+    /// Browse report and image archives in a local web workbench.
     #[cfg(feature = "workbench")]
+    #[command(
+        display_order = 6,
+        help_template = HELP_TEMPLATE,
+        after_help = "\
+The server listens on 127.0.0.1 only. Archive roots are read-only: sessions,
+thumbnails and uploads go to the cache directory, decisions to the decisions directory.
+
+Examples:
+  saccade serve captures/ --open               Browse and compare runs in the browser
+  saccade serve captures/ reports/ --port 0    Several roots; pick a free port"
+    )]
     Serve {
         /// Archive roots to browse (read-only). With several, each is a
         /// top-level entry named after its directory.
@@ -404,8 +525,18 @@ enum Command {
         #[command(flatten)]
         perf: perf_cmd::PerfArgs,
     },
-    /// passes must resolve under `--root`.
+    /// Serve the agent tools over MCP on stdio, confined to the given roots.
     #[cfg(feature = "mcp")]
+    #[command(
+        display_order = 12,
+        help_template = HELP_TEMPLATE,
+        after_help = "\
+Every path a client passes must resolve under a --root. Generated reports go under
+--out-root, which must be separate from the read-only roots.
+
+Example:
+  saccade mcp --root examples --out-root agent-reports"
+    )]
     Mcp {
         /// Read-only roots (repeatable).
         #[arg(long = "root", required = true)]
@@ -413,19 +544,24 @@ enum Command {
         /// Generated artifacts require this separate root.
         #[arg(long)]
         out_root: Option<PathBuf>,
+        /// Let a symlink that resolves inside any of the roots be read.
         #[arg(long)]
         follow_symlinks_within_roots: bool,
-        #[arg(long = "symlink-target")]
+        /// Allow symlinks reached below a root to resolve into DIR (repeatable).
+        #[arg(long = "symlink-target", value_name = "DIR")]
         symlink_targets: Vec<PathBuf>,
         #[cfg(feature = "ai")]
         #[command(flatten)]
         providers: review_cmd::Startup,
     },
     /// Read, explain, prepare or export existing evidence.
+    #[command(display_order = 9)]
     Inspect(local_cmd::InspectArgs),
     /// Preview a review plan or handle a local closed decision request.
+    #[command(display_order = 10)]
     Review(local_cmd::ReviewArgs),
-    /// Analyze existing graphics captures.
+    /// Analyze existing graphics captures: ablation, sequences, ranking, bisection.
+    #[command(display_order = 11)]
     Experiment {
         #[command(subcommand)]
         operation: ExperimentOperation,
@@ -561,7 +697,7 @@ fn main() -> ExitCode {
             if args_want_json(&args) {
                 emit_json_error(&error);
             } else {
-                eprintln!("saccade: error: {error}\n  hint: {}", error.hint);
+                eprintln!("saccade: error: {error}\n  fix: {}", error.hint);
             }
             ExitCode::from(2)
         }
@@ -592,7 +728,7 @@ fn cli_main() -> ExitCode {
                 if args_want_json(&args) {
                     emit_json_error(&err);
                 } else {
-                    eprintln!("saccade: error: {err}\n  hint: {}", err.hint);
+                    eprintln!("saccade: error: {err}\n  fix: {}", err.hint);
                 }
                 return ExitCode::from(2);
             }
@@ -614,7 +750,9 @@ fn cli_main() -> ExitCode {
                 return ExitCode::from(2);
             }
             if e.use_stderr() {
-                eprintln!("{e}hint: {}", agent::CliError::usage(e.to_string()).hint);
+                // clap already names the argument, prints the usage line and
+                // points at `--help`; repeating it as a hint only adds noise.
+                let _ = e.print();
                 return ExitCode::from(2);
             }
             e.exit()
@@ -630,7 +768,7 @@ fn cli_main() -> ExitCode {
                 emit_json_error(&err);
             } else {
                 eprintln!(
-                    "saccade: error: {}\n  hint: {}",
+                    "saccade: error: {}\n  fix: {}",
                     escape_multiline(&err.message),
                     escape_control(&err.hint)
                 );
@@ -641,7 +779,12 @@ fn cli_main() -> ExitCode {
 }
 
 /// Prints a run's result: the table, the lean result or the whole report.
-fn emit_run(report: &Report, out: &Path, json: bool) -> Result<(), CliError> {
+fn emit_run(
+    report: &Report,
+    out: &Path,
+    json: bool,
+    record_absolute_paths: bool,
+) -> Result<(), CliError> {
     let mut shown = std::collections::BTreeSet::new();
     for entry in &report.entries {
         for warning in &entry.warnings {
@@ -671,6 +814,7 @@ fn emit_run(report: &Report, out: &Path, json: bool) -> Result<(), CliError> {
         emit(&format!("{}\n", serde_json::to_string(&value)?))
     } else {
         emit(&text_table(report))?;
+        emit(&run_footer(report, out, record_absolute_paths))?;
         if report.config.mode == Mode::Identity
             && (!report.config.entries.is_empty() || !report.config.ignore.is_empty())
         {
@@ -899,7 +1043,7 @@ fn dispatch(command: Command, record_absolute_paths: bool) -> Result<u8, CliErro
                 &out.join(saccade_core::report::REPORT_FILE_NAME),
                 &intent,
             )?;
-            emit_run(&report, &out, json)?;
+            emit_run(&report, &out, json, record_absolute_paths)?;
             Ok(u8::from(report.is_regression()))
         }
         Command::Identity {
@@ -958,7 +1102,7 @@ fn dispatch(command: Command, record_absolute_paths: bool) -> Result<u8, CliErro
                 &out.join(saccade_core::report::REPORT_FILE_NAME),
                 &intent,
             )?;
-            emit_run(&report, &out, json)?;
+            emit_run(&report, &out, json, record_absolute_paths)?;
             Ok(u8::from(report.is_regression()))
         }
         Command::Approve {
@@ -1423,10 +1567,110 @@ fn metric_label(m: Metric) -> &'static str {
     }
 }
 
+/// Whether stdout should carry ANSI colour: a terminal, and `NO_COLOR` unset or empty.
+fn stdout_color() -> bool {
+    use std::io::IsTerminal;
+    std::env::var_os("NO_COLOR").is_none_or(|v| v.is_empty()) && std::io::stdout().is_terminal()
+}
+
+/// Wraps `text` in an SGR colour when `on`; status colour always accompanies a word.
+fn paint(text: &str, sgr: &str, on: bool) -> String {
+    if on {
+        format!("\x1b[{sgr}m{text}\x1b[0m")
+    } else {
+        text.to_owned()
+    }
+}
+
+fn status_sgr(s: Status) -> &'static str {
+    match s {
+        Status::Pass => "32",
+        Status::Fail => "1;31",
+        Status::New => "36",
+        Status::Missing | Status::Error => "33",
+    }
+}
+
+/// The one-line result of a regression run, printed above the table.
+fn compare_headline(report: &Report) -> String {
+    let t = &report.totals;
+    let problems: Vec<String> = [
+        (t.fail, "fail"),
+        (t.error, "error"),
+        (t.missing, "missing"),
+        (t.new, "new"),
+    ]
+    .iter()
+    .filter(|(n, _)| *n > 0)
+    .map(|(n, what)| format!("{n} {what}"))
+    .collect();
+    let images = if t.total == 1 { "image" } else { "images" };
+    if report.is_empty_run() {
+        format!("compare: ❌ nothing compared ({} {images} found)", t.total)
+    } else if report.is_regression() {
+        format!(
+            "compare: ❌ regression: {} of {} {images}",
+            problems.join(", "),
+            t.total
+        )
+    } else if problems.is_empty() {
+        format!(
+            "compare: ✅ no regression: {} of {} {images} passed",
+            t.pass, t.total
+        )
+    } else {
+        format!(
+            "compare: ✅ no regression: {} pass, {} not gated",
+            t.pass,
+            problems.join(", ")
+        )
+    }
+}
+
+/// Where the report is and what to do next, printed below the table.
+fn run_footer(report: &Report, out: &Path, absolute: bool) -> String {
+    let page = saccade_core::paths::cwd(&out.join("index.html"), absolute);
+    let json =
+        saccade_core::paths::cwd(&out.join(saccade_core::report::REPORT_FILE_NAME), absolute);
+    let mut text = format!("report: {}\n", escape_control(&page));
+    let t = &report.totals;
+    let next = if report.is_empty_run() {
+        "check that both directories hold images with the same relative names".to_owned()
+    } else if !report.is_regression() {
+        return text;
+    } else if report.config.mode == Mode::Identity {
+        "open the report to see where the samples differ; use `saccade compare` when a perceptual tolerance is acceptable".to_owned()
+    } else if t.fail + t.error == 0 && t.missing > 0 && t.new == 0 {
+        "restore the missing captures, or remove their baselines after review".to_owned()
+    } else {
+        format!(
+            "open the report and check the numbered hotspots; if a change is intended, plan its approval with\n        saccade approve --report {} --entry NAME --dry-run --out plan",
+            escape_control(&json)
+        )
+    };
+    text.push_str(&format!("next:   {next}\n"));
+    text
+}
+
 /// Aligned plain-text table, non-pass rows first (then by name).
 fn text_table(report: &Report) -> String {
+    let color = stdout_color();
     let mut rows: Vec<&saccade_core::Entry> = report.entries.iter().collect();
     rows.sort_by_key(|e| (e.status == Status::Pass, e.name.clone()));
+    // A warning every compared pair shares is said once below the table, not per row.
+    let compared: Vec<&saccade_core::Entry> = report
+        .entries
+        .iter()
+        .filter(|e| matches!(e.status, Status::Pass | Status::Fail))
+        .collect();
+    let shared: Vec<&String> = match compared.split_first() {
+        Some((first, rest)) if !rest.is_empty() => first
+            .warnings
+            .iter()
+            .filter(|w| rest.iter().all(|e| e.warnings.contains(w)))
+            .collect(),
+        _ => Vec::new(),
+    };
     let mut cells: Vec<[String; 5]> = vec![[
         "STATUS".into(),
         "NAME".into(),
@@ -1436,6 +1680,7 @@ fn text_table(report: &Report) -> String {
     ]];
     // Everything that is not a table column goes on `↳` lines under its row.
     let mut notes: Vec<Vec<String>> = vec![Vec::new()];
+    let mut statuses: Vec<Option<Status>> = vec![None];
     for e in rows {
         let mut lines = Vec::new();
         if let Some(d) = &e.diagnostics {
@@ -1477,10 +1722,11 @@ fn text_table(report: &Report) -> String {
                 escape_control(&keys.join(", "))
             ));
         }
-        for w in &e.warnings {
+        for w in e.warnings.iter().filter(|w| !shared.contains(w)) {
             lines.push(format!("warning: {}", escape_control(w)));
         }
         notes.push(lines);
+        statuses.push(Some(e.status));
         let (value, threshold) = match e.status {
             Status::Pass | Status::Fail => (
                 e.value.map_or("-".into(), |v| format!("{v:.5}")),
@@ -1506,20 +1752,55 @@ fn text_table(report: &Report) -> String {
         }
     }
     let mut out = String::new();
-    for (row, note) in cells.iter().zip(&notes) {
+    for (i, (row, note)) in cells.iter().zip(&notes).enumerate() {
         let line: Vec<String> = row
             .iter()
             .zip(widths)
             .map(|(c, w)| format!("{c:<w$}"))
             .collect();
-        out.push_str(line.join("  ").trim_end());
+        let line = line.join("  ");
+        let line = line.trim_end();
+        // Row 0 is the header; the status word leads every other row.
+        match (i, statuses.get(i)) {
+            (0, _) => out.push_str(&paint(line, "2", color)),
+            (_, Some(Some(s))) => {
+                let (word, rest) = line.split_at(widths[0].min(line.len()));
+                out.push_str(&paint(word, status_sgr(*s), color));
+                out.push_str(rest);
+            }
+            _ => out.push_str(line),
+        }
         out.push('\n');
         for note in note {
             out.push_str(&format!("  ↳ {note}\n"));
         }
     }
-    if let Some(headline) = saccade_core::render::identity_headline(report) {
-        out.insert_str(0, &format!("{}\n\n", escape_control(&headline)));
+    if !shared.is_empty() {
+        out.push_str(&format!(
+            "\nShared by all {} compared pairs:\n",
+            compared.len()
+        ));
+        for w in &shared {
+            out.push_str(&format!("  ↳ warning: {}\n", escape_control(w)));
+        }
+    }
+    let headline = saccade_core::render::identity_headline(report).unwrap_or_else(|| {
+        if report.config.mode == Mode::Regression {
+            compare_headline(report)
+        } else {
+            String::new()
+        }
+    });
+    if !headline.is_empty() {
+        let sgr = if report.is_regression() {
+            "1;31"
+        } else {
+            "1;32"
+        };
+        out.insert_str(
+            0,
+            &format!("{}\n\n", paint(&escape_control(&headline), sgr, color)),
+        );
     }
     if let Some(v) = &report.combined_verdict {
         out.push_str(&format!("\n{}\n", escape_control(v)));

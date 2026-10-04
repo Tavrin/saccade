@@ -932,12 +932,24 @@ pub(crate) fn view_artifact(path: &Path, out: &Path, json: bool) -> Result<u8, C
     };
     let index = parent.join("index.html");
     if !index.is_file() {
-        return Err(CliError::usage("artifact has no rendered index.html"));
+        return Err(CliError::usage(format!(
+            "{} is not a saccade report or view (it has no index.html); to build a viewer from image directories, pass 2 to 6 of them: saccade view DIR_A DIR_B",
+            parent.display()
+        )));
     }
     let mut value = base_result("view");
     value["artifact"] = reference(&index)?;
     let _ = out;
-    print(&value, json)?;
+    if json {
+        print(&value, json)?;
+    } else if let Some(path) = value["artifact"]["path"].as_str() {
+        crate::emit(&format!(
+            "Open this page in a browser (it works offline):\n  {}\n",
+            crate::escape_control(path)
+        ))?;
+    } else {
+        print(&value, json)?;
+    }
     Ok(0)
 }
 pub(crate) fn unblind(

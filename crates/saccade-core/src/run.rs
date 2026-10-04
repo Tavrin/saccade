@@ -47,9 +47,17 @@ fn relative_name(root: &Path, path: &Path) -> Option<String> {
 /// below `root` become problem entries too; only an unusable `root` is `Err`.
 pub(crate) fn collect_images(root: &Path) -> Result<Collected> {
     if !root.is_dir() {
+        let source = if root.exists() {
+            std::io::Error::new(
+                std::io::ErrorKind::InvalidInput,
+                "this is a file; pass the directory that contains the images",
+            )
+        } else {
+            std::io::Error::new(std::io::ErrorKind::NotFound, "no such directory")
+        };
         return Err(Error::Io {
-            context: format!("{} is not a directory", root.display()),
-            source: std::io::Error::from(std::io::ErrorKind::NotFound),
+            context: root.display().to_string(),
+            source,
         });
     }
     let mut out = Collected::default();
