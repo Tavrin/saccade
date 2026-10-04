@@ -16,6 +16,14 @@ the report, `.saccade-run` marker and `junit.xml` before failing. Outputs are
 and the immutable `artifact-id`. The report artifact alone is not an update
 bundle: updates also need the original captures and selected plan.
 
+For inline images, use `comment: 'true'` and `inline-images: 'true'` in a
+trusted same-repository PR comment job with `contents: write` and
+`pull-requests: write`; see [the security model](../../docs/ci.md#inline-pr-images-opt-in).
+The default `saccade-assets` branch is created as an orphan and only holds
+bounded preview PNGs. Fork PRs and failed asset pushes keep the artifact-linked
+summary without branch writes. Never run PR-supplied build scripts in the job
+that holds this write token.
+
 For a reviewed update, prepare evidence from the repository root:
 
 ```sh

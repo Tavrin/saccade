@@ -36,6 +36,19 @@ fn fork_workflow_has_read_only_permissions_and_stable_outputs() {
         assert!(action.contains(&format!("  {field}:\n")));
     }
     assert!(!action.contains("--all-failing") && !action.contains("--auto"));
+    let inline = step("Publish inline PR images");
+    assert!(inline.contains("inputs.inline-images == 'true'"));
+    assert!(inline.contains("!github.event.pull_request.head.repo.fork"));
+    assert!(inline.contains("github.event.pull_request.head.repo.full_name == github.repository"));
+    assert!(inline.contains("scripts/pr-inline-assets.py"));
+    assert!(
+        action.find("- name: Upload report").unwrap()
+            < action.find("- name: Publish inline PR images").unwrap()
+    );
+    assert!(
+        action.find("- name: Publish inline PR images").unwrap()
+            < action.find("- name: Pull request comment").unwrap()
+    );
 }
 #[cfg(unix)]
 #[path = "support/approval.rs"]

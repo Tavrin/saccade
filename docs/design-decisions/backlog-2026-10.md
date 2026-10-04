@@ -191,3 +191,20 @@ same report data. The hotspot detector keeps component areas but not component
 membership, so an attribution box can include nearby distinct components;
 `measured_hot_pixels` makes that limitation visible. I rejected claiming exact
 component membership without changing the existing hotspot algorithm and ABI.
+
+## 15. Inline PR images
+
+Make inline images an explicit `inline-images: 'true'` companion to the
+existing sticky `comment`. A small Python standard-library helper renders up
+to three failing entries to bounded PNG snapshots and heatmap views, then
+uses GitHub's Git Database API to create a no-parent root commit on the
+dedicated `saccade-assets` branch or a non-force descendant commit. A marker
+prevents reusing an unrelated branch. Comment image URLs pin the resulting
+commit; the original immutable artifact link remains. I rejected pushing from
+the checkout because it could alter the PR branch or require persisted Git
+credentials. Fork PRs perform no writes; API denial or any image-rendering
+failure leaves the artifact-only summary. The action cannot raise its own
+token permissions, so a trusted caller must grant `contents:write` and
+`pull-requests:write`. Offline API mocks establish the root/non-force calls
+and fallback behavior; live GitHub permissions and private raw-image rendering
+remain unqualified without an authorized repository run.

@@ -44,6 +44,14 @@ inputs:
     description: Opt in to a sticky comment on same-repository pull requests; requires pull-requests write. Fork comments are skipped.
     required: false
     default: 'false'
+  inline-images:
+    description: Opt in to uploading at most three thumbnails and heatmap views to an orphan branch for the sticky PR comment. Requires comment true and contents write; fork PRs use the artifact link only.
+    required: false
+    default: 'false'
+  asset-branch:
+    description: Dedicated orphan branch for inline PR images (simple letters, digits, dot, underscore or hyphen only).
+    required: false
+    default: saccade-assets
   update-baselines:
     description: Apply a selected reviewed manifest on trusted default-branch workflow_dispatch only, then open a review PR. Requires contents write and pull-requests write.
     required: false
@@ -65,7 +73,7 @@ inputs:
     required: false
     default: 'false'
   github-token:
-    description: Token for release downloads, optional same-repository comments and explicitly dispatched update PRs. Ordinary comparisons need read permission only.
+    description: Token for release downloads, optional same-repository comments and explicitly dispatched update PRs. Inline images additionally need contents write. Ordinary comparisons need read permission only.
     required: false
     default: ${{ github.token }}
   version:
@@ -289,6 +297,24 @@ runs:
           echo "path=$out"
           echo "marker=$marker"
         } >> "$GITHUB_OUTPUT"
+
+    - name: Publish inline PR images
+      if: ${{ always() && github.event_name == 'pull_request' && !github.event.pull_request.head.repo.fork && github.event.pull_request.head.repo.full_name == github.repository && inputs.comment == 'true' && inputs.inline-images == 'true' && steps.summary.outputs.path != '' }}
+      shell: bash
+      env:
+        GH_TOKEN: ${{ inputs.github-token }}
+        REPO: ${{ github.repository }}
+        PR_NUMBER: ${{ github.event.pull_request.number }}
+        REPORT_DIR: ${{ inputs.report-dir }}
+        SUMMARY_PATH: ${{ steps.summary.outputs.path }}
+        ASSET_BRANCH: ${{ inputs.asset-branch }}
+        SERVER_URL: ${{ github.server_url }}
+        EVENT_NAME: ${{ github.event_name }}
+        HEAD_REPO: ${{ github.event.pull_request.head.repo.full_name }}
+        FORK: ${{ github.event.pull_request.head.repo.fork }}
+        ACTION_PATH: ${{ github.action_path }}
+      run: |
+        python3 "$ACTION_PATH/scripts/pr-inline-assets.py"
 
     - name: Pull request comment
       if: ${{ always() && github.event_name == 'pull_request' && !github.event.pull_request.head.repo.fork && github.event.pull_request.head.repo.full_name == github.repository && inputs.comment == 'true' && steps.summary.outputs.path != '' }}
