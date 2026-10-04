@@ -81,7 +81,8 @@
 
   // ---- table state ---------------------------------------------------------
 
-  var hasIssues = entries.some(function (e) { return e.status !== "pass"; });
+  function isIssue(e) { return e.status !== "pass" || e.pass_with_local_change === true; }
+  var hasIssues = entries.some(isIssue);
   var state = {
     filter: hasIssues ? "issues" : "all",
     sort: null, // {key, dir} or null for the default order
@@ -197,7 +198,7 @@
     timers = [];
     cmps = [];
     renderHead();
-    var shown = entries.filter(function (e) { return state.filter === "all" || e.status !== "pass"; });
+    var shown = entries.filter(function (e) { return state.filter === "all" || isIssue(e); });
     var body = document.getElementById("tbody");
     body.textContent = "";
     // Rows depend only on the entry and its open state, so a large run reuses
@@ -387,7 +388,7 @@
     if (!p) { b.appendChild(h("span", { class: "badge", text: "no decodable " + LB.capture })); return b; }
     if (e.bit_identical === true) b.appendChild(h("span", { class: "badge ident", text: "bit-identical" }));
     else if (e.bit_identical === false) b.appendChild(h("span", { class: "badge", text: "not bit-identical" }));
-    if (e.pass_with_local_change) b.appendChild(h("span", { class: "badge warn", text: "pass with local change; inspect hotspot" }));
+    if (e.pass_with_local_change) b.appendChild(h("span", { class: "badge warn", text: "pass with local change; inspect heatmap" }));
     if (p.is_all_black) b.appendChild(h("span", { class: "badge warn", text: "ALL BLACK" }));
     if (p.is_all_white) b.appendChild(h("span", { class: "badge warn", text: "ALL WHITE" }));
     b.appendChild(h("span", { class: "badge", text: "lum min/mean/max " + p.min_luminance.toFixed(3) + " / " + p.mean_luminance.toFixed(3) + " / " + p.max_luminance.toFixed(3), title: "Image luminance (0 to 1) of the capture: minimum, mean, maximum. Not FLIP values." }));
