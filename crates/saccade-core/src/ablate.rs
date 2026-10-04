@@ -57,6 +57,14 @@ pub struct Arm {
     pub errors: Vec<String>,
     pub perf_errors: Vec<PerfError>,
     pub report_html: String,
+    /// Complete captures used for this arm, in stable order.
+    #[serde(default)]
+    pub repeats: Vec<String>,
+    /// Repeats excluded before measurement, with a specific reason.
+    #[serde(default)]
+    pub excluded_repeats: Vec<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub repeat_stability: Option<RepeatStability>,
 }
 #[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize)]
@@ -137,6 +145,9 @@ impl Arm {
                 .iter()
                 .filter_map(|e| e.error.clone())
                 .collect(),
+            repeats: Vec::new(),
+            excluded_repeats: Vec::new(),
+            repeat_stability: None,
         }
     }
 }
@@ -146,6 +157,26 @@ pub struct Ablation {
     pub schema: String,
     pub base: String,
     pub arms: Vec<Arm>,
+    #[serde(default)]
+    pub base_repeats: Vec<String>,
+    #[serde(default)]
+    pub excluded_base_repeats: Vec<String>,
+    #[serde(default)]
+    pub repeat_qualification: crate::perf::Comparability,
+    #[serde(default)]
+    pub repeat_reasons: Vec<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub base_stability: Option<RepeatStability>,
+}
+
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct RepeatStability {
+    /// Native samples match across every complete repeat.
+    pub stable: bool,
+    pub unstable_images: Vec<String>,
+    /// File SHA-256 values per image, in repeat order.
+    pub image_hashes: std::collections::BTreeMap<String, Vec<String>>,
 }
 impl Ablation {
     pub fn text(&self) -> String {
@@ -153,6 +184,28 @@ impl Ablation {
             "base {}\nARM\tFLAG\tCOMBINED VERDICT\tCONFIG DIFFERS\n",
             crate::perf::clean(&self.base)
         );
+        if self.base_repeats.len() > 1 {
+            out.push_str(&format!(
+                "base repeats: {}; qualification: {:?}\n",
+                self.base_repeats.len(),
+                self.repeat_qualification
+            ));
+            for reason in &self.repeat_reasons {
+                out.push_str(&format!("  repeat: {}\n", crate::perf::clean(reason)));
+            }
+            if let Some(stability) = &self.base_stability {
+                out.push_str(&format!(
+                    "  base output stable across repeats: {}\n",
+                    stability.stable
+                ));
+            }
+        }
+        for reason in &self.excluded_base_repeats {
+            out.push_str(&format!(
+                "  excluded base repeat: {}\n",
+                crate::perf::clean(reason)
+            ));
+        }
         for a in &self.arms {
             out.push_str(&format!(
                 "{}\t{}\t{}\t{}\n",
@@ -165,6 +218,21 @@ impl Ablation {
                     .collect::<Vec<_>>()
                     .join(", ")
             ));
+            if a.repeats.len() > 1 {
+                out.push_str(&format!("  arm repeats: {}\n", a.repeats.len()));
+            }
+            if let Some(stability) = &a.repeat_stability {
+                out.push_str(&format!(
+                    "  output stable across repeats: {}\n",
+                    stability.stable
+                ));
+            }
+            for reason in &a.excluded_repeats {
+                out.push_str(&format!(
+                    "  excluded arm repeat: {}\n",
+                    crate::perf::clean(reason)
+                ));
+            }
             if let Some(d) = &a.perf_diff {
                 if a.flag == "INCONCLUSIVE" {
                     for reason in &d.qualification_reasons {
@@ -229,13 +297,51 @@ pub fn run(
     cfg: &crate::config::RunConfig,
     top: usize,
 ) -> Result<Ablation> {
-    if arms.is_empty() {
+    let groups = arms
+        .iter()
+        .map(|p| (String::new(), vec![p.clone()]))
+        .collect::<Vec<_>>();
+    run_repeats(&[base.to_path_buf()], &groups, out, cfg, top)
+}
+
+/// Compare the first complete capture in each arm while deriving noise from
+/// complete base repeats. Every excluded input remains visible in the model.
+#[cfg(feature = "graphics")]
+pub fn run_repeats(
+    bases: &[PathBuf],
+    groups: &[(String, Vec<PathBuf>)],
+    out: &Path,
+    cfg: &crate::config::RunConfig,
+    top: usize,
+) -> Result<Ablation> {
+    if groups.is_empty() {
         return Err(crate::Error::Config("ablate needs at least one arm".into()));
     }
     cfg.validate()?;
     cfg.perf.resolved_floor()?;
+    let (bases, excluded_base_repeats, expected) = complete_repeats(bases, None, &cfg.perf.name)?;
+    let base = bases
+        .first()
+        .ok_or_else(|| crate::Error::Config("no complete base repeat".into()))?;
+    let mut accepted = Vec::new();
+    for (label, paths) in groups {
+        let (paths, excluded, _) = complete_repeats(paths, Some(&expected), &cfg.perf.name)?;
+        if paths.is_empty() {
+            return Err(crate::Error::Config(format!(
+                "arm {label:?} has no complete repeats: {}",
+                excluded.join("; ")
+            )));
+        }
+        accepted.push((label.clone(), paths, excluded));
+    }
+    let arms = accepted
+        .iter()
+        .map(|(_, paths, _)| paths[0].clone())
+        .collect::<Vec<_>>();
     let inputs: Vec<_> = std::iter::once(base)
-        .chain(arms.iter().map(PathBuf::as_path))
+        .chain(bases.iter().skip(1))
+        .chain(accepted.iter().flat_map(|(_, paths, _)| paths.iter()))
+        .map(PathBuf::as_path)
         .collect();
     crate::run::guard_output_dir(out, &inputs, &[ABLATE_FILE, crate::run::RUN_SENTINEL])?;
     std::fs::create_dir_all(out)
@@ -250,23 +356,60 @@ pub fn run(
                 .map_err(crate::run::io_err(format!("removing {}", p.display())))?;
         }
     }
-    let labels = crate::runs::unique_labels(arms);
+    let labels = crate::runs::unique_labels(&arms);
+    let (floor, repeat_reasons) = if bases.len() > 1 {
+        crate::perf::noise_with_options(&bases, &cfg.perf)?
+    } else {
+        (
+            None,
+            vec!["at least two complete base repeats required for automatic noise".into()],
+        )
+    };
+    let repeat_qualification = floor
+        .as_ref()
+        .map_or(crate::perf::Comparability::Unknown, |f| f.comparability);
+    let base_stability = repeat_stability(&bases)?;
+    let mut effective = cfg.clone();
+    if effective.perf.noise.is_none() && effective.perf.floor.is_none() {
+        effective.perf.floor = floor;
+    }
     let mut rows = Vec::new();
-    for (i, (arm, label)) in arms.iter().zip(labels).enumerate() {
+    for (i, ((declared, paths, excluded), (arm, fallback))) in
+        accepted.iter().zip(arms.iter().zip(labels)).enumerate()
+    {
         let dir = format!("arm-{}", i + 1);
-        let report = crate::run::run(base, arm, &out.join(&dir), cfg)?;
-        rows.push(Arm::from_report(
-            label,
+        let report = crate::run::run(base, arm, &out.join(&dir), &effective)?;
+        let mut row = Arm::from_report(
+            if declared.is_empty() {
+                fallback
+            } else {
+                declared.clone()
+            },
             crate::paths::record(arm, out, cfg.record_absolute_paths),
             format!("{dir}/index.html"),
             &report,
             top,
-        ));
+        );
+        row.repeats = paths
+            .iter()
+            .map(|p| crate::paths::record(p, out, cfg.record_absolute_paths))
+            .collect();
+        row.excluded_repeats = excluded.clone();
+        row.repeat_stability = repeat_stability(paths)?;
+        rows.push(row);
     }
     let model = Ablation {
         schema: "saccade-ablate.v1".into(),
         base: crate::paths::record(base, out, cfg.record_absolute_paths),
         arms: rows,
+        base_repeats: bases
+            .iter()
+            .map(|p| crate::paths::record(p, out, cfg.record_absolute_paths))
+            .collect(),
+        excluded_base_repeats,
+        repeat_qualification,
+        repeat_reasons,
+        base_stability,
     };
     for (name, text) in [
         (ABLATE_FILE, serde_json::to_string_pretty(&model)?),
@@ -279,6 +422,127 @@ pub fn run(
     std::fs::remove_file(out.join(crate::run::RUN_SENTINEL))
         .map_err(crate::run::io_err("removing ablation marker".into()))?;
     Ok(model)
+}
+
+#[cfg(feature = "graphics")]
+fn repeat_stability(paths: &[PathBuf]) -> Result<Option<RepeatStability>> {
+    if paths.len() < 2 {
+        return Ok(None);
+    }
+    let sets = paths
+        .iter()
+        .map(|p| crate::run::collect_images(p))
+        .collect::<Result<Vec<_>>>()?;
+    let mut unstable_images = Vec::new();
+    let mut image_hashes = std::collections::BTreeMap::new();
+    for name in sets[0].files.keys() {
+        let first = &sets[0].files[name];
+        let mut hashes = Vec::new();
+        for set in &sets {
+            let path = &set.files[name];
+            hashes.push(crate::run::sha256_file(path)?);
+            if !crate::compare::native_samples_identical(first, path)
+                && !unstable_images.contains(name)
+            {
+                unstable_images.push(name.clone());
+            }
+        }
+        image_hashes.insert(name.clone(), hashes);
+    }
+    Ok(Some(RepeatStability {
+        stable: unstable_images.is_empty(),
+        unstable_images,
+        image_hashes,
+    }))
+}
+
+#[cfg(feature = "graphics")]
+fn complete_repeats(
+    paths: &[PathBuf],
+    expected: Option<&std::collections::BTreeSet<String>>,
+    perf_name: &str,
+) -> Result<(
+    Vec<PathBuf>,
+    Vec<String>,
+    std::collections::BTreeSet<String>,
+)> {
+    let mut accepted = Vec::new();
+    let mut excluded = Vec::new();
+    let mut names = expected.cloned().unwrap_or_default();
+    let require_perf = paths.len() > 1 && paths.iter().any(|p| p.join(perf_name).is_file());
+    for path in paths {
+        let found = match crate::run::collect_images(path) {
+            Ok(v) => v,
+            Err(e) => {
+                excluded.push(format!("{}: {e}", path.display()));
+                continue;
+            }
+        };
+        let keys = found
+            .files
+            .keys()
+            .cloned()
+            .collect::<std::collections::BTreeSet<_>>();
+        let problem = if !found.problems.is_empty() {
+            Some(format!(
+                "unreadable images: {:?}",
+                found.problems.keys().collect::<Vec<_>>()
+            ))
+        } else if keys.is_empty() {
+            Some("no images".to_string())
+        } else if !names.is_empty() && keys != names {
+            Some(format!(
+                "image set differs: missing {:?}, extra {:?}",
+                names.difference(&keys).collect::<Vec<_>>(),
+                keys.difference(&names).collect::<Vec<_>>()
+            ))
+        } else if found.files.values().any(|p| !crate::run::is_decodable(p)) {
+            Some("image cannot be decoded".into())
+        } else if require_perf && !path.join(perf_name).is_file() {
+            Some(format!("missing {perf_name}"))
+        } else {
+            None
+        };
+        if let Some(reason) = problem {
+            excluded.push(format!("{}: {reason}", path.display()));
+        } else {
+            if names.is_empty() {
+                names = keys;
+            }
+            accepted.push(path.clone());
+        }
+    }
+    Ok((accepted, excluded, names))
+}
+
+#[cfg(all(test, feature = "graphics"))]
+#[allow(clippy::unwrap_used)]
+mod repeat_tests {
+    use super::*;
+
+    #[test]
+    fn incomplete_repeat_is_named_and_excluded() {
+        let temp = tempfile::tempdir().unwrap();
+        let complete = temp.path().join("r1");
+        let incomplete = temp.path().join("r2");
+        std::fs::create_dir_all(&complete).unwrap();
+        std::fs::create_dir_all(&incomplete).unwrap();
+        image::RgbaImage::new(2, 2)
+            .save(complete.join("frame.png"))
+            .unwrap();
+        std::fs::write(complete.join("saccade-perf.json"), "{}").unwrap();
+        let (accepted, excluded, names) = complete_repeats(
+            &[complete.clone(), incomplete.clone()],
+            None,
+            "saccade-perf.json",
+        )
+        .unwrap();
+        assert_eq!(accepted, vec![complete]);
+        assert!(names.contains("frame.png"));
+        assert_eq!(excluded.len(), 1);
+        assert!(excluded[0].contains("no images"));
+        assert!(excluded[0].contains("r2"));
+    }
 }
 
 /// Returns `feature_unavailable` when graphics computation is not compiled.

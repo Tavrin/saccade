@@ -35,5 +35,11 @@ remainders use the materiality floor; nested scopes are not double-counted.
 `noise --kind image` writes image-noise evidence in FLIP units.
 `noise --kind performance` writes qualified performance noise in ms.
 Supplying one kind to the other consumer returns `wrong_noise_kind`.
+`experiment ablate --base 'base_r*' --arm 's2=s2_r*'` accepts repeat groups,
+excludes incomplete directories with named reasons, and derives a performance
+noise floor from complete base repeats. Positional `BASE ARM...` remains
+supported. A rejected repeat calibration remains rejected: missing optional
+timing terms are listed, and differing configuration hashes require captures
+from the same renderer configuration.
 A disabled feature can have identical pixels because it contributed nothing at
 that camera. A model cannot qualify timing or establish a speedup.

@@ -13,6 +13,11 @@ and evidence requests 12 KiB. Pagination preserves validity, missingness and
 counts. Default summaries include up to three typed actions and no images.
 Stale expected case identities invalidate actions.
 
+For ablation with repeats, read `base_repeats`, `excluded_base_repeats`,
+`repeat_qualification`, and each arm's `repeats` and `excluded_repeats` in
+`saccade-ablate.v1.json`. A rejected repeat qualification cannot support a
+performance claim even if the image comparison passes.
+
 ## Reading a compare or identity result
 
 `compare --json` and `identity --json` print one bounded `saccade-result.v2`

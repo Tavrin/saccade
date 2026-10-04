@@ -743,18 +743,20 @@ Global options:
 ```text
 Compare ablation arms against a base with image and performance evidence
 
-Usage: saccade experiment ablate [OPTIONS] <BASE> <ARMS>...
+Usage: saccade experiment ablate [OPTIONS] [BASE] [ARMS]...
 
 Arguments:
-  <BASE>     
-  <ARMS>...  
+  [BASE]     
+  [ARMS]...  
 
 Options:
-      --out <OUT>        [default: ablation]
-      --config <CONFIG>  
-      --json             
-      --top <TOP>        Per-term deltas beyond noise to show per arm [default: 5]
-  -h, --help             Print help
+      --base <RUN_DIR>...     Base repeat directories. Accepts a directory or a quoted glob; repeatable
+      --arm <LABEL=RUN_GLOB>  Labelled arm repeats, e.g. --arm 's2=s2_r*'; repeatable
+      --out <OUT>             [default: ablation]
+      --config <CONFIG>       
+      --json                  
+      --top <TOP>             Per-term deltas beyond noise to show per arm [default: 5]
+  -h, --help                  Print help
 
 Performance:
       --perf-name <NAME>           Run performance sidecar file name (default saccade-perf.json)

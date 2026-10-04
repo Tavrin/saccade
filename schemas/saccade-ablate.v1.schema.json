@@ -17,6 +17,14 @@
           },
           "type": "array"
         },
+        "excluded_repeats": {
+          "default": [],
+          "description": "Repeats excluded before measurement, with a specific reason.",
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
         "flag": {
           "type": "string"
         },
@@ -65,6 +73,24 @@
         },
         "perf_only": {
           "type": "boolean"
+        },
+        "repeat_stability": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/RepeatStability"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "repeats": {
+          "default": [],
+          "description": "Complete captures used for this arm, in stable order.",
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
         },
         "report_html": {
           "type": "string"
@@ -612,6 +638,36 @@
       ],
       "type": "object"
     },
+    "RepeatStability": {
+      "properties": {
+        "image_hashes": {
+          "additionalProperties": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "description": "File SHA-256 values per image, in repeat order.",
+          "type": "object"
+        },
+        "stable": {
+          "description": "Native samples match across every complete repeat.",
+          "type": "boolean"
+        },
+        "unstable_images": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        }
+      },
+      "required": [
+        "stable",
+        "unstable_images",
+        "image_hashes"
+      ],
+      "type": "object"
+    },
     "SourceRef": {
       "additionalProperties": false,
       "properties": {
@@ -799,6 +855,41 @@
     },
     "base": {
       "type": "string"
+    },
+    "base_repeats": {
+      "default": [],
+      "items": {
+        "type": "string"
+      },
+      "type": "array"
+    },
+    "base_stability": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/RepeatStability"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "excluded_base_repeats": {
+      "default": [],
+      "items": {
+        "type": "string"
+      },
+      "type": "array"
+    },
+    "repeat_qualification": {
+      "$ref": "#/$defs/Comparability",
+      "default": "unknown"
+    },
+    "repeat_reasons": {
+      "default": [],
+      "items": {
+        "type": "string"
+      },
+      "type": "array"
     },
     "schema": {
       "type": "string"

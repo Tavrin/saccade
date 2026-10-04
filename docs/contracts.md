@@ -9,6 +9,11 @@ engine reads it); it retains `schema`,
 `failing[].error`. Read the complete report to establish exact equality; a
 lean pass count alone is insufficient. See the [recorded decision](design-decisions/r5.md).
 
+`saccade-ablate.v1` additively records `base_repeats`,
+`excluded_base_repeats`, `repeat_qualification`, `repeat_reasons`, and each
+arm's accepted `repeats` and `excluded_repeats`. Historical readers can omit
+these fields. An excluded run contributes neither image nor timing evidence.
+
 ## Result v2 fields for compare and identity
 
 The [result v2 schema](../schemas/saccade-result.v2.schema.json) lists every

@@ -1323,7 +1323,10 @@ fn pair_qualification(b: &CapturePerf, a: &CapturePerf) -> (Comparability, Vec<S
                 .ne(ac.qualification.checks.keys()))
     {
         if bc.configuration_hash != ac.configuration_hash {
-            reasons.push("configuration hash mismatch".into());
+            reasons.push(format!(
+                "configuration_hash differs: base {:?}, arm {:?}; capture all repeats with the same renderer configuration and regenerate saccade-perf.json",
+                bc.configuration_hash, ac.configuration_hash
+            ));
         }
         if bc.timer != ac.timer {
             reasons.push("timer identity differs".into());

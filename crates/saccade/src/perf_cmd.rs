@@ -146,9 +146,14 @@ impl PerfArgs {
 #[derive(Args)]
 #[cfg(feature = "graphics")]
 pub(crate) struct AblateArgs {
-    base: PathBuf,
-    #[arg(required = true, num_args = 1..)]
+    base: Option<PathBuf>,
     arms: Vec<PathBuf>,
+    /// Base repeat directories. Accepts a directory or a quoted glob; repeatable.
+    #[arg(long = "base", num_args = 1.., action = clap::ArgAction::Append, value_name = "RUN_DIR")]
+    repeat_bases: Vec<String>,
+    /// Labelled arm repeats, e.g. --arm 's2=s2_r*'; repeatable.
+    #[arg(long = "arm", action = clap::ArgAction::Append, value_name = "LABEL=RUN_GLOB")]
+    repeat_arms: Vec<String>,
     #[arg(long, default_value = "ablation")]
     pub out: PathBuf,
     #[arg(long)]
@@ -166,11 +171,50 @@ pub(crate) fn ablate(args: AblateArgs, absolute: bool) -> Result<u8, CliError> {
     let mut cfg = crate::load_config(args.config.as_deref())?;
     cfg.record_absolute_paths = absolute;
     args.perf.apply(&mut cfg.perf)?;
-    let model = saccade_core::ablate::run(&args.base, &args.arms, &args.out, &cfg, args.top)?;
+    let model = if args.repeat_bases.is_empty() && args.repeat_arms.is_empty() {
+        let base = args.base.as_ref().ok_or_else(|| {
+            saccade_core::Error::Config(
+                "ablate requires BASE and at least one ARM, or --base and --arm repeats".into(),
+            )
+        })?;
+        if args.arms.is_empty() {
+            return Err(
+                saccade_core::Error::Config("ablate requires at least one arm".into()).into(),
+            );
+        }
+        saccade_core::ablate::run(base, &args.arms, &args.out, &cfg, args.top)?
+    } else {
+        if args.base.is_some() || !args.arms.is_empty() {
+            return Err(saccade_core::Error::Config(
+                "use positional BASE ARM... or --base/--arm repeats, not both".into(),
+            )
+            .into());
+        }
+        let bases = expand_repeats(&args.repeat_bases)?;
+        let mut groups: Vec<(String, Vec<PathBuf>)> = Vec::new();
+        for spec in &args.repeat_arms {
+            let (label, pattern) = spec.split_once('=').ok_or_else(|| {
+                saccade_core::Error::Config("--arm expects LABEL=RUN_GLOB".into())
+            })?;
+            if label.is_empty() || pattern.is_empty() {
+                return Err(saccade_core::Error::Config(
+                    "--arm expects nonempty LABEL=RUN_GLOB".into(),
+                )
+                .into());
+            }
+            let paths = expand_repeats(&[pattern.to_string()])?;
+            if let Some((_, existing)) = groups.iter_mut().find(|(name, _)| name == label) {
+                existing.extend(paths);
+            } else {
+                groups.push((label.to_string(), paths));
+            }
+        }
+        saccade_core::ablate::run_repeats(&bases, &groups, &args.out, &cfg, args.top)?
+    };
     if args.json {
         let mut value =
             crate::local_cmd::analysis_result(&serde_json::to_value(&model)?, &args.out)?;
-        value["data"] = serde_json::json!({"arms":model.arms.iter().map(|arm| serde_json::json!({"label":arm.label,"flag":arm.flag,"reasons":arm.perf_diff.as_ref().map(|d|{let mut reasons=d.qualification_reasons.clone(); if d.noise_comparability != saccade_core::perf::Comparability::Qualified {reasons.push("repeat noise unavailable".into());} reasons}).unwrap_or_default(),"comparability":arm.perf_diff.as_ref().map(|d|d.comparability),"noise_comparability":arm.perf_diff.as_ref().map(|d|d.noise_comparability),"actions":if arm.flag == "INCONCLUSIVE" {vec!["record and qualify warmup on both captures", "recapture both arms with matching configuration", "capture unchanged-build repeats; supply --perf-noise FILE"]} else {Vec::new()}})).collect::<Vec<_>>()});
+        value["data"] = serde_json::json!({"base_repeat_count":model.base_repeats.len(),"excluded_base_repeats":model.excluded_base_repeats,"base_stable":model.base_stability.as_ref().map(|s|s.stable),"repeat_qualification":model.repeat_qualification,"repeat_reasons":model.repeat_reasons.iter().filter(|r|r.contains("configuration_hash") || r.contains("not comparable")).take(5).collect::<Vec<_>>(),"arms":model.arms.iter().map(|arm| serde_json::json!({"label":arm.label,"flag":arm.flag,"repeat_count":arm.repeats.len(),"stable":arm.repeat_stability.as_ref().map(|s|s.stable),"excluded_repeats":arm.excluded_repeats,"reasons":arm.perf_diff.as_ref().map(|d|d.qualification_reasons.iter().filter(|r|r.contains("configuration_hash") || r.contains("gpu clock")).take(3).collect::<Vec<_>>()).unwrap_or_default(),"comparability":arm.perf_diff.as_ref().map(|d|d.comparability),"noise_comparability":arm.perf_diff.as_ref().map(|d|d.noise_comparability)})).collect::<Vec<_>>()});
         crate::local_cmd::print(&value, true)?;
     } else {
         crate::emit(&model.text())?;
@@ -184,4 +228,46 @@ pub(crate) fn ablate(args: AblateArgs, absolute: bool) -> Result<u8, CliError> {
     } else {
         0
     })
+}
+
+#[cfg(feature = "graphics")]
+fn expand_repeats(patterns: &[String]) -> Result<Vec<PathBuf>, CliError> {
+    let mut found = Vec::new();
+    for pattern in patterns {
+        let path = std::path::Path::new(pattern);
+        if !pattern.contains(['*', '?', '[']) {
+            found.push(path.to_path_buf());
+            continue;
+        }
+        let parent = path
+            .parent()
+            .filter(|p| !p.as_os_str().is_empty())
+            .unwrap_or(std::path::Path::new("."));
+        let name = path.file_name().and_then(|s| s.to_str()).ok_or_else(|| {
+            saccade_core::Error::Config(format!("invalid repeat glob {pattern:?}"))
+        })?;
+        let matcher = globset::Glob::new(name)
+            .map_err(|e| {
+                saccade_core::Error::Config(format!("invalid repeat glob {pattern:?}: {e}"))
+            })?
+            .compile_matcher();
+        let entries = std::fs::read_dir(parent)
+            .map_err(|e| CliError::io(format!("reading {}: {e}", parent.display())))?;
+        let mut matches = entries
+            .filter_map(Result::ok)
+            .map(|e| e.path())
+            .filter(|p| p.is_dir() && p.file_name().is_some_and(|n| matcher.is_match(n)))
+            .collect::<Vec<_>>();
+        matches.sort();
+        if matches.is_empty() {
+            return Err(saccade_core::Error::Config(format!(
+                "repeat glob {pattern:?} matched no paths"
+            ))
+            .into());
+        }
+        found.extend(matches);
+    }
+    found.sort();
+    found.dedup();
+    Ok(found)
 }
