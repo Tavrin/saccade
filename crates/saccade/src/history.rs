@@ -5,6 +5,7 @@ use std::io::{BufRead, BufReader, Write};
 use std::path::{Path, PathBuf};
 
 use clap::{Args, Subcommand};
+use fs2::FileExt;
 use saccade_core::report::{Metric, Mode, Status};
 use serde::{Deserialize, Serialize};
 use serde_json::{Value, json};
@@ -128,6 +129,15 @@ fn record(report_path: &Path, store: &Path) -> Result<Value, CliError> {
     let config_hash = hash(&serde_json::to_vec(&report.config)?);
     fs::create_dir_all(store.join("objects"))
         .map_err(|e| CliError::io(format!("creating history store: {e}")))?;
+    let lock = OpenOptions::new()
+        .read(true)
+        .write(true)
+        .create(true)
+        .truncate(false)
+        .open(store.join("record.lock"))
+        .map_err(|e| CliError::io(format!("opening history lock: {e}")))?;
+    lock.lock_exclusive()
+        .map_err(|e| CliError::io(format!("locking history store: {e}")))?;
     let existing = read_index(store)?;
     if existing.iter().any(|r| r.report_sha256 == report_hash) {
         return Ok(
@@ -172,15 +182,26 @@ fn record(report_path: &Path, store: &Path) -> Result<Value, CliError> {
     }
     let object = store.join("objects").join(format!("{report_hash}.json"));
     if !object.exists() {
-        let mut file = OpenOptions::new()
-            .write(true)
-            .create_new(true)
-            .open(&object)
-            .map_err(|e| CliError::io(format!("{}: {e}", object.display())))?;
-        file.write_all(&bytes)
-            .map_err(|e| CliError::io(format!("{}: {e}", object.display())))?;
-        file.sync_all()
-            .map_err(|e| CliError::io(format!("{}: {e}", object.display())))?;
+        let mut temp = tempfile::NamedTempFile::new_in(store.join("objects"))
+            .map_err(|e| CliError::io(format!("creating history object: {e}")))?;
+        temp.write_all(&bytes)
+            .map_err(|e| CliError::io(format!("writing history object: {e}")))?;
+        temp.as_file()
+            .sync_all()
+            .map_err(|e| CliError::io(format!("syncing history object: {e}")))?;
+        match temp.persist_noclobber(&object) {
+            Ok(_) => {}
+            Err(e) if e.error.kind() == std::io::ErrorKind::AlreadyExists => {}
+            Err(e) => return Err(CliError::io(format!("{}: {}", object.display(), e.error))),
+        }
+    }
+    if hash(&fs::read(&object).map_err(|e| CliError::io(format!("{}: {e}", object.display())))?)
+        != report_hash
+    {
+        return Err(CliError::io(format!(
+            "history object content differs: {}",
+            object.display()
+        )));
     }
     let row = Row {
         schema: SCHEMA.into(),
@@ -194,11 +215,24 @@ fn record(report_path: &Path, store: &Path) -> Result<Value, CliError> {
         .append(true)
         .open(index_path(store))
         .map_err(|e| CliError::io(format!("opening history index: {e}")))?;
-    index
-        .write_all(&serde_json::to_vec(&row)?)
-        .and_then(|()| index.write_all(b"\n"))
-        .and_then(|()| index.sync_all())
+    let mut line = serde_json::to_vec(&row)?;
+    line.push(b'\n');
+    let old_len = index
+        .metadata()
+        .map_err(|e| CliError::io(format!("reading history index length: {e}")))?
+        .len();
+    let written = index
+        .write(&line)
         .map_err(|e| CliError::io(format!("writing history index: {e}")))?;
+    if written != line.len() {
+        index
+            .set_len(old_len)
+            .map_err(|e| CliError::io(format!("rolling back short history append: {e}")))?;
+        return Err(CliError::io("short history index append"));
+    }
+    index
+        .sync_all()
+        .map_err(|e| CliError::io(format!("syncing history index: {e}")))?;
     Ok(json!({"schema":SCHEMA,"operation":"record","recorded":true,
         "report_sha256":report_hash,"samples":row.samples.len()}))
 }
@@ -363,8 +397,40 @@ mod tests {
             .join(format!("{}.json", rows[0].report_sha256));
         assert_eq!(
             fs::read(object).expect("object"),
-            fs::read(path).expect("report")
+            fs::read(&path).expect("report")
         );
+        let preexisting = dir.path().join("preexisting-history");
+        fs::create_dir_all(preexisting.join("objects")).expect("objects");
+        fs::copy(
+            &path,
+            preexisting
+                .join("objects")
+                .join(format!("{}.json", rows[0].report_sha256)),
+        )
+        .expect("preexisting object");
+        assert_eq!(
+            record(&path, &preexisting).expect("matching object")["recorded"],
+            true
+        );
+        assert_eq!(
+            read_index(&preexisting).expect("preexisting index").len(),
+            1
+        );
+        let concurrent = dir.path().join("concurrent-history");
+        let handles: Vec<_> = (0..8)
+            .map(|_| {
+                let path = out.join(saccade_core::report::REPORT_FILE_NAME);
+                let store = concurrent.clone();
+                std::thread::spawn(move || record(&path, &store).expect("concurrent record"))
+            })
+            .collect();
+        let recorded = handles
+            .into_iter()
+            .map(|h| h.join().expect("thread")["recorded"] == true)
+            .filter(|v| *v)
+            .count();
+        assert_eq!(recorded, 1);
+        assert_eq!(read_index(&concurrent).expect("concurrent index").len(), 1);
     }
 
     #[test]

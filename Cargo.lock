@@ -1296,6 +1296,7 @@ version = "0.1.0"
 dependencies = [
  "clap",
  "colorvideovdp",
+ "fs2",
  "globset",
  "image",
  "jsonschema",

@@ -21,6 +21,7 @@ colorvideovdp = { version = "0.1.1", default-features = false, features = ["para
 clap = { version = "4", features = ["derive"] }
 tempfile = "3"
 globset = "0.4"
+fs2 = "0.4.3"
 
 [features]
 default = ["parallel", "graphics", "ai", "workbench", "mcp", "evaluation"]
