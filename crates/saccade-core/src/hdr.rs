@@ -87,8 +87,7 @@ pub struct HdrConfig {
 }
 
 impl HdrConfig {
-    /// Checks finite, ordered endpoints and a count in `2..=i32::MAX`, as
-    /// required by reference HDR-FLIP.
+    /// Checks finite, ordered endpoints and a count supported by `flip-rs`.
     pub fn validate(&self) -> Result<()> {
         for (what, v) in [("start", self.start_exposure), ("stop", self.stop_exposure)] {
             if v.is_some_and(|v| !v.is_finite()) {
@@ -104,11 +103,12 @@ impl HdrConfig {
         }
         if self
             .num_exposures
-            .is_some_and(|n| n < 2 || n > i32::MAX as u32)
+            .is_some_and(|n| !(2..=flip_rs::MAX_EXPOSURES as u32).contains(&n))
         {
-            return Err(Error::Config(
-                "hdr num_exposures must be between 2 and i32::MAX".into(),
-            ));
+            return Err(Error::Config(format!(
+                "hdr num_exposures must be between 2 and {}",
+                flip_rs::MAX_EXPOSURES
+            )));
         }
         Ok(())
     }
@@ -422,6 +422,44 @@ mod tests {
     }
 
     #[test]
+    fn radiance_decodes_and_reference_reinhard_exposure_is_reported() {
+        // NVIDIA FLIP v1.7, FLIP.h image::computeExposures: Reinhard reaches
+        // 0.85 at xmax = 0.85 / (1 - 0.85) = 17/3. For a uniform unit-linear
+        // reference, both endpoints are log2(17/3) = 2.5025003 stops.
+        // This checks the resolved reference value at saccade's API boundary,
+        // independent of an explicit exposure override. Tolerance 1e-5 stop.
+        let dir = tempfile::tempdir().expect("tempdir");
+        let img = HdrImage {
+            width: 4,
+            height: 4,
+            data: vec![1.0; 4 * 4 * 3],
+            replaced: ReplacedSamples::default(),
+        };
+        let path = dir.path().join("unit.hdr");
+        image::Rgb32FImage::from_raw(img.width, img.height, img.data)
+            .expect("buffer size")
+            .save(&path)
+            .expect("write Radiance HDR");
+        let decoded = decode_hdr(&path).expect("decode Radiance HDR");
+        assert_eq!((decoded.width, decoded.height), (4, 4));
+        let opts = CompareOptions {
+            hdr: HdrConfig {
+                tonemapper: Tonemapper::Reinhard,
+                ..Default::default()
+            },
+            ..Default::default()
+        };
+        let (cmp, info) = compare_hdr(&decoded, &decoded, &opts).expect("compare");
+        let expected = (17.0_f32 / 3.0).log2();
+        assert!((info.start_exposure - expected).abs() < 1e-5);
+        assert!((info.stop_exposure - expected).abs() < 1e-5);
+        assert_eq!(info.num_exposures, 2);
+        assert_eq!(info.tonemapper, "reinhard");
+        assert!(info.auto_range);
+        assert_eq!(cmp.metrics.max, 0.0);
+    }
+
+    #[test]
     fn one_stop_highlight_change_is_seen_by_hdr_flip_but_not_by_a_single_ldr_exposure() {
         let (base, cap) = (scene(32.0), scene(64.0));
         let opts = CompareOptions::default();
@@ -540,7 +578,7 @@ mod tests {
         let (cmp, info) = compare_hdr(&black, &black, &explicit).expect("explicit black");
         assert_eq!(cmp.metrics.max, 0.0);
         assert_eq!(info.num_exposures, 2);
-        for n in [0, 1, u32::MAX] {
+        for n in [0, 1, flip_rs::MAX_EXPOSURES as u32 + 1, u32::MAX] {
             let bad = CompareOptions {
                 hdr: HdrConfig {
                     num_exposures: Some(n),

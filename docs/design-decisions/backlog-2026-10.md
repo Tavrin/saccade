@@ -125,3 +125,22 @@ I rejected guessing an on-disk Godot screenshot-test layout from its Viewport
 capture API: the project documents capture, but not a standard golden/actual
 directory or result format. `ingest godot` remains an explicit residual until
 a project-level layout is specified. Rust never executes producer code.
+
+## 11. HDR and EXR comparison
+
+Keep the existing `image` crate decoders for OpenEXR and Radiance HDR and the
+BSD-3-Clause `flip-rs` HDR-FLIP path. `flip-rs` 0.1.2 already implements the
+reference exposure sweep and reports its resolved range; a second HDR-FLIP
+implementation would add drift risk. A synthetic Radiance fixture verifies
+decoding and the Reinhard exposure endpoints against the NVIDIA FLIP v1.7
+`image::computeExposures` reference formula to 1e-5 stop. The existing EXR
+round trip and highlight-change tests cover float input and multi-exposure
+behavior. The dependency's published C++ parity harness reports exact results
+on its measured corpus with 1e-5 per-pixel and 1e-6 pooled/exposure acceptance
+limits; this lane does not run or download that third-party suite. We constrain
+explicit exposure counts to the library's 128 maximum before comparison.
+Automatic exposures on an all-black reference remain undefined by the
+reference and require explicit endpoints. Sources: [NVIDIA's FLIP v1.7
+implementation](https://github.com/NVlabs/flip/blob/main/src/cpp/FLIP.h),
+[NVIDIA HDR-FLIP paper](https://research.nvidia.com/publication/2021-05_HDR-FLIP),
+and [flip-rs parity results](https://github.com/Tavrin/flip-rs#parity-with-the-c-reference).
