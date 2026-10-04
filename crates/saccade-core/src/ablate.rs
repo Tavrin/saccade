@@ -65,6 +65,10 @@ pub struct Arm {
     pub excluded_repeats: Vec<String>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub repeat_stability: Option<RepeatStability>,
+    #[serde(default)]
+    pub validity_findings: Vec<String>,
+    #[serde(default)]
+    pub next_actions: Vec<String>,
 }
 #[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize)]
@@ -148,6 +152,8 @@ impl Arm {
             repeats: Vec::new(),
             excluded_repeats: Vec::new(),
             repeat_stability: None,
+            validity_findings: Vec::new(),
+            next_actions: Vec::new(),
         }
     }
 }
@@ -177,8 +183,60 @@ pub struct RepeatStability {
     pub unstable_images: Vec<String>,
     /// File SHA-256 values per image, in repeat order.
     pub image_hashes: std::collections::BTreeMap<String, Vec<String>>,
+    /// Largest repeat-to-first FLIP max for every image, when computable.
+    #[serde(default)]
+    pub max_flip_by_image: std::collections::BTreeMap<String, f64>,
 }
 impl Ablation {
+    /// Markdown evidence summary including repeat validity and next actions.
+    pub fn markdown(&self) -> String {
+        let mut out = String::from(
+            "# Saccade ablation\n\n| Arm | Flag | Image | Repeat validity |\n|---|---|---|---|\n",
+        );
+        for arm in &self.arms {
+            let clean = |s: &str| crate::perf::clean(s).replace('|', "\\|");
+            out.push_str(&format!(
+                "| {} | {} | {} | {} |\n",
+                clean(&arm.label),
+                clean(&arm.flag),
+                clean(&arm.image_verdict),
+                if arm.validity_findings.is_empty() {
+                    "no repeat finding"
+                } else {
+                    "invalid"
+                }
+            ));
+            for finding in &arm.validity_findings {
+                out.push_str(&format!(
+                    "\n- **{}:** {}.\n",
+                    clean(&arm.label),
+                    clean(finding)
+                ));
+            }
+            if let Some(stability) = &arm.repeat_stability {
+                for name in &stability.unstable_images {
+                    out.push_str(&format!(
+                        "  - {}: max FLIP {:.4}; SHA-256 {}\n",
+                        clean(name),
+                        stability
+                            .max_flip_by_image
+                            .get(name)
+                            .copied()
+                            .unwrap_or(0.0),
+                        stability
+                            .image_hashes
+                            .get(name)
+                            .map_or(String::new(), |h| h.join(", "))
+                    ));
+                }
+            }
+            for action in &arm.next_actions {
+                out.push_str(&format!("  - Next action: {}\n", clean(action)));
+            }
+        }
+        out
+    }
+
     pub fn text(&self) -> String {
         let mut out = format!(
             "base {}\nARM\tFLAG\tCOMBINED VERDICT\tCONFIG DIFFERS\n",
@@ -226,6 +284,12 @@ impl Ablation {
                     "  output stable across repeats: {}\n",
                     stability.stable
                 ));
+            }
+            for finding in &a.validity_findings {
+                out.push_str(&format!("  validity: {}\n", crate::perf::clean(finding)));
+            }
+            for action in &a.next_actions {
+                out.push_str(&format!("  next action: {}\n", crate::perf::clean(action)));
             }
             for reason in &a.excluded_repeats {
                 out.push_str(&format!(
@@ -349,7 +413,7 @@ pub fn run_repeats(
     std::fs::write(out.join(crate::run::RUN_SENTINEL), b"incomplete ablation\n")
         .map_err(crate::run::io_err("writing ablation marker".into()))?;
     // Remove only stale summary files; every arm's report has its own ownership guard.
-    for name in [ABLATE_FILE, "index.html", "ablation.txt"] {
+    for name in [ABLATE_FILE, "index.html", "ablation.txt", "ablation.md"] {
         let p = out.join(name);
         if p.is_file() {
             std::fs::remove_file(&p)
@@ -396,6 +460,26 @@ pub fn run_repeats(
             .collect();
         row.excluded_repeats = excluded.clone();
         row.repeat_stability = repeat_stability(paths)?;
+        if let Some(stability) = &row.repeat_stability {
+            let base = base_stability.as_ref();
+            let exceeded = stability.unstable_images.iter().any(|name| {
+                let arm_max = stability
+                    .max_flip_by_image
+                    .get(name)
+                    .copied()
+                    .unwrap_or(1.0);
+                let base_max = base
+                    .and_then(|s| s.max_flip_by_image.get(name))
+                    .copied()
+                    .unwrap_or(0.0);
+                arm_max > base_max + 1e-6
+            });
+            if exceeded {
+                row.validity_findings
+                    .push("arm output is not deterministic across repeats".into());
+                row.next_actions.push("inspect repeat image hashes and recapture the arm under fixed rendering conditions before accepting its claim".into());
+            }
+        }
         rows.push(row);
     }
     let model = Ablation {
@@ -415,6 +499,7 @@ pub fn run_repeats(
         (ABLATE_FILE, serde_json::to_string_pretty(&model)?),
         ("index.html", model.html()?),
         ("ablation.txt", model.text()),
+        ("ablation.md", model.markdown()),
     ] {
         std::fs::write(out.join(name), text)
             .map_err(crate::run::io_err(format!("writing {name}")))?;
@@ -435,24 +520,43 @@ fn repeat_stability(paths: &[PathBuf]) -> Result<Option<RepeatStability>> {
         .collect::<Result<Vec<_>>>()?;
     let mut unstable_images = Vec::new();
     let mut image_hashes = std::collections::BTreeMap::new();
+    let mut max_flip_by_image = std::collections::BTreeMap::new();
     for name in sets[0].files.keys() {
         let first = &sets[0].files[name];
         let mut hashes = Vec::new();
+        let mut max_flip = 0.0_f64;
         for set in &sets {
             let path = &set.files[name];
             hashes.push(crate::run::sha256_file(path)?);
-            if !crate::compare::native_samples_identical(first, path)
-                && !unstable_images.contains(name)
-            {
+            let differs = !crate::compare::native_samples_identical(first, path);
+            if differs && !unstable_images.contains(name) {
                 unstable_images.push(name.clone());
+            }
+            if differs {
+                let a = crate::run::decode(first)?;
+                let b = crate::run::decode(path)?;
+                if a.dimensions() == b.dimensions() {
+                    let score = crate::compare::compare_rgba(
+                        &b,
+                        &a,
+                        &crate::compare::CompareOptions::default(),
+                    )?
+                    .metrics
+                    .max;
+                    max_flip = max_flip.max(score);
+                } else {
+                    max_flip = 1.0;
+                }
             }
         }
         image_hashes.insert(name.clone(), hashes);
+        max_flip_by_image.insert(name.clone(), max_flip);
     }
     Ok(Some(RepeatStability {
         stable: unstable_images.is_empty(),
         unstable_images,
         image_hashes,
+        max_flip_by_image,
     }))
 }
 
@@ -542,6 +646,55 @@ mod repeat_tests {
         assert_eq!(excluded.len(), 1);
         assert!(excluded[0].contains("no images"));
         assert!(excluded[0].contains("r2"));
+    }
+
+    #[test]
+    fn unstable_arm_produces_validity_finding_and_markdown() {
+        let temp = tempfile::tempdir().unwrap();
+        let dirs = ["base1", "base2", "arm1", "arm2"];
+        for (index, name) in dirs.iter().enumerate() {
+            let dir = temp.path().join(name);
+            std::fs::create_dir_all(&dir).unwrap();
+            let mut image = image::RgbaImage::from_pixel(32, 32, image::Rgba([20, 20, 20, 255]));
+            if index == 3 {
+                image.put_pixel(16, 16, image::Rgba([255, 255, 255, 255]));
+            }
+            image.save(dir.join("image.png")).unwrap();
+        }
+        let bases = dirs[..2]
+            .iter()
+            .map(|n| temp.path().join(n))
+            .collect::<Vec<_>>();
+        let arms = vec![(
+            "arm".into(),
+            dirs[2..].iter().map(|n| temp.path().join(n)).collect(),
+        )];
+        let model = run_repeats(
+            &bases,
+            &arms,
+            &temp.path().join("out"),
+            &crate::config::RunConfig::default(),
+            1,
+        )
+        .unwrap();
+        assert!(model.base_stability.as_ref().unwrap().stable);
+        assert_eq!(
+            model.arms[0].validity_findings,
+            ["arm output is not deterministic across repeats"]
+        );
+        assert!(
+            model.arms[0]
+                .repeat_stability
+                .as_ref()
+                .unwrap()
+                .max_flip_by_image["image.png"]
+                > 0.0
+        );
+        assert!(
+            model
+                .markdown()
+                .contains("arm output is not deterministic across repeats")
+        );
     }
 }
 

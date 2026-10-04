@@ -718,14 +718,29 @@ fn export(
             {
                 return Err(CliError::usage("invalid --comment-key"));
             }
-            let text = saccade_core::render::render_markdown(
-                &crate::read_report(artifact)?,
-                &saccade_core::render::MarkdownOptions {
-                    artifact_url,
-                    comment_key,
-                    max_bytes: None,
-                },
-            );
+            let ablate_path = if artifact.is_dir() {
+                artifact.join(saccade_core::ablate::ABLATE_FILE)
+            } else {
+                artifact.to_path_buf()
+            };
+            let text = if ablate_path
+                .file_name()
+                .is_some_and(|n| n == saccade_core::ablate::ABLATE_FILE)
+                && ablate_path.is_file()
+            {
+                let data = std::fs::read_to_string(&ablate_path)
+                    .map_err(|e| CliError::io(e.to_string()))?;
+                serde_json::from_str::<saccade_core::ablate::Ablation>(&data)?.markdown()
+            } else {
+                saccade_core::render::render_markdown(
+                    &crate::read_report(artifact)?,
+                    &saccade_core::render::MarkdownOptions {
+                        artifact_url,
+                        comment_key,
+                        max_bytes: None,
+                    },
+                )
+            };
             std::fs::write(out, text).map_err(|e| CliError::io(e.to_string()))?;
         }
         ExportFormat::Junit => {

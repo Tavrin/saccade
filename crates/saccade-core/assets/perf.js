@@ -95,7 +95,20 @@
       });
     });
     at.classList.add("perf-ablation");
-    arms.forEach(function(a){diff(host,a.perf_diff,a.combined_verdict,a.label);(a.perf_errors || []).forEach(function(e){host.appendChild(node('p',e.path+': '+e.message,'perf-warning'));});});
+    arms.forEach(function(a){
+      (a.validity_findings || []).forEach(function(f){host.appendChild(node('p',a.label+': '+f,'perf-warning'));});
+      (a.next_actions || []).forEach(function(action){host.appendChild(node('p','Next action: '+action,'perf-warning'));});
+      if(a.repeat_stability && a.validity_findings && a.validity_findings.length){
+        Object.keys(a.repeat_stability.max_flip_by_image || {}).forEach(function(name){
+          if((a.repeat_stability.unstable_images || []).indexOf(name) >= 0){
+            var hashes = (a.repeat_stability.image_hashes || {})[name] || [];
+            host.appendChild(node('p',name+': repeat max FLIP '+num(a.repeat_stability.max_flip_by_image[name])+'; SHA-256 '+hashes.join(', '),'perf-warning'));
+          }
+        });
+      }
+      diff(host,a.perf_diff,a.combined_verdict,a.label);
+      (a.perf_errors || []).forEach(function(e){host.appendChild(node('p',e.path+': '+e.message,'perf-warning'));});
+    });
   }
   window.saccadePerf = {diff:diff,ablation:ablation};
 }());

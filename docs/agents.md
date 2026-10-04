@@ -17,6 +17,10 @@ For ablation with repeats, read `base_repeats`, `excluded_base_repeats`,
 `repeat_qualification`, and each arm's `repeats` and `excluded_repeats` in
 `saccade-ablate.v1.json`. A rejected repeat qualification cannot support a
 performance claim even if the image comparison passes.
+If an arm reports `arm output is not deterministic across repeats`, inspect
+its per-image repeat hashes and max FLIP in the full artifact, then recapture
+under fixed conditions. The ablation HTML and Markdown exports carry the same
+finding. Do not approve the arm based on a single chosen repeat.
 
 ## Reading a compare or identity result
 

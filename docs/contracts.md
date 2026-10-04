@@ -13,6 +13,10 @@ lean pass count alone is insufficient. See the [recorded decision](design-decisi
 `excluded_base_repeats`, `repeat_qualification`, `repeat_reasons`, and each
 arm's accepted `repeats` and `excluded_repeats`. Historical readers can omit
 these fields. An excluded run contributes neither image nor timing evidence.
+The ablation model also records `base_stability`, arm `repeat_stability`
+(`image_hashes` and `max_flip_by_image`), `validity_findings`, and
+`next_actions`. The bounded result sets `validity: invalid` when an arm's
+repeat variation exceeds its base's for an image.
 
 ## Result v2 fields for compare and identity
 

@@ -49,6 +49,13 @@
         "label": {
           "type": "string"
         },
+        "next_actions": {
+          "default": [],
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
         "no_effect": {
           "type": "boolean"
         },
@@ -98,6 +105,13 @@
         "top_deltas": {
           "items": {
             "$ref": "#/$defs/TermDiff"
+          },
+          "type": "array"
+        },
+        "validity_findings": {
+          "default": [],
+          "items": {
+            "type": "string"
           },
           "type": "array"
         }
@@ -648,6 +662,15 @@
             "type": "array"
           },
           "description": "File SHA-256 values per image, in repeat order.",
+          "type": "object"
+        },
+        "max_flip_by_image": {
+          "additionalProperties": {
+            "format": "double",
+            "type": "number"
+          },
+          "default": {},
+          "description": "Largest repeat-to-first FLIP max for every image, when computable.",
           "type": "object"
         },
         "stable": {

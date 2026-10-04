@@ -41,5 +41,9 @@ noise floor from complete base repeats. Positional `BASE ARM...` remains
 supported. A rejected repeat calibration remains rejected: missing optional
 timing terms are listed, and differing configuration hashes require captures
 from the same renderer configuration.
+Within-arm repeat images are compared to each other. If an arm varies more
+than the base, ablation records a nondeterminism validity finding, image hashes,
+per-image maximum FLIP and a recapture action. `inspect export ABLATION
+--format markdown --out summary.md` includes the finding.
 A disabled feature can have identical pixels because it contributed nothing at
 that camera. A model cannot qualify timing or establish a speedup.
