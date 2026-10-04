@@ -1,5 +1,5 @@
 name: Example usage
-# The procedural examples contain deliberate regressions; failure is expected.
+# The procedural examples contain deliberate regressions; the Action must report them.
 # A consuming repository can use Tavrin/saccade@v1 once released, with binary
 # installation. This unreleased local checkout explicitly selects source.
 on:
@@ -23,17 +23,24 @@ jobs:
           toolchain: stable
       - uses: ./
         id: comparison
+        continue-on-error: true
         with:
           install-mode: source
           baseline-dir: examples/baseline
           capture-dir: examples/capture
           report-dir: saccade-report
           comment: 'false'
-      - name: Record comparison outputs
+      - name: Verify expected regression and report
         if: ${{ always() }}
         env:
+          OUTCOME: ${{ steps.comparison.outcome }}
           VERDICT: ${{ steps.comparison.outputs.verdict }}
           EXIT_CODE: ${{ steps.comparison.outputs.exit-code }}
           REPORT_URL: ${{ steps.comparison.outputs.report-url }}
           ARTIFACT_ID: ${{ steps.comparison.outputs.artifact-id }}
-        run: printf 'verdict=%s exit-code=%s report-url=%s artifact-id=%s\n' "$VERDICT" "$EXIT_CODE" "$REPORT_URL" "$ARTIFACT_ID"
+        run: |
+          test "$OUTCOME" = failure
+          test "$VERDICT" = fail
+          test "$EXIT_CODE" = 1
+          test -n "$REPORT_URL"
+          test -n "$ARTIFACT_ID"

@@ -22,7 +22,6 @@ fn core_dependency_graph_excludes_transports_and_watchers() {
             .current_dir(env!("CARGO_MANIFEST_DIR"))
             .args([
                 "tree",
-                "--offline",
                 "--locked",
                 "-p",
                 "saccade-core",

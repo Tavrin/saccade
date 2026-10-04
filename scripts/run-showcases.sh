@@ -10,7 +10,7 @@ python3 - <<'PY'
 import json
 import subprocess
 import sys
-result = subprocess.run(['saccade', 'inspect', 'capabilities', '--json'], capture_output=True, text=True)
+result = subprocess.run(['saccade', 'inspect', 'capabilities', '--json'], capture_output=True, text=True, encoding='utf-8')
 if result.returncode != 0:
     sys.exit('Cannot inspect Saccade capabilities. Build with cargo build --release -p saccade --features prechecks and put that binary on PATH.')
 features = json.loads(result.stdout).get('data', {}).get('features', [])
@@ -38,13 +38,13 @@ for manifest in sorted((root / 'showcases').glob('*/commands.json')):
     out.mkdir(parents=True, exist_ok=True)
     transcript = []
     case_exits_ok = True
-    for command in json.loads(manifest.read_text()):
+    for command in json.loads(manifest.read_text(encoding='utf-8')):
         args = ['saccade'] + [a.replace('@REPORTS@', str(out)) for a in command['args']]
         if command.get('out'):
             args += ['--out', str(out / command['out'])]
-        result = subprocess.run(args, cwd=case, env=env, capture_output=True, text=True)
+        result = subprocess.run(args, cwd=case, env=env, capture_output=True, text=True, encoding='utf-8')
         transcript += [f"=== {command['name']} (exit {result.returncode}) ===\n", result.stdout]
-        (out / (command['name'] + '.stderr.txt')).write_text(result.stderr)
+        (out / (command['name'] + '.stderr.txt')).write_text(result.stderr, encoding='utf-8')
         if result.returncode != command['exit']:
             case_exits_ok = False
             print(f"{case.name}/{command['name']}: expected exit {command['exit']}, got {result.returncode}", file=sys.stderr)
@@ -54,17 +54,17 @@ for manifest in sorted((root / 'showcases').glob('*/commands.json')):
     # Compare evidence independent of the output location; no numeric normalization.
     relative_reports = os.path.relpath(reports.resolve(), case).replace(os.sep, '/')
     actual = actual.replace(relative_reports, '@REPORTS@').replace(str(reports.resolve()), '@REPORTS@')
-    (out / 'ACTUAL.txt').write_text(actual)
+    (out / 'ACTUAL.txt').write_text(actual, encoding='utf-8')
     expected_path = case / 'EXPECTED.txt'
     if os.environ.get('SACCADE_SHOWCASE_UPDATE_EXPECTED') == '1' and case_exits_ok:
-        expected_path.write_text(actual)
+        expected_path.write_text(actual, encoding='utf-8')
         print(f'{case.name}: regenerated EXPECTED.txt')
         continue
     if not expected_path.exists():
         print(f'{case.name}: missing EXPECTED.txt; actual output is {out / "ACTUAL.txt"}', file=sys.stderr)
         failed = True
-    elif expected_path.read_text() != actual:
-        print(''.join(difflib.unified_diff(expected_path.read_text().splitlines(True),
+    elif expected_path.read_text(encoding='utf-8') != actual:
+        print(''.join(difflib.unified_diff(expected_path.read_text(encoding='utf-8').splitlines(True),
                      actual.splitlines(True), fromfile=str(expected_path), tofile=str(out / 'ACTUAL.txt'))), file=sys.stderr)
         failed = True
     else:
