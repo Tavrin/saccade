@@ -1010,6 +1010,7 @@ Usage: saccade experiment [OPTIONS] <COMMAND>
 
 Commands:
   ablate    Compare ablation arms against a base with image and performance evidence
+  temporal  Compare numbered SDR frames with the ColorVideoVDP temporal model
   sequence  Compare numbered colour frames by sorted index and measure added flicker
   rank      Rank candidate directories against one common FLIP reference
   bisect    Find the first diverging run or revision in an ordered series
@@ -1050,6 +1051,31 @@ Performance:
       --perf-resolution-ticks <N>  Minimum timer ticks in the noise threshold (default 2)
       --perf-min-delta-ms <MS>     Minimum meaningful delta in ms (default 0.05)
       --perf-min-delta-pct <PCT>   Minimum meaningful delta as a percentage of the baseline frame (default 0.5)
+
+Global options:
+      --allow-out-near-captures  Silence warnings when --out is next to capture metadata
+      --record-absolute-paths    Opt in to absolute local paths in reports and machine-readable output
+```
+
+## saccade experiment temporal
+
+```text
+Compare numbered SDR frames with the ColorVideoVDP temporal model
+
+Usage: saccade experiment temporal [OPTIONS] --fps <FPS> <BASELINE_DIR> <CAPTURE_DIR>
+
+Arguments:
+  <BASELINE_DIR>  Directory of numbered baseline PNG/JPEG frames
+  <CAPTURE_DIR>   Directory of numbered capture PNG/JPEG frames
+
+Options:
+      --fps <FPS>          Frame rate used by the temporal visibility model
+      --display <DISPLAY>  Embedded ColorVideoVDP display model [default: standard_4k]
+      --pattern <PATTERN>  Relative-name glob for numbered frames [default: *]
+      --out <OUT>          Output directory for the sequence and temporal reports [default: temporal-report]
+      --min-jod <MIN_JOD>  Optional minimum acceptable video quality in JOD units
+      --json               Print a bounded JSON summary
+  -h, --help               Print help
 
 Global options:
       --allow-out-near-captures  Silence warnings when --out is next to capture metadata

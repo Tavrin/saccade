@@ -159,3 +159,19 @@ observations or a variation span at least as wide as the threshold. The
 suggested threshold is a provisional observed maximum plus one span (bounded
 at 1), never a config mutation. This is a deterministic screening rule, not a
 confidence interval or a claim that unknown capture provenance is qualified.
+
+## 13. Temporal checks with ColorVideoVDP
+
+Add a graphics-only `experiment temporal` path that reuses numbered-frame
+pairing and the existing per-frame FLIP report, then runs `colorvideovdp`
+0.1.1 on the same PNG/JPEG sRGB frames. I rejected implicit display or frame
+rate inference: the user supplies FPS, and the selected display model is
+recorded. The default display is `standard_4k`. The independent temporal
+artifact contains video JOD, each frame's still-image JOD, above-threshold
+raw-map boxes and typed flicker/ghosting screening findings. An explicit
+`--min-jod` gates JOD; ordinary per-frame FLIP failures still gate as before.
+The transient map is a perceptual difference map, not a semantic classifier,
+so flicker and lagging-frame labels come from declared deterministic rules.
+I rejected an FFmpeg dependency or guessed HDR display transform for this
+first path. The MIT Rust crate's published parity is scoped to its own
+measured corpus; this lane's synthetic tests cover the adapter and findings.

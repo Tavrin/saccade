@@ -17,6 +17,7 @@ image.workspace = true
 serde.workspace = true
 serde_json.workspace = true
 sha2 = "0.10"
+colorvideovdp = { version = "0.1.1", default-features = false, features = ["parallel"], optional = true }
 clap = { version = "4", features = ["derive"] }
 tempfile = "3"
 globset = "0.4"
@@ -24,7 +25,7 @@ globset = "0.4"
 [features]
 default = ["parallel", "graphics", "ai", "workbench", "mcp", "evaluation"]
 parallel = ["saccade-core/parallel"]
-graphics = ["saccade-core/graphics"]
+graphics = ["saccade-core/graphics", "dep:colorvideovdp"]
 ai = ["saccade-core/ai"]
 workbench = ["saccade-core/workbench"]
 mcp = []

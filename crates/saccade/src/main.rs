@@ -31,6 +31,8 @@ mod perf_cmd;
 mod precheck;
 #[cfg(all(feature = "prechecks", feature = "mcp"))]
 mod precheck_mcp;
+#[cfg(feature = "graphics")]
+mod temporal_cmd;
 
 #[cfg(feature = "graphics")]
 mod s6;
@@ -628,6 +630,9 @@ enum ExperimentOperation {
     /// Compare ablation arms against a base with image and performance evidence.
     #[cfg(feature = "graphics")]
     Ablate(perf_cmd::AblateArgs),
+    /// Compare numbered SDR frames with the ColorVideoVDP temporal model.
+    #[cfg(feature = "graphics")]
+    Temporal(temporal_cmd::TemporalArgs),
     /// Compare numbered colour frames by sorted index and measure added flicker.
     #[cfg(feature = "graphics")]
     Sequence {
@@ -985,6 +990,10 @@ fn dispatch(command: Command, record_absolute_paths: bool) -> Result<u8, CliErro
         Command::Experiment {
             operation: ExperimentOperation::Ablate(args),
         } => perf_cmd::ablate(args, record_absolute_paths),
+        #[cfg(feature = "graphics")]
+        Command::Experiment {
+            operation: ExperimentOperation::Temporal(args),
+        } => temporal_cmd::run(args, record_absolute_paths),
         Command::Demo(args) => f1::demo(args, record_absolute_paths),
         #[cfg(feature = "graphics")]
         Command::Experiment {
@@ -1980,8 +1989,8 @@ fn text_table(report: &Report) -> String {
 /// The feature required by an optional CLI operation or MCP tool.
 fn required_feature(operation: &str) -> Option<&'static str> {
     match operation {
-        "ablate" | "bisect" | "sequence" | "rank" | "saccade_ablate" | "saccade_bisect"
-        | "saccade_sequence" | "saccade_rank" => Some("graphics"),
+        "ablate" | "bisect" | "sequence" | "temporal" | "rank" | "saccade_ablate"
+        | "saccade_bisect" | "saccade_sequence" | "saccade_rank" => Some("graphics"),
         "saccade_review" => Some("ai"),
         "calibrate"
         | "selftest"

@@ -58,6 +58,14 @@ The `exr` and `hdr` features of the `image` crate add `exr` 1.x (BSD-3-Clause),
 (Apache-2.0/MIT), `crunchy` (MIT) and `zune-inflate` (MIT OR Apache-2.0 OR
 Zlib), all compatible with saccade's `MIT OR Apache-2.0` licence.
 
+## ColorVideoVDP (MIT)
+
+The optional graphics path uses [colorvideovdp 0.1.1](https://crates.io/crates/colorvideovdp/0.1.1),
+a pure-Rust MIT-licensed port of the authors' ColorVideoVDP model. No Python,
+PyTorch, GPU code or video decoder is bundled. The authors' reference is
+[gfxdisp/ColorVideoVDP](https://github.com/gfxdisp/ColorVideoVDP); the Rust
+port's published parity applies to its measured inputs and toolchains.
+
 ## Other dependencies
 
 Rust dependencies (`image`, `serde`, `serde_json`, `thiserror`, `clap`, `rayon`
