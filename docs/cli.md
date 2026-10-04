@@ -41,7 +41,46 @@ Start here:
 
 Exit codes: 0 no image regression, 1 image regression found, 2 the command could not run.
 Advanced: demo, identity, noise, view, inspect, experiment, approve, init,
-serve, mcp, doctor. Existing commands keep working; use `saccade COMMAND --help`.
+serve, mcp, ingest, doctor. Existing commands keep working; use `saccade COMMAND --help`.
+```
+
+## saccade ingest
+
+```text
+Convert a test runner's screenshot artifacts into compared image pairs
+
+Usage: saccade ingest [OPTIONS] <COMMAND>
+
+Commands:
+  playwright  Compare expected and actual Playwright screenshot attachments
+
+Options:
+  -h, --help  Print help
+
+Global options:
+      --allow-out-near-captures  Silence warnings when --out is next to capture metadata
+      --record-absolute-paths    Opt in to absolute local paths in reports and machine-readable output
+```
+
+## saccade ingest playwright
+
+```text
+Compare expected and actual Playwright screenshot attachments
+
+Usage: saccade ingest playwright [OPTIONS] --out <OUT> <MANIFEST>
+
+Arguments:
+  <MANIFEST>  Manifest written by integrations/playwright/reporter.cjs
+
+Options:
+      --out <OUT>              New directory for paired inputs and the comparison report
+      --json                   Print the bounded comparison result
+      --threshold <THRESHOLD>  FLIP threshold for the comparison
+  -h, --help                   Print help
+
+Global options:
+      --allow-out-near-captures  Silence warnings when --out is next to capture metadata
+      --record-absolute-paths    Opt in to absolute local paths in reports and machine-readable output
 ```
 
 ## saccade doctor

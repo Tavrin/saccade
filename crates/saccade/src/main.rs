@@ -15,6 +15,7 @@ mod agent;
 mod agent_ui;
 mod approval;
 mod f1;
+mod ingest;
 mod local_cmd;
 #[cfg(feature = "ai")]
 mod review_cmd;
@@ -55,7 +56,7 @@ Start here:
 
 Exit codes: 0 no image regression, 1 image regression found, 2 the command could not run.
 Advanced: demo, identity, noise, view, inspect, experiment, approve, init,
-serve, mcp, doctor. Existing commands keep working; use `saccade COMMAND --help`."
+serve, mcp, ingest, doctor. Existing commands keep working; use `saccade COMMAND --help`."
 )]
 struct Cli {
     /// Silence warnings when --out is next to capture metadata.
@@ -175,6 +176,9 @@ impl From<MetricArg> for Metric {
 
 #[derive(Subcommand)]
 enum Command {
+    /// Convert a test runner's screenshot artifacts into compared image pairs.
+    #[command(hide = true)]
+    Ingest(ingest::IngestArgs),
     /// Print installed version, features and supported evidence schemas.
     #[command(display_order = 13, hide = true)]
     Doctor {
@@ -953,6 +957,7 @@ fn dispatch(command: Command, record_absolute_paths: bool) -> Result<u8, CliErro
             operation: ProveOperation::Performance(args),
         } => perf_cmd::ablate(args, record_absolute_paths),
         Command::Doctor { json } => doctor(json),
+        Command::Ingest(args) => ingest::run(args, record_absolute_paths),
         Command::Inspect(args) => local_cmd::inspect(args, record_absolute_paths),
         Command::Review(args) => local_cmd::review(args, record_absolute_paths),
         #[cfg(feature = "prechecks")]

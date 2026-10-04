@@ -1,0 +1,22 @@
+# Copy into a repository using Playwright. Pin action versions to your policy.
+name: visual evidence
+on: [pull_request]
+jobs:
+  screenshots:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - run: npm ci
+      - run: npx playwright install --with-deps chromium
+      - name: Capture screenshot failures
+        run: npx playwright test || test "$?" -eq 1
+      - name: Compare complete attachments
+        run: saccade ingest playwright test-results/saccade-playwright.json --out saccade-playwright --json
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: saccade-playwright
+          path: saccade-playwright/

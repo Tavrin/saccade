@@ -88,3 +88,14 @@ region is conservatively unexpected. Tone direction uses global exposure and
 a full-frame region; `none` uses exact native equality. Missing scope or mask
 dimension mismatch is unmeasurable rather than a fabricated pass. The
 pre-existing plain-text `--intent` remains lower-assurance review context.
+
+## 8. Playwright adapter
+
+Use a small Playwright reporter to record complete expected/actual screenshot
+attachments and a CLI `ingest playwright` route to copy them into paired
+directories, sidecars and a normal report. The reporter records project,
+browser, viewport and test ID. I rejected inferring pairs from Playwright's
+filenames because `snapshotPathTemplate` can change them and multiple projects
+or failures can collide. The adapter refuses an empty manifest; passed tests
+without actual attachments do not become invented comparisons. Rust core has
+no JavaScript dependency and the CLI never executes the test suite.
