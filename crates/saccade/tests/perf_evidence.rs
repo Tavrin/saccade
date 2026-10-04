@@ -52,6 +52,7 @@ fn save(root: &Path, name: &str, pass: f64, grey: u8) -> PathBuf {
     ));
     context["sample_window"]["hash"] = context["capture_hash"].clone();
     std::fs::write(dir.join("saccade-perf.json"),json!({"schema":"saccade-perf.v2","kind":"measurement","context":context,"unit":"ms","frame":{"value":pass+2.0,"samples":5,"stat":"p50"},"terms":[{"id":"render","kind":"pass","value":pass},{"id":"gap","kind":"gap","value":2.0},{"id":"detail","kind":"scope","parent":"render","value":pass/2.0}],"counters":{"render":{"work":pass*100.0}}}).to_string()).unwrap();
+    std::fs::write(dir.join("gpu_clock.json"), json!({"schema":"saccade-gpu-clock.v1","device_id":"fixture-gpu","power_state":"ac-performance","windows":[{"name":"frame","core_mhz":{"min":1800.0,"median":1800.0,"max":1800.0},"memory_mhz":null,"sample_count":32,"expected_frames":5,"observed_frames":5,"query_failures":0,"throttle_reasons":[],"stabilized":true}]}).to_string()).unwrap();
     std::fs::write(
         dir.join("saccade-meta.json"),
         json!({"quality":if name=="image" {"low"} else {"high"}}).to_string(),
@@ -78,6 +79,51 @@ fn schema(name: &str, v: &Value) {
     let validator = jsonschema::validator_for(&s).unwrap();
     let errors: Vec<_> = validator.iter_errors(v).map(|e| e.to_string()).collect();
     assert!(errors.is_empty(), "{name}: {errors:?}");
+}
+
+#[test]
+fn unstable_arm_cannot_keep_perf_only_or_exit_success() {
+    let tmp = tempfile::tempdir().unwrap();
+    let root = tmp.path();
+    save(root, "base", 8.0, 80);
+    save(root, "repeat", 8.1, 80);
+    save(root, "arm1", 4.0, 80);
+    save(root, "arm2", 4.0, 150);
+    let output = run(
+        root,
+        &[
+            "experiment",
+            "ablate",
+            "--base",
+            "base",
+            "--base",
+            "repeat",
+            "--arm",
+            "unstable=arm1",
+            "--arm",
+            "unstable=arm2",
+            "--out",
+            "unstable",
+            "--json",
+        ],
+    );
+    assert_eq!(output.status.code(), Some(1), "{output:?}");
+    let model: Value = serde_json::from_slice(
+        &std::fs::read(root.join("unstable/saccade-ablate.v1.json")).unwrap(),
+    )
+    .unwrap();
+    assert_eq!(model["arms"][0]["flag"], "INCONCLUSIVE");
+    assert_eq!(model["arms"][0]["perf_only"], false);
+    assert!(
+        model["arms"][0]["combined_verdict"]
+            .as_str()
+            .unwrap()
+            .contains("repeat instability")
+    );
+    assert_eq!(
+        model["arms"][0]["validity_findings"][0],
+        "arm output is not deterministic across repeats"
+    );
 }
 fn model(html: &str) -> Value {
     let data = html

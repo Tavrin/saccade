@@ -74,6 +74,12 @@ pub(crate) struct PerfArgs {
     /// Run performance sidecar file name (default saccade-perf.json).
     #[arg(long, value_name = "NAME")]
     pub perf_name: Option<String>,
+    /// Declare that GPU clocks do not apply to this performance measurement.
+    #[arg(long)]
+    pub gpu_clocks_not_applicable: bool,
+    /// Use an explicit --perf-noise floor even if complete base repeats derive a higher floor.
+    #[arg(long)]
+    pub perf_noise_override: bool,
     /// Noise JSON or TOML from unchanged-build repeats.
     #[arg(long, value_name = "FILE")]
     pub perf_noise: Option<PathBuf>,
@@ -112,6 +118,12 @@ impl PerfArgs {
         if let Some(n) = &self.perf_name {
             opts.name.clone_from(n);
         }
+        opts.gpu_clocks_not_applicable = self.gpu_clocks_not_applicable;
+        if self.gpu_clocks_not_applicable {
+            opts.policy_sources
+                .insert("gpu_clocks".into(), "not_applicable_cli".into());
+        }
+        opts.noise_override = self.perf_noise_override;
         if let Some(n) = &self.perf_noise {
             opts.noise = Some(n.clone());
         }
@@ -231,6 +243,8 @@ pub(crate) fn ablate(args: AblateArgs, absolute: bool) -> Result<u8, CliError> {
     }
     Ok(if model.arms.iter().any(|a| !a.errors.is_empty()) {
         2
+    } else if model.arms.iter().any(|a| !a.validity_findings.is_empty()) {
+        1
     } else {
         0
     })

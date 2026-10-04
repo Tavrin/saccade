@@ -171,8 +171,13 @@ impl GpuClock {
         if self.device_id.is_empty() {
             reasons.push("GPU clock device identity is empty".into());
         }
-        if self.power_state.as_deref().is_none_or(str::is_empty) {
-            reasons.push("GPU power state is absent".into());
+        if self.power_state.as_deref().is_none_or(|s| {
+            matches!(
+                s.trim().to_ascii_lowercase().as_str(),
+                "" | "unknown" | "unspecified" | "none" | "n/a" | "unavailable"
+            )
+        }) {
+            reasons.push("GPU power state is absent or unknown".into());
         }
         if self.windows.is_empty() {
             reasons.push("GPU clock has no sample windows".into());
@@ -234,6 +239,10 @@ impl GpuClock {
 
 /// Reject present but incomplete, unqualified, or unequal clock evidence.
 pub fn compare(dirs: &[&Path]) -> (Vec<Option<GpuClock>>, Vec<String>) {
+    compare_required(dirs, true)
+}
+
+pub fn compare_required(dirs: &[&Path], required: bool) -> (Vec<Option<GpuClock>>, Vec<String>) {
     let mut clocks = Vec::new();
     let mut reasons = Vec::new();
     for dir in dirs {
@@ -245,7 +254,7 @@ pub fn compare(dirs: &[&Path]) -> (Vec<Option<GpuClock>>, Vec<String>) {
             }
         }
     }
-    if clocks.iter().all(Option::is_none) && reasons.is_empty() {
+    if clocks.iter().all(Option::is_none) && reasons.is_empty() && !required {
         return (clocks, reasons);
     }
     for (i, clock) in clocks.iter().enumerate() {
@@ -313,6 +322,32 @@ mod tests {
     use serde_json::json;
 
     #[test]
+    fn absent_clocks_and_unknown_power_state_cannot_qualify() {
+        let temp = tempfile::tempdir().unwrap();
+        let dirs = [temp.path().join("base"), temp.path().join("arm")];
+        for dir in &dirs {
+            std::fs::create_dir_all(dir).unwrap();
+        }
+        let (_, reasons) = compare(&[&dirs[0], &dirs[1]]);
+        assert!(
+            reasons
+                .iter()
+                .any(|r| r.contains("gpu_clock.json is absent"))
+        );
+        assert!(compare_required(&[&dirs[0], &dirs[1]], false).1.is_empty());
+        let clock = json!({"schema":"saccade-gpu-clock.v1","device_id":"gpu-1","power_state":"unknown","windows":[{"name":"frame","core_mhz":{"min":1000.0,"median":1000.0,"max":1000.0},"memory_mhz":null,"sample_count":20,"expected_frames":4,"observed_frames":4,"query_failures":0,"throttle_reasons":[],"stabilized":true}]});
+        for dir in &dirs {
+            std::fs::write(dir.join(FILE), clock.to_string()).unwrap();
+        }
+        let (_, reasons) = compare(&[&dirs[0], &dirs[1]]);
+        assert!(
+            reasons
+                .iter()
+                .any(|r| r.contains("power state is absent or unknown"))
+        );
+    }
+
+    #[test]
     fn clock_mismatch_and_unqualified_state_reject_performance_pair() {
         let temp = tempfile::tempdir().unwrap();
         let dirs = [temp.path().join("base"), temp.path().join("arm")];
@@ -341,6 +376,19 @@ mod tests {
             reasons
                 .iter()
                 .any(|r| r.contains("warm-to-boost stability is unqualified"))
+        );
+        for dir in &dirs {
+            std::fs::remove_file(dir.join(FILE)).unwrap();
+        }
+        let (diff, errors) =
+            crate::perf::pair(&dirs[0], &dirs[1], &crate::perf::PerfOptions::default()).unwrap();
+        assert!(errors.is_empty());
+        let diff = diff.unwrap();
+        assert_eq!(diff.comparability, crate::perf::Comparability::Rejected);
+        assert!(
+            diff.qualification_reasons
+                .iter()
+                .any(|r| r.contains("gpu_clock.json is absent"))
         );
     }
 }

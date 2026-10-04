@@ -748,6 +748,73 @@
       ],
       "type": "object"
     },
+    "PerfNoise": {
+      "additionalProperties": false,
+      "properties": {
+        "comparability": {
+          "$ref": "#/$defs/Comparability",
+          "default": "unknown"
+        },
+        "context_identity": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Digest"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "frame": {
+          "format": "double",
+          "type": "number"
+        },
+        "min_delta_ms": {
+          "default": 0.05,
+          "format": "double",
+          "type": "number"
+        },
+        "min_delta_pct": {
+          "default": 0.5,
+          "description": "Percentage of the baseline frame, shared by frame and term thresholds.",
+          "format": "double",
+          "type": "number"
+        },
+        "resolution_ms": {
+          "default": null,
+          "description": "Estimated timer quantum, or an explicit override, in ms. None means unknown.",
+          "format": "double",
+          "type": [
+            "number",
+            "null"
+          ]
+        },
+        "resolution_ticks": {
+          "default": 2,
+          "format": "uint32",
+          "minimum": 0,
+          "type": "integer"
+        },
+        "terms": {
+          "additionalProperties": {
+            "format": "double",
+            "type": "number"
+          },
+          "default": {},
+          "type": "object"
+        },
+        "timer": {
+          "type": [
+            "string",
+            "null"
+          ]
+        }
+      },
+      "required": [
+        "frame"
+      ],
+      "type": "object"
+    },
     "Qualification": {
       "additionalProperties": false,
       "properties": {
@@ -1030,12 +1097,36 @@
         }
       ]
     },
+    "derived_noise": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/PerfNoise"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
     "excluded_base_repeats": {
       "default": [],
       "items": {
         "type": "string"
       },
       "type": "array"
+    },
+    "explicit_noise": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/PerfNoise"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "noise_override": {
+      "default": false,
+      "type": "boolean"
     },
     "repeat_qualification": {
       "$ref": "#/$defs/Comparability",

@@ -30,6 +30,9 @@ pub struct PerfError {
 #[derive(Debug, Clone, PartialEq)]
 pub struct PerfOptions {
     pub name: String,
+    /// Explicit declaration that GPU clocks do not apply to this measurement.
+    pub gpu_clocks_not_applicable: bool,
+    pub noise_override: bool,
     pub noise: Option<PathBuf>,
     pub floor: Option<PerfNoise>,
     pub k: f64,
@@ -43,6 +46,8 @@ impl Default for PerfOptions {
     fn default() -> Self {
         Self {
             name: DEFAULT_PERF_NAME.into(),
+            gpu_clocks_not_applicable: false,
+            noise_override: false,
             noise: None,
             floor: None,
             k: 3.0,
@@ -1528,7 +1533,14 @@ pub fn pair(
     let diff = match (b, a) {
         (Ok(Some(b)), Ok(Some(a))) => {
             let mut diff = PerfDiff::between_with_options(&b, &a, floor.as_ref(), opts);
-            let (clocks, reasons) = crate::gpu_clock::compare(&[before, after]);
+            if opts.gpu_clocks_not_applicable {
+                diff.warnings
+                    .push("GPU clocks explicitly declared not applicable".into());
+            }
+            let (clocks, reasons) = crate::gpu_clock::compare_required(
+                &[before, after],
+                !opts.gpu_clocks_not_applicable,
+            );
             if !reasons.is_empty() {
                 diff.comparability = Comparability::Rejected;
                 diff.frame_change = FrameChange::Unknown;
@@ -1565,8 +1577,10 @@ pub fn noise_with_options(
         .map(|d| CapturePerf::read(d, &opts.name).map_err(crate::Error::Perf))
         .collect::<crate::Result<_>>()?;
     let (mut floor, mut reasons) = noise_from_captures(&captures, opts)?;
-    let (_, clock_reasons) =
-        crate::gpu_clock::compare(&dirs.iter().map(PathBuf::as_path).collect::<Vec<_>>());
+    let (_, clock_reasons) = crate::gpu_clock::compare_required(
+        &dirs.iter().map(PathBuf::as_path).collect::<Vec<_>>(),
+        !opts.gpu_clocks_not_applicable,
+    );
     if !clock_reasons.is_empty() {
         if let Some(floor) = &mut floor {
             floor.comparability = Comparability::Rejected;
@@ -1701,8 +1715,10 @@ pub fn noise_record(dirs: &[PathBuf], opts: &PerfOptions) -> crate::Result<Perfo
     let mut floor = floor.ok_or_else(|| {
         crate::Error::Config("performance noise needs at least two captures".into())
     })?;
-    let (_, clock_reasons) =
-        crate::gpu_clock::compare(&dirs.iter().map(PathBuf::as_path).collect::<Vec<_>>());
+    let (_, clock_reasons) = crate::gpu_clock::compare_required(
+        &dirs.iter().map(PathBuf::as_path).collect::<Vec<_>>(),
+        !opts.gpu_clocks_not_applicable,
+    );
     if !clock_reasons.is_empty() {
         floor.comparability = Comparability::Rejected;
         reasons.extend(clock_reasons);

@@ -173,6 +173,12 @@ pub struct Ablation {
     pub repeat_reasons: Vec<String>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub base_stability: Option<RepeatStability>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub derived_noise: Option<crate::perf::PerfNoise>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub explicit_noise: Option<crate::perf::PerfNoise>,
+    #[serde(default)]
+    pub noise_override: bool,
 }
 
 #[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
@@ -383,13 +389,51 @@ pub fn run_repeats(
     }
     cfg.validate()?;
     cfg.perf.resolved_floor()?;
-    let (bases, excluded_base_repeats, expected) = complete_repeats(bases, None, &cfg.perf.name)?;
+    let all_paths = bases
+        .iter()
+        .chain(groups.iter().flat_map(|(_, paths)| paths.iter()));
+    let mut required_sidecars = BTreeSet::new();
+    let all_paths = all_paths.collect::<Vec<_>>();
+    let has_repeats = bases.len() > 1 || groups.iter().any(|(_, paths)| paths.len() > 1);
+    if has_repeats && all_paths.iter().any(|p| p.join(&cfg.perf.name).is_file()) {
+        required_sidecars.insert(cfg.perf.name.clone());
+        if !cfg.perf.gpu_clocks_not_applicable {
+            required_sidecars.insert(crate::gpu_clock::FILE.into());
+        }
+    }
+    if has_repeats {
+        for name in [crate::meta::DEFAULT_META_NAME, "cost-card.json"] {
+            if all_paths.iter().any(|p| p.join(name).is_file()) {
+                required_sidecars.insert(name.into());
+            }
+        }
+    }
+    for path in all_paths.iter().filter(|_| has_repeats) {
+        if let Ok(images) = crate::run::collect_images(path) {
+            for name in images.files.keys() {
+                let image = Path::new(name);
+                if let Some(stem) = image.file_stem() {
+                    let sidecar = image.with_file_name(format!(
+                        "{}.{}",
+                        stem.to_string_lossy(),
+                        crate::meta::DEFAULT_META_NAME
+                    ));
+                    if path.join(&sidecar).is_file() {
+                        required_sidecars.insert(sidecar.to_string_lossy().into_owned());
+                    }
+                }
+            }
+        }
+    }
+    let (bases, excluded_base_repeats, expected) =
+        complete_repeats(bases, None, &cfg.perf.name, &required_sidecars)?;
     let base = bases
         .first()
         .ok_or_else(|| crate::Error::Config("no complete base repeat".into()))?;
     let mut accepted = Vec::new();
     for (label, paths) in groups {
-        let (paths, excluded, _) = complete_repeats(paths, Some(&expected), &cfg.perf.name)?;
+        let (paths, excluded, _) =
+            complete_repeats(paths, Some(&expected), &cfg.perf.name, &required_sidecars)?;
         if paths.is_empty() {
             return Err(crate::Error::Config(format!(
                 "arm {label:?} has no complete repeats: {}",
@@ -434,9 +478,13 @@ pub fn run_repeats(
         .map_or(crate::perf::Comparability::Unknown, |f| f.comparability);
     let base_stability = repeat_stability(&bases)?;
     let mut effective = cfg.clone();
-    if effective.perf.noise.is_none() && effective.perf.floor.is_none() {
-        effective.perf.floor = floor;
-    }
+    let explicit_noise = effective.perf.resolved_floor()?;
+    effective.perf.floor = stricter_floor(
+        explicit_noise.as_ref(),
+        floor.as_ref(),
+        effective.perf.noise_override,
+    );
+    effective.perf.noise = None;
     let mut rows = Vec::new();
     for (i, ((declared, paths, excluded), (arm, fallback))) in
         accepted.iter().zip(arms.iter().zip(labels)).enumerate()
@@ -478,6 +526,13 @@ pub fn run_repeats(
                 row.validity_findings
                     .push("arm output is not deterministic across repeats".into());
                 row.next_actions.push("inspect repeat image hashes and recapture the arm under fixed rendering conditions before accepting its claim".into());
+                row.no_effect = false;
+                row.perf_only = false;
+                row.flag = "INCONCLUSIVE".into();
+                row.combined_verdict = format!(
+                    "{} · repeat instability invalidates the arm claim",
+                    row.image_verdict
+                );
             }
         }
         rows.push(row);
@@ -494,6 +549,9 @@ pub fn run_repeats(
         repeat_qualification,
         repeat_reasons,
         base_stability,
+        derived_noise: floor,
+        explicit_noise,
+        noise_override: cfg.perf.noise_override,
     };
     for (name, text) in [
         (ABLATE_FILE, serde_json::to_string_pretty(&model)?),
@@ -507,6 +565,30 @@ pub fn run_repeats(
     std::fs::remove_file(out.join(crate::run::RUN_SENTINEL))
         .map_err(crate::run::io_err("removing ablation marker".into()))?;
     Ok(model)
+}
+
+#[cfg(feature = "graphics")]
+fn stricter_floor(
+    explicit: Option<&crate::perf::PerfNoise>,
+    derived: Option<&crate::perf::PerfNoise>,
+    override_derived: bool,
+) -> Option<crate::perf::PerfNoise> {
+    match (explicit, derived) {
+        (Some(explicit), Some(derived)) if !override_derived => {
+            let mut combined = explicit.clone();
+            combined.frame = combined.frame.max(derived.frame);
+            for (term, spread) in &derived.terms {
+                let entry = combined.terms.entry(term.clone()).or_default();
+                *entry = (*entry).max(*spread);
+            }
+            if derived.comparability != crate::perf::Comparability::Qualified {
+                combined.comparability = derived.comparability;
+            }
+            Some(combined)
+        }
+        (Some(explicit), _) => Some(explicit.clone()),
+        (None, derived) => derived.cloned(),
+    }
 }
 
 #[cfg(feature = "graphics")]
@@ -565,6 +647,7 @@ fn complete_repeats(
     paths: &[PathBuf],
     expected: Option<&std::collections::BTreeSet<String>>,
     perf_name: &str,
+    required_sidecars: &BTreeSet<String>,
 ) -> Result<(
     Vec<PathBuf>,
     Vec<String>,
@@ -602,6 +685,11 @@ fn complete_repeats(
             ))
         } else if found.files.values().any(|p| !crate::run::is_decodable(p)) {
             Some("image cannot be decoded".into())
+        } else if let Some(missing) = required_sidecars
+            .iter()
+            .find(|name| !path.join(name).is_file())
+        {
+            Some(format!("missing {missing}"))
         } else if require_perf && !path.join(perf_name).is_file() {
             Some(format!("missing {perf_name}"))
         } else {
@@ -625,6 +713,50 @@ mod repeat_tests {
     use super::*;
 
     #[test]
+    fn explicit_noise_cannot_hide_higher_derived_floor_without_recorded_override() {
+        let explicit = crate::perf::PerfNoise {
+            frame: 0.1,
+            ..Default::default()
+        };
+        let derived = crate::perf::PerfNoise {
+            frame: 0.5,
+            ..Default::default()
+        };
+        assert_eq!(
+            stricter_floor(Some(&explicit), Some(&derived), false)
+                .unwrap()
+                .frame,
+            0.5
+        );
+        assert_eq!(
+            stricter_floor(Some(&explicit), Some(&derived), true)
+                .unwrap()
+                .frame,
+            0.1
+        );
+    }
+
+    #[test]
+    fn missing_clock_sidecar_is_listed_as_incomplete_repeat() {
+        let temp = tempfile::tempdir().unwrap();
+        let dirs: Vec<_> = (0..3).map(|i| temp.path().join(format!("r{i}"))).collect();
+        for dir in &dirs {
+            std::fs::create_dir_all(dir).unwrap();
+            image::RgbaImage::new(2, 2)
+                .save(dir.join("frame.png"))
+                .unwrap();
+            std::fs::write(dir.join("saccade-perf.json"), b"{}").unwrap();
+            std::fs::write(dir.join("gpu_clock.json"), b"{}").unwrap();
+        }
+        std::fs::remove_file(dirs[2].join("gpu_clock.json")).unwrap();
+        let required = BTreeSet::from(["saccade-perf.json".into(), "gpu_clock.json".into()]);
+        let (accepted, excluded, _) =
+            complete_repeats(&dirs, None, "saccade-perf.json", &required).unwrap();
+        assert_eq!(accepted.len(), 2);
+        assert!(excluded[0].contains("missing gpu_clock.json"));
+    }
+
+    #[test]
     fn incomplete_repeat_is_named_and_excluded() {
         let temp = tempfile::tempdir().unwrap();
         let complete = temp.path().join("r1");
@@ -639,6 +771,7 @@ mod repeat_tests {
             &[complete.clone(), incomplete.clone()],
             None,
             "saccade-perf.json",
+            &BTreeSet::new(),
         )
         .unwrap();
         assert_eq!(accepted, vec![complete]);
@@ -681,6 +814,13 @@ mod repeat_tests {
         assert_eq!(
             model.arms[0].validity_findings,
             ["arm output is not deterministic across repeats"]
+        );
+        assert_eq!(model.arms[0].flag, "INCONCLUSIVE");
+        assert!(!model.arms[0].perf_only && !model.arms[0].no_effect);
+        assert!(
+            model.arms[0]
+                .combined_verdict
+                .contains("repeat instability")
         );
         assert!(
             model.arms[0]
