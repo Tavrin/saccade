@@ -41,7 +41,29 @@ Start here:
 
 Exit codes: 0 no image regression, 1 image regression found, 2 the command could not run.
 Advanced: demo, identity, noise, view, inspect, experiment, approve, init,
-serve, mcp, ingest, doctor. Existing commands keep working; use `saccade COMMAND --help`.
+serve, mcp, ingest, bisect, doctor. Existing commands keep working; use `saccade COMMAND --help`.
+```
+
+## saccade bisect
+
+```text
+Locate the first commit whose fresh capture fails its baseline
+
+Usage: saccade bisect [OPTIONS] --capture <CAPTURE> --baseline <BASELINE>
+
+Options:
+      --good <GOOD>          Known good revision in the current repository
+      --bad <BAD>            Known bad revision descended from --good
+      --capture <CAPTURE>    Shell capture command; write images to $SACCADE_CAPTURE_DIR
+      --baseline <BASELINE>  Stable baseline directory, copied before Git changes revisions
+      --perf                 Require qualified performance evidence and count a slower frame as bad
+      --out <OUT>            Evidence directory outside the repository; defaults to a new sibling
+      --json                 Print bounded JSON
+  -h, --help                 Print help
+
+Global options:
+      --allow-out-near-captures  Silence warnings when --out is next to capture metadata
+      --record-absolute-paths    Opt in to absolute local paths in reports and machine-readable output
 ```
 
 ## saccade ingest

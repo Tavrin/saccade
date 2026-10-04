@@ -251,7 +251,6 @@ fn maintained_instructions_do_not_invoke_removed_commands() {
         "ablate",
         "rank",
         "sequence",
-        "bisect",
         "safety",
         "a11y",
         "watch",

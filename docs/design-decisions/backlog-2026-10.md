@@ -99,3 +99,18 @@ filenames because `snapshotPathTemplate` can change them and multiple projects
 or failures can collide. The adapter refuses an empty manifest; passed tests
 without actual attachments do not become invented comparisons. Rust core has
 no JavaScript dependency and the CLI never executes the test suite.
+
+## 9. Git bisect
+
+Run Git's `bisect run` in a disposable local clone of the user's repository,
+with an internal saccade step callback and per-revision capture, report and
+log outside the original repository. Validate original clean state and commit
+ancestry before starting, copy the baseline, and call `git bisect reset` in
+the clone on every exit path after start. The original HEAD never moves,
+including when a capture command dirties its checkout. I rejected silently
+cleaning the original repository to rescue a failed bisect: that could discard
+user data. Dirty capture steps abort and retain their logs; the disposable
+clone is removed after a successful reset.
+Failed captures and incomplete image/performance evidence are skips, not bad
+commits. `--perf` requires qualified paired timing and repeat noise. The old
+ordered-run `experiment bisect` stays available separately.

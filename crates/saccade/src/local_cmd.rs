@@ -273,6 +273,21 @@ pub(crate) fn deprecated_alias(args: &mut Vec<std::ffi::OsString>) -> Option<&'s
         }
         return Some("view --unblind DECISIONS --key FILE");
     }
+    if command == "bisect" {
+        let has = |flags: &[&str]| {
+            args.iter().any(|arg| {
+                let arg = arg.to_string_lossy();
+                flags
+                    .iter()
+                    .any(|flag| arg == *flag || arg.starts_with(&format!("{flag}=")))
+            })
+        };
+        if !has(&["--runs", "--runs-from"])
+            && has(&["--good", "--bad", "--capture", "--step", "--help", "-h"])
+        {
+            return None;
+        }
+    }
     let replacement = match command.as_str() {
         "ablate" | "sequence" | "rank" | "bisect" | "safety" | "a11y" => {
             args.insert(1, "experiment".into());
