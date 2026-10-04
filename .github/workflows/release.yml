@@ -1,15 +1,31 @@
 name: Release
-# (tag-triggered: v*)
 
 on:
   push:
     tags: ['v*']
+  pull_request:
+    paths:
+      - '.github/workflows/release.yml'
+      - '.github/workflows/qualify.yml'
+      - 'scripts/release-check.sh'
+      - 'scripts/generate-third-party-notices.py'
+      - 'scripts/validate-showcase-schemas.py'
+      - 'scripts/verify-sha256sums.py'
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: Version label to validate (for example v0.1.0); dispatch never creates a release
+        required: true
+        type: string
 
 permissions:
   contents: read
+  actions: read
 
 env:
   CARGO_TERM_COLOR: always
+  CARGO_BUILD_RUSTC_WRAPPER: ''
+  RUSTC_WRAPPER: ''
 
 jobs:
   build:
@@ -34,65 +50,117 @@ jobs:
             target: x86_64-pc-windows-msvc
             ext: zip
     steps:
-      - uses: actions/checkout@v4
-      - uses: dtolnay/rust-toolchain@stable
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          persist-credentials: false
+      - uses: dtolnay/rust-toolchain@7e38f4b43b4db5c8dd498af069a4f6196df1d067 # stable
+        # Install the stable Rust channel.
+        with:
+          toolchain: stable
           targets: ${{ matrix.target }}
-      - name: Build
+      - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5
+        with:
+          python-version: '3.12'
+      - name: Build and check identity
+        shell: bash
         env:
           TARGET: ${{ matrix.target }}
-        run: cargo build --release --locked -p saccade --target "$TARGET"
-      - name: Archive
+          RELEASE_TAG: ${{ github.event_name == 'push' && github.ref_name || inputs.tag || 'v0.1.0' }}
+          RELEASE_COMMIT: ${{ github.event.pull_request.head.sha || github.sha }}
+        run: |
+          set -euo pipefail
+          cargo build --release --locked -p saccade --features prechecks --target "$TARGET"
+          binary="$CARGO_TARGET_DIR/$TARGET/release/saccade"
+          if [ "$RUNNER_OS" = Windows ]; then binary="$binary.exe"; fi
+          "$binary" doctor --json > doctor.json
+          python3 - <<'PY'
+          import json, os
+          d = json.load(open('doctor.json'))
+          tag = os.environ['RELEASE_TAG']
+          assert tag.startswith('v') and d['version'] == tag[1:], (tag, d['version'])
+          assert d['build']['git_commit'] == os.environ['RELEASE_COMMIT'], d['build']
+          assert d['build']['git_dirty'] is False, d['build']
+          PY
+      - name: Generate dependency notices and archive
         shell: bash
         env:
           TARGET: ${{ matrix.target }}
           EXT: ${{ matrix.ext }}
         run: |
           set -euo pipefail
-          dir="$CARGO_TARGET_DIR/$TARGET/release"
           mkdir -p dist/package
-          cp LICENSE-MIT LICENSE-APACHE THIRD_PARTY.md README.md dist/package/
+          python3 scripts/generate-third-party-notices.py dist/package/THIRD_PARTY_NOTICES.md
+          cp LICENSE-MIT LICENSE-APACHE dist/package/
+          binary="$CARGO_TARGET_DIR/$TARGET/release/saccade"
           if [ "$EXT" = zip ]; then
-            cp "$dir/saccade.exe" dist/package/
-            (cd dist/package && 7z a -tzip "../saccade-$TARGET.zip" saccade.exe LICENSE-MIT LICENSE-APACHE THIRD_PARTY.md README.md)
+            cp "$binary.exe" dist/package/
+            (cd dist/package && 7z a -tzip "../saccade-$TARGET.zip" saccade.exe LICENSE-MIT LICENSE-APACHE THIRD_PARTY_NOTICES.md)
           else
-            cp "$dir/saccade" dist/package/
-            tar -czf "dist/saccade-$TARGET.tar.gz" -C dist/package saccade LICENSE-MIT LICENSE-APACHE THIRD_PARTY.md README.md
+            cp "$binary" dist/package/
+            tar -czf "dist/saccade-$TARGET.tar.gz" -C dist/package saccade LICENSE-MIT LICENSE-APACHE THIRD_PARTY_NOTICES.md
           fi
-          # One checksum file per asset ("<sha256>  <file>"), verified by the action.
-          cd dist
-          for f in saccade-*.tar.gz saccade-*.zip; do
-            [ -f "$f" ] || continue
-            if command -v sha256sum >/dev/null 2>&1; then
-              sha256sum "$f" > "$f.sha256"
-            else
-              shasum -a 256 "$f" > "$f.sha256"
-            fi
-          done
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
           name: saccade-${{ matrix.target }}
-          path: |
-            dist/saccade-*.tar.gz
-            dist/saccade-*.zip
-            dist/*.sha256
+          path: dist/saccade-${{ matrix.target }}.${{ matrix.ext }}
           if-no-files-found: error
 
-  release:
+  assemble:
     needs: build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
+        with:
+          pattern: saccade-*
+          path: dist
+          merge-multiple: true
+      - name: Check archive set and write SHA256SUMS
+        shell: bash
+        env:
+          RELEASE_COMMIT: ${{ github.event.pull_request.head.sha || github.sha }}
+        run: |
+          set -euo pipefail
+          cd dist
+          for name in saccade-x86_64-unknown-linux-gnu.tar.gz saccade-aarch64-unknown-linux-gnu.tar.gz saccade-aarch64-apple-darwin.tar.gz saccade-x86_64-pc-windows-msvc.zip; do
+            test -s "$name"
+          done
+          sha256sum saccade-*.tar.gz saccade-*.zip > SHA256SUMS
+          sha256sum -c SHA256SUMS
+          printf '%s\n' "$RELEASE_COMMIT" > BUILD_COMMIT
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: release-dist
+          path: dist/
+          if-no-files-found: error
+
+  qualify:
+    needs: assemble
+    uses: ./.github/workflows/qualify.yml
+    with:
+      run_id: ${{ github.run_id }}
+      commit: ${{ github.event.pull_request.head.sha || github.sha }}
+      tag: ${{ github.event_name == 'push' && github.ref_name || inputs.tag || 'v0.1.0' }}
+
+  draft:
+    needs: [assemble, qualify]
+    if: github.event_name == 'push'
     runs-on: ubuntu-latest
     permissions:
       contents: write
+      actions: read
     steps:
-      - uses: actions/download-artifact@v4
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
         with:
+          name: release-dist
           path: dist
-          merge-multiple: true
-      - name: Combine checksums
-        run: cat dist/*.sha256 > dist/SHA256SUMS
-      - name: Create release
+      - name: Verify and create draft
+        shell: bash
         env:
           GH_TOKEN: ${{ github.token }}
           TAG: ${{ github.ref_name }}
           REPO: ${{ github.repository }}
-        run: gh release create "$TAG" dist/* --repo "$REPO" --title "$TAG" --generate-notes
+        run: |
+          set -euo pipefail
+          (cd dist && sha256sum -c SHA256SUMS)
+          gh release create "$TAG" dist/saccade-*.tar.gz dist/saccade-*.zip dist/SHA256SUMS --repo "$REPO" --title "$TAG" --generate-notes --draft

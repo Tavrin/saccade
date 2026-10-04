@@ -28,13 +28,16 @@ jobs:
       contents: write
       pull-requests: write
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
           persist-credentials: false
-      - uses: dtolnay/rust-toolchain@stable
+      - uses: dtolnay/rust-toolchain@7e38f4b43b4db5c8dd498af069a4f6196df1d067 # stable
+        # Install the stable Rust channel.
+        with:
+          toolchain: stable
       # Download into temporary storage, keeping artifact contents away from
       # trusted workflow/action code. Copy only the three documented data trees.
-      - uses: actions/download-artifact@v4
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
         with:
           run-id: ${{ inputs.evidence-run-id }}
           artifact-ids: ${{ inputs.evidence-artifact-id }}

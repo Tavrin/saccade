@@ -1,0 +1,126 @@
+name: Qualify release artifacts
+
+on:
+  workflow_call:
+    inputs:
+      run_id:
+        required: true
+        type: string
+      commit:
+        required: true
+        type: string
+      tag:
+        required: true
+        type: string
+  workflow_dispatch:
+    inputs:
+      run_id:
+        description: Release workflow run ID containing release-dist
+        required: true
+        type: string
+      commit:
+        description: Exact full source commit used by that run
+        required: true
+        type: string
+      tag:
+        description: Version label checked by that run (for example v0.1.0)
+        required: true
+        type: string
+
+permissions:
+  contents: read
+  actions: read
+
+env:
+  CARGO_BUILD_RUSTC_WRAPPER: ''
+  RUSTC_WRAPPER: ''
+
+jobs:
+  qualify:
+    name: qualify (${{ matrix.target }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: ubuntu-latest
+            target: x86_64-unknown-linux-gnu
+            ext: tar.gz
+          - os: ubuntu-24.04-arm
+            target: aarch64-unknown-linux-gnu
+            ext: tar.gz
+          - os: macos-latest
+            target: aarch64-apple-darwin
+            ext: tar.gz
+          - os: windows-latest
+            target: x86_64-pc-windows-msvc
+            ext: zip
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          ref: ${{ inputs.commit }}
+          persist-credentials: false
+      - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5
+        with:
+          python-version: '3.12'
+      - name: Install showcase validators
+        run: python3 -m pip install Pillow==10.2.0 numpy==2.2.6 jsonschema==4.10.3
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
+        with:
+          name: release-dist
+          path: dist
+          run-id: ${{ inputs.run_id }}
+          github-token: ${{ github.token }}
+      - name: Verify archive, doctor, showcases and schemas
+        shell: bash
+        env:
+          TARGET: ${{ matrix.target }}
+          EXT: ${{ matrix.ext }}
+          EXPECTED_COMMIT: ${{ inputs.commit }}
+          EXPECTED_TAG: ${{ inputs.tag }}
+        run: |
+          set -euo pipefail
+          archive="saccade-$TARGET.$EXT"
+          mkdir -p qualified/bin
+          python3 - <<'PY'
+          import hashlib, json, os, pathlib
+          archive = pathlib.Path('dist') / ('saccade-' + os.environ['TARGET'] + '.' + os.environ['EXT'])
+          result = {'target': os.environ['TARGET'], 'archive': archive.name,
+                    'archive_sha256': hashlib.sha256(archive.read_bytes()).hexdigest(),
+                    'commit': os.environ['EXPECTED_COMMIT'], 'tag': os.environ['EXPECTED_TAG'],
+                    'status': 'failed'}
+          pathlib.Path('qualified/result.json').write_text(json.dumps(result, indent=2) + '\n')
+          PY
+          test "$(cat dist/BUILD_COMMIT)" = "$EXPECTED_COMMIT"
+          python3 scripts/verify-sha256sums.py dist
+          if [ "$EXT" = zip ]; then
+            7z x "dist/$archive" "-oqualified/bin"
+          else
+            tar -xzf "dist/$archive" -C qualified/bin
+          fi
+          export PATH="$PWD/qualified/bin:$PATH"
+          saccade doctor --json > qualified/doctor.json
+          python3 - <<'PY'
+          import json, os
+          d = json.load(open('qualified/doctor.json'))
+          assert d['build']['git_commit'] == os.environ['EXPECTED_COMMIT']
+          assert d['version'] == os.environ['EXPECTED_TAG'][1:]
+          assert d['build']['git_dirty'] is False
+          PY
+          SACCADE_SHOWCASE_REPORTS="$(python3 -c 'from pathlib import Path; print(Path("qualified/showcase-reports").resolve())')"
+          export SACCADE_SHOWCASE_REPORTS
+          bash scripts/run-showcases.sh
+          python3 scripts/validate-showcase-schemas.py "$SACCADE_SHOWCASE_REPORTS"
+          python3 - <<'PY'
+          import json, pathlib
+          path = pathlib.Path('qualified/result.json')
+          result = json.loads(path.read_text())
+          result.update(status='passed', doctor='pass', showcases='pass', schemas='pass')
+          path.write_text(json.dumps(result, indent=2) + '\n')
+          PY
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        if: always()
+        with:
+          name: qualification-${{ matrix.target }}
+          path: qualified/result.json
+          if-no-files-found: warn
