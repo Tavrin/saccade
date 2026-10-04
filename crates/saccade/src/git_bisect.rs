@@ -14,7 +14,7 @@ pub(crate) struct BisectArgs {
     /// Known bad revision descended from --good.
     #[arg(long)]
     bad: Option<String>,
-    /// Shell capture command; write images to $SACCADE_CAPTURE_DIR.
+    /// Shell capture command; write images to SACCADE_CAPTURE_DIR (sh on Unix, cmd on Windows).
     #[arg(long)]
     capture: String,
     /// Stable baseline directory, copied before Git changes revisions.
@@ -93,8 +93,15 @@ fn step(args: &BisectArgs, repo: &Path, out: &Path) -> Result<u8, CliError> {
     std::fs::create_dir_all(&capture_dir).map_err(|e| CliError::io(e.to_string()))?;
     #[cfg(windows)]
     let mut capture = {
+        use std::os::windows::process::CommandExt;
+
         let mut command = Command::new("cmd");
-        command.args(["/C", &args.capture]);
+        // cmd does not understand the C-runtime escaping used by Command::arg.
+        // /S strips this outer pair of quotes while preserving the user's
+        // shell syntax, including quoted paths and command separators.
+        command
+            .args(["/D", "/S", "/C"])
+            .raw_arg(format!("\"{}\"", args.capture));
         command
     };
     #[cfg(not(windows))]

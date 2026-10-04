@@ -15,8 +15,20 @@ saccade bisect --good GOOD_REV --bad BAD_REV \
   --out ../my-renderer-saccade-bisect --json
 ```
 
-The capture command runs through the platform shell in the disposable clone at
-each selected commit. It needs tracked source files and any external tools;
+The capture command runs through `sh -c` on Unix and `cmd /D /S /C` on Windows
+in the disposable clone at each selected commit. Use the selected shell's
+syntax: `$SACCADE_CAPTURE_DIR` on Unix, `%SACCADE_CAPTURE_DIR%` in Windows cmd.
+Windows cmd AutoRun commands are disabled. For example, from PowerShell 7.3+
+with its default native argument passing (the single quotes preserve the cmd
+capture string):
+
+```powershell
+saccade bisect --good GOOD_REV --bad BAD_REV --baseline C:\known-good-images --capture 'copy /Y "frame.png" "%SACCADE_CAPTURE_DIR%\frame.png"' --out ..\my-renderer-saccade-bisect --json
+```
+
+The capture still runs in cmd; PowerShell syntax such as
+`$env:SACCADE_CAPTURE_DIR` does not apply inside it.
+It needs tracked source files and any external tools;
 ignored or untracked local files are not copied into the clone.
 It must write images to the absolute `SACCADE_CAPTURE_DIR` environment path
 and leave the repository clean. Saccade copies the baseline before changing
