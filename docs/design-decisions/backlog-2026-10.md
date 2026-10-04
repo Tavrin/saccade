@@ -175,3 +175,19 @@ so flicker and lagging-frame labels come from declared deterministic rules.
 I rejected an FFmpeg dependency or guessed HDR display transform for this
 first path. The MIT Rust crate's published parity is scoped to its own
 measured corpus; this lane's synthetic tests cover the adapter and findings.
+
+## 14. Per-object attribution
+
+Use capture-side `<stem>.object-id.{png,exr}` and
+`<stem>.material-id.{png,exr}` with a versioned JSON legend of numeric IDs to
+names. PNG RGB encodes a u24 ID; EXR red stores an exact integral u24 value.
+I rejected palette-index PNG because image decoders can expand it, changing
+the numeric identity. ID buffers are excluded from ordinary image pairing.
+Invalid or partial sidecars turn the compared entry into an error. Attribution
+weights each unmasked above-cutoff FLIP pixel inside the hotspot bounding box
+by its error, rather than counting pixels equally; copied sidecar bytes and
+hashes are bound into the report and evidence case. The HTML table uses the
+same report data. The hotspot detector keeps component areas but not component
+membership, so an attribution box can include nearby distinct components;
+`measured_hot_pixels` makes that limitation visible. I rejected claiming exact
+component membership without changing the existing hotspot algorithm and ABI.

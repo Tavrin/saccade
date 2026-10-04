@@ -83,6 +83,9 @@ pub(crate) fn collect_images(root: &Path) -> Result<Collected> {
         let Some(name) = relative_name(root, item.path()) else {
             continue;
         };
+        if crate::object_ids::is_sidecar_image_name(&name) {
+            continue;
+        }
         if item.path_is_symlink() {
             out.problems
                 .insert(name, "symlinks are not followed".to_string());
@@ -816,6 +819,7 @@ pub(crate) fn build_entry(
         baseline_sha256: None,
         capture_sha256: None,
         hotspots: Vec::new(),
+        object_attribution: Vec::new(),
         pass_with_local_change: false,
         buffer: None,
         diagnostics: None,
@@ -828,6 +832,7 @@ pub(crate) fn build_entry(
         entry.regions.clear();
         entry.masked_fraction = None;
         entry.hotspots.clear();
+        entry.object_attribution.clear();
         entry.diagnostics = None;
         entry.paths.signed_diff = None;
         entry.paths.nonfinite_mask = None;
@@ -1000,6 +1005,21 @@ fn finish_entry(
             min_share: config.hotspot_min_share,
         },
     );
+    entry.object_attribution = crate::object_ids::attribute(
+        crate::object_ids::Sidecars {
+            capture: pair.capture_path,
+            report_dir,
+            entry_name: &entry.name,
+        },
+        crate::object_ids::HotspotPixels {
+            errors: &cmp.error_map,
+            mask: scene.mask.as_deref(),
+            width: cmp.metrics.width,
+            height: cmp.metrics.height,
+            hotspots: &entry.hotspots,
+            cutoff: config.hotspot_threshold,
+        },
+    )?;
     entry.status = if config.mode == Mode::Identity {
         if entry.bit_identical == Some(true) {
             Status::Pass

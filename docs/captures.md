@@ -87,6 +87,34 @@ frame rate and display conditions before using the score as acceptance
 evidence. See the [crate's model documentation](https://github.com/Tavrin/colorvideovdp-rs#display-models)
 and the [original ColorVideoVDP implementation](https://github.com/gfxdisp/ColorVideoVDP).
 
+## Object and material attribution
+
+Place optional ID sidecars next to a capture image, using its stem:
+
+```text
+captures/scene.png
+captures/scene.object-id.png
+captures/scene.object-id.json
+captures/scene.material-id.exr
+captures/scene.material-id.json
+```
+
+The JSON legend is `{"schema":"saccade-object-ids.v1","kind":"object","ids":{"1":"tree","2":"rock"}}`
+(use `"material"` for material IDs). A PNG stores an unsigned 24-bit ID in
+RGB, most significant byte first. An EXR stores an exactly integral ID in the
+red channel, from 0 through 16,777,215. ID zero is `<unlabeled>` unless named.
+The ID image must match the compared image dimensions. Exactly one PNG or EXR
+and one legend is required for each supplied kind; malformed sidecars make
+that entry an error. These reserved sidecar images are excluded from ordinary
+image pairing.
+
+Each report hotspot lists the share of above-cutoff FLIP error contributed by
+each ID, plus its hot-pixel count. Attribution uses the capture-side ID at
+each unmasked pixel within the hotspot bounding box; nearby disconnected
+hot regions inside that box can contribute too. The copied sidecars and their
+hashes remain in the report and portable evidence case. The HTML report shows
+the same percentages in its attribution table.
+
 Put reports outside capture inputs. `.saccade-run` and historical report/view
 markers keep report images out of archive discovery. Portable artifacts use
 relative paths and immutable hashes. Inspect names before publishing.

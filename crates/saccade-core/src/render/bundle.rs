@@ -74,10 +74,32 @@ pub fn measured_case(report: &Report, dir: &Path) -> Result<Option<EvidenceCase>
             let Some(content) = content else {
                 return Ok(None);
             };
+            let mut sidecars = Vec::new();
+            if role == "capture" {
+                for attribution in &entry.object_attribution {
+                    for (path, hash) in [
+                        (&attribution.image_path, &attribution.image_sha256),
+                        (&attribution.legend_path, &attribution.legend_sha256),
+                    ] {
+                        let source = dir.join(path);
+                        if !source.is_file() {
+                            return Ok(None);
+                        }
+                        let reference =
+                            ArtifactRef::from_file(&source, &document, false).map_err(contract)?;
+                        if reference.sha256
+                            != Digest::parse(format!("sha256:{hash}")).map_err(contract)?
+                        {
+                            return Ok(None);
+                        }
+                        sidecars.push(reference);
+                    }
+                }
+            }
             inputs.push(Input {
                 id: format!("{role}:{}", entry.name),
                 content,
-                sidecars: Vec::new(),
+                sidecars,
                 native_samples: Availability::missing(
                     "native samples are described by the measured report",
                 ),

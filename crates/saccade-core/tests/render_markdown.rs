@@ -41,6 +41,7 @@ fn entry(name: String, status: Status, value: Option<f64>) -> Entry {
         baseline_sha256: None,
         capture_sha256: None,
         hotspots: Vec::new(),
+        object_attribution: Vec::new(),
         diagnostics: None,
     }
 }

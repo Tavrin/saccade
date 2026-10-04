@@ -681,6 +681,7 @@ fn compute_entry(
         baseline_sha256: None,
         capture_sha256: None,
         hotspots,
+        object_attribution: Vec::new(),
         pass_with_local_change: false,
         diagnostics: Some(diag.diagnostics),
     };

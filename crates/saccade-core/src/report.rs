@@ -345,6 +345,9 @@ pub struct Entry {
     /// pair was not compared or when hotspots are disabled.
     #[serde(default)]
     pub hotspots: Vec<Hotspot>,
+    /// Per-hotspot error attributed to object/material IDs supplied with the capture.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub object_attribution: Vec<crate::object_ids::Attribution>,
     /// Additive status: the deciding metric passes but a severe local change exists.
     #[serde(default)]
     pub pass_with_local_change: bool,

@@ -355,6 +355,30 @@
       }))));
   }
 
+  function attributionTable(e) {
+    var sources = e.object_attribution || [];
+    if (!sources.length) return null;
+    var rows = [];
+    sources.forEach(function (source) {
+      (source.hotspots || []).forEach(function (hotspot) {
+        (hotspot.contributions || []).forEach(function (part) {
+          rows.push(h("tr", null,
+            h("td", { text: source.kind }),
+            h("td", { text: String(hotspot.hotspot) }),
+            h("td", { text: part.name + " (#" + part.id + ")" }),
+            h("td", { class: "num", text: pct(part.error_share) }),
+            h("td", { class: "num", text: String(part.pixels) })));
+        });
+      });
+    });
+    if (!rows.length) return null;
+    return h("div", { class: "rtab-wrap" }, h("table", { class: "rtab" },
+      h("caption", { text: "Object and material attribution (FLIP error share among hot pixels inside each hotspot box)" }),
+      h("thead", null, h("tr", null, ["Kind", "Hotspot", "ID", "Error share", "Hot pixels"].map(function (name) {
+        return h("th", { scope: "col", text: name });
+      }))), h("tbody", null, rows)));
+  }
+
   function badges(e) {
     var p = e.properties;
     var b = h("div", { class: "badges" });
@@ -959,6 +983,8 @@
     if (!cmpApi) d.appendChild(sidePanes);
     var ht = hotspotTable(e, goHot);
     if (ht) d.appendChild(ht);
+    var at = attributionTable(e);
+    if (at) d.appendChild(at);
     var mg = metricsGrid(e);
     if (mg) d.appendChild(mg);
     var rt = regionTable(e);

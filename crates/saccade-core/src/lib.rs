@@ -40,6 +40,7 @@ pub mod judge_vote;
 pub mod labels;
 pub mod local;
 pub mod meta;
+pub mod object_ids;
 pub mod paths;
 pub mod perf;
 pub mod properties;
