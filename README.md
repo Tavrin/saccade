@@ -1,83 +1,62 @@
 # saccade
 
-Saccade compares captures, records the limits of the comparison, and prepares
-visual evidence for a human or coding agent to review.
-It uses NVIDIA FLIP for perceptual image differences and native decoded samples
-for exact identity. Models can supply observations and proposals. A human
-authorizes baseline changes.
+saccade checks rendered images for visual regressions. Point it at a folder of
+baseline images and a folder of new captures: it pairs them by name, scores
+each pair with NVIDIA FLIP (a perceptual image-difference metric), and writes
+an HTML report with heatmaps and numbered hotspots, a JSON report, and an exit
+code for CI. It can also prove that an optimization left every pixel unchanged,
+and it prepares the evidence a human or a coding agent needs to review a
+change. Baselines change only when a human approves.
 
 ![Report with image differences and numbered hotspots](docs/images/report.png)
 
 ## Install
 
-Download a binary archive and its checksum file from
-[Releases](https://github.com/Tavrin/saccade/releases), when available.
-Choose the archive for your operating system and CPU, verify its SHA-256 against
-the release checksum file, extract it, and put `saccade` on PATH.
-No account or Rust installation is required for a prebuilt binary.
-The repository does not claim that a 1.0 release or `v1` Action tag is published.
-
-For a source build, use Rust 1.88 or newer:
+**Release archive.** Each release has four archives and a `SHA256SUMS` file:
+`saccade-x86_64-unknown-linux-gnu.tar.gz`, `saccade-aarch64-unknown-linux-gnu.tar.gz`,
+`saccade-aarch64-apple-darwin.tar.gz` and `saccade-x86_64-pc-windows-msvc.zip`.
+Download the one for your system from
+[Releases](https://github.com/Tavrin/saccade/releases), check it, extract it,
+and put `saccade` on your PATH:
 
 ```sh
-cargo build --release --locked -p saccade
+sha256sum -c SHA256SUMS --ignore-missing
+tar -xzf saccade-x86_64-unknown-linux-gnu.tar.gz
 ```
 
-The executable is `target/release/saccade` (`saccade.exe` on Windows).
-Set `CARGO_TARGET_DIR` before building if you use another build directory.
-Add that directory's `release` folder to PATH for the commands below.
+On macOS use `shasum -a 256 -c SHA256SUMS --ignore-missing`.
+No Rust toolchain is needed. Each archive includes the licences and
+third-party notices. How releases are built and checked: [releasing](docs/releasing.md).
 
-The official CLI enables graphics analysis, optional AI review, the local
-workbench, MCP and evaluation. AI execution requires authorization.
-The library defaults to parallel comparison only. Experimental prechecks are off.
+**From source with Cargo** (Rust 1.88 or newer):
 
-## Build identity and behavior capabilities
+```sh
+cargo install --locked --git https://github.com/Tavrin/saccade saccade
+```
 
-`saccade doctor --json` reports the package `version`, a `build` object, and a
-sorted `capabilities` array. `build.git_commit` (full hash),
-`build.git_commit_short`, and `build.git_dirty` describe the checkout at build
-time. They are `null` for a published crate tarball or when Git is unavailable.
-`build.profile` and `build.rustc_version` identify the Cargo profile and compiler.
-`saccade --version` adds `+g<short commit>` and, for a dirty checkout, `.dirty`
-to the package version. The suffix is absent without a Git identity.
+From a clone, `cargo install --locked --path crates/saccade` does the same.
+Add `--features prechecks` for the experimental safety and accessibility checks.
 
-Scripts should gate on capability names, rather than the package version or
-the presence of a CLI command. Names are append-only; an existing name will
-not be renamed or removed without a deprecation period.
+Check the install with `saccade --version` or `saccade doctor --json`.
 
-| Capability | Guarantee |
-| --- | --- |
-| `compat-aliases` | Legacy command aliases remain accepted with a replacement warning. |
-| `removed-flag-errors` | Removed flags fail with a targeted replacement or removal error. |
-| `version-skew-errors` | Newer persisted report versions fail with a distinct version skew error. |
-| `provenance-warnings` | Missing capture provenance is reported as a warning. |
-| `repeat-detection` | Repeated capture evidence is detected and reported. |
-| `perf-v2` | Performance evidence schema `saccade-perf.v2` is supported. |
-| `identity-json-v1` | Identity can emit its versioned JSON result. |
-| `prechecks` | The `prechecks` feature adds safety and accessibility prechecks. |
-| `mcp` | The `mcp` feature adds the local MCP server. |
-| `review` | The `ai` feature adds provider-backed review execution. Local review preview remains available without it. |
-
-The last three names appear only when the corresponding feature is compiled in.
-
-## Demo
+## Quickstart (60 seconds)
 
 ```sh
 saccade demo --out saccade-demo
 saccade view saccade-demo
 ```
 
-The demo exits **1** because it contains an intentional regression and a missing
-capture. It retains the real comparison verdict. `view` identifies the report;
-open `saccade-demo/report/index.html` in your browser.
+The demo writes three reports and exits **1** on purpose: it contains a moved
+shadow, a changed UI label and a missing capture. `view` prints the report
+page to open: `saccade-demo/report/index.html`. Then compare your own images:
 
-The bundle includes a renderer defect, a UI label defect, equal native samples
-with different PNG encodings, and an intended-change review fixture.
-Review responses and resolution are illustrative offline records.
-No provider is called and no baseline is updated.
-[Demo provenance](crates/saccade/assets/demo/provenance.json) records sources,
-licenses and hashes. The CPU sphere render uses the repository's own analytic
-renderer; it contains no imported assets.
+```sh
+saccade compare BASELINE_DIR CAPTURE_DIR --out report
+```
+
+Exit 0 means no image regression, 1 means at least one image failed, and 2
+means the command could not run. Open `report/index.html` to see the result.
+No network, GPU or account is used.
 
 ## Compare files or directories
 
@@ -110,6 +89,8 @@ See [capture configuration](docs/captures.md).
 
 ## Optimization identity
 
+This uses the demo from the quickstart:
+
 ```sh
 saccade identity saccade-demo/identity/baseline saccade-demo/identity/capture --out identity-report --json
 ```
@@ -125,9 +106,9 @@ sample equality can be established while capture comparability stays unknown.
 Image identity alone cannot establish a speedup.
 See [identity and performance](docs/identity-and-performance.md).
 
-## Optional BYOK review
+## Optional model review (bring your own key)
 
-Start with a local preview:
+Start with a local preview. These commands do not call a provider:
 
 ```sh
 saccade review directory-report/saccade-report.v1.json --out review-plan --json
@@ -135,25 +116,22 @@ saccade review request file-report/saccade-report.v1.json --question triage.rout
 saccade review ask triage-request.json --out human-review
 ```
 
+The preview writes the exact payloads to `review-plan/requests.json`, with
+estimated tokens and, if you configure model rates, an estimated cost.
 Use the completely paired file report for the request; missing required facts
-block question creation. These commands do not call a provider. Requests identify
-exact evidence. `review propose` validates answers against a request and records
-advice. It supplies no approval authority.
+block question creation. Requests identify exact evidence. `review propose`
+validates answers against a request and records advice. It supplies no
+approval authority.
 
 For live use, the human configures provider endpoints and dedicated credentials
 in user configuration, allows egress for the source roots, and explicitly runs
 `review REPORT --run --budget-calls N`. Unclassified roots deny egress.
 Project files may select approved models and reduce budgets; they cannot grant
-network, credential, path or approval authority.
-
-Every retry and fallback spends from the shared attempt ledger. Preview payload
-hashes and source policy before authorizing execution. Denied capture provenance
-also restricts derived reports, crops and observations.
+network, credential, path or approval authority. Every retry and fallback
+spends from the shared attempt budget.
 See [review](docs/review.md) for the workflow and limits.
 
 ## GitHub Action
-
-The release syntax is proposed; `v1` is not claimed to be published:
 
 ```yaml
 - uses: Tavrin/saccade@v1
@@ -162,6 +140,7 @@ The release syntax is proposed; `v1` is not claimed to be published:
     capture-dir: artifacts/captures
 ```
 
+The `v1` tag is not published yet; this is the intended syntax.
 Binary installation is the default and verifies checksums.
 `install-mode: source` selects an explicit source build.
 A failed comparison still uploads the report and JUnit results.
@@ -172,29 +151,24 @@ Baseline updates require a trusted dispatch bound to selected reviewed content.
 They create a review PR without auto-merge.
 See [CI](docs/ci.md) and [Action examples](examples/action/README.md).
 
-## Coding agents
+## For AI agents
 
-Read the [agent workflow](docs/agents.md), then install the compact
-[Claude Code skill](integrations/claude-code/skills/saccade/SKILL.md) or
+Start with the [agent guide](docs/agents.md). It explains the bounded JSON
+results (`verdict`, `worst`, `next_actions`), how to page through failures,
+and what an agent may not do. Ready-made packs are generated from
+[one guide](integrations/agent-guide.md): a
+[Claude Code skill](integrations/claude-code/skills/saccade/SKILL.md) and
 [Codex instructions](integrations/codex/AGENTS.saccade.md).
-Both are generated from [one guide](integrations/agent-guide.md).
-
-A local MCP server confines inputs to registered read-only roots and outputs to
-an explicit output root:
 
 ```sh
 saccade mcp --root examples --out-root agent-reports
 ```
 
-The six tools measure, inspect, prepare evidence, review, propose and ask a human.
-Provider calls are off unless a human starts the server with both
-`--allow-provider-calls` and a positive finite `--budget-calls`.
-There is no baseline-write tool.
-
-Read bounded JSON before full artifacts. Summaries preserve validity, missingness,
-counts and up to three next actions. Follow pagination instead of reading every
-image. Keep measured facts, model observations and inference distinct.
-Never relax a threshold or update a baseline to make a task pass.
+The MCP server has six tools. Inputs are confined to read-only `--root`
+directories and outputs to `--out-root`. Provider calls are off unless a human
+starts the server with `--allow-provider-calls` and a positive `--budget-calls`.
+There is no baseline-write tool. Agents never relax a threshold or update a
+baseline to make a task pass.
 
 ## Reproducible showcases
 
@@ -216,12 +190,32 @@ python3 docs/showcase/build.py --saccade target/release/saccade --out target/pag
 Put the built binary on PATH before running the showcase script.
 The script checks exit codes and reproduces measured `EXPECTED.txt` transcripts.
 It never accepts changed output automatically.
-The Pages gallery also builds with the default CLI; its experimental fixture is
-listed as unvalidated when `prechecks` is absent.
+
+## Status
+
+saccade 0.1.0 is the first public release.
+
+- **Stable:** `compare`, `identity`, `approve`, `view`, `inspect`, `init`,
+  `noise`, `demo`, `serve`, the local `review` preview and request commands,
+  the MCP server, the HTML and JSON reports, exit codes, and the GitHub Action
+  inputs. The active formats are listed in [contracts](docs/contracts.md).
+  Scripts should gate on `doctor --json` capability names
+  ([list](docs/contracts.md#build-identity-and-behavior-capabilities)).
+- **Experimental:** the `experiment` commands (ablation, sequences, ranking,
+  bisection, and the safety and accessibility prechecks) and `review eval`.
+  Their output may change.
+- **AI review accuracy is not yet qualified.** The pilot evaluation has fewer
+  labeled cases per question than qualification requires, so no claim is made
+  about how accurate any model's answers are, or which model is better. Treat
+  every model answer as a proposal for a human to check.
+  See [evaluation](docs/evaluation.md).
+
+Native installation on each platform and live provider behaviour need their
+own checks; passing local tests does not establish them.
 
 ## Limits
 
-Saccade measures supplied captures. It does not run a renderer or capture
+saccade measures supplied captures. It does not run a renderer or capture
 scheduler, infer application readiness, or establish correctness from equality.
 FLIP depends on viewing conditions; HDR display transforms and numerical buffers
 need explicit interpretation. Missing repeat noise is unknown, not zero.
@@ -232,15 +226,11 @@ tie into acceptance. Contradictory blind orders and ambiguous intent remain
 unresolved. Independent blind review requires a reviewer without the mapping or
 implementation context; a private key cannot blind its creator.
 
-Human-final is an application policy and audit boundary in the user's trust
-environment. An unrestricted shell agent can invoke CLI approval.
-Workbench receipts use scoped token attestation; CLI receipts disclose
-`human_attestation: null`. Historical promoted records require fresh review.
+"Human-final" approval is a policy and audit record, not authentication: an
+unrestricted shell agent can still run `saccade approve`. Workbench receipts
+record a scoped token attestation; CLI receipts record `human_attestation: null`.
 
-Native platform installation, live provider quality and release deployment need
-separate qualification. Local fixtures do not establish those outcomes.
-
-## Documentation and license
+## Documentation
 
 - [Captures](docs/captures.md) and [identity/performance](docs/identity-and-performance.md)
 - [Review](docs/review.md), [agents](docs/agents.md), [CI](docs/ci.md)
@@ -248,5 +238,10 @@ separate qualification. Local fixtures do not establish those outcomes.
 - [Evaluation](docs/evaluation.md), [command reference](docs/cli.md), [experimental checks](docs/experimental.md)
 - [Architecture](docs/design.md), [contributing](CONTRIBUTING.md), [changes](CHANGELOG.md)
 
-Saccade is licensed MIT OR Apache-2.0. NVIDIA's FLIP code is BSD-3-Clause;
-see [third-party notices](THIRD_PARTY.md).
+## License
+
+saccade is licensed under either of [MIT](LICENSE-MIT) or
+[Apache-2.0](LICENSE-APACHE), at your option. FLIP comes from the pure-Rust
+[flip-rs](https://crates.io/crates/flip-rs) port of NVIDIA FLIP, which is
+BSD-3-Clause. See [third-party notices](THIRD_PARTY.md); release archives
+also carry a generated `THIRD_PARTY_NOTICES.md` covering every dependency.

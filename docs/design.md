@@ -23,6 +23,3 @@ Task documentation:
 - [Contracts](contracts.md), [evaluation](evaluation.md)
 - [Generated CLI reference](cli.md), [experiments](experimental.md)
 - [Design decisions](design-decisions/)
-
-Historical dated review and recovery files retain their original evidence.
-They are archived records, not maintained command instructions or release claims.

@@ -125,6 +125,10 @@ table { border-collapse: collapse; }
 /* ---- kbd ---- */
 kbd { display: inline-block; min-width: 20px; padding: 1px 6px; border: 1px solid var(--border); border-bottom-width: 2px; border-radius: var(--r-sm); background: var(--surface-2); color: var(--text); font: 600 var(--fs-xs)/1.4 var(--mono); text-align: center; white-space: nowrap; }
 .keys { display: inline-flex; gap: 3px; align-items: center; }
+/* A one-line reminder of the main shortcuts; hidden where there is no keyboard. */
+.kbd-hint { color: var(--muted); font-size: var(--fs-xs); white-space: nowrap; }
+.kbd-hint kbd { min-width: 0; padding: 0 5px; }
+@media (max-width: 720px), (pointer: coarse) { .kbd-hint { display: none; } }
 
 /* ---- popover ---- */
 .pop-wrap { position: relative; display: inline-flex; }

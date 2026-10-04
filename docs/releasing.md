@@ -10,4 +10,4 @@ Run `scripts/release-check.sh` against the exact revision to be tagged. It print
 
 The local script proves formatting, Clippy, workspace and feature tests, package allowlist, license inventory generation, Action lint, historical readers, docs generation, and showcase/schema validation in the current worktree. CI qualification proves the four clean runner installations and artifact identity. Browser checks, fork PR/update demonstrations, Moss integration, live pilot support, and notarisation need separate human evidence; green local gates alone do not establish them.
 
-The coordinator owns all Git pushes, tags, workflow dispatches, and publication. See [R15 decisions](design-decisions/release.md) for the notice and fixture policy.
+Maintainers own all Git pushes, tags, workflow dispatches, and publication. See the [release decisions](design-decisions/release.md) for the notice and fixture policy.

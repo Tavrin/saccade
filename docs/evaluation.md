@@ -20,6 +20,8 @@ fixed labeling count.
 
 Publish permitted aggregate metrics and hashes. Image publication needs separate
 human rights clearance; allowed provider egress is not publication permission.
-Moss third-party assets are private by default. Live results and corpus
-preparation belong to the evaluation lane; these docs make no new quality claim.
-Historical live-review notes are archived observations, not current instructions.
+Third-party assets in private evaluation corpora stay private by default.
+These docs make no model-quality claim: the pilot is below the qualification
+sample size, so no question is qualified yet.
+[Historical notes](../examples/evaluation/HISTORICAL.md) record earlier
+observations; they are not current instructions.

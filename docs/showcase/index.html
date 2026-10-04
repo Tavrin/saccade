@@ -64,12 +64,12 @@ cargo run --release -p saccade -- compare examples/baseline examples/capture --o
 </div></div></div>
 <figcaption class="cmp-foot"><div class="diag s-fail"><div class="dh"><span class="badge">local_structure</span></div><p class="dcap">Local structural change at bottom-right (55×14, 89% of error); rest of frame unchanged.</p></div><div class="row"><span class="legend flip">0 <i></i> 1 FLIP</span></div></figcaption></figure>
       <div class="hero-out">
-        <div class="term"><div class="term-h">saccade compare (excerpt from the UI case below)</div><pre class="out">STATUS  NAME                METRIC  VALUE    THRESHOLD
+        <div class="term"><div class="term-h">saccade compare (excerpt from the UI case below)</div><pre class="out">compare: ❌ regression: 3 fail of 5 images
 <span class="k-fail">FAIL</span>    label.png           max     0.74187  0.02
 <span class="k-note">  ↳</span> local_structure: Local structural change at bottom-right (55×14, 89% of error); rest of frame unchanged.
 <span class="k-note">  ↳</span> 1 hotspot: 55x14 @ bottom-right (89% of error)
 …
-3 fail, 0 error, 0 missing, 0 new, 2 pass (5 total)</pre></div>
+        saccade approve --report ../../../../../../..$OUT/compare/saccade-report.v1.json --entry NAME --dry-run --out plan</pre></div>
       </div>
     </div>
   </div>
@@ -119,6 +119,8 @@ saccade compare baseline capture --config saccade.toml --out &quot;$OUT/compare&
 <span class="p">$ </span>OUT=$(mktemp -d)
 <span class="p">$ </span><span class="c">saccade</span>compare baseline capture --config saccade.toml --out &quot;$OUT/compare&quot;</pre></div>
 <div class="term"><div class="term-h">Output</div><pre class="out">=== compare (exit 1) ===
+compare: ❌ regression: 3 fail of 5 images
+
 STATUS  NAME                METRIC  VALUE    THRESHOLD
 <span class="k-fail">FAIL</span>    button-shift.png    max     0.60632  0.02
 <span class="k-note">  ↳</span> local_structure: Local structural change at bottom-right (55×13, 31% of error) and 2 more regions; rest of frame unchanged.
@@ -132,7 +134,10 @@ STATUS  NAME                METRIC  VALUE    THRESHOLD
 <span class="k-pass">pass</span>    identical.png       max     0.00000  0.02
 <span class="k-pass">pass</span>    timestamp-only.png  max     0.00000  0.02
 
-3 fail, 0 error, 0 missing, 0 new, 2 pass (5 total)</pre></div>
+3 fail, 0 error, 0 missing, 0 new, 2 pass (5 total)
+report: ../../../../../../..$OUT/compare/index.html
+next:   open the report and check the numbered hotspots; if a change is intended, plan its approval with
+        saccade approve --report ../../../../../../..$OUT/compare/saccade-report.v1.json --entry NAME --dry-run --out plan</pre></div>
 <div class="links"><a class="btn" href="reports/webapp-ui/compare/index.html">Open the compare report</a><a class="btn ghost" href="https://github.com/Tavrin/saccade/tree/main/showcases/webapp-ui">Dataset</a></div>
 </div></div></div></section>
 <section class="case" id="cover-art" aria-labelledby="cover-art-h">
@@ -158,6 +163,8 @@ saccade compare baseline capture --config saccade.toml --out &quot;$OUT/compare&
 <span class="p">$ </span>OUT=$(mktemp -d)
 <span class="p">$ </span><span class="c">saccade</span>compare baseline capture --config saccade.toml --out &quot;$OUT/compare&quot;</pre></div>
 <div class="term"><div class="term-h">Output</div><pre class="out">=== compare (exit 1) ===
+compare: ❌ regression: 3 fail of 3 images
+
 STATUS  NAME          METRIC  VALUE    THRESHOLD
 <span class="k-fail">FAIL</span>    crop.png      mean    0.19122  0.001
 <span class="k-note">  ↳</span> local_structure: Structural change across most of the frame (largest region center, 224×248, 80% of error).
@@ -169,7 +176,10 @@ STATUS  NAME          METRIC  VALUE    THRESHOLD
 <span class="k-note">  ↳</span> global_tone: Whole frame 0.06 stops brighter, tint warmer (red +22.5%, blue -25.6% vs green) (tone shift explains 94% of the difference); no structural change.
 <span class="k-note">  ↳</span> 1 hotspot: 224x288 @ center (100% of error) [frame-wide change]
 
-3 fail, 0 error, 0 missing, 0 new, 0 pass (3 total)</pre></div>
+3 fail, 0 error, 0 missing, 0 new, 0 pass (3 total)
+report: ../../../../../../..$OUT/compare/index.html
+next:   open the report and check the numbered hotspots; if a change is intended, plan its approval with
+        saccade approve --report ../../../../../../..$OUT/compare/saccade-report.v1.json --entry NAME --dry-run --out plan</pre></div>
 <div class="links"><a class="btn" href="reports/cover-art/compare/index.html">Open the compare report</a><a class="btn ghost" href="https://github.com/Tavrin/saccade/tree/main/showcases/cover-art">Dataset</a></div>
 </div></div></div></section>
 <section class="case" id="texture-compression" aria-labelledby="texture-compression-h">
@@ -303,6 +313,8 @@ saccade inspect export &quot;$OUT/compare/saccade-report.v1.json&quot; --format 
 <span class="p">$ </span><span class="c">saccade</span>inspect evidence &quot;$OUT/compare/saccade-report.v1.json&quot; --out &quot;$OUT/explain&quot;
 <span class="p">$ </span><span class="c">saccade</span>inspect export &quot;$OUT/compare/saccade-report.v1.json&quot; --format markdown --out &quot;$OUT/summary.md&quot;</pre></div>
 <div class="term"><div class="term-h">Output</div><pre class="out">=== compare (exit 1) ===
+compare: ❌ regression: 3 fail of 6 images
+
 STATUS  NAME          METRIC  VALUE    THRESHOLD
 <span class="k-fail">FAIL</span>    seed_101.png  mean    0.18755  0.001
 <span class="k-note">  ↳</span> global_tone: Whole frame tint warmer (red +34.7%, blue -19.2% vs green) (tone shift explains 92% of the difference); no structural change.
@@ -318,6 +330,9 @@ STATUS  NAME          METRIC  VALUE    THRESHOLD
 <span class="k-pass">pass</span>    seed_103.png  mean    0.00000  0.001
 
 3 fail, 0 error, 0 missing, 0 new, 3 pass (6 total)
+report: ../../../../../../..$OUT/compare/index.html
+next:   open the report and check the numbered hotspots; if a change is intended, plan its approval with
+        saccade approve --report ../../../../../../..$OUT/compare/saccade-report.v1.json --entry NAME --dry-run --out plan
 === explain (exit 0) ===
 evidence: complete
 artifact: ../../../../../../..$OUT/explain/explain.json
@@ -349,6 +364,8 @@ saccade compare baseline capture --config saccade.toml --out &quot;$OUT/compare&
 <span class="p">$ </span>OUT=$(mktemp -d)
 <span class="p">$ </span><span class="c">saccade</span>compare baseline capture --config saccade.toml --out &quot;$OUT/compare&quot;</pre></div>
 <div class="term"><div class="term-h">Output</div><pre class="out">=== compare (exit 1) ===
+compare: ❌ regression: 2 fail of 4 images
+
 STATUS  NAME        METRIC          VALUE    THRESHOLD
 <span class="k-fail">FAIL</span>    depth.png   mean (depth)    0.00809  0.002
 <span class="k-fail">FAIL</span>    lit.png     mean            0.06203  0.001
@@ -357,7 +374,10 @@ STATUS  NAME        METRIC          VALUE    THRESHOLD
 <span class="k-pass">pass</span>    motion.png  mean (pixels)   0.00000  0.5
 <span class="k-pass">pass</span>    normal.png  mean (degrees)  0.00000  1
 
-2 fail, 0 error, 0 missing, 0 new, 2 pass (4 total)</pre></div>
+2 fail, 0 error, 0 missing, 0 new, 2 pass (4 total)
+report: ../../../../../../..$OUT/compare/index.html
+next:   open the report and check the numbered hotspots; if a change is intended, plan its approval with
+        saccade approve --report ../../../../../../..$OUT/compare/saccade-report.v1.json --entry NAME --dry-run --out plan</pre></div>
 <div class="links"><a class="btn" href="reports/render-gbuffer/compare/index.html">Open the compare report</a><a class="btn ghost" href="https://github.com/Tavrin/saccade/tree/main/showcases/render-gbuffer">Dataset</a></div>
 </div></div></div></section>
 <section class="case" id="perf-identity" aria-labelledby="perf-identity-h">
@@ -395,7 +415,9 @@ STATUS  NAME        METRIC  VALUE    THRESHOLD
 <span class="k-pass">pass</span>    view_1.png  max     0.00000  0
 <span class="k-note">  ↳</span> bit-identical · timing.gpu_ms 4.85 → 2.71 (−44%)
 
-1 fail, 0 error, 0 missing, 0 new, 2 pass (3 total)</pre></div>
+1 fail, 0 error, 0 missing, 0 new, 2 pass (3 total)
+report: ../../../../../../..$OUT/identity/index.html
+next:   open the report to see where the samples differ; use `saccade compare` when a perceptual tolerance is acceptable</pre></div>
 <div class="links"><a class="btn" href="reports/perf-identity/identity/index.html">Open the identity report</a><a class="btn ghost" href="https://github.com/Tavrin/saccade/tree/main/showcases/perf-identity">Dataset</a></div>
 </div></div></div></section>
 <section class="case" id="photosensitivity" aria-labelledby="photosensitivity-h"><div class="wrap"><h2 id="photosensitivity-h">09 · Photosensitivity precheck</h2><p>Procedural 4 Hz fixture; static previews only. No certification claim.</p><div class="term"><div class="term-h">Command (requires prechecks)<button class="copy" type="button">Copy</button></div><pre class="" data-copy="cd showcases/photosensitivity
@@ -437,12 +459,12 @@ warning: Red-flash detection uses the legacy WCAG 2.0/2.1 numeric working defini
   &quot;measurement&quot;: &quot;regression&quot;,
   &quot;validity&quot;: &quot;unknown&quot;,
   &quot;review&quot;: &quot;pending&quot;,
-  &quot;counts&quot;: {&quot;error&quot;: 0, &quot;fail&quot;: 3, &quot;missing&quot;: 0, &quot;new&quot;: 0, &quot;pass&quot;: 2, &quot;total&quot;: 5, &quot;validity_reasons&quot;: 10},
+  &quot;counts&quot;: {&quot;error&quot;: 0, &quot;fail&quot;: 3, &quot;missing&quot;: 0, &quot;new&quot;: 0, &quot;pass&quot;: 2, &quot;total&quot;: 5, &quot;validity_reasons&quot;: 30},
   &quot;page&quot;: {&quot;next_cursor&quot;: null, &quot;omitted&quot;: 0},
   &quot;next_actions&quot;: [
     {
       &quot;arguments&quot;: {
-        &quot;artifact&quot;: {&quot;path&quot;: &quot;../../../../../../..$OUT/saccade-report.v1.json&quot;, &quot;sha256&quot;: &quot;sha256:62074caa27234aff8b29930cb03aa22dd49d57157fadc02eb68b279d838cccf6&quot;},
+        &quot;artifact&quot;: {&quot;path&quot;: &quot;../../../../../../..$OUT/saccade-report.v1.json&quot;, &quot;sha256&quot;: &quot;sha256:8076d6ebb8023ed63578fda78a3d412961657df9b56e6f8a4b1d745bc5ed43da&quot;},
         &quot;operation&quot;: &quot;summary&quot;
       },
       &quot;cli_argv&quot;: [
@@ -451,9 +473,10 @@ warning: Red-flash detection uses the legacy WCAG 2.0/2.1 numeric working defini
         &quot;../../../../../../..$OUT/saccade-report.v1.json&quot;,
         &quot;--json&quot;,
         &quot;--expected-case-id&quot;,
-        &quot;sha256:cd823c2aa49ce9ade30d6e01fe09e8381f3afa83b72270a6de2ecefa93872e1d&quot;
+        &quot;sha256:94efb9f99f4e0109dda371f2a99ba80f585f3b4c85468e95e90f01e5e814572e&quot;
       ],
-      &quot;expected_case_id&quot;: &quot;sha256:cd823c2aa49ce9ade30d6e01fe09e8381f3afa83b72270a6de2ecefa93872e1d&quot;,
+      &quot;cwd&quot;: &quot;showcases/webapp-ui&quot;,
+      &quot;expected_case_id&quot;: &quot;sha256:94efb9f99f4e0109dda371f2a99ba80f585f3b4c85468e95e90f01e5e814572e&quot;,
       &quot;id&quot;: &quot;inspect-evidence&quot;,
       &quot;kind&quot;: &quot;inspect_evidence&quot;,
       &quot;priority&quot;: 1,

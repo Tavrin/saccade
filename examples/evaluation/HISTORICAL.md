@@ -1,6 +1,6 @@
 # Historical record interpretation
 
-The [saved live review](../../docs/review-live-2026-10-02/COMPLETION.md) and its benchmark artifacts remain unchanged. They describe operational observations under their recorded inputs, retries, cooldowns and budgets. They do not establish a question-specific quality ranking.
+An earlier live review and preference benchmark (October 2026) were run during development. Those records are not part of the public repository. They describe operational observations under their recorded inputs, retries, cooldowns and budgets. They do not establish a question-specific quality ranking.
 
 The old preference benchmark used preference targets and included unanswered items in its accuracy denominator. Those targets are not human truth for the five-question catalog. Transport failures are unavailable, explicit valid abstentions are abstained, and unanswered scheduled work remains deferred or budget-blocked. Conditional accuracy uses labeled committed answers. Availability and answer coverage use eligible scheduled cells, excluding denied egress. Correct resolutions over eligible cases is a separate operational measure.
 

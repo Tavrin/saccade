@@ -13,6 +13,78 @@ and evidence requests 12 KiB. Pagination preserves validity, missingness and
 counts. Default summaries include up to three typed actions and no images.
 Stale expected case identities invalidate actions.
 
+## Reading a compare or identity result
+
+`compare --json` and `identity --json` print one bounded `saccade-result.v2`
+object. Read these fields first:
+
+| Field | Meaning |
+| --- | --- |
+| `verdict` | `regression`, `pass` or `performance_rejected` |
+| `performance` | Present when a performance comparison ran: `verdict`, `comparability`, `repeat_qualification`, `summary` |
+| `overall` | `performance_rejected` when images pass but the timing comparison is rejected; absent otherwise |
+| `worst` | The failing entry with the highest value/threshold ratio: `entry`, `metric`, `value`, `threshold`; `null` when no failing entry has a value |
+| `failing` | Up to five failing entries, worst first |
+| `next_actions[]` | Typed follow-up commands, with `cli_argv` and `cwd` |
+
+`performance_rejected` means the image thresholds passed but the two runs'
+timings cannot be compared (for example, a producer qualification check
+failed or the frame statistics differ). `performance.comparability` and its
+summary give the reasons. The exit code still follows the image result, so a script that
+gates on exit 0 keeps working. Do not report such a run as a plain pass.
+
+`failing` and `worst` sort by `value / threshold`, highest first. Entries
+without a measured value (`missing`, `new`, `error`) come after every measured
+failure, then by name. Read `worst` to pick the entry to inspect first.
+
+Each next action carries `cli_argv` and `cwd`. Relative paths in `cli_argv`
+resolve against `cwd`, the absolute directory where saccade ran. Run the
+command from `cwd`; other paths in the result stay relative and portable.
+
+## Inspecting one entry or the validity reasons
+
+```sh
+saccade inspect REPORT/saccade-report.v1.json --entry NAME --json
+saccade inspect REPORT/saccade-report.v1.json --validity-reasons --limit 10 --json
+```
+
+`--entry NAME` returns that entry's deciding fields: `status`, `metric`,
+`value`, `threshold`, up to three `hotspots` (`rect_px`, `max_flip`,
+`position`), a short `explanation` and `error`. The top-level `measurement`
+is that entry's result. A next action points at `inspect evidence` for crops.
+Full reports are never copied into this output.
+
+`--validity-reasons` pages through every capture-validity reason. Each item
+has an `index` and a `reason` that names the image and the missing or
+mismatched evidence. Follow `page.next_cursor` with `--cursor`. It
+cannot be combined with `--entry` or `--status`.
+
+## Moss cost cards
+
+Captures produced by the Moss engine carry a `cost-card.json` sidecar. Pass
+`--meta-name cost-card.json` to `compare` and `identity`. Saccade reads
+build provenance from these keys (case and `.`, `-`, space are ignored):
+
+| Provenance field | Accepted keys |
+| --- | --- |
+| `binary_sha256` | `binary.sha`, `binary_sha256`, `binary_hash`, `build_binary_sha256` |
+| `source_head` | `build.commit`, `source_head`, `git_head`, `source_git_head` |
+
+These are the producer's declarations, not hashes computed from pixels. When
+a field is missing, the result's `validity_missing` names the missing keys and
+the `--meta-name` sidecar that can supply them.
+
+## Review preview cost
+
+`review REPORT --out DIR --json` writes `DIR/requests.json` (the exact
+payloads) and `DIR/preview.json` (this result). Each planned question reports
+`request_bytes`, `estimated_input_tokens` (bytes divided by four), a 512-token
+`estimated_output_tokens` allowance and `estimated_cost_usd`. The cost is
+`null`, with a `cost_reason`, unless the user configured model rates. No
+provider is contacted. See [review](review.md).
+
+## MCP tools
+
 The official MCP interface has six tools:
 
 | Tool | Purpose |

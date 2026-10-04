@@ -2,11 +2,42 @@
 
 Measured pair reports remain `saccade-report.v1`. Canonical cases, requests,
 proposals, human decisions and receipts use `saccade-evidence.v1`.
-CLI and MCP use bounded `saccade-result.v2`. The preserved Moss CLI
-`identity --json` discriminator is `saccade-result.v1`; it retains `schema`,
+CLI and MCP use bounded `saccade-result.v2`. `identity --json` keeps the
+`saccade-result.v1` discriminator for existing integrations (the Moss game
+engine reads it); it retains `schema`,
 `mode`, `verdict`, `totals.{pass,fail,error,missing,new,total}` and
 `failing[].error`. Read the complete report to establish exact equality; a
-lean pass count alone is insufficient. See the recorded R5 decision.
+lean pass count alone is insufficient. See the [recorded decision](design-decisions/r5.md).
+
+## Result v2 fields for compare and identity
+
+The [result v2 schema](../schemas/saccade-result.v2.schema.json) lists every
+field. Agents should read these first:
+
+- `verdict` takes a third value, `performance_rejected`: image thresholds pass
+  but performance comparability is rejected. The process exit code still
+  reports the image result (0).
+- `performance` (`verdict`, `comparability`, `repeat_qualification`,
+  `summary`) is present when performance evidence was compared. `overall` is
+  `performance_rejected` in the case above and absent otherwise.
+- `worst` is `{entry, metric, value, threshold}` for the failing entry with the
+  highest value/threshold ratio, or `null`. `failing` uses the same order;
+  entries without a value follow measured failures, then sort by name.
+- `next_actions[].cwd` is the absolute directory the command ran in. Relative
+  paths in `cli_argv` resolve against it. Other paths stay relative unless
+  `--record-absolute-paths` is set.
+- `validity_missing` (`keys`, `source`) names missing provenance fields and
+  the sidecar that can supply them.
+
+`inspect REPORT --entry NAME` returns that entry's `status`, `metric`,
+`value`, `threshold`, up to three `hotspots` and an `explanation`.
+`inspect REPORT --validity-reasons` pages through capture-validity reasons with
+`index` and `reason`; it rejects entry and status filters. `review REPORT
+--out DIR` writes `DIR/requests.json` and `DIR/preview.json`; each payload
+carries `request_bytes`, `estimated_input_tokens`, `estimated_output_tokens`,
+`estimated_cost_usd` and `cost_reason`. See [agents](agents.md) for examples.
+
+## Identity and bundles
 
 Semantic identity uses sorted canonical object keys and round-trip numbers.
 Input content, sidecars, effective config, scope, intent, question/encoder,
@@ -25,6 +56,35 @@ captures, logical archive aliases, `/api/roots` with name/path entries, and
 `serve ROOT...`. Keep `--follow-symlinks-within-roots`, repeatable
 `--symlink-target DIR`, `--meta-name cost-card.json`, bounded storage deadlines
 and read-only browsing. Serve and MCP share the root resolver.
+
+## Build identity and behavior capabilities
+
+`saccade doctor --json` reports the package `version`, a `build` object, and a
+sorted `capabilities` array. `build.git_commit` (full hash),
+`build.git_commit_short`, and `build.git_dirty` describe the checkout at build
+time. They are `null` for a published crate tarball or when Git is unavailable.
+`build.profile` and `build.rustc_version` identify the Cargo profile and compiler.
+`saccade --version` adds `+g<short commit>` and, for a dirty checkout, `.dirty`
+to the package version. The suffix is absent without a Git identity.
+
+Scripts should gate on capability names, rather than the package version or
+the presence of a CLI command. Names are append-only; an existing name will
+not be renamed or removed without a deprecation period.
+
+| Capability | Guarantee |
+| --- | --- |
+| `compat-aliases` | Legacy command aliases remain accepted with a replacement warning. |
+| `removed-flag-errors` | Removed flags fail with a targeted replacement or removal error. |
+| `version-skew-errors` | Newer persisted report versions fail with a distinct version skew error. |
+| `provenance-warnings` | Missing capture provenance is reported as a warning. |
+| `repeat-detection` | Repeated capture evidence is detected and reported. |
+| `perf-v2` | Performance evidence schema `saccade-perf.v2` is supported. |
+| `identity-json-v1` | Identity can emit its versioned JSON result. |
+| `prechecks` | The `prechecks` feature adds safety and accessibility prechecks. |
+| `mcp` | The `mcp` feature adds the local MCP server. |
+| `review` | The `ai` feature adds provider-backed review execution. Local review preview remains available without it. |
+
+The last three names appear only when the corresponding feature is compiled in.
 
 ## Generated schema index
 

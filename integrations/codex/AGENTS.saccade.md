@@ -17,7 +17,11 @@ inputs and pagination. Exit 1 is a failed measurement gate; exit 2 means the
 operation cannot run. Inspect changed entries and follow typed next actions only
 when their expected case identity is current and their requirements are met.
 Missing noise, context or responses remain unknown.
-For Moss captures, use `--meta-name cost-card.json` on `compare` and `identity`.
+`verdict: performance_rejected` means images pass but timing comparability is
+rejected; exit stays 0, so do not report a pass. `worst` names the entry with
+the highest value/threshold ratio; inspect it first with `inspect --entry NAME`.
+Run next-action `cli_argv` from its `cwd`.
+For Moss game-engine captures, use `--meta-name cost-card.json` on `compare` and `identity`.
 Moss supplies binary/source provenance as `binary.sha` and `build.commit`;
 missing-key reasons in JSON name the sidecar that can supply them.
 
