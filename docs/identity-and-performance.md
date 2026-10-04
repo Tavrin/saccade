@@ -41,6 +41,11 @@ noise floor from complete base repeats. Positional `BASE ARM...` remains
 supported. A rejected repeat calibration remains rejected: missing optional
 timing terms are listed, and differing configuration hashes require captures
 from the same renderer configuration.
+For visual comparisons, a passing mean can carry `pass_with_local_change`.
+The default requires a hotspot with max FLIP at least 0.5 over at least 16
+pixels. Set `hotspot_local_max` and `hotspot_local_min_pixels` in
+`saccade.toml` to change these cutoffs. Native decoded-sample inequality is
+never described as identical, including when the FLIP score rounds to zero.
 Within-arm repeat images are compared to each other. If an arm varies more
 than the base, ablation records a nondeterminism validity finding, image hashes,
 per-image maximum FLIP and a recapture action. `inspect export ABLATION

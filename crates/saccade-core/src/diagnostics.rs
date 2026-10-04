@@ -149,6 +149,8 @@ impl DiagnosticsConfig {
 pub enum ChangeClass {
     /// Decoded pixels are exactly equal.
     Identical,
+    /// FLIP is zero, while native decoded samples differ.
+    ZeroFlipNativeDifference,
     /// A difference whose peak FLIP is at or below `noise_max_flip` and that
     /// no tone shift or offset explains.
     Noise,
@@ -174,6 +176,7 @@ impl ChangeClass {
     pub fn as_str(self) -> &'static str {
         match self {
             Self::Identical => "identical",
+            Self::ZeroFlipNativeDifference => "zero_flip_native_difference",
             Self::Noise => "noise",
             Self::GlobalTone => "global_tone",
             Self::LocalStructure => "local_structure",
@@ -370,7 +373,7 @@ impl Diagnostics {
     pub fn verdict_line(&self, bit_identical: Option<bool>) -> String {
         let head = match (self.class, bit_identical) {
             (ChangeClass::Identical, Some(true)) => "bit-identical",
-            (ChangeClass::Identical, _) => "pixels identical",
+            (ChangeClass::Identical, _) => "zero_flip_native_difference",
             (c, _) => c.as_str(),
         };
         match self.perf_summary() {
@@ -556,7 +559,8 @@ pub fn diagnose(req: &DiagnoseRequest<'_>) -> Result<DiagnoseOutput> {
     let cfg = req.config;
     let metrics = &req.comparison.metrics;
     let mean0 = metrics.mean;
-    let identical = req.bit_identical == Some(true) || metrics.max == 0.0;
+    let native_identical = req.bit_identical == Some(true);
+    let identical = native_identical || metrics.max == 0.0;
     let mut out = DiagnoseOutput {
         diagnostics: Diagnostics {
             class: ChangeClass::Identical,
@@ -577,16 +581,18 @@ pub fn diagnose(req: &DiagnoseRequest<'_>) -> Result<DiagnoseOutput> {
     let dims_ok = (w, h) == req.capture.dims() && w > 0 && h > 0;
 
     if identical || !dims_ok || !mean0.is_finite() {
-        out.diagnostics.class = if identical {
+        out.diagnostics.class = if native_identical {
             ChangeClass::Identical
+        } else if identical {
+            ChangeClass::ZeroFlipNativeDifference
         } else {
             ChangeClass::Noise
         };
         out.diagnostics.description = if identical {
-            if req.bit_identical == Some(true) {
+            if native_identical {
                 "Bit-identical.".to_owned()
             } else {
-                "Decoded pixels are identical; the files differ only in encoding.".to_owned()
+                "FLIP is zero, but native decoded samples differ.".to_owned()
             }
         } else {
             "No analysis: the error map is not usable.".to_owned()
@@ -1764,6 +1770,9 @@ fn describe(f: &Facts<'_>) -> String {
     let mean = f.metrics.mean;
     match f.class {
         ChangeClass::Identical => "Bit-identical.".to_owned(),
+        ChangeClass::ZeroFlipNativeDifference => {
+            "FLIP is zero, but native decoded samples differ.".to_owned()
+        }
         ChangeClass::BrokenFrame => format!("{}.", f.broken.unwrap_or("Capture is unusable")),
         ChangeClass::Noise => format!(
             "Noise-level difference only (peak FLIP {:.3}, mean {:.4}).",
@@ -2026,6 +2035,15 @@ mod tests {
             out: None,
         };
         diagnose(&req).expect("diagnose").diagnostics
+    }
+
+    #[test]
+    fn zero_flip_with_native_difference_is_not_labelled_identical() {
+        let pixels = RgbaImage::from_pixel(N, N, Rgba([64, 64, 64, 255]));
+        let d = analyse(&pixels, &pixels);
+        assert_eq!(d.class, ChangeClass::ZeroFlipNativeDifference);
+        assert!(!d.verdict_line(Some(false)).contains("identical"));
+        assert!(!d.description.contains("identical"));
     }
 
     #[test]

@@ -277,6 +277,14 @@ pub fn result_value(
     value["scope"] = json!({"entries":report.config.entries,"ignore":report.config.ignore});
     value["counts"] = json!({"total":report.totals.total,"pass":report.totals.pass,"fail":report.totals.fail,"error":report.totals.error,"missing":report.totals.missing,"new":report.totals.new});
     value["counts"]["validity_reasons"] = json!(validity.reasons.len());
+    let local_changes = report
+        .entries
+        .iter()
+        .filter(|e| e.pass_with_local_change)
+        .collect::<Vec<_>>();
+    if !local_changes.is_empty() {
+        value["data"] = json!({"pass_with_local_change":local_changes.len(),"local_changes":local_changes.iter().take(3).map(|e|json!({"entry":e.name,"note":e.local_hotspot_note()})).collect::<Vec<_>>()});
+    }
     let failing = failing_entries(report);
     let summaries=failing.iter().take(top.min(5)).map(|e|json!({"entry_id":e.name,"measurement":if e.status==Status::Fail{"regression"}else{"unknown"},"error":e.error.as_ref().map(|s|crate::local_cmd::short(s,256))})).collect::<Vec<_>>();
     value["entries"] = json!(summaries);
@@ -296,10 +304,10 @@ pub fn result_value(
     let omitted = failing.len().saturating_sub(top.min(5));
     value["page"] = json!({"omitted":omitted,"next_cursor":crate::local_cmd::failing_cursor(report_json,top.min(5),failing.len()).ok().flatten()});
     if let Ok(case) = crate::local_cmd::case_for_result(report, report_json)
-        && !failing.is_empty()
+        && (!failing.is_empty() || !local_changes.is_empty())
     {
         value["next_actions"] = json!([{
-            "id":"inspect-evidence","kind":"inspect_evidence","reason_code":"measured_change_or_missing_evidence","priority":1,"requires":[],"tool":"saccade_inspect",
+            "id":"inspect-evidence","kind":"inspect_evidence","reason_code":if !local_changes.is_empty() {"pass_with_local_change"} else {"measured_change_or_missing_evidence"},"priority":1,"requires":[],"tool":"saccade_inspect",
             "arguments":{"operation":"summary","artifact":reference},
             "cli_argv":["saccade","inspect",report_path,"--json","--expected-case-id",case.case_id],"cwd":std::env::current_dir().ok().map(|p|saccade_core::paths::portable(&p)),"expected_case_id":case.case_id
         }]);

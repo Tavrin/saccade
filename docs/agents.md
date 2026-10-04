@@ -124,3 +124,7 @@ provider text. Models do not approve, qualify timing or establish equality.
 Escalate ambiguity and missing evidence. Never relax thresholds or change masks
 to make a task pass. Baseline writes require explicit human authorization.
 MCP contains no baseline-write operation.
+Check `data.pass_with_local_change` on a passing compare result. It marks a
+severe local hotspot hidden by the deciding average; follow the inspect action
+and read the full report entry before describing the capture as unchanged.
+The default rule is max FLIP ≥ 0.5 and area ≥ 16 pixels.

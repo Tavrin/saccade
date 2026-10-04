@@ -363,6 +363,7 @@
     if (!p) { b.appendChild(h("span", { class: "badge", text: "no decodable " + LB.capture })); return b; }
     if (e.bit_identical === true) b.appendChild(h("span", { class: "badge ident", text: "bit-identical" }));
     else if (e.bit_identical === false) b.appendChild(h("span", { class: "badge", text: "not bit-identical" }));
+    if (e.pass_with_local_change) b.appendChild(h("span", { class: "badge warn", text: "pass with local change; inspect hotspot" }));
     if (p.is_all_black) b.appendChild(h("span", { class: "badge warn", text: "ALL BLACK" }));
     if (p.is_all_white) b.appendChild(h("span", { class: "badge warn", text: "ALL WHITE" }));
     b.appendChild(h("span", { class: "badge", text: "lum min/mean/max " + p.min_luminance.toFixed(3) + " / " + p.mean_luminance.toFixed(3) + " / " + p.max_luminance.toFixed(3), title: "Image luminance (0 to 1) of the capture: minimum, mean, maximum. Not FLIP values." }));

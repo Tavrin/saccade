@@ -813,6 +813,7 @@ mod tests {
             baseline_sha256: Some("aa".into()),
             capture_sha256: Some("bb".into()),
             hotspots: Vec::new(),
+            pass_with_local_change: false,
             diagnostics: None,
         }
     }
@@ -851,6 +852,8 @@ mod tests {
                 allow_empty: false,
                 fail_on_nonfinite: true,
                 hotspot_fail: None,
+                hotspot_local_max: 0.5,
+                hotspot_local_min_pixels: 16,
             },
             totals: t,
             entries,

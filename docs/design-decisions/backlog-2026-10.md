@@ -23,3 +23,19 @@ The finding is an additive arm field, and the bounded result marks validity
 invalid with a typed repair action. A Markdown ablation export and the HTML
 report display the same finding. No schema version changes because prior field
 meanings remain intact.
+
+## 3. Severe local changes under a mean pass
+
+Keep `status: pass` for compatibility and add `pass_with_local_change: true`
+to affected report entries. The bounded result counts and names these entries
+and supplies an inspect action. I rejected changing `status` to a new enum
+value because historical readers may reject it. The default rule is a hotspot
+with max FLIP at least `0.5` and area at least `16` pixels; both cutoffs are
+configurable. A zero FLIP score with differing native samples uses the additive
+`zero_flip_native_difference` class instead of any identical label.
+
+Packet B's `lit.png` peaks at `0.4268897`, so its passing mean does not meet
+the specified default `0.5` rule. The other two images do. A demonstration
+with `hotspot_local_max = 0.4` marks all three; changing the default to make
+this packet pass would contradict the spec's stated default. This remains an
+explicit acceptance shortfall for the default packet demonstration.

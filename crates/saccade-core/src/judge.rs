@@ -607,6 +607,8 @@ fn synthetic_report(entry: Entry, ppd: f32) -> Report {
             allow_empty: false,
             fail_on_nonfinite: true,
             hotspot_fail: None,
+            hotspot_local_max: 0.5,
+            hotspot_local_min_pixels: 16,
         },
         totals: Totals::default(),
         entries: vec![entry],
@@ -679,6 +681,7 @@ fn compute_entry(
         baseline_sha256: None,
         capture_sha256: None,
         hotspots,
+        pass_with_local_change: false,
         diagnostics: Some(diag.diagnostics),
     };
     Ok((entry, cmp.error_map))

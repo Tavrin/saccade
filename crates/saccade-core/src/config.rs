@@ -68,6 +68,10 @@ pub struct RunConfig {
     /// Peak error at which any local hotspot fails an entry whose deciding
     /// metric passed (`hotspot_fail`); `None` (default) leaves it to the metric.
     pub hotspot_fail: Option<f64>,
+    /// Peak FLIP that marks a passing entry as having a local change.
+    pub hotspot_local_max: f64,
+    /// Minimum connected hotspot area for a local-change finding.
+    pub hotspot_local_min_pixels: u32,
     /// Historical empty-run opt-in, parsed for migration; empty runs still fail.
     pub allow_empty: bool,
     /// Whether a capture with NaN or infinite samples is an error
@@ -108,6 +112,8 @@ impl Default for RunConfig {
             hotspots: crate::hotspots::DEFAULT_HOTSPOTS,
             hotspot_min_share: crate::hotspots::DEFAULT_HOTSPOT_MIN_SHARE,
             hotspot_fail: None,
+            hotspot_local_max: 0.5,
+            hotspot_local_min_pixels: 16,
             allow_empty: false,
             fail_on_nonfinite: true,
             diagnostics: crate::diagnostics::DiagnosticsConfig::default(),
@@ -145,6 +151,8 @@ struct FileConfig {
     hotspots: Option<usize>,
     hotspot_min_share: Option<f64>,
     hotspot_fail: Option<f64>,
+    hotspot_local_max: Option<f64>,
+    hotspot_local_min_pixels: Option<u32>,
     allow_empty: Option<bool>,
     fail_on_nonfinite: Option<bool>,
     #[serde(default)]
@@ -330,6 +338,12 @@ impl RunConfig {
             cfg.hotspot_min_share = v;
         }
         cfg.hotspot_fail = file.hotspot_fail;
+        if let Some(v) = file.hotspot_local_max {
+            cfg.hotspot_local_max = v;
+        }
+        if let Some(v) = file.hotspot_local_min_pixels {
+            cfg.hotspot_local_min_pixels = v;
+        }
         if let Some(v) = file.allow_empty {
             cfg.allow_empty = v;
         }
@@ -428,6 +442,14 @@ impl RunConfig {
                 )));
             }
         }
+        if !self.hotspot_local_max.is_finite() || !(0.0..=1.0).contains(&self.hotspot_local_max) {
+            return Err(Error::Config("hotspot_local_max must be in [0, 1]".into()));
+        }
+        if self.hotspot_local_min_pixels == 0 {
+            return Err(Error::Config(
+                "hotspot_local_min_pixels must be positive".into(),
+            ));
+        }
         self.perf.validate()?;
         #[cfg(not(feature = "graphics"))]
         if !self.buffers.is_empty() || self.perf != crate::perf::PerfOptions::default() {
@@ -501,6 +523,7 @@ impl RunConfig {
                 "perf_noise": c.perf.floor,
                 "hotspot_threshold": c.hotspot_threshold, "hotspots": c.hotspots,
                 "hotspot_min_share": c.hotspot_min_share, "hotspot_fail": c.hotspot_fail,
+                "hotspot_local_max": c.hotspot_local_max, "hotspot_local_min_pixels": c.hotspot_local_min_pixels,
                 "allow_empty": c.allow_empty, "fail_on_nonfinite": c.fail_on_nonfinite,
                 "ignore": c.ignore,
                 "hdr": {"tonemapper": c.hdr.tonemapper.name(), "start_exposure": c.hdr.start_exposure, "stop_exposure": c.hdr.stop_exposure, "num_exposures": c.hdr.num_exposures},

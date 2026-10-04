@@ -9,6 +9,11 @@
           "type": "string"
         },
         {
+          "const": "zero_flip_native_difference",
+          "description": "FLIP is zero, while native decoded samples differ.",
+          "type": "string"
+        },
+        {
           "const": "noise",
           "description": "A difference whose peak FLIP is at or below `noise_max_flip` and that\nno tone shift or offset explains.",
           "type": "string"

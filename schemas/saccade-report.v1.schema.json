@@ -191,6 +191,11 @@
           "type": "string"
         },
         {
+          "const": "zero_flip_native_difference",
+          "description": "FLIP is zero, while native decoded samples differ.",
+          "type": "string"
+        },
+        {
           "const": "noise",
           "description": "A difference whose peak FLIP is at or below `noise_max_flip` and that\nno tone shift or offset explains.",
           "type": "string"
@@ -654,6 +659,11 @@
         "name": {
           "description": "Path relative to the baseline/capture roots, `/`-separated.",
           "type": "string"
+        },
+        "pass_with_local_change": {
+          "default": false,
+          "description": "Additive status: the deciding metric passes but a severe local change exists.",
+          "type": "boolean"
         },
         "paths": {
           "$ref": "#/$defs/EntryPaths",
@@ -1735,6 +1745,19 @@
             "number",
             "null"
           ]
+        },
+        "hotspot_local_max": {
+          "default": 0.5,
+          "description": "A passing metric is annotated when a hotspot meets these limits.",
+          "format": "double",
+          "type": "number"
+        },
+        "hotspot_local_min_pixels": {
+          "default": 16,
+          "description": "Minimum hotspot area in pixels for a local-change finding.",
+          "format": "uint32",
+          "minimum": 0,
+          "type": "integer"
         },
         "ignore": {
           "default": [],

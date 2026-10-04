@@ -219,9 +219,25 @@ fn a_local_hotspot_fails_only_when_hotspot_fail_is_set() {
     let plain = saccade(tmp.path(), &args, &[&base, &cap, Path::new("--out"), &out]);
     assert_eq!(plain.status.code(), Some(0), "{}", text(&plain));
     assert!(
-        text(&plain).contains("pass, but local hotspot"),
+        text(&plain).contains("pass with local change"),
         "{}",
         text(&plain)
+    );
+    let report: serde_json::Value =
+        serde_json::from_slice(&std::fs::read(out.join("saccade-report.v1.json")).unwrap())
+            .unwrap();
+    assert_eq!(report["entries"][0]["pass_with_local_change"], true);
+    let lean = saccade(
+        tmp.path(),
+        &["compare", "--threshold", "0.05", "--json"],
+        &[&base, &cap, Path::new("--out"), &out],
+    );
+    assert_eq!(lean.status.code(), Some(0), "{}", text(&lean));
+    let lean: serde_json::Value = serde_json::from_slice(&lean.stdout).unwrap();
+    assert_eq!(lean["data"]["pass_with_local_change"], 1);
+    assert_eq!(
+        lean["next_actions"][0]["reason_code"],
+        "pass_with_local_change"
     );
 
     let config = tmp.path().join("saccade.toml");

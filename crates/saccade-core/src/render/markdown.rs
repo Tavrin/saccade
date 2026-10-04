@@ -98,7 +98,11 @@ fn row(e: &Entry) -> String {
     }
     format!(
         "| {} | {} | {} | {} | {} |\n",
-        status_label(e.status),
+        if e.pass_with_local_change {
+            "⚠️ pass with local change"
+        } else {
+            status_label(e.status)
+        },
         name,
         e.buffer.as_ref().map_or_else(
             || metric_name(e.metric_used).to_string(),

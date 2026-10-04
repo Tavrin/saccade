@@ -446,6 +446,8 @@ pub fn run_sequence(
             allow_empty: cfg.allow_empty,
             fail_on_nonfinite: cfg.fail_on_nonfinite,
             hotspot_fail: cfg.hotspot_fail,
+            hotspot_local_max: cfg.hotspot_local_max,
+            hotspot_local_min_pixels: cfg.hotspot_local_min_pixels,
         },
         totals,
         entries: frames.iter().map(|f| f.entry.clone()).collect(),

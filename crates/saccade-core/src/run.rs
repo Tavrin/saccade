@@ -529,6 +529,8 @@ pub fn run(
             allow_empty: false,
             fail_on_nonfinite: config.fail_on_nonfinite || config.mode == Mode::Identity,
             hotspot_fail: config.hotspot_fail,
+            hotspot_local_max: config.hotspot_local_max,
+            hotspot_local_min_pixels: config.hotspot_local_min_pixels,
         },
         totals,
         entries,
@@ -814,6 +816,7 @@ pub(crate) fn build_entry(
         baseline_sha256: None,
         capture_sha256: None,
         hotspots: Vec::new(),
+        pass_with_local_change: false,
         buffer: None,
         diagnostics: None,
     };
@@ -1019,6 +1022,12 @@ fn finish_entry(
             scene.metrics.max
         ));
     }
+    entry.pass_with_local_change = entry.status == Status::Pass
+        && entry.bit_identical == Some(false)
+        && entry.hotspots.iter().any(|h| {
+            h.max_flip >= config.hotspot_local_max
+                && h.area_px >= u64::from(config.hotspot_local_min_pixels)
+        });
     entry.value = Some(value);
     entry.metrics = Some(scene.metrics);
     entry.paths.heatmap = Some(rel);

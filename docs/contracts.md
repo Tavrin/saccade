@@ -18,6 +18,14 @@ The ablation model also records `base_stability`, arm `repeat_stability`
 `next_actions`. The bounded result sets `validity: invalid` when an arm's
 repeat variation exceeds its base's for an image.
 
+`saccade-report.v1` additively records `pass_with_local_change` on entries
+and `hotspot_local_max` / `hotspot_local_min_pixels` in effective config.
+`status: pass` retains its prior meaning; consumers must check the new flag
+before calling a passing metric uneventful. The bounded result's `data`
+counts local changes and lists at most three, with an inspect action.
+`zero_flip_native_difference` is an additive diagnostic class for a FLIP-zero
+pair whose native decoded samples differ.
+
 ## Result v2 fields for compare and identity
 
 The [result v2 schema](../schemas/saccade-result.v2.schema.json) lists every

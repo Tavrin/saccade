@@ -87,6 +87,19 @@ pub struct ReportConfig {
     /// Peak-error value at which a local hotspot fails an entry; `None` is off.
     #[serde(default)]
     pub hotspot_fail: Option<f64>,
+    /// A passing metric is annotated when a hotspot meets these limits.
+    #[serde(default = "default_local_max")]
+    pub hotspot_local_max: f64,
+    /// Minimum hotspot area in pixels for a local-change finding.
+    #[serde(default = "default_local_pixels")]
+    pub hotspot_local_min_pixels: u32,
+}
+
+fn default_local_max() -> f64 {
+    0.5
+}
+fn default_local_pixels() -> u32 {
+    16
 }
 
 fn default_true() -> bool {
@@ -332,6 +345,9 @@ pub struct Entry {
     /// pair was not compared or when hotspots are disabled.
     #[serde(default)]
     pub hotspots: Vec<Hotspot>,
+    /// Additive status: the deciding metric passes but a severe local change exists.
+    #[serde(default)]
+    pub pass_with_local_change: bool,
     /// Numerical comparison for non-colour buffers; FLIP metrics stay absent.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub buffer: Option<crate::buffer::BufferResult>,
@@ -473,27 +489,19 @@ pub struct EntryPaths {
     pub nonfinite_mask: Option<String>,
 }
 
-/// Peak FLIP error from which a passing entry is reported as having a local
-/// defect.
-pub const LOCAL_HOTSPOT_NOTE_MIN: f64 = 0.5;
-
 impl Entry {
-    /// For a passing entry whose worst hotspot peaks at
-    /// [`LOCAL_HOTSPOT_NOTE_MIN`] or more, a line such as
-    /// `pass, but local hotspot: 40x40 @ top-left (max 0.75)`. A low mean can
-    /// hide a small, severe defect; this keeps it visible.
+    /// Describe the strongest recorded local-change finding.
     pub fn local_hotspot_note(&self) -> Option<String> {
-        if self.status != Status::Pass {
+        if !self.pass_with_local_change {
             return None;
         }
         let worst = self
             .hotspots
             .iter()
-            .filter(|h| h.max_flip >= LOCAL_HOTSPOT_NOTE_MIN)
             .max_by(|a, b| a.max_flip.total_cmp(&b.max_flip))?;
         Some(format!(
-            "pass, but local hotspot: {}x{} @ {} (max {:.2})",
-            worst.rect_px[2], worst.rect_px[3], worst.position, worst.max_flip
+            "pass with local change: {} pixels @ {} (max FLIP {:.2}); inspect the hotspot",
+            worst.area_px, worst.position, worst.max_flip
         ))
     }
 }
