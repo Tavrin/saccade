@@ -432,6 +432,44 @@ fn never_final_and_local_preview_contracts_are_enforced() {
     assert_eq!(value["counts"]["dispatched_calls"], 0);
 }
 
+#[test]
+fn offline_preview_writes_requests_and_estimates_configured_price() {
+    let (tmp, path, _) = fixture();
+    let config = tmp.path().join("user.toml");
+    std::fs::write(
+        &config,
+        "[pricing.\"jev/jev-latest\"]\ninput_per_million_usd = 1.0\noutput_per_million_usd = 2.0\n",
+    )
+    .unwrap();
+    let out = tmp.path().join("preview");
+    let result = Command::new(BIN)
+        .current_dir(tmp.path())
+        .arg("review")
+        .arg(&path)
+        .args(["--out"])
+        .arg(&out)
+        .args(["--user-config"])
+        .arg(&config)
+        .arg("--json")
+        .output()
+        .unwrap();
+    assert!(result.status.success(), "{result:?}");
+    let value: Value = serde_json::from_slice(&result.stdout).unwrap();
+    assert_eq!(value["counts"]["dispatched_calls"], 0);
+    assert!(out.join("preview.json").is_file() && out.join("requests.json").is_file());
+    let planned = &value["data"]["payloads"][0];
+    assert!(planned["request_bytes"].as_u64().unwrap() > 0);
+    assert!(planned["estimated_input_tokens"].as_u64().unwrap() > 0);
+    assert!(planned["estimated_cost_usd"].as_f64().unwrap() > 0.0);
+    assert!(
+        planned["source_roots"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .all(|s| !s.as_str().unwrap().starts_with('/'))
+    );
+}
+
 fn seed_historical_final(report: &Path) {
     let path = report.parent().unwrap().join("saccade-decisions.v1.json");
     let mut d = saccade_core::view::read_decisions(&path).unwrap();

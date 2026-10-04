@@ -35,7 +35,7 @@ use agent::CliError;
 
 /// Purpose, usage, then the explanation and examples, then the grouped flags.
 const HELP_TEMPLATE: &str =
-    "{about-with-newline}\n{usage-heading} {usage}{after-help}\n\n{all-args}";
+    "{about-with-newline}\n{usage-heading} {usage}\n\n{after-help}\n\n{all-args}";
 
 #[derive(Parser)]
 #[command(
@@ -55,7 +55,7 @@ Start here:
   saccade identity parent/ candidate/ --out report
                                                 Check that two builds render identical pixels
 
-Exit codes: 0 no regression, 1 regression found, 2 the command could not run.
+Exit codes: 0 no image regression, 1 image regression found, 2 the command could not run.
 Run `saccade COMMAND --help` for that command's flags and examples."
 )]
 struct Cli {
@@ -785,19 +785,49 @@ fn emit_run(
     json: bool,
     record_absolute_paths: bool,
 ) -> Result<(), CliError> {
-    let mut shown = std::collections::BTreeSet::new();
+    let mut missing = std::collections::BTreeMap::<String, usize>::new();
+    let mut missing_pairs = 0usize;
+    let mut same_capture = 0usize;
     for entry in &report.entries {
+        if entry
+            .warnings
+            .iter()
+            .any(|w| w.contains("provenance is absent"))
+        {
+            missing_pairs += 1;
+        }
         for warning in &entry.warnings {
-            if (warning.contains("provenance is absent") || warning == "same capture, not a repeat")
-                && shown.insert(warning)
-            {
-                eprintln!(
-                    "saccade: warning: {}: {}",
-                    escape_control(&entry.name),
-                    escape_control(warning)
-                );
+            if warning.contains("provenance is absent") {
+                *missing
+                    .entry(
+                        warning
+                            .split(" provenance is absent")
+                            .next()
+                            .unwrap_or(warning)
+                            .to_owned(),
+                    )
+                    .or_default() += 1;
+            }
+            if warning == "same capture, not a repeat" {
+                same_capture += 1;
             }
         }
+    }
+    if !missing.is_empty() || same_capture > 0 {
+        eprintln!(
+            "saccade: warning: provenance is absent on {} image pairs ({}){}; inspect REPORT --validity-reasons --json for detail",
+            missing_pairs,
+            missing
+                .iter()
+                .map(|(k, v)| format!("{k}: {v}"))
+                .collect::<Vec<_>>()
+                .join(", "),
+            if same_capture > 0 {
+                format!("; same capture, not a repeat on {same_capture} pairs")
+            } else {
+                String::new()
+            }
+        );
     }
     if json {
         let mut value = agent::result_value(
@@ -1667,7 +1697,9 @@ fn text_table(report: &Report) -> String {
         Some((first, rest)) if !rest.is_empty() => first
             .warnings
             .iter()
-            .filter(|w| rest.iter().all(|e| e.warnings.contains(w)))
+            .filter(|w| {
+                !w.contains("provenance is absent") && rest.iter().all(|e| e.warnings.contains(w))
+            })
             .collect(),
         _ => Vec::new(),
     };
@@ -1722,7 +1754,11 @@ fn text_table(report: &Report) -> String {
                 escape_control(&keys.join(", "))
             ));
         }
-        for w in e.warnings.iter().filter(|w| !shared.contains(w)) {
+        for w in e
+            .warnings
+            .iter()
+            .filter(|w| !shared.contains(w) && !w.contains("provenance is absent"))
+        {
             lines.push(format!("warning: {}", escape_control(w)));
         }
         notes.push(lines);
@@ -1810,6 +1846,9 @@ fn text_table(report: &Report) -> String {
         for w in &d.warnings {
             out.push_str(&format!("warning: {}\n", escape_control(w)));
         }
+    }
+    if report.perf_diff.is_some() || !report.perf_errors.is_empty() {
+        out.push_str("performance evidence present; run `saccade experiment ablate BASE CAPTURE --out DIR --json` for the ablation outcome.\n");
     }
     let t = &report.totals;
     out.push_str(&format!(

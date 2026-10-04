@@ -10,6 +10,14 @@ saccade review ask request.json --out human-review
 ```
 
 The comparison intentionally exits 1; the other operations exit 0.
+An offline `review --out DIR` preview writes `DIR/requests.json` and
+`DIR/preview.json`; JSON names both paths. Each planned question reports
+request bytes, estimated input tokens (bytes divided by four, rounded up),
+and a 512-token output allowance. To estimate USD, set
+`[pricing."jev/jev-latest"]` in the user TOML with
+`input_per_million_usd` and `output_per_million_usd`. Without those rates,
+`estimated_cost_usd` is null and `cost_reason` explains why. Estimates make
+no provider calls and are not billed usage.
 The five questions are `triage.route.v1`, `vision.route.v1`, `perf.interpret.v1`,
 `capture.disposition.v1` and `intent.match.v1`.
 Questions use closed answer sets, exact case/request hashes, bounded reasons,

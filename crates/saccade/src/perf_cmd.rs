@@ -168,10 +168,10 @@ pub(crate) fn ablate(args: AblateArgs, absolute: bool) -> Result<u8, CliError> {
     args.perf.apply(&mut cfg.perf)?;
     let model = saccade_core::ablate::run(&args.base, &args.arms, &args.out, &cfg, args.top)?;
     if args.json {
-        crate::local_cmd::print(
-            &crate::local_cmd::analysis_result(&serde_json::to_value(&model)?, &args.out)?,
-            true,
-        )?;
+        let mut value =
+            crate::local_cmd::analysis_result(&serde_json::to_value(&model)?, &args.out)?;
+        value["data"] = serde_json::json!({"arms":model.arms.iter().map(|arm| serde_json::json!({"label":arm.label,"flag":arm.flag,"reasons":arm.perf_diff.as_ref().map(|d|{let mut reasons=d.qualification_reasons.clone(); if d.noise_comparability != saccade_core::perf::Comparability::Qualified {reasons.push("repeat noise unavailable".into());} reasons}).unwrap_or_default(),"comparability":arm.perf_diff.as_ref().map(|d|d.comparability),"noise_comparability":arm.perf_diff.as_ref().map(|d|d.noise_comparability),"actions":if arm.flag == "INCONCLUSIVE" {vec!["record and qualify warmup on both captures", "recapture both arms with matching configuration", "capture unchanged-build repeats; supply --perf-noise FILE"]} else {Vec::new()}})).collect::<Vec<_>>()});
+        crate::local_cmd::print(&value, true)?;
     } else {
         crate::emit(&model.text())?;
         crate::emit(&format!(

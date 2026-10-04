@@ -1325,6 +1325,13 @@
           },
           "type": "array"
         },
+        "cwd": {
+          "description": "Working directory in which relative CLI arguments resolve.",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
         "expected_case_id": {
           "$ref": "#/$defs/Digest",
           "description": "Case precondition, checked at execution."

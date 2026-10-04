@@ -11,12 +11,6 @@ pass    view_0.png  max     0.00000  0
 pass    view_1.png  max     0.00000  0
   ↳ bit-identical · timing.gpu_ms 4.85 → 2.71 (−44%)
 
-Shared by all 3 compared pairs:
-  ↳ warning: baseline binary_sha256 provenance is absent
-  ↳ warning: baseline source_head provenance is absent
-  ↳ warning: capture binary_sha256 provenance is absent
-  ↳ warning: capture source_head provenance is absent
-
 1 fail, 0 error, 0 missing, 0 new, 2 pass (3 total)
 report: @REPORTS@/perf-identity/identity/index.html
 next:   open the report to see where the samples differ; use `saccade compare` when a perceptual tolerance is acceptable

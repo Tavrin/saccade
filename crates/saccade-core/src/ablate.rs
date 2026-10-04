@@ -166,6 +166,25 @@ impl Ablation {
                     .join(", ")
             ));
             if let Some(d) = &a.perf_diff {
+                if a.flag == "INCONCLUSIVE" {
+                    for reason in &d.qualification_reasons {
+                        let action = if reason.contains("warmup_complete") {
+                            "record and qualify warmup on both captures"
+                        } else if reason.contains("configuration hash mismatch") {
+                            "recapture both arms with matching configuration"
+                        } else {
+                            "recapture with complete qualified producer evidence"
+                        };
+                        out.push_str(&format!(
+                            "  qualification: {}; action: {}.\n",
+                            crate::perf::clean(reason),
+                            action
+                        ));
+                    }
+                    if d.noise_comparability != crate::perf::Comparability::Qualified {
+                        out.push_str("  qualification: repeat noise unavailable; capture unchanged-build repeats and pass --perf-noise FILE.\n");
+                    }
+                }
                 for t in &a.top_deltas {
                     out.push_str(&format!(
                         "  {} {:+.6} ms (beyond noise; threshold {:.6} ms; k={})\n",

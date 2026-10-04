@@ -494,13 +494,20 @@ impl CapturePerf {
                 .all(|name| q.checks.get(*name) == Some(&Some(true)))
             && q.checks.values().all(|v| *v == Some(true));
         if q.status != Comparability::Qualified || !complete || self.validate().is_err() {
-            return (
-                Comparability::Unknown,
-                vec![
+            let mut reasons = q.reasons.clone();
+            reasons.extend(
+                q.checks
+                    .iter()
+                    .filter(|(_, v)| v.is_none())
+                    .map(|(name, _)| format!("{name} evidence unavailable")),
+            );
+            if reasons.is_empty() {
+                reasons.push(
                     "qualification or required source/timer/window/hardware identity missing"
                         .into(),
-                ],
-            );
+                );
+            }
+            return (Comparability::Unknown, reasons);
         }
         (Comparability::Qualified, Vec::new())
     }
@@ -1315,9 +1322,28 @@ fn pair_qualification(b: &CapturePerf, a: &CapturePerf) -> (Comparability, Vec<S
                 .keys()
                 .ne(ac.qualification.checks.keys()))
     {
-        reasons.push(
-            "timer, hardware, configuration, aggregation or qualification rules differ".into(),
-        );
+        if bc.configuration_hash != ac.configuration_hash {
+            reasons.push("configuration hash mismatch".into());
+        }
+        if bc.timer != ac.timer {
+            reasons.push("timer identity differs".into());
+        }
+        if bc.hardware != ac.hardware {
+            reasons.push("hardware identity differs".into());
+        }
+        if bc.aggregation != ac.aggregation {
+            reasons.push("aggregation differs".into());
+        }
+        if bc.qualification.rule != ac.qualification.rule
+            || bc.qualification.version != ac.qualification.version
+            || bc
+                .qualification
+                .checks
+                .keys()
+                .ne(ac.qualification.checks.keys())
+        {
+            reasons.push("qualification rules differ".into());
+        }
         return (Comparability::Rejected, reasons);
     }
     if bs != Comparability::Qualified || as_ != Comparability::Qualified {

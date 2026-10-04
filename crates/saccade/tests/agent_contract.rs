@@ -219,6 +219,80 @@ fn pagination_and_actions_are_bounded_and_bound_to_content_and_selection() {
         "stale_evidence"
     );
 }
+
+#[test]
+fn entry_and_validity_inspection_are_actionable() {
+    let tmp = tempfile::tempdir().unwrap();
+    let file = report(tmp.path(), 2);
+    let compare: Value = json_output(
+        Command::new(BIN)
+            .current_dir(tmp.path())
+            .args(["compare", "base", "capture", "--out", "report", "--json"])
+            .output()
+            .unwrap(),
+    );
+    let worst = &compare["worst"];
+    assert_eq!(worst["entry"], "entry-000.png");
+    assert!(worst["value"].as_f64().unwrap() > worst["threshold"].as_f64().unwrap());
+    let entry = json_output(
+        Command::new(BIN)
+            .current_dir(tmp.path())
+            .arg("inspect")
+            .arg(&file)
+            .args(["--entry", "entry-000.png", "--json"])
+            .output()
+            .unwrap(),
+    );
+    assert_eq!(entry["measurement"], compare["measurement"]);
+    assert!(
+        (entry["entries"][0]["value"].as_f64().unwrap() - worst["value"].as_f64().unwrap()).abs()
+            < 0.001
+    );
+    assert!(entry["entries"][0]["explanation"].is_string());
+    let action = &entry["next_actions"][0];
+    assert_eq!(action["cwd"], tmp.path().to_str().unwrap());
+    let argv = action["cli_argv"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .skip(1)
+        .map(|v| v.as_str().unwrap())
+        .collect::<Vec<_>>();
+    assert!(
+        Command::new(BIN)
+            .current_dir(tmp.path())
+            .args(argv)
+            .status()
+            .unwrap()
+            .success()
+    );
+    let reasons = json_output(
+        Command::new(BIN)
+            .arg("inspect")
+            .arg(&file)
+            .args(["--validity-reasons", "--limit", "2", "--json"])
+            .output()
+            .unwrap(),
+    );
+    assert_eq!(reasons["entries"].as_array().unwrap().len(), 2);
+    assert!(reasons["page"]["next_cursor"].is_string());
+}
+
+#[test]
+fn report_pixel_payload_reuses_copied_image_evidence() {
+    let tmp = tempfile::tempdir().unwrap();
+    let file = report(tmp.path(), 1);
+    let dir = file.parent().unwrap();
+    let pixels = std::fs::read_to_string(dir.join("report-pixels.js")).unwrap();
+    assert!(!pixels.contains("data:image/"));
+    let report: Value = serde_json::from_slice(&std::fs::read(&file).unwrap()).unwrap();
+    for key in ["baseline", "capture", "heatmap"] {
+        if let Some(path) = report["entries"][0]["paths"][key].as_str() {
+            assert!(dir.join(path).is_file(), "missing {path}");
+            assert!(pixels.contains(path));
+        }
+    }
+}
 #[test]
 fn roots_are_read_only_and_output_permissions_never_grant_capture_writes() {
     let tmp = tempfile::tempdir().unwrap();

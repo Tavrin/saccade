@@ -66,7 +66,8 @@ def generated(binary=None):
             'Generation: `python3 scripts/gen-docs.py --saccade target/release/saccade`.',
             'Use the official default features plus `prechecks` to include every supported operation.', '',
             'Compiled features: ' + ', '.join(f'`{f}`' for f in data['features']) + '.', '',
-            'Exit 1 means a failed measurement/evaluation gate or located divergence.',
+            'Exit 1 means a failed image measurement/evaluation gate or located divergence.',
+            'Exit 0 for compare/identity means no image regression; inspect `performance` for qualification.',
             'Inspection, review, rank and ablation completion grant no acceptance authority.',
             'Exit 2 means the operation cannot run. Demo intentionally exits 1.', '']
         for op in [''] + operations:

@@ -556,6 +556,9 @@ pub(crate) fn preview_local(
     file: &Path,
     budget: u64,
     intent: Option<saccade_core::evidence::case::Intent>,
+    out: Option<&Path>,
+    absolute: bool,
+    user_config: Option<&Path>,
 ) -> Result<Value, CliError> {
     let mut c = case(file)?;
     apply_intent(&mut c, intent)?;
@@ -563,10 +566,37 @@ pub(crate) fn preview_local(
         saccade_core::judge_evidence::prepare_context(&mut c)?;
     }
     let (requests, shortfalls) = prepare_requests(&c)?;
+    let user = load_user(&user_file(user_config))?;
+    let sources = saccade_core::judge_bench_sources(&c)
+        .iter()
+        .map(|s| {
+            if absolute {
+                s.clone()
+            } else {
+                saccade_core::paths::cwd(Path::new(s), false)
+            }
+        })
+        .collect::<BTreeSet<_>>()
+        .into_iter()
+        .collect::<Vec<_>>();
+    let mut saved = Vec::new();
+    let payloads = requests.iter().map(|r| {
+        let bytes = saccade_core::judge_provider::observations::jev_payload(r,"jev-latest")?;
+        let estimated_input_tokens = bytes.len().div_ceil(4);
+        let estimated_output_tokens = 512usize;
+        let price = user.pricing.get("jev/jev-latest");
+        let estimated_cost_usd = price.map(|p| (estimated_input_tokens as f64*p.input_per_million_usd + estimated_output_tokens as f64*p.output_per_million_usd)/1_000_000.0);
+        saved.push(json!({"request_id":r.request_id,"payload":serde_json::from_slice::<Value>(&bytes).unwrap_or_else(|_|json!(String::from_utf8_lossy(&bytes).to_string()))}));
+        Ok(json!({"request_id":r.request_id,"question":r.question.id,"provider":"jev","model":"jev-latest","payload_sha256":Digest::of_bytes(&bytes),"source_roots":sources,"policy":"deny","request_bytes":bytes.len(),"estimated_input_tokens":estimated_input_tokens,"estimated_output_tokens":estimated_output_tokens,"estimated_cost_usd":estimated_cost_usd,"cost_reason":if price.is_some() {Value::Null} else {json!("no jev/jev-latest price configured in user.toml")}}))
+    }).collect::<saccade_core::evidence::Result<Vec<_>>>()?;
+    if let Some(out) = out {
+        local_cmd::write_value(&out.join("requests.json"), &json!(saved))?;
+    }
     let mut value = local_cmd::base_result("review.preview");
     value["counts"] =
         json!({"budget_calls":budget,"scheduled_questions":requests.len(),"dispatched_calls":0});
-    value["data"] = json!({"payloads":requests.iter().map(|r|saccade_core::judge_provider::observations::jev_payload(r,"jev-latest").map(|b|json!({"request_id":r.request_id,"question":r.question.id,"provider":"jev","model":"jev-latest","payload_sha256":Digest::of_bytes(&b),"source_roots":saccade_core::judge_bench_sources(&c),"policy":"deny"}))).collect::<saccade_core::evidence::Result<Vec<_>>>()?,"provider_calls_authorized":false,"shortfalls":shortfalls});
+    value["data"] =
+        json!({"payloads":payloads,"provider_calls_authorized":false,"shortfalls":shortfalls});
     value["limits"] = json!([
         "Local preview; explicit execution, user root permissions and finite attempt budget are required.",
         "Every model answer is a proposal; human review remains unresolved."

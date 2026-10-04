@@ -106,6 +106,9 @@ pub struct NextAction {
     pub arguments: ActionArguments,
     /// Argument array; consumers never pass it to a shell.
     pub cli_argv: Vec<String>,
+    /// Working directory in which relative CLI arguments resolve.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub cwd: Option<String>,
     /// Case precondition, checked at execution.
     pub expected_case_id: Digest,
 }
@@ -255,6 +258,30 @@ pub struct EntrySummary {
     pub measurement: MeasurementStatus,
     /// Error when a computation failed.
     pub error: Option<String>,
+    /// Entry status in the measured report.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub status: Option<String>,
+    /// Metric that decides the status.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub metric: Option<String>,
+    /// Deciding value.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub value: Option<serde_json::Value>,
+    /// Deciding threshold.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub threshold: Option<serde_json::Value>,
+    /// Bounded hotspots.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub hotspots: Option<serde_json::Value>,
+    /// One-line measured explanation.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub explanation: Option<String>,
+    /// Index of a validity reason.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub index: Option<u64>,
+    /// Validity reason when listing them.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub reason: Option<String>,
 }
 /// Structured tool error shared by CLI and MCP; regressions are measurement status.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -294,9 +321,27 @@ pub struct MeasurementIntegration {
     /// Preserved independent validity record.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub capture_validity: Option<serde_json::Value>,
+    /// Missing provenance fields and the sidecar/flag that supplies them.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub validity_missing: Option<serde_json::Value>,
+    /// Undeclared metadata differences and the flags that resolve them.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub validity_guidance: Option<serde_json::Value>,
     /// Named selected scope and exclusions.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub scope: Option<serde_json::Value>,
+    /// Worst measured failure relative to its threshold.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub worst: Option<serde_json::Value>,
+    /// Run-wide performance result.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub performance: Option<serde_json::Value>,
+    /// Combined image and performance gate.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub overall: Option<String>,
+    /// Command for fuller performance analysis.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub performance_action: Option<String>,
 }
 /// Future bounded CLI/MCP envelope. Existing v1 writers are migrated by R5.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]

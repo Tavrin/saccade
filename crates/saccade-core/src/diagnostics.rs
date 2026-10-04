@@ -1928,6 +1928,9 @@ fn num_text(v: f64) -> String {
         format!("{v:.0}")
     } else if v.abs() >= 10.0 {
         format!("{v:.1}")
+    } else if v != 0.0 && v.abs() < 0.01 {
+        let decimals = (3.0 - v.abs().log10().floor()).clamp(2.0, 9.0) as usize;
+        format!("{v:.decimals$}")
     } else {
         format!("{v:.2}")
     }
@@ -1972,6 +1975,11 @@ pub fn perf_summary(perf: &[PerfDelta]) -> Option<String> {
 #[cfg(test)]
 #[allow(clippy::expect_used)]
 mod tests {
+    #[test]
+    fn small_timing_values_keep_meaningful_digits() {
+        assert_eq!(super::num_text(0.00123), "0.001230");
+        assert_eq!(super::num_text(0.00184), "0.001840");
+    }
     use super::*;
     use image::{Rgba, RgbaImage};
 

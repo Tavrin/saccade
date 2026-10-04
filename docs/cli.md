@@ -7,7 +7,8 @@ Use the official default features plus `prechecks` to include every supported op
 
 Compiled features: `ai`, `evaluation`, `graphics`, `mcp`, `parallel`, `prechecks`, `workbench`.
 
-Exit 1 means a failed measurement/evaluation gate or located divergence.
+Exit 1 means a failed image measurement/evaluation gate or located divergence.
+Exit 0 for compare/identity means no image regression; inspect `performance` for qualification.
 Inspection, review, rank and ablation completion grant no acceptance authority.
 Exit 2 means the operation cannot run. Demo intentionally exits 1.
 
@@ -17,6 +18,8 @@ Exit 2 means the operation cannot run. Demo intentionally exits 1.
 Find and explain visual changes between two sets of rendered images
 
 Usage: saccade [OPTIONS] <COMMAND>
+
+
 
 saccade scores each image pair with FLIP, a perceptual error metric, locates the
 changed regions, and writes an offline HTML report next to a JSON result.
@@ -28,7 +31,7 @@ Start here:
   saccade identity parent/ candidate/ --out report
                                                 Check that two builds render identical pixels
 
-Exit codes: 0 no regression, 1 regression found, 2 the command could not run.
+Exit codes: 0 no image regression, 1 image regression found, 2 the command could not run.
 Run `saccade COMMAND --help` for that command's flags and examples.
 
 Commands:
@@ -96,6 +99,8 @@ Run the bundled example and explain its expected regression
 
 Usage: saccade demo [OPTIONS]
 
+
+
 Example:
   saccade demo --out saccade-demo
   saccade view saccade-demo          Print where the demo report is
@@ -117,6 +122,8 @@ Global options:
 Compare a directory of captures against a directory of baselines
 
 Usage: saccade compare [OPTIONS] <BASELINE_DIR> <CAPTURE_DIR>
+
+
 
 Images are paired by relative path. Each pair gets a FLIP score; a pair fails when
 its deciding metric is above the threshold. The report directory holds index.html
@@ -189,6 +196,8 @@ Global options:
 Establish exact native decoded-sample equality in the selected scope
 
 Usage: saccade identity [OPTIONS] <PARENT_DIR> <CANDIDATE_DIR>
+
+
 
 Use it to prove a refactor or optimization renders the same pixels. There is no
 threshold: any differing sample fails. Different file encodings of equal pixels pass.
@@ -284,6 +293,8 @@ Write a self-contained review viewer for 2 to 6 image directories
 
 Usage: saccade view [OPTIONS] [DIRS]...
 
+
+
 Examples:
   saccade view before/ after/ --out view          Swipe, flicker and heatmap viewer
   saccade view a/ b/ c/ --labels a,b,c --reference a
@@ -345,6 +356,8 @@ Copy reviewed captures over baselines
 
 Usage: saccade approve [OPTIONS] [CAPTURE_DIR] [BASELINE_DIR] [NAMES]...
 
+
+
 Example (two steps: plan, then apply the reviewed decision):
   saccade approve --report report/saccade-report.v1.json --entry ui.png --dry-run --out plan
   saccade approve --report report/saccade-report.v1.json --decisions plan/decision.json --out receipt
@@ -380,6 +393,8 @@ Global options:
 Browse report and image archives in a local web workbench
 
 Usage: saccade serve [OPTIONS] [ROOTS]...
+
+
 
 The server listens on 127.0.0.1 only. Archive roots are read-only: sessions,
 thumbnails and uploads go to the cache directory, decisions to the decisions directory.
@@ -446,6 +461,8 @@ Serve the agent tools over MCP on stdio, confined to the given roots
 
 Usage: saccade mcp [OPTIONS] --root <ROOTS>
 
+
+
 Every path a client passes must resolve under a --root. Generated reports go under
 --out-root, which must be separate from the read-only roots.
 
@@ -485,6 +502,7 @@ Arguments:
 
 Options:
       --entry <ENTRY>                        
+      --validity-reasons                     List every capture-validity reason, with pagination
       --status <STATUS>                      
       --limit <LIMIT>                        [default: 10]
       --cursor <CURSOR>                      

@@ -61,6 +61,18 @@ pub struct UserConfig {
     /// Missing entries use [`default_pace`]; project files cannot set these.
     #[serde(default)]
     pub pacing: BTreeMap<String, PaceSetting>,
+    /// Optional USD price per million input/output tokens, keyed by provider/model.
+    #[serde(default)]
+    pub pricing: BTreeMap<String, PriceSetting>,
+}
+/// User-configured model pricing for offline estimates.
+#[derive(Debug, Clone, Copy, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct PriceSetting {
+    /// Input token rate in USD per million tokens.
+    pub input_per_million_usd: f64,
+    /// Output token rate in USD per million tokens.
+    pub output_per_million_usd: f64,
 }
 /// Client-side request pacing, enforced atomically in the shared ledger.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
@@ -158,6 +170,15 @@ impl UserConfig {
             return Err(
                 "pacing requires provider or provider/model keys and positive limits".into(),
             );
+        }
+        if self.pricing.iter().any(|(key, p)| {
+            key.split('/').count() != 2
+                || !p.input_per_million_usd.is_finite()
+                || p.input_per_million_usd < 0.0
+                || !p.output_per_million_usd.is_finite()
+                || p.output_per_million_usd < 0.0
+        }) {
+            return Err("pricing requires provider/model and nonnegative finite USD per million token rates".into());
         }
         Ok(())
     }

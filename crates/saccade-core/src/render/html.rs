@@ -185,17 +185,9 @@ fn write_pixel_data(report: &Report, report_dir: &Path) -> Result<()> {
         let uris: Vec<Option<String>> = paths
             .iter()
             .map(|path| {
-                let path = path.as_ref()?;
-                let bytes = std::fs::read(report_dir.join(path)).ok()?;
-                let mime = if path.ends_with(".jpg") || path.ends_with(".jpeg") {
-                    "image/jpeg"
-                } else {
-                    "image/png"
-                };
-                Some(format!(
-                    "data:{mime};base64,{}",
-                    crate::view::base64(&bytes)
-                ))
+                path.as_ref()
+                    .filter(|p| report_dir.join(p).is_file())
+                    .cloned()
             })
             .collect();
         data.insert(e.name.clone(), serde_json::to_value(uris)?);

@@ -1375,6 +1375,7 @@ impl Server {
                 let value = crate::local_cmd::inspect_page(
                     &path,
                     arg_str(args, "entry")?.as_deref(),
+                    false,
                     &arg_strings(args, "status")?,
                     limit,
                     arg_str(args, "cursor")?.as_deref(),

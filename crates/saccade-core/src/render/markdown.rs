@@ -261,6 +261,18 @@ fn config_differs_line(report: &Report) -> Option<String> {
 fn notes_section(report: &Report) -> String {
     const MAX_NOTES: usize = 20;
     let mut lines = Vec::new();
+    let missing = report
+        .entries
+        .iter()
+        .filter(|e| {
+            e.warnings
+                .iter()
+                .any(|w| w.contains("provenance is absent"))
+        })
+        .count();
+    if missing > 0 {
+        lines.push(format!("- ⚠ {missing} images have missing provenance; run `saccade inspect REPORT --validity-reasons --json` for the recorded fields.\n"));
+    }
     for e in &report.entries {
         let name = code_name(&e.name);
         if let Some(note) = e.local_hotspot_note() {
@@ -275,7 +287,11 @@ fn notes_section(report: &Report) -> String {
                 md_text(&d.verdict_line(e.bit_identical))
             ));
         }
-        for w in &e.warnings {
+        for w in e
+            .warnings
+            .iter()
+            .filter(|w| !w.contains("provenance is absent"))
+        {
             let one_line: String = w
                 .chars()
                 .map(|c| if c.is_control() { ' ' } else { c })

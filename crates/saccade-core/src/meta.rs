@@ -156,7 +156,9 @@ pub fn capture_evidence(root: &Path, rel: &str, name: &str) -> BTreeMap<String, 
                     "binary_sha" | "binary_sha256" | "binary_hash" | "build_binary_sha256" => {
                         "binary_sha256"
                     }
-                    "source_head" | "git_head" | "source_git_head" => "source_head",
+                    "source_head" | "git_head" | "source_git_head" | "build_commit" => {
+                        "source_head"
+                    }
                     "capture_id" | "capture_uuid" => "capture_id",
                     "content_hash" | "capture_hash" | "capture_sha256" => "content_hash",
                     _ => continue,
@@ -469,7 +471,10 @@ impl MetaChecker {
         }
         for (side, card) in [("baseline", &b), ("capture", &c)] {
             if card.as_ref().is_none_or(|m| m.is_empty()) {
-                reasons.push(format!("{side} metadata is absent or empty"));
+                reasons.push(format!(
+                    "{side} metadata is absent or empty; supply --meta-name {} with a sidecar",
+                    self.name
+                ));
             }
             for key in &self.required_keys {
                 if card
@@ -478,7 +483,8 @@ impl MetaChecker {
                     .is_none_or(|v| v.is_null() || v.as_str().is_some_and(|s| s.trim().is_empty()))
                 {
                     reasons.push(format!(
-                        "{side} required capture key {key:?} is absent or empty"
+                        "{side} required capture key {key:?} is absent or empty in --meta-name {}",
+                        self.name
                     ));
                 }
             }
@@ -518,7 +524,12 @@ impl MetaChecker {
             Validity::Unknown
         };
         if status == Validity::Unknown && reasons.is_empty() {
-            reasons.push("metadata differs without a matching capture requirement".into());
+            let missing = diff
+                .iter()
+                .filter(|d| !self.is_declared(&d.key))
+                .map(|d| d.key.as_str())
+                .collect::<Vec<_>>();
+            reasons.push(format!("metadata differs on undeclared keys: {}{}; use --declare KEY for an intentional change or --require-matching-meta to reject it", missing.iter().take(8).copied().collect::<Vec<_>>().join(", "), if missing.len()>8 {format!(", and {} more",missing.len()-8)} else {String::new()}));
         }
         let failure = (status == Validity::Invalid).then(|| reasons.join("; "));
         Ok(CheckedMeta {

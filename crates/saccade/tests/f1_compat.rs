@@ -141,6 +141,60 @@ fn provenance_is_recorded_and_missing_values_are_loud() {
 }
 
 #[test]
+fn moss_cost_card_aliases_supply_provenance() {
+    let temp = tempfile::tempdir().unwrap();
+    capture(temp.path(), "a", "one", false);
+    capture(temp.path(), "b", "two", false);
+    for name in ["a", "b"] {
+        std::fs::write(
+            temp.path().join(name).join("cost-card.json"),
+            json!({"binary.sha":format!("binary-{name}"),"build.commit":"head","capture.id":name})
+                .to_string(),
+        )
+        .unwrap();
+    }
+    let out = Command::new(BIN)
+        .args(["identity"])
+        .arg(temp.path().join("a"))
+        .arg(temp.path().join("b"))
+        .args(["--meta-name", "cost-card.json", "--out"])
+        .arg(temp.path().join("report"))
+        .args(["--json"])
+        .output()
+        .unwrap();
+    assert!(out.status.success(), "{out:?}");
+    let result: Value = serde_json::from_slice(&out.stdout).unwrap();
+    assert!(
+        !result["validity_reasons"]
+            .to_string()
+            .contains("source_head provenance is absent")
+    );
+    assert!(
+        result["validity_guidance"]["undeclared_keys"]
+            .to_string()
+            .contains("binary.sha")
+    );
+    assert!(
+        result["validity_guidance"]["action"]
+            .as_str()
+            .unwrap()
+            .contains("--declare")
+    );
+    let report: Value = serde_json::from_slice(
+        &std::fs::read(temp.path().join("report/saccade-report.v1.json")).unwrap(),
+    )
+    .unwrap();
+    assert_eq!(
+        report["entries"][0]["capture_provenance"]["baseline.source_head"],
+        "head"
+    );
+    assert_eq!(
+        report["entries"][0]["capture_provenance"]["capture.binary_sha256"],
+        "binary-b"
+    );
+}
+
+#[test]
 fn identical_capture_ids_refuse_identity_and_noise() {
     let temp = tempfile::tempdir().unwrap();
     capture(temp.path(), "a", "same", true);

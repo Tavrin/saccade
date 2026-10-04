@@ -9,12 +9,6 @@ FAIL    lit.png     mean            0.06203  0.001
 pass    motion.png  mean (pixels)   0.00000  0.5
 pass    normal.png  mean (degrees)  0.00000  1
 
-Shared by all 4 compared pairs:
-  ↳ warning: baseline binary_sha256 provenance is absent
-  ↳ warning: baseline source_head provenance is absent
-  ↳ warning: capture binary_sha256 provenance is absent
-  ↳ warning: capture source_head provenance is absent
-
 2 fail, 0 error, 0 missing, 0 new, 2 pass (4 total)
 report: @REPORTS@/render-gbuffer/compare/index.html
 next:   open the report and check the numbered hotspots; if a change is intended, plan its approval with

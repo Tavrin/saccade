@@ -12,12 +12,6 @@ FAIL    warmer.png    mean    0.18931  0.001
   ↳ global_tone: Whole frame 0.06 stops brighter, tint warmer (red +22.5%, blue -25.6% vs green) (tone shift explains 94% of the difference); no structural change.
   ↳ 1 hotspot: 224x288 @ center (100% of error) [frame-wide change]
 
-Shared by all 3 compared pairs:
-  ↳ warning: baseline binary_sha256 provenance is absent
-  ↳ warning: baseline source_head provenance is absent
-  ↳ warning: capture binary_sha256 provenance is absent
-  ↳ warning: capture source_head provenance is absent
-
 3 fail, 0 error, 0 missing, 0 new, 0 pass (3 total)
 report: @REPORTS@/cover-art/compare/index.html
 next:   open the report and check the numbered hotspots; if a change is intended, plan its approval with

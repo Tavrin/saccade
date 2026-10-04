@@ -15,12 +15,6 @@ pass    seed_100.png  mean    0.00000  0.001
 pass    seed_102.png  mean    0.00000  0.001
 pass    seed_103.png  mean    0.00000  0.001
 
-Shared by all 6 compared pairs:
-  ↳ warning: baseline binary_sha256 provenance is absent
-  ↳ warning: baseline source_head provenance is absent
-  ↳ warning: capture binary_sha256 provenance is absent
-  ↳ warning: capture source_head provenance is absent
-
 3 fail, 0 error, 0 missing, 0 new, 3 pass (6 total)
 report: @REPORTS@/ml-image-model/compare/index.html
 next:   open the report and check the numbered hotspots; if a change is intended, plan its approval with

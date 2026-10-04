@@ -7,6 +7,7 @@ Establish selected captures, declared intent and invariants. Measure first:
 saccade compare BASE CANDIDATE --out REPORT --json
 saccade identity BASE CANDIDATE --out IDENTITY --json
 saccade inspect REPORT/saccade-report.v1.json --status fail,error,missing,new --limit 5 --json
+saccade inspect REPORT/saccade-report.v1.json --validity-reasons --limit 10 --json
 saccade inspect evidence REPORT/saccade-report.v1.json --entry NAME --out EVIDENCE
 saccade inspect export REPORT/saccade-report.v1.json --format png --entry NAME --out SNAPSHOT.png
 ```
@@ -16,6 +17,9 @@ inputs and pagination. Exit 1 is a failed measurement gate; exit 2 means the
 operation cannot run. Inspect changed entries and follow typed next actions only
 when their expected case identity is current and their requirements are met.
 Missing noise, context or responses remain unknown.
+For Moss captures, use `--meta-name cost-card.json` on `compare` and `identity`.
+Moss supplies binary/source provenance as `binary.sha` and `build.commit`;
+missing-key reasons in JSON name the sidecar that can supply them.
 
 Identity proves native decoded-sample equality only for supplied captures and
 named scope. Capture validity and performance qualification are separate.

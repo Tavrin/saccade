@@ -140,9 +140,55 @@
             "null"
           ]
         },
+        "explanation": {
+          "description": "One-line measured explanation.",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "hotspots": {
+          "description": "Bounded hotspots."
+        },
+        "index": {
+          "description": "Index of a validity reason.",
+          "format": "uint64",
+          "minimum": 0,
+          "type": [
+            "integer",
+            "null"
+          ]
+        },
         "measurement": {
           "$ref": "#/$defs/MeasurementStatus",
           "description": "Measurement status."
+        },
+        "metric": {
+          "description": "Metric that decides the status.",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "reason": {
+          "description": "Validity reason when listing them.",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "status": {
+          "description": "Entry status in the measured report.",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "threshold": {
+          "description": "Deciding threshold."
+        },
+        "value": {
+          "description": "Deciding value."
         }
       },
       "required": [
@@ -241,6 +287,13 @@
             "type": "string"
           },
           "type": "array"
+        },
+        "cwd": {
+          "description": "Working directory in which relative CLI arguments resolve.",
+          "type": [
+            "string",
+            "null"
+          ]
         },
         "expected_case_id": {
           "$ref": "#/$defs/Digest",
@@ -505,6 +558,13 @@
       "description": "Named operation.",
       "type": "string"
     },
+    "overall": {
+      "description": "Combined image and performance gate.",
+      "type": [
+        "string",
+        "null"
+      ]
+    },
     "page": {
       "$ref": "#/$defs/Page",
       "description": "Omitted counts and continuation."
@@ -519,6 +579,16 @@
       "description": "Portable report and rendered artifact paths.",
       "type": [
         "object",
+        "null"
+      ]
+    },
+    "performance": {
+      "description": "Run-wide performance result."
+    },
+    "performance_action": {
+      "description": "Command for fuller performance analysis.",
+      "type": [
+        "string",
         "null"
       ]
     },
@@ -553,6 +623,12 @@
       "$ref": "#/$defs/ValidityStatus",
       "description": "Independent capture validity."
     },
+    "validity_guidance": {
+      "description": "Undeclared metadata differences and the flags that resolve them."
+    },
+    "validity_missing": {
+      "description": "Missing provenance fields and the sidecar/flag that supplies them."
+    },
     "validity_reasons": {
       "description": "Validity reasons must survive bounded summaries.",
       "items": {
@@ -566,6 +642,9 @@
         "string",
         "null"
       ]
+    },
+    "worst": {
+      "description": "Worst measured failure relative to its threshold."
     }
   },
   "required": [

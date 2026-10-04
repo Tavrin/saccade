@@ -37,6 +37,7 @@ for manifest in sorted((root / 'showcases').glob('*/commands.json')):
     out = reports / case.name
     out.mkdir(parents=True, exist_ok=True)
     transcript = []
+    case_exits_ok = True
     for command in json.loads(manifest.read_text()):
         args = ['saccade'] + [a.replace('@REPORTS@', str(out)) for a in command['args']]
         if command.get('out'):
@@ -45,6 +46,7 @@ for manifest in sorted((root / 'showcases').glob('*/commands.json')):
         transcript += [f"=== {command['name']} (exit {result.returncode}) ===\n", result.stdout]
         (out / (command['name'] + '.stderr.txt')).write_text(result.stderr)
         if result.returncode != command['exit']:
+            case_exits_ok = False
             print(f"{case.name}/{command['name']}: expected exit {command['exit']}, got {result.returncode}", file=sys.stderr)
             print(result.stderr, file=sys.stderr)
             failed = True
@@ -54,6 +56,10 @@ for manifest in sorted((root / 'showcases').glob('*/commands.json')):
     actual = actual.replace(relative_reports, '@REPORTS@').replace(str(reports.resolve()), '@REPORTS@')
     (out / 'ACTUAL.txt').write_text(actual)
     expected_path = case / 'EXPECTED.txt'
+    if os.environ.get('SACCADE_SHOWCASE_UPDATE_EXPECTED') == '1' and case_exits_ok:
+        expected_path.write_text(actual)
+        print(f'{case.name}: regenerated EXPECTED.txt')
+        continue
     if not expected_path.exists():
         print(f'{case.name}: missing EXPECTED.txt; actual output is {out / "ACTUAL.txt"}', file=sys.stderr)
         failed = True

@@ -136,14 +136,17 @@ fn is_failing(report: &Report, e: &Entry) -> bool {
     }
 }
 
-/// The entries that fail the run, worst first: fail, error, missing, new; then
-/// by deciding value (largest first), then by name.
+/// Measured failures by severity relative to their own thresholds, then
+/// unresolved entries in stable status/name order.
 pub fn failing_entries(report: &Report) -> Vec<&Entry> {
-    let rank = |s: Status| match s {
-        Status::Fail => 0,
-        Status::Error => 1,
-        Status::Missing => 2,
-        _ => 3,
+    let ratio = |e: &Entry| {
+        e.value.map(|v| {
+            if e.threshold > 0.0 {
+                v / e.threshold
+            } else {
+                f64::INFINITY
+            }
+        })
     };
     let mut v: Vec<&Entry> = report
         .entries
@@ -151,13 +154,10 @@ pub fn failing_entries(report: &Report) -> Vec<&Entry> {
         .filter(|e| is_failing(report, e))
         .collect();
     v.sort_by(|a, b| {
-        rank(a.status)
-            .cmp(&rank(b.status))
-            .then_with(|| {
-                b.value
-                    .unwrap_or(f64::NEG_INFINITY)
-                    .total_cmp(&a.value.unwrap_or(f64::NEG_INFINITY))
-            })
+        ratio(b)
+            .is_some()
+            .cmp(&ratio(a).is_some())
+            .then_with(|| ratio(b).unwrap_or(0.0).total_cmp(&ratio(a).unwrap_or(0.0)))
             .then_with(|| a.name.cmp(&b.name))
     });
     v
@@ -206,6 +206,19 @@ pub fn result_value(
         "pass"
     });
     value["totals"] = json!(report.totals);
+    if let Some(perf) = &report.perf_diff {
+        value["performance"] = json!({"verdict":perf.verdict(),"comparability":perf.comparability,"repeat_qualification":perf.noise_comparability,"summary":perf.summary(3)});
+        if !report.is_regression()
+            && perf.comparability == saccade_core::perf::Comparability::Rejected
+        {
+            value["overall"] = json!("performance_rejected");
+            value["verdict"] = json!("performance_rejected");
+        }
+    }
+    if report.perf_diff.is_some() || !report.perf_errors.is_empty() {
+        value["performance_action"] =
+            json!("saccade experiment ablate BASE CAPTURE --out DIR --json");
+    }
     let equality = report.sample_equality();
     value["sample_equality"] = json!(equality);
     value["measurement"] = json!(
@@ -233,6 +246,33 @@ pub fn result_value(
         .collect::<Vec<_>>();
     value["validity_reasons"] = crate::local_cmd::validity_summary(&reasons);
     value["capture_validity"] = json!({"status":validity.status,"reasons":crate::local_cmd::validity_summary(&validity.reasons)});
+    let missing = report
+        .entries
+        .iter()
+        .flat_map(|e| {
+            ["baseline", "capture"].into_iter().flat_map(move |side| {
+                ["binary_sha256", "source_head"]
+                    .into_iter()
+                    .filter(move |field| {
+                        !e.capture_provenance
+                            .contains_key(&format!("{side}.{field}"))
+                    })
+                    .map(move |field| format!("{side}.{field}"))
+            })
+        })
+        .collect::<std::collections::BTreeSet<_>>();
+    if !missing.is_empty() {
+        value["validity_missing"] = json!({"keys":missing,"source":format!("--meta-name {} (Moss: --meta-name cost-card.json; binary.sha and build.commit)",report.config.meta.name)});
+    }
+    let undeclared = report
+        .entries
+        .iter()
+        .flat_map(|e| e.meta_diff.iter().map(|d| d.key.as_str()))
+        .filter(|key| !report.config.meta.declared.iter().any(|d| d == key))
+        .collect::<std::collections::BTreeSet<_>>();
+    if validity.status == saccade_core::meta::Validity::Unknown && !undeclared.is_empty() {
+        value["validity_guidance"] = json!({"undeclared_keys":undeclared.into_iter().take(8).collect::<Vec<_>>(),"action":"use --declare KEY for intentional differences, or --require-matching-meta to reject them"});
+    }
     value["counts"]["validity_reasons"] = json!(validity.reasons.len());
     value["scope"] = json!({"entries":report.config.entries,"ignore":report.config.ignore});
     value["counts"] = json!({"total":report.totals.total,"pass":report.totals.pass,"fail":report.totals.fail,"error":report.totals.error,"missing":report.totals.missing,"new":report.totals.new});
@@ -241,6 +281,10 @@ pub fn result_value(
     let summaries=failing.iter().take(top.min(5)).map(|e|json!({"entry_id":e.name,"measurement":if e.status==Status::Fail{"regression"}else{"unknown"},"error":e.error.as_ref().map(|s|crate::local_cmd::short(s,256))})).collect::<Vec<_>>();
     value["entries"] = json!(summaries);
     value["failing"]=json!(failing.iter().take(top.min(5)).map(|e|json!({"name":e.name,"status":status_str(e.status),"value":e.value,"threshold":e.threshold,"error":e.error.as_ref().map(|s|crate::local_cmd::short(s,256))})).collect::<Vec<_>>());
+    value["worst"] = failing.iter().find(|e| e.value.is_some()).map_or(
+        Value::Null,
+        |e| json!({"entry":e.name,"metric":e.metric_used,"value":e.value,"threshold":e.threshold}),
+    );
     let report_path = saccade_core::paths::cwd(
         report_json,
         report
@@ -257,7 +301,7 @@ pub fn result_value(
         value["next_actions"] = json!([{
             "id":"inspect-evidence","kind":"inspect_evidence","reason_code":"measured_change_or_missing_evidence","priority":1,"requires":[],"tool":"saccade_inspect",
             "arguments":{"operation":"summary","artifact":reference},
-            "cli_argv":["saccade","inspect",report_path,"--json","--expected-case-id",case.case_id],"expected_case_id":case.case_id
+            "cli_argv":["saccade","inspect",report_path,"--json","--expected-case-id",case.case_id],"cwd":std::env::current_dir().ok().map(|p|saccade_core::paths::portable(&p)),"expected_case_id":case.case_id
         }]);
     }
     if report.is_empty_run() {

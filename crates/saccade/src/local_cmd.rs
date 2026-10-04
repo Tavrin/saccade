@@ -19,6 +19,9 @@ pub(crate) struct InspectArgs {
     pub operation: Option<InspectOperation>,
     #[arg(long)]
     pub entry: Option<String>,
+    /// List every capture-validity reason, with pagination.
+    #[arg(long)]
+    pub validity_reasons: bool,
     #[arg(long, value_delimiter = ',')]
     pub status: Vec<String>,
     #[arg(long, default_value_t = 10)]
@@ -400,6 +403,7 @@ pub(crate) fn inspect(args: InspectArgs, absolute: bool) -> Result<u8, CliError>
     let value = inspect_page(
         &path,
         args.entry.as_deref(),
+        args.validity_reasons,
         &args.status,
         args.limit,
         args.cursor.as_deref(),
@@ -450,6 +454,7 @@ pub(crate) fn failing_cursor(
 pub(crate) fn inspect_page(
     path: &Path,
     entry: Option<&str>,
+    validity_reasons: bool,
     status: &[String],
     limit: usize,
     cursor: Option<&str>,
@@ -502,6 +507,40 @@ pub(crate) fn inspect_page(
             CliError::from(e)
         }
     })?;
+    if validity_reasons {
+        if entry.is_some() || !status.is_empty() {
+            return Err(CliError::usage(
+                "--validity-reasons cannot be combined with entry/status filters",
+            ));
+        }
+        let reasons = report.capture_validity().reasons;
+        let binding = canonical::digest(
+            &json!({"sha256":reference(path)?["sha256"],"selection":"validity_reasons","limit":limit}),
+        )?;
+        let offset = match cursor {
+            None => 0,
+            Some(c) => {
+                let (digest, n) = c
+                    .rsplit_once(':')
+                    .ok_or_else(|| CliError::usage("invalid cursor"))?;
+                if digest != binding.as_str() {
+                    return Err(CliError::new(
+                        "stale_cursor",
+                        "cursor does not match validity reasons",
+                    ));
+                }
+                n.parse::<usize>()
+                    .map_err(|_| CliError::usage("invalid cursor offset"))?
+            }
+        };
+        result["counts"]["total"] = json!(reasons.len());
+        result["validity"] = json!(report.capture_validity().status);
+        result["entries"] = json!(reasons.iter().skip(offset).take(limit).enumerate().map(|(n,reason)|json!({"entry_id":format!("validity/{}",offset+n),"measurement":"unknown","error":null,"index":offset+n,"reason":reason})).collect::<Vec<_>>());
+        let mut result = bounded(result, budget)?;
+        let shown = result["entries"].as_array().map_or(0, Vec::len);
+        result["page"] = json!({"omitted":reasons.len().saturating_sub(offset+shown),"next_cursor":(offset+shown<reasons.len()).then(||format!("{}:{}",binding.as_str(),offset+shown))});
+        return Ok(result);
+    }
     if let Some(cursor) = cursor.and_then(|c| c.strip_prefix("failing:")) {
         if entry.is_some() || !status.is_empty() || limit != 10 {
             return Err(CliError::new(
@@ -565,8 +604,21 @@ pub(crate) fn inspect_page(
     result["validity_reasons"] =
         crate::local_cmd::validity_summary(&report.capture_validity().reasons);
     // Retain invariant statuses and references. Large strings stay in the full artifact.
-    let summaries = page.entries.iter().map(|e| json!({"entry_id":e.name,"measurement":match e.status {saccade_core::Status::Pass=>"pass",saccade_core::Status::Fail=>"regression",_=>"unknown"},"error":e.error.as_ref().map(|s|short(s,256))})).collect::<Vec<_>>();
+    let summaries = page.entries.iter().map(|e| json!({"entry_id":e.name,"measurement":if report.config.mode == saccade_core::report::Mode::Identity { match e.bit_identical {Some(true)=>"identical",Some(false)=>"different",None=>"unknown"} } else {match e.status {saccade_core::Status::Pass=>"pass",saccade_core::Status::Fail=>"regression",_=>"unknown"}},"status":e.status,"metric":e.metric_used,"value":e.value,"threshold":e.threshold,"hotspots":e.hotspots.iter().take(3).map(|h|json!({"rect_px":h.rect_px,"max_flip":h.max_flip,"position":h.position})).collect::<Vec<_>>(),"explanation":e.diagnostics.as_ref().map(|d|short(&d.description,256)).or_else(||e.error.as_ref().map(|s|short(s,256))),"error":e.error.as_ref().map(|s|short(s,256))})).collect::<Vec<_>>();
     result["entries"] = json!(summaries);
+    if entry.is_some() {
+        result["measurement"] = result["entries"]
+            .as_array()
+            .and_then(|v| v.first())
+            .map_or(json!("unknown"), |e| e["measurement"].clone());
+    }
+    if let Some(name) = entry.and_then(|_| page.entries.first().map(|e| e.name.as_str())) {
+        let out = path
+            .parent()
+            .unwrap_or(Path::new("."))
+            .join("inspect-evidence");
+        result["next_actions"] = json!([{"id":"inspect-evidence","kind":"inspect_evidence","reason_code":"entry_detail","priority":1,"requires":[],"tool":"saccade_evidence","arguments":{"operation":"context","artifact":reference(path)?,"entry":name},"cli_argv":["saccade","inspect","evidence",saccade_core::paths::cwd(path,false),"--entry",name,"--out",saccade_core::paths::cwd(&out,false),"--json"],"cwd":std::env::current_dir().ok().map(|p|saccade_core::paths::portable(&p)),"expected_case_id":case_for_result(&report,path)?.case_id}]);
+    }
     result["page"] = json!({"omitted":page.total.saturating_sub(offset+page.entries.len()),"next_cursor":page.next_cursor.map(|n|format!("{}:{n}",binding.as_str()))});
     let value = bounded(result, budget)?;
     let mut value = value;
@@ -733,7 +785,7 @@ fn export(
     }
     Ok(())
 }
-pub(crate) fn review(args: ReviewArgs, _absolute: bool) -> Result<u8, CliError> {
+pub(crate) fn review(args: ReviewArgs, absolute: bool) -> Result<u8, CliError> {
     let value = if let Some(operation) = args.operation {
         match operation {
             ReviewOperation::Request {
@@ -764,7 +816,7 @@ pub(crate) fn review(args: ReviewArgs, _absolute: bool) -> Result<u8, CliError> 
         }
     } else {
         #[cfg(feature = "ai")]
-        if args.run || args.user_config.is_some() {
+        if args.run {
             let value = crate::review_cmd::cli(&args)?;
             print(&value, args.json)?;
             return Ok(0);
@@ -780,12 +832,21 @@ pub(crate) fn review(args: ReviewArgs, _absolute: bool) -> Result<u8, CliError> 
         let report = args
             .report
             .ok_or_else(|| CliError::usage("review requires REPORT or a named operation"))?;
-        preview(
+        let mut value = preview(
             &report,
             args.budget_calls,
             args.intent.as_deref(),
             args.intent_file.as_deref(),
-        )?
+            args.out.as_deref(),
+            absolute,
+            args.user_config.as_deref(),
+        )?;
+        if let Some(out) = args.out.as_deref() {
+            let summary = out.join("preview.json");
+            value["paths"] = json!({"summary":saccade_core::paths::cwd(&summary,absolute),"requests":saccade_core::paths::cwd(&out.join("requests.json"),absolute)});
+            write_value(&summary, &value)?;
+        }
+        value
     };
     print(&value, args.json)?;
     Ok(0)
@@ -795,6 +856,9 @@ pub(crate) fn preview(
     budget: Option<u64>,
     intent: Option<&str>,
     intent_file: Option<&Path>,
+    out: Option<&Path>,
+    absolute: bool,
+    user_config: Option<&Path>,
 ) -> Result<Value, CliError> {
     #[cfg(feature = "ai")]
     {
@@ -802,10 +866,17 @@ pub(crate) fn preview(
             read_value(p)?;
         }
         let intent = crate::review_cmd::read_intent(intent, intent_file, report)?;
-        crate::review_cmd::preview_local(report, budget.unwrap_or(24), intent)
+        crate::review_cmd::preview_local(
+            report,
+            budget.unwrap_or(24),
+            intent,
+            out,
+            absolute,
+            user_config,
+        )
     }
     #[cfg(not(feature = "ai"))]
-    let mut value = inspect_page(report, None, &[], 5, None)?;
+    let mut value = inspect_page(report, None, false, &[], 5, None)?;
     #[cfg(not(feature = "ai"))]
     {
         value["operation"] = json!("review.preview");
@@ -1169,7 +1240,7 @@ pub(crate) fn validity_summary(reasons: &[String]) -> Value {
         json!(reasons)
     } else {
         json!([format!(
-            "{} failed or unknown capture requirements; all reasons remain in the hashed artifact.",
+            "{} failed or unknown capture requirements; run `saccade inspect REPORT --validity-reasons --json` to page through every reason.",
             reasons.len()
         )])
     }
