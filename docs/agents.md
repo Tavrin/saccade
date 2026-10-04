@@ -21,6 +21,36 @@ capture paths and the claim. Both packs invoke the installed CLI, read its
 bounded JSON, follow current next actions, and require human authorization for
 baseline approval. Keep generated reports outside the capture directories.
 
+## Declare a visual change before capture
+
+Write a `saccade-visual-intent.v1` JSON file before generating the candidate
+images, then pass it to `compare` or `prove identity` with `--intent-file`.
+The file names exact report entries and fractional boxes or relative PNG masks
+(white means included; masks must have the same dimensions as the image).
+
+```json
+{
+  "schema": "saccade-visual-intent.v1",
+  "objective": "Brighten the button only",
+  "no_change_elsewhere": true,
+  "changes": [
+    {"entry": "page.png", "kind": "structure", "rect_frac": [0.1, 0.1, 0.3, 0.2]}
+  ]
+}
+```
+
+`kind` is `structure`, `tone_up`, `tone_down`, or `none`. Global tone
+declarations use a full-frame box `[0,0,1,1]`; local boxes use hotspot
+locations. `none` requires decoded pixels to be identical in the entry.
+The full deterministic matched, unexpected, missing and unmeasurable findings
+are in `intent-verification.v1.json` beside the report. The bounded JSON
+includes counts and an artifact reference. Any mismatch exits 1. Hotspot
+boxes are conservative approximations of the changed pixels; a hotspot that
+extends outside all declared regions is reported as unexpected. Changes
+below the configured hotspot threshold may be missed, while native sample
+difference with no visible hotspot is still reported when no region permits
+it. The optional AI review is a separate second opinion.
+
 Measure before asking a model. Read bounded JSON and selected failed entries
 before full artifacts. Summaries have a 4 KiB text limit, entry pages 8 KiB,
 and evidence requests 12 KiB. Pagination preserves validity, missingness and

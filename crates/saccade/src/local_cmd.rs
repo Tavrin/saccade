@@ -1322,7 +1322,24 @@ pub(crate) fn persist_case(
         }
     }
     if let Some(file) = &args.intent_file {
-        let mut intent: Intent = serde_json::from_value(read_value(file)?)?;
+        let value = read_value(file)?;
+        let mut intent: Intent =
+            if value.get("schema").and_then(Value::as_str) == Some(saccade_core::intent::SCHEMA) {
+                let visual: saccade_core::intent::VisualIntent = serde_json::from_value(value)?;
+                visual.validate(file)?;
+                Intent {
+                    id: "visual-intent".into(),
+                    objective: visual.objective,
+                    assurance: IntentAssurance::Structured,
+                    expected_changes: Vec::new(),
+                    invariants: vec!["no change elsewhere".into()],
+                    criteria: Vec::new(),
+                    source: None,
+                    provenance: Provenance::default(),
+                }
+            } else {
+                serde_json::from_value(value)?
+            };
         intent.assurance = IntentAssurance::Structured;
         let target = dir.join("assets/intent.json");
         std::fs::copy(file, &target).map_err(|e| CliError::io(e.to_string()))?;
@@ -1360,6 +1377,55 @@ pub(crate) fn persist_case(
     )?;
     saccade_core::render::render_html(report, dir)?;
     Ok(())
+}
+
+pub(crate) fn visual_intent(
+    args: &crate::IntentArgs,
+) -> Result<Option<(saccade_core::intent::VisualIntent, PathBuf)>, CliError> {
+    let Some(path) = &args.intent_file else {
+        return Ok(None);
+    };
+    let value = read_value(path)?;
+    if value.get("schema").and_then(Value::as_str) != Some(saccade_core::intent::SCHEMA) {
+        return Ok(None);
+    }
+    let intent: saccade_core::intent::VisualIntent = serde_json::from_value(value)?;
+    intent.validate(path)?;
+    Ok(Some((intent, path.clone())))
+}
+
+pub(crate) fn verify_visual_intent(
+    report: &saccade_core::Report,
+    out: &Path,
+    intent: Option<&(saccade_core::intent::VisualIntent, PathBuf)>,
+) -> Result<bool, CliError> {
+    let result_file = out.join(saccade_core::intent::RESULT_FILE);
+    let Some((declaration, path)) = intent else {
+        if result_file.exists() {
+            std::fs::remove_file(&result_file).map_err(|e| CliError::io(e.to_string()))?;
+        }
+        return Ok(false);
+    };
+    let verification = saccade_core::intent::verify(declaration, path, report);
+    write_value(&result_file, &serde_json::to_value(&verification)?)?;
+    let summary = format!(
+        "<section aria-label=\"Intent verification\"><h2>Intent verification</h2><p>Matched: {}; unexpected: {}; missing: {}; unmeasurable: {}. <a href=\"{}\">Full deterministic findings</a>.</p></section>",
+        verification.matched.len(),
+        verification.unexpected.len(),
+        verification.missing.len(),
+        verification.unmeasurable.len(),
+        saccade_core::intent::RESULT_FILE
+    );
+    let html_path = out.join("index.html");
+    let html = std::fs::read_to_string(&html_path).map_err(|e| CliError::io(e.to_string()))?;
+    std::fs::write(
+        &html_path,
+        html.replacen("<main>", &format!("<main>{summary}"), 1),
+    )
+    .map_err(|e| CliError::io(e.to_string()))?;
+    Ok(!verification.unexpected.is_empty()
+        || !verification.missing.is_empty()
+        || !verification.unmeasurable.is_empty())
 }
 pub(crate) fn case_for_result(
     report: &saccade_core::Report,

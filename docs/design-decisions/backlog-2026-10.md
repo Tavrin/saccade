@@ -71,3 +71,20 @@ agent service or provider dependency: the installed CLI already yields the
 measurement, bounded JSON, and typed next actions. Prompts select `compare`,
 `prove identity`, or `prove performance`, and never turn a baseline update into
 an automatic step. The generator's 4,800-byte per-pack limit remains enforced.
+
+## 7. Intent-first checks
+
+Use the existing `--intent-file` path for a pre-capture
+`saccade-visual-intent.v1` declaration. It requires an objective, exact entry
+names, box or mask per change, expected kind, and `no_change_elsewhere: true`.
+Deterministic verification writes a separate versioned artifact, a short HTML
+summary, and bounded CLI counts; mismatches exit 1. The declaration is copied
+into the canonical case as structured intent with a hashed source. I rejected
+replacing the existing evidence intent schema or making AI review an
+acceptance gate: both would alter existing authority contracts. The report
+schema also stays stable. Hotspot boxes are the available location evidence,
+so overlap can match a declaration, while a box extending outside its declared
+region is conservatively unexpected. Tone direction uses global exposure and
+a full-frame region; `none` uses exact native equality. Missing scope or mask
+dimension mismatch is unmeasurable rather than a fabricated pass. The
+pre-existing plain-text `--intent` remains lower-assurance review context.

@@ -100,7 +100,7 @@ struct IntentArgs {
     /// What the change is meant to do, in one sentence, recorded in the evidence.
     #[arg(long, value_name = "TEXT", conflicts_with = "intent_file")]
     intent: Option<String>,
-    /// Structured intent JSON with objective and criteria.
+    /// Structured evidence intent or visual declaration JSON, written before capture.
     #[arg(long, value_name = "FILE")]
     intent_file: Option<PathBuf>,
     /// JSON list of expected changes; needs --intent or --intent-file.
@@ -883,9 +883,33 @@ fn emit_run(
         if report.config.mode == Mode::Identity {
             value["schema"] = serde_json::json!("saccade-result.v1");
         }
-        emit(&format!("{}\n", serde_json::to_string(&value)?))
+        let verification_file = out.join(saccade_core::intent::RESULT_FILE);
+        if verification_file.is_file() {
+            let finding: saccade_core::intent::Verification =
+                serde_json::from_value(local_cmd::read_value(&verification_file)?)?;
+            let matched = finding.unexpected.is_empty()
+                && finding.missing.is_empty()
+                && finding.unmeasurable.is_empty();
+            value["intent_verification"] = serde_json::json!({"status":if matched {"matched"} else {"mismatch"},"matched":finding.matched.len(),"unexpected":finding.unexpected.len(),"missing":finding.missing.len(),"unmeasurable":finding.unmeasurable.len(),"artifact":local_cmd::reference(&verification_file)?});
+        }
+        emit(&format!(
+            "{}\n",
+            serde_json::to_string(&local_cmd::bounded(value, 4096)?)?
+        ))
     } else {
         emit(&text_table(report))?;
+        let verification_file = out.join(saccade_core::intent::RESULT_FILE);
+        if verification_file.is_file() {
+            let finding: saccade_core::intent::Verification =
+                serde_json::from_value(local_cmd::read_value(&verification_file)?)?;
+            emit(&format!(
+                "intent: {} matched, {} unexpected, {} missing, {} unmeasurable\n",
+                finding.matched.len(),
+                finding.unexpected.len(),
+                finding.missing.len(),
+                finding.unmeasurable.len()
+            ))?;
+        }
         emit(&run_footer(report, out, record_absolute_paths))?;
         if report.config.mode == Mode::Identity
             && (!report.config.entries.is_empty() || !report.config.ignore.is_empty())
@@ -1133,6 +1157,7 @@ fn dispatch(command: Command, record_absolute_paths: bool) -> Result<u8, CliErro
             if let Some(l) = labels {
                 cfg.labels = parse_labels(&l)?;
             }
+            let visual = local_cmd::visual_intent(&intent)?;
             let report = saccade_core::run::run(&baseline_dir, &capture_dir, &out, &cfg)?;
             if let Some(path) = junit {
                 saccade_core::ergonomics::junit(&report, &path)?;
@@ -1142,8 +1167,9 @@ fn dispatch(command: Command, record_absolute_paths: bool) -> Result<u8, CliErro
                 &out.join(saccade_core::report::REPORT_FILE_NAME),
                 &intent,
             )?;
+            let intent_mismatch = local_cmd::verify_visual_intent(&report, &out, visual.as_ref())?;
             emit_run(&report, &out, json, record_absolute_paths)?;
-            Ok(u8::from(report.is_regression()))
+            Ok(u8::from(report.is_regression() || intent_mismatch))
         }
         Command::Identity {
             parent_dir,
@@ -1192,6 +1218,7 @@ fn dispatch(command: Command, record_absolute_paths: bool) -> Result<u8, CliErro
             if let Some(l) = labels {
                 cfg.labels = parse_labels(&l)?;
             }
+            let visual = local_cmd::visual_intent(&intent)?;
             let report = saccade_core::run::run(&parent_dir, &candidate_dir, &out, &cfg)?;
             if let Some(path) = junit {
                 saccade_core::ergonomics::junit(&report, &path)?;
@@ -1201,8 +1228,9 @@ fn dispatch(command: Command, record_absolute_paths: bool) -> Result<u8, CliErro
                 &out.join(saccade_core::report::REPORT_FILE_NAME),
                 &intent,
             )?;
+            let intent_mismatch = local_cmd::verify_visual_intent(&report, &out, visual.as_ref())?;
             emit_run(&report, &out, json, record_absolute_paths)?;
-            Ok(u8::from(report.is_regression()))
+            Ok(u8::from(report.is_regression() || intent_mismatch))
         }
         Command::Approve {
             capture_dir,

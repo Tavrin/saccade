@@ -168,7 +168,7 @@ Performance:
 
 Review context:
       --intent <TEXT>        What the change is meant to do, in one sentence, recorded in the evidence
-      --intent-file <FILE>   Structured intent JSON with objective and criteria
+      --intent-file <FILE>   Structured evidence intent or visual declaration JSON, written before capture
       --changes-file <FILE>  JSON list of expected changes; needs --intent or --intent-file
 
 Global options:
@@ -233,7 +233,7 @@ Performance:
 
 Review context:
       --intent <TEXT>        What the change is meant to do, in one sentence, recorded in the evidence
-      --intent-file <FILE>   Structured intent JSON with objective and criteria
+      --intent-file <FILE>   Structured evidence intent or visual declaration JSON, written before capture
       --changes-file <FILE>  JSON list of expected changes; needs --intent or --intent-file
 
 Global options:
@@ -295,7 +295,7 @@ Performance:
 
 Review context:
       --intent <TEXT>        What the change is meant to do, in one sentence, recorded in the evidence
-      --intent-file <FILE>   Structured intent JSON with objective and criteria
+      --intent-file <FILE>   Structured evidence intent or visual declaration JSON, written before capture
       --changes-file <FILE>  JSON list of expected changes; needs --intent or --intent-file
 
 Global options:

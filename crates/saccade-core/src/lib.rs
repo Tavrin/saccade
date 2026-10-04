@@ -24,6 +24,7 @@ pub mod gpu_clock;
 pub mod hdr;
 pub mod hotspots;
 pub mod inbox;
+pub mod intent;
 #[cfg(feature = "ai")]
 pub mod judge;
 #[cfg(feature = "evaluation")]
