@@ -128,3 +128,20 @@ Remainder: 5 unresolved provider jobs plus 1 terminal invalid response. Unused c
 | intent.match.v1 | 20 | 30 |
 
 No question qualifies: every question is below the held-out gate, important-miss tolerance is undeclared, no calibration identity is qualified, and provider rows below 95% attempted completion also fail that gate. Gates are not lowered.
+
+## Constructed-truth expansion freeze
+
+The second manifest (`moss-pilot-expanded.toml`, SHA-256 `73fa53df42348eff4ac8821b38f18fa029222bcbc4ff43ff8c1533539dbeca86`) extends the original 86-case freeze as an exact prefix. Its `freeze-amendment.json` binds 180 new independent construction records: 90 held-out, 36 calibration and 54 development. The rubric hash is unchanged. This expansion made **zero provider calls**; its 630 new Jev and 268 new Gemini initial requests are planned, not attempted. The paid-tier results above were not rescored.
+
+| New family | Cases |
+|---|---:|
+| Native performance | 78 |
+| Measured no-effect | 20 |
+| Local regression | 22 |
+| Intended visual | 22 |
+| Metadata confound | 19 |
+| Semantic HUD | 19 |
+
+Truth-known held-out support is 110 cases each for `triage.route.v1`, `vision.route.v1`, `capture.disposition.v1` and `intent.match.v1`, and 62 for `perf.interpret.v1`. Thus the numeric 50-case gate is met for all five questions. New performance evidence comprises 97 producer-rejected or incomparable pairs and one qualified whole-frame pair. The latter uses three independently rendered unchanged captures and a hash-bound projection that excludes unstable pass-gap attribution and dynamic measured fields from configuration identity. Production noise and comparison qualify its frame measurement, but the unattributed frame bound prevents a no-effect conclusion; its `perf.interpret.v1` truth is `collect_more_evidence`. No pass-level or causal performance claim follows.
+
+The provider jobs in the expanded manifest remain unattempted. No question is newly qualified for automatic routing: completion, calibration identity and the declared important-miss tolerance still require a later evaluation. Older recorded private inputs remain absent, so the original public freeze is sealed and preserved but those source files were not revalidated in this lane.
