@@ -1186,6 +1186,13 @@
           },
           "type": "array"
         },
+        "mask_sources": {
+          "description": "Immutable mask bytes referenced by a structured visual intent.",
+          "items": {
+            "$ref": "#/$defs/ArtifactRef"
+          },
+          "type": "array"
+        },
         "objective": {
           "description": "Claim or objective supplied before reviewing results.",
           "type": "string"

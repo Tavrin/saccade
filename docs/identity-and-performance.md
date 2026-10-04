@@ -36,9 +36,10 @@ Place `gpu_clock.json` beside `saccade-perf.json`. Generic producers write
 
 Every window needs samples, complete frames, zero query failures, no throttle
 reason, an established stable state, and a core/memory clock range no wider
-than 5% of its median. A power state is required. Pairing compares device,
-power state, named windows and median clocks exactly. Missing on both sides
-keeps historical behavior; present on only one side rejects comparability.
+than 5% of its median. A concrete power state is required; `unknown` does not
+qualify. Pairing compares device, power state, named windows and median clocks
+exactly. Missing clock evidence rejects a qualified performance claim unless
+the user passes `--gpu-clocks-not-applicable`.
 Moss `moss.gpu-clock.v2` files are read directly: `sm_mhz.p50` becomes core
 median, the sample windows and throttle mask are retained, and
 `warm_to_boost.met` supplies stabilization. Moss does not record an explicit
@@ -61,15 +62,20 @@ excludes incomplete directories with named reasons, and derives a performance
 noise floor from complete base repeats. Positional `BASE ARM...` remains
 supported. A rejected repeat calibration remains rejected: missing optional
 timing terms are listed, and differing configuration hashes require captures
-from the same renderer configuration.
+from the same renderer configuration. If `--perf-noise` supplies an explicit
+floor, ablation reports both that floor and the derived floor and uses the
+stricter spread. `--perf-noise-override` records an intentional choice to use
+the explicit floor alone.
 For visual comparisons, a passing mean can carry `pass_with_local_change`.
-The default requires a hotspot with max FLIP at least 0.5 over at least 16
+The default requires a connected component in the full error map with FLIP
+at least 0.5 over at least 16
 pixels. Set `hotspot_local_max` and `hotspot_local_min_pixels` in
 `saccade.toml` to change these cutoffs. Native decoded-sample inequality is
 never described as identical, including when the FLIP score rounds to zero.
 Within-arm repeat images are compared to each other. If an arm varies more
 than the base, ablation records a nondeterminism validity finding, image hashes,
-per-image maximum FLIP and a recapture action. `inspect export ABLATION
+per-image maximum FLIP and a recapture action. Its flag and combined verdict
+become inconclusive and the command exits nonzero. `inspect export ABLATION
 --format markdown --out summary.md` includes the finding.
 A disabled feature can have identical pixels because it contributed nothing at
 that camera. A model cannot qualify timing or establish a speedup.

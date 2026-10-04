@@ -613,6 +613,14 @@ struct ProveIdentityArgs {
     config: Option<PathBuf>,
     #[arg(long)]
     json: bool,
+    #[arg(long)]
+    allow_empty: bool,
+    #[arg(long)]
+    ppd: Option<f32>,
+    #[arg(long, value_delimiter = ',', value_name = "A,B")]
+    labels: Option<Vec<String>>,
+    #[arg(long, value_name = "FILE.xml")]
+    junit: Option<PathBuf>,
     #[arg(long = "entry", value_name = "GLOB")]
     entries: Vec<String>,
     #[command(flatten)]
@@ -950,15 +958,15 @@ fn dispatch(command: Command, record_absolute_paths: bool) -> Result<u8, CliErro
                 parent_dir: args.parent_dir,
                 candidate_dir: args.candidate_dir,
                 out: args.out,
-                allow_empty: false,
+                allow_empty: args.allow_empty,
                 threshold: None,
                 metric: None,
                 config: args.config,
                 json: args.json,
-                ppd: None,
-                labels: None,
+                ppd: args.ppd,
+                labels: args.labels,
                 entries: args.entries,
-                junit: None,
+                junit: args.junit,
                 meta: args.meta,
                 require: args.require,
                 perf: args.perf,

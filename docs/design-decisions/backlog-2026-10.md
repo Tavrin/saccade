@@ -11,7 +11,9 @@ terms receive a floor, and the missing terms remain explicit warnings.
 Packet B also has differing `configuration_hash` values in the five base
 performance sidecars. Those captures therefore cannot supply qualified
 unchanged-build performance noise. Capture all repeats with the same renderer
-configuration, qualifying warmup and complete timing provenance.
+configuration, qualifying warmup and complete timing provenance. An explicit
+noise file cannot lower a derived floor unless `--perf-noise-override` is
+given; the artifact records both floors and the override.
 
 ## 2. Nondeterministic arm output
 
@@ -21,15 +23,17 @@ remain in the full ablation artifact. I rejected treating every different file
 hash as a rendering failure: encoding can differ while decoded samples match.
 The finding is an additive arm field, and the bounded result marks validity
 invalid with a typed repair action. A Markdown ablation export and the HTML
-report display the same finding. No schema version changes because prior field
-meanings remain intact.
+report display the same finding. It also replaces successful arm flags and
+the combined verdict with an inconclusive claim, and exits nonzero. No schema
+version changes because prior field meanings remain intact.
 
 ## 3. Severe local changes under a mean pass
 
 Keep `status: pass` for compatibility and add `pass_with_local_change: true`
 to affected report entries. The bounded result counts and names these entries
 and supplies an inspect action. I rejected changing `status` to a new enum
-value because historical readers may reject it. The default rule is a hotspot
+value because historical readers may reject it. The default rule is a connected
+component from the full error map, independent of the hotspot display cap,
 with max FLIP at least `0.5` and area at least `16` pixels; both cutoffs are
 configurable. A zero FLIP score with differing native samples uses the additive
 `zero_flip_native_difference` class instead of any identical label.
@@ -49,8 +53,9 @@ throttling, or a clock span above 5% of its median is unqualified. Different
 device, power state, window set, or median clocks between arms reject timing
 comparability. I rejected accepting a producer's clock samples solely because
 its performance sidecar says `qualified`; those are separate facts. Both clock
-summaries and reasons remain in the performance diff. Absence on both sides
-preserves historical behavior; absence on one side rejects pairing. The 5%
+summaries and reasons remain in the performance diff. Absent clocks reject
+qualified timing unless the user explicitly declares
+`--gpu-clocks-not-applicable`; `unknown` power state is also unqualified. The 5%
 span is a conservative measured-window limit, not an exact-MHz requirement.
 
 ## 5. Three-verb front door
@@ -60,8 +65,9 @@ existing command under an Advanced heading. `prove identity` routes to the
 existing exact identity path and `prove performance` to ablation. The old
 commands remain callable and discoverable through explicit help and compiled
 capabilities. I rejected renaming or removing them because existing scripts
-and §17 compatibility depend on those paths. The new identity form exposes
-the common options; advanced identity options remain on `identity`.
+and §17 compatibility depend on those paths. The identity form now forwards
+all advanced identity flags, including `--allow-empty`, `--ppd`, `--labels`
+and `--junit`, through the same implementation.
 
 ## 6. Agent skill
 
@@ -82,11 +88,12 @@ summary, and bounded CLI counts; mismatches exit 1. The declaration is copied
 into the canonical case as structured intent with a hashed source. I rejected
 replacing the existing evidence intent schema or making AI review an
 acceptance gate: both would alter existing authority contracts. The report
-schema also stays stable. Hotspot boxes are the available location evidence,
-so overlap can match a declaration, while a box extending outside its declared
-region is conservatively unexpected. Tone direction uses global exposure and
-a full-frame region; `none` uses exact native equality. Missing scope or mask
-dimension mismatch is unmeasurable rather than a fabricated pass. The
+schema also stays stable. Exact changed-pixel runs, bundled in the report,
+determine structure matches and object attribution. Canonical cases copy
+declared mask bytes beside the declaration, bind their hashes into the case
+identity, and verify those bytes when reading the case. Tone direction uses
+global exposure and a full-frame region; `none` uses exact native equality.
+Missing scope or mask dimension mismatch is unmeasurable rather than a fabricated pass. The
 pre-existing plain-text `--intent` remains lower-assurance review context.
 
 ## 8. Playwright adapter
@@ -99,6 +106,8 @@ filenames because `snapshotPathTemplate` can change them and multiple projects
 or failures can collide. The adapter refuses an empty manifest; passed tests
 without actual attachments do not become invented comparisons. Rust core has
 no JavaScript dependency and the CLI never executes the test suite.
+The reporter copies attachments beside its manifest and emits relative paths;
+all ingest paths reject canonical escapes from the manifest or input root.
 
 ## 9. Git bisect
 
@@ -144,6 +153,10 @@ reference and require explicit endpoints. Sources: [NVIDIA's FLIP v1.7
 implementation](https://github.com/NVlabs/flip/blob/main/src/cpp/FLIP.h),
 [NVIDIA HDR-FLIP paper](https://research.nvidia.com/publication/2021-05_HDR-FLIP),
 and [flip-rs parity results](https://github.com/Tavrin/flip-rs#parity-with-the-c-reference).
+The review adds a nonidentical synthetic pair with pinned flip-rs 0.1.2 mean
+and maximum values. A separate Reinhard tone curve, sRGB transfer, and
+per-exposure maximum calculation in the test cross-checks the HDR combination;
+its 2e-5 tolerance covers f32 transfer rounding.
 
 ## 12. Flaky-test memory
 
@@ -151,7 +164,11 @@ Use an explicit `history record` step on existing reports, then `history
 analyze` for bounded local advice. Store full report bytes under their SHA-256
 and one JSON line per unique report in an index. I rejected silent recording
 from every `compare`: users must choose a retention location, and routine
-comparison must stay stateless. Variation groups require the same baseline
+comparison must stay stateless.
+The review adds an exclusive store lock, atomic no-clobber object publication,
+single-write JSONL append, and duplicate checks while locked. Existing objects
+with matching SHA-256 content succeed; mismatches stop recording.
+Variation groups require the same baseline
 hash, effective report configuration, entry metric and threshold. Duplicate
 capture hashes do not add evidence, and invalid captures are excluded.
 Three distinct captures are the minimum to flag a threshold crossed by
@@ -167,8 +184,9 @@ pairing and the existing per-frame FLIP report, then runs `colorvideovdp`
 0.1.1 on the same PNG/JPEG sRGB frames. I rejected implicit display or frame
 rate inference: the user supplies FPS, and the selected display model is
 recorded. The default display is `standard_4k`. The independent temporal
-artifact contains video JOD, each frame's still-image JOD, above-threshold
-raw-map boxes and typed flicker/ghosting screening findings. An explicit
+artifact contains video JOD, each frame's independently evaluated still-image
+JOD with an explicit `still_image` label, above-threshold
+raw-map component boxes and typed flicker/ghosting screening findings. An explicit
 `--min-jod` gates JOD; ordinary per-frame FLIP failures still gate as before.
 The transient map is a perceptual difference map, not a semantic classifier,
 so flicker and lagging-frame labels come from declared deterministic rules.
@@ -184,13 +202,11 @@ names. PNG RGB encodes a u24 ID; EXR red stores an exact integral u24 value.
 I rejected palette-index PNG because image decoders can expand it, changing
 the numeric identity. ID buffers are excluded from ordinary image pairing.
 Invalid or partial sidecars turn the compared entry into an error. Attribution
-weights each unmasked above-cutoff FLIP pixel inside the hotspot bounding box
+weights each unmasked above-cutoff FLIP pixel in the exact hotspot component
 by its error, rather than counting pixels equally; copied sidecar bytes and
 hashes are bound into the report and evidence case. The HTML table uses the
-same report data. The hotspot detector keeps component areas but not component
-membership, so an attribution box can include nearby distinct components;
-`measured_hot_pixels` makes that limitation visible. I rejected claiming exact
-component membership without changing the existing hotspot algorithm and ABI.
+same report data. Exact component runs are additive to the report schema, and
+`measured_hot_pixels` records the attributed pixel count.
 
 ## 15. Inline PR images
 

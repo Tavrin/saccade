@@ -363,6 +363,8 @@ Metadata sidecars:
 
 Performance:
       --perf-name <NAME>           Run performance sidecar file name (default saccade-perf.json)
+      --gpu-clocks-not-applicable  Declare that GPU clocks do not apply to this performance measurement
+      --perf-noise-override        Use an explicit --perf-noise floor even if complete base repeats derive a higher floor
       --perf-noise <FILE>          Noise JSON or TOML from unchanged-build repeats
       --perf-noise-k <K>           Repeat spread multiplier in the effective noise threshold (default 3)
       --perf-resolution <MS>       Timer quantum in ms; overrides the estimate from repeated captures
@@ -428,6 +430,8 @@ Metadata sidecars:
 
 Performance:
       --perf-name <NAME>           Run performance sidecar file name (default saccade-perf.json)
+      --gpu-clocks-not-applicable  Declare that GPU clocks do not apply to this performance measurement
+      --perf-noise-override        Use an explicit --perf-noise floor even if complete base repeats derive a higher floor
       --perf-noise <FILE>          Noise JSON or TOML from unchanged-build repeats
       --perf-noise-k <K>           Repeat spread multiplier in the effective noise threshold (default 3)
       --perf-resolution <MS>       Timer quantum in ms; overrides the estimate from repeated captures
@@ -476,11 +480,15 @@ Arguments:
   <CANDIDATE_DIR>
 
 Options:
-      --out <OUT>        [default: report]
+      --out <OUT>         [default: report]
       --config <CONFIG>
       --json
+      --allow-empty
+      --ppd <PPD>
+      --labels <A,B>
+      --junit <FILE.xml>
       --entry <GLOB>
-  -h, --help             Print help
+  -h, --help              Print help
 
 Metadata sidecars:
       --meta-name <NAME>        Sidecar file name (default `saccade-meta.json`); the per-image sidecar is `<stem>.<name>` and overrides the directory-level one
@@ -490,6 +498,8 @@ Metadata sidecars:
 
 Performance:
       --perf-name <NAME>           Run performance sidecar file name (default saccade-perf.json)
+      --gpu-clocks-not-applicable  Declare that GPU clocks do not apply to this performance measurement
+      --perf-noise-override        Use an explicit --perf-noise floor even if complete base repeats derive a higher floor
       --perf-noise <FILE>          Noise JSON or TOML from unchanged-build repeats
       --perf-noise-k <K>           Repeat spread multiplier in the effective noise threshold (default 3)
       --perf-resolution <MS>       Timer quantum in ms; overrides the estimate from repeated captures
@@ -529,6 +539,8 @@ Options:
 
 Performance:
       --perf-name <NAME>           Run performance sidecar file name (default saccade-perf.json)
+      --gpu-clocks-not-applicable  Declare that GPU clocks do not apply to this performance measurement
+      --perf-noise-override        Use an explicit --perf-noise floor even if complete base repeats derive a higher floor
       --perf-noise <FILE>          Noise JSON or TOML from unchanged-build repeats
       --perf-noise-k <K>           Repeat spread multiplier in the effective noise threshold (default 3)
       --perf-resolution <MS>       Timer quantum in ms; overrides the estimate from repeated captures
@@ -554,6 +566,8 @@ Options:
 
 Performance:
       --perf-name <NAME>           Run performance sidecar file name (default saccade-perf.json)
+      --gpu-clocks-not-applicable  Declare that GPU clocks do not apply to this performance measurement
+      --perf-noise-override        Use an explicit --perf-noise floor even if complete base repeats derive a higher floor
       --perf-noise <FILE>          Noise JSON or TOML from unchanged-build repeats
       --perf-noise-k <K>           Repeat spread multiplier in the effective noise threshold (default 3)
       --perf-resolution <MS>       Timer quantum in ms; overrides the estimate from repeated captures
@@ -623,6 +637,8 @@ Metadata sidecars:
 
 Performance:
       --perf-name <NAME>           Run performance sidecar file name (default saccade-perf.json)
+      --gpu-clocks-not-applicable  Declare that GPU clocks do not apply to this performance measurement
+      --perf-noise-override        Use an explicit --perf-noise floor even if complete base repeats derive a higher floor
       --perf-noise <FILE>          Noise JSON or TOML from unchanged-build repeats
       --perf-noise-k <K>           Repeat spread multiplier in the effective noise threshold (default 3)
       --perf-resolution <MS>       Timer quantum in ms; overrides the estimate from repeated captures
@@ -728,6 +744,8 @@ Metadata sidecars:
 
 Performance:
       --perf-name <NAME>           Run performance sidecar file name (default saccade-perf.json)
+      --gpu-clocks-not-applicable  Declare that GPU clocks do not apply to this performance measurement
+      --perf-noise-override        Use an explicit --perf-noise floor even if complete base repeats derive a higher floor
       --perf-noise <FILE>          Noise JSON or TOML from unchanged-build repeats
       --perf-noise-k <K>           Repeat spread multiplier in the effective noise threshold (default 3)
       --perf-resolution <MS>       Timer quantum in ms; overrides the estimate from repeated captures
@@ -1045,6 +1063,8 @@ Options:
 
 Performance:
       --perf-name <NAME>           Run performance sidecar file name (default saccade-perf.json)
+      --gpu-clocks-not-applicable  Declare that GPU clocks do not apply to this performance measurement
+      --perf-noise-override        Use an explicit --perf-noise floor even if complete base repeats derive a higher floor
       --perf-noise <FILE>          Noise JSON or TOML from unchanged-build repeats
       --perf-noise-k <K>           Repeat spread multiplier in the effective noise threshold (default 3)
       --perf-resolution <MS>       Timer quantum in ms; overrides the estimate from repeated captures

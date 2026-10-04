@@ -21,7 +21,17 @@ fn prove_routes_identity_and_performance_without_removing_old_commands() {
         .args(["prove", "identity"])
         .arg(&base)
         .arg(&arm)
-        .args(["--out", "proof", "--json"])
+        .args([
+            "--out",
+            "proof",
+            "--json",
+            "--ppd",
+            "50",
+            "--labels",
+            "old,new",
+            "--junit",
+            "proof.xml",
+        ])
         .current_dir(temp.path())
         .output()
         .unwrap();
@@ -35,6 +45,9 @@ fn prove_routes_identity_and_performance_without_removing_old_commands() {
     )
     .unwrap();
     assert_eq!(report["config"]["mode"], "identity");
+    assert_eq!(report["config"]["pixels_per_degree"], 50.0);
+    assert_eq!(report["config"]["labels"]["baseline"], "old");
+    assert!(temp.path().join("proof.xml").is_file());
     let legacy = Command::new(bin)
         .arg("identity")
         .arg(&base)

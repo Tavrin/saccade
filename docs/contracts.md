@@ -30,7 +30,7 @@ pair whose native decoded samples differ.
 `gpu_clock_after` when adjacent `gpu_clock.json` sidecars exist. The
 engine-neutral input schema is `saccade-gpu-clock.v1`; Moss
 `moss.gpu-clock.v2` is adapted on read. Clock qualification failures and
-cross-arm differences append named `qualification_reasons` and set
+missing clocks and cross-arm differences append named `qualification_reasons` and set
 `comparability: rejected`. The performance-noise path applies the same checks
 across repeats.
 
