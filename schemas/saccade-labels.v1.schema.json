@@ -24,6 +24,20 @@
           "format": "double",
           "type": "number"
         },
+        "pixel_runs": {
+          "description": "Exact row-major runs of pixels in this component: [start, length].\nEmpty only for reports produced before exact-mask support.",
+          "items": {
+            "items": {
+              "format": "uint32",
+              "minimum": 0,
+              "type": "integer"
+            },
+            "maxItems": 2,
+            "minItems": 2,
+            "type": "array"
+          },
+          "type": "array"
+        },
         "position": {
           "description": "Coarse 3x3 position of the box centre: `top-left`, `top-center`,\n`top-right`, `middle-left`, `center`, `middle-right`, `bottom-left`,\n`bottom-center`, `bottom-right`.",
           "type": "string"

@@ -134,6 +134,7 @@ pub fn find_hotspots(
     let mut comps: Vec<Comp> = Vec::new();
     let mut prev = vec![0u32; w];
     let mut cur = vec![0u32; w];
+    let mut labels = vec![0u32; w * h];
     let mut total = 0.0f64;
     for y in 0..h {
         let row = &error_map[y * w..(y + 1) * w];
@@ -194,20 +195,26 @@ pub fn find_hotspots(
             c.x1 = c.x1.max(xu);
             c.y1 = c.y1.max(yu);
             cur[x] = root;
+            labels[y * w + x] = root;
         }
         std::mem::swap(&mut prev, &mut cur);
     }
 
-    let mut roots: Vec<Comp> = comps
+    for label in &mut labels {
+        if *label != 0 {
+            *label = find(&mut comps, *label - 1) + 1;
+        }
+    }
+    let mut roots: Vec<(Comp, Vec<u32>)> = comps
         .iter()
         .enumerate()
         .filter(|(i, c)| c.parent as usize == *i)
-        .map(|(_, c)| *c)
+        .map(|(i, c)| (*c, vec![i as u32 + 1]))
         .collect();
     if roots.is_empty() {
         return Vec::new();
     }
-    roots.sort_by(|a, b| b.sum.total_cmp(&a.sum));
+    roots.sort_by(|a, b| b.0.sum.total_cmp(&a.0.sum));
     roots.truncate(MAX_CANDIDATES);
 
     // Merge nearby components until no two boxes are within `gap`.
@@ -215,36 +222,138 @@ pub fn find_hotspots(
     'outer: loop {
         for i in 0..roots.len() {
             for j in i + 1..roots.len() {
-                if roots[i].near(&roots[j], gap) {
+                if roots[i].0.near(&roots[j].0, gap) {
                     let other = roots.swap_remove(j);
-                    roots[i].merge(&other);
+                    roots[i].0.merge(&other.0);
+                    roots[i].1.extend(other.1);
                     continue 'outer;
                 }
             }
         }
         break;
     }
-    roots.sort_by(|a, b| b.sum.total_cmp(&a.sum));
+    roots.sort_by(|a, b| b.0.sum.total_cmp(&a.0.sum));
     if opts.min_share > 0.0 && total > 0.0 {
-        roots.retain(|c| c.sum / total >= opts.min_share);
+        roots.retain(|c| c.0.sum / total >= opts.min_share);
     }
     roots.truncate(opts.top_k);
 
     roots
         .iter()
-        .map(|c| describe(c, error_map, mask, width, height, total))
+        .map(|(c, members)| {
+            describe(
+                c,
+                (members, &labels),
+                error_map,
+                mask,
+                (width, height),
+                total,
+            )
+        })
         .collect()
+}
+
+/// Detect a severe connected component over the full map. Display caps and
+/// minimum error-share filtering must never affect this qualification rule.
+pub fn has_severe_component(
+    error_map: &[f32],
+    mask: Option<&[bool]>,
+    width: u32,
+    height: u32,
+    threshold: f64,
+    min_pixels: u32,
+) -> bool {
+    let (w, h) = (width as usize, height as usize);
+    if w == 0
+        || h == 0
+        || error_map.len() != w.saturating_mul(h)
+        || mask.is_some_and(|m| m.len() != error_map.len())
+    {
+        return false;
+    }
+    let mut seen = vec![false; error_map.len()];
+    let mut stack = Vec::new();
+    for start in 0..error_map.len() {
+        if seen[start]
+            || mask.is_some_and(|m| m[start])
+            || !error_map[start].is_finite()
+            || f64::from(error_map[start]) < threshold
+        {
+            continue;
+        }
+        seen[start] = true;
+        stack.push(start);
+        let mut count = 0u32;
+        while let Some(i) = stack.pop() {
+            count += 1;
+            if count >= min_pixels {
+                return true;
+            }
+            let x = i % w;
+            let y = i / w;
+            for ny in y.saturating_sub(1)..=(y + 1).min(h - 1) {
+                for nx in x.saturating_sub(1)..=(x + 1).min(w - 1) {
+                    let n = ny * w + nx;
+                    if !seen[n]
+                        && !mask.is_some_and(|m| m[n])
+                        && error_map[n].is_finite()
+                        && f64::from(error_map[n]) >= threshold
+                    {
+                        seen[n] = true;
+                        stack.push(n);
+                    }
+                }
+            }
+        }
+    }
+    false
+}
+
+/// Exact thresholded pixel mask independent of display hotspot limits.
+pub fn threshold_runs(error_map: &[f32], mask: Option<&[bool]>, threshold: f32) -> Vec<[u32; 2]> {
+    if mask.is_some_and(|m| m.len() != error_map.len()) {
+        return Vec::new();
+    }
+    let mut runs: Vec<[u32; 2]> = Vec::new();
+    for (i, value) in error_map.iter().enumerate() {
+        if value.is_finite() && *value > threshold && !mask.is_some_and(|m| m[i]) {
+            let i = i as u32;
+            if let Some(last) = runs.last_mut()
+                && last[0] + last[1] == i
+            {
+                last[1] += 1;
+                continue;
+            }
+            runs.push([i, 1]);
+        }
+    }
+    runs
 }
 
 /// Statistics of one merged group over its bounding box.
 fn describe(
     c: &Comp,
+    membership: (&[u32], &[u32]),
     error_map: &[f32],
     mask: Option<&[bool]>,
-    width: u32,
-    height: u32,
+    dimensions: (u32, u32),
     total: f64,
 ) -> Hotspot {
+    let (members, labels) = membership;
+    let (width, height) = dimensions;
+    let mut pixel_runs: Vec<[u32; 2]> = Vec::new();
+    for (i, label) in labels.iter().enumerate() {
+        if members.contains(label) && *label != 0 {
+            let i = i as u32;
+            if let Some(last) = pixel_runs.last_mut()
+                && last[0] + last[1] == i
+            {
+                last[1] += 1;
+                continue;
+            }
+            pixel_runs.push([i, 1]);
+        }
+    }
     let w = width as usize;
     let (mut sum, mut n, mut max) = (0.0f64, 0u64, 0.0f32);
     for y in c.y0..=c.y1 {
@@ -261,6 +370,7 @@ fn describe(
     let rect = [c.x0, c.y0, c.x1 - c.x0 + 1, c.y1 - c.y0 + 1];
     let (fw, fh) = (f64::from(width), f64::from(height));
     Hotspot {
+        pixel_runs,
         rect_px: rect,
         rect_frac: [
             f64::from(rect[0]) / fw,
@@ -320,6 +430,32 @@ pub fn summary_line(hotspots: &[Hotspot]) -> Option<String> {
 #[allow(clippy::expect_used)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn severe_small_component_survives_display_share_and_cap() {
+        let (w, h) = (100usize, 100usize);
+        let mut map = vec![0.1f32; w * h];
+        for y in 80..84 {
+            for x in 80..84 {
+                map[y * w + x] = 0.6;
+            }
+        }
+        let displayed = find_hotspots(
+            &map,
+            None,
+            w as u32,
+            h as u32,
+            &HotspotOptions {
+                threshold: 0.5,
+                top_k: 0,
+                min_share: 0.5,
+            },
+        );
+        assert!(displayed.is_empty());
+        assert!(has_severe_component(
+            &map, None, w as u32, h as u32, 0.5, 16
+        ));
+    }
 
     fn blob(map: &mut [f32], w: usize, rect: [usize; 4], v: f32) {
         for y in rect[1]..rect[1] + rect[3] {

@@ -423,6 +423,9 @@ pub struct Intent {
     pub criteria: Vec<Criterion>,
     /// Optional immutable source file.
     pub source: Option<ArtifactRef>,
+    /// Immutable mask bytes referenced by a structured visual intent.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub mask_sources: Vec<ArtifactRef>,
     /// Attribution and creation time.
     pub provenance: Provenance,
 }
@@ -485,6 +488,11 @@ impl EvidenceCase {
                 && !source.is_null()
             {
                 *source = source["sha256"].clone();
+            }
+            if let Some(masks) = value.get_mut("mask_sources").and_then(Value::as_array_mut) {
+                for mask in masks {
+                    *mask = mask["sha256"].clone();
+                }
             }
         }
         let facts: Vec<_> = self
@@ -551,6 +559,9 @@ impl EvidenceCase {
             )?;
             if let Some(source) = &intent.source {
                 source.validate()?;
+            }
+            for mask in &intent.mask_sources {
+                mask.validate()?;
             }
             for change in &intent.expected_changes {
                 require(

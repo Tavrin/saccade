@@ -110,14 +110,16 @@ impl VisualIntent {
             }
             if let Some(mask) = &change.mask {
                 let path = Path::new(mask);
+                let root = source.parent().unwrap_or(Path::new("."));
+                let candidate = root.join(path);
                 if path
                     .components()
                     .any(|c| !matches!(c, std::path::Component::Normal(_)))
-                    || !source
-                        .parent()
-                        .unwrap_or(Path::new("."))
-                        .join(path)
-                        .is_file()
+                    || !candidate.is_file()
+                    || !std::fs::canonicalize(&candidate)
+                        .ok()
+                        .zip(std::fs::canonicalize(root).ok())
+                        .is_some_and(|(file, root)| file.starts_with(root))
                 {
                     return Err(Error::Config(
                         "intent mask must be an existing relative file beside the declaration"
@@ -134,56 +136,58 @@ fn dimensions(entry: &Entry) -> Option<(u32, u32)> {
     entry.metrics.as_ref().map(|m| (m.width, m.height))
 }
 
-fn overlaps(change: &ExpectedChange, source: &Path, entry: &Entry, rect: [u32; 4]) -> bool {
+fn pixel_match(
+    change: &ExpectedChange,
+    source: &Path,
+    entry: &Entry,
+    runs: &[[u32; 2]],
+    all: bool,
+) -> bool {
     let Some((width, height)) = dimensions(entry) else {
         return false;
     };
-    if let Some([rx, ry, rw, rh]) = change.rect_frac {
-        let [x, y, w, h] = rect;
-        return f64::from(x) / f64::from(width) < rx + rw
-            && f64::from(x + w) / f64::from(width) > rx
-            && f64::from(y) / f64::from(height) < ry + rh
-            && f64::from(y + h) / f64::from(height) > ry;
-    }
-    let Some(mask) = &change.mask else {
-        return false;
-    };
-    let path = source.parent().unwrap_or(Path::new(".")).join(mask);
-    let Ok(image) = image::open(path) else {
-        return false;
-    };
-    let image = image.to_luma8();
-    if image.width() != width || image.height() != height {
+    if runs.is_empty() {
         return false;
     }
-    (rect[1]..rect[1] + rect[3])
-        .any(|y| (rect[0]..rect[0] + rect[2]).any(|x| image.get_pixel(x, y).0[0] > 0))
+    let image = change.mask.as_ref().and_then(|mask| {
+        image::open(source.parent().unwrap_or(Path::new(".")).join(mask))
+            .ok()
+            .map(|i| i.to_luma8())
+    });
+    if change.mask.is_some()
+        && image
+            .as_ref()
+            .is_none_or(|i| i.width() != width || i.height() != height)
+    {
+        return false;
+    }
+    let hit = |index: u32| pixel_in_change(change, image.as_ref(), width, height, index);
+    let pixels = runs
+        .iter()
+        .flat_map(|[start, len]| *start..start.saturating_add(*len));
+    if all {
+        pixels.into_iter().all(hit)
+    } else {
+        pixels.into_iter().any(hit)
+    }
 }
 
-fn contains(change: &ExpectedChange, source: &Path, entry: &Entry, rect: [u32; 4]) -> bool {
-    let Some((width, height)) = dimensions(entry) else {
-        return false;
-    };
+fn pixel_in_change(
+    change: &ExpectedChange,
+    image: Option<&image::GrayImage>,
+    width: u32,
+    height: u32,
+    index: u32,
+) -> bool {
+    let x = index % width;
+    let y = index / width;
     if let Some([rx, ry, rw, rh]) = change.rect_frac {
-        let [x, y, w, h] = rect;
-        return f64::from(x) / f64::from(width) >= rx
-            && f64::from(x + w) / f64::from(width) <= rx + rw
-            && f64::from(y) / f64::from(height) >= ry
-            && f64::from(y + h) / f64::from(height) <= ry + rh;
+        let fx = (f64::from(x) + 0.5) / f64::from(width);
+        let fy = (f64::from(y) + 0.5) / f64::from(height);
+        fx >= rx && fx < rx + rw && fy >= ry && fy < ry + rh
+    } else {
+        image.is_some_and(|i| i.get_pixel(x, y).0[0] > 0)
     }
-    let Some(mask) = &change.mask else {
-        return false;
-    };
-    let path = source.parent().unwrap_or(Path::new(".")).join(mask);
-    let Ok(image) = image::open(path) else {
-        return false;
-    };
-    let image = image.to_luma8();
-    if image.width() != width || image.height() != height {
-        return false;
-    }
-    (rect[1]..rect[1] + rect[3])
-        .all(|y| (rect[0]..rect[0] + rect[2]).all(|x| image.get_pixel(x, y).0[0] > 0))
 }
 
 /// Match a validated declaration against the report's hotspots and diagnostics.
@@ -224,11 +228,13 @@ pub fn verify(intent: &VisualIntent, source: &Path, report: &Report) -> Verifica
                 continue;
             }
         }
-        let hits = entry
-            .hotspots
-            .iter()
-            .filter(|h| overlaps(change, source, entry, h.rect_px))
-            .count();
+        let hits = usize::from(pixel_match(
+            change,
+            source,
+            entry,
+            &entry.changed_pixel_runs,
+            false,
+        ));
         let tone = entry
             .diagnostics
             .as_ref()
@@ -245,7 +251,7 @@ pub fn verify(intent: &VisualIntent, source: &Path, report: &Report) -> Verifica
             entry: change.entry.clone(),
             kind: format!("{:?}", change.kind).to_lowercase(),
             detail: format!(
-                "{hits} overlapping hotspots; tone exposure {tone:?} stops; native identical {:?}",
+                "{hits} changed-pixel region match; tone exposure {tone:?} stops; native identical {:?}",
                 entry.bit_identical
             ),
         };
@@ -267,20 +273,37 @@ pub fn verify(intent: &VisualIntent, source: &Path, report: &Report) -> Verifica
                 .iter()
                 .filter(|c| c.entry == entry.name && c.kind != ChangeKind::None)
                 .collect();
-            for (index, hotspot) in entry.hotspots.iter().enumerate() {
-                if !declared
-                    .iter()
-                    .any(|c| contains(c, source, entry, hotspot.rect_px))
-                {
-                    result.unexpected.push(Finding {
-                        entry: entry.name.clone(),
-                        kind: "hotspot_elsewhere".into(),
-                        detail: format!("hotspot {} at {:?}", index + 1, hotspot.rect_px),
-                    });
-                }
+            let masks: Vec<_> = declared
+                .iter()
+                .map(|c| {
+                    c.mask.as_ref().and_then(|mask| {
+                        image::open(source.parent().unwrap_or(Path::new(".")).join(mask))
+                            .ok()
+                            .map(|image| image.to_luma8())
+                    })
+                })
+                .collect();
+            let (width, height) = dimensions(entry).unwrap_or((1, 1));
+            let uncovered = entry
+                .changed_pixel_runs
+                .iter()
+                .flat_map(|[start, len]| *start..start.saturating_add(*len))
+                .filter(|index| {
+                    !declared
+                        .iter()
+                        .zip(&masks)
+                        .any(|(c, image)| pixel_in_change(c, image.as_ref(), width, height, *index))
+                })
+                .count();
+            if uncovered > 0 {
+                result.unexpected.push(Finding {
+                    entry: entry.name.clone(),
+                    kind: "hotspot_elsewhere".into(),
+                    detail: format!("{uncovered} changed pixels outside declared regions"),
+                });
             }
             if entry.bit_identical == Some(false)
-                && entry.hotspots.is_empty()
+                && entry.changed_pixel_runs.is_empty()
                 && declared.is_empty()
             {
                 result.unexpected.push(Finding {
@@ -371,5 +394,17 @@ mod tests {
         let found = verify(&intent, &source, &report);
         assert_eq!(found.missing.len(), 1);
         assert_eq!(found.unexpected.len(), 1);
+
+        let mut thin = report.clone();
+        thin.entries[0].hotspots[0].rect_px = [0, 0, 64, 64];
+        thin.entries[0].hotspots[0].pixel_runs = vec![[0, 1], [63 * 64 + 63, 1]];
+        thin.entries[0].changed_pixel_runs = thin.entries[0].hotspots[0].pixel_runs.clone();
+        intent.changes[0].rect_frac = Some([0.4, 0.4, 0.2, 0.2]);
+        let found = verify(&intent, &source, &thin);
+        assert!(
+            found.matched.is_empty(),
+            "box overlap cannot establish a pixel match"
+        );
+        assert_eq!(found.missing.len(), 1);
     }
 }

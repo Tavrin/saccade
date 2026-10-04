@@ -710,6 +710,7 @@ pub(crate) fn read_intent(
         invariants: vec![],
         criteria: vec![],
         source: None,
+        mask_sources: vec![],
         provenance: Provenance::default(),
     }))
 }

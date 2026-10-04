@@ -345,6 +345,10 @@ pub struct Entry {
     /// pair was not compared or when hotspots are disabled.
     #[serde(default)]
     pub hotspots: Vec<Hotspot>,
+    /// Every unmasked pixel above the hotspot threshold, as row-major runs.
+    /// Unlike `hotspots`, this detection mask has no display cap or share filter.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub changed_pixel_runs: Vec<[u32; 2]>,
     /// Per-hotspot error attributed to object/material IDs supplied with the capture.
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub object_attribution: Vec<crate::object_ids::Attribution>,
@@ -367,6 +371,10 @@ pub struct Entry {
 #[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct Hotspot {
+    /// Exact row-major runs of pixels in this component: [start, length].
+    /// Empty only for reports produced before exact-mask support.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub pixel_runs: Vec<[u32; 2]>,
     /// Bounding box `[x, y, w, h]` in pixels.
     pub rect_px: [u32; 4],
     /// The same box as fractions of the frame, `[x, y, w, h]`.
@@ -498,13 +506,9 @@ impl Entry {
         if !self.pass_with_local_change {
             return None;
         }
-        let worst = self
-            .hotspots
-            .iter()
-            .max_by(|a, b| a.max_flip.total_cmp(&b.max_flip))?;
         Some(format!(
-            "pass with local change: {} pixels @ {} (max FLIP {:.2}); inspect the hotspot",
-            worst.area_px, worst.position, worst.max_flip
+            "pass with local change: severe component in the full error map (max FLIP {:.2}); inspect the heatmap",
+            self.metrics.as_ref().map_or(0.0, |m| m.max)
         ))
     }
 }

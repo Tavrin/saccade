@@ -234,6 +234,14 @@ fn one_kind(
         for y in y0..y0.saturating_add(h).min(height) {
             for x in x0..x0.saturating_add(w).min(width) {
                 let i = y as usize * width as usize + x as usize;
+                if !hotspot.pixel_runs.is_empty()
+                    && !hotspot
+                        .pixel_runs
+                        .iter()
+                        .any(|r| i >= r[0] as usize && i < (r[0] + r[1]) as usize)
+                {
+                    continue;
+                }
                 let v = errors[i];
                 if !v.is_finite() || v <= cutoff || mask.is_some_and(|m| m[i]) {
                     continue;
@@ -355,6 +363,7 @@ mod tests {
         let report = dir.path().join("report");
         std::fs::create_dir_all(report.join("images/frame.png.d")).expect("report dir");
         let hotspot = Hotspot {
+            pixel_runs: Vec::new(),
             rect_px: [0, 0, 4, 4],
             rect_frac: [0.0, 0.0, 1.0, 1.0],
             area_px: 16,
@@ -377,7 +386,7 @@ mod tests {
                 mask: None,
                 width: 4,
                 height: 4,
-                hotspots: &[hotspot],
+                hotspots: std::slice::from_ref(&hotspot),
                 cutoff: 0.1,
             },
         )
@@ -388,6 +397,29 @@ mod tests {
         assert!((object[0].error_share - 0.6).abs() < 1e-6);
         assert!((object[1].error_share - 0.4).abs() < 1e-6);
         assert_eq!(result[1].hotspots[0].contributions[0].name, "rock_moss");
+        let exact = Hotspot {
+            pixel_runs: vec![[0, 4]],
+            ..hotspot.clone()
+        };
+        let exact_result = attribute(
+            Sidecars {
+                capture: &capture,
+                report_dir: &report,
+                entry_name: "frame.png",
+            },
+            HotspotPixels {
+                errors: &errors,
+                mask: None,
+                width: 4,
+                height: 4,
+                hotspots: &[exact],
+                cutoff: 0.1,
+            },
+        )
+        .expect("exact component attribution");
+        assert_eq!(exact_result[0].hotspots[0].measured_hot_pixels, 4);
+        assert_eq!(exact_result[0].hotspots[0].contributions.len(), 1);
+        assert_eq!(exact_result[0].hotspots[0].contributions[0].name, "tree");
         for source in &result {
             assert!(report.join(&source.image_path).is_file());
             assert!(report.join(&source.legend_path).is_file());

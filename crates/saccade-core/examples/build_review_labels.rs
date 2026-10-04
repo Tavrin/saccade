@@ -133,6 +133,7 @@ fn build(reports: &Path, out: &Path) -> Result<()> {
                 let w = size[0].as_u64().unwrap_or(0) as u32;
                 let h = size[1].as_u64().unwrap_or(0) as u32;
                 label.hotspots.push(saccade_core::report::Hotspot {
+                    pixel_runs: Vec::new(),
                     rect_px: [w / 4, h / 4, w / 2, h / 2],
                     rect_frac: [0.25, 0.25, 0.5, 0.5],
                     area_px: 0,

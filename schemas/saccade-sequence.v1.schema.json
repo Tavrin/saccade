@@ -1,5 +1,46 @@
 {
   "$defs": {
+    "Attribution": {
+      "description": "Attribution from one capture-side object/material ID pair.",
+      "properties": {
+        "hotspots": {
+          "description": "Per-hotspot error shares.",
+          "items": {
+            "$ref": "#/$defs/HotspotAttribution"
+          },
+          "type": "array"
+        },
+        "image_path": {
+          "description": "Copied ID image path, relative to the report directory.",
+          "type": "string"
+        },
+        "image_sha256": {
+          "description": "SHA-256 of the native PNG or EXR ID image.",
+          "type": "string"
+        },
+        "kind": {
+          "description": "`object` or `material`.",
+          "type": "string"
+        },
+        "legend_path": {
+          "description": "Copied legend path, relative to the report directory.",
+          "type": "string"
+        },
+        "legend_sha256": {
+          "description": "SHA-256 of the JSON legend.",
+          "type": "string"
+        }
+      },
+      "required": [
+        "kind",
+        "image_sha256",
+        "legend_sha256",
+        "image_path",
+        "legend_path",
+        "hotspots"
+      ],
+      "type": "object"
+    },
     "BufferKind": {
       "description": "Meaning of the samples in a non-colour image.",
       "oneOf": [
@@ -385,6 +426,20 @@
           },
           "description": "Capture validity, independent of sample equality and perceptual error."
         },
+        "changed_pixel_runs": {
+          "description": "Every unmasked pixel above the hotspot threshold, as row-major runs.\nUnlike `hotspots`, this detection mask has no display cap or share filter.",
+          "items": {
+            "items": {
+              "format": "uint32",
+              "minimum": 0,
+              "type": "integer"
+            },
+            "maxItems": 2,
+            "minItems": 2,
+            "type": "array"
+          },
+          "type": "array"
+        },
         "diagnostics": {
           "anyOf": [
             {
@@ -482,6 +537,13 @@
         "name": {
           "description": "Path relative to the baseline/capture roots, `/`-separated.",
           "type": "string"
+        },
+        "object_attribution": {
+          "description": "Per-hotspot error attributed to object/material IDs supplied with the capture.",
+          "items": {
+            "$ref": "#/$defs/Attribution"
+          },
+          "type": "array"
         },
         "pass_with_local_change": {
           "default": false,
@@ -650,6 +712,20 @@
           "format": "double",
           "type": "number"
         },
+        "pixel_runs": {
+          "description": "Exact row-major runs of pixels in this component: [start, length].\nEmpty only for reports produced before exact-mask support.",
+          "items": {
+            "items": {
+              "format": "uint32",
+              "minimum": 0,
+              "type": "integer"
+            },
+            "maxItems": 2,
+            "minItems": 2,
+            "type": "array"
+          },
+          "type": "array"
+        },
         "position": {
           "description": "Coarse 3x3 position of the box centre: `top-left`, `top-center`,\n`top-right`, `middle-left`, `center`, `middle-right`, `bottom-left`,\n`bottom-center`, `bottom-right`.",
           "type": "string"
@@ -690,6 +766,69 @@
         "max_flip",
         "share_of_total_error",
         "position"
+      ],
+      "type": "object"
+    },
+    "HotspotAttribution": {
+      "description": "Attribution for one numbered hotspot's bounding box.",
+      "properties": {
+        "contributions": {
+          "description": "IDs in descending error-share order.",
+          "items": {
+            "$ref": "#/$defs/IdContribution"
+          },
+          "type": "array"
+        },
+        "hotspot": {
+          "description": "One-based index into the entry's `hotspots` list.",
+          "format": "uint",
+          "minimum": 0,
+          "type": "integer"
+        },
+        "measured_hot_pixels": {
+          "description": "Hot pixels measured inside the box; may differ from hotspot component area.",
+          "format": "uint64",
+          "minimum": 0,
+          "type": "integer"
+        }
+      },
+      "required": [
+        "hotspot",
+        "measured_hot_pixels",
+        "contributions"
+      ],
+      "type": "object"
+    },
+    "IdContribution": {
+      "description": "A single ID's share of FLIP error above the hotspot cutoff inside a box.",
+      "properties": {
+        "error_share": {
+          "description": "FLIP error sum for this ID divided by all hot error inside the box.",
+          "format": "double",
+          "type": "number"
+        },
+        "id": {
+          "description": "Numeric ID encoded in the sidecar image.",
+          "format": "uint32",
+          "minimum": 0,
+          "type": "integer"
+        },
+        "name": {
+          "description": "Name from the sidecar legend, or `<unlabeled>` for ID zero.",
+          "type": "string"
+        },
+        "pixels": {
+          "description": "Number of above-cutoff pixels assigned to this ID.",
+          "format": "uint64",
+          "minimum": 0,
+          "type": "integer"
+        }
+      },
+      "required": [
+        "id",
+        "name",
+        "error_share",
+        "pixels"
       ],
       "type": "object"
     },

@@ -819,6 +819,7 @@ pub(crate) fn build_entry(
         baseline_sha256: None,
         capture_sha256: None,
         hotspots: Vec::new(),
+        changed_pixel_runs: Vec::new(),
         object_attribution: Vec::new(),
         pass_with_local_change: false,
         buffer: None,
@@ -1005,6 +1006,11 @@ fn finish_entry(
             min_share: config.hotspot_min_share,
         },
     );
+    entry.changed_pixel_runs = crate::hotspots::threshold_runs(
+        &cmp.error_map,
+        scene.mask.as_deref(),
+        config.hotspot_threshold,
+    );
     entry.object_attribution = crate::object_ids::attribute(
         crate::object_ids::Sidecars {
             capture: pair.capture_path,
@@ -1044,10 +1050,14 @@ fn finish_entry(
     }
     entry.pass_with_local_change = entry.status == Status::Pass
         && entry.bit_identical == Some(false)
-        && entry.hotspots.iter().any(|h| {
-            h.max_flip >= config.hotspot_local_max
-                && h.area_px >= u64::from(config.hotspot_local_min_pixels)
-        });
+        && crate::hotspots::has_severe_component(
+            &cmp.error_map,
+            scene.mask.as_deref(),
+            cmp.metrics.width,
+            cmp.metrics.height,
+            config.hotspot_local_max,
+            config.hotspot_local_min_pixels,
+        );
     entry.value = Some(value);
     entry.metrics = Some(scene.metrics);
     entry.paths.heatmap = Some(rel);

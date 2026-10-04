@@ -1350,6 +1350,7 @@ pub(crate) fn persist_case(
                     invariants: vec!["no change elsewhere".into()],
                     criteria: Vec::new(),
                     source: None,
+                    mask_sources: Vec::new(),
                     provenance: Provenance::default(),
                 }
             } else {
@@ -1358,6 +1359,27 @@ pub(crate) fn persist_case(
         intent.assurance = IntentAssurance::Structured;
         let target = dir.join("assets/intent.json");
         std::fs::copy(file, &target).map_err(|e| CliError::io(e.to_string()))?;
+        if let Ok(visual) =
+            serde_json::from_value::<saccade_core::intent::VisualIntent>(read_value(file)?)
+        {
+            visual.validate(file)?;
+            for change in &visual.changes {
+                if let Some(mask) = &change.mask {
+                    let source_mask = file.parent().unwrap_or(Path::new(".")).join(mask);
+                    let bundled_mask = target.parent().unwrap_or(dir).join(mask);
+                    if let Some(parent) = bundled_mask.parent() {
+                        std::fs::create_dir_all(parent).map_err(|e| CliError::io(e.to_string()))?;
+                    }
+                    std::fs::copy(&source_mask, &bundled_mask)
+                        .map_err(|e| CliError::io(e.to_string()))?;
+                    intent.mask_sources.push(ArtifactRef::from_file(
+                        &bundled_mask,
+                        &source,
+                        false,
+                    )?);
+                }
+            }
+        }
         intent.source = Some(ArtifactRef::from_file(&target, &source, false)?);
         case.intent = Availability::Available { value: intent };
     } else if let Some(text) = &args.intent {
@@ -1370,6 +1392,7 @@ pub(crate) fn persist_case(
                 invariants: Vec::new(),
                 criteria: Vec::new(),
                 source: None,
+                mask_sources: Vec::new(),
                 provenance: Provenance::default(),
             },
         };
@@ -1487,10 +1510,13 @@ fn verify_case_files(case: &EvidenceCase, document: &Path) -> Result<(), CliErro
             sidecar.verify(document)?;
         }
     }
-    if let Availability::Available { value: intent } = &case.intent
-        && let Some(source) = &intent.source
-    {
-        source.verify(document)?;
+    if let Availability::Available { value: intent } = &case.intent {
+        if let Some(source) = &intent.source {
+            source.verify(document)?;
+        }
+        for mask in &intent.mask_sources {
+            mask.verify(document)?;
+        }
     }
     Ok(())
 }
