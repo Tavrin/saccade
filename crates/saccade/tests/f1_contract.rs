@@ -97,7 +97,12 @@ fn no_absolute_paths_by_default() {
     );
     let mut summary = value(&output);
     for action in summary["next_actions"].as_array_mut().unwrap() {
-        assert_eq!(action["cwd"], root.to_str().unwrap());
+        let cwd = Path::new(action["cwd"].as_str().unwrap());
+        assert!(cwd.is_absolute());
+        assert_eq!(
+            std::fs::canonicalize(cwd).unwrap(),
+            std::fs::canonicalize(root).unwrap()
+        );
         action.as_object_mut().unwrap().remove("cwd");
     }
     no_prefix(&summary, root.to_str().unwrap());

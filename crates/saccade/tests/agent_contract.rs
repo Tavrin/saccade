@@ -250,7 +250,12 @@ fn entry_and_validity_inspection_are_actionable() {
     );
     assert!(entry["entries"][0]["explanation"].is_string());
     let action = &entry["next_actions"][0];
-    assert_eq!(action["cwd"], tmp.path().to_str().unwrap());
+    let cwd = Path::new(action["cwd"].as_str().unwrap());
+    assert!(cwd.is_absolute());
+    assert_eq!(
+        std::fs::canonicalize(cwd).unwrap(),
+        std::fs::canonicalize(tmp.path()).unwrap()
+    );
     let argv = action["cli_argv"]
         .as_array()
         .unwrap()
