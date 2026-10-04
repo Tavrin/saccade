@@ -1,4 +1,5 @@
-//! Evidence checks with compare, prove, and review as the front door.
+//! The `saccade` command-line tool. `compare`, `prove` and `review` are the
+//! main entry points.
 //!
 //! Exit codes: `0` no regression, `1` regression, `2` usage/config/IO error.
 

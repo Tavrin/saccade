@@ -1,17 +1,18 @@
 # CI
 
-The local [Action example](../examples/action/README.md) documents the implemented
-inputs and immutable selected baseline-update workflow.
-The proposed release tag `Tavrin/saccade@v1` is not claimed to be published.
+The [Action example](../examples/action/README.md) documents the inputs and the
+baseline-update workflow, which applies an immutable selection of reviewed
+entries. The release tag `Tavrin/saccade@v1` has not been published yet.
 
 Compare exits 0 for a passing gate, 1 for a failed gate (including missing or
 invalid inputs), and 2 when the command cannot run. Upload the report and JUnit
-results even after exit 1. Inspection/review completion supplies no acceptance
-authority. Ablation/rank exit 0 when analysis completes; inspect their findings.
+results even after exit 1. A completed inspection or review does not count as
+acceptance. The ablation and ranking commands exit 0 when the analysis
+finishes, so read their findings instead of relying on the exit code.
 
-Binary installation verifies release checksums. Source builds are explicit.
-Fork comparisons require only read permissions and no AI keys. Summaries are
-default; PR comments are opt-in. Outputs include `verdict`, `exit-code`,
+Binary installation verifies release checksums; a source build has to be
+requested explicitly. Comparisons on forks need only read permissions and no
+AI keys. The job summary is written by default, and PR comments are opt-in. Outputs include `verdict`, `exit-code`,
 `report-url` and immutable `artifact-id`.
 
 ### Inline PR images (opt in)
@@ -39,9 +40,10 @@ branch retains old images until the repository owner prunes it. See GitHub's
 [Git database API](https://docs.github.com/en/rest/git) and
 [workflow token permissions](https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-syntax#permissions).
 
-Trusted baseline-update dispatch binds a reviewed manifest, selected entries,
-exact report/candidate/baseline hashes and immutable artifact ID. It creates a
-review PR and does not auto-merge. Do not fetch mutable latest-successful data.
+A trusted baseline-update dispatch is bound to a reviewed manifest, the
+selected entries, the exact report, candidate and baseline hashes, and the
+immutable artifact ID. It opens a pull request for review and does not merge
+it automatically. Do not fetch mutable latest-successful data.
 CLI receipts remain unattested even when trusted CI authorizes the invocation.
 
 Local validation:
@@ -64,5 +66,6 @@ python3 docs/showcase/build.py --saccade target/release/saccade --out target/pag
 
 The experimental case is listed as unvalidated without prechecks. With prechecks,
 the gallery executes it too. The gallery never animates flashing fixtures.
-Local build success does not prove deployment permissions, fork execution,
-native installation or live provider quality. Those require release qualification.
+A successful local build says nothing about deployment permissions, fork
+runs, native installation or live provider quality; those need release
+qualification.

@@ -1,5 +1,5 @@
 name: saccade
-description: Compare images, preserve report and JUnit evidence, and write a job summary. Reviewed baseline updates create a pull request.
+description: Compare captured images against baselines with saccade and upload the report and JUnit results. Reviewed baseline updates open a pull request.
 author: saccade contributors
 branding:
   icon: image

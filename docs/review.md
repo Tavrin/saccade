@@ -32,8 +32,9 @@ billed usage. Source roots are shown relative to the current directory unless
 `--record-absolute-paths` is set.
 The five questions are `triage.route.v1`, `vision.route.v1`, `perf.interpret.v1`,
 `capture.disposition.v1` and `intent.match.v1`.
-Questions use closed answer sets, exact case/request hashes, bounded reasons,
-fact citations, abstention and explicit missingness.
+Questions use closed answer sets and exact case and request hashes. Answers
+have bounded reasons and fact citations, and can abstain or mark facts as
+missing.
 `review propose REQUEST --answers FILE` validates and records proposals only.
 
 Declare objective, expected changes, invariants and computable criteria through
@@ -72,7 +73,8 @@ saccade approve --report review-report/saccade-report.v1.json --entry sphere_sha
 saccade approve --report review-report/saccade-report.v1.json --decisions update-plan/decision.json --out update-receipt
 ```
 
-These commands are an authorization-dependent example, not an automatic repair.
+Run these only when a human has authorized the update; they are not an
+automatic fix.
 Dry-run does not write baselines. Current hashes must still match at application.
 Deletion requires explicit approval plus `--prune-missing`. Historical promoted
 records require fresh review; confidence and calibration cannot grant authority.

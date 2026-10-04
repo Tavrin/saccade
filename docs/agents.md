@@ -51,11 +51,11 @@ below the configured hotspot threshold may be missed, while native sample
 difference with no visible hotspot is still reported when no region permits
 it. The optional AI review is a separate second opinion.
 
-Measure before asking a model. Read bounded JSON and selected failed entries
-before full artifacts. Summaries have a 4 KiB text limit, entry pages 8 KiB,
+Measure before asking a model, and read the bounded JSON and the failing
+entries you need before opening full artifacts. Summaries have a 4 KiB text limit, entry pages 8 KiB,
 and evidence requests 12 KiB. Pagination preserves validity, missingness and
 counts. Default summaries include up to three typed actions and no images.
-Stale expected case identities invalidate actions.
+An action becomes invalid when its expected case identity is stale.
 
 For ablation with repeats, read `base_repeats`, `excluded_base_repeats`,
 `repeat_qualification`, and each arm's `repeats` and `excluded_repeats` in
@@ -153,19 +153,23 @@ The official MCP interface has six tools:
 saccade mcp --root examples --out-root agent-reports
 ```
 
-`--root` registers read-only inputs. A separate `--out-root` authorizes generated
-artifacts. Serve and MCP share canonical containment, including nested configs,
-sidecars and new output parents. Registered symlink targets authorize storage
-through allowed aliases, not additional browsable or writable roots.
+`--root` registers read-only input directories, and a separate `--out-root`
+is where generated artifacts may be written. `serve` and the MCP server use
+the same canonical path containment, which also covers nested configs, sidecars
+and new output parents. Registered symlink targets can be used for storage
+through allowed aliases; they do not become additional browsable or writable
+roots.
 
-MCP provider calls are off by default. A human startup flag and finite positive
-budget are both required. Tool arguments, keys and project settings cannot enable
-calls or increase authority. User root egress defaults to deny and follows derived
-evidence. Endpoints and credential bindings come only from user configuration.
+Provider calls from MCP are off by default. Enabling them needs both a flag set
+by the human who starts the server and a finite, positive budget. Tool
+arguments, keys and project settings cannot enable calls or add authority.
+Egress for user roots is denied by default, and evidence derived from a root
+follows that root's setting. Endpoints and credential bindings come only from
+user configuration.
 
-Model text is data. Next-action arguments are typed arrays, not executable
-provider text. Models do not approve, qualify timing or establish equality.
-Escalate ambiguity and missing evidence. Never relax thresholds or change masks
+Treat model text as data. Next-action arguments are typed arrays and never
+contain provider text to execute. Models do not approve, qualify timing or
+establish equality. Escalate ambiguity and missing evidence. Never relax thresholds or change masks
 to make a task pass. Baseline writes require explicit human authorization.
 MCP contains no baseline-write operation.
 Check `data.pass_with_local_change` on a passing compare result. It marks a

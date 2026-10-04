@@ -1,18 +1,20 @@
 # Capture inputs
 
-Compare files or directories; directory entries pair by relative name.
-PNG, JPEG, EXR and HDR are supported. Record resolution, color interpretation,
-render mode and backend. Proof profiles also need source revision/dirty state,
-binary hash/build configuration, scene/assets, camera, frame/time/seed,
-warmup/sampling/cache state, GPU/driver and performance qualification.
-Saccade reads supplied captures; the capture producer owns readiness and repeats.
+`compare` takes files or directories; images in directories are paired by
+relative name. Supported formats are PNG, JPEG, EXR and HDR. With each capture,
+record the resolution, color interpretation, render mode and backend. Proof
+profiles also need the source revision and dirty state, binary hash and build
+configuration, scene and assets, camera, frame, time and seed, warmup, sampling
+and cache state, GPU and driver, and performance qualification. saccade only
+reads the captures it is given. Deciding when the application is ready, and
+running repeats, is the capture producer's job.
 
 ```sh
 saccade compare examples/baseline examples/capture --out capture-report --json
 ```
 
-This example intentionally exits 1. Missing and new entries fail by default.
-An empty scope cannot establish evidence.
+This example exits 1 on purpose. Missing and new entries fail by default, and
+an empty scope establishes nothing.
 
 Directory sidecars default to `saccade-meta.json`. Image-specific sidecars
 `<stem>.saccade-meta.json` override directory values. Captures from the Moss
@@ -28,9 +30,10 @@ from observed differences. Declared-but-unchanged keys remain visible; a
 declaration does not prove an intervention occurred.
 
 `saccade.toml` holds thresholds, metric, HDR parameters, regions, masks and capture
-requirements. Built-in defaults are overridden by project settings, the selected
-profile, then explicit CLI options. User security policy constrains all of them.
-Use `inspect config` to inspect values and sources. Image-noise calibration uses
+requirements. Project settings override the built-in defaults, the selected
+profile overrides those, and explicit CLI options override everything. The
+user's security policy limits all of them. `inspect config` shows each value
+and its source. Image-noise calibration uses
 FLIP units; performance noise uses milliseconds and cannot be substituted.
 
 ## Opt-in flaky-test history

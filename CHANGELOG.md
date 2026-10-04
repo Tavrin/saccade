@@ -53,8 +53,8 @@ First public release.
 
 ### Deprecated
 
-Pre-release command spellings still run their replacement and print one
-warning. These aliases expire after the 1.0 release.
+Pre-release command names still work: they run the replacement command and
+print one warning. These aliases will be removed after the 1.0 release.
 
 | Deprecated command | Replacement |
 | --- | --- |

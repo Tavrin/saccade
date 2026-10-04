@@ -6,7 +6,7 @@ saccade identity examples/baseline examples/baseline --out identity-proof --json
 
 Exit 0 establishes native decoded-sample equality across nonempty, completely
 paired selected inputs. Dimensions, channel interpretation and sample type must
-match. File-byte equality is recorded separately. Entry selection names scope;
+match. File-byte equality is recorded separately. Selecting entries sets the scope;
 masks, tolerance flags and region-only acceptance are rejected.
 Non-finite samples can be equal while failing capture validity.
 Absent metadata means capture comparability is unknown.
@@ -22,8 +22,8 @@ hidden by timing ignores. Illustrative metadata timings are not benchmarks.
 
 The effective change threshold is the maximum of three times repeat range,
 two timer quanta, 0.05 ms and 0.5% of baseline frame time. Missing repeat noise or
-timer information cannot become zero. Do not add unrelated medians or nested
-scope times into a purported measured frame.
+timer information cannot become zero. Do not add up unrelated medians or nested
+scope times and present the sum as a measured frame.
 
 ## GPU clock sidecar
 

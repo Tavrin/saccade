@@ -1,6 +1,6 @@
 [package]
 name = "saccade-core"
-description = "Perceptual (NVIDIA FLIP) image comparison and report model for renderer visual-regression testing"
+description = "NVIDIA FLIP image comparison and the report model behind the saccade CLI"
 version.workspace = true
 edition.workspace = true
 rust-version.workspace = true
