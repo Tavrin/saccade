@@ -7,6 +7,20 @@ Regenerate with `python3 scripts/gen-docs.py`; `--check` rejects drift.
 Entry packs stay below an estimated 1,200 tokens, measured conservatively as
 UTF-8 bytes divided by four. They are not exact tokenizer counts.
 
+## Install the one-call workflow
+
+Install the `saccade` binary on PATH. For Claude Code, copy
+[`integrations/claude-code/skills/saccade/`](../integrations/claude-code/skills/saccade/)
+to your project's `.claude/skills/saccade/`; optionally copy
+[`check-visual-change.md`](../integrations/claude-code/commands/check-visual-change.md)
+to `.claude/commands/` and invoke `/check-visual-change BASELINE_DIR CANDIDATE_DIR`.
+For Codex, append [the AGENTS snippet](../integrations/codex/AGENTS.saccade.md)
+to the project's `AGENTS.md` and reuse
+[the prompt](../integrations/codex/check-visual-change.prompt.md) with the two
+capture paths and the claim. Both packs invoke the installed CLI, read its
+bounded JSON, follow current next actions, and require human authorization for
+baseline approval. Keep generated reports outside the capture directories.
+
 Measure before asking a model. Read bounded JSON and selected failed entries
 before full artifacts. Summaries have a 4 KiB text limit, entry pages 8 KiB,
 and evidence requests 12 KiB. Pagination preserves validity, missingness and

@@ -4,6 +4,10 @@ Install Saccade and put it on PATH. These packs are generated from
 [agent-guide.md](agent-guide.md) by `python3 scripts/gen-docs.py`.
 Copy the Claude skill directory to `.claude/skills/saccade/`, or append the Codex
 pack to the project's existing `AGENTS.md`, preserving its other instructions.
+The optional [Claude command](claude-code/commands/check-visual-change.md) and
+[Codex prompt](codex/check-visual-change.prompt.md) turn "check my visual change"
+into one agent request over the installed CLI. Provide baseline and candidate
+paths; the agent reads bounded JSON and acts on current next actions.
 
 For Claude Code, register a local server:
 

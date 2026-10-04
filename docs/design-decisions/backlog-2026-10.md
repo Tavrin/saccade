@@ -62,3 +62,12 @@ commands remain callable and discoverable through explicit help and compiled
 capabilities. I rejected renaming or removing them because existing scripts
 and §17 compatibility depend on those paths. The new identity form exposes
 the common options; advanced identity options remain on `identity`.
+
+## 6. Agent skill
+
+Reuse the generated, bounded Claude and Codex packs from one shared guide and
+add an explicit one-request prompt for each environment. I rejected a new
+agent service or provider dependency: the installed CLI already yields the
+measurement, bounded JSON, and typed next actions. Prompts select `compare`,
+`prove identity`, or `prove performance`, and never turn a baseline update into
+an automatic step. The generator's 4,800-byte per-pack limit remains enforced.

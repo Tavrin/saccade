@@ -1,14 +1,20 @@
 # Saccade agent guide
 
+For "check my visual change", locate the baseline and changed capture paths.
+Run `saccade compare BASE CANDIDATE --out REPORT --json` for a visual claim,
+`saccade prove identity BASE CANDIDATE --out REPORT --json` for exact equality,
+or `saccade prove performance --base 'base_r*' --arm 'change=change_r*' --out REPORT --json` for a speed claim. Keep outputs outside input captures.
+Read the bounded JSON's execution, validity, measurement, performance,
+`data.pass_with_local_change`, limits and next actions before opening artifacts.
+Never call a threshold pass proof of correctness or approval.
+
 Establish selected captures, declared intent and invariants. Measure first:
 
 ```sh
 saccade compare BASE CANDIDATE --out REPORT --json
-saccade identity BASE CANDIDATE --out IDENTITY --json
 saccade inspect REPORT/saccade-report.v1.json --status fail,error,missing,new --limit 5 --json
 saccade inspect REPORT/saccade-report.v1.json --validity-reasons --limit 10 --json
 saccade inspect evidence REPORT/saccade-report.v1.json --entry NAME --out EVIDENCE
-saccade inspect export REPORT/saccade-report.v1.json --format png --entry NAME --out SNAPSHOT.png
 ```
 
 Read bounded results before full artifacts. Preserve validity, limits, missing
