@@ -541,6 +541,223 @@ fn shared_probe_deadline_allows_one_probe_and_authentication_stops_provider() {
             .is_err()
     );
 }
+fn reply(status: u16, retry_after_secs: Option<u64>, body: &[u8]) -> Result<HttpReply, String> {
+    Ok(HttpReply {
+        status,
+        retry_after_secs,
+        body: body.to_vec(),
+    })
+}
+fn replies(list: Vec<Result<HttpReply, String>>) -> Mock {
+    Mock {
+        replies: RefCell::new(list),
+        sent: RefCell::new(vec![]),
+    }
+}
+/// R12 regression: Jev refused oversized batches with
+/// `400 {"detail":{"error_type":"max_tokens_exceeded"}}`. The refusal must be
+/// recorded as request-specific: it may not cool down or stop Jev for others.
+#[test]
+fn jev_token_limit_refusal_is_rejected_without_cooling_the_provider() {
+    let f = Fixture::new();
+    // Recorded shape (no key, no private data): closed questions over shared state.
+    let payload = serde_json::to_vec(&json!({"model":"jev-latest",
+        "state":{"requests":[{"question":{"id":"triage.route.v1"},"evidence":{"facts":["x".repeat(62_000)]}}]},
+        "questions":{"q0":{"type":"choice","instructions":"Use state.requests[0].","criteria":{"a":"a"}}}}))
+    .unwrap();
+    let body = br#"{"detail":{"error_type":"max_tokens_exceeded"}}"#;
+    let m = replies(vec![reply(400, None, body)]);
+    let mut seen = Vec::new();
+    let e = f
+        .transport(&m)
+        .execute_observed(
+            "jev",
+            &["jev-latest".into()],
+            |_| Ok(payload.clone()),
+            &["capture".into()],
+            4,
+            Duration::from_secs(5),
+            false,
+            &mut |a| seen.push(a.clone()),
+        )
+        .unwrap_err();
+    assert!(e.message.starts_with("HTTP 400 "));
+    assert_eq!(m.sent.borrow().len(), 1, "a request fault is never retried");
+    assert_eq!(seen.len(), 1);
+    assert_eq!(seen[0].status, Some(400));
+    assert_eq!(seen[0].body, body);
+    assert!(request_rejected(seen[0].status));
+    let attempts = f.ledger.attempts().unwrap();
+    assert_eq!(attempts.last().unwrap().outcome, "rejected");
+    assert_eq!(f.ledger.retry_at("jev", "jev-latest").unwrap(), 0);
+    let ok = mock(&[200]);
+    f.transport(&ok)
+        .execute(
+            "jev",
+            &["jev-latest".into()],
+            |_| Ok(b"{}".to_vec()),
+            &["capture".into()],
+            1,
+            Duration::from_secs(5),
+            false,
+        )
+        .unwrap();
+    assert_eq!(ok.sent.borrow().len(), 1);
+}
+#[test]
+fn rate_limits_back_off_on_the_same_model_honouring_retry_after_before_fallback() {
+    let f = Fixture::new();
+    let m = replies(vec![
+        reply(429, Some(1), b"{}"),
+        reply(503, None, b"{}"),
+        reply(200, None, b"{}"),
+    ]);
+    let start = std::time::Instant::now();
+    let mut seen = Vec::new();
+    let out = f
+        .transport(&m)
+        .execute_observed(
+            "gemini",
+            &["first".into(), "fallback".into()],
+            |_| Ok(b"{}".to_vec()),
+            &["capture".into()],
+            1,
+            Duration::from_secs(30),
+            false,
+            &mut |a| seen.push(a.clone()),
+        )
+        .unwrap();
+    assert_eq!(out.model, "first", "backoff precedes fallback");
+    assert_eq!(out.attempts.len(), 3);
+    assert_eq!(
+        seen.iter().map(|a| a.status).collect::<Vec<_>>(),
+        vec![Some(429), Some(503)]
+    );
+    assert_eq!(seen[0].retry_after_secs, Some(1));
+    // 1 s Retry-After (>= first backoff) plus the second, doubled backoff.
+    assert!(start.elapsed() >= Duration::from_secs(3));
+    assert_eq!(f.ledger.used("run/fixture").unwrap(), 3);
+}
+#[test]
+fn structured_retry_delay_beyond_the_deadline_defers_without_another_dispatch() {
+    let gemini_429 = br#"{"error":{"code":429,"status":"RESOURCE_EXHAUSTED","details":[
+        {"@type":"type.googleapis.com/google.rpc.RetryInfo","retryDelay":"119.2s"}]}}"#;
+    assert_eq!(body_retry_delay(gemini_429), Some(120));
+    assert_eq!(body_retry_delay(b"{}"), None);
+    let f = Fixture::new();
+    let m = replies(vec![reply(429, None, gemini_429), reply(200, None, b"{}")]);
+    let e = f
+        .transport(&m)
+        .execute(
+            "gemini",
+            &["first".into()],
+            |_| Ok(b"{}".to_vec()),
+            &["capture".into()],
+            1,
+            Duration::from_secs(5),
+            false,
+        )
+        .unwrap_err();
+    assert!(e.message.starts_with("deferred"));
+    assert!(e.retry_after_secs.unwrap() >= 120);
+    assert_eq!(m.sent.borrow().len(), 1);
+    assert!(
+        f.ledger.retry_at("gemini", "first").unwrap()
+            > saccade_core::budget_ledger::now_ms() + 100_000
+    );
+}
+#[test]
+fn pacing_limits_rate_and_concurrency_in_the_shared_ledger_without_consuming_budget() {
+    use saccade_core::budget_ledger::PaceLimits;
+    let f = Fixture::new();
+    let pace = PaceLimits {
+        provider_rpm: 2,
+        provider_concurrency: 1,
+        model_rpm: 2,
+        model_concurrency: 1,
+        lease_ms: 60_000,
+    };
+    let now = saccade_core::budget_ledger::now_ms();
+    let at = |offset: u64| Attempt {
+        started_ms: now - offset,
+        ..attempt("gemini")
+    };
+    let first = f
+        .ledger
+        .reserve_paced(&f.auth.scopes, at(59_000), false, Some(&pace))
+        .unwrap();
+    let busy = f
+        .ledger
+        .reserve_paced(&f.auth.scopes, at(0), false, Some(&pace))
+        .unwrap_err();
+    assert!(busy.starts_with("paced retry_at="), "{busy}");
+    f.ledger.finish(&first, "answered", false, None).unwrap();
+    let second = f
+        .ledger
+        .reserve_paced(&f.auth.scopes, at(1_000), false, Some(&pace))
+        .unwrap();
+    f.ledger.finish(&second, "answered", false, None).unwrap();
+    let full = f
+        .ledger
+        .reserve_paced(&f.auth.scopes, at(0), false, Some(&pace))
+        .unwrap_err();
+    assert_eq!(full, format!("paced retry_at={}", now - 59_000 + 60_001));
+    assert_eq!(f.ledger.used("run/fixture").unwrap(), 2);
+    // The transport waits inside its timeout, otherwise defers without dispatch.
+    let mut paced = Fixture::new();
+    paced.user.pacing.insert(
+        "gemini".into(),
+        PaceSetting {
+            requests_per_minute: 1,
+            concurrency: 1,
+        },
+    );
+    let m = mock(&[200, 200]);
+    let t = paced.transport(&m);
+    let (_, id) = t
+        .once(
+            "gemini",
+            "m",
+            b"{}",
+            &["capture".into()],
+            1,
+            Duration::from_secs(1),
+            true,
+        )
+        .unwrap();
+    paced.ledger.finish(&id, "answered", false, None).unwrap();
+    let e = t
+        .once(
+            "gemini",
+            "other",
+            b"{}",
+            &["capture".into()],
+            1,
+            Duration::from_secs(1),
+            true,
+        )
+        .unwrap_err();
+    assert!(e.message.starts_with("deferred retry_at="), "{}", e.message);
+    assert_eq!(m.sent.borrow().len(), 1);
+    assert_eq!(paced.ledger.used("run/fixture").unwrap(), 1);
+    // Model entries only narrow the provider entry; zero limits are invalid.
+    paced.user.pacing.insert(
+        "gemini/m".into(),
+        PaceSetting {
+            requests_per_minute: 9,
+            concurrency: 3,
+        },
+    );
+    assert_eq!(paced.user.pace("gemini", "m").1.requests_per_minute, 1);
+    paced.user.pacing.insert(
+        "jev".into(),
+        PaceSetting {
+            requests_per_minute: 0,
+            concurrency: 1,
+        },
+    );
+    assert!(paced.user.validate().is_err());
+}
 fn observation(outcome: Outcome, answer: Option<&str>) -> Observation {
     Observation {
         case_id: "case".into(),

@@ -115,10 +115,16 @@ pub fn metrics(items: &[Observation]) -> Value {
         }
         samples.sort_by(f64::total_cmp);
     }
-    let mut pairs: BTreeMap<&str, Vec<&Observation>> = BTreeMap::new();
-    for i in &committed {
-        if i.order.is_some() {
-            pairs.entry(&i.case_id).or_default().push(i);
+    let mut pairs: BTreeMap<(&str, &str), Vec<&Observation>> = BTreeMap::new();
+    for i in items
+        .iter()
+        .filter(|i| matches!(i.outcome, Outcome::Answered | Outcome::Abstained))
+    {
+        if let Some(order) = &i.order {
+            // Multiple views share one independent change for confidence
+            // intervals, but each view has its own two presentation orders.
+            let view = order.split_once('/').map_or("", |(_, view)| view);
+            pairs.entry((&i.case_id, view)).or_default().push(i);
         }
     }
     let pairs: Vec<_> = pairs
@@ -195,4 +201,79 @@ pub fn fit(items: &[Observation]) -> Value {
         }
     }
     json!({"fitted":!scored.is_empty(),"method":"binned-isotonic/1","support":scored.len(),"blocks":blocks.iter().map(|(lo,hi,n,hits)|json!({"lo":lo,"hi":hi,"n":n,"calibrated_probability":hits / *n as f64})).collect::<Vec<_>>(),"qualified":false})
+}
+
+#[cfg(test)]
+mod pilot_tests {
+    use super::*;
+
+    #[test]
+    fn multiple_views_have_order_pairs_but_one_independent_change() {
+        let mut rows = Vec::new();
+        for view in 0..2 {
+            for order in ["ab", "ba"] {
+                rows.push(Observation {
+                    case_id: "one-change".into(),
+                    question: "vision.route.v1".into(),
+                    provider: "mock".into(),
+                    model: "mock/1".into(),
+                    vision_model: None,
+                    depends_on_model_observation: false,
+                    truth: Some("text_sufficient".into()),
+                    answer: Some(
+                        if order == "ab" {
+                            "text_sufficient"
+                        } else {
+                            "inspect_full_frame"
+                        }
+                        .into(),
+                    ),
+                    probability: None,
+                    outcome: Outcome::Answered,
+                    attempts: 1,
+                    latency_ms: None,
+                    usage: None,
+                    cost: None,
+                    order: Some(format!("{order}/view-{view}")),
+                    critical_error: false,
+                });
+            }
+        }
+        let m = metrics(&rows);
+        assert_eq!(m["both_order_pairs"], 2);
+        assert_eq!(m["both_order_disagreement"], 1.0);
+        assert_eq!(m["independent_labelled_cases"], 1);
+        assert_eq!(m["conditional_accuracy"], 0.5);
+    }
+
+    #[test]
+    fn abstention_in_one_order_is_observed_order_sensitivity() {
+        let a = Observation {
+            case_id: "one-change".into(),
+            question: "vision.route.v1".into(),
+            provider: "mock".into(),
+            model: "mock/1".into(),
+            vision_model: None,
+            depends_on_model_observation: false,
+            truth: Some("inspect_regions".into()),
+            answer: Some("inspect_regions".into()),
+            probability: None,
+            outcome: Outcome::Answered,
+            attempts: 1,
+            latency_ms: None,
+            usage: None,
+            cost: None,
+            order: Some("ab".into()),
+            critical_error: false,
+        };
+        let mut b = a.clone();
+        b.order = Some("ba".into());
+        b.answer = Some("abstain".into());
+        b.outcome = Outcome::Abstained;
+        let metrics = metrics(&[a, b]);
+        assert_eq!(metrics["both_order_pairs"], 1);
+        assert_eq!(metrics["both_order_disagreement"], 1.0);
+        assert_eq!(metrics["conditional_accuracy"], 1.0);
+        assert_eq!(metrics["answer_coverage"], 0.5);
+    }
 }

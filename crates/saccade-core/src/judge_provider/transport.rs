@@ -57,8 +57,58 @@ pub struct UserConfig {
     pub providers: BTreeMap<String, CustomProvider>,
     /// Optional persistent parent cap, shared by CLI and MCP runs.
     pub parent_budget: Option<Caps>,
+    /// Client-side request pacing keyed by `provider` or `provider/model`.
+    /// Missing entries use [`default_pace`]; project files cannot set these.
+    #[serde(default)]
+    pub pacing: BTreeMap<String, PaceSetting>,
+}
+/// Client-side request pacing, enforced atomically in the shared ledger.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct PaceSetting {
+    /// Dispatches permitted in any sliding 60-second window.
+    pub requests_per_minute: u32,
+    /// Reserved, unfinished dispatches permitted at once.
+    pub concurrency: u32,
+}
+/// Conservative built-in pacing, applied when the user configuration is silent.
+/// Gemini's provider-wide limit also covers every fallback model.
+pub fn default_pace(provider: &str) -> PaceSetting {
+    match provider {
+        "gemini" => PaceSetting {
+            requests_per_minute: 6,
+            concurrency: 1,
+        },
+        "jev" => PaceSetting {
+            requests_per_minute: 20,
+            concurrency: 2,
+        },
+        _ => PaceSetting {
+            requests_per_minute: 10,
+            concurrency: 1,
+        },
+    }
 }
 impl UserConfig {
+    /// Provider-wide and model-specific pacing for one dispatch. A model entry
+    /// can only narrow the provider entry.
+    pub fn pace(&self, provider: &str, model: &str) -> (PaceSetting, PaceSetting) {
+        let provider_pace = self
+            .pacing
+            .get(provider)
+            .copied()
+            .unwrap_or_else(|| default_pace(provider));
+        let model_pace =
+            self.pacing
+                .get(&format!("{provider}/{model}"))
+                .map_or(provider_pace, |m| PaceSetting {
+                    requests_per_minute: m
+                        .requests_per_minute
+                        .min(provider_pace.requests_per_minute),
+                    concurrency: m.concurrency.min(provider_pace.concurrency),
+                });
+        (provider_pace, model_pace)
+    }
     /// Read a human-selected user file; missing default configuration grants nothing.
     pub fn load(path: &Path) -> Result<Self, String> {
         let config: Self = if path.exists() {
@@ -98,6 +148,16 @@ impl UserConfig {
             {
                 return Err("custom providers require a distinct ID, HTTPS endpoint and dedicated credentials".into());
             }
+        }
+        if self.pacing.iter().any(|(key, p)| {
+            key.is_empty()
+                || key.split('/').count() > 2
+                || p.requests_per_minute == 0
+                || p.concurrency == 0
+        }) {
+            return Err(
+                "pacing requires provider or provider/model keys and positive limits".into(),
+            );
         }
         Ok(())
     }
@@ -399,6 +459,58 @@ fn failure(class: RetryClass, message: &str, wait: Option<u64>) -> ProviderFailu
         retry_after_secs: wait,
     }
 }
+/// Largest provider error body retained for private diagnosis.
+pub const ERROR_BODY_LIMIT: usize = 4096;
+/// A failed dispatch with its HTTP status and bounded provider error body.
+/// The body is untrusted diagnostic data for private storage, never logged.
+#[derive(Debug, Clone)]
+pub struct Rejection {
+    /// Classified failure, as returned by [`Transport::once`].
+    pub failure: ProviderFailure,
+    /// HTTP status when the provider answered.
+    pub status: Option<u16>,
+    /// First [`ERROR_BODY_LIMIT`] bytes of the provider error body.
+    pub body: Vec<u8>,
+}
+/// One failed attempt observed by [`Transport::execute_observed`].
+#[derive(Debug, Clone)]
+pub struct FailedAttempt {
+    /// Requested model of this attempt.
+    pub model: String,
+    /// Ledger reservation, when one was consumed.
+    pub reservation: Option<String>,
+    /// HTTP status when the provider answered.
+    pub status: Option<u16>,
+    /// Effective provider wait (header or structured body), in seconds.
+    pub retry_after_secs: Option<u64>,
+    /// Bounded provider error body.
+    pub body: Vec<u8>,
+}
+/// Provider wait carried in a structured error body, such as Gemini's
+/// `google.rpc.RetryInfo` detail (`"retryDelay": "37s"`). Rounded up.
+pub fn body_retry_delay(body: &[u8]) -> Option<u64> {
+    let value: Value = serde_json::from_slice(body).ok()?;
+    value["error"]["details"].as_array()?.iter().find_map(|d| {
+        if !d["@type"].as_str()?.ends_with("google.rpc.RetryInfo") {
+            return None;
+        }
+        let secs: f64 = d["retryDelay"].as_str()?.strip_suffix('s')?.parse().ok()?;
+        (secs.is_finite() && secs >= 0.0).then(|| secs.ceil().min(86_400.0) as u64)
+    })
+}
+/// Request-specific refusals: the provider is reachable and the request is at
+/// fault, so neither the provider nor the model is cooled down or stopped.
+pub fn request_rejected(status: Option<u16>) -> bool {
+    matches!(status, Some(400 | 413 | 422))
+}
+/// Exponential backoff with random jitter for 429/5xx: a base of 1 s doubling
+/// per retry, plus up to half again at random, never shorter than the provider wait.
+pub fn backoff(retry: u32, retry_after_secs: Option<u64>) -> Duration {
+    let base = 1_000u64 << retry.min(6);
+    let random = u64::from_str_radix(&crate::local::random_token()[..8], 16).unwrap_or(0);
+    Duration::from_millis(base + random % (base / 2))
+        .max(Duration::from_secs(retry_after_secs.unwrap_or(0)))
+}
 impl Transport<'_> {
     /// Exactly one external attempt. Policy is re-read from its human-owned file
     /// by CLI/MCP before constructing the transport; checks repeat on every call.
@@ -413,7 +525,33 @@ impl Transport<'_> {
         timeout: Duration,
         probe: bool,
     ) -> Result<(Vec<u8>, String), ProviderFailure> {
-        let config = |m: String| failure(RetryClass::AuthenticationOrConfiguration, &m, None);
+        self.once_detailed(
+            provider, model, payload, sources, batch_size, timeout, probe,
+        )
+        .map_err(|r| r.failure)
+    }
+    /// [`Transport::once`] that also returns the HTTP status and bounded error
+    /// body. Before reserving, it waits for the user's pacing limits inside
+    /// `timeout`; a longer wait returns `deferred retry_at=<ms>` without
+    /// consuming budget.
+    #[allow(clippy::too_many_arguments)]
+    pub fn once_detailed(
+        &self,
+        provider: &str,
+        model: &str,
+        payload: &[u8],
+        sources: &[String],
+        batch_size: usize,
+        timeout: Duration,
+        probe: bool,
+    ) -> Result<(Vec<u8>, String), Rejection> {
+        let plain = |failure: ProviderFailure| Rejection {
+            failure,
+            status: None,
+            body: Vec::new(),
+        };
+        let config =
+            |m: String| plain(failure(RetryClass::AuthenticationOrConfiguration, &m, None));
         self.authorization.check().map_err(config)?;
         let policy = self.user.authorize(sources, self.roots);
         self.ledger
@@ -429,9 +567,17 @@ impl Transport<'_> {
             .user
             .endpoint(provider, model, self.keys)
             .map_err(config)?;
-        let id = self
-            .ledger
-            .reserve(
+        let (provider_pace, model_pace) = self.user.pace(provider, model);
+        let limits = crate::budget_ledger::PaceLimits {
+            provider_rpm: provider_pace.requests_per_minute,
+            provider_concurrency: provider_pace.concurrency,
+            model_rpm: model_pace.requests_per_minute,
+            model_concurrency: model_pace.concurrency,
+            lease_ms: (timeout.as_millis() as u64).saturating_add(30_000),
+        };
+        let paced_until = Instant::now() + timeout;
+        let id = loop {
+            let reserved = self.ledger.reserve_paced(
                 &self.authorization.scopes,
                 Attempt {
                     id: crate::local::random_token(),
@@ -444,8 +590,26 @@ impl Transport<'_> {
                     outcome: "reserved".into(),
                 },
                 probe,
-            )
-            .map_err(config)?;
+                Some(&limits),
+            );
+            match reserved {
+                Ok(id) => break id,
+                Err(e) if e.starts_with("paced retry_at=") => {
+                    let at: u64 = e["paced retry_at=".len()..].parse().unwrap_or(u64::MAX);
+                    let wait = Duration::from_millis(at.saturating_sub(crate::judge::now_ms()));
+                    if Instant::now() + wait >= paced_until {
+                        return Err(plain(failure(
+                            RetryClass::RateLimited,
+                            &format!("deferred retry_at={at}"),
+                            Some(wait.as_secs().max(1)),
+                        )));
+                    }
+                    std::thread::sleep(wait);
+                }
+                Err(e) => return Err(config(e)),
+            }
+        };
+        let timeout = paced_until.saturating_duration_since(Instant::now());
         // Re-resolve aliases against the human-owned policy immediately before dispatch.
         if let Err(e) = self.user.authorize(sources, self.roots) {
             self.ledger
@@ -469,17 +633,24 @@ impl Transport<'_> {
                 } else {
                     RetryClass::AuthenticationOrConfiguration
                 };
-                Err(ProviderFailure {
-                    class,
-                    message: format!("HTTP {} reservation={id}", r.status),
-                    retry_after_secs: r.retry_after_secs,
+                let mut body = r.body;
+                let wait = r.retry_after_secs.or_else(|| body_retry_delay(&body));
+                body.truncate(ERROR_BODY_LIMIT);
+                Err(Rejection {
+                    failure: ProviderFailure {
+                        class,
+                        message: format!("HTTP {} reservation={id}", r.status),
+                        retry_after_secs: wait,
+                    },
+                    status: Some(r.status),
+                    body,
                 })
             }
-            Err(_) => Err(failure(
+            Err(_) => Err(plain(failure(
                 RetryClass::Transient,
                 &format!("transport unavailable reservation={id}"),
                 None,
-            )),
+            ))),
         }
     }
     /// Production uses at most two retries, jittered backoff and a finite deadline.
@@ -495,6 +666,37 @@ impl Transport<'_> {
         deadline: Duration,
         pinned: bool,
     ) -> Result<Exchange, ProviderFailure> {
+        self.execute_observed(
+            provider,
+            models,
+            payload,
+            sources,
+            batch_size,
+            deadline,
+            pinned,
+            &mut |_| {},
+        )
+    }
+    /// [`Transport::execute`] reporting every failed attempt to `observe`.
+    ///
+    /// 429, 5xx and transport failures retry the same model up to twice with
+    /// [`backoff`] (exponential, jittered, never shorter than `Retry-After` or a
+    /// structured provider delay) before falling back to the next model.
+    /// HTTP 400/413/422 are request faults: recorded as `rejected`, returned
+    /// at once, never cooling the model. 401/403 stop the provider. Any other
+    /// 4xx (such as a missing model) marks that model unavailable and falls back.
+    #[allow(clippy::too_many_arguments)]
+    pub fn execute_observed(
+        &self,
+        provider: &str,
+        models: &[String],
+        payload: impl Fn(&str) -> Result<Vec<u8>, String>,
+        sources: &[String],
+        batch_size: usize,
+        deadline: Duration,
+        pinned: bool,
+        observe: &mut dyn FnMut(&FailedAttempt),
+    ) -> Result<Exchange, ProviderFailure> {
         let start = Instant::now();
         let mut attempts = Vec::new();
         let mut last = failure(
@@ -502,6 +704,16 @@ impl Transport<'_> {
             "no approved models",
             None,
         );
+        let persist = |id: &str, outcome: &str, stop: bool, at: Option<u64>| {
+            self.ledger.finish(id, outcome, stop, at).map_err(|_| {
+                failure(
+                    RetryClass::AuthenticationOrConfiguration,
+                    "cannot persist attempt outcome",
+                    None,
+                )
+            })
+        };
+        let at = |secs: u64| crate::judge::now_ms().saturating_add(secs.saturating_mul(1000));
         for model in models.iter().take(if pinned { 1 } else { models.len() }) {
             let bytes = payload(model)
                 .map_err(|_| failure(RetryClass::InvalidResponse, "invalid payload", None))?;
@@ -514,7 +726,7 @@ impl Transport<'_> {
                         Some(5),
                     ));
                 }
-                match self.once(
+                let rejection = match self.once_detailed(
                     provider,
                     model,
                     &bytes,
@@ -524,15 +736,7 @@ impl Transport<'_> {
                     retry == 0,
                 ) {
                     Ok((body, id)) => {
-                        self.ledger
-                            .finish(&id, "answered", false, None)
-                            .map_err(|_| {
-                                failure(
-                                    RetryClass::AuthenticationOrConfiguration,
-                                    "cannot persist attempt outcome",
-                                    None,
-                                )
-                            })?;
+                        persist(&id, "answered", false, None)?;
                         attempts.push(id);
                         return Ok(Exchange {
                             body,
@@ -541,90 +745,58 @@ impl Transport<'_> {
                             latency_ms: start.elapsed().as_millis() as u64,
                         });
                     }
-                    Err(e) => {
-                        let id = e.message.split("reservation=").nth(1).map(str::to_owned);
-                        if let Some(id) = &id {
-                            attempts.push(id.clone());
-                        }
-                        let transient =
-                            matches!(e.class, RetryClass::Transient | RetryClass::RateLimited);
-                        if !transient || retry == 2 || pinned {
-                            if let Some(id) = id {
-                                self.ledger
-                                    .finish(
-                                        &id,
-                                        "unavailable",
-                                        !transient,
-                                        e.retry_after_secs.map(|s| {
-                                            crate::judge::now_ms()
-                                                .saturating_add(s.saturating_mul(1000))
-                                        }),
-                                    )
-                                    .map_err(|_| {
-                                        failure(
-                                            RetryClass::AuthenticationOrConfiguration,
-                                            "cannot persist failure",
-                                            None,
-                                        )
-                                    })?;
-                            }
-                            if !transient {
-                                return Err(e);
-                            }
-                            last = e;
-                            break;
-                        }
-                        let jitter = u64::from(
-                            Digest::of_bytes(&bytes)
-                                .as_str()
-                                .bytes()
-                                .last()
-                                .unwrap_or(0),
-                        ) * 3;
-                        let wait = Duration::from_millis((1_000u64 << retry) + jitter)
-                            .max(Duration::from_secs(e.retry_after_secs.unwrap_or(0)));
-                        if wait >= deadline.saturating_sub(start.elapsed()) {
-                            if let Some(id) = id {
-                                self.ledger
-                                    .finish(
-                                        &id,
-                                        "unavailable",
-                                        false,
-                                        Some(
-                                            crate::judge::now_ms()
-                                                .saturating_add(wait.as_millis() as u64),
-                                        ),
-                                    )
-                                    .map_err(|_| {
-                                        failure(
-                                            RetryClass::AuthenticationOrConfiguration,
-                                            "cannot persist failure",
-                                            None,
-                                        )
-                                    })?;
-                            }
-                            last = failure(
-                                e.class,
-                                "deferred: retry exceeds deadline",
-                                Some(wait.as_secs().max(1)),
-                            );
-                            break;
-                        }
-                        // Failure remains consumed even if the process dies during backoff.
-                        if let Some(id) = id {
-                            self.ledger
-                                .finish(&id, "unavailable", false, None)
-                                .map_err(|_| {
-                                    failure(
-                                        RetryClass::AuthenticationOrConfiguration,
-                                        "cannot persist failure",
-                                        None,
-                                    )
-                                })?;
-                        }
-                        std::thread::sleep(wait);
-                    }
+                    Err(rejection) => rejection,
+                };
+                let e = rejection.failure;
+                let id = e.message.split("reservation=").nth(1).map(str::to_owned);
+                observe(&FailedAttempt {
+                    model: model.clone(),
+                    reservation: id.clone(),
+                    status: rejection.status,
+                    retry_after_secs: e.retry_after_secs,
+                    body: rejection.body,
+                });
+                // Nothing was dispatched: policy, probe deferral or pacing.
+                let Some(id) = id else {
+                    return Err(e);
+                };
+                attempts.push(id.clone());
+                if request_rejected(rejection.status) {
+                    persist(&id, "rejected", false, None)?;
+                    return Err(e);
                 }
+                if !matches!(e.class, RetryClass::Transient | RetryClass::RateLimited) {
+                    let stop = matches!(rejection.status, Some(401 | 403));
+                    persist(&id, "unavailable", stop, e.retry_after_secs.map(at))?;
+                    if stop {
+                        return Err(e);
+                    }
+                    last = e;
+                    break;
+                }
+                if retry == 2 || pinned {
+                    persist(&id, "unavailable", false, e.retry_after_secs.map(at))?;
+                    last = e;
+                    break;
+                }
+                let wait = backoff(retry, e.retry_after_secs);
+                if wait >= deadline.saturating_sub(start.elapsed()) {
+                    persist(
+                        &id,
+                        "unavailable",
+                        false,
+                        Some(crate::judge::now_ms().saturating_add(wait.as_millis() as u64)),
+                    )?;
+                    last = failure(
+                        e.class,
+                        "deferred: retry exceeds deadline",
+                        Some(wait.as_secs().max(1)),
+                    );
+                    break;
+                }
+                // Failure remains consumed even if the process dies during backoff.
+                persist(&id, "unavailable", false, None)?;
+                std::thread::sleep(wait);
             }
         }
         Err(last)

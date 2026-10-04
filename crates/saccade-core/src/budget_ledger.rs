@@ -59,6 +59,22 @@ pub struct PayloadAudit {
     /// Allow or deny. This is audit data, never authority.
     pub policy: String,
 }
+/// Client-side pacing for one reservation: a provider-wide and a model-specific
+/// sliding 60-second request window plus in-flight concurrency.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct PaceLimits {
+    /// Provider-wide dispatches per sliding minute.
+    pub provider_rpm: u32,
+    /// Provider-wide unfinished reservations.
+    pub provider_concurrency: u32,
+    /// Same-model dispatches per sliding minute.
+    pub model_rpm: u32,
+    /// Same-model unfinished reservations.
+    pub model_concurrency: u32,
+    /// An unfinished reservation older than this no longer holds a slot
+    /// (crashed owners); it stays consumed for budget purposes.
+    pub lease_ms: u64,
+}
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 struct Counter {
     caps: Option<Caps>,
@@ -142,8 +158,20 @@ impl Ledger {
     pub fn reserve(
         &self,
         scopes: &[Scope],
+        attempt: Attempt,
+        probe: bool,
+    ) -> Result<String, String> {
+        self.reserve_paced(scopes, attempt, probe, None)
+    }
+    /// [`Ledger::reserve`] plus client-side pacing checked under the same lock,
+    /// so concurrent processes cannot jointly exceed a rate or concurrency limit.
+    /// A paced refusal consumes nothing and reports `paced retry_at=<ms>`.
+    pub fn reserve_paced(
+        &self,
+        scopes: &[Scope],
         mut attempt: Attempt,
         probe: bool,
+        pace: Option<&PaceLimits>,
     ) -> Result<String, String> {
         self.transaction(|s| {
             if scopes.is_empty()
@@ -152,6 +180,46 @@ impl Ledger {
                 || attempt.model.is_empty()
             {
                 return Err(io("invalid reservation"));
+            }
+            if let Some(pace) = pace {
+                let now = attempt.started_ms;
+                let wait = [
+                    (pace.provider_rpm, pace.provider_concurrency, false),
+                    (pace.model_rpm, pace.model_concurrency, true),
+                ]
+                .into_iter()
+                .filter_map(|(rpm, concurrency, per_model)| {
+                    let mine = |a: &&Attempt| {
+                        a.provider == attempt.provider && (!per_model || a.model == attempt.model)
+                    };
+                    let mut window: Vec<u64> = s
+                        .attempts
+                        .iter()
+                        .filter(mine)
+                        .filter(|a| a.outcome != "not_dispatched")
+                        .map(|a| a.started_ms)
+                        .filter(|t| t.saturating_add(60_000) > now)
+                        .collect();
+                    window.sort_unstable();
+                    let in_flight = s
+                        .attempts
+                        .iter()
+                        .filter(mine)
+                        .filter(|a| {
+                            a.outcome == "reserved"
+                                && a.started_ms.saturating_add(pace.lease_ms) > now
+                        })
+                        .count();
+                    let rate_at = (window.len() >= rpm.max(1) as usize)
+                        .then(|| window[window.len() - rpm.max(1) as usize].saturating_add(60_001));
+                    let slot_at = (in_flight >= concurrency.max(1) as usize)
+                        .then(|| now.saturating_add(1_000));
+                    rate_at.max(slot_at)
+                })
+                .max();
+                if let Some(at) = wait {
+                    return Err(format!("paced retry_at={at}"));
+                }
             }
             let mut ids = std::collections::BTreeSet::new();
             for scope in scopes {
@@ -223,6 +291,9 @@ impl Ledger {
         })
     }
     /// Persist a bounded classification. Failed probes back off from 30 to 300 s.
+    /// `rejected` records a request-specific refusal (HTTP 400/413/422): the
+    /// attempt stays consumed, but it is not evidence that the provider or
+    /// model is unavailable, so it neither cools down nor stops either.
     pub fn finish(
         &self,
         id: &str,
@@ -230,7 +301,15 @@ impl Ledger {
         stop: bool,
         retry_at: Option<u64>,
     ) -> Result<(), String> {
-        if !["answered", "unavailable", "invalid", "not_dispatched"].contains(&outcome) {
+        if ![
+            "answered",
+            "unavailable",
+            "invalid",
+            "not_dispatched",
+            "rejected",
+        ]
+        .contains(&outcome)
+        {
             return Err(io("unknown outcome"));
         }
         self.transaction(|s| {
@@ -246,6 +325,8 @@ impl Ledger {
                 .or_default();
             if outcome == "answered" {
                 *p = Probe::default();
+            } else if outcome == "rejected" {
+                p.lease_until = 0;
             } else if outcome != "not_dispatched" {
                 p.failures = p.failures.saturating_add(1);
                 p.next_probe_at = crate::judge::now_ms()

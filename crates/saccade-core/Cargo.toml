@@ -58,6 +58,14 @@ workspace = true
 name = "build_review_labels"
 required-features = ["evaluation"]
 
+[[example]]
+name = "pilot_offline"
+required-features = ["evaluation", "graphics"]
+
+[[example]]
+name = "corpus_transport"
+required-features = ["evaluation"]
+
 [[test]]
 name = "perf"
 required-features = ["graphics"]

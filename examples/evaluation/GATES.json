@@ -1,0 +1,48 @@
+{
+  "budget_overrun": false,
+  "cargo_target_deleted": true,
+  "checks": [
+    {
+      "command": "cargo fmt --all -- --check",
+      "exit_code": 0,
+      "log_sha256": "sha256:15201070d565895dedc522cc9d4e3cc3b6ee9acd072ae95fed8220a28f71247f"
+    },
+    {
+      "command": "cargo clippy --workspace --all-targets --all-features -- -D warnings",
+      "exit_code": 0,
+      "log_sha256": "sha256:15201070d565895dedc522cc9d4e3cc3b6ee9acd072ae95fed8220a28f71247f"
+    },
+    {
+      "command": "cargo test --workspace --all-features",
+      "exit_code": 0,
+      "log_sha256": "sha256:5056ca2ed25902fd4095413d4271dd0af68b6394eecc2331aee01f5d43717213"
+    },
+    {
+      "command": "verify-lane.sh WORKTREE",
+      "exit_code": 0,
+      "log_sha256": "sha256:31327d950dd2bf96867bc579d39bcbe1b09415d3ea001b2d9310432152bbee86"
+    },
+    {
+      "command": "Python preparation tests and updated corpus contracts",
+      "distinct_tests": 16,
+      "exit_code": 0
+    }
+  ],
+  "frozen_before_first_dispatch": true,
+  "frozen_corpus_validation_exit": 0,
+  "git_mutations": false,
+  "ledger_counts": {
+    "gemini": 117,
+    "jev": 112
+  },
+  "ledger_sha256": "sha256:227a00b751071f7019401df444f3119081765c635abcb5cb2f14759b88e79066",
+  "live_evaluation_exit": 0,
+  "manifest_sha256": "sha256:1d2b0d4df6a04f18e8c584f559fec482dda9cf19be3699ecc57eaa1126cf1366",
+  "moss_ablation_exit_code": 0,
+  "privacy_grep_empty": true,
+  "replay_executables_retained": true,
+  "runtime_scope": "Linux fixture and capture-corpus verification; no release or other-platform qualification",
+  "rust_tests_passed": 275,
+  "schema": "saccade-evaluation-gates/1",
+  "showcases_reproduced": 9
+}

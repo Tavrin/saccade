@@ -1,0 +1,13 @@
+# Historical record interpretation
+
+The [saved live review](../../docs/review-live-2026-10-02/COMPLETION.md) and its benchmark artifacts remain unchanged. They describe operational observations under their recorded inputs, retries, cooldowns and budgets. They do not establish a question-specific quality ranking.
+
+The old preference benchmark used preference targets and included unanswered items in its accuracy denominator. Those targets are not human truth for the five-question catalog. Transport failures are unavailable, explicit valid abstentions are abstained, and unanswered scheduled work remains deferred or budget-blocked. Conditional accuracy uses labeled committed answers. Availability and answer coverage use eligible scheduled cells, excluding denied egress. Correct resolutions over eligible cases is a separate operational measure.
+
+The preparation manifest pins the experiment before any human labels or scoring. Pinned-provider replay and production-policy replay remain separate, as do direct Jev, enriched Jev, enriched Jev without project priors, deterministic rules and Gemini alone. Actual answering models and vision observation models define separate strata. Mixed actual models in a two-order pair remain unresolved. No fallback substitutes for a pinned model.
+
+The model identifiers are repository identifiers. Provider support, actual revisions, credentials, prices and quality are unverified. No provider was contacted by this lane. The pure offline `pilot-gemini-question/1` adapter prepares the established generateContent body with the frozen catalog packet and anonymous R10 pixels, and parses a bounded, request/presentation-bound closed answer. Recorded fixtures exercise it without HTTP. Live model availability, resolved revisions and quality remain unverified; an adapter change requires a new experiment identity.
+
+This is a single-labeler pilot; no inter-reviewer reliability estimate. Initial labels, independent delayed retest labels and any future adjudication are distinct records. Human model exposure and implementation/mapping knowledge affect eligibility. In particular, vision labels with unknown or known mapping/implementation exposure remain recorded but cannot silently become eligible blind ground truth.
+
+No-label and incomplete runs publish operational counts and exact shortfalls, with null accuracy and no quality ranking. Synthetic controls test denominators and never contribute to real support. No question qualifies without sufficient held-out support, matched calibration identity, miss bounds and an explicit important-miss tolerance.
