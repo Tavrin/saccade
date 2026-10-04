@@ -42,6 +42,15 @@ report or schema change.
    brief allows no new code here. `scripts/docs-smoke.json` and the
    `r13_docs` test remain the in-repo gate. Reversal: free (copy into
    `scripts/`).
+8. **Temporal command uses the existing upscaler frames.** The captures guide
+   points `experiment temporal` at the generated 12-frame
+   `showcases/upscaler/sequence/{baseline,capture}` fixture. The doc command
+   checker runs concrete shell examples from the repository root, and the old
+   `baseline-frames/` and `capture-frames/` paths did not exist. Reusing this
+   numbered SDR sequence keeps the example runnable through the repository's
+   established showcase generator without adding a redundant showcase or
+   relying on the checker's placeholder skip. The expected regression exit is
+   1, which the checker accepts. Reversal: free.
 
 ## Regenerating the visuals
 
