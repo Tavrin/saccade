@@ -66,6 +66,10 @@ required-features = ["evaluation", "graphics"]
 name = "corpus_transport"
 required-features = ["evaluation"]
 
+[[example]]
+name = "corpus_batch"
+required-features = ["evaluation"]
+
 [[test]]
 name = "perf"
 required-features = ["graphics"]
