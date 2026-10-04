@@ -33,6 +33,28 @@ profile, then explicit CLI options. User security policy constrains all of them.
 Use `inspect config` to inspect values and sources. Image-noise calibration uses
 FLIP units; performance noise uses milliseconds and cannot be substituted.
 
+## Opt-in flaky-test history
+
+Record each comparison report into a local store, then inspect variation:
+
+```sh
+saccade history record capture-report/saccade-report.v1.json --store .saccade-history --json
+saccade history analyze --store .saccade-history --entry ui/button.png --json
+```
+
+The store keeps report snapshots at `objects/<sha256>.json` and a JSON lines
+`index.jsonl`. Recording the same report twice has no effect. `analyze` shows at
+most 10 groups by default (20 maximum); `--entry` selects one exact name. A
+group needs the same baseline bytes and effective run configuration, and at
+least three distinct capture hashes. An invalid capture is excluded. If the
+observed values cross the threshold, or their range is as wide as the
+threshold, the command suggests quarantine and a fresh repeat campaign. A
+suggested threshold is the observed maximum plus one observed range, capped at
+1; it is provisional and is never applied automatically. Capture validity
+marked unknown, renderer or hardware differences not represented by report
+configuration, and too few repeats limit any noise claim. Keep the store
+outside capture inputs and review its reports before sharing it.
+
 Put reports outside capture inputs. `.saccade-run` and historical report/view
 markers keep report images out of archive discovery. Portable artifacts use
 relative paths and immutable hashes. Inspect names before publishing.

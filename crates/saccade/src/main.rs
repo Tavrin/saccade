@@ -17,6 +17,7 @@ mod approval;
 mod engine_ingest;
 mod f1;
 mod git_bisect;
+mod history;
 mod ingest;
 mod local_cmd;
 #[cfg(feature = "ai")]
@@ -58,7 +59,7 @@ Start here:
 
 Exit codes: 0 no image regression, 1 image regression found, 2 the command could not run.
 Advanced: demo, identity, noise, view, inspect, experiment, approve, init,
-serve, mcp, ingest, bisect, doctor. Existing commands keep working; use `saccade COMMAND --help`."
+serve, mcp, ingest, bisect, history, doctor. Existing commands keep working; use `saccade COMMAND --help`."
 )]
 struct Cli {
     /// Silence warnings when --out is next to capture metadata.
@@ -178,6 +179,9 @@ impl From<MetricArg> for Metric {
 
 #[derive(Subcommand)]
 enum Command {
+    /// Record and inspect local visual-test variation across runs.
+    #[command(hide = true)]
+    History(history::HistoryArgs),
     /// Locate the first commit whose fresh capture fails its baseline.
     #[command(hide = true)]
     Bisect(git_bisect::BisectArgs),
@@ -964,6 +968,7 @@ fn dispatch(command: Command, record_absolute_paths: bool) -> Result<u8, CliErro
         Command::Doctor { json } => doctor(json),
         Command::Bisect(args) => git_bisect::run(args),
         Command::Ingest(args) => ingest::run(args, record_absolute_paths),
+        Command::History(args) => history::run(args),
         Command::Inspect(args) => local_cmd::inspect(args, record_absolute_paths),
         Command::Review(args) => local_cmd::review(args, record_absolute_paths),
         #[cfg(feature = "prechecks")]
@@ -1510,6 +1515,7 @@ fn doctor(json: bool) -> Result<u8, CliError> {
         "repeat-detection",
         "perf-v2",
         "identity-json-v1",
+        "history-v1",
     ];
     if cfg!(feature = "prechecks") {
         capabilities.push("prechecks");

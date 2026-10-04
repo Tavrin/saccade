@@ -41,7 +41,65 @@ Start here:
 
 Exit codes: 0 no image regression, 1 image regression found, 2 the command could not run.
 Advanced: demo, identity, noise, view, inspect, experiment, approve, init,
-serve, mcp, ingest, bisect, doctor. Existing commands keep working; use `saccade COMMAND --help`.
+serve, mcp, ingest, bisect, history, doctor. Existing commands keep working; use `saccade COMMAND --help`.
+```
+
+## saccade history
+
+```text
+Record and inspect local visual-test variation across runs
+
+Usage: saccade history [OPTIONS] <COMMAND>
+
+Commands:
+  record   Add one existing comparison report to the local history store
+  analyze  Show measured variation and threshold advice for comparable entries
+
+Options:
+  -h, --help  Print help
+
+Global options:
+      --allow-out-near-captures  Silence warnings when --out is next to capture metadata
+      --record-absolute-paths    Opt in to absolute local paths in reports and machine-readable output
+```
+
+## saccade history record
+
+```text
+Add one existing comparison report to the local history store
+
+Usage: saccade history record [OPTIONS] --store <STORE> <REPORT>
+
+Arguments:
+  <REPORT>
+
+Options:
+      --store <STORE>
+      --json
+  -h, --help           Print help
+
+Global options:
+      --allow-out-near-captures  Silence warnings when --out is next to capture metadata
+      --record-absolute-paths    Opt in to absolute local paths in reports and machine-readable output
+```
+
+## saccade history analyze
+
+```text
+Show measured variation and threshold advice for comparable entries
+
+Usage: saccade history analyze [OPTIONS] --store <STORE>
+
+Options:
+      --store <STORE>
+      --entry <ENTRY>
+      --limit <LIMIT>  [default: 10]
+      --json
+  -h, --help           Print help
+
+Global options:
+      --allow-out-near-captures  Silence warnings when --out is next to capture metadata
+      --record-absolute-paths    Opt in to absolute local paths in reports and machine-readable output
 ```
 
 ## saccade bisect

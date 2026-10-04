@@ -85,7 +85,7 @@ fn help_lists_active_commands_and_watch_alias_stays_hidden() {
         .filter_map(Value::as_str)
         .filter(|s| !s.contains(' '))
         .collect::<Vec<_>>();
-    assert_eq!(top.len(), 16, "{top:?}");
+    assert_eq!(top.len(), 17, "{top:?}");
     for name in [
         "init",
         "demo",
@@ -103,6 +103,7 @@ fn help_lists_active_commands_and_watch_alias_stays_hidden() {
         "doctor",
         "ingest",
         "bisect",
+        "history",
     ] {
         assert!(top.contains(&name));
     }

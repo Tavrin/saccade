@@ -144,3 +144,18 @@ reference and require explicit endpoints. Sources: [NVIDIA's FLIP v1.7
 implementation](https://github.com/NVlabs/flip/blob/main/src/cpp/FLIP.h),
 [NVIDIA HDR-FLIP paper](https://research.nvidia.com/publication/2021-05_HDR-FLIP),
 and [flip-rs parity results](https://github.com/Tavrin/flip-rs#parity-with-the-c-reference).
+
+## 12. Flaky-test memory
+
+Use an explicit `history record` step on existing reports, then `history
+analyze` for bounded local advice. Store full report bytes under their SHA-256
+and one JSON line per unique report in an index. I rejected silent recording
+from every `compare`: users must choose a retention location, and routine
+comparison must stay stateless. Variation groups require the same baseline
+hash, effective report configuration, entry metric and threshold. Duplicate
+capture hashes do not add evidence, and invalid captures are excluded.
+Three distinct captures are the minimum to flag a threshold crossed by
+observations or a variation span at least as wide as the threshold. The
+suggested threshold is a provisional observed maximum plus one span (bounded
+at 1), never a config mutation. This is a deterministic screening rule, not a
+confidence interval or a claim that unknown capture provenance is qualified.
