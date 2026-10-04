@@ -17,6 +17,52 @@ def digest(file):
     return 'sha256:'+hashlib.sha256(file.read_bytes()).hexdigest()
 
 
+GEMINI_STANDARD_USD_PER_MILLION = {
+    'gemini-3.8-flash': (0.75, 3.75),
+    'gemini-3.7-flash': (0.75, 3.75),
+    'gemini-3.6-flash': (0.75, 3.75),
+    'gemini-3.5-flash': (1.50, 9.00),
+}
+GEMINI_PRICE_SOURCE = 'https://ai.google.dev/gemini-api/docs/pricing'
+
+
+def gemini_spend(root):
+    """Estimate this epoch's spend from privately retained successful responses."""
+    totals = collections.defaultdict(lambda: {'responses': 0, 'with_usage': 0,
+                                               'input_tokens': 0, 'output_tokens': 0})
+    for exchange_file in (root/'live').glob('*/attempt-*/exchange.json'):
+        exchange = read(exchange_file)
+        if exchange.get('outcome') != 'received':
+            continue
+        model = exchange.get('model')
+        if model not in GEMINI_STANDARD_USD_PER_MILLION:
+            continue
+        row = totals[model]
+        row['responses'] += 1
+        response_file = exchange_file.with_name('response.json')
+        if not response_file.exists():
+            continue
+        usage = read(response_file).get('usageMetadata') or {}
+        prompt = usage.get('promptTokenCount')
+        total = usage.get('totalTokenCount')
+        output = total-prompt if isinstance(total, int) and isinstance(prompt, int) else \
+            (usage.get('candidatesTokenCount') or 0)+(usage.get('thoughtsTokenCount') or 0)
+        if not isinstance(prompt, int) or not isinstance(output, int) or prompt < 0 or output < 0:
+            continue
+        row['with_usage'] += 1
+        row['input_tokens'] += prompt
+        row['output_tokens'] += output
+    by_model = []
+    for model, row in sorted(totals.items()):
+        input_rate, output_rate = GEMINI_STANDARD_USD_PER_MILLION[model]
+        by_model.append({'model': model, **row, 'estimated_usd': round(
+            (row['input_tokens']*input_rate+row['output_tokens']*output_rate)/1_000_000, 6)})
+    return {'currency': 'USD', 'kind': 'estimate from API usage and published standard paid-tier prices',
+            'pricing_url': GEMINI_PRICE_SOURCE, 'by_model': by_model,
+            'estimated_usd': round(sum(row['estimated_usd'] for row in by_model), 6),
+            'responses_without_usage': sum(row['responses']-row['with_usage'] for row in by_model)}
+
+
 def main():
     parser=argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--config',required=True)
@@ -42,12 +88,14 @@ def main():
                     failures[r['job']['provider'],e['model'],category]+=n
     unresolved=sum(r['outcome'] in ['deferred','budget_blocked'] or
                    (r['outcome']=='unavailable' and r['attempts']==0) for r in jobs if r['job']['provider']!='rules')
+    terminal_invalid=sum(r['outcome']=='invalid' for r in jobs if r['job']['provider']!='rules')
     results['processing_complete']=len(jobs)==results['scheduled_jobs']
     results['incomplete']=not results['processing_complete'] or unresolved>0
     results['unresolved_provider_jobs']=unresolved
+    results['terminal_invalid_provider_jobs']=terminal_invalid
     results['provider_failures']=[{'provider':p,'model':m,'category':c,'attempts':n} for (p,m,c),n in sorted(failures.items())]
     amendment=read(public/'resume-amendment.json')
-    used=amendment['used_before_fix']
+    used=amendment.get('used_before_paid', amendment['used_before_fix'])
     quotas=set()
     for r in jobs:
         for e in r['exchanges']:
@@ -77,14 +125,33 @@ def main():
                        'calls_this_run':{p:counts[p]-used[p] for p in used},'caps_this_run':amendment['remaining_caps'],
                        'provider_quota_violations':[{'model':m,'quota_id':q,'quota_value':v} for m,q,v in sorted(quotas)],
                        'unresolved_by_reason':[{'provider':p,'encoding':e,'mode':m,'reason':x,'jobs':n} for (p,e,m,x),n in sorted(reasons.items())]}
+    paid_attempts=[a for a in ledger['attempts'] if a['provider']=='gemini'
+                   and a['started_ms']>=state['resume']['started_ms']]
+    assert len(paid_attempts)==results['resume']['calls_this_run']['gemini']
+    results['resume']['gemini_model_availability']=[
+        {'model':model,'attempts':len(cells),'http_successes':sum(a['outcome']=='answered' for a in cells),
+         'http_availability':sum(a['outcome']=='answered' for a in cells)/len(cells) if cells else None,
+         'schema_valid_jobs':sum(r['outcome']=='answered' and r.get('resume_epoch')==amendment['epoch']
+                                 and r.get('actual_model')==model for r in jobs)}
+        for model in [item['model'] for item in results['gemini_model_availability']]
+        for cells in [[a for a in paid_attempts if a['model']==model]]]
+    results['gemini_spend']=gemini_spend(root)
+    mapping=read(root/'corpus-mapping.json')
+    missing_sources=sum(not Path(source).exists() for case in mapping['cases']
+                        if case['origin']=='recorded' for source in case['sources'])
+    results['source_revalidation']={'recorded_source_files_missing':missing_sources,
+                                    'frozen_generated_packets_rehashed':True,
+                                    'original_source_revalidation_complete':missing_sources==0}
     results['held_out_support']=support
     results['actual_response_revisions']=[{'provider':p,'revision':v} for p,v in sorted({(r['job']['provider'],r['revision']) for r in jobs if r['outcome']=='answered' and r['job']['provider']!='rules'})]
-    results['elapsed_ms']=round(time.time()*1000-state['started_ms'])
+    results['elapsed_ms']=round(time.time()*1000-state['resume']['started_ms'])
     results['record_source_sha256']=digest(Path(__file__))
-    results['limitations'] = list(dict.fromkeys(results['limitations']+[
+    results['limitations'] = list(dict.fromkeys(
+        [item for item in results['limitations'] if not item.startswith('Costs unknown;')]+[
         'Harmful-miss bounds cover frozen catalog classes and deterministic violations; they do not establish unmeasured semantic safety.',
         'Latency records active batch dispatch handling, excluding queued time and end-to-end vision-plus-Jev extraction.',
-        'Provider error bodies were not retained before the transport fix; earlier failures are known by HTTP status only. Later error classes come from privately retained bodies.'
+        'Provider error bodies were not retained before the transport fix; earlier failures are known by HTTP status only. Later error classes come from privately retained bodies.',
+        f'{missing_sources} recorded upstream source files are missing, so their original source hashes cannot be revalidated; frozen generated packets were rehashed.'
     ]))
     (public/'RESULTS.json').write_text(json.dumps(results,indent=2,sort_keys=True)+'\n')
     marker='<!-- dispatch-completion-record -->'
@@ -92,22 +159,21 @@ def main():
     (public/'RESULTS.md').write_text(original)
     with (public/'RESULTS.md').open('a') as out:
         out.write('\n'+marker+'\n')
-        out.write(f"\nAll-job processing complete: {str(results['processing_complete']).lower()}. Unresolved provider jobs: {unresolved}. Evaluation incomplete: {str(results['incomplete']).lower()}.\n")
+        out.write(f"\nAll-job processing complete: {str(results['processing_complete']).lower()}. Unresolved provider jobs: {unresolved}; terminal invalid provider jobs: {terminal_invalid}. Evaluation incomplete: {str(results['incomplete']).lower()}.\n")
         out.write('\n| Provider | Requested model | Failure category | Attempts |\n|---|---|---|---:|\n')
         for (p,m,c),n in sorted(failures.items()):out.write(f'| {p} | {m} | {c} | {n} |\n')
         out.write('\nLatency excludes queueing and full pipeline extraction. Harmful-miss bounds use the frozen catalog; they do not establish semantic safety. Missing responses and unresolved pairs remain excluded from committed-answer accuracy.\n')
         resume=results['resume']
-        out.write(f"\n## Resume after the transport fix\n\nAmendment `{resume['amendment_sha256']}` (epoch `{resume['epoch']}`) replaces only transport identities and opens a new elapsed window; corpus, splits, rubrics and plan are unchanged. "
-                  f"Calls this run: Jev {resume['calls_this_run']['jev']}/{resume['caps_this_run']['jev']}, Gemini {resume['calls_this_run']['gemini']}/{resume['caps_this_run']['gemini']} (Jev includes one diagnosis replay of a refused request).\n")
-        if resume['provider_quota_violations']:
-            out.write('\n| Gemini model | Provider quota | Limit |\n|---|---|---:|\n')
-            for q in resume['provider_quota_violations']:
-                out.write(f"| {q['model']} | {q['quota_id']} | {q['quota_value']} |\n")
-            out.write('\nThe 429s are a daily per-model free-tier quota, not a request rate; pacing cannot recover them. The transport honours the provider retry delay and stops spending attempts. '
-                      'Every Gemini chain model hit the same limit, so the chain recommendation is unchanged: newest-first, with fallback as the only way past one model\'s daily quota on this tier. No model is consistently missing.\n')
+        out.write(f"\n## Paid-tier resume\n\nAmendment `{resume['amendment_sha256']}` (epoch `{resume['epoch']}`) changes transport pacing and opens a new elapsed window. The frozen corpus, splits, rubrics and job plan are unchanged. "
+                  f"Calls in this epoch: Jev {resume['calls_this_run']['jev']}/{resume['caps_this_run']['jev']}, Gemini {resume['calls_this_run']['gemini']}/{resume['caps_this_run']['gemini']}.\n")
+        spend=results['gemini_spend']
+        out.write(f"\nGemini spend estimate for this epoch: ${spend['estimated_usd']:.4f} USD from API token usage and [published standard paid-tier prices]({spend['pricing_url']}); {spend['responses_without_usage']} successful responses lack usage metadata. This is an estimate, not an invoice.\n")
+        out.write('\n| Gemini model | Paid-epoch attempts | HTTP successes | Schema-valid jobs |\n|---|---:|---:|---:|\n')
+        for model in resume['gemini_model_availability']:
+            out.write(f"| {model['model']} | {model['attempts']} | {model['http_successes']} | {model['schema_valid_jobs']} |\n")
+        out.write(f"\nSource revalidation: {missing_sources} recorded upstream files are absent; frozen generated packets and their hashes were rechecked. This limits source-level replay assurance.\n")
         remaining={p:resume['caps_this_run'][p]-resume['calls_this_run'][p] for p in used}
-        out.write(f"\nRemainder: {unresolved} provider jobs. Gemini jobs wait for the provider's daily reset; Jev enriched jobs wait on their Gemini observations. Unused caps: Jev {remaining['jev']}, Gemini {remaining['gemini']}. "
-                  'Resuming after the reset continues from the ledger; raising the quota is a paid-tier (spending) decision.\n')
+        out.write(f"\nRemainder: {unresolved} unresolved provider jobs plus {terminal_invalid} terminal invalid response. Unused caps: Jev {remaining['jev']}, Gemini {remaining['gemini']}. The table below gives the unresolved reasons.\n")
         out.write('\n| Unresolved provider jobs | Encoding | Mode | Reason | Jobs |\n|---|---|---|---|---:|\n')
         for u in resume['unresolved_by_reason']:
             out.write(f"| {u['provider']} | {u['encoding']} | {u['mode']} | {u['reason']} | {u['jobs']} |\n")

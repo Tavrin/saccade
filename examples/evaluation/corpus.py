@@ -575,8 +575,14 @@ def validate(config):
         for filename, expected in c['generated'].items():
             if pilot.file_hash(filename) != expected:
                 raise ValueError('frozen input or packet changed')
-        if c['origin'] == 'recorded' and any(pilot.file_hash(p) != h for p,h in zip(c['sources'], c['source_sha256'])):
-            raise ValueError('recorded source changed')
+        if c['origin'] == 'recorded':
+            for source, expected in zip(c['sources'], c['source_sha256']):
+                if not Path(source).exists() and config.get('allow_missing_recorded_sources'):
+                    # The frozen generated packet is still checked above. A
+                    # disappeared upstream archive cannot be rehashed here.
+                    continue
+                if pilot.file_hash(source) != expected:
+                    raise ValueError('recorded source changed')
         if c['origin'] == 'constructed':
             for capture_record in load(Path(c['folder'])/'construction.json')['captures']:
                 if any(pilot.file_hash(p) != h for p,h in capture_record['files'].items()):

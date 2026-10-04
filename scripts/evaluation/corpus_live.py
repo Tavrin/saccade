@@ -140,6 +140,20 @@ def checked_dispatch(config, manifest, case, job, model, payload, dest):
                 if value['type'] == 'text':
                     sources.update(json.loads(value['value']).get('source_roots', []))
     sources.add(str(Path(case['folder']).resolve()))
+    # A private resume may relocate a disappeared storage alias. Resolve only
+    # transitive source roots here; the frozen provider payload stays byte-identical.
+    for legacy, replacement in config.get('source_root_relocations', {}).items():
+        prefix = legacy.rstrip('/') + '/'
+        sources = {replacement.rstrip('/') + '/' + s[len(prefix):] if s.startswith(prefix) else s
+                   for s in sources}
+    unavailable = {s for s in sources if not Path(s).is_dir()}
+    if unavailable and config.get('allow_missing_recorded_sources') and case['origin'] == 'recorded':
+        # §16 authorizes these frozen packets; the upstream archive may have
+        # been removed. Retain its identities privately and authorize the
+        # still-hashed derived case folder that supplies the actual payload.
+        dest.mkdir(parents=True, exist_ok=True)
+        corpus.save(dest/'unavailable-source-roots.json', sorted(unavailable))
+        sources -= unavailable
     if any(not Path(s).is_absolute() or not Path(s).is_dir() for s in sources):
         raise ValueError('unavailable transitive source root')
     dest.mkdir(parents=True, exist_ok=True)

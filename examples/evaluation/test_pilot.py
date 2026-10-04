@@ -18,6 +18,8 @@ spec.loader.exec_module(pilot)
 
 class PilotContract(unittest.TestCase):
     def setUp(self):
+        if not (pilot.HERE/'.local/mapping.json').exists() or not (pilot.HERE/'.local/bin/pilot_offline').exists():
+            self.skipTest('superseded preparation fixture is absent from this checkout')
         self.temp=tempfile.TemporaryDirectory()
         self.root=Path(self.temp.name)
         self.original=pilot.HERE
