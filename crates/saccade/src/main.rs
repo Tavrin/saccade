@@ -14,6 +14,7 @@ use saccade_core::view::{ViewOptions, build_view, is_safe_name};
 mod agent;
 mod agent_ui;
 mod approval;
+mod engine_ingest;
 mod f1;
 mod git_bisect;
 mod ingest;

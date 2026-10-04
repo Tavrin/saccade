@@ -14,6 +14,39 @@ pub(crate) struct IngestArgs {
 
 #[derive(Subcommand)]
 enum IngestOperation {
+    /// Pair Blender render report category/ref images with category renders.
+    Blender {
+        root: PathBuf,
+        #[arg(long)]
+        out: PathBuf,
+        #[arg(long)]
+        json: bool,
+    },
+    /// Pair Bevy screenshot-N.png files from two runs.
+    Bevy {
+        reference: PathBuf,
+        capture: PathBuf,
+        #[arg(long)]
+        out: PathBuf,
+        #[arg(long)]
+        json: bool,
+    },
+    /// Pair Unity Graphics Test Framework ReferenceImages and ActualImages.
+    Unity {
+        assets: PathBuf,
+        #[arg(long)]
+        out: PathBuf,
+        #[arg(long)]
+        json: bool,
+    },
+    /// Read Unreal screenshot comparison result paths from JSON.
+    Unreal {
+        results: PathBuf,
+        #[arg(long)]
+        out: PathBuf,
+        #[arg(long)]
+        json: bool,
+    },
     /// Compare expected and actual Playwright screenshot attachments.
     Playwright {
         /// Manifest written by integrations/playwright/reporter.cjs.
@@ -72,6 +105,35 @@ fn copy_image(from: &Path, to: &Path) -> Result<(), CliError> {
 
 pub(crate) fn run(args: IngestArgs, absolute: bool) -> Result<u8, CliError> {
     match args.operation {
+        IngestOperation::Blender { root, out, json } => crate::engine_ingest::run(
+            crate::engine_ingest::Format::Blender(root),
+            &out,
+            json,
+            absolute,
+        ),
+        IngestOperation::Bevy {
+            reference,
+            capture,
+            out,
+            json,
+        } => crate::engine_ingest::run(
+            crate::engine_ingest::Format::Bevy(reference, capture),
+            &out,
+            json,
+            absolute,
+        ),
+        IngestOperation::Unity { assets, out, json } => crate::engine_ingest::run(
+            crate::engine_ingest::Format::Unity(assets),
+            &out,
+            json,
+            absolute,
+        ),
+        IngestOperation::Unreal { results, out, json } => crate::engine_ingest::run(
+            crate::engine_ingest::Format::Unreal(results),
+            &out,
+            json,
+            absolute,
+        ),
         IngestOperation::Playwright {
             manifest,
             out,

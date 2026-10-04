@@ -114,3 +114,14 @@ clone is removed after a successful reset.
 Failed captures and incomplete image/performance evidence are skips, not bad
 commits. `--perf` requires qualified paired timing and repeat noise. The old
 ordered-run `experiment bisect` stays available separately.
+
+## 10. Engine layouts
+
+Read existing PNG test outputs through additive `ingest blender`, `bevy`,
+`unity` and `unreal` paths, using each producer's documented structure or
+serialized comparison paths. Pair only named, documented files, keep source
+diffs as provenance, and run the normal saccade measurement after copying.
+I rejected guessing an on-disk Godot screenshot-test layout from its Viewport
+capture API: the project documents capture, but not a standard golden/actual
+directory or result format. `ingest godot` remains an explicit residual until
+a project-level layout is specified. Rust never executes producer code.

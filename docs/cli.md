@@ -74,10 +74,95 @@ Convert a test runner's screenshot artifacts into compared image pairs
 Usage: saccade ingest [OPTIONS] <COMMAND>
 
 Commands:
+  blender     Pair Blender render report category/ref images with category renders
+  bevy        Pair Bevy screenshot-N.png files from two runs
+  unity       Pair Unity Graphics Test Framework ReferenceImages and ActualImages
+  unreal      Read Unreal screenshot comparison result paths from JSON
   playwright  Compare expected and actual Playwright screenshot attachments
 
 Options:
   -h, --help  Print help
+
+Global options:
+      --allow-out-near-captures  Silence warnings when --out is next to capture metadata
+      --record-absolute-paths    Opt in to absolute local paths in reports and machine-readable output
+```
+
+## saccade ingest blender
+
+```text
+Pair Blender render report category/ref images with category renders
+
+Usage: saccade ingest blender [OPTIONS] --out <OUT> <ROOT>
+
+Arguments:
+  <ROOT>
+
+Options:
+      --out <OUT>
+      --json
+  -h, --help       Print help
+
+Global options:
+      --allow-out-near-captures  Silence warnings when --out is next to capture metadata
+      --record-absolute-paths    Opt in to absolute local paths in reports and machine-readable output
+```
+
+## saccade ingest bevy
+
+```text
+Pair Bevy screenshot-N.png files from two runs
+
+Usage: saccade ingest bevy [OPTIONS] --out <OUT> <REFERENCE> <CAPTURE>
+
+Arguments:
+  <REFERENCE>
+  <CAPTURE>
+
+Options:
+      --out <OUT>
+      --json
+  -h, --help       Print help
+
+Global options:
+      --allow-out-near-captures  Silence warnings when --out is next to capture metadata
+      --record-absolute-paths    Opt in to absolute local paths in reports and machine-readable output
+```
+
+## saccade ingest unity
+
+```text
+Pair Unity Graphics Test Framework ReferenceImages and ActualImages
+
+Usage: saccade ingest unity [OPTIONS] --out <OUT> <ASSETS>
+
+Arguments:
+  <ASSETS>
+
+Options:
+      --out <OUT>
+      --json
+  -h, --help       Print help
+
+Global options:
+      --allow-out-near-captures  Silence warnings when --out is next to capture metadata
+      --record-absolute-paths    Opt in to absolute local paths in reports and machine-readable output
+```
+
+## saccade ingest unreal
+
+```text
+Read Unreal screenshot comparison result paths from JSON
+
+Usage: saccade ingest unreal [OPTIONS] --out <OUT> <RESULTS>
+
+Arguments:
+  <RESULTS>
+
+Options:
+      --out <OUT>
+      --json
+  -h, --help       Print help
 
 Global options:
       --allow-out-near-captures  Silence warnings when --out is next to capture metadata
