@@ -39,3 +39,16 @@ the specified default `0.5` rule. The other two images do. A demonstration
 with `hotspot_local_max = 0.4` marks all three; changing the default to make
 this packet pass would contradict the spec's stated default. This remains an
 explicit acceptance shortfall for the default packet demonstration.
+
+## 4. GPU clock and power state
+
+Read `gpu_clock.json` as engine-neutral `saccade-gpu-clock.v1` or adapt Moss
+`moss.gpu-clock.v2` sampled windows. A present sidecar with missing power state,
+incomplete frames, failed queries, unestablished warm-to-boost stability,
+throttling, or a clock span above 5% of its median is unqualified. Different
+device, power state, window set, or median clocks between arms reject timing
+comparability. I rejected accepting a producer's clock samples solely because
+its performance sidecar says `qualified`; those are separate facts. Both clock
+summaries and reasons remain in the performance diff. Absence on both sides
+preserves historical behavior; absence on one side rejects pairing. The 5%
+span is a conservative measured-window limit, not an exact-MHz requirement.

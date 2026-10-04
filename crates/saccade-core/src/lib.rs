@@ -20,6 +20,7 @@ pub mod ergonomics;
 pub mod error;
 pub mod evidence;
 pub mod explain;
+pub mod gpu_clock;
 pub mod hdr;
 pub mod hotspots;
 pub mod inbox;

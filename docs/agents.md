@@ -128,3 +128,8 @@ Check `data.pass_with_local_change` on a passing compare result. It marks a
 severe local hotspot hidden by the deciding average; follow the inspect action
 and read the full report entry before describing the capture as unchanged.
 The default rule is max FLIP ≥ 0.5 and area ≥ 16 pixels.
+
+For performance evidence, read `qualification_reasons` and any
+`gpu_clock_before` / `gpu_clock_after` summaries. An unqualified or mismatched
+clock or power state makes performance comparability `rejected`; image results
+remain separate.

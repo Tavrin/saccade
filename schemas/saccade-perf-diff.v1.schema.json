@@ -9,6 +9,90 @@
       ],
       "type": "string"
     },
+    "ClockRange": {
+      "additionalProperties": false,
+      "properties": {
+        "max": {
+          "format": "double",
+          "type": "number"
+        },
+        "median": {
+          "format": "double",
+          "type": "number"
+        },
+        "min": {
+          "format": "double",
+          "type": "number"
+        }
+      },
+      "required": [
+        "min",
+        "median",
+        "max"
+      ],
+      "type": "object"
+    },
+    "ClockWindow": {
+      "additionalProperties": false,
+      "properties": {
+        "core_mhz": {
+          "$ref": "#/$defs/ClockRange"
+        },
+        "expected_frames": {
+          "format": "uint64",
+          "minimum": 0,
+          "type": "integer"
+        },
+        "memory_mhz": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/ClockRange"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "name": {
+          "type": "string"
+        },
+        "observed_frames": {
+          "format": "uint64",
+          "minimum": 0,
+          "type": "integer"
+        },
+        "query_failures": {
+          "format": "uint64",
+          "minimum": 0,
+          "type": "integer"
+        },
+        "sample_count": {
+          "format": "uint64",
+          "minimum": 0,
+          "type": "integer"
+        },
+        "stabilized": {
+          "type": "boolean"
+        },
+        "throttle_reasons": {
+          "default": [],
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        }
+      },
+      "required": [
+        "name",
+        "core_mhz",
+        "sample_count",
+        "expected_frames",
+        "observed_frames",
+        "query_failures",
+        "stabilized"
+      ],
+      "type": "object"
+    },
     "Comparability": {
       "enum": [
         "qualified",
@@ -160,6 +244,36 @@
         "unknown"
       ],
       "type": "string"
+    },
+    "GpuClock": {
+      "additionalProperties": false,
+      "properties": {
+        "device_id": {
+          "type": "string"
+        },
+        "power_state": {
+          "description": "Explicit producer power state, e.g. `ac-performance`. Unknown is absent.",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "schema": {
+          "type": "string"
+        },
+        "windows": {
+          "items": {
+            "$ref": "#/$defs/ClockWindow"
+          },
+          "type": "array"
+        }
+      },
+      "required": [
+        "schema",
+        "device_id",
+        "windows"
+      ],
+      "type": "object"
     },
     "Kind": {
       "enum": [
@@ -568,6 +682,26 @@
     "frame_change": {
       "$ref": "#/$defs/FrameChange",
       "default": "unknown"
+    },
+    "gpu_clock_after": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/GpuClock"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "gpu_clock_before": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/GpuClock"
+        },
+        {
+          "type": "null"
+        }
+      ]
     },
     "materiality": {
       "$ref": "#/$defs/Materiality",

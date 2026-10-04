@@ -82,6 +82,10 @@ fn committed_schemas_match_the_rust_types() {
             generated::<saccade_core::perf::PerfDiff>("saccade-perf-diff.v1.schema.json"),
         ),
         (
+            "saccade-gpu-clock.v1.schema.json",
+            generated::<saccade_core::gpu_clock::GpuClock>("saccade-gpu-clock.v1.schema.json"),
+        ),
+        (
             "saccade-ablate.v1.schema.json",
             generated::<saccade_core::ablate::Ablation>("saccade-ablate.v1.schema.json"),
         ),

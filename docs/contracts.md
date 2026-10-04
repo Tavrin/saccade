@@ -26,6 +26,14 @@ counts local changes and lists at most three, with an inspect action.
 `zero_flip_native_difference` is an additive diagnostic class for a FLIP-zero
 pair whose native decoded samples differ.
 
+`saccade-perf-diff.v1` additively records `gpu_clock_before` and
+`gpu_clock_after` when adjacent `gpu_clock.json` sidecars exist. The
+engine-neutral input schema is `saccade-gpu-clock.v1`; Moss
+`moss.gpu-clock.v2` is adapted on read. Clock qualification failures and
+cross-arm differences append named `qualification_reasons` and set
+`comparability: rejected`. The performance-noise path applies the same checks
+across repeats.
+
 ## Result v2 fields for compare and identity
 
 The [result v2 schema](../schemas/saccade-result.v2.schema.json) lists every
@@ -122,6 +130,7 @@ The last three names appear only when the corresponding feature is compiled in.
 - [saccade-explain-blind-key.v1.schema.json](../schemas/saccade-explain-blind-key.v1.schema.json) — ExplainBlindKey
 - [saccade-explain-result.v1.schema.json](../schemas/saccade-explain-result.v1.schema.json) — saccade-explain-result.v1
 - [saccade-explain.v1.schema.json](../schemas/saccade-explain.v1.schema.json) — ExplainPack
+- [saccade-gpu-clock.v1.schema.json](../schemas/saccade-gpu-clock.v1.schema.json) — GpuClock
 - [saccade-inbox-item.v1.schema.json](../schemas/saccade-inbox-item.v1.schema.json) — Item
 - [saccade-judge-bench.v1.schema.json](../schemas/saccade-judge-bench.v1.schema.json) — Historical reader contract
 - [saccade-judge-selftest.v1.schema.json](../schemas/saccade-judge-selftest.v1.schema.json) — Historical reader contract

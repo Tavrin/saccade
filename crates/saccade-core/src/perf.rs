@@ -873,6 +873,10 @@ pub struct PerfDiff {
     pub context_before: Option<PerfContext>,
     #[serde(default)]
     pub context_after: Option<PerfContext>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub gpu_clock_before: Option<crate::gpu_clock::GpuClock>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub gpu_clock_after: Option<crate::gpu_clock::GpuClock>,
 }
 
 #[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
@@ -1140,6 +1144,8 @@ impl PerfDiff {
             policy_sources,
             context_before: b.context.clone(),
             context_after: a.context.clone(),
+            gpu_clock_before: None,
+            gpu_clock_after: None,
         }
     }
     pub fn top(&self, n: usize, beyond_only: bool) -> Vec<&TermDiff> {
@@ -1521,7 +1527,16 @@ pub fn pair(
         .collect();
     let diff = match (b, a) {
         (Ok(Some(b)), Ok(Some(a))) => {
-            Some(PerfDiff::between_with_options(&b, &a, floor.as_ref(), opts))
+            let mut diff = PerfDiff::between_with_options(&b, &a, floor.as_ref(), opts);
+            let (clocks, reasons) = crate::gpu_clock::compare(&[before, after]);
+            if !reasons.is_empty() {
+                diff.comparability = Comparability::Rejected;
+                diff.frame_change = FrameChange::Unknown;
+                diff.qualification_reasons.extend(reasons);
+            }
+            diff.gpu_clock_before = clocks[0].clone();
+            diff.gpu_clock_after = clocks[1].clone();
+            Some(diff)
         }
         _ => None,
     };
@@ -1549,7 +1564,16 @@ pub fn noise_with_options(
         .iter()
         .map(|d| CapturePerf::read(d, &opts.name).map_err(crate::Error::Perf))
         .collect::<crate::Result<_>>()?;
-    noise_from_captures(&captures, opts)
+    let (mut floor, mut reasons) = noise_from_captures(&captures, opts)?;
+    let (_, clock_reasons) =
+        crate::gpu_clock::compare(&dirs.iter().map(PathBuf::as_path).collect::<Vec<_>>());
+    if !clock_reasons.is_empty() {
+        if let Some(floor) = &mut floor {
+            floor.comparability = Comparability::Rejected;
+        }
+        reasons.extend(clock_reasons);
+    }
+    Ok((floor, reasons))
 }
 
 #[cfg(feature = "graphics")]
@@ -1674,9 +1698,15 @@ pub fn noise_record(dirs: &[PathBuf], opts: &PerfOptions) -> crate::Result<Perfo
         sources.push(source);
     }
     let (floor, mut reasons) = noise_from_captures(&captures, opts)?;
-    let floor = floor.ok_or_else(|| {
+    let mut floor = floor.ok_or_else(|| {
         crate::Error::Config("performance noise needs at least two captures".into())
     })?;
+    let (_, clock_reasons) =
+        crate::gpu_clock::compare(&dirs.iter().map(PathBuf::as_path).collect::<Vec<_>>());
+    if !clock_reasons.is_empty() {
+        floor.comparability = Comparability::Rejected;
+        reasons.extend(clock_reasons);
+    }
     let mut capture_provenance = BTreeMap::new();
     for (index, dir) in dirs.iter().enumerate() {
         let evidence =
