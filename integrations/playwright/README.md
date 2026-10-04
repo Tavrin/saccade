@@ -4,7 +4,7 @@ Playwright's [`toHaveScreenshot()`](https://playwright.dev/docs/test-snapshots)
 stores expected snapshots and, on a visual failure, attaches expected, actual
 and diff images to the test result. The [Reporter API](https://playwright.dev/docs/api/class-reporter)
 exposes those attachments and the test's project. `reporter.cjs` writes a small
-`saccade-playwright.v1` manifest using those attachment paths. It does not run
+`saccade-playwright.v1` manifest with copies of those attachments beside it. It does not run
 tests or alter snapshots.
 
 Add this reporter alongside your normal reporter in `playwright.config.js`:
@@ -25,7 +25,8 @@ The ingest command copies expected and actual images into paired directories,
 copies Playwright's diff files when present, records exact test ID, project,
 browser and viewport in sidecars and `playwright-mapping.json`, then runs the
 normal saccade comparison under `saccade-playwright/report`. Input attachment
-paths can be absolute or relative to the manifest. The output directory must
+paths must be relative to the manifest and remain within its directory after
+canonicalization. The output directory must
 be new or empty. The CLI does not execute JavaScript.
 
 Playwright may omit actual/diff attachments for passing assertions. The
@@ -40,8 +41,9 @@ From `integrations/playwright/example`, with Playwright installed in your
 project, run `npx playwright test --update-snapshots` once to create the
 expected image. Change the card colour in `page.html`, run `npx playwright
 test`, then run `saccade ingest playwright test-results/saccade-playwright.json
---out comparison --json`. This example needs a locally installed Chromium;
-the lane's offline test uses a synthetic manifest instead of downloading it.
+--out comparison --json`. This example needs a locally installed Chromium.
+The backlog review lane ran it headlessly with installed Playwright and
+Chromium, then ingested its failure attachments without downloading anything.
 
 ## CI
 

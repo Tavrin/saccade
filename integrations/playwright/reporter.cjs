@@ -41,6 +41,16 @@ class SaccadeReporter {
     const target = path.resolve(this.outputFile);
     fs.mkdirSync(path.dirname(target), { recursive: true });
     this.entries.sort((a, b) => a.project.localeCompare(b.project) || a.test_id.localeCompare(b.test_id));
+    const assets = path.join(path.dirname(target), 'saccade-playwright-assets');
+    fs.mkdirSync(assets, { recursive: true });
+    this.entries.forEach((entry, index) => {
+      for (const role of ['expected', 'actual', 'diff']) {
+        if (!entry[role]) continue;
+        const name = `${String(index).padStart(4, '0')}-${role}.png`;
+        fs.copyFileSync(entry[role], path.join(assets, name));
+        entry[role] = `saccade-playwright-assets/${name}`;
+      }
+    });
     fs.writeFileSync(target, JSON.stringify({ schema: 'saccade-playwright.v1', entries: this.entries }, null, 2) + '\n');
   }
 }

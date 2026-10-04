@@ -29,7 +29,10 @@ fn images(root: &Path) -> Result<BTreeMap<String, PathBuf>, CliError> {
             let entry = entry.map_err(|e| CliError::io(e.to_string()))?;
             let kind = entry.file_type().map_err(|e| CliError::io(e.to_string()))?;
             if kind.is_symlink() {
-                continue;
+                return Err(CliError::usage(format!(
+                    "ingest path is a symlink: {}",
+                    entry.path().display()
+                )));
             }
             if kind.is_dir() {
                 visit(root, &entry.path(), found)?;
@@ -43,6 +46,7 @@ fn images(root: &Path) -> Result<BTreeMap<String, PathBuf>, CliError> {
                 let relative = file
                     .strip_prefix(root)
                     .map_err(|e| CliError::io(e.to_string()))?;
+                let file = crate::ingest::contained_source(root, relative)?;
                 found.insert(relative.to_string_lossy().replace('\\', "/"), file);
             }
         }
@@ -179,19 +183,20 @@ fn select(format: Format) -> Result<(String, Vec<Pair>), CliError> {
             let mut pairs = Vec::new();
             let parent = results.parent().unwrap_or(Path::new("."));
             for (index, record) in records.iter().enumerate() {
-                let path = |name: &str| {
+                let path = |name: &str| -> Result<Option<PathBuf>, CliError> {
                     record
                         .get(name)
                         .and_then(Value::as_str)
                         .filter(|s| !s.is_empty())
-                        .map(|s| parent.join(s))
+                        .map(|s| crate::ingest::contained_source(parent, Path::new(s)))
+                        .transpose()
                 };
-                let expected = path("ReportApprovedFilePath");
-                let actual = path("ReportIncomingFilePath").or_else(|| path("IncomingFilePath"));
+                let expected = path("ReportApprovedFilePath")?;
+                let actual = path("ReportIncomingFilePath")?.or(path("IncomingFilePath")?);
                 if expected.is_none() && actual.is_none() {
                     continue;
                 }
-                pairs.push(Pair { key:format!("{index:04}.png"), expected, actual, diff:path("ReportComparisonFilePath"), metadata:json!({"ingest_format":"unreal","screenshot_path":record.get("ScreenshotPath").and_then(Value::as_str).unwrap_or(""),"platform":record.get("SourcePlatform").and_then(Value::as_str).unwrap_or(""),"rhi":record.get("SourceRHI").and_then(Value::as_str).unwrap_or("")}) });
+                pairs.push(Pair { key:format!("{index:04}.png"), expected, actual, diff:path("ReportComparisonFilePath")?, metadata:json!({"ingest_format":"unreal","screenshot_path":record.get("ScreenshotPath").and_then(Value::as_str).unwrap_or(""),"platform":record.get("SourcePlatform").and_then(Value::as_str).unwrap_or(""),"rhi":record.get("SourceRHI").and_then(Value::as_str).unwrap_or("")}) });
             }
             Ok(("unreal".into(), pairs))
         }

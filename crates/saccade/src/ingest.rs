@@ -12,6 +12,27 @@ pub(crate) struct IngestArgs {
     operation: IngestOperation,
 }
 
+#[cfg(test)]
+#[allow(clippy::unwrap_used)]
+mod containment_tests {
+    use super::*;
+    #[test]
+    fn manifest_paths_reject_parent_absolute_and_symlink_escape() {
+        let temp = tempfile::tempdir().unwrap();
+        let root = temp.path().join("run");
+        std::fs::create_dir(&root).unwrap();
+        let outside = temp.path().join("outside.png");
+        std::fs::write(&outside, b"image").unwrap();
+        assert!(contained_source(&root, Path::new("../outside.png")).is_err());
+        assert!(contained_source(&root, &outside).is_err());
+        #[cfg(unix)]
+        {
+            std::os::unix::fs::symlink(&outside, root.join("link.png")).unwrap();
+            assert!(contained_source(&root, Path::new("link.png")).is_err());
+        }
+    }
+}
+
 #[derive(Subcommand)]
 enum IngestOperation {
     /// Pair Blender render report category/ref images with category renders.
@@ -82,12 +103,35 @@ struct Snapshot {
     diff: Option<String>,
 }
 
+pub(crate) fn contained_source(root: &Path, relative: &Path) -> Result<PathBuf, CliError> {
+    if relative.is_absolute() {
+        return Err(CliError::usage(format!(
+            "ingest path must stay under {}: {}",
+            root.display(),
+            relative.display()
+        )));
+    }
+    let root = std::fs::canonicalize(root).map_err(|e| CliError::io(e.to_string()))?;
+    let path =
+        std::fs::canonicalize(root.join(relative)).map_err(|e| CliError::io(e.to_string()))?;
+    if !path.starts_with(&root) {
+        return Err(CliError::usage(format!(
+            "ingest path escapes root {}: {}",
+            root.display(),
+            relative.display()
+        )));
+    }
+    Ok(path)
+}
+
 fn source(manifest: &Path, relative: &str) -> Result<PathBuf, CliError> {
     if relative.is_empty() {
         return Err(CliError::usage("Playwright attachment path is empty"));
     }
-    let path = manifest.parent().unwrap_or(Path::new(".")).join(relative);
-    let path = std::fs::canonicalize(&path).map_err(|e| CliError::io(e.to_string()))?;
+    let path = contained_source(
+        manifest.parent().unwrap_or(Path::new(".")),
+        Path::new(relative),
+    )?;
     if !path.is_file() {
         return Err(CliError::usage(
             "Playwright attachment is not a regular file",

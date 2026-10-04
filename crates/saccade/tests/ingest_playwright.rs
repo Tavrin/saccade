@@ -38,3 +38,34 @@ fn manifest_maps_one_playwright_failure_to_comparison_and_sidecars() {
     assert_eq!(sidecar["playwright_viewport_height"], 600);
     assert!(out.join("report/saccade-report.v1.json").is_file());
 }
+
+#[test]
+fn playwright_manifest_rejects_escape_before_copy() {
+    let tmp = tempfile::tempdir().unwrap();
+    let root = tmp.path().join("results");
+    std::fs::create_dir(&root).unwrap();
+    let outside = tmp.path().join("outside.png");
+    RgbImage::from_pixel(16, 16, Rgb([30, 30, 30]))
+        .save(&outside)
+        .unwrap();
+    let manifest = root.join("manifest.json");
+    for (index, escape) in [
+        "../outside.png".to_string(),
+        outside.to_string_lossy().into_owned(),
+    ]
+    .iter()
+    .enumerate()
+    {
+        std::fs::write(&manifest, serde_json::json!({"schema":"saccade-playwright.v1","entries":[{"test_id":"case","project":"chromium","browser":"chromium","viewport":[800,600],"expected":escape,"actual":escape,"diff":null}]}).to_string()).unwrap();
+        let out = tmp.path().join(format!("out-{index}"));
+        let result = Command::new(env!("CARGO_BIN_EXE_saccade"))
+            .args(["ingest", "playwright"])
+            .arg(&manifest)
+            .arg("--out")
+            .arg(&out)
+            .output()
+            .unwrap();
+        assert_ne!(result.status.code(), Some(0), "{result:?}");
+        assert!(!out.exists());
+    }
+}
