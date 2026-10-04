@@ -484,6 +484,65 @@ mod tests {
     }
 
     #[test]
+    fn nonidentical_hdr_flip_matches_independent_exposure_equations() {
+        let reference = HdrImage {
+            width: 4,
+            height: 4,
+            data: vec![1.0; 48],
+            replaced: ReplacedSamples::default(),
+        };
+        let mut test = reference.clone();
+        for pixel in test.data.as_chunks_mut::<3>().0.iter_mut().take(8) {
+            pixel.fill(2.0);
+        }
+        let opts = CompareOptions {
+            hdr: HdrConfig {
+                tonemapper: Tonemapper::Reinhard,
+                start_exposure: Some(-1.0),
+                stop_exposure: Some(1.0),
+                num_exposures: Some(3),
+            },
+            ..Default::default()
+        };
+        let (actual, info) = compare_hdr(&test, &reference, &opts).expect("HDR-FLIP");
+        assert_eq!(info.num_exposures, 3);
+        let srgb = |linear: f32| {
+            if linear <= 0.003_130_8 {
+                12.92 * linear
+            } else {
+                1.055 * linear.powf(1.0 / 2.4) - 0.055
+            }
+        };
+        let mut independently_combined = vec![0.0f32; 16];
+        for exposure in [-1.0f32, 0.0, 1.0] {
+            let convert = |data: &[f32]| {
+                data.iter()
+                    .map(|v| {
+                        let x = v * 2.0f32.powf(exposure);
+                        srgb(x / (1.0 + x))
+                    })
+                    .collect::<Vec<_>>()
+            };
+            let a = flip_rs::RgbImage::new(4, 4, convert(&reference.data)).expect("reference");
+            let b = flip_rs::RgbImage::new(4, 4, convert(&test.data)).expect("test");
+            let map = flip_rs::ldr_flip(&a, &b, opts.pixels_per_degree).expect("LDR-FLIP");
+            for (combined, value) in independently_combined.iter_mut().zip(map.pixels()) {
+                *combined = combined.max(*value);
+            }
+        }
+        for (got, expected) in actual.error_map.iter().zip(independently_combined) {
+            assert!(
+                (got - expected).abs() < 2e-5,
+                "HDR-FLIP {got} vs independent {expected}"
+            );
+        }
+        assert!(actual.metrics.max > 0.0);
+        // Pinned from flip-rs 0.1.2; 2e-5 covers f32 transfer rounding.
+        assert!((actual.metrics.mean - 0.319_616_831_839).abs() < 2e-5);
+        assert!((actual.metrics.max - 0.449_101_179_838).abs() < 2e-5);
+    }
+
+    #[test]
     fn mixed_ldr_hdr_pair_is_an_error() {
         let err = check_same_kind(Path::new("a/x.exr"), Path::new("b/x.png")).expect_err("mixed");
         assert!(err.to_string().contains("baseline is HDR, capture is LDR"));
