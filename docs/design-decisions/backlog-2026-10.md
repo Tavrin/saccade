@@ -52,3 +52,13 @@ its performance sidecar says `qualified`; those are separate facts. Both clock
 summaries and reasons remain in the performance diff. Absence on both sides
 preserves historical behavior; absence on one side rejects pairing. The 5%
 span is a conservative measured-window limit, not an exact-MHz requirement.
+
+## 5. Three-verb front door
+
+The default help shows `compare`, `prove`, and `review`, then names every
+existing command under an Advanced heading. `prove identity` routes to the
+existing exact identity path and `prove performance` to ablation. The old
+commands remain callable and discoverable through explicit help and compiled
+capabilities. I rejected renaming or removing them because existing scripts
+and §17 compatibility depend on those paths. The new identity form exposes
+the common options; advanced identity options remain on `identity`.

@@ -72,7 +72,8 @@ def generated(binary=None):
             'Exit 2 means the operation cannot run. Demo intentionally exits 1.', '']
         for op in [''] + operations:
             help_result = subprocess.run([binary] + op.split() + ['--help'], check=True, capture_output=True, text=True, encoding="utf-8")
-            lines += [f'## saccade {op}'.rstrip(), '', '```text', help_result.stdout.rstrip(), '```', '']
+            help_text = '\n'.join(line.rstrip() for line in help_result.stdout.rstrip().splitlines())
+            lines += [f'## saccade {op}'.rstrip(), '', '```text', help_text, '```', '']
         packs['docs/cli.md'] = '\n'.join(lines)
     return packs
 

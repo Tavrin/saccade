@@ -5,7 +5,7 @@ Generated from compiled capabilities and `--help`; do not edit by hand.
 Generation: `python3 scripts/gen-docs.py --saccade target/release/saccade`.
 Use the official default features plus `prechecks` to include every supported operation.
 
-Compiled features: `ai`, `evaluation`, `graphics`, `mcp`, `parallel`, `prechecks`, `workbench`.
+Compiled features: `ai`, `evaluation`, `graphics`, `mcp`, `parallel`, `workbench`.
 
 Exit 1 means a failed image measurement/evaluation gate or located divergence.
 Exit 0 for compare/identity means no image regression; inspect `performance` for qualification.
@@ -15,39 +15,14 @@ Exit 2 means the operation cannot run. Demo intentionally exits 1.
 ## saccade
 
 ```text
-Find and explain visual changes between two sets of rendered images
+Tell when visual or performance evidence is not good enough to support a claim
 
 Usage: saccade [OPTIONS] <COMMAND>
 
-
-
-saccade scores each image pair with FLIP, a perceptual error metric, locates the
-changed regions, and writes an offline HTML report next to a JSON result.
-
-Start here:
-  saccade demo --out saccade-demo               Run the bundled example (exits 1 on purpose)
-  saccade compare baseline/ captures/ --out report
-                                                Compare fresh captures with approved baselines
-  saccade identity parent/ candidate/ --out report
-                                                Check that two builds render identical pixels
-
-Exit codes: 0 no image regression, 1 image regression found, 2 the command could not run.
-Run `saccade COMMAND --help` for that command's flags and examples.
-
 Commands:
-  demo        Run the bundled example and explain its expected regression
-  compare     Compare a directory of captures against a directory of baselines
-  identity    Establish exact native decoded-sample equality in the selected scope
-  view        Write a self-contained review viewer for 2 to 6 image directories
-  approve     Copy reviewed captures over baselines
-  serve       Browse report and image archives in a local web workbench
-  init        Bootstrap a commented configuration and print baseline adoption steps
-  noise       Calibrate thresholds from repeated captures of an unchanged build
-  inspect     Read, explain, prepare or export existing evidence
-  review      Preview a review plan or handle a local closed decision request
-  experiment  Analyze existing graphics captures: ablation, sequences, ranking, bisection
-  mcp         Serve the agent tools over MCP on stdio, confined to the given roots
-  doctor      Print installed version, features and supported evidence schemas
+  compare  Compare a directory of captures against a directory of baselines
+  prove    Check whether image identity or performance evidence proves a claim
+  review   Preview a review plan or handle a local closed decision request
 
 Options:
   -h, --help     Print help
@@ -56,6 +31,17 @@ Options:
 Global options:
       --allow-out-near-captures  Silence warnings when --out is next to capture metadata
       --record-absolute-paths    Opt in to absolute local paths in reports and machine-readable output
+
+
+Start here:
+  saccade compare baseline/ captures/ --out report
+  saccade prove identity parent/ candidate/ --out proof
+  saccade prove performance --base 'base_r*' --arm 'candidate=candidate_r*'
+  saccade review report/saccade-report.v1.json --out review
+
+Exit codes: 0 no image regression, 1 image regression found, 2 the command could not run.
+Advanced: demo, identity, noise, view, inspect, experiment, approve, init,
+serve, mcp, doctor. Existing commands keep working; use `saccade COMMAND --help`.
 ```
 
 ## saccade doctor
@@ -84,7 +70,7 @@ Usage: saccade init [OPTIONS]
 Options:
       --template <TEMPLATE>  [default: renderer] [possible values: renderer, ui, identity, ml, ci, nightly, lookdev]
       --dir <DIR>            [default: .]
-      --force                
+      --force
   -h, --help                 Print help
 
 Global options:
@@ -255,6 +241,102 @@ Global options:
       --record-absolute-paths    Opt in to absolute local paths in reports and machine-readable output
 ```
 
+## saccade prove
+
+```text
+Check whether image identity or performance evidence proves a claim
+
+Usage: saccade prove [OPTIONS] <COMMAND>
+
+Commands:
+  identity     Prove exact native decoded-sample equality over the selected images
+  performance  Evaluate performance claims from ablation arms and repeat noise
+
+Options:
+  -h, --help  Print help
+
+Global options:
+      --allow-out-near-captures  Silence warnings when --out is next to capture metadata
+      --record-absolute-paths    Opt in to absolute local paths in reports and machine-readable output
+```
+
+## saccade prove identity
+
+```text
+Prove exact native decoded-sample equality over the selected images
+
+Usage: saccade prove identity [OPTIONS] <PARENT_DIR> <CANDIDATE_DIR>
+
+Arguments:
+  <PARENT_DIR>
+  <CANDIDATE_DIR>
+
+Options:
+      --out <OUT>        [default: report]
+      --config <CONFIG>
+      --json
+      --entry <GLOB>
+  -h, --help             Print help
+
+Metadata sidecars:
+      --meta-name <NAME>        Sidecar file name (default `saccade-meta.json`); the per-image sidecar is `<stem>.<name>` and overrides the directory-level one
+      --meta-ignore <GLOB,...>  Extra sidecar key globs to ignore, added to the built-in timing, timestamp and run-id defaults
+      --require-matching-meta   Make an entry an error when a sidecar key differs and is not declared
+      --declare <KEY,...>       Sidecar keys (or globs) that may differ with --require-matching-meta
+
+Performance:
+      --perf-name <NAME>           Run performance sidecar file name (default saccade-perf.json)
+      --perf-noise <FILE>          Noise JSON or TOML from unchanged-build repeats
+      --perf-noise-k <K>           Repeat spread multiplier in the effective noise threshold (default 3)
+      --perf-resolution <MS>       Timer quantum in ms; overrides the estimate from repeated captures
+      --perf-resolution-ticks <N>  Minimum timer ticks in the noise threshold (default 2)
+      --perf-min-delta-ms <MS>     Minimum meaningful delta in ms (default 0.05)
+      --perf-min-delta-pct <PCT>   Minimum meaningful delta as a percentage of the baseline frame (default 0.5)
+
+Review context:
+      --intent <TEXT>        What the change is meant to do, in one sentence, recorded in the evidence
+      --intent-file <FILE>   Structured intent JSON with objective and criteria
+      --changes-file <FILE>  JSON list of expected changes; needs --intent or --intent-file
+
+Global options:
+      --allow-out-near-captures  Silence warnings when --out is next to capture metadata
+      --record-absolute-paths    Opt in to absolute local paths in reports and machine-readable output
+```
+
+## saccade prove performance
+
+```text
+Evaluate performance claims from ablation arms and repeat noise
+
+Usage: saccade prove performance [OPTIONS] [BASE] [ARMS]...
+
+Arguments:
+  [BASE]
+  [ARMS]...
+
+Options:
+      --base <RUN_DIR>...     Base repeat directories. Accepts a directory or a quoted glob; repeatable
+      --arm <LABEL=RUN_GLOB>  Labelled arm repeats, e.g. --arm 's2=s2_r*'; repeatable
+      --out <OUT>             [default: ablation]
+      --config <CONFIG>
+      --json
+      --top <TOP>             Per-term deltas beyond noise to show per arm [default: 5]
+  -h, --help                  Print help
+
+Performance:
+      --perf-name <NAME>           Run performance sidecar file name (default saccade-perf.json)
+      --perf-noise <FILE>          Noise JSON or TOML from unchanged-build repeats
+      --perf-noise-k <K>           Repeat spread multiplier in the effective noise threshold (default 3)
+      --perf-resolution <MS>       Timer quantum in ms; overrides the estimate from repeated captures
+      --perf-resolution-ticks <N>  Minimum timer ticks in the noise threshold (default 2)
+      --perf-min-delta-ms <MS>     Minimum meaningful delta in ms (default 0.05)
+      --perf-min-delta-pct <PCT>   Minimum meaningful delta as a percentage of the baseline frame (default 0.5)
+
+Global options:
+      --allow-out-near-captures  Silence warnings when --out is next to capture metadata
+      --record-absolute-paths    Opt in to absolute local paths in reports and machine-readable output
+```
+
 ## saccade noise
 
 ```text
@@ -274,12 +356,12 @@ Performance:
       --perf-resolution-ticks <N>  Minimum timer ticks in the noise threshold (default 2)
       --perf-min-delta-ms <MS>     Minimum meaningful delta in ms (default 0.05)
       --perf-min-delta-pct <PCT>   Minimum meaningful delta as a percentage of the baseline frame (default 0.5)
-      --config <CONFIG>            
+      --config <CONFIG>
       --margin <MARGIN>            [default: 1.5]
       --metric <METRIC>            [default: p95] [possible values: mean, p95, p99, max]
       --out <OUT>                  [default: saccade.noise.toml]
-      --json                       
-  <DIRS> <DIRS>...                 
+      --json
+  <DIRS> <DIRS>...
 
 Global options:
       --allow-out-near-captures  Silence warnings when --out is next to capture metadata
@@ -498,16 +580,16 @@ Commands:
   capabilities  List compiled modules, operations and contracts
 
 Arguments:
-  [ARTIFACT]  
+  [ARTIFACT]
 
 Options:
-      --entry <ENTRY>                        
+      --entry <ENTRY>
       --validity-reasons                     List every capture-validity reason, with pagination
-      --status <STATUS>                      
+      --status <STATUS>
       --limit <LIMIT>                        [default: 10]
-      --cursor <CURSOR>                      
-      --expected-case-id <EXPECTED_CASE_ID>  
-      --json                                 
+      --cursor <CURSOR>
+      --expected-case-id <EXPECTED_CASE_ID>
+      --json
   -h, --help                                 Print help
 
 Global options:
@@ -523,17 +605,17 @@ Prepare context, crops, facts and references without a provider
 Usage: saccade inspect evidence [OPTIONS] --out <OUT> <REPORT>
 
 Arguments:
-  <REPORT>  
+  <REPORT>
 
 Options:
-      --out <OUT>          
-      --entry <ENTRIES>    
+      --out <OUT>
+      --entry <ENTRIES>
       --top <TOP>          [default: 5]
-      --stretch            
-      --blind              
-      --key-out <KEY_OUT>  
-      --seed <SEED>        
-      --json               
+      --stretch
+      --blind
+      --key-out <KEY_OUT>
+      --seed <SEED>
+      --json
   -h, --help               Print help
 
 Global options:
@@ -549,16 +631,16 @@ Export an existing artifact or selected entry
 Usage: saccade inspect export [OPTIONS] --format <FORMAT> --out <OUT> <ARTIFACT>
 
 Arguments:
-  <ARTIFACT>  
+  <ARTIFACT>
 
 Options:
       --format <FORMAT>              [possible values: json, markdown, junit, png, labels]
-      --out <OUT>                    
-      --entry <ENTRY>                
-      --state <STATE>                
+      --out <OUT>
+      --entry <ENTRY>
+      --state <STATE>
       --width <WIDTH>                [default: 1024]
-      --artifact-url <ARTIFACT_URL>  
-      --comment-key <COMMENT_KEY>    
+      --artifact-url <ARTIFACT_URL>
+      --comment-key <COMMENT_KEY>
   -h, --help                         Print help
 
 Global options:
@@ -574,9 +656,9 @@ Explain effective measurement settings and their sources
 Usage: saccade inspect config [OPTIONS]
 
 Options:
-      --config <CONFIG>       
-      --entry <PATH_OR_NAME>  
-      --json                  
+      --config <CONFIG>
+      --entry <PATH_OR_NAME>
+      --json
   -h, --help                  Print help
 
 Global options:
@@ -592,7 +674,7 @@ List compiled modules, operations and contracts
 Usage: saccade inspect capabilities [OPTIONS]
 
 Options:
-      --json  
+      --json
   -h, --help  Print help
 
 Global options:
@@ -614,16 +696,16 @@ Commands:
   eval     Plan or run a resumable evaluation manifest
 
 Arguments:
-  [REPORT]  
+  [REPORT]
 
 Options:
-      --run                          
-      --budget-calls <BUDGET_CALLS>  
-      --out <OUT>                    
-      --user-config <USER_CONFIG>    
-      --intent-file <INTENT_FILE>    
-      --intent <INTENT>              
-      --json                         
+      --run
+      --budget-calls <BUDGET_CALLS>
+      --out <OUT>
+      --user-config <USER_CONFIG>
+      --intent-file <INTENT_FILE>
+      --intent <INTENT>
+      --json
   -h, --help                         Print help
 
 Global options:
@@ -639,13 +721,13 @@ Prepare a closed request from an existing canonical case, locally
 Usage: saccade review request [OPTIONS] --question <QUESTION> --out <OUT> <REPORT>
 
 Arguments:
-  <REPORT>  
+  <REPORT>
 
 Options:
-      --question <QUESTION>        
-      --out <OUT>                  
-      --user-config <USER_CONFIG>  
-      --json                       
+      --question <QUESTION>
+      --out <OUT>
+      --user-config <USER_CONFIG>
+      --json
   -h, --help                       Print help
 
 Global options:
@@ -661,13 +743,13 @@ Validate and record proposed answers against the exact request
 Usage: saccade review propose [OPTIONS] --answers <ANSWERS> <REQUEST>
 
 Arguments:
-  <REQUEST>  
+  <REQUEST>
 
 Options:
-      --answers <ANSWERS>          
-      --out <OUT>                  
-      --user-config <USER_CONFIG>  
-      --json                       
+      --answers <ANSWERS>
+      --out <OUT>
+      --user-config <USER_CONFIG>
+      --json
   -h, --help                       Print help
 
 Global options:
@@ -683,12 +765,12 @@ Create or retrieve a local human review item for an unresolved request
 Usage: saccade review ask [OPTIONS] <REQUEST>
 
 Arguments:
-  <REQUEST>  
+  <REQUEST>
 
 Options:
-      --out <OUT>                  
-      --user-config <USER_CONFIG>  
-      --json                       
+      --out <OUT>
+      --user-config <USER_CONFIG>
+      --json
   -h, --help                       Print help
 
 Global options:
@@ -704,10 +786,10 @@ Plan or run a resumable evaluation manifest
 Usage: saccade review eval [OPTIONS] --manifest <MANIFEST>
 
 Options:
-      --manifest <MANIFEST>        
-      --run                        
-      --user-config <USER_CONFIG>  
-      --json                       
+      --manifest <MANIFEST>
+      --run
+      --user-config <USER_CONFIG>
+      --json
   -h, --help                       Print help
 
 Global options:
@@ -727,8 +809,6 @@ Commands:
   sequence  Compare numbered colour frames by sorted index and measure added flicker
   rank      Rank candidate directories against one common FLIP reference
   bisect    Find the first diverging run or revision in an ordered series
-  safety    Photosensitivity PRE-CHECK only; not certification or formal compliance
-  a11y      Accessibility PRE-CHECK only; not certification or formal compliance
 
 Options:
   -h, --help  Print help
@@ -746,15 +826,15 @@ Compare ablation arms against a base with image and performance evidence
 Usage: saccade experiment ablate [OPTIONS] [BASE] [ARMS]...
 
 Arguments:
-  [BASE]     
-  [ARMS]...  
+  [BASE]
+  [ARMS]...
 
 Options:
       --base <RUN_DIR>...     Base repeat directories. Accepts a directory or a quoted glob; repeatable
       --arm <LABEL=RUN_GLOB>  Labelled arm repeats, e.g. --arm 's2=s2_r*'; repeatable
       --out <OUT>             [default: ablation]
-      --config <CONFIG>       
-      --json                  
+      --config <CONFIG>
+      --json
       --top <TOP>             Per-term deltas beyond noise to show per arm [default: 5]
   -h, --help                  Print help
 
@@ -780,20 +860,20 @@ Compare numbered colour frames by sorted index and measure added flicker
 Usage: saccade experiment sequence [OPTIONS] <BASELINE_DIR> <CAPTURE_DIR>
 
 Arguments:
-  <BASELINE_DIR>  
-  <CAPTURE_DIR>   
+  <BASELINE_DIR>
+  <CAPTURE_DIR>
 
 Options:
       --pattern <PATTERN>      Relative-name glob; frames must end in an integer before the extension [default: *]
       --out <OUT>              [default: sequence-report]
-      --threshold <THRESHOLD>  
+      --threshold <THRESHOLD>
       --metric <METRIC>        [possible values: mean, p95, p99, max]
-      --config <CONFIG>        
-      --ppd <PPD>              
-      --fail-on-new            
-      --allow-empty            
-      --labels <LABELS>        
-      --json                   
+      --config <CONFIG>
+      --ppd <PPD>
+      --fail-on-new
+      --allow-empty
+      --labels <LABELS>
+      --json
   -h, --help                   Print help
 
 HDR images:
@@ -820,19 +900,19 @@ Rank candidate directories against one common FLIP reference
 Usage: saccade experiment rank [OPTIONS] <REFERENCE_DIR> <CANDIDATE_DIRS>...
 
 Arguments:
-  <REFERENCE_DIR>      
-  <CANDIDATE_DIRS>...  
+  <REFERENCE_DIR>
+  <CANDIDATE_DIRS>...
 
 Options:
       --labels <LABELS>        One unique, safe directory label per candidate, comma separated
       --metric <METRIC>        [default: mean] [possible values: mean, p95, p99, max]
       --out <OUT>              [default: rank-report]
-      --config <CONFIG>        
-      --threshold <THRESHOLD>  
-      --ppd <PPD>              
-      --fail-on-new            
-      --allow-empty            
-      --json                   
+      --config <CONFIG>
+      --threshold <THRESHOLD>
+      --ppd <PPD>
+      --fail-on-new
+      --allow-empty
+      --json
   -h, --help                   Print help
 
 HDR images:
@@ -868,54 +948,6 @@ Options:
       --out <OUT>              Report directory, separate from inputs [default: bisect-report]
       --json                   Print saccade-bisect.v1 JSON
   -h, --help                   Print help
-
-Global options:
-      --allow-out-near-captures  Silence warnings when --out is next to capture metadata
-      --record-absolute-paths    Opt in to absolute local paths in reports and machine-readable output
-```
-
-## saccade experiment safety
-
-```text
-Photosensitivity PRE-CHECK only; not certification or formal compliance
-
-Usage: saccade experiment safety [OPTIONS] <INPUT>
-
-Arguments:
-  <INPUT>  Numbered frames or mp4/mov/mkv (requires external ffmpeg)
-
-Options:
-      --fps <FPS>            Frame rate override; otherwise metadata, or 60 for frame directories
-      --display <DISPLAY>    WxH@diagonal_inches,distance_metres (default 1920x1080@55,4)
-      --standard <STANDARD>  itu-bt1702 or wcag. PRE-CHECK only, never certification [default: itu-bt1702]
-      --json                 Print full saccade-safety.v1 JSON
-      --out <OUT>            Output directory for JSON, text, HTML, static frames and risk heatmaps [default: safety-report]
-      --junit <JUNIT>        Optional JUnit XML destination
-  -h, --help                 Print help
-
-Global options:
-      --allow-out-near-captures  Silence warnings when --out is next to capture metadata
-      --record-absolute-paths    Opt in to absolute local paths in reports and machine-readable output
-```
-
-## saccade experiment a11y
-
-```text
-Accessibility PRE-CHECK only; not certification or formal compliance
-
-Usage: saccade experiment a11y [OPTIONS] <INPUT>
-
-Arguments:
-  <INPUT>  Opaque sRGB image or image directory
-
-Options:
-      --config <CONFIG>      Explicit saccade.toml with [[region]] kind="text" or "ui"
-      --json                 Print full saccade-a11y.v1 JSON
-      --out <OUT>            Output directory for JSON, text, HTML and simulation/heatmap artifacts [default: a11y-report]
-      --junit <JUNIT>        Optional JUnit XML destination
-      --suggest-regions      Explicitly upload 16 crops/image to Gemini for unconfirmed region proposals
-      --keys-dir <KEYS_DIR>  Judge key policy: gemini.env/SACCADE_GEMINI_API_KEY, never ambient keys
-  -h, --help                 Print help
 
 Global options:
       --allow-out-near-captures  Silence warnings when --out is next to capture metadata

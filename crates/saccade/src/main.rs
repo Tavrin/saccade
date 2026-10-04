@@ -1,4 +1,4 @@
-//! Twelve top-level commands for local measurement and evidence workflows.
+//! Evidence checks with compare, prove, and review as the front door.
 //!
 //! Exit codes: `0` no regression, `1` regression, `2` usage/config/IO error.
 
@@ -36,27 +36,26 @@ use agent::CliError;
 /// Purpose, usage, then the explanation and examples, then the grouped flags.
 const HELP_TEMPLATE: &str =
     "{about-with-newline}\n{usage-heading} {usage}\n\n{after-help}\n\n{all-args}";
+const FRONT_HELP_TEMPLATE: &str =
+    "{about-with-newline}\n{usage-heading} {usage}\n\n{all-args}\n{after-help}";
 
 #[derive(Parser)]
 #[command(
     name = "saccade",
     version = env!("SACCADE_DISPLAY_VERSION"),
     disable_help_subcommand = true,
-    help_template = HELP_TEMPLATE,
-    about = "Find and explain visual changes between two sets of rendered images",
+    help_template = FRONT_HELP_TEMPLATE,
+    about = "Tell when visual or performance evidence is not good enough to support a claim",
     after_help = "\
-saccade scores each image pair with FLIP, a perceptual error metric, locates the
-changed regions, and writes an offline HTML report next to a JSON result.
-
 Start here:
-  saccade demo --out saccade-demo               Run the bundled example (exits 1 on purpose)
   saccade compare baseline/ captures/ --out report
-                                                Compare fresh captures with approved baselines
-  saccade identity parent/ candidate/ --out report
-                                                Check that two builds render identical pixels
+  saccade prove identity parent/ candidate/ --out proof
+  saccade prove performance --base 'base_r*' --arm 'candidate=candidate_r*'
+  saccade review report/saccade-report.v1.json --out review
 
 Exit codes: 0 no image regression, 1 image regression found, 2 the command could not run.
-Run `saccade COMMAND --help` for that command's flags and examples."
+Advanced: demo, identity, noise, view, inspect, experiment, approve, init,
+serve, mcp, doctor. Existing commands keep working; use `saccade COMMAND --help`."
 )]
 struct Cli {
     /// Silence warnings when --out is next to capture metadata.
@@ -177,18 +176,19 @@ impl From<MetricArg> for Metric {
 #[derive(Subcommand)]
 enum Command {
     /// Print installed version, features and supported evidence schemas.
-    #[command(display_order = 13)]
+    #[command(display_order = 13, hide = true)]
     Doctor {
         /// Print machine-readable JSON.
         #[arg(long)]
         json: bool,
     },
     /// Bootstrap a commented configuration and print baseline adoption steps.
-    #[command(display_order = 7)]
+    #[command(display_order = 7, hide = true)]
     Init(f1::InitArgs),
     /// Run the bundled example and explain its expected regression.
     #[command(
         display_order = 1,
+        hide = true,
         help_template = HELP_TEMPLATE,
         after_help = "\
 Example:
@@ -200,7 +200,7 @@ The demo exits 1 on purpose: it contains a regression and a missing capture."
     Demo(f1::DemoArgs),
     /// Compare a directory of captures against a directory of baselines.
     #[command(
-        display_order = 2,
+        display_order = 1,
         help_template = HELP_TEMPLATE,
         after_help = "\
 Images are paired by relative path. Each pair gets a FLIP score; a pair fails when
@@ -273,6 +273,7 @@ Exit codes: 0 no regression, 1 regression found, 2 the command could not run."
     /// Establish exact native decoded-sample equality in the selected scope.
     #[command(
         display_order = 3,
+        hide = true,
         help_template = HELP_TEMPLATE,
         after_help = "\
 Use it to prove a refactor or optimization renders the same pixels. There is no
@@ -335,12 +336,19 @@ new or unreadable), 2 the command could not run."
         #[command(flatten)]
         intent: IntentArgs,
     },
+    /// Check whether image identity or performance evidence proves a claim.
+    #[command(display_order = 2)]
+    Prove {
+        #[command(subcommand)]
+        operation: ProveOperation,
+    },
     /// Calibrate thresholds from repeated captures of an unchanged build.
-    #[command(display_order = 8)]
+    #[command(display_order = 8, hide = true)]
     Noise(f1::NoiseArgs),
     /// Write a self-contained review viewer for 2 to 6 image directories.
     #[command(
         display_order = 4,
+        hide = true,
         help_template = HELP_TEMPLATE,
         after_help = "\
 Examples:
@@ -412,6 +420,7 @@ Examples:
     /// Copy reviewed captures over baselines.
     #[command(
         display_order = 5,
+        hide = true,
         help_template = HELP_TEMPLATE,
         after_help = "\
 Example (two steps: plan, then apply the reviewed decision):
@@ -467,6 +476,7 @@ The dry run writes no baseline; content hashes must still match when applying."
     #[cfg(feature = "workbench")]
     #[command(
         display_order = 6,
+        hide = true,
         help_template = HELP_TEMPLATE,
         after_help = "\
 The server listens on 127.0.0.1 only. Archive roots are read-only: sessions,
@@ -529,6 +539,7 @@ Examples:
     #[cfg(feature = "mcp")]
     #[command(
         display_order = 12,
+        hide = true,
         help_template = HELP_TEMPLATE,
         after_help = "\
 Every path a client passes must resolve under a --root. Generated reports go under
@@ -555,17 +566,48 @@ Example:
         providers: review_cmd::Startup,
     },
     /// Read, explain, prepare or export existing evidence.
-    #[command(display_order = 9)]
+    #[command(display_order = 9, hide = true)]
     Inspect(local_cmd::InspectArgs),
     /// Preview a review plan or handle a local closed decision request.
-    #[command(display_order = 10)]
+    #[command(display_order = 3)]
     Review(local_cmd::ReviewArgs),
     /// Analyze existing graphics captures: ablation, sequences, ranking, bisection.
-    #[command(display_order = 11)]
+    #[command(display_order = 11, hide = true)]
     Experiment {
         #[command(subcommand)]
         operation: ExperimentOperation,
     },
+}
+
+#[derive(Subcommand)]
+enum ProveOperation {
+    /// Prove exact native decoded-sample equality over the selected images.
+    Identity(ProveIdentityArgs),
+    /// Evaluate performance claims from ablation arms and repeat noise.
+    #[cfg(feature = "graphics")]
+    Performance(perf_cmd::AblateArgs),
+}
+
+#[derive(clap::Args)]
+struct ProveIdentityArgs {
+    parent_dir: PathBuf,
+    candidate_dir: PathBuf,
+    #[arg(long, default_value = "report")]
+    out: PathBuf,
+    #[arg(long)]
+    config: Option<PathBuf>,
+    #[arg(long)]
+    json: bool,
+    #[arg(long = "entry", value_name = "GLOB")]
+    entries: Vec<String>,
+    #[command(flatten)]
+    meta: MetaArgs,
+    #[command(flatten)]
+    require: MetaRequireArgs,
+    #[command(flatten)]
+    perf: perf_cmd::PerfArgs,
+    #[command(flatten)]
+    intent: IntentArgs,
 }
 
 #[derive(Subcommand)]
@@ -859,6 +901,33 @@ fn emit_run(
 
 fn dispatch(command: Command, record_absolute_paths: bool) -> Result<u8, CliError> {
     match command {
+        Command::Prove {
+            operation: ProveOperation::Identity(args),
+        } => dispatch(
+            Command::Identity {
+                parent_dir: args.parent_dir,
+                candidate_dir: args.candidate_dir,
+                out: args.out,
+                allow_empty: false,
+                threshold: None,
+                metric: None,
+                config: args.config,
+                json: args.json,
+                ppd: None,
+                labels: None,
+                entries: args.entries,
+                junit: None,
+                meta: args.meta,
+                require: args.require,
+                perf: args.perf,
+                intent: args.intent,
+            },
+            record_absolute_paths,
+        ),
+        #[cfg(feature = "graphics")]
+        Command::Prove {
+            operation: ProveOperation::Performance(args),
+        } => perf_cmd::ablate(args, record_absolute_paths),
         Command::Doctor { json } => doctor(json),
         Command::Inspect(args) => local_cmd::inspect(args, record_absolute_paths),
         Command::Review(args) => local_cmd::review(args, record_absolute_paths),

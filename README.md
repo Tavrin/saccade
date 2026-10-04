@@ -1,12 +1,11 @@
 # saccade
 
-saccade checks rendered images for visual regressions. Point it at a folder of
-baseline images and a folder of new captures: it pairs them by name, scores
-each pair with NVIDIA FLIP (a perceptual image-difference metric), and writes
-an HTML report with heatmaps and numbered hotspots, a JSON report, and an exit
-code for CI. It can also prove that an optimization left every pixel unchanged,
-and it prepares the evidence a human or a coding agent needs to review a
-change. Baselines change only when a human approves.
+saccade tells you when visual or performance evidence is not good enough to
+support a claim. `compare` measures image changes, `prove` checks exact image
+identity or performance claims, and `review` prepares a human decision. It
+pairs captures by name, scores visual differences with NVIDIA FLIP, and writes
+an offline HTML report and JSON evidence. Baselines change only when a human
+approves.
 
 ![Report with image differences and numbered hotspots](docs/images/report.png)
 
@@ -52,6 +51,7 @@ page to open: `saccade-demo/report/index.html`. Then compare your own images:
 
 ```sh
 saccade compare BASELINE_DIR CAPTURE_DIR --out report
+saccade prove identity PARENT_DIR CANDIDATE_DIR --out proof
 ```
 
 Exit 0 means no image regression, 1 means at least one image failed, and 2

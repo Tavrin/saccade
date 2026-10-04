@@ -2,8 +2,8 @@
 
 use saccade_core::meta::DEFAULT_META_NAME;
 
-use crate::Command;
 use crate::agent::CliError;
+use crate::{Command, ProveOperation};
 
 pub(crate) fn warn(command: &Command, allow: bool) -> Result<(), CliError> {
     if allow {
@@ -13,6 +13,13 @@ pub(crate) fn warn(command: &Command, allow: bool) -> Result<(), CliError> {
         Command::Compare { out, .. }
         | Command::Identity { out, .. }
         | Command::View { out, .. } => Some(out),
+        Command::Prove {
+            operation: ProveOperation::Identity(args),
+        } => Some(&args.out),
+        #[cfg(feature = "graphics")]
+        Command::Prove {
+            operation: ProveOperation::Performance(args),
+        } => Some(&args.out),
         #[cfg(feature = "graphics")]
         Command::Experiment {
             operation:
@@ -34,6 +41,13 @@ pub(crate) fn warn(command: &Command, allow: bool) -> Result<(), CliError> {
         | Command::View { config, meta, .. } => {
             let mut options = crate::load_config(config.as_deref())?.meta;
             meta.apply(&mut options);
+            Some(options.name)
+        }
+        Command::Prove {
+            operation: ProveOperation::Identity(args),
+        } => {
+            let mut options = crate::load_config(args.config.as_deref())?.meta;
+            args.meta.apply(&mut options);
             Some(options.name)
         }
         #[cfg(feature = "graphics")]

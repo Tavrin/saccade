@@ -85,12 +85,13 @@ fn help_lists_active_commands_and_watch_alias_stays_hidden() {
         .filter_map(Value::as_str)
         .filter(|s| !s.contains(' '))
         .collect::<Vec<_>>();
-    assert_eq!(top.len(), 13, "{top:?}");
+    assert_eq!(top.len(), 14, "{top:?}");
     for name in [
         "init",
         "demo",
         "compare",
         "identity",
+        "prove",
         "noise",
         "inspect",
         "view",
