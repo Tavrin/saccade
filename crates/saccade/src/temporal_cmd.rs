@@ -99,27 +99,57 @@ fn hotspots(map: &colorvideovdp::DistortionMap) -> Vec<Value> {
     let plane = map.width * map.height;
     for frame in 0..map.frames {
         let pixels = &map.data[frame * plane..(frame + 1) * plane];
-        let (mut left, mut top, mut right, mut bottom) = (map.width, map.height, 0usize, 0usize);
-        let (mut count, mut max) = (0usize, 0.0f32);
-        for (i, &v) in pixels.iter().enumerate() {
-            if v.is_finite() && v > MAP_HOTSPOT {
-                let (x, y) = (i % map.width, i / map.width);
-                left = left.min(x);
-                top = top.min(y);
-                right = right.max(x);
-                bottom = bottom.max(y);
-                count += 1;
-                max = max.max(v);
-            }
-        }
-        if count > 0 {
-            out.push(
-                json!({"frame":frame,"rect_px":[left,top,right-left+1,bottom-top+1],
-                "area_px":count,"max_raw_distortion":max}),
-            );
-        }
+        out.extend(hotspots_in_frame(pixels, map.width, map.height, frame));
     }
     out
+}
+
+fn hotspots_in_frame(pixels: &[f32], width: usize, height: usize, frame: usize) -> Vec<Value> {
+    let mut out = Vec::new();
+    let mut visited = vec![false; pixels.len()];
+    for seed in 0..pixels.len() {
+        if visited[seed] || !is_hot(pixels[seed]) {
+            continue;
+        }
+        visited[seed] = true;
+        let mut queue = vec![seed];
+        let mut next = 0;
+        let (mut left, mut top, mut right, mut bottom) = (width, height, 0usize, 0usize);
+        let mut max = 0.0f32;
+        while next < queue.len() {
+            let i = queue[next];
+            next += 1;
+            let (x, y) = (i % width, i / width);
+            left = left.min(x);
+            top = top.min(y);
+            right = right.max(x);
+            bottom = bottom.max(y);
+            max = max.max(pixels[i]);
+            for neighbor in [
+                (x > 0).then_some(i.saturating_sub(1)),
+                (x + 1 < width).then_some(i + 1),
+                (y > 0).then_some(i.saturating_sub(width)),
+                (y + 1 < height).then_some(i + width),
+            ]
+            .into_iter()
+            .flatten()
+            {
+                if !visited[neighbor] && is_hot(pixels[neighbor]) {
+                    visited[neighbor] = true;
+                    queue.push(neighbor);
+                }
+            }
+        }
+        out.push(
+            json!({"frame":frame,"rect_px":[left,top,right-left+1,bottom-top+1],
+                "area_px":queue.len(),"max_raw_distortion":max}),
+        );
+    }
+    out
+}
+
+fn is_hot(value: f32) -> bool {
+    value.is_finite() && value > MAP_HOTSPOT
 }
 
 fn findings(test: &[Image], reference: &[Image]) -> Vec<Value> {
@@ -225,10 +255,12 @@ pub(crate) fn run(args: TemporalArgs, absolute: bool) -> Result<u8, CliError> {
     let full = json!({"schema":"saccade-temporal.v1","display_model":args.display,
         "fps":args.fps,"input_color":"sRGB","video_jod":video.jod,
         "min_jod":args.min_jod,"per_frame_jod":per_frame,
+        "per_frame_jod_kind":"still_image",
+        "per_frame_jod_note":"Each score uses predict_image independently; only video_jod includes temporal context.",
         "temporal_hotspots":hotspots,"hotspot_rule":"raw ColorVideoVDP distortion > 0.2 (per-pixel JOD < 8)",
         "findings":findings,"sequence_report":sequence.report_json,
         "limits":["Flicker and ghosting kinds are deterministic heuristics, not classifier outputs from ColorVideoVDP.",
-        "A hotspot box encloses all above-threshold pixels in one frame; disconnected regions may share a box."]});
+        "Hotspot boxes use four-connected raw-map pixels; diagonal-only pixels are separate components."]});
     std::fs::write(&artifact, serde_json::to_vec_pretty(&full)?)
         .map_err(|e| CliError::io(format!("{}: {e}", artifact.display())))?;
     let fail_jod = args.min_jod.is_some_and(|min| video.jod < min);
@@ -270,6 +302,20 @@ mod tests {
     use super::*;
 
     #[test]
+    fn disconnected_temporal_hotspots_have_separate_boxes() {
+        let mut pixels = vec![0.0; 5 * 3];
+        pixels[0] = 0.3;
+        pixels[1] = 0.4;
+        pixels[14] = 0.5;
+        let boxes = hotspots_in_frame(&pixels, 5, 3, 2);
+        assert_eq!(boxes.len(), 2);
+        assert_eq!(boxes[0]["frame"], 2);
+        assert_eq!(boxes[0]["rect_px"], json!([0, 0, 2, 1]));
+        assert_eq!(boxes[0]["area_px"], 2);
+        assert_eq!(boxes[1]["rect_px"], json!([4, 2, 1, 1]));
+    }
+
+    #[test]
     fn cvvdp_reports_jod_and_flicker_from_synthetic_frames() {
         let dir = tempfile::tempdir().expect("tempdir");
         let (baseline, capture, out) = (
@@ -309,6 +355,13 @@ mod tests {
         assert_eq!(
             artifact["per_frame_jod"].as_array().expect("frames").len(),
             3
+        );
+        assert_eq!(artifact["per_frame_jod_kind"], "still_image");
+        assert!(
+            artifact["per_frame_jod_note"]
+                .as_str()
+                .unwrap_or("")
+                .contains("predict_image")
         );
         assert_eq!(artifact["findings"][0]["kind"], "flicker");
         assert!(

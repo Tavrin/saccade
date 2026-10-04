@@ -65,8 +65,9 @@ saccade experiment temporal baseline-frames/ capture-frames/ --fps 30 \
 ```
 
 It pairs frames by sorted trailing number through `experiment sequence`, then
-computes ColorVideoVDP video JOD and one image JOD per frame. The versioned
-`saccade-temporal.v1.json` contains all per-frame scores, video-map hotspots,
+computes ColorVideoVDP video JOD and one independent still-image JOD per frame.
+The versioned `saccade-temporal.v1.json` labels those values `still_image`;
+only `video_jod` includes temporal context. It also contains video-map hotspots,
 and flicker/ghosting findings; stdout holds at most five of each. `--min-jod`
 adds an explicit JOD gate. Existing per-frame FLIP failures also exit 1.
 PNG and JPEG are interpreted as sRGB; alpha is dropped. Video files and HDR
@@ -76,8 +77,8 @@ The default `standard_4k` display is the reference model of a 30-inch
 3840×2160 monitor at 0.7472 m, 200 cd/m² peak, 1000:1 contrast and 250 lux
 ambient. The image occupies its native pixel size on that display. ColorVideoVDP
 uses replicate-first-frame temporal padding. Its raw video distortion map is
-reported as one bounding box per frame over pixels above 0.2 (per-pixel JOD
-below 8); disconnected regions can share a box. Flicker means alternating
+reported as one bounding box per four-connected component above 0.2
+(per-pixel JOD below 8). Flicker means alternating
 signed sRGB luminance residuals of at least 0.02 across three or more frames.
 Ghosting means a capture frame is closer in mean squared RGB error to the
 previous reference frame than the current one, with reference motion. These
