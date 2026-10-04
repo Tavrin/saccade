@@ -19,6 +19,7 @@ Perceptual (FLIP) visual-regression diffing
 Usage: saccade [OPTIONS] <COMMAND>
 
 Commands:
+  doctor      Print installed version, features and supported evidence schemas
   init        Bootstrap a commented configuration and print baseline adoption steps
   demo        Run the bundled example and explain its expected regression
   compare     Compare a directory of captures against a directory of baselines
@@ -37,6 +38,20 @@ Options:
       --record-absolute-paths    Opt in to absolute local paths in reports and machine-readable output
   -h, --help                     Print help
   -V, --version                  Print version
+```
+
+## saccade doctor
+
+```text
+Print installed version, features and supported evidence schemas
+
+Usage: saccade doctor [OPTIONS]
+
+Options:
+      --allow-out-near-captures  Silence warnings when --out is next to capture metadata
+      --json                     Print machine-readable JSON
+      --record-absolute-paths    Opt in to absolute local paths in reports and machine-readable output
+  -h, --help                     Print help
 ```
 
 ## saccade init

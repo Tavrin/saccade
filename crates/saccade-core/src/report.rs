@@ -7,6 +7,7 @@
 //! images it references by path relative to that directory.
 
 use serde::{Deserialize, Serialize};
+use std::collections::BTreeMap;
 
 /// Schema identifier written to [`Report::schema`].
 pub const REPORT_SCHEMA: &str = "saccade-report.v1";
@@ -17,6 +18,7 @@ pub const REPORT_FILE_NAME: &str = "saccade-report.v1.json";
 /// One comparison run over a baseline directory and a capture directory.
 #[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct Report {
     /// Always [`REPORT_SCHEMA`].
     pub schema: String,
@@ -51,6 +53,7 @@ pub struct Report {
 /// Run-wide settings recorded for reproducibility.
 #[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct ReportConfig {
     /// Selected name globs; empty selects every name in the supplied inputs.
     #[serde(default)]
@@ -93,6 +96,7 @@ fn default_true() -> bool {
 /// Metadata-sidecar settings recorded for reproducibility.
 #[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct MetaSettings {
     /// Project capture contract; empty means no proof profile was supplied.
     #[serde(default)]
@@ -259,6 +263,7 @@ pub enum Metric {
 /// One image name's comparison result.
 #[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct Entry {
     /// Path relative to the baseline/capture roots, `/`-separated.
     pub name: String,
@@ -293,6 +298,9 @@ pub struct Entry {
     /// Capture validity, independent of sample equality and perceptual error.
     #[serde(default)]
     pub capture_validity: crate::meta::CaptureValidity,
+    /// Binary, source and capture identities from capture metadata or cost cards.
+    #[serde(default, skip_serializing_if = "BTreeMap::is_empty")]
+    pub capture_provenance: BTreeMap<String, String>,
     /// Declared keys present on both sides whose values did not change.
     #[serde(default)]
     pub meta_declared_unchanged: Vec<String>,

@@ -672,6 +672,7 @@ fn compute_entry(
         meta_ignored_diff: Vec::new(),
         file_bytes_identical: None,
         capture_validity: Default::default(),
+        capture_provenance: Default::default(),
         meta_declared_unchanged: Vec::new(),
         baseline_properties: Some(crate::properties::validate(first)),
         warnings: Vec::new(),

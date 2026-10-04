@@ -1,10 +1,26 @@
 === compare (exit 1) ===
 STATUS  NAME        METRIC          VALUE    THRESHOLD
 FAIL    depth.png   mean (depth)    0.00809  0.002
+  ↳ warning: baseline binary_sha256 provenance is absent
+  ↳ warning: baseline source_head provenance is absent
+  ↳ warning: capture binary_sha256 provenance is absent
+  ↳ warning: capture source_head provenance is absent
 FAIL    lit.png     mean            0.06203  0.001
   ↳ local_structure: Local structural change at center (74×56, 98% of error); rest of frame within noise.
   ↳ 1 hotspot: 74x56 @ center (98% of error)
+  ↳ warning: baseline binary_sha256 provenance is absent
+  ↳ warning: baseline source_head provenance is absent
+  ↳ warning: capture binary_sha256 provenance is absent
+  ↳ warning: capture source_head provenance is absent
 pass    motion.png  mean (pixels)   0.00000  0.5
+  ↳ warning: baseline binary_sha256 provenance is absent
+  ↳ warning: baseline source_head provenance is absent
+  ↳ warning: capture binary_sha256 provenance is absent
+  ↳ warning: capture source_head provenance is absent
 pass    normal.png  mean (degrees)  0.00000  1
+  ↳ warning: baseline binary_sha256 provenance is absent
+  ↳ warning: baseline source_head provenance is absent
+  ↳ warning: capture binary_sha256 provenance is absent
+  ↳ warning: capture source_head provenance is absent
 
 2 fail, 0 error, 0 missing, 0 new, 2 pass (4 total)

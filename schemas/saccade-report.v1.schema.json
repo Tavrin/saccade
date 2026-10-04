@@ -490,6 +490,7 @@
       "type": "string"
     },
     "Entry": {
+      "additionalProperties": false,
       "description": "One image name's comparison result.",
       "properties": {
         "baseline_properties": {
@@ -530,6 +531,13 @@
             }
           ],
           "description": "Numerical comparison for non-colour buffers; FLIP metrics stay absent."
+        },
+        "capture_provenance": {
+          "additionalProperties": {
+            "type": "string"
+          },
+          "description": "Binary, source and capture identities from capture metadata or cost cards.",
+          "type": "object"
         },
         "capture_sha256": {
           "default": null,
@@ -943,6 +951,7 @@
       "type": "object"
     },
     "MetaSettings": {
+      "additionalProperties": false,
       "description": "Metadata-sidecar settings recorded for reproducibility.",
       "properties": {
         "changes": {
@@ -1684,6 +1693,7 @@
       "type": "object"
     },
     "ReportConfig": {
+      "additionalProperties": false,
       "description": "Run-wide settings recorded for reproducibility.",
       "properties": {
         "allow_empty": {
@@ -2227,6 +2237,7 @@
   },
   "$id": "https://github.com/Tavrin/saccade/schemas/saccade-report.v1.schema.json",
   "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
   "description": "One comparison run over a baseline directory and a capture directory.",
   "properties": {
     "baseline_dir": {

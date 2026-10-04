@@ -5,6 +5,42 @@ newest first.
 
 ## Unreleased
 
+- Consumer compatibility for the 1.0 transition: deprecated top-level command
+  spellings run their replacement and print one warning. Removed flags name
+  their replacements. These aliases expire after the 1.0 release.
+- `doctor --json` reports the installed version, features and readable schemas.
+  Newer performance records now report an upgrade path. Comparison and noise
+  evidence records binary/source provenance when supplied, warns when missing,
+  and detects reused capture identities.
+
+| Deprecated command | Replacement |
+| --- | --- |
+| `ablate`, `sequence`, `rank`, `bisect`, `safety`, `a11y` | `experiment` followed by the same command |
+| `config` | `inspect config` |
+| `entries`, `summary` | `inspect ARTIFACT` |
+| `explain` | `inspect evidence` |
+| `snapshot` | `inspect export` |
+| `decision-request`, `decide`, `ask` | `review request`, `review propose`, `review ask` |
+| `judge` | `review` |
+| `runs` | `view` |
+| `unblind` | `view --unblind` |
+| `watch` | `compare BASE CAPTURE` once; schedule repeats in the capture producer |
+
+| Removed flag | Replacement |
+| --- | --- |
+| `identity --threshold`, `identity --metric` | `compare --threshold`, `compare --metric` |
+| `--json=full`, `--json=decision` | `inspect export ARTIFACT --format json --out FILE`; `review request` for closed questions |
+| `--entries` | repeat `--entry GLOB` |
+| `entries --name`, `entries --offset` | `inspect --entry NAME`, `inspect --cursor TOKEN` |
+| `runs --pair-by-position` | `view` with matching relative image names |
+| `mcp --watch` | Producer capture scheduling and `mcp --root DIR` |
+| `watch --debounce-ms` | Producer capture scheduling and `compare BASE CAPTURE` |
+| `--compat` | `--json` and `inspect export --format json` |
+| `approve --force` | `approve --dry-run`, then `approve --decisions` |
+
+`watch --debounce-ms` has no equivalent CLI flag: capture scheduling belongs to
+its producer and the CLI returns an explicit migration error.
+
 - Serve skips unavailable optional symlink targets with a stderr warning,
   allowing local archives to remain available while a NAS is unmounted.
   Positional archive roots still fail startup when unavailable.

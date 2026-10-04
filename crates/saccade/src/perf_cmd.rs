@@ -37,6 +37,11 @@ pub(crate) fn noise(
     #[cfg(feature = "graphics")]
     {
         let mut record = saccade_core::perf::noise_record(dirs, opts)?;
+        for reason in &record.reasons {
+            if reason.contains("provenance is absent") {
+                eprintln!("saccade noise: {}", crate::escape_control(reason));
+            }
+        }
         for (source, dir) in record.sources.iter_mut().zip(dirs) {
             source.source = saccade_core::paths::record(
                 &dir.join(&opts.name),

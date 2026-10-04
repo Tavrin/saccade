@@ -72,7 +72,7 @@ fn report(root: &Path, n: usize) -> PathBuf {
     root.join("report/saccade-report.v1.json")
 }
 #[test]
-fn help_has_twelve_commands_and_removed_interfaces_fail_with_migration() {
+fn help_lists_active_commands_and_watch_alias_stays_hidden() {
     let value = json_output(
         Command::new(BIN)
             .args(["inspect", "capabilities", "--json"])
@@ -85,7 +85,7 @@ fn help_has_twelve_commands_and_removed_interfaces_fail_with_migration() {
         .filter_map(Value::as_str)
         .filter(|s| !s.contains(' '))
         .collect::<Vec<_>>();
-    assert_eq!(top.len(), 12, "{top:?}");
+    assert_eq!(top.len(), 13, "{top:?}");
     for name in [
         "init",
         "demo",
@@ -99,6 +99,7 @@ fn help_has_twelve_commands_and_removed_interfaces_fail_with_migration() {
         "experiment",
         "serve",
         "mcp",
+        "doctor",
     ] {
         assert!(top.contains(&name));
     }
@@ -114,35 +115,13 @@ fn help_has_twelve_commands_and_removed_interfaces_fail_with_migration() {
     ] {
         assert!(operations.iter().any(|s| s == name));
     }
-    for old in [
-        "ablate",
-        "sequence",
-        "rank",
-        "bisect",
-        "explain",
-        "summary",
-        "entries",
-        "config",
-        "snapshot",
-        "decision-request",
-        "decide",
-        "judge",
-        "ask",
-        "runs",
-        "unblind",
-        "watch",
-    ] {
-        let output = Command::new(BIN).args([old, "--json"]).output().unwrap();
-        assert_eq!(output.status.code(), Some(2));
-        let value = json_output(output);
-        assert_eq!(value["errors"][0]["code"], "interface_removed");
-        assert!(
-            value["errors"][0]["message"]
-                .as_str()
-                .unwrap()
-                .contains("use")
-        );
-    }
+    let output = Command::new(BIN)
+        .args(["watch", "--json"])
+        .output()
+        .unwrap();
+    assert_eq!(output.status.code(), Some(2));
+    let value = json_output(output);
+    assert_eq!(value["errors"][0]["code"], "usage");
     for flag in ["--json=full", "--json=decision", "--compat"] {
         let output = Command::new(BIN).args(["identity", flag]).output().unwrap();
         assert_eq!(output.status.code(), Some(2));

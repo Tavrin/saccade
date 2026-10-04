@@ -13,6 +13,26 @@ fn capture(frame: f64, pass: f64) -> Value {
 fn parse(v: &Value) -> CapturePerf {
     CapturePerf::parse(&v.to_string(), "generated.json").unwrap()
 }
+#[test]
+fn newer_perf_schema_and_fields_name_the_upgrade() {
+    let mut newer = capture(10.0, 8.0);
+    newer["schema"] = json!("saccade-perf.v3");
+    let message = CapturePerf::parse(&newer.to_string(), "newer.json")
+        .unwrap_err()
+        .message;
+    assert!(message.contains("supports up to saccade-perf.v2, upgrade"));
+    newer["schema"] = json!("saccade-perf.v0");
+    let message = CapturePerf::parse(&newer.to_string(), "older.json")
+        .unwrap_err()
+        .message;
+    assert!(!message.contains("upgrade"));
+    let mut field = capture(10.0, 8.0);
+    field["future_field"] = json!(true);
+    let message = CapturePerf::parse(&field.to_string(), "newer.json")
+        .unwrap_err()
+        .message;
+    assert!(message.contains("newer producer"));
+}
 fn write(dir: &Path, v: &Value) {
     std::fs::create_dir_all(dir).unwrap();
     std::fs::write(dir.join("saccade-perf.json"), v.to_string()).unwrap();

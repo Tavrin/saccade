@@ -284,6 +284,16 @@
     "PerformanceNoiseRecord": {
       "additionalProperties": false,
       "properties": {
+        "capture_provenance": {
+          "additionalProperties": {
+            "additionalProperties": {
+              "type": "string"
+            },
+            "type": "object"
+          },
+          "description": "Declared binary and source identities for each measured repeat.",
+          "type": "object"
+        },
         "comparability": {
           "$ref": "#/$defs/Comparability"
         },

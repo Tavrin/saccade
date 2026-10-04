@@ -139,37 +139,163 @@ pub(crate) enum ReviewOperation {
     },
 }
 pub(crate) fn migration(args: &[std::ffi::OsString]) -> Option<String> {
+    if args.get(1).is_some_and(|a| a == "identity") {
+        for flag in ["threshold", "metric"] {
+            let old = format!("--{flag}");
+            if args.iter().any(|a| {
+                a.to_string_lossy() == old || a.to_string_lossy().starts_with(&format!("{old}="))
+            }) {
+                return Some(format!("identity is exact; use compare --{flag}"));
+            }
+        }
+    }
     if args
         .iter()
         .any(|a| a == "--compat" || a.to_string_lossy().starts_with("--compat="))
     {
-        return Some("--compat was removed; use the current commands and --json envelope".into());
+        return Some("--compat was removed; use --json and inspect export --format json".into());
+    }
+    if args.iter().any(|a| a == "--json=decision") {
+        return Some("--json=decision was removed; use --json for the result and review request REPORT --question ID --out FILE for closed questions".into());
     }
     if args
         .iter()
         .any(|a| a.to_string_lossy().starts_with("--json="))
     {
-        return Some("use --json; export full artifacts with inspect export --format json".into());
+        return Some(
+            "--json=full was removed; use inspect export ARTIFACT --format json --out FILE".into(),
+        );
     }
-    let command = args.get(1)?.to_str()?;
-    let replacement = match command {
-        "ablate" | "sequence" | "rank" | "bisect" | "safety" | "a11y" => {
-            format!("experiment {command}")
+    if args
+        .iter()
+        .any(|a| a == "--entries" || a.to_string_lossy().starts_with("--entries="))
+    {
+        return Some("--entries was renamed; use --entry GLOB (repeatable)".into());
+    }
+    if args.get(1).is_some_and(|a| a == "approve") && args.iter().any(|a| a == "--force") {
+        return Some("approve --force was removed; use approve --report REPORT --dry-run --out PLAN, then approve --report REPORT --decisions PLAN/decision.json --out RECEIPT".into());
+    }
+    if args.get(1).is_some_and(|a| a == "entries") {
+        if args
+            .iter()
+            .any(|a| a == "--name" || a.to_string_lossy().starts_with("--name="))
+        {
+            return Some("entries --name was renamed; use inspect ARTIFACT --entry NAME".into());
         }
-        "config" => "inspect config".into(),
-        "entries" | "summary" => "inspect ARTIFACT".into(),
-        "explain" => "inspect evidence REPORT --out DIR".into(),
-        "snapshot" => "inspect export ARTIFACT --format png --entry NAME --out FILE".into(),
-        "decision-request" => "review request CASE --question ID --out FILE".into(),
-        "decide" => "review propose REQUEST --answers FILE".into(),
-        "ask" => "review ask REQUEST".into(),
-        "judge" => "review REPORT or review eval --manifest FILE".into(),
-        "runs" => "view CAPTURE... --reference DIR".into(),
-        "unblind" => "view --unblind DECISIONS --key FILE".into(),
-        "watch" => "the capture producer's scheduling workflow".into(),
+        if args
+            .iter()
+            .any(|a| a == "--offset" || a.to_string_lossy().starts_with("--offset="))
+        {
+            return Some("entries --offset was removed; use inspect ARTIFACT --cursor TOKEN from the previous page".into());
+        }
+    }
+    if args.get(1).is_some_and(|a| a == "runs") && args.iter().any(|a| a == "--pair-by-position") {
+        return Some("runs --pair-by-position was removed; use view with captures named by matching relative paths".into());
+    }
+    if args.get(1).is_some_and(|a| a == "mcp")
+        && args
+            .iter()
+            .any(|a| a == "--watch" || a.to_string_lossy().starts_with("--watch="))
+    {
+        return Some(
+            "mcp --watch was removed; schedule captures in the producer and use mcp --root DIR"
+                .into(),
+        );
+    }
+    if args.get(1).is_some_and(|a| a == "watch")
+        && args
+            .iter()
+            .any(|a| a == "--debounce-ms" || a.to_string_lossy().starts_with("--debounce-ms="))
+    {
+        return Some("watch --debounce-ms was removed; schedule repeated captures in the producer and use compare BASE CAPTURE".into());
+    }
+    None
+}
+
+/// Translate the retired top-level spellings before clap parses the active CLI.
+/// Keeping this at the argv boundary avoids publishing aliases in help output.
+pub(crate) fn deprecated_alias(args: &mut Vec<std::ffi::OsString>) -> Option<&'static str> {
+    let command = args.get(1)?.to_str()?.to_owned();
+    if command == "watch" {
+        args[1] = "compare".into();
+        args.retain(|arg| arg != "--once");
+        if !args
+            .iter()
+            .any(|arg| arg == "--out" || arg.to_string_lossy().starts_with("--out="))
+        {
+            args.push("--out".into());
+            args.push("watch-report".into());
+        }
+        return Some(
+            "compare BASE CAPTURE (one comparison; schedule repeats in the capture producer)",
+        );
+    }
+    if command == "explain" {
+        let report = args.get(2).map(std::path::PathBuf::from);
+        args[1] = "inspect".into();
+        args.insert(2, "evidence".into());
+        if !args
+            .iter()
+            .any(|arg| arg == "--out" || arg.to_string_lossy().starts_with("--out="))
+        {
+            let out = report
+                .as_deref()
+                .and_then(Path::parent)
+                .unwrap_or(Path::new("."))
+                .join("explain");
+            args.push("--out".into());
+            args.push(out.into_os_string());
+        }
+        return Some("inspect evidence REPORT --out DIR");
+    }
+    if command == "snapshot" {
+        args[1] = "inspect".into();
+        args.insert(2, "export".into());
+        args.push("--format".into());
+        args.push("png".into());
+        if !args
+            .iter()
+            .any(|arg| arg == "--out" || arg.to_string_lossy().starts_with("--out="))
+        {
+            args.push("--out".into());
+            args.push("snapshot.png".into());
+        }
+        return Some("inspect export ARTIFACT --format png --entry NAME --out FILE");
+    }
+    if command == "unblind" {
+        args[1] = "view".into();
+        args.insert(2, "--unblind".into());
+        if args.len() > 4 && !args[4].to_string_lossy().starts_with('-') {
+            args.insert(4, "--key".into());
+        }
+        return Some("view --unblind DECISIONS --key FILE");
+    }
+    let replacement = match command.as_str() {
+        "ablate" | "sequence" | "rank" | "bisect" | "safety" | "a11y" => {
+            args.insert(1, "experiment".into());
+            return Some(match command.as_str() {
+                "ablate" => "experiment ablate",
+                "sequence" => "experiment sequence",
+                "rank" => "experiment rank",
+                "bisect" => "experiment bisect",
+                "safety" => "experiment safety",
+                _ => "experiment a11y",
+            });
+        }
+        "config" => "inspect config",
+        "entries" | "summary" => "inspect",
+        "decision-request" => "review request",
+        "decide" => "review propose",
+        "ask" => "review ask",
+        "judge" => "review",
+        "runs" => "view",
         _ => return None,
     };
-    Some(format!("{command} was removed; use saccade {replacement}"))
+    args.remove(1);
+    for (i, part) in replacement.split_whitespace().enumerate() {
+        args.insert(1 + i, part.into());
+    }
+    Some(replacement)
 }
 pub(crate) fn read_value(path: &Path) -> Result<Value, CliError> {
     Ok(canonical::decode(
@@ -335,6 +461,19 @@ pub(crate) fn inspect_page(
     let mut result = base_result("inspect");
     let budget = if limit <= 5 { 4096 } else { 8192 };
     result["artifact"] = reference(path)?;
+    if let Some(schema) = doc["schema"].as_str()
+        && schema
+            .strip_prefix("saccade-report.v")
+            .and_then(|v| v.parse::<u32>().ok())
+            .is_some_and(|v| v > 1)
+    {
+        return Err(CliError::new(
+            "version_skew",
+            format!(
+                "written by {schema}; installed saccade supports up to saccade-report.v1, upgrade"
+            ),
+        ));
+    }
     if doc["schema"] != saccade_core::report::REPORT_SCHEMA {
         let document: Document = serde_json::from_value(doc.clone()).map_err(|_| {
             CliError::usage("inspect expects a measured report or canonical evidence artifact")
@@ -356,7 +495,13 @@ pub(crate) fn inspect_page(
         }
         return bounded(result, budget);
     }
-    let report: saccade_core::Report = serde_json::from_value(doc)?;
+    let report: saccade_core::Report = serde_json::from_value(doc).map_err(|e| {
+        if e.to_string().contains("unknown field") {
+            CliError::new("version_skew", format!("written by a newer producer; installed saccade supports up to saccade-report.v1, upgrade: {e}"))
+        } else {
+            CliError::from(e)
+        }
+    })?;
     if let Some(cursor) = cursor.and_then(|c| c.strip_prefix("failing:")) {
         if entry.is_some() || !status.is_empty() || limit != 10 {
             return Err(CliError::new(

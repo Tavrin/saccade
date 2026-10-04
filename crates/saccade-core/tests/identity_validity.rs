@@ -224,7 +224,13 @@ fn metadata_absence_mismatch_and_moss_override_preserve_equality() {
         std::fs::write(dir.join("cost-card.json"), r#"{"mode":"fast"}"#).expect("card");
     }
     let r = run(&b, &c, &out, &cfg).expect("matching");
-    assert_eq!(r.capture_validity().status, Validity::Valid);
+    assert_eq!(r.capture_validity().status, Validity::Unknown);
+    assert!(
+        r.capture_validity()
+            .reasons
+            .iter()
+            .any(|reason| reason.contains("binary_sha256 provenance is absent"))
+    );
     std::fs::write(c.join("a.cost-card.json"), r#"{"mode":"slow"}"#).expect("override");
     let r = run(&b, &c, &out, &cfg).expect("mismatch");
     assert_eq!(r.sample_equality(), Some(true));
@@ -236,7 +242,7 @@ fn metadata_absence_mismatch_and_moss_override_preserve_equality() {
             .expect("declared")
             .capture_validity()
             .status,
-        Validity::Valid
+        Validity::Unknown
     );
 }
 
@@ -274,7 +280,7 @@ fn proof_contract_uses_explicit_ignores_and_keeps_qualification_visible() {
             .expect("declared")
             .capture_validity()
             .status,
-        Validity::Valid
+        Validity::Unknown
     );
     for dir in [&b, &c] {
         std::fs::write(
@@ -315,7 +321,7 @@ fn declared_expected_values_are_checked_and_unchanged_interventions_reported() {
     assert_eq!(r.capture_validity().status, Validity::Invalid);
     std::fs::write(c.join("saccade-meta.json"), r#"{"bloom":false}"#).expect("changed");
     let r = run(&b, &c, &out, &cfg).expect("changed");
-    assert_eq!(r.capture_validity().status, Validity::Valid);
+    assert_eq!(r.capture_validity().status, Validity::Unknown);
     assert!(r.entries[0].meta_declared_unchanged.is_empty());
     let cfg = RunConfig::from_toml_str(
         "[[changes]]\nkey = 'bloom'\nreason = 'disable bloom'\nbefore = true\nafter = false",

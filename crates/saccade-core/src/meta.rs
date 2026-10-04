@@ -138,6 +138,52 @@ impl Default for MetaOptions {
 /// A parsed, validated sidecar: key to scalar JSON value.
 pub type Meta = BTreeMap<String, Value>;
 
+/// Capture identities advertised by either the selected sidecar or a Moss cost card.
+/// These are declarations by the producer, not hashes computed from image pixels.
+pub fn capture_evidence(root: &Path, rel: &str, name: &str) -> BTreeMap<String, String> {
+    let mut evidence = BTreeMap::new();
+    for sidecar in ["cost-card.json", name] {
+        let options = MetaOptions {
+            name: sidecar.into(),
+            ..Default::default()
+        };
+        if let Ok(checker) = options.checker()
+            && let Ok(Some(meta)) = checker.load(root, rel)
+        {
+            for (key, value) in meta {
+                let normalized = key.to_ascii_lowercase().replace(['.', '-', ' '], "_");
+                let field = match normalized.as_str() {
+                    "binary_sha" | "binary_sha256" | "binary_hash" | "build_binary_sha256" => {
+                        "binary_sha256"
+                    }
+                    "source_head" | "git_head" | "source_git_head" => "source_head",
+                    "capture_id" | "capture_uuid" => "capture_id",
+                    "content_hash" | "capture_hash" | "capture_sha256" => "content_hash",
+                    _ => continue,
+                };
+                if let Some(value) = value.as_str().filter(|s| !s.trim().is_empty()) {
+                    evidence.insert(field.into(), value.into());
+                }
+            }
+        }
+    }
+    #[cfg(feature = "graphics")]
+    if !evidence.contains_key("content_hash")
+        && let Ok(Some(perf)) = crate::perf::CapturePerf::read(root, crate::perf::DEFAULT_PERF_NAME)
+        && let Some(hash) = perf.context.as_ref().and_then(|c| c.capture_hash.as_ref())
+    {
+        evidence.insert("content_hash".into(), hash.as_str().into());
+    }
+    evidence
+}
+
+/// A repeated producer identity means that the two inputs are the same capture.
+pub fn same_capture(a: &BTreeMap<String, String>, b: &BTreeMap<String, String>) -> bool {
+    ["capture_id", "content_hash"]
+        .into_iter()
+        .any(|key| a.get(key).zip(b.get(key)).is_some_and(|(a, b)| a == b))
+}
+
 /// [`MetaOptions`] with its globs compiled.
 pub struct MetaChecker {
     name: String,
@@ -274,6 +320,10 @@ fn read_one(path: &Path) -> std::result::Result<Option<Meta>, String> {
 }
 
 impl MetaChecker {
+    /// Effective metadata sidecar name.
+    pub fn name(&self) -> &str {
+        &self.name
+    }
     /// Loads the effective sidecar of image `rel` (`/`-separated, relative to
     /// `root`): directory sidecars from `root` down to the image's directory
     /// (nearer wins), then the per-image sidecar on top. `Ok(None)` when no

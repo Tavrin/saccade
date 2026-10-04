@@ -3,15 +3,39 @@ STATUS  NAME          METRIC  VALUE    THRESHOLD
 FAIL    seed_101.png  mean    0.18755  0.001
   ↳ global_tone: Whole frame tint warmer (red +34.7%, blue -19.2% vs green) (tone shift explains 92% of the difference); no structural change.
   ↳ 1 hotspot: 192x144 @ center (100% of error) [frame-wide change]
+  ↳ warning: baseline binary_sha256 provenance is absent
+  ↳ warning: baseline source_head provenance is absent
+  ↳ warning: capture binary_sha256 provenance is absent
+  ↳ warning: capture source_head provenance is absent
 FAIL    seed_104.png  mean    0.18235  0.001
   ↳ global_tone: Whole frame tint warmer (red +37.3%, blue -17.9% vs green) (tone shift explains 92% of the difference); no structural change.
   ↳ 1 hotspot: 192x144 @ center (100% of error) [frame-wide change]
+  ↳ warning: baseline binary_sha256 provenance is absent
+  ↳ warning: baseline source_head provenance is absent
+  ↳ warning: capture binary_sha256 provenance is absent
+  ↳ warning: capture source_head provenance is absent
 FAIL    seed_105.png  mean    0.02403  0.001
   ↳ local_structure: Local structural change at center (67×45, 93% of error); rest of frame within noise.
   ↳ 1 hotspot: 67x45 @ center (93% of error)
+  ↳ warning: baseline binary_sha256 provenance is absent
+  ↳ warning: baseline source_head provenance is absent
+  ↳ warning: capture binary_sha256 provenance is absent
+  ↳ warning: capture source_head provenance is absent
 pass    seed_100.png  mean    0.00000  0.001
+  ↳ warning: baseline binary_sha256 provenance is absent
+  ↳ warning: baseline source_head provenance is absent
+  ↳ warning: capture binary_sha256 provenance is absent
+  ↳ warning: capture source_head provenance is absent
 pass    seed_102.png  mean    0.00000  0.001
+  ↳ warning: baseline binary_sha256 provenance is absent
+  ↳ warning: baseline source_head provenance is absent
+  ↳ warning: capture binary_sha256 provenance is absent
+  ↳ warning: capture source_head provenance is absent
 pass    seed_103.png  mean    0.00000  0.001
+  ↳ warning: baseline binary_sha256 provenance is absent
+  ↳ warning: baseline source_head provenance is absent
+  ↳ warning: capture binary_sha256 provenance is absent
+  ↳ warning: capture source_head provenance is absent
 
 3 fail, 0 error, 0 missing, 0 new, 3 pass (6 total)
 === explain (exit 0) ===

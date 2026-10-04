@@ -422,6 +422,7 @@ pub fn run(
                 apply_meta(
                     &mut entry,
                     &meta,
+                    config.mode,
                     input_root(baseline_dir, file_pair),
                     input_root(capture_dir, file_pair),
                     if file_pair { baseline_dir.file_name().and_then(|n| n.to_str()).unwrap_or(name) } else { name },
@@ -608,10 +609,41 @@ pub(crate) enum Source<'a> {
 fn apply_meta(
     entry: &mut Entry,
     meta: &crate::meta::MetaChecker,
+    mode: crate::report::Mode,
     baseline_dir: &Path,
     capture_dir: &Path,
     baseline_name: &str,
 ) {
+    let baseline = crate::meta::capture_evidence(baseline_dir, baseline_name, meta.name());
+    let capture = crate::meta::capture_evidence(capture_dir, &entry.name, meta.name());
+    for (side, evidence) in [("baseline", &baseline), ("capture", &capture)] {
+        for field in ["binary_sha256", "source_head"] {
+            if let Some(value) = evidence.get(field) {
+                entry
+                    .capture_provenance
+                    .insert(format!("{side}.{field}"), value.clone());
+            } else {
+                let reason = format!("{side} {field} provenance is absent");
+                entry.warnings.push(reason.clone());
+                entry.capture_validity.reasons.push(reason);
+            }
+        }
+        for field in ["capture_id", "content_hash"] {
+            if let Some(value) = evidence.get(field) {
+                entry
+                    .capture_provenance
+                    .insert(format!("{side}.{field}"), value.clone());
+            }
+        }
+    }
+    let repeated = crate::meta::same_capture(&baseline, &capture);
+    let provenance_reasons: Vec<_> = entry
+        .capture_validity
+        .reasons
+        .iter()
+        .filter(|reason| reason.as_str() != "capture context was not checked")
+        .cloned()
+        .collect();
     let failure = match meta.check_named(baseline_dir, baseline_name, capture_dir, &entry.name) {
         Ok(checked) => {
             entry.meta_diff = checked.diff;
@@ -625,10 +657,31 @@ fn apply_meta(
                     .reasons
                     .extend(checked.validity.reasons);
             }
+            entry.capture_validity.reasons.extend(provenance_reasons);
+            if ["binary_sha256", "source_head"]
+                .into_iter()
+                .any(|field| !baseline.contains_key(field) || !capture.contains_key(field))
+                && entry.capture_validity.status == crate::meta::Validity::Valid
+            {
+                entry.capture_validity.status = crate::meta::Validity::Unknown;
+            }
             checked.failure
         }
         Err(e) => Some(e),
     };
+    if repeated {
+        let reason = "same capture, not a repeat".to_string();
+        entry.warnings.push(reason.clone());
+        entry.capture_validity.reasons.push(reason.clone());
+        if entry.capture_validity.status == crate::meta::Validity::Valid {
+            entry.capture_validity.status = crate::meta::Validity::Unknown;
+        }
+        if mode == crate::report::Mode::Identity {
+            entry.capture_validity.status = crate::meta::Validity::Invalid;
+            entry.status = Status::Error;
+            entry.error = Some(reason);
+        }
+    }
     if let Some(msg) = failure {
         entry.capture_validity.status = crate::meta::Validity::Invalid;
         if !entry.capture_validity.reasons.contains(&msg) {
@@ -740,6 +793,7 @@ pub(crate) fn build_entry(
         bit_identical: None,
         file_bytes_identical: None,
         capture_validity: Default::default(),
+        capture_provenance: Default::default(),
         meta_declared_unchanged: Vec::new(),
         hdr: None,
         meta_diff: Vec::new(),

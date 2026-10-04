@@ -249,6 +249,9 @@ pub struct PerformanceNoiseRecord {
     pub comparability: Comparability,
     pub sources: Vec<SourceRef>,
     pub reasons: Vec<String>,
+    /// Declared binary and source identities for each measured repeat.
+    #[serde(default, skip_serializing_if = "BTreeMap::is_empty")]
+    pub capture_provenance: BTreeMap<String, BTreeMap<String, String>>,
 }
 
 #[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
@@ -321,7 +324,25 @@ impl CapturePerf {
             message,
         };
         serde_json::from_str::<JsonKeys>(text).map_err(|e| err(e.to_string()))?;
-        let p: Self = serde_json::from_str(text).map_err(|e| err(e.to_string()))?;
+        let value: serde_json::Value =
+            serde_json::from_str(text).map_err(|e| err(e.to_string()))?;
+        let schema = value.get("schema").and_then(|v| v.as_str()).unwrap_or("");
+        if schema
+            .strip_prefix("saccade-perf.v")
+            .and_then(|v| v.parse::<u32>().ok())
+            .is_some_and(|v| v > 2)
+        {
+            return Err(err(format!(
+                "written by {schema}; installed saccade supports up to saccade-perf.v2, upgrade"
+            )));
+        }
+        let p: Self = serde_json::from_value(value).map_err(|e| {
+            if e.to_string().contains("unknown field") {
+                err(format!("written by a newer producer; installed saccade supports up to saccade-perf.v2, upgrade: {e}"))
+            } else {
+                err(e.to_string())
+            }
+        })?;
         p.validate().map_err(err)?;
         Ok(p)
     }
@@ -621,6 +642,16 @@ impl PerfNoise {
         let floor = if text.trim_start().starts_with('{') {
             serde_json::from_str::<JsonKeys>(&text)?;
             let v: serde_json::Value = serde_json::from_str(&text)?;
+            if let Some(schema) = v.get("schema").and_then(|v| v.as_str())
+                && schema
+                    .strip_prefix("saccade-perf.v")
+                    .and_then(|v| v.parse::<u32>().ok())
+                    .is_some_and(|v| v > 2)
+            {
+                return Err(crate::Error::Config(format!(
+                    "written by {schema}; installed saccade supports up to saccade-perf.v2, upgrade"
+                )));
+            }
             if v.get("kind")
                 .and_then(|v| v.as_str())
                 .is_some_and(|k| k != "performance_noise")
@@ -639,7 +670,13 @@ impl PerfNoise {
                         "noise BASE REPEAT... --kind performance",
                     ));
                 }
-                let record: PerformanceNoiseRecord = serde_json::from_value(v)?;
+                let record: PerformanceNoiseRecord = serde_json::from_value(v).map_err(|e| {
+                    if e.to_string().contains("unknown field") {
+                        crate::Error::Config(format!("written by a newer producer; installed saccade supports up to saccade-perf.v2, upgrade: {e}"))
+                    } else {
+                        crate::Error::Json(e)
+                    }
+                })?;
                 if record.kind != "performance_noise" || record.unit != "ms" {
                     return Err(wrong_noise_kind(
                         "performance",
@@ -1503,6 +1540,14 @@ fn noise_from_captures(
     let Some(first) = present.first() else {
         return Ok((None, Vec::new()));
     };
+    let hashes: Vec<_> = present
+        .iter()
+        .filter_map(|p| p.context.as_ref()?.capture_hash.as_ref())
+        .collect();
+    if hashes.len() == present.len() && hashes.iter().collect::<BTreeSet<_>>().len() != hashes.len()
+    {
+        return Err(crate::Error::Config("same capture, not a repeat".into()));
+    }
     if present.iter().any(|p| p.frame.stat != first.frame.stat) {
         return Err(crate::Error::Config(
             "perf noise frame statistics must match".into(),
@@ -1599,10 +1644,21 @@ pub fn noise_record(dirs: &[PathBuf], opts: &PerfOptions) -> crate::Result<Perfo
         captures.push(Some(capture));
         sources.push(source);
     }
-    let (floor, reasons) = noise_from_captures(&captures, opts)?;
+    let (floor, mut reasons) = noise_from_captures(&captures, opts)?;
     let floor = floor.ok_or_else(|| {
         crate::Error::Config("performance noise needs at least two captures".into())
     })?;
+    let mut capture_provenance = BTreeMap::new();
+    for (index, dir) in dirs.iter().enumerate() {
+        let evidence =
+            crate::meta::capture_evidence(dir, "capture.png", crate::meta::DEFAULT_META_NAME);
+        for field in ["binary_sha256", "source_head"] {
+            if !evidence.contains_key(field) {
+                reasons.push(format!("run {index} {field} provenance is absent"));
+            }
+        }
+        capture_provenance.insert(index.to_string(), evidence);
+    }
     Ok(PerformanceNoiseRecord {
         schema: "saccade-perf.v2".into(),
         kind: "performance_noise".into(),
@@ -1611,6 +1667,7 @@ pub fn noise_record(dirs: &[PathBuf], opts: &PerfOptions) -> crate::Result<Perfo
         perf_noise: floor,
         sources,
         reasons,
+        capture_provenance,
     })
 }
 

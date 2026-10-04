@@ -570,6 +570,7 @@ fn retired_judge_transport_has_no_provider_dispatch() {
         .output()
         .unwrap();
     assert_eq!(output.status.code(), Some(2));
-    let value: Value = serde_json::from_slice(&output.stdout).unwrap();
-    assert_eq!(value["errors"][0]["code"], "interface_removed");
+    assert!(
+        String::from_utf8_lossy(&output.stderr).contains("deprecated command; use saccade review")
+    );
 }

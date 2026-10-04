@@ -151,6 +151,12 @@ impl From<MetricArg> for Metric {
 
 #[derive(Subcommand)]
 enum Command {
+    /// Print installed version, features and supported evidence schemas.
+    Doctor {
+        /// Print machine-readable JSON.
+        #[arg(long)]
+        json: bool,
+    },
     /// Bootstrap a commented configuration and print baseline adoption steps.
     Init(f1::InitArgs),
     /// Run the bundled example and explain its expected regression.
@@ -563,7 +569,7 @@ fn main() -> ExitCode {
 }
 
 fn cli_main() -> ExitCode {
-    let args: Vec<std::ffi::OsString> = std::env::args_os().collect();
+    let mut args: Vec<std::ffi::OsString> = std::env::args_os().collect();
     if let Some(message) = local_cmd::migration(&args) {
         let err = CliError::new("interface_removed", message);
         if args_want_json(&args) {
@@ -572,6 +578,9 @@ fn cli_main() -> ExitCode {
             eprintln!("saccade: {err}");
         }
         return ExitCode::from(2);
+    }
+    if let Some(replacement) = local_cmd::deprecated_alias(&mut args) {
+        eprintln!("saccade: deprecated command; use saccade {replacement}");
     }
     let cli = match Cli::try_parse_from(&args) {
         Ok(cli) => cli,
@@ -633,6 +642,20 @@ fn cli_main() -> ExitCode {
 
 /// Prints a run's result: the table, the lean result or the whole report.
 fn emit_run(report: &Report, out: &Path, json: bool) -> Result<(), CliError> {
+    let mut shown = std::collections::BTreeSet::new();
+    for entry in &report.entries {
+        for warning in &entry.warnings {
+            if (warning.contains("provenance is absent") || warning == "same capture, not a repeat")
+                && shown.insert(warning)
+            {
+                eprintln!(
+                    "saccade: warning: {}: {}",
+                    escape_control(&entry.name),
+                    escape_control(warning)
+                );
+            }
+        }
+    }
     if json {
         let mut value = agent::result_value(
             report,
@@ -662,6 +685,7 @@ fn emit_run(report: &Report, out: &Path, json: bool) -> Result<(), CliError> {
 
 fn dispatch(command: Command, record_absolute_paths: bool) -> Result<u8, CliError> {
     match command {
+        Command::Doctor { json } => doctor(json),
         Command::Inspect(args) => local_cmd::inspect(args, record_absolute_paths),
         Command::Review(args) => local_cmd::review(args, record_absolute_paths),
         #[cfg(feature = "prechecks")]
@@ -905,9 +929,11 @@ fn dispatch(command: Command, record_absolute_paths: bool) -> Result<u8, CliErro
             require.apply(&mut cfg.meta);
             f1::guard_junit(junit.as_deref(), &[&parent_dir, &candidate_dir], &out)?;
             if threshold.is_some() || metric.is_some() {
-                return Err(CliError::usage(
-                    "identity rejects --threshold and --metric; use compare for perceptual thresholds",
-                ));
+                return Err(CliError::usage(if threshold.is_some() {
+                    "identity is exact; use compare --threshold"
+                } else {
+                    "identity is exact; use compare --metric"
+                }));
             }
             cfg.mode = Mode::Identity;
             cfg.labels = Labels {
@@ -1186,6 +1212,36 @@ fn dispatch(command: Command, record_absolute_paths: bool) -> Result<u8, CliErro
     }
 }
 
+fn doctor(json: bool) -> Result<u8, CliError> {
+    let mut features = saccade_core::COMPILED_FEATURES.to_vec();
+    if cfg!(feature = "mcp") {
+        features.push("mcp");
+    }
+    features.sort_unstable();
+    let value = serde_json::json!({
+        "version": env!("CARGO_PKG_VERSION"),
+        "features": features,
+        "schemas": {
+            "report": ["saccade-report.v1"],
+            "result": ["saccade-result.v1", "saccade-result.v2"],
+            "evidence": ["saccade-evidence.v1"],
+            "image_noise": ["saccade-noise.v1"],
+            "performance": ["saccade-perf.v1", "saccade-perf.v2"]
+        }
+    });
+    if json {
+        emit(&format!("{}\n", serde_json::to_string(&value)?))?;
+    } else {
+        emit(&format!(
+            "saccade {}\nfeatures: {}\nschemas: {}\n",
+            value["version"].as_str().unwrap_or("unknown"),
+            features.join(", "),
+            value["schemas"]
+        ))?;
+    }
+    Ok(0)
+}
+
 /// Parses `--labels a,b` into the two side names.
 fn parse_labels(parts: &[String]) -> Result<Labels, String> {
     match parts {
@@ -1229,8 +1285,27 @@ fn open_browser(url: &str) {
 fn read_report(path: &Path) -> Result<Report, CliError> {
     let text = std::fs::read_to_string(path)
         .map_err(|e| CliError::io(format!("reading report {}: {e}", path.display())))?;
-    serde_json::from_str(&text)
-        .map_err(|e| CliError::io(format!("parsing report {}: {e}", path.display())))
+    let value: serde_json::Value = serde_json::from_str(&text)?;
+    if let Some(schema) = value.get("schema").and_then(|v| v.as_str())
+        && schema
+            .strip_prefix("saccade-report.v")
+            .and_then(|v| v.parse::<u32>().ok())
+            .is_some_and(|v| v > 1)
+    {
+        return Err(CliError::new(
+            "version_skew",
+            format!(
+                "written by {schema}; installed saccade supports up to saccade-report.v1, upgrade"
+            ),
+        ));
+    }
+    serde_json::from_value(value).map_err(|e| {
+        if e.to_string().contains("unknown field") {
+            CliError::new("version_skew", format!("written by a newer producer; installed saccade supports up to saccade-report.v1, upgrade: {e}"))
+        } else {
+            CliError::io(format!("parsing report {}: {e}", path.display()))
+        }
+    })
 }
 
 /// Writes `text` to stdout. A closed pipe (for example `| head`) is not an error.

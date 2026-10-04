@@ -313,6 +313,7 @@
       "type": "object"
     },
     "Entry": {
+      "additionalProperties": false,
       "description": "One image name's comparison result.",
       "properties": {
         "baseline_properties": {
@@ -353,6 +354,13 @@
             }
           ],
           "description": "Numerical comparison for non-colour buffers; FLIP metrics stay absent."
+        },
+        "capture_provenance": {
+          "additionalProperties": {
+            "type": "string"
+          },
+          "description": "Binary, source and capture identities from capture metadata or cost cards.",
+          "type": "object"
         },
         "capture_sha256": {
           "default": null,

@@ -154,6 +154,16 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "description": "Repeated-capture calibration output.",
   "properties": {
+    "capture_provenance": {
+      "additionalProperties": {
+        "additionalProperties": {
+          "type": "string"
+        },
+        "type": "object"
+      },
+      "description": "Declared build identity for each input, indexed in the order of `runs`.",
+      "type": "object"
+    },
     "entries": {
       "description": "Per-image noise estimates.",
       "items": {

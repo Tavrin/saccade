@@ -84,7 +84,7 @@ fn one_level_change_fails_and_tolerance_flags_are_rejected() {
     ] {
         let o = identity(tmp.path(), &args);
         assert_eq!(o.status.code(), Some(2), "{o:?}");
-        assert!(String::from_utf8_lossy(&o.stderr).contains("identity rejects"));
+        assert!(String::from_utf8_lossy(&o.stderr).contains("identity is exact; use compare"));
     }
 }
 

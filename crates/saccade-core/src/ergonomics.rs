@@ -114,6 +114,9 @@ pub struct NoiseReport {
     pub entries: Vec<NoiseEntry>,
     /// Limitations and high-noise warnings.
     pub warnings: Vec<String>,
+    /// Declared build identity for each input, indexed in the order of `runs`.
+    #[serde(default, skip_serializing_if = "BTreeMap::is_empty")]
+    pub capture_provenance: BTreeMap<String, BTreeMap<String, String>>,
     /// Raw repeat ranges, timer quantum and minimum meaningful delta settings.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub perf_noise: Option<crate::perf::PerfNoise>,
@@ -206,6 +209,17 @@ pub fn noise_with_perf_options(
                     dirs[j].display()
                 )));
             }
+            if report
+                .entries
+                .iter()
+                .any(|e| e.warnings.iter().any(|w| w == "same capture, not a repeat"))
+            {
+                return Err(Error::Config(format!(
+                    "same capture, not a repeat: {} and {}",
+                    dirs[i].display(),
+                    dirs[j].display()
+                )));
+            }
             for e in report.entries {
                 let Some(m) = e.metrics else { continue };
                 let n = values.entry(e.name.clone()).or_insert(NoiseEntry {
@@ -233,6 +247,17 @@ pub fn noise_with_perf_options(
     }
     let entries: Vec<_> = values.into_values().collect();
     let mut warnings = vec!["Noise alone cannot prove separation from real changes; validate against a known changed build.".into()];
+    let mut capture_provenance = BTreeMap::new();
+    for (index, dir) in dirs.iter().enumerate() {
+        let evidence =
+            crate::meta::capture_evidence(dir, "capture.png", crate::meta::DEFAULT_META_NAME);
+        for field in ["binary_sha256", "source_head"] {
+            if !evidence.contains_key(field) {
+                warnings.push(format!("run {index} {field} provenance is absent"));
+            }
+        }
+        capture_provenance.insert(index.to_string(), evidence);
+    }
     let mut toml = String::from(
         "# Repeated captures of an unchanged build; thresholds = largest observed metric × margin.\n",
     );
@@ -299,6 +324,7 @@ pub fn noise_with_perf_options(
             .collect(),
         entries,
         warnings,
+        capture_provenance,
         perf_noise,
     })
 }
