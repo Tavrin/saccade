@@ -62,6 +62,8 @@ impl Secret {
 #[derive(Debug, Clone)]
 pub struct Keys {
     dir: PathBuf,
+    #[cfg(test)]
+    assist_fixture: bool,
 }
 
 impl Keys {
@@ -69,6 +71,8 @@ impl Keys {
     pub fn new(dir: Option<PathBuf>) -> Self {
         Self {
             dir: dir.unwrap_or_else(Self::default_dir),
+            #[cfg(test)]
+            assist_fixture: false,
         }
     }
 
@@ -79,6 +83,26 @@ impl Keys {
             .filter(|h| !h.is_empty())
             .map(|h| PathBuf::from(h).join(".config").join("saccade"))
             .unwrap_or_default()
+    }
+
+    // wave4
+    /// Whether this loader uses exactly the fixed assist credential directory.
+    #[cfg(feature = "assist")]
+    pub fn default_policy_dir(&self) -> bool {
+        #[cfg(test)]
+        if self.assist_fixture {
+            return true;
+        }
+        !self.dir.as_os_str().is_empty() && self.dir == Self::default_dir()
+    }
+
+    // Test-only fake transport credentials, without changing process HOME.
+    #[cfg(all(test, feature = "assist"))]
+    pub(crate) fn assist_fixture(dir: PathBuf) -> Self {
+        Self {
+            dir,
+            assist_fixture: true,
+        }
     }
 
     /// The key variable `var` from the file `file` of the keys directory.

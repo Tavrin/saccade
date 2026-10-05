@@ -90,6 +90,9 @@ struct Probe {
 }
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 struct State {
+    // wave4
+    #[serde(default)]
+    money: money::MoneyState,
     scopes: BTreeMap<String, Counter>,
     attempts: Vec<Attempt>,
     probes: BTreeMap<String, Probe>,
@@ -380,3 +383,9 @@ pub fn new_id() -> String {
 pub fn now_ms() -> u64 {
     crate::judge::now_ms()
 }
+
+// wave4
+#[path = "assist/money.rs"]
+mod money;
+#[cfg(feature = "assist")]
+pub use money::{MoneyReceipt, MoneyScope};

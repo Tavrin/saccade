@@ -43,6 +43,9 @@ schema = ["saccade-core/schema"]
 # Optional external pinned Tesseract execution; no bundled runtime/models.
 ocr = []
 
+# wave4
+assist = ["ai", "saccade-core/assist"]
+
 [dev-dependencies]
 tempfile = "3"
 # Validates real command output against the shipped schemas (MIT).
@@ -94,3 +97,8 @@ required-features = ["mcp"]
 [[test]]
 name = "f1_contract"
 required-features = ["ai", "mcp"]
+
+# wave4
+[[test]]
+name = "assist_contract"
+required-features = ["assist", "mcp"]

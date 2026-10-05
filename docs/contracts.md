@@ -183,3 +183,23 @@ The last three names appear only when the corresponding feature is compiled in.
 Historical validators and fixtures do not imply that retired writers or commands
 are supported. Active families are report, evidence, result v2, performance v2,
 image noise and labels v2; evaluation and precheck families are experimental.
+
+<!-- wave4 -->
+Experimental AI advice is a separate [saccade-assist.v1](../crates/saccade-core/schemas/saccade-assist.v1.schema.json)
+sidecar; it cannot alter measured reports or numerical grounded explanations.
+The [Batch receipt](../crates/saccade-core/schemas/saccade-assist-batch.v1.schema.json)
+separates uncertain submission and per-item failure from job completion.
+See [assist](assist.md) for the closed input, identity and advisory contracts.
+
+<!-- wave4 artifact wrappers -->
+Prepared requests, replay records and mask accounting use
+`saccade-assist-requests.v1`, `saccade-assist-observations.v1` and
+`saccade-assist-mask-audit.v1`. Individual-mask input is `saccade-assist-masks.v1`.
+Constructed truth, its private oracle and heavy-gate receipts use
+`saccade-constructed-truth.v1`, `saccade-constructed-oracle.v1` and
+`saccade-assist-gates.v1`; schemas are in the existing schema directory.
+
+<!-- wave4b -->
+The [source-bound Batch plan](../crates/saccade-core/schemas/saccade-assist-batch-plan.v1.schema.json)
+uses `saccade-assist-batch-plan.v1`. Public submission, status and collection
+reproduce its frozen payloads from hash-verified transitive source files.

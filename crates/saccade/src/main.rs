@@ -1613,6 +1613,10 @@ fn doctor(json: bool) -> Result<u8, CliError> {
     if cfg!(feature = "ai") {
         capabilities.push("review");
     }
+    // wave4
+    if cfg!(feature = "assist") {
+        capabilities.push("experimental-assist");
+    }
     capabilities.sort_unstable();
     let git_commit = option_env!("SACCADE_GIT_COMMIT").filter(|value| !value.is_empty());
     let git_commit_short =
@@ -2305,3 +2309,10 @@ mod wave3_schema_tests {
         }
     }
 }
+
+// wave4
+#[cfg(feature = "assist")]
+mod assist_cmd;
+// wave4
+#[cfg(feature = "assist")]
+mod assist_batch_cmd;

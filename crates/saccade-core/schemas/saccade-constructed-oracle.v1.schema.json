@@ -1,0 +1,47 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/Tavrin/saccade/crates/saccade-core/schemas/saccade-constructed-oracle.v1.schema.json",
+  "title": "saccade-constructed-oracle.v1",
+  "type": "object",
+  "properties": {
+    "schema": {
+      "const": "saccade-constructed-oracle.v1"
+    },
+    "cases": {
+      "type": "object",
+      "patternProperties": {
+        "^sha256:[0-9a-f]{64}$": {
+          "type": "object",
+          "required": [
+            "root_id",
+            "expected_outcome",
+            "rendered_witness",
+            "oracle_verified"
+          ],
+          "properties": {
+            "root_id": {
+              "type": "string",
+              "pattern": "^sha256:[0-9a-f]{64}$"
+            },
+            "expected_outcome": {
+              "enum": [
+                "observed",
+                "not_observed",
+                "unverifiable"
+              ]
+            },
+            "oracle_verified": {
+              "const": true
+            }
+          }
+        }
+      },
+      "additionalProperties": false
+    }
+  },
+  "required": [
+    "schema",
+    "cases"
+  ],
+  "additionalProperties": false
+}

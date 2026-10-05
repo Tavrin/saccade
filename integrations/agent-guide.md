@@ -74,3 +74,21 @@ Workbench receipts have token-gated human attestation. CLI receipts have
 human-required check and has no current writer. Human-final is an application
 policy and audit boundary; an unrestricted shell agent can invoke CLI approval.
 MCP exposes six bounded tools and no baseline-write operation.
+
+<!-- wave4 -->
+With feature `assist`, `review explain`, `review audit-mask` and `review check-ui`
+require `--experimental`. Read `data.outcome`, `execution`, limitations, returned
+model revisions and the unchanged deterministic verdict. `observed` is advisory;
+`unverifiable` and incomplete stages remain unresolved. Offline replay is not an
+independent sample. MCP mirrors these operations in `saccade_review`; it cannot
+raise human startup provider authority. See [assist](../docs/assist.md).
+
+<!-- wave4b -->
+Optional `--jev-routing` is off by default and separately qualified; router
+abstention cannot establish a successful condition. `review assist batch
+submit|status|collect --plan prepared/batch-plan.json --job jobs/item.json
+--experimental --json` verifies the frozen transitive source files. Add `--run`
+only under human authorization to submit or poll once. MCP mirrors these as
+`batch-submit|batch-status|batch-collect` in `saccade_review`; `artifact` is the plan
+and `out` is the durable receipt. Unknown submission forbids silent resubmission.
+Interactive advice never waits for Batch. See [assist](../docs/assist.md).

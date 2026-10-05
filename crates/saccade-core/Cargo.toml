@@ -69,6 +69,9 @@ prechecks = []
 # Derives `schemars::JsonSchema` on the report, decisions and explain types.
 schema = ["dep:schemars"]
 
+# wave4
+assist = ["ai"]
+
 [dev-dependencies]
 tempfile = "3"
 
@@ -110,3 +113,8 @@ required-features = ["prechecks"]
 [[test]]
 name = "schemas"
 required-features = ["schema"]
+
+# wave4
+[[example]]
+name = "assist_qualify"
+required-features = ["assist"]

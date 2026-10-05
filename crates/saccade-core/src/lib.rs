@@ -83,6 +83,9 @@ pub use report::{Entry, EntryPaths, Metric, Metrics, Properties, Report, Status,
 /// Cargo features compiled into this library. Computational modules are optional;
 /// persisted report and decision types remain available without their producers.
 pub const COMPILED_FEATURES: &[&str] = &[
+    // wave4
+    #[cfg(feature = "assist")]
+    "assist",
     #[cfg(feature = "parallel")]
     "parallel",
     #[cfg(feature = "graphics")]
@@ -130,3 +133,7 @@ pub fn judge_bench_sources(case: &evidence::case::EvidenceCase) -> Vec<String> {
         .into_iter()
         .collect()
 }
+
+// wave4
+#[cfg(feature = "assist")]
+pub mod assist;
