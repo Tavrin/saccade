@@ -11,6 +11,8 @@ saccade history analyze --store .saccade-history --entry article.png --drift --j
 
 Use the same environment identity only for the same capture protocol. Omit `--unchanged-build` when measuring later revisions against the retained baseline. Ten declared unchanged-build runs are needed for normal-variation advice. `run_analysis` separates independent runs from distinct images and retains run/report/image witnesses. Drift candidates require fresh matched repeats. Suggestions and quarantine advice never change a threshold or grant approval. Older hash-only history remains provisional.
 
+For long histories, retain the full selected-group witness with `history analyze --store .saccade-history --entry article.png --drift --out history-analysis.json --json`. Standard output is a bounded preview with explicit group/run omission counts; the new file retains every run of the selected groups. Declared trials contribute only to `run_analysis`; artifact-only tolerance advice remains confined to older rows without independent-run declarations.
+
 ## Compression sweep
 
 `quality-sweep` measures outputs from your actual encoder. Use `cargo build -p saccade --features compression` and `saccade quality-sweep sweep.json --out quality-report.json --json`. It creates a new JSON file and exits 1 when candidates are missing/unusable or none meets policy.
@@ -55,7 +57,7 @@ saccade inventory --manifest suite.json --report report/saccade-report.v1.json -
 
 Producer states are `captured`, `missing`, `unusable`, `stale`, `skipped`, and `quarantined`. Use null entry/hash when there is no artifact. Stable IDs survive filename changes; hashes bind the actual capture to its comparison. Missing, skipped or quarantined required cases prevent complete coverage. Equal bytes across two named cases do not establish equivalence. The JSON accounts for every expected case; a failed image measurement is still a compared case.
 
-The Playwright reporter now inventories every test from `onBegin`, including passed tests without attachments. To compare passing snapshots, attach both expected and actual images with role-suffixed attachment names, for example `article-expected` and `article-actual`. Quarantine annotations remain visible. Retry attempts remain duplicate identities. `saccade ingest playwright manifest.json --out suite-report` writes `inventory.json` as well as the usual comparison and returns 1 for incomplete required coverage. Older manifests lack suite coverage evidence. For multiple predeclared page states, supply a generic suite manifest.
+The Playwright reporter inventories every test from `onBegin`, including passed tests without attachments. To compare passing snapshots, attach both expected and actual images with role-suffixed attachment names, for example `article-expected` and `article-actual`. Quarantine annotations remain visible. Retry attempts remain duplicate identities. `saccade ingest playwright manifest.json --out suite-report` writes `inventory.json` as well as the usual comparison and returns 1 for incomplete required coverage. Older manifests lack suite coverage evidence. For multiple predeclared page states, supply a generic suite manifest.
 
 ## Localized changes
 
@@ -91,13 +93,13 @@ The default uses deterministic atomic templates. An optional proposal file is a 
 [{"claim_kind": "mean_flip", "region_ids": ["e0.full"], "evidence_ids": ["e0.full.mean_flip"], "value": 0.01}]
 ```
 
-Use exact IDs and numbers from the catalog. Supported kinds are `mean_flip`, `max_flip`, `thresholded_hotspot_pixels`, and localized `changed_pixels`. Unsupported semantic/causal observations, compound citations and inconsistent quantities are dropped. Free-form wording is not accepted. A model may supply this finite contract offline; the application performs the same verification and inserts the final wording. Source hashes and JSON pointers let reviewers resolve each fact. Pixel counts in hotspots depend on thresholds/exclusions; localized counts use native samples.
+Use exact IDs and numbers from the catalog. Supported kinds are `mean_flip`, `max_flip`, `thresholded_hotspot_pixels`, and localized `changed_pixels`. Unsupported semantic/causal observations, compound citations and inconsistent quantities are dropped. Free-form wording is not accepted. A model may write the proposal file offline; saccade applies the same verification and writes the final wording itself. Source hashes and JSON pointers let reviewers resolve each fact. Pixel counts in hotspots depend on thresholds/exclusions; localized counts use native samples.
 
 MCP: call `saccade_inspect` with `operation: "grounded"`, `artifact` pointing to a comparison report, and optional `limit` (1–5) and numeric `cursor`. Each page carries accepted claims and the matching region/fact/source citations. Numerical support does not establish semantic success, causation, or a human review decision.
 
 ## Regions described in words
 
-Text-to-mask inference remains unavailable in this lane; `saccade regions status` states this explicitly. Freeze a reviewed phrase mask without model dependencies:
+Text-to-mask inference is not available; `saccade regions status` reports this. Freeze a reviewed phrase mask without model dependencies:
 
 ```sh
 saccade regions import --reference reference.png --mask left-sphere.png --phrase 'the left sphere' --out left-sphere.json
@@ -113,7 +115,7 @@ saccade regions cache --manifest crates/saccade-core/models/semantic-regions.jso
 saccade regions runtime-probe --manifest qualified-exports.json --cache ~/.cache/saccade/models --library /path/to/libonnxruntime.so
 ```
 
-Only `cache` performs explicit downloads; it verifies hashes and exact byte counts before storing artifacts. Cache hits are verified again. The shipped manifest contains checkpoints, so runtime probing rejects it until detector/SAM encoder/SAM decoder self-contained ONNX artifacts are supplied. Runtime 1.22, CPU f32, pinned preprocessing/tokenizer and checkpoint/export/license provenance must be recorded. Graph loading is diagnostic plumbing and does not establish source-model parity or successful text segmentation. The export, inference and accuracy residuals are recorded in the design decisions.
+Only `cache` performs explicit downloads; it verifies hashes and exact byte counts before storing artifacts. Cache hits are verified again. The shipped manifest contains checkpoints, so runtime probing rejects it until detector/SAM encoder/SAM decoder self-contained ONNX artifacts are supplied. Runtime 1.22, CPU f32, pinned preprocessing/tokenizer and checkpoint/export/license provenance must be recorded. Graph loading is diagnostic plumbing and does not establish source-model parity or successful text segmentation. Remaining export, inference and accuracy work is recorded in the design decisions.
 
 ## RenderDoc divergence localization
 
@@ -130,5 +132,3 @@ Worker output contains native payloads, event/resource witnesses and exact captu
 Rust verifies the payloads and aligns unique marker/action signatures with gaps. Repeated markers, duplicate action signatures and unmarked actions remain ambiguous. It compares native bytes under matching resource roles/format/dimensions/subresources, including compute writable resources. It scans every aligned event, so overwritten intermediate differences remain visible. Exit 2 means incomplete correspondence or evidence, exit 1 means complete evidence with an observed divergence, and exit 0 means complete extracted evidence with equal bytes under this declared scope. These exits grant no acceptance or root-cause authority.
 
 Read `first_observed_divergence`, all observations, gaps and `candidate_inputs`. A bad upload may precede its first visible effect, and a later clear may erase a difference. Confirm final-output relevance and cause with additional resource tracing and a controlled intervention. The current host has no official bindings; only synthetic Rust-side fixtures and the worker's unavailable-capability path were validated. No Vulkan, D3D12, GL or browser replay qualification is claimed.
-
-For long histories, retain the full selected-group witness with `history analyze --store .saccade-history --entry article.png --drift --out history-analysis.json --json`. Standard output is a bounded preview with explicit group/run omission counts; the new file retains every run of the selected groups. Declared trials contribute only to `run_analysis`; artifact-only tolerance advice remains confined to older rows without independent-run declarations.

@@ -32,7 +32,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   environment identities. Normal-variation advice requires ten unchanged-build
   runs; producer declarations do not prove independence. Drift remains a candidate,
   needs fresh repeats and neither attributes commits nor edits policy. Live
-  browser nuisance-alert and capture-fix evaluation remains unrun.
+  browser nuisance-alert and capture-fix evaluation has not been run.
 - Compression-quality sweeps over externally encoded opaque RGB8 sRGB outputs,
   with staged SSIMULACRA2 and Butteraugli evidence and smallest-file selection
   under the frozen SSIMULACRA2 policy. Both metrics are qualified against pinned
@@ -44,7 +44,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   of expected cases, including missing, unusable, skipped, stale, quarantined and
   duplicate attempts. Playwright ingestion requires explicit expected/actual
   attachments; legacy attachment-only manifests cannot establish suite completeness.
-  Live Playwright/browser qualification remains unrun.
+  Live Playwright/browser qualification has not been run.
 - Localized-change checks with frozen pixel boxes, inclusion masks or
   reference-bound DOM geometry. Full-frame FLIP and native complement samples
   measure intended changes and collateral without configuration exclusions.
@@ -54,7 +54,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Grounded numerical explanations with source hashes, JSON pointers and paginated
   MCP citations. Typed claims must match one compatible fact and region exactly.
   Semantic and causal claims abstain; semantic/OCR and independent human support
-  benchmarks remain unrun. Numerical consistency does not prove physical correctness.
+  benchmarks have not been run. Numerical consistency does not prove physical correctness.
 - Frozen-region mask import retaining the phrase, reference and source-mask
   hashes, plus optional checkpoint cache and ONNX runtime-loading plumbing.
   ONNX inference is not included. Checkpoint provenance and graph loading do not
@@ -76,7 +76,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   corrupt attachments; reject contradictory IDs and duplicate source pairings.
 - Bind inventory and grounded facts to the same retained source bytes, expose
   exclusion scope, validate frozen-region provenance, and diagnose unknown nested
-  fields and newer schemas rather than silently accepting them.
+  fields and newer schemas instead of silently accepting them.
 - Supervise RenderDoc work with terminating deadlines and bound regular-file
   payload reads; reject FIFOs, missing formats and incomplete resource identities.
 - Reject malformed geometry before expansion and periodic motion aliases; retain

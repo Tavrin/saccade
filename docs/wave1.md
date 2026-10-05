@@ -45,7 +45,7 @@ The detector reads and verifies the content-addressed report objects. It require
 qualified timing and repeat noise, a recorded comparison identity, a positive
 latency, and a distinct sample window. Hardware, driver, timer, configuration,
 statistic, aggregation and qualification changes create separate partitions.
-Older reports without the new identity field are explicitly excluded. Capture
+Older reports without the new identity field are excluded. Capture
 timestamps (numeric Unix time in `capture.timestamp`) order a complete partition.
 Otherwise the history store's append sequence orders the measurements. Equal
 capture timestamps retain append order. Report creation times and hashes never
@@ -106,8 +106,8 @@ u32 oriented triangle indices under the unit declaration. Different orderings
 or triangulations can have zero sampled distance but fail this identity proof.
 Document/buffer hashes separately identify input bytes; a UV-only change can
 change those hashes while geometric identity remains true. Materials, UVs,
-shading normals, textures and renderer appearance are explicitly outside the
-geometric proof. OBJ MTL and glTF image resources are not loaded.
+shading normals, textures and renderer appearance are outside the geometric
+proof. OBJ MTL and glTF image resources are not loaded.
 
 Each resource is limited to 64 MiB; glTF document and buffers share a 64 MiB
 aggregate limit. Meshes are limited to one million vertices and triangles.
@@ -116,7 +116,7 @@ remote URLs and symlinks escaping the mesh directory are rejected.
 
 ## Motion diagnostics
 
-Ordinary comparisons with diagnostics enabled now include `diagnostics.motion`.
+Ordinary comparisons with diagnostics enabled include `diagnostics.motion`.
 The portable report's Motion diagnostics section shows the same evidence.
 The existing `[diagnostics] shift_detection = false` setting excludes this work;
 disabling diagnostics omits it entirely. Missing historical fields mean unknown.
@@ -138,6 +138,6 @@ as appreciable movement. Only the configured original hotspots receive labels.
 
 The original unaligned FLIP map, thresholds, entry verdict and exit code remain
 authoritative. Moving content may itself be a regression. These labels support
-opaque SDR pairs; HDR and transparency are explicitly unsupported. Dense DIS
-flow, independent motion, interior disocclusion and field TAA qualification remain
-residuals. No OpenCV or learned model is added.
+opaque SDR pairs; HDR and transparency are not supported. Dense DIS flow,
+independent motion, interior disocclusion and field TAA qualification are not
+covered yet. No OpenCV or learned model is added.
