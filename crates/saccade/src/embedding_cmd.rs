@@ -354,7 +354,7 @@ mod enabled {
             .as_array()
             .ok_or_else(|| CliError::usage("missing hits"))?
             .iter()
-            .map(|h| json!({"source":h["row"],"cosine":h["cosine"],"band":null}))
+            .map(|h| json!({"row":h["row_index"],"source":h["row"],"cosine":h["cosine"],"band":null}))
             .collect();
         Ok(
             json!({"schema":e::QUERY_SCHEMA,"operation":"index_query","verdict":"unknown", "counts":{"indexed":metadata["rows"].as_array().map_or(0,Vec::len),"returned":results.len(),"index_errors":metadata["errors"].as_array().map_or(0,Vec::len)},"query_sha256":saccade_core::localized::digest(text.as_bytes()),"index_metadata_sha256":saccade_core::localized::digest(&metadata_bytes),"model_contract_sha256":model_id,"results":results,"limitations":["text retrieval is conditional on the pinned joint export and tokenizer","cosine bands are uncalibrated; no semantic accuracy or acceptance verdict","indexed file names are provenance; current image bytes are not revalidated"]}),

@@ -63,12 +63,20 @@ fn installed_joint_text_index_roundtrip() {
     assert!(crate::general::embedding::cosine(&a, &b).unwrap() < 0.999);
     assert_eq!(a, analyzer.embed_text("a red square").unwrap());
     let mut index = search::Index::new(analyzer.embedding_model().unwrap()).unwrap();
-    let image = image::RgbaImage::from_pixel(224, 224, image::Rgba([255, 0, 0, 255]));
-    let mut bytes = std::io::Cursor::new(Vec::new());
-    image.write_to(&mut bytes, image::ImageFormat::Png).unwrap();
-    index
-        .add_image(&analyzer, "generated-red.png", bytes.get_ref())
-        .unwrap();
+    for (name, color) in [
+        ("generated-red.png", [255, 0, 0, 255]),
+        ("generated-blue.png", [0, 0, 255, 255]),
+    ] {
+        let mut image = image::RgbaImage::from_pixel(224, 224, image::Rgba([255; 4]));
+        for y in 48..176 {
+            for x in 48..176 {
+                image.put_pixel(x, y, image::Rgba(color));
+            }
+        }
+        let mut bytes = std::io::Cursor::new(Vec::new());
+        image.write_to(&mut bytes, image::ImageFormat::Png).unwrap();
+        index.add_image(&analyzer, name, bytes.get_ref()).unwrap();
+    }
     let dir = tempfile::tempdir().unwrap();
     index.save(&dir.path().join("index")).unwrap();
     let loaded = search::Index::load(&dir.path().join("index")).unwrap();
@@ -77,6 +85,8 @@ fn installed_joint_text_index_roundtrip() {
     assert_eq!(hit["hits"][0]["row"]["path"], "generated-red.png");
     assert!(hit["hits"][0]["cosine"].as_f64().unwrap().is_finite());
     assert_eq!(hit["calibration"], "uncalibrated");
+    let blue = loaded.query_text(&analyzer, "a blue square", 1).unwrap();
+    assert_eq!(blue["hits"][0]["row"]["path"], "generated-blue.png");
     let mut changed = models::Registry::load(&PathBuf::from(
         std::env::var_os("SACCADE_W8_JOINT_REGISTRY").unwrap(),
     ))

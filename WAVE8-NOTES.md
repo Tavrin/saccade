@@ -175,3 +175,12 @@ inherited model accuracy/parity and Rust OCR qualification remain explicitly inc
   commands. Count increases by exactly three, and the same test now individually
   requires `analyze-media`, `keyframes`, and `find-usage`; old assertions remain.
   Full CLI/core gates use `--no-fail-fast` to collect every test target.
+- Existing development Python tooling did contain maturin 1.15.0; the local
+  abi3 x86_64 manylinux_2_39 wheel build passed. That venv lacked pip, so the
+  initial install/model collection failed. Created an integration-owned venv
+  from the existing tool packages and added pip 25.2; the original venv is intact.
+- First local Docker build and unprivileged loopback health smoke passed.
+- Strengthened the joint model proofs: two generated red/blue squares must be
+  retrieved by their respective text queries after index persistence, in both
+  Rust and the installed Python binding. This is a bounded constructed retrieval
+  check, not natural-image calibration.

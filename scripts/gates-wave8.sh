@@ -33,8 +33,8 @@ gate fmt cargo fmt --all -- --check
 gate docs python3 scripts/wave8/check-docs.py
 cargo_gate clippy clippy -j 4 -p saccade -p saccade-core --features "$features" --all-targets -- -D warnings
 cargo_gate python-clippy clippy -j 4 -p saccade-py --features models,http,python-tests --all-targets -- -D warnings
-cargo_gate core-tests test -j 4 -p saccade-core --features "$features"
-cargo_gate cli-tests test -j 4 -p saccade --features "$features"
+cargo_gate core-tests test --no-fail-fast -j 4 -p saccade-core --features "${features//,mcp/}"
+cargo_gate cli-tests test --no-fail-fast -j 4 -p saccade --features "$features"
 cargo_gate minimal-tests test -j 4 -p saccade-core --no-default-features
 # No model downloads unless this explicit gate provisions immutable wave 7 assets.
 export SACCADE_W8_MODEL_DIR="${SACCADE_W8_MODEL_DIR:-/mnt/linux-extra/saccade-models}"
@@ -46,11 +46,11 @@ gate face-model-pull "$CARGO_TARGET_DIR/debug/saccade" models pull yunet-2026may
 # Registry must contain the reviewed image embedding and Rust OCR exports; never guess pins.
 if test -n "${SACCADE_W8_REGISTRY:-}"; then
     export SACCADE_W8_REGISTRY
-    cargo_gate models test -j 4 -p saccade-core --features "$features" --lib media::heavy_tests::installed_media_sections_reuse_sessions -- --ignored
+    cargo_gate models test -j 4 -p saccade-core --features "${features//,mcp/}" --lib media::heavy_tests::installed_media_sections_reuse_sessions -- --ignored
 else
     printf 'GATE models FAIL (reviewed embedding/OCR registry required)\n'; failed=1
 fi
-cargo_gate ffmpeg test -j 4 -p saccade-core --features "$features" --lib media::video -- --ignored
+cargo_gate ffmpeg test -j 4 -p saccade-core --features "${features//,mcp/}" --lib media::video -- --ignored
 cargo_gate python-light test -j 4 -p saccade-py --features python-tests --test python_package -- --nocapture
 if "$SACCADE_W8_PYTHON" -c 'import maturin' >/dev/null 2>&1; then
 # Release/manylinux wheel construction is deliberately heavy and artifact-only.
@@ -83,7 +83,7 @@ fi
 # Qualification requires the reviewed installed joint registry, never fake vectors.
 if test -n "${SACCADE_W8_JOINT_REGISTRY:-}"; then
     export SACCADE_W8_JOINT_REGISTRY
-    cargo_gate text-image-model test -j 4 -p saccade-core --features "$features" --lib media::heavy_tests::installed_joint_text_index_roundtrip -- --ignored
+    cargo_gate text-image-model test -j 4 -p saccade-core --features "${features//,mcp/}" --lib media::heavy_tests::installed_joint_text_index_roundtrip -- --ignored
 else
     printf 'GATE text-image-model FAIL (pinned installed joint registry required; bands uncalibrated)\n'
     failed=1

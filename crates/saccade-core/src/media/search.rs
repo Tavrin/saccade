@@ -99,7 +99,7 @@ impl Index {
         hits.sort_by(|a, b| b.1.total_cmp(&a.1).then(a.0.cmp(&b.0)));
         hits.truncate(top);
         Ok(
-            json!({"schema":embedding::QUERY_SCHEMA,"query_kind":kind,"model_contract_sha256":self.model_id,"calibration":"uncalibrated","hits":hits.into_iter().map(|(id,cosine)|json!({"row":self.rows[id],"cosine":cosine,"band":null})).collect::<Vec<_>>()}),
+            json!({"schema":embedding::QUERY_SCHEMA,"query_kind":kind,"model_contract_sha256":self.model_id,"calibration":"uncalibrated","hits":hits.into_iter().map(|(id,cosine)|json!({"row":self.rows[id],"row_index":id,"cosine":cosine,"band":null})).collect::<Vec<_>>()}),
         )
     }
     /// Persist a new directory using the existing vectors.bin plus versioned metadata format.
