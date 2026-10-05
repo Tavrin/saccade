@@ -970,9 +970,17 @@ pub fn collect(decisions_dir: Option<&Path>, reports: &[PathBuf], out: &Path) ->
     Ok(set)
 }
 
+// Preserve historical object-key ordering even when optional dependencies enable
+// serde_json/preserve_order. Array order and numeric spelling remain unchanged.
+pub(crate) fn canonical_json(value: &Value) -> String {
+    let mut value = value.clone();
+    value.sort_all_objects();
+    value.to_string()
+}
+
 pub(crate) fn hash(value: &Value) -> String {
     use sha2::{Digest, Sha256};
-    let digest = Sha256::digest(value.to_string().as_bytes());
+    let digest = Sha256::digest(canonical_json(value).as_bytes());
     format!(
         "sha256:{}",
         digest
@@ -980,4 +988,23 @@ pub(crate) fn hash(value: &Value) -> String {
             .map(|b| format!("{b:02x}"))
             .collect::<String>()
     )
+}
+
+#[cfg(test)]
+#[allow(clippy::expect_used)]
+mod identity_tests {
+    #[test]
+    fn historical_hashes_ignore_object_insertion_order_but_keep_arrays() {
+        let a: serde_json::Value =
+            serde_json::from_str(r#"{"z":[{"z":3,"a":4},1],"a":2}"#).expect("JSON");
+        let b: serde_json::Value =
+            serde_json::from_str(r#"{"a":2,"z":[{"a":4,"z":3},1]}"#).expect("JSON");
+        let expected =
+            crate::evidence::canonical::Digest::of_bytes(br#"{"a":2,"z":[{"a":4,"z":3},1]}"#);
+        assert_eq!(super::hash(&a), expected.as_str());
+        assert_eq!(super::hash(&b), expected.as_str());
+        let reversed: serde_json::Value =
+            serde_json::from_str(r#"{"a":2,"z":[1,{"a":4,"z":3}]}"#).expect("JSON");
+        assert_ne!(super::hash(&reversed), expected.as_str());
+    }
 }
