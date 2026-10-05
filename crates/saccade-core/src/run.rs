@@ -1336,25 +1336,24 @@ fn fill_hdr_pair(
     if config.mask_mode == crate::compare::MaskMode::Neutralize
         && cap_img.width == base_img.width
         && cap_img.height == base_img.height
-    {
-        if let Some(mask) = crate::regions::mask_for(
+        && let Some(mask) = crate::regions::mask_for(
             &entry.name,
             cap_img.width,
             cap_img.height,
             &config.masks,
             config.config_dir.as_deref(),
-        )? {
-            for ((test, reference), excluded) in filtered_capture
-                .data
-                .as_chunks_mut::<3>()
-                .0
-                .iter_mut()
-                .zip(base_img.data.as_chunks::<3>().0.iter())
-                .zip(mask)
-            {
-                if excluded {
-                    test.copy_from_slice(reference);
-                }
+        )?
+    {
+        for ((test, reference), excluded) in filtered_capture
+            .data
+            .as_chunks_mut::<3>()
+            .0
+            .iter_mut()
+            .zip(base_img.data.as_chunks::<3>().0.iter())
+            .zip(mask)
+        {
+            if excluded {
+                test.copy_from_slice(reference);
             }
         }
     }

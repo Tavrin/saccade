@@ -87,11 +87,17 @@ fn help_lists_active_commands_and_watch_alias_stays_hidden() {
         .collect::<Vec<_>>();
     assert_eq!(
         top.len(),
-        30 + usize::from(cfg!(feature = "compression"))
+        36 + usize::from(cfg!(feature = "compression"))
             + 4 * usize::from(cfg!(feature = "products")),
         "{top:?}"
     );
     for name in [
+        "models",
+        "locate",
+        "quality-score",
+        "watermark",
+        "faces",
+        "crop-check",
         "capabilities",
         "inspect-image",
         "assess",

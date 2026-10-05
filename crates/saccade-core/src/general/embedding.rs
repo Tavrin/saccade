@@ -295,6 +295,15 @@ impl Engine {
         .map_err(|_| Error::Config("ONNX runtime inference failure".into()))?
     }
 }
+/// Read a historical model contract or its projection from the shared registry.
+pub fn parse_model(bytes: &[u8]) -> Result<Model> {
+    let value = crate::wave7::models::contract(bytes, MODEL_SCHEMA)
+        .map_err(|e| Error::Config(e.to_string()))?;
+    let model: Model = serde_json::from_value(value)?;
+    validate(&model)?;
+    Ok(model)
+}
+
 #[cfg(test)]
 #[allow(clippy::expect_used, clippy::unwrap_used)]
 mod tests {
@@ -329,13 +338,4 @@ mod tests {
         let b = engine.embed(&image).expect("embed");
         assert!(cosine(&a, &b).expect("cosine") > 0.99999);
     }
-}
-
-/// Read a historical model contract or its projection from the shared registry.
-pub fn parse_model(bytes: &[u8]) -> Result<Model> {
-    let value = crate::wave7::models::contract(bytes, MODEL_SCHEMA)
-        .map_err(|e| Error::Config(e.to_string()))?;
-    let model: Model = serde_json::from_value(value)?;
-    validate(&model)?;
-    Ok(model)
 }

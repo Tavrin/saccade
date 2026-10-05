@@ -575,6 +575,27 @@ pub fn ensure(model: &Model, cache: &Path, allow_download: bool) -> Result<Vec<P
     }
 }
 
+/// Project one typed wave 6 contract from the shared registry, rejecting ambiguity.
+pub fn contract(bytes: &[u8], schema: &str) -> Result<serde_json::Value> {
+    let value: serde_json::Value = serde_json::from_slice(bytes)?;
+    if value["schema"] != REGISTRY_SCHEMA {
+        return Ok(value);
+    }
+    let r: Registry = serde_json::from_value(value)?;
+    r.validate()?;
+    let matches: Vec<_> = r
+        .contracts
+        .values()
+        .filter(|v| v["schema"] == schema)
+        .collect();
+    if matches.len() != 1 {
+        return Err(VisionError::Invalid(
+            "registry needs exactly one matching contract".into(),
+        ));
+    }
+    Ok(matches[0].clone())
+}
+
 #[cfg(test)]
 #[allow(clippy::unwrap_used)]
 mod tests {
@@ -679,25 +700,4 @@ mod tests {
         std::fs::write(&p, b"1234").unwrap();
         assert!(read_bounded(&p, 3).is_err());
     }
-}
-
-/// Project one typed wave 6 contract from the shared registry, rejecting ambiguity.
-pub fn contract(bytes: &[u8], schema: &str) -> Result<serde_json::Value> {
-    let value: serde_json::Value = serde_json::from_slice(bytes)?;
-    if value["schema"] != REGISTRY_SCHEMA {
-        return Ok(value);
-    }
-    let r: Registry = serde_json::from_value(value)?;
-    r.validate()?;
-    let matches: Vec<_> = r
-        .contracts
-        .values()
-        .filter(|v| v["schema"] == schema)
-        .collect();
-    if matches.len() != 1 {
-        return Err(VisionError::Invalid(
-            "registry needs exactly one matching contract".into(),
-        ));
-    }
-    Ok(matches[0].clone())
 }
