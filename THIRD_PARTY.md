@@ -702,3 +702,17 @@ wheels. Existing image, hashing, FFT, XML and HTTP dependencies are reused uncha
 Wave 8 optional configured endpoint adapter reuses url **2.5.8** (MIT OR Apache-2.0), verified from its fetched Cargo manifest; no new model or native-runtime library is bundled.
 
 The existing libc **0.2.190** (MIT OR Apache-2.0, fetched manifest verified) is also used by core on Unix for safe `OpenOptionsExt` nonblocking flags; no unsafe code or linked native dependency is added.
+
+## Wave 8 joint image/text model integration
+
+Official `google/siglip2-base-patch16-224` revision
+`75de2d55ec2d0b4efc50b3e9ad70dba96a7b2fa2` declares Apache-2.0 in its
+[pinned model card](https://huggingface.co/google/siglip2-base-patch16-224/blob/75de2d55ec2d0b4efc50b3e9ad70dba96a7b2fa2/README.md).
+Checkpoint SHA-256 is `612923381c76ec5a9bed335d1c48827e3f2e506ac31b044b63b2031fadee6a0b`;
+tokenizer JSON is `cb9140fae3ac5122c972d37adf83e1248471a38147ad76f8215c8872c6fd8322`.
+The reproducible CPU exporter and fixed parity gate are
+`scripts/models/export-siglip2.py`. Image and float16-text ONNX exports are local
+cache artifacts, with their hashes recorded in the model disposition and export
+receipt; no weights/runtime are bundled in crates or wheels. Optional embeddings
+reuse the already recorded Apache-2.0 tokenizers 0.22.2 dependency. Retrieval bands
+remain uncalibrated.

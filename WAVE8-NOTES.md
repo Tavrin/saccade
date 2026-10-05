@@ -189,3 +189,10 @@ inherited model accuracy/parity and Rust OCR qualification remain explicitly inc
   `saccade-media-index-query.v1` schema and a generated schema-validation fixture.
   CLI `saccade-embedding-query.v1` and persisted index files are unchanged; compact
   `hits` fields are retained. Reversal cost: an explicit unreleased result ID.
+- Disk fell below 25 GiB after the all-features build completed. The release
+  script refused subsequent components, and the MSRV check refused before compiling.
+  The attempted stop found the build already exited; no signal was sent.
+- Retained the all-features CLI and tested joint Rust binary with SHA-256 receipts,
+  then removed only this lane's obsolete debug variants under the Cargo lock.
+  Cleanup receipt: free 29.21 -> 38.97 GiB (shared recovery occurred before cleanup).
+  No other target/cache was removed. Release-profile wheel cache remains available.
