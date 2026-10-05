@@ -46,3 +46,21 @@ measures the same policy independently of its frozen-region mode. This mode
 gates occupancy; it reports differences but imposes no implicit collateral or
 minimum-change threshold. Freeze a region and use the ordinary localized mode
 when exact collateral preservation is the claim.
+
+## Intended experiment variables
+
+`compare`/`prove identity` and experiment sequence/rank accept repeatable
+`--intended-variable 'env.FEATURE_*'` (comma-separated patterns also accepted).
+The config equivalent is `intended_variables = ["env.FEATURE_*", "binary.sha"]`.
+This needs no metadata enforcement flag. Before/after values, including
+unchanged or missing values, appear in `entry.intended_variables`; declared
+patterns appear in `config.meta.intended`. Every other key retains the existing
+validity rules. Required-key presence and explicit expected values still apply.
+Missing metadata stays unknown or invalid; a declaration supplies no provenance.
+
+Ablation accepts those global patterns and repeatable
+`--arm-variable 'variant=env.FEATURE_A'`. Config can use
+`[arm_variables]` with `variant = ["env.FEATURE_A"]`. Arm declarations only
+apply to that label. Each arm records `intended_keys` and `intended_variables`
+separately from `config_differs`. MCP compare uses `intended_variables` and
+supports config declarations for experiments.

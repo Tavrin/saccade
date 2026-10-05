@@ -158,6 +158,12 @@ impl PerfArgs {
 #[derive(Args)]
 #[cfg(feature = "graphics")]
 pub(crate) struct AblateArgs {
+    /// Intended metadata variable for every arm.
+    #[arg(long = "intended-variable", value_delimiter = ',')]
+    intended_variables: Vec<String>,
+    /// Arm-specific variable, LABEL=KEY (repeatable; KEY may be a glob).
+    #[arg(long = "arm-variable")]
+    arm_variables: Vec<String>,
     base: Option<PathBuf>,
     arms: Vec<PathBuf>,
     /// Base repeat directories. Accepts a directory or a quoted glob; repeatable.
@@ -181,6 +187,17 @@ pub(crate) struct AblateArgs {
 #[cfg(feature = "graphics")]
 pub(crate) fn ablate(args: AblateArgs, absolute: bool) -> Result<u8, CliError> {
     let mut cfg = crate::load_config(args.config.as_deref())?;
+    cfg.meta.intended.extend(args.intended_variables);
+    for spec in args.arm_variables {
+        let (label, key) = spec
+            .split_once('=')
+            .filter(|(l, k)| !l.is_empty() && !k.is_empty())
+            .ok_or_else(|| CliError::usage("--arm-variable requires LABEL=KEY"))?;
+        cfg.arm_variables
+            .entry(label.into())
+            .or_default()
+            .push(key.into());
+    }
     cfg.record_absolute_paths = absolute;
     args.perf.apply(&mut cfg.perf)?;
     let model = if args.repeat_bases.is_empty() && args.repeat_arms.is_empty() {
@@ -226,7 +243,7 @@ pub(crate) fn ablate(args: AblateArgs, absolute: bool) -> Result<u8, CliError> {
     if args.json {
         let mut value =
             crate::local_cmd::analysis_result(&serde_json::to_value(&model)?, &args.out)?;
-        value["data"] = serde_json::json!({"base_repeat_count":model.base_repeats.len(),"excluded_base_repeats":model.excluded_base_repeats,"base_stable":model.base_stability.as_ref().map(|s|s.stable),"repeat_qualification":model.repeat_qualification,"repeat_reasons":model.repeat_reasons.iter().filter(|r|r.contains("configuration_hash") || r.contains("not comparable")).take(5).collect::<Vec<_>>(),"arms":model.arms.iter().map(|arm| serde_json::json!({"label":arm.label,"flag":arm.flag,"repeat_count":arm.repeats.len(),"stable":arm.repeat_stability.as_ref().map(|s|s.stable),"max_flip_by_image":arm.repeat_stability.as_ref().map(|s|&s.max_flip_by_image),"validity_findings":arm.validity_findings,"next_actions":arm.next_actions,"excluded_repeats":arm.excluded_repeats,"reasons":arm.perf_diff.as_ref().map(|d|d.qualification_reasons.iter().filter(|r|r.contains("configuration_hash") || r.contains("gpu clock")).take(3).collect::<Vec<_>>()).unwrap_or_default(),"comparability":arm.perf_diff.as_ref().map(|d|d.comparability),"noise_comparability":arm.perf_diff.as_ref().map(|d|d.noise_comparability)})).collect::<Vec<_>>()});
+        value["data"] = serde_json::json!({"base_repeat_count":model.base_repeats.len(),"excluded_base_repeats":model.excluded_base_repeats,"base_stable":model.base_stability.as_ref().map(|s|s.stable),"repeat_qualification":model.repeat_qualification,"repeat_reasons":model.repeat_reasons.iter().filter(|r|r.contains("configuration_hash") || r.contains("not comparable")).take(5).collect::<Vec<_>>(),"arms":model.arms.iter().map(|arm| serde_json::json!({"label":arm.label,"intended_keys":arm.intended_keys,"intended_variables":arm.intended_variables,"flag":arm.flag,"repeat_count":arm.repeats.len(),"stable":arm.repeat_stability.as_ref().map(|s|s.stable),"max_flip_by_image":arm.repeat_stability.as_ref().map(|s|&s.max_flip_by_image),"validity_findings":arm.validity_findings,"next_actions":arm.next_actions,"excluded_repeats":arm.excluded_repeats,"reasons":arm.perf_diff.as_ref().map(|d|d.qualification_reasons.iter().filter(|r|r.contains("configuration_hash") || r.contains("gpu clock")).take(3).collect::<Vec<_>>()).unwrap_or_default(),"comparability":arm.perf_diff.as_ref().map(|d|d.comparability),"noise_comparability":arm.perf_diff.as_ref().map(|d|d.noise_comparability)})).collect::<Vec<_>>()});
         if model.arms.iter().any(|a| !a.validity_findings.is_empty()) {
             value["validity"] = serde_json::json!("invalid");
             value["validity_reasons"] =

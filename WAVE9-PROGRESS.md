@@ -1,6 +1,6 @@
 # Wave 9 progress
-9.1 done; commit recorded below; required-effect coverage/typed failure, compare + localized + intent
-9.2 pending
+9.1 done dadda62; required-effect coverage/typed failure, compare + localized + intent
+9.2 done; commit recorded below; intended keys/values and arm-specific declarations
 9.3 pending
 9.4 pending
 9.5 pending

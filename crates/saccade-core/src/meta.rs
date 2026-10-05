@@ -108,6 +108,8 @@ pub struct DeclaredChange {
 /// Sidecar settings for a run or a view.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct MetaOptions {
+    /// Intended experiment variables, exact keys or globs, kept separately.
+    pub intended: Vec<String>,
     /// Sidecar file name; the per-image sidecar is `<stem>.<name>`.
     pub name: String,
     /// Whether an undeclared differing key is an error (`compare`/`identity`).
@@ -125,6 +127,7 @@ pub struct MetaOptions {
 impl Default for MetaOptions {
     fn default() -> Self {
         Self {
+            intended: Vec::new(),
             name: DEFAULT_META_NAME.to_owned(),
             required: false,
             declared: Vec::new(),
@@ -195,6 +198,7 @@ pub fn same_capture(a: &BTreeMap<String, String>, b: &BTreeMap<String, String>) 
 
 /// [`MetaOptions`] with its globs compiled.
 pub struct MetaChecker {
+    intended_globs: Vec<GlobMatcher>,
     name: String,
     required: bool,
     declared: Vec<String>,
@@ -207,6 +211,7 @@ pub struct MetaChecker {
 
 /// Checked metadata, including differences that were permitted or ignored.
 pub(crate) struct CheckedMeta {
+    pub intended: Vec<MetaDiff>,
     pub diff: Vec<MetaDiff>,
     pub ignored: Vec<MetaDiff>,
     pub unchanged: Vec<String>,
@@ -264,6 +269,11 @@ impl MetaOptions {
             .map(|g| compile_glob(g))
             .collect::<Result<Vec<_>>>()?;
         Ok(MetaChecker {
+            intended_globs: self
+                .intended
+                .iter()
+                .map(|g| compile_glob(g))
+                .collect::<Result<Vec<_>>>()?,
             name: self.name.clone(),
             required: self.required || proof,
             declared: self.declared.clone(),
@@ -272,6 +282,7 @@ impl MetaOptions {
             required_keys: self.required_keys.clone(),
             changes: self.changes.clone(),
             settings: MetaSettings {
+                intended: self.intended.clone(),
                 name: self.name.clone(),
                 required: self.required || proof,
                 declared: self.declared.clone(),
@@ -368,8 +379,13 @@ impl MetaChecker {
             && self.ignore.iter().any(|g| g.is_match(key))
     }
 
+    fn is_intended(&self, key: &str) -> bool {
+        self.intended_globs.iter().any(|g| g.is_match(key))
+    }
+
     fn is_declared(&self, key: &str) -> bool {
-        self.declared.iter().any(|d| d == key)
+        self.is_intended(key)
+            || self.declared.iter().any(|d| d == key)
             || self.declared_globs.iter().any(|g| g.is_match(key))
             || self.changes.iter().any(|c| c.key == key)
     }
@@ -467,7 +483,21 @@ impl MetaChecker {
         let c = self
             .load(cap_root, cap_name)
             .map_err(|e| format!("capture sidecar: {e}"))?;
-        let (diff, ignored) = self.diff_split(b.as_ref(), c.as_ref());
+        let empty = Meta::new();
+        let (bm, cm) = (b.as_ref().unwrap_or(&empty), c.as_ref().unwrap_or(&empty));
+        let keys: BTreeSet<_> = bm.keys().chain(cm.keys()).collect();
+        let intended = keys
+            .into_iter()
+            .filter(|k| self.is_intended(k))
+            .map(|k| MetaDiff {
+                key: k.clone(),
+                baseline: bm.get(k).map_or_else(|| ABSENT.into(), render),
+                capture: cm.get(k).map_or_else(|| ABSENT.into(), render),
+            })
+            .collect();
+        let (mut diff, mut ignored) = self.diff_split(b.as_ref(), c.as_ref());
+        diff.retain(|d| !self.is_intended(&d.key));
+        ignored.retain(|d| !self.is_intended(&d.key));
         let bad = self.violations(&diff);
         let mut reasons = Vec::new();
         if !bad.is_empty() {
@@ -540,6 +570,7 @@ impl MetaChecker {
         }
         let failure = (status == Validity::Invalid).then(|| reasons.join("; "));
         Ok(CheckedMeta {
+            intended,
             diff,
             ignored,
             unchanged,
@@ -551,5 +582,81 @@ impl MetaChecker {
     /// The settings as recorded in the report.
     pub fn settings(&self) -> MetaSettings {
         self.settings.clone()
+    }
+}
+
+#[cfg(test)]
+mod wave9_tests {
+    use super::*;
+    #[test]
+    fn intended_globs_are_separate_and_unexplained_keys_still_fail() {
+        let tmp = tempfile::tempdir().unwrap();
+        let b = tmp.path().join("b");
+        let c = tmp.path().join("c");
+        std::fs::create_dir(&b).unwrap();
+        std::fs::create_dir(&c).unwrap();
+        std::fs::write(
+            b.join(DEFAULT_META_NAME),
+            r#"{"env.FEATURE_A":false,"binary.sha":"a","camera":1,"env.FEATURE_B":true}"#,
+        )
+        .unwrap();
+        std::fs::write(
+            c.join(DEFAULT_META_NAME),
+            r#"{"env.FEATURE_A":true,"binary.sha":"b","camera":1,"env.FEATURE_B":true}"#,
+        )
+        .unwrap();
+        let options = MetaOptions {
+            intended: vec!["env.FEATURE_*".into(), "binary.sha".into()],
+            required: true,
+            ..Default::default()
+        };
+        let checker = options.checker().unwrap();
+        let checked = checker.check_named(&b, "a.png", &c, "a.png").unwrap();
+        assert_eq!(checked.validity.status, Validity::Valid);
+        assert!(checked.diff.is_empty());
+        assert_eq!(checked.intended.len(), 3);
+        assert!(
+            checked
+                .intended
+                .iter()
+                .any(|d| d.key == "env.FEATURE_B" && d.baseline == d.capture)
+        );
+        std::fs::write(
+            c.join(DEFAULT_META_NAME),
+            r#"{"env.FEATURE_A":true,"binary.sha":"b","camera":2}"#,
+        )
+        .unwrap();
+        let checked = checker.check_named(&b, "a.png", &c, "a.png").unwrap();
+        assert_eq!(checked.validity.status, Validity::Invalid);
+        assert_eq!(checked.diff[0].key, "camera");
+        assert!(
+            checked
+                .intended
+                .iter()
+                .any(|d| d.key == "env.FEATURE_B" && d.capture == ABSENT)
+        );
+    }
+    #[test]
+    fn intended_variables_do_not_override_expected_values_or_required_presence() {
+        let tmp = tempfile::tempdir().unwrap();
+        std::fs::write(tmp.path().join(DEFAULT_META_NAME), r#"{"binary.sha":"a"}"#).unwrap();
+        let opts = MetaOptions {
+            intended: vec!["binary.sha".into()],
+            required_keys: vec!["camera".into()],
+            changes: vec![DeclaredChange {
+                key: "binary.sha".into(),
+                reason: "expected build".into(),
+                before: None,
+                after: Some(Value::String("b".into())),
+            }],
+            ..Default::default()
+        };
+        let r = opts
+            .checker()
+            .unwrap()
+            .check_named(tmp.path(), "a.png", tmp.path(), "a.png")
+            .unwrap();
+        assert_eq!(r.validity.status, Validity::Invalid);
+        assert!(r.validity.reasons.len() >= 3);
     }
 }

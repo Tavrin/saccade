@@ -39,6 +39,12 @@ pub fn combined(entries: &[Entry], perf: &PerfDiff) -> String {
 #[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct Arm {
+    /// Intended keys and observed values, distinct from undeclared configuration differences.
+    #[serde(default)]
+    pub intended_variables: Vec<crate::report::MetaDiff>,
+    /// Intended-variable patterns for this arm.
+    #[serde(default)]
+    pub intended_keys: Vec<String>,
     pub label: String,
     pub path: String,
     pub image_verdict: String,
@@ -115,6 +121,12 @@ impl Arm {
             .into_iter()
             .collect();
         Self {
+            intended_variables: report
+                .entries
+                .iter()
+                .flat_map(|e| e.intended_variables.clone())
+                .collect(),
+            intended_keys: report.config.meta.intended.clone(),
             label,
             path,
             report_html,
@@ -490,7 +502,16 @@ pub fn run_repeats(
         accepted.iter().zip(arms.iter().zip(labels)).enumerate()
     {
         let dir = format!("arm-{}", i + 1);
-        let report = crate::run::run(base, arm, &out.join(&dir), &effective)?;
+        let mut arm_config = effective.clone();
+        let label = if declared.is_empty() {
+            &fallback
+        } else {
+            declared
+        };
+        if let Some(keys) = cfg.arm_variables.get(label) {
+            arm_config.meta.intended.extend(keys.iter().cloned());
+        }
+        let report = crate::run::run(base, arm, &out.join(&dir), &arm_config)?;
         let mut row = Arm::from_report(
             if declared.is_empty() {
                 fallback

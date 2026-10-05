@@ -118,6 +118,9 @@ fn default_true() -> bool {
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct MetaSettings {
+    /// Declared intended-variable patterns.
+    #[serde(default)]
+    pub intended: Vec<String>,
     /// Project capture contract; empty means no proof profile was supplied.
     #[serde(default)]
     pub required_keys: Vec<String>,
@@ -137,6 +140,7 @@ pub struct MetaSettings {
 impl Default for MetaSettings {
     fn default() -> Self {
         Self {
+            intended: Vec::new(),
             required_keys: Vec::new(),
             changes: Vec::new(),
             name: crate::meta::DEFAULT_META_NAME.to_owned(),
@@ -285,6 +289,9 @@ pub enum Metric {
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct Entry {
+    /// Intended metadata variables with before/after values, including unchanged keys.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub intended_variables: Vec<MetaDiff>,
     /// Opt-in effect occupancy and region measurements (wave9).
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub required_effects: Vec<crate::evidence_quality::effect::EffectResult>,

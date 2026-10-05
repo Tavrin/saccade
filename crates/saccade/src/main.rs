@@ -169,6 +169,9 @@ struct MetaArgs {
 #[derive(clap::Args, Clone, Default)]
 #[command(next_help_heading = "Metadata sidecars")]
 struct MetaRequireArgs {
+    /// Intended experiment metadata variables (exact keys or globs).
+    #[arg(long = "intended-variable", value_delimiter = ',')]
+    intended_variables: Vec<String>,
     /// Make an entry an error when a sidecar key differs and is not declared.
     #[arg(long)]
     require_matching_meta: bool,
@@ -193,6 +196,7 @@ impl MetaArgs {
 
 impl MetaRequireArgs {
     fn apply(&self, meta: &mut saccade_core::meta::MetaOptions) {
+        meta.intended.extend(self.intended_variables.iter().cloned());
         meta.required |= self.require_matching_meta;
         meta.declared.extend(self.declare.iter().cloned());
     }

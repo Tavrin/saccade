@@ -370,23 +370,15 @@ pub fn run_sequence(
             &local,
         );
         if let (Some(b), Some(c)) = (b, c) {
-            let checked = (|| {
-                let (bm, cm) = (meta.load(baseline, &b.name)?, meta.load(capture, &c.name)?);
-                let (diff, ignored) = meta.diff_split(bm.as_ref(), cm.as_ref());
-                let bad = meta.violations(&diff);
-                let error = (!bad.is_empty()).then(|| {
-                    format!(
-                        "configuration differs on undeclared keys: {}",
-                        bad.join(", ")
-                    )
-                });
-                Ok::<_, String>((diff, ignored, error))
-            })();
+            let checked = meta.check_named(baseline, &b.name, capture, &c.name);
             let failure = match checked {
-                Ok((diff, ignored, failure)) => {
-                    entry.meta_diff = diff;
-                    entry.meta_ignored_diff = ignored;
-                    failure
+                Ok(checked) => {
+                    entry.meta_diff = checked.diff;
+                    entry.meta_ignored_diff = checked.ignored;
+                    entry.intended_variables = checked.intended;
+                    entry.meta_declared_unchanged = checked.unchanged;
+                    entry.capture_validity = checked.validity;
+                    checked.failure
                 }
                 Err(e) => Some(e),
             };

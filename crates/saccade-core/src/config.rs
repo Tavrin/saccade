@@ -23,6 +23,8 @@ pub struct Override {
 /// Settings for [`crate::run::run`].
 #[derive(Debug, Clone, PartialEq)]
 pub struct RunConfig {
+    /// Additional intended-variable patterns per ablation label.
+    pub arm_variables: std::collections::BTreeMap<String, Vec<String>>,
     /// Required effect occupancy gates (wave9).
     pub required_effect: Vec<crate::evidence_quality::effect::RequiredEffect>,
     /// Per-effect declaration directories, keyed by effect name.
@@ -98,6 +100,7 @@ pub struct RunConfig {
 impl Default for RunConfig {
     fn default() -> Self {
         Self {
+            arm_variables: Default::default(),
             required_effect: Vec::new(),
             effect_roots: Default::default(),
             default_threshold: 0.01,
@@ -139,6 +142,10 @@ impl Default for RunConfig {
 #[derive(Deserialize)]
 #[serde(deny_unknown_fields)]
 struct FileConfig {
+    #[serde(default)]
+    intended_variables: Vec<String>,
+    #[serde(default)]
+    arm_variables: std::collections::BTreeMap<String, Vec<String>>,
     #[serde(default)]
     required_effect: Vec<crate::evidence_quality::effect::RequiredEffect>,
     capture: Option<FileCapture>,
@@ -286,6 +293,8 @@ impl RunConfig {
             explicit_tolerances: file.threshold.is_some() || file.metric.is_some(),
             ..Self::default()
         };
+        cfg.meta.intended = file.intended_variables;
+        cfg.arm_variables = file.arm_variables;
         cfg.required_effect = file.required_effect;
         cfg.brand = file.brand.unwrap_or_default();
         if let Some(capture) = file.capture {
@@ -484,6 +493,11 @@ impl RunConfig {
         self.hdr.validate()?;
         self.diagnostics.validate()?;
         self.meta.checker()?;
+        for patterns in self.arm_variables.values() {
+            for pattern in patterns {
+                compile_glob(pattern)?;
+            }
+        }
         for g in self.ignore.iter().chain(&self.entries) {
             compile_glob(g)?;
         }

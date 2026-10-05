@@ -726,6 +726,7 @@ fn apply_meta(
         .collect();
     let failure = match meta.check_named(baseline_dir, baseline_name, capture_dir, &entry.name) {
         Ok(checked) => {
+            entry.intended_variables = checked.intended;
             entry.meta_diff = checked.diff;
             entry.meta_ignored_diff = checked.ignored;
             entry.meta_declared_unchanged = checked.unchanged;
@@ -859,6 +860,7 @@ pub(crate) fn build_entry(
 ) -> Entry {
     let (metric_used, threshold) = config.effective_for(name);
     let mut entry = Entry {
+        intended_variables: Vec::new(),
         required_effects: Vec::new(),
         name: name.to_string(),
         status: Status::Error,

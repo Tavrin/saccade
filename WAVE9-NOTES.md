@@ -6,3 +6,5 @@
 - Threshold calibration uses generated fixtures only. The supplied six-case manual review is held out. Include detail-energy ratio and absolute/relative shifted-tile share; c8's sparse bias is darker. No project images or crops enter the repository.
 
 9.1 light evidence: cargo check saccade --features graphics passed; 3 targeted effect tests passed (including zero occupancy with measured FLIP 0, independent sides, disappearance). Logs: /mnt/linux-extra/moss-scratch/saccade-wave9/{check-9.1,test-9.1}.log. No new dependencies.
+
+9.2: reuse declaration/glob compilation but split intended values from retained/ignored differences. Required presence and explicit expected values remain enforced. Arm variables bind exact labels. Rejected: blanket ignoring metadata or inferring interventions from observed differences. Reversal cost: additive field/flag removal. cargo check (graphics,mcp) and 2 targeted metadata regressions passed.
