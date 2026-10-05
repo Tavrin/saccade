@@ -124,12 +124,14 @@ The last three names appear only when the corresponding feature is compiled in.
 - [saccade-decide-result.v1.schema.json](../crates/saccade-core/schemas/saccade-decide-result.v1.schema.json) — saccade-decide-result.v1
 - [saccade-decision-request.v1.schema.json](../crates/saccade-core/schemas/saccade-decision-request.v1.schema.json) — saccade-decision-request.v1
 - [saccade-decisions.v1.schema.json](../crates/saccade-core/schemas/saccade-decisions.v1.schema.json) — Decisions
+- [saccade-dom-regions.v1.schema.json](../crates/saccade-core/schemas/saccade-dom-regions.v1.schema.json) — DomMetadata
 - [saccade-entries.v1.schema.json](../crates/saccade-core/schemas/saccade-entries.v1.schema.json) — EntriesPage
 - [saccade-error.v1.schema.json](../crates/saccade-core/schemas/saccade-error.v1.schema.json) — saccade-error.v1
 - [saccade-evidence.v1.schema.json](../crates/saccade-core/schemas/saccade-evidence.v1.schema.json) — Document
 - [saccade-explain-blind-key.v1.schema.json](../crates/saccade-core/schemas/saccade-explain-blind-key.v1.schema.json) — ExplainBlindKey
 - [saccade-explain-result.v1.schema.json](../crates/saccade-core/schemas/saccade-explain-result.v1.schema.json) — saccade-explain-result.v1
 - [saccade-explain.v1.schema.json](../crates/saccade-core/schemas/saccade-explain.v1.schema.json) — ExplainPack
+- [saccade-frozen-region.v1.schema.json](../crates/saccade-core/schemas/saccade-frozen-region.v1.schema.json) — FrozenRegion
 - [saccade-geometry.v1.schema.json](../crates/saccade-core/schemas/saccade-geometry.v1.schema.json) — Document
 - [saccade-gpu-clock.v1.schema.json](../crates/saccade-core/schemas/saccade-gpu-clock.v1.schema.json) — GpuClock
 - [saccade-inbox-item.v1.schema.json](../crates/saccade-core/schemas/saccade-inbox-item.v1.schema.json) — Item
@@ -142,6 +144,7 @@ The last three names appear only when the corresponding feature is compiled in.
 - [saccade-judge.v1.schema.json](../crates/saccade-core/schemas/saccade-judge.v1.schema.json) — Historical reader contract
 - [saccade-labels.v1.schema.json](../crates/saccade-core/schemas/saccade-labels.v1.schema.json) — Labels
 - [saccade-labels.v2.schema.json](../crates/saccade-core/schemas/saccade-labels.v2.schema.json) — Labels
+- [saccade-localized.v1.schema.json](../crates/saccade-core/schemas/saccade-localized.v1.schema.json) — Measurement
 - [saccade-noise.v1.schema.json](../crates/saccade-core/schemas/saccade-noise.v1.schema.json) — NoiseReport
 - [saccade-onset.v1.schema.json](../crates/saccade-core/schemas/saccade-onset.v1.schema.json) — Document
 - [saccade-perf-diff.v1.schema.json](../crates/saccade-core/schemas/saccade-perf-diff.v1.schema.json) — PerfDiff

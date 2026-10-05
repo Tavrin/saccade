@@ -56,3 +56,24 @@ saccade inventory --manifest suite.json --report report/saccade-report.v1.json -
 Producer states are `captured`, `missing`, `unusable`, `stale`, `skipped`, and `quarantined`. Use null entry/hash when there is no artifact. Stable IDs survive filename changes; hashes bind the actual capture to its comparison. Missing, skipped or quarantined required cases prevent complete coverage. Equal bytes across two named cases do not establish equivalence. The JSON accounts for every expected case; a failed image measurement is still a compared case.
 
 The Playwright reporter now inventories every test from `onBegin`, including passed tests without attachments. To compare passing snapshots, attach both expected and actual images with role-suffixed attachment names, for example `article-expected` and `article-actual`. Quarantine annotations remain visible. Retry attempts remain duplicate identities. `saccade ingest playwright manifest.json --out suite-report` writes `inventory.json` as well as the usual comparison and returns 1 for incomplete required coverage. Older manifests lack suite coverage evidence. For multiple predeclared page states, supply a generic suite manifest.
+
+## Localized changes
+
+```sh
+saccade localized-check reference.png candidate.png --box 80,120,300,200 --out localized-report --json
+saccade localized-check reference.png candidate.png --mask inclusion.png --out masked-report
+saccade localized-check reference.png candidate.png --selector 'main .card' --metadata dom.json --out selector-report
+```
+
+Masks are binary grayscale PNGs, with 255 inside and 0 outside. Both the intended region and complement must contain pixels. The command writes `frozen-region.json` before measuring and `localized.json` with complete evidence. Use `--region frozen-region.json` to reproduce the scope. Exact native outside preservation is the default; `--perceptual-outside --maximum-outside-flip 0.01 --ppd 67` declares a different complement policy. Exit 1 means collateral change or missing intended spatial change. No result establishes semantic success of the edit. HDR/float inputs are unsupported.
+
+DOM metadata is supplied by the capture producer:
+
+```json
+{
+  "schema": "saccade-dom-regions.v1", "reference_sha256": "LOWERCASE_FILE_HASH", "dimensions": [800, 600],
+  "selectors": [{"selector": "main .card", "boxes": [[80, 120, 300, 200]]}]
+}
+```
+
+Bind geometry to the reference screenshot bytes, accounting for scroll, screenshot crop and device scale. A missing or multiply matched selector is unmeasurable. For Playwright, attach this JSON as `saccade-dom-regions-0` (body or path); the reporter adds `dom_regions`, and ingest retains it in `dom-regions/0000.json`. Use the ingested baseline PNG and that metadata with `localized-check`. The reference region is retained even if the candidate object disappears. Configuration masks cannot hide collateral from this diagnostic.

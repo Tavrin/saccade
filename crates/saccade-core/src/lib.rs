@@ -40,6 +40,7 @@ pub mod judge_stats;
 pub mod judge_vote;
 pub mod labels;
 pub mod local;
+pub mod localized;
 pub mod meta;
 pub mod object_ids;
 pub mod onset;

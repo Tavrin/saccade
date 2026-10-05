@@ -24,6 +24,7 @@ mod history;
 mod ingest;
 mod inventory_cmd;
 mod local_cmd;
+mod localized_cmd;
 #[cfg(feature = "compression")]
 mod quality_cmd;
 #[cfg(feature = "ai")]
@@ -187,6 +188,8 @@ impl From<MetricArg> for Metric {
 
 #[derive(Subcommand)]
 enum Command {
+    /// Measure intended-region, boundary and protected-complement changes independently.
+    LocalizedCheck(localized_cmd::Args),
     /// Reconcile expected and supplied stable capture cases against a comparison report.
     Inventory(inventory_cmd::Args),
     /// Measure externally encoded quality candidates under a frozen score and byte budget.
@@ -1007,6 +1010,7 @@ fn dispatch(command: Command, record_absolute_paths: bool) -> Result<u8, CliErro
             operation: ExperimentOperation::Geometry(args),
         } => geometry_cmd::compare(args),
         Command::History(args) => history::run(args),
+        Command::LocalizedCheck(args) => localized_cmd::run(args),
         Command::Inventory(args) => inventory_cmd::run(args),
         #[cfg(feature = "compression")]
         Command::QualitySweep(args) => quality_cmd::run(args),

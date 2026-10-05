@@ -1,0 +1,73 @@
+{
+  "$defs": {
+    "SelectorGeometry": {
+      "additionalProperties": false,
+      "description": "Geometry supplied by a DOM capture producer for one selector.",
+      "properties": {
+        "boxes": {
+          "description": "Capture-pixel boxes [x,y,width,height], after scroll/device-scale conversion.",
+          "items": {
+            "items": {
+              "format": "uint32",
+              "minimum": 0,
+              "type": "integer"
+            },
+            "maxItems": 4,
+            "minItems": 4,
+            "type": "array"
+          },
+          "type": "array"
+        },
+        "selector": {
+          "description": "Selector exactly as resolved by the producer.",
+          "type": "string"
+        }
+      },
+      "required": [
+        "selector",
+        "boxes"
+      ],
+      "type": "object"
+    }
+  },
+  "$id": "https://github.com/Tavrin/saccade/crates/saccade-core/schemas/saccade-dom-regions.v1.schema.json",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "description": "Capture-bound DOM geometry. Empty matches remain missing evidence.",
+  "properties": {
+    "dimensions": {
+      "description": "Screenshot pixel dimensions.",
+      "items": {
+        "format": "uint32",
+        "minimum": 0,
+        "type": "integer"
+      },
+      "maxItems": 2,
+      "minItems": 2,
+      "type": "array"
+    },
+    "reference_sha256": {
+      "description": "SHA-256 of the reference screenshot bytes.",
+      "type": "string"
+    },
+    "schema": {
+      "description": "saccade-dom-regions.v1.",
+      "type": "string"
+    },
+    "selectors": {
+      "description": "Producer-resolved selectors.",
+      "items": {
+        "$ref": "#/$defs/SelectorGeometry"
+      },
+      "type": "array"
+    }
+  },
+  "required": [
+    "schema",
+    "reference_sha256",
+    "dimensions",
+    "selectors"
+  ],
+  "title": "DomMetadata",
+  "type": "object"
+}

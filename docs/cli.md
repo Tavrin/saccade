@@ -20,11 +20,12 @@ Tell when visual or performance evidence is not good enough to support a claim
 Usage: saccade [OPTIONS] <COMMAND>
 
 Commands:
-  compare        Compare a directory of captures against a directory of baselines
-  inventory      Reconcile expected and supplied stable capture cases against a comparison report
-  prove          Check whether image identity or performance evidence proves a claim
-  quality-sweep  Measure externally encoded quality candidates under a frozen score and byte budget
-  review         Preview a review plan or handle a local closed decision request
+  compare          Compare a directory of captures against a directory of baselines
+  localized-check  Measure intended-region, boundary and protected-complement changes independently
+  prove            Check whether image identity or performance evidence proves a claim
+  inventory        Reconcile expected and supplied stable capture cases against a comparison report
+  review           Preview a review plan or handle a local closed decision request
+  quality-sweep    Measure externally encoded quality candidates under a frozen score and byte budget
 
 Options:
   -h, --help     Print help
@@ -44,6 +45,46 @@ Start here:
 Exit codes: 0 no image regression, 1 image regression found, 2 the command could not run.
 Advanced: demo, identity, noise, view, inspect, experiment, approve, init,
 serve, mcp, ingest, bisect, history, doctor. Existing commands keep working; use `saccade COMMAND --help`.
+```
+
+## saccade localized-check
+
+```text
+Measure intended-region, boundary and protected-complement changes independently
+
+Usage: saccade localized-check [OPTIONS] --out <OUT> <--box <BBOX>|--mask <MASK>|--selector <SELECTOR>|--region <REGION>> <REFERENCE> <CANDIDATE>
+
+Arguments:
+  <REFERENCE>  Reference screenshot, retaining the intended region if candidate content disappears
+  <CANDIDATE>
+
+Options:
+      --box <BBOX>
+          Pixel box x,y,width,height
+      --mask <MASK>
+          Binary grayscale inclusion PNG: 255 inside, 0 outside
+      --selector <SELECTOR>
+          Exact selector from producer metadata; one match required
+      --metadata <METADATA>
+          Capture-bound DOM geometry JSON
+      --region <REGION>
+          Previously frozen inclusion-region JSON
+      --out <OUT>
+          New directory for the frozen region and measurements
+      --perceptual-outside
+          Use maximum full-frame complement FLIP instead of exact native preservation
+      --maximum-outside-flip <MAXIMUM_OUTSIDE_FLIP>
+          [default: 0.01]
+      --ppd <PPD>
+          [default: 67]
+      --json
+
+  -h, --help
+          Print help
+
+Global options:
+      --allow-out-near-captures  Silence warnings when --out is next to capture metadata
+      --record-absolute-paths    Opt in to absolute local paths in reports and machine-readable output
 ```
 
 ## saccade inventory

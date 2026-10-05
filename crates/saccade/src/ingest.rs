@@ -99,6 +99,8 @@ struct Snapshot {
     test_id: String,
     #[serde(default)]
     case_id: Option<String>,
+    #[serde(default)]
+    dom_regions: Option<saccade_core::localized::DomMetadata>,
     project: String,
     browser: String,
     viewport: Option<[u32; 2]>,
@@ -247,6 +249,25 @@ pub(crate) fn run(args: IngestArgs, absolute: bool) -> Result<u8, CliError> {
                 if let Some(diff) = diff {
                     copy_image(diff, &diffs.join(&name))?;
                 }
+                if let Some(metadata) = &entry.dom_regions {
+                    let expected_hash = saccade_core::run::sha256_file(expected)?;
+                    let (w, h) = image::image_dimensions(expected)
+                        .map_err(|e| CliError::usage(e.to_string()))?;
+                    if metadata.schema != "saccade-dom-regions.v1"
+                        || metadata.reference_sha256 != expected_hash
+                        || metadata.dimensions != [w, h]
+                    {
+                        return Err(CliError::usage(
+                            "DOM geometry does not match reference screenshot",
+                        ));
+                    }
+                    let dir = out.join("dom-regions");
+                    std::fs::create_dir_all(&dir).map_err(|e| CliError::io(e.to_string()))?;
+                    crate::local_cmd::write_value(
+                        &dir.join(format!("{index:04}.json")),
+                        &serde_json::to_value(metadata)?,
+                    )?;
+                }
                 let sidecar = json!({
                     "playwright_test_id":entry.test_id,
                     "playwright_project":entry.project,
@@ -258,7 +279,7 @@ pub(crate) fn run(args: IngestArgs, absolute: bool) -> Result<u8, CliError> {
                 for dir in [&baseline, &capture] {
                     crate::local_cmd::write_value(&dir.join(&sidecar_name), &sidecar)?;
                 }
-                mapping.push(json!({"entry":name,"test_id":entry.test_id,"case_id":entry.case_id,"project":entry.project,"browser":entry.browser,"viewport":entry.viewport,"diff":diff.as_ref().map(|_|format!("playwright-diffs/{index:04}.png"))}));
+                mapping.push(json!({"entry":name,"test_id":entry.test_id,"case_id":entry.case_id,"dom_regions":entry.dom_regions.as_ref().map(|_|format!("dom-regions/{index:04}.json")),"project":entry.project,"browser":entry.browser,"viewport":entry.viewport,"diff":diff.as_ref().map(|_|format!("playwright-diffs/{index:04}.png"))}));
             }
             crate::local_cmd::write_value(
                 &out.join("playwright-mapping.json"),

@@ -1,0 +1,68 @@
+{
+  "$id": "https://github.com/Tavrin/saccade/crates/saccade-core/schemas/saccade-frozen-region.v1.schema.json",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "description": "Frozen inclusion mask; never recomputed from surviving candidate objects.",
+  "properties": {
+    "dimensions": {
+      "description": "Image dimensions.",
+      "items": {
+        "format": "uint32",
+        "minimum": 0,
+        "type": "integer"
+      },
+      "maxItems": 2,
+      "minItems": 2,
+      "type": "array"
+    },
+    "inclusion": {
+      "description": "Binary 0/1 values, row major.",
+      "items": {
+        "format": "uint8",
+        "maximum": 255,
+        "minimum": 0,
+        "type": "integer"
+      },
+      "type": "array"
+    },
+    "mask_sha256": {
+      "description": "SHA-256 of binary inclusion bytes.",
+      "type": "string"
+    },
+    "provenance": {
+      "additionalProperties": {
+        "type": "string"
+      },
+      "description": "Authoring method, selector/phrase and model/export provenance when applicable.",
+      "type": "object"
+    },
+    "reference_sha256": {
+      "description": "Original reference file hash, not a preview hash.",
+      "type": "string"
+    },
+    "region_id": {
+      "description": "Stable region name.",
+      "type": "string"
+    },
+    "schema": {
+      "description": "saccade-frozen-region.v1.",
+      "type": "string"
+    },
+    "semantics": {
+      "description": "include; black/zero is outside, one is inside.",
+      "type": "string"
+    }
+  },
+  "required": [
+    "schema",
+    "region_id",
+    "semantics",
+    "reference_sha256",
+    "dimensions",
+    "inclusion",
+    "mask_sha256",
+    "provenance"
+  ],
+  "title": "FrozenRegion",
+  "type": "object"
+}

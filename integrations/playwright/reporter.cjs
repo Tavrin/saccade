@@ -39,7 +39,9 @@ class SaccadeReporter {
       const attempt = { case_id, entry: null, state, capture_sha256: null };
       this.attempts.push(attempt);
       if (state !== 'captured') continue;
-      this.entries.push({
+      const geometryAttachment = result.attachments.find(a => a.name === `saccade-dom-regions-${i}`);
+      const dom_regions = geometryAttachment ? JSON.parse(geometryAttachment.body ? geometryAttachment.body.toString('utf8') : fs.readFileSync(geometryAttachment.path, 'utf8')) : null;
+      this.entries.push({ dom_regions,
         test_id: `${test.id}:${result.retry ?? 0}:${i}`, case_id, project: projectName, browser,
         viewport: viewport && Number.isInteger(viewport.width) && Number.isInteger(viewport.height) ? [viewport.width, viewport.height] : null,
         expected: path.resolve(roles.expected[i]), actual: path.resolve(roles.actual[i]), diff: roles.diff[i] ? path.resolve(roles.diff[i]) : null,
