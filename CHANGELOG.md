@@ -7,6 +7,85 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.2.0]
+
+### Added
+
+- Shared analysis evidence contracts with explicit availability and provenance.
+  Missing historical evidence stays unknown; provenance alone does not prove
+  reproducibility, capture validity or approval.
+- Exclusion audits for capture selection, masks, ignored error, decoder losses
+  and threshold headroom, with an unmasked counterfactual. Configured verdicts
+  remain authoritative; undeclared, unsupplied captures remain unknown.
+- Performance regression-onset candidates from hash-verified history, partitioned
+  by comparison identity and qualified timing. Synthetic tests establish detector
+  mechanics, not field false-alert calibration; confirmation needs fresh repeats.
+- Optional static OBJ/glTF/GLB geometry measurements and ordered mesh identity.
+  Sampled distances are not certified continuous bounds. Identity covers ordered
+  world vertices, oriented triangles and declared units, excluding appearance
+  attributes, materials, textures and renderer acceptance.
+- Motion diagnostics beside raw FLIP, with qualified global translation and
+  per-hotspot evidence. Constructed opaque SDR translations are the tested scope;
+  HDR, transparency, independent object motion, dense DIS flow and field TAA
+  qualification remain unsupported or unqualified. Raw FLIP decides the verdict.
+- Snapshot variation and cumulative drift suggestions using declared run and
+  environment identities. Normal-variation advice requires ten unchanged-build
+  runs; producer declarations do not prove independence. Drift remains a candidate,
+  needs fresh repeats and neither attributes commits nor edits policy. Live
+  browser nuisance-alert and capture-fix evaluation remains unrun.
+- Compression-quality sweeps over externally encoded opaque RGB8 sRGB outputs,
+  with staged SSIMULACRA2 and Butteraugli evidence and smallest-file selection
+  under the frozen SSIMULACRA2 policy. Both metrics are qualified against pinned
+  official libjxl v0.12.0 and Cloudinary v2.1 references on a small synthetic
+  fixture set. Arbitrary-image visibility and blind human/pipeline evaluation
+  remain unqualified; no encoder or live service adapter is invoked. Alpha, HDR,
+  embedded EXIF/ICC and dimension changes are rejected.
+- Capture inventory with stable case IDs, capture hashes and complete accounting
+  of expected cases, including missing, unusable, skipped, stale, quarantined and
+  duplicate attempts. Playwright ingestion requires explicit expected/actual
+  attachments; legacy attachment-only manifests cannot establish suite completeness.
+  Live Playwright/browser qualification remains unrun.
+- Localized-change checks with frozen pixel boxes, inclusion masks or
+  reference-bound DOM geometry. Full-frame FLIP and native complement samples
+  measure intended changes and collateral without configuration exclusions.
+  SDR spatial evidence does not establish semantic edit success; HDR/float inputs
+  are unsupported and live selector, scroll, device-scale and reflow checks remain
+  unvalidated.
+- Grounded numerical explanations with source hashes, JSON pointers and paginated
+  MCP citations. Typed claims must match one compatible fact and region exactly.
+  Semantic and causal claims abstain; semantic/OCR and independent human support
+  benchmarks remain unrun. Numerical consistency does not prove physical correctness.
+- Frozen-region mask import retaining the phrase, reference and source-mask
+  hashes, plus optional checkpoint cache and ONNX runtime-loading plumbing.
+  ONNX inference is not included. Checkpoint provenance and graph loading do not
+  qualify export parity, segmentation, ambiguity handling, determinism or latency;
+  weights and runtime binaries are not shipped and ordinary measurement does not
+  download them. Imported phrase selection still needs human review.
+- Optional RenderDoc 1.34 Vulkan extraction worker and native-payload divergence
+  localization. Synthetic alignment/payload fixtures and unavailable-capability
+  handling are tested; live Vulkan replay is unvalidated. First observed divergence
+  is a candidate, not root cause or final-output relevance. Clear destinations
+  abstain; coverage is bounded to observed resources and one texture mip/layer/
+  sample. D3D12/GL and broader resource coverage remain unsupported.
+
+### Fixed
+
+- Retain complete history witnesses, verify stored measurement objects, preserve
+  capture ordering and detect repeated or recently anchored drift.
+- Preserve Playwright snapshot identity and suite accounting for missing or
+  corrupt attachments; reject contradictory IDs and duplicate source pairings.
+- Bind inventory and grounded facts to the same retained source bytes, expose
+  exclusion scope, validate frozen-region provenance, and diagnose unknown nested
+  fields and newer schemas rather than silently accepting them.
+- Supervise RenderDoc work with terminating deadlines and bound regular-file
+  payload reads; reject FIFOs, missing formats and incomplete resource identities.
+- Reject malformed geometry before expansion and periodic motion aliases; retain
+  decoder-loss evidence and complete sequence selection scope.
+- Include optional geometry dependencies in all-features notices and permit the
+  pinned semantic-region manifest in packages while rejecting model weights.
+  New dependencies retain the declared Rust 1.88 floor; execution on Rust 1.88
+  has not been qualified.
+
 ## [0.1.2]
 
 Fixed: MCP Registry name uses the case-sensitive io.github.Tavrin namespace.
@@ -109,7 +188,8 @@ Pre-release flags fail with an error that names the replacement.
 | `--compat` | `--json` and `inspect export --format json` |
 | `approve --force` | `approve --dry-run`, then `approve --decisions` |
 
-[Unreleased]: https://github.com/Tavrin/saccade/compare/v0.1.2...HEAD
+[Unreleased]: https://github.com/Tavrin/saccade/compare/v0.2.0...HEAD
+[0.2.0]: https://github.com/Tavrin/saccade/compare/v0.1.2...v0.2.0
 [0.1.2]: https://github.com/Tavrin/saccade/compare/v0.1.1...v0.1.2
 [0.1.1]: https://github.com/Tavrin/saccade/compare/v0.1.0...v0.1.1
 [0.1.0]: https://github.com/Tavrin/saccade/releases/tag/v0.1.0

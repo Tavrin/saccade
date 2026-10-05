@@ -8,6 +8,24 @@ report and JSON evidence. Baselines change only when a human approves.
 
 ![Report with image differences and numbered hotspots](docs/images/report.png)
 
+## What's in 0.2
+
+Exclusion audits show what a comparison left out. History can suggest performance
+regression onset, snapshot variation and cumulative drift. Optional geometry
+checks measure static meshes, and motion diagnostics add translation evidence
+beside the original FLIP verdict. See [Wave 1](docs/wave1.md).
+
+[Wave 2](docs/wave2.md) adds compression-quality sweeps, capture inventory,
+localized-change checks, grounded numerical explanations, frozen-region mask
+import and optional RenderDoc localization. Compression metrics were checked
+against official references on synthetic fixtures; human visibility remains
+unqualified. ONNX inference is not included, and live browser capture and Vulkan
+replay are unvalidated. Diagnostics and suggestions do not approve changes or
+relax policy. The [Wave 1 decisions](docs/design-decisions/wave1.md),
+[Wave 2 decisions](docs/design-decisions/wave2.md) and
+[review fixes](docs/design-decisions/wave2-fixes.md) record the qualification
+limits and remaining work.
+
 ## Install
 
 Each release has four archives and a `SHA256SUMS` file:
@@ -198,7 +216,7 @@ transcripts. It never accepts changed output on its own.
 
 ## Status
 
-saccade 0.1.2 fixes the case-sensitive MCP Registry namespace.
+saccade 0.2.0 adds the analysis workflows described above.
 
 - Stable: `compare`, `identity`, `approve`, `view`, `inspect`, `init`,
   `noise`, `demo`, `serve`, the local `review` preview and request commands,
