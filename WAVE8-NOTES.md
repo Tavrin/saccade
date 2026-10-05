@@ -196,3 +196,25 @@ inherited model accuracy/parity and Rust OCR qualification remain explicitly inc
   then removed only this lane's obsolete debug variants under the Cargo lock.
   Cleanup receipt: free 29.21 -> 38.97 GiB (shared recovery occurred before cleanup).
   No other target/cache was removed. Release-profile wheel cache remains available.
+
+## Integration close
+- Genuine installed Rust, Python and standalone CLI text queries retrieve their
+  corresponding generated red/blue squares after persistence; CLI reports pass
+  the shipped schema and reject a changed tokenizer identity. Final recipe
+  revalidation records all enforced tool versions and unchanged export hashes.
+- Retained all-features debug CLI reproduces showcase expected stdout and all
+  40 shipped-schema JSON reports. This is functional proof; the release CLI
+  build remains refused by the disk floor. Local Python release wheel passed.
+- A second floor stop refused package verification/release checks. Retained the
+  tested all-features CLI, paused orchestration between Cargo jobs, and removed
+  only owned debug variants under lock (23.72 -> 28.55 GiB). Other owners' writes
+  subsequently kept disk below 25 GiB; no build admission bypass or other-cache
+  deletion. Final exact target removal freed only 0.66 GiB, leaving 19.41 GiB.
+- Rejected repeatedly starting builds below the floor or deleting another lane's
+  cache. Preserve exit-75 receipts and explicit unrun package/release gates for
+  shared recovery. Resumption is the ordinary guarded commands in the report.
+- Linting workflow/shell files was falsely classified as GPU execution by the
+  wrapper's text scan. Canceled only queued owned lint attempts and used its
+  documented CPU declaration for actual static linting; resource admission held.
+- Genericity is an actual PASS against the existing private external denylist.
+  No terms were printed or copied. Earlier commentary describing SKIP was corrected.
