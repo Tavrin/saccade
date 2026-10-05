@@ -632,6 +632,33 @@ pub fn evidence(
     })
 }
 
+/// Copy exact retained manifest/layer bytes into a portable comparison bundle.
+pub fn bundle(loaded: &mut Loaded, out: &Path, entry: &str, side: &str) -> Result<()> {
+    let dir = format!("images/{entry}.d/layers");
+    std::fs::create_dir_all(out.join(&dir))
+        .map_err(crate::run::io_err("creating bundled layers".into()))?;
+    let manifest_path = format!("{dir}/{side}-manifest.json");
+    std::fs::write(out.join(&manifest_path), &loaded.manifest_bytes)
+        .map_err(crate::run::io_err("writing bundled manifest".into()))?;
+    loaded.witness.manifest_path = Some(manifest_path);
+    for (index, layer) in loaded.manifest.layers.iter().enumerate() {
+        let extension = Path::new(&layer.image)
+            .extension()
+            .and_then(|s| s.to_str())
+            .filter(|s| s.chars().all(|c| c.is_ascii_alphanumeric()))
+            .unwrap_or("bin");
+        let path = format!("{dir}/{side}-{index}.{extension}");
+        let bytes = loaded
+            .retained
+            .get(&layer.name)
+            .ok_or_else(|| Error::Config("missing retained layer".into()))?;
+        std::fs::write(out.join(&path), bytes)
+            .map_err(crate::run::io_err("writing bundled layer".into()))?;
+        loaded.witness.paths.insert(layer.name.clone(), path);
+    }
+    Ok(())
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -807,33 +834,6 @@ mod tests {
         std::fs::write(&path, b"changed").unwrap();
         assert!(load(&path, &p, (64, 64)).is_err());
     }
-}
-
-/// Copy exact retained manifest/layer bytes into a portable comparison bundle.
-pub fn bundle(loaded: &mut Loaded, out: &Path, entry: &str, side: &str) -> Result<()> {
-    let dir = format!("images/{entry}.d/layers");
-    std::fs::create_dir_all(out.join(&dir))
-        .map_err(crate::run::io_err("creating bundled layers".into()))?;
-    let manifest_path = format!("{dir}/{side}-manifest.json");
-    std::fs::write(out.join(&manifest_path), &loaded.manifest_bytes)
-        .map_err(crate::run::io_err("writing bundled manifest".into()))?;
-    loaded.witness.manifest_path = Some(manifest_path);
-    for (index, layer) in loaded.manifest.layers.iter().enumerate() {
-        let extension = Path::new(&layer.image)
-            .extension()
-            .and_then(|s| s.to_str())
-            .filter(|s| s.chars().all(|c| c.is_ascii_alphanumeric()))
-            .unwrap_or("bin");
-        let path = format!("{dir}/{side}-{index}.{extension}");
-        let bytes = loaded
-            .retained
-            .get(&layer.name)
-            .ok_or_else(|| Error::Config("missing retained layer".into()))?;
-        std::fs::write(out.join(&path), bytes)
-            .map_err(crate::run::io_err("writing bundled layer".into()))?;
-        loaded.witness.paths.insert(layer.name.clone(), path);
-    }
-    Ok(())
 }
 
 #[cfg(all(test, feature = "graphics"))]
