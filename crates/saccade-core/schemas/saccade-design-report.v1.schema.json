@@ -1,0 +1,55 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "saccade-design-report.v1",
+  "title": "saccade-design-report.v1",
+  "type": "object",
+  "properties": {
+    "schema": {
+      "const": "saccade-design-report.v1"
+    },
+    "verdict": {
+      "enum": [
+        "pass",
+        "regression"
+      ]
+    },
+    "frames": {
+      "type": "array",
+      "items": {
+        "type": "object"
+      }
+    },
+    "capture_failures": {
+      "type": "array",
+      "items": {
+        "type": "object"
+      }
+    },
+    "token_check": {
+      "type": "object"
+    },
+    "degradations": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "report": {
+      "type": "string"
+    },
+    "layout_note": {
+      "type": "string"
+    }
+  },
+  "required": [
+    "schema",
+    "verdict",
+    "frames",
+    "capture_failures",
+    "token_check",
+    "degradations",
+    "report",
+    "layout_note"
+  ],
+  "additionalProperties": false
+}

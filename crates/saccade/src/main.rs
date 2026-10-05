@@ -18,6 +18,8 @@ mod product_io;
 #[cfg(feature = "products")]
 mod imgtune_cmd;
 #[cfg(feature = "products")]
+mod design_cmd;
+#[cfg(feature = "products")]
 mod sweep_cmd;
 mod last_good;
 
@@ -210,6 +212,9 @@ enum Command {
     /// Audit delivery formats and search perceptual-target encodings.
     #[cfg(feature = "products")]
     Imgtune(imgtune_cmd::ImgtuneArgs),
+    /// Pull design-source frames and compare implementation captures.
+    #[cfg(feature = "products")]
+    Design(design_cmd::DesignArgs),
     /// Align optional Vulkan replay evidence and locate native-resource divergence.
     RenderdocLocalize(renderdoc_cmd::Args),
     /// Import and freeze phrase regions, or inspect optional model plumbing.
@@ -1047,6 +1052,8 @@ fn dispatch(command: Command, record_absolute_paths: bool) -> Result<u8, CliErro
         Command::Sweep(args) => sweep_cmd::run(args),
         #[cfg(feature = "products")]
         Command::Imgtune(args) => imgtune_cmd::run(args),
+        #[cfg(feature = "products")]
+        Command::Design(args) => design_cmd::run(args),
         Command::Inventory(args) => inventory_cmd::run(args),
         #[cfg(feature = "compression")]
         Command::QualitySweep(args) => quality_cmd::run(args),

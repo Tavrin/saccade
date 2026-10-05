@@ -91,3 +91,8 @@ have a receipt; capture failures are regressions and must not be dropped.
 Use [`imgtune audit|search`](../docs/imgtune.md) to measure negotiated delivery and
 select the smallest candidate in a declared perceptual-score grid. Incomplete
 searches have no selection; originals are retained. Numerical selection is advisory.
+
+<!-- // wave5 -->
+Use [`design pull|compare`](../docs/design-source.md) for design-frame evidence and
+computed CSS token checks. Layout differences remain visible; compensated shift
+metrics are diagnostic. Figma variables 403 means degraded token coverage.

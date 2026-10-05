@@ -70,3 +70,13 @@ pub(crate) fn image(bytes: &[u8]) -> Result<image::DynamicImage, CliError> {
     let mut limits = image::Limits::default(); limits.max_image_width = Some(16384); limits.max_image_height = Some(16384); limits.max_alloc = Some(256 * 1024 * 1024); reader.limits(limits);
     reader.decode().map_err(|_| CliError::new("decode", "image cannot decode within limits"))
 }
+/// Read user-owned provider configuration; no caller-supplied credential paths.
+pub(crate) fn provider_env(provider: &str) -> Result<std::collections::BTreeMap<String,String>,CliError> {
+    if !matches!(provider,"figma"|"webhook") {return Err(CliError::usage("unsupported credential provider"));}
+    let home=std::env::var_os("HOME").ok_or_else(||CliError::new("credentials","user home unavailable"))?;
+    let bytes=read(&std::path::PathBuf::from(home).join(".config/saccade").join(format!("{provider}.env"))).map_err(|_|CliError::new("credentials","provider env file unavailable"))?;
+    let text=String::from_utf8(bytes).map_err(|_|CliError::new("credentials","provider env file must be UTF-8"))?;
+    let mut values=std::collections::BTreeMap::new();
+    for line in text.lines(){let line=line.trim();if line.is_empty()||line.starts_with('#'){continue;}let (key,value)=line.strip_prefix("export ").unwrap_or(line).split_once('=').ok_or_else(||CliError::new("credentials","invalid provider env file"))?;values.insert(key.trim().to_owned(),value.trim().trim_matches(['\'','"']).to_owned());}
+    Ok(values)
+}
