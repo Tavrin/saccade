@@ -61,6 +61,9 @@ enum HistoryOperation {
         /// Diagnose sustained anchor-relative drift in recorded run order.
         #[arg(long)]
         drift: bool,
+        /// New file containing the complete witness for the selected groups.
+        #[arg(long)]
+        out: Option<PathBuf>,
         #[arg(long, default_value_t = 10, value_parser = clap::value_parser!(u8).range(1..=20))]
         limit: u8,
         #[arg(long)]
@@ -293,6 +296,11 @@ fn analyze(rows: &[Row], entry: Option<&str>, limit: usize) -> Value {
     // run settings. Repeated capture hashes count once, not as fresh evidence.
     let mut groups: BTreeMap<GroupKey, Observations> = BTreeMap::new();
     for row in rows {
+        // Declared trials belong to the independent-run analysis. Revision
+        // measurements must not also train legacy artifact tolerance advice.
+        if row.trial.is_some() {
+            continue;
+        }
         for sample in &row.samples {
             if entry.is_some_and(|name| name != sample.entry) {
                 continue;
@@ -405,8 +413,9 @@ fn run_analysis(rows: &[Row], entry: Option<&str>, limit: usize, drift: bool) ->
         let effect = if values.len() >= 10 { Some(median(&values[values.len()-5..]) - median(&values[..5])) } else { None };
         // Keep the same baseline anchor. Sustained, mostly increasing changes
         // smaller than a per-revision tolerance still accumulate here.
-        let increasing = values.windows(2).filter(|w| w[1] > w[0]).count();
-        let candidate = drift && enough && effect.is_some_and(|e| e > span.max(1e-9)) && increasing * 4 >= (values.len()-1) * 3;
+        let recent = &values[values.len().saturating_sub(10)..];
+        let increasing = recent.windows(2).filter(|w| w[1] > w[0]).count();
+        let candidate = drift && enough && effect.is_some_and(|e| e > span.max(1e-9)) && increasing * 4 >= recent.len().saturating_sub(1) * 3;
         let suggestion = (enough && !candidate).then_some((hi + span).min(1.0));
         json!({"entry":key.0,"baseline_sha256":key.1,"config_sha256":key.2,"environment_id":environment,
             "independent_runs":runs.len(),"unchanged_build_runs":noise.len(),
@@ -419,6 +428,48 @@ fn run_analysis(rows: &[Row], entry: Option<&str>, limit: usize, drift: bool) ->
             "evidence":runs.iter().map(|(r,s,t)| json!({"run_id":t.run_id,"report_sha256":r.report_sha256,"capture_sha256":s.capture_sha256,"value":s.value,"unchanged_build":t.unchanged_build})).collect::<Vec<_>>()})
     }).collect();
     json!({"groups":total,"entries":entries,"limits":["Run independence and unchanged build are producer declarations, not inferred from identical pixels.","Scalar history cannot localize variation or diagnose delayed fonts. Drift is a heuristic candidate, not causality.","Environment identity must include all capture conditions. Legacy hash-only advice is provisional artifact variation, not learned normal variation."]})
+}
+
+fn json_preview(mut value: Value) -> Result<Value, CliError> {
+    if value["operation"] != "analyze" {
+        return crate::local_cmd::bounded(value, 4096);
+    }
+    let total = value["run_analysis"]["groups"].as_u64().unwrap_or(0);
+    if let Some(entries) = value["run_analysis"]["entries"].as_array_mut() {
+        for entry in entries {
+            if let Some(evidence) = entry["evidence"].as_array_mut() {
+                let original = evidence.len();
+                if original > 6 {
+                    let tail = evidence.split_off(original - 3);
+                    evidence.truncate(3);
+                    evidence.extend(tail);
+                }
+                let omitted = original - evidence.len();
+                entry["evidence_omitted"] = json!(omitted);
+            }
+        }
+    }
+    loop {
+        let shown = value["run_analysis"]["entries"]
+            .as_array()
+            .map_or(0, Vec::len);
+        if value.get("run_analysis").is_some() {
+            value["run_analysis"]["page"] = json!({"shown":shown,"omitted":total.saturating_sub(shown as u64),"witness":"JSON is a bounded preview; --out preserves every run in the selected groups"});
+        }
+        match crate::local_cmd::bounded(value.clone(), 4096) {
+            Ok(value) => return Ok(value),
+            Err(error) => {
+                let entries = value["run_analysis"]["entries"].as_array_mut();
+                if let Some(entries) = entries
+                    && entries.len() > 1
+                {
+                    entries.pop();
+                } else {
+                    return Err(error);
+                }
+            }
+        }
+    }
 }
 
 fn performance_observation(
@@ -637,6 +688,7 @@ pub(crate) fn run(args: HistoryArgs) -> Result<u8, CliError> {
             store,
             entry,
             drift,
+            out,
             limit,
             json,
         } => {
@@ -647,6 +699,16 @@ pub(crate) fn run(args: HistoryArgs) -> Result<u8, CliError> {
                     value["run_analysis"] =
                         run_analysis(&rows, entry.as_deref(), limit as usize, drift);
                     value["policy_changed"] = json!(false);
+                    value["history_store"] = json!(store);
+                    if let Some(path) = out {
+                        let file = OpenOptions::new()
+                            .write(true)
+                            .create_new(true)
+                            .open(&path)
+                            .map_err(|e| CliError::io(e.to_string()))?;
+                        serde_json::to_writer_pretty(file, &value)?;
+                        value["evidence_artifact"] = crate::local_cmd::reference(&path)?;
+                    }
                     value
                 },
                 json,
@@ -656,7 +718,7 @@ pub(crate) fn run(args: HistoryArgs) -> Result<u8, CliError> {
     if json_output {
         crate::emit(&format!(
             "{}\n",
-            serde_json::to_string(&crate::local_cmd::bounded(value, 4096)?)?
+            serde_json::to_string(&json_preview(value)?)?
         ))?;
     } else if value["operation"] == "record" {
         crate::emit(&format!(
@@ -669,7 +731,23 @@ pub(crate) fn run(args: HistoryArgs) -> Result<u8, CliError> {
             value["report_sha256"].as_str().unwrap_or("unknown")
         ))?;
     } else {
-        let mut out = format!("history: {} comparable groups\n", value["groups"]);
+        let mut out = format!(
+            "history: {} artifact groups, {} capture-run groups\n",
+            value["groups"], value["run_analysis"]["groups"]
+        );
+        for item in value["run_analysis"]["entries"]
+            .as_array()
+            .into_iter()
+            .flatten()
+        {
+            out.push_str(&format!(
+                "{}: {} independent runs; drift {}; recommendation {}\n",
+                item["entry"].as_str().unwrap_or("?"),
+                item["independent_runs"],
+                item["drift"].as_str().unwrap_or("?"),
+                item["recommendation"].as_str().unwrap_or("?")
+            ));
+        }
         for item in value["entries"].as_array().into_iter().flatten() {
             out.push_str(&format!(
                 "{}: {} ({} distinct captures, span {:.5}, threshold {:.5})\n",
@@ -972,7 +1050,7 @@ mod tests {
         assert_eq!(stable["entries"][0]["independent_runs"], 10);
         assert_eq!(stable["entries"][0]["unique_image_hashes"], 1);
         let result = run_analysis(&rows, None, 10, true);
-        assert_eq!(result["entries"][0]["drift"], "not_detected"); // stable prefix makes the monotonicity gate conservative
+        assert_eq!(result["entries"][0]["drift"], "candidate"); // Recent drift is not diluted by a stable prefix.
         rows.drain(..5);
         let result = run_analysis(&rows, None, 10, true);
         assert_eq!(

@@ -65,3 +65,9 @@ Host evidence: `renderdoc` cannot be imported by Python, `renderdoccmd` is absen
 Sources: pinned official [replay API](https://github.com/baldurk/renderdoc/blob/v1.34/renderdoc/api/replay/renderdoc_replay.h), [pipeline-state API](https://github.com/baldurk/renderdoc/blob/v1.34/renderdoc/api/replay/pipestate.h), [descriptor types](https://github.com/baldurk/renderdoc/blob/v1.34/renderdoc/api/replay/common_pipestate.h). No capture parser or proprietary graphics dependency is embedded.
 
 Residual: live Vulkan replay compatibility, extraction/self-replay, planted real GPU defects, final-resource relevance/dependency graph and controlled causal intervention. D3D12/GL, all-mip/all-layer/MSAA coverage and numeric texture tolerances remain unsupported. A bound buffer is extracted in full; a texture records one bound view mip/layer and sample zero. Uploads, indirect/unbound resources and synchronization need further instrumentation.
+
+## Final history review
+
+Restrict artifact-only tolerance advice to historical rows without trial declarations. Declared revision measurements must not also train that legacy advice. Drift monotonicity uses the recent ten runs while the effect retains the original first-five anchor; a long stable prefix no longer dilutes a sustained recent drift. Capture independence and unchanged-build qualification remain separate and unchanged.
+
+History JSON is a bounded preview: at most six run witnesses per shown group, explicit omission counts and a full-witness artifact via optional `--out`. The file retains every run for the selected groups before preview trimming. Multiple groups are trimmed with counts when necessary, while `--entry` selects a test. A 20-run CLI fixture verifies bounded output, retained complete witness, no tolerance advice for drift and unchanged policy. This follow-up fixes practical output-budget and short-drift gaps found during final review.

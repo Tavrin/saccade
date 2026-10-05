@@ -337,6 +337,7 @@ Options:
       --store <STORE>
       --entry <ENTRY>
       --drift          Diagnose sustained anchor-relative drift in recorded run order
+      --out <OUT>      New file containing the complete witness for the selected groups
       --limit <LIMIT>  [default: 10]
       --json
   -h, --help           Print help
