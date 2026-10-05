@@ -7,3 +7,4 @@ pub mod quality;
 #[cfg(feature = "local-models")]
 pub mod runtime;
 pub mod vision;
+pub mod watermark;

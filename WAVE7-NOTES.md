@@ -49,3 +49,9 @@
   normal compare reports; standalone paired-file quality-score is implemented.
   Rejected guessed native model ports or a fused verdict. Reversal cost: one
   integration seam and a qualified scalar export; no metric contract changes.
+- Watermark: native bounded known-message DWT/DCT decoding plus primary TrustMark
+  trait/replay. TrustMark native decoding/ECC is deferred: supplied research leaves
+  decoder/version/ECC/pin unresolved (0.4.0 docs vs 0.2.2 artifacts). Rejected an
+  invented TrustMark pin or interpreting random recovered bits as a marker.
+  Reversal: install a reviewed decoder adapter. Legacy exact upstream parity is a
+  heavy gate; generated native-marker roundtrip is only focused proof.

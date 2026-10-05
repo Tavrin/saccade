@@ -204,6 +204,8 @@ enum Command {
     Locate(wave7_cmd::LocateArgs),
     /// Measure a separately named learned quality score.
     QualityScore(wave7_cmd::QualityArgs),
+    /// Decode explicitly compatible watermark schemes without an origin verdict.
+    Watermark(wave7_cmd::WatermarkArgs),
     /// Bounded advisory observations from an explicitly configured local VLM.
     #[cfg(feature = "local-vlm")]
     ObserveLocal(wave7_cmd::ObserveArgs),
@@ -1000,6 +1002,7 @@ fn dispatch(command: Command, record_absolute_paths: bool) -> Result<u8, CliErro
         Command::Models(args) => wave7_cmd::models(args),
         Command::Locate(args) => wave7_cmd::locate(args),
         Command::QualityScore(args) => wave7_cmd::quality(args),
+        Command::Watermark(args) => wave7_cmd::watermark(args),
         #[cfg(feature = "local-vlm")]
         Command::ObserveLocal(args) => wave7_cmd::observe(args),
         Command::Prove {

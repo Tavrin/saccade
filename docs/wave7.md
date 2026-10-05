@@ -93,3 +93,25 @@ change their verdict. The coordinator attaches `QualityReport.named_metrics`
 to paired compare reports and MUSIQ to wave 6 assess; this lane's standalone
 command accepts paired files and emits its own comparison report. No calibrated
 UI-quality thresholds or native published exports are claimed.
+
+## Watermarks
+
+`saccade watermark image.png --json` reports independent scheme outcomes and
+absence limits, without a real/fake or AI-origin verdict. TrustMark's exact
+variant/ECC/export is unavailable until pinned and qualified. `WatermarkDecoder`
+is the primary integration boundary; `--observations report.json` explicitly
+replays generated/frozen decoder observations with unqualified provenance.
+
+`--expected-payload HEX --quantization-step 36 --minimum-agreement 0.9`
+adds the weight-free configurable legacy invisible-watermark DWT/DCT decoder:
+U-channel, Haar LL, 4×4 orthonormal DCT, maximum AC magnitude, modulo-step bits,
+repeated-bit vote. It requires at least three repetitions and reports detection
+only for the exact caller-declared message with sufficient per-bit agreement.
+An arbitrary recovered byte string is never detection. Record embedding settings
+and verify upstream parity for the exact workflow before relying on matches;
+this lane tests its own generated marker and makes no universal compatibility
+claim. Crop/resize/flat content can prevent detection. Payloads do not authenticate
+signers or generators. No detection never establishes human origin.
+
+The coordinator combines `watermark::inspect` with wave 6's C2PA indicators;
+watermarks remain separate from cryptographically signed provenance.

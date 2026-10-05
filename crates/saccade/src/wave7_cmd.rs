@@ -282,3 +282,69 @@ pub(crate) fn quality(a: QualityArgs) -> Result<u8, CliError> {
     };
     emit(&r, a.json)
 }
+
+#[derive(clap::Args)]
+pub(crate) struct WatermarkArgs {
+    image: PathBuf,
+    /// Known legacy message bytes in hex; arbitrary recovered bits are not detection.
+    #[arg(long)]
+    expected_payload: Option<String>,
+    #[arg(long, default_value_t = 36.)]
+    quantization_step: f32,
+    #[arg(long, default_value_t = 0.9)]
+    minimum_agreement: f32,
+    /// Explicit frozen/generated primary-decoder observation report.
+    #[arg(long)]
+    observations: Option<PathBuf>,
+    #[arg(long)]
+    json: bool,
+}
+fn unhex(s: &str) -> Result<Vec<u8>, CliError> {
+    if s.is_empty()
+        || s.len() > 128
+        || s.len() % 2 != 0
+        || !s.bytes().all(|b| b.is_ascii_hexdigit())
+    {
+        return Err(CliError::usage("payload needs 1..64 hex-encoded bytes"));
+    }
+    (0..s.len())
+        .step_by(2)
+        .map(|i| {
+            u8::from_str_radix(&s[i..i + 2], 16).map_err(|_| CliError::usage("invalid hex payload"))
+        })
+        .collect()
+}
+pub(crate) fn watermark(a: WatermarkArgs) -> Result<u8, CliError> {
+    use saccade_core::wave7::{
+        vision::VisionImage,
+        watermark::{self, DwtConfig, WatermarkReport},
+    };
+    let image = VisionImage::load(&a.image).map_err(error)?;
+    let r = if let Some(p) = a.observations {
+        let mut r: WatermarkReport =
+            serde_json::from_slice(&models::read_bounded(&p, 1024 * 1024).map_err(error)?)?;
+        r.validate(&image).map_err(error)?;
+        for f in &mut r.findings {
+            if let Some(p) = &mut f.provenance {
+                p.runtime = "replay".into();
+                p.source_parity = false;
+            }
+            f.interpretation = format!("Explicit observation replay. {}", f.interpretation);
+        }
+        r
+    } else {
+        let legacy = a
+            .expected_payload
+            .as_ref()
+            .map(|s| {
+                unhex(s).map(|expected_payload| DwtConfig {
+                    expected_payload,
+                    quantization_step: a.quantization_step,
+                    minimum_agreement: a.minimum_agreement,
+                })
+            })
+            .transpose()?;
+        watermark::inspect(&image, None, legacy.as_ref()).map_err(error)?
+    };
+    emit(&r, a.json)
+}
