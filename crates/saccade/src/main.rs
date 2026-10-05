@@ -12,48 +12,47 @@ use saccade_core::config::RunConfig;
 use saccade_core::report::{Labels, Metric, Mode, Report, Status};
 use saccade_core::view::{ViewOptions, build_view, is_safe_name};
 
+mod agent;
+mod agent_ui;
+mod approval;
 mod assess_cmd;
+mod brand_cmd;
 mod capability_cmd;
 #[cfg(feature = "products")]
 mod design_cmd;
 mod documents_cmd;
 mod embedding_cmd;
-mod general_cmd;
-mod hash_cmd;
-#[cfg(feature = "products")]
-mod imgtune_cmd;
-mod inspect_image_cmd;
-mod last_good;
-#[cfg(feature = "products")]
-mod notifier_cmd;
-#[cfg(feature = "products")]
-mod product_io;
-#[cfg(feature = "products")]
-mod sweep_cmd;
-mod text_cmd;
-
-mod agent;
-mod agent_ui;
-mod approval;
-mod brand_cmd;
 mod engine_ingest;
 mod f1;
+mod general_cmd;
 #[cfg(feature = "geometry")]
 mod geometry_cmd;
 mod git_bisect;
 mod grounded_cmd;
+mod hash_cmd;
 mod history;
+#[cfg(feature = "products")]
+mod imgtune_cmd;
 mod ingest;
+mod inspect_image_cmd;
 mod inventory_cmd;
+mod last_good;
 mod local_cmd;
 mod localized_cmd;
 mod motion_cmd;
+#[cfg(feature = "products")]
+mod notifier_cmd;
+#[cfg(feature = "products")]
+mod product_io;
 #[cfg(feature = "compression")]
 mod quality_cmd;
 mod region_cmd;
 mod renderdoc_cmd;
 #[cfg(feature = "ai")]
 mod review_cmd;
+#[cfg(feature = "products")]
+mod sweep_cmd;
+mod text_cmd;
 
 #[cfg(feature = "mcp")]
 mod mcp;

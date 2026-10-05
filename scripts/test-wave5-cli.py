@@ -36,7 +36,8 @@ with tempfile.TemporaryDirectory(prefix='saccade-wave5-')as temp:
     value=run('design','compare',mapping,'--pull',pull/'pull.json','--captures',pull/'captures.json','--out',root/'design-report','--json');assert value['verdict']=='pass';assert value['token_check']['findings'][0]['colour_bucket']=='under_1'
     (root/'source.png').write_bytes(image);put(root/'tune.json',dict(schema='saccade-imgtune.v1',images=[dict(id='image-1',source='source.png',current='source.png')],widths=[32],formats=['jpeg','webp'],qualities=[50,80,95],target_score=80,butteraugli_ceiling=None,adapter=dict(kind='local')))
     value=run('imgtune','search',root/'tune.json','--out',root/'tune-report.json','--json');assert value['verdict']=='complete';assert (root/'source.png').read_bytes()==image
-    rpc=[{'jsonrpc':'2.0','id':1,'method':'tools/list'},{'jsonrpc':'2.0','id':2,'method':'tools/call','params':{'name':'saccade_products','arguments':{'operation':'imgtune_audit','artifact':str(urls),'accept':['image/*'],'out':str(root/'mcp-out/audit.json')}}}]
-    (root/'mcp-out').mkdir();server=subprocess.run([BIN,'mcp','--root',str(root),'--out-root',str(root/'mcp-out')],input=''.join(json.dumps(x)+'\n'for x in rpc),capture_output=True,text=True,timeout=30)
+    mcp_inputs=root/'mcp-inputs';mcp_inputs.mkdir();mcp_urls=mcp_inputs/'urls.txt';mcp_urls.write_bytes(urls.read_bytes())
+    rpc=[{'jsonrpc':'2.0','id':1,'method':'tools/list'},{'jsonrpc':'2.0','id':2,'method':'tools/call','params':{'name':'saccade_products','arguments':{'operation':'imgtune_audit','artifact':str(mcp_urls),'accept':['image/*'],'out':str(root/'mcp-out/audit.json')}}}]
+    (root/'mcp-out').mkdir();server=subprocess.run([BIN,'mcp','--root',str(mcp_inputs),'--out-root',str(root/'mcp-out')],input=''.join(json.dumps(x)+'\n'for x in rpc),capture_output=True,text=True,timeout=30)
     replies=[json.loads(line)for line in server.stdout.splitlines()];assert any(tool['name']=='saccade_products'for tool in replies[0]['result']['tools']);assert replies[1]['result']['isError'] is True;assert 'network_not_authorized' in json.dumps(replies[1])
 print('wave5 CLI fixtures: PASS')

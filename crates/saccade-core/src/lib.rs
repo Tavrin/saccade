@@ -4,6 +4,8 @@
 pub mod a11y;
 pub mod ablate;
 pub mod asset_views;
+#[cfg(feature = "assist")]
+pub mod assist;
 pub mod bisect;
 pub mod brand;
 #[cfg(feature = "ai")]
@@ -23,6 +25,7 @@ pub mod error;
 pub mod evidence;
 pub mod exclusions;
 pub mod explain;
+pub mod general;
 #[cfg(feature = "geometry")]
 pub mod geometry;
 pub mod gpu_clock;
@@ -140,7 +143,3 @@ pub fn judge_bench_sources(case: &evidence::case::EvidenceCase) -> Vec<String> {
         .into_iter()
         .collect()
 }
-
-#[cfg(feature = "assist")]
-pub mod assist;
-pub mod general;
