@@ -126,7 +126,11 @@ fn measure(args: &Args) -> Result<Value, CliError> {
         }
         outputs.push(json!({"size":[w,h],"crop":crop,"requires_upsampling":w>crop[2]||h>crop[3],"aspect_ratio_matches":u64::from(w)*u64::from(crop[3])==u64::from(h)*u64::from(crop[2])}));
     }
-    let headers = integrity::headers(&bytes, &image, args.include_gps)?;
+    let mut headers = integrity::headers(&bytes, &image, args.include_gps)?;
+    headers["compression"]["history_indicators"] = saccade_core::general::forensics::indicators(
+        &image,
+        &headers["compression"]["quantisation_tables"],
+    )?;
     let copies = registration::copy_move(&image)
         .map_err(|e| CliError::new("invalid_geometry", e.to_string()))?;
     let hash = hashing::hash(&image);
@@ -202,8 +206,9 @@ fn measure(args: &Args) -> Result<Value, CliError> {
     layer
         .save(args.out.join("error-level-analysis.png"))
         .map_err(|e| CliError::io(e.to_string()))?;
+    let credentials = saccade_core::general::credentials::inspect(&bytes)?;
     Ok(
-        json!({"schema":integrity::SCHEMA,"operation":"inspect_image","verdict":"unknown","counts":{"copy_move_candidates":copies.len(),"publication_outputs":outputs.len()},"input":{"sha256":saccade_core::localized::digest(&bytes),"dimensions":dimensions,"orientation_policy":"raw raster dimensions; EXIF orientation not applied"},"headers":headers,"copy_move":{"candidates":copies,"can_show":"reciprocal FAST/oriented BRIEF self-matches clustered by translation","cannot_show":"natural repetition can match; rotated/projective copies and textureless edits may be missed; candidates do not establish manipulation"},"error_level_analysis":{"artifact":"error-level-analysis.png","quality":90,"display_gain":16,"assurance":"weak visual layer only","can_show":"local difference from one recompression with the current Rust JPEG encoder","cannot_show":"does not identify edited regions, authenticity or AI generation; depends on content and compression"},"near_duplicates":lookup,"publication":{"outputs":outputs,"quality":assessment::assess(&image)?,"text_legibility":text,"can_show":"raw pixel adequacy for declared output/crop and content-dependent quality measures","cannot_show":"no publication approval; no human readability or provenance proof"},"ai_generation":"unknown","limitations":["heuristics never produce real/fake or AI-generation verdicts","C2PA validation/signers/actions/ingredients and watermark evidence are unavailable","XMP/IPTC parsing, encoder identity, double-compression and resampling qualification deferred","GPS is unsigned metadata and only emitted with --include-gps","semantic archive lookup is available separately through index query with embeddings"]}),
+        json!({"schema":integrity::SCHEMA,"operation":"inspect_image","verdict":"unknown","counts":{"copy_move_candidates":copies.len(),"publication_outputs":outputs.len()},"input":{"sha256":saccade_core::localized::digest(&bytes),"dimensions":dimensions,"orientation_policy":"raw raster dimensions; EXIF orientation not applied"},"headers":headers,"copy_move":{"candidates":copies,"can_show":"reciprocal FAST/oriented BRIEF self-matches clustered by translation","cannot_show":"natural repetition can match; rotated/projective copies and textureless edits may be missed; candidates do not establish manipulation"},"error_level_analysis":{"artifact":"error-level-analysis.png","quality":90,"display_gain":16,"assurance":"weak visual layer only","can_show":"local difference from one recompression with the current Rust JPEG encoder","cannot_show":"does not identify edited regions, authenticity or AI generation; depends on content and compression"},"near_duplicates":lookup,"publication":{"outputs":outputs,"quality":assessment::assess(&image)?,"text_legibility":text,"can_show":"raw pixel adequacy for declared output/crop and content-dependent quality measures","cannot_show":"no publication approval; no human readability or provenance proof"},"ai_generation":credentials["ai_generation"],"credentials":credentials,"limitations":["heuristics never produce real/fake or AI-generation verdicts","C2PA requires credentials; offline trust is distinct from visual truth; watermark evidence unavailable","extended/compressed metadata packets, encoder attribution and forensic discrimination qualification remain deferred","GPS is unsigned metadata and only emitted with --include-gps","semantic archive lookup is available separately through index query with embeddings"]}),
     )
 }
 #[cfg(feature = "mcp")]

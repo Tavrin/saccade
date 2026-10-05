@@ -6,7 +6,8 @@ saccade inspect-image received.png --hash-index hashes/saccade-hash.v1.json --te
 ```
 
 The command emits `saccade-inspect-image.v1.json`, HTML and a weak ELA layer.
-Its verdict and AI-generation status are always unknown. Each indicator states
+Its authenticity verdict is always unknown; generation status requires an explicit
+validated signed declaration. Each indicator states
 what it can and cannot show. Heuristics never label a picture real/fake or infer
 AI generation. No original is modified and no network access is used.
 
@@ -37,14 +38,11 @@ Implemented evidence includes:
   not foreground/background WCAG contrast or readability proof. Raw raster
   dimensions do not apply EXIF orientation.
 
-The following portions remain explicitly deferred: C2PA manifest validation,
-signer/claim generator/actions/ingredients and signed AI assertions; full XMP/IPTC
-parsing; encoder signatures, double-compression and resampling detectors and their
-constructed qualification. The permitted registry has no `c2pa` source, so its
-licence and dependency surface could not be reviewed. JUMBF container presence
-is merely an unvalidated header observation, never a signed credential. ICC/XMP/
-APP13 presence and hashes are recorded without parsing or validation claims.
-No recorded watermark evidence is supplied, so AI generation remains unknown.
+Wave 6b adds offline C2PA validation, known XMP/IPTC fields and raw compression/
+resampling observations as described below. Full metadata formats, encoder
+attribution and forensic specificity remain explicitly deferred. No recorded
+watermark evidence is supplied, so generation remains unknown without an
+explicit validated signed declaration.
 
 The existing raster bounds apply. Invalid inputs, crops, stale observations or
 indexes exit 2; exit 0 means the inspection executed, never publication approval.
@@ -52,3 +50,49 @@ MCP `saccade_general` / `inspect_image` mirrors image/out, explicit GPS opt-in,
 archive, text-source, crop and output-size options under root containment. Images
 are not returned by default. Generated quantisation, malformed metadata, GPS
 privacy and duplicated-region tests are written; heavy CLI inspection is gated.
+
+## Wave 6b offline credential and metadata adapters
+
+Build with `credentials` to read/validate embedded JPEG/PNG C2PA manifests using
+c2pa 0.90.22 (MIT OR Apache-2.0, reviewed registry manifest/README; separate
+licence files omitted from that package). Default features are disabled and
+only Rust-native crypto is enabled. No HTTP backend, remote-manifest feature,
+OCSP fetching, native OpenSSL, file I/O or thumbnail generation is enabled.
+Per-reader settings require validation after reading and disable remote and
+OCSP fetch. The output projects active-manifest signer, claim generator,
+actions, ingredients and validation codes; it does not dump arbitrary assertion
+metadata, GPS or thumbnails. Source status and certificate trust remain distinct.
+
+Top-level `credentials` reports validation state and integrity validity.
+`ai_generation` is `declared_in_validated_signed_credentials` only when a valid
+or trusted active claim explicitly declares the exact C2PA/IPTC trained-model
+source type. A valid signature records a declaration, not depicted truth.
+Absent/invalid/unreadable/remote-only credentials retain `unknown`. Unsigned
+metadata and compression/copy-move heuristics never supply generation labels.
+MCP uses the same offline adapter and keeps GPS opt-in.
+
+Known XMP namespaces/attributes/elements now yield capture/edit timestamps,
+camera/lens, software/orientation and profile names. EXIF XMP GPS is opt-in;
+unknown/free-form location properties are omitted. Photoshop APP13 resource
+blocks yield selected IPTC IIM dates/byline/copyright with UTF-8 coded charset
+support and an explicit fallback encoding note. Malformed packets do not claim
+successful parsing. Extended/compressed XMP and extended IIM lengths are
+explicitly unsupported; arbitrary/full metadata extraction remains deferred.
+
+Compression now includes conventional Annex K signature compatibility (never
+exact encoder attribution), approximate decoded-pixel DCT histogram gaps using
+current JPEG quantizers and at most 4096 sampled blocks, and second-derivative
+energy periodicity at lags 2..16 in a centered <=512x512 raster region. These
+are raw, unqualified observations; textures and single compression can mimic
+them, while same-quality or misaligned recompression can escape them. They do
+not infer a compression count, resize factor or authenticity verdict.
+
+Focused generated tests exercise metadata privacy, malformed lengths,
+uninformative constant images and periodic patterns. `heavy: forensics`
+records sensitivity on constructed single/double/resize histories, not a
+specificity qualification. Encoder attribution and discrimination qualification
+remain deferred: no reviewed signature corpus or frozen positive/negative
+operating policy was supplied. The signed C2PA gate requires a generated,
+licence-recorded `SACCADE_W6_C2PA_ASSET` and its `SACCADE_W6_C2PA_SHA256` pin;
+credential qualification is NOT RUN. No real/fake approval follows from any
+successful execution.

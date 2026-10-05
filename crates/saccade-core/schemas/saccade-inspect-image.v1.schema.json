@@ -66,13 +66,19 @@
       "type": "object"
     },
     "ai_generation": {
-      "const": "unknown"
+      "enum": [
+        "unknown",
+        "declared_in_validated_signed_credentials"
+      ]
     },
     "limitations": {
       "type": "array",
       "items": {
         "type": "string"
       }
+    },
+    "credentials": {
+      "type": "object"
     }
   },
   "required": [

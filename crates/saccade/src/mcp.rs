@@ -1370,7 +1370,7 @@ impl Server {
                 crop,
             )?;
             let file = crate::general_cmd::persist_document(&value, &out)?;
-            return Ok(ToolOutput{structured:json!({"schema":saccade_core::general::RESULT_SCHEMA,"mode":operation,"verdict":"unknown","data":{"schema":value["schema"],"counts":value["counts"]},"artifacts":[{"path":saccade_core::paths::record(&file,&self.root,false)}],"next_actions":[]}),text:"Single-image indicators only; credentials unvalidated, AI generation unknown, GPS opt-in.".into(),images:Vec::new()});
+            return Ok(ToolOutput{structured:json!({"schema":saccade_core::general::RESULT_SCHEMA,"mode":operation,"verdict":"unknown","data":{"schema":value["schema"],"counts":value["counts"]},"artifacts":[{"path":saccade_core::paths::record(&file,&self.root,false)}],"next_actions":[]}),text:"Single-image indicators; offline credentials when compiled, GPS opt-in; no authenticity verdict.".into(),images:Vec::new()});
         }
         // wave6
         if operation == "assess" {

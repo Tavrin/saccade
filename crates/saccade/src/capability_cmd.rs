@@ -204,7 +204,7 @@ pub(crate) fn catalogue() -> Value {
         vec![],
         "partial",
         "What provenance/integrity/publication indicators can be checked?",
-        "C2PA validation and several forensic indicators deferred; no real/fake verdict",
+        "offline C2PA needs credentials; forensic specificity unqualified; no real/fake verdict",
     );
     let mut features: Vec<_> = saccade_core::COMPILED_FEATURES
         .iter()

@@ -81,7 +81,7 @@ impl<'a> Tiff<'a> {
         Some((entries, self.u32(offset + 2 + count * 12)? as usize))
     }
     fn scalar(&self, value: &(u16, Vec<u8>)) -> Option<u32> {
-        let t = Self {
+        let t = Tiff {
             bytes: &value.1,
             little: self.little,
         };
@@ -103,7 +103,7 @@ impl<'a> Tiff<'a> {
         if value.0 != 5 || value.1.len() != 24 {
             return None;
         }
-        let t = Self {
+        let t = Tiff {
             bytes: &value.1,
             little: self.little,
         };
@@ -251,7 +251,7 @@ fn conventional_quality(table: &[u16]) -> Option<u32> {
     })
 }
 /// Extracts bounded EXIF, container presence and current JPEG quantisation tables.
-/// XMP/IPTC/JUMBF are reported as unparsed containers. C2PA validation is unavailable.
+/// XMP/IPTC known fields are decoded; top-level credentials separately validates C2PA.
 /// GPS coordinates are never returned unless explicitly requested.
 #[allow(clippy::collapsible_if)]
 pub fn headers(bytes: &[u8], main: &image::RgbaImage, include_gps: bool) -> crate::Result<Value> {
@@ -311,11 +311,12 @@ pub fn headers(bytes: &[u8], main: &image::RgbaImage, include_gps: bool) -> crat
                         .unwrap_or_else(|| json!({"status":"malformed_or_unsupported"}));
                 }
                 0xe1 if data.starts_with(b"http://ns.adobe.com/xap/1.0/\0") => {
-                    metadata["xmp"] = json!({"status":"present_unparsed","bytes":data.len(),"sha256":crate::localized::digest(data)})
+                    metadata["xmp"] = super::metadata::xmp(
+                        &data[b"http://ns.adobe.com/xap/1.0/\0".len()..],
+                        include_gps,
+                    )
                 }
-                0xed => {
-                    metadata["iptc"] = json!({"status":"app13_present_unparsed","bytes":data.len(),"sha256":crate::localized::digest(data)})
-                }
+                0xed => metadata["iptc"] = super::metadata::iptc(data),
                 0xe2 if data.starts_with(b"ICC_PROFILE\0") => {
                     metadata["colour_profile"] = json!({"status":"icc_segment_present_unvalidated","bytes":data.len(),"sha256":crate::localized::digest(data)})
                 }
@@ -383,7 +384,21 @@ pub fn headers(bytes: &[u8], main: &image::RgbaImage, include_gps: bool) -> crat
                 metadata["colour_profile"] = json!({"status":"compressed_icc_present_unvalidated","bytes":length,"sha256":crate::localized::digest(data)});
             }
             if tag == b"iTXt" && data.starts_with(b"XML:com.adobe.xmp\0") {
-                metadata["xmp"] = json!({"status":"present_unparsed","bytes":length,"sha256":crate::localized::digest(data)});
+                let rest = &data[b"XML:com.adobe.xmp\0".len()..];
+                metadata["xmp"] = if rest.len() >= 2 && rest[0] == 0 && rest[1] == 0 {
+                    let mut at = 2;
+                    for _ in 0..2 {
+                        if let Some(n) = rest[at..].iter().position(|&b| b == 0) {
+                            at += n + 1;
+                        } else {
+                            at = rest.len();
+                            break;
+                        }
+                    }
+                    super::metadata::xmp(&rest[at..], include_gps)
+                } else {
+                    json!({"status":"compressed_xmp_unsupported"})
+                };
             }
             if tag == b"tEXt" && data.starts_with(b"Software\0") {
                 metadata["png_software"] =
@@ -419,7 +434,7 @@ pub fn headers(bytes: &[u8], main: &image::RgbaImage, include_gps: bool) -> crat
         }
     }
     Ok(
-        json!({"container":kind,"metadata":metadata,"consistency":consistency,"credentials":{"status":"validation_unavailable","jumbf_app11_present":jumbf,"ai_generation":"unknown","can_show":"only header-level JUMBF container presence","cannot_show":"no signer, action, ingredient or AI assertion is trusted without C2PA validation; c2pa source/licence unavailable locally"},"compression":{"quantisation_tables":tables,"scope":"header before first JPEG scan","double_compression":{"status":"unavailable","reason":"DCT history detector and constructed qualification not implemented"},"resampling":{"status":"unavailable","reason":"frequency/resampling detector and constructed qualification not implemented"},"can_show":"current JPEG tables and exact conventional luminance scaling compatibility","cannot_show":"cannot establish original encoder, number of encodes, authenticity or generation source"},"limits":["EXIF is unsigned data; only listed camera/time/lens/orientation/GPS tags are decoded","XMP and IPTC containers are not parsed; unknown remains unavailable","ICC presence/hash does not validate colour profile contents","metadata cannot establish authenticity or image age"]}),
+        json!({"container":kind,"metadata":metadata,"consistency":consistency,"credentials":{"status":"header_container_observation","jumbf_app11_present":jumbf,"ai_generation":"unknown","can_show":"only header-level JUMBF container presence","cannot_show":"container presence does not validate a credential; see top-level credentials"},"compression":{"quantisation_tables":tables,"scope":"header before first JPEG scan","double_compression":{"status":"unavailable","reason":"DCT history detector and constructed qualification not implemented"},"resampling":{"status":"unavailable","reason":"frequency/resampling detector and constructed qualification not implemented"},"can_show":"current JPEG tables and exact conventional luminance scaling compatibility","cannot_show":"cannot establish original encoder, number of encodes, authenticity or generation source"},"limits":["EXIF is unsigned data; only listed camera/time/lens/orientation/GPS tags are decoded","XMP/IPTC known fields parsed; extended/compressed packets and unknown properties remain unavailable","ICC presence/hash does not validate colour profile contents","metadata cannot establish authenticity or image age"]}),
     )
 }
 #[cfg(test)]

@@ -119,3 +119,6 @@
   defaults disabled. The default butteraugli MSRV blocker remains separate.
   Export jobs load the checkpoint from the freshly SHA-verified bytes and bind
   the exact initial manifest bytes, avoiding a second path read for provenance.
+
+- Document item committed as 6836261; source coverage and heavy acceptance limits
+  remain exactly as recorded above. Credential/metadata/forensic item follows.
