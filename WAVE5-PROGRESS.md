@@ -5,4 +5,4 @@
 5.5 done — f8aa1b9; compare/sweep last-good with hash verification and history origins; explicit env-configured notifier and schemas/docs/ignored local HTTP fixture written; products check passed before MCP additions; final Rust verification follows resource admission.
 5.6 done — a719eb3; external-denylist guard and generated temporary-repo regression pass.
 
-Integration follow-up partial — pending commit; additive MCP, grouped HTML, fixtures, notices and gates written; fmt/docs/JS/genericity pass; products+schema clippy passed before final fill/text-role and Retry-After edits. Final Rust check/clippy and remaining targeted units deferred while free space is below 25 GB. Heavy gates never run.
+Integration follow-up partial — 9669330; additive MCP, grouped HTML, fixtures, notices and gates written; fmt/docs/JS/genericity pass; products+schema clippy passed before final fill/text-role and Retry-After edits. Final Rust check/clippy and remaining targeted units deferred while free space is below 25 GB. Heavy gates never run.
