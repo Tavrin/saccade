@@ -426,7 +426,7 @@ pub(crate) fn compare_with_registration(
                 .iter()
                 .map(serde_json::to_value)
                 .collect::<Result<Vec<_>, _>>()?,
-            serde_json::to_value(&report.totals)?,
+            serde_json::to_value(report.totals)?,
             report.is_regression(),
         )
     };
