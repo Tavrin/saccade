@@ -17,7 +17,6 @@ pub mod integrity;
 /// OCR text observations, CER/WER and positional differences.
 pub mod text;
 
-// wave6b
 /// Offline embedded Content Credentials validation.
 pub mod credentials;
 

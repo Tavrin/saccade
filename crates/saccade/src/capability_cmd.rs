@@ -206,6 +206,80 @@ pub(crate) fn catalogue() -> Value {
         "What provenance/integrity/publication indicators can be checked?",
         "offline C2PA needs credentials; forensic specificity unqualified; no real/fake verdict",
     );
+    add(
+        "experimental_assist",
+        "review explain; review audit-mask; review check-ui; review assist batch submit|status|collect",
+        "measured reports, source-bound requests and immutable sidecars",
+        vec!["assist"],
+        if cfg!(feature = "assist") {
+            "experimental_unqualified"
+        } else {
+            "feature_unavailable"
+        },
+        "What advisory visible-condition or exclusion evidence requires review?",
+        "--experimental; provider authority and budget required; never overrides deterministic measurements",
+    );
+    add(
+        "browser_assertions",
+        "saccade-playwright toMatchSaccade",
+        "Playwright page or locator and retained baseline",
+        vec![],
+        "conditional_browser",
+        "Does the stabilized browser capture pass its declared comparison?",
+        "external Playwright peer/browser required; masks are declared; registration is opt-in",
+    );
+    add(
+        "page_sweeps",
+        "sweep plan; sweep compare",
+        "URL manifest and complete capture receipts",
+        vec!["products"],
+        if cfg!(feature = "products") {
+            "available"
+        } else {
+            "feature_unavailable"
+        },
+        "Which sampled pages differ?",
+        "capture errors remain failures; registration is explicit",
+    );
+    add(
+        "image_delivery",
+        "imgtune audit; imgtune search",
+        "source images and bounded transform adapter grids",
+        vec!["products"],
+        if cfg!(feature = "products") {
+            "available"
+        } else {
+            "feature_unavailable"
+        },
+        "Which served encodings meet the declared perceptual target?",
+        "incomplete grids cannot select; AVIF requires imgtune-avif and dav1d",
+    );
+    add(
+        "design_source",
+        "design pull; design compare",
+        "design exports, mappings and implementation captures",
+        vec!["products"],
+        if cfg!(feature = "products") {
+            "conditional_source"
+        } else {
+            "feature_unavailable"
+        },
+        "How do design frames and captured implementation differ?",
+        "live adapter needs explicit egress; missing variable access degrades coverage",
+    );
+    add(
+        "notifications_history",
+        "notify; compare --baseline last-good; sweep compare --baseline last-good",
+        "verified passing run or report summary",
+        vec!["products"],
+        if cfg!(feature = "products") {
+            "conditional_authority"
+        } else {
+            "feature_unavailable"
+        },
+        "Which verified passing run or explicit summary should be used?",
+        "passing history is not human approval; sending needs explicit authorization",
+    );
     let mut features: Vec<_> = saccade_core::COMPILED_FEATURES
         .iter()
         .map(|s| s.to_string())
@@ -215,6 +289,12 @@ pub(crate) fn catalogue() -> Value {
     }
     if cfg!(feature = "mcp") {
         features.push("mcp".into());
+    }
+    if cfg!(feature = "products") {
+        features.push("products".into());
+    }
+    if cfg!(feature = "imgtune-avif") {
+        features.push("imgtune-avif".into());
     }
     features.sort();
     features.dedup();
@@ -516,4 +596,20 @@ pub(crate) fn schemas() -> Vec<Value> {
         json!({"type":"object","properties":{"operation":{"const":"capabilities","type":"string"}},"required":["operation"],"additionalProperties":false}),
         json!({"type":"object","properties":{"operation":{"const":"compare_question","type":"string"},"reference":{"type":"string"},"capture":{"type":"string"},"out":{"type":"string"},"question":{"enum":["same-render","same-content","same-text","near-duplicate","quality"]},"align":{"enum":["none","translation","similarity","affine","homography","auto"]},"resample":{"enum":["reference","common"]},"threshold":{"type":"number"},"model":{"type":"string"},"cache":{"type":"string"},"library":{"type":"string"},"reference_source":{"type":"string"},"capture_source":{"type":"string"}},"required":["operation","reference","capture","out","question"],"additionalProperties":false}),
     ]
+}
+
+/// Discoverable companions; availability and authority remain in the catalogue.
+pub(crate) fn related_commands() -> Value {
+    json!([
+        "capabilities --json",
+        "review explain",
+        "review audit-mask",
+        "review check-ui",
+        "review assist batch submit|status|collect",
+        "sweep plan|compare",
+        "imgtune audit|search",
+        "design pull|compare",
+        "notify",
+        "compare --baseline last-good"
+    ])
 }

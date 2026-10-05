@@ -50,3 +50,5 @@ a baseline. Review proposals manually before declaring an exclusion.
 
 Browser-free tests: `node --test integrations/playwright/matcher.test.cjs`.
 Generated-page browser tests are only run by `scripts/gates-wave5.sh`.
+
+Optional `align` (none/translation/similarity/affine/homography/auto) and `resample` (reference/common) invoke registered comparison and attach geometry evidence. Registration refuses masks/config; stability checks always use raw captures.

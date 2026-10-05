@@ -284,7 +284,7 @@ pub fn guard_output_dir(out: &Path, inputs: &[&Path], markers: &[&str]) -> Resul
 /// stale report behind.
 pub(crate) fn clear_previous_report(report_dir: &Path) -> Result<()> {
     for leaf in [
-        // wave6: clear stale explicit-question provenance with its measured report.
+        // Clear stale explicit-question provenance with its measured report.
         "saccade-pipeline-choice.v1.json",
         REPORT_FILE_NAME,
         "index.html",

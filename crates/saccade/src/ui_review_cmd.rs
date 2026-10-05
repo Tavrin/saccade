@@ -290,7 +290,7 @@ mod ocr {
     }
 }
 
-// wave6: reuse the existing pinned OCR adapter without guessing a new model licence.
+// Reuse the existing pinned OCR adapter without guessing a new model licence.
 pub(crate) fn recognize_text(
     contract: &Path,
     image: &[u8],

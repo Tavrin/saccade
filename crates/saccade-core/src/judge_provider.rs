@@ -85,7 +85,6 @@ impl Keys {
             .unwrap_or_default()
     }
 
-    // wave4
     /// Whether this loader uses exactly the fixed assist credential directory.
     #[cfg(feature = "assist")]
     pub fn default_policy_dir(&self) -> bool {

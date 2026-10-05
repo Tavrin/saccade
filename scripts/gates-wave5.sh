@@ -2,7 +2,7 @@
 # Coordinator-only: run after integration through the machine's heavy queue.
 set -u
 cd "$(dirname "$0")/.." || exit 2
-export CARGO_TARGET_DIR=/mnt/linux-extra/moss-cargo-targets/codex-saccade-w5
+export CARGO_TARGET_DIR="${CARGO_TARGET_DIR:-/mnt/linux-extra/moss-cargo-targets/codex-saccade-w5}"
 export SYSTEM_DEPS_DAV1D_BUILD_INTERNAL=never
 failed=0
 run_gate() {

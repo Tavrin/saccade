@@ -580,3 +580,14 @@ Hayro embedded fonts, OpenSSL and C2PA HTTP features are disabled.
 | zip 8.6.0 | MIT | MIT | LICENSE (58545fed1565e42d) |
 | zune-core 0.4.12 | MIT OR Apache-2.0 OR Zlib | MIT | Not included; Cargo.toml licence field |
 | zune-jpeg 0.4.21 | MIT OR Apache-2.0 OR Zlib | MIT | Not included; Cargo.toml licence field |
+
+## Butteraugli Rust 1.88 compatibility patch
+
+`vendor/butteraugli` retains the registry 0.4.0 source under BSD-3-Clause,
+including its upstream licence. Twelve multiversion attributes select AVX-512
+only when the build compiler is Rust 1.89 or newer; older compilers retain
+AVX2/SSE runtime dispatch. Arithmetic and metric parameters are unchanged.
+The workspace Cargo patch uses this copy. Cargo registry archives do not
+propagate workspace patches: their Rust 1.88 distribution requires the same
+upstream fix or a separately published compatible dependency. No upstream
+release is claimed by this integration.

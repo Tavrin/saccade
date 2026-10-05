@@ -28,6 +28,7 @@ impl Server {
                 "cache",
                 "scale",
                 "align",
+                "resample",
                 "baseline",
                 "history_store",
                 "template",
@@ -96,13 +97,49 @@ impl Server {
                 } else {
                     None
                 };
-                sweep::compare(
-                    &artifact,
-                    &captures,
-                    &output()?,
-                    &config()?,
-                    last.as_ref().map(|t| t.path()),
-                )?
+                let align = arg_str(args, "align")?;
+                let resample = arg_str(args, "resample")?;
+                if align.is_some() || resample.is_some() {
+                    if args.contains_key("config") || align.is_none() {
+                        return Err(CliError::usage(
+                            "registration requires align and refuses comparison config",
+                        ));
+                    }
+                    use clap::ValueEnum;
+                    let options = crate::general_cmd::CompareArgs {
+                        align: Some(
+                            crate::general_cmd::Align::from_str(
+                                align.as_deref().unwrap_or(""),
+                                false,
+                            )
+                            .map_err(CliError::usage)?,
+                        ),
+                        resample: resample
+                            .as_deref()
+                            .map(|s| {
+                                crate::general_cmd::Resample::from_str(s, false)
+                                    .map_err(CliError::usage)
+                            })
+                            .transpose()?,
+                        ..Default::default()
+                    };
+                    sweep::compare_with_registration(
+                        &artifact,
+                        &captures,
+                        &output()?,
+                        &config()?,
+                        last.as_ref().map(|t| t.path()),
+                        Some(options),
+                    )?
+                } else {
+                    sweep::compare(
+                        &artifact,
+                        &captures,
+                        &output()?,
+                        &config()?,
+                        last.as_ref().map(|t| t.path()),
+                    )?
+                }
             }
             "last_good_compare" => {
                 let captures = self.existing_dir("captures", &require_str(args, "captures")?)?;
@@ -288,7 +325,7 @@ impl Server {
     }
 }
 pub(super) fn schema() -> Value {
-    json!({"name":"saccade_products","description":"Wave 5 planning, tuning, design and last-good. Inputs remain inside registered roots, outputs require out-root; HTTP and notifications require independent human startup authorization.","inputSchema":{"type":"object","properties":{"operation":{"enum":["sweep_plan","sweep_compare","last_good_compare","imgtune_audit","imgtune_search","design_pull","design_compare","notify"]},"artifact":{"type":"string"},"out":{"type":"string"},"captures":{"type":"string"},"pull":{"type":"string"},"config":{"type":"string"},"before_origin":{"type":"string"},"after_origin":{"type":"string"},"seed":{"type":"integer","minimum":0},"samples":{"type":"integer","minimum":1,"maximum":100},"viewports":{"type":"array","items":{"type":"array","items":{"type":"integer"},"minItems":2,"maxItems":2}},"accept":{"type":"array","items":{"type":"string"}},"fixture_dir":{"type":"string"},"cache":{"type":"string"},"scale":{"type":"number","minimum":0.01,"maximum":4},"align":{"enum":["none","translation"]},"baseline":{"const":"last-good"},"history_store":{"type":"string"},"template":{"enum":["generic","slack","teams"]},"report_link":{"type":"string"}},"required":["operation"],"additionalProperties":false},"outputSchema":{"type":"object","properties":{"schema":{"const":"saccade-result.v2"}},"required":["schema"]},"annotations":{"destructiveHint":false,"openWorldHint":true}})
+    json!({"name":"saccade_products","description":"Wave 5 planning, tuning, design and last-good. Inputs remain inside registered roots, outputs require out-root; HTTP and notifications require independent human startup authorization.","inputSchema":{"type":"object","properties":{"operation":{"enum":["sweep_plan","sweep_compare","last_good_compare","imgtune_audit","imgtune_search","design_pull","design_compare","notify"]},"artifact":{"type":"string"},"out":{"type":"string"},"captures":{"type":"string"},"pull":{"type":"string"},"config":{"type":"string"},"before_origin":{"type":"string"},"after_origin":{"type":"string"},"seed":{"type":"integer","minimum":0},"samples":{"type":"integer","minimum":1,"maximum":100},"viewports":{"type":"array","items":{"type":"array","items":{"type":"integer"},"minItems":2,"maxItems":2}},"accept":{"type":"array","items":{"type":"string"}},"fixture_dir":{"type":"string"},"cache":{"type":"string"},"scale":{"type":"number","minimum":0.01,"maximum":4},"align":{"enum":["none","translation","similarity","affine","homography","auto"]},"resample":{"enum":["reference","common"]},"baseline":{"const":"last-good"},"history_store":{"type":"string"},"template":{"enum":["generic","slack","teams"]},"report_link":{"type":"string"}},"required":["operation"],"additionalProperties":false},"outputSchema":{"type":"object","properties":{"schema":{"const":"saccade-result.v2"}},"required":["schema"]},"annotations":{"destructiveHint":false,"openWorldHint":true}})
 }
 #[cfg(test)]
 #[allow(clippy::expect_used)]

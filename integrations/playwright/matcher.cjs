@@ -26,6 +26,9 @@ function resolveOptions(info, supplied) {
   } else if (options.profile) throw new Error('named profile requires projectConfig');
   if (options.threshold !== undefined && (!Number.isFinite(options.threshold) || options.threshold < 0 || options.threshold > 1)) throw new Error('threshold must be in [0,1]');
   if (options.metric && !['mean', 'p95', 'p99', 'max'].includes(options.metric)) throw new Error('invalid metric');
+  if (options.align && !['none', 'translation', 'similarity', 'affine', 'homography', 'auto'].includes(options.align)) throw new Error('invalid alignment');
+  if (options.resample && (!options.align || !['reference', 'common'].includes(options.resample))) throw new Error('resample requires alignment and reference/common');
+  if (options.align && (options.config || options.masks?.length)) throw new Error('registration cannot combine declared masks or comparison config');
   for (const mask of options.masks || []) {
     if (!mask.reason?.trim() || (!!mask.selector === !!mask.rect)) throw new Error('each mask needs a reason and exactly one selector or rectangle');
     if (mask.rect && (mask.rect.length !== 4 || mask.rect.some(v => !Number.isFinite(v) || v < 0 || v > 1) || mask.rect[2] <= 0 || mask.rect[3] <= 0 || mask.rect[0] + mask.rect[2] > 1 || mask.rect[1] + mask.rect[3] > 1)) throw new Error('mask rectangles are fractional [x,y,width,height] within the image');
@@ -78,7 +81,9 @@ async function compareFiles(expected, actual, out, options, declared = []) {
   const baseline = path.join(out, 'baseline'), candidate = path.join(out, 'candidate'), report = path.join(out, 'report');
   fs.mkdirSync(baseline, { recursive: true }); fs.mkdirSync(candidate, { recursive: true });
   fs.copyFileSync(expected, path.join(baseline, 'capture.png')); fs.copyFileSync(actual, path.join(candidate, 'capture.png'));
-  const args = ['compare', baseline, candidate, '--out', report, '--json', '--fail-on-new'];
+  const args = ['compare', baseline, candidate, '--out', report, '--json'];
+  if (options.align) args.push('--align', options.align); else args.push('--fail-on-new');
+  if (options.resample) args.push('--resample', options.resample);
   if (options.metric) args.push('--metric', options.metric);
   if (options.threshold !== undefined) args.push('--threshold', String(options.threshold));
   if (declared.length) {
@@ -91,13 +96,30 @@ async function compareFiles(expected, actual, out, options, declared = []) {
     const config = path.join(out, 'saccade.toml'); fs.writeFileSync(config, text); args.push('--config', config);
   } else if (options.config) args.push('--config', options.config);
   const response = await runCli(options.binary || process.env.SACCADE_BIN || 'saccade', args, options.cliTimeout);
-  const pass = response.code === 0 && response.result.schema === 'saccade-result.v2' && response.result.verdict === 'pass' && response.result.counts?.error === 0 && response.result.counts?.missing === 0 && response.result.counts?.new === 0 && response.result.counts?.total > 0;
-  return { ...response, pass, report };
+  const registered = options.align && response.result.schema === 'saccade-general-result.v1' && response.result.verdict === 'pass';
+  const evidence = registered ? boundedJson(path.join(report, 'saccade-registration.v1.json')) : null;
+  const registrationPass = registered && evidence.schema === 'saccade-registration.v1' && evidence.counts?.total > 0 && evidence.counts?.failures === 0 && evidence.counts?.errors === 0 && evidence.entries?.length === evidence.counts.total && evidence.entries.every(e => e.status === 'pass');
+  const pass = registrationPass || response.code === 0 && response.result.schema === 'saccade-result.v2' && response.result.verdict === 'pass' && response.result.counts?.error === 0 && response.result.counts?.missing === 0 && response.result.counts?.new === 0 && response.result.counts?.total > 0;
+  return { ...response, pass: response.code === 0 && !!pass, report };
 }
 async function attachReport(info, report, prefix = 'saccade') {
   for (const [name, file, contentType] of [['report', 'index.html', 'text/html'], ['json', 'saccade-report.v1.json', 'application/json']]) {
     const filename = path.join(report, file);
     if (fs.existsSync(filename)) await info.attach(`${prefix}-${name}`, { path: filename, contentType });
+  }
+  const registrationFile = path.join(report, 'saccade-registration.v1.json');
+  if (fs.existsSync(registrationFile)) {
+    await info.attach(`${prefix}-registration`, { path: registrationFile, contentType: 'application/json' });
+    for (const [i, entry] of (boundedJson(registrationFile).entries || []).entries()) {
+      for (const kind of ['heatmap', 'geometry_inclusion']) {
+        const file = entry.artifacts?.[kind];
+        if (file) {
+          const filename = path.resolve(report, file);
+          if (!filename.startsWith(path.resolve(report) + path.sep)) throw new Error('registration artifact escapes report');
+          await info.attach(`${prefix}-${kind}-${i}`, { path: filename, contentType: 'image/png' });
+        }
+      }
+    }
   }
   const jsonFile = path.join(report, 'saccade-report.v1.json');
   if (fs.existsSync(jsonFile)) {
@@ -134,7 +156,7 @@ function createMatcher(getInfo) {
         if (!Number.isFinite(delay) || delay < 0 || delay > 60000) throw new Error('invalid stability delay');
         await sleep(delay);
         const second = path.join(out, 'stability.png'); await capture(target, second, options);
-        const stability = await compareFiles(actual, second, path.join(out, 'stability'), { ...options, config: undefined, threshold: 0 }, []);
+        const stability = await compareFiles(actual, second, path.join(out, 'stability'), { ...options, align: undefined, resample: undefined, config: undefined, threshold: 0 }, []);
         await attachReport(info, stability.report, 'saccade-stability');
         if (![0, 1].includes(stability.code)) throw new Error('stability comparison failed');
         const document = boundedJson(path.join(stability.report, 'saccade-report.v1.json'));

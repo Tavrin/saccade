@@ -117,10 +117,11 @@ pub(crate) fn emit_document(
     if let Some(out) = out {
         let file = persist_document(&value, out)?;
         if json_output {
-            crate::emit(&format!(
-                "{}\n",
-                json!({"schema":saccade_core::general::RESULT_SCHEMA,"mode":value["operation"],"verdict":value["verdict"],"data":{"schema":value["schema"],"counts":value["counts"]},"artifacts":[{"path":file}],"next_actions":[]})
-            ))?;
+            let mut result = json!({"schema":saccade_core::general::RESULT_SCHEMA,"mode":value["operation"],"verdict":value["verdict"],"data":{"schema":value["schema"],"counts":value["counts"]},"artifacts":[{"path":file}],"next_actions":[]});
+            if let Some(commands) = value.get("related_commands") {
+                result["data"]["related_commands"] = commands.clone();
+            }
+            crate::emit(&format!("{}\n", result))?;
         } else {
             crate::emit(&format!("evidence: {}\n", file.display()))?;
         }

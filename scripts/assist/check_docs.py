@@ -13,5 +13,5 @@ for name in ["saccade-assist.v1","saccade-assist-batch.v1","saccade-assist-batch
     schema=json.loads((root/"crates/saccade-core/schemas"/(name+".schema.json")).read_text())
     if not schema["$id"].endswith(name+".schema.json"):raise SystemExit("Schema identity mismatch")
 guide=(root/"integrations/agent-guide.md").read_text()
-if "<!-- wave4 -->" not in guide or "--experimental" not in guide:raise SystemExit("Missing agent guidance")
+if "review explain" not in guide or "--experimental" not in guide:raise SystemExit("Missing agent guidance")
 print("Wave 4 docs and schema references pass; shared generated packs/CLI reference are coordinator-owned.")

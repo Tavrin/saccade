@@ -54,6 +54,11 @@ enum Operation {
         baseline: Option<String>,
         #[arg(long, requires = "baseline")]
         history_store: Option<PathBuf>,
+        /// Explicit registration; incompatible with ordinary comparison config.
+        #[arg(long, value_enum, conflicts_with = "config")]
+        align: Option<crate::general_cmd::Align>,
+        #[arg(long, value_enum, requires = "align")]
+        resample: Option<crate::general_cmd::Resample>,
         #[arg(long)]
         json: bool,
     },
@@ -333,6 +338,16 @@ pub(crate) fn compare(
     cfg: &saccade_core::config::RunConfig,
     last_good: Option<&Path>,
 ) -> Result<serde_json::Value, CliError> {
+    compare_with_registration(manifest_path, captures_path, out, cfg, last_good, None)
+}
+pub(crate) fn compare_with_registration(
+    manifest_path: &Path,
+    captures_path: &Path,
+    out: &Path,
+    cfg: &saccade_core::config::RunConfig,
+    last_good: Option<&Path>,
+    registration: Option<crate::general_cmd::CompareArgs>,
+) -> Result<serde_json::Value, CliError> {
     let manifest: Manifest = io::json(manifest_path)?;
     validate(&manifest)?;
     let captures: Captures = io::json(captures_path)?;
@@ -389,16 +404,40 @@ pub(crate) fn compare(
     let mut config = cfg.clone();
     config.fail_on_new = true;
     config.allow_empty = false;
-    let report = saccade_core::run::run(&baseline, &candidate, &out.join("comparison"), &config)?;
+    let (entries, totals, regression) = if let Some(options) = registration {
+        let document = crate::general_cmd::compare_document(
+            &baseline,
+            &candidate,
+            &out.join("comparison"),
+            &options,
+            config.default_threshold,
+            crate::MetricArg::Mean,
+        )?;
+        crate::general_cmd::persist_document(&document, &out.join("comparison"))?;
+        let entries = document["entries"].as_array().cloned().unwrap_or_default();
+        let totals = json!({"total":entries.len(), "pass":entries.iter().filter(|e| e["status"] == "pass").count(), "fail":entries.iter().filter(|e| e["status"] == "fail").count(), "error":entries.iter().filter(|e| e["status"] == "error").count(), "missing":entries.iter().filter(|e| e["status"] == "missing").count(), "new":entries.iter().filter(|e| e["status"] == "new").count()});
+        (entries, totals, document["verdict"] != "pass")
+    } else {
+        let report =
+            saccade_core::run::run(&baseline, &candidate, &out.join("comparison"), &config)?;
+        (
+            report
+                .entries
+                .iter()
+                .map(serde_json::to_value)
+                .collect::<Result<Vec<_>, _>>()?,
+            serde_json::to_value(&report.totals)?,
+            report.is_regression(),
+        )
+    };
     let mut groups: BTreeMap<String, Vec<serde_json::Value>> = BTreeMap::new();
     for page in &manifest.pages {
-        let entry = report
-            .entries
+        let entry = entries
             .iter()
-            .find(|e| e.name == format!("{}.png", page.id));
-        groups.entry(format!("{}@{}x{}", page.group, page.viewport[0], page.viewport[1])).or_default().push(json!({"id":page.id,"status":entry.map_or("error".into(), |e|serde_json::to_value(e.status).unwrap_or(json!("error"))),"value":entry.and_then(|e|e.value)}));
+            .find(|e| e["name"] == format!("{}.png", page.id));
+        groups.entry(format!("{}@{}x{}", page.group, page.viewport[0], page.viewport[1])).or_default().push(json!({"id":page.id,"status":entry.map_or(json!("error"), |e|e["status"].clone()),"value":entry.map(|e|e["value"].clone())}));
     }
-    let value = json!({"schema":REPORT_SCHEMA,"verdict":if failures.is_empty() && !report.is_regression(){"pass"}else{"regression"},"groups":groups,"capture_failures":failures,"totals":report.totals,"report":"comparison/index.html"});
+    let value = json!({"schema":REPORT_SCHEMA,"verdict":if failures.is_empty() && !regression{"pass"}else{"regression"},"groups":groups,"capture_failures":failures,"totals":totals,"report":"comparison/index.html"});
     io::write(&out.join("saccade-sweep-report.v1.json"), &value)?;
     let mut html = String::from(
         "<!doctype html><meta charset=utf-8><title>Saccade page sweep</title><h1>Page sweep</h1><p><a href='comparison/index.html'>Full comparison and heatmaps</a></p>",
@@ -494,6 +533,8 @@ pub(crate) fn run(args: SweepArgs) -> Result<u8, CliError> {
             config,
             baseline,
             history_store,
+            align,
+            resample,
             json,
         } => {
             let last = if baseline.is_some() {
@@ -505,12 +546,17 @@ pub(crate) fn run(args: SweepArgs) -> Result<u8, CliError> {
             } else {
                 None
             };
-            let value = compare(
+            let value = compare_with_registration(
                 &manifest,
                 &captures,
                 &out,
                 &crate::load_config(config.as_deref())?,
                 last.as_ref().map(|t| t.path()),
+                align.map(|align| crate::general_cmd::CompareArgs {
+                    align: Some(align),
+                    resample,
+                    ..Default::default()
+                }),
             )?;
             io::emit(&value, json, "sweep report written")?;
             Ok(u8::from(value["verdict"] != "pass"))

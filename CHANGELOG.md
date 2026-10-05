@@ -7,6 +7,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+- Add experimental `review explain`, `review audit-mask`, `review check-ui` and
+  `review assist batch submit|status|collect`; optional Jev routing remains unqualified.
+- Add the local Playwright matcher, `sweep plan|compare`, `imgtune audit|search`,
+  `design pull|compare`, `notify` and verified `--baseline last-good` lookup.
+- Add explicit registration/resampling, `hash`, `dedupe`, `similar`,
+  `index build|query|export-inputs|calibrate`, `text`, `assess`, `inspect-image`,
+  `capabilities` and comparison question routing.
+- Add optional SVG/PDF rendering, offline C2PA validation and pinned Rust OCR.
+  Model, OCR readability, forensic specificity and broad renderer qualification
+  retain the limits recorded in their evidence and documentation.
+- Gate Butteraugli AVX-512 dispatch on compiler support while retaining Rust 1.88.
+
 ## [0.1.2]
 
 Fixed: MCP Registry name uses the case-sensitive io.github.Tavrin namespace.

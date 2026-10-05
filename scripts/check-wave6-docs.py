@@ -9,5 +9,5 @@ for schema in ('saccade-general-result.v1', 'saccade-registration.v1', 'saccade-
     assert value['$id'].endswith(f'/{schema}.schema.json')
 for name in ('registration', 'hashing', 'embeddings', 'text', 'assessment', 'documents', 'inspect-image', 'choosing-a-comparison'):
     assert (root / f'docs/{name}.md').is_file()
-assert 'wave6' in (root / 'integrations/agent-guide.md').read_text()
+assert 'inspect-image' in (root / 'integrations/agent-guide.md').read_text()
 print('Wave 6 docs and schema discriminators checked')

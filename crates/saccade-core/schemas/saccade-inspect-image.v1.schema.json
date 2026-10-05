@@ -79,6 +79,12 @@
     },
     "credentials": {
       "type": "object"
+    },
+    "related_commands": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
     }
   },
   "required": [

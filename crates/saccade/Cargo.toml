@@ -13,7 +13,6 @@ build = "build.rs"
 exclude = ["report/**"]
 
 [dependencies]
-# wave5
 ureq = { version = "3", optional = true }
 url = { version = "2.5", optional = true }
 roxmltree = { version = "0.20", optional = true }
@@ -31,13 +30,11 @@ globset = "0.4"
 fs2 = "0.4.3"
 
 [features]
-# wave5
 products = ["dep:ureq", "dep:url", "dep:roxmltree", "compression", "image/webp"]
 imgtune-avif = ["products", "image/avif", "image/avif-native"]
-# wave6b
 documents = ["saccade-core/documents"]
 credentials = ["saccade-core/credentials"]
-# wave6: dynamic CPU ONNX embeddings, no default dependency change
+# Dynamic CPU ONNX embeddings, no default dependency change
 embeddings = ["saccade-core/embeddings"]
 default = ["compression", "parallel", "graphics", "ai", "workbench", "mcp", "evaluation"]
 semantic-regions = ["saccade-core/semantic-regions"]
@@ -55,7 +52,6 @@ schema = ["saccade-core/schema"]
 # Optional external pinned Tesseract execution; no bundled runtime/models.
 ocr = ["saccade-core/ocr"]
 
-# wave4
 assist = ["ai", "saccade-core/assist"]
 
 [dev-dependencies]
@@ -110,7 +106,6 @@ required-features = ["mcp"]
 name = "f1_contract"
 required-features = ["ai", "mcp"]
 
-# wave4
 [[test]]
 name = "assist_contract"
 required-features = ["assist", "mcp"]

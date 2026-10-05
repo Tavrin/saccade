@@ -40,3 +40,5 @@ HTML are grouped by URL pattern and viewport in the sweep summary.
 Exit 0 means all planned pairs passed; 1 means comparison/capture failures; 2 means
 an invalid plan, receipt or execution error. `--baseline last-good --history-store
 history` selects a content-verified passing history run (see [last-good](last-good.md)).
+
+`sweep compare MANIFEST --captures RECEIPTS --out REPORT --align similarity --resample reference` explicitly registers capture pairs. Config cannot accompany alignment. Capture failures remain regressions and geometry exclusions are visible in the linked comparison evidence.

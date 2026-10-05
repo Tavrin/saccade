@@ -34,14 +34,13 @@ struct ToolOutput {
 
 type ToolResult = Result<ToolOutput, CliError>;
 
-// wave5
 #[cfg(feature = "products")]
 #[path = "product_mcp.rs"]
 mod products;
 
 /// The server: the root every path must stay under.
 pub struct Server {
-    // wave5: authority comes from server startup, never tool arguments.
+    // Authority comes from server startup, never tool arguments.
     #[cfg(feature = "products")]
     product_network: bool,
     #[cfg(feature = "products")]
@@ -429,7 +428,6 @@ impl Server {
     ) -> Result<Self, CliError> {
         let policy = saccade_core::root_policy::RootPolicy::new(roots, output, follow, targets)?;
         Ok(Self {
-            // wave5
             #[cfg(feature = "products")]
             product_network: false,
             #[cfg(feature = "products")]
@@ -1054,14 +1052,12 @@ impl Server {
     }
 
     fn call_tool(&self, name: &str, args: &Map<String, Value>) -> Option<ToolResult> {
-        // wave5
         #[cfg(feature = "products")]
         if name == "saccade_products" {
             return Some(self.product_tool(args));
         }
         if !matches!(
             name,
-            // wave6
             "saccade_general"
                 | "saccade_measure"
                 | "saccade_inspect"
@@ -1081,7 +1077,6 @@ impl Server {
     }
     #[cfg(feature = "ai")]
     fn provider_review(&self, args: &Map<String, Value>) -> ToolResult {
-        // wave4
         #[cfg(feature = "assist")]
         if args
             .get("operation")
@@ -1189,12 +1184,9 @@ impl Server {
             images: vec![],
         })
     }
-    // wave6
     fn wave6_tool(&self, args: &Map<String, Value>) -> ToolResult {
         use clap::ValueEnum;
-        // wave6
         let operation = require_str(args, "operation")?;
-        // wave6
         if operation == "capabilities" {
             reject_unknown(args, &["operation"])?;
             return Ok(ToolOutput {
@@ -1203,7 +1195,7 @@ impl Server {
                 images: Vec::new(),
             });
         }
-        // wave6b: document rendering has no native execution or network authority.
+        // Document rendering has no native execution or network authority.
         if operation == "documents_compare" {
             reject_unknown(
                 args,
@@ -1375,7 +1367,6 @@ impl Server {
                 images: Vec::new(),
             });
         }
-        // wave6
         if operation == "inspect_image" {
             reject_unknown(
                 args,
@@ -1428,7 +1419,6 @@ impl Server {
             let file = crate::general_cmd::persist_document(&value, &out)?;
             return Ok(ToolOutput{structured:json!({"schema":saccade_core::general::RESULT_SCHEMA,"mode":operation,"verdict":"unknown","data":{"schema":value["schema"],"counts":value["counts"]},"artifacts":[{"path":saccade_core::paths::record(&file,&self.root,false)}],"next_actions":[]}),text:"Single-image indicators; offline credentials when compiled, GPS opt-in; no authenticity verdict.".into(),images:Vec::new()});
         }
-        // wave6
         if operation == "assess" {
             reject_unknown(args, &["operation", "image", "compare_to", "out"])?;
             let image = self.existing_file("image", &require_str(args, "image")?)?;
@@ -1442,7 +1432,7 @@ impl Server {
             let file = crate::general_cmd::persist_document(&value, &out)?;
             return Ok(ToolOutput{structured:json!({"schema":saccade_core::general::RESULT_SCHEMA,"mode":operation,"verdict":value["verdict"],"data":{"schema":value["schema"],"counts":value["counts"]},"artifacts":[{"path":saccade_core::paths::record(&file,&self.root,false)}],"next_actions":[]}),text:"Content-dependent quality indicators and optional paired deltas; no heuristic quality verdict.".into(),images:Vec::new()});
         }
-        // wave6: imported text observations are data; MCP never executes a supplied program.
+        // Imported text observations are data; MCP never executes a supplied program.
         if operation == "text" {
             reject_unknown(
                 args,
@@ -1476,7 +1466,7 @@ impl Server {
             let file = crate::general_cmd::persist_document(&value, &out)?;
             return Ok(ToolOutput{structured:json!({"schema":saccade_core::general::RESULT_SCHEMA,"mode":operation,"verdict":value["verdict"],"data":{"schema":value["schema"],"counts":value["counts"]},"artifacts":[{"path":saccade_core::paths::record(&file,&self.root,false)}],"next_actions":[]}),text:"OCR/source observations compared; missing text and confidence are uncertain evidence.".into(),images:Vec::new()});
         }
-        // wave6: model/runtime reads and cache writes use the same root authority.
+        // Model/runtime reads and cache writes use the same root authority.
         if matches!(
             operation.as_str(),
             "similar" | "index_build" | "index_query" | "embedding_calibrate"
@@ -1643,7 +1633,6 @@ impl Server {
     }
 
     fn local_tool(&self, name: &str, args: &Map<String, Value>) -> ToolResult {
-        // wave6
         if name == "saccade_general" {
             return self.wave6_tool(args);
         }
@@ -2148,7 +2137,6 @@ pub fn serve_stdio(
     follow: bool,
     targets: &[PathBuf],
     #[cfg(feature = "ai")] providers: crate::review_cmd::Startup,
-    // wave5
     #[cfg(feature = "products")] product_network: bool,
     #[cfg(feature = "products")] product_notifications: bool,
 ) -> Result<(), CliError> {
@@ -2163,7 +2151,6 @@ pub fn serve_stdio(
         }
         server.providers = providers;
     }
-    // wave5
     #[cfg(feature = "products")]
     {
         server.product_network = product_network;
@@ -2323,7 +2310,6 @@ fn tool_schemas() -> Value {
                 ),
             ],
         );
-        // wave4
         #[cfg(feature = "assist")]
         if let Some(variants) = tool["inputSchema"]["oneOf"].as_array_mut() {
             variants.extend(assist::schemas());
@@ -2331,19 +2317,16 @@ fn tool_schemas() -> Value {
         tool["annotations"]["openWorldHint"] = json!(true);
         list.push(tool);
     }
-    // wave5
     #[cfg(feature = "products")]
     if let Some(list) = schemas.as_array_mut() {
         list.push(products::schema());
     }
-    // wave6
     if let Some(list) = schemas.as_array_mut() {
         list.push(crate::general_cmd::tool_schema());
     }
     schemas
 }
 
-// wave4
 #[cfg(feature = "assist")]
 #[path = "mcp_assist.rs"]
 mod assist;

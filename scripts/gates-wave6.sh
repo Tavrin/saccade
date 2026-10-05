@@ -2,7 +2,7 @@
 # Coordinator-only heavy queue entry point. Do not run during lane development.
 set -uo pipefail
 cd "$(dirname "$0")/.."
-export CARGO_TARGET_DIR="/mnt/linux-extra/moss-cargo-targets/codex-saccade-w6"
+export CARGO_TARGET_DIR="${CARGO_TARGET_DIR:-/mnt/linux-extra/moss-cargo-targets/codex-saccade-w6}"
 failed=0
 gate() {
   local name=$1; shift

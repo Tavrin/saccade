@@ -1,6 +1,7 @@
 import type { Expect, TestType, Page, Locator } from '@playwright/test';
 export interface SaccadeOptions {
   binary?: string; metric?: 'mean' | 'p95' | 'p99' | 'max'; threshold?: number;
+  align?: 'none' | 'translation' | 'similarity' | 'affine' | 'homography' | 'auto'; resample?: 'reference' | 'common';
   profile?: string; projectConfig?: string; config?: string;
   masks?: Array<{ reason: string; selector?: string; rect?: [number, number, number, number] }>;
   fullPage?: boolean; clock?: string; randomSeed?: number; scrollLazyLoad?: boolean;

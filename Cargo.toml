@@ -26,3 +26,7 @@ missing_docs = "warn"
 [workspace.lints.clippy]
 unwrap_used = "warn"
 expect_used = "warn"
+
+# Retain Rust 1.88 while keeping AVX-512 runtime dispatch on Rust >=1.89.
+[patch.crates-io]
+butteraugli = { path = "vendor/butteraugli" }

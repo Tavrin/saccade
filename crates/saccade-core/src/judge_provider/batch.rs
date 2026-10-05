@@ -40,7 +40,6 @@ impl BatchHttp for BatchNetwork {
         network_send(method, url, key, body, Duration::from_secs(240))
     }
 }
-// wave4
 /// The same production Batch boundary, limited by the caller's overall deadline.
 pub struct DeadlineBatchNetwork {
     /// No request may outlive this deadline.
@@ -232,7 +231,7 @@ impl GeminiBatch<'_> {
         if reply.status != 200 {
             return Err(format!("Gemini Batch HTTP {}", reply.status));
         }
-        // wave4: refuse reflected credentials before persisting Batch artifacts.
+        // Refuse reflected credentials before persisting Batch artifacts.
         let text = serde_json::to_string(&reply.body).map_err(|_| "invalid batch reply")?;
         if key.scrub(&text) != text {
             return Err("credential material in batch reply".into());

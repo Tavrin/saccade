@@ -12,11 +12,17 @@ use saccade_core::config::RunConfig;
 use saccade_core::report::{Labels, Metric, Mode, Report, Status};
 use saccade_core::view::{ViewOptions, build_view, is_safe_name};
 
-// wave5
+mod assess_cmd;
+mod capability_cmd;
 #[cfg(feature = "products")]
 mod design_cmd;
+mod documents_cmd;
+mod embedding_cmd;
+mod general_cmd;
+mod hash_cmd;
 #[cfg(feature = "products")]
 mod imgtune_cmd;
+mod inspect_image_cmd;
 mod last_good;
 #[cfg(feature = "products")]
 mod notifier_cmd;
@@ -24,15 +30,6 @@ mod notifier_cmd;
 mod product_io;
 #[cfg(feature = "products")]
 mod sweep_cmd;
-// wave6
-mod assess_cmd;
-mod capability_cmd;
-mod embedding_cmd;
-mod general_cmd;
-// wave6b
-mod documents_cmd;
-mod hash_cmd;
-mod inspect_image_cmd;
 mod text_cmd;
 
 mod agent;
@@ -217,7 +214,6 @@ impl From<MetricArg> for Metric {
 
 #[derive(Subcommand)]
 enum Command {
-    // wave5
     /// Plan and compare deterministic page sweeps.
     #[cfg(feature = "products")]
     Sweep(sweep_cmd::SweepArgs),
@@ -230,7 +226,6 @@ enum Command {
     /// Send a generic report summary to a user-configured webhook.
     #[cfg(feature = "products")]
     Notify(notifier_cmd::NotifyArgs),
-    // wave6
     /// List comparison questions, inputs, features and honest availability.
     Capabilities(capability_cmd::Args),
     /// Inspect provenance/integrity indicators without a real/fake verdict.
@@ -311,13 +306,11 @@ Examples:
 Exit codes: 0 no regression, 1 regression found, 2 the command could not run."
     )]
     Compare {
-        // wave6
         #[command(flatten)]
         general: Box<general_cmd::CompareArgs>,
         /// Directory of approved baseline images.
         #[arg(required_unless_present = "baseline", conflicts_with = "baseline")]
         baseline_dir: Option<PathBuf>,
-        // wave5
         /// Resolve the latest complete passing history run as an immutable baseline.
         #[arg(long, value_parser = ["last-good"])]
         baseline: Option<String>,
@@ -670,7 +663,6 @@ Example:
         #[cfg(feature = "ai")]
         #[command(flatten)]
         providers: review_cmd::Startup,
-        // wave5
         /// Authorize product HTTP operations from registered roots.
         #[cfg(feature = "products")]
         #[arg(long)]
@@ -1057,7 +1049,6 @@ fn emit_run(
 
 fn dispatch(command: Command, record_absolute_paths: bool) -> Result<u8, CliError> {
     match command {
-        // wave6
         Command::Capabilities(args) => capability_cmd::run(args),
         Command::InspectImage(args) => inspect_image_cmd::run(args),
         Command::Assess(args) => assess_cmd::run(args),
@@ -1109,7 +1100,6 @@ fn dispatch(command: Command, record_absolute_paths: bool) -> Result<u8, CliErro
         Command::Regions(args) => region_cmd::run(args),
         Command::ExplainGrounded(args) => grounded_cmd::run(args),
         Command::LocalizedCheck(args) => localized_cmd::run(args),
-        // wave5
         #[cfg(feature = "products")]
         Command::Sweep(args) => sweep_cmd::run(args),
         #[cfg(feature = "products")]
@@ -1286,7 +1276,6 @@ fn dispatch(command: Command, record_absolute_paths: bool) -> Result<u8, CliErro
             )
         }
         Command::Compare {
-            // wave6
             general,
             baseline_dir,
             baseline,
@@ -1309,7 +1298,6 @@ fn dispatch(command: Command, record_absolute_paths: bool) -> Result<u8, CliErro
             perf,
             intent,
         } => {
-            // wave5
             let last_good = if baseline.is_some() {
                 Some(last_good::resolve(history_store.as_deref().ok_or_else(
                     || CliError::usage("--baseline last-good requires --history-store"),
@@ -1322,9 +1310,9 @@ fn dispatch(command: Command, record_absolute_paths: bool) -> Result<u8, CliErro
                 .map(|dir| dir.path().to_path_buf())
                 .or(baseline_dir)
                 .ok_or_else(|| CliError::usage("baseline directory required"))?;
-            // wave6: explicit questions never discard unrelated evidence options or fall back.
+            // Explicit questions never discard unrelated evidence options or fall back.
             capability_cmd::validate(&general)?;
-            // wave6b: document files stream pages into a separate versioned summary.
+            // Document files stream pages into a separate versioned summary.
             let document_pair = baseline_dir.is_file()
                 && capture_dir.is_file()
                 && (documents_cmd::is_document(&baseline_dir)
@@ -1390,7 +1378,7 @@ fn dispatch(command: Command, record_absolute_paths: bool) -> Result<u8, CliErro
                     json,
                 );
             }
-            // wave6: explicit registration has its own evidence contract.
+            // Explicit registration has its own evidence contract.
             if general.align.is_some() {
                 if config.is_some()
                     || !entries.is_empty()
@@ -1450,7 +1438,7 @@ fn dispatch(command: Command, record_absolute_paths: bool) -> Result<u8, CliErro
                 &intent,
             )?;
             let intent_mismatch = local_cmd::verify_visual_intent(&report, &out, visual.as_ref())?;
-            // wave6: hash-bound route component preserves the ordinary immutable report contract.
+            // Hash-bound route component preserves the ordinary immutable report contract.
             if general.question.is_some() {
                 let choice = capability_cmd::record_render(&report, &out, &general)?;
                 if json {
@@ -1768,7 +1756,6 @@ fn dispatch(command: Command, record_absolute_paths: bool) -> Result<u8, CliErro
             symlink_targets,
             #[cfg(feature = "ai")]
             providers,
-            // wave5
             #[cfg(feature = "products")]
             allow_product_network,
             #[cfg(feature = "products")]
@@ -1781,7 +1768,6 @@ fn dispatch(command: Command, record_absolute_paths: bool) -> Result<u8, CliErro
                 &symlink_targets,
                 #[cfg(feature = "ai")]
                 providers,
-                // wave5
                 #[cfg(feature = "products")]
                 allow_product_network,
                 #[cfg(feature = "products")]
@@ -1800,7 +1786,6 @@ fn doctor(json: bool) -> Result<u8, CliError> {
     if cfg!(feature = "mcp") {
         features.push("mcp");
     }
-    // wave5
     if cfg!(feature = "products") {
         features.push("products");
     }
@@ -1808,6 +1793,7 @@ fn doctor(json: bool) -> Result<u8, CliError> {
         features.push("imgtune-avif");
     }
     features.sort_unstable();
+    features.dedup();
     // These names are a script-facing contract. Add new names; keep existing
     // ones until they have an explicit deprecation path.
     let mut capabilities = vec![
@@ -1849,7 +1835,6 @@ fn doctor(json: bool) -> Result<u8, CliError> {
     if cfg!(feature = "ai") {
         capabilities.push("review");
     }
-    // wave4
     if cfg!(feature = "assist") {
         capabilities.push("experimental-assist");
     }
@@ -2490,7 +2475,14 @@ pub(crate) fn capabilities(json: bool) -> Result<u8, CliError> {
     if cfg!(feature = "mcp") {
         features.push("mcp");
     }
+    if cfg!(feature = "products") {
+        features.push("products");
+    }
+    if cfg!(feature = "imgtune-avif") {
+        features.push("imgtune-avif");
+    }
     features.sort_unstable();
+    features.dedup();
     let value = serde_json::json!({
         "features": features,
         "operations": names,
@@ -2546,9 +2538,7 @@ mod wave3_schema_tests {
     }
 }
 
-// wave4
-#[cfg(feature = "assist")]
-mod assist_cmd;
-// wave4
 #[cfg(feature = "assist")]
 mod assist_batch_cmd;
+#[cfg(feature = "assist")]
+mod assist_cmd;
