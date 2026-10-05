@@ -11,10 +11,30 @@ use std::{
     path::PathBuf,
     sync::{Arc, Mutex},
 };
-pyo3::create_exception!(saccade, SaccadeError, pyo3::exceptions::PyException);
-pyo3::create_exception!(saccade, InputError, SaccadeError);
-pyo3::create_exception!(saccade, ModelError, SaccadeError);
-pyo3::create_exception!(saccade, AnalysisError, SaccadeError);
+pyo3::create_exception!(
+    saccade,
+    SaccadeError,
+    pyo3::exceptions::PyException,
+    "Stable Saccade error carrying a machine-readable code."
+);
+pyo3::create_exception!(
+    saccade,
+    InputError,
+    SaccadeError,
+    "Invalid media input or options."
+);
+pyo3::create_exception!(
+    saccade,
+    ModelError,
+    SaccadeError,
+    "Model, runtime or inference unavailable."
+);
+pyo3::create_exception!(
+    saccade,
+    AnalysisError,
+    SaccadeError,
+    "Analysis or persistence failure."
+);
 fn error(py: Python<'_>, e: MediaError) -> PyErr {
     let ty =
         if e.code.contains("unavailable") || e.code.contains("model") || e.code.contains("runtime")

@@ -619,9 +619,24 @@ Examples:
   saccade serve captures/ reports/ --port 0    Several roots; pick a free port"
     )]
     Serve {
+        // wave8
+        /// Serve the local versioned media API instead of the archive viewer.
+        #[arg(long)]
+        api: bool,
+        #[arg(long,default_value_t=16*1024*1024)]
+        api_max_bytes: usize,
+        #[arg(long, default_value = "127.0.0.1")]
+        api_bind: std::net::IpAddr,
+        /// Optional bearer-token env file; default ~/.config/saccade/api.env if present.
+        #[arg(long)]
+        api_token_file: Option<PathBuf>,
+        #[arg(long, default_value = "/mnt/linux-extra/saccade-models")]
+        api_model_dir: PathBuf,
+        #[arg(long)]
+        api_registry: Option<PathBuf>,
         /// Archive roots to browse (read-only). With several, each is a
         /// top-level entry named after its directory.
-        #[arg(num_args = 1..)]
+        #[arg(num_args = 0..)]
         roots: Vec<PathBuf>,
         /// Additional read-only archive roots (repeatable).
         #[arg(long = "root")]
@@ -1639,6 +1654,12 @@ fn dispatch(command: Command, record_absolute_paths: bool) -> Result<u8, CliErro
         }
         #[cfg(feature = "workbench")]
         Command::Serve {
+            api,
+            api_max_bytes,
+            api_bind,
+            api_token_file,
+            api_model_dir,
+            api_registry,
             mut roots,
             registered_roots,
             out_root,
@@ -1656,6 +1677,18 @@ fn dispatch(command: Command, record_absolute_paths: bool) -> Result<u8, CliErro
             perf,
         } => {
             roots.extend(registered_roots);
+            // wave8
+            if api {
+                return media_cmd::serve_api(
+                    roots,
+                    port,
+                    api_max_bytes,
+                    api_bind,
+                    api_token_file,
+                    api_model_dir,
+                    api_registry,
+                );
+            }
             if roots.is_empty() {
                 return Err(CliError::usage("serve requires ROOT or --root DIR"));
             }

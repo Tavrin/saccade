@@ -41,6 +41,12 @@ pub(crate) fn error(e: media::MediaError) -> CliError {
             "media_fetch_unavailable" => "media_fetch_unavailable",
             "media_fetch_failed" => "media_fetch_failed",
             "invalid_json" => "invalid_json",
+            "io_error" => "io_error",
+            "invalid_vision_input" => "invalid_vision_input",
+            "gpu_unavailable" => "gpu_unavailable",
+            "description_unavailable" => "description_unavailable",
+            "analyzer_poisoned" => "analyzer_poisoned",
+            "unsafe_path" => "unsafe_path",
             _ => "media_error",
         },
         e.message,
@@ -197,4 +203,89 @@ pub(crate) fn usage(a: UsageArgs) -> Result<u8, CliError> {
         .is_some_and(|rows| rows.iter().any(|r| r["status"] == "failed"));
     emit(&result, a.json)?;
     Ok(if failed { 2 } else { 0 })
+}
+
+#[cfg(feature = "workbench")]
+pub(crate) fn serve_api(
+    mut roots: Vec<PathBuf>,
+    port: u16,
+    max: usize,
+    bind: std::net::IpAddr,
+    token_file: Option<PathBuf>,
+    model_dir: PathBuf,
+    registry: Option<PathBuf>,
+) -> Result<u8, CliError> {
+    if roots.is_empty() {
+        roots.push(std::env::current_dir().map_err(|e| CliError::io(e.to_string()))?);
+    }
+    let policy = saccade_core::root_policy::RootPolicy::new(&roots, None, false, &[])?;
+    let path = token_file.or_else(|| {
+        std::env::var_os("HOME")
+            .map(|h| PathBuf::from(h).join(".config/saccade/api.env"))
+            .filter(|p| p.exists())
+    });
+    let token = if let Some(path) = path {
+        let bytes = saccade_core::general::input::bytes(&path, 65536).map_err(|_| {
+            CliError::new(
+                "invalid_media_options",
+                "API token file unavailable (redacted)",
+            )
+        })?;
+        let text = std::str::from_utf8(&bytes).map_err(|_| {
+            CliError::new("invalid_media_options", "API token file invalid (redacted)")
+        })?;
+        let mut token = None;
+        for line in text
+            .lines()
+            .map(str::trim)
+            .filter(|s| !s.is_empty() && !s.starts_with('#'))
+        {
+            let (name, value) = line
+                .strip_prefix("export ")
+                .unwrap_or(line)
+                .split_once('=')
+                .ok_or_else(|| {
+                    CliError::new("invalid_media_options", "API token file invalid (redacted)")
+                })?;
+            if name.trim() == "SACCADE_API_TOKEN" {
+                if token.is_some() {
+                    return Err(CliError::new(
+                        "invalid_media_options",
+                        "duplicate API token (redacted)",
+                    ));
+                }
+                let value = value.trim();
+                let value = if value.len() >= 2
+                    && (value.starts_with('"') && value.ends_with('"')
+                        || value.starts_with('\'') && value.ends_with('\''))
+                {
+                    &value[1..value.len() - 1]
+                } else {
+                    value
+                };
+                token = Some(value.to_owned());
+            }
+        }
+        Some(token.ok_or_else(|| {
+            CliError::new("invalid_media_options", "API token missing (redacted)")
+        })?)
+    } else {
+        None
+    };
+    let a = if let Some(path) = registry {
+        Analyzer::with_registry(
+            Profile::CpuLite,
+            model_dir,
+            false,
+            saccade_core::wave7::models::Registry::load(&path).map_err(crate::wave7_cmd::error)?,
+        )
+    } else {
+        Analyzer::new(Profile::CpuLite, model_dir, false)
+    }
+    .map_err(error)?;
+    media::http::Api::new(a, policy, max, token)
+        .map_err(error)?
+        .serve_on(bind, port)
+        .map_err(error)?;
+    Ok(0)
 }

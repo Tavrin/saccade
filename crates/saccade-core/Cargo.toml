@@ -80,7 +80,7 @@ geometry = ["dep:parry3d-f64", "dep:tobj", "dep:gltf", "dep:base64"]
 # Provider adapters and review orchestration.
 ai = ["dep:ureq", "dep:fs2", "dep:httpdate"]
 # Local HTTP workbench, independent of AI.
-workbench = ["dep:tiny_http"]
+workbench = ["dep:tiny_http", "dep:base64"]
 # wave8
 media-http = ["dep:ureq"]
 # Replay, calibration and provider conformance.

@@ -1,0 +1,26 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/Tavrin/saccade/crates/saccade-core/schemas/saccade-api-health.v1.schema.json",
+  "type": "object",
+  "properties": {
+    "schema": {
+      "const": "saccade-api-health.v1"
+    },
+    "status": {
+      "const": "ok"
+    },
+    "media_schema": {
+      "const": "saccade-media-record.v1"
+    },
+    "version": {
+      "type": "string"
+    }
+  },
+  "required": [
+    "schema",
+    "status",
+    "media_schema",
+    "version"
+  ],
+  "additionalProperties": false
+}

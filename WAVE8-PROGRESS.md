@@ -13,3 +13,5 @@
 8.5 implemented (this commit): external keyframes and directory fixtures, video records; ffmpeg test heavy-gated. No decoder run. Validation remains disk-paused.
 
 8.6 implemented (this commit): usage matches from records/images with retained failures; generated crop/JPEG/resize fixtures written, not yet compiled due disk.
+
+8.7 implemented (this commit): shared loopback API, schemas/OpenAPI, Dockerfile and generated local wire fixtures. Docker build heavy-gated.

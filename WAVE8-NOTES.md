@@ -70,3 +70,14 @@ inherited model accuracy/parity and Rust OCR qualification remain explicitly inc
   global hashes even with good registration. Hashes provide candidate evidence; keypoints
   decide. Reversal cost: tune a future separately versioned prefilter without changing
   the stored compact fingerprint or matched-transform direction.
+
+## 8.7 local API
+- Implement a bounded HTTP/1.1 subset over std sockets so header/body reads have a
+  terminating 10-second total deadline. Request Content-Length/JSON required; no chunked
+  bodies. Reject duplicate framing/auth headers. The core handles all endpoint operations.
+- Loopback is default; nonloopback bind is startup-only explicit configuration (needed for
+  container port forwarding). Root containment applies to source and index files. Token
+  only from the startup env file, never request configuration or ambient provider keys.
+- Docker contains binary only, unprivileged user, mounted model/runtime volume, no publishing.
+  Reversal cost: replace transport with an HTTP framework without changing core records,
+  endpoint version or startup authority.

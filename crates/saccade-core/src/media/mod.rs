@@ -8,6 +8,9 @@ use std::{
     sync::Mutex,
     time::Instant,
 };
+/// Loopback local media HTTP transport.
+#[cfg(feature = "workbench")]
+pub mod http;
 pub mod saliency;
 /// Source-record and image usage matching.
 pub mod usage;
@@ -44,6 +47,8 @@ impl From<models::VisionError> for MediaError {
             models::VisionError::Unavailable(_) => "vision_unavailable",
             models::VisionError::Integrity(_) => "model_integrity",
             models::VisionError::RuntimeIncompatible { .. } => "runtime_incompatible",
+            models::VisionError::Io(_) => "io_error",
+            models::VisionError::Json(_) => "invalid_json",
             _ => "invalid_vision_input",
         };
         Self::new(code, e.to_string())
@@ -444,6 +449,34 @@ impl Analyzer {
             description,
             video: skipped("external-ffmpeg-keyframes", "image input"),
         };
+        if record.embeddings.status == Status::Ok {
+            if let Some(model) = self.registry.contracts.get("embedding") {
+                record.embeddings.provenance = Provenance {
+                    id: model["family"].as_str().unwrap_or("embedding").into(),
+                    version: model["artifact"]["version"]
+                        .as_str()
+                        .unwrap_or("supplied")
+                        .into(),
+                    pins: vec![model["artifact"]["sha256"].as_str().unwrap_or("").into()],
+                };
+            }
+        }
+        if let Some(Ok(face)) = &face_result {
+            record
+                .focal
+                .provenance
+                .pins
+                .extend(face.provenance.artifact_sha256.clone());
+        }
+        if record.text.status == Status::Ok {
+            if let Some(c) = self.registry.contracts.get("ocr") {
+                record.text.provenance.version = "ocrs-0.10.4/rten-0.21.0".into();
+                record.text.provenance.pins = ["detection", "recognition"]
+                    .iter()
+                    .filter_map(|k| c[*k]["sha256"].as_str().map(str::to_owned))
+                    .collect();
+            }
+        }
         // An attempted face failure remains independent of the successful saliency fallback.
         if let Some(Err(e)) = face_result {
             record.focal.status = Status::Failed;

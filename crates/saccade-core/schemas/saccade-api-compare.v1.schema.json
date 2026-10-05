@@ -1,0 +1,72 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/Tavrin/saccade/crates/saccade-core/schemas/saccade-api-compare.v1.schema.json",
+  "type": "object",
+  "properties": {
+    "a": {
+      "oneOf": [
+        {
+          "type": "object",
+          "properties": {
+            "path": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "path"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "bytes_base64": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "bytes_base64"
+          ],
+          "additionalProperties": false
+        }
+      ]
+    },
+    "b": {
+      "oneOf": [
+        {
+          "type": "object",
+          "properties": {
+            "path": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "path"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "bytes_base64": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "bytes_base64"
+          ],
+          "additionalProperties": false
+        }
+      ]
+    },
+    "ppd": {
+      "type": "number",
+      "exclusiveMinimum": 0
+    }
+  },
+  "required": [
+    "a",
+    "b"
+  ],
+  "additionalProperties": false
+}
