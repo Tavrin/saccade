@@ -4,7 +4,7 @@ Build with `documents` (opt-in; no default dependency change). SVG uses
 resvg/usvg 0.48.1 (MIT/Apache-2.0); PDF uses pure Rust hayro 0.3.0
 (Apache-2.0). No PDFium/native library, scripts or network backend is loaded.
 The current hayro 0.8.0 requires Rust 1.92; the older renderer preserves the
-repository's declared Rust 1.88 baseline, subject to the MSRV check.
+repository's declared Rust 1.89 baseline, subject to the MSRV check.
 
 ```sh
 saccade compare a.svg b.svg --dpi 144 --out vector-report --json

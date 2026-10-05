@@ -26,8 +26,8 @@ rustfft = "6"
 # Published 0.5.1: BSD-2-Clause, MSRV 1.65; newer repository HEAD differs.
 ort = { version = "=2.0.0-rc.10", default-features = false, features = ["std", "load-dynamic"], optional = true }
 ssimulacra2 = { version = "=0.5.1", default-features = false, optional = true }
-# 0.4.0 retains Rust 1.85; later ports pull dependencies requiring Rust 1.89.
-butteraugli = { version = "=0.4.0", default-features = false, optional = true }
+# Published 0.9.3: BSD-3-Clause, MSRV 1.89; official reference-qualified.
+butteraugli = { version = "=0.9.3", default-features = false, optional = true }
 # Pure Rust ICC transforms; BSD-3-Clause OR Apache-2.0, Rust 1.85.
 moxcms = { version = "=0.7.11", default-features = false }
 sha2 = "0.10"

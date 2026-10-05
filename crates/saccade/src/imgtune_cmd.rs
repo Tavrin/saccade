@@ -388,7 +388,7 @@ pub(crate) fn search(input: Search, root: &Path) -> Result<Value, CliError> {
     }
     let complete = rows.iter().all(|r| r["coverage"] == "complete");
     Ok(
-        json!({"schema":SEARCH_SCHEMA,"verdict":if complete{"complete"}else{"incomplete"},"policy":{"target_score":input.target_score,"butteraugli_ceiling":input.butteraugli_ceiling,"metric":"SSIMULACRA2 0.5.1; Butteraugli 0.4.0 at 80 cd/m2","reference":"opaque normalized sRGB; Lanczos3 resize","search":"lowest bytes among declared grid; not a global optimum"},"items":rows,"groups":groups}),
+        json!({"schema":SEARCH_SCHEMA,"verdict":if complete{"complete"}else{"incomplete"},"policy":{"target_score":input.target_score,"butteraugli_ceiling":input.butteraugli_ceiling,"metric":"SSIMULACRA2 0.5.1; Butteraugli 0.9.3 at 80 cd/m2","reference":"opaque normalized sRGB; Lanczos3 resize","search":"lowest bytes among declared grid; not a global optimum"},"items":rows,"groups":groups}),
     )
 }
 use sha2::Digest;

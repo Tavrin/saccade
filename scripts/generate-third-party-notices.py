@@ -9,7 +9,7 @@ parser = argparse.ArgumentParser()
 parser.add_argument('output', type=pathlib.Path)
 args = parser.parse_args()
 metadata = json.loads(subprocess.check_output(['cargo', 'metadata', '--locked', '--all-features', '--format-version', '1']))
-packages = sorted((p for p in metadata['packages'] if p['source'] or p['name'] == 'butteraugli'), key=lambda p: (p['name'], p['version']))
+packages = sorted((p for p in metadata['packages'] if p['source']), key=lambda p: (p['name'], p['version']))
 lines = ['# Third-party notices', '', 'Generated from Cargo.lock via cargo metadata --locked --all-features.',
          'This inventory includes every resolved external crate, including build, optional,',
          'development and platform-specific dependencies, so no target is omitted.',
@@ -20,11 +20,11 @@ for p in packages:
     license_id = p.get('license') or ('SEE LICENSE FILE: ' + str(p.get('license_file')))
     if not license_id:
         raise SystemExit(f'{name} {version}: missing license metadata')
-    lines += [f'## {name} {version}', '', f'License: {license_id}', f'Source: {p["source"] or "vendored crates.io butteraugli 0.4.0 with compiler target gating"}', '']
+    lines += [f'## {name} {version}', '', f'License: {license_id}', f'Source: {p["source"]}', '']
     root = pathlib.Path(p['manifest_path']).parent
     files = sorted(f for f in root.iterdir() if f.is_file() and f.name.upper().startswith(('LICENSE', 'LICENCE', 'COPYING', 'NOTICE')))
-    if (name, version) == ('butteraugli', '0.4.0') and not files:
-        files.append(pathlib.Path(__file__).resolve().parents[1] / 'crates/saccade-core/assets/licenses/butteraugli-0.4.0.txt')
+    if (name, version) == ('butteraugli', '0.9.3') and not files:
+        files.append(pathlib.Path(__file__).resolve().parents[1] / 'crates/saccade-core/assets/licenses/butteraugli-0.9.3.txt')
     license_file = p.get('license_file')
     if license_file:
         f = root / license_file

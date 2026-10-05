@@ -68,6 +68,10 @@ fn compression_metrics_match_official_nonidentical_references() {
             let actual = stage[actual].as_f64().unwrap();
             let expected = pair[expected].as_f64().unwrap();
             let tolerance = values[tolerance].as_f64().unwrap();
+            println!(
+                "reference {distorted} {expected} actual {actual} delta {} tolerance {tolerance}",
+                actual - expected
+            );
             assert!(
                 (actual - expected).abs() <= tolerance,
                 "{distorted} {actual} != reference {expected} within {tolerance}"

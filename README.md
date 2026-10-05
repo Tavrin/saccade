@@ -27,7 +27,7 @@ No Rust toolchain is needed. Each archive includes the licences and
 third-party notices. See [releasing](docs/releasing.md) for how releases are
 built and checked.
 
-To build from source with Cargo (Rust 1.88 or newer):
+To build from source with Cargo (Rust 1.89 or newer):
 
 ```sh
 cargo install --locked --git https://github.com/Tavrin/saccade saccade

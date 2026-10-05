@@ -5,7 +5,7 @@ members = ["crates/saccade-core", "crates/saccade"]
 [workspace.package]
 version = "0.1.2"
 edition = "2024"
-rust-version = "1.88"
+rust-version = "1.89"
 license = "MIT OR Apache-2.0"
 repository = "https://github.com/Tavrin/saccade"
 keywords = ["visual-regression", "flip", "rendering", "image-diff", "ci"]
@@ -26,7 +26,3 @@ missing_docs = "warn"
 [workspace.lints.clippy]
 unwrap_used = "warn"
 expect_used = "warn"
-
-# Retain Rust 1.88 while keeping AVX-512 runtime dispatch on Rust >=1.89.
-[patch.crates-io]
-butteraugli = { path = "vendor/butteraugli" }

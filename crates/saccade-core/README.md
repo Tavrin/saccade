@@ -2,7 +2,7 @@
 
 `saccade-core` provides image comparison and the report model used by the
 [saccade CLI](https://crates.io/crates/saccade). It can be used without invoking
-a subprocess or writing a report directory. Rust 1.88 or newer is required.
+a subprocess or writing a report directory. Rust 1.89 or newer is required.
 
 ## Image comparison
 

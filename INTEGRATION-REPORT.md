@@ -180,3 +180,49 @@ After every admitted job finished, the exact prescribed target
 nonblocking debug/release Cargo locks held and canonical/nonsymlink guards.
 [Cleanup receipt](/mnt/linux-extra/saccade-integ-evidence/2026-10-05-r2-corrective/target-cleanup.json) records removal and
 39.1 GiB free afterward. No push or Git changes outside this worktree.
+
+# Round 3 — Butteraugli 0.9.3, MSRV 1.89 (2026-10-05)
+
+Starting HEAD `54a4bba`, branch `integ/waves-4-6`. The owner-approved round-3
+spec supersedes the Rust 1.88 compatibility decision above. Current source,
+consumer requirements, CI MSRV and gate scripts now use Rust 1.89; historical
+wave/round-2 evidence and design decisions retain their original toolchain facts.
+No push, other-worktree Git changes, subagents or GPU execution.
+
+The registry resolver selected latest 0.9.x **0.9.3** and the workspace pins
+`=0.9.3`. The fetched package declares `rust-version = "1.89"` and
+`license = "BSD-3-Clause"`; its README agrees. Its archive omits LICENSE,
+so the retained JPEG XL Project Authors notice keeps its recorded older upstream
+source revision. [Fetched dependency pins](/mnt/linux-extra/moss-scratch/saccade-integ-r3/dependency-pins.json)
+bind manifest hashes and new SIMD dependency licences (MIT OR Apache-2.0).
+The vendor directory and crates.io patch are removed. Img/RGB8 and the function
+signature remain compatible; call sites use the 0.9 builder to explicitly retain
+80 cd/m2. Report and imgtune provenance now identify 0.9.3. The constructed
+corpus source hash uses Cargo.lock rather than removed vendored paths.
+
+## Reference qualification
+
+The paired CPU-only probe uses the retained, compiler-gated 0.4.0 source from
+starting HEAD and published 0.9.3. Same opaque RGB samples, 80 cd/m2, no default
+dependency features. Both are compared against unchanged, hash-checked official
+libjxl v0.12.0 fixtures; reference tolerance remains **0.02**, SSIMULACRA2 0.05.
+The new version is closer for every nonidentical fixture. Retaining 0.4.0 was
+rejected; no tolerance or golden score was changed. The fixture scope is synthetic
+brightness/block/local-patch distortion, not broad natural-image qualification.
+
+| Pair | Official | 0.4.0 | 0.9.3 (Rust 1.89) | Old signed error | New signed error |
+| --- | ---: | ---: | ---: | ---: | ---: |
+| reference.png | 0.0000000000 | 0.0000000000 | 0.0000000000 | +0.0000000000 | +0.0000000000 |
+| brightness.png | 5.4179773331 | 5.4184951782 | 5.4179792404 | +0.0005178451 | +0.0000019073 |
+| blocks.png | 2.1045861244 | 2.1048207283 | 2.1045837402 | +0.0002346039 | -0.0000023842 |
+| patch.png | 54.2458076477 | 54.2357063293 | 54.2460327148 | -0.0101013184 | +0.0002250671 |
+
+[Probe log](/mnt/linux-extra/moss-scratch/saccade-integ-r3/probe-1.89.log),
+[scores](/mnt/linux-extra/moss-scratch/saccade-integ-r3/scores-1.89.json),
+[milestones](/mnt/linux-extra/moss-scratch/saccade-integ-r3/MILESTONES.md).
+
+## Round 3 gate receipts
+
+Pending current-source qualification and CI/release gates. Each admitted component
+has a 900-second limit; release-check's opt-in admission releases shared resources
+between components. Builds stop below the inherited 25 GiB free-space floor.

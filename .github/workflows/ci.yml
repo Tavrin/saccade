@@ -66,6 +66,16 @@ jobs:
       - run: cargo build --locked -p ${{ matrix.package }} ${{ matrix.flags }}
       - run: cargo test --locked -p ${{ matrix.package }} ${{ matrix.flags }}
 
+  msrv:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - uses: dtolnay/rust-toolchain@7e38f4b43b4db5c8dd498af069a4f6196df1d067 # stable
+        with:
+          toolchain: '1.89'
+      - run: cargo check --locked -p saccade
+      - run: cargo test --locked -p saccade --test quality_reference
+
   package:
     runs-on: ubuntu-latest
     steps:

@@ -235,7 +235,7 @@ pub fn butteraugli_distance(
     let distance = butteraugli::butteraugli(
         a.as_ref(),
         b.as_ref(),
-        &butteraugli::ButteraugliParams::default(),
+        &butteraugli::ButteraugliParams::new().with_intensity_target(80.0),
     )
     .map_err(invalid)?
     .score;
@@ -370,7 +370,7 @@ pub fn sweep(root: &Path, manifest: Manifest) -> Result<Sweep> {
         manifest,
         manifest_sha256: String::new(),
         original_bytes,
-        metric: "ssimulacra2 0.5.1 (BSD-2-Clause); butteraugli 0.4.0 (BSD-3-Clause), 80 cd/m2; sRGB/BT.709; synthetic reference qualification: libjxl v0.12.0 and Cloudinary v2.1".into(),
+        metric: "ssimulacra2 0.5.1 (BSD-2-Clause); butteraugli 0.9.3 (BSD-3-Clause), 80 cd/m2; sRGB/BT.709; synthetic reference qualification: libjxl v0.12.0 and Cloudinary v2.1".into(),
         candidates: results,
         selected_candidate: selected,
         lowest_quality_candidate: lowest,

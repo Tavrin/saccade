@@ -17,7 +17,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Add optional SVG/PDF rendering, offline C2PA validation and pinned Rust OCR.
   Model, OCR readability, forensic specificity and broad renderer qualification
   retain the limits recorded in their evidence and documentation.
-- Gate Butteraugli AVX-512 dispatch on compiler support while retaining Rust 1.88.
+- Raise the MSRV to Rust 1.89 and upgrade Butteraugli to 0.9.3; remove the vendored compatibility patch.
 
 - Round 2 integration adds Wave 7 vision commands and explicit face/crop/watermark observations in image reports, fixture-only hosted mappings and advisory check-ui localization. Shared model contracts retain legacy readers. Dynamic browser/sweep masks neutralize excluded pixels before filtering; core score-exclusion defaults remain. Model export/parity and generated OCR contract review are separate qualification gates.
 

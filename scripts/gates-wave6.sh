@@ -21,7 +21,7 @@ cargo_gate() {
 }
 gate fmt cargo fmt --all -- --check
 gate check-minimal cargo_gate check -p saccade --no-default-features
-msrv_gate() { SACCADE_W6_TOOLCHAIN=1.88 cargo_gate check -p saccade --no-default-features --features schema,embeddings,ocr,documents,credentials,mcp,parallel; }
+msrv_gate() { SACCADE_W6_TOOLCHAIN=1.89 cargo_gate check -p saccade --no-default-features --features schema,embeddings,ocr,documents,credentials,mcp,parallel; }
 gate msrv-wave6 msrv_gate
 gate clippy clippy_gate
 gate core-tests cargo_gate test -p saccade-core --features schema,embeddings,ocr,documents,credentials

@@ -40,7 +40,7 @@ impl Storage {
     /// Timed-out probes retain their slot until the OS operation returns.
     /// Saturation fails immediately instead of spawning more hung threads.
     pub fn run<T: Send + 'static>(&self, op: impl FnOnce() -> T + Send + 'static) -> Result<T, ()> {
-        // `try_update` requires Rust 1.95; retain the workspace's Rust 1.88 MSRV.
+        // `try_update` requires Rust 1.95; retain the workspace's Rust 1.89 MSRV.
         let mut n = self.active.load(Ordering::Acquire);
         loop {
             if n >= MAX_PROBES {

@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Run the Waves 4–6/host CI gates sequentially in one admitted batch."""
+"""Run host gates sequentially; --admit-gb admits each component separately."""
 import hashlib
 import argparse
 import json
@@ -12,6 +12,7 @@ from pathlib import Path
 parser = argparse.ArgumentParser(description=__doc__)
 parser.add_argument('--evidence', type=Path, required=True)
 parser.add_argument('--round2', action='store_true')
+parser.add_argument('--admit-gb', type=int, help='admit each component separately (900-second limit)')
 parser.add_argument('--only', nargs='+')
 args = parser.parse_args()
 root = Path(__file__).resolve().parents[1]
@@ -20,11 +21,13 @@ args.evidence.mkdir(parents=True, exist_ok=False)
 env = os.environ.copy()
 env.update(CARGO_TARGET_DIR='/mnt/linux-extra/moss-cargo-targets/codex-saccade-integ',
            CARGO_PROFILE_DEV_DEBUG='0', CARGO_PROFILE_TEST_DEBUG='0', CARGO_BUILD_JOBS='4',
+           CARGO_INCREMENTAL='0',
            RUSTC_WRAPPER='', CARGO_BUILD_RUSTC_WRAPPER='', SYSTEM_DEPS_DAV1D_BUILD_INTERNAL='never')
 binary = env['CARGO_TARGET_DIR'] + '/debug/saccade'
 commands = [
-    ('msrv-default', ['cargo', '+1.88', 'check', '--offline', '--locked', '-p', 'saccade']),
-    ('msrv-compression-reference', ['cargo', '+1.88', 'test', '--offline', '--locked', '-p', 'saccade', '--test', 'quality_reference']),
+    ('msrv-default', ['cargo', '+1.89', 'check', '--offline', '--locked', '-p', 'saccade']),
+    ('msrv-compression-reference', ['cargo', '+1.89', 'test', '--offline', '--locked', '-p', 'saccade', '--test', 'quality_reference']),
+    ('stable-compression-reference', ['cargo', '+stable', 'test', '--offline', '--locked', '-p', 'saccade', '--test', 'quality_reference', '--', '--nocapture']),
     ('wave4', ['bash', 'scripts/gates-wave4.sh']),
     ('wave5', ['bash', 'scripts/gates-wave5.sh']),
     ('wave6', ['bash', 'scripts/gates-wave6.sh']),
@@ -72,6 +75,13 @@ for name, command in commands:
     print('START', name, shlex.join(command), flush=True)
     source_head=subprocess.check_output(['git','rev-parse','HEAD'],text=True).strip()
     source_diff_sha256=hashlib.sha256(subprocess.check_output(['git','diff','--binary','HEAD'])).hexdigest()
+    if args.admit_gb:
+        if name == 'release-check':
+            # This script releases admission between its own components.
+            command = ['env', 'SACCADE_RELEASE_ADMISSION_GB=' + str(args.admit_gb), *command]
+        else:
+            command = ['/mnt/linux-extra/moss-coord/bin/moss-heavy.sh', str(args.admit_gb),
+                       'timeout', '900', *command]
     start = time.time()
     with log.open('w') as output:
         free = os.statvfs('/mnt/linux-extra')
@@ -81,10 +91,10 @@ for name, command in commands:
         else:
             try:
                 code = subprocess.run(command, env=env, stdout=output, stderr=subprocess.STDOUT,
-                                      timeout=3600).returncode
+                                      timeout=3600 if args.admit_gb else 900).returncode
             except subprocess.TimeoutExpired:
                 code = 124
-                output.write('\nTIMEOUT after 3600 seconds\n')
+                output.write('\nSupervisor timeout; component admission limit is 900 seconds\n')
     receipts.append({'source_head':source_head,'source_diff_sha256':source_diff_sha256,'name': name, 'command': shlex.join(command), 'exit_code': code,
                      'elapsed_seconds': round(time.time() - start, 3), 'log': str(log)})
     (args.evidence / 'receipts.json').write_text(json.dumps(receipts, indent=2) + '\n')
