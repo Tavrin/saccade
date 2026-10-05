@@ -1,6 +1,8 @@
 //! Aligns hash-checked optional replay worker evidence; never runs replay implicitly.
 use crate::agent::CliError;
 use saccade_core::renderdoc::Capture;
+use sha2::{Digest, Sha256};
+use std::io::Read;
 use std::path::{Path, PathBuf};
 #[derive(clap::Args)]
 pub(crate) struct Args {
@@ -13,10 +15,47 @@ pub(crate) struct Args {
     #[arg(long)]
     json: bool,
 }
+fn bounded_regular_read(path: &Path, budget: u64) -> Result<Vec<u8>, CliError> {
+    if !std::fs::metadata(path)
+        .map_err(|e| CliError::io(e.to_string()))?
+        .is_file()
+    {
+        return Err(CliError::usage("RenderDoc input must be a regular file"));
+    }
+    let mut options = std::fs::OpenOptions::new();
+    options.read(true);
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::OpenOptionsExt;
+        options.custom_flags(libc::O_NONBLOCK);
+    }
+    let file = options
+        .open(path)
+        .map_err(|e| CliError::io(e.to_string()))?;
+    let metadata = file.metadata().map_err(|e| CliError::io(e.to_string()))?;
+    if !metadata.is_file() {
+        return Err(CliError::usage("RenderDoc input must be a regular file"));
+    }
+    if metadata.len() > budget {
+        return Err(CliError::usage("RenderDoc input byte budget exceeded"));
+    }
+    let mut data = Vec::new();
+    file.take(budget + 1)
+        .read_to_end(&mut data)
+        .map_err(|e| CliError::io(e.to_string()))?;
+    if data.len() as u64 > budget {
+        return Err(CliError::usage("RenderDoc input byte budget exceeded"));
+    }
+    Ok(data)
+}
 fn read(path: &Path) -> Result<(Capture, String), CliError> {
-    let bytes = std::fs::read(path).map_err(|e| CliError::io(e.to_string()))?;
-    let capture: Capture = serde_json::from_slice(&bytes)?;
-    let root = path.parent().unwrap_or(Path::new("."));
+    let bytes = bounded_regular_read(path, 16 * 1024 * 1024)?;
+    let capture: Capture = crate::parse_contract(&bytes, "saccade-renderdoc-extract.v1")?;
+    let root = path
+        .parent()
+        .filter(|p| !p.as_os_str().is_empty())
+        .unwrap_or(Path::new("."));
+    let mut remaining = 2 * 1024 * 1024 * 1024u64;
     for resource in capture
         .actions
         .iter()
@@ -28,10 +67,10 @@ fn read(path: &Path) -> Result<(Capture, String), CliError> {
             .as_ref()
             .ok_or_else(|| CliError::usage("resource payload missing"))?;
         let file = crate::ingest::contained_source(root, Path::new(relative))?;
-        let len = std::fs::metadata(&file)
-            .map_err(|e| CliError::io(e.to_string()))?
-            .len();
-        let hash = saccade_core::run::sha256_file(&file)?;
+        let data = bounded_regular_read(&file, remaining.min(64 * 1024 * 1024))?;
+        remaining -= data.len() as u64;
+        let len = data.len() as u64;
+        let hash = format!("{:x}", Sha256::digest(&data));
         if resource.bytes != Some(len) || resource.sha256.as_deref() != Some(hash.as_str()) {
             return Err(CliError::usage(
                 "replay raw payload hash/size differs from extraction evidence",

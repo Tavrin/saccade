@@ -155,6 +155,9 @@ fn validate(c: &Capture) -> Result<()> {
             || !matches!(a.kind.as_str(), "draw" | "dispatch" | "clear")
             || a.resources.iter().any(|r| {
                 r.role.is_empty()
+                    || r.resource_id.trim().is_empty()
+                    || r.format.trim().is_empty()
+                    || (r.error.is_none() && r.format == "unknown")
                     || !roles.insert(&r.role)
                     || r.interpretation != "native_bytes"
                     || r.sha256.as_ref().is_some_and(|h| !hash_valid(h))
@@ -353,6 +356,20 @@ mod tests {
                     candidate_inputs: vec!["local-light-buffer".into()],
                 })
                 .collect(),
+        }
+    }
+    #[test]
+    fn missing_resource_format_or_identity_cannot_be_complete() {
+        for field in ["format", "resource_id"] {
+            let mut b = capture();
+            for a in &mut b.actions {
+                if field == "format" {
+                    a.resources[0].format.clear();
+                } else {
+                    a.resources[0].resource_id.clear();
+                }
+            }
+            assert!(localize(&b, &b).is_err(), "missing {field} accepted");
         }
     }
     #[test]

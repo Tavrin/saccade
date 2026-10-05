@@ -1645,6 +1645,7 @@ dependencies = [
  "globset",
  "image",
  "jsonschema",
+ "libc",
  "saccade-core",
  "serde",
  "serde_json",

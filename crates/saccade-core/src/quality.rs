@@ -133,7 +133,12 @@ fn bytes(root: &Path, a: &Artifact) -> Result<Vec<u8>> {
             "sweep paths must be relative without traversal".into(),
         ));
     }
-    let root = std::fs::canonicalize(root).map_err(invalid)?;
+    let root = std::fs::canonicalize(if root.as_os_str().is_empty() {
+        Path::new(".")
+    } else {
+        root
+    })
+    .map_err(invalid)?;
     let path = std::fs::canonicalize(root.join(&a.path)).map_err(invalid)?;
     if !path.starts_with(&root) {
         return Err(Error::Config("sweep input escapes root".into()));

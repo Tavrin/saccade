@@ -10,6 +10,7 @@ run() {
   shift
   if "$@"; then echo "PASS $name"; return 0; else echo "FAIL $name"; failed=1; return 1; fi
 }
+run renderdoc-worker-boundaries python3 scripts/test-renderdoc-worker.py
 run formatting cargo fmt --check
 run clippy cargo clippy --workspace --all-targets --locked -- -D warnings
 if run workspace-tests cargo test --workspace --locked; then

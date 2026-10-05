@@ -9,6 +9,11 @@ import collections
 import hashlib
 import json
 import platform
+import os
+import signal
+import stat
+import subprocess
+import tempfile
 from pathlib import Path
 import sys
 
@@ -20,12 +25,26 @@ def digest(data):
     return hashlib.sha256(data).hexdigest()
 
 
-def file_hash(path):
-    h = hashlib.sha256()
-    with Path(path).open('rb') as stream:
-        for block in iter(lambda: stream.read(65536), b''):
+def file_hash(path, max_bytes=2 * 1024 * 1024 * 1024):
+    if not stat.S_ISREG(Path(path).stat().st_mode):
+        raise RuntimeError('input must be a regular file')
+    flags = os.O_RDONLY | getattr(os, 'O_NONBLOCK', 0)
+    fd = os.open(path, flags)
+    with os.fdopen(fd, 'rb') as stream:
+        info = os.fstat(stream.fileno())
+        if not stat.S_ISREG(info.st_mode):
+            raise RuntimeError('input must be a regular file')
+        if info.st_size > max_bytes:
+            raise RuntimeError('input byte budget exceeded')
+        h, consumed = hashlib.sha256(), 0
+        while True:
+            block = stream.read(min(65536, max_bytes + 1 - consumed))
+            if not block:
+                return h.hexdigest()
+            consumed += len(block)
+            if consumed > max_bytes:
+                raise RuntimeError('input byte budget exceeded')
             h.update(block)
-    return h.hexdigest()
 
 
 def extract(rd, filename, out, budget, save):
@@ -112,6 +131,13 @@ def extract(rd, filename, out, budget, save):
                         continue
                     if len(actions) >= 2048:
                         raise RuntimeError('action budget exceeded; select a smaller capture')
+                    if kind == 'clear':
+                        # Graphics bindings do not identify the cleared destination.
+                        # Until destination/view extraction is qualified, retain the
+                        # action with explicitly unobserved resources.
+                        actions.append(dict(event_id=int(action.eventId), marker_path=list(marker_path), marker_unique=bool(unique and marker_path),
+                                            kind=kind, action_key=action.customName or signature, resources=[], candidate_inputs=[]))
+                        continue
                     controller.SetFrameEvent(action.eventId, True)
                     pipe = controller.GetPipelineState()
                     descriptors = []
@@ -154,9 +180,36 @@ def main(argv=None):
     parser.add_argument('--out', type=Path, required=True, help='new extraction directory')
     parser.add_argument('--max-bytes', type=int, default=512 * 1024 * 1024)
     parser.add_argument('--single-replay', action='store_true', help='diagnostic only; repeatability stays unqualified')
+    parser.add_argument('--timeout-seconds', type=float, default=120.0, help='external deadline for hashing, native replay and readback')
+    parser.add_argument('--_worker', action='store_true', help=argparse.SUPPRESS)
     args = parser.parse_args(argv)
+    if not 0.01 <= args.timeout_seconds <= 3600:
+        parser.error('timeout-seconds must be 0.01..3600')
+    if not args._worker:
+        command = [sys.executable, str(Path(__file__).resolve()), *(sys.argv[1:] if argv is None else argv), '--_worker']
+        with tempfile.TemporaryFile() as stdout, tempfile.TemporaryFile() as stderr:
+            process = subprocess.Popen(command, stdout=stdout, stderr=stderr, start_new_session=os.name == 'posix')
+            try:
+                process.wait(timeout=args.timeout_seconds)
+            except subprocess.TimeoutExpired:
+                if os.name == 'posix':
+                    os.killpg(process.pid, signal.SIGKILL)
+                else:
+                    process.kill()
+                process.wait()
+                print(json.dumps({'schema': SCHEMA, 'capability': 'unavailable', 'reason': 'native worker deadline exceeded'}))
+                return 2
+            stdout.seek(0); stderr.seek(0)
+            sys.stdout.buffer.write(stdout.read(65536))
+            sys.stderr.buffer.write(stderr.read(65536))
+            return process.returncode
     if not 1 <= args.max_bytes <= 2 * 1024 * 1024 * 1024:
         parser.error('max-bytes must be 1..2 GiB')
+    try:
+        source_hash = file_hash(args.capture)
+    except Exception as exc:
+        print(json.dumps({'schema': SCHEMA, 'capability': 'unavailable', 'reason': str(exc)}))
+        return 2
     try:
         import renderdoc as rd
     except ImportError:
@@ -168,7 +221,6 @@ def main(argv=None):
         return 2
     initialized = False
     try:
-        source_hash = file_hash(args.capture)
         args.out.mkdir()
         (args.out / 'payloads').mkdir()
         rd.InitialiseReplay(rd.GlobalEnvironment(), [])
@@ -183,7 +235,8 @@ def main(argv=None):
             raise RuntimeError('capture bytes changed during extraction')
         result = dict(schema=SCHEMA, capture_sha256=source_hash, worker_sha256=file_hash(__file__), renderdoc_version=version,
                       api='Vulkan', replay_mode='conservative', repeatability=repeatability, actions=first,
-                      limits=['Native resource bytes from one bound view mip/layer and sample zero; other subresources are unobserved.',
+                      limits=['Clear destinations are explicitly unobserved; graphics bindings are never substituted for clear resources.',
+                              'Native resource bytes from one bound view mip/layer and sample zero; other subresources are unobserved.',
                               'Unbound, indirect and uninstrumented resources, uploads and synchronization are not a complete dependency graph.',
                               'Marker/action signatures provide candidate correspondence, not semantic equivalence or cause.',
                               'Live Vulkan replay and host/device compatibility must be separately qualified.'])

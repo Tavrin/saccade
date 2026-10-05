@@ -16,9 +16,15 @@ pub(crate) struct Args {
 
 pub(crate) fn run(args: Args) -> Result<u8, CliError> {
     let bytes = std::fs::read(&args.manifest).map_err(|e| CliError::io(e.to_string()))?;
-    let manifest: saccade_core::quality::Manifest = serde_json::from_slice(&bytes)?;
-    let mut report =
-        saccade_core::quality::sweep(args.manifest.parent().unwrap_or(Path::new(".")), manifest)?;
+    let manifest: saccade_core::quality::Manifest =
+        crate::parse_contract(&bytes, "saccade-quality-sweep.v1")?;
+    let mut report = saccade_core::quality::sweep(
+        args.manifest
+            .parent()
+            .filter(|p| !p.as_os_str().is_empty())
+            .unwrap_or(Path::new(".")),
+        manifest,
+    )?;
     report.manifest_sha256 = format!("{:x}", Sha256::digest(&bytes));
     let file = std::fs::OpenOptions::new()
         .write(true)
