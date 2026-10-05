@@ -170,3 +170,84 @@ fn inventoried_decode_error_is_retained_beside_a_passing_capture() {
     assert_eq!(inventory["outcomes"]["unusable"], 1);
     assert_eq!(inventory["coverage"], "incomplete");
 }
+
+#[test]
+fn snapshot_names_and_duplicate_sources_cannot_create_complete_pairs() {
+    let tmp = tempfile::tempdir().unwrap();
+    for role in ["expected", "actual"] {
+        RgbImage::from_pixel(16, 16, Rgb([30, 50, 70]))
+            .save(tmp.path().join(format!("{role}.png")))
+            .unwrap();
+    }
+    let script = r#"
+const Reporter=require(process.argv[1]),path=require('node:path'),fs=require('node:fs');
+const root=process.argv[2];
+const test={id:'test',annotations:[],parent:{project:()=>({name:'chromium',use:{}})}};
+for(const mode of ['mismatch','duplicate']) {
+ const r=new Reporter({outputFile:path.join(root,mode+'.json')}); r.onBegin({}, {allTests:()=>[test]});
+ const a=(name,role)=>({name,contentType:'image/png',path:path.join(root,role+'.png')});
+ const attachments=mode==='mismatch'?[a('a-expected','expected'),a('b-actual','actual')]:[a('a-expected','expected'),a('a-actual','actual'),a('b-expected','expected'),a('b-actual','actual')];
+ r.onTestEnd(test,{status:'passed',retry:0,attachments});r.onEnd();
+ const m=JSON.parse(fs.readFileSync(path.join(root,mode+'.json')));
+ if(mode==='mismatch' && m.inventory.supplied.some(s=>s.state==='captured')) throw Error('mismatched names paired');
+ if(mode==='duplicate' && m.inventory.supplied.every(s=>s.state==='captured')) throw Error('duplicate sources concealed');
+}
+"#;
+    let node = Command::new("node")
+        .args(["-e", script])
+        .arg(
+            std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+                .join("../../integrations/playwright/reporter.cjs"),
+        )
+        .arg(tmp.path())
+        .output()
+        .unwrap();
+    assert!(node.status.success(), "{node:?}");
+}
+
+fn two_case_manifest(tmp: &std::path::Path) -> serde_json::Value {
+    RgbImage::from_pixel(16, 16, Rgb([50, 60, 70]))
+        .save(tmp.join("good.png"))
+        .unwrap();
+    let hash = saccade_core::run::sha256_file(&tmp.join("good.png")).unwrap();
+    serde_json::json!({"schema":"saccade-playwright.v1","entries":(0..2).map(|i|serde_json::json!({"test_id":format!("test{i}"),"case_id":format!("case{i}"),"project":"chromium","browser":"chromium","viewport":null,"expected":"good.png","actual":"good.png","diff":null})).collect::<Vec<_>>(),"inventory":{"schema":"saccade-inventory.v1","expected":(0..2).map(|i|serde_json::json!({"case_id":format!("case{i}"),"entry":format!("{i:04}.png"),"required":true})).collect::<Vec<_>>(),"supplied":(0..2).map(|i|serde_json::json!({"case_id":format!("case{i}"),"entry":format!("{i:04}.png"),"state":"captured","capture_sha256":hash})).collect::<Vec<_>>()}})
+}
+#[test]
+fn contradictory_snapshot_case_id_is_rejected_before_comparison() {
+    let tmp = tempfile::tempdir().unwrap();
+    let mut m = two_case_manifest(tmp.path());
+    m["entries"][0]["case_id"] = "other-case".into();
+    let path = tmp.path().join("manifest.json");
+    std::fs::write(&path, m.to_string()).unwrap();
+    let out = tmp.path().join("out");
+    let r = Command::new(env!("CARGO_BIN_EXE_saccade"))
+        .args(["ingest", "playwright"])
+        .arg(path)
+        .arg("--out")
+        .arg(&out)
+        .output()
+        .unwrap();
+    assert_eq!(r.status.code(), Some(2), "{r:?}");
+    assert!(!out.exists());
+}
+#[test]
+fn missing_attachment_preserves_suite_accounting_and_usable_case() {
+    let tmp = tempfile::tempdir().unwrap();
+    let mut m = two_case_manifest(tmp.path());
+    m["entries"][1]["actual"] = "missing.png".into();
+    let path = tmp.path().join("manifest.json");
+    std::fs::write(&path, m.to_string()).unwrap();
+    let out = tmp.path().join("out");
+    let r = Command::new(env!("CARGO_BIN_EXE_saccade"))
+        .args(["ingest", "playwright"])
+        .arg(path)
+        .arg("--out")
+        .arg(&out)
+        .output()
+        .unwrap();
+    assert_eq!(r.status.code(), Some(1), "{r:?}");
+    let inv: serde_json::Value =
+        serde_json::from_slice(&std::fs::read(out.join("inventory.json")).unwrap()).unwrap();
+    assert_eq!(inv["compared"], 1);
+    assert_eq!(inv["outcomes"]["missing"], 1);
+}

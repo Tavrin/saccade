@@ -10,6 +10,7 @@ class SaccadeReporter {
     this.entries = [];
     this.expected = new Map();
     this.attempts = [];
+    this.sources = new Set();
   }
   printsToStdio() { return false; }
   id(test, project, index = 0) { return `${project}/${test.id}/snapshot-${index}`; }
@@ -21,21 +22,31 @@ class SaccadeReporter {
     }
   }
   onTestEnd(test, result) {
-    const roles = { expected: [], actual: [], diff: [] };
+    const snapshots = new Map();
     for (const attachment of result.attachments) {
-      const role = Object.keys(roles).find((candidate) => new RegExp(`(^|[-_.])${candidate}(?:\\.[^.]+)?$`, 'i').test(attachment.name));
-      if (role && attachment.path && attachment.contentType.startsWith('image/')) roles[role].push(attachment.path);
+      const match = /^(.*?)(?:[-_.])(expected|actual|diff)(?:\.[^.]+)?$/i.exec(attachment.name);
+      if (!match || !attachment.path || !attachment.contentType.startsWith('image/')) continue;
+      const name = match[1], role = match[2].toLowerCase();
+      if (!snapshots.has(name)) snapshots.set(name, { expected: [], actual: [], diff: [], duplicate: false });
+      const roles = snapshots.get(name);
+      const stat = fs.statSync(attachment.path);
+      const identity = `${stat.dev}:${stat.ino}`;
+      if (this.sources.has(identity)) roles.duplicate = true;
+      this.sources.add(identity);
+      roles[role].push(attachment.path);
     }
     const project = test.parent.project();
     const projectName = project?.name || '';
     const browser = project?.use?.browserName || projectName || 'unknown';
     const viewport = project?.use?.viewport;
-    const count = Math.max(roles.expected.length, roles.actual.length, 1);
-    for (let i = 0; i < count; i++) {
-      const case_id = this.id(test, projectName, i);
+    if (snapshots.size) this.expected.delete(this.id(test, projectName));
+    const names = snapshots.size ? [...snapshots.keys()].sort() : ['snapshot-0'];
+    for (const [i, name] of names.entries()) {
+      const roles = snapshots.get(name) || { expected: [], actual: [], diff: [] };
+      const case_id = `${projectName}/${test.id}/${encodeURIComponent(name)}`;
       if (!this.expected.has(case_id)) this.expected.set(case_id, { case_id, entry: `${case_id}.png`, required: true });
       const quarantined = (test.annotations || []).some(a => a.type === 'quarantine');
-      const state = quarantined ? 'quarantined' : result.status === 'skipped' ? 'skipped' : roles.expected[i] && roles.actual[i] ? 'captured' : 'missing';
+      const state = quarantined ? 'quarantined' : result.status === 'skipped' ? 'skipped' : roles.duplicate || roles.expected.length > 1 || roles.actual.length > 1 || roles.diff.length > 1 ? 'unusable' : roles.expected.length === 1 && roles.actual.length === 1 ? 'captured' : 'missing';
       const attempt = { case_id, entry: null, state, capture_sha256: null };
       this.attempts.push(attempt);
       if (state !== 'captured') continue;
@@ -44,7 +55,7 @@ class SaccadeReporter {
       this.entries.push({ dom_regions,
         test_id: `${test.id}:${result.retry ?? 0}:${i}`, case_id, project: projectName, browser,
         viewport: viewport && Number.isInteger(viewport.width) && Number.isInteger(viewport.height) ? [viewport.width, viewport.height] : null,
-        expected: path.resolve(roles.expected[i]), actual: path.resolve(roles.actual[i]), diff: roles.diff[i] ? path.resolve(roles.diff[i]) : null,
+        expected: path.resolve(roles.expected[0]), actual: path.resolve(roles.actual[0]), diff: roles.diff[0] ? path.resolve(roles.diff[0]) : null,
         attempt,
       });
     }

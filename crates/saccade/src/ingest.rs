@@ -110,7 +110,11 @@ struct Snapshot {
 }
 
 pub(crate) fn contained_source(root: &Path, relative: &Path) -> Result<PathBuf, CliError> {
-    if relative.is_absolute() {
+    if relative.is_absolute()
+        || relative
+            .components()
+            .any(|c| !matches!(c, std::path::Component::Normal(_)))
+    {
         return Err(CliError::usage(format!(
             "ingest path must stay under {}: {}",
             root.display(),
@@ -130,20 +134,47 @@ pub(crate) fn contained_source(root: &Path, relative: &Path) -> Result<PathBuf, 
     Ok(path)
 }
 
-fn source(manifest: &Path, relative: &str) -> Result<PathBuf, CliError> {
-    if relative.is_empty() {
-        return Err(CliError::usage("Playwright attachment path is empty"));
+fn source(manifest: &Path, relative: &str) -> Result<Option<PathBuf>, CliError> {
+    let relative = Path::new(relative);
+    if relative.as_os_str().is_empty()
+        || relative.is_absolute()
+        || relative
+            .components()
+            .any(|c| !matches!(c, std::path::Component::Normal(_)))
+    {
+        return Err(CliError::usage("unsafe Playwright attachment path"));
     }
-    let path = contained_source(
-        manifest.parent().unwrap_or(Path::new(".")),
-        Path::new(relative),
-    )?;
-    if !path.is_file() {
+    let parent = manifest
+        .parent()
+        .filter(|p| !p.as_os_str().is_empty())
+        .unwrap_or(Path::new("."));
+    let root = std::fs::canonicalize(parent).map_err(|e| CliError::io(e.to_string()))?;
+    let target = root.join(relative);
+    let mut ancestor = target.as_path();
+    loop {
+        match std::fs::symlink_metadata(ancestor) {
+            Ok(_) => break,
+            Err(e) if e.kind() == std::io::ErrorKind::NotFound => {
+                ancestor = ancestor
+                    .parent()
+                    .ok_or_else(|| CliError::usage("unsafe attachment path"))?;
+            }
+            Err(e) => return Err(CliError::io(e.to_string())),
+        }
+    }
+    let resolved = std::fs::canonicalize(ancestor).map_err(|e| CliError::io(e.to_string()))?;
+    if !resolved.starts_with(&root) {
+        return Err(CliError::usage("Playwright attachment escapes root"));
+    }
+    if ancestor != target {
+        return Ok(None);
+    }
+    if !resolved.is_file() {
         return Err(CliError::usage(
             "Playwright attachment is not a regular file",
         ));
     }
-    Ok(path)
+    Ok(Some(resolved))
 }
 
 fn copy_image(from: &Path, to: &Path, inventory_mode: bool) -> Result<(), CliError> {
@@ -196,7 +227,7 @@ pub(crate) fn run(args: IngestArgs, absolute: bool) -> Result<u8, CliError> {
                 return Err(CliError::usage("ingest --out must not be a symlink"));
             }
             let raw = std::fs::read(&manifest).map_err(|e| CliError::io(e.to_string()))?;
-            let source_manifest: Manifest = serde_json::from_slice(&raw)?;
+            let mut source_manifest: Manifest = serde_json::from_slice(&raw)?;
             if source_manifest.schema != "saccade-playwright.v1"
                 || (source_manifest.entries.is_empty() && source_manifest.inventory.is_none())
             {
@@ -214,13 +245,35 @@ pub(crate) fn run(args: IngestArgs, absolute: bool) -> Result<u8, CliError> {
             }
             let mut seen = BTreeSet::new();
             let mut validated = Vec::new();
-            for entry in &source_manifest.entries {
+            for (index, entry) in source_manifest.entries.iter().enumerate() {
                 if entry.test_id.is_empty()
                     || !seen.insert((entry.test_id.clone(), entry.project.clone()))
                 {
                     return Err(CliError::usage(
                         "Playwright test IDs must be nonempty and unique per project",
                     ));
+                }
+                if let Some(inventory) = &source_manifest.inventory {
+                    let name = format!("{index:04}.png");
+                    let id = entry
+                        .case_id
+                        .as_deref()
+                        .filter(|id| !id.is_empty())
+                        .ok_or_else(|| CliError::usage("inventoried snapshot case_id missing"))?;
+                    if !inventory.expected.iter().any(|e| e.case_id == id)
+                        || !inventory
+                            .supplied
+                            .iter()
+                            .any(|s| s.case_id == id && s.entry.as_deref() == Some(&name))
+                        || inventory
+                            .supplied
+                            .iter()
+                            .any(|s| s.entry.as_deref() == Some(&name) && s.case_id != id)
+                    {
+                        return Err(CliError::usage(
+                            "snapshot case_id contradicts inventory filename assignment",
+                        ));
+                    }
                 }
                 validated.push((
                     source(&manifest, &entry.expected)?,
@@ -229,7 +282,8 @@ pub(crate) fn run(args: IngestArgs, absolute: bool) -> Result<u8, CliError> {
                         .diff
                         .as_deref()
                         .map(|d| source(&manifest, d))
-                        .transpose()?,
+                        .transpose()?
+                        .flatten(),
                 ));
             }
             let baseline = out.join("baseline");
@@ -246,6 +300,26 @@ pub(crate) fn run(args: IngestArgs, absolute: bool) -> Result<u8, CliError> {
                 .enumerate()
             {
                 let name = format!("{index:04}.png");
+                let (Some(expected), Some(actual)) = (expected, actual) else {
+                    if let Some(inventory) = &mut source_manifest.inventory {
+                        for s in &mut inventory.supplied {
+                            if s.entry.as_deref() == Some(&name) {
+                                s.state = "missing".into();
+                            }
+                        }
+                        continue;
+                    }
+                    return Err(CliError::usage("Playwright attachment missing"));
+                };
+                if let Some(inventory) = &source_manifest.inventory {
+                    let hash = saccade_core::run::sha256_file(actual)?;
+                    if inventory.supplied.iter().any(|s| {
+                        s.entry.as_deref() == Some(&name)
+                            && s.capture_sha256.as_deref() != Some(&hash)
+                    }) {
+                        return Err(CliError::usage("snapshot hash contradicts inventory"));
+                    }
+                }
                 copy_image(
                     expected,
                     &baseline.join(&name),
