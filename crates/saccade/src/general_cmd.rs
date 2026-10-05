@@ -352,5 +352,10 @@ pub(crate) fn persist_document(value: &Value, out: &Path) -> Result<PathBuf, Cli
 }
 #[cfg(feature = "mcp")]
 pub(crate) fn tool_schema() -> Value {
-    json!({"name":"saccade_general","description":"Explicit general comparison pipelines with versioned evidence; no approval authority.","inputSchema":{"type":"object","properties":{"operation":{"const":"registered_compare","type":"string"},"reference":{"type":"string"},"capture":{"type":"string"},"out":{"type":"string"},"align":{"type":"string","enum":["none","translation","similarity","affine","homography","auto"]},"resample":{"type":"string","enum":["reference","common"]},"threshold":{"type":"number","minimum":0,"maximum":1},"metric":{"enum":["mean","p95","p99","max"]}},"required":["operation","reference","capture","out","align"],"additionalProperties":false},"outputSchema":{"type":"object"},"annotations":{"destructiveHint":false,"openWorldHint":false}})
+    let mut tool = json!({"name":"saccade_general","description":"Explicit general comparison pipelines with versioned evidence; no approval authority.","inputSchema":{"type":"object","properties":{"operation":{"const":"registered_compare","type":"string"},"reference":{"type":"string"},"capture":{"type":"string"},"out":{"type":"string"},"align":{"type":"string","enum":["none","translation","similarity","affine","homography","auto"]},"resample":{"type":"string","enum":["reference","common"]},"threshold":{"type":"number","minimum":0,"maximum":1},"metric":{"enum":["mean","p95","p99","max"]}},"required":["operation","reference","capture","out","align"],"additionalProperties":false},"outputSchema":{"type":"object"},"annotations":{"destructiveHint":false,"openWorldHint":false}});
+    let registration = tool["inputSchema"].take();
+    let mut variants = vec![registration];
+    variants.extend(crate::hash_cmd::schemas());
+    tool["inputSchema"] = json!({"type":"object","oneOf":variants});
+    tool
 }

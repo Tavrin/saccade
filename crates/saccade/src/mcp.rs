@@ -1153,6 +1153,58 @@ impl Server {
     // wave6
     fn wave6_tool(&self, args: &Map<String, Value>) -> ToolResult {
         use clap::ValueEnum;
+        // wave6
+        let operation = require_str(args, "operation")?;
+        if matches!(operation.as_str(), "hash" | "dedupe") {
+            reject_unknown(
+                args,
+                &["operation", "files", "out", "algorithm", "threshold"],
+            )?;
+            let files = arg_strings(args, "files")?
+                .iter()
+                .map(|p| {
+                    let path = self.resolve("files", p)?;
+                    if path.is_dir() {
+                        self.input_tree(&path)?;
+                    } else if !path.is_file() {
+                        return Err(CliError::io("hash input must exist"));
+                    }
+                    Ok(path)
+                })
+                .collect::<Result<Vec<_>, CliError>>()?;
+            let out = self.checked_out_dir(
+                &require_str(args, "out")?,
+                &files.iter().map(PathBuf::as_path).collect::<Vec<_>>(),
+            )?;
+            let algorithm = crate::hash_cmd::Algorithm::from_str(
+                arg_str(args, "algorithm")?.as_deref().unwrap_or("phash"),
+                false,
+            )
+            .map_err(CliError::usage)?;
+            let threshold = args
+                .get("threshold")
+                .map(|v| {
+                    v.as_u64()
+                        .filter(|v| *v <= 64)
+                        .ok_or_else(|| CliError::usage("threshold must be 0..64"))
+                })
+                .transpose()?
+                .unwrap_or(6) as u32;
+            if operation == "hash"
+                && (args.contains_key("algorithm") || args.contains_key("threshold"))
+            {
+                return Err(CliError::usage(
+                    "algorithm and threshold apply only to dedupe",
+                ));
+            }
+            let value = crate::hash_cmd::measure(
+                &files,
+                &out,
+                (operation == "dedupe").then_some((algorithm.into(), threshold)),
+            )?;
+            let file = crate::general_cmd::persist_document(&value, &out)?;
+            return Ok(ToolOutput{structured:json!({"schema":saccade_core::general::RESULT_SCHEMA,"mode":operation,"verdict":value["verdict"],"data":{"schema":value["schema"],"counts":value["counts"]},"artifacts":[{"path":saccade_core::paths::record(&file,&self.root,false)}],"next_actions":[]}),text:"Perceptual hash candidate retrieval; originals unchanged, collisions require review.".into(),images:Vec::new()});
+        }
         reject_unknown(
             args,
             &[

@@ -14,6 +14,7 @@ use saccade_core::view::{ViewOptions, build_view, is_safe_name};
 
 // wave6
 mod general_cmd;
+mod hash_cmd;
 
 mod agent;
 mod agent_ui;
@@ -197,6 +198,11 @@ impl From<MetricArg> for Metric {
 
 #[derive(Subcommand)]
 enum Command {
+    // wave6
+    /// Compute perceptual hashes without changing originals.
+    Hash(hash_cmd::HashArgs),
+    /// Cluster near-duplicates with bounded Hamming search; never delete images.
+    Dedupe(hash_cmd::DedupeArgs),
     /// Align optional Vulkan replay evidence and locate native-resource divergence.
     RenderdocLocalize(renderdoc_cmd::Args),
     /// Import and freeze phrase regions, or inspect optional model plumbing.
@@ -989,6 +995,9 @@ fn emit_run(
 
 fn dispatch(command: Command, record_absolute_paths: bool) -> Result<u8, CliError> {
     match command {
+        // wave6
+        Command::Hash(args) => hash_cmd::run_hash(args),
+        Command::Dedupe(args) => hash_cmd::run_dedupe(args),
         Command::Prove {
             operation: ProveOperation::Identity(args),
         } => dispatch(

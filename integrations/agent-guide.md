@@ -82,3 +82,9 @@ Read `saccade-registration.v1.json`, model residual and geometry inclusion mask.
 It measures only geometric overlap and cannot establish native identity.
 MCP `saccade_general` / `registered_compare` mirrors this route; see
 [registration](../docs/registration.md).
+
+<!-- wave6 -->
+Use `hash FILE... --out REPORT --json` or `dedupe DIR --threshold 6 --out REPORT
+--json` for candidate retrieval. Hex hashes are not identities; clusters are
+transitive and originals remain unchanged. MCP `saccade_general` operations
+`hash`/`dedupe` mirror these commands. See [hashing](../docs/hashing.md).
