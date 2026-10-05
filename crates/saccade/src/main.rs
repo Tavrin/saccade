@@ -1463,6 +1463,7 @@ fn dispatch(command: Command, record_absolute_paths: bool) -> Result<u8, CliErro
                 cfg.labels = parse_labels(&l)?;
             }
             let visual = local_cmd::visual_intent(&intent)?;
+            if let Some((declaration, source)) = &visual { saccade_core::intent::apply_effects(declaration, source, &mut cfg)?; }
             let report = saccade_core::run::run(&baseline_dir, &capture_dir, &out, &cfg)?;
             if let Some(path) = junit {
                 saccade_core::ergonomics::junit(&report, &path)?;
@@ -1541,6 +1542,7 @@ fn dispatch(command: Command, record_absolute_paths: bool) -> Result<u8, CliErro
                 cfg.labels = parse_labels(&l)?;
             }
             let visual = local_cmd::visual_intent(&intent)?;
+            if let Some((declaration, source)) = &visual { saccade_core::intent::apply_effects(declaration, source, &mut cfg)?; }
             let report = saccade_core::run::run(&parent_dir, &candidate_dir, &out, &cfg)?;
             if let Some(path) = junit {
                 saccade_core::ergonomics::junit(&report, &path)?;

@@ -70,3 +70,8 @@ TrustMark logits establish no watermark presence; complete ECC remains unavailab
 SAM2/LPIPS/DISTS/MUSIQ/source-parity deferrals stay explicit. [Vision](../docs/wave7.md).
 
 Local gates do not qualify broad models, providers, platforms, rendering or releases.
+
+<!-- wave9 -->
+For rendering evidence, see [required effects and rendering evidence](../docs/render-evidence.md).
+Declare effect occupancy in the compare config or visual intent; read typed
+`required_effects[].failures` before accepting zero FLIP as an effect proof.

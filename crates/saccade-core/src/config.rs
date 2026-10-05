@@ -23,6 +23,10 @@ pub struct Override {
 /// Settings for [`crate::run::run`].
 #[derive(Debug, Clone, PartialEq)]
 pub struct RunConfig {
+    /// Required effect occupancy gates (wave9).
+    pub required_effect: Vec<crate::evidence_quality::effect::RequiredEffect>,
+    /// Per-effect declaration directories, keyed by effect name.
+    pub effect_roots: std::collections::BTreeMap<String, std::path::PathBuf>,
     /// Default pass threshold.
     pub default_threshold: f64,
     /// Default deciding metric.
@@ -94,6 +98,8 @@ pub struct RunConfig {
 impl Default for RunConfig {
     fn default() -> Self {
         Self {
+            required_effect: Vec::new(),
+            effect_roots: Default::default(),
             default_threshold: 0.01,
             default_metric: Metric::Mean,
             explicit_tolerances: false,
@@ -133,6 +139,8 @@ impl Default for RunConfig {
 #[derive(Deserialize)]
 #[serde(deny_unknown_fields)]
 struct FileConfig {
+    #[serde(default)]
+    required_effect: Vec<crate::evidence_quality::effect::RequiredEffect>,
     capture: Option<FileCapture>,
     brand: Option<crate::brand::Policy>,
     #[serde(default)]
@@ -278,6 +286,7 @@ impl RunConfig {
             explicit_tolerances: file.threshold.is_some() || file.metric.is_some(),
             ..Self::default()
         };
+        cfg.required_effect = file.required_effect;
         cfg.brand = file.brand.unwrap_or_default();
         if let Some(capture) = file.capture {
             if capture.required_keys.is_empty() {
@@ -460,6 +469,9 @@ impl RunConfig {
             return Err(Error::Config(
                 "hotspot_local_min_pixels must be positive".into(),
             ));
+        }
+        for effect in &self.required_effect {
+            effect.validate()?;
         }
         self.perf.validate()?;
         self.brand.validate()?;

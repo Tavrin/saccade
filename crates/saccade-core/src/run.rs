@@ -859,6 +859,7 @@ pub(crate) fn build_entry(
 ) -> Entry {
     let (metric_used, threshold) = config.effective_for(name);
     let mut entry = Entry {
+        required_effects: Vec::new(),
         name: name.to_string(),
         status: Status::Error,
         metric_used,
@@ -1058,7 +1059,42 @@ fn fill_entry(
                 capture_path: cap,
                 flip: opts,
             };
+            let errors = if config.required_effect.is_empty() {
+                Vec::new()
+            } else {
+                cmp.error_map.clone()
+            };
             finish_entry(entry, cmp, report_dir, config, &pair)?;
+            for effect in &config.required_effect {
+                if !crate::config::compile_glob(&effect.glob)?.is_match(&entry.name) {
+                    continue;
+                }
+                let root = config
+                    .effect_roots
+                    .get(&effect.name)
+                    .map(|p| p.as_path())
+                    .or(config.config_dir.as_deref())
+                    .unwrap_or(Path::new("."));
+                let b = crate::evidence_quality::effect::select(
+                    &effect.selection,
+                    base,
+                    root,
+                    base_img.dimensions(),
+                )?;
+                let c = crate::evidence_quality::effect::select(
+                    &effect.selection,
+                    cap,
+                    root,
+                    cap_img.dimensions(),
+                )?;
+                let result = crate::evidence_quality::effect::measure(
+                    effect, &b, &c, &base_img, &cap_img, &errors,
+                )?;
+                if !result.failures.is_empty() {
+                    entry.status = Status::Fail;
+                }
+                entry.required_effects.push(result);
+            }
         }
         Err(e) => entry.error = Some(e.to_string()),
     }

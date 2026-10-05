@@ -285,6 +285,9 @@ pub enum Metric {
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct Entry {
+    /// Opt-in effect occupancy and region measurements (wave9).
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub required_effects: Vec<crate::evidence_quality::effect::EffectResult>,
     /// Path relative to the baseline/capture roots, `/`-separated.
     pub name: String,
     /// Outcome.

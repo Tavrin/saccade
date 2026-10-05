@@ -5,8 +5,11 @@ use std::collections::BTreeMap;
 use std::path::PathBuf;
 
 #[derive(clap::Args)]
-#[command(group(clap::ArgGroup::new("region-source").required(true).args(["bbox","mask","selector","region"])))]
+#[command(group(clap::ArgGroup::new("region-source").required(true).args(["bbox","mask","selector","region","required_effect"])))]
 pub(crate) struct Args {
+    /// Required-effect policy JSON; records occupancy, including an empty mask.
+    #[arg(long)]
+    required_effect: Option<PathBuf>,
     /// Reference screenshot, retaining the intended region if candidate content disappears.
     reference: PathBuf,
     candidate: PathBuf,
@@ -39,14 +42,53 @@ pub(crate) struct Args {
     json: bool,
 }
 pub(crate) fn run(args: Args) -> Result<u8, CliError> {
-    let reference_bytes =
-        std::fs::read(&args.reference).map_err(|e| CliError::io(e.to_string()))?;
-    let candidate_bytes =
-        std::fs::read(&args.candidate).map_err(|e| CliError::io(e.to_string()))?;
+    let reference_bytes = saccade_core::evidence_quality::read(&args.reference, 128 << 20)
+        .map_err(|e| CliError::io(e.to_string()))?;
+    let candidate_bytes = saccade_core::evidence_quality::read(&args.candidate, 128 << 20)
+        .map_err(|e| CliError::io(e.to_string()))?;
     let reference =
         image::load_from_memory(&reference_bytes).map_err(|e| CliError::usage(e.to_string()))?;
     let candidate =
         image::load_from_memory(&candidate_bytes).map_err(|e| CliError::usage(e.to_string()))?;
+    if let Some(path) = &args.required_effect {
+        use saccade_core::evidence_quality::effect;
+        let policy: effect::RequiredEffect =
+            serde_json::from_slice(&saccade_core::evidence_quality::read(path, 1 << 20)?)?;
+        let root = path.parent().unwrap_or(std::path::Path::new("."));
+        let dimensions = (reference.width(), reference.height());
+        let b = effect::select(&policy.selection, &args.reference, root, dimensions)?;
+        let c = effect::select(&policy.selection, &args.candidate, root, dimensions)?;
+        let comparison = saccade_core::compare::compare_rgba(
+            &candidate.to_rgba8(),
+            &reference.to_rgba8(),
+            &saccade_core::compare::CompareOptions {
+                pixels_per_degree: args.ppd,
+                ..Default::default()
+            },
+        )?;
+        let result = effect::measure(
+            &policy,
+            &b,
+            &c,
+            &reference.to_rgba8(),
+            &candidate.to_rgba8(),
+            &comparison.error_map,
+        )?;
+        std::fs::create_dir(&args.out).map_err(|e| CliError::io(e.to_string()))?;
+        crate::local_cmd::write_value(
+            &args.out.join("required-effect.json"),
+            &serde_json::to_value(&result)?,
+        )?;
+        if args.json {
+            crate::emit(&format!("{}\n", serde_json::to_string(&result)?))?;
+        } else {
+            crate::emit(&format!(
+                "effect {}: baseline {} candidate {}; {:?}\n",
+                policy.name, result.baseline_pixels, result.candidate_pixels, result.failures
+            ))?;
+        }
+        return Ok(u8::from(!result.failures.is_empty()));
+    }
     let hash = localized::digest(&reference_bytes);
     let dimensions = [reference.width(), reference.height()];
     let region: FrozenRegion = if let Some(path) = args.region {
