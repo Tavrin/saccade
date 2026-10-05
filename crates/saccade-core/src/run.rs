@@ -683,7 +683,7 @@ fn apply_meta(
                 entry.capture_validity.reasons.push(reason);
             }
         }
-        for field in ["capture_id", "content_hash"] {
+        for field in ["capture_id", "content_hash", "timestamp"] {
             if let Some(value) = evidence.get(field) {
                 entry
                     .capture_provenance

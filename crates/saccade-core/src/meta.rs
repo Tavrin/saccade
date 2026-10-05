@@ -159,11 +159,18 @@ pub fn capture_evidence(root: &Path, rel: &str, name: &str) -> BTreeMap<String, 
                     "source_head" | "git_head" | "source_git_head" | "build_commit" => {
                         "source_head"
                     }
+                    "capture_timestamp" => "timestamp",
                     "capture_id" | "capture_uuid" => "capture_id",
                     "content_hash" | "capture_hash" | "capture_sha256" => "content_hash",
                     _ => continue,
                 };
-                if let Some(value) = value.as_str().filter(|s| !s.trim().is_empty()) {
+                if field == "timestamp" {
+                    if let Some(timestamp) = value.as_u64() {
+                        evidence.insert(field.into(), timestamp.to_string());
+                    } else if let Some(value) = value.as_str().filter(|s| !s.trim().is_empty()) {
+                        evidence.insert(field.into(), value.into());
+                    }
+                } else if let Some(value) = value.as_str().filter(|s| !s.trim().is_empty()) {
                     evidence.insert(field.into(), value.into());
                 }
             }

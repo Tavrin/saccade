@@ -18,7 +18,12 @@ portable HTML report has an Exclusion audit section.
 
 The audit lists selected and ignored capture scope, supplied names excluded by
 policy, incomplete pairs, metadata gaps and ignored differences, performance
-qualification, region thresholds and headroom, and channel/HDR limits. It cannot
+qualification, region thresholds and headroom, and decoder channel/precision
+losses. This includes discarded HDR alpha, 16-bit to 8-bit SDR reduction, and HDR
+to SDR display previews (the latter do not replace HDR-FLIP). Nondeciding regions,
+including fully masked thresholded regions, appear in JSON, text and HTML.
+Sequence reports retain this audit and all supplied names excluded by their
+pattern or ignore policy. Rejected repeat calibration stays rejected. It cannot
 list captures that were never supplied and were not declared in an expected list.
 
 Excluded pixel error comes from the original FLIP map. Mask SHA-256 hashes bind
@@ -41,11 +46,18 @@ qualified timing and repeat noise, a recorded comparison identity, a positive
 latency, and a distinct sample window. Hardware, driver, timer, configuration,
 statistic, aggregation and qualification changes create separate partitions.
 Older reports without the new identity field are explicitly excluded. Capture
-or report time gaps are retained; no missing measurements are interpolated.
+timestamps (numeric Unix time in `capture.timestamp`) order a complete partition.
+Otherwise the history store's append sequence orders the measurements. Equal
+capture timestamps retain append order. Report creation times and hashes never
+order observations, and missing measurements are not interpolated.
 
 Exact dynamic programming minimizes absolute deviation from segment medians of
 log timings, normalized once by robust adjacent differences and measured repeat
-noise. The minimum segment is five observations and the penalty is `3 ln(n)`.
+noise. The minimum segment is five observations. A pilot segmentation estimates
+positive lag-one correlation `rho` from within-segment residuals, avoiding
+correlation across planted steps. The penalty is `3 ln(n)` multiplied by
+`(1+rho)/(1-rho)`, bounded between one and `n/5`, to account conservatively for
+serial noise. The output records the correlation and inflation factor.
 Candidates must exceed the recorded absolute, relative, repeat-noise and timer
 resolution bounds, with at least five observations above the preceding level.
 The output contains run/commit endpoints, effect estimates, segment boundaries,

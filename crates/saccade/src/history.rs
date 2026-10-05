@@ -324,6 +324,7 @@ fn analyze(rows: &[Row], entry: Option<&str>, limit: usize) -> Value {
 fn performance_observation(
     report: &saccade_core::Report,
     run: &str,
+    sequence: u64,
 ) -> Result<saccade_core::onset::Observation, String> {
     use saccade_core::perf::Comparability;
     let p = report.perf_diff.as_ref().ok_or("performance_missing")?;
@@ -386,7 +387,7 @@ fn performance_observation(
         } else {
             None
         },
-        time: report.generated_at_unix,
+        time: sequence,
         identity: identity.as_str().into(),
         window: window.hash.as_str().into(),
         milliseconds,
@@ -398,9 +399,10 @@ fn performance_observation(
 
 fn onset_value(store: &Path, limit: usize) -> Result<Value, CliError> {
     let rows = read_index(store)?;
-    let mut groups: BTreeMap<String, Vec<saccade_core::onset::Observation>> = BTreeMap::new();
+    let mut groups: BTreeMap<String, Vec<(saccade_core::onset::Observation, Option<u64>)>> =
+        BTreeMap::new();
     let mut omitted = Vec::new();
-    for row in rows {
+    for (sequence, row) in rows.into_iter().enumerate() {
         if row.report_sha256.len() != 64
             || !row.report_sha256.bytes().all(|b| b.is_ascii_hexdigit())
         {
@@ -416,14 +418,46 @@ fn onset_value(store: &Path, limit: usize) -> Result<Value, CliError> {
         }
         // Read the original object, not cached numerical fields in the index.
         let report: saccade_core::Report = serde_json::from_slice(&bytes)?;
-        match performance_observation(&report, &row.report_sha256) {
-            Ok(o) => groups.entry(o.identity.clone()).or_default().push(o),
+        match performance_observation(&report, &row.report_sha256, sequence as u64) {
+            Ok(o) => {
+                // Capture timestamps are producer evidence. When a partition lacks
+                // numeric timestamps, preserve the store's append sequence instead
+                // of mixing timestamp and sequence units or sorting report hashes.
+                let times: Option<std::collections::BTreeSet<u64>> = report
+                    .entries
+                    .iter()
+                    .map(|e| e.capture_provenance.get("capture.timestamp")?.parse().ok())
+                    .collect();
+                let time = times
+                    .filter(|t| t.len() == 1)
+                    .and_then(|t| t.first().copied());
+                groups
+                    .entry(o.identity.clone())
+                    .or_default()
+                    .push((o, time));
+            }
             Err(reason) => omitted.push(json!({"run":row.report_sha256,"reason":reason})),
         }
     }
     let mut partitions = Vec::new();
-    for (identity, mut observations) in groups {
-        observations.sort_by(|a, b| a.time.cmp(&b.time).then(a.run.cmp(&b.run)));
+    for (identity, records) in groups {
+        let capture_chronology = records.iter().all(|(_, time)| time.is_some());
+        let chronology = if capture_chronology {
+            "capture_timestamp"
+        } else {
+            "recorded_sequence"
+        };
+        let mut observations: Vec<_> = records
+            .into_iter()
+            .map(|(mut o, time)| {
+                if capture_chronology {
+                    o.time = time.unwrap_or(o.time);
+                }
+                o
+            })
+            .collect();
+        // Stable sorting keeps recorded chronology when capture timestamps tie.
+        observations.sort_by_key(|o| o.time);
         let mut windows = std::collections::BTreeSet::new();
         observations.retain(|o| {
             if windows.insert(o.window.clone()) { true } else {
@@ -433,14 +467,14 @@ fn onset_value(store: &Path, limit: usize) -> Result<Value, CliError> {
         let truncated = observations.len().saturating_sub(limit);
         observations.drain(..truncated);
         if observations.len() < 10 {
-            partitions.push(json!({"identity":identity,"status":"insufficient_history","observations":observations,"older_observations_omitted":truncated}));
+            partitions.push(json!({"identity":identity,"chronology":chronology,"status":"insufficient_history","observations":observations,"older_observations_omitted":truncated}));
         } else {
             let analysis = saccade_core::onset::detect(&observations)?;
-            partitions.push(json!({"identity":identity,"status":"candidate_analysis","analysis":analysis,"older_observations_omitted":truncated}));
+            partitions.push(json!({"identity":identity,"chronology":chronology,"status":"candidate_analysis","analysis":analysis,"older_observations_omitted":truncated}));
         }
     }
     Ok(
-        json!({"schema":"saccade-onset.v1","operation":"onset","partitions":partitions,"excluded_observations":omitted,"limits":["Candidate intervals only; fresh qualified repeats are required. Never commit blame.","One record must represent an independent nightly statistic; timestamps do not establish independence. Missing observations are retained as gaps, not interpolated."]}),
+        json!({"schema":"saccade-onset.v1","operation":"onset","partitions":partitions,"excluded_observations":omitted,"limits":["Candidate intervals only; fresh qualified repeats are required. Never commit blame.","One record must represent an independent nightly statistic; timestamps do not establish independence. Numeric producer capture timestamps order complete partitions, otherwise store append sequence is used; report generation time and hashes never order measurements. Missing observations are not interpolated."]}),
     )
 }
 fn run_onset(store: &Path, limit: usize, json_output: bool) -> Result<u8, CliError> {
@@ -557,7 +591,8 @@ mod tests {
             });
             let report = json!({"schema":"saccade-report.v1","tool_version":"fixture","generated_at_unix":i * 86400,
                 "config":{"default_threshold":0.01,"default_metric":"mean","pixels_per_degree":67.0,"fail_on_new":false},
-                "totals":{"pass":0,"fail":0,"error":0,"missing":0,"new":0,"total":0},"entries":[],
+                "totals":{"pass":0,"fail":0,"error":0,"missing":0,"new":0,"total":0},
+                "entries":[{"name":"frame.png","status":"pass","metric_used":"mean","threshold":0.01,"value":0.0,"metrics":null,"properties":null,"paths":{},"error":null,"capture_provenance":{"capture.timestamp":(i * 86400).to_string()}}],
                 "perf_diff":{"schema":"saccade-perf-diff.v1","history_identity":identity,"unit":"ms","noise_k":3.0,
                     "comparability":if i == 30 { "unknown" } else { "qualified" },"noise_comparability":"qualified","context_after":context,
                     "frame":{"before":10.0,"after":if i < 15 {10.0} else {12.0},"delta":null,"delta_pct":null,"noise_floor":0.04,"noise_threshold":0.12,"beyond_noise":null,"status":"paired"},
@@ -592,6 +627,18 @@ mod tests {
                 .len(),
             2
         );
+        let schema: Value = serde_json::from_slice(
+            &fs::read(
+                Path::new(env!("CARGO_MANIFEST_DIR"))
+                    .join("../saccade-core/schemas/saccade-onset.v1.schema.json"),
+            )
+            .expect("schema file"),
+        )
+        .expect("schema");
+        jsonschema::validator_for(&schema)
+            .expect("validator")
+            .validate(&result)
+            .expect("populated onset validates");
         let active = result["partitions"]
             .as_array()
             .expect("partitions")
@@ -608,6 +655,89 @@ mod tests {
         )
         .expect("tamper fixture");
         assert!(onset_value(dir.path(), 60).is_err());
+    }
+
+    #[test]
+    fn onset_uses_capture_or_record_chronology_not_report_time() {
+        for (capture_times, tied) in [(true, false), (false, false), (true, true)] {
+            let dir = tempfile::tempdir().expect("store");
+            fs::create_dir_all(dir.path().join("objects")).expect("objects");
+            let context: Value = serde_json::from_str(include_str!(
+                "../../saccade-core/tests/fixtures/perf/context.json"
+            ))
+            .expect("context");
+            let mut rows = Vec::new();
+            for i in 0..60u64 {
+                let mut context = context.clone();
+                context["sample_window"]["hash"] =
+                    json!(saccade_core::evidence::canonical::Digest::of_bytes(
+                        format!("window{i}").as_bytes()
+                    ));
+                let entries = if capture_times {
+                    json!([{
+                        "name":"frame.png","status":"pass","metric_used":"mean","threshold":0.01,
+                        "value":0.0,"metrics":null,"properties":null,"paths":{},"error":null,
+                        "capture_provenance":{"capture.timestamp":(if tied { 0 } else { i * 86400 }).to_string()}
+                    }])
+                } else {
+                    json!([])
+                };
+                let report = json!({"schema":"saccade-report.v1","tool_version":"fixture","generated_at_unix":(60-i)*86400,
+                    "config":{"default_threshold":0.01,"default_metric":"mean","pixels_per_degree":67.0,"fail_on_new":false},
+                    "totals":{"pass":0,"fail":0,"error":0,"missing":0,"new":0,"total":0},"entries":entries,
+                    "perf_diff":{"schema":"saccade-perf-diff.v1","history_identity":saccade_core::evidence::canonical::Digest::of_bytes(b"hardware"),"unit":"ms","noise_k":3.0,
+                        "comparability":"qualified","noise_comparability":"qualified","context_after":context,
+                        "frame":{"before":10.0,"after":if i < 30 {10.0} else {12.0},"delta":null,"delta_pct":null,"noise_floor":0.04,"noise_threshold":0.12,"beyond_noise":null,"status":"paired"},
+                        "unattributed_before":null,"unattributed_after":null,"terms":[],"warnings":[]}});
+                let bytes = serde_json::to_vec(&report).expect("report");
+                let digest = hash(&bytes);
+                fs::write(
+                    dir.path().join("objects").join(format!("{digest}.json")),
+                    bytes,
+                )
+                .expect("object");
+                rows.push(Row {
+                    schema: SCHEMA.into(),
+                    report_sha256: digest,
+                    config_sha256: "config".into(),
+                    generated_at_unix: (60 - i) * 86400,
+                    samples: vec![],
+                });
+            }
+            if capture_times && !tied {
+                rows.reverse();
+            }
+            let index = rows
+                .iter()
+                .map(|row| serde_json::to_string(row).expect("row") + "\n")
+                .collect::<String>();
+            fs::write(index_path(dir.path()), index).expect("index");
+            let result = onset_value(dir.path(), 60).expect("onset");
+            let evidence = &result["partitions"][0]["analysis"]["evidence"];
+            assert_eq!(evidence["segment_ends"], json!([30, 60]), "{result}");
+            assert_eq!(
+                evidence["candidates"][0]["first_changed"]["time"],
+                if tied {
+                    0
+                } else if capture_times {
+                    30 * 86400
+                } else {
+                    30
+                }
+            );
+        }
+    }
+
+    #[test]
+    fn onset_output_has_shipped_schema() {
+        let dir = tempfile::tempdir().expect("store");
+        let result = onset_value(dir.path(), 60).expect("onset");
+        let path = Path::new(env!("CARGO_MANIFEST_DIR"))
+            .join("../saccade-core/schemas/saccade-onset.v1.schema.json");
+        let schema: Value =
+            serde_json::from_slice(&fs::read(path).expect("shipped onset schema")).expect("schema");
+        let validator = jsonschema::validator_for(&schema).expect("validator");
+        validator.validate(&result).expect("onset validates");
     }
 
     #[test]

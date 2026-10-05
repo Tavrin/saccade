@@ -1,0 +1,565 @@
+{
+  "$defs": {
+    "Analysis": {
+      "additionalProperties": false,
+      "description": "One optional result. Historical absence cannot imply successful execution.",
+      "properties": {
+        "capability": {
+          "$ref": "#/$defs/Capability",
+          "description": "Whether this producer established the requested evidence."
+        },
+        "evidence": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Onset"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "Measurements, never an independent approval authority."
+        },
+        "limitations": {
+          "description": "Scope restrictions in stable order.",
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "provenance": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Provenance"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "Reproduction information; absent for historical, unrecorded evidence."
+        }
+      },
+      "required": [
+        "capability",
+        "limitations"
+      ],
+      "type": "object"
+    },
+    "Candidate": {
+      "description": "Retrospective onset candidate; confirmation requires fresh qualified repeats.",
+      "properties": {
+        "after_count": {
+          "description": "Number of observations in the changed segment.",
+          "format": "uint",
+          "minimum": 0,
+          "type": "integer"
+        },
+        "after_ms": {
+          "description": "Segment median after the onset.",
+          "format": "double",
+          "type": "number"
+        },
+        "before_count": {
+          "description": "Number of observations in the preceding segment.",
+          "format": "uint",
+          "minimum": 0,
+          "type": "integer"
+        },
+        "before_ms": {
+          "description": "Segment median before the onset.",
+          "format": "double",
+          "type": "number"
+        },
+        "effect_ms": {
+          "description": "Increase in milliseconds.",
+          "format": "double",
+          "type": "number"
+        },
+        "effect_pct": {
+          "description": "Increase as percent of the preceding median.",
+          "format": "double",
+          "type": "number"
+        },
+        "first_changed": {
+          "$ref": "#/$defs/Observation",
+          "description": "First observation in the sustained higher segment."
+        },
+        "last_before": {
+          "$ref": "#/$defs/Observation",
+          "description": "Last observation in the preceding segment, not proof of correctness."
+        },
+        "materiality_ms": {
+          "description": "Maximum applicable materiality bound across the two segments.",
+          "format": "double",
+          "type": "number"
+        },
+        "retrospective_counts_met": {
+          "description": "Whether the recommended 10-before/5-after count is present; not confirmation.",
+          "type": "boolean"
+        },
+        "status": {
+          "description": "Always candidate; segmentation cannot prove commit causality.",
+          "type": "string"
+        }
+      },
+      "required": [
+        "status",
+        "last_before",
+        "first_changed",
+        "before_count",
+        "after_count",
+        "before_ms",
+        "after_ms",
+        "effect_ms",
+        "effect_pct",
+        "materiality_ms",
+        "retrospective_counts_met"
+      ],
+      "type": "object"
+    },
+    "Capability": {
+      "description": "Availability is separate from a measurement or verdict.",
+      "oneOf": [
+        {
+          "additionalProperties": false,
+          "description": "The requested computation was performed within its declared scope.",
+          "properties": {
+            "state": {
+              "const": "available",
+              "type": "string"
+            }
+          },
+          "required": [
+            "state"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "description": "Evidence was not supplied or cannot establish applicability.",
+          "properties": {
+            "reason": {
+              "description": "Machine-readable explanation.",
+              "type": "string"
+            },
+            "state": {
+              "const": "unknown",
+              "type": "string"
+            }
+          },
+          "required": [
+            "state",
+            "reason"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "description": "This implementation cannot perform the requested computation.",
+          "properties": {
+            "reason": {
+              "description": "Machine-readable explanation.",
+              "type": "string"
+            },
+            "state": {
+              "const": "unsupported",
+              "type": "string"
+            }
+          },
+          "required": [
+            "state",
+            "reason"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "description": "The caller explicitly excluded the computation.",
+          "properties": {
+            "reason": {
+              "description": "Machine-readable explanation.",
+              "type": "string"
+            },
+            "state": {
+              "const": "excluded",
+              "type": "string"
+            }
+          },
+          "required": [
+            "state",
+            "reason"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "description": "Inputs or execution failed validation.",
+          "properties": {
+            "reason": {
+              "description": "Machine-readable explanation.",
+              "type": "string"
+            },
+            "state": {
+              "const": "rejected",
+              "type": "string"
+            }
+          },
+          "required": [
+            "state",
+            "reason"
+          ],
+          "type": "object"
+        }
+      ]
+    },
+    "ExcludedObservation": {
+      "additionalProperties": false,
+      "description": "A supplied observation omitted from segmentation.",
+      "properties": {
+        "reason": {
+          "description": "Explicit exclusion reason.",
+          "type": "string"
+        },
+        "run": {
+          "description": "Content hash of the report object.",
+          "type": "string"
+        }
+      },
+      "required": [
+        "run",
+        "reason"
+      ],
+      "type": "object"
+    },
+    "Observation": {
+      "description": "One independent qualified observation of a declared timing statistic.",
+      "properties": {
+        "commit": {
+          "description": "Source revision if unambiguously supplied by capture metadata.",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "floor_ms": {
+          "description": "Effective absolute/noise/resolution floor from the comparison.",
+          "format": "double",
+          "type": "number"
+        },
+        "identity": {
+          "description": "Qualified performance comparison identity (hardware, timer, configuration, statistic).",
+          "type": "string"
+        },
+        "milliseconds": {
+          "description": "Timing statistic in milliseconds, strictly positive.",
+          "format": "double",
+          "type": "number"
+        },
+        "min_delta_pct": {
+          "description": "Relative materiality floor, in percent.",
+          "format": "double",
+          "type": "number"
+        },
+        "repeat_range_ms": {
+          "description": "Qualified repeat range in milliseconds.",
+          "format": "double",
+          "type": "number"
+        },
+        "run": {
+          "description": "Content hash of the recorded report, identifying the run.",
+          "type": "string"
+        },
+        "time": {
+          "description": "Observation time from the producer; gaps are retained, never interpolated.",
+          "format": "uint64",
+          "minimum": 0,
+          "type": "integer"
+        },
+        "window": {
+          "description": "Exact sample-window identity; duplicates are not independent repeats.",
+          "type": "string"
+        }
+      },
+      "required": [
+        "run",
+        "time",
+        "identity",
+        "window",
+        "milliseconds",
+        "repeat_range_ms",
+        "floor_ms",
+        "min_delta_pct"
+      ],
+      "type": "object"
+    },
+    "Onset": {
+      "description": "Complete numerical witness for exact short-history segmentation.",
+      "properties": {
+        "candidates": {
+          "description": "Material sustained increases only; decreases remain in the segmentation.",
+          "items": {
+            "$ref": "#/$defs/Candidate"
+          },
+          "type": "array"
+        },
+        "lag_one_correlation": {
+          "description": "Estimated positive lag-one correlation of pilot segment residuals.",
+          "format": "double",
+          "type": "number"
+        },
+        "log_noise_scale": {
+          "description": "Fixed robust scale applied to all log timings.",
+          "format": "double",
+          "type": "number"
+        },
+        "minimum_segment": {
+          "description": "Minimum observations per segment (five).",
+          "format": "uint",
+          "minimum": 0,
+          "type": "integer"
+        },
+        "objective": {
+          "description": "Sum of median absolute deviations plus penalty per change.",
+          "format": "double",
+          "type": "number"
+        },
+        "observations": {
+          "description": "Ordered observations used, including timestamps and input identities.",
+          "items": {
+            "$ref": "#/$defs/Observation"
+          },
+          "type": "array"
+        },
+        "penalty": {
+          "description": "Penalty per additional segment: 3 ln(n) times serial dependence inflation.",
+          "format": "double",
+          "type": "number"
+        },
+        "segment_ends": {
+          "description": "End-exclusive segment boundaries, including the series end.",
+          "items": {
+            "format": "uint",
+            "minimum": 0,
+            "type": "integer"
+          },
+          "type": "array"
+        },
+        "serial_dependence_factor": {
+          "description": "Conservative serial dependence inflation, bounded by n / minimum_segment.",
+          "format": "double",
+          "type": "number"
+        }
+      },
+      "required": [
+        "observations",
+        "segment_ends",
+        "minimum_segment",
+        "log_noise_scale",
+        "lag_one_correlation",
+        "serial_dependence_factor",
+        "penalty",
+        "objective",
+        "candidates"
+      ],
+      "type": "object"
+    },
+    "Partition": {
+      "description": "One history partition; insufficient histories cannot manufacture analysis.",
+      "oneOf": [
+        {
+          "additionalProperties": false,
+          "description": "Fewer than ten distinct qualified observations.",
+          "properties": {
+            "chronology": {
+              "description": "Capture timestamps or recorded sequence, never report creation time.",
+              "type": "string"
+            },
+            "identity": {
+              "description": "Qualified comparison identity.",
+              "type": "string"
+            },
+            "observations": {
+              "description": "Available independent observations in measurement order.",
+              "items": {
+                "$ref": "#/$defs/Observation"
+              },
+              "type": "array"
+            },
+            "older_observations_omitted": {
+              "description": "Qualified observations outside the requested recent window.",
+              "format": "uint",
+              "minimum": 0,
+              "type": "integer"
+            },
+            "status": {
+              "const": "insufficient_history",
+              "type": "string"
+            }
+          },
+          "required": [
+            "status",
+            "identity",
+            "chronology",
+            "observations",
+            "older_observations_omitted"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "description": "Exact segmentation and material candidates, subject to the recorded limits.",
+          "properties": {
+            "analysis": {
+              "$ref": "#/$defs/Analysis",
+              "description": "Numerical witness and provenance."
+            },
+            "chronology": {
+              "description": "Capture timestamps or recorded sequence, never report creation time.",
+              "type": "string"
+            },
+            "identity": {
+              "description": "Qualified comparison identity.",
+              "type": "string"
+            },
+            "older_observations_omitted": {
+              "description": "Qualified observations outside the requested recent window.",
+              "format": "uint",
+              "minimum": 0,
+              "type": "integer"
+            },
+            "status": {
+              "const": "candidate_analysis",
+              "type": "string"
+            }
+          },
+          "required": [
+            "status",
+            "identity",
+            "chronology",
+            "analysis",
+            "older_observations_omitted"
+          ],
+          "type": "object"
+        }
+      ]
+    },
+    "Provenance": {
+      "additionalProperties": false,
+      "description": "Reproduction details shared by optional analysis features.",
+      "properties": {
+        "code_license": {
+          "description": "SPDX expression for this implementation.",
+          "type": "string"
+        },
+        "implementation": {
+          "description": "Algorithm name and revision, independently of the tool version.",
+          "type": "string"
+        },
+        "resources": {
+          "description": "Exact resources, in producer-declared stable order.",
+          "items": {
+            "$ref": "#/$defs/Resource"
+          },
+          "type": "array"
+        },
+        "settings": {
+          "additionalProperties": {
+            "type": "string"
+          },
+          "description": "Explicit preprocessing, execution and sampling settings.",
+          "type": "object"
+        },
+        "tool_version": {
+          "description": "Producing package version.",
+          "type": "string"
+        }
+      },
+      "required": [
+        "implementation",
+        "tool_version",
+        "code_license",
+        "resources",
+        "settings"
+      ],
+      "type": "object"
+    },
+    "Resource": {
+      "additionalProperties": false,
+      "description": "Content-bound resource; absent hashes or licences remain explicit unknowns.",
+      "properties": {
+        "license": {
+          "description": "SPDX expression or a referenced custom licence; never inferred from code.",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "name": {
+          "description": "Logical resource name, not a machine-specific path.",
+          "type": "string"
+        },
+        "role": {
+          "description": "Role such as input, implementation, weights or configuration.",
+          "type": "string"
+        },
+        "sha256": {
+          "description": "Lowercase SHA-256 of exact resource bytes, when available.",
+          "type": [
+            "string",
+            "null"
+          ]
+        }
+      },
+      "required": [
+        "name",
+        "role"
+      ],
+      "type": "object"
+    }
+  },
+  "$id": "https://github.com/Tavrin/saccade/crates/saccade-core/schemas/saccade-onset.v1.schema.json",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "description": "Portable `history onset --json` contract.",
+  "properties": {
+    "excluded_observations": {
+      "description": "Unqualified or duplicate input observations.",
+      "items": {
+        "$ref": "#/$defs/ExcludedObservation"
+      },
+      "type": "array"
+    },
+    "limits": {
+      "description": "Interpretation and qualification limits.",
+      "items": {
+        "type": "string"
+      },
+      "type": "array"
+    },
+    "operation": {
+      "const": "onset",
+      "description": "Always `onset`.",
+      "type": "string"
+    },
+    "partitions": {
+      "description": "Independent comparable histories, with their measurement chronology.",
+      "items": {
+        "$ref": "#/$defs/Partition"
+      },
+      "type": "array"
+    },
+    "schema": {
+      "const": "saccade-onset.v1",
+      "description": "Always `saccade-onset.v1`.",
+      "type": "string"
+    }
+  },
+  "required": [
+    "schema",
+    "operation",
+    "partitions",
+    "excluded_observations",
+    "limits"
+  ],
+  "title": "Document",
+  "type": "object"
+}

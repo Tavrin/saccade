@@ -33,6 +33,10 @@ fn generated<T: schemars::JsonSchema>(file: &str) -> String {
             "performance_noise".into();
         value["$defs"]["PerformanceNoiseRecord"]["properties"]["unit"]["const"] = "ms".into();
     }
+    if file == "saccade-onset.v1.schema.json" {
+        value["properties"]["schema"]["const"] = "saccade-onset.v1".into();
+        value["properties"]["operation"]["const"] = "onset".into();
+    }
     let obj = value.as_object_mut().expect("schema is an object");
     // `$id` right after `$schema`, as in the hand-written files.
     let mut ordered = serde_json::Map::new();
@@ -51,6 +55,10 @@ fn committed_schemas_match_the_rust_types() {
     let dir = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("schemas");
     let update = std::env::var_os("UPDATE_SCHEMAS").is_some();
     let all = [
+        (
+            "saccade-onset.v1.schema.json",
+            generated::<saccade_core::onset::Document>("saccade-onset.v1.schema.json"),
+        ),
         #[cfg(feature = "geometry")]
         (
             "saccade-geometry.v1.schema.json",
@@ -164,6 +172,7 @@ fn committed_schemas_match_the_rust_types() {
 
     // Every schema id the tools emit has a file with a matching `$id`.
     for name in [
+        "onset",
         "review",
         "labels",
         "judge-bench",

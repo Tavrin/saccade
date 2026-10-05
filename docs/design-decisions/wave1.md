@@ -39,7 +39,11 @@ capture-side timings only, deduplicate sample-window hashes, and partition by
 comparison identity. No separate database or dependency is introduced.
 
 Implement unpruned exact dynamic programming, log-latency L1 segment cost,
-minimum segment 5 and penalty 3 ln(n). Normalize once using the maximum of robust
+minimum segment 5 and seed penalty 3 ln(n). Inflate the final penalty by positive
+lag-one pilot-residual correlation, using `(1+rho)/(1-rho)` capped at n/5.
+Capture timestamps order complete partitions; otherwise preserve the store's
+append sequence, including ties. Never use report creation time or hashes.
+Normalize once using the maximum of robust
 adjacent log differences, qualified repeat range and a documented numerical
 floor. Bound the window to 120 (default 60) for predictable exact computation.
 Require five individual post-segment observations beyond the materiality floor,
