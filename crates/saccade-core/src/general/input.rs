@@ -7,8 +7,16 @@ pub const MAX_BYTES: u64 = 64 * 1024 * 1024;
 pub const MAX_PIXELS: u64 = 16 * 1024 * 1024;
 /// Reads an untrusted regular file with a streaming bound, including growth after stat.
 pub fn bytes(path: &Path, limit: u64) -> Result<Vec<u8>> {
-    let file =
-        std::fs::File::open(path).map_err(crate::run::io_err("opening image input".into()))?;
+    let mut options = std::fs::OpenOptions::new();
+    options.read(true);
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::OpenOptionsExt;
+        options.custom_flags(libc::O_NONBLOCK);
+    }
+    let file = options
+        .open(path)
+        .map_err(crate::run::io_err("opening image input".into()))?;
     if !file
         .metadata()
         .map_err(crate::run::io_err("image metadata".into()))?

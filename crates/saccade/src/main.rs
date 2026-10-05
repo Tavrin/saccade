@@ -630,8 +630,8 @@ Examples:
         /// Optional bearer-token env file; default ~/.config/saccade/api.env if present.
         #[arg(long)]
         api_token_file: Option<PathBuf>,
-        #[arg(long, default_value = "/mnt/linux-extra/saccade-models")]
-        api_model_dir: PathBuf,
+        #[arg(long)]
+        api_model_dir: Option<PathBuf>,
         #[arg(long)]
         api_registry: Option<PathBuf>,
         /// Archive roots to browse (read-only). With several, each is a
@@ -1685,7 +1685,7 @@ fn dispatch(command: Command, record_absolute_paths: bool) -> Result<u8, CliErro
                     api_max_bytes,
                     api_bind,
                     api_token_file,
-                    api_model_dir,
+                    api_model_dir.unwrap_or_else(saccade_core::media::default_model_dir),
                     api_registry,
                 );
             }

@@ -11,6 +11,13 @@ use std::{
 /// OpenAI-compatible and Azure fixture endpoint adapters.
 #[cfg(feature = "vision-providers")]
 pub mod endpoints;
+#[cfg(all(
+    test,
+    feature = "local-models",
+    feature = "embeddings",
+    feature = "ocr"
+))]
+mod heavy_tests;
 /// Loopback local media HTTP transport.
 #[cfg(feature = "workbench")]
 pub mod http;
@@ -21,6 +28,8 @@ pub mod usage;
 pub mod video;
 /// Versioned media record discriminator.
 pub const SCHEMA: &str = "saccade-media-record.v1";
+/// Shared retained-byte FLIP comparison schema.
+pub const COMPARE_SCHEMA: &str = "saccade-media-compare.v1";
 /// Stable media error, shared by CLI, HTTP and Python.
 #[derive(Debug, thiserror::Error)]
 #[error("{code}: {message}")]
@@ -318,23 +327,29 @@ impl Analyzer {
                 "declare at most 32 positive output sizes/crops",
             ));
         }
+        let identity_started = Instant::now();
         let pixels = input::decode(bytes)?;
         let size = [pixels.width(), pixels.height()];
         let hash = models::digest(bytes);
         let profile = options.profile.unwrap_or(self.profile);
+        let identity_elapsed = identity_started.elapsed().as_secs_f64() * 1000.;
+        let headers_started = Instant::now();
         let headers = integrity::headers(bytes, &pixels, options.include_gps);
-        let identity = section("sha256-raster-container", || {
+        let headers_elapsed = headers_started.elapsed().as_secs_f64() * 1000.;
+        let mut identity = section("sha256-raster-container", || {
             Ok(
                 json!({"sha256":hash,"dimensions":size,"format":image::guess_format(bytes).ok().map(|f|format!("{f:?}").to_lowercase()),"colour_profile":headers.as_ref().ok().map(|v|v["metadata"]["colour_profile"].clone()),"pixel_policy":"encoded orientation; SDR RGBA8; colour profile presence is not profile validation"}),
             )
         });
-        let metadata = section("exif-xmp-iptc-c2pa", || {
+        identity.timing_ms += identity_elapsed;
+        let mut metadata = section("exif-xmp-iptc-c2pa", || {
             let h = headers?;
             let candidates = credit_candidates(&h["metadata"]);
             Ok(
                 json!({"fields":h["metadata"],"candidates":candidates,"c2pa":credentials::inspect(bytes)?,"assurance":"unsigned metadata candidates are not verified rights"}),
             )
         });
+        metadata.timing_ms += headers_elapsed;
         let quality = section("assess-output-fitness", || {
             let m = assessment::assess(&pixels)?;
             let fitness:Vec<_>=options.output_sizes.iter().map(|s| {
@@ -350,12 +365,14 @@ impl Analyzer {
             sha256: hash.clone(),
         };
         let full = profile != Profile::CpuLite;
+        let faces_started = Instant::now();
         let face_result = if options.faces.unwrap_or(full) {
             Some(self.faces(&image, profile))
         } else {
             None
         };
-        let focal = section("faces-colour-surround-crop", || {
+        let face_elapsed = faces_started.elapsed().as_secs_f64() * 1000.;
+        let mut focal = section("faces-colour-surround-crop", || {
             let saliency = options
                 .saliency
                 .unwrap_or(true)
@@ -414,6 +431,7 @@ impl Analyzer {
                 json!({"faces":match &face_result{Some(Ok(r))=>json!({"status":"ok","report":r}),Some(Err(e))=>json!({"status":"failed","error_code":e.code,"reason":e.message}),None=>json!({"status":"skipped","reason":"disabled by preset or options"})},"saliency":saliency,"focal_point":point,"basis":basis,"crops":crops,"face_crop_checks_available":matches!(face_result,Some(Ok(_)))}),
             )
         });
+        focal.timing_ms += face_elapsed;
         let text = if options.text.unwrap_or(full) {
             section("ocrs-rten", || self.ocr(bytes, profile))
         } else {
@@ -452,17 +470,17 @@ impl Analyzer {
             description,
             video: skipped("external-ffmpeg-keyframes", "image input"),
         };
-        if record.embeddings.status == Status::Ok {
-            if let Some(model) = self.contract(crate::general::embedding::MODEL_SCHEMA).ok() {
-                record.embeddings.provenance = Provenance {
-                    id: model["family"].as_str().unwrap_or("embedding").into(),
-                    version: model["artifact"]["version"]
-                        .as_str()
-                        .unwrap_or("supplied")
-                        .into(),
-                    pins: vec![model["artifact"]["sha256"].as_str().unwrap_or("").into()],
-                };
-            }
+        if record.embeddings.status == Status::Ok
+            && let Ok(model) = self.contract(crate::general::embedding::MODEL_SCHEMA)
+        {
+            record.embeddings.provenance = Provenance {
+                id: model["family"].as_str().unwrap_or("embedding").into(),
+                version: model["artifact"]["version"]
+                    .as_str()
+                    .unwrap_or("supplied")
+                    .into(),
+                pins: vec![model["artifact"]["sha256"].as_str().unwrap_or("").into()],
+            };
         }
         if let Some(Ok(face)) = &face_result {
             record
@@ -471,14 +489,14 @@ impl Analyzer {
                 .pins
                 .extend(face.provenance.artifact_sha256.clone());
         }
-        if record.text.status == Status::Ok {
-            if let Some(c) = self.contract(crate::general::ocr::SCHEMA).ok() {
-                record.text.provenance.version = "ocrs-0.10.4/rten-0.21.0".into();
-                record.text.provenance.pins = ["detection", "recognition"]
-                    .iter()
-                    .filter_map(|k| c[*k]["sha256"].as_str().map(str::to_owned))
-                    .collect();
-            }
+        if record.text.status == Status::Ok
+            && let Ok(c) = self.contract(crate::general::ocr::SCHEMA)
+        {
+            record.text.provenance.version = "ocrs-0.10.4/rten-0.21.0".into();
+            record.text.provenance.pins = ["detection", "recognition"]
+                .iter()
+                .filter_map(|k| c[*k]["sha256"].as_str().map(str::to_owned))
+                .collect();
         }
         // An attempted face failure remains independent of the successful saliency fallback.
         if let Some(Err(e)) = face_result {
@@ -600,6 +618,12 @@ impl Analyzer {
     }
     /// Reusable installed image-embedding inference; no model supplied means typed unavailability.
     pub fn embed_image(&self, bytes: &[u8]) -> Result<Vec<f32>> {
+        if bytes.len() as u64 > input::MAX_BYTES {
+            return Err(MediaError::new(
+                "request_too_large",
+                "encoded input exceeds 64 MiB",
+            ));
+        }
         self.embed_pixels(&input::decode(bytes)?, self.profile)
     }
     fn embed_pixels(&self, pixels: &image::RgbaImage, profile: Profile) -> Result<Vec<f32>> {
@@ -706,14 +730,17 @@ fn enforce_strict(record: Record, strict: bool) -> Result<Record> {
         Ok(record)
     }
 }
+/// Portable consumer cache default. Lane gates always pass the prescribed cache explicitly.
+pub fn default_model_dir() -> PathBuf {
+    std::env::var_os("XDG_CACHE_HOME")
+        .map(PathBuf::from)
+        .or_else(|| std::env::var_os("HOME").map(|h| PathBuf::from(h).join(".cache")))
+        .unwrap_or_else(|| PathBuf::from(".cache"))
+        .join("saccade/models")
+}
 /// Convenience single-call library entry point using a CPU-lite analyzer and no downloads.
 pub fn analyze_media(source: &str, options: &Options) -> Result<Record> {
-    Analyzer::new(
-        Profile::CpuLite,
-        PathBuf::from("/mnt/linux-extra/saccade-models"),
-        false,
-    )?
-    .analyze_media(source, options)
+    Analyzer::new(Profile::CpuLite, default_model_dir(), false)?.analyze_media(source, options)
 }
 /// Credit/copyright candidates retain the exact source field and value; never infer ownership.
 pub fn credit_candidates(metadata: &Value) -> Vec<Value> {
@@ -791,6 +818,12 @@ impl Analyzer {
     }
     /// Compare retained SDR encoded inputs through the established FLIP computation.
     pub fn compare(&self, a: &[u8], b: &[u8], ppd: f32) -> Result<Value> {
+        if a.len() as u64 > input::MAX_BYTES || b.len() as u64 > input::MAX_BYTES {
+            return Err(MediaError::new(
+                "request_too_large",
+                "encoded input exceeds 64 MiB",
+            ));
+        }
         let aa = input::decode(a)?;
         let bb = input::decode(b)?;
         let options = crate::compare::CompareOptions {
@@ -799,7 +832,7 @@ impl Analyzer {
         };
         let result = crate::compare::compare_rgba(&aa, &bb, &options)?;
         Ok(
-            json!({"schema":"saccade-media-compare.v1","reference_sha256":models::digest(b),"capture_sha256":models::digest(a),"metrics":result.metrics,"ppd":ppd}),
+            json!({"schema":COMPARE_SCHEMA,"reference_sha256":models::digest(b),"capture_sha256":models::digest(a),"metrics":result.metrics,"ppd":ppd}),
         )
     }
 }
@@ -838,6 +871,85 @@ mod tests {
         assert_eq!(
             a.analyze_bytes(&b, &opts).unwrap_err().code,
             "media_section_failed"
+        );
+    }
+    #[cfg(unix)]
+    #[test]
+    fn special_file_is_refused_before_any_read() {
+        let analyzer = Analyzer::new(Profile::CpuLite, "cache".into(), false).unwrap();
+        assert!(
+            analyzer
+                .analyze_media("/dev/zero", &Options::default())
+                .is_err()
+        );
+    }
+    #[test]
+    fn optional_description_uses_bound_observation_provider() {
+        struct Provider;
+        impl observation::ObservationProvider for Provider {
+            fn observe(
+                &mut self,
+                r: &observation::ObservationRequest,
+            ) -> models::Result<observation::ObservationReport> {
+                let mut provenance = vision::Provenance::fixture(&r.model);
+                provenance.runtime = "provider-fixture".into();
+                provenance.input_resolution = r.images[0].presented_size;
+                Ok(observation::ObservationReport {
+                    schema: observation::OBSERVATION_SCHEMA.into(),
+                    advisory_only: true,
+                    request_sha256: r.hash()?,
+                    response_sha256: models::digest(b"fixture"),
+                    data_sha256: models::digest(r.data.as_bytes()),
+                    requested_model: r.model.clone(),
+                    returned_model: r.model.clone(),
+                    returned_revision: None,
+                    provider: "fixture".into(),
+                    provenance,
+                    statements: vec![observation::Statement {
+                        image_id: "image".into(),
+                        text: "A draft description".into(),
+                        bbox: None,
+                        point: None,
+                        confidence: None,
+                    }],
+                    usage: observation::Usage::default(),
+                    cost_usd: None,
+                })
+            }
+        }
+        let bytes = encoded();
+        let request = observation::ObservationRequest {
+            task: observation::Task::Caption,
+            data: "describe data".into(),
+            images: vec![observation::ImageInput {
+                id: "image".into(),
+                bytes: bytes.clone(),
+                media_type: "image/png".into(),
+                original_size: [40, 30],
+                presented_size: [40, 30],
+                scale: [1., 1.],
+                offset: [0., 0.],
+            }],
+            model: "fixture-model".into(),
+            encoder_version: "fixture/1".into(),
+            max_output_tokens: 128,
+        };
+        let a = Analyzer::new(Profile::CpuLite, "cache".into(), false).unwrap();
+        let options = Options {
+            description: true,
+            strict: true,
+            ..Default::default()
+        };
+        let r = a
+            .analyze_with_provider(&bytes, &options, &request, &mut Provider)
+            .unwrap();
+        assert_eq!(r.description.status, Status::Ok);
+        assert_eq!(r.description.data["draft"], true);
+        let mut stale = request.clone();
+        stale.images[0].bytes = b"wrong".to_vec();
+        assert!(
+            a.analyze_with_provider(&bytes, &options, &stale, &mut Provider)
+                .is_err()
         );
     }
     #[test]

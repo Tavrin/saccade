@@ -11,6 +11,8 @@ use std::{
     path::PathBuf,
     sync::{Arc, Mutex},
 };
+/// Stable Saccade binding version.
+pub const VERSION: &str = env!("CARGO_PKG_VERSION");
 pyo3::create_exception!(
     saccade,
     SaccadeError,
@@ -61,6 +63,12 @@ enum Input {
 }
 fn input(value: &Bound<'_, PyAny>) -> PyResult<Input> {
     if let Ok(v) = value.downcast::<PyBytes>() {
+        if v.as_bytes().len() as u64 > saccade_core::general::input::MAX_BYTES {
+            return Err(error(
+                value.py(),
+                MediaError::new("request_too_large", "encoded input exceeds 64 MiB"),
+            ));
+        }
         return Ok(Input::Bytes(v.as_bytes().to_vec()));
     }
     if let Ok(v) = value.extract::<String>() {
@@ -94,11 +102,11 @@ struct Analyzer {
 #[pymethods]
 impl Analyzer {
     #[new]
-    #[pyo3(signature=(profile="cpu-lite",model_dir="/mnt/linux-extra/saccade-models",allow_download=false,registry=None))]
+    #[pyo3(signature=(profile="cpu-lite",model_dir=None,allow_download=false,registry=None))]
     fn new(
         py: Python<'_>,
         profile: &str,
-        model_dir: &str,
+        model_dir: Option<&str>,
         allow_download: bool,
         registry: Option<&str>,
     ) -> PyResult<Self> {
@@ -117,11 +125,19 @@ impl Analyzer {
             .allow_threads(|| match registry {
                 Some(p) => CoreAnalyzer::with_registry(
                     profile,
-                    model_dir.into(),
+                    model_dir
+                        .map(PathBuf::from)
+                        .unwrap_or_else(media::default_model_dir),
                     allow_download,
                     models::Registry::load(&PathBuf::from(p))?,
                 ),
-                None => CoreAnalyzer::new(profile, model_dir.into(), allow_download),
+                None => CoreAnalyzer::new(
+                    profile,
+                    model_dir
+                        .map(PathBuf::from)
+                        .unwrap_or_else(media::default_model_dir),
+                    allow_download,
+                ),
             })
             .map_err(|e| error(py, e))?;
         Ok(Self { inner: Arc::new(a) })
@@ -283,14 +299,18 @@ impl Index {
     }
 }
 #[pyfunction]
-#[pyo3(signature=(model_dir="/mnt/linux-extra/saccade-models"))]
-fn pull_runtime(py: Python<'_>, model_dir: &str) -> PyResult<String> {
+#[pyo3(signature=(model_dir=None))]
+fn pull_runtime(py: Python<'_>, model_dir: Option<&str>) -> PyResult<String> {
     #[cfg(feature = "models")]
     {
         py.allow_threads(|| {
-            saccade_core::wave7::runtime_install::pull(&PathBuf::from(model_dir))
-                .map(|p| p.to_string_lossy().into_owned())
-                .map_err(MediaError::from)
+            saccade_core::wave7::runtime_install::pull(
+                &model_dir
+                    .map(PathBuf::from)
+                    .unwrap_or_else(media::default_model_dir),
+            )
+            .map(|p| p.to_string_lossy().into_owned())
+            .map_err(MediaError::from)
         })
         .map_err(|e| error(py, e))
     }
@@ -307,11 +327,11 @@ fn pull_runtime(py: Python<'_>, model_dir: &str) -> PyResult<String> {
     }
 }
 #[pyfunction]
-#[pyo3(signature=(ids,model_dir="/mnt/linux-extra/saccade-models",registry=None))]
+#[pyo3(signature=(ids,model_dir=None,registry=None))]
 fn pull_models(
     py: Python<'_>,
     ids: Vec<String>,
-    model_dir: &str,
+    model_dir: Option<&str>,
     registry: Option<&str>,
 ) -> PyResult<Py<PyAny>> {
     json(
@@ -324,7 +344,13 @@ fn pull_models(
             let mut rows = Vec::new();
             for id in ids {
                 let model = reg.model(&id)?;
-                let paths = models::ensure(model, &PathBuf::from(model_dir), true)?;
+                let paths = models::ensure(
+                    model,
+                    &model_dir
+                        .map(PathBuf::from)
+                        .unwrap_or_else(media::default_model_dir),
+                    true,
+                )?;
                 rows.push(serde_json::json!({"id":id,"artifact_count":paths.len()}));
             }
             Ok(serde_json::json!({"schema":models::MODELS_SCHEMA,"models":rows}))

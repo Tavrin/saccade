@@ -7,8 +7,8 @@ pub(crate) struct AnalyzeArgs {
     source: String,
     #[arg(long,default_value="cpu-lite",value_parser=["cpu-lite","cpu-full","gpu"])]
     profile: String,
-    #[arg(long, default_value = "/mnt/linux-extra/saccade-models")]
-    model_dir: PathBuf,
+    #[arg(long)]
+    model_dir: Option<PathBuf>,
     #[arg(long)]
     registry: Option<PathBuf>,
     /// Per-section options JSON file.
@@ -67,15 +67,16 @@ pub(crate) fn analyze(a: AnalyzeArgs) -> Result<u8, CliError> {
         "gpu" => Profile::Gpu,
         _ => Profile::CpuLite,
     };
+    let model_dir = a.model_dir.unwrap_or_else(media::default_model_dir);
     let analyzer = if let Some(p) = a.registry {
         Analyzer::with_registry(
             profile,
-            a.model_dir,
+            model_dir,
             false,
             saccade_core::wave7::models::Registry::load(&p).map_err(crate::wave7_cmd::error)?,
         )
     } else {
-        Analyzer::new(profile, a.model_dir, false)
+        Analyzer::new(profile, model_dir, false)
     }
     .map_err(error)?;
     let mut opts: Options = if let Some(p) = a.options {
@@ -134,12 +135,8 @@ pub(crate) fn mcp(
     let bytes =
         saccade_core::wave7::models::read_bounded(&path, saccade_core::general::input::MAX_BYTES)
             .map_err(crate::wave7_cmd::error)?;
-    let analyzer = Analyzer::new(
-        Profile::CpuLite,
-        "/mnt/linux-extra/saccade-models".into(),
-        false,
-    )
-    .map_err(error)?;
+    let analyzer =
+        Analyzer::new(Profile::CpuLite, media::default_model_dir(), false).map_err(error)?;
     Ok(serde_json::to_value(
         analyzer.analyze_bytes(&bytes, &a.options).map_err(error)?,
     )?)

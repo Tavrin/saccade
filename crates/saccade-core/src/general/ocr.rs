@@ -76,28 +76,31 @@ pub struct Engine {
 impl Engine {
     /// Verify and load the supplied models exactly once, with explicit download opt-in.
     pub fn load(c: &Contract, cache: &Path, download: bool) -> Result<Self> {
-        validate(c)?;
-        if download {
-            semantic::cache_models(&manifest(c), cache)?;
-        }
-        let load = |a: &semantic::ModelArtifact| -> Result<rten::Model> {
-            let bytes = super::input::bytes(&semantic::artifact_path(cache, a)?, a.bytes)?;
-            if bytes.len() as u64 != a.bytes || crate::localized::digest(&bytes) != a.sha256 {
-                return Err(Error::Config("OCR model hash/size mismatch".into()));
+        std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| -> Result<Self> {
+            validate(c)?;
+            if download {
+                semantic::cache_models(&manifest(c), cache)?;
             }
-            rten::Model::load(bytes).map_err(|e| Error::Config(format!("RTen model: {e}")))
-        };
-        let engine = ocrs::OcrEngine::new(ocrs::OcrEngineParams {
-            detection_model: Some(load(&c.detection)?),
-            recognition_model: Some(load(&c.recognition)?),
-            alphabet: Some(c.alphabet.clone()),
-            ..Default::default()
-        })
-        .map_err(|e| Error::Config(format!("ocrs: {e}")))?;
-        Ok(Self {
-            engine,
-            contract: c.clone(),
-        })
+            let load = |a: &semantic::ModelArtifact| -> Result<rten::Model> {
+                let bytes = super::input::bytes(&semantic::artifact_path(cache, a)?, a.bytes)?;
+                if bytes.len() as u64 != a.bytes || crate::localized::digest(&bytes) != a.sha256 {
+                    return Err(Error::Config("OCR model hash/size mismatch".into()));
+                }
+                rten::Model::load(bytes).map_err(|e| Error::Config(format!("RTen model: {e}")))
+            };
+            let engine = ocrs::OcrEngine::new(ocrs::OcrEngineParams {
+                detection_model: Some(load(&c.detection)?),
+                recognition_model: Some(load(&c.recognition)?),
+                alphabet: Some(c.alphabet.clone()),
+                ..Default::default()
+            })
+            .map_err(|e| Error::Config(format!("ocrs: {e}")))?;
+            Ok(Self {
+                engine,
+                contract: c.clone(),
+            })
+        }))
+        .map_err(|_| Error::Config("Rust OCR model loading failed".into()))?
     }
     /// Recognize retained bytes using the already-loaded engine; confidence stays absent.
     pub fn recognize(&self, encoded: &[u8]) -> Result<ui_review::Source> {

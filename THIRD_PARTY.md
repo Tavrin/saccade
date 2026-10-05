@@ -700,3 +700,5 @@ These are binding/build dependencies only; models and ONNX Runtime are not bundl
 wheels. Existing image, hashing, FFT, XML and HTTP dependencies are reused unchanged.
 
 Wave 8 optional configured endpoint adapter reuses url **2.5.8** (MIT OR Apache-2.0), verified from its fetched Cargo manifest; no new model or native-runtime library is bundled.
+
+The existing libc **0.2.190** (MIT OR Apache-2.0, fetched manifest verified) is also used by core on Unix for safe `OpenOptionsExt` nonblocking flags; no unsafe code or linked native dependency is added.

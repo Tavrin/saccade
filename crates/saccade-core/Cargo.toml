@@ -148,3 +148,7 @@ name = "r2_credentials"
 required-features = ["credentials"]
 
 # wave8: bounded URL input and local API remain optional.
+
+# wave8: safe OpenOptions flags reject special-file reads without blocking on Unix.
+[target.'cfg(unix)'.dependencies]
+libc = "0.2"

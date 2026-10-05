@@ -190,7 +190,9 @@ impl Index {
         }
         for (row, raw) in rows.iter().zip(bytes.chunks_exact(index.dimensions * 4)) {
             let vector: Vec<f32> = raw
-                .chunks_exact(4)
+                .as_chunks::<4>()
+                .0
+                .iter()
                 .map(|b| f32::from_le_bytes([b[0], b[1], b[2], b[3]]))
                 .collect();
             // Reject corrupted/non-normalized input rather than normalizing and hiding corruption.

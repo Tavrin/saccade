@@ -4201,6 +4201,7 @@ dependencies = [
  "hayro",
  "httpdate",
  "image",
+ "libc",
  "moxcms 0.7.11",
  "ocrs",
  "ort",
@@ -4234,6 +4235,7 @@ dependencies = [
  "pyo3",
  "saccade-core",
  "serde_json",
+ "tempfile",
 ]
 
 [[package]]

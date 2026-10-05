@@ -1,19 +1,31 @@
 # Wave 8 progress
 
-8.1 implemented 76f2b60; targeted media tests 4 passed; MCP compile fix included below.
-8.2 implemented (this commit); local wheel/pytest paused by disk below 25 GiB.
-8.3 search arithmetic/persistence prepared; official joint model pending disposition.
-8.4–8.8 pending.
+| Item | Status | Item commit | Remaining qualification |
+|---|---|---|---|
+| 8.1 media records | done | 76f2b60 | installed models, provider execution |
+| 8.2 Python package | done | a565eb7 | release/manylinux wheel archives |
+| 8.3 text/image search | partial | e4b3ac2 | official joint model/tokenizer/export pins and licence; calibration |
+| 8.4 deterministic saliency | done | 41ef69a | learned saliency intentionally skipped |
+| 8.5 keyframes/video records | done | 288aec2 | external ffmpeg execution |
+| 8.6 usage matching | done | 987a1e8 | broader real-world corpus |
+| 8.7 local HTTP API/container recipe | done | eac530e | Docker build/smoke |
+| 8.8 endpoint adapters | done | 0d27ea5 | live calls intentionally excluded |
 
-8.2 implemented a565eb7; disk-blocked wheel/pytest validation.
-8.3 partial (this commit): shared index and text-query boundary; SigLIP 2 inference deferred with checked-in disposition evidence.
+Final corrections and qualification wiring follow these item commits. `WAVE8-NOTES.md`
+records decisions and reversal costs. `scripts/gates-wave8.sh` is coordinator-owned and
+has not been run; it explicitly fails the deferred text-image model gate.
 
-8.4 implemented (this commit): deterministic saliency and generated displacement/fallback fixtures; learned model skipped. Initial position test passed in 8.1; added fixture awaits disk recovery.
+Light checks PASS: formatting/docs/shell syntax, model-feature CLI/core/Python check and
+strict Clippy; 15 generated core media tests (1 ffmpeg ignored), 3 CLI/MCP schema
+fixtures, and 3 light pytest tests against the compiled abi3 extension. Exact receipts
+and cleanup are recorded in the closing handoff and lane milestones.
 
-8.5 implemented (this commit): external keyframes and directory fixtures, video records; ffmpeg test heavy-gated. No decoder run. Validation remains disk-paused.
+Resource history: builds paused when free disk crossed below 25 GiB (22/20/17 GB
+observations), source work continued, builds resumed after recovery above 43 GiB. One
+Cargo command at a time, jobs 4, nice 19. No release build, full suite, model download,
+model inference, ffmpeg, browser, GPU, Docker or live provider execution in development.
 
-8.6 implemented (this commit): usage matches from records/images with retained failures; generated crop/JPEG/resize fixtures written, not yet compiled due disk.
-
-8.7 implemented (this commit): shared loopback API, schemas/OpenAPI, Dockerfile and generated local wire fixtures. Docker build heavy-gated.
-
-8.8 implemented (this commit): configurable compatible/Azure endpoints and fixtures; no live calls.
+Owner documentation: add README/CHANGELOG entries for media records, Python, keyframes,
+usage matching, local API and endpoint configuration; regenerate docs/cli.md and generated
+schema/agent documentation through existing owner workflows. These shared generated and
+release files were intentionally not changed.

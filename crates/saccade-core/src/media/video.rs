@@ -134,7 +134,7 @@ fn select(
     // Histogram SSE costs replace timing MAD costs; no timing qualification is implied.
     let n = frames.len();
     let mut cost = vec![vec![0.; n + 1]; n];
-    for start in 0..n {
+    for (start, cost_row) in cost.iter_mut().enumerate() {
         let mut sums = [0.; 24];
         let mut squared = 0.;
         for end in start + 1..=n {
@@ -142,7 +142,7 @@ fn select(
                 sums[i] += v;
                 squared += v * v;
             }
-            cost[start][end] =
+            cost_row[end] =
                 (squared - sums.iter().map(|v| v * v).sum::<f64>() / (end - start) as f64).max(0.);
         }
     }
@@ -201,7 +201,7 @@ fn select(
         samples: n,
         shots,
         keyframes,
-        provenance: json!({"algorithm":"RGB-histogram-SSE-onset-DP/1","shot_penalty":opts.shot_penalty,"duplicate_hamming":opts.duplicate_hamming,"duplicates":"pHash+dHash candidate, histogram verification","timestamp_basis":"normalized fps sampling grid; source timestamps not inferred from filenames","limitations":["fast shots between samples may be missed","histogram-only shot boundaries are content-dependent and uncalibrated","same-colour shots can be merged; per-keyframe analysis sees decoded sample resolution"]}),
+        provenance: json!({"algorithm":"RGB-histogram-SSE-onset-DP/1","shot_penalty":opts.shot_penalty,"duplicate_hamming":opts.duplicate_hamming,"duplicates":"pHash+dHash candidate, histogram verification","timestamp_basis":"normalized fps sampling grid; source timestamps not inferred from filenames","sampled_frames_sha256":models::digest(&serde_json::to_vec(&frames.iter().map(|f|&f.hash).collect::<Vec<_>>())?),"limitations":["fast shots between samples may be missed","histogram-only shot boundaries are content-dependent and uncalibrated","same-colour shots can be merged; per-keyframe analysis sees decoded sample resolution"]}),
     })
 }
 fn validate(opts: &VideoOptions) -> Result<()> {
@@ -307,6 +307,7 @@ fn decoded(video: &Path, dir: &Path, opts: &VideoOptions) -> Result<Keyframes> {
             "video must be a regular file <=4 GiB",
         ));
     }
+    let source_hash = input::sha256(&path, 4 * 1024 * 1024 * 1024)?;
     let mut probe = Command::new("ffprobe");
     probe
         .args([
@@ -344,14 +345,20 @@ fn decoded(video: &Path, dir: &Path, opts: &VideoOptions) -> Result<Keyframes> {
     .arg(&path)
     .args(["-an", "-sn", "-dn", "-vf"])
     .arg(format!(
-        "fps={fps:.9},scale=640:640:force_original_aspect_ratio=decrease"
+        "fps={fps:.9},scale=w='min(640,iw)':h='min(640,ih)':force_original_aspect_ratio=decrease"
     ))
     .args(["-frames:v", "300", "-threads", "4", "-n"])
     .arg(dir.join("%06d.png"));
     external(cmd)?;
     let paths = input::files(dir, 300)?;
     let mut report = select(&paths, fps, duration, "ffprobe format duration", opts)?;
-    report.provenance["decoder"] = json!({"binary":"external ffmpeg + ffprobe on PATH","linked":false,"resolution_limit":[640,640],"source_sha256":input::sha256(&path,4*1024*1024*1024)?,"streams":p["streams"],"licence_reasoning":"external user-installed executable, neither linked nor distributed by Saccade; its build licence belongs to its distributor"});
+    if input::sha256(&path, 4 * 1024 * 1024 * 1024)? != source_hash {
+        return Err(MediaError::new(
+            "video_decode_failed",
+            "video changed during external decoding",
+        ));
+    }
+    report.provenance["decoder"] = json!({"binary":"external ffmpeg + ffprobe on PATH","linked":false,"resolution_limit":[640,640],"source_sha256":source_hash,"source_hash_policy":"before/after content checks; original path passed to external decoder","streams":p["streams"],"licence_reasoning":"external user-installed executable, neither linked nor distributed by Saccade; its build licence belongs to its distributor"});
     Ok(report)
 }
 /// Extract representatives to a new directory. Existing files/directories are never overwritten.
@@ -409,13 +416,14 @@ impl Analyzer {
         video_options: &VideoOptions,
     ) -> Result<Record> {
         let temp = tempfile::tempdir().map_err(|e| MediaError::new("io_error", e.to_string()))?;
+        let start = Instant::now();
         let mut shots = if source.is_dir() {
             from_directory(source, video_options)?
         } else {
             decoded(source, temp.path(), video_options)?
         };
-        let start = Instant::now();
         let mut records = Vec::new();
+        let mut base = None;
         for frame in &shots.keyframes {
             let bytes = input::bytes(&frame.path, input::MAX_BYTES)?;
             if models::digest(&bytes) != frame.sha256 {
@@ -424,23 +432,18 @@ impl Analyzer {
                     "keyframe content changed",
                 ));
             }
-            records.push(json!({"timestamp_seconds":frame.timestamp_seconds,"record":self.analyze_bytes(&bytes,options)?}));
+            let record = self.analyze_bytes(&bytes, options)?;
+            if base.is_none() {
+                base = Some(record.clone());
+            }
+            records.push(json!({"timestamp_seconds":frame.timestamp_seconds,"record":record}));
         }
-        let first = shots
-            .keyframes
-            .first()
-            .ok_or_else(|| MediaError::new("video_decode_failed", "no decoded keyframes"))?;
-        let mut relaxed = options.clone();
-        relaxed.strict = false;
-        let mut r = self.analyze_bytes(&input::bytes(&first.path, input::MAX_BYTES)?, &relaxed)?;
+        let mut r =
+            base.ok_or_else(|| MediaError::new("video_decode_failed", "no decoded keyframes"))?;
         let (hash, dimensions) = if source.is_dir() {
             (
                 models::digest(&serde_json::to_vec(
-                    &shots
-                        .keyframes
-                        .iter()
-                        .map(|f| (&f.sha256, f.timestamp_seconds))
-                        .collect::<Vec<_>>(),
+                    &json!({"sampled_frames_sha256":shots.provenance["sampled_frames_sha256"],"sample_fps":shots.sample_fps}),
                 )?),
                 Value::Null,
             )
@@ -450,7 +453,7 @@ impl Analyzer {
                 shots.provenance["decoder"]["streams"].clone(),
             )
         };
-        r.identity.data = json!({"sha256":hash,"kind":"video","dimensions":dimensions,"duration_seconds":shots.duration_seconds,"directory_hash_basis":"ordered selected encoded hashes plus declared sample timestamps"});
+        r.identity.data = json!({"sha256":hash,"kind":"video","dimensions":dimensions,"duration_seconds":shots.duration_seconds,"directory_hash_basis":"ordered sampled encoded hashes plus declared sample rate"});
         for s in [
             &mut r.metadata,
             &mut r.quality,
