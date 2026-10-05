@@ -96,3 +96,8 @@ searches have no selection; originals are retained. Numerical selection is advis
 Use [`design pull|compare`](../docs/design-source.md) for design-frame evidence and
 computed CSS token checks. Layout differences remain visible; compensated shift
 metrics are diagnostic. Figma variables 403 means degraded token coverage.
+
+<!-- // wave5 -->
+[`--baseline last-good`](../docs/last-good.md) resolves a verified passing history run,
+not human approval. `notify` sends a summary only when explicitly requested;
+webhook credentials come from the user env file, never project/MCP arguments.

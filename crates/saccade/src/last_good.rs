@@ -45,3 +45,9 @@ pub(crate) fn resolve(store:&Path)->Result<tempfile::TempDir,CliError>{
     }
     Err(CliError::new("last_good_unavailable","history contains no complete passing run"))
 }
+#[cfg(test)]mod tests{
+    use super::*;
+    #[test]#[ignore="heavy: last-good"]fn most_recent_pass_is_hashed_and_changed_capture_refused(){
+        let root=tempfile::tempdir().expect("root");let base=root.path().join("base");let capture=root.path().join("capture");std::fs::create_dir(&base).expect("base");std::fs::create_dir(&capture).expect("capture");let image=image::RgbImage::from_pixel(32,32,image::Rgb([30,50,70]));image.save(base.join("page.png")).expect("base image");image.save(capture.join("page.png")).expect("capture image");let out=root.path().join("report");let report=saccade_core::run::run(&base,&capture,&out,&saccade_core::config::RunConfig::default()).expect("run");let store=root.path().join("history");std::fs::create_dir_all(store.join("objects")).expect("objects");let bytes=serde_json::to_vec(&report).expect("json");let hash=format!("{:x}",Sha256::digest(&bytes));std::fs::write(store.join("objects").join(format!("{hash}.json")),bytes).expect("object");record_origin(&store,&hash,&out.join(saccade_core::report::REPORT_FILE_NAME)).expect("origin");std::fs::write(store.join("index.jsonl"),format!("{}\n",json!({"schema":"saccade-history.v1","report_sha256":hash,"generated_at_unix":1}))).expect("index");let snapshot=resolve(&store).expect("resolve");assert!(snapshot.path().join("page.png").is_file());std::fs::write(capture.join("page.png"),b"changed").expect("change");assert_eq!(resolve(&store).expect_err("changed capture").code,"last_good_unavailable");
+    }
+}

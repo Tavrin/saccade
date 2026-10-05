@@ -20,6 +20,8 @@ mod imgtune_cmd;
 #[cfg(feature = "products")]
 mod design_cmd;
 #[cfg(feature = "products")]
+mod notifier_cmd;
+#[cfg(feature = "products")]
 mod sweep_cmd;
 mod last_good;
 
@@ -215,6 +217,9 @@ enum Command {
     /// Pull design-source frames and compare implementation captures.
     #[cfg(feature = "products")]
     Design(design_cmd::DesignArgs),
+    /// Send a generic report summary to a user-configured webhook.
+    #[cfg(feature = "products")]
+    Notify(notifier_cmd::NotifyArgs),
     /// Align optional Vulkan replay evidence and locate native-resource divergence.
     RenderdocLocalize(renderdoc_cmd::Args),
     /// Import and freeze phrase regions, or inspect optional model plumbing.
@@ -262,6 +267,7 @@ The demo exits 1 on purpose: it contains a regression and a missing capture."
     Demo(f1::DemoArgs),
     /// Compare a directory of captures against a directory of baselines.
     #[command(
+        allow_missing_positional = true,
         display_order = 1,
         help_template = HELP_TEMPLATE,
         after_help = "\
@@ -279,7 +285,15 @@ Exit codes: 0 no regression, 1 regression found, 2 the command could not run."
     )]
     Compare {
         /// Directory of approved baseline images.
-        baseline_dir: PathBuf,
+        #[arg(required_unless_present = "baseline", conflicts_with = "baseline")]
+        baseline_dir: Option<PathBuf>,
+        // wave5
+        /// Resolve the latest complete passing history run as an immutable baseline.
+        #[arg(long, value_parser = ["last-good"])]
+        baseline: Option<String>,
+        /// Local history store for --baseline last-good.
+        #[arg(long, requires = "baseline")]
+        history_store: Option<PathBuf>,
         /// Directory of fresh captures.
         capture_dir: PathBuf,
         /// Report output directory.
@@ -1054,6 +1068,8 @@ fn dispatch(command: Command, record_absolute_paths: bool) -> Result<u8, CliErro
         Command::Imgtune(args) => imgtune_cmd::run(args),
         #[cfg(feature = "products")]
         Command::Design(args) => design_cmd::run(args),
+        #[cfg(feature = "products")]
+        Command::Notify(args) => notifier_cmd::run(args),
         Command::Inventory(args) => inventory_cmd::run(args),
         #[cfg(feature = "compression")]
         Command::QualitySweep(args) => quality_cmd::run(args),
@@ -1223,6 +1239,8 @@ fn dispatch(command: Command, record_absolute_paths: bool) -> Result<u8, CliErro
         }
         Command::Compare {
             baseline_dir,
+            baseline,
+            history_store,
             capture_dir,
             out,
             threshold,
@@ -1241,6 +1259,11 @@ fn dispatch(command: Command, record_absolute_paths: bool) -> Result<u8, CliErro
             perf,
             intent,
         } => {
+            // wave5
+            let last_good = if baseline.is_some() {
+                Some(last_good::resolve(history_store.as_deref().ok_or_else(|| CliError::usage("--baseline last-good requires --history-store"))?)?)
+            } else { None };
+            let baseline_dir = last_good.as_ref().map(|dir| dir.path().to_path_buf()).or(baseline_dir).ok_or_else(|| CliError::usage("baseline directory required"))?;
             let mut cfg = load_config(config.as_deref())?;
             cfg.record_absolute_paths = record_absolute_paths;
             perf.apply(&mut cfg.perf)?;
