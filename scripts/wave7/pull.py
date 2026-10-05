@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
-"""Only the lane's immutable artifact URLs; never use a mutable URL to close a pin."""
+"""Frozen lane artifact URLs/digests, including the explicitly authorized mutable TrustMark Q URL."""
 import argparse, hashlib, json, os, pathlib, shutil, urllib.request, fcntl, tempfile
 BASE = pathlib.Path(__file__).resolve().parent
-LIMIT = 6_000_000_000
+LIMIT = 8_000_000_000
 
 def fetch(entry, cache):
     if not entry.get('sha256') or not entry.get('bytes'):
@@ -48,7 +48,7 @@ def main():
     cache.mkdir(parents=True,exist_ok=True)
     lock=(cache/'pull.lock').open('a+b'); fcntl.flock(lock,fcntl.LOCK_EX)
     if sum(p.stat().st_size for p in cache.rglob('*') if p.is_file()) > LIMIT:
-        raise RuntimeError('model cache exceeds 6 GB')
+        raise RuntimeError('model cache exceeds 8 GB')
     entries=json.loads((BASE/'artifacts.json').read_text())
     if args.model: entries=[e for e in entries if e['model'] in args.model]
     receipt=[]
@@ -57,7 +57,7 @@ def main():
             path=fetch(e,cache); receipt.append(e)
             print(e['model'],e['role'],e['bytes'],e['sha256'],flush=True)
             if sum(p.stat().st_size for p in cache.rglob('*') if p.is_file()) > LIMIT:
-                raise RuntimeError('model cache exceeds 6 GB')
+                raise RuntimeError('model cache exceeds 8 GB')
     finally:
         (cache/'receipt.json').write_text(json.dumps(receipt,indent=2)+'\n')
 if __name__=='__main__': main()

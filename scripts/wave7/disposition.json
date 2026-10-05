@@ -1,12 +1,19 @@
 {
   "date": "2026-10-05",
-  "source": "WAVE7-PINS-2026-10-05.md",
+  "source": "SPEC-wave7c.md",
+  "working_rust": [
+    "grounding-dino-tiny",
+    "owlv2-base",
+    "efficientsam-ti",
+    "yunet-2026may",
+    "ultraface-rfb"
+  ],
   "deferred": {
-    "sam-2.1-tiny": "Verified ZIP and inspected encoder/decoder signatures, but archive contains only config.yaml and graphs; no exporter licence or exact preprocessing/prompt-coordinate recipe. Not promoted from checkpoint Apache-2.0 to archive grant.",
-    "lpips-alex-v0.1": "No complete ONNX artifact or immutable calibration/backbone manifest; backbone licence unknown. The mutable source URLs are not authorized download pins. Compare attachment remains coordinator work after a qualified export exists.",
-    "dists": "No complete ONNX artifact or immutable calibration/VGG manifest; independent weight licences unknown. Compare attachment remains coordinator work after a qualified export exists.",
-    "musiq-technical": "No immutable KonIQ checkpoint object generation/hash/licence or complete ONNX conversion and multiscale input recipe.",
-    "trustmark": "Q decoder URL mutable; no revision, exact bytes, SHA-256, pinned antialiased resizer or encoder/sample. Schema/BCH packet layout recorded in the supplied report cannot establish a neural decoder pin. ECC/native decoding remain behind TrustMarkDecoder."
+    "sam-2.1-tiny": "Official checkpoint SHA-256 7402e0d864fa82708a20fbd15bc84245c2f26dff0eb43a4b5b93452deb34be69 downloaded and verified. Tagged sam2.1 README explicitly grants Apache-2.0 to checkpoints; MIT exporter at ONNX Runtime v1.22.0. scripts/models/sam2.1-tiny.sh prepares pinned raw sources but isolated offline venv cannot install torch==2.5.1 (no local wheel). PyPI/PyTorch package hosts are outside the permitted URL set. No graph was exported; community archive licensing remains unverified.",
+    "lpips-alex-v0.1": "Torchvision v0.20.1 LICENSE is a code BSD grant; alexnet.py points to download.pytorch.org/models/alexnet-owt-7be5be79.pth with no separate explicit weight grant/full hash. That host is outside allowed downloads. LPIPS BSD calibration grant does not establish independent backbone rights. No complete licensed immutable ONNX pin was supplied; defer rather than export unlicensed weights.",
+    "dists": "Torchvision v0.20.1 vgg.py points to download.pytorch.org/models/vgg16-397923af.pth; no explicit independent backbone-weight grant/full hash. That host is outside allowed downloads; DISTS calibration-weight coverage remains unresolved in supplied research. No complete licensed immutable ONNX pin was supplied.",
+    "musiq-technical": "Official three-scale KonIQ NPZ lives in Google gresearch/musiq GCS bucket. Supplied WAVE7-PINS has no immutable generation/hash/explicit checkpoint grant; GCS is outside permitted GitHub/HF downloads. No qualified complete ONNX conversion or technical-checkpoint artifact exists in the supplied pins.",
+    "trustmark": "Q graph downloaded once from explicitly allowed mutable Adobe URL, 47401222 bytes, SHA-256 ee3268f057c9dabef680e169302f5973d0589feea86189ed229a896cc3aa88df. Neural Rust smoke works with 100 finite logits. Full watermark decoder remains unavailable: pinned upstream antialiased resizer, ECC decoding and positive encoder/sample parity absent. No raw-bit presence/absence claim."
   },
-  "runtime_limit": "Installed runtime libraries found are ONNX Runtime 1.16.3. Rust ort rc.10 needs API22 (1.22+). No runtime download authorized. Rust inference deferred; bounded reference C-API16 smokes succeeded for the five registry models, separately from source parity and native Rust acceptance."
+  "runtime_limit": "Provisioned pinned official ONNX Runtime1.22.0 linux-x64; CLI pull/cache/ORT_DYLIB_PATH and typed1.16.3 rejection verified. Other platforms require an explicit compatible library; Docker and wheel consumption documented, not built."
 }

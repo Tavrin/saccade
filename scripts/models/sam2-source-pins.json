@@ -1,0 +1,144 @@
+{
+  "sam_tag": "sam2.1",
+  "exporter_tag": "v1.22.0",
+  "files": [
+    {
+      "url": "https://raw.githubusercontent.com/facebookresearch/sam2/sam2.1/LICENSE",
+      "path": "sam2-source/LICENSE",
+      "bytes": 11357,
+      "sha256": "c71d239df91726fc519c6eb72d318ec65820627232b2f796219e87dcf35d0ab4"
+    },
+    {
+      "url": "https://raw.githubusercontent.com/facebookresearch/sam2/sam2.1/README.md",
+      "path": "sam2-source/README.md",
+      "bytes": 14554,
+      "sha256": "e9f42b8b74d48f924c5075ff0ebfa1b976ba5fc253bdf9adcc2988746f868926"
+    },
+    {
+      "url": "https://raw.githubusercontent.com/facebookresearch/sam2/sam2.1/sam2/__init__.py",
+      "path": "sam2-source/sam2/__init__.py",
+      "bytes": 395,
+      "sha256": "b87ca1e95cd54b81766e8c74acf0e937952639529e40d2b4088693286f49419e"
+    },
+    {
+      "url": "https://raw.githubusercontent.com/facebookresearch/sam2/sam2.1/sam2/build_sam.py",
+      "path": "sam2-source/sam2/build_sam.py",
+      "bytes": 4934,
+      "sha256": "6df1b93a16c3eaf49334f74e831db91c67a0cf413b946d102333081722f20520"
+    },
+    {
+      "url": "https://raw.githubusercontent.com/facebookresearch/sam2/sam2.1/sam2/configs/sam2.1/sam2.1_hiera_t.yaml",
+      "path": "sam2-source/sam2/configs/sam2.1/sam2.1_hiera_t.yaml",
+      "bytes": 3855,
+      "sha256": "43e114f609a1af7efede061f5c186119d498acd31f118f300c07acf57d4a5eca"
+    },
+    {
+      "url": "https://raw.githubusercontent.com/facebookresearch/sam2/sam2.1/sam2/modeling/sam2_base.py",
+      "path": "sam2-source/sam2/modeling/sam2_base.py",
+      "bytes": 46907,
+      "sha256": "6d81450e897d0735f9be369771f2b3fb6eadb90dd3f3ac16b3f7a8c8eb1a052a"
+    },
+    {
+      "url": "https://raw.githubusercontent.com/facebookresearch/sam2/sam2.1/sam2/modeling/backbones/hieradet.py",
+      "path": "sam2-source/sam2/modeling/backbones/hieradet.py",
+      "bytes": 10003,
+      "sha256": "03785581ca304d0451ae0df7a08ee0bf1e1dbe66fad285066e6b9ffc0d88d64f"
+    },
+    {
+      "url": "https://raw.githubusercontent.com/facebookresearch/sam2/sam2.1/sam2/modeling/backbones/image_encoder.py",
+      "path": "sam2-source/sam2/modeling/backbones/image_encoder.py",
+      "bytes": 4706,
+      "sha256": "16eaad232220386f510ca8dfab8655e63699977149a4daf9ce9c6f374e6777a9"
+    },
+    {
+      "url": "https://raw.githubusercontent.com/facebookresearch/sam2/sam2.1/sam2/modeling/backbones/utils.py",
+      "path": "sam2-source/sam2/modeling/backbones/utils.py",
+      "bytes": 3053,
+      "sha256": "84bd48cda1ad468fb8c231d0c2eb83ad53386633d6e63ddaa6ed929c5521bdba"
+    },
+    {
+      "url": "https://raw.githubusercontent.com/facebookresearch/sam2/sam2.1/sam2/modeling/memory_attention.py",
+      "path": "sam2-source/sam2/modeling/memory_attention.py",
+      "bytes": 5509,
+      "sha256": "07358cb7f58ec3788e88ff4e6415f8a9d628a3963529d6e2c915494a5347c8e2"
+    },
+    {
+      "url": "https://raw.githubusercontent.com/facebookresearch/sam2/sam2.1/sam2/modeling/memory_encoder.py",
+      "path": "sam2-source/sam2/modeling/memory_encoder.py",
+      "bytes": 5657,
+      "sha256": "73f7089ae5fdacdfcaaf3deca1ca6d9f84d89e7deb9cf97589622a9ef17ba42f"
+    },
+    {
+      "url": "https://raw.githubusercontent.com/facebookresearch/sam2/sam2.1/sam2/modeling/position_encoding.py",
+      "path": "sam2-source/sam2/modeling/position_encoding.py",
+      "bytes": 8361,
+      "sha256": "14ae89d7ae68f61e2ffcba09eb171d8df9a7298332d4da99036d703294f89ec1"
+    },
+    {
+      "url": "https://raw.githubusercontent.com/facebookresearch/sam2/sam2.1/sam2/modeling/sam/prompt_encoder.py",
+      "path": "sam2-source/sam2/modeling/sam/prompt_encoder.py",
+      "bytes": 7016,
+      "sha256": "486596f5ba976cb9ced3836d65f1793dae586be2180567a451098f96c45ae401"
+    },
+    {
+      "url": "https://raw.githubusercontent.com/facebookresearch/sam2/sam2.1/sam2/modeling/sam/mask_decoder.py",
+      "path": "sam2-source/sam2/modeling/sam/mask_decoder.py",
+      "bytes": 12657,
+      "sha256": "ca3523c58365574faddf1bfb54f374e4b4beba05127185ea2b17d22b916e099a"
+    },
+    {
+      "url": "https://raw.githubusercontent.com/facebookresearch/sam2/sam2.1/sam2/modeling/sam/transformer.py",
+      "path": "sam2-source/sam2/modeling/sam/transformer.py",
+      "bytes": 12870,
+      "sha256": "17aac13abc8f73023f6be4b78af708df9f9f254964729421b1ba60e72a9011c1"
+    },
+    {
+      "url": "https://raw.githubusercontent.com/facebookresearch/sam2/sam2.1/sam2/modeling/sam2_utils.py",
+      "path": "sam2-source/sam2/modeling/sam2_utils.py",
+      "bytes": 13173,
+      "sha256": "e35bbf13bc2e544a0272cd3f9539af38a752676ac3cd744be31cd8220afee804"
+    },
+    {
+      "url": "https://raw.githubusercontent.com/facebookresearch/sam2/sam2.1/sam2/utils/misc.py",
+      "path": "sam2-source/sam2/utils/misc.py",
+      "bytes": 13104,
+      "sha256": "97084a062d58818c1bcbc5b6b92cb595fc03e6a0be399f354a07d674e9e3c688"
+    },
+    {
+      "url": "https://raw.githubusercontent.com/microsoft/onnxruntime/v1.22.0/onnxruntime/python/tools/transformers/models/sam2/image_encoder.py",
+      "path": "sam2-source/exporter/image_encoder.py",
+      "bytes": 9484,
+      "sha256": "5249aa77f18bcc1b7e0732070bac567c6cecdea36bad4d906b96b47d2d6d1629"
+    },
+    {
+      "url": "https://raw.githubusercontent.com/microsoft/onnxruntime/v1.22.0/onnxruntime/python/tools/transformers/models/sam2/image_decoder.py",
+      "path": "sam2-source/exporter/image_decoder.py",
+      "bytes": 10787,
+      "sha256": "37811921edc67e122c56d7f3e390e9697ca5211429e25ff63641bf3df53819e1"
+    },
+    {
+      "url": "https://raw.githubusercontent.com/microsoft/onnxruntime/v1.22.0/onnxruntime/python/tools/transformers/models/sam2/mask_decoder.py",
+      "path": "sam2-source/exporter/mask_decoder.py",
+      "bytes": 8841,
+      "sha256": "a4f969c138d63cea4a4f4f8028d957983ff74fac9377ad217c4b6079586db3fe"
+    },
+    {
+      "url": "https://raw.githubusercontent.com/microsoft/onnxruntime/v1.22.0/onnxruntime/python/tools/transformers/models/sam2/prompt_encoder.py",
+      "path": "sam2-source/exporter/prompt_encoder.py",
+      "bytes": 8324,
+      "sha256": "abcf97fd7f5abbfc5ce6cf41d044d71eaa4fb43845fb41ef37b3d42f46556671"
+    },
+    {
+      "url": "https://raw.githubusercontent.com/microsoft/onnxruntime/v1.22.0/onnxruntime/python/tools/transformers/models/sam2/sam2_utils.py",
+      "path": "sam2-source/exporter/sam2_utils.py",
+      "bytes": 5520,
+      "sha256": "0fcd9919c85215e79cdaf848c7cd6e7e19fd326ab594ff63202e8979315ae4d0"
+    },
+    {
+      "url": "https://huggingface.co/facebook/sam2.1-hiera-tiny/resolve/36f406a75c9be63c7f429da63246273f028c6fd4/sam2.1_hiera_tiny.pt",
+      "path": "7402e0d864fa82708a20fbd15bc84245c2f26dff0eb43a4b5b93452deb34be69",
+      "bytes": 156008466,
+      "sha256": "7402e0d864fa82708a20fbd15bc84245c2f26dff0eb43a4b5b93452deb34be69"
+    }
+  ]
+}

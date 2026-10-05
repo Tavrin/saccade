@@ -363,3 +363,8 @@ owned: describe models pull runtime, default runtime selection and five proven
 CPU pipelines; label TrustMark neural-only and record four export deferrals.
 Full gate/release builds, Docker/wheel, source parity, hosted/local VLM servers,
 GPU, cross-platform and merged wave4/6 integration were not run.
+
+Implementation commit526c421 contains runtime/geometry/native decoder contracts,
+registry and CLI, plus focused regressions/documentation. The following tooling
+commit freezes export prerequisites, exact source/grant evidence and bounded
+smoke/gate orchestration; no model export is asserted to have succeeded.

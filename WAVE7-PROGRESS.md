@@ -32,8 +32,8 @@ qualification limits are recorded in WAVE7-NOTES.md.
 
 ## Wave 7c continuation
 
-7c.runtime done — official pinned ONNX Runtime1.22.0 pull/cache/ORT_DYLIB_PATH, retained notices and typed API16 incompatibility; Docker/wheel consumption documented only.
-7c.inference done — one-image CPU Rust smokes pass for DINO, OWLv2, EfficientSAM Ti, YuNet and UltraFace; rectangle DINO IoU>0.8 after valid-mask-coordinate correction; no source parity claim.
-7c.trustmark partial — mutable Q decoder hash pinned; Rust neural smoke pass; full decoder explicitly deferred on ECC/resize/positive-sample qualification.
+7c.runtime done (526c421) — official pinned ONNX Runtime1.22.0 pull/cache/ORT_DYLIB_PATH, retained notices and typed API16 incompatibility; Docker/wheel consumption documented only.
+7c.inference done (526c421) — one-image CPU Rust smokes pass for DINO, OWLv2, EfficientSAM Ti, YuNet and UltraFace; rectangle DINO IoU>0.8 after valid-mask-coordinate correction; no source parity claim.
+7c.trustmark partial (526c421) — mutable Q decoder hash pinned; Rust neural smoke pass; full decoder explicitly deferred on ECC/resize/positive-sample qualification.
 7c.exports deferred with evidence — SAM2 official checkpoint/tagged sources prepared, offline torch wheel absent; LPIPS/DISTS independent backbone grants missing; MUSIQ official GCS checkpoint outside allowed sources/incomplete pin.
 7c.gates done — bounded smoke runner, runtime provisioning/CLI regression, explicit deferrals and opt-in all-model release requirement; full gate not run.

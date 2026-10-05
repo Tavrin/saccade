@@ -213,5 +213,15 @@
     "sha256": "c602cb3f6fd297312a415f885f0df3f0eef9fbb334b069c9d30e828f2ae7c69a",
     "license": "UNKNOWN: archive exporter",
     "hash_provenance": "host-reported, WAVE7-PINS-2026-10-05.md"
+  },
+  {
+    "model": "trustmark",
+    "role": "graph",
+    "revision": "content-sha256-ee3268f057c9dabef680e169302f5973d0589feea86189ed229a896cc3aa88df",
+    "url": "https://cai-watermark.adobe.net/watermarking/trustmark-models/decoder_Q.onnx",
+    "bytes": 47401222,
+    "sha256": "ee3268f057c9dabef680e169302f5973d0589feea86189ed229a896cc3aa88df",
+    "license": "MIT",
+    "hash_provenance": "computed locally on 2026-10-05; explicitly authorized mutable upstream URL, integrity locked by hash"
   }
 ]
