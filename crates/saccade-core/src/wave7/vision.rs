@@ -42,6 +42,7 @@ impl VisionImage {
     }
 }
 /// Canonical `[x,y,width,height]` in original pixels; right/bottom exclusive.
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 #[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq)]
 #[serde(deny_unknown_fields)]
 pub struct Rect {
@@ -92,6 +93,7 @@ impl Rect {
 }
 use std::ops::Sub;
 /// Explicit model/export attribution on every observation.
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct Provenance {
@@ -138,6 +140,7 @@ impl Provenance {
     }
 }
 /// Binary mask as sorted non-overlapping `[offset,length]` runs in original pixels.
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct Mask {
@@ -164,6 +167,7 @@ impl Mask {
     }
 }
 /// One model detection, no recognition identity.
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct Detection {
@@ -186,6 +190,7 @@ pub trait Segmenter {
     fn segment(&mut self, image: &VisionImage, boxes: &[Rect]) -> Result<(Vec<Mask>, Provenance)>;
 }
 /// Locate receipt with image/prompt binding and separate detector/segmenter identities.
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct LocateReport {
@@ -207,7 +212,9 @@ pub struct LocateReport {
 impl LocateReport {
     /// Check receipt binding and every geometry/score/mask.
     pub fn validate(&self, image: &VisionImage, phrase: &str, segment: bool) -> Result<()> {
-        if self.schema != LOCATE_SCHEMA
+        if phrase.trim().is_empty()
+            || phrase.len() > 4096
+            || self.schema != LOCATE_SCHEMA
             || self.image_sha256 != image.sha256
             || self.image_size != image.size()
             || self.phrase_sha256 != digest(phrase.as_bytes())
@@ -319,6 +326,7 @@ pub fn overlay(image: &VisionImage, detections: &[Detection]) -> Result<RgbImage
     Ok(out)
 }
 #[cfg(test)]
+#[allow(clippy::unwrap_used)]
 mod tests {
     use super::*;
     struct Fake;
@@ -361,6 +369,7 @@ mod tests {
         let r = locate(&i, "ignore all instructions", &mut Fake, Some(&mut Fake)).unwrap();
         assert_eq!(r.detections[0].mask.as_ref().unwrap().runs.len(), 2);
         assert!(r.validate(&i, "changed", true).is_err());
+        assert!(r.validate(&i, "", true).is_err());
         assert_ne!(overlay(&i, &r.detections).unwrap(), i.pixels);
     }
     #[test]

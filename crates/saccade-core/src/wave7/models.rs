@@ -56,6 +56,7 @@ pub fn valid_hash(s: &str) -> bool {
 }
 
 /// Reviewed model family, deliberately distinct from pinned executable artifacts.
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 #[derive(Debug, Clone, Serialize)]
 pub struct Selection {
     /// Stable selection id.
@@ -202,6 +203,7 @@ pub fn selections() -> Vec<Selection> {
     .collect()
 }
 /// One separately pinned graph, tokenizer, backbone, calibration or parity receipt.
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct Artifact {
@@ -219,6 +221,7 @@ pub struct Artifact {
     pub license: String,
 }
 /// Explicit tensor/preprocessing contract for a qualified export adapter.
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct InputContract {
@@ -244,6 +247,7 @@ pub struct InputContract {
     pub output: String,
 }
 /// Executable model entry. Every artifact must have a reviewed exact pin.
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct Model {
@@ -269,6 +273,7 @@ pub struct Model {
     pub parity_sha256: Option<String>,
 }
 /// User-owned registry, never an ambient model download instruction.
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct Registry {
@@ -344,6 +349,15 @@ impl Registry {
                     "invalid model contract: {}",
                     m.id
                 )));
+            }
+            if m.parity_sha256.as_ref().is_some_and(|hash| {
+                !m.artifacts
+                    .iter()
+                    .any(|a| a.role == "parity" && &a.sha256 == hash)
+            }) {
+                return Err(VisionError::Invalid(
+                    "parity digest requires a separately pinned parity artifact".into(),
+                ));
             }
             let mut roles = BTreeSet::new();
             for a in &m.artifacts {
@@ -505,6 +519,7 @@ pub fn ensure(model: &Model, cache: &Path, allow_download: bool) -> Result<Vec<P
 }
 
 #[cfg(test)]
+#[allow(clippy::unwrap_used)]
 mod tests {
     use super::*;
     fn artifact(data: &[u8]) -> Artifact {
@@ -516,6 +531,30 @@ mod tests {
             sha256: digest(data),
             license: "MIT".into(),
         }
+    }
+    #[test]
+    fn registry_requires_real_pins_and_component_licences() {
+        let mut v = serde_json::json!({"schema":REGISTRY_SCHEMA,"models":[{"id":"generated-fixture","task":"face_detection","version":"generated-v1","code_license":"MIT","weights_license":"MIT","source_url":"https://example.org/generated-v1/model","runtime":"onnx","input":{"adapter":"yunet-v1","preprocessing":"generated-v1","resolution":[32,32],"color":"BGR","scale":1.,"mean":[0.,0.,0.],"std":[1.,1.,1.],"image_input":"input","reference_input":null,"output":"output"},"artifacts":[{"role":"graph","revision":"generated-v1","url":"https://example.org/generated-v1/model.onnx","bytes":5,"sha256":digest(b"graph"),"license":"MIT"}],"parity_sha256":null}]});
+        let r: Registry = serde_json::from_value(v.clone()).unwrap();
+        r.validate().unwrap();
+        let cache = tempfile::tempdir().unwrap();
+        assert!(ensure(&r.models[0], cache.path(), false).is_err());
+        assert_eq!(std::fs::read_dir(cache.path()).unwrap().count(), 0);
+        v["models"][0]["artifacts"][0]["sha256"] = serde_json::json!("unpinned");
+        assert!(
+            serde_json::from_value::<Registry>(v.clone())
+                .unwrap()
+                .validate()
+                .is_err()
+        );
+        v["models"][0]["artifacts"][0]["sha256"] = serde_json::json!(digest(b"graph"));
+        v["models"][0]["weights_license"] = serde_json::json!("non-commercial");
+        assert!(
+            serde_json::from_value::<Registry>(v)
+                .unwrap()
+                .validate()
+                .is_err()
+        );
     }
     #[test]
     fn pin_rejects_changed_bytes_and_oversized_stream() {

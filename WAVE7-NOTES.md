@@ -69,3 +69,56 @@
   Rejected assuming undocumented Sol image budgets or immutable dated snapshots.
   Reversal: coordinator binds actual authorized transport/revision receipts in
   wave 4; request fixture contract requires live qualification before promotion.
+- HTTP loopback transport explicitly disables ambient proxies as well as redirects;
+  the ureq 3.3.0 fetched source otherwise defaults to Proxy::try_from_env().
+- MCP keeps the six-tool interface and canonical input/output containment. It
+  mirrors local fixture/replay operations and native DWT only; CLI owns explicit
+  downloads and selected model-runtime loading. Rejected tool-controlled network,
+  HOME/config discovery and automatic model pulls. Reversal cost: coordinator
+  adds startup-owned runtime/model authorization, not tool-granted authority.
+- Validation catches malformed single-quote/double-quote credential values with
+  redacted errors; no credential is ever serialized into a request mapping.
+
+## Validation receipt (development gates only)
+
+All Cargo invocations used CARGO_TARGET_DIR=/mnt/linux-extra/moss-cargo-targets/codex-saccade-w7,
+nice -n 19 and -j 4 after checking >=25 GB free. Final observed headroom was
+84–87 GB. The initial 18 GB refusal was resolved by the coordinator, not by
+private caches or deleting other lanes' data.
+
+- PASS: cargo check -p saccade with local-models/local-vlm/vision-providers;
+  minimal core cargo check --no-default-features.
+- PASS: cargo clippy -p saccade with defaults plus
+  local-models,local-vlm,vision-providers,schema -- -D warnings.
+- PASS: targeted core --lib wave7 with all wave features/schema: 22 passed,
+  6 ignored. The final empty-phrase replay regression was then verified with
+  the two targeted wave7::vision tests (both passed).
+- PASS: targeted CLI --bin saccade wave7 with all wave features/schema: 4 passed,
+  including generated command dispatch/PNG output, overwrite refusal, MCP
+  containment/download refusal and positive MCP crop route/schema registration.
+- PASS: cargo fmt --all -- --check, git diff --check,
+  scripts/check-wave7-docs.py, bash -n scripts/gates-wave7.sh.
+- Initial strict Clippy findings (constant chunk iterators, collapsible ifs,
+  is_multiple_of) and one f32 inference error were fixed in the wave modules;
+  final checks passed. Minimal CLI check has three existing local_cmd.rs
+  unused-variable warnings without ai/workbench, so the strict CLI gate uses
+  the normal defaults; no unrelated cleanup.
+- NOT RUN: gates-wave7.sh, full crate/workspace tests, ignored model/network
+  tests, real models/ONNX inference, HTTP servers, downloads, hosted providers,
+  browser/showcases, release builds, GPU, cross-platform or merged integration.
+
+## Remaining coordinator work
+
+Supply reviewed immutable model manifests/pins and parity bundles (research has
+no exact artifact hashes). Implement/qualify selected detector tokenizers and
+SAM pipeline, and the exact TrustMark variant/ECC decoder. Wire wave 4 provider
+catalog/authorization/identity/usage and wave 6 assess/inspect-image/check-ui;
+attach independently named pair metrics to normal comparison reports. Native
+model loading via MCP needs startup-owned runtime/model authorization.
+
+README: list the standalone commands/features and link docs/wave7.md, with model
+availability/qualification limits. CHANGELOG: record additive vision/model/
+quality/watermark/crop and fixture-only provider contracts, explicit native
+shortfalls and no verdict fusion. docs/cli.md: coordinator regenerates it after
+registration conflicts are resolved. Those three files were deliberately not
+edited. Cargo.lock was not changed; no new crate dependency was required.

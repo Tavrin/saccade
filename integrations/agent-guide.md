@@ -79,3 +79,12 @@ MCP exposes six bounded tools and no baseline-write operation.
 Standalone local vision commands and unavailable-model handling are documented in
 [wave 7](../docs/wave7.md). Use `saccade models list --json` before requesting a
 model-backed observation. Model output never grants baseline authority.
+
+<!-- wave7 -->
+Use `locate`, `quality-score`, `watermark`, `faces` and `crop-check` for standalone
+attributed evidence; `observe-local` requires `local-vlm`, and `provider-map`
+requires `vision-providers` and performs fixture mapping only. Check runtime,
+source-parity and availability before describing output as inference. `--observations`
+is explicit replay. MCP preserves six tools: `saccade_inspect.models_list` and
+`saccade_measure.vision_*` use registered inputs and the separate output root;
+tool arguments cannot authorize downloads or local/provider HTTP calls.

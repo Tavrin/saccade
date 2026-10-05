@@ -8,6 +8,7 @@ use base64::Engine;
 use serde::{Deserialize, Serialize};
 use serde_json::{Value, json};
 /// Supported hosted adapter identities (interface only).
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 #[derive(Debug, Clone, Copy, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum Provider {
@@ -47,6 +48,7 @@ impl Provider {
     }
 }
 /// Explicit provider coordinate convention; never inferred from value magnitude.
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 #[derive(Debug, Clone, Copy, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum Coordinates {
@@ -101,14 +103,19 @@ fn parse_credential(provider: Provider, bytes: &[u8]) -> Result<Credential> {
             ));
         }
         let value = value.trim();
-        let value = if value.starts_with('"') && value.ends_with('"')
-            || value.starts_with('\'') && value.ends_with('\'')
+        let value = if value.len() >= 2
+            && (value.starts_with('"') && value.ends_with('"')
+                || value.starts_with('\'') && value.ends_with('\''))
         {
             &value[1..value.len() - 1]
         } else {
             value
         };
-        if value.is_empty()
+        if value.starts_with('"')
+            || value.ends_with('"')
+            || value.starts_with('\'')
+            || value.ends_with('\'')
+            || value.is_empty()
             || value.len() > 4096
             || value.chars().any(|c| c.is_control() || c.is_whitespace())
         {
@@ -319,6 +326,7 @@ impl ObservationProvider for RecordedProvider {
     }
 }
 #[cfg(test)]
+#[allow(clippy::unwrap_used)]
 mod tests {
     use super::*;
     fn request(p: Provider) -> ObservationRequest {
@@ -396,5 +404,6 @@ mod tests {
             .to_string();
         assert!(!err.contains("secret"));
         assert!(parse_credential(Provider::Gpt, b"OTHER_KEY=secret\n").is_err());
+        assert!(parse_credential(Provider::Gpt, b"OPENAI_API_KEY=\"\n").is_err());
     }
 }

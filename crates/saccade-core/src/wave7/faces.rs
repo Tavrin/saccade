@@ -11,6 +11,7 @@ pub const CROP_SCHEMA: &str = "saccade-crop-check.v1";
 /// Face detector recall limits, mandatory in reports.
 pub const FACE_LIMIT: &str = "Protect detected faces only. No detection does not certify that no face is present; small, occluded or out-of-domain faces may be missed. This is not identity recognition.";
 /// Face box and optional landmarks, never an identity.
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct Face {
@@ -22,6 +23,7 @@ pub struct Face {
     pub landmarks: Vec<[f32; 2]>,
 }
 /// Source-bound face detector receipt.
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct FaceReport {
@@ -91,6 +93,7 @@ pub fn detect(image: &VisionImage, detector: &mut dyn FaceDetector) -> Result<Fa
     Ok(r)
 }
 /// Face-preserving declared crop, ratio or original-pixel rectangle.
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(tag = "kind", rename_all = "snake_case", deny_unknown_fields)]
 pub enum CropSpec {
@@ -108,6 +111,7 @@ pub enum CropSpec {
     },
 }
 /// Independent outcome for each detected face.
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 #[serde(rename_all = "snake_case")]
 pub enum FaceCropStatus {
@@ -119,6 +123,7 @@ pub enum FaceCropStatus {
     Excluded,
 }
 /// Per-declaration evidence; safe suggestion can be unavailable.
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct CropResult {
@@ -134,6 +139,7 @@ pub struct CropResult {
     pub suggestion_reason: String,
 }
 /// Crop assessment carries the complete face receipt.
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct CropReport {
@@ -427,8 +433,10 @@ impl FaceDetector for super::runtime::OnnxModel {
                 }
                 for (b, s) in boxes
                     .values
-                    .chunks_exact(4)
-                    .zip(scores.values.chunks_exact(2))
+                    .as_chunks::<4>()
+                    .0
+                    .iter()
+                    .zip(scores.values.as_chunks::<2>().0.iter())
                 {
                     if s[1] >= 0.6 {
                         faces.push(Face {
@@ -454,6 +462,7 @@ impl FaceDetector for super::runtime::OnnxModel {
     }
 }
 #[cfg(test)]
+#[allow(clippy::unwrap_used)]
 mod tests {
     use super::super::models::digest;
     use super::*;

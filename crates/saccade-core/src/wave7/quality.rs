@@ -7,6 +7,7 @@ use serde::{Deserialize, Serialize};
 /// Named metric report contract.
 pub const QUALITY_SCHEMA: &str = "saccade-learned-quality.v1";
 /// Learned metric identity, never an implicit regression threshold.
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 #[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq)]
 #[serde(rename_all = "snake_case")]
 pub enum LearnedMetric {
@@ -32,6 +33,7 @@ impl LearnedMetric {
     }
 }
 /// A measurement kept independent of all existing metrics and verdicts.
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct QualityMeasurement {
@@ -55,6 +57,7 @@ pub trait QualityBackend {
     ) -> Result<QualityMeasurement>;
 }
 /// Standalone learned comparison report or single-image technical-quality report.
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct QualityReport {
@@ -178,6 +181,7 @@ impl QualityBackend for super::runtime::OnnxModel {
     }
 }
 #[cfg(test)]
+#[allow(clippy::unwrap_used)]
 mod tests {
     use super::super::models::digest;
     use super::*;

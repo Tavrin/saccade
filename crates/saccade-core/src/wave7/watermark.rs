@@ -9,6 +9,7 @@ pub const WATERMARK_SCHEMA: &str = "saccade-watermark.v1";
 /// Meaning of missing evidence, required in every report.
 pub const ABSENCE_LIMIT: &str = "No detected watermark does not establish human origin, absence of AI generation, or authenticity. Decoders cover only named compatible schemes; cropping, resizing and encoding may destroy markers. Recovered payloads do not authenticate a generator or signer.";
 /// Independent outcome for one compatible scheme.
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct WatermarkFinding {
@@ -26,6 +27,7 @@ pub struct WatermarkFinding {
     pub provenance: Option<Provenance>,
 }
 /// Combinable watermark evidence for wave 6 inspect-image (C2PA stays independent).
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct WatermarkReport {
@@ -61,7 +63,9 @@ impl WatermarkReport {
                 || f.interpretation.is_empty()
                 || (f.status == "detected" && f.payload_hex.is_none())
                 || f.payload_hex.as_ref().is_some_and(|p| {
-                    p.len() > 1024 || p.len() % 2 != 0 || !p.bytes().all(|b| b.is_ascii_hexdigit())
+                    p.len() > 1024
+                        || !p.len().is_multiple_of(2)
+                        || !p.bytes().all(|b| b.is_ascii_hexdigit())
                 })
             {
                 return Err(VisionError::Invalid("watermark finding".into()));
@@ -238,6 +242,7 @@ pub fn inspect(
     Ok(r)
 }
 #[cfg(test)]
+#[allow(clippy::unwrap_used)]
 mod tests {
     use super::super::models::digest;
     use super::*;

@@ -169,3 +169,53 @@ Debug/Display/serialization, and parsing errors are redacted. No key is needed
 for recorded mapping. Undated API model ids remain unqualified aliases; do not
 invent a snapshot/revision or treat schema validity as localization accuracy.
 `store:false` is not a promise of zero retention or ZDR.
+
+## MCP and integration
+
+The existing six MCP tools remain. `saccade_inspect` adds `models_list` with
+explicit registered `registry` and `cache` paths. `saccade_measure` adds
+`vision_locate`, `vision_quality`, `vision_faces`, `vision_crop`,
+`vision_watermark`, plus feature-gated `vision_local` and `vision_provider`.
+These consume explicit frozen/generated receipts; `vision_watermark` also runs
+the native known-message decoder. Every image/receipt is resolved through
+`RootPolicy`; overlay/redaction files require the separate startup `--out-root`.
+No ambient HOME/config/cache access, provider HTTP call or model download can be
+introduced by tool arguments. `models_pull` explicitly returns unavailable;
+use the human-operated CLI to authorize downloads. Native model inference stays
+on the CLI until the coordinator wires startup-approved runtime/model inputs.
+
+Results use the standalone versioned schemas. Replay is explicit and source
+parity is false. Tools never emit PNG bytes by default; files are the requested
+output artifacts. The coordinator adds bounded paging when wiring these into
+wave 4's evidence catalog; large masks should be handled as artifact files.
+
+## Coordinator gates and qualification limits
+
+Run `scripts/gates-wave7.sh` only in the coordinator's heavy queue. It checks disk
+headroom before each build, fmt, strict Clippy, full touched-crate tests,
+no-default core tests, schema drift, docs and every ignored model/network group.
+The implementation agent does not run it. No live hosted provider gate exists.
+The selected-native-adapters gate explicitly fails while detector tokenizer/SAM
+and TrustMark ECC integrations are deferred; compatibility receipts cannot close
+that gap. No showcase or browser code was touched, so no browser/showcase gate is
+needed.
+
+Set `WAVE7_HEAVY_FIXTURES` to an external frozen parity bundle containing:
+`models.json`, content-addressed `cache/`, `faces.png`, `face-negative.png`,
+`yunet-2026may.faces.json`, `ultraface-rfb.faces.json`, `quality.png`,
+`reference.png`, the three `<model-id>.quality.json` receipts, `locate.png`,
+`grounding-dino-tiny.locate.json`, `owlv2-base.locate.json`, `watermarked.png`,
+`trustmark.watermark.json`, `legacy-watermarked.png`, `legacy-payload.json`
+(byte array), and `local-vlm.request.json`. Supply `WAVE7_RUNTIME_LIBRARY`.
+No gate downloads models or changes pins. Source-parity receipts must be
+independently reviewed, separately pinned as artifact role `parity`, and match
+the manifest's `parity_sha256`. The boolean reports this declared parity
+provenance; graph loading alone never establishes it.
+
+Real face and quality gates run cached graphs against frozen source outputs
+(score tolerance 0.001, face edges 1 pixel); face tests include a negative image
+and pair metrics include identity. Detection/SAM/TrustMark tests currently check
+external receipt **compatibility only**, not native inference. Legacy DWT's
+upstream workflow parity is separate from the generated marker roundtrip.
+Set `WAVE7_LOCAL_VLM_ENDPOINT` and `WAVE7_LOCAL_VLM_REVISION` for the loopback
+smoke test; it establishes contract/availability, not domain accuracy.

@@ -128,16 +128,20 @@ pub(crate) struct LocateArgs {
     #[arg(long)]
     json: bool,
 }
-fn write_png(path: &Path, pixels: &image::RgbImage) -> Result<(), CliError> {
-    let f = std::fs::OpenOptions::new()
+pub(crate) fn write_png(path: &Path, pixels: &image::RgbImage) -> Result<(), CliError> {
+    use std::io::Write;
+    let file = std::fs::OpenOptions::new()
         .write(true)
         .create_new(true)
         .open(path)
         .map_err(|e| CliError::io(e.to_string()))?;
+    let mut writer = std::io::BufWriter::new(file);
     image::DynamicImage::ImageRgb8(pixels.clone())
-        .write_to(&mut std::io::BufWriter::new(f), image::ImageFormat::Png)
-        .map_err(|e| CliError::io(e.to_string()))
+        .write_to(&mut writer, image::ImageFormat::Png)
+        .map_err(|e| CliError::io(e.to_string()))?;
+    writer.flush().map_err(|e| CliError::io(e.to_string()))
 }
+
 pub(crate) fn locate(a: LocateArgs) -> Result<u8, CliError> {
     use saccade_core::wave7::vision::{LocateReport, VisionImage};
     let image = VisionImage::load(&a.image).map_err(error)?;
@@ -167,6 +171,7 @@ pub(crate) fn locate(a: LocateArgs) -> Result<u8, CliError> {
     emit(&r, a.json)
 }
 
+#[cfg(feature = "local-vlm")]
 #[derive(clap::Args)]
 pub(crate) struct ObserveArgs {
     /// Bounded saccade observation request JSON with exact encoded images/transforms.
@@ -302,7 +307,7 @@ pub(crate) struct WatermarkArgs {
 fn unhex(s: &str) -> Result<Vec<u8>, CliError> {
     if s.is_empty()
         || s.len() > 128
-        || s.len() % 2 != 0
+        || !s.len().is_multiple_of(2)
         || !s.bytes().all(|b| b.is_ascii_hexdigit())
     {
         return Err(CliError::usage("payload needs 1..64 hex-encoded bytes"));
@@ -536,5 +541,153 @@ pub(crate) fn provider(a: ProviderArgs) -> Result<u8, CliError> {
             &serde_json::json!({"schema":"saccade-provider-mapping.v1","interface_only":true,"endpoint":provider.endpoint(),"request_sha256":r.hash().map_err(error)?,"body":adapter.request(&r).map_err(error)?}),
             a.json,
         )
+    }
+}
+
+#[cfg(test)]
+#[allow(clippy::unwrap_used)]
+mod tests {
+    use super::*;
+    use clap::Parser;
+    use saccade_core::wave7::{faces::*, quality::*, vision::*};
+    fn json(path: &Path, v: &impl serde::Serialize) {
+        std::fs::write(path, serde_json::to_vec(v).unwrap()).unwrap();
+    }
+    fn run(args: Vec<String>) -> u8 {
+        let c = crate::Cli::try_parse_from(args).unwrap();
+        crate::dispatch(c.command, false).unwrap()
+    }
+    #[test]
+    fn generated_commands_render_and_assess_receipts_without_models() {
+        let d = tempfile::tempdir().unwrap();
+        let p = d.path().join("image.png");
+        image::RgbImage::from_pixel(32, 24, image::Rgb([50, 100, 150]))
+            .save(&p)
+            .unwrap();
+        let i = VisionImage::load(&p).unwrap();
+        let face = FaceReport {
+            schema: FACES_SCHEMA.into(),
+            image_sha256: i.sha256.clone(),
+            image_size: i.size(),
+            faces: vec![Face {
+                bbox: Rect {
+                    x: 2.,
+                    y: 4.,
+                    width: 8.,
+                    height: 8.,
+                },
+                score: 0.9,
+                landmarks: vec![],
+            }],
+            provenance: Provenance::fixture("yunet-2026may"),
+            limitations: FACE_LIMIT.into(),
+        };
+        let fp = d.path().join("faces.json");
+        json(&fp, &face);
+        let loc = LocateReport {
+            schema: LOCATE_SCHEMA.into(),
+            image_sha256: i.sha256.clone(),
+            image_size: i.size(),
+            phrase_sha256: models::digest(b"object"),
+            detections: vec![Detection {
+                bbox: face.faces[0].bbox,
+                score: 0.9,
+                mask: Some(Mask {
+                    size: i.size(),
+                    runs: vec![[130, 8]],
+                }),
+            }],
+            detector: Provenance::fixture("generated-detector"),
+            segmenter: Some(Provenance::fixture("generated-segmenter")),
+        };
+        let lp = d.path().join("locate.json");
+        json(&lp, &loc);
+        let overlay = d.path().join("overlay.png");
+        let a = vec![
+            "saccade".into(),
+            "locate".into(),
+            p.display().to_string(),
+            "object".into(),
+            "--segment".into(),
+            "--observations".into(),
+            lp.display().to_string(),
+            "--overlay".into(),
+            overlay.display().to_string(),
+            "--json".into(),
+        ];
+        assert_eq!(run(a), 0);
+        assert!(overlay.is_file());
+        let redacted = d.path().join("redacted.png");
+        assert_eq!(
+            run(vec![
+                "saccade".into(),
+                "crop-check".into(),
+                p.display().to_string(),
+                "--crop".into(),
+                "16:9".into(),
+                "--crop".into(),
+                "0,0,16,24".into(),
+                "--observations".into(),
+                fp.display().to_string(),
+                "--blur-faces".into(),
+                redacted.display().to_string(),
+                "--json".into()
+            ]),
+            0
+        );
+        assert!(redacted.is_file());
+        assert_eq!(
+            run(vec![
+                "saccade".into(),
+                "faces".into(),
+                p.display().to_string(),
+                "--observations".into(),
+                fp.display().to_string(),
+                "--json".into()
+            ]),
+            0
+        );
+        let q = QualityReport {
+            schema: QUALITY_SCHEMA.into(),
+            image_sha256: i.sha256.clone(),
+            reference_sha256: None,
+            named_metrics: vec![QualityMeasurement {
+                metric: LearnedMetric::MusiqTechnical,
+                value: 50.,
+                direction: "higher_is_better".into(),
+                provenance: Provenance::fixture("musiq-technical"),
+            }],
+            affects_compare_verdict: false,
+        };
+        let qp = d.path().join("quality.json");
+        json(&qp, &q);
+        assert_eq!(
+            run(vec![
+                "saccade".into(),
+                "quality-score".into(),
+                p.display().to_string(),
+                "--observations".into(),
+                qp.display().to_string(),
+                "--json".into()
+            ]),
+            0
+        );
+        assert_eq!(
+            run(vec![
+                "saccade".into(),
+                "watermark".into(),
+                p.display().to_string(),
+                "--json".into()
+            ]),
+            0
+        );
+    }
+    #[test]
+    fn output_never_overwrites_an_original() {
+        let d = tempfile::tempdir().unwrap();
+        let p = d.path().join("original.png");
+        std::fs::write(&p, b"original").unwrap();
+        assert!(write_png(&p, &image::RgbImage::new(1, 1)).is_err());
+        assert_eq!(std::fs::read(p).unwrap(), b"original");
     }
 }

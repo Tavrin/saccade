@@ -1055,6 +1055,14 @@ impl Server {
         if name == "saccade_review" {
             return Some(self.provider_review(args));
         }
+        // wave7
+        if args
+            .get("operation")
+            .and_then(Value::as_str)
+            .is_some_and(|op| crate::wave7_mcp::handles(name, op))
+        {
+            return Some(crate::wave7_mcp::call(&self.policy, args).map(|structured| ToolOutput { structured, text: "Standalone vision observation; model evidence is advisory and replay is explicitly labelled.".into(), images: vec![] }));
+        }
         Some(self.local_tool(name, args))
     }
     #[cfg(feature = "ai")]
@@ -1765,6 +1773,8 @@ fn tool_schemas() -> Value {
             props.retain(|key, _| !key.starts_with("perf_"));
         }
     }
+    // wave7
+    measures.extend(crate::wave7_mcp::measure_schemas());
     let common = json!({"artifact":{"oneOf":[{"type":"string"},{"type":"object","properties":{"path":{"type":"string"},"sha256":{"type":"string","pattern":"^sha256:[0-9a-f]{64}$"}},"required":["path","sha256"],"additionalProperties":false}]},"out":{"type":"string"},"entry":{"type":"string"},"include_images":{"type":"boolean","default":false},"expected_case_id":{"type":"string","pattern":"^sha256:[0-9a-f]{64}$"}});
     let make = |name: &str, description: &str, operations: Vec<(&str, Vec<&str>, Value)>| {
         let variants=operations.into_iter().map(|(op,required,extra)|{
@@ -1818,6 +1828,15 @@ fn tool_schemas() -> Value {
         );
         tool["annotations"]["openWorldHint"] = json!(true);
         list.push(tool);
+    }
+    // wave7
+    if let Some(list) = schemas.as_array_mut()
+        && let Some(inspect) = list.iter_mut().find(|t| t["name"] == "saccade_inspect")
+    {
+        if let Some(variants) = inspect["inputSchema"]["oneOf"].as_array_mut() {
+            variants.push(crate::wave7_mcp::inspect_schema());
+        }
+        inspect["outputSchema"] = json!({"type":"object","properties":{"schema":{"enum":["saccade-result.v2","saccade-model-status.v1"]}},"required":["schema"]});
     }
     schemas
 }

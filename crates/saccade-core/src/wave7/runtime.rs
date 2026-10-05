@@ -25,6 +25,11 @@ fn ort_error(_: ort::Error) -> VisionError {
 impl OnnxModel {
     /// Verify graph bytes and explicitly load ONNX Runtime 1.22, with one CPU thread.
     pub fn load(model: &Model, cache: &Path, library: &Path, allow_download: bool) -> Result<Self> {
+        super::models::Registry {
+            schema: super::models::REGISTRY_SCHEMA.into(),
+            models: vec![model.clone()],
+        }
+        .validate()?;
         if model.runtime != "onnx" || !library.is_file() {
             return Err(VisionError::Unavailable(
                 "explicit ONNX graph/runtime library required".into(),
