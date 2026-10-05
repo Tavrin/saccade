@@ -81,6 +81,13 @@ impl Keys {
             .unwrap_or_default()
     }
 
+    // wave4
+    /// Whether this loader uses exactly the fixed assist credential directory.
+    #[cfg(feature = "assist")]
+    pub fn default_policy_dir(&self) -> bool {
+        !self.dir.as_os_str().is_empty() && self.dir == Self::default_dir()
+    }
+
     /// The key variable `var` from the file `file` of the keys directory.
     /// `file` must be a plain file name. The error never contains a key.
     pub fn load(&self, file: &str, var: &str) -> Result<Secret, String> {

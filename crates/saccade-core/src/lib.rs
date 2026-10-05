@@ -130,3 +130,7 @@ pub fn judge_bench_sources(case: &evidence::case::EvidenceCase) -> Vec<String> {
         .into_iter()
         .collect()
 }
+
+// wave4
+#[cfg(feature = "assist")]
+pub mod assist;
