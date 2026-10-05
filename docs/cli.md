@@ -52,11 +52,30 @@ Record and inspect local visual-test variation across runs
 Usage: saccade history [OPTIONS] <COMMAND>
 
 Commands:
+  onset    Find candidate performance onsets in qualified, comparable history observations
   record   Add one existing comparison report to the local history store
   analyze  Show measured variation and threshold advice for comparable entries
 
 Options:
   -h, --help  Print help
+
+Global options:
+      --allow-out-near-captures  Silence warnings when --out is next to capture metadata
+      --record-absolute-paths    Opt in to absolute local paths in reports and machine-readable output
+```
+
+## saccade history onset
+
+```text
+Find candidate performance onsets in qualified, comparable history observations
+
+Usage: saccade history onset [OPTIONS] --store <STORE>
+
+Options:
+      --store <STORE>
+      --limit <LIMIT>  Most recent distinct observations per partition; exact DP is bounded to 120 [default: 60]
+      --json
+  -h, --help           Print help
 
 Global options:
       --allow-out-near-captures  Silence warnings when --out is next to capture metadata

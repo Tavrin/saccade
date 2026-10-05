@@ -839,6 +839,9 @@ pub struct TermDiff {
 #[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct PerfDiff {
+    /// Capture-side comparison identity, including the timing statistic. Historical absence is unknown.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub history_identity: Option<crate::evidence::canonical::Digest>,
     pub schema: String,
     pub unit: String,
     pub noise_k: f64,
@@ -1128,6 +1131,7 @@ impl PerfDiff {
         policy_sources.extend(opts.policy_sources.clone());
         Self {
             schema: "saccade-perf-diff.v1".into(),
+            history_identity: a.comparison_identity(),
             unit: "ms".into(),
             noise_k: k,
             resolution_ms: policy.resolution_ms,

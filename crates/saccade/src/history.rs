@@ -25,6 +25,16 @@ pub(crate) struct HistoryArgs {
 
 #[derive(Subcommand)]
 enum HistoryOperation {
+    /// Find candidate performance onsets in qualified, comparable history observations.
+    Onset {
+        #[arg(long)]
+        store: PathBuf,
+        /// Most recent distinct observations per partition; exact DP is bounded to 120.
+        #[arg(long, default_value_t = 60, value_parser = clap::value_parser!(u16).range(10..=120))]
+        limit: u16,
+        #[arg(long)]
+        json: bool,
+    },
     /// Add one existing comparison report to the local history store.
     Record {
         report: PathBuf,
@@ -311,8 +321,163 @@ fn analyze(rows: &[Row], entry: Option<&str>, limit: usize) -> Value {
         "Observed extrema are not a statistical confidence bound; threshold advice requires review."]})
 }
 
+fn performance_observation(
+    report: &saccade_core::Report,
+    run: &str,
+) -> Result<saccade_core::onset::Observation, String> {
+    use saccade_core::perf::Comparability;
+    let p = report.perf_diff.as_ref().ok_or("performance_missing")?;
+    if p.comparability != Comparability::Qualified
+        || p.noise_comparability != Comparability::Qualified
+    {
+        return Err(format!(
+            "performance_or_repeat_noise_unqualified: {:?}",
+            p.qualification_reasons
+        ));
+    }
+    let context = p
+        .context_after
+        .as_ref()
+        .ok_or("performance_context_missing")?;
+    if ["window_complete", "clock_qualified", "warmup_complete"]
+        .iter()
+        .any(|key| context.qualification.checks.get(*key) != Some(&Some(true)))
+        || context.qualification.status != Comparability::Qualified
+        || context
+            .qualification
+            .checks
+            .values()
+            .any(|v| *v != Some(true))
+    {
+        return Err("performance_context_unqualified".into());
+    }
+    let identity = p
+        .history_identity
+        .as_ref()
+        .ok_or("history_comparison_identity_not_recorded_by_producer")?;
+    let window = context
+        .sample_window
+        .as_ref()
+        .ok_or("sample_window_missing")?;
+    let milliseconds = p
+        .frame
+        .after
+        .filter(|v| v.is_finite() && *v > 0.0)
+        .ok_or("positive_frame_timing_missing")?;
+    let repeat_range_ms = p
+        .frame
+        .noise_floor
+        .filter(|v| v.is_finite() && *v >= 0.0)
+        .ok_or("repeat_range_missing")?;
+    let floor_ms = p
+        .frame
+        .noise_threshold
+        .filter(|v| v.is_finite() && *v >= 0.0)
+        .ok_or("materiality_floor_missing")?;
+    let commits: std::collections::BTreeSet<_> = report
+        .entries
+        .iter()
+        .filter_map(|e| e.capture_provenance.get("capture.source_head"))
+        .collect();
+    Ok(saccade_core::onset::Observation {
+        run: run.into(),
+        commit: if commits.len() == 1 {
+            commits.first().map(|v| (*v).clone())
+        } else {
+            None
+        },
+        time: report.generated_at_unix,
+        identity: identity.as_str().into(),
+        window: window.hash.as_str().into(),
+        milliseconds,
+        repeat_range_ms,
+        floor_ms,
+        min_delta_pct: p.min_delta_pct,
+    })
+}
+
+fn onset_value(store: &Path, limit: usize) -> Result<Value, CliError> {
+    let rows = read_index(store)?;
+    let mut groups: BTreeMap<String, Vec<saccade_core::onset::Observation>> = BTreeMap::new();
+    let mut omitted = Vec::new();
+    for row in rows {
+        if row.report_sha256.len() != 64
+            || !row.report_sha256.bytes().all(|b| b.is_ascii_hexdigit())
+        {
+            return Err(CliError::io("invalid history object identity"));
+        }
+        let path = store
+            .join("objects")
+            .join(format!("{}.json", row.report_sha256));
+        let bytes =
+            fs::read(&path).map_err(|e| CliError::io(format!("{}: {e}", path.display())))?;
+        if hash(&bytes) != row.report_sha256 {
+            return Err(CliError::io("history object content hash mismatch"));
+        }
+        // Read the original object, not cached numerical fields in the index.
+        let report: saccade_core::Report = serde_json::from_slice(&bytes)?;
+        match performance_observation(&report, &row.report_sha256) {
+            Ok(o) => groups.entry(o.identity.clone()).or_default().push(o),
+            Err(reason) => omitted.push(json!({"run":row.report_sha256,"reason":reason})),
+        }
+    }
+    let mut partitions = Vec::new();
+    for (identity, mut observations) in groups {
+        observations.sort_by(|a, b| a.time.cmp(&b.time).then(a.run.cmp(&b.run)));
+        let mut windows = std::collections::BTreeSet::new();
+        observations.retain(|o| {
+            if windows.insert(o.window.clone()) { true } else {
+                omitted.push(json!({"run":o.run,"reason":"same_sample_window_not_an_independent_observation"})); false
+            }
+        });
+        let truncated = observations.len().saturating_sub(limit);
+        observations.drain(..truncated);
+        if observations.len() < 10 {
+            partitions.push(json!({"identity":identity,"status":"insufficient_history","observations":observations,"older_observations_omitted":truncated}));
+        } else {
+            let analysis = saccade_core::onset::detect(&observations)?;
+            partitions.push(json!({"identity":identity,"status":"candidate_analysis","analysis":analysis,"older_observations_omitted":truncated}));
+        }
+    }
+    Ok(
+        json!({"schema":"saccade-onset.v1","operation":"onset","partitions":partitions,"excluded_observations":omitted,"limits":["Candidate intervals only; fresh qualified repeats are required. Never commit blame.","One record must represent an independent nightly statistic; timestamps do not establish independence. Missing observations are retained as gaps, not interpolated."]}),
+    )
+}
+fn run_onset(store: &Path, limit: usize, json_output: bool) -> Result<u8, CliError> {
+    let value = onset_value(store, limit)?;
+    if json_output {
+        crate::emit(&format!("{}\n", serde_json::to_string(&value)?))?;
+    } else {
+        let mut text =
+            String::from("Performance onset candidates (fresh qualified repeats required):\n");
+        let mut count = 0;
+        for partition in value["partitions"].as_array().into_iter().flatten() {
+            if partition["status"] == "insufficient_history" {
+                text.push_str(&format!(
+                    "{}: insufficient qualified history\n",
+                    partition["identity"]
+                ));
+            }
+            for candidate in partition["analysis"]["evidence"]["candidates"]
+                .as_array()
+                .into_iter()
+                .flatten()
+            {
+                count += 1;
+                text.push_str(&format!("candidate onset at run {} / commit {}; interval after run {} / commit {}; effect {} ms ({}%).\n", candidate["first_changed"]["run"], candidate["first_changed"]["commit"], candidate["last_before"]["run"], candidate["last_before"]["commit"], candidate["effect_ms"], candidate["effect_pct"]));
+            }
+        }
+        text.push_str(&format!("{count} candidates; {} excluded observations. Use --json for the numerical witness and exclusion reasons.\n", value["excluded_observations"].as_array().map_or(0, Vec::len)));
+        crate::emit(&text)?;
+    }
+    Ok(0)
+}
+
 pub(crate) fn run(args: HistoryArgs) -> Result<u8, CliError> {
     let (value, json_output) = match args.operation {
+        HistoryOperation::Onset { store, limit, json } => {
+            return run_onset(&store, limit as usize, json);
+        }
         HistoryOperation::Record {
             report,
             store,
@@ -364,6 +529,86 @@ pub(crate) fn run(args: HistoryArgs) -> Result<u8, CliError> {
 #[allow(clippy::expect_used)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn onset_reads_hash_bound_reports_partitions_hardware_and_keeps_exclusions() {
+        let dir = tempfile::tempdir().expect("store");
+        fs::create_dir_all(dir.path().join("objects")).expect("objects");
+        let context: Value = serde_json::from_str(include_str!(
+            "../../saccade-core/tests/fixtures/perf/context.json"
+        ))
+        .expect("context");
+        let mut index = String::new();
+        let mut last_hash = String::new();
+        for i in 0..33 {
+            let mut context = context.clone();
+            let window = if i == 31 { 0 } else { i };
+            context["sample_window"]["hash"] =
+                json!(saccade_core::evidence::canonical::Digest::of_bytes(
+                    format!("window{window}").as_bytes()
+                ));
+            if i == 32 {
+                context["hardware"]["gpu"] = "other-gpu".into();
+            }
+            let identity = saccade_core::evidence::canonical::Digest::of_bytes(if i == 32 {
+                b"other-hardware"
+            } else {
+                b"hardware"
+            });
+            let report = json!({"schema":"saccade-report.v1","tool_version":"fixture","generated_at_unix":i * 86400,
+                "config":{"default_threshold":0.01,"default_metric":"mean","pixels_per_degree":67.0,"fail_on_new":false},
+                "totals":{"pass":0,"fail":0,"error":0,"missing":0,"new":0,"total":0},"entries":[],
+                "perf_diff":{"schema":"saccade-perf-diff.v1","history_identity":identity,"unit":"ms","noise_k":3.0,
+                    "comparability":if i == 30 { "unknown" } else { "qualified" },"noise_comparability":"qualified","context_after":context,
+                    "frame":{"before":10.0,"after":if i < 15 {10.0} else {12.0},"delta":null,"delta_pct":null,"noise_floor":0.04,"noise_threshold":0.12,"beyond_noise":null,"status":"paired"},
+                    "unattributed_before":null,"unattributed_after":null,"terms":[],"warnings":[]}});
+            let bytes = serde_json::to_vec(&report).expect("report");
+            last_hash = hash(&bytes);
+            fs::write(
+                dir.path().join("objects").join(format!("{last_hash}.json")),
+                bytes,
+            )
+            .expect("object");
+            let row = Row {
+                schema: SCHEMA.into(),
+                report_sha256: last_hash.clone(),
+                config_sha256: "config".into(),
+                generated_at_unix: i * 86400,
+                samples: vec![],
+            };
+            index.push_str(&serde_json::to_string(&row).expect("row"));
+            index.push('\n');
+        }
+        fs::write(index_path(dir.path()), index).expect("index");
+        let result = onset_value(dir.path(), 60).expect("onset");
+        assert_eq!(
+            result["partitions"].as_array().expect("partitions").len(),
+            2
+        );
+        assert_eq!(
+            result["excluded_observations"]
+                .as_array()
+                .expect("excluded")
+                .len(),
+            2
+        );
+        let active = result["partitions"]
+            .as_array()
+            .expect("partitions")
+            .iter()
+            .find(|p| p["status"] == "candidate_analysis")
+            .expect("analysis");
+        assert_eq!(
+            active["analysis"]["evidence"]["candidates"][0]["first_changed"]["time"],
+            15 * 86400
+        );
+        fs::write(
+            dir.path().join("objects").join(format!("{last_hash}.json")),
+            b"tampered",
+        )
+        .expect("tamper fixture");
+        assert!(onset_value(dir.path(), 60).is_err());
+    }
 
     #[test]
     fn record_is_content_addressed_and_idempotent() {

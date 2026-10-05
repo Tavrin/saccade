@@ -28,3 +28,24 @@ Store capture-selection exclusions before filtering names. Absent expected-captu
 manifests mean coverage beyond supplied names is unknown. Buffer/HDR/SDR scope is
 stated explicitly, and historical reports do not manufacture audit evidence.
 Expose JSON, portable HTML/Markdown and `inspect exclusions`. No new dependencies.
+
+## Item 2: performance onset
+
+Use the existing content-addressed history objects and verify their hashes on
+read. Add the producer's existing comparison identity to PerfDiff; it includes
+the frame statistic, which cannot be reconstructed from historical PerfDiff
+records. Historical absence stays excluded rather than guessing p50. Read
+capture-side timings only, deduplicate sample-window hashes, and partition by
+comparison identity. No separate database or dependency is introduced.
+
+Implement unpruned exact dynamic programming, log-latency L1 segment cost,
+minimum segment 5 and penalty 3 ln(n). Normalize once using the maximum of robust
+adjacent log differences, qualified repeat range and a documented numerical
+floor. Bound the window to 120 (default 60) for predictable exact computation.
+Require five individual post-segment observations beyond the materiality floor,
+so a suffix shorter than five cannot masquerade as a sustained segment by
+absorbing pre-change observations. Preserve all numerical witnesses and gaps.
+
+Candidates never become confirmed on counts alone. Synthetic step/noise/spike,
+materiality, identity and exhaustive-objective tests establish mechanics only;
+field false-alert calibration and fresh independent repeats remain residuals.

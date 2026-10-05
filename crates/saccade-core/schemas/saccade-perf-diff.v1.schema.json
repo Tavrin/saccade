@@ -703,6 +703,17 @@
         }
       ]
     },
+    "history_identity": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/Digest"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "description": "Capture-side comparison identity, including the timing statistic. Historical absence is unknown."
+    },
     "materiality": {
       "$ref": "#/$defs/Materiality",
       "default": {
