@@ -71,3 +71,7 @@ Residual: live Vulkan replay compatibility, extraction/self-replay, planted real
 Restrict artifact-only tolerance advice to historical rows without trial declarations. Declared revision measurements must not also train that legacy advice. Drift monotonicity uses the recent ten runs while the effect retains the original first-five anchor; a long stable prefix no longer dilutes a sustained recent drift. Capture independence and unchanged-build qualification remain separate and unchanged.
 
 History JSON is a bounded preview: at most six run witnesses per shown group, explicit omission counts and a full-witness artifact via optional `--out`. The file retains every run for the selected groups before preview trimming. Multiple groups are trimmed with counts when necessary, while `--entry` selects a test. A 20-run CLI fixture verifies bounded output, retained complete witness, no tolerance advice for drift and unchanged policy. This follow-up fixes practical output-budget and short-drift gaps found during final review.
+
+## Final inventory review
+
+With an explicit Playwright inventory, copy contained artifacts even when their image headers are unusable and let the comparison record the decode error. The inventory then retains that unusable case beside successfully compared cases instead of aborting the entire suite before accounting. Attachment-only historical ingestion keeps its existing header validation. A passing-plus-corrupt-capture CLI fixture verifies exact accounting and incomplete coverage. Path containment remains enforced before all copies.

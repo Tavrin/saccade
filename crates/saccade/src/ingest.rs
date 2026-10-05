@@ -146,9 +146,11 @@ fn source(manifest: &Path, relative: &str) -> Result<PathBuf, CliError> {
     Ok(path)
 }
 
-fn copy_image(from: &Path, to: &Path) -> Result<(), CliError> {
-    image::image_dimensions(from)
-        .map_err(|e| CliError::usage(format!("invalid Playwright screenshot: {e}")))?;
+fn copy_image(from: &Path, to: &Path, inventory_mode: bool) -> Result<(), CliError> {
+    if !inventory_mode {
+        image::image_dimensions(from)
+            .map_err(|e| CliError::usage(format!("invalid Playwright screenshot: {e}")))?;
+    }
     std::fs::copy(from, to).map_err(|e| CliError::io(e.to_string()))?;
     Ok(())
 }
@@ -244,10 +246,22 @@ pub(crate) fn run(args: IngestArgs, absolute: bool) -> Result<u8, CliError> {
                 .enumerate()
             {
                 let name = format!("{index:04}.png");
-                copy_image(expected, &baseline.join(&name))?;
-                copy_image(actual, &capture.join(&name))?;
+                copy_image(
+                    expected,
+                    &baseline.join(&name),
+                    source_manifest.inventory.is_some(),
+                )?;
+                copy_image(
+                    actual,
+                    &capture.join(&name),
+                    source_manifest.inventory.is_some(),
+                )?;
                 if let Some(diff) = diff {
-                    copy_image(diff, &diffs.join(&name))?;
+                    copy_image(
+                        diff,
+                        &diffs.join(&name),
+                        source_manifest.inventory.is_some(),
+                    )?;
                 }
                 if let Some(metadata) = &entry.dom_regions {
                     let expected_hash = saccade_core::run::sha256_file(expected)?;

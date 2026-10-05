@@ -132,3 +132,41 @@ reporter.onEnd();
     assert_eq!(output.status.code(), Some(1), "{output:?}");
     assert!(tmp.path().join("empty-out/inventory.json").is_file());
 }
+
+#[test]
+fn inventoried_decode_error_is_retained_beside_a_passing_capture() {
+    let tmp = tempfile::tempdir().unwrap();
+    let good = tmp.path().join("good.png");
+    let bad = tmp.path().join("bad.png");
+    RgbImage::from_pixel(16, 16, Rgb([50, 60, 70]))
+        .save(&good)
+        .unwrap();
+    std::fs::write(&bad, b"not a decodable PNG").unwrap();
+    let mut entries = vec![];
+    let mut expected = vec![];
+    let mut supplied = vec![];
+    for (index, (id, path)) in [("pass", &good), ("bad", &bad)].into_iter().enumerate() {
+        entries.push(serde_json::json!({"test_id":id,"case_id":id,"project":"chromium","browser":"chromium","viewport":[16,16],"expected":"good.png","actual":path.file_name().unwrap().to_str().unwrap(),"diff":null}));
+        expected.push(
+            serde_json::json!({"case_id":id,"entry":format!("{index:04}.png"),"required":true}),
+        );
+        supplied.push(serde_json::json!({"case_id":id,"entry":format!("{index:04}.png"),"state":"captured","capture_sha256":saccade_core::run::sha256_file(path).unwrap()}));
+    }
+    let manifest = tmp.path().join("manifest.json");
+    std::fs::write(&manifest,serde_json::json!({"schema":"saccade-playwright.v1","entries":entries,"inventory":{"schema":"saccade-inventory.v1","expected":expected,"supplied":supplied}}).to_string()).unwrap();
+    let out = tmp.path().join("out");
+    let result = Command::new(env!("CARGO_BIN_EXE_saccade"))
+        .args(["ingest", "playwright"])
+        .arg(manifest)
+        .arg("--out")
+        .arg(&out)
+        .output()
+        .unwrap();
+    assert_eq!(result.status.code(), Some(1), "{result:?}");
+    let inventory: serde_json::Value =
+        serde_json::from_slice(&std::fs::read(out.join("inventory.json")).unwrap()).unwrap();
+    assert_eq!(inventory["expected"], 2);
+    assert_eq!(inventory["compared"], 1);
+    assert_eq!(inventory["outcomes"]["unusable"], 1);
+    assert_eq!(inventory["coverage"], "incomplete");
+}
