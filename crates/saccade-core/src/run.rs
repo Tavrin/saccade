@@ -1027,20 +1027,30 @@ fn fill_entry(
     entry.sample_exclusions = Some(losses);
     entry.baseline_properties = Some(properties::validate(&flatten_over(&base_img, 0)));
     entry.bit_identical = Some(crate::compare::native_samples_identical(base, cap));
-    let mask = crate::regions::mask_for(
-        &entry.name,
-        cap_img.width(),
-        cap_img.height(),
-        &config.masks,
-        config.config_dir.as_deref(),
-    )?;
-    match crate::compare::compare_rgba_masked(
-        &cap_img,
-        &base_img,
-        opts,
-        mask.as_deref(),
-        config.mask_mode,
-    ) {
+    let comparison = if config.mask_mode == crate::compare::MaskMode::Neutralize
+        && cap_img.dimensions() == base_img.dimensions()
+    {
+        let mask = crate::regions::mask_for(
+            &entry.name,
+            cap_img.width(),
+            cap_img.height(),
+            &config.masks,
+            config.config_dir.as_deref(),
+        )?;
+        if mask.as_ref().is_some_and(|m| m.iter().all(|v| *v)) {
+            return Err(Error::Config("every pixel is masked".into()));
+        }
+        crate::compare::compare_rgba_masked(
+            &cap_img,
+            &base_img,
+            opts,
+            mask.as_deref(),
+            config.mask_mode,
+        )
+    } else {
+        compare_rgba(&cap_img, &base_img, opts)
+    };
+    match comparison {
         Ok(cmp) => {
             let pair = PairPixels {
                 baseline: crate::diagnostics::Pixels::Ldr(&base_img),
@@ -1323,12 +1333,10 @@ fn fill_hdr_pair(
     entry.baseline_properties = Some(crate::hdr::validate_hdr(&base_img));
     entry.bit_identical = Some(crate::compare::native_samples_identical(base, cap));
     let mut filtered_capture = cap_img.clone();
-    if config.mask_mode == crate::compare::MaskMode::Neutralize {
-        if cap_img.width != base_img.width || cap_img.height != base_img.height {
-            return Err(Error::Config(
-                "neutralize requires matching HDR dimensions".into(),
-            ));
-        }
+    if config.mask_mode == crate::compare::MaskMode::Neutralize
+        && cap_img.width == base_img.width
+        && cap_img.height == base_img.height
+    {
         if let Some(mask) = crate::regions::mask_for(
             &entry.name,
             cap_img.width,
