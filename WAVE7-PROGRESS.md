@@ -18,7 +18,7 @@ Validation: light checks/fmt/strict Clippy/docs/schema pass; 22 focused core + 4
 7b.detectors partial (04ef9ef) — native DINO square/OWLv2 fallback and EfficientSAM adapters implemented; reference CPU smoke passes; native Rust acceptance blocked by installed API16 versus required API22.
 7b.faces partial (04ef9ef) — dynamic YuNet padding and UltraFace decoding corrected; generated portrait reference smokes pass; native Rust acceptance blocked by runtime ABI.
 7b.deferred — SAM2 archive exporter licence/preprocessing; LPIPS/DISTS complete exports/backbone licences; MUSIQ immutable checkpoint/conversion; TrustMark immutable decoder/resizer/encoder or sample. Interfaces retained; no false measurements.
-7b.gates partial (commit recorded with this receipt) — generated inference/assertion tests and immutable pull/reuse gate implemented; full gate not run. Final development receipts follow below.
+7b.gates partial (bc0362d) — generated inference/assertion tests and immutable pull/reuse gate implemented; full gate not run. Final development receipts follow below.
 
 Final Wave 7b development receipt: PASS fmt/diff-check, check with lane features,
 minimal core check, strict CLI/core Clippy, 26 focused core tests (10 ignored),
@@ -27,4 +27,5 @@ syntax and gate shell syntax. Five bounded reference API16 CPU smokes passed;
 Rust EfficientSAM smoke FAILED before inference (API22 required, installed
 1.16.3). Full gate, ignored inference assertions on API22, source/export parity,
 GPU, provider, cross-platform and merged integration were NOT run/qualified.
-Mandated target cleanup is recorded in WAVE7-NOTES.md after completion.
+Mandated target directory removed; final observed headroom 64 GiB. Cleanup and
+qualification limits are recorded in WAVE7-NOTES.md.

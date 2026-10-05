@@ -182,7 +182,7 @@ edited. Cargo.lock was not changed; no new crate dependency was required.
   26 targeted core tests (10 heavy ignored), 4 targeted CLI/MCP tests, schema
   equality, documentation inventory, Python compilation and shell gate syntax.
   All builds used nice19/-j4 and the mandated target after headroom checks
-  (minimum observed 64 GiB available). No full gate was run.
+  (at least64 GiB free at each build admission; pre-cleanup check60 GiB). No full gate was run.
 - Generated fixture artwork is MIT; no downloaded photographs. Pillow generates
   a bottle, portrait and blank. Reference C API16 CPU smokes used one thread,
   one image per model, and timeout55s. DINO bottle score0.923584 / box normalized
@@ -214,3 +214,17 @@ edited. Cargo.lock was not changed; no new crate dependency was required.
   install/provide the allowed runtime outside this lane, then run the queued gate.
 - README, CHANGELOG, docs/cli.md and wave4/6 integration were left to coordinator
   as requested. No push, merge, rebase, reset, stash or other-worktree operations.
+
+## Final cleanup receipt
+
+- Pipeline commit04ef9ef, registry commit84fc2c2, gate/behavior receipt commitbc0362d.
+- The requested target `/mnt/linux-extra/moss-cargo-targets/codex-saccade-w7` was
+  removed after all builds/tests completed. Exact directory identity/symlink
+  guards were checked before Python shutil cleanup; absence verified afterward.
+  A broad rm-style invocation was automatically rejected, then the guarded
+  cleanup succeeded. No other lane cache was removed. Pre-cleanup headroom60 GiB;
+  final observed64 GiB free. Generated Python bytecode cache also removed.
+- Stop disposition: every selected model has an implemented pinned adapter with
+  bounded reference evidence and an explicit native runtime prerequisite, or a
+  recorded unknown artifact/licence/processor deferral. No outstanding question
+  is needed to continue within this lane's allowed downloads/resources.
