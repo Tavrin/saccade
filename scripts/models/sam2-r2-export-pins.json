@@ -1,0 +1,16 @@
+[
+  {
+    "role": "encoder",
+    "bytes": 109471969,
+    "sha256": "d8427d60c388fd7bc1fbc211f9cc0b837e7a44879e2a7a6c0ac2c39554d13304",
+    "hash_provenance": "exported locally, reproducible by scripts/models/sam2.1-tiny.sh",
+    "license": "Apache-2.0"
+  },
+  {
+    "role": "decoder",
+    "bytes": 16595010,
+    "sha256": "70063a399155d9496f383c8b33005cb81f1e863e63e9acfd68684adfab8876d7",
+    "hash_provenance": "exported locally, reproducible by scripts/models/sam2.1-tiny.sh",
+    "license": "Apache-2.0"
+  }
+]

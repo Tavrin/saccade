@@ -66,7 +66,7 @@ fi
 gate docs python3 scripts/check-wave7-docs.py
 gate schemas nice -n 19 cargo test -j 4 -p saccade-core --lib wave7::schemas --features "$features"
 # These explicit research gaps cannot be turned green by generated or replay evidence.
-printf 'GATE selected-native-adapters DEFERRED (SAM2 offline export tooling; LPIPS/DISTS weight grants; MUSIQ checkpoint; TrustMark ECC/resize parity)\n'
+printf 'GATE selected-native-adapters DEFERRED (SAM2 native adapter/source parity; LPIPS/DISTS weight grants; MUSIQ checkpoint; TrustMark ECC/resize parity)\n'
 # Opt-in release qualification may require every selected adapter. Deferrals are explicit.
 if test "${WAVE7_REQUIRE_ALL_MODELS:-0}" = 1; then
     printf 'GATE required-all-models FAIL (recorded deferrals)\n'; failed=1
