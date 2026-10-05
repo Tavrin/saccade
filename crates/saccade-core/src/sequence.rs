@@ -417,6 +417,7 @@ pub fn run_sequence(
         perf_diff: None,
         perf_errors: Vec::new(),
         combined_verdict: None,
+        exclusion_audit: None,
         schema: REPORT_SCHEMA.into(),
         tool_version: env!("CARGO_PKG_VERSION").into(),
         generated_at_unix: SystemTime::now()

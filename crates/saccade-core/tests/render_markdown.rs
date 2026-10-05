@@ -28,6 +28,7 @@ fn entry(name: String, status: Status, value: Option<f64>) -> Entry {
         error: None,
         regions: Vec::new(),
         masked_fraction: None,
+        pixel_exclusions: None,
         bit_identical: None,
         hdr: None,
         meta_diff: Vec::new(),

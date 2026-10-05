@@ -418,6 +418,14 @@ pub fn run(
         }
     }
     let meta = meta_options.checker()?;
+    let excluded_captures = names
+        .keys()
+        .filter(|name| {
+            ignore.iter().any(|m| m.is_match(name))
+                || !crate::paths::matches_entries(&config.entries, name)
+        })
+        .map(|name| (*name).to_string())
+        .collect();
     let work: Vec<_> = names
         .into_iter()
         .filter(|(name, _)| !ignore.iter().any(|m| m.is_match(name)))
@@ -503,7 +511,7 @@ pub fn run(
             Status::Error => totals.error += 1,
         }
     }
-    let report = Report {
+    let mut report = Report {
         schema: REPORT_SCHEMA.to_string(),
         tool_version: env!("CARGO_PKG_VERSION").to_string(),
         generated_at_unix: SystemTime::now()
@@ -540,7 +548,9 @@ pub fn run(
         perf_diff,
         perf_errors,
         combined_verdict,
+        exclusion_audit: None,
     };
+    report.exclusion_audit = Some(crate::exclusions::audit(&report, excluded_captures));
     if report.is_empty_run() {
         let why = if baselines.files.is_empty() && report.totals.new > 0 {
             format!(
@@ -806,6 +816,7 @@ pub(crate) fn build_entry(
         error: None,
         regions: Vec::new(),
         masked_fraction: None,
+        pixel_exclusions: None,
         bit_identical: None,
         file_bytes_identical: None,
         capture_validity: Default::default(),
@@ -985,6 +996,12 @@ fn finish_entry(
 ) -> Result<()> {
     let name = entry.name.clone();
     let scene = crate::regions::evaluate(entry, &cmp, config)?;
+    entry.pixel_exclusions = Some(crate::exclusions::pixels(
+        &cmp,
+        scene.mask.as_deref(),
+        entry,
+        config,
+    )?);
     let value = metric_value(&scene.metrics, entry.metric_used);
     let rel = format!("images/{name}.d/heatmap.png");
     let dest = report_dir.join(&rel);

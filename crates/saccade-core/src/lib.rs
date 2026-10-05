@@ -16,6 +16,7 @@ pub mod diagnostics;
 pub mod ergonomics;
 pub mod error;
 pub mod evidence;
+pub mod exclusions;
 pub mod explain;
 pub mod gpu_clock;
 pub mod hdr;

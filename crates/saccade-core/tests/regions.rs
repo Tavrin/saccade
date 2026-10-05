@@ -117,3 +117,63 @@ fn fully_masked_region_is_informational_with_a_null_value() {
     assert!(json["entries"][0]["regions"][0]["value"].is_null());
     assert_eq!(entry(&report).status, Status::Pass);
 }
+
+#[test]
+fn exclusion_audit_retains_hidden_error_and_counterfactual_without_changing_verdict() {
+    let tmp = tempfile::tempdir().expect("tmp");
+    let cfg =
+        RunConfig::from_toml_str("threshold = 0.001\n[[mask]]\nrect = [0.0, 0.0, 0.5, 0.5]\n")
+            .expect("config");
+    let report = run_patch(tmp.path(), &cfg);
+    let e = entry(&report);
+    let audit = e.pixel_exclusions.as_ref().expect("pixel audit");
+    assert_eq!(e.status, Status::Pass);
+    assert_eq!(audit.without_masks, Status::Fail);
+    assert_eq!(audit.pixels, 1024);
+    assert_eq!(audit.runs.len(), 32);
+    assert!(audit.error_mean.expect("mean") > 0.0);
+    assert!(audit.error_max.expect("max") > 0.1);
+    let repeated = run_patch(tmp.path(), &cfg);
+    assert_eq!(report.exclusion_audit, repeated.exclusion_audit);
+    assert_eq!(e.pixel_exclusions, entry(&repeated).pixel_exclusions);
+    let html = std::fs::read_to_string(tmp.path().join("out/index.html")).expect("html");
+    assert!(html.contains("Exclusion audit") && html.contains("Masked pixels: 1024"));
+}
+
+#[test]
+fn audit_lists_selected_missing_ignored_captures_and_unknown_performance() {
+    let tmp = tempfile::tempdir().expect("tmp");
+    let flat = RgbImage::from_pixel(32, 32, Rgb([100, 100, 100]));
+    for name in ["a.png", "ignored.png", "missing.png"] {
+        save(&tmp.path().join("base"), name, &flat);
+    }
+    save(&tmp.path().join("cap"), "a.png", &flat);
+    let cfg = RunConfig {
+        ignore: vec!["ignored.png".into()],
+        ..Default::default()
+    };
+    let report = run(
+        &tmp.path().join("base"),
+        &tmp.path().join("cap"),
+        &tmp.path().join("out"),
+        &cfg,
+    )
+    .expect("run");
+    let audit = report
+        .exclusion_audit
+        .as_ref()
+        .expect("audit")
+        .evidence
+        .as_ref()
+        .expect("evidence");
+    assert_eq!(audit.excluded_captures, ["ignored.png"]);
+    assert_eq!(audit.incomplete_captures, ["missing.png"]);
+    assert!(matches!(
+        audit.performance,
+        saccade_core::evidence::analysis::Capability::Unknown { .. }
+    ));
+    assert_eq!(
+        audit.entries[0].thresholds[0].headroom,
+        Some(cfg.default_threshold)
+    );
+}

@@ -373,6 +373,18 @@ impl Parts<'_> {
             }
         }
         out.push_str(&notes_section(self.report));
+        out.push_str("\nExclusion audit: ");
+        if let Some(audit) = self
+            .report
+            .exclusion_audit
+            .as_ref()
+            .and_then(|a| a.evidence.as_ref())
+        {
+            out.push_str(&format!("{} excluded captures, {} incomplete captures; {} masked pixels. Threshold headroom, metadata gaps and performance qualification are in the HTML report and inspect exclusions.\n", audit.excluded_captures.len(), audit.incomplete_captures.len(), self.report.entries.iter().filter_map(|e| e.pixel_exclusions.as_ref()).map(|p| p.pixels).sum::<u64>()));
+        } else {
+            out.push_str("unavailable in this producer.\n");
+        }
+        out.push_str("\n\n");
         if p > 0 {
             out.push_str(&format!(
                 "<details><summary>{} passed</summary>\n\n",

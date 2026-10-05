@@ -796,6 +796,7 @@ Read, explain, prepare or export existing evidence
 Usage: saccade inspect [OPTIONS] [ARTIFACT] [COMMAND]
 
 Commands:
+  exclusions    Show what a comparison excluded and the remaining threshold headroom
   evidence      Prepare context, crops, facts and references without a provider
   export        Export an existing artifact or selected entry
   config        Explain effective measurement settings and their sources
@@ -813,6 +814,25 @@ Options:
       --expected-case-id <EXPECTED_CASE_ID>
       --json
   -h, --help                                 Print help
+
+Global options:
+      --allow-out-near-captures  Silence warnings when --out is next to capture metadata
+      --record-absolute-paths    Opt in to absolute local paths in reports and machine-readable output
+```
+
+## saccade inspect exclusions
+
+```text
+Show what a comparison excluded and the remaining threshold headroom
+
+Usage: saccade inspect exclusions [OPTIONS] <REPORT>
+
+Arguments:
+  <REPORT>
+
+Options:
+      --json
+  -h, --help  Print help
 
 Global options:
       --allow-out-near-captures  Silence warnings when --out is next to capture metadata

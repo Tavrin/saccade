@@ -44,7 +44,11 @@ pub(crate) fn build_html(
     let (middle, after) = tail
         .split_once("__SACCADE_DATA__")
         .ok_or_else(|| Error::Config("report template lacks data slot".into()))?;
-    let summary = super::bundle::summary(report, case)?;
+    let summary = format!(
+        "{}<details><summary>Exclusion audit</summary><pre>{}</pre></details>",
+        super::bundle::summary(report, case)?,
+        escape(&crate::exclusions::text(report))
+    );
     let (head, tail) = before
         .split_once("__SACCADE_META__")
         .ok_or_else(|| Error::Config("report template lacks metadata slot".into()))?;

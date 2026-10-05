@@ -1,5 +1,49 @@
 {
   "$defs": {
+    "Analysis": {
+      "additionalProperties": false,
+      "description": "One optional result. Historical absence cannot imply successful execution.",
+      "properties": {
+        "capability": {
+          "$ref": "#/$defs/Capability",
+          "description": "Whether this producer established the requested evidence."
+        },
+        "evidence": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/ExclusionAudit"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "Measurements, never an independent approval authority."
+        },
+        "limitations": {
+          "description": "Scope restrictions in stable order.",
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "provenance": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Provenance"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "Reproduction information; absent for historical, unrecorded evidence."
+        }
+      },
+      "required": [
+        "capability",
+        "limitations"
+      ],
+      "type": "object"
+    },
     "Attribution": {
       "description": "Attribution from one capture-side object/material ID pair.",
       "properties": {
@@ -201,6 +245,101 @@
         "p99"
       ],
       "type": "object"
+    },
+    "Capability": {
+      "description": "Availability is separate from a measurement or verdict.",
+      "oneOf": [
+        {
+          "additionalProperties": false,
+          "description": "The requested computation was performed within its declared scope.",
+          "properties": {
+            "state": {
+              "const": "available",
+              "type": "string"
+            }
+          },
+          "required": [
+            "state"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "description": "Evidence was not supplied or cannot establish applicability.",
+          "properties": {
+            "reason": {
+              "description": "Machine-readable explanation.",
+              "type": "string"
+            },
+            "state": {
+              "const": "unknown",
+              "type": "string"
+            }
+          },
+          "required": [
+            "state",
+            "reason"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "description": "This implementation cannot perform the requested computation.",
+          "properties": {
+            "reason": {
+              "description": "Machine-readable explanation.",
+              "type": "string"
+            },
+            "state": {
+              "const": "unsupported",
+              "type": "string"
+            }
+          },
+          "required": [
+            "state",
+            "reason"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "description": "The caller explicitly excluded the computation.",
+          "properties": {
+            "reason": {
+              "description": "Machine-readable explanation.",
+              "type": "string"
+            },
+            "state": {
+              "const": "excluded",
+              "type": "string"
+            }
+          },
+          "required": [
+            "state",
+            "reason"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "description": "Inputs or execution failed validation.",
+          "properties": {
+            "reason": {
+              "description": "Machine-readable explanation.",
+              "type": "string"
+            },
+            "state": {
+              "const": "rejected",
+              "type": "string"
+            }
+          },
+          "required": [
+            "state",
+            "reason"
+          ],
+          "type": "object"
+        }
+      ]
     },
     "CaptureValidity": {
       "description": "Validity and the missing context or violated requirements explaining it.",
@@ -815,6 +954,17 @@
           "$ref": "#/$defs/EntryPaths",
           "description": "Image paths relative to the report directory."
         },
+        "pixel_exclusions": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/PixelExclusions"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "Full-map error on excluded pixels, independent of the configured verdict."
+        },
         "properties": {
           "anyOf": [
             {
@@ -869,6 +1019,61 @@
       ],
       "type": "object"
     },
+    "EntryAudit": {
+      "description": "Exclusions and unknowns for one entry, including passing entries.",
+      "properties": {
+        "configured_status": {
+          "$ref": "#/$defs/Status",
+          "description": "Original configured verdict; the audit cannot change it."
+        },
+        "ignored_metadata": {
+          "description": "Metadata changes explicitly ignored by policy.",
+          "items": {
+            "$ref": "#/$defs/MetaDiff"
+          },
+          "type": "array"
+        },
+        "informational_regions": {
+          "description": "Region names without a deciding threshold.",
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "limitations": {
+          "description": "Channel, HDR and other unmeasured scope statements.",
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "name": {
+          "description": "Image name.",
+          "type": "string"
+        },
+        "thresholds": {
+          "description": "All deciding thresholds and their remaining margin.",
+          "items": {
+            "$ref": "#/$defs/Threshold"
+          },
+          "type": "array"
+        },
+        "validity": {
+          "$ref": "#/$defs/CaptureValidity",
+          "description": "Capture validity, including missing keys and source provenance."
+        }
+      },
+      "required": [
+        "name",
+        "configured_status",
+        "thresholds",
+        "informational_regions",
+        "ignored_metadata",
+        "validity",
+        "limitations"
+      ],
+      "type": "object"
+    },
     "EntryPaths": {
       "description": "Paths (relative to the report directory, `/`-separated) of the images the\nreport copies or generates. `None` when that image does not exist.",
       "properties": {
@@ -910,6 +1115,67 @@
           ]
         }
       },
+      "type": "object"
+    },
+    "ExclusionAudit": {
+      "description": "Run scope beyond the per-pixel masks stored on each entry.",
+      "properties": {
+        "entries": {
+          "description": "Per-entry bounds and gaps in report order.",
+          "items": {
+            "$ref": "#/$defs/EntryAudit"
+          },
+          "type": "array"
+        },
+        "excluded_captures": {
+          "description": "Observed names removed by ignore globs or entry selection.",
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "ignore": {
+          "description": "Declared ignore globs.",
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "incomplete_captures": {
+          "description": "Selected names without a complete measurable pair.",
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "metadata_ignore": {
+          "description": "Metadata ignore globs, including defaults.",
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "performance": {
+          "$ref": "#/$defs/Capability",
+          "description": "Performance qualification; absent performance stays unknown."
+        },
+        "selection": {
+          "description": "Declared entry selection globs.",
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        }
+      },
+      "required": [
+        "excluded_captures",
+        "incomplete_captures",
+        "performance",
+        "selection",
+        "ignore",
+        "metadata_ignore",
+        "entries"
+      ],
       "type": "object"
     },
     "FrameChange": {
@@ -1818,6 +2084,86 @@
         }
       ]
     },
+    "PixelExclusions": {
+      "description": "Full-map evidence retained before masks are applied to the verdict.",
+      "properties": {
+        "dimensions": {
+          "description": "Image dimensions.",
+          "items": {
+            "format": "uint32",
+            "minimum": 0,
+            "type": "integer"
+          },
+          "maxItems": 2,
+          "minItems": 2,
+          "type": "array"
+        },
+        "error_max": {
+          "description": "Maximum FLIP on excluded pixels; absent for an empty mask.",
+          "format": "double",
+          "type": [
+            "number",
+            "null"
+          ]
+        },
+        "error_mean": {
+          "description": "Mean FLIP on excluded pixels; absent for an empty mask.",
+          "format": "double",
+          "type": [
+            "number",
+            "null"
+          ]
+        },
+        "error_sum": {
+          "description": "Summed FLIP error on excluded pixels.",
+          "format": "double",
+          "type": "number"
+        },
+        "full_frame_value": {
+          "description": "Entry metric on the complete unmasked error map.",
+          "format": "double",
+          "type": "number"
+        },
+        "mask_sha256": {
+          "description": "SHA-256 of the resolved row-major mask (one 0/1 byte per pixel).",
+          "type": "string"
+        },
+        "pixels": {
+          "description": "Number of excluded pixels.",
+          "format": "uint64",
+          "minimum": 0,
+          "type": "integer"
+        },
+        "runs": {
+          "description": "Excluded pixels as row-major [start, length] runs.",
+          "items": {
+            "items": {
+              "format": "uint64",
+              "minimum": 0,
+              "type": "integer"
+            },
+            "maxItems": 2,
+            "minItems": 2,
+            "type": "array"
+          },
+          "type": "array"
+        },
+        "without_masks": {
+          "$ref": "#/$defs/Status",
+          "description": "Diagnostic verdict with all masks removed, same regions and thresholds."
+        }
+      },
+      "required": [
+        "dimensions",
+        "runs",
+        "mask_sha256",
+        "pixels",
+        "error_sum",
+        "full_frame_value",
+        "without_masks"
+      ],
+      "type": "object"
+    },
     "Properties": {
       "description": "Structural sanity checks on a single image (catches black frames, blowouts).",
       "properties": {
@@ -1872,6 +2218,46 @@
         "mean_luminance",
         "min_luminance",
         "max_luminance"
+      ],
+      "type": "object"
+    },
+    "Provenance": {
+      "additionalProperties": false,
+      "description": "Reproduction details shared by optional analysis features.",
+      "properties": {
+        "code_license": {
+          "description": "SPDX expression for this implementation.",
+          "type": "string"
+        },
+        "implementation": {
+          "description": "Algorithm name and revision, independently of the tool version.",
+          "type": "string"
+        },
+        "resources": {
+          "description": "Exact resources, in producer-declared stable order.",
+          "items": {
+            "$ref": "#/$defs/Resource"
+          },
+          "type": "array"
+        },
+        "settings": {
+          "additionalProperties": {
+            "type": "string"
+          },
+          "description": "Explicit preprocessing, execution and sampling settings.",
+          "type": "object"
+        },
+        "tool_version": {
+          "description": "Producing package version.",
+          "type": "string"
+        }
+      },
+      "required": [
+        "implementation",
+        "tool_version",
+        "code_license",
+        "resources",
+        "settings"
       ],
       "type": "object"
     },
@@ -2104,6 +2490,39 @@
         "flip_mean",
         "flip_max",
         "hotspots"
+      ],
+      "type": "object"
+    },
+    "Resource": {
+      "additionalProperties": false,
+      "description": "Content-bound resource; absent hashes or licences remain explicit unknowns.",
+      "properties": {
+        "license": {
+          "description": "SPDX expression or a referenced custom licence; never inferred from code.",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "name": {
+          "description": "Logical resource name, not a machine-specific path.",
+          "type": "string"
+        },
+        "role": {
+          "description": "Role such as input, implementation, weights or configuration.",
+          "type": "string"
+        },
+        "sha256": {
+          "description": "Lowercase SHA-256 of exact resource bytes, when available.",
+          "type": [
+            "string",
+            "null"
+          ]
+        }
+      },
+      "required": [
+        "name",
+        "role"
       ],
       "type": "object"
     },
@@ -2371,6 +2790,46 @@
       ],
       "type": "object"
     },
+    "Threshold": {
+      "description": "A configured bound and its measured remaining margin.",
+      "properties": {
+        "headroom": {
+          "description": "Limit minus measured value; a negative value exceeds the bound.",
+          "format": "double",
+          "type": [
+            "number",
+            "null"
+          ]
+        },
+        "limit": {
+          "description": "Configured upper limit.",
+          "format": "double",
+          "type": "number"
+        },
+        "metric": {
+          "description": "Metric name.",
+          "type": "string"
+        },
+        "scope": {
+          "description": "Entry, region or hotspot scope.",
+          "type": "string"
+        },
+        "value": {
+          "description": "Measured value; absent when not measured.",
+          "format": "double",
+          "type": [
+            "number",
+            "null"
+          ]
+        }
+      },
+      "required": [
+        "scope",
+        "metric",
+        "limit"
+      ],
+      "type": "object"
+    },
     "ToneShift": {
       "description": "Global tone fit of the capture against the baseline, in linear light.",
       "properties": {
@@ -2569,6 +3028,17 @@
         "$ref": "#/$defs/Entry"
       },
       "type": "array"
+    },
+    "exclusion_audit": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/Analysis"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "description": "Deterministic scope audit; historical absence means unknown."
     },
     "generated_at_unix": {
       "description": "Seconds since the Unix epoch when the run finished.",

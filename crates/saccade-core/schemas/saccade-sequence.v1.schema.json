@@ -554,6 +554,17 @@
           "$ref": "#/$defs/EntryPaths",
           "description": "Image paths relative to the report directory."
         },
+        "pixel_exclusions": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/PixelExclusions"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "Full-map error on excluded pixels, independent of the configured verdict."
+        },
         "properties": {
           "anyOf": [
             {
@@ -1100,6 +1111,86 @@
           "type": "string"
         }
       ]
+    },
+    "PixelExclusions": {
+      "description": "Full-map evidence retained before masks are applied to the verdict.",
+      "properties": {
+        "dimensions": {
+          "description": "Image dimensions.",
+          "items": {
+            "format": "uint32",
+            "minimum": 0,
+            "type": "integer"
+          },
+          "maxItems": 2,
+          "minItems": 2,
+          "type": "array"
+        },
+        "error_max": {
+          "description": "Maximum FLIP on excluded pixels; absent for an empty mask.",
+          "format": "double",
+          "type": [
+            "number",
+            "null"
+          ]
+        },
+        "error_mean": {
+          "description": "Mean FLIP on excluded pixels; absent for an empty mask.",
+          "format": "double",
+          "type": [
+            "number",
+            "null"
+          ]
+        },
+        "error_sum": {
+          "description": "Summed FLIP error on excluded pixels.",
+          "format": "double",
+          "type": "number"
+        },
+        "full_frame_value": {
+          "description": "Entry metric on the complete unmasked error map.",
+          "format": "double",
+          "type": "number"
+        },
+        "mask_sha256": {
+          "description": "SHA-256 of the resolved row-major mask (one 0/1 byte per pixel).",
+          "type": "string"
+        },
+        "pixels": {
+          "description": "Number of excluded pixels.",
+          "format": "uint64",
+          "minimum": 0,
+          "type": "integer"
+        },
+        "runs": {
+          "description": "Excluded pixels as row-major [start, length] runs.",
+          "items": {
+            "items": {
+              "format": "uint64",
+              "minimum": 0,
+              "type": "integer"
+            },
+            "maxItems": 2,
+            "minItems": 2,
+            "type": "array"
+          },
+          "type": "array"
+        },
+        "without_masks": {
+          "$ref": "#/$defs/Status",
+          "description": "Diagnostic verdict with all masks removed, same regions and thresholds."
+        }
+      },
+      "required": [
+        "dimensions",
+        "runs",
+        "mask_sha256",
+        "pixels",
+        "error_sum",
+        "full_frame_value",
+        "without_masks"
+      ],
+      "type": "object"
     },
     "Properties": {
       "description": "Structural sanity checks on a single image (catches black frames, blowouts).",

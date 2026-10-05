@@ -48,6 +48,10 @@ pub struct Report {
     /// Image and performance evidence on one line.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub combined_verdict: Option<String>,
+    /// Deterministic scope audit; historical absence means unknown.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub exclusion_audit:
+        Option<crate::evidence::analysis::Analysis<crate::exclusions::ExclusionAudit>>,
 }
 
 /// Run-wide settings recorded for reproducibility.
@@ -302,6 +306,9 @@ pub struct Entry {
     /// Fraction of pixels excluded by masks; `None` when no mask applied.
     #[serde(default)]
     pub masked_fraction: Option<f64>,
+    /// Full-map error on excluded pixels, independent of the configured verdict.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub pixel_exclusions: Option<crate::exclusions::PixelExclusions>,
     /// Whether the decoded pixels are exactly equal; `None` unless compared.
     #[serde(default)]
     pub bit_identical: Option<bool>,

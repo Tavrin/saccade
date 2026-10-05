@@ -35,6 +35,12 @@ pub(crate) struct InspectArgs {
 }
 #[derive(Subcommand)]
 pub(crate) enum InspectOperation {
+    /// Show what a comparison excluded and the remaining threshold headroom.
+    Exclusions {
+        report: PathBuf,
+        #[arg(long)]
+        json: bool,
+    },
     /// Prepare context, crops, facts and references without a provider.
     Evidence {
         report: PathBuf,
@@ -358,6 +364,20 @@ pub(crate) fn analysis_result(value: &Value, out: &Path) -> Result<Value, CliErr
 pub(crate) fn inspect(args: InspectArgs, absolute: bool) -> Result<u8, CliError> {
     if let Some(operation) = args.operation {
         return match operation {
+            InspectOperation::Exclusions { report, json } => {
+                let report = crate::read_report(&report)?;
+                if json {
+                    crate::emit(&format!(
+                        "{}\n",
+                        serde_json::to_string(
+                            &serde_json::json!({"audit": report.exclusion_audit, "pixels": report.entries.iter().map(|e| (&e.name, &e.pixel_exclusions)).collect::<std::collections::BTreeMap<_, _>>()})
+                        )?
+                    ))?;
+                } else {
+                    crate::emit(&format!("{}\n", saccade_core::exclusions::text(&report)))?;
+                }
+                Ok(0)
+            }
             InspectOperation::Capabilities { json } => crate::capabilities(json),
             InspectOperation::Config(args) => crate::f1::config(args),
             InspectOperation::Evidence {
