@@ -4,6 +4,7 @@ use moxcms::{ColorProfile, Layout, RenderingIntent, ToneReprCurve, TransformOpti
 use serde::{Deserialize, Serialize};
 use std::{
     collections::{BTreeMap, BTreeSet},
+    io::Read,
     path::{Path, PathBuf},
 };
 
@@ -93,7 +94,7 @@ pub struct Text {
     pub source: String,
     /// Effective sRGB foreground, including alpha (0..1).
     pub foreground: [f64; 4],
-    /// Opaque sRGB background samples, including all relevant gradient extrema.
+    /// Opaque sRGB background samples. Multiple samples do not prove gradient coverage.
     pub backgrounds: Vec<[f64; 3]>,
     /// Actual CSS font size in px, not screenshot-inferred.
     pub font_size_px: f64,
@@ -241,19 +242,84 @@ fn profile(name: &str, p: &Policy, root: &Path) -> Result<(ColorProfile, Digest)
         .get(name)
         .ok_or_else(|| invalid(format!("unsupported or undeclared ICC profile {name}")))?;
     let path = root.join(&pinned.path);
-    let bytes = std::fs::read(&path).map_err(|source| Error::Io {
-        context: format!("reading ICC {}", path.display()),
+    const MAX_ICC_BYTES: u64 = 4 * 1024 * 1024;
+    let mut file = std::fs::File::open(&path).map_err(|source| Error::Io {
+        context: format!("opening ICC {}", path.display()),
         source,
     })?;
-    if bytes.len() > 4 * 1024 * 1024 || Digest::of_bytes(&bytes) != pinned.sha256 {
+    let metadata = file.metadata().map_err(|source| Error::Io {
+        context: format!("inspecting ICC {}", path.display()),
+        source,
+    })?;
+    if !metadata.is_file() || metadata.len() > MAX_ICC_BYTES {
+        return Err(invalid("ICC profile must be a regular file <=4 MiB"));
+    }
+    let mut bytes = Vec::new();
+    file.by_ref()
+        .take(MAX_ICC_BYTES + 1)
+        .read_to_end(&mut bytes)
+        .map_err(|source| Error::Io {
+            context: format!("reading ICC {}", path.display()),
+            source,
+        })?;
+    if bytes.len() as u64 > MAX_ICC_BYTES {
+        return Err(invalid("ICC profile must be a regular file <=4 MiB"));
+    }
+    if Digest::of_bytes(&bytes) != pinned.sha256 {
         return Err(invalid(
-            "ICC profile size or hash does not match the pinned contract",
+            "ICC profile hash does not match the pinned contract",
+        ));
+    }
+    // Reject all LUT transform tags, including ones the pinned parser may ignore.
+    let count = bytes
+        .get(128..132)
+        .ok_or_else(|| invalid("truncated ICC tag table"))?;
+    let count = u32::from_be_bytes([count[0], count[1], count[2], count[3]]) as usize;
+    let end = count
+        .checked_mul(12)
+        .and_then(|n| n.checked_add(132))
+        .ok_or_else(|| invalid("invalid ICC tag table"))?;
+    let tags = bytes
+        .get(132..end)
+        .ok_or_else(|| invalid("truncated ICC tag table"))?;
+    if tags.chunks_exact(12).any(|tag| {
+        matches!(
+            &tag[..4],
+            b"A2B0"
+                | b"A2B1"
+                | b"A2B2"
+                | b"B2A0"
+                | b"B2A1"
+                | b"B2A2"
+                | b"D2B0"
+                | b"D2B1"
+                | b"D2B2"
+                | b"D2B3"
+                | b"B2D0"
+                | b"B2D1"
+                | b"B2D2"
+                | b"B2D3"
+                | b"pre0"
+                | b"pre1"
+                | b"pre2"
+                | b"gamt"
+        )
+    }) {
+        return Err(invalid(
+            "brand review excludes ICC LUT tags, including mixed matrix/LUT profiles",
         ));
     }
     let c = ColorProfile::new_from_slice(&bytes).map_err(|e| invalid(e.to_string()))?;
-    if c.color_space != moxcms::DataColorSpace::Rgb || !c.is_matrix_shaper() {
+    if c.color_space != moxcms::DataColorSpace::Rgb
+        || c.pcs != moxcms::DataColorSpace::Xyz
+        || !matches!(
+            c.profile_class,
+            moxcms::ProfileClass::InputDevice | moxcms::ProfileClass::DisplayDevice
+        )
+        || !c.is_matrix_shaper()
+    {
         return Err(invalid(
-            "brand review supports RGB matrix/shaper ICC profiles only",
+            "brand review supports input/display RGB matrix/shaper ICC profiles with XYZ PCS only",
         ));
     }
     Ok((c, pinned.sha256.clone()))
@@ -467,7 +533,21 @@ pub fn review(p: &Policy, e: &Evidence, config_dir: &Path) -> Result<Report> {
         let large =
             t.font_size_px >= 24.0 || (t.font_size_px >= 56.0 / 3.0 && t.font_weight >= 700);
         let threshold = if large { 3.0 } else { 4.5 };
-        findings.push(finding(&t.id,"wcag_2_2_1_4_3",if minimum >= threshold {"pass"} else {"fail"},json!({"minimum_ratio":minimum,"ratios":ratios,"required_ratio":threshold,"font_size_px":t.font_size_px,"font_weight":t.font_weight,"large_text":large,"foreground":t.foreground,"backgrounds":t.backgrounds,"applicability":"declared non-exempt text"}),vec![t.source.clone()]));
+        // A failing observed sample proves a failure. Passing extrema cannot establish
+        // the minimum over a continuous gradient or other varying background.
+        let status = if minimum < threshold {
+            "fail"
+        } else if t.backgrounds.len() > 1 {
+            "unavailable"
+        } else {
+            "pass"
+        };
+        let coverage = if t.backgrounds.len() > 1 {
+            "sampled_backgrounds_only"
+        } else {
+            "declared_uniform_background"
+        };
+        findings.push(finding(&t.id,"wcag_2_2_1_4_3",status,json!({"coverage":coverage,"minimum_ratio":minimum,"ratios":ratios,"required_ratio":threshold,"font_size_px":t.font_size_px,"font_weight":t.font_weight,"large_text":large,"foreground":t.foreground,"backgrounds":t.backgrounds,"applicability":"declared non-exempt text"}),vec![t.source.clone()]));
         if let (Some(ink), Some(clip)) = (t.ink_box, t.clip_box) {
             for box_ in [ink, clip] {
                 if box_.iter().any(|v| !v.is_finite()) || box_[2] < 0.0 || box_[3] < 0.0 {

@@ -218,3 +218,135 @@ fn typography_clipping_and_missing_facts_are_distinct() {
     assert_eq!(r.findings[3].rule, "apca_wcag_3_draft");
     assert_eq!(r.findings[3].status, "unavailable");
 }
+
+#[test]
+fn w3_f01_gradient_crossing_is_incomplete() {
+    let mut e = source();
+    let mut t = text();
+    t.foreground = [0.4603133193, 0.4603133193, 0.4603133193, 1.];
+    t.backgrounds = vec![[0.; 3], [1.; 3]];
+    e.text.push(t);
+    let r = review(&Policy::default(), &e, Path::new(".")).expect("review");
+    assert_eq!(r.findings[0].status, "unavailable");
+    assert_eq!(
+        r.findings[0].evidence["coverage"],
+        "sampled_backgrounds_only"
+    );
+}
+fn external_review(bytes: &[u8], path: &Path) -> saccade_core::Result<Report> {
+    let policy = Policy {
+        profiles: BTreeMap::from([(
+            "external".into(),
+            Profile {
+                path: path.to_path_buf(),
+                sha256: Digest::of_bytes(bytes),
+            },
+        )]),
+        swatches: vec![Swatch {
+            name: "logo".into(),
+            colour: rgb([0.5; 3], "external"),
+            delta_e2000: Some(1.),
+            delta_e_itp: None,
+        }],
+        ..Default::default()
+    };
+    let mut e = source();
+    e.samples.push(Sample {
+        name: "logo".into(),
+        colour: rgb([0.5; 3], "srgb"),
+        source: "logo".into(),
+    });
+    review(&policy, &e, Path::new("."))
+}
+#[test]
+fn w3_f04_icc_class_pcs_and_mixed_lut_rejected() {
+    let dir = tempfile::tempdir().expect("dir");
+    let path = dir.path().join("profile.icc");
+    let mut c = moxcms::ColorProfile::new_srgb();
+    c.profile_class = moxcms::ProfileClass::Abstract;
+    let bytes = c.encode().expect("encode");
+    std::fs::write(&path, &bytes).expect("write");
+    assert!(
+        external_review(&bytes, &path).is_err(),
+        "unsupported class accepted"
+    );
+    c.profile_class = moxcms::ProfileClass::DisplayDevice;
+    c.pcs = moxcms::DataColorSpace::Lab;
+    let bytes = c.encode().expect("encode");
+    std::fs::write(&path, &bytes).expect("write");
+    // Mixed LUT admission is checked independently below.
+    assert!(
+        external_review(&bytes, &path).is_err(),
+        "unsupported PCS accepted"
+    );
+    c.pcs = moxcms::DataColorSpace::Xyz;
+    c.lut_a_to_b_colorimetric = Some(moxcms::LutWarehouse::Lut(moxcms::LutDataType {
+        num_input_channels: 3,
+        num_output_channels: 3,
+        num_clut_grid_points: 2,
+        matrix: moxcms::Matrix3d::IDENTITY,
+        num_input_table_entries: 256,
+        num_output_table_entries: 256,
+        input_table: moxcms::LutStore::Store8((0..3).flat_map(|_| 0..=255).collect()),
+        clut_table: moxcms::LutStore::Store8(vec![128; 24]),
+        output_table: moxcms::LutStore::Store8((0..3).flat_map(|_| 0..=255).collect()),
+        lut_type: moxcms::LutType::Lut8,
+    }));
+    let bytes = c.encode().expect("encode");
+    let parsed = moxcms::ColorProfile::new_from_slice(&bytes).expect("valid mixed profile");
+    assert!(parsed.is_matrix_shaper());
+    assert!(parsed.lut_a_to_b_colorimetric.is_some());
+    std::fs::write(&path, &bytes).expect("write");
+    assert!(
+        external_review(&bytes, &path).is_err(),
+        "mixed LUT accepted"
+    );
+}
+#[test]
+fn w3_f09_icc_regular_bounded_read() {
+    let dir = tempfile::tempdir().expect("dir");
+    let path = dir.path().join("large.icc");
+    std::fs::File::create(&path)
+        .expect("file")
+        .set_len(4 * 1024 * 1024 + 1)
+        .expect("length");
+    let err = external_review(b"unused", &path)
+        .expect_err("oversized")
+        .to_string();
+    assert!(err.contains("regular file <=4 MiB"), "{err}");
+    #[cfg(unix)]
+    {
+        let err = external_review(b"", Path::new("/dev/zero"))
+            .expect_err("device")
+            .to_string();
+        assert!(err.contains("regular file <=4 MiB"), "{err}");
+    }
+}
+
+#[test]
+fn w3_f04_mixed_lut_rejected() {
+    let dir = tempfile::tempdir().expect("dir");
+    let path = dir.path().join("mixed.icc");
+    let mut c = moxcms::ColorProfile::new_srgb();
+    c.lut_a_to_b_colorimetric = Some(moxcms::LutWarehouse::Lut(moxcms::LutDataType {
+        num_input_channels: 3,
+        num_output_channels: 3,
+        num_clut_grid_points: 2,
+        matrix: moxcms::Matrix3d::IDENTITY,
+        num_input_table_entries: 256,
+        num_output_table_entries: 256,
+        input_table: moxcms::LutStore::Store8((0..3).flat_map(|_| 0..=255).collect()),
+        clut_table: moxcms::LutStore::Store8(vec![128; 24]),
+        output_table: moxcms::LutStore::Store8((0..3).flat_map(|_| 0..=255).collect()),
+        lut_type: moxcms::LutType::Lut8,
+    }));
+    let bytes = c.encode().expect("encode");
+    let parsed = moxcms::ColorProfile::new_from_slice(&bytes).expect("valid mixed profile");
+    assert!(parsed.is_matrix_shaper());
+    assert!(parsed.lut_a_to_b_colorimetric.is_some());
+    std::fs::write(&path, &bytes).expect("write");
+    assert!(
+        external_review(&bytes, &path).is_err(),
+        "mixed LUT accepted"
+    );
+}
