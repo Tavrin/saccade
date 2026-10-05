@@ -6,6 +6,8 @@ use serde::{Deserialize, Serialize};
 use std::collections::{BTreeMap, BTreeSet};
 use std::path::{Path, PathBuf};
 
+// wave9
+pub mod warmup;
 pub const DEFAULT_PERF_NAME: &str = "saccade-perf.json";
 #[cfg(feature = "graphics")]
 const QUANTUM_TOLERANCE_MS: f64 = 1e-6;
@@ -208,6 +210,9 @@ pub struct Qualification {
     /// Missing checks remain unknown; matching false checks reject both sides.
     pub checks: BTreeMap<String, Option<bool>>,
     pub reasons: Vec<String>,
+    /// Optional producer-supplied per-iteration evidence, recomputed locally.
+    #[serde(default)]
+    pub warmup: Option<warmup::Evidence>,
 }
 
 #[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
@@ -469,6 +474,28 @@ impl CapturePerf {
             );
         };
         let q = &c.qualification;
+        let local = q.warmup.as_ref().map(warmup::evaluate);
+        if local.as_ref().is_some_and(|v| match v {
+            Ok(v) => !v.converged,
+            Err(_) => true,
+        }) {
+            let mut reasons = q.reasons.clone();
+            reasons.push(
+                if matches!(local, Some(Err(_))) {
+                    "warmup_data_invalid"
+                } else {
+                    "warmup_not_converged"
+                }
+                .into(),
+            );
+            reasons.extend(
+                q.checks
+                    .iter()
+                    .filter(|(_, v)| **v == Some(false))
+                    .map(|(key, _)| format!("qualification check failed: {key}")),
+            );
+            return (Comparability::Rejected, reasons);
+        }
         if q.status == Comparability::Rejected || q.checks.values().any(|v| *v == Some(false)) {
             let mut reasons = q.reasons.clone();
             reasons.push("producer qualification rejected or a check failed".into());
@@ -517,6 +544,40 @@ impl CapturePerf {
         (Comparability::Qualified, Vec::new())
     }
 
+    /// Machine-readable reasons; independent checks can coexist.
+    pub fn qualification_codes(&self) -> Vec<warmup::Reason> {
+        use warmup::Reason as R;
+        let Some(c) = &self.context else {
+            return vec![R::QualificationUnavailable];
+        };
+        let q = &c.qualification;
+        let mut codes = Vec::new();
+        if let Some(e) = &q.warmup {
+            match warmup::evaluate(e) {
+                Ok(v) if !v.converged => codes.push(R::WarmupNotConverged),
+                Err(_) => codes.push(R::WarmupDataInvalid),
+                _ => {}
+            }
+        }
+        if q.checks.get("warmup_complete") == Some(&Some(false))
+            && !codes.contains(&R::WarmupNotConverged)
+        {
+            codes.push(R::WarmupNotConverged);
+        }
+        if !q.checks.get("warmup_complete").is_some_and(|v| v.is_some()) {
+            codes.push(R::WarmupEvidenceUnavailable);
+        }
+        if q.checks.get("clock_qualified") == Some(&Some(false)) {
+            codes.push(R::ClockUnqualified);
+        }
+        if q.status == Comparability::Rejected {
+            codes.push(R::ProducerRejected);
+        }
+        if self.qualification().0 == Comparability::Unknown {
+            codes.push(R::QualificationUnavailable);
+        }
+        codes
+    }
     /// Calibration identity excludes capture/window identity, retaining pair conditions.
     pub fn comparison_identity(&self) -> Option<crate::evidence::canonical::Digest> {
         let c = self.context.as_ref()?;
@@ -524,7 +585,7 @@ impl CapturePerf {
             "timer":c.timer,"quantum_ms":c.quantum_ms,"hardware":c.hardware,
             "configuration_hash":c.configuration_hash,"aggregation":c.aggregation,
             "stat":self.frame.stat,"rule":c.qualification.rule,"version":c.qualification.version,
-            "checks":c.qualification.checks.keys().collect::<Vec<_>>()
+            "checks":c.qualification.checks.keys().collect::<Vec<_>>(),"warmup_policy":c.qualification.warmup.as_ref().map(|w|&w.policy)
         }))
         .ok()
     }
@@ -871,6 +932,12 @@ pub struct PerfDiff {
     #[serde(default)]
     pub qualification_reasons: Vec<String>,
     #[serde(default)]
+    pub qualification_reason_codes: Vec<warmup::Reason>,
+    #[serde(default)]
+    pub warmup_before: Option<warmup::Convergence>,
+    #[serde(default)]
+    pub warmup_after: Option<warmup::Convergence>,
+    #[serde(default)]
     pub frame_change: FrameChange,
     #[serde(default)]
     pub attribution: Attribution,
@@ -1150,6 +1217,29 @@ impl PerfDiff {
             warnings,
             comparability,
             noise_comparability,
+            qualification_reason_codes: {
+                let mut codes = b.qualification_codes();
+                codes.extend(a.qualification_codes());
+                if noise_comparability != Comparability::Qualified {
+                    codes.push(warmup::Reason::NoiseUnqualified);
+                }
+                if comparability == Comparability::Rejected && codes.is_empty() {
+                    codes.push(warmup::Reason::ConditionMismatch);
+                }
+                codes.sort();
+                codes.dedup();
+                codes
+            },
+            warmup_before: b
+                .context
+                .as_ref()
+                .and_then(|c| c.qualification.warmup.as_ref())
+                .and_then(|e| warmup::evaluate(e).ok()),
+            warmup_after: a
+                .context
+                .as_ref()
+                .and_then(|c| c.qualification.warmup.as_ref())
+                .and_then(|e| warmup::evaluate(e).ok()),
             qualification_reasons,
             frame_change,
             attribution,
@@ -1400,6 +1490,8 @@ fn pair_qualification(b: &CapturePerf, a: &CapturePerf) -> (Comparability, Vec<S
             || bc.configuration_hash != ac.configuration_hash
             || bc.aggregation != ac.aggregation
             || bc.qualification.rule != ac.qualification.rule
+            || bc.qualification.warmup.as_ref().map(|w| &w.policy)
+                != ac.qualification.warmup.as_ref().map(|w| &w.policy)
             || bc.qualification.version != ac.qualification.version
             || bc
                 .qualification
@@ -1619,6 +1711,8 @@ pub fn pair(
                 diff.comparability = Comparability::Rejected;
                 diff.frame_change = FrameChange::Unknown;
                 diff.qualification_reasons.extend(reasons);
+                diff.qualification_reason_codes
+                    .push(warmup::Reason::ClockUnqualified);
             }
             match crate::paired_stats::read(before, after, &opts.name) {
                 Ok(Some(effect)) => diff.attach_robust(effect),
@@ -1629,6 +1723,8 @@ pub fn pair(
                     diff.frame.beyond_noise = None;
                     diff.qualification_reasons
                         .push(format!("invalid fixed-plan paired performance: {error}"));
+                    diff.qualification_reason_codes
+                        .push(warmup::Reason::ConditionMismatch);
                 }
             }
             diff.gpu_clock_before = clocks[0].clone();

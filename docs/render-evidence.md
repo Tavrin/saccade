@@ -243,3 +243,21 @@ MCP mirrors use the existing `saccade_measure` operations `reference_compare`,
 `trial_register`, `trial_start`, `trial_vote`, and `trial_import`. Inputs and
 transitive files must be in registered roots; trial artifacts need `--out-root`.
 No providers, model downloads or automatic verdicts are involved.
+
+## Warmup qualification
+
+A perf v2 context can provide `qualification.warmup` with `policy` and
+`iterations_ms`. The default `warmup-1` policy compares the last two 16-sample
+windows: relative mean change <=2%, coefficient of variation <=3%, and absolute
+relative least-squares slope <=0.1% per iteration. At least two windows and at
+most 4096 finite positive samples are allowed; policy limits are recorded.
+The computation reports the evaluated index range and every deciding statistic.
+
+Local failure adds `warmup_not_converged`, distinct from `clock_unqualified`
+and `noise_unqualified`, and rejects even producer-declared warmup success.
+Malformed local data gives `warmup_data_invalid`; unavailable checks stay
+unknown. A local pass cannot supply missing source, timer, window, hardware or
+producer qualification. Existing producer checks remain enforced.
+`qualification_reason_codes`, local results and all textual reasons appear in
+perf differences and compact ablation JSON. Threshold changes need a policy
+version; no truncated reason filter remains.
