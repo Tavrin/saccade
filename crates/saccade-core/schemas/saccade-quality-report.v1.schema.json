@@ -185,8 +185,18 @@
           "minimum": 0,
           "type": "integer"
         },
+        "cumulative_butteraugli": {
+          "description": "Butteraugli distance from the retained reference, at 80 cd/m2.",
+          "format": "double",
+          "type": "number"
+        },
         "cumulative_score": {
           "description": "Quality against the retained resized reference.",
+          "format": "double",
+          "type": "number"
+        },
+        "incremental_butteraugli": {
+          "description": "Butteraugli distance from preceding stage, at 80 cd/m2; not additive.",
           "format": "double",
           "type": "number"
         },
@@ -204,7 +214,9 @@
         "stage",
         "bytes",
         "incremental_score",
-        "cumulative_score"
+        "cumulative_score",
+        "incremental_butteraugli",
+        "cumulative_butteraugli"
       ],
       "type": "object"
     }

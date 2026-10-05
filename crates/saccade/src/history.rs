@@ -135,8 +135,8 @@ fn read_index(store: &Path) -> Result<Vec<Row>, CliError> {
     let mut rows = Vec::new();
     for (i, line) in BufReader::new(file).lines().enumerate() {
         let line = line.map_err(|e| CliError::io(format!("history index line {}: {e}", i + 1)))?;
-        let row: Row = serde_json::from_str(&line)
-            .map_err(|e| CliError::io(format!("history index line {}: {e}", i + 1)))?;
+        let row: Row = crate::parse_contract(line.as_bytes(), SCHEMA)
+            .map_err(|e| CliError::new(e.code, format!("history index line {}: {e}", i + 1)))?;
         if row.schema != SCHEMA {
             return Err(CliError::new(
                 "version_skew",
@@ -605,7 +605,7 @@ fn onset_value(store: &Path, limit: usize) -> Result<Value, CliError> {
             return Err(CliError::io("history object content hash mismatch"));
         }
         // Read the original object, not cached numerical fields in the index.
-        let report: saccade_core::Report = serde_json::from_slice(&bytes)?;
+        let report: saccade_core::Report = crate::parse_contract(&bytes, "saccade-report.v1")?;
         match performance_observation(&report, &row.report_sha256, sequence as u64) {
             Ok(o) => {
                 // Capture timestamps are producer evidence. When a partition lacks

@@ -14,6 +14,14 @@ READMES = {
 }
 ALLOWED = ('.cargo_vcs_info.json', 'Cargo.lock', 'Cargo.toml', 'Cargo.toml.orig', 'README.md')
 MODEL_MANIFEST = 'models/semantic-regions.json'
+COMPRESSION_IMAGES = {f'tests/fixtures/compression-reference/{name}.png'
+                      for name in ('reference', 'brightness', 'blocks', 'patch')}
+
+
+def approved_image(crate, path):
+    """Only demo assets and the four project-authored compression fixtures ship."""
+    return ((crate == 'saccade' and path.startswith('assets/demo/'))
+            or (crate == 'saccade-core' and path in COMPRESSION_IMAGES))
 
 
 def approved_file(crate, path):
@@ -70,7 +78,7 @@ def main():
             assert approved_file(crate, path), (crate, path)
             assert not any(part in ('target', 'report', 'evaluation', 'private', 'node_modules') for part in path.split('/')), (crate, path)
             if path.endswith(('.png', '.jpg', '.jpeg', '.gif', '.webp')):
-                assert crate == 'saccade' and path.startswith('assets/demo/'), (crate, path)
+                assert approved_image(crate, path), (crate, path)
         archive = Path(metadata['target_directory']) / 'package' / f"{crate}-{package['version']}.crate"
         marker = f"mcp-name: {server['name']}" if crate in registry_crates else None
         check_readme(package, archive, READMES[crate], marker)

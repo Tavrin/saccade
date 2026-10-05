@@ -251,3 +251,31 @@ fn missing_attachment_preserves_suite_accounting_and_usable_case() {
     assert_eq!(inv["compared"], 1);
     assert_eq!(inv["outcomes"]["missing"], 1);
 }
+
+#[test]
+fn bare_role_attachments_preserve_default_snapshot_identity() {
+    let tmp = tempfile::tempdir().unwrap();
+    for role in ["expected", "actual"] {
+        RgbImage::from_pixel(16, 16, Rgb([30, 50, 70]))
+            .save(tmp.path().join(format!("{role}.png")))
+            .unwrap();
+    }
+    let script = r#"
+const Reporter=require(process.argv[1]),path=require('node:path'),fs=require('node:fs');
+const root=process.argv[2],test={id:'test',annotations:[],parent:{project:()=>({name:'chromium',use:{}})}};
+const r=new Reporter({outputFile:path.join(root,'manifest.json')});r.onBegin({}, {allTests:()=>[test]});
+r.onTestEnd(test,{status:'passed',attachments:['expected','actual'].map(role=>({name:role,contentType:'image/png',path:path.join(root,role+'.png')}))});r.onEnd();
+const m=JSON.parse(fs.readFileSync(path.join(root,'manifest.json')));
+if(m.inventory.supplied[0].state!=='captured'||m.inventory.supplied[0].case_id!=='chromium/test/snapshot-0')throw Error('bare-role snapshot regressed');
+"#;
+    let p = Command::new("node")
+        .args(["-e", script])
+        .arg(
+            std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+                .join("../../integrations/playwright/reporter.cjs"),
+        )
+        .arg(tmp.path())
+        .output()
+        .unwrap();
+    assert!(p.status.success(), "{p:?}");
+}

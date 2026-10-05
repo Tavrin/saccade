@@ -77,6 +77,10 @@ pub struct StageResult {
     pub incremental_score: f64,
     /// Quality against the retained resized reference.
     pub cumulative_score: f64,
+    /// Butteraugli distance from preceding stage, at 80 cd/m2; not additive.
+    pub incremental_butteraugli: f64,
+    /// Butteraugli distance from the retained reference, at 80 cd/m2.
+    pub cumulative_butteraugli: f64,
 }
 /// One candidate's evidence or explicit error.
 #[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
@@ -203,6 +207,43 @@ pub fn score(reference: &image::RgbImage, candidate: &image::RgbImage) -> Result
     }
     Ok(score)
 }
+/// Computes pinned Butteraugli distance for opaque sRGB at 80 cd/m2.
+/// This is supplementary measured evidence; sweep policy remains SSIMULACRA2.
+pub fn butteraugli_distance(
+    reference: &image::RgbImage,
+    candidate: &image::RgbImage,
+) -> Result<f64> {
+    if reference.dimensions() != candidate.dimensions()
+        || reference.width() < 8
+        || reference.height() < 8
+    {
+        return Err(Error::Config(
+            "Butteraugli requires equal dimensions, at least 8x8".into(),
+        ));
+    }
+    let pixels = |i: &image::RgbImage| {
+        butteraugli::Img::new(
+            i.pixels()
+                .map(|p| butteraugli::RGB8::new(p[0], p[1], p[2]))
+                .collect::<Vec<_>>(),
+            i.width() as usize,
+            i.height() as usize,
+        )
+    };
+    let a = pixels(reference);
+    let b = pixels(candidate);
+    let distance = butteraugli::butteraugli(
+        a.as_ref(),
+        b.as_ref(),
+        &butteraugli::ButteraugliParams::default(),
+    )
+    .map_err(invalid)?
+    .score;
+    if !distance.is_finite() {
+        return Err(Error::Config("nonfinite Butteraugli".into()));
+    }
+    Ok(distance)
+}
 /// Measures all candidates without invoking an encoder or modifying original files.
 pub fn sweep(root: &Path, manifest: Manifest) -> Result<Sweep> {
     if manifest.schema != "saccade-quality-sweep.v1"
@@ -260,6 +301,8 @@ pub fn sweep(root: &Path, manifest: Manifest) -> Result<Sweep> {
                     bytes: data.len() as u64,
                     incremental_score: score(&previous, &image)?,
                     cumulative_score: score(&reference, &image)?,
+                    incremental_butteraugli: butteraugli_distance(&previous, &image)?,
+                    cumulative_butteraugli: butteraugli_distance(&reference, &image)?,
                 });
                 previous = image;
             }
@@ -327,7 +370,7 @@ pub fn sweep(root: &Path, manifest: Manifest) -> Result<Sweep> {
         manifest,
         manifest_sha256: String::new(),
         original_bytes,
-        metric: "ssimulacra2 0.5.1; BSD-2-Clause; sRGB/BT.709".into(),
+        metric: "ssimulacra2 0.5.1 (BSD-2-Clause); butteraugli 0.4.0 (BSD-3-Clause), 80 cd/m2; sRGB/BT.709; synthetic reference qualification: libjxl v0.12.0 and Cloudinary v2.1".into(),
         candidates: results,
         selected_candidate: selected,
         lowest_quality_candidate: lowest,

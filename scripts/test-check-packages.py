@@ -23,6 +23,14 @@ class PackagedReadmeTests(unittest.TestCase):
             with self.subTest(name=name):
                 self.assertFalse(checker.approved_file('saccade-core', 'models/' + name))
 
+    def test_compression_images_do_not_allow_arbitrary_core_or_private_images(self):
+        for name in ('reference', 'brightness', 'blocks', 'patch'):
+            self.assertTrue(checker.approved_image('saccade-core', f'tests/fixtures/compression-reference/{name}.png'))
+        for name in ('private.png', 'reference.png/photo.png', 'reference.jpg'):
+            self.assertFalse(checker.approved_image('saccade-core', f'tests/fixtures/compression-reference/{name}'))
+        self.assertFalse(checker.approved_image('saccade-core', 'tests/fixtures/private.png'))
+        self.assertFalse(checker.approved_image('saccade', 'tests/fixtures/compression-reference/reference.png'))
+
     def setUp(self):
         self.temp = tempfile.TemporaryDirectory()
         self.addCleanup(self.temp.cleanup)

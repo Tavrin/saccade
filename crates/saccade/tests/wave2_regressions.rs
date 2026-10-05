@@ -71,19 +71,22 @@ fn localized_grounded_quantity_matches_source_json_exactly() {
         );
     }
 }
+#[cfg(unix)]
 #[test]
-fn evidence_adapters_parse_and_hash_one_retained_read() {
-    // Source-derived race reproduction: a second path read can observe replacement bytes.
-    for s in [
-        include_str!("../src/grounded_cmd.rs"),
-        include_str!("../src/inventory_cmd.rs"),
-    ] {
-        assert!(
-            !s.contains("crate::read_report("),
-            "facts must parse retained hash-bound bytes"
-        );
-    }
+fn report_replacement_cannot_split_facts_and_digest() {
+    let t = tempfile::tempdir().unwrap();
+    let path = t.path().join("report.json");
+    std::fs::write(&path, serde_json::to_vec(&report()).unwrap()).unwrap();
+    let script = include_str!("support/retained_read.py");
+    let p = Command::new("python3")
+        .args(["-c", script])
+        .arg(env!("CARGO_BIN_EXE_saccade"))
+        .arg(path)
+        .output()
+        .unwrap();
+    assert!(p.status.success(), "{p:?}");
 }
+
 #[test]
 fn frozen_region_requires_method_specific_provenance() {
     let t = tempfile::tempdir().unwrap();
@@ -121,7 +124,7 @@ fn frozen_region_requires_method_specific_provenance() {
 #[test]
 fn new_readers_diagnose_newer_producers_and_malformed_separately() {
     let t = tempfile::tempdir().unwrap();
-    for (i, mut r) in [localized(), localized(), localized()]
+    for (i, mut r) in [localized(), localized(), localized(), localized()]
         .into_iter()
         .enumerate()
     {
@@ -129,8 +132,10 @@ fn new_readers_diagnose_newer_producers_and_malformed_separately() {
             r["inside"]["newer_field"] = json!(true);
         } else if i == 1 {
             r["schema"] = "saccade-localized.v2".into();
+        } else if i == 2 {
+            r["region"]["schema"] = "saccade-frozen-region.v2".into();
         } else {
-            r["inside"]["pixels"] = "bad".into();
+            r["inside"]["pixels"] = "unknown field".into();
         }
         std::fs::write(t.path().join("report.json"), r.to_string()).unwrap();
         let p = cli(
@@ -150,9 +155,11 @@ fn new_readers_diagnose_newer_producers_and_malformed_separately() {
             String::from_utf8_lossy(&p.stdout),
             String::from_utf8_lossy(&p.stderr)
         );
-        if i < 2 {
+        if i < 3 {
             assert!(
-                text.contains("newer producer") || text.contains("written by saccade-localized.v2"),
+                text.contains("newer producer")
+                    || text.contains("written by saccade-localized.v2")
+                    || text.contains("written by saccade-frozen-region.v2"),
                 "{text}"
             );
             assert!(text.contains("upgrade"), "{text}");
@@ -195,6 +202,7 @@ fn doctor_advertises_wave2_contracts() {
         "saccade-grounded.v1",
         "saccade-frozen-region.v1",
         "saccade-dom-regions.v1",
+        "saccade-region-models.v1",
         "saccade-quality-sweep.v1",
         "saccade-quality-report.v1",
         "saccade-renderdoc-extract.v1",
@@ -202,4 +210,51 @@ fn doctor_advertises_wave2_contracts() {
     ] {
         assert!(schemas.contains(schema), "missing {schema}: {d}");
     }
+}
+
+#[test]
+fn legacy_report_schema_remains_readable() {
+    let t = tempfile::tempdir().unwrap();
+    let mut r = report();
+    r["schema"] = "flipdiff-report.v1".into();
+    let bytes = serde_json::to_vec(&r).unwrap();
+    std::fs::write(t.path().join("historical.json"), &bytes).unwrap();
+    let p = cli(
+        t.path(),
+        &["inspect", "exclusions", "historical.json", "--json"],
+    );
+    assert!(p.status.success(), "{p:?}");
+    assert_eq!(
+        std::fs::read(t.path().join("historical.json")).unwrap(),
+        bytes
+    );
+}
+
+#[test]
+fn nested_legacy_metrics_unknown_fields_require_upgrade() {
+    let t = tempfile::tempdir().unwrap();
+    let mut r = report();
+    r["entries"][0]["metrics"]["newer_producer_field"] = json!(true);
+    std::fs::write(t.path().join("report.json"), r.to_string()).unwrap();
+    let p = cli(
+        t.path(),
+        &[
+            "explain-grounded",
+            "--report",
+            "report.json",
+            "--out",
+            "out.json",
+            "--json",
+        ],
+    );
+    assert_eq!(p.status.code(), Some(2), "{p:?}");
+    let text = format!(
+        "{}{}",
+        String::from_utf8_lossy(&p.stdout),
+        String::from_utf8_lossy(&p.stderr)
+    );
+    assert!(
+        text.contains("version_skew") && text.contains("upgrade"),
+        "{text}"
+    );
 }

@@ -97,7 +97,7 @@ impl From<String> for CliError {
 
 impl From<serde_json::Error> for CliError {
     fn from(e: serde_json::Error) -> Self {
-        if e.to_string().contains("unknown field") {
+        if e.to_string().starts_with("unknown field ") {
             Self::new(
                 "version_skew",
                 format!(

@@ -1,0 +1,52 @@
+{
+  "source": "https://github.com/libjxl/libjxl/tree/v0.12.0/tools",
+  "ssimulacra2_absolute_tolerance": 0.05,
+  "butteraugli_absolute_tolerance": 0.02,
+  "pairs": [
+    {
+      "reference": "reference.png",
+      "distorted": "reference.png",
+      "ssimulacra2": 100.0,
+      "butteraugli": 0.0,
+      "cloudinary_ssimulacra2": 100.0
+    },
+    {
+      "reference": "reference.png",
+      "distorted": "brightness.png",
+      "ssimulacra2": 93.83984017,
+      "butteraugli": 5.4179773331,
+      "cloudinary_ssimulacra2": 93.83984017
+    },
+    {
+      "reference": "reference.png",
+      "distorted": "blocks.png",
+      "ssimulacra2": 92.13093351,
+      "butteraugli": 2.1045861244,
+      "cloudinary_ssimulacra2": 92.13093351
+    },
+    {
+      "reference": "reference.png",
+      "distorted": "patch.png",
+      "ssimulacra2": 39.75621793,
+      "butteraugli": 54.2458076477,
+      "cloudinary_ssimulacra2": 39.75621793
+    }
+  ],
+  "cloudinary_source": "https://github.com/cloudinary/ssimulacra2/tree/v2.1",
+  "files_sha256": {
+    "blocks.png": "ead6c781ea9b2dc1c8c9829927446ffc62dd08b6a61bddb7474a83a7c40519c0",
+    "brightness.png": "2c6a07e04e3850b31e4cb6d50042b3594f5774b2c495abc4f4e622965745e5b9",
+    "patch.png": "390986c52ff45ecd27adf8573c5bab86ccb8412858747615c0fe8ad76f412423",
+    "reference.png": "35f30400d578287e97a6665400914b4683d94aa36ceec7a8b373dbff2c4eb47e"
+  },
+  "reference_source_sha256": {
+    "libjxl_ssimulacra2": "5834e3b018ade386121a76ac3d339850599fcc0bff10ae70c04eafe0c5705d82",
+    "libjxl_butteraugli": "418992b306e5e01ce8850ed811b7154ca83803229a9c23ad1c62f93739e598c6",
+    "cloudinary_ssimulacra2": "38d8f92634ef1f8975bd45e7106c5a2d1a99a02de1c2f3828443ad8e16560d5f"
+  },
+  "tool_sha256": {
+    "libjxl_ssimulacra2": "f85e4dc41558bb322b327681dc6136d17284d8d8d68df4f830d5bb29b6800b0a",
+    "libjxl_butteraugli": "4f172918e03447a8e20e23afe6462e70ea58d34cd352df403c13d6b03e6b2deb",
+    "cloudinary_ssimulacra2": "69cfe22c8c63a3cd99c24b0161582dfaa49a605e8131602490e48b57cbdb89a1"
+  }
+}

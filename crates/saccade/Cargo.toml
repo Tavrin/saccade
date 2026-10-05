@@ -17,6 +17,7 @@ saccade-core = { workspace = true, default-features = false }
 image.workspace = true
 serde.workspace = true
 serde_json.workspace = true
+serde_ignored = "=0.1.14"
 sha2 = "0.10"
 libc = "0.2"
 colorvideovdp = { version = "0.1.1", default-features = false, features = ["parallel"], optional = true }

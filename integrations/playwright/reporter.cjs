@@ -24,9 +24,9 @@ class SaccadeReporter {
   onTestEnd(test, result) {
     const snapshots = new Map();
     for (const attachment of result.attachments) {
-      const match = /^(.*?)(?:[-_.])(expected|actual|diff)(?:\.[^.]+)?$/i.exec(attachment.name);
+      const match = /^(?:(.*?)[-_.])?(expected|actual|diff)(?:\.[^.]+)?$/i.exec(attachment.name);
       if (!match || !attachment.path || !attachment.contentType.startsWith('image/')) continue;
-      const name = match[1], role = match[2].toLowerCase();
+      const name = match[1] || 'snapshot-0', role = match[2].toLowerCase();
       if (!snapshots.has(name)) snapshots.set(name, { expected: [], actual: [], diff: [], duplicate: false });
       const roles = snapshots.get(name);
       const stat = fs.statSync(attachment.path);

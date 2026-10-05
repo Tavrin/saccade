@@ -26,6 +26,8 @@ rustfft = "6"
 # Published 0.5.1: BSD-2-Clause, MSRV 1.65; newer repository HEAD differs.
 ort = { version = "=2.0.0-rc.10", default-features = false, features = ["std", "load-dynamic"], optional = true }
 ssimulacra2 = { version = "=0.5.1", default-features = false, optional = true }
+# 0.4.0 retains Rust 1.85; later ports pull dependencies requiring Rust 1.89.
+butteraugli = { version = "=0.4.0", default-features = false, optional = true }
 sha2 = "0.10"
 tiny_http = { version = "0.12", optional = true }
 # Blocking HTTP client for the judge-mode providers (MIT OR Apache-2.0); no async runtime.
@@ -47,7 +49,7 @@ parallel = ["flip-rs/parallel"]
 # Graphics computations; their report types remain available in every build.
 graphics = []
 # Compression scoring is independent of graphics and provider adapters.
-compression = ["dep:ssimulacra2"]
+compression = ["dep:ssimulacra2", "dep:butteraugli"]
 # Optional dynamically loaded ONNX runtime, explicit cache downloads only.
 semantic-regions = ["dep:ort", "dep:ureq", "dep:fs2"]
 # Deterministic f64 triangle-surface measurement and mesh loaders.

@@ -1625,6 +1625,7 @@ fn doctor(json: bool) -> Result<u8, CliError> {
             "grounded": ["saccade-grounded.v1"],
             "frozen_region": ["saccade-frozen-region.v1"],
             "dom_regions": ["saccade-dom-regions.v1"],
+            "region_models": ["saccade-region-models.v1"],
             "quality": ["saccade-quality-sweep.v1", "saccade-quality-report.v1"],
             "renderdoc": ["saccade-renderdoc-extract.v1", "saccade-renderdoc-localization.v1"],
             "performance": ["saccade-perf.v1", "saccade-perf.v2"]
@@ -1697,30 +1698,101 @@ fn parse_contract<T: serde::de::DeserializeOwned>(
     schema: &str,
 ) -> Result<T, CliError> {
     let value: serde_json::Value = serde_json::from_slice(bytes)?;
-    if let Some(actual) = value.get("schema").and_then(|v| v.as_str()) {
-        if actual != schema {
-            let prefix = schema
-                .rsplit_once('v')
-                .map(|(prefix, _)| prefix)
-                .unwrap_or(schema);
-            if actual.starts_with(prefix) {
-                return Err(CliError::new(
-                    "version_skew",
-                    format!(
-                        "written by {actual}; installed saccade supports up to {schema}, upgrade"
-                    ),
-                ));
-            }
-            return Err(CliError::usage(format!(
-                "expected {schema}, found {actual}"
-            )));
+    if let Some(actual) = value.get("schema").and_then(|v| v.as_str())
+        && actual != schema
+        && !(schema == "saccade-report.v1" && actual == "flipdiff-report.v1")
+    {
+        let prefix = schema
+            .rsplit_once('v')
+            .map(|(prefix, _)| format!("{prefix}v"))
+            .unwrap_or_else(|| schema.to_owned());
+        let supported = schema
+            .rsplit_once('v')
+            .and_then(|(_, v)| v.parse::<u32>().ok())
+            .unwrap_or(1);
+        if actual
+            .strip_prefix(prefix.as_str())
+            .and_then(|v| v.parse::<u32>().ok())
+            .is_some_and(|v| v > supported)
+        {
+            return Err(CliError::new(
+                "version_skew",
+                format!("written by {actual}; installed saccade supports up to {schema}, upgrade"),
+            ));
         }
+        return Err(CliError::usage(format!(
+            "expected {schema}, found {actual}"
+        )));
     }
-    serde_json::from_value(value).map_err(|e| {
-        if e.to_string().contains("unknown field") {
+    reject_newer_nested_schemas(&value)?;
+    let mut parser = serde_json::Deserializer::from_slice(bytes);
+    let mut ignored = None;
+    let parsed: T = serde_ignored::deserialize(&mut parser, |path| {
+        if ignored.is_none() { ignored = Some(path.to_string()); }
+    }).map_err(|e| {
+        if e.to_string().starts_with("unknown field ") {
             CliError::new("version_skew", format!("written by a newer producer; installed saccade supports up to {schema}, upgrade: {e}"))
         } else { CliError::io(format!("JSON error: {e}")) }
-    })
+    })?;
+    if let Some(path) = ignored {
+        return Err(CliError::new(
+            "version_skew",
+            format!(
+                "written by a newer producer; installed saccade supports up to {schema}, upgrade: unknown field {path}"
+            ),
+        ));
+    }
+    Ok(parsed)
+}
+
+fn reject_newer_nested_schemas(value: &serde_json::Value) -> Result<(), CliError> {
+    match value {
+        serde_json::Value::Object(fields) => {
+            if let Some(actual) = fields.get("schema").and_then(|v| v.as_str()) {
+                for prefix in [
+                    "saccade-report.v",
+                    "saccade-perf-diff.v",
+                    "saccade-noise.v",
+                    "saccade-history.v",
+                    "saccade-onset.v",
+                    "saccade-inventory.v",
+                    "saccade-inventory-report.v",
+                    "saccade-localized.v",
+                    "saccade-frozen-region.v",
+                    "saccade-dom-regions.v",
+                    "saccade-grounded.v",
+                    "saccade-quality-sweep.v",
+                    "saccade-quality-report.v",
+                    "saccade-region-models.v",
+                    "saccade-renderdoc-extract.v",
+                    "saccade-renderdoc-localization.v",
+                ] {
+                    if actual
+                        .strip_prefix(prefix)
+                        .and_then(|v| v.parse::<u32>().ok())
+                        .is_some_and(|v| v > 1)
+                    {
+                        return Err(CliError::new(
+                            "version_skew",
+                            format!(
+                                "written by {actual}; installed saccade supports up to {prefix}1, upgrade"
+                            ),
+                        ));
+                    }
+                }
+            }
+            for child in fields.values() {
+                reject_newer_nested_schemas(child)?;
+            }
+        }
+        serde_json::Value::Array(items) => {
+            for child in items {
+                reject_newer_nested_schemas(child)?;
+            }
+        }
+        _ => {}
+    }
+    Ok(())
 }
 
 /// Writes `text` to stdout. A closed pipe (for example `| head`) is not an error.

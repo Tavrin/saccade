@@ -23,6 +23,8 @@ for p in packages:
     lines += [f'## {name} {version}', '', f'License: {license_id}', f'Source: {p["source"]}', '']
     root = pathlib.Path(p['manifest_path']).parent
     files = sorted(f for f in root.iterdir() if f.is_file() and f.name.upper().startswith(('LICENSE', 'LICENCE', 'COPYING', 'NOTICE')))
+    if (name, version) == ('butteraugli', '0.4.0') and not files:
+        files.append(pathlib.Path(__file__).resolve().parents[1] / 'crates/saccade-core/assets/licenses/butteraugli-0.4.0.txt')
     license_file = p.get('license_file')
     if license_file:
         f = root / license_file
