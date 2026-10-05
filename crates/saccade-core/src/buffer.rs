@@ -30,6 +30,9 @@ pub enum BufferKind {
 #[derive(Debug, Clone, PartialEq, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct BufferSpec {
+    /// Named capture layers and layer-predicate scope (wave9).
+    #[serde(default)]
+    pub capture_layers: Option<crate::evidence_quality::layers::Policy>,
     /// Case-insensitive relative image glob.
     pub glob: String,
     /// Numerical meaning of the buffer.
@@ -82,6 +85,9 @@ impl BufferSpec {
     /// Validates the glob and the kind/encoding contract before any writes.
     pub fn validate(&self) -> Result<()> {
         crate::config::compile_glob(&self.glob)?;
+        if let Some(policy) = &self.capture_layers {
+            policy.validate()?;
+        }
         let valid = match self.kind {
             BufferKind::Depth => matches!(self.encoding(), "linear01" | "reverse_z" | "r32f"),
             BufferKind::Normal => matches!(self.encoding(), "rgb_snorm" | "oct"),
@@ -261,6 +267,33 @@ pub(crate) fn fill_pair(
     if w == 0 || h == 0 {
         return Err(Error::EmptyImage);
     }
+    let mut layer_pair = spec
+        .capture_layers
+        .as_ref()
+        .map(|policy| {
+            Ok::<_, Error>((
+                crate::evidence_quality::layers::load(baseline, policy, (w, h))?,
+                crate::evidence_quality::layers::load(capture, policy, (w, h))?,
+            ))
+        })
+        .transpose()?;
+    if let Some((bl, cl)) = &mut layer_pair {
+        crate::evidence_quality::layers::bundle(bl, out, &entry.name, "baseline")?;
+        crate::evidence_quality::layers::bundle(cl, out, &entry.name, "candidate")?;
+    }
+    let selected = if let Some((bl, cl)) = &layer_pair {
+        let policy = spec
+            .capture_layers
+            .as_ref()
+            .ok_or_else(|| Error::Config("layer policy missing".into()))?;
+        let (selected, nb, nc) = crate::evidence_quality::layers::scope_pair(bl, cl, policy)?;
+        entry.layers = Some(crate::evidence_quality::layers::evidence(
+            bl, cl, policy, &selected, nb, nc, &b, &c,
+        )?);
+        selected
+    } else {
+        vec![true; w as usize * h as usize]
+    };
     let mut relative = Vec::new();
     let mut changed = None;
     let errors: Vec<f32> = if matches!(spec.kind, BufferKind::Mask | BufferKind::Id) {
@@ -344,7 +377,22 @@ pub(crate) fn fill_pair(
             })
             .collect::<Result<_>>()?
     };
-    let m = metrics_of(&errors, w, h);
+    let kept: Vec<_> = errors
+        .iter()
+        .zip(&selected)
+        .filter_map(|(e, include)| include.then_some(*e))
+        .collect();
+    if !relative.is_empty() {
+        relative = relative
+            .into_iter()
+            .zip(&selected)
+            .filter_map(|(v, include)| include.then_some(v))
+            .collect();
+    }
+    if changed.is_some() {
+        changed = Some(kept.iter().filter(|v| **v != 0.0).count() as u64);
+    }
+    let m = metrics_of(&kept, w, h);
     let value = crate::run::metric_value(&m, spec.metric);
     // Every error was checked for finiteness above. A percentile keeps isolated
     // outliers from hiding ordinary errors; the threshold preserves the gate's scale.
@@ -390,7 +438,7 @@ pub(crate) fn fill_pair(
             mean_relative: (!relative.is_empty())
                 .then(|| relative.iter().sum::<f64>() / relative.len() as f64),
             max_relative: relative.iter().copied().reduce(f64::max),
-            exact_match_fraction: changed.map(|n| 1.0 - n as f64 / errors.len() as f64),
+            exact_match_fraction: changed.map(|n| 1.0 - n as f64 / kept.len() as f64),
             changed_pixels: changed,
         },
     });

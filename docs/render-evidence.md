@@ -114,3 +114,56 @@ signed luminance, detail-energy ratio, gap change and relative artifact paths.
 `regions/` holds base | candidate | heatmap strips and exact 2x nearest-neighbour
 zooms. The comparison HTML includes a gallery with those statistics and both
 views. Selection is diagnostic; it neither creates masks nor suppresses errors.
+
+## Capture layers and scope
+
+`[layers]` enables image-adjacent `<filename>.layers.json` manifests.
+`manifest = "layers.json"` can select a different plain sidecar filename.
+The `saccade-capture-layers.v1` manifest supplies `image_sha256`,
+`dimensions = [width,height]`, and named layers with `image`, `kind`
+(`id`, `depth`, `mask`, `scalar`, `colour`), optional `sha256`, `scale` (1),
+`colour_space` (`linear` or `srgb`), and `additive` (false). The hash binds the
+encoded final image; named layer bytes are hashed and decoded from the same
+retained buffer. Paths remain below the image parent, dimensions must match,
+and nonfinite samples are refused. Exact layer/manifest bytes and witness
+paths/hashes are bundled beside the report images.
+
+```toml
+[layers]
+attribution = true
+[layers.scope]
+layer = "surface"
+mode = "union"
+[layers.scope.predicate]
+kind = "ids"
+values = [513, 514]
+```
+
+Scope modes are `union` (default, preserving new/disappearing footprints),
+`intersection`, `baseline`, and `candidate`. Empty scopes fail. Predicates
+use native values including 16-bit IDs, scaled depth ranges or nonzero masks.
+Scope combines with ordinary exclusions and restricts region/hotspot/tile
+statistics. `mask_mode = "neutralize"` also prevents excluded differences
+from bleeding into full-resolution FLIP filtering. Native equality remains
+a full-image finding; identity never becomes scoped equality.
+
+A `[[buffer]]` can put the same policy under `[buffer.capture_layers]`,
+including its `scope` and `predicate`. It restricts numerical buffer metrics
+in their native units. Global `[layers]` is used if that buffer has no local
+policy. FLIP/structural policies require colour-image comparisons; supplying
+them to a native buffer yields an explicit error rather than silent omission.
+
+Declared additive colour layers are compared in linear light. Each component
+reports signed RGB mean delta, absolute delta and projection onto the final
+image delta. The residual is `final_delta - sum(component_deltas)`, computed
+per pixel within the scope. Signed projections plus the residual sum to one
+when final energy is nonzero; absolute deltas do not sum because components
+can cancel. This is algebraic attribution, not a causal explanation. Missing
+components on either side fail; no components means attribution is absent.
+
+Effects can use `kind = "named_layer"`, a `name`, native `predicate` and an
+optional `manifest` filename, sharing source-bound layer loading. HDR effect
+coverage stays native; difference statistics use the declared display tone
+mapper and HDR-FLIP map. Spatial statistics for HDR describe this display
+mapping, not radiometric energy. Scoped SSIMULACRA2 is absent because its
+whole-image metric cannot represent arbitrary inclusion masks.

@@ -329,6 +329,10 @@ fn ratio(a: f64, b: f64) -> Option<f64> {
 }
 /// Absolute Laplacian energy in a tile, using only valid interior pixels.
 pub fn detail(l: &[f64], w: u32, h: u32, r: [u32; 4]) -> f64 {
+    detail_scoped(l, w, h, r, None)
+}
+/// Absolute Laplacian energy only where the full stencil belongs to the scope.
+pub fn detail_scoped(l: &[f64], w: u32, h: u32, r: [u32; 4], excluded: Option<&[bool]>) -> f64 {
     let [x, y, rw, rh] = r;
     if rw < 3 || rh < 3 {
         return 0.0;
@@ -338,6 +342,13 @@ pub fn detail(l: &[f64], w: u32, h: u32, r: [u32; 4]) -> f64 {
     for yy in y + 1..(y + rh - 1).min(h - 1) {
         for xx in x + 1..(x + rw - 1).min(w - 1) {
             let i = (yy * w + xx) as usize;
+            if excluded.is_some_and(|m| {
+                [i, i - 1, i + 1, i - w as usize, i + w as usize]
+                    .iter()
+                    .any(|j| m[*j])
+            }) {
+                continue;
+            }
             sum += (4.0 * l[i] - l[i - 1] - l[i + 1] - l[i - w as usize] - l[i + w as usize]).abs();
             n += 1;
         }
@@ -367,6 +378,7 @@ pub fn background(
 }
 /// Analyze the pair using the already computed full-resolution FLIP map.
 /// `excluded` restricts every statistic; background masks are optional separate gap evidence.
+#[allow(clippy::too_many_arguments)]
 pub fn analyze(
     base: &image::RgbaImage,
     candidate: &image::RgbaImage,
@@ -409,20 +421,58 @@ pub fn analyze(
     divisors.push(1);
     divisors.sort_unstable();
     for divisor in divisors {
-        let (sb, sw, sh) = area(&b, w, h, divisor);
-        let (sc, _, _) = area(&c, w, h, divisor);
+        let mut weighted_b = b.clone();
+        let mut weighted_c = c.clone();
+        let weights: Vec<_> = (0..n)
+            .map(|i| if included(i) { [1.0; 3] } else { [0.0; 3] })
+            .collect();
+        for i in 0..n {
+            if !included(i) {
+                weighted_b[i] = [0.0; 3];
+                weighted_c[i] = [0.0; 3];
+            }
+        }
+        let (weight, _, _) = area(&weights, w, h, divisor);
+        let (mut sb, sw, sh) = area(&weighted_b, w, h, divisor);
+        let (mut sc, _, _) = area(&weighted_c, w, h, divisor);
+        for i in 0..sb.len() {
+            if weight[i][0] > 0.0 {
+                for ch in 0..3 {
+                    sb[i][ch] /= weight[i][0];
+                    sc[i][ch] /= weight[i][0];
+                }
+            }
+        }
+        let reduced_excluded: Vec<_> = weight.iter().map(|v| v[0] == 0.0).collect();
         let bi = image(&sb, sw, sh);
         let ci = image(&sc, sw, sh);
         let cmp = crate::compare::compare(&ci, &bi, opts)?;
+        let selected_weight = weight.iter().map(|v| v[0]).sum::<f64>();
         let mad = sb
             .iter()
             .zip(&sc)
-            .flat_map(|(b, c)| b.iter().zip(c).map(|(b, c)| (c - b).abs()))
+            .zip(&weight)
+            .map(|((b, c), weight)| {
+                b.iter().zip(c).map(|(b, c)| (c - b).abs()).sum::<f64>() * weight[0]
+            })
             .sum::<f64>()
-            / (sb.len() * 3) as f64;
+            / (selected_weight * 3.0);
+        let scored = if divisor == 1 {
+            crate::compare::masked_metrics(errors, excluded, w, h, [0, 0, w, h])
+        } else {
+            crate::compare::masked_metrics(
+                &cmp.error_map,
+                Some(&reduced_excluded),
+                sw,
+                sh,
+                [0, 0, sw, sh],
+            )
+        }
+        .ok_or_else(|| Error::Config("empty reduced scope".into()))?;
         let mut quality = None;
         #[cfg(feature = "compression")]
         if policy.ssimulacra2
+            && excluded.is_none()
             && sw >= 8
             && sh >= 8
             && base.pixels().chain(candidate.pixels()).all(|p| p[3] == 255)
@@ -434,8 +484,8 @@ pub fn analyze(
         scales.push(Scale {
             divisor,
             dimensions: [sw, sh],
-            mean_flip: cmp.metrics.mean,
-            max_flip: cmp.metrics.max,
+            mean_flip: scored.mean,
+            max_flip: scored.max,
             mad_rgb: mad,
             ssimulacra2: quality,
         });
@@ -522,7 +572,10 @@ pub fn analyze(
                 baseline_contrast: bv.sqrt() / bm.max(policy.luminance_floor),
                 candidate_contrast: cv.sqrt() / cm.max(policy.luminance_floor),
                 variance_ratio: ratio(bv, cv),
-                detail_energy_ratio: ratio(detail(&lb, w, h, r), detail(&lc, w, h, r)),
+                detail_energy_ratio: ratio(
+                    detail_scoped(&lb, w, h, r, excluded),
+                    detail_scoped(&lc, w, h, r, excluded),
+                ),
                 baseline_gap: bg,
                 candidate_gap: cg,
                 gap_change: bg.zip(cg).map(|(b, c)| c - b),
@@ -538,8 +591,8 @@ pub fn analyze(
     let abs = tiles.iter().filter(|t| t.absolute_shifted).count();
     let rel = tiles.iter().filter(|t| t.relative_shifted).count();
     let energy = ratio(
-        detail(&lb, w, h, [0, 0, w, h]),
-        detail(&lc, w, h, [0, 0, w, h]),
+        detail_scoped(&lb, w, h, [0, 0, w, h], excluded),
+        detail_scoped(&lc, w, h, [0, 0, w, h], excluded),
     );
     let (coverage_ratio, silhouette) = gaps.map_or((None, None), |(gb, gc)| {
         let nb = (0..n).filter(|i| included(*i) && !gb[*i]).count();

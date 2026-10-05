@@ -166,8 +166,8 @@ pub fn generate(
             .filter(|t| t.pixels > 0 && overlap(r, t.rect_px))
             .collect();
         let changes: Vec<_> = selected.iter().filter_map(|t| t.gap_change).collect();
-        let bd = spatial::detail(&lb, w, h, r);
-        let cd = spatial::detail(&lc, w, h, r);
+        let bd = spatial::detail_scoped(&lb, w, h, r, excluded);
+        let cd = spatial::detail_scoped(&lc, w, h, r, excluded);
         let energy = if bd > 1e-15 {
             Some(cd / bd)
         } else if cd <= 1e-15 {

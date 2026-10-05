@@ -799,6 +799,7 @@ fn apply_perf(
 
 /// Both sides of a pair as the diagnostics engine reads them.
 struct PairPixels<'a> {
+    baseline_path: &'a Path,
     baseline: crate::diagnostics::Pixels<'a>,
     capture: crate::diagnostics::Pixels<'a>,
     capture_path: &'a Path,
@@ -863,6 +864,7 @@ pub(crate) fn build_entry(
         intended_variables: Vec::new(),
         spatial: None,
         gallery: Vec::new(),
+        layers: None,
         required_effects: Vec::new(),
         name: name.to_string(),
         status: Status::Error,
@@ -963,11 +965,18 @@ fn fill_entry(
         return fill_identity_pair(entry, b, c, report_dir, opts, config);
     }
     if let Some(spec) = config.buffer_for(&name) {
+        if config.spatial.is_some() || !config.required_effect.is_empty() {
+            return Err(Error::Config("spatial FLIP/effect-difference policies require a colour-image comparison; native buffers use capture_layers scope".into()));
+        }
         entry.metric_used = spec.metric;
         entry.threshold = spec.threshold();
         match (base, cap) {
             (Some(Source::File(b)), Some(Source::File(c))) => {
-                crate::buffer::fill_pair(entry, b, c, report_dir, spec)?;
+                let mut spec = spec.clone();
+                if spec.capture_layers.is_none() {
+                    spec.capture_layers = config.layers.clone();
+                }
+                crate::buffer::fill_pair(entry, b, c, report_dir, &spec)?;
             }
             (None, Some(Source::File(c))) => {
                 crate::buffer::decode(c, spec)?;
@@ -1032,16 +1041,21 @@ fn fill_entry(
     entry.sample_exclusions = Some(losses);
     entry.baseline_properties = Some(properties::validate(&flatten_over(&base_img, 0)));
     entry.bit_identical = Some(crate::compare::native_samples_identical(base, cap));
+    let local = layered_config(
+        entry,
+        base,
+        cap,
+        &image::DynamicImage::ImageRgba8(base_img.clone()),
+        &image::DynamicImage::ImageRgba8(cap_img.clone()),
+        config,
+        report_dir,
+    )?;
+    let config = local.as_ref();
     let comparison = if config.mask_mode == crate::compare::MaskMode::Neutralize
         && cap_img.dimensions() == base_img.dimensions()
     {
-        let mask = crate::regions::mask_for(
-            &entry.name,
-            cap_img.width(),
-            cap_img.height(),
-            &config.masks,
-            config.config_dir.as_deref(),
-        )?;
+        let mask =
+            crate::regions::effective_mask(&entry.name, cap_img.width(), cap_img.height(), config)?;
         if mask.as_ref().is_some_and(|m| m.iter().all(|v| *v)) {
             return Err(Error::Config("every pixel is masked".into()));
         }
@@ -1058,115 +1072,13 @@ fn fill_entry(
     match comparison {
         Ok(cmp) => {
             let pair = PairPixels {
+                baseline_path: base,
                 baseline: crate::diagnostics::Pixels::Ldr(&base_img),
                 capture: crate::diagnostics::Pixels::Ldr(&cap_img),
                 capture_path: cap,
                 flip: opts,
             };
-            let errors = if config.required_effect.is_empty() && config.spatial.is_none() {
-                Vec::new()
-            } else {
-                cmp.error_map.clone()
-            };
             finish_entry(entry, cmp, report_dir, config, &pair)?;
-            if let Some(policy) = &config.spatial {
-                use crate::evidence_quality::spatial;
-                let excluded = crate::regions::mask_for(
-                    &entry.name,
-                    base_img.width(),
-                    base_img.height(),
-                    &config.masks,
-                    config.config_dir.as_deref(),
-                )?;
-                let root = config.config_dir.as_deref().unwrap_or(Path::new("."));
-                let gaps = policy
-                    .background
-                    .as_ref()
-                    .map(|criterion| {
-                        Ok::<_, Error>((
-                            spatial::background(criterion, &base_img, base, root)?,
-                            spatial::background(criterion, &cap_img, cap, root)?,
-                        ))
-                    })
-                    .transpose()?;
-                let fallback = entry
-                    .diagnostics
-                    .as_ref()
-                    .map_or(crate::diagnostics::ChangeClass::LocalStructure, |d| d.class);
-                let result = spatial::analyze(
-                    &base_img,
-                    &cap_img,
-                    &errors,
-                    excluded.as_deref(),
-                    gaps.as_ref().map(|(b, c)| (b.as_slice(), c.as_slice())),
-                    policy,
-                    opts,
-                    fallback,
-                )?;
-                if policy.decide {
-                    entry.status =
-                        if matches!(
-                            result.class,
-                            crate::diagnostics::ChangeClass::Identical
-                                | crate::diagnostics::ChangeClass::TextureNoiseOnly
-                        ) && entry.regions.iter().all(|r| r.status != Some(Status::Fail))
-                        {
-                            Status::Pass
-                        } else {
-                            Status::Fail
-                        };
-                }
-                if let Some(d) = &mut entry.diagnostics {
-                    d.class = result.class;
-                    d.description = format!(
-                        "{} under {}; {} systematic regions",
-                        result.class.as_str(),
-                        policy.version,
-                        result.regions.len()
-                    );
-                }
-                entry.gallery = crate::evidence_quality::gallery::generate(
-                    &entry.name,
-                    &base_img,
-                    &cap_img,
-                    &errors,
-                    excluded.as_deref(),
-                    &entry.hotspots,
-                    &result,
-                    report_dir,
-                )?;
-                entry.spatial = Some(result);
-            }
-            for effect in &config.required_effect {
-                if !crate::config::compile_glob(&effect.glob)?.is_match(&entry.name) {
-                    continue;
-                }
-                let root = config
-                    .effect_roots
-                    .get(&effect.name)
-                    .map(|p| p.as_path())
-                    .or(config.config_dir.as_deref())
-                    .unwrap_or(Path::new("."));
-                let b = crate::evidence_quality::effect::select(
-                    &effect.selection,
-                    base,
-                    root,
-                    base_img.dimensions(),
-                )?;
-                let c = crate::evidence_quality::effect::select(
-                    &effect.selection,
-                    cap,
-                    root,
-                    cap_img.dimensions(),
-                )?;
-                let result = crate::evidence_quality::effect::measure(
-                    effect, &b, &c, &base_img, &cap_img, &errors,
-                )?;
-                if !result.failures.is_empty() {
-                    entry.status = Status::Fail;
-                }
-                entry.required_effects.push(result);
-            }
         }
         Err(e) => entry.error = Some(e.to_string()),
     }
@@ -1283,6 +1195,7 @@ fn finish_entry(
     entry.metrics = Some(scene.metrics);
     entry.paths.heatmap = Some(rel);
     run_diagnostics(entry, &cmp, pair, report_dir, config);
+    apply_quality(entry, &cmp, pair, report_dir, config)?;
     Ok(())
 }
 
@@ -1355,6 +1268,8 @@ fn fill_identity_pair(
     };
     let b = open(base)?;
     let c = open(cap)?;
+    let local = layered_config(entry, base, cap, &b, &c, config, report_dir)?;
+    let config = local.as_ref();
     entry.bit_identical = Some(crate::compare::native_images_identical(&b, &c));
     let props = |i: &image::DynamicImage| {
         let mut p = properties::validate(&flatten_over(&i.to_rgba8(), 0));
@@ -1392,6 +1307,7 @@ fn fill_identity_pair(
         let (cmp, info) = crate::hdr::compare_hdr(&c, &b, opts)?;
         entry.hdr = Some(info);
         let pair = PairPixels {
+            baseline_path: base,
             baseline: crate::diagnostics::Pixels::Hdr(&b),
             capture: crate::diagnostics::Pixels::Hdr(&c),
             capture_path: cap,
@@ -1402,6 +1318,7 @@ fn fill_identity_pair(
         let (b, c) = (b.to_rgba8(), c.to_rgba8());
         let cmp = compare_rgba(&c, &b, opts)?;
         let pair = PairPixels {
+            baseline_path: base,
             baseline: crate::diagnostics::Pixels::Ldr(&b),
             capture: crate::diagnostics::Pixels::Ldr(&c),
             capture_path: cap,
@@ -1440,17 +1357,22 @@ fn fill_hdr_pair(
     entry.sample_exclusions = Some(losses);
     entry.baseline_properties = Some(crate::hdr::validate_hdr(&base_img));
     entry.bit_identical = Some(crate::compare::native_samples_identical(base, cap));
+    let local = layered_config(
+        entry,
+        base,
+        cap,
+        &crate::evidence_quality::image(base)?,
+        &crate::evidence_quality::image(cap)?,
+        config,
+        report_dir,
+    )?;
+    let config = local.as_ref();
     let mut filtered_capture = cap_img.clone();
     if config.mask_mode == crate::compare::MaskMode::Neutralize
         && cap_img.width == base_img.width
         && cap_img.height == base_img.height
-        && let Some(mask) = crate::regions::mask_for(
-            &entry.name,
-            cap_img.width,
-            cap_img.height,
-            &config.masks,
-            config.config_dir.as_deref(),
-        )?
+        && let Some(mask) =
+            crate::regions::effective_mask(&entry.name, cap_img.width, cap_img.height, config)?
     {
         for ((test, reference), excluded) in filtered_capture
             .data
@@ -1469,6 +1391,7 @@ fn fill_hdr_pair(
         Ok((cmp, info)) => {
             entry.hdr = Some(info);
             let pair = PairPixels {
+                baseline_path: base,
                 baseline: crate::diagnostics::Pixels::Hdr(&base_img),
                 capture: crate::diagnostics::Pixels::Hdr(&cap_img),
                 capture_path: cap,
@@ -1479,4 +1402,159 @@ fn fill_hdr_pair(
         Err(e) => entry.error = Some(e.to_string()),
     }
     Ok(())
+}
+
+fn apply_quality(
+    entry: &mut Entry,
+    cmp: &crate::compare::Comparison,
+    pair: &PairPixels<'_>,
+    report_dir: &Path,
+    config: &RunConfig,
+) -> Result<()> {
+    if config.spatial.is_none() && config.required_effect.is_empty() {
+        return Ok(());
+    }
+    let base_display;
+    let cap_display;
+    let base_img = match &pair.baseline {
+        crate::diagnostics::Pixels::Ldr(i) => *i,
+        crate::diagnostics::Pixels::Hdr(i) => {
+            base_display =
+                image::DynamicImage::ImageRgb8(crate::hdr::display_image(i, config.hdr.tonemapper))
+                    .to_rgba8();
+            &base_display
+        }
+    };
+    let cap_img = match &pair.capture {
+        crate::diagnostics::Pixels::Ldr(i) => *i,
+        crate::diagnostics::Pixels::Hdr(i) => {
+            cap_display =
+                image::DynamicImage::ImageRgb8(crate::hdr::display_image(i, config.hdr.tonemapper))
+                    .to_rgba8();
+            &cap_display
+        }
+    };
+    let errors = &cmp.error_map;
+    if let Some(policy) = &config.spatial {
+        use crate::evidence_quality::spatial;
+        let excluded = crate::regions::effective_mask(
+            &entry.name,
+            base_img.width(),
+            base_img.height(),
+            config,
+        )?;
+        let root = config.config_dir.as_deref().unwrap_or(Path::new("."));
+        let gaps = policy
+            .background
+            .as_ref()
+            .map(|criterion| {
+                Ok::<_, Error>((
+                    spatial::background(criterion, &base_img, pair.baseline_path, root)?,
+                    spatial::background(criterion, &cap_img, pair.capture_path, root)?,
+                ))
+            })
+            .transpose()?;
+        let fallback = entry
+            .diagnostics
+            .as_ref()
+            .map_or(crate::diagnostics::ChangeClass::LocalStructure, |d| d.class);
+        let result = spatial::analyze(
+            &base_img,
+            &cap_img,
+            &errors,
+            excluded.as_deref(),
+            gaps.as_ref().map(|(b, c)| (b.as_slice(), c.as_slice())),
+            policy,
+            pair.flip,
+            fallback,
+        )?;
+        if policy.decide && config.mode != Mode::Identity {
+            entry.status = if matches!(
+                result.class,
+                crate::diagnostics::ChangeClass::Identical
+                    | crate::diagnostics::ChangeClass::TextureNoiseOnly
+            ) && entry.regions.iter().all(|r| r.status != Some(Status::Fail))
+            {
+                Status::Pass
+            } else {
+                Status::Fail
+            };
+        }
+        if let Some(d) = &mut entry.diagnostics {
+            d.class = result.class;
+            d.description = format!(
+                "{} under {}; {} systematic regions",
+                result.class.as_str(),
+                policy.version,
+                result.regions.len()
+            );
+        }
+        entry.gallery = crate::evidence_quality::gallery::generate(
+            &entry.name,
+            &base_img,
+            &cap_img,
+            &errors,
+            excluded.as_deref(),
+            &entry.hotspots,
+            &result,
+            report_dir,
+        )?;
+        entry.spatial = Some(result);
+    }
+    for effect in &config.required_effect {
+        if !crate::config::compile_glob(&effect.glob)?.is_match(&entry.name) {
+            continue;
+        }
+        let root = config
+            .effect_roots
+            .get(&effect.name)
+            .map(|p| p.as_path())
+            .or(config.config_dir.as_deref())
+            .unwrap_or(Path::new("."));
+        let b = crate::evidence_quality::effect::select(
+            &effect.selection,
+            pair.baseline_path,
+            root,
+            base_img.dimensions(),
+        )?;
+        let c = crate::evidence_quality::effect::select(
+            &effect.selection,
+            pair.capture_path,
+            root,
+            cap_img.dimensions(),
+        )?;
+        let result =
+            crate::evidence_quality::effect::measure(effect, &b, &c, &base_img, &cap_img, &errors)?;
+        if !result.failures.is_empty() {
+            entry.status = Status::Fail;
+        }
+        entry.required_effects.push(result);
+    }
+    Ok(())
+}
+
+#[allow(clippy::too_many_arguments)]
+fn layered_config<'a>(
+    entry: &mut Entry,
+    base: &Path,
+    cap: &Path,
+    b: &image::DynamicImage,
+    c: &image::DynamicImage,
+    config: &'a RunConfig,
+    report_dir: &Path,
+) -> Result<std::borrow::Cow<'a, RunConfig>> {
+    let Some(policy) = &config.layers else {
+        return Ok(std::borrow::Cow::Borrowed(config));
+    };
+    let mut bl = crate::evidence_quality::layers::load(base, policy, (b.width(), b.height()))?;
+    let mut cl = crate::evidence_quality::layers::load(cap, policy, (c.width(), c.height()))?;
+    crate::evidence_quality::layers::bundle(&mut bl, report_dir, &entry.name, "baseline")?;
+    crate::evidence_quality::layers::bundle(&mut cl, report_dir, &entry.name, "candidate")?;
+    let (selected, nb, nc) = crate::evidence_quality::layers::scope_pair(&bl, &cl, policy)?;
+    entry.layers = Some(crate::evidence_quality::layers::evidence(
+        &bl, &cl, policy, &selected, nb, nc, b, c,
+    )?);
+    let mut local = config.clone();
+    local.layer_mask = Some(selected.into_iter().map(|v| !v).collect());
+    Ok(std::borrow::Cow::Owned(local))
 }

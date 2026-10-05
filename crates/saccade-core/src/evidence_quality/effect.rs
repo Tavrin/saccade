@@ -11,6 +11,16 @@ pub const SCHEMA: &str = "saccade-required-effect.v1";
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(tag = "kind", rename_all = "snake_case", deny_unknown_fields)]
 pub enum Selection {
+    /// Source-bound named layer from the image-adjacent manifest.
+    NamedLayer {
+        /// Layer name.
+        name: String,
+        /// Native inclusion predicate.
+        predicate: Predicate,
+        /// Optional plain manifest filename; defaults to <filename>.layers.json.
+        #[serde(default)]
+        manifest: Option<String>,
+    },
     /// White/nonzero image pixels; exact dimensions required.
     Mask {
         /// Path relative to policy directory.
@@ -181,6 +191,26 @@ pub fn select(
                 }
             }
             Ok(selected)
+        }
+        Selection::NamedLayer {
+            name,
+            predicate,
+            manifest,
+        } => {
+            let policy = super::layers::Policy {
+                manifest: manifest.clone(),
+                scope: None,
+                attribution: false,
+            };
+            let loaded = super::layers::load(image, &policy, dimensions)?;
+            super::layers::selection(
+                &loaded,
+                &super::layers::LayerScope {
+                    layer: name.clone(),
+                    predicate: predicate.clone(),
+                    mode: Default::default(),
+                },
+            )
         }
         Selection::Layer {
             image: name,

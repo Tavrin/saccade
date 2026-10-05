@@ -23,6 +23,10 @@ pub struct Override {
 /// Settings for [`crate::run::run`].
 #[derive(Debug, Clone, PartialEq)]
 pub struct RunConfig {
+    /// Source-bound capture layers and optional inclusion scope.
+    pub layers: Option<crate::evidence_quality::layers::Policy>,
+    /// Internal per-pair exclusion bitmap derived from layer inclusion.
+    pub layer_mask: Option<Vec<bool>>,
     /// Opt-in spatial structure versus texture analysis.
     pub spatial: Option<crate::evidence_quality::spatial::Policy>,
     /// Additional intended-variable patterns per ablation label.
@@ -102,6 +106,8 @@ pub struct RunConfig {
 impl Default for RunConfig {
     fn default() -> Self {
         Self {
+            layers: None,
+            layer_mask: None,
             spatial: None,
             arm_variables: Default::default(),
             required_effect: Vec::new(),
@@ -145,6 +151,7 @@ impl Default for RunConfig {
 #[derive(Deserialize)]
 #[serde(deny_unknown_fields)]
 struct FileConfig {
+    layers: Option<crate::evidence_quality::layers::Policy>,
     spatial: Option<crate::evidence_quality::spatial::Policy>,
     #[serde(default)]
     intended_variables: Vec<String>,
@@ -297,6 +304,7 @@ impl RunConfig {
             explicit_tolerances: file.threshold.is_some() || file.metric.is_some(),
             ..Self::default()
         };
+        cfg.layers = file.layers;
         cfg.spatial = file.spatial;
         cfg.meta.intended = file.intended_variables;
         cfg.arm_variables = file.arm_variables;
@@ -484,8 +492,15 @@ impl RunConfig {
                 "hotspot_local_min_pixels must be positive".into(),
             ));
         }
+        let mut effect_names = std::collections::BTreeSet::new();
         for effect in &self.required_effect {
             effect.validate()?;
+            if !effect_names.insert(&effect.name) {
+                return Err(Error::Config("duplicate required-effect name".into()));
+            }
+        }
+        if let Some(policy) = &self.layers {
+            policy.validate()?;
         }
         if let Some(policy) = &self.spatial {
             policy.validate()?;

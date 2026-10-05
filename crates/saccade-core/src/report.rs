@@ -289,6 +289,9 @@ pub enum Metric {
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct Entry {
+    /// Source-bound layer selection and additive component decomposition.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub layers: Option<crate::evidence_quality::layers::LayerResult>,
     /// Automatic crop gallery and per-region statistics.
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub gallery: Vec<crate::evidence_quality::gallery::GalleryRegion>,
