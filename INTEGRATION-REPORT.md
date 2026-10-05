@@ -276,3 +276,62 @@ python3 scripts/gates-integration.py --admit-gb 4 \
 Delete the same prescribed target after the retry completes. No tolerance relaxation,
 fixture regeneration, source fork or upstream PR is needed. Reverting the migration
 restores the old vendor/lock/MSRV contract without regenerating reference evidence.
+
+# Round 3b — disk-floor retry (2026-10-05)
+
+Retried exactly the gate list above from clean `efb8545` (production source unchanged
+from `f5b7256`), using the recorded command with evidence destination
+`/mnt/linux-extra/moss-scratch/saccade-integ-r3b/retry`. Initial `df -BG
+/mnt/linux-extra` showed 35G available. Each component used the installed
+`/mnt/linux-extra/moss-coord/bin/moss-heavy.sh`, CPU-only admission, the prescribed
+`CARGO_TARGET_DIR=/mnt/linux-extra/moss-cargo-targets/codex-saccade-integ`, and
+`CARGO_BUILD_JOBS=4` (Cargo's `-j 4` equivalent). Only one Cargo command ran at a
+time; incremental compilation and dev/test debug information remained disabled.
+
+| Gate | Result / exit |
+| --- | --- |
+| Rust 1.89 default check | PASS / 0 |
+| Rust 1.89 existing quality_reference | PASS / 0 |
+| Stable existing quality_reference | PASS / 0 |
+| CI formatting | PASS / 0 |
+| Default workspace clippy, warnings denied | PASS / 0 |
+| Workspace tests, no-fail-fast | PASS / 0 |
+| Core-minimal build | DISK-INTERRUPTED / 143; no completed build result |
+| Core-minimal clippy / tests | DISK-REFUSED / 75 each; not executed |
+| CLI default build / clippy / tests | DISK-REFUSED / 75 each; not executed |
+| CLI all-features build / clippy / tests | DISK-REFUSED / 75 each; not executed |
+| Package inventory / all-feature package verification | DISK-REFUSED / 75 each; not executed |
+| release-check.sh | DISK-REFUSED / 75; not executed |
+| Prescribed target cleanup | PASS; absence verified |
+
+[Per-gate receipts and log paths](/mnt/linux-extra/moss-scratch/saccade-integ-r3b/retry/receipts.json)
+bind all results to the clean starting revision. Both existing reference tests
+passed without fixture or tolerance changes. The separate stable paired probe was
+not in the recorded retry list and was not run. No source failure requiring a
+forward fix was observed; no test was weakened.
+
+Shared admission delayed workspace tests and the core-minimal build. During the
+latter, free space crossed the inherited 25 GiB floor: an external monitor paused
+the runner and terminated its component at **24.667 GiB**. The component exited
+143; its partial compilation is not a pass. Recovery was bounded to three minutes
+(the final check occurred after 220 seconds) and remained below the floor. At
+24.625 GiB, the runner resumed solely to collect the remaining pre-execution
+refusals, then exited 1. No admission settings, thresholds, timeouts, or other
+lanes' artifacts were changed.
+
+[Milestones](/mnt/linux-extra/moss-scratch/saccade-integ-r3b/MILESTONES.md),
+[disk pause](/mnt/linux-extra/moss-scratch/saccade-integ-r3b/disk-pause.json),
+[recovery receipt](/mnt/linux-extra/moss-scratch/saccade-integ-r3b/recovery-end.json),
+[source identity](/mnt/linux-extra/moss-scratch/saccade-integ-r3b/source-identity.json),
+and [reference binary hashes](/mnt/linux-extra/moss-scratch/saccade-integ-r3b/reference-binary-pins.json)
+remain outside the target. After all lane jobs exited, canonical/nonsymlink guards
+and an exclusive nonblocking Cargo profile lock protected target deletion.
+[Cleanup](/mnt/linux-extra/moss-scratch/saccade-integ-r3b/target-cleanup.json)
+records 25.475 GiB before removal and 29.037 GiB afterward; this later recovery
+does not turn refused gates into executed results.
+
+**Reference qualification, default clippy and workspace tests now pass; the full
+local CI matrix and release checker remain incomplete due to disk pressure.**
+Retry the interrupted/refused rows when space permits. Linux results do not
+establish macOS/Windows, release deployment, or the previously deferred live/model
+acceptance. Repository author configuration was used; no push.
