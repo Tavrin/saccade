@@ -213,6 +213,22 @@ mod compute {
         );
     }
     #[test]
+    fn w3_f06_six_pixel_alias_is_ambiguous() {
+        let repeated = image::RgbaImage::from_fn(64, 64, |x, y| {
+            let v = texture(x % 6, y % 6, 1);
+            image::Rgba([v, v, v, 255])
+        });
+        let r = report(&repeated, &repeated);
+        assert_eq!(r.raw_flip.mean, 0.);
+        for f in &r.fields {
+            assert!(
+                f.qualified_pixels < 64 * 64 / 4,
+                "{} aliased pixels qualified",
+                f.qualified_pixels
+            );
+        }
+    }
+    #[test]
     fn renderer_sign_scale_and_jitter_errors_are_measured_only_on_supported_pixels() {
         let a = image();
         let b = translated(&a, 2, 1);
