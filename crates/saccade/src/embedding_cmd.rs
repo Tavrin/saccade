@@ -36,6 +36,26 @@ pub(crate) struct IndexArgs {
 }
 #[derive(clap::Subcommand)]
 enum Operation {
+    /// Write exact Rust-preprocessed tensors for independent checkpoint/export parity.
+    ExportInputs {
+        dir: PathBuf,
+        #[arg(long)]
+        model: PathBuf,
+        #[arg(long)]
+        out: PathBuf,
+        #[arg(long)]
+        json: bool,
+    },
+    /// Run pinned export parity and fit/holdout calibration over a frozen corpus (heavy).
+    Calibrate {
+        corpus: PathBuf,
+        #[command(flatten)]
+        runtime: RuntimeArgs,
+        #[arg(long)]
+        out: PathBuf,
+        #[arg(long)]
+        json: bool,
+    },
     /// Build a streaming exact flat index, up to 100000 images and 512 MiB vectors.
     Build {
         dir: PathBuf,
@@ -79,6 +99,24 @@ pub(crate) fn index(args: IndexArgs) -> Result<u8, CliError> {
     #[cfg(feature = "embeddings")]
     {
         match args.operation {
+            Operation::ExportInputs {
+                dir,
+                model,
+                out,
+                json,
+            } => {
+                let value = enabled::export_inputs(&dir, &model, &out)?;
+                general_cmd::emit_document(value, Some(&out), json)
+            }
+            Operation::Calibrate {
+                corpus,
+                runtime,
+                out,
+                json,
+            } => {
+                let value = enabled::calibrate(&corpus, &runtime, &out)?;
+                general_cmd::emit_document(value, Some(&out), json)
+            }
             Operation::Build {
                 dir,
                 runtime,
@@ -133,6 +171,65 @@ mod enabled {
             )?,
             identity,
         ))
+    }
+    pub(super) fn export_inputs(
+        dir: &Path,
+        model_path: &Path,
+        out: &Path,
+    ) -> Result<Value, CliError> {
+        let model: e::Model = serde_json::from_slice(&input::bytes(model_path, 65536)?)?;
+        e::validate(&model)?;
+        let files = input::files(dir, 128)?;
+        if files.is_empty() {
+            return Err(CliError::usage("export parity input directory is empty"));
+        }
+        general_cmd::prepare_out(out, &[dir, model_path])?;
+        std::fs::create_dir(out.join("images")).map_err(|e| CliError::io(e.to_string()))?;
+        std::fs::create_dir(out.join("tensors")).map_err(|e| CliError::io(e.to_string()))?;
+        let mut samples = Vec::new();
+        for (i, path) in files.iter().enumerate() {
+            let bytes = input::bytes(path, input::MAX_BYTES)?;
+            let image = input::decode(&bytes)?;
+            let data = e::preprocess(&model, &image)?;
+            let tensor: Vec<u8> = data.iter().flat_map(|v| v.to_le_bytes()).collect();
+            let image_name = format!(
+                "images/{i:04}.{}",
+                path.extension().and_then(|s| s.to_str()).unwrap_or("bin")
+            );
+            let tensor_name = format!("tensors/{i:04}.f32le");
+            std::fs::write(out.join(&image_name), &bytes)
+                .map_err(|e| CliError::io(e.to_string()))?;
+            std::fs::write(out.join(&tensor_name), &tensor)
+                .map_err(|e| CliError::io(e.to_string()))?;
+            samples.push(json!({"image":image_name,"sha256":saccade_core::localized::digest(&bytes),"tensor":tensor_name,"tensor_sha256":saccade_core::localized::digest(&tensor)}));
+        }
+        Ok(
+            json!({"schema":saccade_core::general::embedding_qualification::EXPORT_INPUT_SCHEMA,"operation":"embedding_export_inputs","verdict":"unknown","counts":{"samples":samples.len()},"model_template":model,"samples":samples,"limits":["tensor preparation proves no graph/checkpoint parity; use independently executed checkpoint embeddings","model template artifact pin is replaced with the actual exported graph pin by the export job"]}),
+        )
+    }
+    pub(super) fn calibrate(
+        path: &Path,
+        runtime: &RuntimeArgs,
+        out: &Path,
+    ) -> Result<Value, CliError> {
+        use saccade_core::general::embedding_qualification as q;
+        let bytes = input::bytes(path, 16 * 1024 * 1024)?;
+        let corpus: q::Corpus = serde_json::from_slice(&bytes)?;
+        let (mut engine, _) = engine(runtime)?;
+        general_cmd::prepare_out(
+            out,
+            &[path, &runtime.model, &runtime.cache, &runtime.library],
+        )?;
+        let (model, receipt) = q::qualify(
+            &corpus,
+            &saccade_core::localized::digest(&bytes),
+            path.parent().unwrap_or(Path::new(".")),
+            &mut engine,
+        )?;
+        if receipt["verdict"] == "pass" {
+            general_cmd::write_new(&out.join("model.json"), &serde_json::to_value(model)?)?;
+        }
+        Ok(receipt)
     }
     pub(super) fn similar(
         a: &Path,
@@ -303,6 +400,9 @@ mod enabled {
                 .get(key)
                 .ok_or_else(|| CliError::usage(format!("missing {key}")))
         };
+        if op == "embedding_export_inputs" {
+            return export_inputs(get("dir")?, get("model")?, out);
+        }
         let runtime = RuntimeArgs {
             model: get("model")?.clone(),
             cache: get("cache")?.clone(),
@@ -311,6 +411,7 @@ mod enabled {
         };
         match op {
             "similar" => similar(get("a")?, get("b")?, &runtime, out),
+            "embedding_calibrate" => calibrate(get("corpus")?, &runtime, out),
             "index_build" => build(get("dir")?, &runtime, out),
             "index_query" => query(get("index")?, get("image")?, &runtime, top, out),
             _ => Err(CliError::usage("invalid embedding operation")),
@@ -344,15 +445,20 @@ pub(crate) fn schemas() -> Vec<serde_json::Value> {
         ("similar", vec!["a", "b"]),
         ("index_build", vec!["dir"]),
         ("index_query", vec!["index", "image"]),
+        ("embedding_calibrate", vec!["corpus"]),
+        ("embedding_export_inputs", vec!["dir"]),
     ]
     .into_iter()
     .map(|(op, fields)| {
         let mut props = serde_json::Map::new();
-        let mut required = vec!["operation", "out", "model", "cache", "library"];
-        for key in ["out", "model", "cache", "library"]
-            .into_iter()
-            .chain(fields.iter().copied())
-        {
+        let runtime_fields = if op == "embedding_export_inputs" {
+            vec!["out", "model"]
+        } else {
+            vec!["out", "model", "cache", "library"]
+        };
+        let mut required = vec!["operation"];
+        required.extend(runtime_fields.iter().copied());
+        for key in runtime_fields.into_iter().chain(fields.iter().copied()) {
             props.insert(key.into(), json!({"type":"string"}));
         }
         required.extend(fields);

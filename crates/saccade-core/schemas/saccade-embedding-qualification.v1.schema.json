@@ -1,0 +1,65 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/Tavrin/saccade/crates/saccade-core/schemas/saccade-embedding-qualification.v1.schema.json",
+  "type": "object",
+  "properties": {
+    "schema": {
+      "const": "saccade-embedding-qualification.v1"
+    },
+    "operation": {
+      "const": "embedding_qualification"
+    },
+    "verdict": {
+      "enum": [
+        "pass",
+        "regression"
+      ]
+    },
+    "counts": {
+      "type": "object"
+    },
+    "corpus_sha256": {
+      "type": "string"
+    },
+    "export_sha256": {
+      "type": "string"
+    },
+    "checkpoint_sha256": {
+      "type": "string"
+    },
+    "source_revision": {
+      "type": "string"
+    },
+    "scope": {
+      "type": "string"
+    },
+    "parity": {
+      "type": "array"
+    },
+    "calibration": {
+      "type": "object"
+    },
+    "qualified_model_contract_sha256": {
+      "type": "string"
+    },
+    "limits": {
+      "type": "array"
+    }
+  },
+  "required": [
+    "schema",
+    "operation",
+    "verdict",
+    "counts",
+    "corpus_sha256",
+    "export_sha256",
+    "checkpoint_sha256",
+    "source_revision",
+    "scope",
+    "parity",
+    "calibration",
+    "qualified_model_contract_sha256",
+    "limits"
+  ],
+  "additionalProperties": false
+}

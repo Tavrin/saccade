@@ -1195,6 +1195,23 @@ impl Server {
             let file = crate::general_cmd::persist_document(&value, &out)?;
             return Ok(ToolOutput {structured:json!({"schema":saccade_core::general::RESULT_SCHEMA,"mode":operation,"verdict":value["verdict"],"data":{"schema":value["schema"],"counts":value["counts"]},"artifacts":[{"path":saccade_core::paths::record(&file,&self.root,false)}],"next_actions":[]}),text:"Rendered pages at declared density; page errors and missingness remain failures.".into(),images:Vec::new()});
         }
+        if operation == "embedding_export_inputs" {
+            reject_unknown(args, &["operation", "dir", "model", "out"])?;
+            let mut paths = std::collections::BTreeMap::new();
+            let dir = self.resolve("dir", &require_str(args, "dir")?)?;
+            self.input_tree(&dir)?;
+            let model = self.existing_file("model", &require_str(args, "model")?)?;
+            let out = self.checked_out_dir(&require_str(args, "out")?, &[&dir, &model])?;
+            paths.insert("dir".into(), dir);
+            paths.insert("model".into(), model);
+            let value = crate::embedding_cmd::measure(&operation, &paths, 10, &out)?;
+            let file = crate::general_cmd::persist_document(&value, &out)?;
+            return Ok(ToolOutput {
+                structured: json!({"schema":saccade_core::general::RESULT_SCHEMA,"mode":operation,"verdict":value["verdict"],"data":{"schema":value["schema"],"counts":value["counts"]},"artifacts":[{"path":saccade_core::paths::record(&file,&self.root,false)}],"next_actions":[]}),
+                text: "Exact preprocessing tensors; no model execution or qualification.".into(),
+                images: Vec::new(),
+            });
+        }
         if operation == "compare_question" {
             reject_unknown(
                 args,
@@ -1423,11 +1440,12 @@ impl Server {
         // wave6: model/runtime reads and cache writes use the same root authority.
         if matches!(
             operation.as_str(),
-            "similar" | "index_build" | "index_query"
+            "similar" | "index_build" | "index_query" | "embedding_calibrate"
         ) {
             let extra = match operation.as_str() {
                 "similar" => vec!["a", "b"],
                 "index_build" => vec!["dir"],
+                "embedding_calibrate" => vec!["corpus"],
                 _ => vec!["index", "image"],
             };
             let mut keys = vec!["operation", "out", "model", "cache", "library"];

@@ -158,6 +158,21 @@ pub fn band(model: &Model, value: f64) -> Option<&str> {
         .find(|b| value >= b.minimum)
         .map(|b| b.label.as_str())
 }
+/// Produces the exact NCHW input used by inference, for independent checkpoint/export parity.
+pub fn preprocess(model: &Model, image: &image::RgbaImage) -> Result<Vec<f32>> {
+    validate(model)?;
+    let [w, h] = model.size;
+    let rgb = crate::compare::flatten_over(image, 255);
+    let resized = image::imageops::resize(&rgb, w, h, image::imageops::FilterType::Triangle);
+    let n = w as usize * h as usize;
+    let mut data = vec![0.; 3 * n];
+    for (i, p) in resized.pixels().enumerate() {
+        for c in 0..3 {
+            data[c * n + i] = (f32::from(p[c]) / 255. - model.mean[c]) / model.std[c];
+        }
+    }
+    Ok(data)
+}
 /// CPU-only runtime boundary; downloads occur only when explicitly requested.
 #[cfg(feature = "embeddings")]
 pub struct Engine {
@@ -249,15 +264,7 @@ impl Engine {
     /// Runs the explicit export preprocessing and returns one normalized embedding.
     pub fn embed(&mut self, image: &image::RgbaImage) -> Result<Vec<f32>> {
         let [w, h] = self.model.size;
-        let rgb = crate::compare::flatten_over(image, 255);
-        let resized = image::imageops::resize(&rgb, w, h, image::imageops::FilterType::Triangle);
-        let n = w as usize * h as usize;
-        let mut data = vec![0.; 3 * n];
-        for (i, p) in resized.pixels().enumerate() {
-            for c in 0..3 {
-                data[c * n + i] = (f32::from(p[c]) / 255. - self.model.mean[c]) / self.model.std[c];
-            }
-        }
+        let data = preprocess(&self.model, image)?;
         std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| -> Result<Vec<f32>> {
             let tensor = ort::value::Tensor::from_array((
                 [1usize, 3, h as usize, w as usize],

@@ -125,7 +125,7 @@ pub(crate) fn catalogue() -> Value {
             "feature_unavailable"
         },
         "How similar are the supplied model's visual embeddings?",
-        "canonical export/parity/calibration unqualified; raw cosine is conditional",
+        "export-inputs/export script and calibrate provide frozen parity/holdout qualification; runtime evidence still required",
     );
     add(
         "text",

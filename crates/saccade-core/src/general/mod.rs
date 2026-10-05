@@ -29,3 +29,6 @@ pub mod metadata;
 
 /// Unqualified compression and resampling observations.
 pub mod forensics;
+
+/// Frozen export parity and held-out calibration.
+pub mod embedding_qualification;

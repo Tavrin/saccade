@@ -125,3 +125,6 @@
 
 - Credential/metadata/forensic item committed as 0e24e07; unknown authenticity,
   offline validation and unqualified history observations retain their limits.
+
+- Rust OCR adapter committed as 6edaeaf; no canonical model or confidence is
+  invented. The queued accent/readability gate remains a qualification boundary.

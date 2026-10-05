@@ -1,0 +1,40 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/Tavrin/saccade/crates/saccade-core/schemas/saccade-embedding-export-inputs.v1.schema.json",
+  "type": "object",
+  "properties": {
+    "schema": {
+      "const": "saccade-embedding-export-inputs.v1"
+    },
+    "operation": {
+      "const": "embedding_export_inputs"
+    },
+    "verdict": {
+      "const": "unknown"
+    },
+    "counts": {
+      "type": "object"
+    },
+    "model_template": {
+      "type": "object"
+    },
+    "samples": {
+      "type": "array",
+      "minItems": 1,
+      "maxItems": 128
+    },
+    "limits": {
+      "type": "array"
+    }
+  },
+  "required": [
+    "schema",
+    "operation",
+    "verdict",
+    "counts",
+    "model_template",
+    "samples",
+    "limits"
+  ],
+  "additionalProperties": false
+}

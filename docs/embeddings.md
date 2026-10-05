@@ -46,8 +46,8 @@ Invalid models/indexes/runtime failures exit 2; a partial/empty build exits 1.
 
 DINOv2-small's checkpoint licence (Apache-2.0) is given by the lane specification.
 No canonical ONNX export URL/SHA, export parity receipt or calibrated corpus was
-provided. This implementation supplies the interface and execution path; built-in
-model and calibration qualification remain deferred. CLIP/text-to-image retrieval
+provided. Wave 6b adds the export/parity/holdout jobs below. A preselected canonical
+model and actual calibration qualification remain deferred. CLIP/text-to-image retrieval
 is deferred until a reviewed model licence and pinned export are available.
 Model-dependent tests are ignored under `heavy: embeddings`; the coordinator
 supplies `SACCADE_W6_EMBEDDING_MODEL`, `SACCADE_W6_MODEL_CACHE`, and
@@ -67,3 +67,56 @@ it does not sandbox the approved native runtime. The library must remain immutab
 during a session. CLI explicitly supplied library paths retain operator authority.
 The ONNX export is loaded from its rehashed bounded memory buffer; file-based
 external initializers are not provisioned by this interface.
+
+## Export and calibration job (Wave 6b)
+
+The executable plumbing now replaces the missing export/qualification procedure:
+
+```sh
+# No model execution: prepare exact NCHW tensors using a supplied model template.
+saccade index export-inputs fixtures/ --model template.json --out prepared --json
+# Heavy, offline job: operator-reviewed source/checkpoint, no automatic weights pull.
+python3 scripts/export-wave6-embeddings.py --inputs prepared/saccade-embedding-export-inputs.v1.json --source SOURCE_DIR --source-revision FULL_SHA --checkpoint checkpoint.pth --checkpoint-sha256 CHECKPOINT_SHA --pairs pairs.json --scope 'declared corpus scope' --artifact-url https://example.org/revision/model.onnx --out exported
+# Cache the exported graph under its actual SHA-256, or explicitly runtime-download it.
+saccade index calibrate exported/corpus.json --model exported/model.json --cache models --library runtime.so --out qualification --json
+```
+
+Templates use the existing model contract; artifact fields are required for
+validation, but tensor preparation never loads the artifact. The exporter
+replaces those fields with the actual self-contained ONNX graph hash/size and
+operator-declared revision URL. It loads DINOv2-small from a clean local source
+checkout at the declared revision and a hash-pinned checkpoint with
+`pretrained=False`. Operator-installed torch/numpy/onnx versions and script,
+source, checkpoint, input and pair identities appear in `export-receipt.json`.
+It rejects external ONNX initializers. No models were fetched during development.
+The built-in checkpoint licence is Apache-2.0 per the binding specification;
+no universal or fabricated canonical ONNX pin is supplied.
+
+`pairs.json` is a frozen array of `{a,b,split,same_content}` sample indices,
+with `split: fit|holdout`. Both splits need positive/negative labels and must
+use disjoint sample indices; duplicate image hashes/pairs and path escapes are
+rejected. Up to 128 samples and 4096 pairs are supported. Corpus JSON binds
+source/checkpoint/export pins, encoded sample and exact tensor hashes, source
+checkpoint embeddings, scope and a fixed parity tolerance <=0.001. Independent
+checkpoint embeddings use those same Rust tensors, avoiding mismatched image
+preprocessing. Every ONNX vector must meet component and cosine parity limits.
+
+Calibration chooses a separating cosine boundary from fit labels only, then
+checks the frozen holdout without retuning. Overlapping fit labels fail. A
+holdout/parity failure writes a regression receipt and no calibrated model.
+Passing writes `model.json` and `saccade-embedding-qualification.v1.json`, binding
+its model contract hash. Qualification is scoped to supplied source vectors
+and truth labels; their provenance is recorded, not independently attested.
+Supplied calibration in the existing similarity output retains its cautious
+status; merely supplying bands does not authenticate a qualification receipt.
+
+MCP operations `embedding_export_inputs` and `embedding_calibrate` mirror these
+local commands; calibration retains operator-owned ONNX library authority and
+never downloads. The Python source/checkpoint exporter is an operator job,
+not executable through MCP.
+
+The heavy gate requires `SACCADE_W6_EMBEDDING_MODEL`, `SACCADE_W6_MODEL_CACHE`,
+`SACCADE_W6_ORT_LIBRARY`, `SACCADE_W6_EMBEDDING_CORPUS` and
+`SACCADE_W6_EMBEDDING_CORPUS_SHA256`. Optional `SACCADE_W6_EMBEDDING_RECEIPT`
+retains its qualification result. Export/calibration/holdout execution remains
+NOT RUN; CLIP and a preselected universal export/calibration remain deferred.
