@@ -27,22 +27,18 @@ The shell equivalents are `claude plugin marketplace add Tavrin/saccade` and
 `claude plugin install saccade@saccade`. For local testing, replace the repository
 name with the absolute checkout path when adding the marketplace.
 
-The plugin prompts for `source_root` (an absolute existing capture directory)
-and `out_root` (an absolute report directory). Neither may contain the other.
-For a shell install, pass both settings explicitly:
+Use `/saccade:check-visual-change BASELINE CANDIDATE` or `/saccade:saccade`.
+
+For MCP tools as well, configure the server yourself; it is not bundled in the
+plugin, because it launches the separately installed `saccade` binary:
 
 ```sh
-claude plugin install saccade@saccade \
-  --config source_root=/absolute/captures \
-  --config out_root=/absolute/reports
+claude mcp add saccade -- saccade mcp --root /absolute/captures --out-root /absolute/reports
 ```
 
-Use `/saccade:check-visual-change BASELINE CANDIDATE` or `/saccade:saccade`.
-The existing skill and commands are retained. `.mcp.json` invokes `saccade mcp`
-with the two configured roots as separate arguments. No defaults, shell
-wrapper, provider flags or egress grants are included. Saccade rejects roots
-that overlap. This is local stdio, so it needs a local client, not claude.ai.
-Anthropic's directory review must assess the dependency on an external CLI.
+Neither root may contain the other. The server runs locally over stdio and makes
+no provider calls unless explicitly authorized with a finite budget.
+
 See the [Claude manifest reference](https://code.claude.com/docs/en/plugins/manifest-reference)
 and [marketplace reference](https://code.claude.com/docs/en/plugins/marketplace-reference).
 

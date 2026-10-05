@@ -27,14 +27,11 @@ def obj(properties, required=None):
 # Maintained subsets of documented fields used by these packages, not upstream
 # schemas. See plugin-schemas/README.md for the official field references.
 AUTHOR = obj({'name': STRING, 'url': {'type': 'string', 'format': 'uri'}}, ['name'])
-CONFIG = obj({'type': {'const': 'directory'}, 'title': STRING,
-              'description': STRING, 'required': {'const': True}})
 CLAUDE = obj({
     'name': NAME, 'displayName': STRING, 'version': STRING,
     'description': STRING, 'author': AUTHOR, 'homepage': STRING,
     'repository': STRING, 'license': STRING,
     'keywords': {'type': 'array', 'items': STRING},
-    'userConfig': obj({'source_root': CONFIG, 'out_root': CONFIG}),
 })
 CLAUDE_MARKET = obj({
     'name': NAME, 'description': STRING, 'owner': AUTHOR,
@@ -49,11 +46,6 @@ CODEX_MARKET = obj({
                        'authentication': {'enum': ['ON_INSTALL', 'ON_USE']}}),
         'category': STRING})},
 })
-STDIO = obj({'mcpServers': obj({'saccade': obj({
-    'command': {'const': 'saccade'},
-    'args': {'const': ['mcp', '--root', '${user_config.source_root}',
-                       '--out-root', '${user_config.out_root}']},
-})})})
 INTERFACE = obj({
     'displayName': {**STRING, 'maxLength': 30},
     'shortDescription': {**STRING, 'maxLength': 30},
@@ -120,7 +112,6 @@ def main():
     version = tomllib.loads((ROOT / 'Cargo.toml').read_text())['workspace']['package']['version']
     files = {
         'integrations/claude-code/.claude-plugin/plugin.json': CLAUDE,
-        'integrations/claude-code/.mcp.json': STDIO,
         '.claude-plugin/marketplace.json': CLAUDE_MARKET,
         'integrations/codex/plugin.json': schemas[PORTABLE],
         '.agents/plugins/marketplace.json': CODEX_MARKET,

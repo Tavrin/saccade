@@ -14,19 +14,5 @@
     "image-diff",
     "testing"
   ],
-  "displayName": "Saccade",
-  "userConfig": {
-    "source_root": {
-      "type": "directory",
-      "title": "Capture root",
-      "description": "Absolute existing directory containing captures Saccade may read.",
-      "required": true
-    },
-    "out_root": {
-      "type": "directory",
-      "title": "Report root",
-      "description": "Absolute directory for generated reports; must not contain or be inside the capture root.",
-      "required": true
-    }
-  }
+  "displayName": "Saccade"
 }
