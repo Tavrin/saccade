@@ -72,3 +72,51 @@ pub fn mapped(
         serde_json::json!({"schema":"saccade-assist-vision-provider.v1","authority":"advisory, fixture-only; deterministic measurements unchanged","catalog_sha256":super::digest(catalog).map_err(|e|crate::wave7::models::VisionError::Invalid(e.to_string()))?,"request_sha256":request.hash()?,"request":adapter.request(&request)?,"observation":observation,"cost":"unknown; no live transport or spend","live_qualification":false}),
     )
 }
+
+#[cfg(test)]
+#[allow(clippy::unwrap_used)]
+mod tests {
+    use super::*;
+    #[test]
+    fn hosted_mapping_binds_catalog_pixels_and_retains_advisory_authority() {
+        let mut png = std::io::Cursor::new(Vec::new());
+        image::DynamicImage::ImageRgb8(image::RgbImage::from_pixel(8, 8, image::Rgb([120; 3])))
+            .write_to(&mut png, image::ImageFormat::Png)
+            .unwrap();
+        let png = png.into_inner();
+        let digest = crate::evidence::canonical::Digest::of_bytes(&png);
+        let catalog = Catalog {
+            version: super::super::schema::CATALOG_VERSION.into(),
+            images: vec![super::super::catalog::Image {
+                role: Role::Single,
+                sha256: digest.clone(),
+                encoded_sha256: digest,
+                dimensions: [8, 8],
+                capture_scope: [0, 0, 8, 8],
+                complete: true,
+                original_pixels: true,
+                transform: super::super::geometry::Transform {
+                    crop: [0, 0, 8, 8],
+                    encoded: [8, 8],
+                },
+            }],
+            regions: vec![],
+            exclusions: vec![],
+            measurements: serde_json::json!({}),
+            source_evidence: vec![],
+            source_evidence_hashes: vec![],
+        };
+        let mut pngs = vec![(Role::Single, png)];
+        for provider in [Provider::Claude, Provider::Gpt] {
+            let result = mapped(&catalog, &pngs, provider, "visible label", None).unwrap();
+            assert_eq!(result["live_qualification"], false);
+            assert_eq!(result["observation"], serde_json::Value::Null);
+            assert!(result["authority"].as_str().unwrap().contains("advisory"));
+        }
+        pngs[0].1[0] ^= 1;
+        assert!(matches!(
+            mapped(&catalog, &pngs, Provider::Claude, "visible label", None),
+            Err(crate::wave7::models::VisionError::Integrity(_))
+        ));
+    }
+}
