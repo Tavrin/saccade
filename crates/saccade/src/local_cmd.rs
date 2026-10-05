@@ -121,6 +121,8 @@ pub(crate) enum ReviewOperation {
     Brand(crate::brand_cmd::Args),
     /// Review source text/layout and localized UI changes in one packet.
     Ui(crate::ui_review_cmd::Args),
+    /// Diagnose dense correspondence and validate supplied renderer vectors.
+    Motion(crate::motion_cmd::Args),
     /// Prepare a closed request from an existing canonical case, locally.
     Request {
         report: PathBuf,
@@ -844,6 +846,7 @@ pub(crate) fn review(args: ReviewArgs, absolute: bool) -> Result<u8, CliError> {
         match operation {
             ReviewOperation::Brand(brand) => return crate::brand_cmd::run(brand, args.json),
             ReviewOperation::Ui(ui) => return crate::ui_review_cmd::run(ui, args.json),
+            ReviewOperation::Motion(motion) => return crate::motion_cmd::run(motion, args.json),
             ReviewOperation::Request {
                 report,
                 question,

@@ -1,0 +1,38 @@
+{
+  "$id": "https://github.com/Tavrin/saccade/crates/saccade-core/schemas/saccade-vector-buffer.v1.schema.json",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "description": "Supplied row-major float buffer, with explicit producer validity.",
+  "properties": {
+    "schema": {
+      "description": "Contract identity.",
+      "type": "string"
+    },
+    "valid": {
+      "description": "One validity bit per vector.",
+      "items": {
+        "type": "boolean"
+      },
+      "type": "array"
+    },
+    "vectors": {
+      "description": "One vector per pixel, no implicit resampling.",
+      "items": {
+        "items": {
+          "format": "float",
+          "type": "number"
+        },
+        "maxItems": 2,
+        "minItems": 2,
+        "type": "array"
+      },
+      "type": "array"
+    }
+  },
+  "required": [
+    "schema",
+    "vectors",
+    "valid"
+  ],
+  "title": "Buffer",
+  "type": "object"
+}

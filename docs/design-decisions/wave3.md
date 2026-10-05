@@ -75,3 +75,26 @@ supplied paired evidence rejects performance qualification. Raw aggregate
 measurements and term/counter diagnostics remain present; robust inference is
 for frame timing only. Historical absence does not manufacture uncertainty or
 rewrite old verdict rules. It remains explicit in the user-facing limits.
+
+## Item 4: dense motion and renderer vectors
+
+Choose `review motion` as the explicit diagnostic front door. Keep the earlier
+single-global-translation packet unchanged: it does not silently become a dense
+producer. The optional `dense-motion` feature provides independent native Rust
+DIS inverse patch search and residual-weighted multi-scale densification,
+following Kroeger et al. algorithm 1 without variational refinement. No copied
+implementation, model or native dependency; code uses MIT OR Apache-2.0. OpenCV
+was not locally available and is unnecessary for this bounded implementation.
+Avoid claiming parity with an OpenCV preset or the paper's measured throughput.
+
+The byte-pinned sidecar makes grid and direction inseparable, distinguishes
+pixel/UV/NDC units and component origin, and explicitly accounts for both frame
+jitters. Reverse vectors compare to independently measured candidate-grid flow.
+Reject nonfinite values, stale identities, mismatched resolution and unqualified
+HDR/transparency instead of implicitly converting them. Fixed texture,
+photometric, motion-boundary and forward/backward checks exclude uncertain
+pixels. Occlusion remains a possible explanation, not geometric ground truth.
+Coverage and null statistics are preserved. No calibration or live renderer
+claim follows from synthetic evidence. Raw full-frame FLIP and its declared
+threshold alone control this front door's exit 0/1; vector disagreement remains
+a separate diagnostic. No alignment can erase an appearance regression.

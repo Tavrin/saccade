@@ -56,6 +56,20 @@ fn committed_schemas_match_the_rust_types() {
     let update = std::env::var_os("UPDATE_SCHEMAS").is_some();
     let all = [
         (
+            "saccade-motion-review.v1.schema.json",
+            generated::<saccade_core::dense_motion::Report>("saccade-motion-review.v1.schema.json"),
+        ),
+        (
+            "saccade-motion-vectors.v1.schema.json",
+            generated::<saccade_core::dense_motion::Sidecar>(
+                "saccade-motion-vectors.v1.schema.json",
+            ),
+        ),
+        (
+            "saccade-vector-buffer.v1.schema.json",
+            generated::<saccade_core::dense_motion::Buffer>("saccade-vector-buffer.v1.schema.json"),
+        ),
+        (
             "saccade-perf-plan.v1.schema.json",
             generated::<saccade_core::paired_stats::Plan>("saccade-perf-plan.v1.schema.json"),
         ),

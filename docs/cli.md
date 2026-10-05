@@ -5,7 +5,7 @@ Generated from compiled capabilities and `--help`; do not edit by hand.
 Generation: `cargo build --release -p saccade --all-features`, then `python3 scripts/gen-docs.py --saccade target/release/saccade`.
 The all-features binary includes every supported operation.
 
-Compiled features: `ai`, `compression`, `evaluation`, `geometry`, `graphics`, `mcp`, `ocr`, `parallel`, `prechecks`, `schema`, `semantic-regions`, `workbench`.
+Compiled features: `ai`, `compression`, `dense-motion`, `evaluation`, `geometry`, `graphics`, `mcp`, `ocr`, `parallel`, `prechecks`, `schema`, `semantic-regions`, `workbench`.
 
 Exit 1 means a failed image measurement/evaluation gate or located divergence.
 Exit 0 for compare/identity means no image regression; inspect `performance` for qualification.
@@ -1201,6 +1201,7 @@ Usage: saccade review [OPTIONS] [REPORT] [COMMAND]
 Commands:
   brand    Review brand colours, theme contrast, CVD and source typography together
   ui       Review source text/layout and localized UI changes in one packet
+  motion   Diagnose dense correspondence and validate supplied renderer vectors
   request  Prepare a closed request from an existing canonical case, locally
   propose  Validate and record proposed answers against the exact request
   ask      Create or retrieve a local human review item for an unresolved request
@@ -1274,6 +1275,40 @@ Options:
           [default: 0.01]
       --ppd <PPD>
           [default: 67]
+      --out <OUT>
+
+      --user-config <USER_CONFIG>
+
+      --json
+
+  -h, --help
+          Print help
+
+Global options:
+      --allow-out-near-captures  Silence warnings when --out is next to capture metadata
+      --record-absolute-paths    Opt in to absolute local paths in reports and machine-readable output
+```
+
+## saccade review motion
+
+```text
+Diagnose dense correspondence and validate supplied renderer vectors
+
+Usage: saccade review motion [OPTIONS] --out <OUT> <REFERENCE> <CANDIDATE>
+
+Arguments:
+  <REFERENCE>
+  <CANDIDATE>
+
+Options:
+      --vectors <VECTORS>
+          Row-major saccade-vector-buffer.v1 JSON (requires --sidecar)
+      --sidecar <SIDECAR>
+          Pinned units, direction, origin and jitter contract (requires --vectors)
+      --ppd <PPD>
+          [default: 67]
+      --maximum-raw-mean <MAXIMUM_RAW_MEAN>
+          Raw full-frame mean FLIP threshold; motion cannot relax it [default: 0.01]
       --out <OUT>
 
       --user-config <USER_CONFIG>

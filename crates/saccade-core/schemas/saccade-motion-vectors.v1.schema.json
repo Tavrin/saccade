@@ -1,0 +1,147 @@
+{
+  "$defs": {
+    "Direction": {
+      "description": "Correspondence direction also determines the buffer grid.",
+      "oneOf": [
+        {
+          "const": "reference_to_candidate",
+          "description": "Reference-grid pixels point to candidate pixels.",
+          "type": "string"
+        },
+        {
+          "const": "candidate_to_reference",
+          "description": "Candidate-grid pixels point to reference pixels.",
+          "type": "string"
+        }
+      ]
+    },
+    "Origin": {
+      "description": "Vertical vector axis, independent of the buffer's row order.",
+      "oneOf": [
+        {
+          "const": "top_left",
+          "description": "Positive Y points down.",
+          "type": "string"
+        },
+        {
+          "const": "bottom_left",
+          "description": "Positive Y points up.",
+          "type": "string"
+        }
+      ]
+    },
+    "Units": {
+      "description": "Buffer coordinate convention. Rows always run top to bottom.",
+      "oneOf": [
+        {
+          "const": "pixels",
+          "description": "Displacement in capture pixels.",
+          "type": "string"
+        },
+        {
+          "const": "uv",
+          "description": "Displacement in normalized texture coordinates.",
+          "type": "string"
+        },
+        {
+          "const": "ndc",
+          "description": "Displacement in normalized device coordinates (-1 through +1).",
+          "type": "string"
+        }
+      ]
+    }
+  },
+  "$id": "https://github.com/Tavrin/saccade/crates/saccade-core/schemas/saccade-motion-vectors.v1.schema.json",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "description": "Renderer convention pinned to images and exact encoded buffer bytes.",
+  "properties": {
+    "candidate_jitter_px": {
+      "description": "Candidate image jitter, in top-left pixel units.",
+      "items": {
+        "format": "float",
+        "type": "number"
+      },
+      "maxItems": 2,
+      "minItems": 2,
+      "type": "array"
+    },
+    "candidate_sha256": {
+      "description": "Lowercase SHA256 of encoded candidate image.",
+      "type": "string"
+    },
+    "dimensions": {
+      "description": "Width and height shared by both frames and the buffer.",
+      "items": {
+        "format": "uint32",
+        "minimum": 0,
+        "type": "integer"
+      },
+      "maxItems": 2,
+      "minItems": 2,
+      "type": "array"
+    },
+    "direction": {
+      "$ref": "#/$defs/Direction",
+      "description": "Direction and grid of the stored vectors."
+    },
+    "frame_interval_ms": {
+      "description": "Positive frame interval, retained as provenance; vectors are displacements.",
+      "format": "double",
+      "type": "number"
+    },
+    "includes_jitter": {
+      "description": "Whether the buffer contains the displacement due to jitter.",
+      "type": "boolean"
+    },
+    "origin": {
+      "$ref": "#/$defs/Origin",
+      "description": "Vertical component convention."
+    },
+    "producer": {
+      "description": "Renderer/source/config identity supplied by the producer, never inferred."
+    },
+    "reference_jitter_px": {
+      "description": "Reference image jitter, in top-left pixel units.",
+      "items": {
+        "format": "float",
+        "type": "number"
+      },
+      "maxItems": 2,
+      "minItems": 2,
+      "type": "array"
+    },
+    "reference_sha256": {
+      "description": "Lowercase SHA256 of encoded reference image.",
+      "type": "string"
+    },
+    "schema": {
+      "description": "Contract identity.",
+      "type": "string"
+    },
+    "units": {
+      "$ref": "#/$defs/Units",
+      "description": "Units of the stored components."
+    },
+    "vectors_sha256": {
+      "description": "Lowercase SHA256 of encoded buffer JSON.",
+      "type": "string"
+    }
+  },
+  "required": [
+    "schema",
+    "dimensions",
+    "reference_sha256",
+    "candidate_sha256",
+    "vectors_sha256",
+    "units",
+    "origin",
+    "direction",
+    "reference_jitter_px",
+    "candidate_jitter_px",
+    "includes_jitter",
+    "frame_interval_ms",
+    "producer"
+  ],
+  "title": "Sidecar",
+  "type": "object"
+}

@@ -1,0 +1,472 @@
+{
+  "$defs": {
+    "Direction": {
+      "description": "Correspondence direction also determines the buffer grid.",
+      "oneOf": [
+        {
+          "const": "reference_to_candidate",
+          "description": "Reference-grid pixels point to candidate pixels.",
+          "type": "string"
+        },
+        {
+          "const": "candidate_to_reference",
+          "description": "Candidate-grid pixels point to reference pixels.",
+          "type": "string"
+        }
+      ]
+    },
+    "Field": {
+      "description": "Measured row-major flow on one frame grid, in top-left screenshot pixels.",
+      "properties": {
+        "direction": {
+          "$ref": "#/$defs/Direction",
+          "description": "Direction/grid."
+        },
+        "qualified_pixels": {
+          "description": "Number of qualified pixels; not a probability of correctness.",
+          "format": "uint",
+          "minimum": 0,
+          "type": "integer"
+        },
+        "states": {
+          "description": "Qualification for every pixel.",
+          "items": {
+            "$ref": "#/$defs/State"
+          },
+          "type": "array"
+        },
+        "vectors": {
+          "description": "One vector per pixel, including estimates at uncertain pixels.",
+          "items": {
+            "items": {
+              "format": "float",
+              "type": "number"
+            },
+            "maxItems": 2,
+            "minItems": 2,
+            "type": "array"
+          },
+          "type": "array"
+        }
+      },
+      "required": [
+        "direction",
+        "vectors",
+        "states",
+        "qualified_pixels"
+      ],
+      "type": "object"
+    },
+    "Metrics": {
+      "description": "FLIP error-map statistics. All error values are in `[0, 1]`; a non-finite\nvalue (which a valid run does not produce) is serialized as `null` and read\nback as NaN.",
+      "properties": {
+        "frac_above_0_1": {
+          "description": "Fraction of pixels with error > 0.1.",
+          "format": "double",
+          "type": [
+            "number",
+            "null"
+          ]
+        },
+        "frac_above_0_5": {
+          "description": "Fraction of pixels with error > 0.5.",
+          "format": "double",
+          "type": [
+            "number",
+            "null"
+          ]
+        },
+        "height": {
+          "description": "Image height in pixels.",
+          "format": "uint32",
+          "minimum": 0,
+          "type": "integer"
+        },
+        "max": {
+          "description": "Maximum error.",
+          "format": "double",
+          "type": [
+            "number",
+            "null"
+          ]
+        },
+        "mean": {
+          "description": "Mean error.",
+          "format": "double",
+          "type": [
+            "number",
+            "null"
+          ]
+        },
+        "p50": {
+          "description": "Median error.",
+          "format": "double",
+          "type": [
+            "number",
+            "null"
+          ]
+        },
+        "p95": {
+          "description": "95th-percentile error.",
+          "format": "double",
+          "type": [
+            "number",
+            "null"
+          ]
+        },
+        "p99": {
+          "description": "99th-percentile error.",
+          "format": "double",
+          "type": [
+            "number",
+            "null"
+          ]
+        },
+        "width": {
+          "description": "Image width in pixels.",
+          "format": "uint32",
+          "minimum": 0,
+          "type": "integer"
+        }
+      },
+      "required": [
+        "width",
+        "height"
+      ],
+      "type": "object"
+    },
+    "Origin": {
+      "description": "Vertical vector axis, independent of the buffer's row order.",
+      "oneOf": [
+        {
+          "const": "top_left",
+          "description": "Positive Y points down.",
+          "type": "string"
+        },
+        {
+          "const": "bottom_left",
+          "description": "Positive Y points up.",
+          "type": "string"
+        }
+      ]
+    },
+    "Sidecar": {
+      "description": "Renderer convention pinned to images and exact encoded buffer bytes.",
+      "properties": {
+        "candidate_jitter_px": {
+          "description": "Candidate image jitter, in top-left pixel units.",
+          "items": {
+            "format": "float",
+            "type": "number"
+          },
+          "maxItems": 2,
+          "minItems": 2,
+          "type": "array"
+        },
+        "candidate_sha256": {
+          "description": "Lowercase SHA256 of encoded candidate image.",
+          "type": "string"
+        },
+        "dimensions": {
+          "description": "Width and height shared by both frames and the buffer.",
+          "items": {
+            "format": "uint32",
+            "minimum": 0,
+            "type": "integer"
+          },
+          "maxItems": 2,
+          "minItems": 2,
+          "type": "array"
+        },
+        "direction": {
+          "$ref": "#/$defs/Direction",
+          "description": "Direction and grid of the stored vectors."
+        },
+        "frame_interval_ms": {
+          "description": "Positive frame interval, retained as provenance; vectors are displacements.",
+          "format": "double",
+          "type": "number"
+        },
+        "includes_jitter": {
+          "description": "Whether the buffer contains the displacement due to jitter.",
+          "type": "boolean"
+        },
+        "origin": {
+          "$ref": "#/$defs/Origin",
+          "description": "Vertical component convention."
+        },
+        "producer": {
+          "description": "Renderer/source/config identity supplied by the producer, never inferred."
+        },
+        "reference_jitter_px": {
+          "description": "Reference image jitter, in top-left pixel units.",
+          "items": {
+            "format": "float",
+            "type": "number"
+          },
+          "maxItems": 2,
+          "minItems": 2,
+          "type": "array"
+        },
+        "reference_sha256": {
+          "description": "Lowercase SHA256 of encoded reference image.",
+          "type": "string"
+        },
+        "schema": {
+          "description": "Contract identity.",
+          "type": "string"
+        },
+        "units": {
+          "$ref": "#/$defs/Units",
+          "description": "Units of the stored components."
+        },
+        "vectors_sha256": {
+          "description": "Lowercase SHA256 of encoded buffer JSON.",
+          "type": "string"
+        }
+      },
+      "required": [
+        "schema",
+        "dimensions",
+        "reference_sha256",
+        "candidate_sha256",
+        "vectors_sha256",
+        "units",
+        "origin",
+        "direction",
+        "reference_jitter_px",
+        "candidate_jitter_px",
+        "includes_jitter",
+        "frame_interval_ms",
+        "producer"
+      ],
+      "type": "object"
+    },
+    "State": {
+      "description": "Reasons a pixel is excluded from vector validation, not causal labels.",
+      "oneOf": [
+        {
+          "const": "qualified",
+          "description": "Locally textured, consistent, and photometrically supported.",
+          "type": "string"
+        },
+        {
+          "const": "boundary",
+          "description": "Image or displaced footprint meets a boundary.",
+          "type": "string"
+        },
+        {
+          "const": "ambiguous_texture",
+          "description": "Flat, aperture-limited or locally repeated texture.",
+          "type": "string"
+        },
+        {
+          "const": "possible_occlusion_or_mismatch",
+          "description": "Opposite-direction flow fails consistency; occlusion is one possible cause.",
+          "type": "string"
+        },
+        {
+          "const": "appearance_uncertain",
+          "description": "Appearance does not satisfy the image-matching model.",
+          "type": "string"
+        },
+        {
+          "const": "motion_boundary",
+          "description": "Nearby displacement disagreement suggests a motion boundary.",
+          "type": "string"
+        }
+      ]
+    },
+    "Units": {
+      "description": "Buffer coordinate convention. Rows always run top to bottom.",
+      "oneOf": [
+        {
+          "const": "pixels",
+          "description": "Displacement in capture pixels.",
+          "type": "string"
+        },
+        {
+          "const": "uv",
+          "description": "Displacement in normalized texture coordinates.",
+          "type": "string"
+        },
+        {
+          "const": "ndc",
+          "description": "Displacement in normalized device coordinates (-1 through +1).",
+          "type": "string"
+        }
+      ]
+    },
+    "Validation": {
+      "description": "Endpoint and angular disagreement only on mutually valid pixels.",
+      "properties": {
+        "angular_pixels": {
+          "description": "Angular comparison support, separate from endpoint support.",
+          "format": "uint",
+          "minimum": 0,
+          "type": "integer"
+        },
+        "compared": {
+          "description": "Row-major pixels supporting endpoint statistics.",
+          "items": {
+            "type": "boolean"
+          },
+          "type": "array"
+        },
+        "compared_pixels": {
+          "description": "Number of pixels supporting endpoint statistics.",
+          "format": "uint",
+          "minimum": 0,
+          "type": "integer"
+        },
+        "coverage": {
+          "description": "Fraction of the entire declared grid actually compared.",
+          "format": "double",
+          "type": "number"
+        },
+        "declared_valid_pixels": {
+          "description": "Producer-valid count before measured-flow exclusions.",
+          "format": "uint",
+          "minimum": 0,
+          "type": "integer"
+        },
+        "maximum_endpoint_px": {
+          "description": "Maximum endpoint error.",
+          "format": "double",
+          "type": [
+            "number",
+            "null"
+          ]
+        },
+        "mean_angle_degrees": {
+          "description": "Mean angle in degrees, excluding either vector of length <= 0.1 px.",
+          "format": "double",
+          "type": [
+            "number",
+            "null"
+          ]
+        },
+        "mean_endpoint_px": {
+          "description": "Euclidean endpoint error in unjittered original-image pixels.",
+          "format": "double",
+          "type": [
+            "number",
+            "null"
+          ]
+        },
+        "p95_endpoint_px": {
+          "description": "Nearest-rank 95th percentile endpoint error.",
+          "format": "double",
+          "type": [
+            "number",
+            "null"
+          ]
+        },
+        "sidecar": {
+          "$ref": "#/$defs/Sidecar",
+          "description": "Full convention and producer assertion retained for review."
+        }
+      },
+      "required": [
+        "sidecar",
+        "declared_valid_pixels",
+        "compared_pixels",
+        "coverage",
+        "angular_pixels",
+        "compared"
+      ],
+      "type": "object"
+    }
+  },
+  "$id": "https://github.com/Tavrin/saccade/crates/saccade-core/schemas/saccade-motion-review.v1.schema.json",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "description": "Dense motion evidence with an unmodified raw FLIP measurement.",
+  "properties": {
+    "dimensions": {
+      "description": "Original dimensions.",
+      "items": {
+        "format": "uint32",
+        "minimum": 0,
+        "type": "integer"
+      },
+      "maxItems": 2,
+      "minItems": 2,
+      "type": "array"
+    },
+    "fields": {
+      "description": "Reference and candidate grid fields, respectively.",
+      "items": {
+        "$ref": "#/$defs/Field"
+      },
+      "maxItems": 2,
+      "minItems": 2,
+      "type": "array"
+    },
+    "image_sha256": {
+      "description": "Exact image identities, reference then candidate.",
+      "items": {
+        "type": "string"
+      },
+      "maxItems": 2,
+      "minItems": 2,
+      "type": "array"
+    },
+    "limitations": {
+      "description": "Qualification boundaries.",
+      "items": {
+        "type": "string"
+      },
+      "type": "array"
+    },
+    "maximum_raw_mean": {
+      "description": "Raw mean threshold; vectors cannot change it.",
+      "format": "float",
+      "type": "number"
+    },
+    "method": {
+      "description": "Native algorithm variant and all fixed settings."
+    },
+    "pixels_per_degree": {
+      "description": "Viewing parameter used for raw FLIP.",
+      "format": "float",
+      "type": "number"
+    },
+    "raw_flip": {
+      "$ref": "#/$defs/Metrics",
+      "description": "Unaligned full-frame perceptual measurements remain authoritative."
+    },
+    "raw_regression": {
+      "description": "Raw threshold result, independent of motion diagnostics.",
+      "type": "boolean"
+    },
+    "renderer": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/Validation"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "description": "Optional renderer comparison."
+    },
+    "schema": {
+      "description": "Contract identity.",
+      "type": "string"
+    }
+  },
+  "required": [
+    "schema",
+    "image_sha256",
+    "dimensions",
+    "method",
+    "raw_flip",
+    "pixels_per_degree",
+    "maximum_raw_mean",
+    "raw_regression",
+    "fields",
+    "limitations"
+  ],
+  "title": "Report",
+  "type": "object"
+}

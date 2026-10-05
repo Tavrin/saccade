@@ -50,6 +50,8 @@ default = ["parallel"]
 parallel = ["flip-rs/parallel"]
 # Graphics computations; their report types remain available in every build.
 graphics = []
+# Bounded CPU dense inverse search, no native runtime or model dependencies.
+dense-motion = []
 # Compression scoring is independent of graphics and provider adapters.
 compression = ["dep:ssimulacra2", "dep:butteraugli"]
 # Optional dynamically loaded ONNX runtime, explicit cache downloads only.

@@ -31,6 +31,7 @@ default = ["compression", "parallel", "graphics", "ai", "workbench", "mcp", "eva
 semantic-regions = ["saccade-core/semantic-regions"]
 compression = ["saccade-core/compression"]
 parallel = ["saccade-core/parallel"]
+dense-motion = ["saccade-core/dense-motion"]
 geometry = ["saccade-core/geometry"]
 graphics = ["saccade-core/graphics", "dep:colorvideovdp"]
 ai = ["saccade-core/ai"]

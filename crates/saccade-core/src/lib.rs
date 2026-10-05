@@ -15,6 +15,7 @@ pub mod config;
 pub mod decision;
 #[cfg(feature = "ai")]
 pub mod decision_provider;
+pub mod dense_motion;
 pub mod diagnostics;
 pub mod ergonomics;
 pub mod error;
@@ -87,6 +88,8 @@ pub const COMPILED_FEATURES: &[&str] = &[
     "graphics",
     #[cfg(feature = "geometry")]
     "geometry",
+    #[cfg(feature = "dense-motion")]
+    "dense-motion",
     #[cfg(feature = "compression")]
     "compression",
     #[cfg(feature = "semantic-regions")]
