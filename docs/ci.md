@@ -46,6 +46,14 @@ immutable artifact ID. It opens a pull request for review and does not merge
 it automatically. Do not fetch mutable latest-successful data.
 CLI receipts remain unattested even when trusted CI authorizes the invocation.
 
+All-features builds, tests and packaging enable `imgtune-avif` and require
+**dav1d >= 1.3.0** development files plus **pkg-config**; see the
+[installation commands](imgtune.md#system-prerequisites). The CI feature matrix's
+all-features entry, CI package and release-check jobs, and release package job
+install and check these dependencies before invoking Cargo. These jobs run on
+Ubuntu; the current macOS and Windows jobs build without `imgtune-avif`.
+Any future job enabling it must install the native dependencies for its OS too.
+
 Local validation:
 
 ```sh

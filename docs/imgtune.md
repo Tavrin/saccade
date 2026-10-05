@@ -2,8 +2,31 @@
 
 Build `products` for local JPEG/lossless WebP and generic HTTP template adapters.
 `imgtune-avif` additionally enables the pure Rust ravif/rav1e AVIF encoder and
-native dav1d decoder; the coordinator must provide its system development library (dav1d >= 1.3.0).
+native dav1d decoder.
 This optional native dependency never enters the default feature set.
+
+## System prerequisites
+
+Building with `--features imgtune-avif` or `--all-features` (including
+`cargo package --workspace --all-features --locked`) requires the system
+**dav1d >= 1.3.0** development library and **pkg-config**. The `image/avif-native`
+feature uses `dav1d-sys`, which discovers the native library through pkg-config.
+
+On Ubuntu 24.04 or newer:
+
+```sh
+sudo apt-get update
+sudo apt-get install --yes libdav1d-dev pkg-config
+pkg-config --atleast-version=1.3.0 dav1d
+```
+
+[Ubuntu 24.04 provides dav1d 1.4.1](https://packages.ubuntu.com/noble/libdav1d-dev).
+On other systems, install dav1d development files for the Rust target and
+pkg-config, and ensure `dav1d.pc` is discoverable (set `PKG_CONFIG_PATH` for a
+nonstandard installation). The same minimum version applies on every OS.
+Keep the matching shared library available at runtime when dynamically linked.
+
+## Usage
 
 ```sh
 saccade imgtune audit --urls images.txt --accept 'image/avif,image/webp,image/*' \
