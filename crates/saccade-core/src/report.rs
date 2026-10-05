@@ -289,6 +289,9 @@ pub enum Metric {
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct Entry {
+    /// Opt-in multiscale and tile structural evidence.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub spatial: Option<crate::evidence_quality::spatial::SpatialReport>,
     /// Intended metadata variables with before/after values, including unchanged keys.
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub intended_variables: Vec<MetaDiff>,

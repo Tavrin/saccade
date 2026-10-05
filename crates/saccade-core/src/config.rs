@@ -23,6 +23,8 @@ pub struct Override {
 /// Settings for [`crate::run::run`].
 #[derive(Debug, Clone, PartialEq)]
 pub struct RunConfig {
+    /// Opt-in spatial structure versus texture analysis.
+    pub spatial: Option<crate::evidence_quality::spatial::Policy>,
     /// Additional intended-variable patterns per ablation label.
     pub arm_variables: std::collections::BTreeMap<String, Vec<String>>,
     /// Required effect occupancy gates (wave9).
@@ -100,6 +102,7 @@ pub struct RunConfig {
 impl Default for RunConfig {
     fn default() -> Self {
         Self {
+            spatial: None,
             arm_variables: Default::default(),
             required_effect: Vec::new(),
             effect_roots: Default::default(),
@@ -142,6 +145,7 @@ impl Default for RunConfig {
 #[derive(Deserialize)]
 #[serde(deny_unknown_fields)]
 struct FileConfig {
+    spatial: Option<crate::evidence_quality::spatial::Policy>,
     #[serde(default)]
     intended_variables: Vec<String>,
     #[serde(default)]
@@ -293,6 +297,7 @@ impl RunConfig {
             explicit_tolerances: file.threshold.is_some() || file.metric.is_some(),
             ..Self::default()
         };
+        cfg.spatial = file.spatial;
         cfg.meta.intended = file.intended_variables;
         cfg.arm_variables = file.arm_variables;
         cfg.required_effect = file.required_effect;
@@ -481,6 +486,9 @@ impl RunConfig {
         }
         for effect in &self.required_effect {
             effect.validate()?;
+        }
+        if let Some(policy) = &self.spatial {
+            policy.validate()?;
         }
         self.perf.validate()?;
         self.brand.validate()?;

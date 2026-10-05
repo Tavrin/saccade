@@ -789,6 +789,7 @@ mod tests {
     fn entry(name: &str, status: Status) -> Entry {
         Entry {
             intended_variables: Vec::new(),
+            spatial: None,
             required_effects: Vec::new(),
             buffer: None,
             name: name.into(),

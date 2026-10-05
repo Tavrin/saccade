@@ -64,3 +64,42 @@ Ablation accepts those global patterns and repeatable
 apply to that label. Each arm records `intended_keys` and `intended_variables`
 separately from `config_differs`. MCP compare uses `intended_variables` and
 supports config declarations for experiments.
+
+## Structure and texture
+
+Add `[spatial]` to the compare config. `scales = [2,4,8]` runs FLIP on
+area-downsampled pairs at 1/2, 1/4 and 1/8 as well as full resolution.
+`ssimulacra2 = true` requires the compression feature; scores are absent for
+transparent inputs or dimensions below 8x8. RGB MAD retains floating area
+means; perceptual scales round these means to RGB8. All edge pixels contribute.
+
+The default `version = "spatial-1"` records a 32-pixel tile grid, signed mean
+normalized sRGB luminance shift and pixel CI, relative shift (denominator
+floored at 0.02), before/after contrast, variance ratio, absolute Laplacian
+fine-detail-energy ratio, optional background gap fractions, and mean full and
+coarsest FLIP. Edge tiles remain in the grid. Zero baseline variance/energy with
+nonzero candidate values yields a null ratio, never an artificial finite ratio.
+
+Thresholds are all configurable and recorded in each entry's `spatial.policy`.
+Defaults: absolute and relative shifts >0.02, CI multiplier 1.96, minimum
+three connected significant tiles, coarse RGB MAD <=0.002, at most two
+absolute outlier tiles, relative shifted-tile share <=0.25, detail ratio within
+10%, coverage/gap tolerance 0.05, and coarse/full FLIP ratio <=0.3. The small
+coarse-error allowance targets half an 8-bit code; sparse tiles alone cannot
+hide broad relative shifts, detail loss or silhouette changes. These defaults
+are generated-fixture policies, not calibrated human perceptual thresholds.
+Pixel CIs assume independence; spatial correlation limits that interpretation.
+
+`texture_noise_only` means error is confined to texture under this policy;
+`systematic_shift` includes connected regions and their bias/coverage/detail
+reasons. Other cases retain the existing diagnostic class. `absolute_shifted_share`
+and `relative_shifted_share` describe the whole nonempty grid. The original
+FLIP score and threshold remain recorded. `decide = true` explicitly uses
+structural classification for the comparison gate; required occupancy and
+explicit region thresholds still apply. Defaults retain historical acceptance.
+
+Optional `[spatial.background]` uses `kind = "luminance", max = 0.001`,
+`kind = "colour", rgb = [0,0,0], tolerance = 0.001`, or
+`kind = "selection"` with the same mask/layer/box selection model as effects.
+Background share is gap fraction; non-background share is coverage. The report
+also records whole-frame coverage ratio and silhouette XOR/union.

@@ -16,6 +16,7 @@ fn sample() -> Report {
 fn entry(name: String, status: Status, value: Option<f64>) -> Entry {
     Entry {
         intended_variables: Vec::new(),
+        spatial: None,
         required_effects: Vec::new(),
         pass_with_local_change: false,
         buffer: None,

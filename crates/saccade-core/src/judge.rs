@@ -655,6 +655,7 @@ fn compute_entry(
     let value = cmp.metrics.mean;
     let entry = Entry {
         intended_variables: Vec::new(),
+        spatial: None,
         required_effects: Vec::new(),
         buffer: None,
         name: name.to_owned(),

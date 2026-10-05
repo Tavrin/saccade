@@ -861,6 +861,7 @@ pub(crate) fn build_entry(
     let (metric_used, threshold) = config.effective_for(name);
     let mut entry = Entry {
         intended_variables: Vec::new(),
+        spatial: None,
         required_effects: Vec::new(),
         name: name.to_string(),
         status: Status::Error,
@@ -1061,12 +1062,69 @@ fn fill_entry(
                 capture_path: cap,
                 flip: opts,
             };
-            let errors = if config.required_effect.is_empty() {
+            let errors = if config.required_effect.is_empty() && config.spatial.is_none() {
                 Vec::new()
             } else {
                 cmp.error_map.clone()
             };
             finish_entry(entry, cmp, report_dir, config, &pair)?;
+            if let Some(policy) = &config.spatial {
+                use crate::evidence_quality::spatial;
+                let excluded = crate::regions::mask_for(
+                    &entry.name,
+                    base_img.width(),
+                    base_img.height(),
+                    &config.masks,
+                    config.config_dir.as_deref(),
+                )?;
+                let root = config.config_dir.as_deref().unwrap_or(Path::new("."));
+                let gaps = policy
+                    .background
+                    .as_ref()
+                    .map(|criterion| {
+                        Ok::<_, Error>((
+                            spatial::background(criterion, &base_img, base, root)?,
+                            spatial::background(criterion, &cap_img, cap, root)?,
+                        ))
+                    })
+                    .transpose()?;
+                let fallback = entry
+                    .diagnostics
+                    .as_ref()
+                    .map_or(crate::diagnostics::ChangeClass::LocalStructure, |d| d.class);
+                let result = spatial::analyze(
+                    &base_img,
+                    &cap_img,
+                    &errors,
+                    excluded.as_deref(),
+                    gaps.as_ref().map(|(b, c)| (b.as_slice(), c.as_slice())),
+                    policy,
+                    opts,
+                    fallback,
+                )?;
+                if policy.decide {
+                    entry.status = if matches!(
+                        result.class,
+                        crate::diagnostics::ChangeClass::Identical
+                            | crate::diagnostics::ChangeClass::TextureNoiseOnly
+                    ) && entry.regions.iter().all(|r| r.status != Some(Status::Fail))
+                    {
+                        Status::Pass
+                    } else {
+                        Status::Fail
+                    };
+                }
+                if let Some(d) = &mut entry.diagnostics {
+                    d.class = result.class;
+                    d.description = format!(
+                        "{} under {}; {} systematic regions",
+                        result.class.as_str(),
+                        policy.version,
+                        result.regions.len()
+                    );
+                }
+                entry.spatial = Some(result);
+            }
             for effect in &config.required_effect {
                 if !crate::config::compile_glob(&effect.glob)?.is_match(&entry.name) {
                     continue;

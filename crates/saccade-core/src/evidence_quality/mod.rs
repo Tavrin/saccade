@@ -1,6 +1,7 @@
 //! Opt-in rendering evidence: occupancy, structure, layers and temporal uncertainty.
 pub mod effect;
 pub mod layers;
+pub mod spatial;
 
 use crate::{Error, Result};
 use std::io::Read;
