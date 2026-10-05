@@ -213,6 +213,9 @@ enum Command {
     /// Bounded advisory observations from an explicitly configured local VLM.
     #[cfg(feature = "local-vlm")]
     ObserveLocal(wave7_cmd::ObserveArgs),
+    /// Map provider requests or decode recorded vision responses; no live calls.
+    #[cfg(feature = "vision-providers")]
+    ProviderMap(wave7_cmd::ProviderArgs),
     /// Align optional Vulkan replay evidence and locate native-resource divergence.
     RenderdocLocalize(renderdoc_cmd::Args),
     /// Import and freeze phrase regions, or inspect optional model plumbing.
@@ -1011,6 +1014,8 @@ fn dispatch(command: Command, record_absolute_paths: bool) -> Result<u8, CliErro
         Command::CropCheck(args) => wave7_cmd::crop(args),
         #[cfg(feature = "local-vlm")]
         Command::ObserveLocal(args) => wave7_cmd::observe(args),
+        #[cfg(feature = "vision-providers")]
+        Command::ProviderMap(args) => wave7_cmd::provider(args),
         Command::Prove {
             operation: ProveOperation::Identity(args),
         } => dispatch(

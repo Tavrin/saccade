@@ -4,6 +4,8 @@ pub mod faces;
 pub mod local_vlm;
 pub mod models;
 pub mod observation;
+#[cfg(feature = "vision-providers")]
+pub mod providers;
 pub mod quality;
 #[cfg(feature = "local-models")]
 pub mod runtime;

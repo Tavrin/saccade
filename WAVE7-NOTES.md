@@ -62,3 +62,10 @@
   Rejected weak Gaussian blur for privacy; constant average box plus 15% margin
   is more destructive but removes facial detail. Reversal cost: change output
   redaction policy; detection/geometry/report interfaces remain stable.
+- Provider adapters: Claude Sonnet 5.5 / GPT-6.1 Sol request/response mappings,
+  explicit pixels/unit/thousand geometry transform, bounded structured statements,
+  usage counters and model identity against generated recorded fixtures. No live
+  transport. Keys have fixed user-file policy and redacted parse errors.
+  Rejected assuming undocumented Sol image budgets or immutable dated snapshots.
+  Reversal: coordinator binds actual authorized transport/revision receipts in
+  wave 4; request fixture contract requires live qualification before promotion.

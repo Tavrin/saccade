@@ -89,7 +89,7 @@ pub struct DwtConfig {
     pub minimum_agreement: f32,
 }
 fn ac_coefficient(block: &[f32; 16]) -> f32 {
-    let mut best = 0.;
+    let mut best: f32 = 0.;
     for v in 0..4 {
         for u in 0..4 {
             if u == 0 && v == 0 {

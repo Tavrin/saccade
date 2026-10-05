@@ -4,6 +4,6 @@
 7.2 partial (236230f) — validated locate/segment API, generated fixtures, replay/overlay CLI; native selected export/tokenizer parity deferred.
 7.3 done (4754efc, external-runtime route) — local trait and feature-gated bounded loopback HTTP adapter; native Florence/Qwen ONNX unqualified.
 7.4 partial (c555ce0) — scalar ONNX/replay quality-score and named metric reports; exact selected exports and normal-compare attachment await pins/coordinator.
-7.5 partial — watermark command/composable report, native known-message DWT/DCT, TrustMark trait/replay; exact TrustMark ECC/export/pin and upstream legacy parity deferred.
-7.6 done (artifact qualification pending) — YuNet/UltraFace ONNX decoders, faces/crop-check/strong-redaction CLI, generated geometry/privacy tests.
-7.7 pending — provider fixture adapters.
+7.5 partial (6ac275e) — watermark command/composable report, native known-message DWT/DCT, TrustMark trait/replay; exact TrustMark ECC/export/pin and upstream legacy parity deferred.
+7.6 done (b604b4e, artifact qualification pending) — YuNet/UltraFace ONNX decoders, faces/crop-check/strong-redaction CLI, generated geometry/privacy tests.
+7.7 done (interface only) — Claude/GPT structured request/fixture-response mappings, explicit geometry/usage/key policy; no live calls.

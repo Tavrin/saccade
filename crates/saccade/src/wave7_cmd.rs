@@ -478,3 +478,63 @@ pub(crate) fn crop(a: CropArgs) -> Result<u8, CliError> {
     }
     emit(&report, a.faces.json)
 }
+
+#[cfg(feature = "vision-providers")]
+#[derive(clap::Args)]
+pub(crate) struct ProviderArgs {
+    request: PathBuf,
+    #[arg(long)]
+    provider: String,
+    /// Explicit recorded response; omit to show request mapping only (no credentials).
+    #[arg(long)]
+    response: Option<PathBuf>,
+    #[arg(long, default_value = "pixels")]
+    coordinates: String,
+    #[arg(long)]
+    json: bool,
+}
+#[cfg(feature = "vision-providers")]
+pub(crate) fn provider(a: ProviderArgs) -> Result<u8, CliError> {
+    use saccade_core::wave7::{
+        observation::ObservationRequest,
+        providers::{Coordinates, Provider, ProviderAdapter},
+    };
+    let provider = match a.provider.as_str() {
+        "claude" => Provider::Claude,
+        "gpt" => Provider::Gpt,
+        _ => return Err(CliError::usage("provider must be claude or gpt")),
+    };
+    let coordinates = match a.coordinates.as_str() {
+        "pixels" => Coordinates::Pixels,
+        "unit" => Coordinates::Unit,
+        "thousand" => Coordinates::Thousand,
+        _ => {
+            return Err(CliError::usage(
+                "coordinates must be pixels, unit or thousand",
+            ));
+        }
+    };
+    let r: ObservationRequest = serde_json::from_slice(
+        &models::read_bounded(&a.request, 24 * 1024 * 1024).map_err(error)?,
+    )?;
+    let adapter = ProviderAdapter {
+        provider,
+        coordinates,
+    };
+    if let Some(path) = a.response {
+        emit(
+            &adapter
+                .decode(
+                    &r,
+                    &models::read_bounded(&path, 1024 * 1024).map_err(error)?,
+                )
+                .map_err(error)?,
+            a.json,
+        )
+    } else {
+        emit(
+            &serde_json::json!({"schema":"saccade-provider-mapping.v1","interface_only":true,"endpoint":provider.endpoint(),"request_sha256":r.hash().map_err(error)?,"body":adapter.request(&r).map_err(error)?}),
+            a.json,
+        )
+    }
+}

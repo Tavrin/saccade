@@ -141,3 +141,31 @@ strongly redacting detected boxes plus a 15% margin with a constant average
 colour. This sacrifices detail for privacy; it is stronger than a weak Gaussian
 blur. Undetected faces remain a recall limitation. Originals are never changed.
 No identity labels, face embeddings or identity recognition are present.
+
+## Provider mappings (`vision-providers`, interface only)
+
+`saccade provider-map request.json --provider claude --json` builds the Claude
+Sonnet 5.5 structured request. `--provider gpt` builds GPT-6.1 Sol's Responses
+request (`store:false`). `--response recorded.json` decodes a fixture only.
+There is no live transport, implicit provider fallback, live qualification or
+credential reading by this command. Generated fixtures have no real image data
+or provider results. Caller-provided images are embedded in request output;
+request JSON is evidence, so handle it under the input's privacy policy.
+
+`--coordinates pixels|unit|thousand` declares the wire convention and maps
+boxes/points through the exact presented-image resize/padding transform. There
+is no coordinate guessing or silent clamping. Requested/returned model identities
+must match; unknown ids, geometry, refusals, truncated responses and malformed
+structured observations fail closed. Claude cache read is added once to ordinary
+input; cache creation is separately captured. GPT cached/reasoning counters are
+subsets of input/output totals. Missing usage/cost remains null.
+
+The local `ObservationProvider` trait is implemented by `RecordedProvider`;
+coordinator maps it to wave 4's catalog, immutable identities, egress authority,
+budgets and attempt ledger. `load_credential` only reads
+`~/.config/saccade/anthropic.env` (`ANTHROPIC_API_KEY`) or `openai.env`
+(`OPENAI_API_KEY`) and never reads ambient key variables. Credential has no
+Debug/Display/serialization, and parsing errors are redacted. No key is needed
+for recorded mapping. Undated API model ids remain unqualified aliases; do not
+invent a snapshot/revision or treat schema validity as localization accuracy.
+`store:false` is not a promise of zero retention or ZDR.
