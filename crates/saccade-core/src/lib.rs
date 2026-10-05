@@ -130,3 +130,7 @@ pub fn judge_bench_sources(case: &evidence::case::EvidenceCase) -> Vec<String> {
         .into_iter()
         .collect()
 }
+
+// wave7
+/// Standalone local vision, provenance and crop-safety interfaces.
+pub mod wave7;

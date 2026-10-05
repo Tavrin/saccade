@@ -1,0 +1,30 @@
+# Wave 7 decisions
+
+- Authority: SPEC-wave7.md and shared rules in SPEC-waves-4-6.md; single agent,
+  feat/wave7 only; item commits authorized; no web, downloads, live providers or heavy runs.
+- Artifact pins: the supplied research contains no exact artifact SHA-256/bytes,
+  immutable export revisions or parity receipts. Do not invent them. The selection
+  catalog is distinct from the executable registry. Registry entries require real
+  pins for every graph/tokenizer/backbone/calibration artifact. Until supplied,
+  selected families are unavailable. Reversal cost: supply reviewed manifests;
+  checkpoint-specific preprocessing/export qualification is still required.
+- Runtime: use optional ort load-dynamic CPU runtime for explicit, documented tensor
+  contracts, with independently pinned preprocessing metadata. Export-specific
+  detector tokenizers, SAM encoder/decoder and Florence autoregression are not
+  established in the research. Provide clean inference traits, validated replay
+  observations and normalized export adapters; never label a replay as inference.
+  Rejected guessed tokenizer/export interfaces. Reversal: implement qualified native
+  adapters behind the existing traits; no CLI/observation contract changes needed.
+- General VLM: Qwen3.5-4B has no qualified complete ONNX path. Use feature-gated
+  loopback HTTP adapter with explicit model/runtime identity; Florence bounded
+  extraction uses the same observation interface until qualified native export.
+  Rejected a new native model dependency/port. Reversal: replace the provider behind
+  the trait; processor/template/generation identity must remain recorded.
+- Integration: wave 4/6 commands are absent. Coordinator maps observation provider
+  to wave 4 catalog/evidence and registry/quality/watermark/faces to wave 6
+  assess/inspect-image/check-ui. Learned pair metrics remain separate evidence and
+  never change FLIP/SSIMULACRA2 status or baseline authority.
+- Resource receipt (2026-10-05): df -BG /mnt/linux-extra reports 18 GB available,
+  below 25 GB. Cargo check/clippy/test are prohibited until coordinator restores
+  headroom. No alternate target or cache deletion. Source/format/script checks may
+  run; compilation and runtime acceptance remain unverified.

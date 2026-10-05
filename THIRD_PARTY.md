@@ -208,3 +208,14 @@ LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 ```
+
+## Wave 7 local vision
+
+No model weights are vendored. `docs/wave7.md` and the research selection catalog
+record code/weight licences separately. Executable registry manifests must also
+record each backbone, calibration, graph, tokenizer and parity artifact licence.
+The optional wave 7 features reuse existing `ort` (MIT OR Apache-2.0,
+load-dynamic), `ureq` (MIT OR Apache-2.0), `fs2` (MIT OR Apache-2.0),
+`base64` (MIT OR Apache-2.0), `sha2` (MIT OR Apache-2.0) and `tempfile`
+(MIT OR Apache-2.0); no new crate dependencies. No TrustMark upstream code
+or undocumented dependency version is copied.

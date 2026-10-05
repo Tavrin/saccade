@@ -74,3 +74,8 @@ Workbench receipts have token-gated human attestation. CLI receipts have
 human-required check and has no current writer. Human-final is an application
 policy and audit boundary; an unrestricted shell agent can invoke CLI approval.
 MCP exposes six bounded tools and no baseline-write operation.
+
+<!-- wave7 -->
+Standalone local vision commands and unavailable-model handling are documented in
+[wave 7](../docs/wave7.md). Use `saccade models list --json` before requesting a
+model-backed observation. Model output never grants baseline authority.

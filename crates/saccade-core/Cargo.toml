@@ -69,6 +69,11 @@ prechecks = []
 # Derives `schemars::JsonSchema` on the report, decisions and explain types.
 schema = ["dep:schemars"]
 
+# wave7
+local-models = ["dep:ort", "dep:ureq", "dep:fs2"]
+local-vlm = ["dep:ureq", "dep:base64"]
+vision-providers = ["dep:base64"]
+
 [dev-dependencies]
 tempfile = "3"
 

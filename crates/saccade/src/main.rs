@@ -12,6 +12,9 @@ use saccade_core::config::RunConfig;
 use saccade_core::report::{Labels, Metric, Mode, Report, Status};
 use saccade_core::view::{ViewOptions, build_view, is_safe_name};
 
+// wave7
+mod wave7_cmd;
+
 mod agent;
 mod agent_ui;
 mod approval;
@@ -194,6 +197,9 @@ impl From<MetricArg> for Metric {
 
 #[derive(Subcommand)]
 enum Command {
+    // wave7
+    /// List or explicitly pull pinned local models.
+    Models(wave7_cmd::ModelsArgs),
     /// Align optional Vulkan replay evidence and locate native-resource divergence.
     RenderdocLocalize(renderdoc_cmd::Args),
     /// Import and freeze phrase regions, or inspect optional model plumbing.
@@ -983,6 +989,8 @@ fn emit_run(
 
 fn dispatch(command: Command, record_absolute_paths: bool) -> Result<u8, CliError> {
     match command {
+        // wave7
+        Command::Models(args) => wave7_cmd::models(args),
         Command::Prove {
             operation: ProveOperation::Identity(args),
         } => dispatch(
