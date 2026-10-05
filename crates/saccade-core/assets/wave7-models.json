@@ -1,0 +1,351 @@
+{
+  "schema": "saccade-model-registry.v1",
+  "models": [
+    {
+      "id": "grounding-dino-tiny",
+      "task": "open_vocabulary_detection",
+      "version": "11778337bb87ff84af72a64928c86616d86c495e",
+      "code_license": "Apache-2.0",
+      "weights_license": "Apache-2.0",
+      "source_url": "https://huggingface.co/onnx-community/grounding-dino-tiny-ONNX/resolve/11778337bb87ff84af72a64928c86616d86c495e/onnx/model.onnx",
+      "runtime": "onnx",
+      "input": {
+        "adapter": "grounding-dino-v1",
+        "preprocessing": "square only: supplied shortest-edge 800 matches static graph; other aspect ratios refused",
+        "resolution": [
+          800,
+          800
+        ],
+        "color": "RGB",
+        "scale": 0.00392156862745098,
+        "mean": [
+          0.485,
+          0.456,
+          0.406
+        ],
+        "std": [
+          0.229,
+          0.224,
+          0.225
+        ],
+        "image_input": "pixel_values",
+        "reference_input": null,
+        "output": "pred_boxes"
+      },
+      "artifacts": [
+        {
+          "role": "graph",
+          "revision": "11778337bb87ff84af72a64928c86616d86c495e",
+          "url": "https://huggingface.co/onnx-community/grounding-dino-tiny-ONNX/resolve/11778337bb87ff84af72a64928c86616d86c495e/onnx/model.onnx",
+          "bytes": 718761381,
+          "sha256": "267c8b00d269dc2dda0d8592812d3027abd5fb59f1cabf8e3d56f8fdf07f68ec",
+          "license": "Apache-2.0",
+          "hash_provenance": "host-reported, WAVE7-PINS-2026-10-05.md"
+        },
+        {
+          "role": "config-json",
+          "revision": "11778337bb87ff84af72a64928c86616d86c495e",
+          "url": "https://huggingface.co/onnx-community/grounding-dino-tiny-ONNX/resolve/11778337bb87ff84af72a64928c86616d86c495e/config.json",
+          "bytes": 1579,
+          "sha256": "f4b79138d4a83efb56ebad85c194a5a99a57102204c9829f76c0cd109acb0aeb",
+          "license": "Apache-2.0",
+          "hash_provenance": "computed locally on 2026-10-05"
+        },
+        {
+          "role": "preprocessor_config-json",
+          "revision": "11778337bb87ff84af72a64928c86616d86c495e",
+          "url": "https://huggingface.co/onnx-community/grounding-dino-tiny-ONNX/resolve/11778337bb87ff84af72a64928c86616d86c495e/preprocessor_config.json",
+          "bytes": 511,
+          "sha256": "c17fd68afb1f124bfb87a494d409925eec4201b3487c8a694dde64d9ce7109a3",
+          "license": "Apache-2.0",
+          "hash_provenance": "computed locally on 2026-10-05"
+        },
+        {
+          "role": "tokenizer-json",
+          "revision": "11778337bb87ff84af72a64928c86616d86c495e",
+          "url": "https://huggingface.co/onnx-community/grounding-dino-tiny-ONNX/resolve/11778337bb87ff84af72a64928c86616d86c495e/tokenizer.json",
+          "bytes": 711396,
+          "sha256": "d241a60d5e8f04cc1b2b3e9ef7a4921b27bf526d9f6050ab90f9267a1f9e5c66",
+          "license": "Apache-2.0",
+          "hash_provenance": "computed locally on 2026-10-05"
+        },
+        {
+          "role": "tokenizer_config-json",
+          "revision": "11778337bb87ff84af72a64928c86616d86c495e",
+          "url": "https://huggingface.co/onnx-community/grounding-dino-tiny-ONNX/resolve/11778337bb87ff84af72a64928c86616d86c495e/tokenizer_config.json",
+          "bytes": 1267,
+          "sha256": "5723ed14feabd5c974010123a7c93005116bdc5e3d69bcce3d9334987241f53c",
+          "license": "Apache-2.0",
+          "hash_provenance": "computed locally on 2026-10-05"
+        },
+        {
+          "role": "special_tokens_map-json",
+          "revision": "11778337bb87ff84af72a64928c86616d86c495e",
+          "url": "https://huggingface.co/onnx-community/grounding-dino-tiny-ONNX/resolve/11778337bb87ff84af72a64928c86616d86c495e/special_tokens_map.json",
+          "bytes": 695,
+          "sha256": "5d5b662e421ea9fac075174bb0688ee0d9431699900b90662acd44b2a350503a",
+          "license": "Apache-2.0",
+          "hash_provenance": "computed locally on 2026-10-05"
+        },
+        {
+          "role": "vocab-txt",
+          "revision": "11778337bb87ff84af72a64928c86616d86c495e",
+          "url": "https://huggingface.co/onnx-community/grounding-dino-tiny-ONNX/resolve/11778337bb87ff84af72a64928c86616d86c495e/vocab.txt",
+          "bytes": 231508,
+          "sha256": "07eced375cec144d27c900241f3e339478dec958f92fddbc551f295c992038a3",
+          "license": "Apache-2.0",
+          "hash_provenance": "computed locally on 2026-10-05"
+        }
+      ],
+      "parity_sha256": null
+    },
+    {
+      "id": "owlv2-base",
+      "task": "open_vocabulary_detection",
+      "version": "180d6ef7599bd69bb48db5c72bd49ad03ddfab80",
+      "code_license": "Apache-2.0",
+      "weights_license": "Apache-2.0",
+      "source_url": "https://huggingface.co/onnx-community/owlv2-base-patch16-ensemble-ONNX/resolve/180d6ef7599bd69bb48db5c72bd49ad03ddfab80/onnx/model.onnx",
+      "runtime": "onnx",
+      "input": {
+        "adapter": "owlv2-v1",
+        "preprocessing": "per-channel-mean bottom/right square padding, bilinear resize 960; tokenizer max16",
+        "resolution": [
+          960,
+          960
+        ],
+        "color": "RGB",
+        "scale": 0.00392156862745098,
+        "mean": [
+          0.48145466,
+          0.4578275,
+          0.40821073
+        ],
+        "std": [
+          0.26862954,
+          0.26130258,
+          0.27577711
+        ],
+        "image_input": "pixel_values",
+        "reference_input": null,
+        "output": "pred_boxes"
+      },
+      "artifacts": [
+        {
+          "role": "graph",
+          "revision": "180d6ef7599bd69bb48db5c72bd49ad03ddfab80",
+          "url": "https://huggingface.co/onnx-community/owlv2-base-patch16-ensemble-ONNX/resolve/180d6ef7599bd69bb48db5c72bd49ad03ddfab80/onnx/model.onnx",
+          "bytes": 614219112,
+          "sha256": "ca3ea10811d55cd8763058c6eaddec514bbb91cc07ab774a0db0775346aef732",
+          "license": "Apache-2.0",
+          "hash_provenance": "host-reported, WAVE7-PINS-2026-10-05.md"
+        },
+        {
+          "role": "config-json",
+          "revision": "180d6ef7599bd69bb48db5c72bd49ad03ddfab80",
+          "url": "https://huggingface.co/onnx-community/owlv2-base-patch16-ensemble-ONNX/resolve/180d6ef7599bd69bb48db5c72bd49ad03ddfab80/config.json",
+          "bytes": 544,
+          "sha256": "9222fb235dd16154d94e7bdc7f4d8b0c0bf696eba9f68fd260da6733fd18f731",
+          "license": "Apache-2.0",
+          "hash_provenance": "computed locally on 2026-10-05"
+        },
+        {
+          "role": "preprocessor_config-json",
+          "revision": "180d6ef7599bd69bb48db5c72bd49ad03ddfab80",
+          "url": "https://huggingface.co/onnx-community/owlv2-base-patch16-ensemble-ONNX/resolve/180d6ef7599bd69bb48db5c72bd49ad03ddfab80/preprocessor_config.json",
+          "bytes": 425,
+          "sha256": "cf3e396635b797ee1a464e1b2836e98748f8edac19e89aaa2c93b55ac15b0064",
+          "license": "Apache-2.0",
+          "hash_provenance": "computed locally on 2026-10-05"
+        },
+        {
+          "role": "tokenizer-json",
+          "revision": "180d6ef7599bd69bb48db5c72bd49ad03ddfab80",
+          "url": "https://huggingface.co/onnx-community/owlv2-base-patch16-ensemble-ONNX/resolve/180d6ef7599bd69bb48db5c72bd49ad03ddfab80/tokenizer.json",
+          "bytes": 3642208,
+          "sha256": "e277946093d72c7748281a6a344d6c79a5226c48954d6797dc36984aea23ac60",
+          "license": "Apache-2.0",
+          "hash_provenance": "computed locally on 2026-10-05"
+        },
+        {
+          "role": "tokenizer_config-json",
+          "revision": "180d6ef7599bd69bb48db5c72bd49ad03ddfab80",
+          "url": "https://huggingface.co/onnx-community/owlv2-base-patch16-ensemble-ONNX/resolve/180d6ef7599bd69bb48db5c72bd49ad03ddfab80/tokenizer_config.json",
+          "bytes": 960,
+          "sha256": "bf011c6d421981c3102428c6390472e83d8c097653262b15573ff10af44348ee",
+          "license": "Apache-2.0",
+          "hash_provenance": "computed locally on 2026-10-05"
+        },
+        {
+          "role": "special_tokens_map-json",
+          "revision": "180d6ef7599bd69bb48db5c72bd49ad03ddfab80",
+          "url": "https://huggingface.co/onnx-community/owlv2-base-patch16-ensemble-ONNX/resolve/180d6ef7599bd69bb48db5c72bd49ad03ddfab80/special_tokens_map.json",
+          "bytes": 576,
+          "sha256": "c4dbb96da703fb38f10ccf0490df2fd476811c5a3e71b7e0189cffeed3224e25",
+          "license": "Apache-2.0",
+          "hash_provenance": "computed locally on 2026-10-05"
+        },
+        {
+          "role": "vocab-json",
+          "revision": "180d6ef7599bd69bb48db5c72bd49ad03ddfab80",
+          "url": "https://huggingface.co/onnx-community/owlv2-base-patch16-ensemble-ONNX/resolve/180d6ef7599bd69bb48db5c72bd49ad03ddfab80/vocab.json",
+          "bytes": 862328,
+          "sha256": "5047b556ce86ccaf6aa22b3ffccfc52d391ea4accdab9c2f2407da5b742d4363",
+          "license": "Apache-2.0",
+          "hash_provenance": "computed locally on 2026-10-05"
+        },
+        {
+          "role": "merges-txt",
+          "revision": "180d6ef7599bd69bb48db5c72bd49ad03ddfab80",
+          "url": "https://huggingface.co/onnx-community/owlv2-base-patch16-ensemble-ONNX/resolve/180d6ef7599bd69bb48db5c72bd49ad03ddfab80/merges.txt",
+          "bytes": 524619,
+          "sha256": "9fd691f7c8039210e0fced15865466c65820d09b63988b0174bfe25de299051a",
+          "license": "Apache-2.0",
+          "hash_provenance": "computed locally on 2026-10-05"
+        }
+      ],
+      "parity_sha256": null
+    },
+    {
+      "id": "efficientsam-ti",
+      "task": "prompted_segmentation",
+      "version": "d8dbb1eee73bfb3392aa6f6e8944aeb13f3f4036",
+      "code_license": "Apache-2.0",
+      "weights_license": "Apache-2.0",
+      "source_url": "https://huggingface.co/spaces/yunyangx/EfficientSAM/resolve/d8dbb1eee73bfb3392aa6f6e8944aeb13f3f4036/efficientsam_ti_encoder.onnx",
+      "runtime": "onnx",
+      "input": {
+        "adapter": "efficientsam-v1",
+        "preprocessing": "native RGB /255; internal resize/normalization; original-pixel corners labels2,3; IoU selection and logits>0",
+        "resolution": [
+          0,
+          0
+        ],
+        "color": "RGB",
+        "scale": 0.00392156862745098,
+        "mean": [
+          0,
+          0,
+          0
+        ],
+        "std": [
+          1,
+          1,
+          1
+        ],
+        "image_input": "batched_images",
+        "reference_input": null,
+        "output": "output_masks"
+      },
+      "artifacts": [
+        {
+          "role": "encoder",
+          "revision": "d8dbb1eee73bfb3392aa6f6e8944aeb13f3f4036",
+          "url": "https://huggingface.co/spaces/yunyangx/EfficientSAM/resolve/d8dbb1eee73bfb3392aa6f6e8944aeb13f3f4036/efficientsam_ti_encoder.onnx",
+          "bytes": 24799761,
+          "sha256": "84ed466ffcc5c1f8d08409bc34a23bb364ab2c15e402cb12d4335a42be0e0951",
+          "license": "Apache-2.0",
+          "hash_provenance": "host-reported, WAVE7-PINS-2026-10-05.md"
+        },
+        {
+          "role": "decoder",
+          "revision": "d8dbb1eee73bfb3392aa6f6e8944aeb13f3f4036",
+          "url": "https://huggingface.co/spaces/yunyangx/EfficientSAM/resolve/d8dbb1eee73bfb3392aa6f6e8944aeb13f3f4036/efficientsam_ti_decoder.onnx",
+          "bytes": 16565728,
+          "sha256": "a62f8fa5ea080447c0689418d69e58f1e83e0b7adf9c142e2bd9bcc8045c0b11",
+          "license": "Apache-2.0",
+          "hash_provenance": "host-reported, WAVE7-PINS-2026-10-05.md"
+        }
+      ],
+      "parity_sha256": null
+    },
+    {
+      "id": "yunet-2026may",
+      "task": "face_detection",
+      "version": "47534e27c9851bb1128ccc0102f1145e27f23f98",
+      "code_license": "MIT",
+      "weights_license": "MIT",
+      "source_url": "https://media.githubusercontent.com/media/opencv/opencv_zoo/47534e27c9851bb1128ccc0102f1145e27f23f98/models/face_detection_yunet/face_detection_yunet_2026may.onnx",
+      "runtime": "onnx",
+      "input": {
+        "adapter": "yunet-v1",
+        "preprocessing": "native pixels; bottom/right zero pad to multiple32; scores>=0.6 NMS0.3",
+        "resolution": [
+          0,
+          0
+        ],
+        "color": "BGR",
+        "scale": 1,
+        "mean": [
+          0,
+          0,
+          0
+        ],
+        "std": [
+          1,
+          1,
+          1
+        ],
+        "image_input": "input",
+        "reference_input": null,
+        "output": "bbox_8"
+      },
+      "artifacts": [
+        {
+          "role": "graph",
+          "revision": "47534e27c9851bb1128ccc0102f1145e27f23f98",
+          "url": "https://media.githubusercontent.com/media/opencv/opencv_zoo/47534e27c9851bb1128ccc0102f1145e27f23f98/models/face_detection_yunet/face_detection_yunet_2026may.onnx",
+          "bytes": 229738,
+          "sha256": "ebafce4e3c118d6554634be5c27ab333b4c047a9a8c3faf1d7cf93101c22f0f0",
+          "license": "MIT",
+          "hash_provenance": "host-reported, WAVE7-PINS-2026-10-05.md"
+        }
+      ],
+      "parity_sha256": null
+    },
+    {
+      "id": "ultraface-rfb",
+      "task": "face_detection",
+      "version": "6fd293d22b523ec88959f104b8eef5395e3adfbc",
+      "code_license": "MIT",
+      "weights_license": "MIT",
+      "source_url": "https://huggingface.co/onnxmodelzoo/version-RFB-320/resolve/6fd293d22b523ec88959f104b8eef5395e3adfbc/version-RFB-320.onnx",
+      "runtime": "onnx",
+      "input": {
+        "adapter": "ultraface-v1",
+        "preprocessing": "bilinear resize320x240; (pixel-127)/128; decoded boxes; scores>=0.6 NMS0.3; weight card MIT vs metadata Apache discrepancy retained in notes",
+        "resolution": [
+          320,
+          240
+        ],
+        "color": "RGB",
+        "scale": 1,
+        "mean": [
+          127,
+          127,
+          127
+        ],
+        "std": [
+          128,
+          128,
+          128
+        ],
+        "image_input": "input",
+        "reference_input": null,
+        "output": "boxes"
+      },
+      "artifacts": [
+        {
+          "role": "graph",
+          "revision": "6fd293d22b523ec88959f104b8eef5395e3adfbc",
+          "url": "https://huggingface.co/onnxmodelzoo/version-RFB-320/resolve/6fd293d22b523ec88959f104b8eef5395e3adfbc/version-RFB-320.onnx",
+          "bytes": 1270727,
+          "sha256": "34cd7e60aeff28744c657de7a3dc64e872d506741de66987f3426f2b79f88017",
+          "license": "MIT",
+          "hash_provenance": "host-reported, WAVE7-PINS-2026-10-05.md"
+        }
+      ],
+      "parity_sha256": null
+    }
+  ]
+}

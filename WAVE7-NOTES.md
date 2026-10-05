@@ -122,3 +122,55 @@ quality/watermark/crop and fixture-only provider contracts, explicit native
 shortfalls and no verdict fusion. docs/cli.md: coordinator regenerates it after
 registration conflicts are resolved. Those three files were deliberately not
 edited. Cargo.lock was not changed; no new crate dependency was required.
+
+## Wave 7b authority and artifact decisions
+
+- SPEC-wave7b.md supersedes the initial no-download rule only for the exact pinned
+  artifact URLs and their named companion files at the same immutable revision.
+  crates.io additions are authorized; no other web access, providers, GPU, full
+  gate or other worktree Git operations were performed. Item commits remain
+  authorized by the shared rules. Native acceptance requires the installed runtime.
+- The cache is `/mnt/linux-extra/saccade-models` (~1.6 GiB, below 6 GB). Each of seven
+  downloaded artifacts matched the supplied SHA-256, with no integrity mismatch.
+  Exact EfficientSAM bytes were measured locally (24,799,761 / 16,565,728).
+  Thirteen named DINO/OWL tokenizer/config files were fetched from the same
+  revisions; computed SHA-256 values are dated separately from host-reported
+  graph hashes. `scripts/wave7/receipt.json` preserves all original receipts.
+- The SAM archive really is ZIP with exactly config.yaml and encoder/decoder
+  ONNX graphs. Inner SHA-256/bytes and tensor signatures were read without
+  executing pickle/code. Its config lacks normalisation/prompt mapping and an
+  exporter licence. Rejected inheriting a grant for the source checkpoint onto
+  the unknown archive exporter. Reversal: supplied pinned exporter/processor grant
+  plus preprocessing evidence, then implement the already defined Segmenter seam.
+- LPIPS/DISTS/MUSIQ and TrustMark URLs cannot be completed under the allowed URL
+  set: full ONNX exports/calibration/backbone licences, immutable KonIQ object,
+  or Q decoder revision/hash are absent. Their existing backends remain available
+  to reviewed manifests, but no selected-model measurement is fabricated.
+  TrustMark ECC layout is specified by the report; it does not close neural
+  decoder/resizer pins or supply an encoder/sample. Reversal: exact manifests and
+  then native ECC/export qualification. Compare metric attachment is coordinator
+  work after qualified LPIPS/DISTS exports; it was not smuggled into wave 4/6.
+- DINO's real graph fixes RGB pixels/pixel_mask at 800×800. The supplied processor
+  shortest-edge 800/longest-edge 1333 cannot fit a non-square image to that graph
+  unchanged. Rejected stretching rectangles or silently claiming processor parity.
+  Square path uses BERT; default rectangles route to OWLv2 with actual model identity.
+  OWLv2 uses its pinned CLIP tokenizer (max16, pad0), per-channel mean square
+  padding, 960 bilinear resize and explicit normalized-box original-pixel mapping.
+  Detector score thresholds 0.4/0.1 and NMS0.5 are explicit example policy,
+  not calibrated correctness. Reversal: one detector/export with a compatible graph.
+- EfficientSAM consumes native RGB /255 and internally resizes/normalises. It
+  transfers [1,256,64,64] embeddings, uses original-pixel box corners with labels
+  2/3, selects highest-IoU of three masks and thresholds logits >0. No double
+  ImageNet normalization or low-resolution output mistaken for the original mask.
+- YuNet now pads bottom/right to multiples of32 without resizing original boxes;
+  landmarks/boxes clip to original extents. UltraFace uses decoded boxes directly.
+  Both retain explicit score0.6/NMS0.3 policy. UltraFace card MIT versus metadata
+  Apache-2.0 discrepancy remains visible; no exporter/source parity is claimed.
+- `local-models` alone adds tokenizers0.22.2 with default features off/fancy-regex.
+  All 33 added resolved crate licences were checked in fetched source manifests;
+  permitted license choices and notices recorded in THIRD_PARTY.md and the frozen
+  dependency inventory. Default/minimal builds do not acquire this dependency.
+- Standalone CLI defaults to the bundled registry only if the user registry is
+  absent. Explicit registries still replace that set; there is no automatic pull.
+  Missing SAM2 defaults to EfficientSAM; receipts name the actual segmenter.
+  Rejected relabeling fallback as the primary or asserting source parity from pins.

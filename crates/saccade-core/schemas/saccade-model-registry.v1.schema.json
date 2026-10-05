@@ -10,6 +10,13 @@
           "minimum": 0,
           "type": "integer"
         },
+        "hash_provenance": {
+          "description": "Host-reported digest or locally computed date, retained as provenance.",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
         "license": {
           "description": "Licence of this individual artifact (e.g. backbone independent of LPIPS).",
           "type": "string"

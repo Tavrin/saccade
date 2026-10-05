@@ -1,0 +1,12 @@
+{
+  "date": "2026-10-05",
+  "source": "WAVE7-PINS-2026-10-05.md",
+  "deferred": {
+    "sam-2.1-tiny": "Verified ZIP and inspected encoder/decoder signatures, but archive contains only config.yaml and graphs; no exporter licence or exact preprocessing/prompt-coordinate recipe. Not promoted from checkpoint Apache-2.0 to archive grant.",
+    "lpips-alex-v0.1": "No complete ONNX artifact or immutable calibration/backbone manifest; backbone licence unknown. The mutable source URLs are not authorized download pins. Compare attachment remains coordinator work after a qualified export exists.",
+    "dists": "No complete ONNX artifact or immutable calibration/VGG manifest; independent weight licences unknown. Compare attachment remains coordinator work after a qualified export exists.",
+    "musiq-technical": "No immutable KonIQ checkpoint object generation/hash/licence or complete ONNX conversion and multiscale input recipe.",
+    "trustmark": "Q decoder URL mutable; no revision, exact bytes, SHA-256, pinned antialiased resizer or encoder/sample. Schema/BCH packet layout recorded in the supplied report cannot establish a neural decoder pin. ECC/native decoding remain behind TrustMarkDecoder."
+  },
+  "runtime_limit": "Installed runtime libraries found are ONNX Runtime 1.16.3. Rust ort rc.10 needs API22 (1.22+). No runtime download authorized. Rust inference deferred; bounded reference C-API16 smokes succeeded for the five registry models, separately from source parity and native Rust acceptance."
+}

@@ -217,6 +217,9 @@ pub struct Artifact {
     pub bytes: u64,
     /// Exact SHA-256, never the checkpoint's hash in place of an export hash.
     pub sha256: String,
+    /// Host-reported digest or locally computed date, retained as provenance.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub hash_provenance: Option<String>,
     /// Licence of this individual artifact (e.g. backbone independent of LPIPS).
     pub license: String,
 }
@@ -295,6 +298,12 @@ fn safe_id(s: &str) -> bool {
             .all(|c| c.is_ascii_alphanumeric() || matches!(c, b'-' | b'_' | b'.'))
 }
 impl Registry {
+    /// Lane's reviewed artifact manifest. Source/export parity remains absent.
+    pub fn pinned_wave7() -> Result<Self> {
+        let r: Self = serde_json::from_str(include_str!("../../assets/wave7-models.json"))?;
+        r.validate()?;
+        Ok(r)
+    }
     /// Empty registry; research selections are separately listed unavailable.
     pub fn empty() -> Self {
         Self {
@@ -337,6 +346,9 @@ impl Registry {
                         | "yunet-v1"
                         | "ultraface-v1"
                         | "external-observation-v1"
+                        | "grounding-dino-v1"
+                        | "owlv2-v1"
+                        | "efficientsam-v1"
                 )
                 || !matches!(i.color.as_str(), "RGB" | "BGR")
                 || !i.scale.is_finite()
@@ -529,6 +541,7 @@ mod tests {
             url: "https://example.org/fixture-v1/model.onnx".into(),
             bytes: data.len() as u64,
             sha256: digest(data),
+            hash_provenance: None,
             license: "MIT".into(),
         }
     }
@@ -584,6 +597,36 @@ mod tests {
             r.status(Path::new("absent"))["models"],
             serde_json::json!([])
         );
+    }
+    #[test]
+    fn shipped_pins_keep_aux_hash_origin_and_no_invented_parity() {
+        let r = Registry::pinned_wave7().unwrap();
+        assert_eq!(r.models.len(), 5);
+        assert!(r.models.iter().all(|m| m.parity_sha256.is_none()));
+        let dino = r.model("grounding-dino-tiny").unwrap();
+        assert_eq!(
+            dino.artifacts
+                .iter()
+                .find(|a| a.role == "graph")
+                .unwrap()
+                .bytes,
+            718_761_381
+        );
+        assert!(
+            dino.artifacts
+                .iter()
+                .filter(|a| a.role != "graph")
+                .all(|a| a.hash_provenance.as_deref() == Some("computed locally on 2026-10-05"))
+        );
+        for missing in [
+            "sam-2.1-tiny",
+            "lpips-alex-v0.1",
+            "dists",
+            "musiq-technical",
+            "trustmark",
+        ] {
+            assert!(r.model(missing).is_err());
+        }
     }
     #[test]
     fn bounded_reads_fail_closed() {
