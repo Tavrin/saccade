@@ -26,6 +26,9 @@
     },
     "source_parity": {
       "type": "boolean"
+    },
+    "contracts": {
+      "type": "object"
     }
   },
   "required": [
