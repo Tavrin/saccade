@@ -244,6 +244,7 @@ record a scoped token attestation; CLI receipts record `human_attestation: null`
 - [Captures](docs/captures.md) and [identity/performance](docs/identity-and-performance.md)
 - [Review](docs/review.md), [agents](docs/agents.md), [CI](docs/ci.md)
 - [Exclusion audits, performance onset, geometry and motion](docs/wave1.md)
+- [History drift, quality sweeps, capture inventory, localized checks and grounded explanations](docs/wave2.md)
 - [Contracts and generated schema index](docs/contracts.md)
 - [Evaluation](docs/evaluation.md), [command reference](docs/cli.md), [experimental checks](docs/experimental.md)
 - [Architecture](docs/design.md), [contributing](CONTRIBUTING.md), [changes](CHANGELOG.md)

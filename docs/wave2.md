@@ -114,3 +114,19 @@ saccade regions runtime-probe --manifest qualified-exports.json --cache ~/.cache
 ```
 
 Only `cache` performs explicit downloads; it verifies hashes and exact byte counts before storing artifacts. Cache hits are verified again. The shipped manifest contains checkpoints, so runtime probing rejects it until detector/SAM encoder/SAM decoder self-contained ONNX artifacts are supplied. Runtime 1.22, CPU f32, pinned preprocessing/tokenizer and checkpoint/export/license provenance must be recorded. Graph loading is diagnostic plumbing and does not establish source-model parity or successful text segmentation. The export, inference and accuracy residuals are recorded in the design decisions.
+
+## RenderDoc divergence localization
+
+Run the optional worker explicitly on a qualified Vulkan replay host with RenderDoc 1.34 official Python bindings available. Replay uses the GPU/driver even without the GUI.
+
+```sh
+python3 scripts/renderdoc-worker.py base.rdc --out baseline-replay
+python3 scripts/renderdoc-worker.py candidate.rdc --out candidate-replay
+saccade renderdoc-localize baseline-replay/extraction.json candidate-replay/extraction.json --out replay-localization.json --json
+```
+
+Worker output contains native payloads, event/resource witnesses and exact capture/worker hashes. It requires a new directory, does two independent replays by default, and records unavailable capability with exit 2 when bindings/version/device/replay are unavailable. `--single-replay` retains unqualified repeatability. `--max-bytes` bounds extraction (default 512 MiB, maximum 2 GiB); individual resources are bounded to 64 MiB and actions to 2048. Only one bound texture mip/layer/sample is extracted; buffers are read in full. Other resources remain unobserved.
+
+Rust verifies the payloads and aligns unique marker/action signatures with gaps. Repeated markers, duplicate action signatures and unmarked actions remain ambiguous. It compares native bytes under matching resource roles/format/dimensions/subresources, including compute writable resources. It scans every aligned event, so overwritten intermediate differences remain visible. Exit 2 means incomplete correspondence or evidence, exit 1 means complete evidence with an observed divergence, and exit 0 means complete extracted evidence with equal bytes under this declared scope. These exits grant no acceptance or root-cause authority.
+
+Read `first_observed_divergence`, all observations, gaps and `candidate_inputs`. A bad upload may precede its first visible effect, and a later clear may erase a difference. Confirm final-output relevance and cause with additional resource tracing and a controlled intervention. The current host has no official bindings; only synthetic Rust-side fixtures and the worker's unavailable-capability path were validated. No Vulkan, D3D12, GL or browser replay qualification is claimed.

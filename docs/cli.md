@@ -20,14 +20,15 @@ Tell when visual or performance evidence is not good enough to support a claim
 Usage: saccade [OPTIONS] <COMMAND>
 
 Commands:
-  compare           Compare a directory of captures against a directory of baselines
-  prove             Check whether image identity or performance evidence proves a claim
-  regions           Import and freeze phrase regions, or inspect optional model plumbing
-  explain-grounded  Render verified atomic numerical claims with region and evidence citations
-  review            Preview a review plan or handle a local closed decision request
-  localized-check   Measure intended-region, boundary and protected-complement changes independently
-  inventory         Reconcile expected and supplied stable capture cases against a comparison report
-  quality-sweep     Measure externally encoded quality candidates under a frozen score and byte budget
+  compare             Compare a directory of captures against a directory of baselines
+  prove               Check whether image identity or performance evidence proves a claim
+  renderdoc-localize  Align optional Vulkan replay evidence and locate native-resource divergence
+  regions             Import and freeze phrase regions, or inspect optional model plumbing
+  review              Preview a review plan or handle a local closed decision request
+  explain-grounded    Render verified atomic numerical claims with region and evidence citations
+  localized-check     Measure intended-region, boundary and protected-complement changes independently
+  inventory           Reconcile expected and supplied stable capture cases against a comparison report
+  quality-sweep       Measure externally encoded quality candidates under a frozen score and byte budget
 
 Options:
   -h, --help     Print help
@@ -47,6 +48,27 @@ Start here:
 Exit codes: 0 no image regression, 1 image regression found, 2 the command could not run.
 Advanced: demo, identity, noise, view, inspect, experiment, approve, init,
 serve, mcp, ingest, bisect, history, doctor. Existing commands keep working; use `saccade COMMAND --help`.
+```
+
+## saccade renderdoc-localize
+
+```text
+Align optional Vulkan replay evidence and locate native-resource divergence
+
+Usage: saccade renderdoc-localize [OPTIONS] --out <OUT> <BASELINE> <CANDIDATE>
+
+Arguments:
+  <BASELINE>   Baseline worker extraction.json; raw payloads must stay beneath its directory
+  <CANDIDATE>
+
+Options:
+      --out <OUT>  New JSON localization report
+      --json
+  -h, --help       Print help
+
+Global options:
+      --allow-out-near-captures  Silence warnings when --out is next to capture metadata
+      --record-absolute-paths    Opt in to absolute local paths in reports and machine-readable output
 ```
 
 ## saccade regions

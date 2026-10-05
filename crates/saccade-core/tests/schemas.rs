@@ -56,6 +56,18 @@ fn committed_schemas_match_the_rust_types() {
     let update = std::env::var_os("UPDATE_SCHEMAS").is_some();
     let all = [
         (
+            "saccade-renderdoc-extract.v1.schema.json",
+            generated::<saccade_core::renderdoc::Capture>(
+                "saccade-renderdoc-extract.v1.schema.json",
+            ),
+        ),
+        (
+            "saccade-renderdoc-localization.v1.schema.json",
+            generated::<saccade_core::renderdoc::Localization>(
+                "saccade-renderdoc-localization.v1.schema.json",
+            ),
+        ),
+        (
             "saccade-region-models.v1.schema.json",
             generated::<saccade_core::semantic::ModelManifest>(
                 "saccade-region-models.v1.schema.json",

@@ -1,0 +1,258 @@
+{
+  "$defs": {
+    "Observation": {
+      "description": "Aligned resource evidence or explicit uncertainty.",
+      "properties": {
+        "baseline": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Resource"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "Complete raw baseline witness."
+        },
+        "baseline_event": {
+          "description": "Baseline/candidate event IDs.",
+          "format": "uint32",
+          "minimum": 0,
+          "type": "integer"
+        },
+        "candidate": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Resource"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "Complete raw candidate witness."
+        },
+        "candidate_event": {
+          "description": "Candidate event ID.",
+          "format": "uint32",
+          "minimum": 0,
+          "type": "integer"
+        },
+        "marker_path": {
+          "description": "Stable marker hierarchy.",
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "role": {
+          "description": "Stable role.",
+          "type": "string"
+        },
+        "status": {
+          "description": "equal, diverged, incompatible or unavailable.",
+          "type": "string"
+        }
+      },
+      "required": [
+        "marker_path",
+        "baseline_event",
+        "candidate_event",
+        "role",
+        "status"
+      ],
+      "type": "object"
+    },
+    "Resource": {
+      "additionalProperties": false,
+      "description": "One native resource observation after an action.",
+      "properties": {
+        "bytes": {
+          "description": "Exact extracted bytes.",
+          "format": "uint64",
+          "minimum": 0,
+          "type": [
+            "integer",
+            "null"
+          ]
+        },
+        "dimensions": {
+          "description": "Width, height, depth; buffers use [byte length,1,1].",
+          "items": {
+            "format": "uint64",
+            "minimum": 0,
+            "type": "integer"
+          },
+          "maxItems": 3,
+          "minItems": 3,
+          "type": "array"
+        },
+        "error": {
+          "description": "Explicit extraction/capability error.",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "format": {
+          "description": "Native storage/view format; no thumbnail conversion.",
+          "type": "string"
+        },
+        "interpretation": {
+          "description": "native_bytes; never display-converted numerical evidence.",
+          "type": "string"
+        },
+        "payload": {
+          "description": "Relative raw payload path, or null on extraction error.",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "resource_id": {
+          "description": "Capture-local resource ID, retained only as evidence.",
+          "type": "string"
+        },
+        "role": {
+          "description": "Stable bound role, such as color0, depth or rw:Compute:0:0.",
+          "type": "string"
+        },
+        "sha256": {
+          "description": "Raw payload hash, or null on extraction error.",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "subresource": {
+          "description": "Exact mip, layer and sample. This MVP extracts one descriptor subresource.",
+          "items": {
+            "format": "uint32",
+            "minimum": 0,
+            "type": "integer"
+          },
+          "maxItems": 3,
+          "minItems": 3,
+          "type": "array"
+        }
+      },
+      "required": [
+        "role",
+        "resource_id",
+        "format",
+        "dimensions",
+        "subresource",
+        "interpretation"
+      ],
+      "type": "object"
+    }
+  },
+  "$id": "https://github.com/Tavrin/saccade/crates/saccade-core/schemas/saccade-renderdoc-localization.v1.schema.json",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "description": "First observed divergence, not the earliest actual cause.",
+  "properties": {
+    "alignment": {
+      "description": "Candidate marker/action/resource correspondence model.",
+      "type": "string"
+    },
+    "candidate_inputs": {
+      "description": "Bound input IDs at the divergent action, for inspection only.",
+      "items": {
+        "type": "string"
+      },
+      "type": "array"
+    },
+    "capture_sha256": {
+      "description": "Original capture hashes.",
+      "items": {
+        "type": "string"
+      },
+      "maxItems": 2,
+      "minItems": 2,
+      "type": "array"
+    },
+    "coverage": {
+      "description": "complete or incomplete. No aligned evidence cannot be complete.",
+      "type": "string"
+    },
+    "extraction_sha256": {
+      "description": "Source extraction JSON hashes, assigned by the CLI.",
+      "items": {
+        "type": "string"
+      },
+      "maxItems": 2,
+      "minItems": 2,
+      "type": "array"
+    },
+    "first_observed_divergence": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/Observation"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "description": "First measured native byte divergence in candidate event order."
+    },
+    "limits": {
+      "description": "Interpretation and validation limits.",
+      "items": {
+        "type": "string"
+      },
+      "type": "array"
+    },
+    "observations": {
+      "description": "Every compared aligned role, including later equality after overwritten differences.",
+      "items": {
+        "$ref": "#/$defs/Observation"
+      },
+      "type": "array"
+    },
+    "root_cause": {
+      "description": "Always unproven.",
+      "type": "string"
+    },
+    "schema": {
+      "description": "saccade-renderdoc-localization.v1.",
+      "type": "string"
+    },
+    "unmatched_baseline": {
+      "description": "Baseline events unmatched or ambiguous.",
+      "items": {
+        "format": "uint32",
+        "minimum": 0,
+        "type": "integer"
+      },
+      "type": "array"
+    },
+    "unmatched_candidate": {
+      "description": "Candidate events unmatched or ambiguous.",
+      "items": {
+        "format": "uint32",
+        "minimum": 0,
+        "type": "integer"
+      },
+      "type": "array"
+    },
+    "worker_sha256": {
+      "description": "Worker source identity, equal on both sides.",
+      "type": "string"
+    }
+  },
+  "required": [
+    "schema",
+    "extraction_sha256",
+    "capture_sha256",
+    "worker_sha256",
+    "alignment",
+    "observations",
+    "unmatched_baseline",
+    "unmatched_candidate",
+    "coverage",
+    "root_cause",
+    "candidate_inputs",
+    "limits"
+  ],
+  "title": "Localization",
+  "type": "object"
+}
