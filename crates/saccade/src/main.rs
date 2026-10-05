@@ -202,6 +202,8 @@ enum Command {
     Models(wave7_cmd::ModelsArgs),
     /// Locate a phrase with boxes, optional masks, and an overlay PNG.
     Locate(wave7_cmd::LocateArgs),
+    /// Measure a separately named learned quality score.
+    QualityScore(wave7_cmd::QualityArgs),
     /// Bounded advisory observations from an explicitly configured local VLM.
     #[cfg(feature = "local-vlm")]
     ObserveLocal(wave7_cmd::ObserveArgs),
@@ -997,6 +999,7 @@ fn dispatch(command: Command, record_absolute_paths: bool) -> Result<u8, CliErro
         // wave7
         Command::Models(args) => wave7_cmd::models(args),
         Command::Locate(args) => wave7_cmd::locate(args),
+        Command::QualityScore(args) => wave7_cmd::quality(args),
         #[cfg(feature = "local-vlm")]
         Command::ObserveLocal(args) => wave7_cmd::observe(args),
         Command::Prove {

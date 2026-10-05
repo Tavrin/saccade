@@ -205,3 +205,80 @@ pub(crate) fn observe(a: ObserveArgs) -> Result<u8, CliError> {
     }
     emit(&report, a.json)
 }
+
+#[derive(clap::Args)]
+pub(crate) struct QualityArgs {
+    image: PathBuf,
+    /// Full-reference metric command needs an explicit reference.
+    #[arg(long)]
+    reference: Option<PathBuf>,
+    #[arg(long, default_value = "musiq")]
+    metric: String,
+    /// Explicit stand-in/frozen measurement receipt, always labelled replay.
+    #[arg(long)]
+    observations: Option<PathBuf>,
+    #[command(flatten)]
+    model: ModelOptions,
+    #[arg(long)]
+    json: bool,
+}
+fn learned_metric(name: &str) -> Result<saccade_core::wave7::quality::LearnedMetric, CliError> {
+    use saccade_core::wave7::quality::LearnedMetric as M;
+    match name {
+        "lpips" => Ok(M::LpipsAlexV01),
+        "dists" => Ok(M::Dists),
+        "musiq" => Ok(M::MusiqTechnical),
+        _ => Err(CliError::usage("metric must be lpips, dists or musiq")),
+    }
+}
+pub(crate) fn quality(a: QualityArgs) -> Result<u8, CliError> {
+    use saccade_core::wave7::{
+        quality::{self, QualityReport},
+        vision::VisionImage,
+    };
+    let metric = learned_metric(&a.metric)?;
+    let image = VisionImage::load(&a.image).map_err(error)?;
+    let reference = a
+        .reference
+        .as_deref()
+        .map(VisionImage::load)
+        .transpose()
+        .map_err(error)?;
+    let r = if let Some(p) = &a.observations {
+        let mut r: QualityReport =
+            serde_json::from_slice(&models::read_bounded(p, 1024 * 1024).map_err(error)?)?;
+        r.validate(metric, &image, reference.as_ref())
+            .map_err(error)?;
+        for m in &mut r.named_metrics {
+            m.provenance.runtime = "replay".into();
+            m.provenance.source_parity = false;
+        }
+        r
+    } else {
+        let reg = registry(a.model.registry.as_deref())?;
+        let m = reg.model(metric.model_id()).map_err(error)?;
+        #[cfg(feature = "local-models")]
+        {
+            let library = a.model.runtime_library.as_deref().ok_or_else(|| {
+                CliError::usage("--runtime-library is required for ONNX inference")
+            })?;
+            let mut runtime = saccade_core::wave7::runtime::OnnxModel::load(
+                m,
+                &cache(a.model.cache.as_deref())?,
+                library,
+                a.model.allow_download,
+            )
+            .map_err(error)?;
+            quality::measure(metric, &image, reference.as_ref(), &mut runtime).map_err(error)?
+        }
+        #[cfg(not(feature = "local-models"))]
+        {
+            let _ = m;
+            let _ = quality::QUALITY_SCHEMA;
+            return Err(error(VisionError::Unavailable(
+                "compile local-models for learned quality inference".into(),
+            )));
+        }
+    };
+    emit(&r, a.json)
+}

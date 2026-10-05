@@ -42,3 +42,10 @@
 - Reused dependency licences checked in local registry Cargo.toml: ort rc.10,
   ureq 3.3.0, base64 0.22.1, sha2 0.10.9, tempfile 3.27.0 MIT OR Apache-2.0;
   fs2 0.4.3 MIT/Apache-2.0. No new dependency/lockfile change.
+- Learned metrics: normalized scalar ONNX export adapter computes separately named
+  LPIPS/DISTS/MUSIQ measurements with explicit resolution handling. Source native
+  LPIPS backbone/calibration and MUSIQ multiscale parity remain unqualified until
+  supplied pinned self-contained exports. Coordinator attaches named metrics to
+  normal compare reports; standalone paired-file quality-score is implemented.
+  Rejected guessed native model ports or a fused verdict. Reversal cost: one
+  integration seam and a qualified scalar export; no metric contract changes.

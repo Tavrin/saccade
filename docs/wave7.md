@@ -68,3 +68,28 @@ implementing this contract. Qwen3.5-4B supports general advisory reasoning.
 Deploy the selected processor/template/quantization/runtime yourself and record
 its revision. Neither model has a qualified complete native ONNX path in this
 lane; HTTP is the selected adapter, not a claim of source/export qualification.
+
+## Learned quality (`local-models` for inference)
+
+`saccade quality-score image.png --metric musiq --json` measures the technical
+MUSIQ checkpoint. `--metric lpips --reference reference.png` selects LPIPS-Alex
+v0.1; `--metric dists --reference reference.png` selects the full-reference
+fallback. Supply `--registry`, `--cache`, and `--runtime-library` for actual
+inference; `--allow-download` is the explicit per-run download opt-in.
+`--observations measurement.json` validates/replays a generated or frozen
+`saccade-learned-quality.v1` report without loading a runtime.
+
+Exports must be **self-contained** scalar graphs under `scalar-pair-v1` or
+`scalar-image-v1`. Inputs are named NCHW floats; the manifest declares RGB/BGR,
+scale/mean/std, size and exact preprocessing. A `[0,0]` size preserves original
+resolution. Otherwise triangle resizing is recorded explicitly. Actual LPIPS
+backbone/calibration and MUSIQ multiscale processing must live in the pinned
+qualified export, not be guessed from its name. One finite scalar is required.
+
+The report carries independently named metrics, model id/version and original
+resolution handling. Distances are lower-is-better; technical quality is
+higher-is-better. These numbers are not fused into FLIP/SSIMULACRA2 and do not
+change their verdict. The coordinator attaches `QualityReport.named_metrics`
+to paired compare reports and MUSIQ to wave 6 assess; this lane's standalone
+command accepts paired files and emits its own comparison report. No calibrated
+UI-quality thresholds or native published exports are claimed.
