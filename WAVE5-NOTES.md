@@ -1,0 +1,6 @@
+# Wave 5 decisions
+
+- Scope and resources: implement only 5.1–5.6 on feat/wave5, no subagents. Heavy tests are written and queued through gates-wave5.sh, never run during development. Original images and baseline stores are preserved except explicit Playwright missing-snapshot update.
+- Capture: share a Node stabilisation module between matcher and sweep. Clock/random setup before navigation is the reproducible driver path; matcher setup affects an already loaded page and cannot retroactively change application initialization. Rejected implicit navigation/reload because it changes test state. Reversal cost: add an opt-in navigation helper.
+- Masks: use Saccade's declared fractional exclusions, retain reasons in matcher evidence. Selector masks on full-page images are refused (explicit rectangles work) because bounding boxes otherwise use viewport coordinates. Stability proposals never become exclusions. Rejected painting both screenshots because that loses excluded-area evidence. Reversal cost: extend full-page geometry collection.
+- Profiles: named profiles and per-project defaults live in a bounded JSON package config; existing Saccade TOML remains accepted. Unknown profiles fail. Reversal cost: config translation only.

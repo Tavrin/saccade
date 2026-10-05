@@ -74,3 +74,10 @@ Workbench receipts have token-gated human attestation. CLI receipts have
 human-required check and has no current writer. Human-final is an application
 policy and audit boundary; an unrestricted shell agent can invoke CLI approval.
 MCP exposes six bounded tools and no baseline-write operation.
+
+<!-- // wave5 -->
+For browser assertions, use the local `saccade-playwright` matcher:
+[Playwright matcher](../docs/playwright-matcher.md). Captures with errors or
+instability fail; proposed masks require review. Snapshot initialization requires
+an explicit update option. Set clock/random before navigation when their values
+matter during application initialization.

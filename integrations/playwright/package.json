@@ -1,0 +1,7 @@
+{
+  "name": "saccade-playwright", "version": "0.1.0", "private": true,
+  "description": "Perceptual assertions and reproducible sweep capture for Saccade",
+  "main": "matcher.cjs", "types": "matcher.d.ts", "license": "MIT OR Apache-2.0",
+  "peerDependencies": {"@playwright/test": ">=1.45"},
+  "scripts": {"test": "node --test matcher.test.cjs reporter.test.cjs sweep.test.cjs", "test:browser": "playwright test --config test/playwright.config.cjs"}
+}
