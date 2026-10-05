@@ -15,3 +15,5 @@
 8.6 implemented (this commit): usage matches from records/images with retained failures; generated crop/JPEG/resize fixtures written, not yet compiled due disk.
 
 8.7 implemented (this commit): shared loopback API, schemas/OpenAPI, Dockerfile and generated local wire fixtures. Docker build heavy-gated.
+
+8.8 implemented (this commit): configurable compatible/Azure endpoints and fixtures; no live calls.

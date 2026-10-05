@@ -77,3 +77,10 @@ status, provenance and timing; a successful command can contain failed optional 
 `--strict` fails on any attempted section failure. `cpu-lite` needs no model downloads.
 MCP: `saccade_measure` operation `analyze_media`, rooted `image`, optional `options`.
 Credits are unsigned source-field candidates; descriptions are drafts, never rights or approval.
+
+`keyframes VIDEO --out NEW_DIR --json` uses external ffmpeg/ffprobe, or accepts a
+pre-extracted frame directory with `--sample-fps`. Read sampling limits and timestamp basis.
+`find-usage IMAGE_OR_RECORD TARGET... --json` reports matched transforms, crop bounds,
+uncalibrated confidence and failed targets. Neither matches nor credits establish rights.
+For integration workers see [Python](../docs/python.md) and [local API](../docs/api.md).
+Text search has an explicit deferred official-model pin; do not substitute DINO vectors.

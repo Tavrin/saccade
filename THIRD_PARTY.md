@@ -698,3 +698,5 @@ PyO3, pyo3-build-config, pyo3-ffi, pyo3-macros and pyo3-macros-backend **0.25.1*
 MIT OR Apache-2.0; unindent **0.2.4**: MIT OR Apache-2.0; memoffset **0.9.1**: MIT.
 These are binding/build dependencies only; models and ONNX Runtime are not bundled in
 wheels. Existing image, hashing, FFT, XML and HTTP dependencies are reused unchanged.
+
+Wave 8 optional configured endpoint adapter reuses url **2.5.8** (MIT OR Apache-2.0), verified from its fetched Cargo manifest; no new model or native-runtime library is bundled.

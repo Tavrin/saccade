@@ -8,6 +8,9 @@ use std::{
     sync::Mutex,
     time::Instant,
 };
+/// OpenAI-compatible and Azure fixture endpoint adapters.
+#[cfg(feature = "vision-providers")]
+pub mod endpoints;
 /// Loopback local media HTTP transport.
 #[cfg(feature = "workbench")]
 pub mod http;
@@ -450,7 +453,7 @@ impl Analyzer {
             video: skipped("external-ffmpeg-keyframes", "image input"),
         };
         if record.embeddings.status == Status::Ok {
-            if let Some(model) = self.registry.contracts.get("embedding") {
+            if let Some(model) = self.contract(crate::general::embedding::MODEL_SCHEMA).ok() {
                 record.embeddings.provenance = Provenance {
                     id: model["family"].as_str().unwrap_or("embedding").into(),
                     version: model["artifact"]["version"]
@@ -469,7 +472,7 @@ impl Analyzer {
                 .extend(face.provenance.artifact_sha256.clone());
         }
         if record.text.status == Status::Ok {
-            if let Some(c) = self.registry.contracts.get("ocr") {
+            if let Some(c) = self.contract(crate::general::ocr::SCHEMA).ok() {
                 record.text.provenance.version = "ocrs-0.10.4/rten-0.21.0".into();
                 record.text.provenance.pins = ["detection", "recognition"]
                     .iter()
@@ -568,9 +571,7 @@ impl Analyzer {
                 .lock()
                 .map_err(|_| MediaError::new("analyzer_poisoned", "model lock poisoned"))?;
             if sessions.ocr.is_none() {
-                let contract = self.registry.contracts.get("ocr").ok_or_else(|| {
-                    MediaError::new("ocr_unavailable", "no supplied reviewed OCR contract")
-                })?;
+                let contract = self.contract(crate::general::ocr::SCHEMA)?;
                 let contract: crate::general::ocr::Contract =
                     serde_json::from_value(contract.clone())?;
                 sessions.ocr = Some(crate::general::ocr::Engine::load(
@@ -615,12 +616,7 @@ impl Analyzer {
                 .lock()
                 .map_err(|_| MediaError::new("analyzer_poisoned", "model session lock poisoned"))?;
             if sessions.embeddings.is_none() {
-                let model = self.registry.contracts.get("embedding").ok_or_else(|| {
-                    MediaError::new(
-                        "embedding_unavailable",
-                        "no pinned embedding export contract",
-                    )
-                })?;
+                let model = self.contract(crate::general::embedding::MODEL_SCHEMA)?;
                 let model = crate::general::embedding::parse_model(&serde_json::to_vec(model)?)?;
                 #[cfg(feature = "local-models")]
                 let library = crate::wave7::runtime_install::resolve(None, &self.model_dir)?;
@@ -656,7 +652,7 @@ impl Analyzer {
         #[cfg(feature = "embeddings")]
         {
             use base64::Engine;
-            let model = &self.registry.contracts["embedding"];
+            let model = self.contract(crate::general::embedding::MODEL_SCHEMA)?;
             let raw: Vec<u8> = vector.iter().flat_map(|v| v.to_le_bytes()).collect();
             Ok(
                 json!({"model_id":model["family"],"model_sha256":model["artifact"]["sha256"],"encoding":"base64-f32-le","dimensions":vector.len(),"data":base64::engine::general_purpose::STANDARD.encode(raw),"calibration":"uncalibrated"}),
@@ -680,9 +676,7 @@ impl Analyzer {
     }
     /// Model contract identity used by an index, independent of cache paths.
     pub fn embedding_id(&self) -> Result<String> {
-        let m = self.registry.contracts.get("embedding").ok_or_else(|| {
-            MediaError::new("embedding_unavailable", "no pinned embedding contract")
-        })?;
+        let m = self.contract(crate::general::embedding::MODEL_SCHEMA)?;
         Ok(models::digest(&serde_json::to_vec(
             &crate::general::embedding::parse_model(&serde_json::to_vec(m)?)?,
         )?))
@@ -765,11 +759,33 @@ fn portable_configuration(a: &Analyzer) {
 /// Exact flat index shared by Python and HTTP transports.
 pub mod search;
 impl Analyzer {
+    fn contract(&self, schema: &str) -> Result<&Value> {
+        let mut matches = self
+            .registry
+            .contracts
+            .values()
+            .filter(|v| v["schema"] == schema);
+        let first = matches.next().ok_or_else(|| {
+            MediaError::new(
+                if schema == crate::general::ocr::SCHEMA {
+                    "ocr_unavailable"
+                } else {
+                    "embedding_unavailable"
+                },
+                "no matching pinned registry contract",
+            )
+        })?;
+        if matches.next().is_some() {
+            return Err(MediaError::new(
+                "invalid_media_options",
+                "registry contract selection is ambiguous",
+            ));
+        }
+        Ok(first)
+    }
     /// Canonical pinned embedding contract (paths and runtime location excluded).
     pub fn embedding_model(&self) -> Result<Value> {
-        let value = self.registry.contracts.get("embedding").ok_or_else(|| {
-            MediaError::new("embedding_unavailable", "no pinned embedding contract")
-        })?;
+        let value = self.contract(crate::general::embedding::MODEL_SCHEMA)?;
         let model = crate::general::embedding::parse_model(&serde_json::to_vec(value)?)?;
         Ok(serde_json::to_value(model)?)
     }

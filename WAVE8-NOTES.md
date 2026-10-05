@@ -81,3 +81,14 @@ inherited model accuracy/parity and Rust OCR qualification remain explicitly inc
 - Docker contains binary only, unprivileged user, mounted model/runtime volume, no publishing.
   Reversal cost: replace transport with an HTTP framework without changing core records,
   endpoint version or startup authority.
+
+## 8.8 endpoint adapters
+- Add env-file configured OpenAI-compatible Responses/Chat Completions mappings and
+  classic Azure deployment Chat Completions URL + api-key auth header. Azure Responses
+  is not guessed from the classic deployment path. All mappings/decoders are fixture-only;
+  existing human-authorized transport remains owner-controlled.
+- Allow configured model IDs while retaining exact requested/returned model identity,
+  closed output schema, refusal/truncation and original-pixel geometry checks. Fixture
+  tests assert actual Azure path, header name, image request mapping, usage, raw response
+  digest and secret absence/redacted errors. Reversal cost: add another explicit wire
+  style; unchanged observation schema and authority boundary.
