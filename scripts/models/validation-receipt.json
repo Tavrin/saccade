@@ -53,6 +53,26 @@
       "sha256": "afaf99b5188627d02d3eac5094b7d7ae6445ed7206d723a7b22e3f45bbd29de4",
       "status": "PASS",
       "summary": "test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 104 filtered out; finished in 2.47s"
+    },
+    {
+      "log": "/mnt/linux-extra/saccade-models/evidence/default-cli-final.log",
+      "sha256": "07a5c8f3c3c82b16534018446e86c2a800807e280b134bdd7586741fb77de605",
+      "status": "PASS",
+      "summary": "Finished `dev` profile [unoptimized + debuginfo] target(s) in 12.33s"
+    },
+    {
+      "log": "/mnt/linux-extra/saccade-models/evidence/cli-status-clippy.log",
+      "sha256": "008cea75b0f0ae7eb2171cc1a5aa643d3069d796fd6d3ef09a89538848579c11",
+      "status": "PASS",
+      "summary": "Finished `dev` profile [unoptimized + debuginfo] target(s) in 21.03s"
     }
-  ]
+  ],
+  "tooling_commit": "a97c9c1",
+  "cleanup": {
+    "deleted_target": "/mnt/linux-extra/moss-cargo-targets/codex-saccade-w7",
+    "absence_verified": true,
+    "model_cache_bytes": 1959359375,
+    "volume_free_bytes": 37986304000,
+    "other_caches_deleted": false
+  }
 }

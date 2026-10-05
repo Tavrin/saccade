@@ -80,11 +80,13 @@ pub(crate) fn models(args: ModelsArgs) -> Result<u8, CliError> {
             json,
         } => {
             let cache = cache(c.as_deref())?;
-            let mut status = registry(p.as_deref())?.status(&cache);
+            let status = registry(p.as_deref())?.status(&cache);
             #[cfg(feature = "local-models")]
-            {
+            let status = {
+                let mut status = status;
                 status["runtime"] = saccade_core::wave7::runtime_install::status(&cache);
-            }
+                status
+            };
             emit(&status, json)
         }
         ModelsOperation::Pull {

@@ -356,7 +356,7 @@ were run individually, not by invoking gates-wave7.sh. Initial strict Clippy
 findings were test-only unwrap allowances and item ordering; both corrected.
 
 All Cargo used mandated target, nice19/-j4 after >=25GB admission checks.
-The volume varied with other lanes (62GB initial; minimum observed admission32GB).
+The volume varied with other lanes (62GB initial; minimum observed admission30GB).
 Model/runtime/source/venv cache remains about1.9GiB, under8GB. No other target or
 lane cache was modified. README/CHANGELOG/generated docs/cli.md stay coordinator
 owned: describe models pull runtime, default runtime selection and five proven
@@ -368,3 +368,21 @@ Implementation commit526c421 contains runtime/geometry/native decoder contracts,
 registry and CLI, plus focused regressions/documentation. The following tooling
 commit freezes export prerequisites, exact source/grant evidence and bounded
 smoke/gate orchestration; no model export is asserted to have succeeded.
+
+
+### Wave 7c cleanup and final handoff
+
+Tooling/evidence commit a97c9c1 contains frozen raw-source/grant manifests,
+SAM2 offline export preparation (deferred), bounded smoke runner and updated
+gates. Final additive CLI status binding is scoped to local-models so a default
+build has no introduced unused-mut warning; default CLI cargo check and strict
+lane CLI Clippy both pass after that adjustment. No inference logic changed.
+
+The sole mandated Cargo target codex-saccade-w7 was deleted by exact-path,
+canonical-parent and non-symlink guards after all builds completed; absence
+verified. Model/runtime/source/venv cache is1,959,359,375 bytes, under8GB; volume
+free37,986,304,000 bytes at cleanup. Cleanup receipt is retained in cache/evidence
+and frozen in scripts/models/validation-receipt.json. No other caches were
+removed. No build was attempted after cleanup. The lane is complete under
+SPEC-wave7c's explicit-working-or-evidence-deferral criterion; broad release,
+source parity and coordinator integration gates remain unrun as listed above.

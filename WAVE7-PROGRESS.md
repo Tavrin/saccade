@@ -35,5 +35,11 @@ qualification limits are recorded in WAVE7-NOTES.md.
 7c.runtime done (526c421) — official pinned ONNX Runtime1.22.0 pull/cache/ORT_DYLIB_PATH, retained notices and typed API16 incompatibility; Docker/wheel consumption documented only.
 7c.inference done (526c421) — one-image CPU Rust smokes pass for DINO, OWLv2, EfficientSAM Ti, YuNet and UltraFace; rectangle DINO IoU>0.8 after valid-mask-coordinate correction; no source parity claim.
 7c.trustmark partial (526c421) — mutable Q decoder hash pinned; Rust neural smoke pass; full decoder explicitly deferred on ECC/resize/positive-sample qualification.
-7c.exports deferred with evidence — SAM2 official checkpoint/tagged sources prepared, offline torch wheel absent; LPIPS/DISTS independent backbone grants missing; MUSIQ official GCS checkpoint outside allowed sources/incomplete pin.
-7c.gates done — bounded smoke runner, runtime provisioning/CLI regression, explicit deferrals and opt-in all-model release requirement; full gate not run.
+7c.exports deferred with evidence (a97c9c1) — SAM2 official checkpoint/tagged sources prepared, offline torch wheel absent; LPIPS/DISTS independent backbone grants missing; MUSIQ official GCS checkpoint outside allowed sources/incomplete pin.
+7c.gates done (a97c9c1) — bounded smoke runner, runtime provisioning/CLI regression, explicit deferrals and opt-in all-model release requirement; full gate not run.
+
+Final7c validation: 30 core wave7 tests and4 CLI/MCP tests pass; runtime CLI
+provision/cache/env/typed ABI/TrustMark-unavailable regression passes; strict
+all-target lane Clippy, default CLI check, minimal core check and static checks
+pass. Target codex-saccade-w7 removed and absence verified. Cache1,959,359,375
+bytes (<8GB), volume free37,986,304,000 bytes at cleanup. Full gate not run.
