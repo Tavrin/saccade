@@ -88,7 +88,9 @@ fn help_lists_active_commands_and_watch_alias_stays_hidden() {
     assert_eq!(
         top.len(),
         36 + usize::from(cfg!(feature = "compression"))
-            + 4 * usize::from(cfg!(feature = "products")),
+            + 4 * usize::from(cfg!(feature = "products"))
+            + usize::from(cfg!(feature = "local-vlm"))
+            + usize::from(cfg!(feature = "vision-providers")),
         "{top:?}"
     );
     for name in [
@@ -130,6 +132,12 @@ fn help_lists_active_commands_and_watch_alias_stays_hidden() {
         for name in ["sweep", "imgtune", "design", "notify"] {
             assert!(top.contains(&name), "missing product command {name}");
         }
+    }
+    for (name, enabled) in [
+        ("observe-local", cfg!(feature = "local-vlm")),
+        ("provider-map", cfg!(feature = "vision-providers")),
+    ] {
+        assert_eq!(top.contains(&name), enabled, "{name} feature registration");
     }
     for name in [
         "inspect evidence",

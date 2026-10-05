@@ -50,6 +50,7 @@ commands.extend([
 if args.round2:
     commands = [(name,cmd) for name,cmd in commands if name!='wave4']
     commands.insert(next(i for i,(name,_) in enumerate(commands) if name=='wave6')+1,('wave7',['bash','scripts/gates-wave7.sh']))
+    commands.append(('integration-vision-mapping',['cargo','test','--locked','-p','saccade-core','--features','assist,vision-providers','--lib','assist::vision_provider']))
     commands.append(('sam2-export',['bash','scripts/models/sam2.1-tiny.sh']))
     assets=Path('/mnt/linux-extra/saccade-models/r2')
     env.update(SACCADE_W6_EMBEDDING_MODEL=str(assets/'model.json'), SACCADE_W6_MODEL_CACHE=str(assets.parent),
