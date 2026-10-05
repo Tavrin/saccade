@@ -101,3 +101,8 @@ metrics are diagnostic. Figma variables 403 means degraded token coverage.
 [`--baseline last-good`](../docs/last-good.md) resolves a verified passing history run,
 not human approval. `notify` sends a summary only when explicitly requested;
 webhook credentials come from the user env file, never project/MCP arguments.
+
+<!-- // wave5 -->
+The additive [`saccade_products` MCP tool](../docs/wave5-mcp.md) returns bounded
+product results. HTTP and notifications require separate human startup authority;
+recorded fixture pulls and local image tuning need neither.

@@ -4,10 +4,15 @@ const { spawn } = require('node:child_process');
 const { initialize, capture, sleep } = require('./stabilize.cjs');
 const SCHEMA = 'saccade-playwright-matcher.v1';
 const MAX_JSON = 8 * 1024 * 1024;
-function boundedJson(filename) {
-  if (fs.statSync(filename).size > MAX_JSON) throw new Error('JSON exceeds 8 MiB');
-  return JSON.parse(fs.readFileSync(filename, 'utf8'));
+function boundedBytes(filename) {
+  const fd = fs.openSync(filename, 'r'), pieces = []; let total = 0;
+  try {
+    while (total <= MAX_JSON) { const chunk = Buffer.alloc(Math.min(65536, MAX_JSON + 1 - total)); const count = fs.readSync(fd, chunk); if (!count) break; pieces.push(chunk.subarray(0,count)); total += count; }
+    if (total > MAX_JSON) throw new Error('input exceeds 8 MiB');
+    return Buffer.concat(pieces);
+  } finally { fs.closeSync(fd); }
 }
+function boundedJson(filename) { return JSON.parse(boundedBytes(filename).toString('utf8')); }
 function resolveOptions(info, supplied) {
   const configured = info.project?.use?.saccade || {};
   let options = { ...configured, ...supplied };
@@ -77,7 +82,7 @@ async function compareFiles(expected, actual, out, options, declared = []) {
   if (options.metric) args.push('--metric', options.metric);
   if (options.threshold !== undefined) args.push('--threshold', String(options.threshold));
   if (declared.length) {
-    let text = options.config ? fs.readFileSync(options.config, 'utf8') : '';
+    let text = options.config ? boundedBytes(options.config).toString('utf8') : '';
     if (Buffer.byteLength(text) > MAX_JSON) throw new Error('config exceeds limit');
     // Relative mask-image paths must retain their original base. Combining those
     // with generated masks would silently rebase them, so refuse explicitly.

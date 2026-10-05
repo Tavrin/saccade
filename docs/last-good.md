@@ -12,16 +12,16 @@ saccade sweep compare sweep.json --captures captures/captures.json \
 Last-good selects the most recent complete passing regression report from the
 existing `saccade-history.v1` store, with no invalid capture entries. "Accepted"
 here means the deterministic comparison passed; it does not claim human review or
-grant baseline-write authority. Timestamps order runs, with report hash breaking
-ties deterministically. The history object is hash-verified, then every captured
-image is checked against its recorded encoded hash and copied to a temporary
+grant baseline-write authority. Timestamps order runs, with history record order breaking
+ties deterministically. The history object is hash-verified, then every retained report capture (or original capture for legacy/
+HDR provenance) is checked against its recorded encoded hash and copied to a temporary
 immutable snapshot. Missing/changed latest passing captures are errors; selecting
 an older convenient run would conceal missing evidence. No original is rewritten.
 
 New history records retain an origin sidecar for relative capture provenance.
 Legacy relative records without origins fail with `last_good_unavailable`; record
 the original report again with this build. Absolute-path historical provenance can
-be resolved directly. Keep original captured images available. Sweep IDs and image
+be resolved directly. Keep retained report captures available (and HDR originals where needed). Sweep IDs and image
 names must match the accepted run to establish pairing; missing pairs stay failures.
 
 Notifications use `products` and a generic JSON, Slack-compatible plain-text or

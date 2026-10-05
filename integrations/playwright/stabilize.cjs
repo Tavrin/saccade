@@ -1,5 +1,10 @@
 const fs = require('node:fs');
 const STYLE = '*,*::before,*::after{animation:none!important;transition:none!important;caret-color:transparent!important}';
+async function withTimeout(promise, ms) {
+  let timer;
+  try { return await Promise.race([promise, new Promise((_, reject) => { timer = setTimeout(() => reject(new Error('fonts timed out')), ms); })]); }
+  finally { clearTimeout(timer); }
+}
 const sleep = ms => new Promise(resolve => setTimeout(resolve, ms));
 function randomScript(seed) {
   let value = seed >>> 0;
@@ -21,7 +26,7 @@ async function initialize(page, options = {}) {
 async function prepare(page, options = {}) {
   const timeout = options.timeout ?? 30000;
   await page.waitForLoadState('networkidle', { timeout });
-  await page.evaluate(async () => { await document.fonts.ready; });
+  await withTimeout(page.evaluate(async () => { await document.fonts.ready; }), timeout);
   if (options.scrollLazyLoad) {
     const max = options.maxScrollSteps ?? 100;
     for (let step = 0; step < max; step++) {
@@ -32,7 +37,7 @@ async function prepare(page, options = {}) {
     }
     await page.evaluate(() => scrollTo(0, 0));
     await page.waitForLoadState('networkidle', { timeout });
-    await page.evaluate(async () => { await document.fonts.ready; });
+    await withTimeout(page.evaluate(async () => { await document.fonts.ready; }), timeout);
   }
 }
 async function capture(target, filename, options = {}) {

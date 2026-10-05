@@ -2,7 +2,7 @@
 
 Build `products` for local JPEG/lossless WebP and generic HTTP template adapters.
 `imgtune-avif` additionally enables the pure Rust ravif/rav1e AVIF encoder and
-native dav1d decoder; the coordinator must provide its system development library.
+native dav1d decoder; the coordinator must provide its system development library (dav1d >= 1.3.0).
 This optional native dependency never enters the default feature set.
 
 ```sh

@@ -1,0 +1,7 @@
+const {test}=require('node:test');const assert=require('node:assert/strict');const fs=require('node:fs'),path=require('node:path'),os=require('node:os');const {runDesign}=require('./design-capture.cjs');
+test('vendor-independent driver binds mapping, selector and CSS evidence',async()=>{
+ const root=fs.mkdtempSync(path.join(os.tmpdir(),'saccade-design-'));try{const mapping=path.join(root,'mapping.json');fs.writeFileSync(mapping,JSON.stringify({schema:'saccade-design-map.v1',frames:[{file_key:'fixture-file',node_id:'1:2',url:'https://example.com/',test_name:null,selector:'main',viewport:[320,240],css_tokens:[{name:'accent',selector:'button'}]}]}));
+ const target={screenshot:async(o)=>fs.writeFileSync(o.path,'fixture'),page:()=>page};const page={setDefaultTimeout(){},goto:async()=>({status:()=>200}),waitForLoadState:async()=>{},evaluate:async()=>{},locator:s=>s==='main'?target:{evaluateAll:async()=>[{color:'rgb(255, 0, 0)',font_family:'Example Sans',font_size:'16px'}]}};
+ const chromium={launch:async()=>({newContext:async()=>({newPage:async()=>page,close:async()=>{}}),close:async()=>{}})};const result=await runDesign(mapping,path.join(root,'out'),{perHostDelayMs:0,concurrency:1},chromium);assert.equal(result.entries[0].status,'captured');assert.equal(result.entries[0].selector,'main');assert.equal(result.entries[0].css_tokens[0].name,'accent');assert.equal(result.mapping_sha256.length,64);
+ }finally{fs.rmSync(root,{recursive:true});}
+});

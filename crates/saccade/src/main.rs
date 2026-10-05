@@ -14,16 +14,16 @@ use saccade_core::view::{ViewOptions, build_view, is_safe_name};
 
 // wave5
 #[cfg(feature = "products")]
-mod product_io;
+mod design_cmd;
 #[cfg(feature = "products")]
 mod imgtune_cmd;
-#[cfg(feature = "products")]
-mod design_cmd;
+mod last_good;
 #[cfg(feature = "products")]
 mod notifier_cmd;
 #[cfg(feature = "products")]
+mod product_io;
+#[cfg(feature = "products")]
 mod sweep_cmd;
-mod last_good;
 
 mod agent;
 mod agent_ui;
@@ -640,6 +640,15 @@ Example:
         #[cfg(feature = "ai")]
         #[command(flatten)]
         providers: review_cmd::Startup,
+        // wave5
+        /// Authorize product HTTP operations from registered roots.
+        #[cfg(feature = "products")]
+        #[arg(long)]
+        allow_product_network: bool,
+        /// Authorize explicit webhook tool calls using user configuration.
+        #[cfg(feature = "products")]
+        #[arg(long)]
+        allow_webhook_notifications: bool,
     },
     /// Read, explain, prepare or export existing evidence.
     #[command(display_order = 9, hide = true)]
@@ -1261,9 +1270,17 @@ fn dispatch(command: Command, record_absolute_paths: bool) -> Result<u8, CliErro
         } => {
             // wave5
             let last_good = if baseline.is_some() {
-                Some(last_good::resolve(history_store.as_deref().ok_or_else(|| CliError::usage("--baseline last-good requires --history-store"))?)?)
-            } else { None };
-            let baseline_dir = last_good.as_ref().map(|dir| dir.path().to_path_buf()).or(baseline_dir).ok_or_else(|| CliError::usage("baseline directory required"))?;
+                Some(last_good::resolve(history_store.as_deref().ok_or_else(
+                    || CliError::usage("--baseline last-good requires --history-store"),
+                )?)?)
+            } else {
+                None
+            };
+            let baseline_dir = last_good
+                .as_ref()
+                .map(|dir| dir.path().to_path_buf())
+                .or(baseline_dir)
+                .ok_or_else(|| CliError::usage("baseline directory required"))?;
             let mut cfg = load_config(config.as_deref())?;
             cfg.record_absolute_paths = record_absolute_paths;
             perf.apply(&mut cfg.perf)?;
@@ -1600,6 +1617,11 @@ fn dispatch(command: Command, record_absolute_paths: bool) -> Result<u8, CliErro
             symlink_targets,
             #[cfg(feature = "ai")]
             providers,
+            // wave5
+            #[cfg(feature = "products")]
+            allow_product_network,
+            #[cfg(feature = "products")]
+            allow_webhook_notifications,
         } => {
             mcp::serve_stdio(
                 &roots,
@@ -1608,6 +1630,11 @@ fn dispatch(command: Command, record_absolute_paths: bool) -> Result<u8, CliErro
                 &symlink_targets,
                 #[cfg(feature = "ai")]
                 providers,
+                // wave5
+                #[cfg(feature = "products")]
+                allow_product_network,
+                #[cfg(feature = "products")]
+                allow_webhook_notifications,
             )?;
             Ok(0)
         }
@@ -1621,6 +1648,13 @@ fn doctor(json: bool) -> Result<u8, CliError> {
     }
     if cfg!(feature = "mcp") {
         features.push("mcp");
+    }
+    // wave5
+    if cfg!(feature = "products") {
+        features.push("products");
+    }
+    if cfg!(feature = "imgtune-avif") {
+        features.push("imgtune-avif");
     }
     features.sort_unstable();
     // These names are a script-facing contract. Add new names; keep existing
