@@ -118,6 +118,8 @@ The last three names appear only when the corresponding feature is compiled in.
 - [saccade-ablate.v1.schema.json](../crates/saccade-core/schemas/saccade-ablate.v1.schema.json) — Ablation
 - [saccade-approve.v1.schema.json](../crates/saccade-core/schemas/saccade-approve.v1.schema.json) — saccade-approve.v1
 - [saccade-ask-result.v1.schema.json](../crates/saccade-core/schemas/saccade-ask-result.v1.schema.json) — AskResult
+- [saccade-asset-view-report.v1.schema.json](../crates/saccade-core/schemas/saccade-asset-view-report.v1.schema.json) — Report
+- [saccade-asset-views.v1.schema.json](../crates/saccade-core/schemas/saccade-asset-views.v1.schema.json) — Manifest
 - [saccade-bisect.v1.schema.json](../crates/saccade-core/schemas/saccade-bisect.v1.schema.json) — BisectResult
 - [saccade-blind-key.v1.schema.json](../crates/saccade-core/schemas/saccade-blind-key.v1.schema.json) — BlindKey
 - [saccade-brand-review.v1.schema.json](../crates/saccade-core/schemas/saccade-brand-review.v1.schema.json) — Report

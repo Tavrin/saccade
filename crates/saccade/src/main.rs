@@ -1595,6 +1595,9 @@ fn doctor(json: bool) -> Result<u8, CliError> {
     if cfg!(feature = "dense-motion") {
         capabilities.push("dense-motion-v1");
     }
+    if cfg!(all(feature = "geometry", feature = "graphics")) {
+        capabilities.push("asset-views-v1");
+    }
     if cfg!(feature = "compression") {
         capabilities.push("quality-v1");
     }
@@ -2235,7 +2238,7 @@ pub(crate) fn capabilities(json: bool) -> Result<u8, CliError> {
     let value = serde_json::json!({
         "features": features,
         "operations": names,
-        "contract_versions": ["saccade-report.v1", "saccade-result.v2", "saccade-evidence.v1", "saccade-noise.v1", "saccade-brand-review.v1", "saccade-ui-review.v1", "saccade-motion-review.v1"],
+        "contract_versions": ["saccade-report.v1", "saccade-result.v2", "saccade-evidence.v1", "saccade-noise.v1", "saccade-brand-review.v1", "saccade-ui-review.v1", "saccade-motion-review.v1", "saccade-asset-view-report.v1"],
     });
     if json {
         let mut result = local_cmd::base_result("capabilities");

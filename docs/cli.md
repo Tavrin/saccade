@@ -1446,6 +1446,8 @@ Arguments:
 Options:
       --unit <UNIT>        Declared common coordinate unit; no conversion or registration is performed
       --samples <SAMPLES>  Approximate area samples per direction, plus mandatory triangle/edge/vertex coverage [default: 4096]
+      --views <VIEWS>      Supplied finite-camera render manifest, bound to these exact mesh inputs
+      --out <OUT>          Write the combined geometry and optional multi-view packet
       --json
   -h, --help               Print help
 

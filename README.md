@@ -262,3 +262,5 @@ also carry a generated `THIRD_PARTY_NOTICES.md` covering every dependency.
 MCP Registry name: `mcp-name: io.github.Tavrin/saccade`
 
 Dense motion and renderer-vector conventions: [workflow](docs/dense-motion.md).
+
+Asset and LOD evidence: [geometry with supplied camera views](docs/asset-lod-review.md).

@@ -1,0 +1,315 @@
+{
+  "$defs": {
+    "Asset": {
+      "description": "Exact source/decoded geometry identity and producer's LOD label.",
+      "properties": {
+        "document_sha256": {
+          "description": "Lowercase SHA256 of the source document bytes.",
+          "type": "string"
+        },
+        "geometry_sha256": {
+          "description": "Ordered decoded geometry identity from the geometry comparison.",
+          "type": "string"
+        },
+        "lod": {
+          "description": "Human-readable LOD/cut identity, never inferred from image similarity.",
+          "type": "string"
+        }
+      },
+      "required": [
+        "document_sha256",
+        "geometry_sha256",
+        "lod"
+      ],
+      "type": "object"
+    },
+    "Camera": {
+      "description": "Common view matrices. Arrays are row-major and act on column vectors.",
+      "properties": {
+        "convention": {
+          "description": "Must be row_major_column_vector_right_handed_clip_z_zero_to_one.",
+          "type": "string"
+        },
+        "model_to_world": {
+          "description": "Placement of the already decoded world geometry into the render world.",
+          "items": {
+            "format": "double",
+            "type": "number"
+          },
+          "maxItems": 16,
+          "minItems": 16,
+          "type": "array"
+        },
+        "projection": {
+          "description": "Camera to homogeneous clip coordinates, with declared Z range.",
+          "items": {
+            "format": "double",
+            "type": "number"
+          },
+          "maxItems": 16,
+          "minItems": 16,
+          "type": "array"
+        },
+        "world_to_view": {
+          "description": "Render world to camera transformation.",
+          "items": {
+            "format": "double",
+            "type": "number"
+          },
+          "maxItems": 16,
+          "minItems": 16,
+          "type": "array"
+        }
+      },
+      "required": [
+        "convention",
+        "model_to_world",
+        "world_to_view",
+        "projection"
+      ],
+      "type": "object"
+    },
+    "Context": {
+      "description": "Renderer and environment identity shared by both assets and all views.",
+      "properties": {
+        "background_sha256": {
+          "description": "Background content identity.",
+          "type": "string"
+        },
+        "color_pipeline_sha256": {
+          "description": "Colour pipeline/profile/display transform identity.",
+          "type": "string"
+        },
+        "dimensions": {
+          "description": "Image dimensions; no resizing is allowed.",
+          "items": {
+            "format": "uint32",
+            "minimum": 0,
+            "type": "integer"
+          },
+          "maxItems": 2,
+          "minItems": 2,
+          "type": "array"
+        },
+        "lighting_sha256": {
+          "description": "Lighting/environment content identity.",
+          "type": "string"
+        },
+        "material_mode": {
+          "description": "asset_materials or override_materials.",
+          "type": "string"
+        },
+        "override_material_sha256": {
+          "description": "Override material identity; required only in override mode.",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "renderer": {
+          "description": "Producer name/version, retained alongside hashes.",
+          "type": "string"
+        },
+        "renderer_binary_sha256": {
+          "description": "Exact executable identity asserted by the producer.",
+          "type": "string"
+        },
+        "renderer_source_sha256": {
+          "description": "Renderer source revision/content identity.",
+          "type": "string"
+        },
+        "settings_sha256": {
+          "description": "Render settings, including temporal sample/frame policy.",
+          "type": "string"
+        }
+      },
+      "required": [
+        "renderer",
+        "renderer_source_sha256",
+        "renderer_binary_sha256",
+        "settings_sha256",
+        "lighting_sha256",
+        "background_sha256",
+        "color_pipeline_sha256",
+        "material_mode",
+        "dimensions"
+      ],
+      "type": "object"
+    },
+    "ImagePin": {
+      "description": "Exact supplied image or fractional silhouette mask bytes.",
+      "properties": {
+        "path": {
+          "description": "Local path inside the camera manifest directory.",
+          "type": "string"
+        },
+        "sha256": {
+          "description": "Lowercase SHA256 of the encoded file.",
+          "type": "string"
+        }
+      },
+      "required": [
+        "path",
+        "sha256"
+      ],
+      "type": "object"
+    },
+    "Render": {
+      "description": "Producer assertion binding one render to camera, context and asset.",
+      "properties": {
+        "asset_document_sha256": {
+          "description": "Corresponding asset document identity.",
+          "type": "string"
+        },
+        "asset_geometry_sha256": {
+          "description": "Corresponding decoded geometry identity.",
+          "type": "string"
+        },
+        "camera_sha256": {
+          "description": "Canonical camera object hash.",
+          "type": "string"
+        },
+        "context_sha256": {
+          "description": "Canonical render context object hash.",
+          "type": "string"
+        },
+        "image": {
+          "$ref": "#/$defs/ImagePin",
+          "description": "Supplied render image."
+        },
+        "materials_sha256": {
+          "description": "Material content identity; may differ in asset_materials mode.",
+          "type": "string"
+        },
+        "silhouette": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/ImagePin"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "Optional L8 PNG object coverage, 0..255 including partial coverage."
+        },
+        "textures_sha256": {
+          "description": "Ordered content identities of texture inputs, including normal maps.",
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        }
+      },
+      "required": [
+        "image",
+        "camera_sha256",
+        "context_sha256",
+        "asset_document_sha256",
+        "asset_geometry_sha256",
+        "materials_sha256",
+        "textures_sha256"
+      ],
+      "type": "object"
+    },
+    "View": {
+      "description": "One required viewpoint; absent renders remain part of the coverage denominator.",
+      "properties": {
+        "camera": {
+          "$ref": "#/$defs/Camera",
+          "description": "Exact common camera for this paired view."
+        },
+        "candidate": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Render"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "Candidate receipt."
+        },
+        "id": {
+          "description": "Stable unique view name.",
+          "type": "string"
+        },
+        "reference": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Render"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "Reference receipt, absent when acquisition failed or was omitted."
+        }
+      },
+      "required": [
+        "id",
+        "camera"
+      ],
+      "type": "object"
+    }
+  },
+  "$id": "https://github.com/Tavrin/saccade/crates/saccade-core/schemas/saccade-asset-views.v1.schema.json",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "description": "Frozen finite-view acquisition declaration; does not invoke a renderer.",
+  "properties": {
+    "assets": {
+      "description": "Reference/candidate assets, respectively.",
+      "items": {
+        "$ref": "#/$defs/Asset"
+      },
+      "maxItems": 2,
+      "minItems": 2,
+      "type": "array"
+    },
+    "context": {
+      "$ref": "#/$defs/Context",
+      "description": "Common controlled renderer environment."
+    },
+    "maximum_mean_flip": {
+      "description": "Per-view raw mean threshold.",
+      "format": "double",
+      "type": "number"
+    },
+    "maximum_silhouette_change": {
+      "description": "Fractional absolute silhouette change threshold, if masks are supplied.",
+      "format": "double",
+      "type": "number"
+    },
+    "pixels_per_degree": {
+      "description": "FLIP viewing parameter.",
+      "format": "float",
+      "type": "number"
+    },
+    "schema": {
+      "description": "Contract identity.",
+      "type": "string"
+    },
+    "unit": {
+      "description": "Same unit declaration as the geometry report.",
+      "type": "string"
+    },
+    "views": {
+      "description": "Every required distinct camera, in producer-declared order.",
+      "items": {
+        "$ref": "#/$defs/View"
+      },
+      "type": "array"
+    }
+  },
+  "required": [
+    "schema",
+    "unit",
+    "assets",
+    "context",
+    "views",
+    "pixels_per_degree",
+    "maximum_mean_flip",
+    "maximum_silhouette_change"
+  ],
+  "title": "Manifest",
+  "type": "object"
+}

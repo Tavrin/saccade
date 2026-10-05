@@ -3,6 +3,7 @@
 #[cfg(feature = "prechecks")]
 pub mod a11y;
 pub mod ablate;
+pub mod asset_views;
 pub mod bisect;
 pub mod brand;
 #[cfg(feature = "ai")]

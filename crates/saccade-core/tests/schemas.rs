@@ -56,6 +56,16 @@ fn committed_schemas_match_the_rust_types() {
     let update = std::env::var_os("UPDATE_SCHEMAS").is_some();
     let all = [
         (
+            "saccade-asset-views.v1.schema.json",
+            generated::<saccade_core::asset_views::Manifest>("saccade-asset-views.v1.schema.json"),
+        ),
+        (
+            "saccade-asset-view-report.v1.schema.json",
+            generated::<saccade_core::asset_views::Report>(
+                "saccade-asset-view-report.v1.schema.json",
+            ),
+        ),
+        (
             "saccade-motion-review.v1.schema.json",
             generated::<saccade_core::dense_motion::Report>("saccade-motion-review.v1.schema.json"),
         ),

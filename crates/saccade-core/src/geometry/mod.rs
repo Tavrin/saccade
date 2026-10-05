@@ -350,6 +350,9 @@ pub struct Document {
     /// Always saccade-geometry.v1.
     #[cfg_attr(feature = "schema", schemars(extend("const" = "saccade-geometry.v1")))]
     pub schema: String,
+    /// Optional supplied finite-camera render evidence. Historical reports omit it.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub views: Option<crate::asset_views::Report>,
     /// Discriminated measurement or exact proof.
     #[serde(flatten)]
     pub operation: Operation,

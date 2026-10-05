@@ -98,3 +98,31 @@ Coverage and null statistics are preserved. No calibration or live renderer
 claim follows from synthetic evidence. Raw full-frame FLIP and its declared
 threshold alone control this front door's exit 0/1; vector disagreement remains
 a separate diagnostic. No alignment can erase an appearance regression.
+
+## Item 5: multi-view asset and LOD evidence
+
+Extend the existing `experiment geometry` workflow with `--views` and an optional
+combined `--out` packet, rather than invent another competing geometry command.
+The optional geometry feature keeps its static f64 measurement scope; supplied
+view scoring uses the existing optional graphics producer. Manifest/report types
+are readable in all builds. Add an optional views field to the historical
+saccade-geometry.v1 schema; it defaults absent and does not change mesh identity.
+No new dependency or metric implementation; existing FLIP licensing applies.
+
+Bind the manifest to both exact mesh documents, decoded geometry identities and
+units. Retain LOD/cut labels. Freeze a distinct declared camera set and common
+renderer/source/binary/settings/lighting/background/colour context. Per-render
+receipts bind cameras, context, assets, images, materials and textures. Asset
+material changes are allowed in asset_materials mode; override mode requires
+one fixed material identity. Camera and renderer facts remain producer assertions,
+not actual render recapture proof. Reject singular, nonfinite or convention errors,
+unsafe paths and stale identities; retain missing and rejected view rows.
+
+Each measured view preserves raw unaligned FLIP, full local error map, and optional
+fractional silhouette evidence. Select worst by mean with deterministic ID ties,
+not by an average that can conceal a bad view. Require all declared views and
+all stated per-view policies before passing the view check. Coverage counts
+measured cameras, not continuous angles or surface area. Unknown masks stay
+unknown. Historical geometry-only behaviour remains measurement-only. Synthetic
+supplied-image tests qualify this protocol, not asset rendering, human LOD
+quality, GPU runtime, transitions or temporal popping. No timing benchmark.
