@@ -130,3 +130,14 @@ inherited model accuracy/parity and Rust OCR qualification remain explicitly inc
   accuracy/parity remains unqualified.
 - Owner must regenerate docs/cli.md and generated schema/agent packs, and add README and
   CHANGELOG entries. No release/publishing or integration acceptance is implied.
+
+## Final development receipts
+- Final implementation/gate commit: b1f753d. Strict Clippy on all touched crates/targets
+  with model features and Python integration-test feature: PASS (4.70s final rerun).
+- Core media: 15 PASS / 1 ffmpeg ignored (0.68s); CLI/MCP generated schema fixtures:
+  3 PASS (0.65s); final compiled abi3 import/light pytest: 3 PASS (0.06s).
+- fmt, diff whitespace, shellcheck and docs/schema/stub/artifact checks PASS.
+- Retained source/binary hashes, tested ordinary package and command logs in
+  /mnt/linux-extra/moss-scratch/saccade-wave8/FINAL-RECEIPT.json.
+- Deleted only the exact lane target after commands exited and lane/Cargo locks were
+  acquired. Free disk 51.85 -> 53.93 GiB. No models, other targets or shared caches deleted.

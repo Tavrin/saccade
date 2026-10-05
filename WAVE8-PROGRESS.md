@@ -11,7 +11,7 @@
 | 8.7 local HTTP API/container recipe | done | eac530e | Docker build/smoke |
 | 8.8 endpoint adapters | done | 0d27ea5 | live calls intentionally excluded |
 
-Final corrections and qualification wiring follow these item commits. `WAVE8-NOTES.md`
+Final corrections and qualification wiring: `b1f753d` (strict Clippy and focused tests PASS). `WAVE8-NOTES.md`
 records decisions and reversal costs. `scripts/gates-wave8.sh` is coordinator-owned and
 has not been run; it explicitly fails the deferred text-image model gate.
 
@@ -29,3 +29,7 @@ Owner documentation: add README/CHANGELOG entries for media records, Python, key
 usage matching, local API and endpoint configuration; regenerate docs/cli.md and generated
 schema/agent documentation through existing owner workflows. These shared generated and
 release files were intentionally not changed.
+
+Cleanup complete: exact owned target removed under lane/Cargo locks; free disk
+51.85 -> 53.93 GiB. Retained abi3 package, source/binary hashes and command logs:
+`/mnt/linux-extra/moss-scratch/saccade-wave8/FINAL-RECEIPT.json`. No build after cleanup.
