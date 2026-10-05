@@ -774,6 +774,23 @@ mod tests {
         assert!(r.evidence.excluded_by_geometry > 0);
     }
     #[test]
+    fn self_matches_find_translated_copy_candidates() {
+        let mut state = 0x12345678u64;
+        let mut image = RgbaImage::from_pixel(256, 128, image::Rgba([30, 30, 30, 255]));
+        for y in 12..112 {
+            for x in 12..112 {
+                let v = (rng(&mut state) % 256) as u8;
+                let p = image::Rgba([v, v, v, 255]);
+                image.put_pixel(x, y, p);
+                image.put_pixel(x + 128, y, p);
+            }
+        }
+        let candidates = copy_move(&image).expect("copy candidates");
+        assert!(candidates.iter().any(|c| c.matches >= 4
+            && (c.displacement[0] - 128.).abs() < 3.
+            && c.displacement[1].abs() < 3.));
+    }
+    #[test]
     #[ignore = "heavy: registration"]
     fn generated_rotation_scale_and_perspective() {
         let a = fixture();

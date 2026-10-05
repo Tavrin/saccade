@@ -127,3 +127,25 @@ pub(crate) fn imported(
         json: true,
     })
 }
+
+pub(crate) fn routed(
+    a: &Path,
+    b: &Path,
+    sa: Option<&Path>,
+    sb: Option<&Path>,
+    contract: Option<&Path>,
+    out: &Path,
+) -> Result<Value, CliError> {
+    measure(&Args {
+        a: a.into(),
+        b: b.into(),
+        a_source: sa.map(Path::to_path_buf),
+        b_source: sb.map(Path::to_path_buf),
+        ocr_contract: contract.map(Path::to_path_buf),
+        expect_text: vec![],
+        readable_confidence: 80.,
+        moved_px: 3.,
+        out: out.into(),
+        json: true,
+    })
+}

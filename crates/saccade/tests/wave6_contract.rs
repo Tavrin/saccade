@@ -147,6 +147,28 @@ fn hash_dedupe_and_imported_accent_text_contracts() {
     let report: Value =
         serde_json::from_slice(&std::fs::read(out.join("saccade-text.v1.json")).unwrap()).unwrap();
     assert_eq!(report["comparison"]["rates"]["cer"], 0.25);
+    let routed_out = temp.path().join("routed-text");
+    let routed = cli(&[
+        "compare",
+        a.to_str().unwrap(),
+        b.to_str().unwrap(),
+        "--question",
+        "same-text",
+        "--reference-source",
+        sa.to_str().unwrap(),
+        "--capture-source",
+        sb.to_str().unwrap(),
+        "--out",
+        routed_out.to_str().unwrap(),
+        "--json",
+    ]);
+    assert_eq!(routed.status.code(), Some(1), "{routed:?}");
+    let routed_report: Value =
+        serde_json::from_slice(&std::fs::read(routed_out.join("saccade-text.v1.json")).unwrap())
+            .unwrap();
+    validate_schema("saccade-text.v1", &routed_report);
+    assert_eq!(routed_report["comparison"]["rates"]["cer"], 0.25);
+    assert_eq!(routed_report["pipeline_choice"]["family"], "text");
     for (name, value) in [
         (
             "saccade-dedupe.v1",
@@ -460,4 +482,230 @@ fn supplied_embedding_index_build_and_query_preserve_pins() {
         "--json",
     ]);
     assert_eq!(rejected.status.code(), Some(2));
+}
+
+fn validate_schema(name: &str, value: &Value) {
+    let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+        .join(format!("../saccade-core/schemas/{name}.schema.json"));
+    let schema: Value = serde_json::from_slice(&std::fs::read(path).unwrap()).unwrap();
+    jsonschema::validator_for(&schema)
+        .unwrap()
+        .validate(value)
+        .unwrap();
+}
+
+#[test]
+#[ignore = "heavy: wave6-cli"]
+fn catalogue_and_questions_record_the_selected_family() {
+    let result = cli(&["capabilities", "--json"]);
+    assert!(result.status.success());
+    let catalogue: Value = serde_json::from_slice(&result.stdout).unwrap();
+    validate_schema("saccade-capabilities.v1", &catalogue);
+    for name in [
+        "hdr",
+        "video_temporal",
+        "embeddings",
+        "documents",
+        "ai_assist",
+    ] {
+        assert!(
+            catalogue["families"]
+                .as_array()
+                .unwrap()
+                .iter()
+                .any(|f| f["family"] == name)
+        );
+    }
+    let temp = tempfile::tempdir().unwrap();
+    let a = temp.path().join("a.png");
+    let b = temp.path().join("b.png");
+    image::RgbaImage::from_fn(64, 64, |x, y| {
+        image::Rgba([(x * 3) as u8, (y * 3) as u8, 80, 255])
+    })
+    .save(&a)
+    .unwrap();
+    std::fs::copy(&a, &b).unwrap();
+    for (question, schema, verdict) in [
+        ("near-duplicate", "saccade-near-duplicate.v1", "pass"),
+        ("quality", "saccade-question-report.v1", "unknown"),
+    ] {
+        let out = temp.path().join(question);
+        let result = cli(&[
+            "compare",
+            a.to_str().unwrap(),
+            b.to_str().unwrap(),
+            "--question",
+            question,
+            "--out",
+            out.to_str().unwrap(),
+            "--json",
+        ]);
+        assert!(result.status.success(), "{result:?}");
+        let evidence: Value =
+            serde_json::from_slice(&std::fs::read(out.join(format!("{schema}.json"))).unwrap())
+                .unwrap();
+        validate_schema(schema, &evidence);
+        assert_eq!(evidence["verdict"], verdict);
+        assert_eq!(evidence["pipeline_choice"]["question"], question);
+        assert_eq!(evidence["pipeline_choice"]["fallback"], "none");
+    }
+    let out = temp.path().join("render");
+    let result = cli(&[
+        "compare",
+        a.to_str().unwrap(),
+        b.to_str().unwrap(),
+        "--question",
+        "same-render",
+        "--out",
+        out.to_str().unwrap(),
+        "--json",
+    ]);
+    assert!(result.status.success(), "{result:?}");
+    let choice: Value = serde_json::from_slice(
+        &std::fs::read(out.join("saccade-pipeline-choice.v1.json")).unwrap(),
+    )
+    .unwrap();
+    validate_schema("saccade-pipeline-choice.v1", &choice);
+    let bytes = std::fs::read(out.join("saccade-report.v1.json")).unwrap();
+    assert_eq!(
+        choice["measurement"]["sha256"],
+        saccade_core::localized::digest(&bytes)
+    );
+    // An ordinary rerun removes the stale explicit-choice component.
+    let result = cli(&[
+        "compare",
+        a.to_str().unwrap(),
+        b.to_str().unwrap(),
+        "--out",
+        out.to_str().unwrap(),
+        "--json",
+    ]);
+    assert!(result.status.success(), "{result:?}");
+    assert!(!out.join("saccade-pipeline-choice.v1.json").exists());
+}
+
+#[test]
+#[ignore = "heavy: wave6-cli"]
+fn routed_failures_never_drop_pairs_or_change_questions() {
+    let temp = tempfile::tempdir().unwrap();
+    let a = temp.path().join("a");
+    let b = temp.path().join("b");
+    std::fs::create_dir(&a).unwrap();
+    std::fs::create_dir(&b).unwrap();
+    image::RgbImage::from_pixel(16, 16, image::Rgb([120; 3]))
+        .save(a.join("missing.png"))
+        .unwrap();
+    std::fs::write(a.join("broken.png"), b"invalid").unwrap();
+    std::fs::write(b.join("broken.png"), b"invalid").unwrap();
+    let out = temp.path().join("out");
+    let result = cli(&[
+        "compare",
+        a.to_str().unwrap(),
+        b.to_str().unwrap(),
+        "--question",
+        "near-duplicate",
+        "--out",
+        out.to_str().unwrap(),
+        "--json",
+    ]);
+    assert_eq!(result.status.code(), Some(1), "{result:?}");
+    let evidence: Value =
+        serde_json::from_slice(&std::fs::read(out.join("saccade-near-duplicate.v1.json")).unwrap())
+            .unwrap();
+    assert_eq!(evidence["counts"]["total"], 2);
+    assert_eq!(evidence["counts"]["failures"], 2);
+    assert_eq!(evidence["counts"]["errors"], 1);
+    for question in ["same-content", "same-text"] {
+        let result = cli(&[
+            "compare",
+            a.join("missing.png").to_str().unwrap(),
+            a.join("missing.png").to_str().unwrap(),
+            "--question",
+            question,
+            "--out",
+            temp.path().join(question).to_str().unwrap(),
+            "--json",
+        ]);
+        assert_eq!(result.status.code(), Some(2), "{result:?}");
+        assert!(
+            !temp
+                .path()
+                .join(question)
+                .join("saccade-report.v1.json")
+                .exists()
+        );
+    }
+    let result = cli(&[
+        "compare",
+        a.to_str().unwrap(),
+        b.to_str().unwrap(),
+        "--question",
+        "quality",
+        "--align",
+        "none",
+        "--json",
+    ]);
+    assert_eq!(result.status.code(), Some(2));
+}
+
+#[cfg(feature = "mcp")]
+#[test]
+#[ignore = "heavy: wave6-mcp"]
+fn mcp_question_inputs_and_native_execution_keep_authority_boundaries() {
+    use std::io::Write;
+    use std::process::Stdio;
+    let temp = tempfile::tempdir().unwrap();
+    let root = temp.path().join("root");
+    let out = temp.path().join("out");
+    let config = temp.path().join("operator-config");
+    std::fs::create_dir(&root).unwrap();
+    std::fs::create_dir(&out).unwrap();
+    std::fs::create_dir(&config).unwrap();
+    image::RgbImage::from_pixel(16, 16, image::Rgb([100; 3]))
+        .save(root.join("image.png"))
+        .unwrap();
+    let outside = temp.path().join("outside.png");
+    std::fs::copy(root.join("image.png"), &outside).unwrap();
+    std::fs::write(root.join("runtime.so"), b"untrusted native library").unwrap();
+    std::fs::write(root.join("model.json"), b"{}").unwrap();
+    std::fs::create_dir(root.join("cache")).unwrap();
+    let arguments = [
+        serde_json::json!({"operation":"capabilities"}),
+        serde_json::json!({"operation":"compare_question","question":"near-duplicate","reference":outside,"capture":root.join("image.png"),"out":out.join("escaped")}),
+        serde_json::json!({"operation":"compare_question","question":"same-content","reference":root.join("image.png"),"capture":root.join("image.png"),"model":root.join("model.json"),"cache":root.join("cache"),"library":root.join("runtime.so"),"out":out.join("native")}),
+    ];
+    let mut child = Command::new(env!("CARGO_BIN_EXE_saccade"))
+        .arg("mcp")
+        .arg("--root")
+        .arg(&root)
+        .arg("--out-root")
+        .arg(&out)
+        .env("XDG_CONFIG_HOME", &config)
+        .stdin(Stdio::piped())
+        .stdout(Stdio::piped())
+        .stderr(Stdio::piped())
+        .spawn()
+        .unwrap();
+    let mut stdin = child.stdin.take().unwrap();
+    for (id, args) in arguments.iter().enumerate() {
+        writeln!(stdin,"{}",serde_json::json!({"jsonrpc":"2.0","id":id+1,"method":"tools/call","params":{"name":"saccade_general","arguments":args}})).unwrap();
+    }
+    drop(stdin);
+    let result = child.wait_with_output().unwrap();
+    assert!(result.status.success(), "{result:?}");
+    let values: Vec<Value> = String::from_utf8(result.stdout)
+        .unwrap()
+        .lines()
+        .map(|line| serde_json::from_str(line).unwrap())
+        .collect();
+    assert_eq!(values.len(), 3);
+    assert_ne!(values[0]["result"]["isError"], true);
+    assert_eq!(values[1]["result"]["isError"], true);
+    assert_eq!(values[2]["result"]["isError"], true);
+    assert!(
+        values[2]
+            .to_string()
+            .contains("execution_authorization_required")
+    );
+    assert!(!out.join("native").join("saccade-similar.v1.json").exists());
 }

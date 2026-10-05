@@ -1,49 +1,59 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://github.com/Tavrin/saccade/crates/saccade-core/schemas/saccade-similar.v1.schema.json",
+  "$id": "https://github.com/Tavrin/saccade/crates/saccade-core/schemas/saccade-question-report.v1.schema.json",
   "type": "object",
   "properties": {
     "schema": {
-      "const": "saccade-similar.v1"
+      "const": "saccade-question-report.v1"
     },
     "operation": {
-      "const": "similar"
+      "const": "quality"
     },
     "verdict": {
       "enum": [
-        "pass",
-        "regression",
-        "unknown"
+        "unknown",
+        "regression"
       ]
     },
     "counts": {
-      "type": "object"
+      "type": "object",
+      "properties": {
+        "total": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "failures": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "errors": {
+          "type": "integer",
+          "minimum": 0
+        }
+      },
+      "required": [
+        "total",
+        "failures",
+        "errors"
+      ],
+      "additionalProperties": false
     },
-    "inputs": {
-      "type": "object"
-    },
-    "model_contract_sha256": {
-      "type": "string"
-    },
-    "model": {
-      "type": "object"
-    },
-    "cosine": {
-      "type": "number",
-      "minimum": -1,
-      "maximum": 1
-    },
-    "band": {
-      "type": [
-        "string",
-        "null"
-      ]
-    },
-    "calibration_status": {
-      "type": "string"
+    "entries": {
+      "type": "array",
+      "maxItems": 100000,
+      "items": {
+        "type": "object",
+        "required": [
+          "name",
+          "status"
+        ]
+      }
     },
     "limitations": {
-      "type": "array"
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
     },
     "pipeline_choice": {
       "type": "object",
@@ -117,13 +127,9 @@
     "operation",
     "verdict",
     "counts",
-    "inputs",
-    "model_contract_sha256",
-    "model",
-    "cosine",
-    "band",
-    "calibration_status",
-    "limitations"
+    "entries",
+    "limitations",
+    "pipeline_choice"
   ],
   "additionalProperties": false
 }

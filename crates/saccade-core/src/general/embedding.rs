@@ -3,6 +3,8 @@ use crate::{Error, Result, semantic};
 use serde::{Deserialize, Serialize};
 #[cfg(feature = "embeddings")]
 use std::path::Path;
+/// Supplied embedding export contract schema.
+pub const MODEL_SCHEMA: &str = "saccade-embedding-model.v1";
 /// Similarity evidence schema.
 pub const SIMILAR_SCHEMA: &str = "saccade-similar.v1";
 /// Flat embedding index metadata schema.
@@ -56,7 +58,7 @@ pub struct Model {
 }
 /// Validates export pins, preprocessing and calibration without models or network.
 pub fn validate(model: &Model) -> Result<()> {
-    if model.schema != "saccade-embedding-model.v1"
+    if model.schema != MODEL_SCHEMA
         || model.family != "dinov2-small"
         || model.artifact.license != "Apache-2.0"
         || model.artifact.format != "onnx"
@@ -208,6 +210,14 @@ impl Engine {
         {
             return Err(Error::Config("embedding model hash mismatch".into()));
         }
+        // Buffer loading has no model-file base directory for external initializer data.
+        // Rebind the exact bytes passed to the runtime after reading the cache.
+        let model_bytes = super::input::bytes(&path, model.artifact.bytes)?;
+        if crate::localized::digest(&model_bytes) != model.artifact.sha256 {
+            return Err(Error::Config(
+                "embedding model changed after verification".into(),
+            ));
+        }
         std::panic::catch_unwind(|| -> Result<Self> {
             ort::init_from(library.display().to_string())
                 .commit()
@@ -218,7 +228,7 @@ impl Engine {
                 .map_err(|e| Error::Config(e.to_string()))?
                 .with_inter_threads(1)
                 .map_err(|e| Error::Config(e.to_string()))?
-                .commit_from_file(path)
+                .commit_from_memory(&model_bytes)
                 .map_err(|e| Error::Config(e.to_string()))?;
             if session.inputs.len() != 1
                 || session.inputs[0].name != model.input

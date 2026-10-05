@@ -367,3 +367,94 @@ pub(crate) fn schemas() -> Vec<serde_json::Value> {
     })
     .collect()
 }
+
+pub(crate) fn routed(
+    a: &std::path::Path,
+    b: &std::path::Path,
+    model: &std::path::Path,
+    cache: &std::path::Path,
+    library: &std::path::Path,
+    out: &std::path::Path,
+) -> Result<serde_json::Value, CliError> {
+    #[cfg(feature = "embeddings")]
+    {
+        enabled::similar(
+            a,
+            b,
+            &RuntimeArgs {
+                model: model.into(),
+                cache: cache.into(),
+                library: library.into(),
+                download_model: false,
+            },
+            out,
+        )
+    }
+    #[cfg(not(feature = "embeddings"))]
+    {
+        let _ = (a, b, model, cache, library, out);
+        Err(CliError::new(
+            "feature_unavailable",
+            "same-content requires embeddings; no silent fallback",
+        ))
+    }
+}
+
+#[cfg(feature = "mcp")]
+pub(crate) const AUTHORITY_SCHEMA: &str = "saccade-onnx-runtime-authority.v1";
+
+#[cfg(feature = "mcp")]
+pub(crate) fn authorize_runtime(library: &std::path::Path) -> Result<(), CliError> {
+    use saccade_core::general::input;
+    let home = std::env::var_os("HOME").ok_or_else(|| {
+        CliError::new(
+            "execution_authorization_required",
+            "MCP native runtime needs operator-owned configuration",
+        )
+    })?;
+    let config_root = std::env::var_os("XDG_CONFIG_HOME")
+        .map(PathBuf::from)
+        .unwrap_or_else(|| PathBuf::from(&home).join(".config"));
+    let dir = config_root.join("saccade");
+    let config = dir.join("onnx-runtime.json");
+    let denied = || {
+        CliError::new(
+            "execution_authorization_required",
+            "MCP native ONNX runtime must match operator-owned onnx-runtime.json path and SHA-256; input roots do not authorize arbitrary libraries",
+        )
+    };
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::MetadataExt;
+        let owner = std::fs::metadata(&home).map_err(|_| denied())?.uid();
+        for path in [&config_root, &dir, &config] {
+            let metadata = std::fs::symlink_metadata(path).map_err(|_| denied())?;
+            if metadata.file_type().is_symlink()
+                || metadata.uid() != owner
+                || metadata.mode() & 0o022 != 0
+            {
+                return Err(denied());
+            }
+        }
+    }
+    let value: serde_json::Value =
+        serde_json::from_slice(&input::bytes(&config, 65536).map_err(|_| denied())?)
+            .map_err(|_| denied())?;
+    if value["schema"] != AUTHORITY_SCHEMA {
+        return Err(denied());
+    }
+    let pinned = value["library"].as_str().ok_or_else(denied)?;
+    let pinned = saccade_core::paths::canonicalize(pinned).map_err(|_| denied())?;
+    let requested = saccade_core::paths::canonicalize(library).map_err(|_| denied())?;
+    if pinned != requested
+        || value["sha256"].as_str()
+            != Some(
+                input::sha256(&requested, 512 * 1024 * 1024)
+                    .map_err(|_| denied())?
+                    .as_str(),
+            )
+    {
+        return Err(denied());
+    }
+    Ok(())
+}

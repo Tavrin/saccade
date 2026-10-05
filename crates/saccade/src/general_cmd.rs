@@ -42,6 +42,28 @@ impl From<Resample> for registration::Scale {
 }
 #[derive(Args, Default)]
 pub(crate) struct CompareArgs {
+    /// Explicit comparison question; no automatic model fallback.
+    #[arg(long, value_enum)]
+    pub(crate) question: Option<crate::capability_cmd::Question>,
+    /// Supplied embedding export contract for same-content.
+    #[arg(long, requires = "question")]
+    pub(crate) model: Option<PathBuf>,
+    /// Content-addressed model cache for same-content.
+    #[arg(long, requires = "question")]
+    pub(crate) cache: Option<PathBuf>,
+    /// Explicit ONNX Runtime library for same-content.
+    #[arg(long, requires = "question")]
+    pub(crate) library: Option<PathBuf>,
+    /// Image-bound reference text observations for same-text.
+    #[arg(long, requires = "question")]
+    pub(crate) reference_source: Option<PathBuf>,
+    /// Image-bound candidate text observations for same-text.
+    #[arg(long, requires = "question")]
+    pub(crate) capture_source: Option<PathBuf>,
+    /// Existing pinned OCR contract for same-text; requires ocr feature.
+    #[arg(long, requires = "question")]
+    pub(crate) ocr_contract: Option<PathBuf>,
+
     /// Explicit registration; defaults to the existing unregistered pipeline.
     #[arg(long, value_enum)]
     pub(crate) align: Option<Align>,
@@ -313,7 +335,13 @@ pub(crate) fn compare(
     metric: crate::MetricArg,
     json_output: bool,
 ) -> Result<u8, CliError> {
-    let value = compare_document(reference, capture, out, options, threshold, metric)?;
+    let mut value = compare_document(reference, capture, out, options, threshold, metric)?;
+    if options.question.is_some() {
+        value["pipeline"]["selected_question"] = json!("same-render");
+        value["pipeline"]["command"] = json!("compare --align");
+        value["pipeline"]["selection_reason"] =
+            json!("explicit same-render with declared registration");
+    }
     emit_document(value, Some(out), json_output)
 }
 
@@ -363,6 +391,7 @@ pub(crate) fn tool_schema() -> Value {
     variants.extend(crate::text_cmd::schemas());
     variants.extend(crate::assess_cmd::schemas());
     variants.extend(crate::inspect_image_cmd::schemas());
+    variants.extend(crate::capability_cmd::schemas());
     tool["inputSchema"] = json!({"type":"object","oneOf":variants});
     tool
 }

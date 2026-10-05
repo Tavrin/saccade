@@ -112,3 +112,11 @@ MCP `saccade_general` / `assess` mirrors it; see [assessment](../docs/assessment
 real/fake or heuristic AI-generation claims. Credentials are unvalidated; GPS
 requires explicit opt-in. MCP `saccade_general` / `inspect_image` mirrors it.
 Read each indicator's limits; see [inspection](../docs/inspect-image.md).
+
+<!-- wave6 -->
+Use `capabilities --json` to discover family availability, inputs and limits.
+`compare --question same-render|same-content|same-text|near-duplicate|quality`
+records an explicit selection and refuses unsupported fallbacks. MCP
+`saccade_general` / `capabilities` and `compare_question` mirror these routes;
+embedding execution additionally needs the operator-owned runtime pin. See
+[Choosing a comparison](../docs/choosing-a-comparison.md).

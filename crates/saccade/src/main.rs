@@ -14,6 +14,7 @@ use saccade_core::view::{ViewOptions, build_view, is_safe_name};
 
 // wave6
 mod assess_cmd;
+mod capability_cmd;
 mod embedding_cmd;
 mod general_cmd;
 mod hash_cmd;
@@ -203,6 +204,8 @@ impl From<MetricArg> for Metric {
 #[derive(Subcommand)]
 enum Command {
     // wave6
+    /// List comparison questions, inputs, features and honest availability.
+    Capabilities(capability_cmd::Args),
     /// Inspect provenance/integrity indicators without a real/fake verdict.
     InspectImage(inspect_image_cmd::Args),
     /// Measure content-dependent no-reference quality indicators.
@@ -1010,6 +1013,7 @@ fn emit_run(
 fn dispatch(command: Command, record_absolute_paths: bool) -> Result<u8, CliError> {
     match command {
         // wave6
+        Command::Capabilities(args) => capability_cmd::run(args),
         Command::InspectImage(args) => inspect_image_cmd::run(args),
         Command::Assess(args) => assess_cmd::run(args),
         Command::Text(args) => text_cmd::run(args),
@@ -1249,6 +1253,35 @@ fn dispatch(command: Command, record_absolute_paths: bool) -> Result<u8, CliErro
             perf,
             intent,
         } => {
+            // wave6: explicit questions never discard unrelated evidence options or fall back.
+            capability_cmd::validate(&general)?;
+            if general
+                .question
+                .is_some_and(|q| q != capability_cmd::Question::SameRender)
+            {
+                if config.is_some()
+                    || !entries.is_empty()
+                    || junit.is_some()
+                    || ppd.is_some()
+                    || labels.is_some()
+                    || fail_on_new
+                    || allow_empty
+                    || metric.is_some()
+                    || !general_cmd::plain_options(&intent, &meta, &require, &perf, &hdr)
+                {
+                    return Err(CliError::usage(
+                        "routed question supports its own declared inputs and threshold units; use the dedicated family command for other options",
+                    ));
+                }
+                return capability_cmd::route(
+                    &baseline_dir,
+                    &capture_dir,
+                    &out,
+                    &general,
+                    threshold,
+                    json,
+                );
+            }
             // wave6: explicit registration has its own evidence contract.
             if general.align.is_some() {
                 if config.is_some()
@@ -1309,7 +1342,24 @@ fn dispatch(command: Command, record_absolute_paths: bool) -> Result<u8, CliErro
                 &intent,
             )?;
             let intent_mismatch = local_cmd::verify_visual_intent(&report, &out, visual.as_ref())?;
-            emit_run(&report, &out, json, record_absolute_paths)?;
+            // wave6: hash-bound route component preserves the ordinary immutable report contract.
+            if general.question.is_some() {
+                let choice = capability_cmd::record_render(&report, &out, &general)?;
+                if json {
+                    let mut value = agent::result_value(
+                        &report,
+                        &out.join(saccade_core::report::REPORT_FILE_NAME),
+                        agent::DEFAULT_TOP_FAILING,
+                        false,
+                    );
+                    value["data"]["pipeline_choice"] = choice;
+                    emit(&format!("{}\n", value))?;
+                } else {
+                    emit_run(&report, &out, false, record_absolute_paths)?;
+                }
+            } else {
+                emit_run(&report, &out, json, record_absolute_paths)?;
+            }
             Ok(u8::from(report.is_regression() || intent_mismatch))
         }
         Command::Identity {

@@ -52,3 +52,18 @@ is deferred until a reviewed model licence and pinned export are available.
 Model-dependent tests are ignored under `heavy: embeddings`; the coordinator
 supplies `SACCADE_W6_EMBEDDING_MODEL`, `SACCADE_W6_MODEL_CACHE`, and
 `SACCADE_W6_ORT_LIBRARY` before running them. No model tests ran in this lane.
+
+MCP native execution requires an operator-owned
+`$XDG_CONFIG_HOME/saccade/onnx-runtime.json` (default
+`~/.config/saccade/onnx-runtime.json`). Its `saccade-onnx-runtime-authority.v1`
+object contains `library` (the canonical operator-approved native runtime path)
+and `sha256` (64 lowercase hexadecimal characters). Both must match the request;
+the runtime is hashed with a 512 MiB bound. On Unix the configuration root,
+`saccade` directory and file must be owned by the home-directory owner, not
+symlinks, and not group/world writable. All requested paths still need startup
+root access. Absent/mismatching authority returns `execution_authorization_required`.
+This prevents a request from turning read access into arbitrary native execution;
+it does not sandbox the approved native runtime. The library must remain immutable
+during a session. CLI explicitly supplied library paths retain operator authority.
+The ONNX export is loaded from its rehashed bounded memory buffer; file-based
+external initializers are not provisioned by this interface.

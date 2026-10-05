@@ -273,6 +273,22 @@ mod tests {
     }
     #[test]
     #[ignore = "heavy: hashing-scale"]
+    fn hundred_thousand_distinct_hashes_are_queryable_without_pixels() {
+        let mut tree = BkTree::new(100000);
+        for id in 0usize..100000 {
+            tree.insert((id as u64).wrapping_mul(0x9e3779b97f4a7c15), id)
+                .expect("insert");
+        }
+        for id in [0usize, 50000, 99999] {
+            let mut matches = Vec::new();
+            tree.query((id as u64).wrapping_mul(0x9e3779b97f4a7c15), 0, |i, d| {
+                matches.push((i, d))
+            });
+            assert_eq!(matches, vec![(id, 0)]);
+        }
+    }
+    #[test]
+    #[ignore = "heavy: hashing-scale"]
     fn hundred_thousand_exact_duplicates_have_linear_storage() {
         let groups = clusters(&vec![42; 100000], 4).expect("100k");
         assert_eq!(groups.len(), 1);

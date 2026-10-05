@@ -18,6 +18,7 @@ cargo_gate() {
   nice -n 19 cargo "$command" -j 4 "$@"
 }
 gate fmt cargo fmt --all -- --check
+gate check-minimal cargo_gate check -p saccade --no-default-features
 gate clippy clippy_gate
 gate core-tests cargo_gate test -p saccade-core --features schema,embeddings
 gate cli-tests cargo_gate test -p saccade --features schema,embeddings,ocr

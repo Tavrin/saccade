@@ -1156,6 +1156,138 @@ impl Server {
         // wave6
         let operation = require_str(args, "operation")?;
         // wave6
+        if operation == "capabilities" {
+            reject_unknown(args, &["operation"])?;
+            return Ok(ToolOutput {
+                structured: crate::capability_cmd::catalogue(),
+                text: "Comparison families and conditional/deferred availability.".into(),
+                images: Vec::new(),
+            });
+        }
+        if operation == "compare_question" {
+            reject_unknown(
+                args,
+                &[
+                    "operation",
+                    "reference",
+                    "capture",
+                    "out",
+                    "question",
+                    "align",
+                    "resample",
+                    "threshold",
+                    "model",
+                    "cache",
+                    "library",
+                    "reference_source",
+                    "capture_source",
+                ],
+            )?;
+            let mut paths = std::collections::BTreeMap::new();
+            for key in [
+                "reference",
+                "capture",
+                "model",
+                "cache",
+                "library",
+                "reference_source",
+                "capture_source",
+            ] {
+                if let Some(p) = arg_str(args, key)? {
+                    let path = self.resolve(key, &p)?;
+                    if path.is_dir() {
+                        self.input_tree(&path)?;
+                    } else if !path.is_file() {
+                        return Err(CliError::io("question input unavailable"));
+                    }
+                    paths.insert(key, path);
+                }
+            }
+            let reference = paths
+                .get("reference")
+                .ok_or_else(|| CliError::usage("reference required"))?;
+            let capture = paths
+                .get("capture")
+                .ok_or_else(|| CliError::usage("capture required"))?;
+            let out = self.checked_out_dir(
+                &require_str(args, "out")?,
+                &paths.values().map(PathBuf::as_path).collect::<Vec<_>>(),
+            )?;
+            let question =
+                crate::capability_cmd::Question::from_str(&require_str(args, "question")?, false)
+                    .map_err(CliError::usage)?;
+            let options = crate::general_cmd::CompareArgs {
+                question: Some(question),
+                align: arg_str(args, "align")?
+                    .map(|v| {
+                        crate::general_cmd::Align::from_str(&v, false).map_err(CliError::usage)
+                    })
+                    .transpose()?,
+                resample: arg_str(args, "resample")?
+                    .map(|v| {
+                        crate::general_cmd::Resample::from_str(&v, false).map_err(CliError::usage)
+                    })
+                    .transpose()?,
+                model: paths.get("model").cloned(),
+                cache: paths.get("cache").cloned(),
+                library: paths.get("library").cloned(),
+                reference_source: paths.get("reference_source").cloned(),
+                capture_source: paths.get("capture_source").cloned(),
+                ocr_contract: None,
+            };
+            crate::capability_cmd::validate(&options)?;
+            if question == crate::capability_cmd::Question::SameContent {
+                crate::embedding_cmd::authorize_runtime(
+                    options
+                        .library
+                        .as_deref()
+                        .ok_or_else(|| CliError::usage("same-content requires library"))?,
+                )?;
+            }
+            if question == crate::capability_cmd::Question::SameRender && options.align.is_none() {
+                let mut mapped = Map::new();
+                mapped.insert("baseline_dir".into(), json!(reference));
+                mapped.insert("capture_dir".into(), json!(capture));
+                mapped.insert("out_dir".into(), json!(out));
+                if let Some(v) = args.get("threshold") {
+                    mapped.insert("threshold".into(), v.clone());
+                }
+                let mut result = self.tool_compare(&mapped)?;
+                let report = crate::read_report(&out.join(saccade_core::report::REPORT_FILE_NAME))?;
+                let choice = crate::capability_cmd::record_render(&report, &out, &options)?;
+                result.structured["data"]["pipeline_choice"] = choice;
+                return Ok(result);
+            }
+            let value = if question == crate::capability_cmd::Question::SameRender {
+                let mut value = crate::general_cmd::compare_document(
+                    reference,
+                    capture,
+                    &out,
+                    &options,
+                    arg_f64(args, "threshold")?.unwrap_or(0.02),
+                    crate::MetricArg::Mean,
+                )?;
+                value["pipeline"]["selected_question"] = json!("same-render");
+                value["pipeline"]["command"] = json!("compare --align");
+                value
+            } else {
+                crate::capability_cmd::measure(
+                    reference,
+                    capture,
+                    &out,
+                    &options,
+                    arg_f64(args, "threshold")?,
+                )?
+            };
+            let file = crate::general_cmd::persist_document(&value, &out)?;
+            return Ok(ToolOutput {
+                structured: json!({"schema":saccade_core::general::RESULT_SCHEMA,"mode":"compare_question","verdict":value["verdict"],"data":{"schema":value["schema"],"counts":value["counts"]},"artifacts":[{"path":saccade_core::paths::record(&file,&self.root,false)}],"next_actions":[]}),
+                text: "Explicit comparison question recorded; no fallback to a different family."
+                    .into(),
+                images: Vec::new(),
+            });
+        }
+        // wave6
         if operation == "inspect_image" {
             reject_unknown(
                 args,
@@ -1306,6 +1438,11 @@ impl Server {
                 })
                 .transpose()?
                 .unwrap_or(10) as usize;
+            crate::embedding_cmd::authorize_runtime(
+                paths
+                    .get("library")
+                    .ok_or_else(|| CliError::usage("library required"))?,
+            )?;
             let value = crate::embedding_cmd::measure(&operation, &paths, top, &out)?;
             let file = crate::general_cmd::persist_document(&value, &out)?;
             return Ok(ToolOutput{structured:json!({"schema":saccade_core::general::RESULT_SCHEMA,"mode":operation,"verdict":value["verdict"],"data":{"schema":value["schema"],"counts":value["counts"]},"artifacts":[{"path":saccade_core::paths::record(&file,&self.root,false)}],"next_actions":[]}),text:"Conditional embedding evidence; no bundled export or calibration qualification.".into(),images:Vec::new()});
@@ -1407,6 +1544,7 @@ impl Server {
             &crate::general_cmd::CompareArgs {
                 align: Some(align),
                 resample,
+                ..Default::default()
             },
             arg_f64(args, "threshold")?.unwrap_or(0.02),
             metric,
