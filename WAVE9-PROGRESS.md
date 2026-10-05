@@ -8,4 +8,5 @@
 9.7 done f422737; exposure/noise and immutable blind-trial proofs passed
 9.8 done 5d5c962; local convergence and distinct-reason regressions passed
 
-Final verification: done; schemas, generated regressions, read-only receipts, fmt, all-target clippy and feature checks. Heavy runtime gates remain coordinator-owned.
+Final verification: done 17ba380; schemas, generated regressions, read-only receipts, fmt, all-target clippy and feature checks. Heavy runtime gates remain coordinator-owned.
+Dedicated Cargo target deleted; source and binary receipts preserved in scratch. Worktree handoff is clean.
