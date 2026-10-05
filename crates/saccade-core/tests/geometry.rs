@@ -150,3 +150,87 @@ fn nested_closed_surfaces_use_surface_projection_not_solid_containment() {
     assert!((e.baseline_to_capture.mean - 1.0).abs() < 1e-12);
     assert!((e.sampled_hausdorff - 3.0f64.sqrt()).abs() < 1e-12);
 }
+
+fn triangle_fixture(root: &std::path::Path) -> (std::path::PathBuf, serde_json::Value) {
+    let bytes: Vec<u8> = [0f32, 0., 0., 1., 0., 0., 0., 1., 0.]
+        .iter()
+        .flat_map(|x| x.to_le_bytes())
+        .collect();
+    std::fs::write(root.join("mesh.bin"), bytes).unwrap();
+    (
+        root.join("mesh.gltf"),
+        serde_json::json!({"asset":{"version":"2.0"},"scene":0,"scenes":[{"nodes":[0]}],"nodes":[{"mesh":0}],"meshes":[{"primitives":[{"attributes":{"POSITION":0}}]}],"buffers":[{"uri":"mesh.bin","byteLength":36}],"bufferViews":[{"buffer":0,"byteLength":36}],"accessors":[{"bufferView":0,"componentType":5126,"count":3,"type":"VEC3","min":[0,0,0],"max":[1,1,0]}]}),
+    )
+}
+
+#[test]
+fn failed_index_read_cannot_manufacture_identity() {
+    let tmp = tempfile::tempdir().unwrap();
+    let (path, mut doc) = triangle_fixture(tmp.path());
+    std::fs::write(&path, doc.to_string()).unwrap();
+    let valid = geometry::load(&path).unwrap();
+    doc["accessors"].as_array_mut().unwrap().push(serde_json::json!({"bufferView":0,"byteOffset":36,"componentType":5123,"count":3,"type":"SCALAR"}));
+    doc["meshes"][0]["primitives"][0]["indices"] = 1.into();
+    std::fs::write(&path, doc.to_string()).unwrap();
+    let loaded = geometry::load(&path);
+    if let Ok(mesh) = &loaded {
+        assert!(
+            !geometry::identity(&valid, mesh, "m")
+                .unwrap()
+                .evidence
+                .unwrap()
+                .ordered_geometry_identical
+        );
+    }
+    assert!(matches!(loaded, Err(saccade_core::Error::Config(_))));
+}
+
+#[test]
+fn corrupt_meshes_return_errors_without_panicking() {
+    let tmp = tempfile::tempdir().unwrap();
+    let (path, mut doc) = triangle_fixture(tmp.path());
+    doc["meshes"][0]["primitives"][0]["indices"] = 0.into();
+    std::fs::write(&path, doc.to_string()).unwrap();
+    let result = std::panic::catch_unwind(|| geometry::load(&path));
+    assert!(result.is_ok(), "f32 index accessor panicked");
+    assert!(matches!(
+        result.unwrap(),
+        Err(saccade_core::Error::Config(_))
+    ));
+    let (_, doc) = triangle_fixture(tmp.path());
+    let gltf = doc.to_string().into_bytes();
+    let obj = b"v 0 0 0\nv 1 0 0\nv 0 1 0\nf 1 2 3\n";
+    for (extension, bytes) in [("gltf", gltf.as_slice()), ("obj", obj.as_slice())] {
+        let path = tmp.path().join(format!("corrupt.{extension}"));
+        for end in 0..bytes.len() {
+            std::fs::write(&path, &bytes[..end]).unwrap();
+            assert!(
+                std::panic::catch_unwind(|| geometry::load(&path)).is_ok(),
+                "{extension} truncated at {end}"
+            );
+        }
+        for i in 0..bytes.len() {
+            let mut corrupt = bytes.to_vec();
+            corrupt[i] = 0xff;
+            std::fs::write(&path, corrupt).unwrap();
+            assert!(
+                std::panic::catch_unwind(|| geometry::load(&path)).is_ok(),
+                "{extension} corruption at {i}"
+            );
+        }
+    }
+}
+
+#[test]
+fn instanced_header_counts_are_rejected_before_expansion() {
+    let tmp = tempfile::tempdir().unwrap();
+    let (path, mut doc) = triangle_fixture(tmp.path());
+    // The review's 1000 * 999999 expansion, with deliberately truncated data:
+    // header admission must reject before even attempting a POSITION read.
+    doc["accessors"][0]["count"] = 999_999.into();
+    doc["nodes"] = serde_json::json!(vec![serde_json::json!({"mesh":0}); 1000]);
+    doc["scenes"][0]["nodes"] = serde_json::json!((0..1000).collect::<Vec<_>>());
+    std::fs::write(&path, doc.to_string()).unwrap();
+    let err = geometry::load(&path).err().unwrap().to_string();
+    assert!(err.contains("before expansion"), "{err}");
+}
