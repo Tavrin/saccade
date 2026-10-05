@@ -219,3 +219,41 @@ external receipt **compatibility only**, not native inference. Legacy DWT's
 upstream workflow parity is separate from the generated marker roundtrip.
 Set `WAVE7_LOCAL_VLM_ENDPOINT` and `WAVE7_LOCAL_VLM_REVISION` for the loopback
 smoke test; it establishes contract/availability, not domain accuracy.
+
+## Wave 7b pinned native adapters (2026-10-05)
+
+When no user registry exists, the standalone CLI uses the bundled exact manifest
+in `crates/saccade-core/assets/wave7-models.json`. An explicit `--registry` still
+selects only that registry. `scripts/wave7/pull.py` pulls or verifies the frozen
+artifact catalog in `/mnt/linux-extra/saccade-models`; graph and auxiliary hashes
+are checked before use. Locally computed tokenizer/config digests are dated and
+kept distinct from host-reported graph hashes. Weights are never stored in Git.
+
+With `local-models`, `locate` uses the pinned BERT DINO adapter on square images.
+The supplied graph is fixed at 800×800; preserving its processor on rectangles
+requires the OWLv2 fallback, which pads with per-channel mean and resizes to
+960×960. Detector identity always names the graph actually executed. Detection
+thresholds are 0.4 (DINO) and 0.1 (OWLv2), with explicit NMS 0.5; these example
+settings are not calibration. The query is one phrase, and the receipt binds it.
+`--segment` selects EfficientSAM when the default SAM2 bundle is unavailable:
+original-pixel box corners, encoder/decoder inference, highest-IoU candidate,
+and positive-logit foreground runs. SAM2 remains unavailable because its verified
+archive lacks a complete exporter licence and preprocessing contract.
+
+YuNet uses native BGR pixels with bottom/right zero padding to multiples of 32;
+UltraFace uses RGB 320×240 and `(pixel−127)/128`. Both apply the recorded score
+0.6/NMS 0.3 policy. Successful face detection never certifies absence of other
+faces. LPIPS, DISTS, MUSIQ and TrustMark remain unavailable until their incomplete
+pins are supplied; they never produce fabricated measurements or watermark
+presence. LPIPS/DISTS compare attachment remains coordinator work after exports
+exist. The reason for each missing model is in `scripts/wave7/disposition.json`.
+
+`gates-wave7.sh` prepares MIT-licensed generated bottle/portrait/blank fixtures
+with Python Pillow, verifies frozen pins, and runs ignored native inference tests
+with box/mask/negative-image/crop assertions. Set `WAVE7_RUNTIME_LIBRARY` to an
+explicit installed CPU ONNX Runtime API22 (1.22+) library. Development reference
+smokes used an existing 1.16.3 C API runtime and succeeded for five models, but
+Rust inference failed at that ABI boundary before executing a graph. The complete
+receipts and tensor declarations are in `scripts/wave7/smoke-receipt.json` and
+`scripts/wave7/signatures.json`. These checks do not establish source/export
+parity, native Rust runtime acceptance, cross-platform behavior or integration.

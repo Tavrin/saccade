@@ -107,7 +107,7 @@ private caches or deleting other lanes' data.
   tests, real models/ONNX inference, HTTP servers, downloads, hosted providers,
   browser/showcases, release builds, GPU, cross-platform or merged integration.
 
-## Remaining coordinator work
+## Remaining coordinator work (original snapshot; Wave 7b supersedes pins/adapters)
 
 Supply reviewed immutable model manifests/pins and parity bundles (research has
 no exact artifact hashes). Implement/qualify selected detector tokenizers and
@@ -174,3 +174,43 @@ edited. Cargo.lock was not changed; no new crate dependency was required.
   absent. Explicit registries still replace that set; there is no automatic pull.
   Missing SAM2 defaults to EfficientSAM; receipts name the actual segmenter.
   Rejected relabeling fallback as the primary or asserting source parity from pins.
+
+## Wave 7b validation and limits
+
+- Light checks PASS: lane-feature cargo check, no-default-features core check,
+  strict Clippy for saccade and its core dependency, formatting/diff check,
+  26 targeted core tests (10 heavy ignored), 4 targeted CLI/MCP tests, schema
+  equality, documentation inventory, Python compilation and shell gate syntax.
+  All builds used nice19/-j4 and the mandated target after headroom checks
+  (minimum observed 64 GiB available). No full gate was run.
+- Generated fixture artwork is MIT; no downloaded photographs. Pillow generates
+  a bottle, portrait and blank. Reference C API16 CPU smokes used one thread,
+  one image per model, and timeout55s. DINO bottle score0.923584 / box normalized
+  [0.501687,0.493426,0.312569,0.811830]; OWLv2 score0.244242 / box
+  [0.502414,0.496212,0.308989,0.812759]. EfficientSAM yields embedding
+  [1,256,64,64], masks[1,1,3,256,256], best IoU0.983409, area14,442 pixels,
+  foreground at(128,100), no background at(5,5). YuNet portrait score0.874094;
+  UltraFace score0.999582. Graph/fixture/runtime identities are in the committed
+  smoke receipt; this is reference smoke evidence, not Rust/native/source parity.
+- DINO output additionally has exactly226,800 intentional negative-infinity
+  padded logits and zero NaNs. A focused regression now permits that padding
+  only for DINO logits, while rejecting NaN, positive infinity and non-finite
+  boxes/other outputs. Rejected blanket finite-output rejection (breaks the real
+  graph) and blanket non-finite acceptance (permits invalid geometry).
+- Both discovered installed runtime libraries report1.16.3. The individual Rust
+  EfficientSAM smoke reached the ABI check and failed before graph inference:
+  ort rc.10 expected1.22.x, found1.16.3; caught as typed dynamic ABI unavailable.
+  No runtime download outside the authorized model/crates URLs was attempted.
+  An earlier55s Cargo smoke cap expired during compilation, with no inference;
+  the same targeted test with already selected lane features then established
+  the actual ABI failure (runtime phase1.85s). This is not a successful Rust smoke.
+- `gates-wave7.sh` now pulls/reuses only frozen immutable artifact pins, prepares
+  generated fixtures, and invokes ignored real detector/segmenter/face assertions.
+  Pair-metric identity/monotonic-distortion assertions are runnable after supplied
+  reviewed LPIPS/DISTS manifests replace their explicit deferrals; no fake metric.
+  Missing source-parity bundle/local VLM endpoint is reported DEFERRED. The final
+  selected-adapter gate remains FAIL for SAM2/LPIPS/DISTS/MUSIQ/TrustMark gaps.
+  Runtime path must be explicitly supplied with API22 support. Reversal cost:
+  install/provide the allowed runtime outside this lane, then run the queued gate.
+- README, CHANGELOG, docs/cli.md and wave4/6 integration were left to coordinator
+  as requested. No push, merge, rebase, reset, stash or other-worktree operations.

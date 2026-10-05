@@ -158,3 +158,182 @@ fn local_vlm_endpoint_smoke_with_explicit_model_identity() {
     assert!(!report.statements.is_empty());
     assert!(report.advisory_only);
 }
+
+fn model_cache() -> PathBuf {
+    std::env::var_os("WAVE7_MODEL_CACHE")
+        .map(PathBuf::from)
+        .unwrap_or_else(|| PathBuf::from("/mnt/linux-extra/saccade-models"))
+}
+fn pinned_registry() -> Registry {
+    std::env::var_os("WAVE7_MODEL_REGISTRY")
+        .map(PathBuf::from)
+        .map(|p| Registry::load(&p).unwrap())
+        .unwrap_or_else(|| Registry::pinned_wave7().unwrap())
+}
+fn generated(name: &str) -> VisionImage {
+    VisionImage::load(&model_cache().join("fixtures").join(name)).unwrap()
+}
+#[test]
+#[ignore = "heavy: models"]
+fn pinned_detection_finds_generated_bottle() {
+    use super::{
+        native::TextDetector,
+        vision::{self, Rect},
+    };
+    let image = generated("bottle.png");
+    let registry = pinned_registry();
+    let expected = Rect {
+        x: 89.,
+        y: 23.,
+        width: 78.,
+        height: 206.,
+    };
+    for id in ["grounding-dino-tiny", "owlv2-base"] {
+        let mut detector = TextDetector::load(
+            registry.model(id).unwrap(),
+            &model_cache(),
+            &library(),
+            false,
+        )
+        .unwrap();
+        let r = vision::locate(&image, "bottle", &mut detector, None).unwrap();
+        assert_eq!(r.detector.model_id, id);
+        assert_eq!(r.detector.runtime, "onnx-cpu");
+        assert!(
+            r.detections
+                .iter()
+                .any(|d| d.bbox.intersection(expected) / (expected.width * expected.height) > 0.7),
+            "{id}: generated object must be localized"
+        );
+    }
+}
+#[test]
+#[ignore = "heavy: models"]
+fn pinned_efficientsam_segments_generated_bottle() {
+    use super::{
+        native::EfficientSam,
+        vision::{Rect, Segmenter},
+    };
+    let image = generated("bottle.png");
+    let registry = pinned_registry();
+    let mut segmenter = EfficientSam::load(
+        registry.model("efficientsam-ti").unwrap(),
+        &model_cache(),
+        &library(),
+        false,
+    )
+    .unwrap();
+    let bbox = Rect {
+        x: 88.,
+        y: 22.,
+        width: 80.,
+        height: 208.,
+    };
+    let (masks, p) = segmenter.segment(&image, &[bbox]).unwrap();
+    assert_eq!(p.runtime, "onnx-cpu");
+    assert_eq!(masks.len(), 1);
+    masks[0].validate(image.size()).unwrap();
+    let area: u32 = masks[0].runs.iter().map(|r| r[1]).sum();
+    assert!(
+        (7000..18000).contains(&area),
+        "bottle foreground area: {area}"
+    );
+    let inside = |x: u32, y: u32| {
+        masks[0]
+            .runs
+            .iter()
+            .any(|r| r[0] <= y * 256 + x && y * 256 + x < r[0] + r[1])
+    };
+    assert!(inside(128, 100));
+    assert!(!inside(5, 5));
+}
+#[test]
+#[ignore = "heavy: models"]
+fn pinned_faces_detect_generated_portrait_and_reject_blank() {
+    use super::vision::Rect;
+    let image = generated("face.png");
+    let blank = generated("blank.png");
+    let registry = pinned_registry();
+    let expected = Rect {
+        x: 63.,
+        y: 26.,
+        width: 129.,
+        height: 186.,
+    };
+    for id in ["yunet-2026may", "ultraface-rfb"] {
+        let mut runtime = OnnxModel::load(
+            registry.model(id).unwrap(),
+            &model_cache(),
+            &library(),
+            false,
+        )
+        .unwrap();
+        let actual = faces::detect(&image, &mut runtime).unwrap();
+        assert_eq!(actual.provenance.runtime, "onnx-cpu");
+        assert!(
+            actual
+                .faces
+                .iter()
+                .any(|f| f.bbox.intersection(expected) / (expected.width * expected.height) > 0.5),
+            "{id}: generated portrait must be detected"
+        );
+        assert!(
+            faces::detect(&blank, &mut runtime)
+                .unwrap()
+                .faces
+                .is_empty()
+        );
+        let crops = faces::crop_check(
+            &image,
+            &actual,
+            &[faces::CropSpec::Ratio {
+                width: 1.,
+                height: 1.,
+            }],
+            None,
+        )
+        .unwrap();
+        assert!(
+            crops.crops[0]
+                .faces
+                .iter()
+                .all(|f| *f == faces::FaceCropStatus::Included)
+        );
+    }
+}
+#[test]
+#[ignore = "heavy: models"]
+fn pinned_pair_metrics_identity_and_distortion() {
+    // Runnable after reviewed complete exports replace the explicit missing-pin disposition.
+    let original = generated("bottle.png");
+    let registry = pinned_registry();
+    let temporary = tempfile::tempdir().unwrap();
+    let distorted = |mix: f32| {
+        let pixels = image::RgbImage::from_fn(256, 256, |x, y| {
+            let p = original.pixels.get_pixel(x, y);
+            let noise = if (x * 17 + y * 29) % 7 < 3 { 0. } else { 255. };
+            image::Rgb(p.0.map(|v| ((1. - mix) * f32::from(v) + mix * noise) as u8))
+        });
+        let path = temporary.path().join(format!("distortion-{mix}.png"));
+        pixels.save(&path).unwrap();
+        VisionImage::load(&path).unwrap()
+    };
+    for metric in [LearnedMetric::LpipsAlexV01, LearnedMetric::Dists] {
+        let m = registry
+            .model(metric.model_id())
+            .expect("DEFERRED: complete export pin absent; never substitute a fake metric");
+        let mut runtime = OnnxModel::load(m, &model_cache(), &library(), false).unwrap();
+        let score = |runtime: &mut OnnxModel, image: &VisionImage| {
+            quality::measure(metric, image, Some(&original), runtime)
+                .unwrap()
+                .named_metrics[0]
+                .value
+        };
+        let identity = score(&mut runtime, &original);
+        let small = score(&mut runtime, &distorted(0.05));
+        let large = score(&mut runtime, &distorted(0.35));
+        assert!(identity.abs() < 1e-4);
+        assert!(small > identity);
+        assert!(large > small);
+    }
+}

@@ -26,14 +26,28 @@ gate fmt cargo fmt --all -- --check
 gate clippy nice -n 19 cargo clippy -j 4 -p saccade -p saccade-core --features "$features" --all-targets -- -D warnings
 gate default-tests nice -n 19 cargo test -j 4 -p saccade -p saccade-core --features "$features"
 gate minimal-tests nice -n 19 cargo test -j 4 -p saccade-core --no-default-features
-# Require explicit installed artifacts/receipts. No implicit downloads or changed pins.
-gate models nice -n 19 cargo test -j 4 -p saccade-core --lib wave7::heavy_tests --features "$features" -- --ignored --skip local_vlm_endpoint_smoke
+# Only immutable URLs and exact hashes from the lane's frozen pin catalog.
+export WAVE7_MODEL_CACHE=/mnt/linux-extra/saccade-models
+export WAVE7_MODEL_REGISTRY="$PWD/crates/saccade-core/assets/wave7-models.json"
+gate model-pins python3 scripts/wave7/pull.py
+gate model-fixtures python3 scripts/wave7/fixtures.py "$WAVE7_MODEL_CACHE/fixtures"
+# WAVE7_RUNTIME_LIBRARY must explicitly select an installed API22 (1.22+) CPU runtime.
+gate models nice -n 19 cargo test -j 4 -p saccade-core --lib wave7::heavy_tests::pinned_ --features "$features" -- --ignored --skip pinned_pair_metrics_identity_and_distortion
+# Frozen legacy/source parity is a separate qualification, beyond generated behavior.
+if test -n "${WAVE7_HEAVY_FIXTURES:-}"; then
+    gate source-parity nice -n 19 cargo test -j 4 -p saccade-core --lib wave7::heavy_tests --features "$features" -- --ignored --skip pinned_ --skip local_vlm_endpoint_smoke
+else
+    printf 'GATE source-parity DEFERRED (no reviewed parity bundle)\n'
+fi
 # Only a loopback local server, never Claude/GPT/Gemini or credential-dependent calls.
-gate local-network nice -n 19 cargo test -j 4 -p saccade-core --lib wave7::heavy_tests::local_vlm_endpoint_smoke --features "$features" -- --ignored
+if test -n "${WAVE7_LOCAL_VLM_ENDPOINT:-}"; then
+    gate local-network nice -n 19 cargo test -j 4 -p saccade-core --lib wave7::heavy_tests::local_vlm_endpoint_smoke --features "$features" -- --ignored
+else
+    printf 'GATE local-network DEFERRED (no explicit loopback model server)\n'
+fi
 gate docs python3 scripts/check-wave7-docs.py
 gate schemas nice -n 19 cargo test -j 4 -p saccade-core --lib wave7::schemas --features "$features"
-# Real selected native tokenizer/SAM/TrustMark adapters are explicitly deferred.
-# Contract receipt tests above do not qualify those missing implementations.
-printf 'GATE selected-native-adapters FAIL (deferred: detector-tokenizer/SAM/TrustMark-ECC)\n'
+# These explicit research gaps cannot be turned green by generated or replay evidence.
+printf 'GATE selected-native-adapters FAIL (deferred: SAM-export-license/processor; LPIPS/DISTS/MUSIQ complete-export-pins; TrustMark immutable-decoder-pin)\n'
 failed=1
 exit "$failed"
