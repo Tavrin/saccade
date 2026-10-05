@@ -57,6 +57,14 @@
       "minimum": 0,
       "type": "integer"
     },
+    "money_id": {
+      "default": null,
+      "description": "Durable monetary reservation for settlement after collection.",
+      "type": [
+        "string",
+        "null"
+      ]
+    },
     "operation": {
       "description": "Provider operation ID when known.",
       "type": [
@@ -78,9 +86,31 @@
       "description": "saccade-assist-batch.v1.",
       "type": "string"
     },
+    "source_plan_hash": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/Digest"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "description": "Canonical public source descriptor binding, when used by CLI/MCP."
+    },
     "state": {
       "$ref": "#/$defs/State",
       "description": "Durable lifecycle."
+    },
+    "submitted_ms": {
+      "default": null,
+      "description": "Original dispatch time binds prices across delayed collection.",
+      "format": "uint64",
+      "minimum": 0,
+      "type": [
+        "integer",
+        "null"
+      ]
     },
     "updated_ms": {
       "description": "Last local transition time.",

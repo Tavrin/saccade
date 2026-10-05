@@ -1,0 +1,227 @@
+{
+  "$defs": {
+    "Digest": {
+      "description": "Validated lowercase SHA-256 identity or content hash.",
+      "pattern": "^sha256:[0-9a-f]{64}$",
+      "type": "string"
+    },
+    "Plan": {
+      "additionalProperties": false,
+      "description": "Immutable batch plan, paired with a separate mutable job receipt.",
+      "properties": {
+        "max_spend_nano_usd": {
+          "description": "Explicit epoch budget; no automatic top-up.",
+          "format": "uint64",
+          "minimum": 0,
+          "type": "integer"
+        },
+        "model": {
+          "description": "Exact pinned Gemini model.",
+          "type": "string"
+        },
+        "price_id": {
+          "description": "Expiring price schedule.",
+          "type": "string"
+        },
+        "requests": {
+          "description": "Frozen provider inline requests with hashed item metadata.",
+          "items": true,
+          "type": "array"
+        },
+        "revision": {
+          "description": "Bound observed revision; collect refuses drift.",
+          "type": "string"
+        }
+      },
+      "required": [
+        "model",
+        "revision",
+        "requests",
+        "price_id",
+        "max_spend_nano_usd"
+      ],
+      "type": "object"
+    },
+    "Reference": {
+      "additionalProperties": false,
+      "description": "Immutable ordinary-file reference, resolved through the user's root policy.",
+      "properties": {
+        "path": {
+          "description": "Absolute canonical source path; never a network URL.",
+          "type": "string"
+        },
+        "sha256": {
+          "$ref": "#/$defs/Digest",
+          "description": "SHA-256 of the exact source bytes."
+        }
+      },
+      "required": [
+        "path",
+        "sha256"
+      ],
+      "type": "object"
+    },
+    "SourceTask": {
+      "additionalProperties": false,
+      "description": "Reconstructible task descriptor and its exhaustive transitive read set.",
+      "properties": {
+        "artifact": {
+          "$ref": "#/$defs/Reference",
+          "description": "Original image or report reference."
+        },
+        "box_px": {
+          "description": "Requested original-pixel scope.",
+          "items": {
+            "format": "uint32",
+            "minimum": 0,
+            "type": "integer"
+          },
+          "maxItems": 4,
+          "minItems": 4,
+          "type": [
+            "array",
+            "null"
+          ]
+        },
+        "condition_kind": {
+          "description": "Closed visible condition category.",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "condition_text": {
+          "description": "Literal visible condition.",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "entry": {
+          "description": "Selected report entry, when needed.",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "incomplete_capture": {
+          "description": "Producer declared incomplete scope.",
+          "type": "boolean"
+        },
+        "job_ids": {
+          "description": "Frozen IDs for each blind order of this task.",
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "mask_manifest": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Reference"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "Original individual mask manifest."
+        },
+        "pre_masked": {
+          "description": "Original pixels are unavailable.",
+          "type": "boolean"
+        },
+        "second_target": {
+          "description": "Stable second target.",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "source_evidence": {
+          "description": "Original producer packets.",
+          "items": {
+            "$ref": "#/$defs/Reference"
+          },
+          "type": "array"
+        },
+        "target": {
+          "description": "Stable source target.",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "task": {
+          "$ref": "#/$defs/Task",
+          "description": "Existing assist workflow to reproduce locally."
+        },
+        "transitive": {
+          "description": "Exact closure: report, screenshots, masks and every producer packet.",
+          "items": {
+            "$ref": "#/$defs/Reference"
+          },
+          "type": "array"
+        }
+      },
+      "required": [
+        "task",
+        "artifact",
+        "source_evidence",
+        "incomplete_capture",
+        "pre_masked",
+        "transitive",
+        "job_ids"
+      ],
+      "type": "object"
+    },
+    "Task": {
+      "description": "Operations share evidence and verification, never decision authority.",
+      "oneOf": [
+        {
+          "const": "explain",
+          "description": "Describe visible changes.",
+          "type": "string"
+        },
+        {
+          "const": "audit_mask",
+          "description": "Describe potentially concealed content per exclusion.",
+          "type": "string"
+        },
+        {
+          "const": "check_ui",
+          "description": "Check a bounded visible condition.",
+          "type": "string"
+        }
+      ]
+    }
+  },
+  "$id": "https://github.com/Tavrin/saccade/crates/saccade-core/schemas/saccade-assist-batch-plan.v1.schema.json",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "description": "Public plan includes sources rather than trusting embedded provider payloads.",
+  "properties": {
+    "plan": {
+      "$ref": "#/$defs/Plan",
+      "description": "Provider requests and budget frozen before submit."
+    },
+    "schema": {
+      "const": "saccade-assist-batch-plan.v1",
+      "description": "saccade-assist-batch-plan.v1.",
+      "type": "string"
+    },
+    "tasks": {
+      "description": "Reconstructible source tasks, verified transitively by CLI/MCP.",
+      "items": {
+        "$ref": "#/$defs/SourceTask"
+      },
+      "type": "array"
+    }
+  },
+  "required": [
+    "schema",
+    "plan",
+    "tasks"
+  ],
+  "title": "FrozenPlan",
+  "type": "object"
+}

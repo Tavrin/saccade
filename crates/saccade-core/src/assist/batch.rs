@@ -7,6 +7,115 @@ use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use std::path::Path;
 
+/// Public frozen source-plan schema; source bytes are verified before export.
+pub const PLAN_SCHEMA: &str = "saccade-assist-batch-plan.v1";
+/// Immutable ordinary-file reference, resolved through the user's root policy.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
+#[serde(deny_unknown_fields)]
+pub struct Reference {
+    /// Absolute canonical source path; never a network URL.
+    pub path: String,
+    /// SHA-256 of the exact source bytes.
+    pub sha256: Digest,
+}
+/// Reconstructible task descriptor and its exhaustive transitive read set.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
+#[serde(deny_unknown_fields)]
+pub struct SourceTask {
+    /// Existing assist workflow to reproduce locally.
+    pub task: super::schema::Task,
+    /// Original image or report reference.
+    pub artifact: Reference,
+    /// Selected report entry, when needed.
+    pub entry: Option<String>,
+    /// Original individual mask manifest.
+    pub mask_manifest: Option<Reference>,
+    /// Original producer packets.
+    pub source_evidence: Vec<Reference>,
+    /// Literal visible condition.
+    pub condition_text: Option<String>,
+    /// Closed visible condition category.
+    pub condition_kind: Option<String>,
+    /// Requested original-pixel scope.
+    pub box_px: Option<[u32; 4]>,
+    /// Stable source target.
+    pub target: Option<String>,
+    /// Stable second target.
+    pub second_target: Option<String>,
+    /// Producer declared incomplete scope.
+    pub incomplete_capture: bool,
+    /// Original pixels are unavailable.
+    pub pre_masked: bool,
+    /// Exact closure: report, screenshots, masks and every producer packet.
+    pub transitive: Vec<Reference>,
+    /// Frozen IDs for each blind order of this task.
+    pub job_ids: Vec<String>,
+}
+/// Public plan includes sources rather than trusting embedded provider payloads.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
+#[serde(deny_unknown_fields)]
+pub struct FrozenPlan {
+    /// saccade-assist-batch-plan.v1.
+    #[cfg_attr(feature = "schema", schemars(extend("const" = "saccade-assist-batch-plan.v1")))]
+    pub schema: String,
+    /// Provider requests and budget frozen before submit.
+    pub plan: Plan,
+    /// Reconstructible source tasks, verified transitively by CLI/MCP.
+    pub tasks: Vec<SourceTask>,
+}
+impl FrozenPlan {
+    /// Reject omitted, duplicate or unrelated task/request/source bindings.
+    pub fn validate(&self) -> Result<()> {
+        self.plan.validate()?;
+        require(
+            self.schema == PLAN_SCHEMA && !self.tasks.is_empty() && self.tasks.len() <= 128,
+            "frozen source plan schema/count",
+        )?;
+        let mut ids = std::collections::BTreeSet::new();
+        for task in &self.tasks {
+            require(
+                !task.job_ids.is_empty()
+                    && task.job_ids.len() <= 2
+                    && task.transitive.len() <= 6
+                    && !task.transitive.is_empty()
+                    && task.source_evidence.len() <= 2,
+                "source task bounds",
+            )?;
+            let mut paths = std::collections::BTreeSet::new();
+            for source in &task.transitive {
+                require(
+                    std::path::Path::new(&source.path).is_absolute()
+                        && source.path.len() <= 4096
+                        && paths.insert(&source.path),
+                    "source reference path/duplicate",
+                )?;
+            }
+            for source in std::iter::once(&task.artifact)
+                .chain(task.mask_manifest.iter())
+                .chain(&task.source_evidence)
+            {
+                require(
+                    task.transitive.contains(source),
+                    "missing transitive source reference",
+                )?;
+            }
+            for id in &task.job_ids {
+                require(ids.insert(id.as_str()), "duplicate task request binding")?;
+            }
+        }
+        let expected: std::collections::BTreeSet<_> = self
+            .plan
+            .requests
+            .iter()
+            .filter_map(|r| r["metadata"]["job_id"].as_str())
+            .collect();
+        require(ids == expected, "unbound frozen requests")
+    }
+}
+
 /// Durable state, independent of a provider's job-level success label.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
@@ -69,8 +178,12 @@ impl Plan {
                     && serde_json::to_vec(&request["request"])
                         .map_err(|_| Error::Invalid("batch serialization"))?
                         .len()
-                        <= 64_000,
+                        <= 32 * 1024 * 1024,
                 "batch frozen request mismatch",
+            )?;
+            super::price::gemini_bounds(
+                &serde_json::to_vec(&request["request"])
+                    .map_err(|_| Error::Invalid("batch request bytes"))?,
             )?;
         }
         Ok(())
@@ -96,6 +209,15 @@ pub struct Job {
     pub failed_items: usize,
     /// Last local transition time.
     pub updated_ms: u64,
+    /// Durable monetary reservation for settlement after collection.
+    #[serde(default)]
+    pub money_id: Option<String>,
+    /// Original dispatch time binds prices across delayed collection.
+    #[serde(default)]
+    pub submitted_ms: Option<u64>,
+    /// Canonical public source descriptor binding, when used by CLI/MCP.
+    #[serde(default)]
+    pub source_plan_hash: Option<Digest>,
 }
 fn operation(name: &str) -> Result<()> {
     require(
@@ -143,6 +265,9 @@ pub fn plan(path: &Path, frozen: &Plan) -> Result<Job> {
         results: vec![],
         failed_items: 0,
         updated_ms: crate::budget_ledger::now_ms(),
+        money_id: None,
+        submitted_ms: None,
+        source_plan_hash: None,
     };
     // Atomic create under the same stable lock used for transitions.
     let lock = std::fs::OpenOptions::new()
@@ -177,6 +302,27 @@ pub fn begin_submit(path: &Path, frozen: &Plan) -> Result<Vec<u8>> {
             .map_err(|_| Error::Invalid("batch payload"))?;
         job.state = State::SubmissionUnknown;
         Ok(bytes)
+    })
+}
+/// Bind transitive public sources once before dispatch; later operations refuse drift.
+pub fn bind_sources(path: &Path, frozen: &FrozenPlan) -> Result<()> {
+    frozen.validate()?;
+    let hash = digest(&frozen.tasks)?;
+    transaction(path, |job| {
+        require(
+            job.plan_hash == digest(&frozen.plan)?,
+            "source plan job mismatch",
+        )?;
+        if let Some(existing) = &job.source_plan_hash {
+            require(existing == &hash, "source plan changed")?;
+        } else {
+            require(
+                job.state == State::Planned,
+                "cannot rebind dispatched source plan",
+            )?;
+            job.source_plan_hash = Some(hash);
+        }
+        Ok(())
     })
 }
 /// Bind the durable provider operation receipt. Errors/timeouts keep uncertain state.
@@ -238,7 +384,25 @@ pub fn collect(path: &Path, frozen: &Plan, response: &Value) -> Result<Job> {
             }
             let bytes = serde_json::to_vec(&body).map_err(|_| Error::Invalid("batch item JSON"))?;
             let usage = super::execution::usage(&bytes);
-            let cost = super::execution::cost_nano("gemini", &usage, job.updated_ms, true);
+            let request = frozen
+                .requests
+                .iter()
+                .find(|r| r["metadata"]["job_id"].as_str() == Some(&id))
+                .ok_or(Error::Invalid("batch item request absent"))?;
+            let bounds = super::price::gemini_bounds(
+                &serde_json::to_vec(&request["request"])
+                    .map_err(|_| Error::Invalid("batch request bytes"))?,
+            )?;
+            let cost = if valid && bounds.contains(&usage) {
+                super::execution::cost_nano(
+                    "gemini",
+                    &usage,
+                    job.submitted_ms.unwrap_or(job.updated_ms),
+                    true,
+                )
+            } else {
+                None
+            };
             job.results.push(serde_json::json!({"job_id":id,"ok":valid,"response_hash":Digest::of_bytes(&bytes),"usage":usage,"cost_nano_usd":cost,"response":if valid {body} else {Value::Null}}));
         }
         job.state = if job.failed_items == 0 {
@@ -260,6 +424,17 @@ pub fn submit_authorized(
 ) -> Result<Job> {
     use crate::budget_ledger::{Attempt, MoneyReceipt, MoneyScope};
     frozen.validate()?;
+    require(
+        receipt(path, frozen)?.state == State::Planned,
+        "batch cannot resubmit; recover operation receipt",
+    )?;
+    require(
+        !executor
+            .deadline
+            .saturating_duration_since(std::time::Instant::now())
+            .is_zero(),
+        "batch submit deadline",
+    )?;
     executor
         .transport
         .authorization
@@ -274,6 +449,11 @@ pub fn submit_authorized(
         executor.transport.keys.default_policy_dir(),
         "batch fixed keys required",
     )?;
+    executor
+        .transport
+        .keys
+        .load("gemini.env", "SACCADE_GEMINI_API_KEY")
+        .map_err(|_| Error::Policy("fixed Gemini credentials unavailable"))?;
     let now = crate::budget_ledger::now_ms();
     require(
         now < super::execution::PRICE_EXPIRES_MS,
@@ -281,18 +461,26 @@ pub fn submit_authorized(
     )?;
     let payload = adapter::submission(&frozen.model, "assist-evaluation", &frozen.requests)
         .map_err(|_| Error::Invalid("batch payload"))?;
-    let per_item = super::execution::cost_nano(
-        "gemini",
-        &super::schema::Usage {
-            input_tokens: Some(super::execution::INPUT_LIMIT),
-            candidate_tokens: Some(super::execution::OUTPUT_LIMIT),
-            thinking_tokens: Some(0),
-            ..Default::default()
-        },
-        now,
-        true,
-    )
-    .ok_or(Error::Policy("batch reservation unknown"))?;
+    let reservation = frozen.requests.iter().try_fold(0u64, |sum, request| {
+        let bytes = serde_json::to_vec(&request["request"])
+            .map_err(|_| Error::Invalid("batch request bytes"))?;
+        let bounds = super::price::gemini_bounds(&bytes)?;
+        let cost = super::execution::cost_nano(
+            "gemini",
+            &super::schema::Usage {
+                input_tokens: Some(bounds.input),
+                candidate_tokens: Some(bounds.output),
+                thinking_tokens: Some(0),
+                total_tokens: Some(bounds.input + bounds.output),
+                ..Default::default()
+            },
+            now,
+            true,
+        )
+        .ok_or(Error::Policy("batch reservation unknown"))?;
+        sum.checked_add(cost)
+            .ok_or(Error::Policy("batch reservation overflow"))
+    })?;
     let mut scopes = executor.money_scopes.clone();
     scopes.push(MoneyScope {
         id: format!("batch/{}", digest(frozen)?.as_str()),
@@ -307,18 +495,24 @@ pub fn submit_authorized(
                 id: id.clone(),
                 request_hash: Digest::of_bytes(&payload),
                 scopes: scopes.iter().map(|s| s.id.clone()).collect(),
-                reserved_nano_usd: per_item
-                    .checked_mul(frozen.requests.len() as u64)
-                    .ok_or(Error::Policy("batch reservation overflow"))?,
+                reserved_nano_usd: reservation,
                 actual_nano_usd: None,
                 outcome: "reserved".into(),
                 usage: Value::Null,
             },
         )
         .map_err(|_| Error::Policy("batch spend exhausted"))?;
+    let (provider_pace, model_pace) = executor.transport.user.pace("gemini", &frozen.model);
+    let pace = crate::budget_ledger::PaceLimits {
+        provider_rpm: provider_pace.requests_per_minute,
+        provider_concurrency: provider_pace.concurrency,
+        model_rpm: model_pace.requests_per_minute,
+        model_concurrency: model_pace.concurrency,
+        lease_ms: 300_000,
+    };
     let attempt = executor
         .ledger
-        .reserve(
+        .reserve_paced(
             &executor.transport.authorization.scopes,
             Attempt {
                 id: crate::local::random_token(),
@@ -331,9 +525,15 @@ pub fn submit_authorized(
                 outcome: "reserved".into(),
             },
             false,
+            Some(&pace),
         )
         .map_err(|_| Error::Policy("batch request budget exhausted"))?;
     let payload = begin_submit(path, frozen)?;
+    transaction(path, |job| {
+        job.money_id = Some(id.clone());
+        job.submitted_ms = Some(now);
+        Ok(())
+    })?;
     let client = adapter::GeminiBatch {
         keys: executor.transport.keys,
         http,
@@ -346,19 +546,15 @@ pub fn submit_authorized(
             submitted(path, frozen, name)?;
             executor
                 .ledger
-                .finish(&attempt, "batch_submitted", false, None)
+                .finish(&attempt, "answered", false, None)
                 .map_err(|_| Error::Storage)?;
-            // Monetary reservation stays consumed until all per-item costs are known.
-            executor
-                .ledger
-                .finish_money(&id, None, Value::Null, true)
-                .map_err(|_| Error::Storage)?;
+            // Keep the receipt reserved until a terminal collection settles it.
             decode(&read_bytes(path, 32 * 1024 * 1024)?)
         }
         Err(_) => {
             executor
                 .ledger
-                .finish(&attempt, "submission_unknown", false, None)
+                .finish(&attempt, "unavailable", false, None)
                 .map_err(|_| Error::Storage)?;
             executor
                 .ledger
@@ -367,4 +563,129 @@ pub fn submit_authorized(
             Err(Error::Provider)
         }
     }
+}
+
+/// Read and validate a local receipt against its exact frozen plan.
+pub fn receipt(path: &Path, frozen: &Plan) -> Result<Job> {
+    frozen.validate()?;
+    let job: Job = decode(&read_bytes(path, 32 * 1024 * 1024)?)?;
+    require(
+        job.schema == "saccade-assist-batch.v1" && job.plan_hash == digest(frozen)?,
+        "batch receipt plan mismatch",
+    )?;
+    Ok(job)
+}
+/// Poll once under the shared authorization, transitive egress and attempt policy.
+/// Status never waits or resubmits. Raw provider errors are not persisted.
+pub fn poll_authorized(
+    path: &Path,
+    frozen: &Plan,
+    executor: &super::execution::Executor<'_>,
+    http: &dyn adapter::BatchHttp,
+) -> Result<Value> {
+    use crate::budget_ledger::Attempt;
+    executor
+        .transport
+        .authorization
+        .check()
+        .map_err(|_| Error::Policy("batch polling authorization"))?;
+    executor
+        .transport
+        .user
+        .authorize(&executor.sources, executor.transport.roots)
+        .map_err(|_| Error::Policy("batch polling egress"))?;
+    require(
+        executor.transport.keys.default_policy_dir(),
+        "batch fixed keys required",
+    )?;
+    let job = receipt(path, frozen)?;
+    let name = job.operation.as_deref().ok_or(Error::Invalid(
+        "unknown batch operation; recover original receipt",
+    ))?;
+    operation(name)?;
+    let timeout = executor
+        .deadline
+        .saturating_duration_since(std::time::Instant::now());
+    require(
+        !timeout.is_zero() && timeout <= std::time::Duration::from_secs(300),
+        "batch poll deadline",
+    )?;
+    let (provider, model) = executor.transport.user.pace("gemini", &frozen.model);
+    let pace = crate::budget_ledger::PaceLimits {
+        provider_rpm: provider.requests_per_minute,
+        provider_concurrency: provider.concurrency,
+        model_rpm: model.requests_per_minute,
+        model_concurrency: model.concurrency,
+        lease_ms: 300_000,
+    };
+    let attempt = executor
+        .ledger
+        .reserve_paced(
+            &executor.transport.authorization.scopes,
+            Attempt {
+                id: crate::local::random_token(),
+                provider: "gemini".into(),
+                model: frozen.model.clone(),
+                payload_sha256: digest(&serde_json::json!({"get":name}))?,
+                source_roots: executor.sources.clone(),
+                batch_size: 1,
+                started_ms: crate::budget_ledger::now_ms(),
+                outcome: "reserved".into(),
+            },
+            false,
+            Some(&pace),
+        )
+        .map_err(|_| Error::Policy("batch polling request cap or pacing"))?;
+    let client = adapter::GeminiBatch {
+        keys: executor.transport.keys,
+        http,
+    };
+    let result = client.get(name);
+    executor
+        .ledger
+        .finish(
+            &attempt,
+            if result.is_ok() {
+                "answered"
+            } else {
+                "unavailable"
+            },
+            false,
+            None,
+        )
+        .map_err(|_| Error::Storage)?;
+    let response = result.map_err(|_| Error::Provider)?;
+    require(
+        response["name"].as_str() == Some(name),
+        "batch poll operation mismatch",
+    )?;
+    Ok(response)
+}
+/// Settle once after terminal collection. Unknown or failed cells retain the full charge.
+/// A crash between collection and settlement can retry settlement without another HTTP.
+pub fn settle(path: &Path, frozen: &Plan, ledger: &crate::budget_ledger::Ledger) -> Result<Job> {
+    let job = receipt(path, frozen)?;
+    require(
+        matches!(job.state, State::Completed | State::Partial | State::Failed),
+        "batch settlement before terminal collection",
+    )?;
+    if let Some(id) = &job.money_id {
+        let receipts = ledger.money_receipts().map_err(|_| Error::Storage)?;
+        let monetary = receipts
+            .iter()
+            .find(|r| &r.id == id)
+            .ok_or(Error::Invalid("batch monetary receipt absent"))?;
+        if monetary.outcome == "reserved" {
+            let actual =
+                if job.state == State::Completed && job.results.len() == frozen.requests.len() {
+                    job.results.iter().try_fold(0u64, |sum, item| {
+                        sum.checked_add(item["cost_nano_usd"].as_u64()?)
+                    })
+                } else {
+                    None
+                };
+            ledger.finish_money(id,actual,serde_json::json!({"items":job.results.iter().map(|r|serde_json::json!({"job_id":r["job_id"],"usage":r["usage"],"cost_nano_usd":r["cost_nano_usd"]})).collect::<Vec<_>>()}),job.state==State::Completed).map_err(|_|Error::Storage)?;
+        }
+    }
+    Ok(job)
 }

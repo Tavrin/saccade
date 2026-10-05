@@ -104,6 +104,8 @@ fn thinking_is_billed_once_and_missing_cost_is_unknown() {
         execution::cost_nano("gemini", &Usage::default(), 1, false),
         None
     );
+    let duplicated=execution::usage(br#"{"usageMetadata":{"promptTokenCount":10000,"promptTokenCount":1,"candidatesTokenCount":1,"thoughtsTokenCount":1,"totalTokenCount":3}}"#);
+    assert_eq!(execution::cost_nano("gemini", &duplicated, 1, false), None);
 }
 #[test]
 fn money_reservations_survive_failure_and_cannot_top_up() {
@@ -141,8 +143,24 @@ fn ambiguous_batch_submission_is_durable_and_nonduplicating() {
     let temp = tempfile::tempdir().unwrap();
     let path = temp.path().join("job.json");
     let id = Digest::of_bytes(b"case");
-    let request =
-        crate::judge_provider::batch::inline_request(id.as_str(), json!({"contents":[]})).unwrap();
+    let mut c = catalog();
+    let bytes = png(128);
+    c.images[0].encoded_sha256 = Digest::of_bytes(&bytes);
+    let prepared = workflow::prepare(
+        &c,
+        c.identity(Task::Explain, None, None).unwrap(),
+        None,
+        &[(Role::Single, bytes)],
+        false,
+        "pinned-r1",
+        Digest::of_bytes(b"api"),
+    )
+    .unwrap();
+    let request = crate::judge_provider::batch::inline_request(
+        id.as_str(),
+        decode(&prepared.payload).unwrap(),
+    )
+    .unwrap();
     let plan = batch::Plan {
         model: GEMINI.into(),
         revision: "pinned-r1".into(),
@@ -254,6 +272,10 @@ fn committed_assist_schemas_match_types() {
         (
             "saccade-assist-batch.v1",
             schema::<batch::Job>("saccade-assist-batch.v1"),
+        ),
+        (
+            batch::PLAN_SCHEMA,
+            schema::<batch::FrozenPlan>(batch::PLAN_SCHEMA),
         ),
     ];
     let dir = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("schemas");
@@ -437,7 +459,7 @@ fn missing_pixels_incomplete_scope_and_injected_text_never_become_success() {
 }
 #[test]
 fn counted_input_limits_and_modality_receipts_fail_closed_without_secret_text() {
-    assert!(!execution::counting_price_confirmed());
+    assert_eq!(price::DEFAULT.counting, price::Counting::Off);
     assert_eq!(
         execution::counted_input(br#"{"totalTokens":16000}"#).unwrap(),
         16000
@@ -464,4 +486,375 @@ fn atomic_visible_statements_cannot_claim_behavior_or_causes() {
     );
     assert!(workflow::validate_statement(Kind::Appearance, "appearance:lines=3").is_ok());
     assert!(workflow::validate_statement(Kind::Appearance, "appearance:rgb=256,0,0").is_err());
+}
+
+#[test]
+fn local_reservation_counts_text_dimensions_resolution_and_explicit_output() {
+    let mut c = catalog();
+    let bytes = png(128);
+    c.images[0].encoded_sha256 = Digest::of_bytes(&bytes);
+    let identity = c.identity(Task::Explain, None, None).unwrap();
+    let prepared = workflow::prepare(
+        &c,
+        identity,
+        None,
+        &[(Role::Single, bytes)],
+        false,
+        "r1",
+        Digest::of_bytes(b"api"),
+    )
+    .unwrap();
+    let bounds = price::gemini_bounds(&prepared.payload).unwrap();
+    assert!(bounds.input >= 4096 + price::FRAMING_TOKENS);
+    assert!(bounds.input < execution::INPUT_LIMIT);
+    assert_eq!(bounds.output, 4096);
+    let mut value: serde_json::Value = decode(&prepared.payload).unwrap();
+    value["generationConfig"]["thinkingConfig"] = serde_json::Value::Null;
+    assert!(price::gemini_bounds(&serde_json::to_vec(&value).unwrap()).is_err());
+    value["generationConfig"]["thinkingConfig"] = json!({"thinkingBudget":1024});
+    value["generationConfig"]["mediaResolution"] = json!("unlisted");
+    assert!(price::gemini_bounds(&serde_json::to_vec(&value).unwrap()).is_err());
+    assert_eq!(
+        price::image_tokens("MEDIA_RESOLUTION_LOW", [512, 512]),
+        1024
+    );
+    assert_eq!(
+        price::image_tokens("MEDIA_RESOLUTION_LOW", [513, 512]),
+        price::MAX_IMAGE_TOKENS
+    );
+    value["generationConfig"]["mediaResolution"] = json!("MEDIA_RESOLUTION_MEDIUM");
+    value["contents"][0]["parts"][0]["text"] = json!("x".repeat(16000));
+    assert!(price::gemini_bounds(&serde_json::to_vec(&value).unwrap()).is_err());
+}
+
+#[test]
+fn fake_provider_reserves_before_dispatch_and_settles_or_retains_unknown_usage() {
+    use crate::budget_ledger::{Caps, Ledger, MoneyScope, Scope};
+    use crate::judge_provider::{Keys, transport::*};
+    use crate::root_policy::RootPolicy;
+    use std::{
+        cell::Cell,
+        collections::BTreeMap,
+        time::{Duration, Instant},
+    };
+    let temp = tempfile::tempdir().unwrap();
+    std::fs::write(
+        temp.path().join("gemini.env"),
+        "SACCADE_GEMINI_API_KEY=fixture-key-only",
+    )
+    .unwrap();
+    let keys = Keys::assist_fixture(temp.path().into());
+    let roots = RootPolicy::new(&[temp.path().into()], None, false, &[]).unwrap();
+    let user = UserConfig {
+        roots: vec![RootSetting {
+            id: "fixture".into(),
+            path: temp.path().into(),
+            egress: EgressSetting::Allow,
+        }],
+        ..Default::default()
+    };
+    let mut roots = roots;
+    user.apply(&mut roots).unwrap();
+    let auth = Authorization {
+        enabled: true,
+        scopes: vec![Scope {
+            id: "fake/run".into(),
+            caps: Caps {
+                total: 8,
+                providers: BTreeMap::from([("gemini".into(), 8)]),
+            },
+        }],
+    };
+    struct Fake<'a> {
+        ledger: &'a Ledger,
+        calls: Cell<u32>,
+        body: Vec<u8>,
+    }
+    impl Http for Fake<'_> {
+        fn post(
+            &self,
+            url: &str,
+            _header: (&str, &str),
+            _payload: &[u8],
+            _timeout: Duration,
+        ) -> std::result::Result<HttpReply, String> {
+            assert!(url.ends_with(":generateContent") || url.ends_with(":countTokens"));
+            assert_eq!(
+                self.ledger
+                    .money_receipts()
+                    .unwrap()
+                    .last()
+                    .unwrap()
+                    .outcome,
+                "reserved"
+            );
+            self.calls.set(self.calls.get() + 1);
+            Ok(HttpReply {
+                status: 200,
+                body: if url.ends_with(":countTokens") {
+                    br#"{"totalTokens":100}"#.to_vec()
+                } else {
+                    self.body.clone()
+                },
+                retry_after_secs: None,
+            })
+        }
+    }
+    let mut c = catalog();
+    let bytes = png(128);
+    c.images[0].encoded_sha256 = Digest::of_bytes(&bytes);
+    let request = workflow::prepare(
+        &c,
+        c.identity(Task::Explain, None, None).unwrap(),
+        None,
+        &[(Role::Single, bytes)],
+        false,
+        "r1",
+        digest(&user).unwrap(),
+    )
+    .unwrap();
+    let policies = [
+        price::DEFAULT,
+        price::Policy {
+            id: "fixture/free-count/1",
+            counting: price::Counting::Free,
+        },
+        price::Policy {
+            id: "fixture/priced-count/1",
+            counting: price::Counting::Priced(750),
+        },
+    ];
+    for (policy_index, policy) in policies.iter().enumerate() {
+        for (index,usage) in [json!({"promptTokenCount":100,"candidatesTokenCount":20,"thoughtsTokenCount":10,"totalTokenCount":130}),json!({}),json!({"promptTokenCount":100,"candidatesTokenCount":20,"thoughtsTokenCount":10,"totalTokenCount":999})].into_iter().enumerate() {
+            let ledger=Ledger::new(&temp.path().join(format!("ledger-{policy_index}-{index}")),false);
+            let fake=Fake {ledger:&ledger,calls:Cell::new(0),body:serde_json::to_vec(&json!({"modelVersion":"r1","usageMetadata":usage})).unwrap()};
+            let transport=Transport {user:&user,roots:&roots,authorization:&auth,ledger:&ledger,keys:&keys,http:&fake};
+            let executor=execution::Executor {transport:&transport,ledger:&ledger,money_scopes:vec![MoneyScope{id:"cap".into(),cap_nano_usd:100_000_000}],sources:vec![crate::paths::portable(temp.path())],deadline:Instant::now()+Duration::from_secs(30)};
+            let done=executor.call_with_policy(&request.key,&request.payload,policy).unwrap();
+            let calls=if policy_index==0{1}else{2};
+            assert_eq!(fake.calls.get(),calls);
+            assert_eq!(done.provenance.cost_usd.is_some(),index==0);
+            let receipts=ledger.money_receipts().unwrap();
+            let receipt=receipts.last().unwrap();
+            assert_eq!(receipt.actual_nano_usd,if index==0{Some(187_500)}else{None});
+            if policy_index>0 {assert_eq!(receipts[0].actual_nano_usd,Some(if policy_index==1{0}else{75_000}));}
+            if index==0 {assert_eq!(done.provenance.cost_usd,Some(if policy_index==2{0.0002625}else{0.0001875}));}
+            let denied=execution::Executor{money_scopes:vec![MoneyScope{id:"too-small".into(),cap_nano_usd:1}],..executor};
+            assert!(denied.call(&request.key,&request.payload).is_err());assert_eq!(fake.calls.get(),calls);
+        }
+    }
+    let invalid = price::Policy {
+        id: price::PRICE_ID,
+        counting: price::Counting::Free,
+    };
+    assert!(invalid.validate().is_err());
+}
+
+#[test]
+fn optional_router_keeps_fixed_choices_and_deterministic_stops() {
+    let mut c = catalog();
+    let identity = c.identity(Task::Explain, None, None).unwrap();
+    let (key, payload) =
+        routing::prepare(&c, &identity, None, JEV, Digest::of_bytes(b"api")).unwrap();
+    assert_eq!(key.order, "route");
+    assert!(
+        !String::from_utf8(payload)
+            .unwrap()
+            .contains("diagnostic_statements")
+    );
+    assert_eq!(
+        routing::answer(
+            &serde_json::to_vec(&json!({"model":JEV,"answers":{"q":{"choice":"vision"}}})).unwrap(),
+            JEV
+        )
+        .unwrap(),
+        routing::Decision::Vision
+    );
+    assert_eq!(
+        routing::answer(
+            &serde_json::to_vec(&json!({"model":JEV,"answers":{"q":{"choice":"insufficient"}}}))
+                .unwrap(),
+            JEV
+        )
+        .unwrap(),
+        routing::Decision::Insufficient
+    );
+    for answer in [
+        json!({"choice":"approved"}),
+        json!({"choice":"vision","approve":true}),
+    ] {
+        assert!(
+            routing::answer(
+                &serde_json::to_vec(&json!({"model":JEV,"answers":{"q":answer}})).unwrap(),
+                JEV
+            )
+            .is_err()
+        );
+    }
+    c.images[0].original_pixels = false;
+    let identity = c.identity(Task::Explain, None, None).unwrap();
+    assert!(routing::prepare(&c, &identity, None, JEV, Digest::of_bytes(b"api")).is_err());
+}
+
+#[test]
+fn fake_batch_dispatch_poll_collection_and_money_survive_partial_results() {
+    use crate::{
+        budget_ledger::{Caps, Ledger, MoneyScope, Scope},
+        judge_provider::{
+            Keys,
+            batch::{BatchHttp, BatchReply},
+            transport::*,
+        },
+        root_policy::RootPolicy,
+    };
+    use std::{
+        cell::Cell,
+        collections::BTreeMap,
+        time::{Duration, Instant},
+    };
+    let temp = tempfile::tempdir().unwrap();
+    std::fs::write(
+        temp.path().join("gemini.env"),
+        "SACCADE_GEMINI_API_KEY=fixture-batch-key",
+    )
+    .unwrap();
+    let keys = Keys::assist_fixture(temp.path().into());
+    let user = UserConfig {
+        roots: vec![RootSetting {
+            id: "fixture".into(),
+            path: temp.path().into(),
+            egress: EgressSetting::Allow,
+        }],
+        ..Default::default()
+    };
+    let mut roots = RootPolicy::new(&[temp.path().into()], None, false, &[]).unwrap();
+    user.apply(&mut roots).unwrap();
+    let auth = Authorization {
+        enabled: true,
+        scopes: vec![Scope {
+            id: "run".into(),
+            caps: Caps {
+                total: 8,
+                providers: BTreeMap::from([("gemini".into(), 8)]),
+            },
+        }],
+    };
+    let mut c = catalog();
+    let bytes = png(128);
+    c.images[0].encoded_sha256 = Digest::of_bytes(&bytes);
+    let prepared = workflow::prepare(
+        &c,
+        c.identity(Task::Explain, None, None).unwrap(),
+        None,
+        &[(Role::Single, bytes)],
+        false,
+        "r1",
+        digest(&user).unwrap(),
+    )
+    .unwrap();
+    let request = crate::judge_provider::batch::inline_request(
+        prepared.key.payload_hash.as_str(),
+        decode(&prepared.payload).unwrap(),
+    )
+    .unwrap();
+    let frozen = batch::Plan {
+        model: GEMINI.into(),
+        revision: "r1".into(),
+        requests: vec![request],
+        price_id: execution::PRICE_ID.into(),
+        max_spend_nano_usd: 100_000_000,
+    };
+    struct Fake {
+        calls: Cell<usize>,
+        request: serde_json::Value,
+        partial: bool,
+    }
+    impl BatchHttp for Fake {
+        fn send(
+            &self,
+            method: &str,
+            _url: &str,
+            _key: &str,
+            _body: Option<&[u8]>,
+        ) -> std::result::Result<BatchReply, String> {
+            self.calls.set(self.calls.get() + 1);
+            let body = if method == "POST" {
+                json!({"name":"batches/fixture"})
+            } else {
+                json!({"name":"batches/fixture","state":"BATCH_STATE_SUCCEEDED","response":{"inlinedResponses":[if self.partial {json!({"metadata":self.request["metadata"],"error":{"status":"UNAVAILABLE"}})}else{json!({"metadata":self.request["metadata"],"response":{"modelVersion":"r1","usageMetadata":{"promptTokenCount":100,"candidatesTokenCount":20,"thoughtsTokenCount":10,"totalTokenCount":130}}})}]}})
+            };
+            Ok(BatchReply { status: 200, body })
+        }
+    }
+    for partial in [false, true] {
+        let dir = temp.path().join(if partial { "partial" } else { "known" });
+        std::fs::create_dir(&dir).unwrap();
+        let ledger = Ledger::new(&dir, false);
+        let network = Network;
+        let transport = Transport {
+            user: &user,
+            roots: &roots,
+            authorization: &auth,
+            ledger: &ledger,
+            keys: &keys,
+            http: &network,
+        };
+        let executor = execution::Executor {
+            transport: &transport,
+            ledger: &ledger,
+            money_scopes: vec![MoneyScope {
+                id: "cap".into(),
+                cap_nano_usd: 100_000_000,
+            }],
+            sources: vec![crate::paths::portable(temp.path())],
+            deadline: Instant::now() + Duration::from_secs(300),
+        };
+        let path = dir.join("job.json");
+        batch::plan(&path, &frozen).unwrap();
+        let fake = Fake {
+            calls: Cell::new(0),
+            request: frozen.requests[0].clone(),
+            partial,
+        };
+        assert_eq!(
+            batch::submit_authorized(&path, &frozen, &executor, &fake)
+                .unwrap()
+                .state,
+            batch::State::Submitted
+        );
+        assert_eq!(ledger.money_receipts().unwrap()[0].outcome, "reserved");
+        assert!(batch::submit_authorized(&path, &frozen, &executor, &fake).is_err());
+        assert_eq!(fake.calls.get(), 1);
+        let response = batch::poll_authorized(&path, &frozen, &executor, &fake).unwrap();
+        let collected = batch::collect(&path, &frozen, &response).unwrap();
+        assert_eq!(
+            collected.state,
+            if partial {
+                batch::State::Partial
+            } else {
+                batch::State::Completed
+            }
+        );
+        batch::settle(&path, &frozen, &ledger).unwrap();
+        batch::settle(&path, &frozen, &ledger).unwrap();
+        let receipts = ledger.money_receipts().unwrap();
+        assert_eq!(
+            receipts[0].actual_nano_usd,
+            if partial { None } else { Some(93_750) }
+        );
+        assert_eq!(fake.calls.get(), 2);
+    }
+}
+
+#[test]
+fn batch_deadline_expires_before_network_dispatch() {
+    use crate::judge_provider::batch::{BatchHttp, DeadlineBatchNetwork};
+    let network = DeadlineBatchNetwork {
+        deadline: std::time::Instant::now(),
+    };
+    assert!(
+        network
+            .send("GET", "https://example.com/fixture", "fixture-key", None)
+            .is_err()
+    );
 }

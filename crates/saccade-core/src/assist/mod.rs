@@ -3,6 +3,8 @@ pub mod batch;
 pub mod catalog;
 pub mod execution;
 pub mod geometry;
+pub mod price;
+pub mod routing;
 pub mod schema;
 
 use crate::evidence::canonical::{self, Digest};
