@@ -4,6 +4,16 @@
       "description": "What kind of change separates the capture from the baseline.",
       "oneOf": [
         {
+          "const": "texture_noise_only",
+          "description": "High-frequency texture differences without significant spatial bias.",
+          "type": "string"
+        },
+        {
+          "const": "systematic_shift",
+          "description": "Spatially clustered signed bias, coverage or detail loss; regions in spatial evidence.",
+          "type": "string"
+        },
+        {
           "const": "identical",
           "description": "Decoded pixels are exactly equal.",
           "type": "string"

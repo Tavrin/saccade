@@ -5,6 +5,7 @@ cd "$(dirname "$0")/.." || exit 1
 export CARGO_TARGET_DIR="${CARGO_TARGET_DIR:-/mnt/linux-extra/moss-cargo-targets/codex-saccade-w9}"
 export CARGO_INCREMENTAL=0
 features=graphics,mcp,compression,schema
+core_features=graphics,compression,schema
 failed=0
 headroom() {
     local available
@@ -25,11 +26,11 @@ gate clippy nice -n 19 cargo clippy -j 4 -p saccade -p saccade-core --features "
 gate full-tests env -u WAVE9_READONLY_INVENTORY -u WAVE9_EFFECT_INVENTORY nice -n 19 cargo test -j 4 -p saccade -p saccade-core --features "$features"
 gate minimal-tests env -u WAVE9_READONLY_INVENTORY -u WAVE9_EFFECT_INVENTORY nice -n 19 cargo test -j 4 -p saccade-core --no-default-features
 gate cli nice -n 19 cargo test -j 4 -p saccade --test wave9_evidence --features "$features" -- --ignored
-gate schemas nice -n 19 cargo test -j 4 -p saccade-core --test schemas --features "$features"
+gate schemas nice -n 19 cargo test -j 4 -p saccade-core --test schemas --features "$core_features"
 gate docs python3 scripts/check-wave9-docs.py
 # Held-out project images never become repository fixtures; lane records contain the receipts.
 if test -n "${WAVE9_READONLY_INVENTORY:-}" || test -n "${WAVE9_EFFECT_INVENTORY:-}"; then
-    gate realworld nice -n 19 cargo test -j 4 -p saccade-core --lib evidence_quality::realworld --features "$features"
+    gate realworld nice -n 19 cargo test -j 4 -p saccade-core --lib evidence_quality::realworld --features "$core_features"
 else
     printf 'GATE realworld DEFERRED (external read-only inventories not supplied; lane receipts in WAVE9-NOTES.md)\n'
 fi

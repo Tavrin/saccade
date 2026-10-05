@@ -318,12 +318,12 @@ pub(crate) fn catalogue() -> Value {
     // wave9: deterministic evidence commands and opt-in policies.
     add(
         "rendering_evidence",
-        "compare --config (required_effects, spatial, layers); experiment ablate --intended-variable",
+        "compare --config (required_effects, spatial, layers); compare --intended-variable",
         "paired captures, declared effect occupancy, layer sidecars and experiment metadata",
         vec![],
         "available",
         "Is the required effect present, and is the difference texture or clustered structural bias?",
-        "opt-in policies; zero FLIP alone proves no effect; structural classes do not qualify timing",
+        "opt-in policies; graphics also enables experiment ablate --intended-variable; zero FLIP proves no effect; structural classes do not qualify timing",
     );
     add(
         "temporal_tiles",
