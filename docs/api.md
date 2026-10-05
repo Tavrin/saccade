@@ -46,3 +46,6 @@ remain in `/models`, media in `/data`. No ffmpeg is bundled; frame directories w
 The heavy gate builds and smoke-tests it; no Docker Hub publishing is configured.
 For container port forwarding, declare `--api-bind 0.0.0.0` inside the container and bind
 the published host port to 127.0.0.1. Supply a mounted token file when authentication is wanted.
+
+The search response contains compact `saccade-media-index-query.v1` data.
+Standalone CLI query evidence uses `saccade-embedding-query.v1`.

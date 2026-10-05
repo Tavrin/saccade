@@ -42,5 +42,6 @@ def test_joint_text_queries_rank_generated_colors(tmp_path):
     loaded = saccade.Index.load(analyzer, str(saved))
     for name in ['red','blue']:
         result = loaded.query(text='a '+name+' square',top=1)
+        assert result['schema'] == 'saccade-media-index-query.v1'
         assert result['query_kind'] == 'text' and result['calibration'] == 'uncalibrated'
         assert result['hits'][0]['row']['path'].endswith(name+'.png')

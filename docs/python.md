@@ -54,3 +54,6 @@ async def analyze(file: UploadFile):
 The worker retains bytes and returns a complete record to the application's storage layer;
 application-specific rights decisions, queue persistence and authentication stay with the app.
 The package ships `.pyi` stubs and `py.typed`.
+
+`Index.query` returns `saccade-media-index-query.v1` with compact `hits`;
+standalone CLI query evidence retains `saccade-embedding-query.v1`.
