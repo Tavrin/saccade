@@ -289,6 +289,9 @@ pub enum Metric {
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct Entry {
+    /// Automatic crop gallery and per-region statistics.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub gallery: Vec<crate::evidence_quality::gallery::GalleryRegion>,
     /// Opt-in multiscale and tile structural evidence.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub spatial: Option<crate::evidence_quality::spatial::SpatialReport>,

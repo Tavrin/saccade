@@ -790,6 +790,7 @@ mod tests {
         Entry {
             intended_variables: Vec::new(),
             spatial: None,
+            gallery: Vec::new(),
             required_effects: Vec::new(),
             buffer: None,
             name: name.into(),

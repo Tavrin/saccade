@@ -656,6 +656,7 @@ fn compute_entry(
     let entry = Entry {
         intended_variables: Vec::new(),
         spatial: None,
+        gallery: Vec::new(),
         required_effects: Vec::new(),
         buffer: None,
         name: name.to_owned(),

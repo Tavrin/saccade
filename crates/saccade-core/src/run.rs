@@ -862,6 +862,7 @@ pub(crate) fn build_entry(
     let mut entry = Entry {
         intended_variables: Vec::new(),
         spatial: None,
+        gallery: Vec::new(),
         required_effects: Vec::new(),
         name: name.to_string(),
         status: Status::Error,
@@ -1103,16 +1104,17 @@ fn fill_entry(
                     fallback,
                 )?;
                 if policy.decide {
-                    entry.status = if matches!(
-                        result.class,
-                        crate::diagnostics::ChangeClass::Identical
-                            | crate::diagnostics::ChangeClass::TextureNoiseOnly
-                    ) && entry.regions.iter().all(|r| r.status != Some(Status::Fail))
-                    {
-                        Status::Pass
-                    } else {
-                        Status::Fail
-                    };
+                    entry.status =
+                        if matches!(
+                            result.class,
+                            crate::diagnostics::ChangeClass::Identical
+                                | crate::diagnostics::ChangeClass::TextureNoiseOnly
+                        ) && entry.regions.iter().all(|r| r.status != Some(Status::Fail))
+                        {
+                            Status::Pass
+                        } else {
+                            Status::Fail
+                        };
                 }
                 if let Some(d) = &mut entry.diagnostics {
                     d.class = result.class;
@@ -1123,6 +1125,16 @@ fn fill_entry(
                         result.regions.len()
                     );
                 }
+                entry.gallery = crate::evidence_quality::gallery::generate(
+                    &entry.name,
+                    &base_img,
+                    &cap_img,
+                    &errors,
+                    excluded.as_deref(),
+                    &entry.hotspots,
+                    &result,
+                    report_dir,
+                )?;
                 entry.spatial = Some(result);
             }
             for effect in &config.required_effect {

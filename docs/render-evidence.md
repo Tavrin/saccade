@@ -103,3 +103,14 @@ Optional `[spatial.background]` uses `kind = "luminance", max = 0.001`,
 `kind = "selection"` with the same mask/layer/box selection model as effects.
 Background share is gap fraction; non-background share is coverage. The report
 also records whole-frame coverage ratio and silhouette XOR/union.
+
+## Automatic regions
+
+`[spatial] gallery_top = 5` selects up to five regions from existing FLIP
+hotspots, connected structural findings and shifted tiles, ranked by declared
+bias/gap severity and error. Exact duplicate boxes are removed. Passing entries
+are included. The JSON `entry.gallery` lists boxes, reasons, mean/max FLIP,
+signed luminance, detail-energy ratio, gap change and relative artifact paths.
+`regions/` holds base | candidate | heatmap strips and exact 2x nearest-neighbour
+zooms. The comparison HTML includes a gallery with those statistics and both
+views. Selection is diagnostic; it neither creates masks nor suppresses errors.

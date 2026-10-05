@@ -2,6 +2,7 @@
 pub mod effect;
 pub mod layers;
 pub mod spatial;
+pub mod gallery;
 
 use crate::{Error, Result};
 use std::io::Read;
@@ -69,3 +70,6 @@ pub fn image(path: &Path) -> Result<image::DynamicImage> {
     }
     Ok(img)
 }
+
+#[cfg(test)]
+mod realworld;
