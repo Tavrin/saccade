@@ -1059,6 +1059,15 @@ impl Server {
     }
     #[cfg(feature = "ai")]
     fn provider_review(&self, args: &Map<String, Value>) -> ToolResult {
+        // wave4
+        #[cfg(feature = "assist")]
+        if args
+            .get("operation")
+            .and_then(Value::as_str)
+            .is_some_and(|op| ["explain", "audit-mask", "check-ui"].contains(&op))
+        {
+            return self.assist_review(args);
+        }
         reject_unknown(
             args,
             &[
@@ -1816,8 +1825,18 @@ fn tool_schemas() -> Value {
                 ),
             ],
         );
+        // wave4
+        #[cfg(feature = "assist")]
+        if let Some(variants) = tool["inputSchema"]["oneOf"].as_array_mut() {
+            variants.extend(assist::schemas());
+        }
         tool["annotations"]["openWorldHint"] = json!(true);
         list.push(tool);
     }
     schemas
 }
+
+// wave4
+#[cfg(feature = "assist")]
+#[path = "mcp_assist.rs"]
+mod assist;

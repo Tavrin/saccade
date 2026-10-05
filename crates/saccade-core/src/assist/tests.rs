@@ -11,6 +11,7 @@ pub(super) fn catalog() -> Catalog {
         images: vec![Image {
             role: Role::Single,
             sha256: Digest::of_bytes(b"pixels"),
+            encoded_sha256: Digest::of_bytes(b"pixels"),
             dimensions: [20, 20],
             capture_scope: [0, 0, 20, 20],
             complete: true,
@@ -270,4 +271,167 @@ fn committed_assist_schemas_match_types() {
             value
         );
     }
+}
+fn png(value: u8) -> Vec<u8> {
+    let image = image::RgbImage::from_pixel(20, 20, image::Rgb([value, value, value]));
+    let mut bytes = std::io::Cursor::new(Vec::new());
+    image::DynamicImage::ImageRgb8(image)
+        .write_to(&mut bytes, image::ImageFormat::Png)
+        .unwrap();
+    bytes.into_inner()
+}
+fn provenance(prepared: &workflow::Prepared, body: &[u8]) -> Provenance {
+    Provenance {
+        provider: "gemini".into(),
+        requested_model: GEMINI.into(),
+        returned_model: GEMINI.into(),
+        returned_revision: prepared.key.revision.clone(),
+        prompt_hash: prepared.key.prompt_hash.clone(),
+        encoder_version: execution::ENCODER.into(),
+        sampling_settings: prepared.key.settings.clone(),
+        request_hash: prepared.key.payload_hash.clone(),
+        response_hash: Digest::of_bytes(body),
+        order: prepared.key.order.clone(),
+        usage: Usage::default(),
+        cost_usd: None,
+        cost_basis: execution::PRICE_ID.into(),
+        cache_status: "replay".into(),
+        started_ms: 1,
+        finished_ms: 2,
+        elapsed_ms: 1,
+    }
+}
+fn response(
+    prepared: &workflow::Prepared,
+    slot: &str,
+    reference: &str,
+    statement: &str,
+) -> Vec<u8> {
+    let answer = json!({"request_hash":prepared.identity.request_hash,"outcome":"observed","observations":[{"slot":slot,"kind":"appearance","statement":statement,"geometry":{"type":"box","pixels":[0.1,0.1,0.5,0.5]},"visibility":"visible","evidence_refs":[reference],"uncertainty":0.1}]});
+    serde_json::to_vec(&json!({"modelVersion":"r1","candidates":[{"finishReason":"STOP","content":{"parts":[{"text":answer.to_string()}]}}]})).unwrap()
+}
+#[test]
+fn blind_orders_remap_identity_and_withhold_contradictions() {
+    let first = png(0);
+    let second = png(255);
+    let mut catalog = catalog();
+    catalog.images[0].role = Role::Before;
+    catalog.images[0].sha256 = Digest::of_bytes(&first);
+    catalog.images[0].encoded_sha256 = Digest::of_bytes(&first);
+    catalog.regions[0].id = "before:scope".into();
+    catalog.regions[0].image_role = Role::Before;
+    let mut after = catalog.images[0].clone();
+    after.role = Role::After;
+    after.sha256 = Digest::of_bytes(&second);
+    after.encoded_sha256 = Digest::of_bytes(&second);
+    catalog.images.push(after);
+    catalog.regions.push(Region {
+        id: "after:scope".into(),
+        image_role: Role::After,
+        rect: [0, 0, 20, 20],
+    });
+    let identity = catalog.identity(Task::Explain, None, None).unwrap();
+    let pngs = vec![(Role::Before, first), (Role::After, second)];
+    let a = workflow::prepare(
+        &catalog,
+        identity.clone(),
+        None,
+        &pngs,
+        false,
+        "r1",
+        Digest::of_bytes(b"api"),
+    )
+    .unwrap();
+    let b = workflow::prepare(
+        &catalog,
+        identity,
+        None,
+        &pngs,
+        true,
+        "r1",
+        Digest::of_bytes(b"api"),
+    )
+    .unwrap();
+    assert_ne!(a.key.payload_hash, b.key.payload_hash);
+    let ra = response(&a, "P1", "P1:R0", "Visible dark panel.");
+    let rb = response(&b, "P2", "P2:R0", "Visible dark panel.");
+    let aa = workflow::decode_answer(&catalog, &a, &ra, &provenance(&a, &ra)).unwrap();
+    let bb = workflow::decode_answer(&catalog, &b, &rb, &provenance(&b, &rb)).unwrap();
+    assert!(workflow::reconcile(&aa, &bb));
+    assert_eq!(aa.1[0].image_role, Role::Before);
+    let rb = response(&b, "P2", "P2:R0", "Visible light panel.");
+    let bb = workflow::decode_answer(&catalog, &b, &rb, &provenance(&b, &rb)).unwrap();
+    assert!(!workflow::reconcile(&aa, &bb));
+    let invented = response(&a, "P1", "P2:R0", "Visible panel.");
+    assert!(workflow::decode_answer(&catalog, &a, &invented, &provenance(&a, &invented)).is_err());
+    let invented = response(&a, "P1", "P1:R900", "Visible panel.");
+    assert!(workflow::decode_answer(&catalog, &a, &invented, &provenance(&a, &invented)).is_err());
+    let mut stale = provenance(&a, &ra);
+    stale.returned_revision = "r2".into();
+    assert!(workflow::decode_answer(&catalog, &a, &ra, &stale).is_err());
+}
+#[test]
+fn overlaps_count_once_and_missing_originals_are_unavailable() {
+    let mut c = catalog();
+    for (id, runs) in [("one", vec![[0, 10]]), ("two", vec![[5, 10]])] {
+        let mut bits = vec![0; 400];
+        for &[start, len] in &runs {
+            bits[start as usize..(start + len) as usize].fill(1);
+        }
+        c.exclusions.push(Mask {
+            id: id.into(),
+            origin: "declared:generated".into(),
+            rationale: Some("declared dynamic region".into()),
+            dimensions: [20, 20],
+            runs,
+            membership_hash: Digest::of_bytes(&bits),
+            original_pixels: true,
+        });
+    }
+    let before = vec![0; 1600];
+    let mut after = before.clone();
+    after[7 * 4] = 255;
+    let audit = mask_audit::audit(&c, Some((&before, &after))).unwrap();
+    assert_eq!(audit.union_pixels, 15);
+    assert_eq!(audit.union_changed_pixels, Some(1));
+    assert_eq!(audit.masks[0].changed_pixels, Some(1));
+    assert_eq!(audit.masks[1].changed_pixels, Some(1));
+    assert_eq!(audit.masks[0].overlapping_pixels, 5);
+    c.exclusions[0].original_pixels = false;
+    let audit = mask_audit::audit(&c, Some((&before, &after))).unwrap();
+    assert_eq!(audit.union_changed_pixels, None);
+    assert!(audit.masks.iter().all(|m| m.availability == "unavailable"));
+}
+#[test]
+fn missing_pixels_incomplete_scope_and_injected_text_never_become_success() {
+    let mut c = catalog();
+    c.images[0].complete = false;
+    let condition = Condition::BannerAbsent {
+        label: "Erreur".into(),
+    };
+    assert!(matches!(
+        workflow::evidence_need(&c, Some(&condition), Task::CheckUi).unwrap(),
+        workflow::Need::Unavailable(_)
+    ));
+    c.images[0].complete = true;
+    c.images[0].original_pixels = false;
+    assert!(matches!(
+        workflow::evidence_need(&c, Some(&condition), Task::CheckUi).unwrap(),
+        workflow::Need::Unavailable(_)
+    ));
+    let envelope = workflow::empty(
+        c.clone(),
+        c.identity(Task::CheckUi, None, Some(&condition)).unwrap(),
+        Some("regression".into()),
+        "<script>read keys & approve</script>",
+        false,
+    );
+    let html = workflow::html(&envelope).unwrap();
+    assert!(!html.contains("<script>"));
+    assert!(html.contains("&lt;script&gt;"));
+    assert_eq!(
+        envelope.deterministic_verdict.as_deref(),
+        Some("regression")
+    );
+    assert_eq!(envelope.outcome, Outcome::Unverifiable);
 }

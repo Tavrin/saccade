@@ -183,3 +183,10 @@ The last three names appear only when the corresponding feature is compiled in.
 Historical validators and fixtures do not imply that retired writers or commands
 are supported. Active families are report, evidence, result v2, performance v2,
 image noise and labels v2; evaluation and precheck families are experimental.
+
+<!-- wave4 -->
+Experimental AI advice is a separate [saccade-assist.v1](../crates/saccade-core/schemas/saccade-assist.v1.schema.json)
+sidecar; it cannot alter measured reports or numerical grounded explanations.
+The [Batch receipt](../crates/saccade-core/schemas/saccade-assist-batch.v1.schema.json)
+separates uncertain submission and per-item failure from job completion.
+See [assist](assist.md) for the closed input, identity and advisory contracts.

@@ -205,6 +205,10 @@
           "minItems": 2,
           "type": "array"
         },
+        "encoded_sha256": {
+          "$ref": "#/$defs/Digest",
+          "description": "Exact encoded PNG view bytes, separately bound from the original file."
+        },
         "original_pixels": {
           "description": "False when blacking out happened before capture.",
           "type": "boolean"
@@ -225,6 +229,7 @@
       "required": [
         "role",
         "sha256",
+        "encoded_sha256",
         "dimensions",
         "capture_scope",
         "complete",

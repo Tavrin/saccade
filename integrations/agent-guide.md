@@ -74,3 +74,11 @@ Workbench receipts have token-gated human attestation. CLI receipts have
 human-required check and has no current writer. Human-final is an application
 policy and audit boundary; an unrestricted shell agent can invoke CLI approval.
 MCP exposes six bounded tools and no baseline-write operation.
+
+<!-- wave4 -->
+With feature `assist`, `review explain`, `review audit-mask` and `review check-ui`
+require `--experimental`. Read `data.outcome`, `execution`, limitations, returned
+model revisions and the unchanged deterministic verdict. `observed` is advisory;
+`unverifiable` and incomplete stages remain unresolved. Offline replay is not an
+independent sample. MCP mirrors these operations in `saccade_review`; it cannot
+raise human startup provider authority. See [assist](../docs/assist.md).

@@ -97,3 +97,8 @@ required-features = ["mcp"]
 [[test]]
 name = "f1_contract"
 required-features = ["ai", "mcp"]
+
+# wave4
+[[test]]
+name = "assist_contract"
+required-features = ["assist", "mcp"]

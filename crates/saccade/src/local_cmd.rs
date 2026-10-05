@@ -117,6 +117,16 @@ pub(crate) struct ReviewArgs {
 }
 #[derive(Subcommand)]
 pub(crate) enum ReviewOperation {
+    // wave4
+    /// Experimental localized visible explanations, advisory only.
+    #[cfg(feature = "assist")]
+    Explain(crate::assist_cmd::ReportArgs),
+    /// Experimental individual-mask audit, advisory only.
+    #[cfg(feature = "assist")]
+    AuditMask(crate::assist_cmd::ReportArgs),
+    /// Experimental bounded visible condition, never behavioral success.
+    #[cfg(feature = "assist")]
+    CheckUi(crate::assist_cmd::CheckArgs),
     /// Review brand colours, theme contrast, CVD and source typography together.
     Brand(crate::brand_cmd::Args),
     /// Review source text/layout and localized UI changes in one packet.
@@ -844,6 +854,25 @@ fn export(
 pub(crate) fn review(args: ReviewArgs, absolute: bool) -> Result<u8, CliError> {
     let value = if let Some(operation) = args.operation {
         match operation {
+            // wave4
+            #[cfg(feature = "assist")]
+            ReviewOperation::Explain(a) => {
+                return crate::assist_cmd::run_report(
+                    a,
+                    saccade_core::assist::schema::Task::Explain,
+                    args.json,
+                );
+            }
+            #[cfg(feature = "assist")]
+            ReviewOperation::AuditMask(a) => {
+                return crate::assist_cmd::run_report(
+                    a,
+                    saccade_core::assist::schema::Task::AuditMask,
+                    args.json,
+                );
+            }
+            #[cfg(feature = "assist")]
+            ReviewOperation::CheckUi(a) => return crate::assist_cmd::run_check(a, args.json),
             ReviewOperation::Brand(brand) => return crate::brand_cmd::run(brand, args.json),
             ReviewOperation::Ui(ui) => return crate::ui_review_cmd::run(ui, args.json),
             ReviewOperation::Motion(motion) => return crate::motion_cmd::run(motion, args.json),

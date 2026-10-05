@@ -18,6 +18,8 @@ pub struct Image {
     pub role: Role,
     /// Exact screenshot file bytes.
     pub sha256: Digest,
+    /// Exact encoded PNG view bytes, separately bound from the original file.
+    pub encoded_sha256: Digest,
     /// Original-pixel dimensions.
     pub dimensions: [u32; 2],
     /// Captured geometry within the original image.
