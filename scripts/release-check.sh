@@ -28,6 +28,7 @@ run cli-default-tests cargo test -p saccade --locked
 run all-features-build cargo build -p saccade --all-features --locked
 run all-features-tests cargo test -p saccade --all-features --locked
 run historical-readers cargo test -p saccade-core --test evidence_contracts --locked historical_
+run release-archive-notices python3 scripts/test-release-notices.py
 run packaged-readme-tests python3 scripts/test-check-packages.py
 run package-inventory-and-readmes python3 scripts/check-packages.py
 run packaged-workspace cargo package --workspace --all-features --allow-dirty --locked

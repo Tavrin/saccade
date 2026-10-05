@@ -73,6 +73,7 @@ def main():
             packaged = {p for p in files if p.startswith('schemas/')}
             assert expected and packaged == expected, (crate, expected - packaged, packaged - expected)
             assert 'examples/panel.toml' in files, crate
+            assert 'assets/licenses/daltonlens-MIT.txt' in files, crate
             assert {p for p in files if p.startswith('models/')} == {MODEL_MANIFEST}, crate
         for path in files:
             assert approved_file(crate, path), (crate, path)
@@ -80,6 +81,11 @@ def main():
             if path.endswith(('.png', '.jpg', '.jpeg', '.gif', '.webp')):
                 assert approved_image(crate, path), (crate, path)
         archive = Path(metadata['target_directory']) / 'package' / f"{crate}-{package['version']}.crate"
+        if crate == 'saccade-core':
+            notice = 'assets/licenses/daltonlens-MIT.txt'
+            with tarfile.open(archive, 'r:gz') as contents:
+                retained = contents.extractfile(f"{crate}-{package['version']}/{notice}").read()
+            assert retained == (ROOT / 'crates/saccade-core' / notice).read_bytes(), 'DaltonLens source notice drift'
         marker = f"mcp-name: {server['name']}" if crate in registry_crates else None
         check_readme(package, archive, READMES[crate], marker)
         print(f'{crate}: {len(files)} approved package files')

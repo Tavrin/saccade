@@ -113,6 +113,7 @@ jobs:
             cp "$binary" dist/package/
             tar -czf "dist/saccade-$TARGET.tar.gz" -C dist/package saccade LICENSE-MIT LICENSE-APACHE THIRD_PARTY_NOTICES.md
           fi
+          python3 scripts/check-release-notices.py "dist/saccade-$TARGET.$EXT"
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
           name: saccade-${{ matrix.target }}

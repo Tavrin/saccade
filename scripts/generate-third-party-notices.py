@@ -36,6 +36,17 @@ for p in packages:
             lines += [f'### {f.name}', '', '```text', content, '```', '']
     if not files:
         lines += ['No separate license text is present in the published crate; see the SPDX expression above.', '']
+# Copied source/data is compiled into the executable but is absent from Cargo metadata.
+root = pathlib.Path(__file__).resolve().parents[1]
+for name, source, notice in [
+    ('DaltonLens Machado 2009 matrices', 'https://github.com/DaltonLens/DaltonLens-Python',
+     'crates/saccade-core/assets/licenses/daltonlens-MIT.txt'),
+]:
+    content = (root / notice).read_text(encoding='utf-8').strip()
+    if not content:
+        raise SystemExit(f'{name}: missing copied-source notice')
+    lines += [f'## {name}', '', f'Source: {source}', 'License: MIT', '',
+              '```text', content, '```', '']
 args.output.parent.mkdir(parents=True, exist_ok=True)
 args.output.write_text('\n'.join(lines), encoding='utf-8')
 print(f'{len(packages)} external crates: {args.output}')
