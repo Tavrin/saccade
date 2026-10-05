@@ -289,6 +289,61 @@ pub fn rgb(image: &image::RgbaImage) -> Vec<[f64; 3]> {
 pub fn luminance(rgb: [f64; 3]) -> f64 {
     rgb[0] * 0.2126 + rgb[1] * 0.7152 + rgb[2] * 0.0722
 }
+/// Descriptive single-capture tile statistics, without a paired change verdict.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct CaptureTile {
+    /// Capture-pixel rectangle; partial edge tiles are retained.
+    pub rect_px: [u32; 4],
+    /// Number of contributing pixels.
+    pub pixels: u64,
+    /// Mean normalized sRGB luminance over black.
+    pub mean_luminance: f64,
+    /// Population luminance variance.
+    pub variance: f64,
+    /// Standard deviation divided by the spatial policy's luminance floor or mean.
+    pub contrast: f64,
+    /// Absolute interior Laplacian energy, as in paired spatial evidence.
+    pub detail_energy: f64,
+}
+/// Measure the same luminance, contrast and detail basis used by paired evidence.
+/// No FLIP, bias, confidence interval or acceptance class exists for a single image.
+pub fn capture_tiles(image: &image::RgbaImage, tile_size: u32) -> Result<Vec<CaptureTile>> {
+    let (w, h) = image.dimensions();
+    if !(4..=4096).contains(&tile_size)
+        || w == 0
+        || h == 0
+        || u64::from(w) * u64::from(h) > 16_777_216
+    {
+        return Err(Error::Config(
+            "invalid capture tile grid or pixel budget".into(),
+        ));
+    }
+    let l: Vec<_> = rgb(image).into_iter().map(luminance).collect();
+    let floor = Policy::default().luminance_floor;
+    let mut tiles = Vec::new();
+    for y in (0..h).step_by(tile_size as usize) {
+        for x in (0..w).step_by(tile_size as usize) {
+            let r = [x, y, tile_size.min(w - x), tile_size.min(h - y)];
+            let luminances = &l;
+            let values = || {
+                (y..y + r[3])
+                    .flat_map(|yy| (x..x + r[2]).map(move |xx| luminances[(yy * w + xx) as usize]))
+            };
+            let count = u64::from(r[2]) * u64::from(r[3]);
+            let mean = values().sum::<f64>() / count as f64;
+            let variance = values().map(|v| (v - mean).powi(2)).sum::<f64>() / count as f64;
+            tiles.push(CaptureTile {
+                rect_px: r,
+                pixels: count,
+                mean_luminance: mean,
+                variance,
+                contrast: variance.sqrt() / mean.max(floor),
+                detail_energy: detail(&l, w, h, r),
+            });
+        }
+    }
+    Ok(tiles)
+}
 /// Exact area integration retaining all edge pixels; no nearest-neighbor sampling.
 pub fn area(values: &[[f64; 3]], w: u32, h: u32, divisor: u32) -> (Vec<[f64; 3]>, u32, u32) {
     let nw = (w / divisor).max(1);
@@ -729,6 +784,26 @@ pub fn clusters(tiles: &[Tile], selected: &[bool], cols: u32, min_tiles: usize) 
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[test]
+    fn capture_tiles_keep_edges_and_use_alpha_over_black_without_a_verdict() {
+        let image = image::RgbaImage::from_fn(5, 4, |x, _| {
+            image::Rgba([255, 255, 255, if x < 2 { 0 } else { 255 }])
+        });
+        let tiles = capture_tiles(&image, 4).unwrap();
+        assert_eq!(tiles.len(), 2);
+        assert_eq!(tiles[0].pixels, 16);
+        assert!((tiles[0].mean_luminance - 0.5).abs() < 1e-12);
+        assert!((tiles[0].variance - 0.25).abs() < 1e-12);
+        assert!((tiles[0].contrast - 1.0).abs() < 1e-12);
+        assert!(tiles[0].detail_energy > 0.0);
+        assert_eq!(tiles[1].rect_px, [4, 0, 1, 4]);
+        assert!((tiles[1].mean_luminance - 1.0).abs() < 1e-12);
+        assert_eq!(tiles[1].variance, 0.0);
+        assert_eq!(tiles[1].detail_energy, 0.0);
+        assert!(capture_tiles(&image, 0).is_err());
+        assert!(capture_tiles(&image, 4097).is_err());
+        assert!(capture_tiles(&image::RgbaImage::new(0, 4), 4).is_err());
+    }
     fn analyze_pair(b: &image::RgbaImage, c: &image::RgbaImage) -> SpatialReport {
         let opts = crate::compare::CompareOptions::default();
         let cmp = crate::compare::compare_rgba(c, b, &opts).unwrap();

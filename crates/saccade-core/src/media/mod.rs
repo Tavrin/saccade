@@ -109,6 +109,8 @@ pub struct Options {
     pub description: bool,
     /// Include EXIF/XMP location fields only when explicitly declared.
     pub include_gps: bool,
+    /// Opt into descriptive Wave 9 tiles (4..=4096 pixels per side).
+    pub quality_tile_size: Option<u32>,
 }
 /// Section outcome; a missing model is never an empty successful observation.
 #[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
@@ -350,16 +352,28 @@ impl Analyzer {
             )
         });
         metadata.timing_ms += headers_elapsed;
-        let quality = section("assess-output-fitness", || {
+        let mut quality = section("assess-output-fitness", || {
             let m = assessment::assess(&pixels)?;
+            let spatial = options.quality_tile_size.map(|tile_size| {
+                let tiles = crate::evidence_quality::spatial::capture_tiles(&pixels, tile_size)?;
+                Ok::<_, crate::Error>(json!({"policy_version":crate::evidence_quality::spatial::POLICY_VERSION,"tile_size":tile_size,"luminance_floor":crate::evidence_quality::spatial::Policy::default().luminance_floor,"tiles":tiles,"limits":"normalized sRGB over black; single-image descriptors, no paired bias, FLIP or quality verdict"}))
+            }).transpose()?;
             let fitness:Vec<_>=options.output_sizes.iter().map(|s| {
                 let scale=(size[0] as f64/s[0] as f64).min(size[1] as f64/s[1] as f64);
                 json!({"output_size":s,"adequate_resolution":scale>=1.,"upscale_factor":(1./scale).max(1.),"retained_area_fraction":(s[0] as f64*s[1] as f64*scale*scale)/(size[0] as f64*size[1] as f64)})
             }).collect();
-            Ok(
-                json!({"measures":m,"fitness":fitness,"thresholds":"content-dependent; no heuristic quality verdict"}),
-            )
+            let mut data = json!({"measures":m,"fitness":fitness,"thresholds":"content-dependent; no heuristic quality verdict"});
+            if let Some(spatial) = spatial {
+                data["spatial"] = spatial;
+            }
+            Ok(data)
         });
+        if options.quality_tile_size.is_some() {
+            quality.provenance.pins.push(format!(
+                "saccade/spatial/{}",
+                crate::evidence_quality::spatial::POLICY_VERSION
+            ));
+        }
         let image = vision::VisionImage {
             pixels: crate::compare::flatten_over(&pixels, 255),
             sha256: hash.clone(),
@@ -902,6 +916,49 @@ mod tests {
         opts.description = true;
         assert_eq!(
             a.analyze_bytes(&b, &opts).unwrap().description.status,
+            Status::Failed
+        );
+        opts.strict = true;
+        assert_eq!(
+            a.analyze_bytes(&b, &opts).unwrap_err().code,
+            "media_section_failed"
+        );
+    }
+    #[test]
+    fn quality_tiles_are_opt_in_and_invalid_grids_fail_strictly() {
+        let a = Analyzer::new(Profile::CpuLite, "cache".into(), false).unwrap();
+        let b = encoded();
+        assert!(
+            a.analyze_bytes(&b, &Options::default())
+                .unwrap()
+                .quality
+                .data
+                .get("spatial")
+                .is_none()
+        );
+        let mut opts = Options {
+            quality_tile_size: Some(32),
+            ..Default::default()
+        };
+        let record = a.analyze_bytes(&b, &opts).unwrap();
+        let tiles = record.quality.data["spatial"]["tiles"].as_array().unwrap();
+        assert_eq!(tiles.len(), 2);
+        assert_eq!(tiles[1]["rect_px"], json!([32, 0, 8, 30]));
+        assert_eq!(
+            tiles
+                .iter()
+                .map(|t| t["pixels"].as_u64().unwrap())
+                .sum::<u64>(),
+            1200
+        );
+        assert!(
+            tiles[1]["mean_luminance"].as_f64().unwrap()
+                > tiles[0]["mean_luminance"].as_f64().unwrap()
+        );
+        assert!(tiles[0]["variance"].as_f64().unwrap() > 0.0);
+        opts.quality_tile_size = Some(0);
+        assert_eq!(
+            a.analyze_bytes(&b, &opts).unwrap().quality.status,
             Status::Failed
         );
         opts.strict = true;
