@@ -41,3 +41,12 @@ inherited model accuracy/parity and Rust OCR qualification remain explicitly inc
 - Rejected guessing a hash/revision/licence and using image-only vectors for text queries.
   Reversal cost: add a verified joint model/tokenizer contract and engine adapter; retain
   index files, query transport and explicit uncalibrated bands.
+
+## 8.4 focal point
+- Use deterministic 64x64 colour-surround contrast with a weak centre/edge prior.
+  The specification gives spectral residual as an example; this simpler pure Rust
+  method satisfies the deterministic first requirement and handles colour-only contrast.
+  Generated objects at three known positions assert a measurable focal displacement;
+  flat/transparent fixtures assert the explicit centre fallback.
+- Learned saliency skipped until an official permissive pin is supplied. Reversal cost:
+  replace/extend a versioned algorithm ID; preserve focal/map/crop transport contracts.

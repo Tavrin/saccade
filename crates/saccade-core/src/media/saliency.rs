@@ -62,6 +62,26 @@ pub fn compute(image: &image::RgbaImage) -> Saliency {
 #[cfg(test)]
 mod tests {
     #[test]
+    fn offcentre_object_guides_declared_portrait_crop() {
+        let im = image::RgbaImage::from_fn(120, 80, |x, y| {
+            image::Rgba(if (86..100).contains(&x) && (32..48).contains(&y) {
+                [250, 30, 10, 255]
+            } else {
+                [60, 60, 60, 255]
+            })
+        });
+        let a = super::compute(&im);
+        assert!(a.focal_point[0] > 85. && a.focal_point[0] < 102.);
+        assert!(a.map.iter().any(|v| *v > 0.9));
+        assert!(
+            a.map
+                .iter()
+                .all(|v| v.is_finite() && (0.0..=1.0).contains(v))
+        );
+        let invisible = image::RgbaImage::from_pixel(32, 32, image::Rgba([255, 0, 0, 0]));
+        assert!(!super::compute(&invisible).informative);
+    }
+    #[test]
     fn single_objects_move_focal_point_and_flat_uses_centre() {
         for (cx, cy) in [(20, 24), (76, 70), (50, 45)] {
             let im = image::RgbaImage::from_fn(100, 100, |x, y| {

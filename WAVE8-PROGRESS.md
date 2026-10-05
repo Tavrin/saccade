@@ -7,3 +7,5 @@
 
 8.2 implemented a565eb7; disk-blocked wheel/pytest validation.
 8.3 partial (this commit): shared index and text-query boundary; SigLIP 2 inference deferred with checked-in disposition evidence.
+
+8.4 implemented (this commit): deterministic saliency and generated displacement/fallback fixtures; learned model skipped. Initial position test passed in 8.1; added fixture awaits disk recovery.
