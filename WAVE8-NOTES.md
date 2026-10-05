@@ -184,3 +184,8 @@ inherited model accuracy/parity and Rust OCR qualification remain explicitly inc
   retrieved by their respective text queries after index persistence, in both
   Rust and the installed Python binding. This is a bounded constructed retrieval
   check, not natural-image calibration.
+- Compact library/Python/HTTP index results previously reused the standalone
+  CLI query schema despite having different required fields. Added the distinct
+  `saccade-media-index-query.v1` schema and a generated schema-validation fixture.
+  CLI `saccade-embedding-query.v1` and persisted index files are unchanged; compact
+  `hits` fields are retained. Reversal cost: an explicit unreleased result ID.

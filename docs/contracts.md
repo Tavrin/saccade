@@ -194,6 +194,7 @@ The last three names appear only when the corresponding feature is compiled in.
 - [saccade-locate.v1.schema.json](../crates/saccade-core/schemas/saccade-locate.v1.schema.json) — LocateReport
 - [saccade-media-compare.v1.schema.json](../crates/saccade-core/schemas/saccade-media-compare.v1.schema.json) — Historical reader contract
 - [saccade-media-error.v1.schema.json](../crates/saccade-core/schemas/saccade-media-error.v1.schema.json) — Historical reader contract
+- [saccade-media-index-query.v1.schema.json](../crates/saccade-core/schemas/saccade-media-index-query.v1.schema.json) — Compact media index query
 - [saccade-media-record.v1.schema.json](../crates/saccade-core/schemas/saccade-media-record.v1.schema.json) — Versioned media record
 - [saccade-model-registry.v1.schema.json](../crates/saccade-core/schemas/saccade-model-registry.v1.schema.json) — Registry
 - [saccade-model-status.v1.schema.json](../crates/saccade-core/schemas/saccade-model-status.v1.schema.json) — saccade-model-status.v1

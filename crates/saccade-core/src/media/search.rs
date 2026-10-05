@@ -8,6 +8,8 @@ use serde_json::{Value, json};
 use std::{io::Write, path::Path};
 /// Same versioned format as the wave 6 CLI; text queries require joint model identity.
 pub const SCHEMA: &str = embedding::INDEX_SCHEMA;
+/// Compact library/Python/HTTP query result; CLI evidence keeps embedding-query.v1.
+pub const QUERY_SCHEMA: &str = "saccade-media-index-query.v1";
 /// Exact flat index: at most 100000 rows and 512 MiB float32 storage.
 pub struct Index {
     model: Value,
@@ -99,7 +101,7 @@ impl Index {
         hits.sort_by(|a, b| b.1.total_cmp(&a.1).then(a.0.cmp(&b.0)));
         hits.truncate(top);
         Ok(
-            json!({"schema":embedding::QUERY_SCHEMA,"query_kind":kind,"model_contract_sha256":self.model_id,"calibration":"uncalibrated","hits":hits.into_iter().map(|(id,cosine)|json!({"row":self.rows[id],"row_index":id,"cosine":cosine,"band":null})).collect::<Vec<_>>()}),
+            json!({"schema":QUERY_SCHEMA,"query_kind":kind,"model_contract_sha256":self.model_id,"calibration":"uncalibrated","hits":hits.into_iter().map(|(id,cosine)|json!({"row":self.rows[id],"row_index":id,"cosine":cosine,"band":null})).collect::<Vec<_>>()}),
         )
     }
     /// Persist a new directory using the existing vectors.bin plus versioned metadata format.

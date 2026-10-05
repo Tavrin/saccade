@@ -140,3 +140,19 @@ fn mcp_analyze_media_matches_core_and_refuses_root_escape() {
     schema("saccade-media-record.v1", content);
     assert_eq!(values[1]["result"]["isError"], true);
 }
+
+#[test]
+fn compact_index_query_has_its_own_validated_schema() {
+    let model = serde_json::json!({"schema":"saccade-embedding-model.v1","family":"dinov2-small","artifact":{"role":"embedding","version":"a".repeat(40),"format":"onnx","url":format!("https://example.org/{}/model.onnx","a".repeat(40)),"bytes":1,"sha256":"a".repeat(64),"license":"Apache-2.0"},"input":"pixels","output":"embedding","size":[8,8],"mean":[0.,0.,0.],"std":[1.,1.,1.],"dimensions":2,"calibration":null});
+    let mut index = saccade_core::media::search::Index::new(model).unwrap();
+    index
+        .add_vector("generated.png", &"b".repeat(64), vec![1., 0.])
+        .unwrap();
+    let query = index.query_vector(&[1., 0.], 1, "vector").unwrap();
+    schema("saccade-media-index-query.v1", &query);
+    assert_eq!(query["hits"][0]["row_index"], 0);
+    assert_ne!(
+        query["schema"],
+        saccade_core::general::embedding::QUERY_SCHEMA
+    );
+}
