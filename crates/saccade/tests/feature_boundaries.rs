@@ -122,9 +122,15 @@ fn local_tools_list_exactly_the_operations_this_binary_implements() {
         "compare_question",
     ] {
         assert!(
-            general_operations
-                .iter()
-                .any(|variant| variant["properties"]["operation"]["const"] == operation),
+            general_operations.iter().any(|variant| {
+                let schema = &variant["properties"]["operation"];
+                schema["const"] == operation
+                    || schema["enum"]
+                        .as_array()
+                        .into_iter()
+                        .flatten()
+                        .any(|name| name == operation)
+            }),
             "missing general operation {operation}"
         );
     }

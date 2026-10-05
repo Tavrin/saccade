@@ -91,7 +91,7 @@ fn mcp_startup_requires_flag_and_budget_and_tools_cannot_raise_authority() {
     );
 }
 #[test]
-fn six_tools_share_local_evidence_requests_proposals_and_human_escalation() {
+fn local_tools_share_evidence_requests_proposals_and_human_escalation() {
     let t = tempfile::tempdir().unwrap();
     // Exercise long platform temp prefixes even on hosts with a short /tmp path.
     let parent = t.path().join("platform-temp-prefix-".repeat(4));
@@ -148,7 +148,12 @@ fn six_tools_share_local_evidence_requests_proposals_and_human_escalation() {
         ],
     );
     let tools = replies[0]["result"]["tools"].as_array().unwrap();
-    assert_eq!(tools.len(), 6);
+    assert_eq!(tools.len(), 7 + usize::from(cfg!(feature = "products")));
+    assert!(tools.iter().any(|tool| tool["name"] == "saccade_general"));
+    assert_eq!(
+        tools.iter().any(|tool| tool["name"] == "saccade_products"),
+        cfg!(feature = "products")
+    );
     for name in [
         "saccade_measure",
         "saccade_inspect",
