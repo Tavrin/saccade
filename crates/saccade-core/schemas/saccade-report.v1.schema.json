@@ -1615,6 +1615,21 @@
       ],
       "type": "object"
     },
+    "MaskMode": {
+      "description": "Treatment of declared excluded pixels before spatial filtering.",
+      "oneOf": [
+        {
+          "const": "exclude",
+          "description": "Score exclusion only; preserves historical measurements.",
+          "type": "string"
+        },
+        {
+          "const": "neutralize",
+          "description": "Replace excluded test pixels with reference pixels before filtering.",
+          "type": "string"
+        }
+      ]
+    },
     "Materiality": {
       "properties": {
         "blocks_no_effect": {
@@ -2938,6 +2953,11 @@
             "capture": "capture"
           },
           "description": "Display names for the two sides (e.g. \"parent\" / \"candidate\")."
+        },
+        "mask_mode": {
+          "$ref": "#/$defs/MaskMode",
+          "default": "exclude",
+          "description": "Mask treatment; historical reports default to score exclusion."
         },
         "meta": {
           "$ref": "#/$defs/MetaSettings",

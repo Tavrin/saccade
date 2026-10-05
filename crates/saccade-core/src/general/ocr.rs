@@ -116,6 +116,7 @@ mod tests {
     #[test]
     fn contract_keeps_accents_and_refuses_ambiguous_alphabet_or_unlicensed_models() {
         let mut c = Contract {
+            review_status: None,
             schema: SCHEMA.into(),
             cache: "cache".into(),
             detection: artifact("detection"),
@@ -135,6 +136,7 @@ mod tests {
     fn model_pin_failure_never_falls_back_or_synthesizes_source_facts() {
         let cache = tempfile::tempdir().unwrap();
         let c = Contract {
+            review_status: None,
             schema: SCHEMA.into(),
             cache: "cache".into(),
             detection: artifact("detection"),

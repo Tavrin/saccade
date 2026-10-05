@@ -582,6 +582,7 @@
           "type": "number"
         },
         "schema": {
+          "const": "saccade-asset-views.v1",
           "description": "Contract identity.",
           "type": "string"
         },
@@ -898,6 +899,7 @@
           "type": "boolean"
         },
         "schema": {
+          "const": "saccade-asset-view-report.v1",
           "description": "Contract identity.",
           "type": "string"
         },

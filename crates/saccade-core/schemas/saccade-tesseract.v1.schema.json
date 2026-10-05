@@ -33,6 +33,14 @@
       "minimum": 0,
       "type": "integer"
     },
+    "review_status": {
+      "default": null,
+      "description": "Contract review status, never a qualification receipt.",
+      "type": [
+        "string",
+        "null"
+      ]
+    },
     "schema": {
       "const": "saccade-tesseract.v1",
       "description": "saccade-tesseract.v1.",
