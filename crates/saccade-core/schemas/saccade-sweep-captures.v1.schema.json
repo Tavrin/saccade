@@ -1,0 +1,91 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "saccade-sweep-captures.v1",
+  "title": "saccade-sweep-captures.v1",
+  "type": "object",
+  "properties": {
+    "schema": {
+      "const": "saccade-sweep-captures.v1"
+    },
+    "manifest_sha256": {
+      "type": "string",
+      "pattern": "^[a-f0-9]{64}$"
+    },
+    "receipts": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "pattern": "^[a-f0-9]{64}$"
+          },
+          "side": {
+            "enum": [
+              "before",
+              "after"
+            ]
+          },
+          "status": {
+            "enum": [
+              "captured",
+              "error"
+            ]
+          },
+          "path": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "sha256": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "final_url": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "timing_ms": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "error": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "css_tokens": {
+            "type": "array",
+            "items": {
+              "type": "object"
+            }
+          }
+        },
+        "required": [
+          "id",
+          "side",
+          "status",
+          "path",
+          "sha256",
+          "final_url",
+          "timing_ms",
+          "error"
+        ],
+        "additionalProperties": false
+      },
+      "maxItems": 200000
+    }
+  },
+  "required": [
+    "schema",
+    "manifest_sha256",
+    "receipts"
+  ],
+  "additionalProperties": false
+}

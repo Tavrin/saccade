@@ -1,0 +1,21 @@
+#!/usr/bin/env node
+// Generic design mapping capture: vendor-independent implementation-side driver.
+const fs=require('node:fs'),path=require('node:path'),crypto=require('node:crypto');
+const {boundedJson,compareFiles}=require('./matcher.cjs');const {initialize,capture,sleep}=require('./stabilize.cjs');const {limiter,collectCss}=require('./sweep.cjs');
+const id=(key,node)=>crypto.createHash('sha256').update(`${key}:${node}`).digest('hex');
+async function runDesign(mappingPath,out,supplied={},chromiumOverride){
+ const map=boundedJson(mappingPath),options={concurrency:2,perHostDelayMs:250,timeout:30000,...supplied};
+ if(map.schema!=='saccade-design-map.v1'||!Array.isArray(map.frames)||!map.frames.length||map.frames.length>64||!Number.isInteger(options.concurrency)||options.concurrency<1||options.concurrency>16||!Number.isFinite(options.perHostDelayMs)||options.perHostDelayMs<0||options.perHostDelayMs>60000)throw Error('invalid design capture input');
+ const ids=new Set();for(const f of map.frames){if(!/^[a-zA-Z0-9:_-]{1,128}$/.test(f.file_key)||!/^[a-zA-Z0-9:_-]{1,128}$/.test(f.node_id)||!f.url||!Array.isArray(f.viewport)||f.viewport.length!==2||f.viewport.some(n=>!Number.isInteger(n)||n<8||n>16384)||ids.has(id(f.file_key,f.node_id)))throw Error('invalid mapping: CLI driver requires URL mappings');ids.add(id(f.file_key,f.node_id));const u=new URL(f.url);if(!['http:','https:'].includes(u.protocol)||u.username||u.password||u.hash)throw Error('invalid design implementation URL');}
+ fs.mkdirSync(out,{recursive:false});fs.mkdirSync(path.join(out,'captures'));const browser=await(chromiumOverride||require('@playwright/test').chromium).launch();let next=0;const entries=[],rate=limiter(options.perHostDelayMs);
+ const worker=async()=>{while(next<map.frames.length){const f=map.frames[next++];let context;const entry={file_key:f.file_key,node_id:f.node_id,viewport:f.viewport,url:f.url,test_name:f.test_name??null,selector:f.selector??null,status:'error',path:null,sha256:null,error:null,css_tokens:[]};
+ try{await rate(new URL(f.url).host);context=await browser.newContext({viewport:{width:f.viewport[0],height:f.viewport[1]},storageState:options.storageState});const page=await context.newPage();page.setDefaultTimeout(options.timeout);await initialize(page,options);const response=await page.goto(f.url,{timeout:options.timeout,waitUntil:'domcontentloaded'});if(!response||response.status()>=400)throw Error('navigation failed');const target=f.selector?page.locator(f.selector):page;const relative=`captures/${id(f.file_key,f.node_id)}.png`;await capture(target,path.join(out,relative),options);
+ if(options.stabilityCheck){await sleep(options.stabilityCheck.delayMs??100);const second=path.join(out,`${id(f.file_key,f.node_id)}-stability.png`);await capture(target,second,options);const comparison=await compareFiles(path.join(out,relative),second,path.join(out,'stability',id(f.file_key,f.node_id)),{...options,config:undefined,threshold:0});if(!comparison.pass)throw Error('capture unstable');}
+ entry.css_tokens=await collectCss(page,f.css_tokens);entry.path=relative;entry.sha256=crypto.createHash('sha256').update(fs.readFileSync(path.join(out,relative))).digest('hex');entry.status='captured';
+ }catch{entry.error='implementation capture failed (details redacted)';}finally{if(context)await context.close().catch(()=>{});entries.push(entry);}
+ }};
+ try{await Promise.all(Array.from({length:options.concurrency},worker));}finally{await browser.close();}
+ const result={schema:'saccade-design-captures.v1',mapping_sha256:crypto.createHash('sha256').update(fs.readFileSync(mappingPath)).digest('hex'),entries:entries.sort((a,b)=>id(a.file_key,a.node_id).localeCompare(id(b.file_key,b.node_id)))};fs.writeFileSync(path.join(out,'captures.json'),JSON.stringify(result,null,2)+'\n',{flag:'wx'});return result;
+}
+if(require.main===module){const [map,out,config]=process.argv.slice(2);if(!map||!out){process.stderr.write('usage: node design-capture.cjs MAPPING NEW_OUT [OPTIONS.json]\n');process.exitCode=2;}else runDesign(map,out,config?boundedJson(config):{}).then(r=>{process.stdout.write(JSON.stringify(r)+'\n');process.exitCode=r.entries.some(e=>e.status!=='captured')?1:0;}).catch(()=>{process.stderr.write('design capture failed (details redacted)\n');process.exitCode=2;});}
+module.exports={runDesign};

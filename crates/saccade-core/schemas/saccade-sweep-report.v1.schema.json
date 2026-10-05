@@ -1,0 +1,47 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "saccade-sweep-report.v1",
+  "title": "saccade-sweep-report.v1",
+  "type": "object",
+  "properties": {
+    "schema": {
+      "const": "saccade-sweep-report.v1"
+    },
+    "verdict": {
+      "enum": [
+        "pass",
+        "regression"
+      ]
+    },
+    "groups": {
+      "type": "object",
+      "additionalProperties": {
+        "type": "array",
+        "items": {
+          "type": "object"
+        }
+      }
+    },
+    "capture_failures": {
+      "type": "array",
+      "items": {
+        "type": "object"
+      }
+    },
+    "totals": {
+      "type": "object"
+    },
+    "report": {
+      "type": "string"
+    }
+  },
+  "required": [
+    "schema",
+    "verdict",
+    "groups",
+    "capture_failures",
+    "totals",
+    "report"
+  ],
+  "additionalProperties": false
+}

@@ -92,3 +92,34 @@ only under human authorization to submit or poll once. MCP mirrors these as
 `batch-submit|batch-status|batch-collect` in `saccade_review`; `artifact` is the plan
 and `out` is the durable receipt. Unknown submission forbids silent resubmission.
 Interactive advice never waits for Batch. See [assist](../docs/assist.md).
+<!-- // wave5 -->
+For browser assertions, use the local `saccade-playwright` matcher:
+[Playwright matcher](../docs/playwright-matcher.md). Captures with errors or
+instability fail; proposed masks require review. Snapshot initialization requires
+an explicit update option. Set clock/random before navigation when their values
+matter during application initialization.
+
+<!-- // wave5 -->
+Use `saccade sweep plan` then the [driver contract](../docs/sweep.md), then
+`saccade sweep compare --json` for sampled page sets. Every planned page must
+have a receipt; capture failures are regressions and must not be dropped.
+
+<!-- // wave5 -->
+Use [`imgtune audit|search`](../docs/imgtune.md) to measure negotiated delivery and
+select the smallest candidate in a declared perceptual-score grid. Incomplete
+searches have no selection; originals are retained. Numerical selection is advisory.
+
+<!-- // wave5 -->
+Use [`design pull|compare`](../docs/design-source.md) for design-frame evidence and
+computed CSS token checks. Layout differences remain visible; compensated shift
+metrics are diagnostic. Figma variables 403 means degraded token coverage.
+
+<!-- // wave5 -->
+[`--baseline last-good`](../docs/last-good.md) resolves a verified passing history run,
+not human approval. `notify` sends a summary only when explicitly requested;
+webhook credentials come from the user env file, never project/MCP arguments.
+
+<!-- // wave5 -->
+The additive [`saccade_products` MCP tool](../docs/wave5-mcp.md) returns bounded
+product results. HTTP and notifications require separate human startup authority;
+recorded fixture pulls and local image tuning need neither.

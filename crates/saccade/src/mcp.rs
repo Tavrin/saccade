@@ -34,8 +34,18 @@ struct ToolOutput {
 
 type ToolResult = Result<ToolOutput, CliError>;
 
+// wave5
+#[cfg(feature = "products")]
+#[path = "product_mcp.rs"]
+mod products;
+
 /// The server: the root every path must stay under.
 pub struct Server {
+    // wave5: authority comes from server startup, never tool arguments.
+    #[cfg(feature = "products")]
+    product_network: bool,
+    #[cfg(feature = "products")]
+    product_notifications: bool,
     root: PathBuf,
     policy: saccade_core::root_policy::RootPolicy,
     #[cfg(feature = "ai")]
@@ -419,6 +429,11 @@ impl Server {
     ) -> Result<Self, CliError> {
         let policy = saccade_core::root_policy::RootPolicy::new(roots, output, follow, targets)?;
         Ok(Self {
+            // wave5
+            #[cfg(feature = "products")]
+            product_network: false,
+            #[cfg(feature = "products")]
+            product_notifications: false,
             root: policy.roots[0].path.clone(),
             policy,
             #[cfg(feature = "ai")]
@@ -1039,6 +1054,11 @@ impl Server {
     }
 
     fn call_tool(&self, name: &str, args: &Map<String, Value>) -> Option<ToolResult> {
+        // wave5
+        #[cfg(feature = "products")]
+        if name == "saccade_products" {
+            return Some(self.product_tool(args));
+        }
         if !matches!(
             name,
             "saccade_measure"
@@ -1669,6 +1689,9 @@ pub fn serve_stdio(
     follow: bool,
     targets: &[PathBuf],
     #[cfg(feature = "ai")] providers: crate::review_cmd::Startup,
+    // wave5
+    #[cfg(feature = "products")] product_network: bool,
+    #[cfg(feature = "products")] product_notifications: bool,
 ) -> Result<(), CliError> {
     #[allow(unused_mut)]
     let mut server = Server::new(roots, output, follow, targets)?;
@@ -1680,6 +1703,12 @@ pub fn serve_stdio(
             ));
         }
         server.providers = providers;
+    }
+    // wave5
+    #[cfg(feature = "products")]
+    {
+        server.product_network = product_network;
+        server.product_notifications = product_notifications;
     }
     let stdin = std::io::stdin();
     let stdout = std::io::stdout();
@@ -1842,6 +1871,11 @@ fn tool_schemas() -> Value {
         }
         tool["annotations"]["openWorldHint"] = json!(true);
         list.push(tool);
+    }
+    // wave5
+    #[cfg(feature = "products")]
+    if let Some(list) = schemas.as_array_mut() {
+        list.push(products::schema());
     }
     schemas
 }

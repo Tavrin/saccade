@@ -12,6 +12,19 @@ use saccade_core::config::RunConfig;
 use saccade_core::report::{Labels, Metric, Mode, Report, Status};
 use saccade_core::view::{ViewOptions, build_view, is_safe_name};
 
+// wave5
+#[cfg(feature = "products")]
+mod design_cmd;
+#[cfg(feature = "products")]
+mod imgtune_cmd;
+mod last_good;
+#[cfg(feature = "products")]
+mod notifier_cmd;
+#[cfg(feature = "products")]
+mod product_io;
+#[cfg(feature = "products")]
+mod sweep_cmd;
+
 mod agent;
 mod agent_ui;
 mod approval;
@@ -194,6 +207,19 @@ impl From<MetricArg> for Metric {
 
 #[derive(Subcommand)]
 enum Command {
+    // wave5
+    /// Plan and compare deterministic page sweeps.
+    #[cfg(feature = "products")]
+    Sweep(sweep_cmd::SweepArgs),
+    /// Audit delivery formats and search perceptual-target encodings.
+    #[cfg(feature = "products")]
+    Imgtune(imgtune_cmd::ImgtuneArgs),
+    /// Pull design-source frames and compare implementation captures.
+    #[cfg(feature = "products")]
+    Design(design_cmd::DesignArgs),
+    /// Send a generic report summary to a user-configured webhook.
+    #[cfg(feature = "products")]
+    Notify(notifier_cmd::NotifyArgs),
     /// Align optional Vulkan replay evidence and locate native-resource divergence.
     RenderdocLocalize(renderdoc_cmd::Args),
     /// Import and freeze phrase regions, or inspect optional model plumbing.
@@ -241,6 +267,7 @@ The demo exits 1 on purpose: it contains a regression and a missing capture."
     Demo(f1::DemoArgs),
     /// Compare a directory of captures against a directory of baselines.
     #[command(
+        allow_missing_positional = true,
         display_order = 1,
         help_template = HELP_TEMPLATE,
         after_help = "\
@@ -258,7 +285,15 @@ Exit codes: 0 no regression, 1 regression found, 2 the command could not run."
     )]
     Compare {
         /// Directory of approved baseline images.
-        baseline_dir: PathBuf,
+        #[arg(required_unless_present = "baseline", conflicts_with = "baseline")]
+        baseline_dir: Option<PathBuf>,
+        // wave5
+        /// Resolve the latest complete passing history run as an immutable baseline.
+        #[arg(long, value_parser = ["last-good"])]
+        baseline: Option<String>,
+        /// Local history store for --baseline last-good.
+        #[arg(long, requires = "baseline")]
+        history_store: Option<PathBuf>,
         /// Directory of fresh captures.
         capture_dir: PathBuf,
         /// Report output directory.
@@ -605,6 +640,15 @@ Example:
         #[cfg(feature = "ai")]
         #[command(flatten)]
         providers: review_cmd::Startup,
+        // wave5
+        /// Authorize product HTTP operations from registered roots.
+        #[cfg(feature = "products")]
+        #[arg(long)]
+        allow_product_network: bool,
+        /// Authorize explicit webhook tool calls using user configuration.
+        #[cfg(feature = "products")]
+        #[arg(long)]
+        allow_webhook_notifications: bool,
     },
     /// Read, explain, prepare or export existing evidence.
     #[command(display_order = 9, hide = true)]
@@ -1026,6 +1070,15 @@ fn dispatch(command: Command, record_absolute_paths: bool) -> Result<u8, CliErro
         Command::Regions(args) => region_cmd::run(args),
         Command::ExplainGrounded(args) => grounded_cmd::run(args),
         Command::LocalizedCheck(args) => localized_cmd::run(args),
+        // wave5
+        #[cfg(feature = "products")]
+        Command::Sweep(args) => sweep_cmd::run(args),
+        #[cfg(feature = "products")]
+        Command::Imgtune(args) => imgtune_cmd::run(args),
+        #[cfg(feature = "products")]
+        Command::Design(args) => design_cmd::run(args),
+        #[cfg(feature = "products")]
+        Command::Notify(args) => notifier_cmd::run(args),
         Command::Inventory(args) => inventory_cmd::run(args),
         #[cfg(feature = "compression")]
         Command::QualitySweep(args) => quality_cmd::run(args),
@@ -1195,6 +1248,8 @@ fn dispatch(command: Command, record_absolute_paths: bool) -> Result<u8, CliErro
         }
         Command::Compare {
             baseline_dir,
+            baseline,
+            history_store,
             capture_dir,
             out,
             threshold,
@@ -1213,6 +1268,19 @@ fn dispatch(command: Command, record_absolute_paths: bool) -> Result<u8, CliErro
             perf,
             intent,
         } => {
+            // wave5
+            let last_good = if baseline.is_some() {
+                Some(last_good::resolve(history_store.as_deref().ok_or_else(
+                    || CliError::usage("--baseline last-good requires --history-store"),
+                )?)?)
+            } else {
+                None
+            };
+            let baseline_dir = last_good
+                .as_ref()
+                .map(|dir| dir.path().to_path_buf())
+                .or(baseline_dir)
+                .ok_or_else(|| CliError::usage("baseline directory required"))?;
             let mut cfg = load_config(config.as_deref())?;
             cfg.record_absolute_paths = record_absolute_paths;
             perf.apply(&mut cfg.perf)?;
@@ -1549,6 +1617,11 @@ fn dispatch(command: Command, record_absolute_paths: bool) -> Result<u8, CliErro
             symlink_targets,
             #[cfg(feature = "ai")]
             providers,
+            // wave5
+            #[cfg(feature = "products")]
+            allow_product_network,
+            #[cfg(feature = "products")]
+            allow_webhook_notifications,
         } => {
             mcp::serve_stdio(
                 &roots,
@@ -1557,6 +1630,11 @@ fn dispatch(command: Command, record_absolute_paths: bool) -> Result<u8, CliErro
                 &symlink_targets,
                 #[cfg(feature = "ai")]
                 providers,
+                // wave5
+                #[cfg(feature = "products")]
+                allow_product_network,
+                #[cfg(feature = "products")]
+                allow_webhook_notifications,
             )?;
             Ok(0)
         }
@@ -1570,6 +1648,13 @@ fn doctor(json: bool) -> Result<u8, CliError> {
     }
     if cfg!(feature = "mcp") {
         features.push("mcp");
+    }
+    // wave5
+    if cfg!(feature = "products") {
+        features.push("products");
+    }
+    if cfg!(feature = "imgtune-avif") {
+        features.push("imgtune-avif");
     }
     features.sort_unstable();
     // These names are a script-facing contract. Add new names; keep existing

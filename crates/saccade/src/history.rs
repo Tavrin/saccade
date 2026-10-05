@@ -253,6 +253,8 @@ fn record_trial(report_path: &Path, store: &Path, trial: Option<Trial>) -> Resul
         (None, None) => r.report_sha256 == report_hash,
         _ => false,
     }) {
+        // wave5: re-recording also upgrades legacy relative-path provenance.
+        crate::last_good::record_origin(store, &report_hash, report_path)?;
         return Ok(
             json!({"schema":SCHEMA,"operation":"record","recorded":false,"reason":"report_already_recorded","report_sha256":report_hash}),
         );
@@ -287,6 +289,8 @@ fn record_trial(report_path: &Path, store: &Path, trial: Option<Trial>) -> Resul
             object.display()
         )));
     }
+    // wave5: retain the origin needed to resolve relative capture provenance.
+    crate::last_good::record_origin(store, &report_hash, report_path)?;
     let row = Row {
         schema: SCHEMA.into(),
         report_sha256: report_hash.clone(),

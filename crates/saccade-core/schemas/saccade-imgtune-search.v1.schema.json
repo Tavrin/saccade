@@ -1,0 +1,37 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "saccade-imgtune-search.v1",
+  "title": "saccade-imgtune-search.v1",
+  "type": "object",
+  "properties": {
+    "schema": {
+      "const": "saccade-imgtune-search.v1"
+    },
+    "verdict": {
+      "enum": [
+        "complete",
+        "incomplete"
+      ]
+    },
+    "policy": {
+      "type": "object"
+    },
+    "items": {
+      "type": "array",
+      "items": {
+        "type": "object"
+      }
+    },
+    "groups": {
+      "type": "object"
+    }
+  },
+  "required": [
+    "schema",
+    "verdict",
+    "policy",
+    "items",
+    "groups"
+  ],
+  "additionalProperties": false
+}
