@@ -208,3 +208,11 @@ LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 ```
+
+## Wave 5 product adapters
+
+- `url` 2.5.8 — MIT OR Apache-2.0; HTTP origin rewriting and adapter URL validation.
+- `roxmltree` 0.20.0 — MIT OR Apache-2.0; bounded sitemap XML (no DTD).
+- `ureq` 3.3.0 — MIT OR Apache-2.0; existing dependency reused for bounded product HTTP transport.
+- `@playwright/test` — Apache-2.0; consuming-project peer dependency for the local matcher/driver; no browser is vendored.
+- All new browser pages and HTTP/API fixtures are generated/project-authored, MIT OR Apache-2.0.

@@ -287,6 +287,8 @@ fn record_trial(report_path: &Path, store: &Path, trial: Option<Trial>) -> Resul
             object.display()
         )));
     }
+    // wave5: retain the origin needed to resolve relative capture provenance.
+    crate::last_good::record_origin(store, &report_hash, report_path)?;
     let row = Row {
         schema: SCHEMA.into(),
         report_sha256: report_hash.clone(),

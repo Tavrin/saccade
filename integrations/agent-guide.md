@@ -81,3 +81,8 @@ For browser assertions, use the local `saccade-playwright` matcher:
 instability fail; proposed masks require review. Snapshot initialization requires
 an explicit update option. Set clock/random before navigation when their values
 matter during application initialization.
+
+<!-- // wave5 -->
+Use `saccade sweep plan` then the [driver contract](../docs/sweep.md), then
+`saccade sweep compare --json` for sampled page sets. Every planned page must
+have a receipt; capture failures are regressions and must not be dropped.

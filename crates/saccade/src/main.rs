@@ -12,6 +12,13 @@ use saccade_core::config::RunConfig;
 use saccade_core::report::{Labels, Metric, Mode, Report, Status};
 use saccade_core::view::{ViewOptions, build_view, is_safe_name};
 
+// wave5
+#[cfg(feature = "products")]
+mod product_io;
+#[cfg(feature = "products")]
+mod sweep_cmd;
+mod last_good;
+
 mod agent;
 mod agent_ui;
 mod approval;
@@ -194,6 +201,10 @@ impl From<MetricArg> for Metric {
 
 #[derive(Subcommand)]
 enum Command {
+    // wave5
+    /// Plan and compare deterministic page sweeps.
+    #[cfg(feature = "products")]
+    Sweep(sweep_cmd::SweepArgs),
     /// Align optional Vulkan replay evidence and locate native-resource divergence.
     RenderdocLocalize(renderdoc_cmd::Args),
     /// Import and freeze phrase regions, or inspect optional model plumbing.
@@ -1026,6 +1037,9 @@ fn dispatch(command: Command, record_absolute_paths: bool) -> Result<u8, CliErro
         Command::Regions(args) => region_cmd::run(args),
         Command::ExplainGrounded(args) => grounded_cmd::run(args),
         Command::LocalizedCheck(args) => localized_cmd::run(args),
+        // wave5
+        #[cfg(feature = "products")]
+        Command::Sweep(args) => sweep_cmd::run(args),
         Command::Inventory(args) => inventory_cmd::run(args),
         #[cfg(feature = "compression")]
         Command::QualitySweep(args) => quality_cmd::run(args),

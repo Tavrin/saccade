@@ -13,6 +13,10 @@ build = "build.rs"
 exclude = ["report/**"]
 
 [dependencies]
+# wave5
+ureq = { version = "3", optional = true }
+url = { version = "2.5", optional = true }
+roxmltree = { version = "0.20", optional = true }
 saccade-core = { workspace = true, default-features = false }
 image.workspace = true
 serde.workspace = true
@@ -27,6 +31,8 @@ globset = "0.4"
 fs2 = "0.4.3"
 
 [features]
+# wave5
+products = ["dep:ureq", "dep:url", "dep:roxmltree", "compression"]
 default = ["compression", "parallel", "graphics", "ai", "workbench", "mcp", "evaluation"]
 semantic-regions = ["saccade-core/semantic-regions"]
 compression = ["saccade-core/compression"]
