@@ -70,3 +70,10 @@ TrustMark logits establish no watermark presence; complete ECC remains unavailab
 SAM2/LPIPS/DISTS/MUSIQ/source-parity deferrals stay explicit. [Vision](../docs/wave7.md).
 
 Local gates do not qualify broad models, providers, platforms, rendering or releases.
+
+<!-- wave8 -->
+`analyze-media IMAGE --json` emits `saccade-media-record.v1`. Check each section's
+status, provenance and timing; a successful command can contain failed optional sections.
+`--strict` fails on any attempted section failure. `cpu-lite` needs no model downloads.
+MCP: `saccade_measure` operation `analyze_media`, rooted `image`, optional `options`.
+Credits are unsigned source-field candidates; descriptions are drafts, never rights or approval.

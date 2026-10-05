@@ -281,3 +281,9 @@ The generated qualification registry (its host location is recorded in
 vision, embedding and OCR pins under the same registry schema. Legacy test inputs are
 checked projections of it. Host-specific OCR paths stay in this supplied registry, not
 in the distributed default catalogue. Runtime flags select that single supplied registry.
+
+<!-- wave8 -->
+Media analysis uses [saccade-media-record.v1](../crates/saccade-core/schemas/saccade-media-record.v1.schema.json).
+Each section has `ok|skipped|failed`, algorithm/model provenance and elapsed timing.
+See [media analysis](media.md); failed optional sections remain observable without aborting
+unless `strict` is set. Existing report/result contracts keep their meaning.

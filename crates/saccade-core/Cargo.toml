@@ -63,7 +63,7 @@ documents = ["dep:resvg", "dep:hayro"]
 credentials = ["dep:c2pa"]
 ocr = ["dep:ocrs", "dep:rten", "dep:ureq", "dep:fs2"]
 # Dynamic CPU ONNX embeddings, no default dependency change
-embeddings = ["semantic-regions"]
+embeddings = ["semantic-regions", "dep:base64"]
 default = ["parallel"]
 # Parallel FLIP filtering; disable for the sequential FLIP backend on wasm.
 parallel = ["flip-rs/parallel"]
@@ -81,6 +81,8 @@ geometry = ["dep:parry3d-f64", "dep:tobj", "dep:gltf", "dep:base64"]
 ai = ["dep:ureq", "dep:fs2", "dep:httpdate"]
 # Local HTTP workbench, independent of AI.
 workbench = ["dep:tiny_http"]
+# wave8
+media-http = ["dep:ureq"]
 # Replay, calibration and provider conformance.
 evaluation = ["ai"]
 # Experimental safety/accessibility checks.
@@ -143,3 +145,5 @@ required-features = ["assist"]
 [[example]]
 name = "r2_credentials"
 required-features = ["credentials"]
+
+# wave8: bounded URL input and local API remain optional.

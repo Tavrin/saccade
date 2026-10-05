@@ -15,6 +15,8 @@ use saccade_core::view::{ViewOptions, build_view, is_safe_name};
 // wave7
 mod vision_checks;
 mod wave7_cmd;
+// wave8
+mod media_cmd;
 #[cfg(feature = "mcp")]
 mod wave7_mcp;
 
@@ -247,6 +249,9 @@ enum Command {
     Hash(hash_cmd::HashArgs),
     /// Cluster near-duplicates with bounded Hamming search; never delete images.
     Dedupe(hash_cmd::DedupeArgs),
+    // wave8
+    /// Analyze an image into a versioned media record (no model downloads by default).
+    AnalyzeMedia(media_cmd::AnalyzeArgs),
     // wave7
     /// List or explicitly pull pinned local models.
     Models(wave7_cmd::ModelsArgs),
@@ -1081,6 +1086,8 @@ fn dispatch(command: Command, record_absolute_paths: bool) -> Result<u8, CliErro
         Command::Index(args) => embedding_cmd::index(args),
         Command::Hash(args) => hash_cmd::run_hash(args),
         Command::Dedupe(args) => hash_cmd::run_dedupe(args),
+        // wave8
+        Command::AnalyzeMedia(args) => media_cmd::analyze(args),
         // wave7
         Command::Models(args) => wave7_cmd::models(args),
         Command::Locate(args) => wave7_cmd::locate(args),
@@ -1890,6 +1897,8 @@ fn doctor(json: bool) -> Result<u8, CliError> {
     if cfg!(feature = "vision-providers") {
         capabilities.push("vision-provider-mapping-v1");
     }
+    // wave8
+    capabilities.push("media-record-v1");
     capabilities.sort_unstable();
     let git_commit = option_env!("SACCADE_GIT_COMMIT").filter(|value| !value.is_empty());
     let git_commit_short =

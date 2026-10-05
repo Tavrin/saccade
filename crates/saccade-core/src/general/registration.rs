@@ -83,6 +83,24 @@ pub struct Registered {
     /// Model and geometry evidence.
     pub evidence: Evidence,
 }
+/// Compact reusable original-pixel keypoint descriptor.
+#[derive(Clone, Debug, Serialize, Deserialize)]
+pub struct Keypoint {
+    /// Original-pixel coordinates.
+    pub point: [f64; 2],
+    /// 256-bit oriented BRIEF descriptor, four little-endian words.
+    pub descriptor: [u64; 4],
+}
+/// Bounded fingerprint using the same detector/descriptors as registration (at most 1200).
+pub fn fingerprint(image: &RgbaImage) -> Vec<Keypoint> {
+    features(image)
+        .into_iter()
+        .map(|f| Keypoint {
+            point: [f.x, f.y],
+            descriptor: f.descriptor,
+        })
+        .collect()
+}
 #[derive(Clone)]
 struct Feature {
     x: f64,

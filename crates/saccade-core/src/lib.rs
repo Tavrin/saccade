@@ -154,3 +154,7 @@ pub fn judge_bench_sources(case: &evidence::case::EvidenceCase) -> Vec<String> {
 // wave7
 /// Standalone local vision, provenance and crop-safety interfaces.
 pub mod wave7;
+
+// wave8
+/// Versioned media analysis, saliency, usage and search primitives.
+pub mod media;
