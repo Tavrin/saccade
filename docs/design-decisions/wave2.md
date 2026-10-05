@@ -75,3 +75,7 @@ History JSON is a bounded preview: at most six run witnesses per shown group, ex
 ## Final inventory review
 
 With an explicit Playwright inventory, copy contained artifacts even when their image headers are unusable and let the comparison record the decode error. The inventory then retains that unusable case beside successfully compared cases instead of aborting the entire suite before accounting. Attachment-only historical ingestion keeps its existing header validation. A passing-plus-corrupt-capture CLI fixture verifies exact accounting and incomplete coverage. Path containment remains enforced before all copies.
+
+## Final packaging review
+
+The release archive guard initially rejected the new `models/semantic-regions.json` path. Allow exactly that core manifest, require it in the source archive, and retain rejection of weights and other model files. Regression checks exercise the manifest/weight boundary. Update the packaged library README to list compression and optional semantic-region plumbing with the inference residual. This is an archive-inventory correction; no runtime or model qualification is inferred from packaging.

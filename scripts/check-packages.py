@@ -13,6 +13,14 @@ READMES = {
     'saccade': ROOT / 'README.md',
 }
 ALLOWED = ('.cargo_vcs_info.json', 'Cargo.lock', 'Cargo.toml', 'Cargo.toml.orig', 'README.md')
+MODEL_MANIFEST = 'models/semantic-regions.json'
+
+
+def approved_file(crate, path):
+    """Allow the pinned model manifest, without allowing a directory of weights."""
+    return (path in ALLOWED or path.startswith(('src/', 'tests/', 'examples/', 'assets/'))
+            or path == 'build.rs' or (crate == 'saccade-core'
+            and (path.startswith('schemas/') or path == MODEL_MANIFEST)))
 
 
 def check_readme(package, archive, intended, marker=None):
@@ -57,8 +65,9 @@ def main():
             packaged = {p for p in files if p.startswith('schemas/')}
             assert expected and packaged == expected, (crate, expected - packaged, packaged - expected)
             assert 'examples/panel.toml' in files, crate
+            assert {p for p in files if p.startswith('models/')} == {MODEL_MANIFEST}, crate
         for path in files:
-            assert path in ALLOWED or path.startswith(('src/', 'tests/', 'examples/', 'assets/')) or path == 'build.rs' or (crate == 'saccade-core' and path.startswith('schemas/')), (crate, path)
+            assert approved_file(crate, path), (crate, path)
             assert not any(part in ('target', 'report', 'evaluation', 'private', 'node_modules') for part in path.split('/')), (crate, path)
             if path.endswith(('.png', '.jpg', '.jpeg', '.gif', '.webp')):
                 assert crate == 'saccade' and path.startswith('assets/demo/'), (crate, path)

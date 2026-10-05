@@ -15,6 +15,14 @@ spec.loader.exec_module(checker)
 
 
 class PackagedReadmeTests(unittest.TestCase):
+    def test_model_manifest_does_not_allow_weights_or_other_model_files(self):
+        self.assertTrue(checker.approved_file('saccade-core', 'models/semantic-regions.json'))
+        self.assertFalse(checker.approved_file('saccade', 'models/semantic-regions.json'))
+        for name in ['model.onnx', 'model.safetensors', 'sam.pt', 'extra.json',
+                     'semantic-regions.json/weights.pt']:
+            with self.subTest(name=name):
+                self.assertFalse(checker.approved_file('saccade-core', 'models/' + name))
+
     def setUp(self):
         self.temp = tempfile.TemporaryDirectory()
         self.addCleanup(self.temp.cleanup)

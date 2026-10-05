@@ -83,6 +83,8 @@ the sequential FLIP backend. The other features are opt-in:
 | --- | --- |
 | `parallel` | Enables parallel filtering in `flip-rs`. |
 | `graphics` | Enables graphics computations, including performance evaluation. |
+| `compression` | Adds pinned SSIMULACRA2 scoring for explicit encoded candidate sweeps. |
+| `semantic-regions` | Adds explicit model caching and dynamically loaded ONNX runtime plumbing; text-to-mask inference remains unavailable. |
 | `ai` | Adds provider adapters, review orchestration and HTTP dependencies. |
 | `workbench` | Adds the local HTTP workbench independently of AI. |
 | `evaluation` | Adds replay, calibration and provider conformance; enables `ai`. |
@@ -93,6 +95,10 @@ The `saccade` crate supplies command-line parsing, MCP transport and command
 workflows over this library. Its default feature set is broader. Applications
 that only need comparisons can depend on `saccade-core` directly. Neither
 basic image comparison nor report rendering needs a GPU or provider account.
+
+`models/semantic-regions.json` packages checkpoint hashes, licenses and qualification
+limits. Model weights are never packaged; explicit runtime caching verifies downloads.
+Frozen mask import and localized measurement do not require the model feature.
 
 ## License
 
