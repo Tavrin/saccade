@@ -18,6 +18,8 @@ pub mod error;
 pub mod evidence;
 pub mod exclusions;
 pub mod explain;
+#[cfg(feature = "geometry")]
+pub mod geometry;
 pub mod gpu_clock;
 pub mod hdr;
 pub mod hotspots;
@@ -70,6 +72,8 @@ pub const COMPILED_FEATURES: &[&str] = &[
     "parallel",
     #[cfg(feature = "graphics")]
     "graphics",
+    #[cfg(feature = "geometry")]
+    "geometry",
     #[cfg(feature = "ai")]
     "ai",
     #[cfg(feature = "workbench")]

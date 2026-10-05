@@ -51,6 +51,11 @@ fn committed_schemas_match_the_rust_types() {
     let dir = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("schemas");
     let update = std::env::var_os("UPDATE_SCHEMAS").is_some();
     let all = [
+        #[cfg(feature = "geometry")]
+        (
+            "saccade-geometry.v1.schema.json",
+            generated::<saccade_core::geometry::Document>("saccade-geometry.v1.schema.json"),
+        ),
         (
             "saccade-evidence.v1.schema.json",
             generated::<saccade_core::evidence::Document>("saccade-evidence.v1.schema.json"),

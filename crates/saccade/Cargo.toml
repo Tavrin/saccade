@@ -27,6 +27,7 @@ fs2 = "0.4.3"
 [features]
 default = ["parallel", "graphics", "ai", "workbench", "mcp", "evaluation"]
 parallel = ["saccade-core/parallel"]
+geometry = ["saccade-core/geometry"]
 graphics = ["saccade-core/graphics", "dep:colorvideovdp"]
 ai = ["saccade-core/ai"]
 workbench = ["saccade-core/workbench"]

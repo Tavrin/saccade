@@ -56,3 +56,48 @@ Every onset remains a candidate. Fresh qualified repeats are required, and
 intervening commits or missing nights make the interval ambiguous. The penalty
 is a calibration seed: synthetic tests do not establish a 1% field false-alert
 rate. Variance shifts, periodicity and general gradual drift are not qualified.
+
+## Static mesh geometry
+
+Build with `cargo build -p saccade --features geometry`. Geometry is optional and
+is not in the default feature set.
+
+```
+saccade experiment geometry original.obj candidate.gltf --unit m --samples 4096 --json
+saccade prove mesh-identity original.obj candidate.obj --unit m --json
+```
+
+Inputs are static triangle OBJ, glTF or GLB. Declare their common coordinate
+unit with `--unit`; Saccade does not convert units or align the meshes. glTF node
+transforms are applied in f64. glTF POSITION samples are natively f32 and are
+promoted to f64. OBJ positions are read as f64. The default glTF scene is used,
+or its sole scene when unambiguous. Triangle-only OBJ avoids implicitly choosing
+an ambiguous polygon triangulation. Degenerate/nonfinite geometry, animation,
+skinning, morph targets and required glTF extensions are rejected.
+
+`experiment geometry` reports directed and symmetric sampled Hausdorff, mean and
+RMS distances, directed p95/p99, and oriented geometric face-normal deviations.
+It exits zero when measurement completes, regardless of distance. Normal flips
+remain visible; correspondence on edges or vertices is reported as ambiguous.
+Every triangle receives area samples, including tiny components. Vertex and edge
+midpoint probes improve maximum-distance coverage without biasing mean/RMS.
+The requested area-sample budget is approximate: actual samples per direction
+are at most the budget plus the triangle count. The sampler has no random stream,
+and records its version, sample counts and sequential reduction order.
+
+Sampled Hausdorff is a lower estimate subject to floating-point error. It is not
+a certified upper bound and can miss defects between probes. No adaptive bound
+or domain-specific pass tolerance is supplied.
+
+`prove mesh-identity` exits zero only for exact ordered f64 world vertices and
+u32 oriented triangle indices under the unit declaration. Different orderings
+or triangulations can have zero sampled distance but fail this identity proof.
+Document/buffer hashes separately identify input bytes; a UV-only change can
+change those hashes while geometric identity remains true. Materials, UVs,
+shading normals, textures and renderer appearance are explicitly outside the
+geometric proof. OBJ MTL and glTF image resources are not loaded.
+
+Each resource is limited to 64 MiB; glTF document and buffers share a 64 MiB
+aggregate limit. Meshes are limited to one million vertices and triangles.
+Buffers may be embedded or local relative files. Parent paths, URL escapes,
+remote URLs and symlinks escaping the mesh directory are rejected.

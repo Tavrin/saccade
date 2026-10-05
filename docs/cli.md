@@ -5,7 +5,7 @@ Generated from compiled capabilities and `--help`; do not edit by hand.
 Generation: `cargo build --release -p saccade --all-features`, then `python3 scripts/gen-docs.py --saccade target/release/saccade`.
 The all-features binary includes every supported operation.
 
-Compiled features: `ai`, `evaluation`, `graphics`, `mcp`, `parallel`, `prechecks`, `schema`, `workbench`.
+Compiled features: `ai`, `evaluation`, `geometry`, `graphics`, `mcp`, `parallel`, `prechecks`, `schema`, `workbench`.
 
 Exit 1 means a failed image measurement/evaluation gate or located divergence.
 Exit 0 for compare/identity means no image regression; inspect `performance` for qualification.
@@ -476,11 +476,33 @@ Check whether image identity or performance evidence proves a claim
 Usage: saccade prove [OPTIONS] <COMMAND>
 
 Commands:
-  identity     Prove exact native decoded-sample equality over the selected images
-  performance  Evaluate performance claims from ablation arms and repeat noise
+  mesh-identity  Prove exact ordered static mesh geometry identity (appearance excluded)
+  identity       Prove exact native decoded-sample equality over the selected images
+  performance    Evaluate performance claims from ablation arms and repeat noise
 
 Options:
   -h, --help  Print help
+
+Global options:
+      --allow-out-near-captures  Silence warnings when --out is next to capture metadata
+      --record-absolute-paths    Opt in to absolute local paths in reports and machine-readable output
+```
+
+## saccade prove mesh-identity
+
+```text
+Prove exact ordered static mesh geometry identity (appearance excluded)
+
+Usage: saccade prove mesh-identity [OPTIONS] --unit <UNIT> <BASELINE> <CAPTURE>
+
+Arguments:
+  <BASELINE>
+  <CAPTURE>
+
+Options:
+      --unit <UNIT>  Declared common coordinate unit; no conversion or registration is performed
+      --json
+  -h, --help         Print help
 
 Global options:
       --allow-out-near-captures  Silence warnings when --out is next to capture metadata
@@ -1066,6 +1088,7 @@ Analyze existing graphics captures: ablation, sequences, ranking, bisection
 Usage: saccade experiment [OPTIONS] <COMMAND>
 
 Commands:
+  geometry  Measure bidirectional triangle-surface distance and oriented normal deviation
   ablate    Compare ablation arms against a base with image and performance evidence
   temporal  Compare numbered SDR frames with the ColorVideoVDP temporal model
   sequence  Compare numbered colour frames by sorted index and measure added flicker
@@ -1076,6 +1099,28 @@ Commands:
 
 Options:
   -h, --help  Print help
+
+Global options:
+      --allow-out-near-captures  Silence warnings when --out is next to capture metadata
+      --record-absolute-paths    Opt in to absolute local paths in reports and machine-readable output
+```
+
+## saccade experiment geometry
+
+```text
+Measure bidirectional triangle-surface distance and oriented normal deviation
+
+Usage: saccade experiment geometry [OPTIONS] --unit <UNIT> <BASELINE> <CAPTURE>
+
+Arguments:
+  <BASELINE>
+  <CAPTURE>
+
+Options:
+      --unit <UNIT>        Declared common coordinate unit; no conversion or registration is performed
+      --samples <SAMPLES>  Approximate area samples per direction, plus mandatory triangle/edge/vertex coverage [default: 4096]
+      --json
+  -h, --help               Print help
 
 Global options:
       --allow-out-near-captures  Silence warnings when --out is next to capture metadata

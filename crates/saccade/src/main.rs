@@ -17,6 +17,8 @@ mod agent_ui;
 mod approval;
 mod engine_ingest;
 mod f1;
+#[cfg(feature = "geometry")]
+mod geometry_cmd;
 mod git_bisect;
 mod history;
 mod ingest;
@@ -597,6 +599,9 @@ Example:
 
 #[derive(Subcommand)]
 enum ProveOperation {
+    /// Prove exact ordered static mesh geometry identity (appearance excluded).
+    #[cfg(feature = "geometry")]
+    MeshIdentity(geometry_cmd::IdentityArgs),
     /// Prove exact native decoded-sample equality over the selected images.
     Identity(Box<ProveIdentityArgs>),
     /// Evaluate performance claims from ablation arms and repeat noise.
@@ -636,6 +641,9 @@ struct ProveIdentityArgs {
 
 #[derive(Subcommand)]
 enum ExperimentOperation {
+    /// Measure bidirectional triangle-surface distance and oriented normal deviation.
+    #[cfg(feature = "geometry")]
+    Geometry(geometry_cmd::GeometryArgs),
     /// Compare ablation arms against a base with image and performance evidence.
     #[cfg(feature = "graphics")]
     Ablate(perf_cmd::AblateArgs),
@@ -982,6 +990,14 @@ fn dispatch(command: Command, record_absolute_paths: bool) -> Result<u8, CliErro
         Command::Doctor { json } => doctor(json),
         Command::Bisect(args) => git_bisect::run(args),
         Command::Ingest(args) => ingest::run(args, record_absolute_paths),
+        #[cfg(feature = "geometry")]
+        Command::Prove {
+            operation: ProveOperation::MeshIdentity(args),
+        } => geometry_cmd::identity(args),
+        #[cfg(feature = "geometry")]
+        Command::Experiment {
+            operation: ExperimentOperation::Geometry(args),
+        } => geometry_cmd::compare(args),
         Command::History(args) => history::run(args),
         Command::Inspect(args) => local_cmd::inspect(args, record_absolute_paths),
         Command::Review(args) => local_cmd::review(args, record_absolute_paths),
@@ -2010,6 +2026,7 @@ fn required_feature(operation: &str) -> Option<&'static str> {
         "serve" | "ask" | "saccade_ask_human" | "saccade_inbox_get" => Some("workbench"),
         "safety" | "a11y" | "saccade_safety" | "saccade_a11y" => Some("prechecks"),
         "mcp" => Some("mcp"),
+        "geometry" | "mesh-identity" => Some("geometry"),
         _ => None,
     }
 }
@@ -2033,10 +2050,11 @@ fn requested_feature(args: &[std::ffi::OsString]) -> Option<&'static str> {
         .find(|a| !a.to_string_lossy().starts_with('-'))?
         .to_str()?;
     unavailable_feature(operation).or_else(|| {
-        if operation == "experiment" {
+        if operation == "experiment" || operation == "prove" {
             args.iter()
                 .skip(2)
-                .find_map(|a| a.to_str().and_then(unavailable_feature))
+                .find(|a| !a.to_string_lossy().starts_with('-'))
+                .and_then(|a| a.to_str().and_then(unavailable_feature))
         } else if operation == "init" && !feature_enabled("ai") {
             args.windows(2)
                 .any(|w| {

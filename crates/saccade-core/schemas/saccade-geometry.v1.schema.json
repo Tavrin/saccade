@@ -1,0 +1,477 @@
+{
+  "$defs": {
+    "Analysis": {
+      "additionalProperties": false,
+      "description": "One optional result. Historical absence cannot imply successful execution.",
+      "properties": {
+        "capability": {
+          "$ref": "#/$defs/Capability",
+          "description": "Whether this producer established the requested evidence."
+        },
+        "evidence": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/GeometryDiff"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "Measurements, never an independent approval authority."
+        },
+        "limitations": {
+          "description": "Scope restrictions in stable order.",
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "provenance": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Provenance"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "Reproduction information; absent for historical, unrecorded evidence."
+        }
+      },
+      "required": [
+        "capability",
+        "limitations"
+      ],
+      "type": "object"
+    },
+    "Analysis2": {
+      "additionalProperties": false,
+      "description": "One optional result. Historical absence cannot imply successful execution.",
+      "properties": {
+        "capability": {
+          "$ref": "#/$defs/Capability",
+          "description": "Whether this producer established the requested evidence."
+        },
+        "evidence": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Identity"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "Measurements, never an independent approval authority."
+        },
+        "limitations": {
+          "description": "Scope restrictions in stable order.",
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "provenance": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Provenance"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "Reproduction information; absent for historical, unrecorded evidence."
+        }
+      },
+      "required": [
+        "capability",
+        "limitations"
+      ],
+      "type": "object"
+    },
+    "Capability": {
+      "description": "Availability is separate from a measurement or verdict.",
+      "oneOf": [
+        {
+          "additionalProperties": false,
+          "description": "The requested computation was performed within its declared scope.",
+          "properties": {
+            "state": {
+              "const": "available",
+              "type": "string"
+            }
+          },
+          "required": [
+            "state"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "description": "Evidence was not supplied or cannot establish applicability.",
+          "properties": {
+            "reason": {
+              "description": "Machine-readable explanation.",
+              "type": "string"
+            },
+            "state": {
+              "const": "unknown",
+              "type": "string"
+            }
+          },
+          "required": [
+            "state",
+            "reason"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "description": "This implementation cannot perform the requested computation.",
+          "properties": {
+            "reason": {
+              "description": "Machine-readable explanation.",
+              "type": "string"
+            },
+            "state": {
+              "const": "unsupported",
+              "type": "string"
+            }
+          },
+          "required": [
+            "state",
+            "reason"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "description": "The caller explicitly excluded the computation.",
+          "properties": {
+            "reason": {
+              "description": "Machine-readable explanation.",
+              "type": "string"
+            },
+            "state": {
+              "const": "excluded",
+              "type": "string"
+            }
+          },
+          "required": [
+            "state",
+            "reason"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "description": "Inputs or execution failed validation.",
+          "properties": {
+            "reason": {
+              "description": "Machine-readable explanation.",
+              "type": "string"
+            },
+            "state": {
+              "const": "rejected",
+              "type": "string"
+            }
+          },
+          "required": [
+            "state",
+            "reason"
+          ],
+          "type": "object"
+        }
+      ]
+    },
+    "Directed": {
+      "description": "Directed area-weighted distance distribution and separate defect probes.",
+      "properties": {
+        "area_samples": {
+          "description": "Deterministic area samples; each triangle gets at least one.",
+          "format": "uint",
+          "minimum": 0,
+          "type": "integer"
+        },
+        "defect_probes": {
+          "description": "Additional vertex/edge probes used only for the maximum.",
+          "format": "uint",
+          "minimum": 0,
+          "type": "integer"
+        },
+        "maximum": {
+          "description": "Maximum among area samples and defect probes; a sampled lower estimate.",
+          "format": "double",
+          "type": "number"
+        },
+        "mean": {
+          "description": "Unsquared distance in declared length units, weighted by triangle area.",
+          "format": "double",
+          "type": "number"
+        },
+        "normal_ambiguous_area_fraction": {
+          "description": "Fraction of area samples whose projection hits an edge/vertex; normal correspondence unknown.",
+          "format": "double",
+          "type": "number"
+        },
+        "normal_max_degrees": {
+          "description": "Largest measured oriented face-normal angle.",
+          "format": "double",
+          "type": [
+            "number",
+            "null"
+          ]
+        },
+        "normal_mean_degrees": {
+          "description": "Area-weighted oriented face-normal angle in degrees where correspondence is unambiguous.",
+          "format": "double",
+          "type": [
+            "number",
+            "null"
+          ]
+        },
+        "p95": {
+          "description": "Weighted 95th percentile over area samples.",
+          "format": "double",
+          "type": "number"
+        },
+        "p99": {
+          "description": "Weighted 99th percentile over area samples.",
+          "format": "double",
+          "type": "number"
+        },
+        "rms": {
+          "description": "Root mean squared distance in declared length units.",
+          "format": "double",
+          "type": "number"
+        },
+        "surface_area": {
+          "description": "Total sampled source surface area.",
+          "format": "double",
+          "type": "number"
+        }
+      },
+      "required": [
+        "area_samples",
+        "defect_probes",
+        "surface_area",
+        "maximum",
+        "mean",
+        "rms",
+        "p95",
+        "p99",
+        "normal_ambiguous_area_fraction"
+      ],
+      "type": "object"
+    },
+    "GeometryDiff": {
+      "description": "Bidirectional surface evidence, never a certified continuous Hausdorff bound.",
+      "properties": {
+        "baseline_to_capture": {
+          "$ref": "#/$defs/Directed",
+          "description": "Baseline surface samples projected to capture triangles."
+        },
+        "capture_to_baseline": {
+          "$ref": "#/$defs/Directed",
+          "description": "Capture surface samples projected to baseline triangles."
+        },
+        "identity": {
+          "$ref": "#/$defs/Identity",
+          "description": "Ordered geometry identity, a separate exact claim."
+        },
+        "mean": {
+          "description": "Arithmetic average of the directed unsquared means.",
+          "format": "double",
+          "type": "number"
+        },
+        "rms": {
+          "description": "Square root of the average directed mean squared distances.",
+          "format": "double",
+          "type": "number"
+        },
+        "sampled_hausdorff": {
+          "description": "Maximum of the directed sampled maxima; lower estimate subject to floating-point error.",
+          "format": "double",
+          "type": "number"
+        },
+        "unit": {
+          "description": "Declared length units.",
+          "type": "string"
+        }
+      },
+      "required": [
+        "unit",
+        "identity",
+        "baseline_to_capture",
+        "capture_to_baseline",
+        "sampled_hausdorff",
+        "mean",
+        "rms"
+      ],
+      "type": "object"
+    },
+    "Identity": {
+      "description": "Exact identity of the declared geometry, distinct from sampled surface similarity.",
+      "properties": {
+        "appearance_attributes": {
+          "$ref": "#/$defs/Capability",
+          "description": "This proof does not establish equal UVs, materials, textures or shading normals."
+        },
+        "geometry_sha256": {
+          "description": "Content identities of the decoded ordered geometry.",
+          "items": {
+            "type": "string"
+          },
+          "maxItems": 2,
+          "minItems": 2,
+          "type": "array"
+        },
+        "ordered_geometry_identical": {
+          "description": "Exact ordered f64 world vertices and u32 triangle indices, including unit declaration.",
+          "type": "boolean"
+        },
+        "source_geometry_resources_identical": {
+          "description": "Source document and loaded geometry buffer bytes match in resource order.",
+          "type": "boolean"
+        },
+        "unit": {
+          "description": "Units supplied by the caller; no implicit unit conversion.",
+          "type": "string"
+        }
+      },
+      "required": [
+        "ordered_geometry_identical",
+        "source_geometry_resources_identical",
+        "geometry_sha256",
+        "unit",
+        "appearance_attributes"
+      ],
+      "type": "object"
+    },
+    "Provenance": {
+      "additionalProperties": false,
+      "description": "Reproduction details shared by optional analysis features.",
+      "properties": {
+        "code_license": {
+          "description": "SPDX expression for this implementation.",
+          "type": "string"
+        },
+        "implementation": {
+          "description": "Algorithm name and revision, independently of the tool version.",
+          "type": "string"
+        },
+        "resources": {
+          "description": "Exact resources, in producer-declared stable order.",
+          "items": {
+            "$ref": "#/$defs/Resource"
+          },
+          "type": "array"
+        },
+        "settings": {
+          "additionalProperties": {
+            "type": "string"
+          },
+          "description": "Explicit preprocessing, execution and sampling settings.",
+          "type": "object"
+        },
+        "tool_version": {
+          "description": "Producing package version.",
+          "type": "string"
+        }
+      },
+      "required": [
+        "implementation",
+        "tool_version",
+        "code_license",
+        "resources",
+        "settings"
+      ],
+      "type": "object"
+    },
+    "Resource": {
+      "additionalProperties": false,
+      "description": "Content-bound resource; absent hashes or licences remain explicit unknowns.",
+      "properties": {
+        "license": {
+          "description": "SPDX expression or a referenced custom licence; never inferred from code.",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "name": {
+          "description": "Logical resource name, not a machine-specific path.",
+          "type": "string"
+        },
+        "role": {
+          "description": "Role such as input, implementation, weights or configuration.",
+          "type": "string"
+        },
+        "sha256": {
+          "description": "Lowercase SHA-256 of exact resource bytes, when available.",
+          "type": [
+            "string",
+            "null"
+          ]
+        }
+      },
+      "required": [
+        "name",
+        "role"
+      ],
+      "type": "object"
+    }
+  },
+  "$id": "https://github.com/Tavrin/saccade/crates/saccade-core/schemas/saccade-geometry.v1.schema.json",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "description": "Versioned standalone mesh evidence document.",
+  "oneOf": [
+    {
+      "description": "Sampled bidirectional measurements.",
+      "properties": {
+        "analysis": {
+          "$ref": "#/$defs/Analysis",
+          "description": "Measurement and its declared limits."
+        },
+        "operation": {
+          "const": "geometry",
+          "type": "string"
+        }
+      },
+      "required": [
+        "operation",
+        "analysis"
+      ],
+      "type": "object"
+    },
+    {
+      "description": "Exact ordered geometry proof.",
+      "properties": {
+        "analysis": {
+          "$ref": "#/$defs/Analysis2",
+          "description": "Proof and its declared limits."
+        },
+        "operation": {
+          "const": "mesh_identity",
+          "type": "string"
+        }
+      },
+      "required": [
+        "operation",
+        "analysis"
+      ],
+      "type": "object"
+    }
+  ],
+  "properties": {
+    "schema": {
+      "const": "saccade-geometry.v1",
+      "description": "Always saccade-geometry.v1.",
+      "type": "string"
+    }
+  },
+  "required": [
+    "schema"
+  ],
+  "title": "Document",
+  "type": "object"
+}

@@ -49,3 +49,27 @@ absorbing pre-change observations. Preserve all numerical witnesses and gaps.
 Candidates never become confirmed on counts alone. Synthetic step/noise/spike,
 materiality, identity and exhaustive-objective tests establish mechanics only;
 field false-alert calibration and fresh independent repeats remain residuals.
+
+## Item 3: geometry
+
+`experiment geometry` is the measurement front door: finite samples cannot prove
+continuous Hausdorff bounds. `prove mesh-identity` makes the narrower exact claim
+about ordered world vertices, oriented triangle indices and declared units.
+Appearance attributes remain unsupported in that proof; input document/buffer
+hashes are retained separately so UV-only edits remain visible as source changes.
+No renderer acceptance or asset-wide texture/material equality is inferred.
+
+Use pinned parry3d-f64 0.21.1 (Apache-2.0), tobj 4.0.3 with use_f64 (MIT),
+gltf 1.4.1 (MIT OR Apache-2.0), and existing base64 0.22 (MIT OR Apache-2.0).
+The lockfile and geometry-dependencies.md record transitive additions. Pin Parry
+rather than taking the newest major so the workspace Rust 1.88 contract remains
+applicable. glTF convenience transforms are f32 in the inspected loader source;
+read transform JSON as f64 to preserve large-world translation precision.
+
+Use Parry surface queries with solid=false, deterministic per-triangle area
+strata and mandatory vertex/edge probes. Area weights are reduced sequentially;
+probe oversampling affects only maxima. Edge/vertex normal correspondence stays
+unknown; face-normal orientation is preserved. Static triangle-only input rejects
+unsupported animation, skins, morphs and required extensions. No automatic ICP,
+unit conversion or polygon triangulation. Residuals: adaptive certified bounds,
+attribute-level comparison, overlapping-surface tie resolution and renderer quality.

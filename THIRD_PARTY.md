@@ -71,3 +71,12 @@ port's published parity applies to its measured inputs and toolchains.
 Rust dependencies (`image`, `serde`, `serde_json`, `thiserror`, `clap`, `rayon`
 (MIT OR Apache-2.0), `sha2` (MIT OR Apache-2.0), and their transitive crates) are under MIT, Apache-2.0, BSD, Zlib or ISC terms.
 Run `cargo tree` for the full list.
+
+## Optional geometry feature
+
+The `geometry` feature uses parry3d-f64 0.21.1 (Apache-2.0), tobj 4.0.3 (MIT),
+gltf 1.4.1 (MIT OR Apache-2.0), and base64 0.22.1 (MIT OR Apache-2.0).
+The [complete added dependency inventory](docs/design-decisions/geometry-dependencies.md)
+records every new lockfile version and its licence. Release archives' generated
+notices retain the available upstream licence texts. Geometry does not load
+OpenCV, model weights, native CAD kernels or network resources.
