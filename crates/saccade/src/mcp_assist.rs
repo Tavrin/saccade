@@ -24,6 +24,7 @@ impl Server {
                 "offline",
                 "replay",
                 "route",
+                "jev_routing",
                 "budget_calls",
                 "max_spend_usd",
                 "deadline_secs",
@@ -39,9 +40,13 @@ impl Server {
                 "mask_manifest",
                 "target",
                 "second_target",
+                "response",
             ],
         )?;
         let operation = require_str(args, "operation")?;
+        if let Some(action) = operation.strip_prefix("batch-") {
+            return self.assist_batch(action, args);
+        }
         let file = self.existing_file("artifact", &require_str(args, "artifact")?)?;
         if let Some(reference) = args.get("artifact").and_then(Value::as_object) {
             let actual = saccade_core::evidence::canonical::Digest::of_bytes(
@@ -116,6 +121,7 @@ impl Server {
             replay,
             run,
             route,
+            jev_routing: arg_bool(args, "jev_routing")?.unwrap_or(false),
             budget_calls: budget,
             max_spend_usd: arg_f64(args, "max_spend_usd")?.unwrap_or(0.15),
             deadline_secs: number("deadline_secs", 300)?,
@@ -207,10 +213,79 @@ impl Server {
         Ok(ToolOutput {text:"Experimental AI advice. Read outcome, execution, limitations and unchanged deterministic verdict.".into(),structured:value,images:vec![]})
     }
 }
+impl Server {
+    fn assist_batch(&self, operation: &str, args: &Map<String, Value>) -> ToolResult {
+        reject_unknown(
+            args,
+            &[
+                "operation",
+                "artifact",
+                "out",
+                "experimental",
+                "run",
+                "response",
+                "budget_calls",
+                "deadline_secs",
+            ],
+        )?;
+        if !["submit", "status", "collect"].contains(&operation) {
+            return Err(CliError::usage("unknown Batch operation"));
+        }
+        let plan = self.existing_file("artifact", &require_str(args, "artifact")?)?;
+        if let Some(reference) = args.get("artifact").and_then(Value::as_object) {
+            let hash = saccade_core::evidence::canonical::Digest::of_bytes(
+                &saccade_core::assist::read_bytes(&plan, 32 * 1024 * 1024)?,
+            );
+            if reference["sha256"].as_str() != Some(hash.as_str()) {
+                return Err(CliError::new("stale_action", "Batch plan digest changed"));
+            }
+        }
+        let user = crate::review_cmd::load_user(&crate::review_cmd::user_file(
+            self.providers.user_config.as_deref(),
+        ))?;
+        let auth = crate::review_cmd::authorization(
+            self.providers.allow_provider_calls,
+            self.providers.budget_calls.unwrap_or(0),
+            &self.run_id,
+            &user,
+        );
+        let integer = |name: &str, default: u64| -> Result<u64, CliError> {
+            args.get(name).map_or(Ok(default), |v| {
+                v.as_u64()
+                    .ok_or_else(|| CliError::usage("Batch integer control"))
+            })
+        };
+        let (value, _exit) = crate::assist_batch_cmd::execute(
+            operation,
+            crate::assist_batch_cmd::BatchCommon {
+                plan,
+                job: self.resolve("out", &require_str(args, "out")?)?,
+                experimental: arg_bool(args, "experimental")?.unwrap_or(false),
+                run: arg_bool(args, "run")?.unwrap_or(false),
+                response: arg_str(args, "response")?
+                    .map(|p| self.existing_file("response", &p))
+                    .transpose()?,
+                budget_calls: integer(
+                    "budget_calls",
+                    self.providers.budget_calls.unwrap_or(8).min(128),
+                )?,
+                deadline_secs: integer("deadline_secs", 300)?,
+            },
+            self.providers.user_config.as_deref(),
+            Some(&self.policy),
+            Some(&auth),
+        )?;
+        Ok(ToolOutput {
+            text: "Asynchronous experimental Batch receipt; no approval authority.".into(),
+            structured: value,
+            images: vec![],
+        })
+    }
+}
 pub(super) fn schemas() -> Vec<Value> {
     let mut variants = Vec::new();
     for op in ["explain", "audit-mask", "check-ui"] {
-        let mut props = json!({"operation":{"const":op},"artifact":{"oneOf":[{"type":"string"},{"type":"object","properties":{"path":{"type":"string"},"sha256":{"type":"string","pattern":"^sha256:[0-9a-f]{64}$"}},"required":["path","sha256"],"additionalProperties":false}]},"out":{"type":"string"},"experimental":{"type":"boolean","const":true},"run":{"type":"boolean","default":false},"offline":{"type":"boolean","default":false},"replay":{"type":"string"},"route":{"enum":["rules","cascade","all-vision"]},"budget_calls":{"type":"integer","minimum":1,"maximum":8},"max_spend_usd":{"type":"number","exclusiveMinimum":0,"maximum":0.15},"deadline_secs":{"type":"integer","minimum":1,"maximum":300},"gemini_revision":{"type":"string"},"jev_revision":{"type":"string"},"bypass_cache":{"type":"boolean"},"source_evidence":{"type":"array","items":{"type":"string"},"maxItems":2},"incomplete_capture":{"type":"boolean"},"pre_masked":{"type":"boolean"}});
+        let mut props = json!({"operation":{"const":op},"artifact":{"oneOf":[{"type":"string"},{"type":"object","properties":{"path":{"type":"string"},"sha256":{"type":"string","pattern":"^sha256:[0-9a-f]{64}$"}},"required":["path","sha256"],"additionalProperties":false}]},"out":{"type":"string"},"experimental":{"type":"boolean","const":true},"run":{"type":"boolean","default":false},"offline":{"type":"boolean","default":false},"replay":{"type":"string"},"route":{"enum":["rules","cascade","all-vision"]},"jev_routing":{"type":"boolean","default":false},"budget_calls":{"type":"integer","minimum":1,"maximum":8},"max_spend_usd":{"type":"number","exclusiveMinimum":0,"maximum":0.15},"deadline_secs":{"type":"integer","minimum":1,"maximum":300},"gemini_revision":{"type":"string"},"jev_revision":{"type":"string"},"bypass_cache":{"type":"boolean"},"source_evidence":{"type":"array","items":{"type":"string"},"maxItems":2},"incomplete_capture":{"type":"boolean"},"pre_masked":{"type":"boolean"}});
         let mut required = vec!["operation", "artifact", "out", "experimental"];
         if op == "check-ui" {
             props["condition"] = json!({"type":"string","maxLength":512});
@@ -225,6 +300,9 @@ pub(super) fn schemas() -> Vec<Value> {
             props["mask_manifest"] = json!({"type":"string"});
         }
         variants.push(json!({"type":"object","properties":props,"required":required,"additionalProperties":false}));
+    }
+    for op in ["batch-submit", "batch-status", "batch-collect"] {
+        variants.push(json!({"type":"object","properties":{"operation":{"const":op},"artifact":{"oneOf":[{"type":"string"},{"type":"object","properties":{"path":{"type":"string"},"sha256":{"type":"string","pattern":"^sha256:[0-9a-f]{64}$"}},"required":["path","sha256"],"additionalProperties":false}]},"out":{"type":"string"},"experimental":{"type":"boolean","const":true},"run":{"type":"boolean","default":false},"response":{"type":"string"},"budget_calls":{"type":"integer","minimum":1,"maximum":128},"deadline_secs":{"type":"integer","minimum":1,"maximum":300}},"required":["operation","artifact","out","experimental"],"additionalProperties":false}));
     }
     variants
 }

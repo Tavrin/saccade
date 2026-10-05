@@ -1064,7 +1064,17 @@ impl Server {
         if args
             .get("operation")
             .and_then(Value::as_str)
-            .is_some_and(|op| ["explain", "audit-mask", "check-ui"].contains(&op))
+            .is_some_and(|op| {
+                [
+                    "explain",
+                    "audit-mask",
+                    "check-ui",
+                    "batch-submit",
+                    "batch-status",
+                    "batch-collect",
+                ]
+                .contains(&op)
+            })
         {
             return self.assist_review(args);
         }

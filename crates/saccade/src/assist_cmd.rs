@@ -67,6 +67,9 @@ pub(crate) struct Common {
     /// Deterministic rules, routed cascade or the full visual path.
     #[arg(long, value_enum, default_value = "cascade")]
     pub route: Routing,
+    /// Optional separately measured Jev evidence-need routing; disabled by default.
+    #[arg(long)]
+    pub jev_routing: bool,
     /// Real provider request cap; no retries or automatic top-up.
     #[arg(long,default_value_t=4,value_parser=clap::value_parser!(u64).range(1..=8))]
     pub budget_calls: u64,
@@ -276,6 +279,17 @@ pub(crate) fn check(
         let policy = configured_roots(&args.common)?;
         return check(args, json_output, Some(&policy), auth);
     }
+    let input = check_input(&args, roots)?;
+    let result = execute(input, args.common, roots, auth)?;
+    if json_output {
+        local_cmd::print(&result.0, true)?;
+    }
+    Ok(result)
+}
+pub(crate) fn check_input(
+    args: &CheckArgs,
+    roots: Option<&RootPolicy>,
+) -> Result<AssistInput, CliError> {
     let p = pixels(&args.image, Role::Single, &args.common, roots, None)?;
     assist::geometry::Geometry::Box(args.r#box.map(f64::from)).validate(p.image.dimensions)?;
     let mut catalog = base_catalog(
@@ -291,17 +305,19 @@ pub(crate) fn check(
     add_source(&mut catalog, &args.common, roots)?;
     let condition = match args.kind {
         VisibleKind::LabelVisible => Condition::LabelVisible {
-            label: args.condition,
+            label: args.condition.clone(),
         },
         VisibleKind::BannerAbsent => Condition::BannerAbsent {
-            label: args.condition,
+            label: args.condition.clone(),
         },
         VisibleKind::NotClipped | VisibleKind::NonOverlap => {
             let first = args
                 .target
+                .clone()
                 .ok_or_else(|| CliError::usage("geometric condition requires --target"))?;
             let second = args
                 .second_target
+                .clone()
                 .ok_or_else(|| CliError::usage("geometric condition requires --second-target"))?;
             for id in [&first, &second] {
                 let node = catalog
@@ -341,23 +357,43 @@ pub(crate) fn check(
             }
         }
     };
-    let result = execute(
-        AssistInput {
-            catalog,
+    Ok(AssistInput {
+        catalog,
+        task: Task::CheckUi,
+        report_hash: None,
+        condition: Some(condition),
+        pngs: vec![(Role::Single, p.png)],
+        report: None,
+        source: saccade_core::assist::batch::SourceTask {
             task: Task::CheckUi,
-            report_hash: None,
-            condition: Some(condition),
-            pngs: vec![(Role::Single, p.png)],
-            report: None,
+            artifact: source_reference(&args.image, roots)?,
+            entry: None,
+            mask_manifest: None,
+            source_evidence: source_references(&args.common.source_evidence, roots)?,
+            condition_text: Some(args.condition.clone()),
+            condition_kind: Some(
+                match args.kind {
+                    VisibleKind::LabelVisible => "label-visible",
+                    VisibleKind::BannerAbsent => "banner-absent",
+                    VisibleKind::NotClipped => "not-clipped",
+                    VisibleKind::NonOverlap => "non-overlap",
+                }
+                .into(),
+            ),
+            box_px: Some(args.r#box),
+            target: args.target.clone(),
+            second_target: args.second_target.clone(),
+            incomplete_capture: args.common.incomplete_capture,
+            pre_masked: args.common.pre_masked,
+            transitive: source_references(
+                &std::iter::once(args.image.clone())
+                    .chain(args.common.source_evidence.clone())
+                    .collect::<Vec<_>>(),
+                roots,
+            )?,
+            job_ids: vec![],
         },
-        args.common,
-        roots,
-        auth,
-    )?;
-    if json_output {
-        local_cmd::print(&result.0, true)?;
-    }
-    Ok(result)
+    })
 }
 /// Common CLI/MCP report operation. Missing per-mask history remains explicit.
 pub(crate) fn report(
@@ -371,6 +407,18 @@ pub(crate) fn report(
         let policy = configured_roots(&args.common)?;
         return report(args, task, json_output, Some(&policy), auth);
     }
+    let input = report_input(&args, task, roots)?;
+    let result = execute(input, args.common, roots, auth)?;
+    if json_output {
+        local_cmd::print(&result.0, true)?;
+    }
+    Ok(result)
+}
+pub(crate) fn report_input(
+    args: &ReportArgs,
+    task: Task,
+    roots: Option<&RootPolicy>,
+) -> Result<AssistInput, CliError> {
     let bytes = read(&args.report, roots, 32 * 1024 * 1024)?;
     let report: saccade_core::Report =
         crate::parse_contract(&bytes, saccade_core::report::REPORT_SCHEMA)?;
@@ -462,8 +510,8 @@ pub(crate) fn report(
     let mut catalog = base_catalog(vec![before.image, after.image], regions);
     catalog.measurements = json!({"provenance":"deterministic_measurement","entry_status":entry.status,"metric":entry.metric_used,"value":entry.value,"threshold":entry.threshold,"pixel_exclusions":entry.pixel_exclusions});
     let mut audit = None;
-    if let Some(path) = args.mask_manifest {
-        let manifest: mask_audit::Manifest = assist::decode(&read(&path, roots, 8 * 1024 * 1024)?)?;
+    if let Some(path) = &args.mask_manifest {
+        let manifest: mask_audit::Manifest = assist::decode(&read(path, roots, 8 * 1024 * 1024)?)?;
         if manifest.schema != MASKS_SCHEMA || manifest.report_hash != report_hash {
             return Err(CliError::new(
                 "invalid_evidence",
@@ -501,31 +549,71 @@ pub(crate) fn report(
         }
         .into()
     });
-    let result = execute(
-        AssistInput {
-            catalog,
+    let paths: Vec<_> = [args.report.clone(), before_path, after_path]
+        .into_iter()
+        .chain(args.mask_manifest.clone())
+        .chain(args.common.source_evidence.clone())
+        .collect();
+    Ok(AssistInput {
+        catalog,
+        task,
+        report_hash: Some(report_hash),
+        condition: None,
+        pngs: vec![(Role::Before, before.png), (Role::After, after.png)],
+        report: Some((verdict, audit)),
+        source: saccade_core::assist::batch::SourceTask {
             task,
-            report_hash: Some(report_hash),
-            condition: None,
-            pngs: vec![(Role::Before, before.png), (Role::After, after.png)],
-            report: Some((verdict, audit)),
+            artifact: source_reference(&args.report, roots)?,
+            entry: args.entry.clone(),
+            mask_manifest: args
+                .mask_manifest
+                .as_ref()
+                .map(|p| source_reference(p, roots))
+                .transpose()?,
+            source_evidence: source_references(&args.common.source_evidence, roots)?,
+            condition_text: None,
+            condition_kind: None,
+            box_px: None,
+            target: None,
+            second_target: None,
+            incomplete_capture: args.common.incomplete_capture,
+            pre_masked: args.common.pre_masked,
+            transitive: source_references(&paths, roots)?,
+            job_ids: vec![],
         },
-        args.common,
-        roots,
-        auth,
-    )?;
-    if json_output {
-        local_cmd::print(&result.0, true)?;
-    }
-    Ok(result)
+    })
 }
-struct AssistInput {
-    catalog: Catalog,
-    task: Task,
-    report_hash: Option<Digest>,
-    condition: Option<Condition>,
-    pngs: Vec<(Role, Vec<u8>)>,
-    report: Option<(String, Option<Value>)>,
+fn source_reference(
+    path: &Path,
+    roots: Option<&RootPolicy>,
+) -> Result<saccade_core::assist::batch::Reference, CliError> {
+    let path = saccade_core::paths::canonicalize(&check_path(path, roots)?)
+        .map_err(|_| CliError::io("source canonical path unavailable"))?;
+    Ok(saccade_core::assist::batch::Reference {
+        sha256: Digest::of_bytes(&assist::read_bytes(&path, 32 * 1024 * 1024)?),
+        path: saccade_core::paths::portable(&path),
+    })
+}
+fn source_references(
+    paths: &[PathBuf],
+    roots: Option<&RootPolicy>,
+) -> Result<Vec<saccade_core::assist::batch::Reference>, CliError> {
+    let mut refs = paths
+        .iter()
+        .map(|p| source_reference(p, roots))
+        .collect::<Result<Vec<_>, _>>()?;
+    refs.sort_by(|a, b| a.path.cmp(&b.path));
+    refs.dedup();
+    Ok(refs)
+}
+pub(crate) struct AssistInput {
+    pub(crate) catalog: Catalog,
+    pub(crate) task: Task,
+    pub(crate) report_hash: Option<Digest>,
+    pub(crate) condition: Option<Condition>,
+    pub(crate) pngs: Vec<(Role, Vec<u8>)>,
+    pub(crate) report: Option<(String, Option<Value>)>,
+    pub(crate) source: saccade_core::assist::batch::SourceTask,
 }
 fn execute(
     input: AssistInput,
@@ -540,6 +628,7 @@ fn execute(
         condition,
         pngs,
         report,
+        mut source,
     } = input;
     if !common.experimental {
         return Err(CliError::usage(
@@ -580,6 +669,7 @@ fn execute(
     let identity = catalog.identity(task, report_hash, condition.as_ref())?;
     let verdict = report.as_ref().map(|r| r.0.clone());
     let need = workflow::evidence_need(&catalog, condition.as_ref(), task)?;
+    let egress_sources: Vec<_> = source.transitive.iter().map(|r| r.path.clone()).collect();
     let mut envelope = workflow::empty(
         catalog.clone(),
         identity.clone(),
@@ -588,7 +678,7 @@ fn execute(
         false,
     );
     let audit_missing = task == Task::AuditMask && catalog.exclusions.is_empty();
-    let visual = match need {
+    let mut visual = match need {
         Need::Unavailable(reason) => {
             envelope.limitations.push(reason.into());
             false
@@ -631,6 +721,58 @@ fn execute(
         vec![]
     };
     let mut request_artifacts = Vec::new();
+    let mut batch_requests = Vec::new();
+    if common.jev_routing && visual {
+        let (key, payload) = assist::routing::prepare(
+            &catalog,
+            &identity,
+            condition.as_ref(),
+            &common.jev_revision,
+            api_config_hash.clone(),
+        )?;
+        request_artifacts
+            .push(json!({"cache_key":key,"payload":serde_json::from_slice::<Value>(&payload)?}));
+        match acquire(
+            &key,
+            &payload,
+            &common,
+            CallContext {
+                user: &user,
+                roots,
+                startup_auth,
+                records: &records,
+                deadline,
+                sources: &egress_sources,
+            },
+        ) {
+            Ok(Some(record)) => {
+                let decision = assist::routing::answer(&record.response, &key.revision);
+                envelope.provenance.push(record.provenance.clone());
+                saved.push(record);
+                match decision {
+                    Ok(assist::routing::Decision::Vision) => {}
+                    Ok(assist::routing::Decision::Insufficient) => {
+                        visual = false;
+                        envelope.limitations.push("Optional Jev router withheld advice for insufficient evidence; this is an abstention, never a successful condition.".into());
+                    }
+                    Err(_) => {
+                        visual = false;
+                        envelope.incomplete = true;
+                        envelope
+                            .limitations
+                            .push("Optional Jev routing response failed validation.".into());
+                    }
+                }
+            }
+            _ => {
+                visual = false;
+                envelope.incomplete = true;
+                envelope
+                    .limitations
+                    .push("Optional Jev routing stage incomplete.".into());
+            }
+        }
+    }
     if visual {
         if let Some(revision) = common.gemini_revision.as_deref() {
             let mut prepared = vec![workflow::prepare(
@@ -655,6 +797,15 @@ fn execute(
             }
             let mut answers = Vec::new();
             for request in &prepared {
+                let job_id = request.key.payload_hash.as_str();
+                source.job_ids.push(job_id.to_owned());
+                batch_requests.push(
+                    saccade_core::judge_provider::batch::inline_request(
+                        job_id,
+                        serde_json::from_slice(&request.payload)?,
+                    )
+                    .map_err(|_| CliError::usage("batch frozen request"))?,
+                );
                 request_artifacts.push(json!({"cache_key":request.key,"payload":serde_json::from_slice::<Value>(&request.payload)?}));
                 match acquire(
                     &request.key,
@@ -666,6 +817,7 @@ fn execute(
                         startup_auth,
                         records: &records,
                         deadline,
+                        sources: &egress_sources,
                     },
                 ) {
                     Ok(Some(record)) => {
@@ -747,6 +899,7 @@ fn execute(
                             startup_auth,
                             records: &records,
                             deadline,
+                            sources: &egress_sources,
                         },
                     ) {
                         Ok(Some(record)) => {
@@ -793,6 +946,25 @@ fn execute(
     }
     std::fs::create_dir_all(&out).map_err(|_| CliError::io("cannot create assist output"))?;
     assist::write(&out.join("saccade-assist.v1.json"), &envelope)?;
+    if !batch_requests.is_empty() {
+        assist::write(
+            &out.join("batch-plan.json"),
+            &saccade_core::assist::batch::FrozenPlan {
+                schema: saccade_core::assist::batch::PLAN_SCHEMA.into(),
+                plan: saccade_core::assist::batch::Plan {
+                    model: GEMINI.into(),
+                    revision: common
+                        .gemini_revision
+                        .clone()
+                        .ok_or_else(|| CliError::usage("batch revision"))?,
+                    requests: batch_requests,
+                    price_id: execution::PRICE_ID.into(),
+                    max_spend_nano_usd: execution::nano_usd(common.max_spend_usd)?,
+                },
+                tasks: vec![source],
+            },
+        )?;
+    }
     assist::write(
         &out.join("requests.json"),
         &json!({"schema":REQUESTS_SCHEMA,"identity":identity,"requests":request_artifacts}),
@@ -830,6 +1002,7 @@ struct CallContext<'a> {
     startup_auth: Option<&'a Authorization>,
     records: &'a [Cached],
     deadline: Instant,
+    sources: &'a [String],
 }
 fn acquire(
     key: &CacheKey,
@@ -843,6 +1016,7 @@ fn acquire(
         startup_auth,
         records,
         deadline,
+        sources,
     } = context;
     let cache_dir = saccade_core::judge_provider::Keys::default_dir().join("assist-cache");
     if common.offline {
@@ -903,11 +1077,6 @@ fn acquire(
     };
     user.apply(&mut policy)
         .map_err(|_| CliError::new("egress_denied", "invalid assist user root policy"))?;
-    let sources = policy
-        .roots
-        .iter()
-        .map(|r| saccade_core::paths::portable(&r.path))
-        .collect::<Vec<_>>();
     let auth = if let Some(auth) = startup_auth {
         if !auth.enabled {
             return Err(CliError::new(
@@ -973,7 +1142,7 @@ fn acquire(
         transport: &transport,
         ledger: &ledger,
         money_scopes: scopes,
-        sources,
+        sources: sources.to_vec(),
         deadline,
     };
     let completed = executor.call(key, payload)?;

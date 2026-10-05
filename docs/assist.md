@@ -33,7 +33,7 @@ selects one entry. Original hashes, geometry and capture validity are checked.
 `--route rules` stops at deterministic evidence need; unresolved visual questions
 remain unverifiable. `cascade` uses rules then vision and dependent Jev support.
 `all-vision` also evaluates cases answerable by source facts, while missing scope
-still stops. Jev routing is not enabled pending its cost/recall qualification.
+still stops. Optional `--jev-routing` adds a separately measured Jev evidence-need stage after deterministic rules. It is off by default and cannot suppress validity/missingness rules or produce a successful condition. Its fixed choices are vision or insufficient; insufficient withholds advice. Qualification compares the additional stage against the rules-only cascade.
 The two anonymous orders use separate requests and caches. Different returned
 revisions, unsupported statements and contradictions cannot commit advice.
 Reconciliation is deliberately conservative: descriptions, roles, geometry,
@@ -77,18 +77,32 @@ The coordinator must establish actual revision selectors with provider receipts.
 Drift is refused rather than substituted. Provider errors are retained as bounded
 local classifications, never echoed as instructions or raw secret-bearing text.
 
-The envelope caps one entry at $0.15, at most eight actual requests (six by default, including exact input counting) and a shared overall
-300-second deadline. Conservative reservations precede dispatch under the
-existing locked ledger; absent/inconsistent usage remains unknown and consumes
-its full allowance. Thinking tokens are billed without adding provider totals
-again. Daily assist is capped at $5; prices expire on 2027-01-01. Payloads over
-the conservative input-size limit are refused. Exact Gemini prompt counts are
-checked before generation against 16,000 tokens. Count requests consume attempt
-and monetary allowance. The brief does not establish token-count endpoint
-billing: its full reservation remains consumed and Gemini aggregate cost remains
-unknown until provider conformance establishes that price.
-Unknown counting-price/revision behavior requires provider conformance before
-qualification. No live calls run in development or ordinary tests.
+The envelope caps one entry at $0.15, eight actual requests maximum (four by
+CLI default), and a shared 300-second deadline. It reserves money before HTTP
+under the existing locked ledger. Prices expire on 2027-01-01. Gemini input
+must fit the local 16,000-token ceiling; candidate output is explicitly bounded
+to 3,072 tokens plus a separately set 1,024-token thinking budget. The billed
+output reservation is their sum, not the provider total added again.
+
+`assist-prices/2026-10-05-local-v2` uses one token per serialized UTF-8 non-image
+byte plus 1,024 framing tokens. Base64 image bytes are removed from that text
+calculation. The pinned `assist-image-ceilings/1` table uses declared media
+resolution and actual encoded PNG dimensions: low up to 512 pixels per edge
+reserves 1,024 tokens; medium up to 1,024 reserves 4,096, medium up to 2,048
+reserves 8,192; high up to 2,048 reserves 8,192. Unlisted combinations reserve
+the maximum 16,384 per image, which refuses admission under the current overall
+ceiling. These are conservative local policy ceilings, awaiting live conformance,
+not externally verified tokenizer facts. Ordinary prepared requests declare
+medium resolution. Oversized requests are refused before provider dispatch.
+
+Settlement uses prompt, candidate, thinking and total `usageMetadata` counters.
+Missing, inconsistent or out-of-bound Gemini usage keeps the entire reservation
+consumed and cost unknown. Cached counts cannot exceed prompt counts. Daily
+interactive assist is capped at $5. `countTokens` is off by default. The core's
+optional counting path requires a distinct versioned policy explicitly marking
+counting free or priced; it reserves attempts and money before counting HTTP and
+includes auxiliary cost in provenance. Unknown counting billing no longer blocks
+generation. No live calls run during development or ordinary tests.
 
 MCP extends `saccade_review` with `explain`, `audit-mask`, `check-ui`. Use
 `artifact` for the report/image, `out`, `experimental:true`, and the corresponding
@@ -98,18 +112,45 @@ stay inside registered roots. The tool is annotated as potentially networked;
 local/offline operations remain explicit. CLI and MCP share the implementation
 and bounded result schema. Neither surface returns approval authority.
 
-The core Batch interface separates immutable plan, durable submission intent,
-operation receipt, status and collection. States are planned, submitted,
-submission_unknown, pending, completed, partial and failed. An uncertain submit
-cannot repeat silently. Exact frozen request hashes and revisions are checked
-per item; job success does not make failed cells successful. Reservations remain
-consumed when per-item billing is unknown. Interactive workflows never wait for
-Batch completion. Qualification and heavy gate commands are described in
-[constructed qualification](assist-qualification.md).
+Public Batch commands are separate from interactive advice:
 
-Gemini dispatch is currently refused before either counting or generation HTTP:
-the brief does not establish the counting API price, so an auxiliary reservation
-alone cannot prove the hard dollar cap. Confirm that external billing fact in a
-versioned execution policy and freeze a new epoch before enabling the Gemini path.
-Offline replay and rules remain available; the opt-in runner records this refusal
-as incomplete execution, with no Gemini request dispatched.
+```sh
+# Prepare source-bound requests locally; missing offline answers may exit 4.
+saccade review check-ui "Continuer" --image capture.png --box 0,0,640,480 \
+  --experimental --offline --bypass-cache --gemini-revision RECORDED_REVISION \
+  --out prepared --json
+saccade review assist batch submit --plan prepared/batch-plan.json \
+  --job jobs/check.json --experimental --run --json
+saccade review assist batch status --plan prepared/batch-plan.json \
+  --job jobs/check.json --experimental --run --json
+saccade review assist batch collect --plan prepared/batch-plan.json \
+  --job jobs/check.json --experimental --run --json
+```
+
+Each prepared visual workflow also emits `batch-plan.json`, using
+`saccade-assist-batch-plan.v1`. Its provider plan freezes model/revision, price ID,
+requests and spend cap; task descriptors freeze input arguments and exact file
+hashes for the original report, screenshots, source packets and mask manifest.
+Submission/status/collection re-read those files through registered roots,
+verify the exhaustive transitive closure, and reproduce every anonymous-order
+request. A payload without source references, changed source, omitted screenshot
+or non-reproducing request fails closed. The durable receipt separately binds
+the complete source descriptor. Batch covers frozen Gemini observation requests;
+collection is advisory raw evidence, not interactive reconciliation or Jev support.
+
+Without `--run`, submit only validates/plans and status only reads local state.
+Live status and collect perform one poll and return immediately. No interactive
+workflow waits for Batch. `--budget-calls` is bounded to 128 for Batch and never
+increases MCP startup authority; `--deadline-secs` is at most 300. The frozen
+plan carries the dollar ceiling, at most $250; there is no automatic top-up.
+MCP mirrors these as `saccade_review` operations `batch-submit`, `batch-status`,
+`batch-collect`, using `artifact` for the plan and `out` for the durable job file.
+
+States are planned, submitted, submission_unknown, pending, completed, partial
+and failed. Unknown submissions cannot repeat silently. Per-item hashes and
+revisions are checked; job success cannot hide a failed item. Monetary reservations
+stay open until terminal collection. Settlement is idempotent and can recover
+from a crash without another HTTP poll. Partial, failed or unknown-cost collections
+retain the full charge. A recorded `collect --response FILE` is for offline
+fixtures only and cannot settle a live monetary reservation. Qualification and
+heavy gate commands are in [constructed qualification](assist-qualification.md).

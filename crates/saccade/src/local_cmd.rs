@@ -118,6 +118,9 @@ pub(crate) struct ReviewArgs {
 #[derive(Subcommand)]
 pub(crate) enum ReviewOperation {
     // wave4
+    /// Experimental assist lifecycle operations.
+    #[cfg(feature = "assist")]
+    Assist(crate::assist_batch_cmd::AssistArgs),
     /// Experimental localized visible explanations, advisory only.
     #[cfg(feature = "assist")]
     Explain(crate::assist_cmd::ReportArgs),
@@ -855,6 +858,10 @@ pub(crate) fn review(args: ReviewArgs, absolute: bool) -> Result<u8, CliError> {
     let value = if let Some(operation) = args.operation {
         match operation {
             // wave4
+            #[cfg(feature = "assist")]
+            ReviewOperation::Assist(a) => {
+                return crate::assist_batch_cmd::run(a, args.json, args.user_config.as_deref());
+            }
             #[cfg(feature = "assist")]
             ReviewOperation::Explain(a) => {
                 return crate::assist_cmd::run_report(

@@ -82,3 +82,13 @@ model revisions and the unchanged deterministic verdict. `observed` is advisory;
 `unverifiable` and incomplete stages remain unresolved. Offline replay is not an
 independent sample. MCP mirrors these operations in `saccade_review`; it cannot
 raise human startup provider authority. See [assist](../docs/assist.md).
+
+<!-- wave4b -->
+Optional `--jev-routing` is off by default and separately qualified; router
+abstention cannot establish a successful condition. `review assist batch
+submit|status|collect --plan prepared/batch-plan.json --job jobs/item.json
+--experimental --json` verifies the frozen transitive source files. Add `--run`
+only under human authorization to submit or poll once. MCP mirrors these as
+`batch-submit|batch-status|batch-collect` in `saccade_review`; `artifact` is the plan
+and `out` is the durable receipt. Unknown submission forbids silent resubmission.
+Interactive advice never waits for Batch. See [assist](../docs/assist.md).

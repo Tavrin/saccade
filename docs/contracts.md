@@ -198,3 +198,8 @@ Prepared requests, replay records and mask accounting use
 Constructed truth, its private oracle and heavy-gate receipts use
 `saccade-constructed-truth.v1`, `saccade-constructed-oracle.v1` and
 `saccade-assist-gates.v1`; schemas are in the existing schema directory.
+
+<!-- wave4b -->
+The [source-bound Batch plan](../crates/saccade-core/schemas/saccade-assist-batch-plan.v1.schema.json)
+uses `saccade-assist-batch-plan.v1`. Public submission, status and collection
+reproduce its frozen payloads from hash-verified transitive source files.

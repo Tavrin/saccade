@@ -2313,3 +2313,6 @@ mod wave3_schema_tests {
 // wave4
 #[cfg(feature = "assist")]
 mod assist_cmd;
+// wave4
+#[cfg(feature = "assist")]
+mod assist_batch_cmd;
