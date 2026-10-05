@@ -38,6 +38,15 @@ enum HistoryOperation {
     /// Add one existing comparison report to the local history store.
     Record {
         report: PathBuf,
+        /// Producer-assigned independent capture run, never an image or report hash.
+        #[arg(long, requires = "environment_id")]
+        run_id: Option<String>,
+        /// Frozen browser/device, fonts, viewport, warmup and temporal protocol identity.
+        #[arg(long, requires = "run_id")]
+        environment_id: Option<String>,
+        /// Declare an unchanged-build repeat eligible for normal-variation advice.
+        #[arg(long, requires = "run_id")]
+        unchanged_build: bool,
         #[arg(long)]
         store: PathBuf,
         #[arg(long)]
@@ -49,6 +58,9 @@ enum HistoryOperation {
         store: PathBuf,
         #[arg(long)]
         entry: Option<String>,
+        /// Diagnose sustained anchor-relative drift in recorded run order.
+        #[arg(long)]
+        drift: bool,
         #[arg(long, default_value_t = 10, value_parser = clap::value_parser!(u8).range(1..=20))]
         limit: u8,
         #[arg(long)]
@@ -64,6 +76,16 @@ struct Row {
     config_sha256: String,
     generated_at_unix: u64,
     samples: Vec<Sample>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    trial: Option<Trial>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+struct Trial {
+    run_id: String,
+    environment_id: String,
+    unchanged_build: bool,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -78,6 +100,7 @@ struct Sample {
 }
 
 type GroupKey = (String, String, String, String, String);
+type TrialGroups<'a> = BTreeMap<(GroupKey, String), Vec<(&'a Row, &'a Sample, &'a Trial)>>;
 type Observations = (f64, BTreeMap<String, f64>);
 
 fn hash(data: &[u8]) -> String {
@@ -126,7 +149,20 @@ fn read_index(store: &Path) -> Result<Vec<Row>, CliError> {
     Ok(rows)
 }
 
+#[cfg(test)]
 fn record(report_path: &Path, store: &Path) -> Result<Value, CliError> {
+    record_trial(report_path, store, None)
+}
+
+fn record_trial(report_path: &Path, store: &Path, trial: Option<Trial>) -> Result<Value, CliError> {
+    if trial
+        .as_ref()
+        .is_some_and(|t| t.run_id.trim().is_empty() || t.environment_id.trim().is_empty())
+    {
+        return Err(CliError::usage(
+            "run and environment identities must be nonempty",
+        ));
+    }
     let report = crate::read_report(report_path)?;
     if report.config.mode != Mode::Regression {
         return Err(CliError::usage(
@@ -149,7 +185,11 @@ fn record(report_path: &Path, store: &Path) -> Result<Value, CliError> {
     lock.lock_exclusive()
         .map_err(|e| CliError::io(format!("locking history store: {e}")))?;
     let existing = read_index(store)?;
-    if existing.iter().any(|r| r.report_sha256 == report_hash) {
+    if existing.iter().any(|r| match (&trial, &r.trial) {
+        (Some(a), Some(b)) => a.run_id == b.run_id && a.environment_id == b.environment_id,
+        (None, None) => r.report_sha256 == report_hash,
+        _ => false,
+    }) {
         return Ok(
             json!({"schema":SCHEMA,"operation":"record","recorded":false,"reason":"report_already_recorded","report_sha256":report_hash}),
         );
@@ -219,6 +259,7 @@ fn record(report_path: &Path, store: &Path) -> Result<Value, CliError> {
         config_sha256: config_hash,
         generated_at_unix: report.generated_at_unix,
         samples,
+        trial,
     };
     let mut index = OpenOptions::new()
         .create(true)
@@ -319,6 +360,65 @@ fn analyze(rows: &[Row], entry: Option<&str>, limit: usize) -> Value {
         "page":{"shown":findings.len(),"omitted":total.saturating_sub(findings.len())},
         "entries":findings,"limits":["Only distinct capture hashes under one baseline and configuration count as variation.",
         "Observed extrema are not a statistical confidence bound; threshold advice requires review."]})
+}
+
+fn median(values: &[f64]) -> f64 {
+    let mut values = values.to_vec();
+    values.sort_by(f64::total_cmp);
+    values[values.len() / 2]
+}
+
+fn run_analysis(rows: &[Row], entry: Option<&str>, limit: usize, drift: bool) -> Value {
+    // Image identity and independent capture identity are deliberately separate.
+    let mut groups: TrialGroups<'_> = BTreeMap::new();
+    for row in rows {
+        let Some(trial) = &row.trial else { continue };
+        for sample in &row.samples {
+            if entry.is_some_and(|e| e != sample.entry) || !sample.value.is_finite() {
+                continue;
+            }
+            let key = (
+                sample.entry.clone(),
+                sample.baseline_sha256.clone(),
+                row.config_sha256.clone(),
+                format!("{:?}", sample.metric),
+                sample.threshold.to_bits().to_string(),
+            );
+            let group = groups
+                .entry((key, trial.environment_id.clone()))
+                .or_default();
+            if !group.iter().any(|(_, _, t)| t.run_id == trial.run_id) {
+                group.push((row, sample, trial));
+            }
+        }
+    }
+    let total = groups.len();
+    let entries: Vec<_> = groups.into_iter().take(limit).map(|((key, environment), runs)| {
+        let noise: Vec<_> = runs.iter().filter(|(_, _, t)| t.unchanged_build).map(|(_, s, _)| s.value).collect();
+        let threshold = runs[0].1.threshold;
+        let lo = noise.iter().copied().fold(f64::INFINITY, f64::min);
+        let hi = noise.iter().copied().fold(f64::NEG_INFINITY, f64::max);
+        let enough = noise.len() >= 10;
+        let span = if noise.is_empty() { 0.0 } else { hi - lo };
+        let flaky = enough && lo <= threshold && hi > threshold;
+        let values: Vec<_> = runs.iter().map(|(_, s, _)| s.value).collect();
+        let effect = if values.len() >= 10 { Some(median(&values[values.len()-5..]) - median(&values[..5])) } else { None };
+        // Keep the same baseline anchor. Sustained, mostly increasing changes
+        // smaller than a per-revision tolerance still accumulate here.
+        let increasing = values.windows(2).filter(|w| w[1] > w[0]).count();
+        let candidate = drift && enough && effect.is_some_and(|e| e > span.max(1e-9)) && increasing * 4 >= (values.len()-1) * 3;
+        let suggestion = (enough && !candidate).then_some((hi + span).min(1.0));
+        json!({"entry":key.0,"baseline_sha256":key.1,"config_sha256":key.2,"environment_id":environment,
+            "independent_runs":runs.len(),"unchanged_build_runs":noise.len(),
+            "unique_image_hashes":runs.iter().map(|(_,s,_)| &s.capture_sha256).collect::<std::collections::BTreeSet<_>>().len(),
+            "normal_variation_span":enough.then_some(span),"threshold":threshold,"suggested_threshold":suggestion,
+            "suggestion_basis":"observed unchanged-build maximum plus range; uncalibrated, review required",
+            "drift":if !drift {"not_requested"} else if !enough {"insufficient_unchanged_build_repeats"} else if candidate {"candidate"} else {"not_detected"},
+            "anchor_relative_effect":effect,"chronology":"recorded_sequence","policy_changed":false,
+            "recommendation":if candidate {"investigate_drift_with_fresh_matched_repeats"} else if flaky {"quarantine_and_remeasure"} else if !enough {"collect_unchanged_build_repeats"} else {"keep_threshold"},
+            "evidence":runs.iter().map(|(r,s,t)| json!({"run_id":t.run_id,"report_sha256":r.report_sha256,"capture_sha256":s.capture_sha256,"value":s.value,"unchanged_build":t.unchanged_build})).collect::<Vec<_>>()})
+    }).collect();
+    json!({"groups":total,"entries":entries,"limits":["Run independence and unchanged build are producer declarations, not inferred from identical pixels.","Scalar history cannot localize variation or diagnose delayed fonts. Drift is a heuristic candidate, not causality.","Environment identity must include all capture conditions. Legacy hash-only advice is provisional artifact variation, not learned normal variation."]})
 }
 
 fn performance_observation(
@@ -516,15 +616,41 @@ pub(crate) fn run(args: HistoryArgs) -> Result<u8, CliError> {
             report,
             store,
             json,
-        } => (record(&report, &store)?, json),
+            run_id,
+            environment_id,
+            unchanged_build,
+        } => (
+            record_trial(
+                &report,
+                &store,
+                run_id
+                    .zip(environment_id)
+                    .map(|(run_id, environment_id)| Trial {
+                        run_id,
+                        environment_id,
+                        unchanged_build,
+                    }),
+            )?,
+            json,
+        ),
         HistoryOperation::Analyze {
             store,
             entry,
+            drift,
             limit,
             json,
         } => {
             let rows = read_index(&store)?;
-            (analyze(&rows, entry.as_deref(), limit as usize), json)
+            (
+                {
+                    let mut value = analyze(&rows, entry.as_deref(), limit as usize);
+                    value["run_analysis"] =
+                        run_analysis(&rows, entry.as_deref(), limit as usize, drift);
+                    value["policy_changed"] = json!(false);
+                    value
+                },
+                json,
+            )
         }
     };
     if json_output {
@@ -609,6 +735,7 @@ mod tests {
                 report_sha256: last_hash.clone(),
                 config_sha256: "config".into(),
                 generated_at_unix: i * 86400,
+                trial: None,
                 samples: vec![],
             };
             index.push_str(&serde_json::to_string(&row).expect("row"));
@@ -701,6 +828,7 @@ mod tests {
                     report_sha256: digest,
                     config_sha256: "config".into(),
                     generated_at_unix: (60 - i) * 86400,
+                    trial: None,
                     samples: vec![],
                 });
             }
@@ -809,6 +937,80 @@ mod tests {
     }
 
     #[test]
+    fn independent_stable_runs_and_anchor_drift_split_environments() {
+        let mut rows = Vec::new();
+        for i in 0..30 {
+            rows.push(Row {
+                schema: SCHEMA.into(),
+                report_sha256: format!("report{i}"),
+                config_sha256: "cfg".into(),
+                generated_at_unix: 30 - i,
+                trial: Some(Trial {
+                    run_id: format!("run{i}"),
+                    environment_id: "browser-fonts-warmup".into(),
+                    unchanged_build: i < 10,
+                }),
+                samples: vec![Sample {
+                    entry: "ui.png".into(),
+                    baseline_sha256: "anchor".into(),
+                    capture_sha256: if i < 10 {
+                        "same".into()
+                    } else {
+                        format!("image{i}")
+                    },
+                    metric: Metric::Mean,
+                    threshold: 0.5,
+                    value: if i < 10 {
+                        0.01
+                    } else {
+                        0.01 + (i - 9) as f64 * 0.001
+                    },
+                }],
+            });
+        }
+        let stable = run_analysis(&rows[..10], None, 10, true);
+        assert_eq!(stable["entries"][0]["independent_runs"], 10);
+        assert_eq!(stable["entries"][0]["unique_image_hashes"], 1);
+        let result = run_analysis(&rows, None, 10, true);
+        assert_eq!(result["entries"][0]["drift"], "not_detected"); // stable prefix makes the monotonicity gate conservative
+        rows.drain(..5);
+        let result = run_analysis(&rows, None, 10, true);
+        assert_eq!(
+            result["entries"][0]["drift"],
+            "insufficient_unchanged_build_repeats"
+        );
+        // Ten stable repeats followed by a long monotone sub-threshold drift.
+        for i in 30..50 {
+            let mut row = rows.last().expect("row").clone();
+            row.trial.as_mut().expect("trial").run_id = format!("run{i}");
+            row.samples[0].value = i as f64 * 0.001;
+            rows.push(row);
+        }
+        for row in &mut rows[..10] {
+            row.trial.as_mut().expect("trial").unchanged_build = true;
+            row.samples[0].value = 0.01;
+        }
+        assert_eq!(
+            run_analysis(&rows, None, 10, true)["entries"][0]["drift"],
+            "candidate"
+        );
+        let mut duplicate = rows[0].clone();
+        duplicate.samples[0].value = 0.9;
+        rows.push(duplicate);
+        assert_eq!(
+            run_analysis(&rows, None, 10, true)["entries"][0]["independent_runs"],
+            45
+        );
+        rows.last_mut()
+            .expect("row")
+            .trial
+            .as_mut()
+            .expect("trial")
+            .environment_id = "other-fonts".into();
+        assert_eq!(run_analysis(&rows, None, 10, true)["groups"], 2);
+    }
+
+    #[test]
     fn distinct_capture_variation_crossing_threshold_is_flagged() {
         let mut rows = Vec::new();
         for (id, value) in [("a", 0.01), ("b", 0.03), ("c", 0.04)] {
@@ -817,6 +1019,7 @@ mod tests {
                 report_sha256: id.into(),
                 config_sha256: "cfg".into(),
                 generated_at_unix: 0,
+                trial: None,
                 samples: vec![Sample {
                     entry: "ui.png".into(),
                     baseline_sha256: "base".into(),
