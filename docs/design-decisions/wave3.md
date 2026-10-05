@@ -126,3 +126,9 @@ measured cameras, not continuous angles or surface area. Unknown masks stay
 unknown. Historical geometry-only behaviour remains measurement-only. Synthetic
 supplied-image tests qualify this protocol, not asset rendering, human LOD
 quality, GPU runtime, transitions or temporal popping. No timing benchmark.
+
+Final CLI sanity checking reproduced a relative camera-manifest path failure:
+Path::parent returns an empty path for a bare filename. Normalize that parent
+to the current directory, and exercise the documented relative invocation in
+the combined packet regression case. Refresh gates and source/binary identity
+after this item-5 correction rather than handing off the superseded binary.

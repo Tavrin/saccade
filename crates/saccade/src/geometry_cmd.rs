@@ -70,7 +70,9 @@ pub(crate) fn compare(args: GeometryArgs) -> Result<u8, CliError> {
         };
         Some(saccade_core::asset_views::measure(
             manifest,
-            path.parent().unwrap_or(std::path::Path::new(".")),
+            path.parent()
+                .filter(|p| !p.as_os_str().is_empty())
+                .unwrap_or(std::path::Path::new(".")),
             &[pin("baseline:document")?, pin("capture:document")?],
             &evidence.identity.geometry_sha256,
             &args.pair.unit,

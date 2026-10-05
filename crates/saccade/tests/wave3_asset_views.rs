@@ -10,6 +10,7 @@ fn geometry_packet_embeds_camera_views_with_exact_mesh_identity_and_coverage_exi
     std::fs::write(&mesh, "v 0 0 0\nv 1 0 0\nv 0 1 0\nf 1 2 3\n").unwrap();
     let run = |extra: &[&str]| {
         Command::new(env!("CARGO_BIN_EXE_saccade"))
+            .current_dir(d.path())
             .args([
                 "experiment",
                 "geometry",
@@ -110,6 +111,9 @@ fn geometry_packet_embeds_camera_views_with_exact_mesh_identity_and_coverage_exi
         out.to_str().unwrap(),
     ]);
     if !cfg!(feature = "graphics") {
+        let relative = run(&["--views", "manifest.json"]);
+        assert_eq!(relative.status.code(), Some(2));
+        assert!(String::from_utf8_lossy(&relative.stdout).contains("feature_unavailable"));
         assert_eq!(result.status.code(), Some(2));
         assert!(String::from_utf8_lossy(&result.stdout).contains("feature_unavailable"));
         return;
@@ -123,6 +127,13 @@ fn geometry_packet_embeds_camera_views_with_exact_mesh_identity_and_coverage_exi
     let document: saccade_core::geometry::Document =
         serde_json::from_slice(&std::fs::read(&out).unwrap()).unwrap();
     assert!(document.views.unwrap().passed);
+    let relative = run(&["--views", "manifest.json"]);
+    assert_eq!(
+        relative.status.code(),
+        Some(0),
+        "{}",
+        String::from_utf8_lossy(&relative.stdout)
+    );
     m.views[0].candidate = None;
     std::fs::write(&manifest, serde_json::to_vec(&m).unwrap()).unwrap();
     let result = run(&["--views", manifest.to_str().unwrap()]);
