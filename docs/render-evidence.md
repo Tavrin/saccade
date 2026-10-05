@@ -182,7 +182,11 @@ difference / 4), their increases, and connected shimmer boxes. Global motion
 uses the existing phase-correlation estimator. Verdicts are `stable`,
 `shimmer_increase`, `camera_not_fixed`, or `unqualified_motion` when texture
 cannot support a motion estimate. A non-stable result fails the sequence gate.
-At least three equal-size paired SDR frames are required. Frames are not
+At least three equal-size paired SDR frames are required. Ordinary masks and
+native layer scopes are combined across all paired frames as a persistent
+intersection, so each pixel retains the same membership throughout the energy
+measurement; empty persistent scopes fail. Tiles report included pixel counts.
+Camera motion is still checked on full frames. Frames are not
 resampled in time; energy units are normalized sRGB squared per frame.
 Object movement and rotation can confound the translation-based camera check;
 the producer's fixed-camera declaration alone never establishes that condition.

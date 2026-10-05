@@ -15,9 +15,9 @@ use saccade_core::view::{ViewOptions, build_view, is_safe_name};
 // wave7
 mod vision_checks;
 mod wave7_cmd;
-// wave9
 #[cfg(feature = "mcp")]
 mod wave7_mcp;
+// wave9
 mod wave9_cmd;
 #[cfg(feature = "mcp")]
 mod wave9_mcp;

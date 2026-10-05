@@ -93,6 +93,8 @@ pub struct Energy {
 pub struct Tile {
     /// Full-resolution pixel box.
     pub rect_px: [u32; 4],
+    /// Included pixels measured in the persistent scope.
+    pub pixels: u64,
     /// Baseline temporal energies.
     pub baseline: Energy,
     /// Candidate energies.
@@ -114,6 +116,8 @@ pub struct Report {
     pub policy: Policy,
     /// stable, shimmer_increase, camera_not_fixed, or unqualified_motion.
     pub verdict: String,
+    /// Scope mode: full_image or persistent_intersection.
+    pub scope: String,
     /// Per-tile paired flicker.
     pub tiles: Vec<Tile>,
     /// Bounding boxes of connected shimmering tiles.
@@ -123,13 +127,18 @@ pub struct Report {
     /// Explicit interpretive limits.
     pub limits: Vec<String>,
 }
-fn energy(planes: &[Vec<f64>], w: u32, r: [u32; 4]) -> Energy {
+fn energy(planes: &[Vec<f64>], w: u32, r: [u32; 4], excluded: Option<&[bool]>) -> (Energy, u64) {
+    let mut pixels = 0;
     let mut variance = 0.0;
     let mut hf = 0.0;
     let [x, y, rw, rh] = r;
     for yy in y..y + rh {
         for xx in x..x + rw {
             let i = (yy * w + xx) as usize;
+            if excluded.is_some_and(|m| m[i]) {
+                continue;
+            }
+            pixels += 1;
             let delta: Vec<_> = planes.windows(2).map(|p| p[1][i] - p[0][i]).collect();
             let mean = delta.iter().sum::<f64>() / delta.len() as f64;
             variance += delta.iter().map(|d| (d - mean).powi(2)).sum::<f64>() / delta.len() as f64;
@@ -140,11 +149,14 @@ fn energy(planes: &[Vec<f64>], w: u32, r: [u32; 4]) -> Energy {
                 / (planes.len() - 2) as f64;
         }
     }
-    let n = f64::from(rw) * f64::from(rh);
-    Energy {
-        delta_variance: variance / n,
-        high_frequency_energy: hf / n,
-    }
+    let n = (pixels as f64).max(1.0);
+    (
+        Energy {
+            delta_variance: variance / n,
+            high_frequency_energy: hf / n,
+        },
+        pixels,
+    )
 }
 /// Compute tile flicker and qualify the fixed-camera declaration against global motion.
 pub fn analyze(
@@ -152,11 +164,23 @@ pub fn analyze(
     candidate: &[image::RgbaImage],
     policy: &Policy,
 ) -> Result<Report> {
+    analyze_scoped(base, candidate, policy, None)
+}
+/// Measure a fixed persistent inclusion scope while checking camera motion on full frames.
+pub fn analyze_scoped(
+    base: &[image::RgbaImage],
+    candidate: &[image::RgbaImage],
+    policy: &Policy,
+    excluded: Option<&[bool]>,
+) -> Result<Report> {
     policy.validate()?;
     let first = base.first().ok_or(Error::EmptyImage)?;
     let (w, h) = first.dimensions();
-    if base.len() < 3
+    if w == 0
+        || h == 0
+        || base.len() < 3
         || base.len() != candidate.len()
+        || excluded.is_some_and(|m| m.len() != (w as usize * h as usize) || m.iter().all(|v| *v))
         || base.len() > 256
         || u64::from(w) * u64::from(h) * base.len() as u64 > 16_777_216
         || base
@@ -212,8 +236,8 @@ pub fn analyze(
                 policy.tile_size.min(w - x),
                 policy.tile_size.min(h - y),
             ];
-            let b = energy(&lb, w, r);
-            let c = energy(&lc, w, r);
+            let (b, pixels) = energy(&lb, w, r, excluded);
+            let (c, _) = energy(&lc, w, r, excluded);
             let vi = c.delta_variance - b.delta_variance;
             let ei = c.high_frequency_energy - b.high_frequency_energy;
             let increased = (vi > policy.variance_increase
@@ -226,6 +250,7 @@ pub fn analyze(
                             * b.high_frequency_energy.max(policy.energy_increase / 10.0));
             tiles.push(Tile {
                 rect_px: r,
+                pixels,
                 baseline: b,
                 candidate: c,
                 variance_increase: vi,
@@ -280,7 +305,7 @@ pub fn analyze(
     } else {
         "shimmer_increase"
     };
-    Ok(Report {schema:SCHEMA.into(),policy:policy.clone(),verdict:verdict.into(),tiles,regions,motion,limits:vec!["Translation phase correlation checks global displacement; moving objects, rotation and scene changes can confound camera attribution.".into(),"Unmeasurable motion is flagged and cannot establish stable fixed-camera evidence. Energy is normalized sRGB squared per frame; fps is recorded, no temporal resampling.".into()]})
+    Ok(Report {schema:SCHEMA.into(),scope:if excluded.is_some(){"persistent_intersection"}else{"full_image"}.into(),policy:policy.clone(),verdict:verdict.into(),tiles,regions,motion,limits:vec!["Translation phase correlation checks global displacement; moving objects, rotation and scene changes can confound camera attribution.".into(),"Unmeasurable motion is flagged and cannot establish stable fixed-camera evidence. Energy is normalized sRGB squared per frame; fps is recorded, no temporal resampling.".into()]})
 }
 #[cfg(test)]
 mod tests {
@@ -308,6 +333,28 @@ mod tests {
         let r = analyze(&bases, &candidate, &Policy::default()).unwrap();
         assert!(r.regions.contains(&[32, 32, 32, 32]));
         assert_eq!(r.verdict, "shimmer_increase");
+        let mask: Vec<_> = (0..96 * 96)
+            .map(|i| {
+                let x = i % 96;
+                let y = i / 96;
+                (32..64).contains(&x) && (32..64).contains(&y)
+            })
+            .collect();
+        let scoped = analyze_scoped(&bases, &candidate, &Policy::default(), Some(&mask)).unwrap();
+        assert!(scoped.tiles.iter().all(|t| !t.shimmer_increase));
+        assert_eq!(
+            scoped.tiles.iter().map(|t| t.pixels).sum::<u64>(),
+            96 * 96 - 32 * 32
+        );
+        assert!(
+            analyze_scoped(
+                &bases,
+                &candidate,
+                &Policy::default(),
+                Some(&vec![true; 96 * 96])
+            )
+            .is_err()
+        );
     }
     #[test]
     fn translated_sequence_cannot_claim_fixed_camera() {

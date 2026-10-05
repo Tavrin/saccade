@@ -178,7 +178,6 @@ fn open(path: &Path) -> Result<image::DynamicImage> {
 /// Decodes an EXR's R channel, including a single-channel EXR.
 #[cfg(feature = "graphics")]
 pub(crate) fn decode_r32f(path: &Path) -> Result<image::DynamicImage> {
-    use exr::prelude::{ReadChannels, ReadLayers, ReadSpecificChannel};
     if !path
         .extension()
         .is_some_and(|e| e.eq_ignore_ascii_case("exr"))
@@ -186,6 +185,22 @@ pub(crate) fn decode_r32f(path: &Path) -> Result<image::DynamicImage> {
         return Err(Error::Config(
             "r32f depth requires EXR files (R channel)".into(),
         ));
+    }
+    decode_r32f_bytes(&crate::evidence_quality::read(path, 128 << 20)?, path)
+}
+#[cfg(feature = "graphics")]
+pub(crate) fn decode_r32f_bytes(bytes: &[u8], path: &Path) -> Result<image::DynamicImage> {
+    use exr::prelude::{ReadChannels, ReadLayers, ReadSpecificChannel};
+    let metadata = exr::meta::MetaData::read_from_buffered(std::io::Cursor::new(bytes), false)
+        .map_err(|e| Error::Config(format!("reading EXR dimensions: {e}")))?;
+    if metadata.headers.iter().any(|h| {
+        h.layer_size.width() == 0
+            || h.layer_size.height() == 0
+            || h.layer_size.width() > 16384
+            || h.layer_size.height() > 16384
+            || h.layer_size.width().saturating_mul(h.layer_size.height()) > 16_777_216
+    }) {
+        return Err(Error::Config("EXR scalar layer exceeds pixel limit".into()));
     }
     let img = exr::prelude::read()
         .no_deep_data()
@@ -204,7 +219,7 @@ pub(crate) fn decode_r32f(path: &Path) -> Result<image::DynamicImage> {
         )
         .first_valid_layer()
         .all_attributes()
-        .from_file(path)
+        .from_buffered(std::io::Cursor::new(bytes))
         .map_err(|e| Error::Config(format!("decoding EXR R channel {}: {e}", path.display())))?;
     Ok(image::DynamicImage::ImageRgb32F(
         img.layer_data.channel_data.pixels,
@@ -272,8 +287,18 @@ pub(crate) fn fill_pair(
         .as_ref()
         .map(|policy| {
             Ok::<_, Error>((
-                crate::evidence_quality::layers::load(baseline, policy, (w, h))?,
-                crate::evidence_quality::layers::load(capture, policy, (w, h))?,
+                crate::evidence_quality::layers::load_for_buffer(
+                    baseline,
+                    policy,
+                    &b,
+                    spec.encoding() == "r32f",
+                )?,
+                crate::evidence_quality::layers::load_for_buffer(
+                    capture,
+                    policy,
+                    &c,
+                    spec.encoding() == "r32f",
+                )?,
             ))
         })
         .transpose()?;

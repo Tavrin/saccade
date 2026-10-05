@@ -2015,6 +2015,19 @@ pub fn perf_summary(perf: &[PerfDelta]) -> Option<String> {
     Some(s)
 }
 
+/// Global phase-correlation translation without correction or a new FLIP run.
+/// Returns dx, dy and phase coherence; absent when scene texture cannot support a fit.
+pub fn global_translation(
+    base: &image::RgbaImage,
+    candidate: &image::RgbaImage,
+) -> Option<[f64; 3]> {
+    if base.dimensions() != candidate.dimensions() {
+        return None;
+    }
+    estimate_shift(Pixels::Ldr(base), Pixels::Ldr(candidate), None)
+        .map(|s| [s.dx, s.dy, s.confidence])
+}
+
 #[cfg(test)]
 #[allow(clippy::expect_used)]
 mod tests {
@@ -2453,17 +2466,4 @@ mod tests {
             d.description
         );
     }
-}
-
-/// Global phase-correlation translation without correction or a new FLIP run.
-/// Returns dx, dy and phase coherence; absent when scene texture cannot support a fit.
-pub fn global_translation(
-    base: &image::RgbaImage,
-    candidate: &image::RgbaImage,
-) -> Option<[f64; 3]> {
-    if base.dimensions() != candidate.dimensions() {
-        return None;
-    }
-    estimate_shift(Pixels::Ldr(base), Pixels::Ldr(candidate), None)
-        .map(|s| [s.dx, s.dy, s.confidence])
 }

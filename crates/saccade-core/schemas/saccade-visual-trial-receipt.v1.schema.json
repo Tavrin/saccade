@@ -1,0 +1,46 @@
+{
+  "$id": "https://github.com/Tavrin/saccade/crates/saccade-core/schemas/saccade-visual-trial-receipt.v1.schema.json",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "description": "Bounded state receipt, without seed, roles or original file paths.",
+  "properties": {
+    "plan_sha256": {
+      "description": "Canonical plan hash.",
+      "type": "string"
+    },
+    "presentation": {
+      "description": "Public blind gallery path when started.",
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "registration_id": {
+      "description": "Frozen registration identity.",
+      "type": "string"
+    },
+    "schema": {
+      "const": "saccade-visual-trial-receipt.v1",
+      "description": "Receipt version.",
+      "type": "string"
+    },
+    "state": {
+      "description": "registered, inspection_started, or vote_recorded.",
+      "type": "string"
+    },
+    "votes": {
+      "description": "Persisted vote count.",
+      "format": "uint",
+      "minimum": 0,
+      "type": "integer"
+    }
+  },
+  "required": [
+    "schema",
+    "registration_id",
+    "plan_sha256",
+    "state",
+    "votes"
+  ],
+  "title": "Receipt",
+  "type": "object"
+}

@@ -1,0 +1,248 @@
+{
+  "$defs": {
+    "Energy": {
+      "description": "Per-tile temporal metrics for one side.",
+      "properties": {
+        "delta_variance": {
+          "description": "Mean over pixels of variance of frame-to-frame luminance differences.",
+          "format": "double",
+          "type": "number"
+        },
+        "high_frequency_energy": {
+          "description": "Mean squared second temporal difference divided by four.",
+          "format": "double",
+          "type": "number"
+        }
+      },
+      "required": [
+        "delta_variance",
+        "high_frequency_energy"
+      ],
+      "type": "object"
+    },
+    "Motion": {
+      "description": "Consecutive-frame global translation estimate; unavailable motion is explicit.",
+      "properties": {
+        "camera_not_fixed": {
+          "description": "Motion contradicts fixed-camera declaration.",
+          "type": "boolean"
+        },
+        "confidence": {
+          "description": "Phase coherence.",
+          "format": "double",
+          "type": [
+            "number",
+            "null"
+          ]
+        },
+        "displacement": {
+          "description": "dx,dy in original pixels.",
+          "items": {
+            "format": "double",
+            "type": "number"
+          },
+          "maxItems": 2,
+          "minItems": 2,
+          "type": [
+            "array",
+            "null"
+          ]
+        },
+        "frame": {
+          "description": "Pair starts at this index.",
+          "format": "uint",
+          "minimum": 0,
+          "type": "integer"
+        },
+        "side": {
+          "description": "baseline or candidate.",
+          "type": "string"
+        }
+      },
+      "required": [
+        "side",
+        "frame",
+        "camera_not_fixed"
+      ],
+      "type": "object"
+    },
+    "Policy": {
+      "additionalProperties": false,
+      "description": "Declared fixed-camera temporal policy.",
+      "properties": {
+        "energy_increase": {
+          "default": 0.00005,
+          "description": "Minimum increase in second-difference energy.",
+          "format": "double",
+          "type": "number"
+        },
+        "fixed_camera": {
+          "default": true,
+          "description": "Required declaration, independently checked for global translation.",
+          "type": "boolean"
+        },
+        "fps": {
+          "default": 60.0,
+          "description": "Frame rate for interpretation; no resampling.",
+          "format": "double",
+          "type": "number"
+        },
+        "increase_ratio": {
+          "default": 1.2,
+          "description": "Minimum ratio above the baseline temporal variance/energy floor.",
+          "format": "double",
+          "type": "number"
+        },
+        "motion_confidence": {
+          "default": 0.6,
+          "description": "Minimum phase-coherence confidence for a motion finding.",
+          "format": "double",
+          "type": "number"
+        },
+        "motion_max_px": {
+          "default": 0.5,
+          "description": "Maximum detected global displacement in pixels.",
+          "format": "double",
+          "type": "number"
+        },
+        "tile_size": {
+          "default": 32,
+          "description": "Grid width/height in pixels.",
+          "format": "uint32",
+          "minimum": 0,
+          "type": "integer"
+        },
+        "variance_increase": {
+          "default": 0.00005,
+          "description": "Minimum increase in temporal delta variance.",
+          "format": "double",
+          "type": "number"
+        }
+      },
+      "type": "object"
+    },
+    "Tile": {
+      "description": "Paired tile stability evidence.",
+      "properties": {
+        "baseline": {
+          "$ref": "#/$defs/Energy",
+          "description": "Baseline temporal energies."
+        },
+        "candidate": {
+          "$ref": "#/$defs/Energy",
+          "description": "Candidate energies."
+        },
+        "energy_increase": {
+          "description": "Candidate minus baseline high-frequency energy.",
+          "format": "double",
+          "type": "number"
+        },
+        "pixels": {
+          "description": "Included pixels measured in the persistent scope.",
+          "format": "uint64",
+          "minimum": 0,
+          "type": "integer"
+        },
+        "rect_px": {
+          "description": "Full-resolution pixel box.",
+          "items": {
+            "format": "uint32",
+            "minimum": 0,
+            "type": "integer"
+          },
+          "maxItems": 4,
+          "minItems": 4,
+          "type": "array"
+        },
+        "shimmer_increase": {
+          "description": "Increase exceeds absolute and relative thresholds.",
+          "type": "boolean"
+        },
+        "variance_increase": {
+          "description": "Candidate minus baseline variance.",
+          "format": "double",
+          "type": "number"
+        }
+      },
+      "required": [
+        "rect_px",
+        "pixels",
+        "baseline",
+        "candidate",
+        "variance_increase",
+        "energy_increase",
+        "shimmer_increase"
+      ],
+      "type": "object"
+    }
+  },
+  "$id": "https://github.com/Tavrin/saccade/crates/saccade-core/schemas/saccade-tile-temporal.v1.schema.json",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "description": "Sequence verdict and motion flags, independent of still-image FLIP thresholds.",
+  "properties": {
+    "limits": {
+      "description": "Explicit interpretive limits.",
+      "items": {
+        "type": "string"
+      },
+      "type": "array"
+    },
+    "motion": {
+      "description": "Motion estimates for both sides.",
+      "items": {
+        "$ref": "#/$defs/Motion"
+      },
+      "type": "array"
+    },
+    "policy": {
+      "$ref": "#/$defs/Policy",
+      "description": "Effective fixed-camera policy."
+    },
+    "regions": {
+      "description": "Bounding boxes of connected shimmering tiles.",
+      "items": {
+        "items": {
+          "format": "uint32",
+          "minimum": 0,
+          "type": "integer"
+        },
+        "maxItems": 4,
+        "minItems": 4,
+        "type": "array"
+      },
+      "type": "array"
+    },
+    "schema": {
+      "const": "saccade-tile-temporal.v1",
+      "description": "Versioned discriminator.",
+      "type": "string"
+    },
+    "scope": {
+      "description": "Scope mode: full_image or persistent_intersection.",
+      "type": "string"
+    },
+    "tiles": {
+      "description": "Per-tile paired flicker.",
+      "items": {
+        "$ref": "#/$defs/Tile"
+      },
+      "type": "array"
+    },
+    "verdict": {
+      "description": "stable, shimmer_increase, camera_not_fixed, or unqualified_motion.",
+      "type": "string"
+    }
+  },
+  "required": [
+    "schema",
+    "policy",
+    "verdict",
+    "scope",
+    "tiles",
+    "regions",
+    "motion",
+    "limits"
+  ],
+  "title": "Report",
+  "type": "object"
+}

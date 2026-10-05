@@ -586,6 +586,7 @@ impl MetaChecker {
 }
 
 #[cfg(test)]
+#[allow(clippy::unwrap_used)]
 mod wave9_tests {
     use super::*;
     #[test]

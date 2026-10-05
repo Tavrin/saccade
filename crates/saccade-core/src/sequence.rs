@@ -486,7 +486,11 @@ pub fn run_sequence(
                 .then(b.index.cmp(&a.index))
         });
     let tile_stability = if let Some(policy) = &cfg.temporal_tiles {
-        let load = |frames: &[Frame]| -> Result<Vec<image::RgbaImage>> {
+        let mut allocated_pixels = 0_u64;
+        let mut load = |frames: &[Frame]| -> Result<Vec<image::RgbaImage>> {
+            if frames.len() > 256 {
+                return Err(Error::Config("temporal frame limit exceeded".into()));
+            }
             frames
                 .iter()
                 .map(|f| {
@@ -499,12 +503,75 @@ pub fn run_sequence(
                             "tile stability currently requires SDR frames".into(),
                         ));
                     }
-                    Ok(crate::evidence_quality::image(path)?.to_rgba8())
+                    let image = crate::evidence_quality::image(path)?.to_rgba8();
+                    allocated_pixels += u64::from(image.width()) * u64::from(image.height());
+                    if allocated_pixels > 33_554_432 {
+                        return Err(Error::Config(
+                            "temporal sequence allocation limit exceeded".into(),
+                        ));
+                    }
+                    Ok(image)
                 })
                 .collect()
         };
         match load(&base).and_then(|b| {
-            load(&cap).and_then(|c| crate::evidence_quality::temporal::analyze(&b, &c, policy))
+            load(&cap).and_then(|c| {
+                if b.len() != c.len() {
+                    return Err(Error::Config("temporal paired frame count differs".into()));
+                }
+                let mut persistent: Option<Vec<bool>> = None;
+                for (i, (bi, ci)) in b.iter().zip(&c).enumerate() {
+                    let mut local = cfg.clone();
+                    if let Some(layers) = &cfg.layers {
+                        let bp = base[i]
+                            .path
+                            .as_ref()
+                            .ok_or_else(|| Error::Config("missing frame".into()))?;
+                        let cp = cap[i]
+                            .path
+                            .as_ref()
+                            .ok_or_else(|| Error::Config("missing frame".into()))?;
+                        let bl = crate::evidence_quality::layers::load_for_image(
+                            bp,
+                            layers,
+                            &image::DynamicImage::ImageRgba8(bi.clone()),
+                        )?;
+                        let cl = crate::evidence_quality::layers::load_for_image(
+                            cp,
+                            layers,
+                            &image::DynamicImage::ImageRgba8(ci.clone()),
+                        )?;
+                        local.layer_mask = Some(
+                            crate::evidence_quality::layers::scope_pair(&bl, &cl, layers)?
+                                .0
+                                .into_iter()
+                                .map(|v| !v)
+                                .collect(),
+                        );
+                    }
+                    for name in [&base[i].name, &cap[i].name] {
+                        if let Some(mask) =
+                            crate::regions::effective_mask(name, bi.width(), bi.height(), &local)?
+                        {
+                            let all = persistent.get_or_insert_with(|| vec![false; mask.len()]);
+                            if all.len() != mask.len() {
+                                return Err(Error::Config(
+                                    "temporal scope geometry differs".into(),
+                                ));
+                            }
+                            for (a, v) in all.iter_mut().zip(mask) {
+                                *a |= v;
+                            }
+                        }
+                    }
+                }
+                crate::evidence_quality::temporal::analyze_scoped(
+                    &b,
+                    &c,
+                    policy,
+                    persistent.as_deref(),
+                )
+            })
         }) {
             Ok(evidence) => {
                 if evidence.verdict != "stable" {

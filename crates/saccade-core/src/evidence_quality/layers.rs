@@ -283,7 +283,63 @@ pub struct Loaded {
 }
 /// Load a manifest bound to the final-image content and all its named layers.
 pub fn load(path: &Path, policy: &Policy, dimensions: (u32, u32)) -> Result<Loaded> {
+    load_inner(path, policy, dimensions, None)
+}
+/// Bind layers to the pixels already used by the comparison, refusing a changed source.
+pub fn load_for_image(path: &Path, policy: &Policy, image: &image::DynamicImage) -> Result<Loaded> {
+    load_inner(
+        path,
+        policy,
+        (image.width(), image.height()),
+        Some((image, false)),
+    )
+}
+/// Bind native buffer layers to the exact source pixels decoded for measurement.
+#[cfg(feature = "graphics")]
+pub(crate) fn load_for_buffer(
+    path: &Path,
+    policy: &Policy,
+    image: &image::DynamicImage,
+    scalar: bool,
+) -> Result<Loaded> {
+    load_inner(
+        path,
+        policy,
+        (image.width(), image.height()),
+        Some((image, scalar)),
+    )
+}
+fn load_inner(
+    path: &Path,
+    policy: &Policy,
+    dimensions: (u32, u32),
+    expected: Option<(&image::DynamicImage, bool)>,
+) -> Result<Loaded> {
     policy.validate()?;
+    let final_bytes = super::read(path, 128 << 20)?;
+    if let Some((expected, scalar)) = expected {
+        #[cfg(feature = "graphics")]
+        let current = if scalar {
+            crate::buffer::decode_r32f_bytes(&final_bytes, path)?
+        } else {
+            super::decode(&final_bytes, path)?
+        };
+        #[cfg(not(feature = "graphics"))]
+        let current = {
+            let _ = scalar;
+            super::decode(&final_bytes, path)?
+        };
+        let matches = if expected.color() == image::ColorType::Rgba8 {
+            current.to_rgba8() == expected.to_rgba8()
+        } else {
+            current.to_rgba32f() == expected.to_rgba32f()
+        };
+        if !matches {
+            return Err(Error::Config(
+                "capture-layer final image changed after comparison decode".into(),
+            ));
+        }
+    }
     let root = path.parent().unwrap_or(Path::new("."));
     let name = policy.manifest.clone().unwrap_or_else(|| {
         format!(
@@ -297,14 +353,14 @@ pub fn load(path: &Path, policy: &Policy, dimensions: (u32, u32)) -> Result<Load
     if manifest.schema != SCHEMA
         || manifest.dimensions != [dimensions.0, dimensions.1]
         || manifest.layers.len() > 64
-        || manifest.image_sha256 != crate::localized::digest(&super::read(path, 128 << 20)?)
+        || manifest.image_sha256 != crate::localized::digest(&final_bytes)
     {
         return Err(Error::Config(
             "capture-layer manifest schema/dimensions/image identity mismatch".into(),
         ));
     }
     let mut retained = std::collections::BTreeMap::new();
-    let mut allocation = bytes.len();
+    let mut allocation = bytes.len() + final_bytes.len();
     let mut hashes = std::collections::BTreeMap::new();
     let mut images = std::collections::BTreeMap::new();
     for layer in &manifest.layers {
@@ -736,6 +792,18 @@ mod tests {
             ..Default::default()
         };
         assert!(scope_pair(&a, &a, &scope).is_err());
+        let original = super::super::image(&path).unwrap();
+        image::RgbImage::from_pixel(64, 64, image::Rgb([220; 3]))
+            .save(&path)
+            .unwrap();
+        let mp = path.with_file_name("frame.png.layers.json");
+        let mut manifest: Manifest =
+            serde_json::from_slice(&super::super::read(&mp, 1 << 20).unwrap()).unwrap();
+        manifest.image_sha256 =
+            crate::localized::digest(&super::super::read(&path, 128 << 20).unwrap());
+        std::fs::write(&mp, serde_json::to_vec(&manifest).unwrap()).unwrap();
+        assert!(load(&path, &p, (64, 64)).is_ok());
+        assert!(load_for_image(&path, &p, &original).is_err());
         std::fs::write(&path, b"changed").unwrap();
         assert!(load(&path, &p, (64, 64)).is_err());
     }

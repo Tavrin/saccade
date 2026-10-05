@@ -190,6 +190,7 @@ pub fn register(plan_file: &Path, out: &Path) -> Result<Receipt> {
 }
 /// Verify the current plan and all transitive inputs against immutable registration.
 pub fn validate(plan_file: &Path, out: &Path) -> Result<Frozen> {
+    regular_tree(out)?;
     let bytes = super::read(&out.join("frozen.json"), 1 << 20)?;
     let frozen: Frozen = serde_json::from_slice(&bytes)?;
     let expected = super::read(&out.join("registration.sha256"), 128)?;
@@ -217,6 +218,35 @@ fn frozen_image(frozen: &Frozen, root: &Path, name: &str) -> Result<image::Dynam
         return Err(Error::TrialPlanChanged);
     }
     super::decode(&bytes, &path)
+}
+fn regular_tree(root: &Path) -> Result<()> {
+    let mut todo = vec![(root.to_path_buf(), 0)];
+    let mut count = 0;
+    while let Some((path, depth)) = todo.pop() {
+        count += 1;
+        if count > 1024 || depth > 8 {
+            return Err(Error::Config("trial artifact tree exceeds limit".into()));
+        }
+        let meta = std::fs::symlink_metadata(&path)
+            .map_err(crate::run::io_err("reading trial artifact type".into()))?;
+        if meta.is_dir() {
+            for entry in std::fs::read_dir(path).map_err(crate::run::io_err(
+                "reading trial artifact directory".into(),
+            ))? {
+                todo.push((
+                    entry
+                        .map_err(crate::run::io_err("reading trial artifact entry".into()))?
+                        .path(),
+                    depth + 1,
+                ));
+            }
+        } else if !meta.file_type().is_file() {
+            return Err(Error::Config(
+                "trial artifacts must be regular files and directories".into(),
+            ));
+        }
+    }
+    Ok(())
 }
 fn escape(s: &str) -> String {
     s.replace('&', "&amp;")
@@ -503,9 +533,37 @@ mod tests {
         let run = crate::judge_vote::read_run(&out).unwrap();
         vote(&file, &out, "reviewer", &run.items[0].id, "P1").unwrap();
         assert_eq!(crate::judge_vote::votes(&out).len(), 1);
-        plan.seed += 1;
-        std::fs::write(&file, serde_json::to_vec(&plan).unwrap()).unwrap();
-        assert!(matches!(start(&file, &out), Err(Error::TrialPlanChanged)));
+        let original = plan.clone();
+        for choice in 0..5 {
+            plan = original.clone();
+            match choice {
+                0 => plan.seed += 1,
+                1 => plan.metrics.push("rgb_mad".into()),
+                2 => plan.pairs[0].mask = Some("a.png".into()),
+                3 => {
+                    let pair = &mut plan.pairs[0];
+                    std::mem::swap(&mut pair.first, &mut pair.second)
+                }
+                _ => plan.spatial_policy.tile_size = 16,
+            }
+            std::fs::write(&file, serde_json::to_vec(&plan).unwrap()).unwrap();
+            assert!(matches!(start(&file, &out), Err(Error::TrialPlanChanged)));
+            assert!(matches!(
+                vote(&file, &out, "reviewer", &run.items[0].id, "P2"),
+                Err(Error::TrialPlanChanged)
+            ));
+        }
+        std::fs::write(&file, serde_json::to_vec(&original).unwrap()).unwrap();
+        assert!(
+            import(
+                &file,
+                &out,
+                "reviewer",
+                br#"{"votes":[{"item":"unknown","answer":"P1"}]}"#
+            )
+            .is_err()
+        );
+        std::fs::write(out.join("public/index.html"), "changed presentation").unwrap();
         assert!(matches!(
             vote(&file, &out, "reviewer", &run.items[0].id, "P2"),
             Err(Error::TrialPlanChanged)

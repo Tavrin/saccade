@@ -1,8 +1,11 @@
 //! Opt-in rendering evidence: occupancy, structure, layers and temporal uncertainty.
+#![cfg_attr(test, allow(clippy::unwrap_used, clippy::panic))]
 pub mod effect;
 pub mod gallery;
 pub mod layers;
 pub mod reference;
+#[cfg(feature = "schema")]
+pub mod schemas;
 pub mod spatial;
 pub mod temporal;
 pub mod trial;

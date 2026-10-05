@@ -1,0 +1,528 @@
+{
+  "$defs": {
+    "Background": {
+      "description": "Optional background definition for gap/coverage statistics.",
+      "oneOf": [
+        {
+          "additionalProperties": false,
+          "description": "Luminance at or below a normalized sRGB threshold.",
+          "properties": {
+            "kind": {
+              "const": "luminance",
+              "type": "string"
+            },
+            "max": {
+              "description": "Upper bound.",
+              "format": "double",
+              "type": "number"
+            }
+          },
+          "required": [
+            "kind",
+            "max"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "description": "All RGB channels within a normalized distance from a colour.",
+          "properties": {
+            "kind": {
+              "const": "colour",
+              "type": "string"
+            },
+            "rgb": {
+              "description": "Normalized RGB.",
+              "items": {
+                "format": "double",
+                "type": "number"
+              },
+              "maxItems": 3,
+              "minItems": 3,
+              "type": "array"
+            },
+            "tolerance": {
+              "description": "Maximum per-channel distance.",
+              "format": "double",
+              "type": "number"
+            }
+          },
+          "required": [
+            "kind",
+            "rgb",
+            "tolerance"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "description": "Supplied mask or side-specific native layer selection marks background.",
+          "properties": {
+            "kind": {
+              "const": "selection",
+              "type": "string"
+            },
+            "selection": {
+              "$ref": "#/$defs/Selection",
+              "description": "Inclusion source."
+            }
+          },
+          "required": [
+            "kind",
+            "selection"
+          ],
+          "type": "object"
+        }
+      ]
+    },
+    "Pair": {
+      "additionalProperties": false,
+      "description": "One pair, roles kept in the private preregistration file.",
+      "properties": {
+        "first": {
+          "description": "Relative first image file.",
+          "type": "string"
+        },
+        "id": {
+          "description": "Private pair name.",
+          "type": "string"
+        },
+        "mask": {
+          "description": "Optional white-pixel inclusion PNG, exact image dimensions.",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "second": {
+          "description": "Relative second image file.",
+          "type": "string"
+        }
+      },
+      "required": [
+        "id",
+        "first",
+        "second"
+      ],
+      "type": "object"
+    },
+    "Plan": {
+      "additionalProperties": false,
+      "description": "Declared metric, display scope, pairs and randomization chosen before inspection starts.",
+      "properties": {
+        "metrics": {
+          "description": "Metrics chosen before inspection; no scoring policy can change later.",
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "objective": {
+          "description": "Neutral judging criterion; no implementation labels.",
+          "type": "string"
+        },
+        "pairs": {
+          "description": "Fixed pairs and inclusion masks.",
+          "items": {
+            "$ref": "#/$defs/Pair"
+          },
+          "type": "array"
+        },
+        "schema": {
+          "description": "Must equal PLAN_SCHEMA.",
+          "type": "string"
+        },
+        "seed": {
+          "description": "Seed for both pair order and within-pair permutation.",
+          "format": "uint64",
+          "minimum": 0,
+          "type": "integer"
+        },
+        "spatial_policy": {
+          "$ref": "#/$defs/Policy",
+          "description": "Exact numerical comparison policy, hashed with the plan."
+        }
+      },
+      "required": [
+        "schema",
+        "objective",
+        "metrics",
+        "spatial_policy",
+        "pairs",
+        "seed"
+      ],
+      "type": "object"
+    },
+    "Policy": {
+      "additionalProperties": false,
+      "description": "Versioned, recorded numerical policy; opt-in to normal compare.",
+      "properties": {
+        "absolute_shift": {
+          "default": 0.02,
+          "description": "Absolute tile luminance shift threshold.",
+          "format": "double",
+          "type": "number"
+        },
+        "background": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Background"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Optional declared background predicate."
+        },
+        "ci_z": {
+          "default": 1.96,
+          "description": "Normal-approximation CI multiplier over paired pixel residuals.",
+          "format": "double",
+          "type": "number"
+        },
+        "coarse_flip_ratio_max": {
+          "default": 0.3,
+          "description": "Full-resolution/coarse FLIP attenuation threshold for texture noise.",
+          "format": "double",
+          "type": "number"
+        },
+        "coarse_mad_max": {
+          "default": 0.002,
+          "description": "Coarse normalized mean absolute RGB tolerance (half an 8-bit code).",
+          "format": "double",
+          "type": "number"
+        },
+        "decide": {
+          "default": false,
+          "description": "If true, use the structural verdict for acceptance; historical metric remains recorded.",
+          "type": "boolean"
+        },
+        "detail_ratio_tolerance": {
+          "default": 0.1,
+          "description": "Maximum relative change in absolute Laplacian detail energy.",
+          "format": "double",
+          "type": "number"
+        },
+        "gallery_top": {
+          "default": 5,
+          "description": "Maximum gallery regions; zero disables generated crops.",
+          "format": "uint",
+          "minimum": 0,
+          "type": "integer"
+        },
+        "gap_shift": {
+          "default": 0.05,
+          "description": "Minimum absolute gap-fraction change to mark a tile.",
+          "format": "double",
+          "type": "number"
+        },
+        "luminance_floor": {
+          "default": 0.02,
+          "description": "Minimum luminance denominator for relative shifts and contrast.",
+          "format": "double",
+          "type": "number"
+        },
+        "min_cluster_tiles": {
+          "default": 3,
+          "description": "Minimum connected significant tiles for a clustered bias finding.",
+          "format": "uint",
+          "minimum": 0,
+          "type": "integer"
+        },
+        "relative_shift": {
+          "default": 0.02,
+          "description": "Relative tile luminance shift threshold.",
+          "format": "double",
+          "type": "number"
+        },
+        "scales": {
+          "default": [
+            2,
+            4,
+            8
+          ],
+          "description": "Integer area-reduction factors; full resolution is always reported.",
+          "items": {
+            "format": "uint32",
+            "minimum": 0,
+            "type": "integer"
+          },
+          "type": "array"
+        },
+        "shifted_share_max": {
+          "default": 0.25,
+          "description": "Fraction of relative-shifted tiles above which bias cannot be called benign.",
+          "format": "double",
+          "type": "number"
+        },
+        "sparse_tiles": {
+          "default": 2,
+          "description": "Sparse absolute outlier tiles tolerated by small coarse-error evidence.",
+          "format": "uint",
+          "minimum": 0,
+          "type": "integer"
+        },
+        "ssimulacra2": {
+          "default": false,
+          "description": "Optional pinned SSIMULACRA2 at meaningful (>=8x8 opaque) scales.",
+          "type": "boolean"
+        },
+        "tile_size": {
+          "default": 32,
+          "description": "Regular tile width and height in capture pixels; edge tiles are retained.",
+          "format": "uint32",
+          "minimum": 0,
+          "type": "integer"
+        },
+        "version": {
+          "default": "spatial-1",
+          "description": "Must equal POLICY_VERSION.",
+          "type": "string"
+        }
+      },
+      "type": "object"
+    },
+    "Predicate": {
+      "description": "Selection rule evaluated in native units (ID PNGs retain integer values).",
+      "oneOf": [
+        {
+          "additionalProperties": false,
+          "description": "Exact native integer labels.",
+          "properties": {
+            "kind": {
+              "const": "ids",
+              "type": "string"
+            },
+            "values": {
+              "description": "Allowed labels.",
+              "items": {
+                "format": "uint32",
+                "minimum": 0,
+                "type": "integer"
+              },
+              "type": "array"
+            }
+          },
+          "required": [
+            "kind",
+            "values"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "description": "Inclusive range in scalar/depth units.",
+          "properties": {
+            "kind": {
+              "const": "range",
+              "type": "string"
+            },
+            "max": {
+              "description": "Inclusive upper bound.",
+              "format": "double",
+              "type": "number"
+            },
+            "min": {
+              "description": "Inclusive lower bound.",
+              "format": "double",
+              "type": "number"
+            }
+          },
+          "required": [
+            "kind",
+            "min",
+            "max"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "description": "Scalar greater than the declared threshold.",
+          "properties": {
+            "kind": {
+              "const": "above",
+              "type": "string"
+            },
+            "threshold": {
+              "description": "Threshold in native units.",
+              "format": "double",
+              "type": "number"
+            }
+          },
+          "required": [
+            "kind",
+            "threshold"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "description": "Nonzero scalar mask samples.",
+          "properties": {
+            "kind": {
+              "const": "mask",
+              "type": "string"
+            }
+          },
+          "required": [
+            "kind"
+          ],
+          "type": "object"
+        }
+      ]
+    },
+    "Selection": {
+      "description": "Generic inclusion source, never an exclusion mask.",
+      "oneOf": [
+        {
+          "additionalProperties": false,
+          "description": "Source-bound named layer from the image-adjacent manifest.",
+          "properties": {
+            "kind": {
+              "const": "named_layer",
+              "type": "string"
+            },
+            "manifest": {
+              "default": null,
+              "description": "Optional plain manifest filename; defaults to <filename>.layers.json.",
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "name": {
+              "description": "Layer name.",
+              "type": "string"
+            },
+            "predicate": {
+              "$ref": "#/$defs/Predicate",
+              "description": "Native inclusion predicate."
+            }
+          },
+          "required": [
+            "kind",
+            "name",
+            "predicate"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "description": "White/nonzero image pixels; exact dimensions required.",
+          "properties": {
+            "image": {
+              "description": "Path relative to policy directory.",
+              "type": "string"
+            },
+            "kind": {
+              "const": "mask",
+              "type": "string"
+            }
+          },
+          "required": [
+            "kind",
+            "image"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "description": "Pixel boxes with exclusive far edges.",
+          "properties": {
+            "boxes": {
+              "description": "[x,y,width,height] boxes.",
+              "items": {
+                "items": {
+                  "format": "uint32",
+                  "minimum": 0,
+                  "type": "integer"
+                },
+                "maxItems": 4,
+                "minItems": 4,
+                "type": "array"
+              },
+              "type": "array"
+            },
+            "kind": {
+              "const": "boxes",
+              "type": "string"
+            }
+          },
+          "required": [
+            "kind",
+            "boxes"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "description": "Native side-specific layer.",
+          "properties": {
+            "image": {
+              "description": "Layer file relative to each image's parent.",
+              "type": "string"
+            },
+            "kind": {
+              "const": "layer",
+              "type": "string"
+            },
+            "predicate": {
+              "$ref": "#/$defs/Predicate",
+              "description": "Native predicate."
+            }
+          },
+          "required": [
+            "kind",
+            "image",
+            "predicate"
+          ],
+          "type": "object"
+        }
+      ]
+    }
+  },
+  "$id": "https://github.com/Tavrin/saccade/crates/saccade-core/schemas/saccade-visual-trial-frozen.v1.schema.json",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "description": "Private registration; never distribute this to blind judges.",
+  "properties": {
+    "inputs": {
+      "additionalProperties": {
+        "type": "string"
+      },
+      "description": "Raw file identities, including masks.",
+      "type": "object"
+    },
+    "plan": {
+      "$ref": "#/$defs/Plan",
+      "description": "Immutable declared plan."
+    },
+    "plan_sha256": {
+      "description": "Canonical plan SHA-256.",
+      "type": "string"
+    },
+    "registration_id": {
+      "description": "Plan plus transitive inputs identity.",
+      "type": "string"
+    },
+    "root": {
+      "description": "Absolute input root provenance, private only.",
+      "type": "string"
+    },
+    "schema": {
+      "const": "saccade-visual-trial-frozen.v1",
+      "description": "Discriminator.",
+      "type": "string"
+    }
+  },
+  "required": [
+    "schema",
+    "plan",
+    "plan_sha256",
+    "registration_id",
+    "root",
+    "inputs"
+  ],
+  "title": "Frozen",
+  "type": "object"
+}

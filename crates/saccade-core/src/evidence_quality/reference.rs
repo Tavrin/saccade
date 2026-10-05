@@ -447,7 +447,7 @@ mod tests {
             compare(
                 &frame(0.2),
                 &reference,
-                Noise::Seeds(&[opposite.clone()]),
+                Noise::Seeds(std::slice::from_ref(&opposite)),
                 None,
                 &policy,
                 &opts

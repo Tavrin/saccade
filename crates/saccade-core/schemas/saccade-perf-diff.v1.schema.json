@@ -120,6 +120,63 @@
       ],
       "type": "string"
     },
+    "Convergence": {
+      "properties": {
+        "coefficient_of_variation": {
+          "format": "double",
+          "type": "number"
+        },
+        "converged": {
+          "type": "boolean"
+        },
+        "evaluated_range": {
+          "items": {
+            "format": "uint",
+            "minimum": 0,
+            "type": "integer"
+          },
+          "maxItems": 2,
+          "minItems": 2,
+          "type": "array"
+        },
+        "policy": {
+          "$ref": "#/$defs/Policy"
+        },
+        "relative_mean_change": {
+          "format": "double",
+          "type": "number"
+        },
+        "relative_slope_per_iteration": {
+          "format": "double",
+          "type": "number"
+        },
+        "samples": {
+          "format": "uint",
+          "minimum": 0,
+          "type": "integer"
+        },
+        "window_means_ms": {
+          "items": {
+            "format": "double",
+            "type": "number"
+          },
+          "maxItems": 2,
+          "minItems": 2,
+          "type": "array"
+        }
+      },
+      "required": [
+        "policy",
+        "samples",
+        "evaluated_range",
+        "window_means_ms",
+        "relative_mean_change",
+        "coefficient_of_variation",
+        "relative_slope_per_iteration",
+        "converged"
+      ],
+      "type": "object"
+    },
     "CounterDiff": {
       "properties": {
         "after": {
@@ -359,6 +416,26 @@
         "samples",
         "degenerate",
         "limits"
+      ],
+      "type": "object"
+    },
+    "Evidence": {
+      "additionalProperties": false,
+      "properties": {
+        "iterations_ms": {
+          "items": {
+            "format": "double",
+            "type": "number"
+          },
+          "type": "array"
+        },
+        "policy": {
+          "$ref": "#/$defs/Policy"
+        }
+      },
+      "required": [
+        "policy",
+        "iterations_ms"
       ],
       "type": "object"
     },
@@ -638,6 +715,37 @@
       ],
       "type": "object"
     },
+    "Policy": {
+      "additionalProperties": false,
+      "properties": {
+        "coefficient_of_variation_max": {
+          "default": 0.03,
+          "format": "double",
+          "type": "number"
+        },
+        "mean_relative_tolerance": {
+          "default": 0.02,
+          "format": "double",
+          "type": "number"
+        },
+        "slope_relative_max": {
+          "default": 0.001,
+          "format": "double",
+          "type": "number"
+        },
+        "version": {
+          "default": "warmup-1",
+          "type": "string"
+        },
+        "window": {
+          "default": 16,
+          "format": "uint",
+          "minimum": 0,
+          "type": "integer"
+        }
+      },
+      "type": "object"
+    },
     "Qualification": {
       "additionalProperties": false,
       "properties": {
@@ -665,6 +773,18 @@
         },
         "version": {
           "type": "string"
+        },
+        "warmup": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Evidence"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Optional producer-supplied per-iteration evidence, recomputed locally."
         }
       },
       "required": [
@@ -675,6 +795,19 @@
         "reasons"
       ],
       "type": "object"
+    },
+    "Reason": {
+      "enum": [
+        "warmup_not_converged",
+        "warmup_evidence_unavailable",
+        "warmup_data_invalid",
+        "clock_unqualified",
+        "noise_unqualified",
+        "qualification_unavailable",
+        "producer_rejected",
+        "condition_mismatch"
+      ],
+      "type": "string"
     },
     "Samples": {
       "additionalProperties": false,
@@ -1008,6 +1141,13 @@
       "description": "Effective policy sources: explicit options, repeat calibration or defaults.",
       "type": "object"
     },
+    "qualification_reason_codes": {
+      "default": [],
+      "items": {
+        "$ref": "#/$defs/Reason"
+      },
+      "type": "array"
+    },
     "qualification_reasons": {
       "default": [],
       "items": {
@@ -1065,6 +1205,28 @@
     },
     "unit": {
       "type": "string"
+    },
+    "warmup_after": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/Convergence"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null
+    },
+    "warmup_before": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/Convergence"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null
     },
     "warnings": {
       "items": {

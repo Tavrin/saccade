@@ -744,6 +744,59 @@ mod tests {
         )
         .unwrap()
     }
+    #[cfg(feature = "compression")]
+    #[test]
+    fn perceptual_quality_is_only_scored_for_opaque_meaningful_scales() {
+        let image = image::RgbaImage::from_fn(32, 32, |x, y| {
+            image::Rgba([((x * 19 + y * 31) % 256) as u8; 4])
+        });
+        let mut image = image;
+        for p in image.pixels_mut() {
+            p[3] = 255;
+        }
+        let policy = Policy {
+            ssimulacra2: true,
+            ..Default::default()
+        };
+        let report = analyze(
+            &image,
+            &image,
+            &vec![0.0; 1024],
+            None,
+            None,
+            &policy,
+            &Default::default(),
+            ChangeClass::Identical,
+        )
+        .unwrap();
+        assert!(
+            report
+                .scales
+                .iter()
+                .filter(|s| s.dimensions[0] >= 8)
+                .all(|s| s.ssimulacra2.is_some_and(|v| v > 99.0))
+        );
+        assert!(
+            report
+                .scales
+                .iter()
+                .filter(|s| s.dimensions[0] < 8)
+                .all(|s| s.ssimulacra2.is_none())
+        );
+        image.get_pixel_mut(0, 0)[3] = 128;
+        let report = analyze(
+            &image,
+            &image,
+            &vec![0.0; 1024],
+            None,
+            None,
+            &policy,
+            &Default::default(),
+            ChangeClass::Identical,
+        )
+        .unwrap();
+        assert!(report.scales.iter().all(|s| s.ssimulacra2.is_none()));
+    }
     #[test]
     fn jittered_speckle_same_mean_is_texture_only() {
         let b = image::RgbaImage::from_fn(128, 128, |x, y| {

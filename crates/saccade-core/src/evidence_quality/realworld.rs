@@ -89,3 +89,72 @@ fn read_only_checks() {
         "held-out label mismatch: inspect summary.json; do not retune thresholds"
     );
 }
+
+#[test]
+fn read_only_effect_checks() {
+    let Some(path) = std::env::var_os("WAVE9_EFFECT_INVENTORY") else {
+        return;
+    };
+    #[derive(Deserialize)]
+    struct EffectPair {
+        id: String,
+        baseline: PathBuf,
+        candidate: PathBuf,
+        mask: PathBuf,
+        expected_covered: bool,
+    }
+    #[derive(Deserialize)]
+    struct Effects {
+        pairs: Vec<EffectPair>,
+        out: PathBuf,
+    }
+    let inventory: Effects =
+        serde_json::from_slice(&read(std::path::Path::new(&path), 1 << 20).unwrap()).unwrap();
+    assert!(!inventory.out.exists());
+    std::fs::create_dir_all(&inventory.out).unwrap();
+    let mut summary = Vec::new();
+    for (i, pair) in inventory.pairs.iter().enumerate() {
+        let hashes = [&pair.baseline, &pair.candidate, &pair.mask]
+            .map(|p| crate::localized::digest(&read(p, 128 << 20).unwrap()));
+        let config = crate::config::RunConfig {
+            config_dir: pair.mask.parent().map(PathBuf::from),
+            required_effect: vec![effect::RequiredEffect {
+                name: "decoded_difference_proxy".into(),
+                glob: "**".into(),
+                selection: effect::Selection::Mask {
+                    image: pair
+                        .mask
+                        .file_name()
+                        .unwrap()
+                        .to_string_lossy()
+                        .into_owned(),
+                },
+                min_pixels: 1,
+                min_fraction: 0.0,
+                sides: effect::Sides::Both,
+            }],
+            ..Default::default()
+        };
+        let out = inventory.out.join(format!("pair-{i}"));
+        let report = crate::run::run(&pair.baseline, &pair.candidate, &out, &config).unwrap();
+        crate::render::render_html(&report, &out).unwrap();
+        let entry = &report.entries[0];
+        let result = entry
+            .required_effects
+            .first()
+            .unwrap_or_else(|| panic!("missing effect: {:?}", entry.error));
+        assert_eq!(result.failures.is_empty(), pair.expected_covered);
+        for (p, h) in [&pair.baseline, &pair.candidate, &pair.mask]
+            .into_iter()
+            .zip(&hashes)
+        {
+            assert_eq!(&crate::localized::digest(&read(p, 128 << 20).unwrap()), h);
+        }
+        summary.push(serde_json::json!({"id":pair.id,"effect":result,"status":entry.status,"metrics":entry.metrics,"input_hashes":hashes,"limitation":"Post-hoc decoded difference proxy is an occupancy diagnostic, not a measured effect layer or causal/pre-registered proof."}));
+    }
+    std::fs::write(
+        inventory.out.join("summary.json"),
+        serde_json::to_vec_pretty(&summary).unwrap(),
+    )
+    .unwrap();
+}

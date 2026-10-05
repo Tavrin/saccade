@@ -93,7 +93,9 @@ impl RequiredEffect {
                 "effect needs a name and positive coverage minimum".into(),
             ));
         }
-        if let Selection::Layer { predicate, .. } = &self.selection {
+        if let Selection::Layer { predicate, .. } | Selection::NamedLayer { predicate, .. } =
+            &self.selection
+        {
             predicate.validate()?;
         }
         Ok(())

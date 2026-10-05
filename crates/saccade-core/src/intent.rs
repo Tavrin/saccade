@@ -387,6 +387,27 @@ pub fn verify(intent: &VisualIntent, source: &Path, report: &Report) -> Verifica
     result
 }
 
+/// Attach predeclared required effects to the normal comparison policy.
+pub fn apply_effects(
+    intent: &VisualIntent,
+    source: &Path,
+    config: &mut crate::config::RunConfig,
+) -> crate::Result<()> {
+    for effect in &intent.required_effects {
+        if config.required_effect.iter().any(|e| e.name == effect.name) {
+            return Err(crate::Error::Config(
+                "duplicate required-effect name".into(),
+            ));
+        }
+        config.effect_roots.insert(
+            effect.name.clone(),
+            source.parent().unwrap_or(Path::new(".")).to_path_buf(),
+        );
+        config.required_effect.push(effect.clone());
+    }
+    Ok(())
+}
+
 #[cfg(test)]
 #[allow(clippy::unwrap_used)]
 mod tests {
@@ -451,25 +472,4 @@ mod tests {
         );
         assert_eq!(found.missing.len(), 1);
     }
-}
-
-/// Attach predeclared required effects to the normal comparison policy.
-pub fn apply_effects(
-    intent: &VisualIntent,
-    source: &Path,
-    config: &mut crate::config::RunConfig,
-) -> crate::Result<()> {
-    for effect in &intent.required_effects {
-        if config.required_effect.iter().any(|e| e.name == effect.name) {
-            return Err(crate::Error::Config(
-                "duplicate required-effect name".into(),
-            ));
-        }
-        config.effect_roots.insert(
-            effect.name.clone(),
-            source.parent().unwrap_or(Path::new(".")).to_path_buf(),
-        );
-        config.required_effect.push(effect.clone());
-    }
-    Ok(())
 }

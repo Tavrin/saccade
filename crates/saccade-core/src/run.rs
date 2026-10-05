@@ -1449,8 +1449,8 @@ fn apply_quality(
             .as_ref()
             .map(|criterion| {
                 Ok::<_, Error>((
-                    spatial::background(criterion, &base_img, pair.baseline_path, root)?,
-                    spatial::background(criterion, &cap_img, pair.capture_path, root)?,
+                    spatial::background(criterion, base_img, pair.baseline_path, root)?,
+                    spatial::background(criterion, cap_img, pair.capture_path, root)?,
                 ))
             })
             .transpose()?;
@@ -1459,9 +1459,9 @@ fn apply_quality(
             .as_ref()
             .map_or(crate::diagnostics::ChangeClass::LocalStructure, |d| d.class);
         let result = spatial::analyze(
-            &base_img,
-            &cap_img,
-            &errors,
+            base_img,
+            cap_img,
+            errors,
             excluded.as_deref(),
             gaps.as_ref().map(|(b, c)| (b.as_slice(), c.as_slice())),
             policy,
@@ -1491,9 +1491,9 @@ fn apply_quality(
         }
         entry.gallery = crate::evidence_quality::gallery::generate(
             &entry.name,
-            &base_img,
-            &cap_img,
-            &errors,
+            base_img,
+            cap_img,
+            errors,
             excluded.as_deref(),
             &entry.hotspots,
             &result,
@@ -1524,7 +1524,7 @@ fn apply_quality(
             cap_img.dimensions(),
         )?;
         let result =
-            crate::evidence_quality::effect::measure(effect, &b, &c, &base_img, &cap_img, &errors)?;
+            crate::evidence_quality::effect::measure(effect, &b, &c, base_img, cap_img, errors)?;
         if !result.failures.is_empty() {
             entry.status = Status::Fail;
         }
@@ -1546,8 +1546,8 @@ fn layered_config<'a>(
     let Some(policy) = &config.layers else {
         return Ok(std::borrow::Cow::Borrowed(config));
     };
-    let mut bl = crate::evidence_quality::layers::load(base, policy, (b.width(), b.height()))?;
-    let mut cl = crate::evidence_quality::layers::load(cap, policy, (c.width(), c.height()))?;
+    let mut bl = crate::evidence_quality::layers::load_for_image(base, policy, b)?;
+    let mut cl = crate::evidence_quality::layers::load_for_image(cap, policy, c)?;
     crate::evidence_quality::layers::bundle(&mut bl, report_dir, &entry.name, "baseline")?;
     crate::evidence_quality::layers::bundle(&mut cl, report_dir, &entry.name, "candidate")?;
     let (selected, nb, nc) = crate::evidence_quality::layers::scope_pair(&bl, &cl, policy)?;
