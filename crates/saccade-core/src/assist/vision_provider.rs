@@ -14,6 +14,9 @@ pub fn mapped(
     data: &str,
     response: Option<&[u8]>,
 ) -> Result<serde_json::Value> {
+    catalog
+        .validate()
+        .map_err(|e| crate::wave7::models::VisionError::Invalid(e.to_string()))?;
     let mut images = Vec::new();
     for (index, (role, png)) in pngs.iter().enumerate() {
         let image = catalog

@@ -98,6 +98,7 @@ not be renamed or removed without a deprecation period.
 
 | Capability | Guarantee |
 | --- | --- |
+| `mask-mode-v1` | Explicit exclude/neutralize mask modes with recorded original-error audits. |
 | `compat-aliases` | Legacy command aliases remain accepted with a replacement warning. |
 | `removed-flag-errors` | Removed flags fail with a targeted replacement or removal error. |
 | `version-skew-errors` | Newer persisted report versions fail with a distinct version skew error. |

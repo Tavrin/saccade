@@ -1876,6 +1876,7 @@ fn doctor(json: bool) -> Result<u8, CliError> {
     // wave7
     capabilities.extend([
         "local-model-registry-v1",
+        "mask-mode-v1",
         "vision-replay-v1",
         "crop-safety-v1",
         "watermark-dwt-v1",
