@@ -1,5 +1,9 @@
 # Wave 2 decisions
 
+Current requirements (integration round 3, 2026-10-05): Rust 1.89 and
+Butteraugli 0.9.3. Rust 1.88 / Butteraugli 0.4.0 statements below retain the
+original lane decisions and test history; see [integration report](../../INTEGRATION-REPORT.md).
+
 ## 1. Snapshot variation and drift
 
 Extend the local history index additively. A producer-assigned run ID and an explicit frozen environment identity distinguish independent trials from artifact copies. Identical pixels across declared runs count as independent observations. Legacy rows remain readable and retain their provisional artifact-variation advice. They cannot establish independent normal variation.

@@ -1,5 +1,9 @@
 # Wave 2 review fixes
 
+Current requirements (integration round 3, 2026-10-05): Rust 1.89 and
+Butteraugli 0.9.3. Rust 1.88 / Butteraugli 0.4.0 statements below retain the
+original lane decisions and test history; see [integration report](../../INTEGRATION-REPORT.md).
+
 Binding brief: `SPEC-wave2-fixes.md`; reviewed starting revision
 `f2004f465e29113a52b622b57d7a1025bc60d5b1`. All sixteen findings are accepted.
 No subagents, push, merge or rebase were used. Commits use Tavrin's requested

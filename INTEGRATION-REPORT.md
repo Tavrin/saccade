@@ -223,6 +223,56 @@ brightness/block/local-patch distortion, not broad natural-image qualification.
 
 ## Round 3 gate receipts
 
-Pending current-source qualification and CI/release gates. Each admitted component
-has a 900-second limit; release-check's opt-in admission releases shared resources
-between components. Builds stop below the inherited 25 GiB free-space floor.
+**Implementation complete; full qualification BLOCKED by shared disk space.**
+The paired dependency probe is positive evidence, but existing Saccade reference
+tests and the full build matrix did not execute. No broad acceptance is claimed.
+Each admitted component has a 900-second limit; release-check's opt-in admission
+releases shared resources between components. Builds stop below the inherited
+25 GiB free-space floor. A 900.016-second recovery wait held no queue resources;
+free space was only 14.609 GiB at expiry. The installed safe reaper could not
+recover its goal while other build targets were live/protected. Neither its
+safety checks nor the lane's floor were bypassed; other targets were untouched.
+
+| Gate | Result / exit | Evidence |
+| --- | --- | --- |
+| Paired 0.4.0/0.9.3 probe, Rust 1.89 | PASS / 0; all nonidentical errors improved | [log](/mnt/linux-extra/moss-scratch/saccade-integ-r3/probe-1.89.log), [binary/source pins](/mnt/linux-extra/moss-scratch/saccade-integ-r3/probe-identity.json) |
+| Official PNG fixture hashes / unchanged tolerances | PASS | Committed values.json and [milestone](/mnt/linux-extra/moss-scratch/saccade-integ-r3/MILESTONES.md) |
+| fmt / actionlint / shellcheck / diff | PASS / 0 | [receipt](/mnt/linux-extra/moss-scratch/saccade-integ-r3/static-gate-receipt.json) |
+| Constructed corpus source hash after vendor removal | PASS | [milestone](/mnt/linux-extra/moss-scratch/saccade-integ-r3/MILESTONES.md) |
+| Generated notices / release tar and zip notices | PASS / 0; full 0.9.3 notice verified | [archive test](/mnt/linux-extra/moss-scratch/saccade-integ-r3/release-notices.log), [retained generated notices](/mnt/linux-extra/moss-scratch/saccade-integ-r3/THIRD_PARTY_NOTICES.md) |
+| Rust 1.89 default check / existing quality_reference | REFUSED / 75; not executed | [receipts](/mnt/linux-extra/moss-scratch/saccade-integ-r3/msrv-refused/receipts.json) |
+| Stable existing quality_reference / paired probe | Existing test REFUSED / 75; stable probe NOT RUN | [receipts](/mnt/linux-extra/moss-scratch/saccade-integ-r3/ci-attempt/receipts.json) |
+| Default clippy / workspace tests | REFUSED / 75; not executed | [receipts](/mnt/linux-extra/moss-scratch/saccade-integ-r3/ci-attempt/receipts.json) |
+| Core minimal / CLI default / CLI all features: build, clippy, tests | REFUSED / 75; not executed | [receipts](/mnt/linux-extra/moss-scratch/saccade-integ-r3/ci-attempt/receipts.json) |
+| Package inventory / all-feature package verification | REFUSED / 75; not executed | [receipts](/mnt/linux-extra/moss-scratch/saccade-integ-r3/ci-attempt/receipts.json) |
+| release-check.sh | REFUSED / 75; not executed | [receipt](/mnt/linux-extra/moss-scratch/saccade-integ-r3/ci-attempt/release-check.log) |
+| Prescribed target cleanup | PASS | [receipt](/mnt/linux-extra/moss-scratch/saccade-integ-r3/target-cleanup.json) |
+
+Production migration commit is `f5b7256`; later changes are documentation only.
+The CI attempt binds clean `f5b7256`; refusal receipts are scheduling evidence,
+not executed-test proof. Rust 1.89 is installed; stable is Rust 1.98.1. All owned
+jobs finished before target cleanup. The paired binary, source, old-source hashes,
+registry versions, fetched manifests, generated notices and failure logs remain
+outside the target; target absence was verified (15.348 GiB free afterward).
+
+Remaining acceptance: re-run the existing reference tests on Rust 1.89 and stable,
+then the full local CI matrix and release checker once space permits. Neither the
+probe nor future Linux gates establish macOS/Windows or release deployment.
+Use the runner outside an outer admission wrapper so each component releases
+admission; release-check gets its own per-component mode:
+
+```sh
+PATH="/mnt/linux-extra/saccade-models/toolchain/bin:$PATH" RUSTUP_TOOLCHAIN=stable MOSS_HEAVY_GPU=0 \
+python3 scripts/gates-integration.py --admit-gb 4 \
+  --evidence /mnt/linux-extra/moss-scratch/saccade-integ-r3/retry \
+  --only msrv-default msrv-compression-reference stable-compression-reference \
+  ci-fmt ci-clippy-default ci-tests \
+  ci-build-core-minimal ci-clippy-core-minimal ci-test-core-minimal \
+  ci-build-cli-default ci-clippy-cli-default ci-test-cli-default \
+  ci-build-cli-all ci-clippy-cli-all ci-test-cli-all \
+  ci-packages ci-package-verify release-check
+```
+
+Delete the same prescribed target after the retry completes. No tolerance relaxation,
+fixture regeneration, source fork or upstream PR is needed. Reverting the migration
+restores the old vendor/lock/MSRV contract without regenerating reference evidence.
