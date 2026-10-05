@@ -62,7 +62,7 @@ impl Secret {
 #[derive(Debug, Clone)]
 pub struct Keys {
     dir: PathBuf,
-    #[cfg(test)]
+    #[cfg(all(test, feature = "assist"))]
     assist_fixture: bool,
 }
 
@@ -71,7 +71,7 @@ impl Keys {
     pub fn new(dir: Option<PathBuf>) -> Self {
         Self {
             dir: dir.unwrap_or_else(Self::default_dir),
-            #[cfg(test)]
+            #[cfg(all(test, feature = "assist"))]
             assist_fixture: false,
         }
     }
