@@ -102,7 +102,36 @@ fn local_tools_list_exactly_the_operations_this_binary_implements() {
     assert!(output.status.success());
     let reply: Value = serde_json::from_slice(&output.stdout).unwrap();
     let tools = reply["result"]["tools"].as_array().unwrap();
-    assert_eq!(tools.len(), if cfg!(feature = "ai") { 6 } else { 5 });
+    assert_eq!(
+        tools.len(),
+        (if cfg!(feature = "ai") { 7 } else { 6 }) + usize::from(cfg!(feature = "products"))
+    );
+    let general = tools
+        .iter()
+        .find(|tool| tool["name"] == "saccade_general")
+        .unwrap();
+    let general_operations = general["inputSchema"]["oneOf"].as_array().unwrap();
+    for operation in [
+        "registered_compare",
+        "hash",
+        "dedupe",
+        "text",
+        "assess",
+        "inspect_image",
+        "capabilities",
+        "compare_question",
+    ] {
+        assert!(
+            general_operations
+                .iter()
+                .any(|variant| variant["properties"]["operation"]["const"] == operation),
+            "missing general operation {operation}"
+        );
+    }
+    assert_eq!(
+        tools.iter().any(|tool| tool["name"] == "saccade_products"),
+        cfg!(feature = "products")
+    );
     let measure = tools
         .iter()
         .find(|t| t["name"] == "saccade_measure")
