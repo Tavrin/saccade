@@ -64,7 +64,7 @@ documents = ["dep:resvg", "dep:hayro"]
 credentials = ["dep:c2pa"]
 ocr = ["dep:ocrs", "dep:rten", "dep:ureq", "dep:fs2"]
 # Dynamic CPU ONNX embeddings, no default dependency change
-embeddings = ["semantic-regions", "dep:base64"]
+embeddings = ["semantic-regions", "dep:base64", "dep:tokenizers"]
 default = ["parallel"]
 # Parallel FLIP filtering; disable for the sequential FLIP backend on wasm.
 parallel = ["flip-rs/parallel"]

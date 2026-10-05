@@ -141,3 +141,26 @@ inherited model accuracy/parity and Rust OCR qualification remain explicitly inc
   /mnt/linux-extra/moss-scratch/saccade-wave8/FINAL-RECEIPT.json.
 - Deleted only the exact lane target after commands exited and lane/Cargo locks were
   acquired. Free disk 51.85 -> 53.93 GiB. No models, other targets or shared caches deleted.
+
+## Integration 8.3 decision
+- Official `google/siglip2-base-patch16-224` revision
+  `75de2d55ec2d0b4efc50b3e9ad70dba96a7b2fa2` declares Apache-2.0 in
+  upstream README frontmatter. Checkpoint LFS SHA-256
+  `612923381c76ec5a9bed335d1c48827e3f2e506ac31b044b63b2031fadee6a0b`;
+  tokenizer JSON `cb9140fae3ac5122c972d37adf83e1248471a38147ad76f8215c8872c6fd8322`.
+- Rejected old `a7d042...` revision: automatic card left licence unspecified.
+- Separate image/text CPU exports preserve the existing image index. Text uses
+  float16 text weights with float32 I/O to fit the existing 1 GiB artifact bound;
+  normalized checkpoint/export error must be <=0.02 before enabling. Dynamic-int8
+  was rejected after measured normalized error 0.06032 exceeded that fixed gate. Reversal:
+  replace the explicit export contract and rebuild that model's indices.
+- Historical DINOv2 contracts omit the new optional text field when serialized,
+  preserving their existing model identity. Joint model binds both graph hashes,
+  tokenizer, padding and context length to the same index identity. Calibration
+  remains absent; no semantic accuracy qualification follows from export parity.
+- `saccade-py` is a wheel-only distribution, so Cargo `publish=false` excludes
+  the binding crate from the Rust package inventory; no Rust registry release
+  was requested. The package guard remains unchanged.
+- Docs regeneration exposed `media-http` missing from compiled feature receipts;
+  added its cfg-gated entry. Agent packs exceeded the existing 4800-byte guard;
+  condensed the guide while retaining authority and qualification boundaries.

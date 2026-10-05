@@ -117,6 +117,10 @@ The last three names appear only when the corresponding feature is compiled in.
 <!-- schema-index:start -->
 - [saccade-a11y.v1.schema.json](../crates/saccade-core/schemas/saccade-a11y.v1.schema.json) — a11y PRE-CHECK only; not certification or formal compliance
 - [saccade-ablate.v1.schema.json](../crates/saccade-core/schemas/saccade-ablate.v1.schema.json) — Ablation
+- [saccade-api-analyze.v1.schema.json](../crates/saccade-core/schemas/saccade-api-analyze.v1.schema.json) — Historical reader contract
+- [saccade-api-compare.v1.schema.json](../crates/saccade-core/schemas/saccade-api-compare.v1.schema.json) — Historical reader contract
+- [saccade-api-health.v1.schema.json](../crates/saccade-core/schemas/saccade-api-health.v1.schema.json) — Historical reader contract
+- [saccade-api-search.v1.schema.json](../crates/saccade-core/schemas/saccade-api-search.v1.schema.json) — Historical reader contract
 - [saccade-approve.v1.schema.json](../crates/saccade-core/schemas/saccade-approve.v1.schema.json) — saccade-approve.v1
 - [saccade-ask-result.v1.schema.json](../crates/saccade-core/schemas/saccade-ask-result.v1.schema.json) — AskResult
 - [saccade-assess.v1.schema.json](../crates/saccade-core/schemas/saccade-assess.v1.schema.json) — Historical reader contract
@@ -182,11 +186,15 @@ The last three names appear only when the corresponding feature is compiled in.
 - [saccade-judge-vote-api.v1.schema.json](../crates/saccade-core/schemas/saccade-judge-vote-api.v1.schema.json) — Historical reader contract
 - [saccade-judge-votes.v1.schema.json](../crates/saccade-core/schemas/saccade-judge-votes.v1.schema.json) — VoteRun
 - [saccade-judge.v1.schema.json](../crates/saccade-core/schemas/saccade-judge.v1.schema.json) — Historical reader contract
+- [saccade-keyframes.v1.schema.json](../crates/saccade-core/schemas/saccade-keyframes.v1.schema.json) — Historical reader contract
 - [saccade-labels.v1.schema.json](../crates/saccade-core/schemas/saccade-labels.v1.schema.json) — Labels
 - [saccade-labels.v2.schema.json](../crates/saccade-core/schemas/saccade-labels.v2.schema.json) — Labels
 - [saccade-learned-quality.v1.schema.json](../crates/saccade-core/schemas/saccade-learned-quality.v1.schema.json) — QualityReport
 - [saccade-localized.v1.schema.json](../crates/saccade-core/schemas/saccade-localized.v1.schema.json) — Measurement
 - [saccade-locate.v1.schema.json](../crates/saccade-core/schemas/saccade-locate.v1.schema.json) — LocateReport
+- [saccade-media-compare.v1.schema.json](../crates/saccade-core/schemas/saccade-media-compare.v1.schema.json) — Historical reader contract
+- [saccade-media-error.v1.schema.json](../crates/saccade-core/schemas/saccade-media-error.v1.schema.json) — Historical reader contract
+- [saccade-media-record.v1.schema.json](../crates/saccade-core/schemas/saccade-media-record.v1.schema.json) — Versioned media record
 - [saccade-model-registry.v1.schema.json](../crates/saccade-core/schemas/saccade-model-registry.v1.schema.json) — Registry
 - [saccade-model-status.v1.schema.json](../crates/saccade-core/schemas/saccade-model-status.v1.schema.json) — saccade-model-status.v1
 - [saccade-motion-review.v1.schema.json](../crates/saccade-core/schemas/saccade-motion-review.v1.schema.json) — Report
@@ -230,6 +238,7 @@ The last three names appear only when the corresponding feature is compiled in.
 - [saccade-text.v1.schema.json](../crates/saccade-core/schemas/saccade-text.v1.schema.json) — Historical reader contract
 - [saccade-ui-review.v1.schema.json](../crates/saccade-core/schemas/saccade-ui-review.v1.schema.json) — Report
 - [saccade-ui-source.v1.schema.json](../crates/saccade-core/schemas/saccade-ui-source.v1.schema.json) — Source
+- [saccade-usage.v1.schema.json](../crates/saccade-core/schemas/saccade-usage.v1.schema.json) — Historical reader contract
 - [saccade-vector-buffer.v1.schema.json](../crates/saccade-core/schemas/saccade-vector-buffer.v1.schema.json) — Buffer
 - [saccade-view-summary.v1.schema.json](../crates/saccade-core/schemas/saccade-view-summary.v1.schema.json) — saccade-view-summary.v1
 - [saccade-vision-observation.v1.schema.json](../crates/saccade-core/schemas/saccade-vision-observation.v1.schema.json) — ObservationReport

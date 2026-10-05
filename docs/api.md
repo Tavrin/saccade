@@ -17,7 +17,8 @@ Image sources are `{ "path": "image.png" }` inside registered roots or
 `{ "bytes_base64": "..." }` with encoded image bytes. Media path sources also accept
 videos or pre-extracted frame directories. URLs are not accepted through HTTP/MCP;
 URL fetch authority belongs to direct library/CLI callers.
-Text search retains the explicit deferred-model error until a pinned joint adapter exists.
+Text search requires a pinned SigLIP 2 joint registry; image-only models return
+`text_embedding_unavailable`. Both towers and tokenizer must match the index.
 Image search uses the shared wave 6 index and exact model identity.
 
 [OpenAPI](api-openapi.json) links the published request/result schemas. Failures use

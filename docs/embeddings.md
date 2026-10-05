@@ -120,3 +120,25 @@ The heavy gate requires `SACCADE_W6_EMBEDDING_MODEL`, `SACCADE_W6_MODEL_CACHE`,
 `SACCADE_W6_EMBEDDING_CORPUS_SHA256`. Optional `SACCADE_W6_EMBEDDING_RECEIPT`
 retains its qualification result. Export/calibration/holdout execution remains
 NOT RUN; CLIP and a preselected universal export/calibration remain deferred.
+
+## Joint image/text retrieval
+
+A `siglip2-base` model contract adds a `text` tower with pinned ONNX and tokenizer
+artifacts, `input_ids`, `embedding`, context length 64 and right padding id 0.
+The image tower uses 224x224 RGB, triangle resize, white alpha compositing,
+and mean/std 0.5. Historical DINOv2 contracts retain their identities and remain
+image-only. Every graph, tokenizer and preprocessing field binds the index.
+
+```sh
+saccade index query archive/ --text "a red square" --model joint-model.json --cache models --library runtime.so --out text-matches --json
+```
+
+`scripts/models/export-siglip2.py` reproduces separate CPU exports from official
+`google/siglip2-base-patch16-224` revision
+`75de2d55ec2d0b4efc50b3e9ad70dba96a7b2fa2`. The upstream model card declares
+Apache-2.0. The script verifies every downloaded SHA-256 and loads only local
+files. Exports are cache-only artifacts, with no invented hosted export URL.
+Float16 text weights retain float32 outputs; fixed normalized checkpoint parity
+must pass before the script writes a usable contract. That receipt covers three
+text prompts and one tensor, not broad retrieval accuracy. Bands stay uncalibrated.
+The shared `Analyzer` and Python/HTTP index use the same installed joint contract.

@@ -25,8 +25,8 @@ external to wheels.
 `ModelError`, `InputError` and `AnalysisError` subclass `SaccadeError`; `.code` carries
 the same stable code as the CLI. Per-section failures stay in the record unless strict.
 `embed_image`, `Index.build`, `add`, `query(image=...)`, `save` and `load` share the
-versioned wave 6 index. `embed_text` and text queries raise `text_embedding_unavailable`
-until the deferred official joint model is pinned. Similarity bands are uncalibrated.
+versioned wave 6 index. `embed_text` and text queries require an installed pinned SigLIP 2 joint registry.
+Image-only models raise `text_embedding_unavailable`. Similarity bands are uncalibrated.
 
 A generic media analysis worker for any web application:
 

@@ -103,6 +103,8 @@ pub const COMPILED_FEATURES: &[&str] = &[
     "local-vlm",
     #[cfg(feature = "vision-providers")]
     "vision-providers",
+    #[cfg(feature = "media-http")]
+    "media-http",
     #[cfg(feature = "parallel")]
     "parallel",
     #[cfg(feature = "graphics")]

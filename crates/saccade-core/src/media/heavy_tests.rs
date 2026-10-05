@@ -43,3 +43,58 @@ fn installed_media_sections_reuse_sessions() {
             .all(|p| models::valid_hash(p))
     );
 }
+
+#[test]
+#[ignore = "heavy: text-image"]
+fn installed_joint_text_index_roundtrip() {
+    use super::*;
+    let registry = PathBuf::from(std::env::var_os("SACCADE_W8_JOINT_REGISTRY").unwrap());
+    let cache = PathBuf::from(std::env::var_os("SACCADE_W8_MODEL_DIR").unwrap());
+    let analyzer = Analyzer::with_registry(
+        Profile::CpuFull,
+        cache,
+        false,
+        models::Registry::load(&registry).unwrap(),
+    )
+    .unwrap();
+    let a = analyzer.embed_text("a red square").unwrap();
+    let b = analyzer.embed_text("a blue circle").unwrap();
+    assert_eq!(a.len(), 768);
+    assert!(crate::general::embedding::cosine(&a, &b).unwrap() < 0.999);
+    assert_eq!(a, analyzer.embed_text("a red square").unwrap());
+    let mut index = search::Index::new(analyzer.embedding_model().unwrap()).unwrap();
+    let image = image::RgbaImage::from_pixel(224, 224, image::Rgba([255, 0, 0, 255]));
+    let mut bytes = std::io::Cursor::new(Vec::new());
+    image.write_to(&mut bytes, image::ImageFormat::Png).unwrap();
+    index
+        .add_image(&analyzer, "generated-red.png", bytes.get_ref())
+        .unwrap();
+    let dir = tempfile::tempdir().unwrap();
+    index.save(&dir.path().join("index")).unwrap();
+    let loaded = search::Index::load(&dir.path().join("index")).unwrap();
+    let hit = loaded.query_text(&analyzer, "a red square", 1).unwrap();
+    assert_eq!(hit["query_kind"], "text");
+    assert_eq!(hit["hits"][0]["row"]["path"], "generated-red.png");
+    assert!(hit["hits"][0]["cosine"].as_f64().unwrap().is_finite());
+    assert_eq!(hit["calibration"], "uncalibrated");
+    let mut changed = models::Registry::load(&PathBuf::from(
+        std::env::var_os("SACCADE_W8_JOINT_REGISTRY").unwrap(),
+    ))
+    .unwrap();
+    changed.contracts.get_mut("embedding").unwrap()["text"]["tokenizer"]["sha256"] =
+        serde_json::Value::String("a".repeat(64));
+    let other = Analyzer::with_registry(
+        Profile::CpuFull,
+        PathBuf::from(std::env::var_os("SACCADE_W8_MODEL_DIR").unwrap()),
+        false,
+        changed,
+    )
+    .unwrap();
+    assert_eq!(
+        loaded
+            .query_text(&other, "a red square", 1)
+            .unwrap_err()
+            .code,
+        "index_mismatch"
+    );
+}

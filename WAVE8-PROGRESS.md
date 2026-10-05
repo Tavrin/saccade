@@ -33,3 +33,10 @@ release files were intentionally not changed.
 Cleanup complete: exact owned target removed under lane/Cargo locks; free disk
 51.85 -> 53.93 GiB. Retained abi3 package, source/binary hashes and command logs:
 `/mnt/linux-extra/moss-scratch/saccade-wave8/FINAL-RECEIPT.json`. No build after cleanup.
+
+Integration: origin/main merged at `555a4ec`; SigLIP 2 official immutable
+checkpoint/tokenizer pinned, local image/float16-text CPU exports passed fixed
+checkpoint parity (image max 1.19e-7, text max 9.66e-5; gate 0.02). Joint index
+inference and strict identity rejection implemented; installed gates pending.
+Docs/CLI/schema index/agent packs regenerated with an all-features binary;
+README retained as merged from main. Broad retrieval calibration remains deferred.

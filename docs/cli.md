@@ -5,7 +5,7 @@ Generated from compiled capabilities and `--help`; do not edit by hand.
 Generation: `cargo build --release -p saccade --all-features`, then `python3 scripts/gen-docs.py --saccade target/release/saccade`.
 The all-features binary includes every supported operation.
 
-Compiled features: `ai`, `assist`, `compression`, `credentials`, `dense-motion`, `documents`, `embeddings`, `evaluation`, `geometry`, `graphics`, `imgtune-avif`, `local-models`, `local-vlm`, `mcp`, `ocr`, `parallel`, `prechecks`, `products`, `schema`, `semantic-regions`, `vision-providers`, `workbench`.
+Compiled features: `ai`, `assist`, `compression`, `credentials`, `dense-motion`, `documents`, `embeddings`, `evaluation`, `geometry`, `graphics`, `imgtune-avif`, `local-models`, `local-vlm`, `mcp`, `media-http`, `ocr`, `parallel`, `prechecks`, `products`, `schema`, `semantic-regions`, `vision-providers`, `workbench`.
 
 Exit 1 means a failed image measurement/evaluation gate or located divergence.
 Exit 0 for compare/identity means no image regression; inspect `performance` for qualification.
@@ -35,6 +35,9 @@ Commands:
   index               Build or query a streaming exact flat embedding index
   hash                Compute perceptual hashes without changing originals
   dedupe              Cluster near-duplicates with bounded Hamming search; never delete images
+  analyze-media       Analyze an image into a versioned media record (no model downloads by default)
+  keyframes           Extract shot representatives with timestamps, without linking a video decoder
+  find-usage          Match an image or media record against generic target images
   models              List or explicitly pull pinned local models
   locate              Locate a phrase with boxes, optional masks, and an overlay PNG
   quality-score       Measure a separately named learned quality score
@@ -548,13 +551,14 @@ Global options:
 ```text
 Search an existing index; model/preprocessing must exactly match the index
 
-Usage: saccade index query [OPTIONS] --model <MODEL> --cache <CACHE> --library <LIBRARY> <INDEX> <IMAGE>
+Usage: saccade index query [OPTIONS] --model <MODEL> --cache <CACHE> --library <LIBRARY> <INDEX> [IMAGE]
 
 Arguments:
   <INDEX>
-  <IMAGE>
+  [IMAGE]
 
 Options:
+      --text <TEXT>        Text query requires a pinned SigLIP 2 joint text/image model
       --model <MODEL>      Supplied saccade-embedding-model.v1 contract; includes export SHA-256 and preprocessing
       --cache <CACHE>      Content-addressed model cache; downloads require --download-model
       --library <LIBRARY>  Explicit ONNX Runtime 1.22 dynamic library, CPU execution only
@@ -605,6 +609,73 @@ Options:
       --out <OUT>              New or empty output directory [default: dedupe-report]
       --json                   Emit a bounded JSON artifact receipt
   -h, --help                   Print help
+
+Global options:
+      --allow-out-near-captures  Silence warnings when --out is next to capture metadata
+      --record-absolute-paths    Opt in to absolute local paths in reports and machine-readable output
+```
+
+## saccade analyze-media
+
+```text
+Analyze an image into a versioned media record (no model downloads by default)
+
+Usage: saccade analyze-media [OPTIONS] <SOURCE>
+
+Arguments:
+  <SOURCE>
+
+Options:
+      --profile <PROFILE>          [default: cpu-lite] [possible values: cpu-lite, cpu-full, gpu]
+      --model-dir <MODEL_DIR>
+      --registry <REGISTRY>
+      --options <OPTIONS>          Per-section options JSON file
+      --strict
+      --output-size <OUTPUT_SIZE>  Repeat output size WxH
+      --json
+  -h, --help                       Print help
+
+Global options:
+      --allow-out-near-captures  Silence warnings when --out is next to capture metadata
+      --record-absolute-paths    Opt in to absolute local paths in reports and machine-readable output
+```
+
+## saccade keyframes
+
+```text
+Extract shot representatives with timestamps, without linking a video decoder
+
+Usage: saccade keyframes [OPTIONS] --out <OUT> <SOURCE>
+
+Arguments:
+  <SOURCE>
+
+Options:
+      --out <OUT>
+      --sample-fps <SAMPLE_FPS>      [default: 1]
+      --shot-penalty <SHOT_PENALTY>  [default: 0.15]
+      --json
+  -h, --help                         Print help
+
+Global options:
+      --allow-out-near-captures  Silence warnings when --out is next to capture metadata
+      --record-absolute-paths    Opt in to absolute local paths in reports and machine-readable output
+```
+
+## saccade find-usage
+
+```text
+Match an image or media record against generic target images
+
+Usage: saccade find-usage [OPTIONS] <SOURCE> <TARGETS>...
+
+Arguments:
+  <SOURCE>
+  <TARGETS>...
+
+Options:
+      --json
+  -h, --help  Print help
 
 Global options:
       --allow-out-near-captures  Silence warnings when --out is next to capture metadata
@@ -896,10 +967,17 @@ Arguments:
 
 Options:
       --provider <PROVIDER>
-      --response <RESPONSE>        Explicit recorded response; omit to show request mapping only (no credentials)
-      --coordinates <COORDINATES>  [default: pixels]
+
+      --endpoint-profile <ENDPOINT_PROFILE>
+          Startup env-file mapping for generic OpenAI-compatible or Azure deployment endpoints [possible values: openai-compatible, azure-openai]
+      --response <RESPONSE>
+          Explicit recorded response; omit to show request mapping only (no credentials)
+      --coordinates <COORDINATES>
+          [default: pixels]
       --json
-  -h, --help                       Print help
+
+  -h, --help
+          Print help
 
 Global options:
       --allow-out-near-captures  Silence warnings when --out is next to capture metadata
@@ -1857,6 +1935,18 @@ Arguments:
   [ROOTS]...  Archive roots to browse (read-only). With several, each is a top-level entry named after its directory
 
 Options:
+      --api
+          Serve the local versioned media API instead of the archive viewer
+      --api-max-bytes <API_MAX_BYTES>
+          [default: 16777216]
+      --api-bind <API_BIND>
+          [default: 127.0.0.1]
+      --api-token-file <API_TOKEN_FILE>
+          Optional bearer-token env file; default ~/.config/saccade/api.env if present
+      --api-model-dir <API_MODEL_DIR>
+
+      --api-registry <API_REGISTRY>
+
       --root <REGISTERED_ROOTS>
           Additional read-only archive roots (repeatable)
       --out-root <OUT_ROOT>

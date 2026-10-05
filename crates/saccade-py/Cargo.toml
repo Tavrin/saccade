@@ -1,5 +1,6 @@
 [package]
 name = "saccade-py"
+publish = false
 description = "Python bindings for reusable Saccade media analysis"
 version.workspace = true
 edition.workspace = true

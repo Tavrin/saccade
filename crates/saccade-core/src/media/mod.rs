@@ -640,22 +640,7 @@ impl Analyzer {
                 .lock()
                 .map_err(|_| MediaError::new("analyzer_poisoned", "model session lock poisoned"))?;
             if sessions.embeddings.is_none() {
-                let model = self.contract(crate::general::embedding::MODEL_SCHEMA)?;
-                let model = crate::general::embedding::parse_model(&serde_json::to_vec(model)?)?;
-                #[cfg(feature = "local-models")]
-                let library = crate::wave7::runtime_install::resolve(None, &self.model_dir)?;
-                #[cfg(not(feature = "local-models"))]
-                let library = std::env::var_os("ORT_DYLIB_PATH")
-                    .map(PathBuf::from)
-                    .ok_or_else(|| {
-                        MediaError::new("runtime_incompatible", "set an explicit ORT_DYLIB_PATH")
-                    })?;
-                sessions.embeddings = Some(crate::general::embedding::Engine::load(
-                    model,
-                    &self.model_dir,
-                    &library,
-                    self.allow_download,
-                )?);
+                sessions.embeddings = Some(self.load_embeddings()?);
             }
             let engine = sessions.embeddings.as_mut().ok_or_else(|| {
                 MediaError::new("embedding_unavailable", "embedding session unavailable")
@@ -691,12 +676,64 @@ impl Analyzer {
             ))
         }
     }
-    /// Text inference is unavailable until an official permissive pinned joint export is supplied.
-    pub fn embed_text(&self, _text: &str) -> Result<Vec<f32>> {
-        Err(MediaError::new(
-            "text_embedding_unavailable",
-            "SigLIP 2 official checkpoint/export pins and licence evidence deferred; image-only vectors cannot answer text queries",
-        ))
+    #[cfg(feature = "embeddings")]
+    fn load_embeddings(&self) -> Result<crate::general::embedding::Engine> {
+        let model = self.contract(crate::general::embedding::MODEL_SCHEMA)?;
+        let model = crate::general::embedding::parse_model(&serde_json::to_vec(model)?)?;
+        #[cfg(feature = "local-models")]
+        let library = crate::wave7::runtime_install::resolve(None, &self.model_dir)?;
+        #[cfg(not(feature = "local-models"))]
+        let library = std::env::var_os("ORT_DYLIB_PATH")
+            .map(PathBuf::from)
+            .ok_or_else(|| {
+                MediaError::new("runtime_incompatible", "set an explicit ORT_DYLIB_PATH")
+            })?;
+        Ok(crate::general::embedding::Engine::load(
+            model,
+            &self.model_dir,
+            &library,
+            self.allow_download,
+        )?)
+    }
+    /// Embed text with the installed joint model; image-only models fail explicitly.
+    pub fn embed_text(&self, text: &str) -> Result<Vec<f32>> {
+        #[cfg(feature = "embeddings")]
+        {
+            if self.profile == Profile::Gpu {
+                return Err(MediaError::new(
+                    "gpu_unavailable",
+                    "text GPU provider not provisioned",
+                ));
+            }
+            let model = self.embedding_model().map_err(|_| {
+                MediaError::new("text_embedding_unavailable", "pinned joint model required")
+            })?;
+            if model.get("text").is_none() {
+                return Err(MediaError::new(
+                    "text_embedding_unavailable",
+                    "image-only model cannot answer text queries",
+                ));
+            }
+            let mut sessions = self
+                .sessions
+                .lock()
+                .map_err(|_| MediaError::new("analyzer_poisoned", "model session lock poisoned"))?;
+            if sessions.embeddings.is_none() {
+                sessions.embeddings = Some(self.load_embeddings()?);
+            }
+            let engine = sessions.embeddings.as_mut().ok_or_else(|| {
+                MediaError::new("embedding_unavailable", "embedding session unavailable")
+            })?;
+            Ok(engine.embed_text(text)?)
+        }
+        #[cfg(not(feature = "embeddings"))]
+        {
+            let _ = text;
+            Err(MediaError::new(
+                "text_embedding_unavailable",
+                "compile embeddings and supply a joint contract",
+            ))
+        }
     }
     /// Model contract identity used by an index, independent of cache paths.
     pub fn embedding_id(&self) -> Result<String> {
