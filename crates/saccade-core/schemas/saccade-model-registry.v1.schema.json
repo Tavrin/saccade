@@ -199,6 +199,12 @@
   "additionalProperties": false,
   "description": "User-owned registry, never an ambient model download instruction.",
   "properties": {
+    "contracts": {
+      "additionalProperties": true,
+      "default": {},
+      "description": "Typed wave 6 embedding/OCR contracts sharing this registry's pins.",
+      "type": "object"
+    },
     "models": {
       "description": "Pinned executable models.",
       "items": {

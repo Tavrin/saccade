@@ -5,7 +5,7 @@ Generated from compiled capabilities and `--help`; do not edit by hand.
 Generation: `cargo build --release -p saccade --all-features`, then `python3 scripts/gen-docs.py --saccade target/release/saccade`.
 The all-features binary includes every supported operation.
 
-Compiled features: `ai`, `assist`, `compression`, `credentials`, `dense-motion`, `documents`, `embeddings`, `evaluation`, `geometry`, `graphics`, `imgtune-avif`, `mcp`, `ocr`, `parallel`, `prechecks`, `products`, `schema`, `semantic-regions`, `workbench`.
+Compiled features: `ai`, `assist`, `compression`, `credentials`, `dense-motion`, `documents`, `embeddings`, `evaluation`, `geometry`, `graphics`, `imgtune-avif`, `local-models`, `local-vlm`, `mcp`, `ocr`, `parallel`, `prechecks`, `products`, `schema`, `semantic-regions`, `vision-providers`, `workbench`.
 
 Exit 1 means a failed image measurement/evaluation gate or located divergence.
 Exit 0 for compare/identity means no image regression; inspect `performance` for qualification.
@@ -35,6 +35,14 @@ Commands:
   index               Build or query a streaming exact flat embedding index
   hash                Compute perceptual hashes without changing originals
   dedupe              Cluster near-duplicates with bounded Hamming search; never delete images
+  models              List or explicitly pull pinned local models
+  locate              Locate a phrase with boxes, optional masks, and an overlay PNG
+  quality-score       Measure a separately named learned quality score
+  watermark           Decode explicitly compatible watermark schemes without an origin verdict
+  faces               Detect faces and optionally create a privacy-redacted PNG
+  crop-check          Assess declared crops against detected faces, without identity recognition
+  observe-local       Bounded advisory observations from an explicitly configured local VLM
+  provider-map        Map provider requests or decode recorded vision responses; no live calls
   renderdoc-localize  Align optional Vulkan replay evidence and locate native-resource divergence
   regions             Import and freeze phrase regions, or inspect optional model plumbing
   explain-grounded    Render verified atomic numerical claims with region and evidence citations
@@ -303,14 +311,38 @@ Arguments:
   <IMAGE>
 
 Options:
-      --include-gps                Explicitly include unsigned EXIF GPS coordinates in the report
-      --hash-index <HASH_INDEX>    Local saccade-hash.v1 / saccade-dedupe.v1 archive for candidate lookup
-      --output-size <OUTPUT_SIZE>  Declared publication output size, WIDTHxHEIGHT; repeatable
-      --crop <CROP>                Crop x,y,width,height in raw raster pixels
-      --text-source <TEXT_SOURCE>  Optional image-bound source/OCR observations for legibility evidence
-      --out <OUT>                  [default: image-inspection]
+      --faces
+          Run local face detection; never downloads models implicitly
+      --face-observations <FACE_OBSERVATIONS>
+          Image-bound face receipt; explicitly labelled replay
+      --model-registry <MODEL_REGISTRY>
+          Shared model registry (vision, embedding and OCR pins)
+      --model-cache <MODEL_CACHE>
+
+      --runtime-library <RUNTIME_LIBRARY>
+
+      --watermark
+          Inspect named watermark decoders; unavailable decoders stay explicit
+      --watermark-payload <WATERMARK_PAYLOAD>
+          Known legacy DWT message bytes in hex; arbitrary bits are not detection
+      --face-crop <FACE_CROP>
+          Declared face-protection crop in original pixels: X,Y,W,H
+      --include-gps
+          Explicitly include unsigned EXIF GPS coordinates in the report
+      --hash-index <HASH_INDEX>
+          Local saccade-hash.v1 / saccade-dedupe.v1 archive for candidate lookup
+      --output-size <OUTPUT_SIZE>
+          Declared publication output size, WIDTHxHEIGHT; repeatable
+      --crop <CROP>
+          Crop x,y,width,height in raw raster pixels
+      --text-source <TEXT_SOURCE>
+          Optional image-bound source/OCR observations for legibility evidence
+      --out <OUT>
+          [default: image-inspection]
       --json
-  -h, --help                       Print help
+
+  -h, --help
+          Print help
 
 Global options:
       --allow-out-near-captures  Silence warnings when --out is next to capture metadata
@@ -328,10 +360,30 @@ Arguments:
   <IMAGE>
 
 Options:
-      --compare-to <COMPARE_TO>  Reference quality measurements; deltas are image minus compare-to
-      --out <OUT>                [default: assessment-report]
+      --faces
+          Run local face detection; never downloads models implicitly
+      --face-observations <FACE_OBSERVATIONS>
+          Image-bound face receipt; explicitly labelled replay
+      --model-registry <MODEL_REGISTRY>
+          Shared model registry (vision, embedding and OCR pins)
+      --model-cache <MODEL_CACHE>
+
+      --runtime-library <RUNTIME_LIBRARY>
+
+      --watermark
+          Inspect named watermark decoders; unavailable decoders stay explicit
+      --watermark-payload <WATERMARK_PAYLOAD>
+          Known legacy DWT message bytes in hex; arbitrary bits are not detection
+      --face-crop <FACE_CROP>
+          Declared face-protection crop in original pixels: X,Y,W,H
+      --compare-to <COMPARE_TO>
+          Reference quality measurements; deltas are image minus compare-to
+      --out <OUT>
+          [default: assessment-report]
       --json
-  -h, --help                     Print help
+
+  -h, --help
+          Print help
 
 Global options:
       --allow-out-near-captures  Silence warnings when --out is next to capture metadata
@@ -553,6 +605,301 @@ Options:
       --out <OUT>              New or empty output directory [default: dedupe-report]
       --json                   Emit a bounded JSON artifact receipt
   -h, --help                   Print help
+
+Global options:
+      --allow-out-near-captures  Silence warnings when --out is next to capture metadata
+      --record-absolute-paths    Opt in to absolute local paths in reports and machine-readable output
+```
+
+## saccade models
+
+```text
+List or explicitly pull pinned local models
+
+Usage: saccade models [OPTIONS] <COMMAND>
+
+Commands:
+  list  Inspect selections, real pins, cache integrity and source-parity status
+  pull  Explicit opt-in to download only the named model's pinned artifacts
+
+Options:
+  -h, --help  Print help
+
+Global options:
+      --allow-out-near-captures  Silence warnings when --out is next to capture metadata
+      --record-absolute-paths    Opt in to absolute local paths in reports and machine-readable output
+```
+
+## saccade models list
+
+```text
+Inspect selections, real pins, cache integrity and source-parity status
+
+Usage: saccade models list [OPTIONS]
+
+Options:
+      --registry <REGISTRY>
+      --cache <CACHE>
+      --json
+  -h, --help                 Print help
+
+Global options:
+      --allow-out-near-captures  Silence warnings when --out is next to capture metadata
+      --record-absolute-paths    Opt in to absolute local paths in reports and machine-readable output
+```
+
+## saccade models pull
+
+```text
+Explicit opt-in to download only the named model's pinned artifacts
+
+Usage: saccade models pull [OPTIONS] <ID>
+
+Arguments:
+  <ID>
+
+Options:
+      --registry <REGISTRY>
+      --cache <CACHE>
+      --json
+  -h, --help                 Print help
+
+Global options:
+      --allow-out-near-captures  Silence warnings when --out is next to capture metadata
+      --record-absolute-paths    Opt in to absolute local paths in reports and machine-readable output
+```
+
+## saccade locate
+
+```text
+Locate a phrase with boxes, optional masks, and an overlay PNG
+
+Usage: saccade locate [OPTIONS] <IMAGE> <PHRASE>
+
+Arguments:
+  <IMAGE>
+  <PHRASE>
+
+Options:
+      --segment
+
+      --detector <DETECTOR>
+          [default: grounding-dino-tiny]
+      --segmenter <SEGMENTER>
+          [default: sam-2.1-tiny]
+      --observations <OBSERVATIONS>
+          Explicit generated/frozen observation receipt; output is labelled replay
+      --overlay <OVERLAY>
+          New overlay PNG; existing files are never overwritten
+      --registry <REGISTRY>
+
+      --cache <CACHE>
+
+      --runtime-library <RUNTIME_LIBRARY>
+          ONNX Runtime 1.22 library; otherwise ORT_DYLIB_PATH or verified model cache
+      --allow-download
+
+      --json
+
+  -h, --help
+          Print help
+
+Global options:
+      --allow-out-near-captures  Silence warnings when --out is next to capture metadata
+      --record-absolute-paths    Opt in to absolute local paths in reports and machine-readable output
+```
+
+## saccade quality-score
+
+```text
+Measure a separately named learned quality score
+
+Usage: saccade quality-score [OPTIONS] <IMAGE>
+
+Arguments:
+  <IMAGE>
+
+Options:
+      --reference <REFERENCE>
+          Full-reference metric command needs an explicit reference
+      --metric <METRIC>
+          [default: musiq]
+      --observations <OBSERVATIONS>
+          Explicit stand-in/frozen measurement receipt, always labelled replay
+      --registry <REGISTRY>
+
+      --cache <CACHE>
+
+      --runtime-library <RUNTIME_LIBRARY>
+          ONNX Runtime 1.22 library; otherwise ORT_DYLIB_PATH or verified model cache
+      --allow-download
+
+      --json
+
+  -h, --help
+          Print help
+
+Global options:
+      --allow-out-near-captures  Silence warnings when --out is next to capture metadata
+      --record-absolute-paths    Opt in to absolute local paths in reports and machine-readable output
+```
+
+## saccade watermark
+
+```text
+Decode explicitly compatible watermark schemes without an origin verdict
+
+Usage: saccade watermark [OPTIONS] <IMAGE>
+
+Arguments:
+  <IMAGE>
+
+Options:
+      --expected-payload <EXPECTED_PAYLOAD>
+          Known legacy message bytes in hex; arbitrary recovered bits are not detection
+      --quantization-step <QUANTIZATION_STEP>
+          [default: 36]
+      --minimum-agreement <MINIMUM_AGREEMENT>
+          [default: 0.9]
+      --observations <OBSERVATIONS>
+          Explicit frozen/generated primary-decoder observation report
+      --trustmark
+          Run the pinned Q neural graph; ECC/resize qualification remains unavailable
+      --registry <REGISTRY>
+
+      --cache <CACHE>
+
+      --runtime-library <RUNTIME_LIBRARY>
+          ONNX Runtime 1.22 library; otherwise ORT_DYLIB_PATH or verified model cache
+      --allow-download
+
+      --json
+
+  -h, --help
+          Print help
+
+Global options:
+      --allow-out-near-captures  Silence warnings when --out is next to capture metadata
+      --record-absolute-paths    Opt in to absolute local paths in reports and machine-readable output
+```
+
+## saccade faces
+
+```text
+Detect faces and optionally create a privacy-redacted PNG
+
+Usage: saccade faces [OPTIONS] <IMAGE>
+
+Arguments:
+  <IMAGE>
+
+Options:
+      --detector <DETECTOR>
+          [default: yunet-2026may]
+      --observations <OBSERVATIONS>
+
+      --blur-faces <BLUR_FACES>
+          Write a new strongly redacted PNG; never overwrite an original
+      --registry <REGISTRY>
+
+      --cache <CACHE>
+
+      --runtime-library <RUNTIME_LIBRARY>
+          ONNX Runtime 1.22 library; otherwise ORT_DYLIB_PATH or verified model cache
+      --allow-download
+
+      --json
+
+  -h, --help
+          Print help
+
+Global options:
+      --allow-out-near-captures  Silence warnings when --out is next to capture metadata
+      --record-absolute-paths    Opt in to absolute local paths in reports and machine-readable output
+```
+
+## saccade crop-check
+
+```text
+Assess declared crops against detected faces, without identity recognition
+
+Usage: saccade crop-check [OPTIONS] --crop <CROP> <IMAGE>
+
+Arguments:
+  <IMAGE>
+
+Options:
+      --detector <DETECTOR>
+          [default: yunet-2026may]
+      --observations <OBSERVATIONS>
+
+      --blur-faces <BLUR_FACES>
+          Write a new strongly redacted PNG; never overwrite an original
+      --registry <REGISTRY>
+
+      --cache <CACHE>
+
+      --runtime-library <RUNTIME_LIBRARY>
+          ONNX Runtime 1.22 library; otherwise ORT_DYLIB_PATH or verified model cache
+      --allow-download
+
+      --json
+
+      --crop <CROP>
+          Repeat aspect ratio W:H or original-pixel rectangle X,Y,W,H
+      --focal-point <FOCAL_POINT>
+          Original-pixel X,Y, optional
+  -h, --help
+          Print help
+
+Global options:
+      --allow-out-near-captures  Silence warnings when --out is next to capture metadata
+      --record-absolute-paths    Opt in to absolute local paths in reports and machine-readable output
+```
+
+## saccade observe-local
+
+```text
+Bounded advisory observations from an explicitly configured local VLM
+
+Usage: saccade observe-local [OPTIONS] --endpoint <ENDPOINT> --runtime-revision <RUNTIME_REVISION> <REQUEST>
+
+Arguments:
+  <REQUEST>  Bounded saccade observation request JSON with exact encoded images/transforms
+
+Options:
+      --endpoint <ENDPOINT>
+
+      --runtime-revision <RUNTIME_REVISION>
+
+      --response <RESPONSE>
+          Decode an explicitly recorded response without making any HTTP request
+      --json
+
+  -h, --help
+          Print help
+
+Global options:
+      --allow-out-near-captures  Silence warnings when --out is next to capture metadata
+      --record-absolute-paths    Opt in to absolute local paths in reports and machine-readable output
+```
+
+## saccade provider-map
+
+```text
+Map provider requests or decode recorded vision responses; no live calls
+
+Usage: saccade provider-map [OPTIONS] --provider <PROVIDER> <REQUEST>
+
+Arguments:
+  <REQUEST>
+
+Options:
+      --provider <PROVIDER>
+      --response <RESPONSE>        Explicit recorded response; omit to show request mapping only (no credentials)
+      --coordinates <COORDINATES>  [default: pixels]
+      --json
+  -h, --help                       Print help
 
 Global options:
       --allow-out-near-captures  Silence warnings when --out is next to capture metadata
@@ -1893,6 +2240,10 @@ Options:
           Select exactly one report entry; required when the report contains several
       --mask-manifest <MASK_MANIFEST>
           Optional original individual-mask declarations, bound to exact report bytes
+      --vision-provider <VISION_PROVIDER>
+          Prepare Claude/GPT mappings in the assist layer; no live calls [possible values: claude, gpt]
+      --vision-response <VISION_RESPONSE>
+          Explicit recorded response; bound to this catalog and request
       --experimental
           Required acknowledgement: this feature is unqualified experimental advice
       --out <OUT>
@@ -1913,20 +2264,20 @@ Options:
           Finite per-entry USD ceiling, at most 0.15 [default: 0.15]
       --deadline-secs <DEADLINE_SECS>
           Overall deadline, including both orders and support [default: 300]
+      --user-config <USER_CONFIG>
+
       --gemini-revision <GEMINI_REVISION>
           Required immutable returned revision for dispatch/replay
       --jev-revision <JEV_REVISION>
           Required Jev returned revision; the pinned model ID is the initial binding [default: jev-1.13.0]
-      --user-config <USER_CONFIG>
-
       --bypass-cache
           Do not reuse cache; required for independent qualification samples
+      --json
+
       --source-evidence <SOURCE_EVIDENCE>
           Hash/dimension-bound Wave 3 source packets (at most one per image)
       --incomplete-capture
           Producer states some requested capture scope was not captured
-      --json
-
       --pre-masked
           Original pixels were blacked out before capture and are unavailable
   -h, --help
@@ -1951,6 +2302,10 @@ Options:
           Select exactly one report entry; required when the report contains several
       --mask-manifest <MASK_MANIFEST>
           Optional original individual-mask declarations, bound to exact report bytes
+      --vision-provider <VISION_PROVIDER>
+          Prepare Claude/GPT mappings in the assist layer; no live calls [possible values: claude, gpt]
+      --vision-response <VISION_RESPONSE>
+          Explicit recorded response; bound to this catalog and request
       --experimental
           Required acknowledgement: this feature is unqualified experimental advice
       --out <OUT>
@@ -1971,20 +2326,20 @@ Options:
           Finite per-entry USD ceiling, at most 0.15 [default: 0.15]
       --deadline-secs <DEADLINE_SECS>
           Overall deadline, including both orders and support [default: 300]
+      --user-config <USER_CONFIG>
+
       --gemini-revision <GEMINI_REVISION>
           Required immutable returned revision for dispatch/replay
       --jev-revision <JEV_REVISION>
           Required Jev returned revision; the pinned model ID is the initial binding [default: jev-1.13.0]
-      --user-config <USER_CONFIG>
-
       --bypass-cache
           Do not reuse cache; required for independent qualification samples
+      --json
+
       --source-evidence <SOURCE_EVIDENCE>
           Hash/dimension-bound Wave 3 source packets (at most one per image)
       --incomplete-capture
           Producer states some requested capture scope was not captured
-      --json
-
       --pre-masked
           Original pixels were blacked out before capture and are unavailable
   -h, --help
@@ -2016,16 +2371,34 @@ Options:
           Stable source node ID for geometric conditions
       --second-target <SECOND_TARGET>
           Containing panel or second source node ID
+      --locate
+          Attach advisory phrase localization to check-ui; never establish visibility by detection alone
+      --locate-observations <LOCATE_OBSERVATIONS>
+
+      --locate-registry <LOCATE_REGISTRY>
+
+      --locate-cache <LOCATE_CACHE>
+
+      --locate-runtime-library <LOCATE_RUNTIME_LIBRARY>
+
+      --vision-provider <VISION_PROVIDER>
+          Prepare Claude/GPT mappings in the assist layer; no live calls [possible values: claude, gpt]
+      --vision-response <VISION_RESPONSE>
+          Explicit recorded response; bound to this catalog and request
       --experimental
           Required acknowledgement: this feature is unqualified experimental advice
       --out <OUT>
           New empty directory for immutable sidecars and the advice report
       --offline
           Replay existing observations; never authorize providers
+      --user-config <USER_CONFIG>
+
       --replay <REPLAY>
           Recorded exact cache entries for offline fixture replay
       --run
           Explicitly authorize evidence export under fixed user root policy
+      --json
+
       --route <ROUTE>
           Deterministic rules, routed cascade or the full visual path [default: cascade] [possible values: rules, cascade, all-vision]
       --jev-routing
@@ -2036,16 +2409,12 @@ Options:
           Finite per-entry USD ceiling, at most 0.15 [default: 0.15]
       --deadline-secs <DEADLINE_SECS>
           Overall deadline, including both orders and support [default: 300]
-      --user-config <USER_CONFIG>
-
       --gemini-revision <GEMINI_REVISION>
           Required immutable returned revision for dispatch/replay
       --jev-revision <JEV_REVISION>
           Required Jev returned revision; the pinned model ID is the initial binding [default: jev-1.13.0]
       --bypass-cache
           Do not reuse cache; required for independent qualification samples
-      --json
-
       --source-evidence <SOURCE_EVIDENCE>
           Hash/dimension-bound Wave 3 source packets (at most one per image)
       --incomplete-capture

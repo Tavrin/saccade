@@ -41,6 +41,22 @@ pub fn documents() -> Vec<(&'static str, Value)> {
         ),
     ]
 }
+// serde_json/preserve_order is unified by credentials in the combined build.
+// Freeze the same property ordering for every feature combination.
+fn sorted(value: Value) -> Value {
+    match value {
+        Value::Object(map) => Value::Object(
+            map.into_iter()
+                .map(|(k, v)| (k, sorted(v)))
+                .collect::<std::collections::BTreeMap<_, _>>()
+                .into_iter()
+                .collect(),
+        ),
+        Value::Array(values) => Value::Array(values.into_iter().map(sorted).collect()),
+        other => other,
+    }
+}
+
 #[cfg(test)]
 #[allow(clippy::unwrap_used)]
 mod tests {
@@ -55,21 +71,5 @@ mod tests {
             }
             assert_eq!(std::fs::read_to_string(path).unwrap(), text, "{id}");
         }
-    }
-}
-
-// serde_json/preserve_order is unified by credentials in the combined build.
-// Freeze the same property ordering for every feature combination.
-fn sorted(value: Value) -> Value {
-    match value {
-        Value::Object(map) => Value::Object(
-            map.into_iter()
-                .map(|(k, v)| (k, sorted(v)))
-                .collect::<std::collections::BTreeMap<_, _>>()
-                .into_iter()
-                .collect(),
-        ),
-        Value::Array(values) => Value::Array(values.into_iter().map(sorted).collect()),
-        other => other,
     }
 }
