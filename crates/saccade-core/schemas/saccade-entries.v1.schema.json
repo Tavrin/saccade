@@ -734,6 +734,16 @@
           },
           "type": "array"
         },
+        "sample_exclusions": {
+          "description": "Decoder channel and precision losses; historical absence means unknown.",
+          "items": {
+            "type": "string"
+          },
+          "type": [
+            "array",
+            "null"
+          ]
+        },
         "status": {
           "$ref": "#/$defs/Status",
           "description": "Outcome."

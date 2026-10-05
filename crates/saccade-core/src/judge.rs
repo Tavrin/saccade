@@ -670,6 +670,7 @@ fn compute_entry(
         regions: Vec::new(),
         masked_fraction: None,
         pixel_exclusions: None,
+        sample_exclusions: None,
         bit_identical: Some(identical),
         hdr: None,
         meta_diff: Vec::new(),

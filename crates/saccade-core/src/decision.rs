@@ -801,6 +801,7 @@ mod tests {
             regions: Vec::new(),
             masked_fraction: None,
             pixel_exclusions: None,
+            sample_exclusions: None,
             bit_identical: Some(false),
             hdr: None,
             meta_diff: Vec::new(),

@@ -169,6 +169,10 @@ pub fn decode_hdr(path: &Path) -> Result<HdrImage> {
         path: path.to_path_buf(),
         source,
     })?;
+    Ok(from_decoded(img))
+}
+
+pub(crate) fn from_decoded(img: image::DynamicImage) -> HdrImage {
     let rgb = img.to_rgb32f();
     let (width, height) = rgb.dimensions();
     let mut replaced = ReplacedSamples::default();
@@ -189,12 +193,12 @@ pub fn decode_hdr(path: &Path) -> Result<HdrImage> {
             }
         })
         .collect();
-    Ok(HdrImage {
+    HdrImage {
         width,
         height,
         data,
         replaced,
-    })
+    }
 }
 
 /// Errors with [`Error::HdrMismatch`] when exactly one of the two paths is HDR.

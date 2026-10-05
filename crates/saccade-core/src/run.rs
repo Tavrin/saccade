@@ -120,6 +120,35 @@ pub(crate) fn decode(path: &Path) -> std::result::Result<image::RgbaImage, Error
         })
 }
 
+// Record actual native decoding losses beside the authoritative comparison.
+fn decode_audited(
+    path: &Path,
+    hdr: bool,
+    side: &str,
+    losses: &mut Vec<String>,
+) -> Result<image::DynamicImage> {
+    let img = image::open(path).map_err(|source| Error::Decode {
+        path: path.to_path_buf(),
+        source,
+    })?;
+    let colour = img.color();
+    let bits = colour.bits_per_pixel() / u16::from(colour.channel_count());
+    if hdr {
+        if colour.has_alpha() {
+            losses.push(format!("{side}: alpha dropped by HDR RGB decoding; alpha differences do not affect HDR-FLIP."));
+        }
+        losses.push(format!("{side}: HDR to SDR tone mapping and 8-bit quantization affect display previews only; HDR-FLIP uses linear f32 RGB."));
+    } else if bits > 8 {
+        losses.push(format!("{side}: {bits}-bit to 8-bit sample reduction for SDR-FLIP; native precision differences may be omitted."));
+        if matches!(colour, image::ColorType::Rgb32F | image::ColorType::Rgba32F) {
+            losses.push(format!(
+                "{side}: HDR to SDR conversion clips float samples outside [0,1]."
+            ));
+        }
+    }
+    Ok(img)
+}
+
 /// Whether `path` decodes as an image.
 pub fn is_decodable(path: &Path) -> bool {
     decode(path).is_ok()
@@ -817,6 +846,7 @@ pub(crate) fn build_entry(
         regions: Vec::new(),
         masked_fraction: None,
         pixel_exclusions: None,
+        sample_exclusions: None,
         bit_identical: None,
         file_bytes_identical: None,
         capture_validity: Default::default(),
@@ -953,21 +983,23 @@ fn fill_entry(
         _ => return Ok(()),
     };
 
-    let cap_img = match decode(cap) {
-        Ok(i) => i,
+    let mut losses = Vec::new();
+    let cap_img = match decode_audited(cap, false, "capture", &mut losses) {
+        Ok(i) => i.to_rgba8(),
         Err(e) => {
             entry.error = Some(e.to_string());
             return Ok(());
         }
     };
     entry.properties = Some(properties::validate(&flatten_over(&cap_img, 0)));
-    let base_img = match decode(base) {
-        Ok(i) => i,
+    let base_img = match decode_audited(base, false, "baseline", &mut losses) {
+        Ok(i) => i.to_rgba8(),
         Err(e) => {
             entry.error = Some(e.to_string());
             return Ok(());
         }
     };
+    entry.sample_exclusions = Some(losses);
     entry.baseline_properties = Some(properties::validate(&flatten_over(&base_img, 0)));
     entry.bit_identical = Some(crate::compare::native_samples_identical(base, cap));
     match compare_rgba(&cap_img, &base_img, opts) {
@@ -1217,21 +1249,23 @@ fn fill_hdr_pair(
     opts: &CompareOptions,
     config: &RunConfig,
 ) -> Result<()> {
-    let cap_img = match crate::hdr::decode_hdr(cap) {
-        Ok(i) => i,
+    let mut losses = Vec::new();
+    let cap_img = match decode_audited(cap, true, "capture", &mut losses) {
+        Ok(i) => crate::hdr::from_decoded(i),
         Err(e) => {
             entry.error = Some(e.to_string());
             return Ok(());
         }
     };
     entry.properties = Some(crate::hdr::validate_hdr(&cap_img));
-    let base_img = match crate::hdr::decode_hdr(base) {
-        Ok(i) => i,
+    let base_img = match decode_audited(base, true, "baseline", &mut losses) {
+        Ok(i) => crate::hdr::from_decoded(i),
         Err(e) => {
             entry.error = Some(e.to_string());
             return Ok(());
         }
     };
+    entry.sample_exclusions = Some(losses);
     entry.baseline_properties = Some(crate::hdr::validate_hdr(&base_img));
     entry.bit_identical = Some(crate::compare::native_samples_identical(base, cap));
     match crate::hdr::compare_hdr(&cap_img, &base_img, opts) {

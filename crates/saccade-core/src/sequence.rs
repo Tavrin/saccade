@@ -92,6 +92,10 @@ pub struct SequenceReport {
     pub frames_report_json: String,
     /// HTML report path relative to the working directory (absolute by opt-in).
     pub index_html: String,
+    /// Full comparison scope, including ignored and pattern-excluded source frames.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub exclusion_audit:
+        Option<crate::evidence::analysis::Analysis<crate::exclusions::ExclusionAudit>>,
     /// Per-frame details on disk; omitted from lean output.
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub frames: Vec<SequenceFrame>,
@@ -152,7 +156,12 @@ impl Frame {
 }
 
 #[cfg(any(feature = "graphics", feature = "prechecks"))]
-fn collect(root: &Path, pattern: &str, cfg: &RunConfig) -> Result<Vec<Frame>> {
+fn collect(
+    root: &Path,
+    pattern: &str,
+    cfg: &RunConfig,
+    excluded: &mut std::collections::BTreeSet<String>,
+) -> Result<Vec<Frame>> {
     let matcher = compile_glob(pattern)?;
     let ignores = cfg
         .ignore
@@ -168,6 +177,7 @@ fn collect(root: &Path, pattern: &str, cfg: &RunConfig) -> Result<Vec<Frame>> {
         .chain(files.problems.into_iter().map(|(n, p)| (n, None, Some(p))))
     {
         if !matcher.is_match(&name) || ignores.iter().any(|g| g.is_match(&name)) {
+            excluded.insert(name);
             continue;
         }
         if cfg.buffer_for(&name).is_some() {
@@ -213,7 +223,7 @@ fn collect(root: &Path, pattern: &str, cfg: &RunConfig) -> Result<Vec<Frame>> {
 /// existing sorting, duplicate-number and unreadable/symlink rules.
 #[cfg(feature = "prechecks")]
 pub(crate) fn numbered_frames(root: &Path) -> Result<Vec<(String, u64, PathBuf)>> {
-    collect(root, "**", &RunConfig::default())?
+    collect(root, "**", &RunConfig::default(), &mut Default::default())?
         .into_iter()
         .map(|f| match (f.path, f.problem) {
             (Some(path), None) => Ok((f.name, f.number, path)),
@@ -289,9 +299,10 @@ pub fn run_sequence(
     cfg: &RunConfig,
 ) -> Result<SequenceReport> {
     cfg.validate()?;
+    let mut excluded = std::collections::BTreeSet::new();
     let (base, cap) = (
-        collect(baseline, pattern, cfg)?,
-        collect(capture, pattern, cfg)?,
+        collect(baseline, pattern, cfg, &mut excluded)?,
+        collect(capture, pattern, cfg, &mut excluded)?,
     );
     crate::run::guard_output_dir(
         out,
@@ -413,7 +424,7 @@ pub fn run_sequence(
             Status::New => totals.new += 1,
         }
     }
-    let report = Report {
+    let mut report = Report {
         perf_diff: None,
         perf_errors: Vec::new(),
         combined_verdict: None,
@@ -435,8 +446,8 @@ pub fn run_sequence(
             cfg.record_absolute_paths,
         )),
         config: ReportConfig {
-            entries: Vec::new(),
-            ignore: Vec::new(),
+            entries: vec![pattern.into()],
+            ignore: cfg.ignore.clone(),
             default_threshold: cfg.default_threshold,
             default_metric: cfg.default_metric,
             pixels_per_degree: cfg.pixels_per_degree,
@@ -453,6 +464,10 @@ pub fn run_sequence(
         totals,
         entries: frames.iter().map(|f| f.entry.clone()).collect(),
     };
+    report.exclusion_audit = Some(crate::exclusions::audit(
+        &report,
+        excluded.into_iter().collect(),
+    ));
     let mut temporal_errors = Vec::new();
     let baseline_temporal_mean = temporal(&base, cfg, "baseline", &mut temporal_errors);
     let capture_temporal_mean = temporal(&cap, cfg, "capture", &mut temporal_errors);
@@ -475,6 +490,7 @@ pub fn run_sequence(
                 .then(b.index.cmp(&a.index))
         });
     let full = SequenceReport {
+        exclusion_audit: report.exclusion_audit.clone(),
         schema: SEQUENCE_SCHEMA.into(),
         verdict: if report.is_regression() || !temporal_errors.is_empty() {
             "regression"

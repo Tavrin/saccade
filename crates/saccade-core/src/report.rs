@@ -309,6 +309,9 @@ pub struct Entry {
     /// Full-map error on excluded pixels, independent of the configured verdict.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub pixel_exclusions: Option<crate::exclusions::PixelExclusions>,
+    /// Decoder channel and precision losses; historical absence means unknown.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub sample_exclusions: Option<Vec<String>>,
     /// Whether the decoded pixels are exactly equal; `None` unless compared.
     #[serde(default)]
     pub bit_identical: Option<bool>,

@@ -160,33 +160,34 @@ pub fn audit(report: &Report, excluded_captures: Vec<String>) -> Analysis<Exclus
     let entries = report.entries.iter().map(|e| {
         let mut thresholds = vec![threshold("entry".into(), e.metric_used, e.threshold, e.value)];
         for r in &e.regions {
-            if let Some(limit) = r.threshold { thresholds.push(threshold(format!("region:{}", r.name), r.metric_used, limit, Some(r.value))); }
+            if let Some(limit) = r.threshold.filter(|_| r.status.is_some()) { thresholds.push(threshold(format!("region:{}", r.name), r.metric_used, limit, Some(r.value))); }
         }
         if let Some(limit) = report.config.hotspot_fail { thresholds.push(threshold("hotspot (fails at equality)".into(), Metric::Max, limit, e.metrics.map(|m| m.max))); }
         let mut limitations = Vec::new();
         if e.buffer.is_some() { limitations.push("Numeric buffer channels only; colour FLIP and rendered appearance are not checked.".into()); }
         else if e.hdr.is_some() { limitations.push("HDR-FLIP covers the recorded exposure range; spectral channels, display output and physical luminance calibration are not checked.".into()); }
         else { limitations.push("SDR colour/alpha appearance only; HDR radiance, spectral channels and physical display output are not checked.".into()); }
+        if let Some(losses) = &e.sample_exclusions { limitations.extend(losses.clone()); }
+        else if e.buffer.is_none() { limitations.push("Native channel and precision losses were not recorded; decoder scope is unknown.".into()); }
         if e.pixel_exclusions.is_none() { limitations.push("Resolved mask and excluded error were not recorded; exclusion coverage is unknown.".into()); }
         if report.config.mode == crate::report::Mode::Identity { limitations.push("Thresholds are diagnostic; exact native sample identity determines this verdict.".into()); }
-        EntryAudit { name: e.name.clone(), configured_status: e.status, thresholds, informational_regions: e.regions.iter().filter(|r| r.threshold.is_none()).map(|r| r.name.clone()).collect(), ignored_metadata: e.meta_ignored_diff.clone(), validity: e.capture_validity.clone(), limitations }
+        EntryAudit { name: e.name.clone(), configured_status: e.status, thresholds, informational_regions: e.regions.iter().filter(|r| r.status.is_none()).map(|r| r.name.clone()).collect(), ignored_metadata: e.meta_ignored_diff.clone(), validity: e.capture_validity.clone(), limitations }
     }).collect();
-    let performance = match report.perf_diff.as_ref().map(|p| p.comparability) {
-        Some(crate::perf::Comparability::Qualified) => {
-            if report
-                .perf_diff
-                .as_ref()
-                .is_some_and(|p| p.noise_comparability == crate::perf::Comparability::Qualified)
-            {
-                Capability::Available
-            } else {
-                Capability::Unknown {
-                    reason: "performance_repeat_noise_unqualified".into(),
-                }
-            }
-        }
-        Some(crate::perf::Comparability::Rejected) => Capability::Rejected {
+    use crate::perf::Comparability::{Qualified, Rejected};
+    let performance = match report
+        .perf_diff
+        .as_ref()
+        .map(|p| (p.comparability, p.noise_comparability))
+    {
+        Some((Rejected, _)) => Capability::Rejected {
             reason: "performance_comparability_rejected".into(),
+        },
+        Some((_, Rejected)) => Capability::Rejected {
+            reason: "performance_repeat_noise_rejected".into(),
+        },
+        Some((Qualified, Qualified)) => Capability::Available,
+        Some((Qualified, _)) => Capability::Unknown {
+            reason: "performance_repeat_noise_unqualified".into(),
         },
         _ => Capability::Unknown {
             reason: "performance_missing_or_unqualified".into(),
@@ -241,10 +242,11 @@ pub fn text(report: &Report) -> String {
     ];
     for item in &e.entries {
         lines.push(format!(
-            "{}: {:?}; thresholds {:?}; ignored metadata {:?}; validity {:?}; {}",
+            "{}: {:?}; thresholds {:?}; informational regions {:?}; ignored metadata {:?}; validity {:?}; {}",
             item.name,
             item.configured_status,
             item.thresholds,
+            item.informational_regions,
             item.ignored_metadata,
             item.validity,
             item.limitations.join(" ")

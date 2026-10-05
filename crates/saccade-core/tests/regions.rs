@@ -210,3 +210,114 @@ fn motion_diagnostics_cannot_turn_a_raw_flip_failure_into_a_pass() {
     assert_eq!(with.entries[0].status, without.entries[0].status);
     assert_eq!(with.entries[0].metrics, without.entries[0].metrics);
 }
+
+#[test]
+fn audit_discloses_alpha_precision_and_display_losses() {
+    let tmp = tempfile::tempdir().expect("tmp");
+    let (base, cap) = (tmp.path().join("base"), tmp.path().join("cap"));
+    std::fs::create_dir_all(&base).unwrap();
+    std::fs::create_dir_all(&cap).unwrap();
+    for (dir, alpha, sample) in [(&base, 1.0, 32768u16), (&cap, 0.0, 32769u16)] {
+        image::Rgba32FImage::from_pixel(16, 16, image::Rgba([0.5, 0.5, 0.5, alpha]))
+            .save(dir.join("alpha.exr"))
+            .unwrap();
+        image::ImageBuffer::<image::Rgb<u16>, Vec<u16>>::from_pixel(
+            16,
+            16,
+            image::Rgb([sample; 3]),
+        )
+        .save(dir.join("precision.png"))
+        .unwrap();
+    }
+    let report = run(&base, &cap, &tmp.path().join("out"), &RunConfig::default()).unwrap();
+    assert!(report.entries.iter().all(|e| e.status == Status::Pass));
+    let audit = report
+        .exclusion_audit
+        .as_ref()
+        .unwrap()
+        .evidence
+        .as_ref()
+        .unwrap();
+    let alpha = &audit
+        .entries
+        .iter()
+        .find(|e| e.name == "alpha.exr")
+        .unwrap()
+        .limitations
+        .join(" ");
+    let precision = &audit
+        .entries
+        .iter()
+        .find(|e| e.name == "precision.png")
+        .unwrap()
+        .limitations
+        .join(" ");
+    assert!(alpha.contains("alpha dropped"), "{alpha}");
+    assert!(alpha.contains("HDR to SDR"), "{alpha}");
+    assert!(precision.contains("16-bit to 8-bit"), "{precision}");
+    assert!(!precision.contains("alpha dropped"));
+}
+
+#[test]
+fn informational_regions_reach_json_text_and_html() {
+    for threshold in ["threshold = 0.0\n", ""] {
+        let tmp = tempfile::tempdir().unwrap();
+        let cfg = RunConfig::from_toml_str(&format!("[[mask]]\nrect = [0.0, 0.0, 0.5, 0.5]\n[[region]]\nname = \"sky\"\nrect = [0.0, 0.0, 0.25, 0.25]\n{threshold}")).unwrap();
+        let report = run_patch(tmp.path(), &cfg);
+        let audit = report
+            .exclusion_audit
+            .as_ref()
+            .unwrap()
+            .evidence
+            .as_ref()
+            .unwrap();
+        assert_eq!(audit.entries[0].informational_regions, ["sky"]);
+        assert!(
+            audit.entries[0]
+                .thresholds
+                .iter()
+                .all(|t| t.scope != "region:sky")
+        );
+        let text = saccade_core::exclusions::text(&report);
+        assert!(text.contains("informational regions [\"sky\"]"), "{text}");
+        let html = std::fs::read_to_string(tmp.path().join("out/index.html")).unwrap();
+        let section = html
+            .split("Exclusion audit")
+            .nth(1)
+            .unwrap()
+            .split("</section>")
+            .next()
+            .unwrap();
+        assert!(section.contains("informational regions") && section.contains("sky"));
+    }
+}
+
+#[test]
+fn rejected_repeat_noise_remains_rejected_in_audit() {
+    let tmp = tempfile::tempdir().unwrap();
+    let mut report = run_patch(tmp.path(), &RunConfig::default());
+    report.perf_diff = Some(serde_json::from_value(serde_json::json!({
+        "schema":"saccade-perf-diff.v1","unit":"ms","noise_k":3.0,
+        "comparability":"qualified","noise_comparability":"rejected",
+        "frame":{"before":10.0,"after":10.0,"delta":null,"delta_pct":null,"noise_floor":null,"noise_threshold":null,"beyond_noise":null,"status":"paired"},
+        "unattributed_before":null,"unattributed_after":null,"terms":[],"warnings":[]
+    })).unwrap());
+    for comparability in [
+        saccade_core::perf::Comparability::Qualified,
+        saccade_core::perf::Comparability::Unknown,
+        saccade_core::perf::Comparability::Rejected,
+    ] {
+        report.perf_diff.as_mut().unwrap().comparability = comparability;
+        let evidence = saccade_core::exclusions::audit(&report, vec![])
+            .evidence
+            .unwrap();
+        assert!(
+            matches!(
+                evidence.performance,
+                saccade_core::evidence::analysis::Capability::Rejected { .. }
+            ),
+            "{:?}",
+            evidence.performance
+        );
+    }
+}

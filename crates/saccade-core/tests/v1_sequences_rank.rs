@@ -177,3 +177,53 @@ fn rank_orders_known_degradations_handles_ties_and_incomplete_candidates() {
         .is_err()
     );
 }
+
+#[test]
+fn passing_sequences_carry_exclusions_and_threshold_scope() {
+    let tmp = tempfile::tempdir().unwrap();
+    let (b, c) = (tmp.path().join("base"), tmp.path().join("cap"));
+    for root in [&b, &c] {
+        for name in ["frame_1.png", "frame_2.png", "frame_3.png", "other_4.png"] {
+            save(root, name, 64, 5);
+        }
+    }
+    let cfg = RunConfig {
+        ignore: vec!["frame_3.png".into()],
+        ..Default::default()
+    };
+    let out = tmp.path().join("out");
+    let sequence = saccade_core::sequence::run_sequence(&b, &c, &out, "frame_*.png", &cfg).unwrap();
+    assert!(!sequence.is_regression());
+    let report: saccade_core::Report =
+        serde_json::from_slice(&std::fs::read(out.join("saccade-report.v1.json")).unwrap())
+            .unwrap();
+    let audit = report
+        .exclusion_audit
+        .as_ref()
+        .expect("sequence exclusion audit")
+        .evidence
+        .as_ref()
+        .unwrap();
+    assert_eq!(audit.excluded_captures, ["frame_3.png", "other_4.png"]);
+    assert_eq!(audit.selection, ["frame_*.png"]);
+    assert_eq!(audit.ignore, cfg.ignore);
+    assert_eq!(audit.entries.len(), 2);
+    assert_eq!(
+        audit.entries[0].thresholds[0].headroom,
+        Some(cfg.default_threshold)
+    );
+    assert!(matches!(
+        audit.performance,
+        saccade_core::evidence::analysis::Capability::Unknown { .. }
+    ));
+    let json = serde_json::to_value(&sequence).unwrap();
+    assert_eq!(
+        json["exclusion_audit"]["evidence"]["excluded_captures"],
+        serde_json::json!(["frame_3.png", "other_4.png"])
+    );
+    assert!(
+        std::fs::read_to_string(out.join("index.html"))
+            .unwrap()
+            .contains("frame_3.png")
+    );
+}
