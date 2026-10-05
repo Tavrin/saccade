@@ -17,6 +17,8 @@ mod assess_cmd;
 mod capability_cmd;
 mod embedding_cmd;
 mod general_cmd;
+// wave6b
+mod documents_cmd;
 mod hash_cmd;
 mod inspect_image_cmd;
 mod text_cmd;
@@ -285,7 +287,7 @@ Exit codes: 0 no regression, 1 regression found, 2 the command could not run."
     Compare {
         // wave6
         #[command(flatten)]
-        general: general_cmd::CompareArgs,
+        general: Box<general_cmd::CompareArgs>,
         /// Directory of approved baseline images.
         baseline_dir: PathBuf,
         /// Directory of fresh captures.
@@ -1255,6 +1257,45 @@ fn dispatch(command: Command, record_absolute_paths: bool) -> Result<u8, CliErro
         } => {
             // wave6: explicit questions never discard unrelated evidence options or fall back.
             capability_cmd::validate(&general)?;
+            // wave6b: document files stream pages into a separate versioned summary.
+            let document_pair = baseline_dir.is_file()
+                && capture_dir.is_file()
+                && (documents_cmd::is_document(&baseline_dir)
+                    || documents_cmd::is_document(&capture_dir));
+            if document_pair
+                && general
+                    .question
+                    .is_none_or(|q| q == capability_cmd::Question::SameRender)
+            {
+                if config.is_some()
+                    || !entries.is_empty()
+                    || junit.is_some()
+                    || ppd.is_some()
+                    || labels.is_some()
+                    || fail_on_new
+                    || allow_empty
+                    || !general_cmd::plain_options(&intent, &meta, &require, &perf, &hdr)
+                {
+                    return Err(CliError::usage(
+                        "document compare supports DPI, threshold, metric and alignment; other evidence options require explicit raster inputs",
+                    ));
+                }
+                return documents_cmd::compare(
+                    &baseline_dir,
+                    &capture_dir,
+                    &out,
+                    &general,
+                    threshold.unwrap_or(0.02),
+                    metric.unwrap_or(MetricArg::Mean),
+                    json,
+                );
+            }
+            if general.dpi.is_some() {
+                return Err(CliError::usage(
+                    "--dpi requires a document file pair with same-render comparison",
+                ));
+            }
+
             if general
                 .question
                 .is_some_and(|q| q != capability_cmd::Question::SameRender)

@@ -1,4 +1,17 @@
-# Wave 6 progress
+# Wave 6b progress (supersedes earlier handoff deferrals below)
+
+6.6 documents: partial, document implementation in this commit (SHA receipt follows); resvg/usvg 0.48.1 + hayro 0.3.0 implemented, feature-gated offline SVG/PDF file-pair page summaries, single-page general loader/directory routes and MCP. Generated nonblank SVG/two-page PDF/missing-page acceptance written. Broad fonts/resources/PDF semantics and all historical-family routes explicitly deferred with source/API evidence in NOTES; heavy document gate NOT RUN.
+6.7a C2PA/forensics: partial, pending commit; offline c2pa 0.90.22 Rust-crypto read/validate, active signer/actions/ingredients and signed generation declarations; known XMP/IPTC fields and bounded DCT/periodicity observations. Full metadata formats, encoder attribution and specificity qualification explicitly deferred (no frozen corpus/policy); signed/tamper/history heavy gates written, NOT RUN.
+6.4 OCR: partial, pending commit; pinned pure Rust ocrs 0.10.4/RTen 0.21.0 adapter, runtime-only explicit cache pulls, Unicode boxes/diff behind existing interface. Canonical accent model/licence/pins unavailable in published source; no recognition confidence in upstream API. Model/accent/readability qualification explicitly deferred with exact source evidence; heavy accent gate written, NOT RUN.
+6.3 embeddings: done (export/calibration plumbing), pending commit; exact Rust tensor preparation, offline pinned-source/checkpoint exporter, source-vector parity and frozen sample-disjoint fit/holdout bands/receipts. Actual export/model/corpus qualification and optional CLIP deferred to heavy queue. No weights downloaded.
+
+Worktree/branch verified: feat/wave6 at handoff 1505d7a7b5c1e3ac9dfe5a9cd82ad72ba3d8faa1, initially clean. Cargo fetching authorized; 244 added registry packages licence-reviewed in THIRD_PARTY.md. Target fixed at /mnt/linux-extra/moss-cargo-targets/codex-saccade-w6. Disk admission stayed >=25 GB during builds.
+
+Light verification: final relevant-feature clippy -D warnings PASS; minimal-feature check PASS (four pre-existing warnings in local_cmd/grounded_cmd); focused general tests 27 PASS, 7 heavy ignored. Fmt/diff/shell/docs/Python syntax/help PASS. Isolated Wave 6 Rust 1.88 check PASS (defaults disabled; three pre-existing local_cmd warnings). Full/default Rust 1.88 check FAILED on pre-existing butteraugli 0.4.0 AVX-512 target-feature E0658; owning-lane blocker, not repaired here. Heavy script NOT RUN. Target deletion required after final checks.
+
+---
+
+# Earlier Wave 6 handoff
 
 6.1 registration: done, 8ded843; focused core tests 4 PASS, heavy rotation/perspective + CLI/schema fixture gates written, not run. Explicit route rejects unsupported evidence options.
 6.2 hashing/dedupe: done, c47e67a; focused tests 3 PASS, 100k scale + CLI heavy gates written and not run.

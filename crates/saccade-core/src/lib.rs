@@ -83,6 +83,13 @@ pub use report::{Entry, EntryPaths, Metric, Metrics, Properties, Report, Status,
 /// Cargo features compiled into this library. Computational modules are optional;
 /// persisted report and decision types remain available without their producers.
 pub const COMPILED_FEATURES: &[&str] = &[
+    // wave6b
+    #[cfg(feature = "documents")]
+    "documents",
+    #[cfg(feature = "credentials")]
+    "credentials",
+    #[cfg(feature = "ocr")]
+    "ocr",
     // wave6
     #[cfg(feature = "embeddings")]
     "embeddings",

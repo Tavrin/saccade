@@ -147,12 +147,16 @@ pub(crate) fn catalogue() -> Value {
     );
     add(
         "documents",
-        "compare (document route deferred)",
+        "compare a.svg b.pdf --dpi 96",
         "SVG/PDF at declared DPI, pages streamed",
-        vec![],
-        "deferred",
+        vec!["documents"],
+        if cfg!(feature = "documents") {
+            "available_bounded"
+        } else {
+            "feature_unavailable"
+        },
         "How do corresponding rendered document pages differ?",
-        "renderer source/licence review, raster routes and page summaries deferred",
+        "static path SVG and supported PDF pages; external resources and unavailable fonts refused; renderer-wide qualification pending",
     );
     add(
         "a11y",
@@ -213,6 +217,7 @@ pub(crate) fn catalogue() -> Value {
         features.push("mcp".into());
     }
     features.sort();
+    features.dedup();
     json!({"schema":SCHEMA,"operation":"capabilities","compiled_features":features,"families":families,"routing":{"same-render":"compare or explicit registration","same-content":"supplied-model embeddings","same-text":"image-bound text/OCR observations","near-duplicate":"pHash Hamming pair search","quality":"paired no-reference measures; no universal pass"},"limitations":["available means executable implementation, not broad qualification","conditional runtimes/providers need their declared artifacts and authority","deferred families never fall back to a different question"]})
 }
 pub(crate) fn run(args: Args) -> Result<u8, CliError> {

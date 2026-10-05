@@ -1,4 +1,4 @@
-//! Bounded raster input; documents are rejected until a licensed renderer is available.
+//! Bounded raster and optional single-page document input.
 use crate::{Error, Result};
 use std::{io::Read, path::Path};
 /// Maximum encoded input size (64 MiB).
@@ -27,6 +27,14 @@ pub fn bytes(path: &Path, limit: u64) -> Result<Vec<u8>> {
 }
 /// Decodes one bounded image, rejecting HDR conversion in these SDR-only tools.
 pub fn decode(encoded: &[u8]) -> Result<image::RgbaImage> {
+    if super::documents::format(encoded).is_some() {
+        if super::documents::page_count(encoded)? != 1 {
+            return Err(Error::Config(
+                "multipage input requires page-by-page document compare".into(),
+            ));
+        }
+        return super::documents::page(encoded, super::documents::DEFAULT_DPI, 0);
+    }
     let mut reader = image::ImageReader::new(std::io::Cursor::new(encoded))
         .with_guessed_format()
         .map_err(crate::run::io_err("guessing raster format".into()))?;
@@ -64,7 +72,7 @@ pub fn decode(encoded: &[u8]) -> Result<image::RgbaImage> {
     }
     Ok(image.to_rgba8())
 }
-/// Reads and decodes one raster exactly once.
+/// Reads and decodes one raster or single-page document exactly once.
 pub fn load(path: &Path) -> Result<image::RgbaImage> {
     decode(&bytes(path, MAX_BYTES)?)
 }

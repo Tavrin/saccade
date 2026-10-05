@@ -99,7 +99,7 @@ pub(crate) fn collect_images(root: &Path) -> Result<Collected> {
             .extension()
             .and_then(|e| e.to_str())
             .is_some_and(|e| {
-                ["png", "jpg", "jpeg", "exr", "hdr"]
+                ["png", "jpg", "jpeg", "exr", "hdr", "svg", "pdf"]
                     .iter()
                     .any(|known| e.eq_ignore_ascii_case(known))
             });
@@ -112,6 +112,13 @@ pub(crate) fn collect_images(root: &Path) -> Result<Collected> {
 
 /// Decodes an image to 8-bit RGBA (16-bit and other formats are converted).
 pub(crate) fn decode(path: &Path) -> std::result::Result<image::RgbaImage, Error> {
+    if path
+        .extension()
+        .and_then(|s| s.to_str())
+        .is_some_and(|s| s.eq_ignore_ascii_case("svg") || s.eq_ignore_ascii_case("pdf"))
+    {
+        return crate::general::input::load(path);
+    }
     image::open(path)
         .map(|i| i.to_rgba8())
         .map_err(|source| Error::Decode {
@@ -127,10 +134,25 @@ fn decode_audited(
     side: &str,
     losses: &mut Vec<String>,
 ) -> Result<image::DynamicImage> {
-    let img = image::open(path).map_err(|source| Error::Decode {
-        path: path.to_path_buf(),
-        source,
-    })?;
+    let img = if path
+        .extension()
+        .and_then(|s| s.to_str())
+        .is_some_and(|s| s.eq_ignore_ascii_case("svg") || s.eq_ignore_ascii_case("pdf"))
+    {
+        image::DynamicImage::ImageRgba8(crate::general::input::load(path)?)
+    } else {
+        image::open(path).map_err(|source| Error::Decode {
+            path: path.to_path_buf(),
+            source,
+        })?
+    };
+    if path
+        .extension()
+        .and_then(|s| s.to_str())
+        .is_some_and(|s| s.eq_ignore_ascii_case("svg") || s.eq_ignore_ascii_case("pdf"))
+    {
+        losses.push(format!("{side}: document rasterized at 96 DPI using the optional bounded document adapter; native sample identity covers this raster only."));
+    }
     let colour = img.color();
     let bits = colour.bits_per_pixel() / u16::from(colour.channel_count());
     if hdr {

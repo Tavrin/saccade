@@ -27,6 +27,9 @@ globset = "0.4"
 fs2 = "0.4.3"
 
 [features]
+# wave6b
+documents = ["saccade-core/documents"]
+credentials = ["saccade-core/credentials"]
 # wave6: dynamic CPU ONNX embeddings, no default dependency change
 embeddings = ["saccade-core/embeddings"]
 default = ["compression", "parallel", "graphics", "ai", "workbench", "mcp", "evaluation"]
@@ -43,7 +46,7 @@ evaluation = ["ai", "saccade-core/evaluation"]
 prechecks = ["saccade-core/prechecks"]
 schema = ["saccade-core/schema"]
 # Optional external pinned Tesseract execution; no bundled runtime/models.
-ocr = []
+ocr = ["saccade-core/ocr"]
 
 [dev-dependencies]
 tempfile = "3"

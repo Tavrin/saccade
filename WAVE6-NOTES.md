@@ -28,3 +28,94 @@
 - Catalogue: describes compiled features and conditional/deferred availability for every requested family, including existing HDR-FLIP and ColorVideoVDP; does not claim execution qualification. Rejected treating absent integrations as available. Reversal cost: update conditional status after integration with actual commands/features.
 - MCP native execution: read roots cannot authorize arbitrary dynamic libraries. Require operator-owned onnx-runtime.json path/SHA authority for all embedding calls, including question routing; load ONNX bytes from a freshly rehashed buffer to avoid file-base external-initializer reads. Reject arbitrary-library execution from a tool argument. Reversal cost: replace configuration with an equivalent explicit startup runtime authority, preserving the native execution boundary. Approved runtime remains operator-trusted and immutable for the session, not sandboxed.
 - Final development checks: formatting, diff whitespace, gate shell syntax and wave-local docs/schema checks are executable without compilation. Latest disk admission was 18 GB; compilation/test verification remains deferred under the explicit 25 GB shared rule. No model downloads, browser/provider/GPU/release runs or heavy gates executed. Renderer acceptance remains intentionally failing until the deferred adapter is supplied.
+
+
+## Wave 6b decisions (SPEC-wave6b.md, same feat/wave6 worktree)
+
+- Sources: Cargo crates.io fetching is explicitly permitted by the follow-on.
+  No browsing, weight download, provider/browser/GPU call or heavy test was run.
+  All 244 newly resolved registry packages were reviewed from Cargo.toml and
+  published licence/notice files; THIRD_PARTY.md records permitted choices and
+  exact notice hashes. Published c2pa/ocrs/RTen/hayro packages omit some licence
+  files; their source metadata/README declarations are recorded rather than
+  fabricating files. Small roxmltree metadata parsing is unconditional; heavy
+  document/credential/OCR engines remain opt-in. Rejected bundling native PDFium,
+  native OpenSSL and default C2PA HTTP. Reversal: reselect adapters behind the
+  existing interfaces and requalify input/credential semantics.
+- 6.6: resvg/usvg 0.48.1 and pure-Rust hayro 0.3.0. Hayro 0.8.0's registry
+  rust-version is 1.92, exceeding the repository baseline. Both engines render
+  actual pages; source hashes and declared DPI bind page summaries. Every
+  missing/error page remains a failure. Disable both SVG resource resolvers;
+  reject text/images/active content rather than silently omit them. PDF missing
+  fonts/interpreter warnings fail pages. Rejected host-dependent font discovery
+  and claiming complete PDF support: hayro 0.3.0 source explicitly lacks some
+  blending/isolation/encryption semantics and exposes no allocation/time budget.
+  Remaining all-historical-command routing (e.g. direct image::open in quality,
+  rank/temporal and other raster consumers), arbitrary SVG/font/resource support,
+  wide PDF correctness and worker isolation are explicitly deferred. Reversal:
+  operator-pinned fonts/resources or a newer MSRV-compatible renderer, shared
+  page-aware inputs in each remaining family, plus independent coverage gates.
+- 6.7a: c2pa 0.90.22 with default-features=false/rust_native_crypto; no HTTP
+  backend, remote-manifest feature, OCSP fetch, thumbnails or native crypto.
+  Explicit per-reader validation settings; project active signer/actions/
+  ingredients and validation codes. Only exact trained-model declarations from
+  validated signed credentials change generation from unknown. Rejected trusting
+  raw JUMBF/XMP metadata or heuristic real/fake output. Add namespace-checked XMP
+  capture/edit tags and selected IPTC IIM dates/byline/copyright, GPS opt-in.
+  Raw decoded-DCT histogram gaps and derivative periodicity are bounded and
+  explicitly unqualified. Conventional Annex K compatibility is a signature
+  family shared by encoders, not an encoder identity. Full/extended/compressed
+  metadata, exact encoder attribution and forensic discrimination qualification
+  remain deferred: no frozen signature corpus/operating policy was supplied;
+  the constructed history gate demonstrates sensitivity only. Reversal: add
+  parsed formats or frozen truth/policy qualification without changing unknown
+  authenticity authority. Signed JPEG + asset-binding transplant heavy gate
+  requires operator-generated, licence-recorded pinned fixture.
+- 6.4: ocrs 0.10.4 + matching RTen 0.21.0, behind ocr and the existing text
+  source interface. saccade-ocrs.v1 pins both exports and requires explicit CTC
+  alphabet and model licence evidence. Runtime-only explicit --download-model
+  uses the existing bounded/hash-verified cache transport. Model bytes fed from
+  freshly verified memory, no native library/program. Source evidence:
+  ocrs-0.10.4/src/lib.rs DEFAULT_ALPHABET lacks accented characters;
+  src/text_items.rs TextChar exposes only char and rect, no confidence;
+  README points to download-models.sh, but the published crate includes neither
+  that script nor model hashes/licence receipts. Actual accent-capable model
+  selection, licence verification and recognition qualification are deferred;
+  supplied licences are labelled declarations. Readability stays unknown/failed
+  when confidence is absent. Rejected fabricated SHA/licence/confidence and
+  changing expect-text's fail-closed contract. Reversal: reviewed accent model
+  plus real heavy gate; a confidence-capable engine/API must be separately
+  recorded before qualification of expected readability. Imports remain MCP's
+  OCR path; arbitrary runtime execution/downloads are CLI-only.
+- 6.3: exact NCHW tensor preparation, offline operator-source/checkpoint export,
+  independent source-vector parity, frozen fit/holdout calibration and receipts.
+  Sample-disjoint splits and unique image hashes/pairs; threshold fit only on
+  fit, no retuning after holdout. Emit calibrated model only after parity and
+  zero observed holdout errors. Export recipe binds source revision/checkpoint,
+  software versions, graph hash and corpus/pairs. Rejected inventing a universal
+  graph pin or cosine bands. Actual model/source/holdout evidence remains heavy
+  and unrun; source labels/vectors are supplied evidence, not authenticated by
+  the arithmetic. Reversal: replace operator source model/recipe, freeze a new
+  corpus and requalify; existing flat index interface remains stable.
+- Development corrected the handoff TIFF scalar/coordinate lifetime error.
+  Shared CLI option bundle boxed after the DPI addition crossed clippy's enum
+  size limit. These changes are necessary for this source to compile cleanly.
+- Heavy gate now includes opt-in feature/MSRV checks, touched-crate full tests,
+  document/multipage/nonblank pixel checks, offline credential and tamper checks,
+  Rust OCR accents with honest absent confidence, forensic history observations,
+  export parity/holdout and existing Wave 6 registration/hash/index/router/MCP.
+  No JS/showcase/shared README/CHANGELOG/docs/cli.md edits. Coordinator owns
+  integration and every heavy execution/qualification decision.
+
+- Extra MSRV verification found a pre-existing default-build blocker: butteraugli
+  0.4.0's multiversion-generated AVX-512 target features are unstable on Rust
+  1.88 (E0658 in precompute.rs). This dependency already exists at the handoff;
+  no compression change is authorized by wave6b. Full/default MSRV acceptance
+  is explicitly deferred to the owning lane. Check the new Wave 6 optional
+  adapters with defaults disabled; the gate is labelled msrv-wave6, not a claim
+  of full default-build MSRV acceptance.
+
+- Final feature clippy passed; the isolated Rust 1.88 Wave 6 check passed with
+  defaults disabled. The default butteraugli MSRV blocker remains separate.
+  Export jobs load the checkpoint from the freshly SHA-verified bytes and bind
+  the exact initial manifest bytes, avoiding a second path read for provenance.

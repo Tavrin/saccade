@@ -42,6 +42,9 @@ impl From<Resample> for registration::Scale {
 }
 #[derive(Args, Default)]
 pub(crate) struct CompareArgs {
+    /// Declared document raster density, 36..600 DPI (default 96).
+    #[arg(long)]
+    pub(crate) dpi: Option<f64>,
     /// Explicit comparison question; no automatic model fallback.
     #[arg(long, value_enum)]
     pub(crate) question: Option<crate::capability_cmd::Question>,
@@ -386,6 +389,7 @@ pub(crate) fn tool_schema() -> Value {
     let mut tool = json!({"name":"saccade_general","description":"Explicit general comparison pipelines with versioned evidence; no approval authority.","inputSchema":{"type":"object","properties":{"operation":{"const":"registered_compare","type":"string"},"reference":{"type":"string"},"capture":{"type":"string"},"out":{"type":"string"},"align":{"type":"string","enum":["none","translation","similarity","affine","homography","auto"]},"resample":{"type":"string","enum":["reference","common"]},"threshold":{"type":"number","minimum":0,"maximum":1},"metric":{"enum":["mean","p95","p99","max"]}},"required":["operation","reference","capture","out","align"],"additionalProperties":false},"outputSchema":{"type":"object"},"annotations":{"destructiveHint":false,"openWorldHint":false}});
     let registration = tool["inputSchema"].take();
     let mut variants = vec![registration];
+    variants.extend(crate::documents_cmd::schemas());
     variants.extend(crate::hash_cmd::schemas());
     variants.extend(crate::embedding_cmd::schemas());
     variants.extend(crate::text_cmd::schemas());

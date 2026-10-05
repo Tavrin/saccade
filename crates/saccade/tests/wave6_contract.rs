@@ -299,7 +299,7 @@ fn assessment_reports_paired_deltas_without_quality_verdict() {
 }
 
 #[test]
-#[ignore = "heavy: documents-deferred"]
+#[ignore = "heavy: documents"]
 fn generated_svg_pdf_inputs_require_real_rendering_and_page_summary() {
     let temp = tempfile::tempdir().unwrap();
     let svg = temp.path().join("vector.svg");
@@ -307,9 +307,10 @@ fn generated_svg_pdf_inputs_require_real_rendering_and_page_summary() {
     // Generated public-domain-style primitive content; fixture code is project licensed.
     let objects = [
         "<< /Type /Catalog /Pages 2 0 R >>",
-        "<< /Type /Pages /Kids [3 0 R] /Count 1 >>",
+        "<< /Type /Pages /Kids [3 0 R 5 0 R] /Count 2 >>",
         "<< /Type /Page /Parent 2 0 R /MediaBox [0 0 100 100] /Contents 4 0 R >>",
         "<< /Length 17 >>\nstream\n20 20 60 60 re\nf\nendstream",
+        "<< /Type /Page /Parent 2 0 R /MediaBox [0 0 100 100] /Contents 4 0 R >>",
     ];
     let mut bytes = b"%PDF-1.4\n".to_vec();
     let mut offsets = vec![0];
@@ -318,12 +319,12 @@ fn generated_svg_pdf_inputs_require_real_rendering_and_page_summary() {
         bytes.extend_from_slice(format!("{} 0 obj\n{}\nendobj\n", i + 1, object).as_bytes());
     }
     let xref = bytes.len();
-    bytes.extend_from_slice(b"xref\n0 5\n0000000000 65535 f \n");
+    bytes.extend_from_slice(b"xref\n0 6\n0000000000 65535 f \n");
     for offset in offsets.iter().skip(1) {
         bytes.extend_from_slice(format!("{offset:010} 00000 n \n").as_bytes());
     }
     bytes.extend_from_slice(
-        format!("trailer\n<< /Size 5 /Root 1 0 R >>\nstartxref\n{xref}\n%%EOF\n").as_bytes(),
+        format!("trailer\n<< /Size 6 /Root 1 0 R >>\nstartxref\n{xref}\n%%EOF\n").as_bytes(),
     );
     let pdf = temp.path().join("document.pdf");
     std::fs::write(&pdf, bytes).unwrap();
@@ -339,10 +340,38 @@ fn generated_svg_pdf_inputs_require_real_rendering_and_page_summary() {
         ]);
         assert!(
             result.status.success(),
-            "deferred: real document adapter/routing required: {}",
+            "real document rendering required: {}",
             String::from_utf8_lossy(&result.stderr)
         );
+        let value: Value =
+            serde_json::from_slice(&std::fs::read(out.join("saccade-documents.v1.json")).unwrap())
+                .unwrap();
+        validate_schema("saccade-documents.v1", &value);
+        assert_eq!(value["counts"]["total"], if file == &pdf { 2 } else { 1 });
+        assert_eq!(value["counts"]["failures"], 0);
+        assert_eq!(value["rendering"]["dpi"], 96.);
+        let image = image::open(out.join("page-0001/pair-000000/reference.png"))
+            .unwrap()
+            .to_rgba8();
+        assert_eq!(
+            image.get_pixel(image.width() / 2, image.height() / 2).0,
+            [0, 0, 0, 255]
+        );
     }
+    let out = temp.path().join("missing-page");
+    let result = cli(&[
+        "compare",
+        pdf.to_str().unwrap(),
+        svg.to_str().unwrap(),
+        "--out",
+        out.to_str().unwrap(),
+        "--json",
+    ]);
+    assert_eq!(result.status.code(), Some(1));
+    let value: Value =
+        serde_json::from_slice(&std::fs::read(out.join("saccade-documents.v1.json")).unwrap())
+            .unwrap();
+    assert_eq!(value["pages"][1]["status"], "missing");
 }
 
 #[test]
@@ -708,4 +737,58 @@ fn mcp_question_inputs_and_native_execution_keep_authority_boundaries() {
             .contains("execution_authorization_required")
     );
     assert!(!out.join("native").join("saccade-similar.v1.json").exists());
+}
+
+#[cfg(feature = "mcp")]
+#[test]
+#[ignore = "heavy: documents-mcp"]
+fn mcp_documents_preserve_roots_and_page_summary() {
+    use std::io::Write;
+    use std::process::Stdio;
+    let temp = tempfile::tempdir().unwrap();
+    let root = temp.path().join("inputs");
+    let out = temp.path().join("out");
+    std::fs::create_dir(&root).unwrap();
+    std::fs::create_dir(&out).unwrap();
+    let svg = root.join("vector.svg");
+    std::fs::write(&svg, br#"<svg xmlns="http://www.w3.org/2000/svg" width="32" height="32"><rect width="32" height="32" fill="red"/></svg>"#).unwrap();
+    let outside = temp.path().join("outside.svg");
+    std::fs::copy(&svg, &outside).unwrap();
+    let arguments = [
+        serde_json::json!({"operation":"documents_compare","reference":svg,"capture":svg,"dpi":96,"out":out.join("pages")}),
+        serde_json::json!({"operation":"documents_compare","reference":outside,"capture":svg,"out":out.join("escaped")}),
+    ];
+    let mut child = Command::new(env!("CARGO_BIN_EXE_saccade"))
+        .arg("mcp")
+        .arg("--root")
+        .arg(&root)
+        .arg("--out-root")
+        .arg(&out)
+        .stdin(Stdio::piped())
+        .stdout(Stdio::piped())
+        .stderr(Stdio::piped())
+        .spawn()
+        .unwrap();
+    let mut stdin = child.stdin.take().unwrap();
+    for (id, args) in arguments.iter().enumerate() {
+        writeln!(stdin,"{}",serde_json::json!({"jsonrpc":"2.0","id":id+1,"method":"tools/call","params":{"name":"saccade_general","arguments":args}})).unwrap();
+    }
+    drop(stdin);
+    let result = child.wait_with_output().unwrap();
+    assert!(result.status.success(), "{result:?}");
+    let values: Vec<Value> = String::from_utf8(result.stdout)
+        .unwrap()
+        .lines()
+        .map(|line| serde_json::from_str(line).unwrap())
+        .collect();
+    assert_eq!(values.len(), 2);
+    assert_ne!(values[0]["result"]["isError"], true);
+    assert_eq!(values[1]["result"]["isError"], true);
+    let report: Value = serde_json::from_slice(
+        &std::fs::read(out.join("pages/saccade-documents.v1.json")).unwrap(),
+    )
+    .unwrap();
+    validate_schema("saccade-documents.v1", &report);
+    assert_eq!(report["verdict"], "pass");
+    assert!(!out.join("escaped/saccade-documents.v1.json").exists());
 }

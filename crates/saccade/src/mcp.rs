@@ -1164,6 +1164,37 @@ impl Server {
                 images: Vec::new(),
             });
         }
+        // wave6b: document rendering has no native execution or network authority.
+        if operation == "documents_compare" {
+            reject_unknown(
+                args,
+                &[
+                    "operation",
+                    "reference",
+                    "capture",
+                    "out",
+                    "dpi",
+                    "threshold",
+                ],
+            )?;
+            let a = self.existing_file("reference", &require_str(args, "reference")?)?;
+            let b = self.existing_file("capture", &require_str(args, "capture")?)?;
+            let out = self.checked_out_dir(&require_str(args, "out")?, &[&a, &b])?;
+            let options = crate::general_cmd::CompareArgs {
+                dpi: arg_f64(args, "dpi")?,
+                ..Default::default()
+            };
+            let value = crate::documents_cmd::measure(
+                &a,
+                &b,
+                &out,
+                &options,
+                arg_f64(args, "threshold")?.unwrap_or(0.02),
+                crate::MetricArg::Mean,
+            )?;
+            let file = crate::general_cmd::persist_document(&value, &out)?;
+            return Ok(ToolOutput {structured:json!({"schema":saccade_core::general::RESULT_SCHEMA,"mode":operation,"verdict":value["verdict"],"data":{"schema":value["schema"],"counts":value["counts"]},"artifacts":[{"path":saccade_core::paths::record(&file,&self.root,false)}],"next_actions":[]}),text:"Rendered pages at declared density; page errors and missingness remain failures.".into(),images:Vec::new()});
+        }
         if operation == "compare_question" {
             reject_unknown(
                 args,
@@ -1217,6 +1248,7 @@ impl Server {
                 crate::capability_cmd::Question::from_str(&require_str(args, "question")?, false)
                     .map_err(CliError::usage)?;
             let options = crate::general_cmd::CompareArgs {
+                dpi: None,
                 question: Some(question),
                 align: arg_str(args, "align")?
                     .map(|v| {
