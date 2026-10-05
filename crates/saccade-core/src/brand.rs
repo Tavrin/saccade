@@ -117,6 +117,7 @@ pub struct Text {
 #[serde(deny_unknown_fields)]
 pub struct Evidence {
     /// saccade-brand-source.v1.
+    #[cfg_attr(feature = "schema", schemars(extend("const" = "saccade-brand-source.v1")))]
     pub schema: String,
     /// Artifact containing the source facts, resolved relative to this document.
     pub source_artifact: PathBuf,
@@ -152,6 +153,7 @@ pub struct Finding {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Report {
     /// saccade-brand-review.v1.
+    #[cfg_attr(feature = "schema", schemars(extend("const" = "saccade-brand-review.v1")))]
     pub schema: String,
     /// Source evidence and all policy values retained verbatim.
     pub source: Evidence,
@@ -243,6 +245,14 @@ fn profile(name: &str, p: &Policy, root: &Path) -> Result<(ColorProfile, Digest)
         .ok_or_else(|| invalid(format!("unsupported or undeclared ICC profile {name}")))?;
     let path = root.join(&pinned.path);
     const MAX_ICC_BYTES: u64 = 4 * 1024 * 1024;
+    // Inspect the path before opening so a FIFO cannot block waiting for a writer.
+    let metadata = std::fs::metadata(&path).map_err(|source| Error::Io {
+        context: format!("inspecting ICC {}", path.display()),
+        source,
+    })?;
+    if !metadata.is_file() || metadata.len() > MAX_ICC_BYTES {
+        return Err(invalid("ICC profile must be a regular file <=4 MiB"));
+    }
     let mut file = std::fs::File::open(&path).map_err(|source| Error::Io {
         context: format!("opening ICC {}", path.display()),
         source,
@@ -282,7 +292,7 @@ fn profile(name: &str, p: &Policy, root: &Path) -> Result<(ColorProfile, Digest)
     let tags = bytes
         .get(132..end)
         .ok_or_else(|| invalid("truncated ICC tag table"))?;
-    if tags.chunks_exact(12).any(|tag| {
+    if tags.as_chunks::<12>().0.iter().any(|tag| {
         matches!(
             &tag[..4],
             b"A2B0"

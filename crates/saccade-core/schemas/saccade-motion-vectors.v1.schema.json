@@ -115,6 +115,7 @@
       "type": "string"
     },
     "schema": {
+      "const": "saccade-motion-vectors.v1",
       "description": "Contract identity.",
       "type": "string"
     },

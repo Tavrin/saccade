@@ -86,6 +86,7 @@
           "type": "array"
         },
         "schema": {
+          "const": "saccade-brand-source.v1",
           "description": "saccade-brand-source.v1.",
           "type": "string"
         },
@@ -265,7 +266,7 @@
       "description": "Source text and layout facts; a screenshot estimate is not accepted here.",
       "properties": {
         "backgrounds": {
-          "description": "Opaque sRGB background samples, including all relevant gradient extrema.",
+          "description": "Opaque sRGB background samples. Multiple samples do not prove gradient coverage.",
           "items": {
             "items": {
               "format": "double",
@@ -398,6 +399,7 @@
       "type": "object"
     },
     "schema": {
+      "const": "saccade-brand-review.v1",
       "description": "saccade-brand-review.v1.",
       "type": "string"
     },

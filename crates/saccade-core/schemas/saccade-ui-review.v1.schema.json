@@ -312,6 +312,7 @@
           "description": "Producer/version, or pinned OCR executable/model hashes and settings."
         },
         "schema": {
+          "const": "saccade-ui-source.v1",
           "description": "saccade-ui-source.v1.",
           "type": "string"
         }
@@ -351,6 +352,7 @@
       "description": "Existing region, boundary and complement checks without exclusions."
     },
     "schema": {
+      "const": "saccade-ui-review.v1",
       "description": "saccade-ui-review.v1.",
       "type": "string"
     },

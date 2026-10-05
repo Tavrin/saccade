@@ -612,6 +612,7 @@
           "type": "integer"
         },
         "schema": {
+          "const": "saccade-perf-plan.v1",
           "description": "saccade-perf-plan.v1.",
           "type": "string"
         },
@@ -703,6 +704,7 @@
           "description": "Canonical plan hash, pinned before acquisition by the producer."
         },
         "schema": {
+          "const": "saccade-perf-pairs.v1",
           "description": "saccade-perf-pairs.v1.",
           "type": "string"
         }

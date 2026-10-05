@@ -307,6 +307,11 @@ mod images {
 fn w3_f07_projective_duplicates_rejected() {
     for scale in [2., 0.5, 3.] {
         let mut m = manifest();
+        m.views[0].camera.projection[0] = 0.13;
+        m.views[0].camera.projection[5] = 0.77;
+        m.views[0].camera.projection[10] = 1.3;
+        m.views[0].camera.projection[11] = 0.4;
+        m.views[0].camera.projection[15] = 2.7;
         m.views[1].camera = m.views[0].camera.clone();
         m.views[1].camera.projection = m.views[0].camera.projection.map(|v| v * scale);
         assert!(

@@ -33,6 +33,11 @@ class ReleaseNoticesTests(unittest.TestCase):
                     archive.write(file, arcname=file.name)
             for path in [tar, zip_path]:
                 checker.check_archive(path)
+            # Windows text output uses CRLF; attribution has the same complete text.
+            notices.write_bytes(notices.read_text().replace('\n', '\r\n').encode())
+            with zipfile.ZipFile(zip_path, 'w') as archive:
+                archive.write(notices, arcname=notices.name)
+            checker.check_archive(zip_path)
             notices.write_text('# Third-party notices\nDaltonLens\n')
             with zipfile.ZipFile(zip_path, 'w') as archive:
                 archive.write(notices, arcname=notices.name)

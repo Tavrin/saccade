@@ -48,6 +48,7 @@
       "type": "integer"
     },
     "schema": {
+      "const": "saccade-perf-plan.v1",
       "description": "saccade-perf-plan.v1.",
       "type": "string"
     },

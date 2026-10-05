@@ -34,6 +34,7 @@
       "type": "integer"
     },
     "schema": {
+      "const": "saccade-tesseract.v1",
       "description": "saccade-tesseract.v1.",
       "type": "string"
     },

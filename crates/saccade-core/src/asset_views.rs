@@ -104,6 +104,7 @@ pub struct View {
 #[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub struct Manifest {
     /// Contract identity.
+    #[cfg_attr(feature = "schema", schemars(extend("const" = "saccade-asset-views.v1")))]
     pub schema: String,
     /// Same unit declaration as the geometry report.
     pub unit: String,
@@ -189,6 +190,7 @@ pub struct Coverage {
 #[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub struct Report {
     /// Contract identity.
+    #[cfg_attr(feature = "schema", schemars(extend("const" = "saccade-asset-view-report.v1")))]
     pub schema: String,
     /// Complete supplied declaration and receipts.
     pub manifest: Manifest,
@@ -307,7 +309,7 @@ impl Manifest {
             }
         }
         let mut ids = BTreeSet::new();
-        let mut cameras = BTreeSet::new();
+        let mut cameras: Vec<Camera> = Vec::new();
         for v in &self.views {
             let camera = &v.camera;
             if v.id.trim().is_empty()
@@ -318,27 +320,35 @@ impl Manifest {
                 || !invertible(&camera.projection)
                 || camera.model_to_world[12..] != [0.0, 0.0, 0.0, 1.0]
                 || camera.world_to_view[12..] != [0.0, 0.0, 0.0, 1.0]
-                || !cameras.insert({
-                    // Positive homogeneous scale preserves division and clip inequalities.
-                    // Keep receipt hashes tied to the original bytes; normalize coverage only.
-                    let mut normalized = camera.clone();
-                    let scale = camera
-                        .projection
-                        .iter()
-                        .copied()
-                        .map(f64::abs)
-                        .fold(0.0, f64::max);
-                    normalized.projection = camera.projection.map(|v| {
-                        let v = v / scale;
-                        if v == 0.0 { 0.0 } else { v }
-                    });
-                    hash(&normalized)?
-                })
             {
                 return Err(invalid(
                     "view IDs/cameras must be distinct, finite, nonsingular and use the declared matrix convention",
                 ));
             }
+            // Positive homogeneous scale preserves division and clip inequalities.
+            // Receipt hashes retain original bytes; coverage uses normalized projections.
+            let mut normalized = camera.clone();
+            let scale = camera
+                .projection
+                .iter()
+                .copied()
+                .map(f64::abs)
+                .fold(0.0, f64::max);
+            normalized.projection = camera.projection.map(|v| v / scale);
+            if cameras.iter().any(|previous| {
+                previous.model_to_world == normalized.model_to_world
+                    && previous.world_to_view == normalized.world_to_view
+                    && previous
+                        .projection
+                        .iter()
+                        .zip(normalized.projection)
+                        .all(|(a, b)| (a - b).abs() <= 1e-12)
+            }) {
+                return Err(invalid(
+                    "projectively equivalent cameras cannot increase distinct-view coverage",
+                ));
+            }
+            cameras.push(normalized);
         }
         Ok(())
     }

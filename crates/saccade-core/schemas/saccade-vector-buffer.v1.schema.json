@@ -4,6 +4,7 @@
   "description": "Supplied row-major float buffer, with explicit producer validity.",
   "properties": {
     "schema": {
+      "const": "saccade-vector-buffer.v1",
       "description": "Contract identity.",
       "type": "string"
     },

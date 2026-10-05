@@ -18,6 +18,7 @@ def check_archive(path):
     else:
         with tarfile.open(path, 'r:gz') as archive:
             notices = archive.extractfile('THIRD_PARTY_NOTICES.md').read().decode('utf-8')
+    notices = notices.replace('\r\n', '\n')
     assert 'DaltonLens' in notices, f'{path}: missing DaltonLens attribution'
     assert DALTON_NOTICE.read_text().strip() in notices, f'{path}: missing full DaltonLens MIT notice'
     print(f'{path.name}: copied-source notices retained')

@@ -213,6 +213,7 @@
           "type": "string"
         },
         "schema": {
+          "const": "saccade-motion-vectors.v1",
           "description": "Contract identity.",
           "type": "string"
         },
@@ -451,6 +452,7 @@
       "description": "Optional renderer comparison."
     },
     "schema": {
+      "const": "saccade-motion-review.v1",
       "description": "Contract identity.",
       "type": "string"
     }

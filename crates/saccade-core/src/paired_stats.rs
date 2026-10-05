@@ -21,6 +21,7 @@ pub struct Assignment {
 #[serde(deny_unknown_fields)]
 pub struct Plan {
     /// saccade-perf-plan.v1.
+    #[cfg_attr(feature = "schema", schemars(extend("const" = "saccade-perf-plan.v1")))]
     pub schema: String,
     /// run; correlated frames are not independent resampling units.
     pub independent_unit: String,
@@ -55,6 +56,7 @@ pub struct Observation {
 #[serde(deny_unknown_fields)]
 pub struct Samples {
     /// saccade-perf-pairs.v1.
+    #[cfg_attr(feature = "schema", schemars(extend("const" = "saccade-perf-pairs.v1")))]
     pub schema: String,
     /// Exact reference aggregate performance file bytes.
     pub before_perf_sha256: Digest,
@@ -178,13 +180,32 @@ impl Generator {
         }
     }
 }
+fn require_schema(actual: &str, supported: &'static str) -> Result<()> {
+    if actual == supported {
+        return Ok(());
+    }
+    let prefix = supported
+        .strip_suffix('1')
+        .ok_or_else(|| invalid("invalid supported schema"))?;
+    if actual
+        .strip_prefix(prefix)
+        .and_then(|v| v.parse::<u32>().ok())
+        .is_some_and(|v| v > 1)
+    {
+        return Err(Error::VersionSkew {
+            actual: actual.into(),
+            supported,
+        });
+    }
+    Err(invalid(&format!("expected {supported}, found {actual}")))
+}
 impl Samples {
     /// Enforce full acquisition count, exact plan/IDs/order and valid independent units.
     pub fn validate(&self) -> Result<()> {
         let p = &self.plan;
-        if self.schema != "saccade-perf-pairs.v1"
-            || p.schema != "saccade-perf-plan.v1"
-            || p.independent_unit != "run"
+        require_schema(&self.schema, "saccade-perf-pairs.v1")?;
+        require_schema(&p.schema, "saccade-perf-plan.v1")?;
+        if p.independent_unit != "run"
             || p.stopping_rule != "fixed_count"
             || !(6..=128).contains(&p.pairs.len())
             || self.observations.len() != p.pairs.len()
@@ -331,7 +352,27 @@ pub(crate) fn read(
         context: "reading paired performance sidecar".into(),
         source,
     })?;
-    let samples: Samples = canonical::decode(&bytes).map_err(|e| invalid(&e.to_string()))?;
+    let value: serde_json::Value =
+        canonical::decode(&bytes).map_err(|e| invalid(&e.to_string()))?;
+    for (value, supported) in [
+        (&value, "saccade-perf-pairs.v1"),
+        (&value["plan"], "saccade-perf-plan.v1"),
+    ] {
+        if let Some(actual) = value["schema"].as_str() {
+            require_schema(actual, supported)?;
+        }
+    }
+    let samples: Samples = canonical::decode(&bytes).map_err(|e| {
+        let message = e.to_string();
+        if message.contains("unknown field ") {
+            Error::VersionSkew {
+                actual: format!("a newer producer: {message}"),
+                supported: "saccade-perf-pairs.v1",
+            }
+        } else {
+            invalid(&message)
+        }
+    })?;
     for (dir, hash) in [
         (before, &samples.before_perf_sha256),
         (after, &samples.after_perf_sha256),

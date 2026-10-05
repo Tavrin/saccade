@@ -13,6 +13,7 @@ use std::collections::{BTreeMap, BTreeSet};
 #[serde(deny_unknown_fields)]
 pub struct Source {
     /// saccade-ui-source.v1.
+    #[cfg_attr(feature = "schema", schemars(extend("const" = "saccade-ui-source.v1")))]
     pub schema: String,
     /// Exact screenshot file SHA-256 (64 lowercase hex, like DOM region metadata).
     pub capture_sha256: String,
@@ -33,6 +34,7 @@ pub struct Source {
 #[serde(deny_unknown_fields)]
 pub struct OcrContract {
     /// saccade-tesseract.v1.
+    #[cfg_attr(feature = "schema", schemars(extend("const" = "saccade-tesseract.v1")))]
     pub schema: String,
     /// Pinned local executable, resolved relative to the contract.
     pub executable: std::path::PathBuf,
@@ -93,6 +95,7 @@ pub struct Finding {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Report {
     /// saccade-ui-review.v1.
+    #[cfg_attr(feature = "schema", schemars(extend("const" = "saccade-ui-review.v1")))]
     pub schema: String,
     /// Exact source evidence hashes and producer facts.
     pub sources: [Source; 2],

@@ -276,21 +276,38 @@ fn w3_f13_empty_generator_does_not_panic() {
 #[cfg(all(unix, feature = "graphics"))]
 #[test]
 fn w3_f02_dangling_pairs_rejected() {
-    use saccade_core::perf::{self, Comparability, PerfOptions};
+    use saccade_core::perf::{
+        self, CapturePerf, Comparability, FrameChange, PerfNoise, PerfOptions,
+    };
     let t = tempfile::tempdir().unwrap();
     let before = t.path().join("b");
     let after = t.path().join("a");
     std::fs::create_dir(&before).unwrap();
     std::fs::create_dir(&after).unwrap();
-    let b = serde_json::json!({"schema":"saccade-perf.v1","unit":"ms","frame":{"value":10.,"samples":6,"stat":"p50"},"terms":[],"counters":{}});
-    for dir in [&before, &after] {
-        std::fs::write(dir.join("saccade-perf.json"), b.to_string()).unwrap();
-    }
+    let context: serde_json::Value =
+        serde_json::from_str(include_str!("fixtures/perf/context.json")).unwrap();
+    let document = |frame| serde_json::json!({"schema":"saccade-perf.v2","kind":"measurement","unit":"ms","frame":{"value":frame,"samples":6,"stat":"mean"},"terms":[{"id":"main","kind":"pass","value":frame}],"counters":{},"context":context});
+    let b = document(10.).to_string();
+    let a = document(9.).to_string();
+    std::fs::write(before.join("saccade-perf.json"), &b).unwrap();
+    std::fs::write(after.join("saccade-perf.json"), &a).unwrap();
+    let parsed = CapturePerf::parse(&b, "fixture").unwrap();
     let opts = PerfOptions {
         gpu_clocks_not_applicable: true,
+        floor: Some(PerfNoise {
+            frame: 0.,
+            terms: [("main".into(), 0.)].into(),
+            resolution_ms: Some(0.0001),
+            comparability: Comparability::Qualified,
+            timer: Some("fixture-timer".into()),
+            context_identity: parsed.comparison_identity(),
+            ..Default::default()
+        }),
         ..Default::default()
     };
     let historical = perf::pair(&before, &after, &opts).unwrap().0.unwrap();
+    assert_eq!(historical.comparability, Comparability::Qualified);
+    assert_eq!(historical.frame_change, FrameChange::Faster);
     std::os::unix::fs::symlink(
         after.join("missing.json"),
         after.join("saccade-perf-pairs.json"),
@@ -298,6 +315,79 @@ fn w3_f02_dangling_pairs_rejected() {
     .unwrap();
     let d = perf::pair(&before, &after, &opts).unwrap().0.unwrap();
     assert_eq!(d.comparability, Comparability::Rejected);
+    assert_eq!(d.frame_change, FrameChange::Unknown);
+    assert_eq!(d.frame.beyond_noise, None);
     assert!(d.qualification_reasons.iter().any(|s| s.contains("paired")));
     assert_ne!(d.qualification_reasons, historical.qualification_reasons);
+}
+
+#[test]
+fn w3_f08_paired_version_upgrade() {
+    for plan in [false, true] {
+        let mut s = samples(&[10.; 6], &[9.; 6], 1);
+        if plan {
+            s.plan.schema = "saccade-perf-plan.v2".into();
+        } else {
+            s.schema = "saccade-perf-pairs.v2".into();
+        }
+        let error = estimate(&s).unwrap_err().to_string();
+        assert!(
+            error.contains("version_skew") && error.contains("upgrade"),
+            "{error}"
+        );
+    }
+}
+
+#[cfg(feature = "graphics")]
+#[test]
+fn w3_f08_paired_reader_versions_and_fields() {
+    use saccade_core::perf::{self, Comparability, PerfOptions};
+    let t = tempfile::tempdir().unwrap();
+    let before = t.path().join("b");
+    let after = t.path().join("a");
+    std::fs::create_dir(&before).unwrap();
+    std::fs::create_dir(&after).unwrap();
+    let aggregate = serde_json::json!({"schema":"saccade-perf.v1","unit":"ms","frame":{"value":10.,"samples":6,"stat":"p50"},"terms":[],"counters":{}}).to_string();
+    for dir in [&before, &after] {
+        std::fs::write(dir.join("saccade-perf.json"), &aggregate).unwrap();
+    }
+    let mut s = samples(&[10.; 6], &[9.; 6], 1);
+    s.before_perf_sha256 = Digest::of_bytes(aggregate.as_bytes());
+    s.after_perf_sha256 = s.before_perf_sha256.clone();
+    let good = serde_json::to_value(s).unwrap();
+    for pointer in ["", "/plan"] {
+        for newer_schema in [false, true] {
+            let mut v = good.clone();
+            let node = v.pointer_mut(pointer).unwrap();
+            if newer_schema {
+                node["schema"] = node["schema"]
+                    .as_str()
+                    .unwrap()
+                    .replace(".v1", ".v2")
+                    .into();
+            } else {
+                node["future_field"] = true.into();
+            }
+            std::fs::write(after.join("saccade-perf-pairs.json"), v.to_string()).unwrap();
+            let d = perf::pair(
+                &before,
+                &after,
+                &PerfOptions {
+                    gpu_clocks_not_applicable: true,
+                    ..Default::default()
+                },
+            )
+            .unwrap()
+            .0
+            .unwrap();
+            assert_eq!(d.comparability, Comparability::Rejected);
+            assert!(
+                d.qualification_reasons
+                    .iter()
+                    .any(|r| r.contains("version_skew") && r.contains("upgrade")),
+                "{:?}",
+                d.qualification_reasons
+            );
+        }
+    }
 }

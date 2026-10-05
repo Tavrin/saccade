@@ -40,6 +40,7 @@ pub enum Direction {
 #[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub struct Buffer {
     /// Contract identity.
+    #[cfg_attr(feature = "schema", schemars(extend("const" = "saccade-vector-buffer.v1")))]
     pub schema: String,
     /// One vector per pixel, no implicit resampling.
     pub vectors: Vec<[f32; 2]>,
@@ -51,6 +52,7 @@ pub struct Buffer {
 #[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub struct Sidecar {
     /// Contract identity.
+    #[cfg_attr(feature = "schema", schemars(extend("const" = "saccade-motion-vectors.v1")))]
     pub schema: String,
     /// Width and height shared by both frames and the buffer.
     pub dimensions: [u32; 2],
@@ -138,6 +140,7 @@ pub struct Validation {
 #[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub struct Report {
     /// Contract identity.
+    #[cfg_attr(feature = "schema", schemars(extend("const" = "saccade-motion-review.v1")))]
     pub schema: String,
     /// Exact image identities, reference then candidate.
     pub image_sha256: [String; 2],

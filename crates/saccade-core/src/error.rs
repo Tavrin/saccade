@@ -53,6 +53,16 @@ pub enum Error {
         #[source]
         source: image::ImageError,
     },
+    /// Input from a newer contract version requires a reader upgrade.
+    #[error(
+        "version_skew: written by {actual}; installed saccade supports up to {supported}, upgrade"
+    )]
+    VersionSkew {
+        /// Producer's contract identifier or unsupported extension.
+        actual: String,
+        /// Latest supported contract identifier.
+        supported: &'static str,
+    },
     /// A configuration file or glob pattern is invalid.
     #[error("invalid configuration: {0}")]
     Config(String),

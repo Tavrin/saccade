@@ -285,6 +285,7 @@
       "type": "number"
     },
     "schema": {
+      "const": "saccade-asset-views.v1",
       "description": "Contract identity.",
       "type": "string"
     },

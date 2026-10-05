@@ -1646,7 +1646,11 @@ fn doctor(json: bool) -> Result<u8, CliError> {
             "region_models": ["saccade-region-models.v1"],
             "quality": ["saccade-quality-sweep.v1", "saccade-quality-report.v1"],
             "renderdoc": ["saccade-renderdoc-extract.v1", "saccade-renderdoc-localization.v1"],
-            "performance": ["saccade-perf.v1", "saccade-perf.v2"]
+            "performance": ["saccade-perf.v1", "saccade-perf.v2", "saccade-perf-plan.v1", "saccade-perf-pairs.v1"],
+            "brand": ["saccade-brand-source.v1", "saccade-brand-review.v1"],
+            "ui": ["saccade-ui-source.v1", "saccade-ui-review.v1", "saccade-tesseract.v1"],
+            "motion": ["saccade-motion-review.v1", "saccade-motion-vectors.v1", "saccade-vector-buffer.v1"],
+            "asset_views": ["saccade-asset-views.v1", "saccade-asset-view-report.v1"]
         }
     });
     if json {
@@ -1784,6 +1788,18 @@ fn reject_newer_nested_schemas(value: &serde_json::Value) -> Result<(), CliError
                     "saccade-region-models.v",
                     "saccade-renderdoc-extract.v",
                     "saccade-renderdoc-localization.v",
+                    "saccade-brand-source.v",
+                    "saccade-brand-review.v",
+                    "saccade-ui-source.v",
+                    "saccade-tesseract.v",
+                    "saccade-ui-review.v",
+                    "saccade-perf-plan.v",
+                    "saccade-perf-pairs.v",
+                    "saccade-vector-buffer.v",
+                    "saccade-motion-vectors.v",
+                    "saccade-motion-review.v",
+                    "saccade-asset-views.v",
+                    "saccade-asset-view-report.v",
                 ] {
                     if actual
                         .strip_prefix(prefix)
@@ -2259,4 +2275,33 @@ pub(crate) fn capabilities(json: bool) -> Result<u8, CliError> {
         ))?;
     }
     Ok(0)
+}
+
+#[cfg(test)]
+#[allow(clippy::expect_used)]
+mod wave3_schema_tests {
+    #[test]
+    fn w3_f08_all_nested_families() {
+        for id in [
+            "saccade-brand-source",
+            "saccade-brand-review",
+            "saccade-ui-source",
+            "saccade-ui-review",
+            "saccade-tesseract",
+            "saccade-perf-plan",
+            "saccade-perf-pairs",
+            "saccade-motion-review",
+            "saccade-motion-vectors",
+            "saccade-vector-buffer",
+            "saccade-asset-views",
+            "saccade-asset-view-report",
+        ] {
+            let value = serde_json::json!({"outer":[{"schema":format!("{id}.v2")} ]});
+            let error = super::reject_newer_nested_schemas(&value).expect_err("upgrade required");
+            assert_eq!(error.code, "version_skew");
+            assert!(error.message.contains("upgrade"));
+            let value = serde_json::json!({"outer":[{"schema":format!("{id}.v1")} ]});
+            super::reject_newer_nested_schemas(&value).expect("supported");
+        }
+    }
 }
