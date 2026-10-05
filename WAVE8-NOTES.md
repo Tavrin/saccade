@@ -164,3 +164,7 @@ inherited model accuracy/parity and Rust OCR qualification remain explicitly inc
 - Docs regeneration exposed `media-http` missing from compiled feature receipts;
   added its cfg-gated entry. Agent packs exceeded the existing 4800-byte guard;
   condensed the guide while retaining authority and qualification boundaries.
+- Canceled the initial wave8 batch while its first fmt check was still queued:
+  a blanket 6 GiB declaration was inappropriate for metadata/formatting gates.
+  Per-gate declarations now use 1 GiB for lightweight checks, 4 GiB for Clippy/
+  Python, 6 GiB for full tests and 8 GiB for builds. Time limits are unchanged.

@@ -13,7 +13,13 @@ gate() {
     shift
     local -a command=(timeout 900 "$@")
     if test -n "${SACCADE_W8_ADMISSION_GB:-}"; then
-        command=(/mnt/linux-extra/moss-coord/bin/moss-heavy.sh "$SACCADE_W8_ADMISSION_GB" "${command[@]}")
+        local gb=$SACCADE_W8_ADMISSION_GB
+        case "$name" in
+            fmt|docs|runtime-pull|face-model-pull|manylinux-artifacts|docker-smoke) gb=1 ;;
+            clippy|python-clippy|python-light|python-model-build|python-models) gb=4 ;;
+            docker-build|wheel-release) gb=8 ;;
+        esac
+        command=(/mnt/linux-extra/moss-coord/bin/moss-heavy.sh "$gb" "${command[@]}")
     fi
     if "${command[@]}"; then printf 'GATE %s PASS\n' "$name"; else printf 'GATE %s FAIL\n' "$name"; failed=1; fi
 }
