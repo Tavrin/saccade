@@ -22,6 +22,7 @@ mod geometry_cmd;
 mod git_bisect;
 mod history;
 mod ingest;
+mod inventory_cmd;
 mod local_cmd;
 #[cfg(feature = "compression")]
 mod quality_cmd;
@@ -186,6 +187,8 @@ impl From<MetricArg> for Metric {
 
 #[derive(Subcommand)]
 enum Command {
+    /// Reconcile expected and supplied stable capture cases against a comparison report.
+    Inventory(inventory_cmd::Args),
     /// Measure externally encoded quality candidates under a frozen score and byte budget.
     #[cfg(feature = "compression")]
     QualitySweep(quality_cmd::Args),
@@ -1004,6 +1007,7 @@ fn dispatch(command: Command, record_absolute_paths: bool) -> Result<u8, CliErro
             operation: ExperimentOperation::Geometry(args),
         } => geometry_cmd::compare(args),
         Command::History(args) => history::run(args),
+        Command::Inventory(args) => inventory_cmd::run(args),
         #[cfg(feature = "compression")]
         Command::QualitySweep(args) => quality_cmd::run(args),
         Command::Inspect(args) => local_cmd::inspect(args, record_absolute_paths),

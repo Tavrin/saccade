@@ -89,12 +89,16 @@ enum IngestOperation {
 struct Manifest {
     schema: String,
     entries: Vec<Snapshot>,
+    #[serde(default)]
+    inventory: Option<saccade_core::inventory::Manifest>,
 }
 
 #[derive(Deserialize)]
 #[serde(deny_unknown_fields)]
 struct Snapshot {
     test_id: String,
+    #[serde(default)]
+    case_id: Option<String>,
     project: String,
     browser: String,
     viewport: Option<[u32; 2]>,
@@ -190,7 +194,7 @@ pub(crate) fn run(args: IngestArgs, absolute: bool) -> Result<u8, CliError> {
             let raw = std::fs::read(&manifest).map_err(|e| CliError::io(e.to_string()))?;
             let source_manifest: Manifest = serde_json::from_slice(&raw)?;
             if source_manifest.schema != "saccade-playwright.v1"
-                || source_manifest.entries.is_empty()
+                || (source_manifest.entries.is_empty() && source_manifest.inventory.is_none())
             {
                 return Err(CliError::usage(
                     "expected nonempty saccade-playwright.v1 manifest",
@@ -254,7 +258,7 @@ pub(crate) fn run(args: IngestArgs, absolute: bool) -> Result<u8, CliError> {
                 for dir in [&baseline, &capture] {
                     crate::local_cmd::write_value(&dir.join(&sidecar_name), &sidecar)?;
                 }
-                mapping.push(json!({"entry":name,"test_id":entry.test_id,"project":entry.project,"browser":entry.browser,"viewport":entry.viewport,"diff":diff.as_ref().map(|_|format!("playwright-diffs/{index:04}.png"))}));
+                mapping.push(json!({"entry":name,"test_id":entry.test_id,"case_id":entry.case_id,"project":entry.project,"browser":entry.browser,"viewport":entry.viewport,"diff":diff.as_ref().map(|_|format!("playwright-diffs/{index:04}.png"))}));
             }
             crate::local_cmd::write_value(
                 &out.join("playwright-mapping.json"),
@@ -269,8 +273,27 @@ pub(crate) fn run(args: IngestArgs, absolute: bool) -> Result<u8, CliError> {
             }
             let report_dir = out.join("report");
             let report = saccade_core::run::run(&baseline, &capture, &report_dir, &config)?;
+            let mut incomplete = false;
+            if let Some(manifest) = &source_manifest.inventory {
+                let report_bytes =
+                    std::fs::read(report_dir.join(saccade_core::report::REPORT_FILE_NAME))
+                        .map_err(|e| CliError::io(e.to_string()))?;
+                let inventory =
+                    crate::inventory_cmd::value(manifest, &report, &raw, &report_bytes)?;
+                incomplete = inventory.coverage != "complete";
+                crate::local_cmd::write_value(
+                    &out.join("inventory.json"),
+                    &serde_json::to_value(&inventory)?,
+                )?;
+                if !json {
+                    crate::emit(&format!(
+                        "capture coverage: {}; see inventory.json\n",
+                        inventory.coverage
+                    ))?;
+                }
+            }
             crate::emit_run(&report, &report_dir, json, absolute)?;
-            Ok(u8::from(report.is_regression()))
+            Ok(u8::from(report.is_regression() || incomplete))
         }
     }
 }

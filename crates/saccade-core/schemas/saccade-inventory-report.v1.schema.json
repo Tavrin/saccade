@@ -1,0 +1,177 @@
+{
+  "$defs": {
+    "Case": {
+      "description": "One unique expected case, assigned exactly one accounting outcome.",
+      "properties": {
+        "case_id": {
+          "description": "Stable ID.",
+          "type": "string"
+        },
+        "expected_entry": {
+          "description": "Expected filename.",
+          "type": "string"
+        },
+        "measurement": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Status"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "Measurement verdict, kept separate from coverage."
+        },
+        "outcome": {
+          "description": "Exactly one of compared, missing, unusable, uncompared, skipped, quarantined, stale, duplicate.",
+          "type": "string"
+        },
+        "renamed": {
+          "description": "Same stable ID with a changed filename. Hash equality never infers a rename.",
+          "type": "boolean"
+        },
+        "required": {
+          "description": "Whether required for completeness.",
+          "type": "boolean"
+        },
+        "supplied_entry": {
+          "description": "Supplied filename, if any.",
+          "type": [
+            "string",
+            "null"
+          ]
+        }
+      },
+      "required": [
+        "case_id",
+        "required",
+        "outcome",
+        "expected_entry",
+        "renamed"
+      ],
+      "type": "object"
+    },
+    "Status": {
+      "description": "Outcome of one image name.",
+      "oneOf": [
+        {
+          "const": "pass",
+          "description": "`value <= threshold`.",
+          "type": "string"
+        },
+        {
+          "const": "fail",
+          "description": "`value > threshold`.",
+          "type": "string"
+        },
+        {
+          "const": "new",
+          "description": "Capture present, baseline absent.",
+          "type": "string"
+        },
+        {
+          "const": "missing",
+          "description": "Baseline present, capture absent.",
+          "type": "string"
+        },
+        {
+          "const": "error",
+          "description": "Could not be compared; see [`Entry::error`].",
+          "type": "string"
+        }
+      ]
+    }
+  },
+  "$id": "https://github.com/Tavrin/saccade/crates/saccade-core/schemas/saccade-inventory-report.v1.schema.json",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "description": "Exact suite accounting and explicit anomalies.",
+  "properties": {
+    "cases": {
+      "description": "Every unique expected case in stable order.",
+      "items": {
+        "$ref": "#/$defs/Case"
+      },
+      "type": "array"
+    },
+    "compared": {
+      "description": "Expected cases with usable, hash-bound comparison outcomes.",
+      "format": "uint",
+      "minimum": 0,
+      "type": "integer"
+    },
+    "coverage": {
+      "description": "complete or incomplete; an empty declaration cannot establish completeness.",
+      "type": "string"
+    },
+    "duplicates": {
+      "description": "Duplicate case IDs or artifact filenames; never silently deduplicated into completeness.",
+      "items": {
+        "type": "string"
+      },
+      "type": "array"
+    },
+    "expected": {
+      "description": "Number of unique expected cases, not raw duplicate declarations.",
+      "format": "uint",
+      "minimum": 0,
+      "type": "integer"
+    },
+    "manifest_sha256": {
+      "description": "SHA-256 of exact manifest bytes, assigned by the caller.",
+      "type": "string"
+    },
+    "outcomes": {
+      "additionalProperties": {
+        "format": "uint",
+        "minimum": 0,
+        "type": "integer"
+      },
+      "description": "Outcome counts; sum equals expected.",
+      "type": "object"
+    },
+    "report_sha256": {
+      "description": "SHA-256 of exact report bytes, assigned by the caller.",
+      "type": "string"
+    },
+    "schema": {
+      "description": "saccade-inventory-report.v1.",
+      "type": "string"
+    },
+    "supplied": {
+      "description": "Number of unique expected cases declaring a captured artifact.",
+      "format": "uint",
+      "minimum": 0,
+      "type": "integer"
+    },
+    "unassigned_comparisons": {
+      "description": "Compared report entries not assigned to a supplied case.",
+      "items": {
+        "type": "string"
+      },
+      "type": "array"
+    },
+    "unexpected": {
+      "description": "Supplied case IDs absent from expectations.",
+      "items": {
+        "type": "string"
+      },
+      "type": "array"
+    }
+  },
+  "required": [
+    "schema",
+    "manifest_sha256",
+    "report_sha256",
+    "expected",
+    "supplied",
+    "compared",
+    "outcomes",
+    "cases",
+    "duplicates",
+    "unexpected",
+    "unassigned_comparisons",
+    "coverage"
+  ],
+  "title": "Inventory",
+  "type": "object"
+}

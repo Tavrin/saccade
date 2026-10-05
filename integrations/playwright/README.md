@@ -50,3 +50,12 @@ Chromium, then ingested its failure attachments without downloading anything.
 The opt-in [GitHub Actions example](ci-example.yml) runs Playwright, ingests
 complete screenshot failures and uploads the report. Baseline changes remain
 a separate human review step.
+
+The reporter inventories all enumerated tests, not just failing attachment pairs.
+Every test declares one required screenshot case. Passed tests must attach their
+expected and actual PNG paths explicitly; a pass without both is missing visual
+assurance. Skips, `quarantine` annotations and retry attempts remain visible.
+Ingest writes `inventory.json`; incomplete required coverage exits 1, independently
+of image pass/fail results. Additional snapshots receive separate indexed IDs.
+For a predeclared multi-state suite, use the generic `saccade inventory` manifest
+in [the wave 2 guide](../../docs/wave2.md).

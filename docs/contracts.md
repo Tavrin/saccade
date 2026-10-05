@@ -133,6 +133,8 @@ The last three names appear only when the corresponding feature is compiled in.
 - [saccade-geometry.v1.schema.json](../crates/saccade-core/schemas/saccade-geometry.v1.schema.json) — Document
 - [saccade-gpu-clock.v1.schema.json](../crates/saccade-core/schemas/saccade-gpu-clock.v1.schema.json) — GpuClock
 - [saccade-inbox-item.v1.schema.json](../crates/saccade-core/schemas/saccade-inbox-item.v1.schema.json) — Item
+- [saccade-inventory-report.v1.schema.json](../crates/saccade-core/schemas/saccade-inventory-report.v1.schema.json) — Inventory
+- [saccade-inventory.v1.schema.json](../crates/saccade-core/schemas/saccade-inventory.v1.schema.json) — Manifest
 - [saccade-judge-bench.v1.schema.json](../crates/saccade-core/schemas/saccade-judge-bench.v1.schema.json) — Historical reader contract
 - [saccade-judge-selftest.v1.schema.json](../crates/saccade-core/schemas/saccade-judge-selftest.v1.schema.json) — Historical reader contract
 - [saccade-judge-vote-api.v1.schema.json](../crates/saccade-core/schemas/saccade-judge-vote-api.v1.schema.json) — Historical reader contract

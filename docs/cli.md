@@ -21,6 +21,7 @@ Usage: saccade [OPTIONS] <COMMAND>
 
 Commands:
   compare        Compare a directory of captures against a directory of baselines
+  inventory      Reconcile expected and supplied stable capture cases against a comparison report
   prove          Check whether image identity or performance evidence proves a claim
   quality-sweep  Measure externally encoded quality candidates under a frozen score and byte budget
   review         Preview a review plan or handle a local closed decision request
@@ -43,6 +44,25 @@ Start here:
 Exit codes: 0 no image regression, 1 image regression found, 2 the command could not run.
 Advanced: demo, identity, noise, view, inspect, experiment, approve, init,
 serve, mcp, ingest, bisect, history, doctor. Existing commands keep working; use `saccade COMMAND --help`.
+```
+
+## saccade inventory
+
+```text
+Reconcile expected and supplied stable capture cases against a comparison report
+
+Usage: saccade inventory [OPTIONS] --manifest <MANIFEST> --report <REPORT> --out <OUT>
+
+Options:
+      --manifest <MANIFEST>  Expected suite and supplied capture attempts, with stable case IDs
+      --report <REPORT>      Existing comparison report
+      --out <OUT>            New inventory JSON file
+      --json
+  -h, --help                 Print help
+
+Global options:
+      --allow-out-near-captures  Silence warnings when --out is next to capture metadata
+      --record-absolute-paths    Opt in to absolute local paths in reports and machine-readable output
 ```
 
 ## saccade quality-sweep

@@ -1,0 +1,92 @@
+{
+  "$defs": {
+    "Expected": {
+      "additionalProperties": false,
+      "description": "One required or advisory suite case, with its former/expected filename.",
+      "properties": {
+        "case_id": {
+          "description": "Stable producer case ID, separate from a filename.",
+          "type": "string"
+        },
+        "entry": {
+          "description": "Expected comparison entry name.",
+          "type": "string"
+        },
+        "required": {
+          "description": "Whether absence prevents complete required coverage.",
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "case_id",
+        "entry",
+        "required"
+      ],
+      "type": "object"
+    },
+    "Supplied": {
+      "additionalProperties": false,
+      "description": "Outcome recorded by a capture producer, including unsuccessful attempts.",
+      "properties": {
+        "capture_sha256": {
+          "description": "Hash of actual encoded capture; required for compared coverage.",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "case_id": {
+          "description": "Stable producer case ID.",
+          "type": "string"
+        },
+        "entry": {
+          "description": "Actual comparison entry name; None if no image was produced.",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "state": {
+          "description": "captured, skipped, quarantined, stale, missing or unusable.",
+          "type": "string"
+        }
+      },
+      "required": [
+        "case_id",
+        "state"
+      ],
+      "type": "object"
+    }
+  },
+  "$id": "https://github.com/Tavrin/saccade/crates/saccade-core/schemas/saccade-inventory.v1.schema.json",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "description": "Expected suite and every attempted/supplied capture.",
+  "properties": {
+    "expected": {
+      "description": "Required/advisory cases, including passes.",
+      "items": {
+        "$ref": "#/$defs/Expected"
+      },
+      "type": "array"
+    },
+    "schema": {
+      "description": "Must be saccade-inventory.v1.",
+      "type": "string"
+    },
+    "supplied": {
+      "description": "Capture attempts; duplicate identities are retained as coverage failures.",
+      "items": {
+        "$ref": "#/$defs/Supplied"
+      },
+      "type": "array"
+    }
+  },
+  "required": [
+    "schema",
+    "expected",
+    "supplied"
+  ],
+  "title": "Manifest",
+  "type": "object"
+}

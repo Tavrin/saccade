@@ -25,6 +25,7 @@ pub mod hdr;
 pub mod hotspots;
 pub mod inbox;
 pub mod intent;
+pub mod inventory;
 #[cfg(feature = "ai")]
 pub mod judge;
 #[cfg(feature = "evaluation")]

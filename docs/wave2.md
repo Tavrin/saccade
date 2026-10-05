@@ -36,3 +36,23 @@ Use the same environment identity only for the same capture protocol. Omit `--un
 ```
 
 For two-stage processing, add the delivered image as a second stage. Every output must have the resized reference dimensions. Normalize EXIF orientation and ICC profiles externally; this version accepts opaque RGB8 sRGB only. Keep originals immutable. Inspect incremental and cumulative scores and bytes for each stage. The smallest file meeting the declared budget may differ from the lowest encoder quality. The score and declared viewing conditions do not establish invisible loss. Inspect protected details separately and perform human review.
+
+## Capture inventory
+
+After comparing generic capture layouts, reconcile stable cases:
+
+```sh
+saccade inventory --manifest suite.json --report report/saccade-report.v1.json --out inventory.json --json
+```
+
+```json
+{
+  "schema": "saccade-inventory.v1",
+  "expected": [{"case_id": "par/article/mobile", "entry": "article.png", "required": true}],
+  "supplied": [{"case_id": "par/article/mobile", "entry": "article.png", "state": "captured", "capture_sha256": "LOWERCASE_FILE_HASH"}]
+}
+```
+
+Producer states are `captured`, `missing`, `unusable`, `stale`, `skipped`, and `quarantined`. Use null entry/hash when there is no artifact. Stable IDs survive filename changes; hashes bind the actual capture to its comparison. Missing, skipped or quarantined required cases prevent complete coverage. Equal bytes across two named cases do not establish equivalence. The JSON accounts for every expected case; a failed image measurement is still a compared case.
+
+The Playwright reporter now inventories every test from `onBegin`, including passed tests without attachments. To compare passing snapshots, attach both expected and actual images with role-suffixed attachment names, for example `article-expected` and `article-actual`. Quarantine annotations remain visible. Retry attempts remain duplicate identities. `saccade ingest playwright manifest.json --out suite-report` writes `inventory.json` as well as the usual comparison and returns 1 for incomplete required coverage. Older manifests lack suite coverage evidence. For multiple predeclared page states, supply a generic suite manifest.
