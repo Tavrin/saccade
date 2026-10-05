@@ -155,7 +155,7 @@ fn costs(values: &[f64]) -> Vec<Vec<f64>> {
     }
     cost
 }
-fn segment(cost: &[Vec<f64>], minimum: usize, penalty: f64) -> (Vec<usize>, f64) {
+pub(crate) fn segment(cost: &[Vec<f64>], minimum: usize, penalty: f64) -> (Vec<usize>, f64) {
     let n = cost.len();
     let mut best = vec![f64::INFINITY; n + 1];
     let mut previous = vec![0; n + 1];

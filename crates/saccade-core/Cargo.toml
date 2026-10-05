@@ -45,6 +45,7 @@ gltf = { version = "=1.4.1", default-features = false, features = ["utils", "nam
 base64 = { version = "0.22", optional = true }
 
 # Opt-in permissive document, credential and Rust OCR adapters
+url = {version="2.5",optional=true}
 roxmltree = "=0.21.1"
 resvg = { version = "=0.48.1", default-features = false, features = ["text", "raster-images"], optional = true }
 hayro = { version = "=0.3.0", default-features = false, optional = true }
@@ -63,7 +64,7 @@ documents = ["dep:resvg", "dep:hayro"]
 credentials = ["dep:c2pa"]
 ocr = ["dep:ocrs", "dep:rten", "dep:ureq", "dep:fs2"]
 # Dynamic CPU ONNX embeddings, no default dependency change
-embeddings = ["semantic-regions"]
+embeddings = ["semantic-regions", "dep:base64", "dep:tokenizers"]
 default = ["parallel"]
 # Parallel FLIP filtering; disable for the sequential FLIP backend on wasm.
 parallel = ["flip-rs/parallel"]
@@ -80,7 +81,9 @@ geometry = ["dep:parry3d-f64", "dep:tobj", "dep:gltf", "dep:base64"]
 # Provider adapters and review orchestration.
 ai = ["dep:ureq", "dep:fs2", "dep:httpdate"]
 # Local HTTP workbench, independent of AI.
-workbench = ["dep:tiny_http"]
+workbench = ["dep:tiny_http", "dep:base64"]
+# wave8
+media-http = ["dep:ureq"]
 # Replay, calibration and provider conformance.
 evaluation = ["ai"]
 # Experimental safety/accessibility checks.
@@ -92,7 +95,7 @@ assist = ["ai"]
 # wave7
 local-models = ["dep:ort", "dep:ureq", "dep:fs2", "dep:tokenizers", "dep:flate2", "dep:tar"]
 local-vlm = ["dep:ureq", "dep:base64"]
-vision-providers = ["dep:base64"]
+vision-providers = ["dep:base64", "dep:url"]
 
 [dev-dependencies]
 tempfile = "3"
@@ -143,3 +146,9 @@ required-features = ["assist"]
 [[example]]
 name = "r2_credentials"
 required-features = ["credentials"]
+
+# wave8: bounded URL input and local API remain optional.
+
+# wave8: safe OpenOptions flags reject special-file reads without blocking on Unix.
+[target.'cfg(unix)'.dependencies]
+libc = "0.2"

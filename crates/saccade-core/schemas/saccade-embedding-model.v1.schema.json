@@ -7,7 +7,10 @@
       "const": "saccade-embedding-model.v1"
     },
     "family": {
-      "const": "dinov2-small"
+      "enum": [
+        "dinov2-small",
+        "siglip2-base"
+      ]
     },
     "artifact": {
       "type": "object",
@@ -78,6 +81,80 @@
         "object",
         "null"
       ]
+    },
+    "text": {
+      "type": "object",
+      "properties": {
+        "artifact": {
+          "type": "object",
+          "properties": {
+            "license": {
+              "const": "Apache-2.0"
+            },
+            "format": {
+              "const": "onnx"
+            },
+            "sha256": {
+              "type": "string",
+              "pattern": "^[0-9a-f]{64}$"
+            }
+          },
+          "required": [
+            "license",
+            "format",
+            "sha256",
+            "role",
+            "url",
+            "bytes",
+            "version"
+          ]
+        },
+        "tokenizer": {
+          "type": "object",
+          "properties": {
+            "license": {
+              "const": "Apache-2.0"
+            },
+            "format": {
+              "const": "tokenizer"
+            },
+            "sha256": {
+              "type": "string",
+              "pattern": "^[0-9a-f]{64}$"
+            }
+          },
+          "required": [
+            "license",
+            "format",
+            "sha256",
+            "role",
+            "url",
+            "bytes",
+            "version"
+          ]
+        },
+        "input": {
+          "const": "input_ids"
+        },
+        "output": {
+          "const": "embedding"
+        },
+        "length": {
+          "const": 64
+        },
+        "pad_id": {
+          "const": 0
+        }
+      },
+      "required": [
+        "artifact",
+        "tokenizer",
+        "input",
+        "output",
+        "length",
+        "pad_id"
+      ],
+      "additionalProperties": false
     }
   },
   "required": [

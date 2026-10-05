@@ -83,6 +83,24 @@ pub struct Registered {
     /// Model and geometry evidence.
     pub evidence: Evidence,
 }
+/// Compact reusable original-pixel keypoint descriptor.
+#[derive(Clone, Debug, Serialize, Deserialize)]
+pub struct Keypoint {
+    /// Original-pixel coordinates.
+    pub point: [f64; 2],
+    /// 256-bit oriented BRIEF descriptor, four little-endian words.
+    pub descriptor: [u64; 4],
+}
+/// Bounded fingerprint using the same detector/descriptors as registration (at most 1200).
+pub fn fingerprint(image: &RgbaImage) -> Vec<Keypoint> {
+    features(image)
+        .into_iter()
+        .map(|f| Keypoint {
+            point: [f.x, f.y],
+            descriptor: f.descriptor,
+        })
+        .collect()
+}
 #[derive(Clone)]
 struct Feature {
     x: f64,
@@ -690,6 +708,67 @@ pub fn copy_move(image: &RgbaImage) -> Result<Vec<CopyMove>, RegistrationError> 
     candidates.sort_by_key(|c| (std::cmp::Reverse(c.matches), c.first, c.second));
     candidates.truncate(32);
     Ok(candidates)
+}
+
+/// Fit a source fingerprint to a target's keypoints without retaining source pixels.
+/// Uses exactly the registration matcher, consensus thresholds and RANSAC estimator.
+/// Returns (matrix, actual model, match count, inlier count, RMS source-pixel residual).
+pub fn fit_fingerprint(
+    source_size: [u32; 2],
+    source: &[Keypoint],
+    target_size: [u32; 2],
+    target: &[Keypoint],
+    model: Model,
+) -> Result<([f64; 9], Model, usize, usize, f64), RegistrationError> {
+    let valid = |size: [u32; 2], points: &[Keypoint]| {
+        size[0] > 0
+            && size[1] > 0
+            && u64::from(size[0]) * u64::from(size[1]) <= super::input::MAX_PIXELS
+            && points.len() <= 1200
+            && points.iter().all(|p| {
+                p.point.iter().all(|v| v.is_finite())
+                    && p.point[0] >= 0.
+                    && p.point[1] >= 0.
+                    && p.point[0] < f64::from(size[0])
+                    && p.point[1] < f64::from(size[1])
+            })
+    };
+    if !valid(source_size, source) || !valid(target_size, target) || model == Model::None {
+        return Err(RegistrationError::InvalidGeometry);
+    }
+    let to_features = |points: &[Keypoint]| {
+        points
+            .iter()
+            .map(|p| Feature {
+                x: p.point[0],
+                y: p.point[1],
+                descriptor: p.descriptor,
+                score: 0,
+            })
+            .collect::<Vec<_>>()
+    };
+    let pairs = correspondences(&to_features(source), &to_features(target));
+    let candidates = if model == Model::Auto {
+        vec![
+            Model::Translation,
+            Model::Similarity,
+            Model::Affine,
+            Model::Homography,
+        ]
+    } else {
+        vec![model]
+    };
+    let factor = f64::from(source_size[0].max(source_size[1]))
+        / f64::from(target_size[0].max(target_size[1]));
+    candidates
+        .into_iter()
+        .find_map(|m| {
+            estimate(&pairs, m, 3. / factor)
+                .map(|(matrix, inliers, rms)| (matrix, m, pairs.len(), inliers.len(), rms * factor))
+        })
+        .ok_or(RegistrationError::InsufficientInliers {
+            matches: pairs.len(),
+        })
 }
 
 #[cfg(test)]

@@ -1,0 +1,34 @@
+[package]
+name = "saccade-py"
+publish = false
+description = "Python bindings for reusable Saccade media analysis"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+
+[lib]
+name = "_native"
+crate-type = ["cdylib", "rlib"]
+
+[dependencies]
+saccade-core = { workspace = true }
+pyo3 = { version = "=0.25.1", features = ["abi3-py310"] }
+serde_json.workspace = true
+
+[features]
+default = []
+python-tests = []
+models = ["saccade-core/local-models", "saccade-core/embeddings", "saccade-core/ocr"]
+http = ["saccade-core/media-http"]
+
+[lints]
+workspace = true
+
+[dev-dependencies]
+tempfile = "3"
+
+[[test]]
+name = "python_package"
+required-features = ["python-tests"]

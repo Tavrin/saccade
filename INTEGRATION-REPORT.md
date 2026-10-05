@@ -335,3 +335,129 @@ local CI matrix and release checker remain incomplete due to disk pressure.**
 Retry the interrupted/refused rows when space permits. Linux results do not
 establish macOS/Windows, release deployment, or the previously deferred live/model
 acceptance. Repository author configuration was used; no push.
+
+## Wave 8 integration — 2026-10-06
+
+Executed in `/home/etienne/dev/saccade-wt/wave8`, branch `feat/wave8`, from
+`fe2ca95`. Merge `555a4ec` retains both wave 8 and `origin/main` `51f5bb0`,
+including the dav1d CI dependency fix. No push, subagents, live provider calls,
+or edits to another worktree. README is identical to merged `origin/main`.
+
+### Implemented and fixed forward
+
+- 8.3 uses official `google/siglip2-base-patch16-224` immutable revision
+  `75de2d55ec2d0b4efc50b3e9ad70dba96a7b2fa2`. The pinned upstream README
+  explicitly declares Apache-2.0; checkpoint SHA-256 is
+  `612923381c76ec5a9bed335d1c48827e3f2e506ac31b044b63b2031fadee6a0b`,
+  tokenizer SHA-256 is
+  `cb9140fae3ac5122c972d37adf83e1248471a38147ad76f8215c8872c6fd8322`.
+  Downloads were restricted to that revision under `/mnt/linux-extra/saccade-models`.
+  [Pinned licence evidence](https://huggingface.co/google/siglip2-base-patch16-224/blob/75de2d55ec2d0b4efc50b3e9ad70dba96a7b2fa2/README.md).
+- `scripts/models/export-siglip2.py` pins the CPU export environment and checks
+  checkpoint/ONNX parity. Image graph SHA-256
+  `50319b38e8350a79e720ca3e11aee99020538bbd5c5d429a30a7f53f9a9134db`,
+  float16 text graph SHA-256
+  `331a15b3bf3c4bad090ff2a8d6dccaaf07b98a0406eafd102febb929c2e184f3`.
+  Text weights use float16 with float32 output to respect the existing 1 GiB
+  artifact limit. Fixed normalized error bound remains 0.02: measured image
+  maximum 1.19e-7 and text maximum 9.66e-5. Dynamic-int8 failed at 0.06032
+  and was rejected without relaxing the gate. Older upstream revision `a7d042...`
+  was rejected because its automatic card did not explicitly name the licence.
+  These are cache-only local exports, not official hosted ONNX releases.
+- Lazy CPU inference binds both graph hashes, tokenizer, preprocessing, padding
+  and context length into the index identity. CLI `index query --text` uses the
+  pinned joint model; image-only models fail explicitly. Historical DINOv2
+  serialization/identity is preserved. Persisted indices round-trip in Rust
+  and Python, retrieve two generated red/blue squares correctly, and reject a
+  changed tokenizer identity. Scores remain uncalibrated with no acceptance verdict.
+- Fixed gate failures without weakening assertions: CLI command inventory now
+  requires the three new commands; core gates project only real core features;
+  full suites use `--no-fail-fast`; admission estimates vary by actual component.
+  Compact Python/library/HTTP hits now have `saccade-media-index-query.v1`, with
+  a validating regression fixture. The established CLI query schema is unchanged.
+  `saccade-py` is excluded from Rust publication and remains a wheel package.
+- Regenerated CLI docs, schema index, and agent packs with an all-features binary;
+  added the missing `media-http` compiled-feature receipt; retained the existing
+  agent-pack size guard by condensing prose. CHANGELOG and third-party notices
+  describe the actual additions and licence evidence. README remains untouched.
+
+### Local gates and retained evidence
+
+| Gate | Result | Scope / evidence |
+| --- | --- | --- |
+| Merge main / README preservation | PASS | `555a4ec`; README equals `origin/main` |
+| Wave 8 fmt/docs/strict feature Clippy, Python Clippy | PASS | `wave8-final.log` |
+| Full core/CLI/minimal tests, Linux workspace Clippy/tests | PASS | `wave8-final.log`, `release-check.log` |
+| CI minimal/default/all-features builds/tests | PASS | `release-check.log`, `all-features-tests.log` |
+| MSRV 1.89 default check / quality reference | PASS | Retry and quality-reference logs; initial disk refusal retained |
+| Pinned SigLIP2 licence / export parity / Rust+Python+CLI text retrieval | PASS | `siglip-final-revalidation.log`, `python-models-corrective.log`, `cli-text-proof/receipt.json`; bounded generated inputs |
+| Runtime and face cache verification | PASS | `cached_verified` in `wave8-final.log` |
+| Combined Rust / Python installed models | FAIL | Missing pinned Rust OCR contract; original assertions retained |
+| FFmpeg / light Python | PASS | `wave8-final.log` |
+| Local release abi3 wheel build / install | PASS | x86_64 manylinux_2_39; corrective wheel/install logs |
+| Dual-architecture manylinux_2_28 archives | CI-ONLY | Required x86_64 + aarch64 archives not supplied |
+| Docker build / unprivileged health smoke | PASS | `wave8-final.log`; health endpoint only |
+| Historical readers / release-notice and package-README regressions | PASS | `ci-remaining-summary.log` |
+| Package file inventory / README / dependency notices | PASS | Corrective package-inventory and dependency-notices logs; inventory uses `--no-verify` |
+| actionlint / shellcheck / generated docs | PASS | Corrective lint logs; `docs-retained-check.log` includes README check |
+| Showcase expected stdout / shipped schemas | PASS | Retained all-features debug CLI; 40 JSON reports; release CLI identity remains unrun |
+| Full Cargo package verification / all-features release CLI build | BLOCKED | Exit 75 preflight: disk below 25 GiB; no compilation executed |
+| Genericity | PASS | Real external private denylist; `genericity.log`; repeated at final documentation state |
+
+
+`scripts/gates-wave8.sh` ran twice. The final complete batch exited 1; subsequent
+corrective wheel/install checks passed, while the combined model failures remain
+real. The Rust and Python combined model tests fail at OCR status because the
+supplied registry lacks an accent-capable, licensed and hash-pinned RTen OCR
+contract. Face and image embedding sections succeeded in the Python check. No
+fake recognizer, guessed artifact or changed OCR assertion was introduced.
+
+The original release-check execution passed workspace strict Clippy/tests,
+minimal/default builds/tests and the all-features build before the disk floor
+refused later components. Those components were resumed separately under the
+same environment and command limits; logs retain the original failures as well
+as the resumed results. MSRV default similarly retains its initial disk refusal.
+Each admitted component used at most 900 seconds, jobs 4, disabled debug symbols
+and incremental compilation, the prescribed target and shared admission. Only
+one Cargo command ran in this lane at a time. These CPU fixtures do not establish
+GPU or native macOS/Windows qualification.
+
+Disk crossed below 25 GiB after a build had already finished; subsequent
+preflights paused automatically. The attempted stop sent no signal because the
+process had exited. After shared recovery, retaining the all-features CLI and
+joint test binary and removing only this lane's obsolete debug variants restored
+29.21 -> 38.97 GiB. No other target or shared cache was removed.
+
+Evidence root: `/mnt/linux-extra/moss-scratch/saccade-integ-w8/` contains
+`MILESTONES.md`, original and corrective gate logs, per-command source/hash/exit
+receipts, local wheel, retained binaries, model source/export receipts and final
+cleanup/identity receipt. Model cache and immutable artifacts remain under
+`/mnt/linux-extra/saccade-models/siglip2-base/` and content-addressed cache paths.
+`FINAL-RECEIPT.json` binds tested source HEAD `ac4ff02`, Rust source/manifest/lock
+hashes, retained binary/wheel/archive hashes and final capabilities. The final
+report commit changes documentation only. Exact prescribed target was removed
+under lane/Cargo locks: 18.76 -> 19.41 GiB; no build followed cleanup. Full package
+verification and release CLI compilation were refused in two guarded sequences;
+only 0.66 GiB of this lane's build cache remained, insufficient to restore the
+25 GiB floor. Other owners' targets/caches were left intact. Functional showcases
+and documentation checks therefore used the retained all-features debug binary.
+Static lint input files contained Cargo/GPU-looking text; the wrapper classified
+lint as GPU work. Queued lint attempts were canceled and repeated with its
+supported CPU declaration, because actionlint/shellcheck inspect those files
+without executing their contents. Admission remained in force.
+
+### Remaining qualification
+
+- After shared disk recovery above 25 GiB, rerun full Cargo package verification
+  and the all-features release CLI build/showcases/docs from the final source.
+  The retained debug showcases establish functional output only.
+- Supply a reviewed pinned Rust OCR export/contract to pass the combined model
+  gates. SigLIP2 broad natural-image retrieval/calibration remains unqualified;
+  checkpoint parity and generated color-square retrieval have narrower scope.
+- CI must produce/verify both x86_64 and aarch64 manylinux_2_28 wheel archives.
+  The local installed abi3 wheel targets x86_64 manylinux_2_39 only.
+- Native macOS/Windows jobs, four-target clean-machine/tagged-release identity,
+  trusted/fork workflow behavior and publication remain CI/operator work.
+- Browser layout/offline relocation, current Moss consumer acceptance, GPU
+  execution-provider support and authorized live provider/pilot evaluation were
+  not executed by this lane.

@@ -31,6 +31,23 @@ pub struct Calibration {
     /// Increasing lower bounds; at most sixteen bands.
     pub bands: Vec<Band>,
 }
+/// Joint text tower and tokenizer, bound into the same index identity as the image tower.
+#[derive(Clone, Debug, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct TextModel {
+    /// Hash-pinned local CPU ONNX text tower.
+    pub artifact: semantic::ModelArtifact,
+    /// Official tokenizer JSON from the same immutable checkpoint revision.
+    pub tokenizer: semantic::ModelArtifact,
+    /// Exact int64 [1,length] input name.
+    pub input: String,
+    /// Exact float32 [1,dimensions] output name.
+    pub output: String,
+    /// SigLIP 2 fixed context length.
+    pub length: usize,
+    /// Official right-padding token id.
+    pub pad_id: u32,
+}
 /// Fully declared export interface and preprocessing, bound to a hash-pinned artifact.
 #[derive(Clone, Debug, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
@@ -55,11 +72,14 @@ pub struct Model {
     pub dimensions: usize,
     /// Optional supplied calibration; absent means raw cosine only.
     pub calibration: Option<Calibration>,
+    /// Optional joint tower; absent historical contracts retain their serialized identity.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub text: Option<TextModel>,
 }
 /// Validates export pins, preprocessing and calibration without models or network.
 pub fn validate(model: &Model) -> Result<()> {
     if model.schema != MODEL_SCHEMA
-        || model.family != "dinov2-small"
+        || !matches!(model.family.as_str(), "dinov2-small" | "siglip2-base")
         || model.artifact.license != "Apache-2.0"
         || model.artifact.format != "onnx"
         || model.input.is_empty()
@@ -73,6 +93,32 @@ pub fn validate(model: &Model) -> Result<()> {
         || model.dimensions > 4096
     {
         return Err(Error::Config("invalid embedding export interface".into()));
+    }
+    if model.family == "siglip2-base" {
+        let text = model
+            .text
+            .as_ref()
+            .ok_or_else(|| Error::Config("joint text tower required".into()))?;
+        if model.dimensions != 768
+            || model.size != [224, 224]
+            || model.mean != [0.5; 3]
+            || model.std != [0.5; 3]
+            || text.length != 64
+            || text.pad_id != 0
+            || text.input != "input_ids"
+            || text.output != "embedding"
+            || text.artifact.format != "onnx"
+            || text.tokenizer.format != "tokenizer"
+            || text.artifact.license != "Apache-2.0"
+            || text.tokenizer.license != "Apache-2.0"
+            || model.calibration.is_some()
+        {
+            return Err(Error::Config("invalid SigLIP 2 joint interface".into()));
+        }
+    } else if model.text.is_some() {
+        return Err(Error::Config(
+            "image-only family cannot supply text tower".into(),
+        ));
     }
     semantic::validate(&cache_manifest(model))?;
     if let Some(c) = &model.calibration {
@@ -107,7 +153,13 @@ fn cache_manifest(model: &Model) -> semantic::ModelManifest {
         runtime: "ONNX Runtime 1.22".into(),
         preprocessing: "explicit embedding model contract".into(),
         execution_provider: "CPU f32".into(),
-        artifacts: vec![model.artifact.clone()],
+        artifacts: {
+            let mut artifacts = vec![model.artifact.clone()];
+            if let Some(text) = &model.text {
+                artifacts.extend([text.artifact.clone(), text.tokenizer.clone()]);
+            }
+            artifacts
+        },
         residuals: vec![
             "checkpoint/export parity and calibration qualification require external receipts"
                 .into(),
@@ -178,6 +230,8 @@ pub fn preprocess(model: &Model, image: &image::RgbaImage) -> Result<Vec<f32>> {
 pub struct Engine {
     session: ort::session::Session,
     model: Model,
+    cache: std::path::PathBuf,
+    text_session: Option<(ort::session::Session, tokenizers::Tokenizer)>,
 }
 #[cfg(feature = "embeddings")]
 impl Engine {
@@ -253,9 +307,101 @@ impl Engine {
                     "ONNX export tensor names do not match model contract".into(),
                 ));
             }
-            Ok(Self { session, model })
+            Ok(Self {
+                session,
+                model,
+                cache: cache.into(),
+                text_session: None,
+            })
         })
         .map_err(|_| Error::Config("ONNX runtime dynamic ABI/load failure".into()))?
+    }
+    /// Runs a pinned SigLIP 2 text tower. Image-only contracts fail explicitly.
+    pub fn embed_text(&mut self, text: &str) -> Result<Vec<f32>> {
+        if text.trim().is_empty() || text.len() > 16384 {
+            return Err(Error::Config(
+                "text query must contain 1..16384 UTF-8 bytes".into(),
+            ));
+        }
+        let contract =
+            self.model.text.as_ref().ok_or_else(|| {
+                Error::Config("text_embedding_unavailable: image-only model".into())
+            })?;
+        if self.text_session.is_none() {
+            let retained = |artifact: &semantic::ModelArtifact| -> Result<Vec<u8>> {
+                let path = semantic::artifact_path(&self.cache, artifact)?;
+                let bytes = super::input::bytes(&path, artifact.bytes)?;
+                if bytes.len() as u64 != artifact.bytes
+                    || crate::localized::digest(&bytes) != artifact.sha256
+                {
+                    return Err(Error::Config("text artifact size/hash mismatch".into()));
+                }
+                Ok(bytes)
+            };
+            let graph = retained(&contract.artifact)?;
+            let tokenizer_bytes = retained(&contract.tokenizer)?;
+            let mut tokenizer = tokenizers::Tokenizer::from_bytes(&tokenizer_bytes)
+                .map_err(|_| Error::Config("invalid pinned tokenizer JSON".into()))?;
+            tokenizer.with_padding(Some(tokenizers::PaddingParams {
+                strategy: tokenizers::PaddingStrategy::Fixed(contract.length),
+                pad_id: contract.pad_id,
+                pad_token: "<pad>".into(),
+                ..Default::default()
+            }));
+            tokenizer
+                .with_truncation(Some(tokenizers::TruncationParams {
+                    max_length: contract.length,
+                    ..Default::default()
+                }))
+                .map_err(|_| Error::Config("invalid tokenizer truncation".into()))?;
+            let session = ort::session::Session::builder()
+                .map_err(|e| Error::Config(e.to_string()))?
+                .with_intra_threads(1)
+                .map_err(|e| Error::Config(e.to_string()))?
+                .with_inter_threads(1)
+                .map_err(|e| Error::Config(e.to_string()))?
+                .commit_from_memory(&graph)
+                .map_err(|e| Error::Config(e.to_string()))?;
+            if session.inputs.len() != 1
+                || session.inputs[0].name != contract.input
+                || !session.outputs.iter().any(|o| o.name == contract.output)
+            {
+                return Err(Error::Config(
+                    "text export tensor interface mismatch".into(),
+                ));
+            }
+            self.text_session = Some((session, tokenizer));
+        }
+        let (session, tokenizer) = self
+            .text_session
+            .as_mut()
+            .ok_or_else(|| Error::Config("text session unavailable".into()))?;
+        let encoding = tokenizer
+            .encode(text, true)
+            .map_err(|_| Error::Config("text tokenization failed".into()))?;
+        let ids: Vec<i64> = encoding.get_ids().iter().map(|&id| i64::from(id)).collect();
+        if ids.len() != contract.length {
+            return Err(Error::Config("text token length mismatch".into()));
+        }
+        let tensor = ort::value::Tensor::from_array(([1, contract.length], ids.into_boxed_slice()))
+            .map_err(|e| Error::Config(e.to_string()))?;
+        let outputs = session
+            .run(ort::inputs![contract.input.as_str()=>tensor])
+            .map_err(|e| Error::Config(e.to_string()))?;
+        let output = outputs
+            .get(&contract.output)
+            .ok_or_else(|| Error::Config("text output missing".into()))?;
+        let (shape, values) = output
+            .try_extract_tensor::<f32>()
+            .map_err(|e| Error::Config(e.to_string()))?;
+        if shape.as_ref() != [1, self.model.dimensions as i64]
+            || values.len() != self.model.dimensions
+        {
+            return Err(Error::Config("text output dimensions mismatch".into()));
+        }
+        let mut vector = values.to_vec();
+        normalize(&mut vector)?;
+        Ok(vector)
     }
     /// Declared model identity.
     pub fn model(&self) -> &Model {

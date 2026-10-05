@@ -1,0 +1,16 @@
+# Heavy gate only; no image publishing. Runtime and models stay in a mounted volume.
+FROM rust:1.89-bookworm AS builder
+WORKDIR /src
+COPY . .
+ARG SACCADE_FEATURES=workbench,media-http,local-models,embeddings,ocr
+RUN cargo build --locked --release -j 4 -p saccade --no-default-features --features "$SACCADE_FEATURES"
+FROM debian:bookworm-slim
+RUN groupadd --gid 10001 saccade && useradd --uid 10001 --gid 10001 --no-create-home saccade
+COPY --from=builder /src/target/release/saccade /usr/local/bin/saccade
+USER 10001:10001
+WORKDIR /data
+VOLUME ["/models", "/data"]
+# Loopback inside the container; use host networking or an explicitly configured bind.
+EXPOSE 7878
+ENTRYPOINT ["saccade"]
+CMD ["serve", "/data", "--api", "--api-model-dir", "/models"]

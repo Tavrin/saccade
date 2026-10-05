@@ -1,0 +1,165 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/Tavrin/saccade/crates/saccade-core/schemas/saccade-media-record.v1.schema.json",
+  "title": "Versioned media record",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema",
+    "profile",
+    "identity",
+    "metadata",
+    "quality",
+    "focal",
+    "text",
+    "fingerprints",
+    "embeddings",
+    "description",
+    "video"
+  ],
+  "properties": {
+    "schema": {
+      "const": "saccade-media-record.v1"
+    },
+    "profile": {
+      "enum": [
+        "cpu-lite",
+        "cpu-full",
+        "gpu"
+      ]
+    },
+    "identity": {
+      "$ref": "#/$defs/section"
+    },
+    "metadata": {
+      "$ref": "#/$defs/section"
+    },
+    "quality": {
+      "$ref": "#/$defs/section"
+    },
+    "focal": {
+      "$ref": "#/$defs/section"
+    },
+    "text": {
+      "$ref": "#/$defs/section"
+    },
+    "fingerprints": {
+      "$ref": "#/$defs/section"
+    },
+    "embeddings": {
+      "$ref": "#/$defs/section"
+    },
+    "description": {
+      "$ref": "#/$defs/section"
+    },
+    "video": {
+      "$ref": "#/$defs/section"
+    }
+  },
+  "$defs": {
+    "section": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "status",
+        "provenance",
+        "timing_ms",
+        "data",
+        "reason",
+        "error_code"
+      ],
+      "properties": {
+        "status": {
+          "enum": [
+            "ok",
+            "skipped",
+            "failed"
+          ]
+        },
+        "provenance": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "id",
+            "version",
+            "pins"
+          ],
+          "properties": {
+            "id": {
+              "type": "string",
+              "minLength": 1
+            },
+            "version": {
+              "type": "string",
+              "minLength": 1
+            },
+            "pins": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              },
+              "minItems": 1
+            }
+          }
+        },
+        "timing_ms": {
+          "type": "number",
+          "minimum": 0
+        },
+        "data": {},
+        "reason": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "error_code": {
+          "type": [
+            "string",
+            "null"
+          ]
+        }
+      },
+      "allOf": [
+        {
+          "if": {
+            "properties": {
+              "status": {
+                "const": "failed"
+              }
+            }
+          },
+          "then": {
+            "properties": {
+              "reason": {
+                "type": "string"
+              },
+              "error_code": {
+                "type": "string"
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "status": {
+                "const": "skipped"
+              }
+            }
+          },
+          "then": {
+            "properties": {
+              "data": {
+                "type": "null"
+              },
+              "reason": {
+                "type": "string"
+              }
+            }
+          }
+        }
+      ]
+    }
+  }
+}

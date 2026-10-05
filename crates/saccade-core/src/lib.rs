@@ -103,6 +103,8 @@ pub const COMPILED_FEATURES: &[&str] = &[
     "local-vlm",
     #[cfg(feature = "vision-providers")]
     "vision-providers",
+    #[cfg(feature = "media-http")]
+    "media-http",
     #[cfg(feature = "parallel")]
     "parallel",
     #[cfg(feature = "graphics")]
@@ -154,3 +156,7 @@ pub fn judge_bench_sources(case: &evidence::case::EvidenceCase) -> Vec<String> {
 // wave7
 /// Standalone local vision, provenance and crop-safety interfaces.
 pub mod wave7;
+
+// wave8
+/// Versioned media analysis, saliency, usage and search primitives.
+pub mod media;

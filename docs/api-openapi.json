@@ -1,0 +1,170 @@
+{
+  "openapi": "3.1.0",
+  "info": {
+    "title": "Saccade local media API",
+    "version": "1"
+  },
+  "servers": [
+    {
+      "url": "http://127.0.0.1:7878"
+    }
+  ],
+  "paths": {
+    "/v1/analyze-media": {
+      "post": {
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "../crates/saccade-core/schemas/saccade-api-analyze.v1.schema.json"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Versioned result",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "../crates/saccade-core/schemas/saccade-media-record.v1.schema.json"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Typed error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "../crates/saccade-core/schemas/saccade-media-error.v1.schema.json"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Invalid or missing configured bearer token"
+          },
+          "413": {
+            "description": "Request exceeds startup bound"
+          }
+        }
+      }
+    },
+    "/v1/compare": {
+      "post": {
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "../crates/saccade-core/schemas/saccade-api-compare.v1.schema.json"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Versioned result",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "../crates/saccade-core/schemas/saccade-media-compare.v1.schema.json"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Typed error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "../crates/saccade-core/schemas/saccade-media-error.v1.schema.json"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Invalid or missing configured bearer token"
+          },
+          "413": {
+            "description": "Request exceeds startup bound"
+          }
+        }
+      }
+    },
+    "/v1/search": {
+      "post": {
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "../crates/saccade-core/schemas/saccade-api-search.v1.schema.json"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Versioned result",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "../crates/saccade-core/schemas/saccade-embedding-query.v1.schema.json"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Typed error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "../crates/saccade-core/schemas/saccade-media-error.v1.schema.json"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Invalid or missing configured bearer token"
+          },
+          "413": {
+            "description": "Request exceeds startup bound"
+          }
+        }
+      }
+    },
+    "/v1/health": {
+      "get": {
+        "responses": {
+          "200": {
+            "description": "Local API health",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "../crates/saccade-core/schemas/saccade-api-health.v1.schema.json"
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "components": {
+    "securitySchemes": {
+      "bearer": {
+        "type": "http",
+        "scheme": "bearer"
+      }
+    }
+  },
+  "security": [
+    {},
+    {
+      "bearer": []
+    }
+  ]
+}

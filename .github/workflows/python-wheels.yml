@@ -1,0 +1,36 @@
+name: Python wheels (artifacts only)
+on:
+  workflow_dispatch:
+  pull_request:
+    paths: ['crates/saccade-py/**', 'crates/saccade-core/**', 'Cargo.lock', '.github/workflows/python-wheels.yml']
+permissions:
+  contents: read
+jobs:
+  wheels:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - runner: ubuntu-24.04
+            target: x86_64
+          - runner: ubuntu-24.04-arm
+            target: aarch64
+    runs-on: ${{ matrix.runner }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.10'
+      - uses: PyO3/maturin-action@v1
+        with:
+          target: ${{ matrix.target }}
+          manylinux: '2_28'
+          args: --release --locked -j 4 --manifest-path crates/saccade-py/Cargo.toml --out dist
+      - name: Light Python fixture tests
+        run: |
+          python -m pip install dist/*.whl pytest
+          python -m pytest crates/saccade-py/tests/test_light.py
+      - uses: actions/upload-artifact@v4
+        with:
+          name: saccade-abi3-${{ matrix.target }}
+          path: dist/*.whl

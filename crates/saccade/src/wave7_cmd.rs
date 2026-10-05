@@ -611,6 +611,9 @@ pub(crate) struct ProviderArgs {
     request: PathBuf,
     #[arg(long)]
     provider: String,
+    /// Startup env-file mapping for generic OpenAI-compatible or Azure deployment endpoints.
+    #[arg(long,value_parser=["openai-compatible","azure-openai"])]
+    endpoint_profile: Option<String>,
     /// Explicit recorded response; omit to show request mapping only (no credentials).
     #[arg(long)]
     response: Option<PathBuf>,
@@ -647,6 +650,30 @@ pub(crate) fn provider(a: ProviderArgs) -> Result<u8, CliError> {
         provider,
         coordinates,
     };
+    // wave8: fixture-only endpoint mapping, credentials never enter emitted JSON.
+    if let Some(profile) = a.endpoint_profile {
+        use saccade_core::media::endpoints::{Endpoint, Kind};
+        let endpoint = Endpoint::load(if profile == "azure-openai" {
+            Kind::AzureOpenai
+        } else {
+            Kind::OpenaiCompatible
+        })
+        .map_err(error)?;
+        return if let Some(path) = a.response {
+            emit(
+                &endpoint
+                    .decode(
+                        &adapter,
+                        &r,
+                        &models::read_bounded(&path, 1024 * 1024).map_err(error)?,
+                    )
+                    .map_err(error)?,
+                a.json,
+            )
+        } else {
+            emit(&endpoint.mapping(&adapter, &r).map_err(error)?, a.json)
+        };
+    }
     if let Some(path) = a.response {
         emit(
             &adapter

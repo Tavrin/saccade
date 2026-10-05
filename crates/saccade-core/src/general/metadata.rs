@@ -46,7 +46,13 @@ pub fn xmp(packet: &[u8], gps: bool) -> Value {
             }
             Some("http://ns.adobe.com/exif/1.0/aux/") => matches!(name, "Lens" | "LensInfo"),
             Some("http://ns.adobe.com/photoshop/1.0/") => {
-                matches!(name, "DateCreated" | "ICCProfile")
+                matches!(
+                    name,
+                    "DateCreated" | "ICCProfile" | "Credit" | "Source" | "Headline"
+                )
+            }
+            Some("http://purl.org/dc/elements/1.1/") => {
+                matches!(name, "creator" | "rights" | "description" | "subject")
             }
             _ => false,
         }
@@ -56,6 +62,25 @@ pub fn xmp(packet: &[u8], gps: bool) -> Value {
             && let Some(value) = node.text().filter(|s| s.len() <= 4096)
         {
             fields.insert(node.tag_name().name().into(), json!(value));
+        }
+        if allowed(node.tag_name().namespace(), node.tag_name().name())
+            && node.children().any(|n| n.is_element())
+        {
+            let values: Vec<_> = node
+                .descendants()
+                .filter(|n| {
+                    n.is_element()
+                        && n.tag_name().namespace()
+                            == Some("http://www.w3.org/1999/02/22-rdf-syntax-ns#")
+                        && n.tag_name().name() == "li"
+                })
+                .filter_map(|n| n.text())
+                .filter(|s| s.len() <= 4096)
+                .take(256)
+                .collect();
+            if !values.is_empty() {
+                fields.insert(node.tag_name().name().into(), json!(values));
+            }
         }
         for attribute in node.attributes() {
             if allowed(attribute.namespace(), attribute.name()) && attribute.value().len() <= 4096 {
@@ -118,7 +143,7 @@ pub fn iptc(app13: &[u8]) -> Value {
                 utf8 = value == b"\x1b%G";
             }
             if record == 2
-                && matches!(tag, 55 | 60 | 62 | 63 | 65 | 70 | 80 | 110 | 116)
+                && matches!(tag, 25 | 55 | 60 | 62 | 63 | 65 | 70 | 80 | 110 | 116 | 120)
                 && value.len() <= 4096
             {
                 records.push((tag, value.to_vec()));
