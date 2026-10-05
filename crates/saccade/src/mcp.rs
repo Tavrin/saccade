@@ -65,6 +65,7 @@ fn measurement_schemas() -> Value {
             "require_matching_meta":{"type":"boolean","default":false},
             "declare":{"type":"array","items":{"type":"string"}},
             "intended_variables":{"type":"array","items":{"type":"string"}},
+            "fixed_camera":{"type":"boolean"},
             "fail_on_new":{"type":"boolean","default":true},
             "allow_empty":{"type":"boolean","default":false},
             "include_images":{"type":"boolean","default":false},
@@ -293,6 +294,7 @@ const RUN_ARGS: &[&str] = &[
     "require_matching_meta",
     "declare",
     "intended_variables",
+    "fixed_camera",
     "fail_on_new",
     "allow_empty",
     "include_images",
@@ -352,6 +354,7 @@ fn apply_run_args(args: &Map<String, Value>, cfg: &mut RunConfig) -> Result<(), 
             "`declare` needs `require_matching_meta: true`",
         ));
     }
+    if arg_bool(args,"fixed_camera")?.unwrap_or(false) && cfg.temporal_tiles.is_none() {cfg.temporal_tiles=Some(Default::default());}
     cfg.meta.intended.extend(arg_strings(args, "intended_variables")?);
     cfg.meta.required |= required;
     cfg.meta.declared.extend(declared);

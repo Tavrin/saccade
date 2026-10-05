@@ -2,6 +2,7 @@
 pub mod effect;
 pub mod layers;
 pub mod spatial;
+pub mod temporal;
 pub mod gallery;
 
 use crate::{Error, Result};

@@ -59,6 +59,9 @@ pub struct WorstFrame {
 #[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct SequenceReport {
+    /// Fixed-camera per-tile flicker and global motion qualification.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub tile_stability: Option<crate::evidence_quality::temporal::Report>,
     /// Always `saccade-sequence.v1`.
     pub schema: String,
     /// `pass` or `regression`, with the same rules as compare plus temporal errors.
@@ -482,7 +485,44 @@ pub fn run_sequence(
                 .total_cmp(&b.mean_flip)
                 .then(b.index.cmp(&a.index))
         });
+    let tile_stability = if let Some(policy) = &cfg.temporal_tiles {
+        let load = |frames: &[Frame]| -> Result<Vec<image::RgbaImage>> {
+            frames
+                .iter()
+                .map(|f| {
+                    let path = f
+                        .path
+                        .as_ref()
+                        .ok_or_else(|| Error::Config("unreadable temporal frame".into()))?;
+                    if crate::hdr::is_hdr_path(path) {
+                        return Err(Error::Config(
+                            "tile stability currently requires SDR frames".into(),
+                        ));
+                    }
+                    Ok(crate::evidence_quality::image(path)?.to_rgba8())
+                })
+                .collect()
+        };
+        match load(&base).and_then(|b| {
+            load(&cap).and_then(|c| crate::evidence_quality::temporal::analyze(&b, &c, policy))
+        }) {
+            Ok(evidence) => {
+                if evidence.verdict != "stable" {
+                    temporal_errors
+                        .push(format!("fixed-camera tile stability: {}", evidence.verdict));
+                }
+                Some(evidence)
+            }
+            Err(e) => {
+                temporal_errors.push(e.to_string());
+                None
+            }
+        }
+    } else {
+        None
+    };
     let full = SequenceReport {
+        tile_stability,
         exclusion_audit: report.exclusion_audit.clone(),
         schema: SEQUENCE_SCHEMA.into(),
         verdict: if report.is_regression() || !temporal_errors.is_empty() {

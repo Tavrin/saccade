@@ -23,6 +23,8 @@ pub struct Override {
 /// Settings for [`crate::run::run`].
 #[derive(Debug, Clone, PartialEq)]
 pub struct RunConfig {
+    /// Opt-in fixed-camera temporal tile evidence.
+    pub temporal_tiles: Option<crate::evidence_quality::temporal::Policy>,
     /// Source-bound capture layers and optional inclusion scope.
     pub layers: Option<crate::evidence_quality::layers::Policy>,
     /// Internal per-pair exclusion bitmap derived from layer inclusion.
@@ -106,6 +108,7 @@ pub struct RunConfig {
 impl Default for RunConfig {
     fn default() -> Self {
         Self {
+            temporal_tiles: None,
             layers: None,
             layer_mask: None,
             spatial: None,
@@ -151,6 +154,7 @@ impl Default for RunConfig {
 #[derive(Deserialize)]
 #[serde(deny_unknown_fields)]
 struct FileConfig {
+    temporal_tiles: Option<crate::evidence_quality::temporal::Policy>,
     layers: Option<crate::evidence_quality::layers::Policy>,
     spatial: Option<crate::evidence_quality::spatial::Policy>,
     #[serde(default)]
@@ -304,6 +308,7 @@ impl RunConfig {
             explicit_tolerances: file.threshold.is_some() || file.metric.is_some(),
             ..Self::default()
         };
+        cfg.temporal_tiles = file.temporal_tiles;
         cfg.layers = file.layers;
         cfg.spatial = file.spatial;
         cfg.meta.intended = file.intended_variables;
@@ -503,6 +508,9 @@ impl RunConfig {
             policy.validate()?;
         }
         if let Some(policy) = &self.spatial {
+            policy.validate()?;
+        }
+        if let Some(policy) = &self.temporal_tiles {
             policy.validate()?;
         }
         self.perf.validate()?;

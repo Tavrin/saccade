@@ -167,3 +167,22 @@ coverage stays native; difference statistics use the declared display tone
 mapper and HDR-FLIP map. Spatial statistics for HDR describe this display
 mapping, not radiometric energy. Scoped SSIMULACRA2 is absent because its
 whole-image metric cannot represent arbitrary inclusion masks.
+
+## Fixed-camera temporal stability
+
+`experiment sequence BASE CANDIDATE --fixed-camera --out REPORT --json`
+adds per-tile temporal evidence. Config uses `[temporal_tiles]` with
+`fixed_camera = true`, `tile_size = 32`, `fps = 60`, absolute variance/energy
+increase thresholds 0.00005, relative increase ratio 1.2, motion threshold
+0.5 pixels and phase-coherence confidence 0.6. All are recorded and configurable.
+
+`tile_stability` reports baseline/candidate variance of consecutive-frame
+luminance differences, high-frequency energy (mean squared second temporal
+difference / 4), their increases, and connected shimmer boxes. Global motion
+uses the existing phase-correlation estimator. Verdicts are `stable`,
+`shimmer_increase`, `camera_not_fixed`, or `unqualified_motion` when texture
+cannot support a motion estimate. A non-stable result fails the sequence gate.
+At least three equal-size paired SDR frames are required. Frames are not
+resampled in time; energy units are normalized sRGB squared per frame.
+Object movement and rotation can confound the translation-based camera check;
+the producer's fixed-camera declaration alone never establishes that condition.

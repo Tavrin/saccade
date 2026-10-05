@@ -770,6 +770,9 @@ enum ExperimentOperation {
     /// Compare numbered colour frames by sorted index and measure added flicker.
     #[cfg(feature = "graphics")]
     Sequence {
+        /// Declare a fixed camera and measure per-tile flicker with motion qualification.
+        #[arg(long)]
+        fixed_camera: bool,
         baseline_dir: PathBuf,
         capture_dir: PathBuf,
         /// Relative-name glob; frames must end in an integer before the extension.
@@ -1179,6 +1182,7 @@ fn dispatch(command: Command, record_absolute_paths: bool) -> Result<u8, CliErro
         Command::Experiment {
             operation:
                 ExperimentOperation::Sequence {
+                    fixed_camera,
                     baseline_dir,
                     capture_dir,
                     pattern,
@@ -1198,6 +1202,7 @@ fn dispatch(command: Command, record_absolute_paths: bool) -> Result<u8, CliErro
                 },
         } => {
             let mut cfg = load_config(config.as_deref())?;
+            if fixed_camera && cfg.temporal_tiles.is_none() { cfg.temporal_tiles=Some(Default::default()); }
             cfg.record_absolute_paths = record_absolute_paths;
             if let Some(t) = threshold {
                 cfg.default_threshold = t;
