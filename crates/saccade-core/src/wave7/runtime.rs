@@ -19,12 +19,22 @@ pub struct OnnxModel {
     /// Exact pinned model/input/export contract.
     pub model: Model,
 }
-fn ort_error(_: ort::Error) -> VisionError {
+pub(crate) fn ort_error(_: ort::Error) -> VisionError {
     VisionError::Unavailable("ONNX runtime operation failed".into())
 }
 impl OnnxModel {
     /// Verify graph bytes and explicitly load ONNX Runtime 1.22, with one CPU thread.
     pub fn load(model: &Model, cache: &Path, library: &Path, allow_download: bool) -> Result<Self> {
+        Self::load_role(model, cache, library, allow_download, "graph")
+    }
+    /// Load one verified graph from a split encoder/decoder bundle.
+    pub fn load_role(
+        model: &Model,
+        cache: &Path,
+        library: &Path,
+        allow_download: bool,
+        role: &str,
+    ) -> Result<Self> {
         super::models::Registry {
             schema: super::models::REGISTRY_SCHEMA.into(),
             models: vec![model.clone()],
@@ -36,7 +46,7 @@ impl OnnxModel {
             ));
         }
         ensure(model, cache, allow_download)?;
-        let graph=model.artifacts.iter().find(|a|a.role=="graph").ok_or_else(||VisionError::Unavailable("self-contained graph role required (external-data exports need a qualified adapter)".into()))?;
+        let graph=model.artifacts.iter().find(|a|a.role==role).ok_or_else(||VisionError::Unavailable("self-contained graph role required (external-data exports need a qualified adapter)".into()))?;
         let graph = super::models::verify(cache, graph)?;
         let library = std::fs::canonicalize(library)?;
         static LIBRARY: std::sync::OnceLock<PathBuf> = std::sync::OnceLock::new();
@@ -63,10 +73,53 @@ impl OnnxModel {
         })
         .map_err(|_| VisionError::Unavailable("dynamic ONNX ABI/library failure".into()))?
     }
+    /// Run explicitly named tensors and retrieve only needed outputs (no OWLv2 feature map).
+    pub(crate) fn run_named(
+        &mut self,
+        inputs: Vec<(
+            std::borrow::Cow<'_, str>,
+            ort::session::SessionInputValue<'_>,
+        )>,
+        names: &[&str],
+        max_values: usize,
+    ) -> Result<std::collections::BTreeMap<String, FloatOutput>> {
+        use ort::session::run_options::{OutputSelector, RunOptions};
+        let mut selector = OutputSelector::no_default();
+        for name in names {
+            selector = selector.with(*name);
+        }
+        let options = RunOptions::new().map_err(ort_error)?.with_outputs(selector);
+        let outputs = self
+            .session
+            .run_with_options(inputs, &options)
+            .map_err(ort_error)?;
+        let mut result = std::collections::BTreeMap::new();
+        let mut total = 0usize;
+        for (name, value) in outputs.iter() {
+            let (shape, data) = value.try_extract_tensor::<f32>().map_err(ort_error)?;
+            total = total.saturating_add(data.len());
+            // DINO intentionally fills unused text positions with -infinity logits.
+            // NaN/+infinity and non-logit infinities remain invalid.
+            let padded_logits = self.model.input.adapter == "grounding-dino-v1" && name == "logits";
+            if total > max_values || data.iter().any(|v| !valid_float(*v, padded_logits)) {
+                return Err(VisionError::Invalid("graph output bounds/nonfinite".into()));
+            }
+            result.insert(
+                name.to_owned(),
+                FloatOutput {
+                    shape: shape.to_vec(),
+                    values: data.to_vec(),
+                },
+            );
+        }
+        Ok(result)
+    }
     /// NCHW processor defined by the pinned contract; no undocumented model defaults.
     pub fn tensor(&self, image: &VisionImage) -> Result<Tensor<f32>> {
         let i = &self.model.input;
-        let [w, h] = if i.resolution == [0, 0] {
+        let [w, h] = if i.adapter == "yunet-v1" {
+            image.size().map(|v| v.div_ceil(32) * 32)
+        } else if i.resolution == [0, 0] {
             image.size()
         } else {
             i.resolution
@@ -74,7 +127,11 @@ impl OnnxModel {
         if w == 0 || h == 0 || u64::from(w) * u64::from(h) > super::vision::MAX_PIXELS {
             return Err(VisionError::Invalid("runtime input dimensions".into()));
         }
-        let pixels = if image.size() == [w, h] {
+        let pixels = if i.adapter == "yunet-v1" {
+            let mut padded = image::RgbImage::new(w, h);
+            image::imageops::replace(&mut padded, &image.pixels, 0, 0);
+            padded
+        } else if image.size() == [w, h] {
             image.pixels.clone()
         } else {
             image::imageops::resize(&image.pixels, w, h, image::imageops::FilterType::Triangle)
@@ -124,7 +181,9 @@ impl OnnxModel {
     }
     /// Full consumed artifact identity and declared original-resolution handling.
     pub fn provenance(&self, image: &VisionImage) -> Provenance {
-        let size = if self.model.input.resolution == [0, 0] {
+        let size = if self.model.input.adapter == "yunet-v1" {
+            image.size().map(|v| v.div_ceil(32) * 32)
+        } else if self.model.input.resolution == [0, 0] {
             image.size()
         } else {
             self.model.input.resolution
@@ -141,7 +200,7 @@ impl OnnxModel {
             runtime: "onnx-cpu".into(),
             input_resolution: size,
             resolution_handling: format!(
-                "{}; {}; triangle resize from {}x{} to {}x{}",
+                "{}; {}; input {}x{}, graph {}x{}",
                 self.model.input.preprocessing,
                 self.model.input.adapter,
                 image.size()[0],
@@ -150,6 +209,21 @@ impl OnnxModel {
                 size[1]
             ),
             source_parity: self.model.parity_sha256.is_some(),
+        }
+    }
+}
+
+fn valid_float(value: f32, dino_padding: bool) -> bool {
+    value.is_finite() || (dino_padding && value == f32::NEG_INFINITY)
+}
+#[cfg(test)]
+mod tests {
+    #[test]
+    fn accepts_observed_dino_padding_without_accepting_nonfinite_geometry() {
+        assert!(super::valid_float(f32::NEG_INFINITY, true));
+        assert!(!super::valid_float(f32::NEG_INFINITY, false));
+        for value in [f32::NAN, f32::INFINITY] {
+            assert!(!super::valid_float(value, true));
         }
     }
 }

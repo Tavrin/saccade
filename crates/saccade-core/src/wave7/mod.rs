@@ -15,3 +15,7 @@ pub mod runtime;
 pub mod schemas;
 pub mod vision;
 pub mod watermark;
+
+// wave7b
+#[cfg(feature = "local-models")]
+pub mod native;

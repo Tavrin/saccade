@@ -44,6 +44,9 @@ tobj = { version = "=4.0.3", default-features = false, features = ["use_f64"], o
 gltf = { version = "=1.4.1", default-features = false, features = ["utils", "names"], optional = true }
 base64 = { version = "0.22", optional = true }
 
+# wave7b: pinned BERT/CLIP tokenizers, no network/pretrained loader feature.
+tokenizers = { version = "=0.22.2", default-features = false, features = ["fancy-regex"], optional = true }
+
 [features]
 default = ["parallel"]
 # Parallel FLIP filtering; disable for the sequential FLIP backend on wasm.
@@ -70,7 +73,7 @@ prechecks = []
 schema = ["dep:schemars"]
 
 # wave7
-local-models = ["dep:ort", "dep:ureq", "dep:fs2"]
+local-models = ["dep:ort", "dep:ureq", "dep:fs2", "dep:tokenizers"]
 local-vlm = ["dep:ureq", "dep:base64"]
 vision-providers = ["dep:base64"]
 

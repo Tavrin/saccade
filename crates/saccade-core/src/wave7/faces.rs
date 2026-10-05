@@ -334,7 +334,11 @@ impl FaceDetector for super::runtime::OnnxModel {
         }
         let outputs = self.run(image, None)?;
         let [iw, ih] = image.size();
-        let [w, h] = self.model.input.resolution;
+        let [w, h] = if self.model.input.adapter == "yunet-v1" {
+            image.size().map(|v| v.div_ceil(32) * 32)
+        } else {
+            self.model.input.resolution
+        };
         if w == 0 || h == 0 {
             return Err(VisionError::Invalid(
                 "face export requires fixed input resolution".into(),
@@ -383,21 +387,21 @@ impl FaceDetector for super::runtime::OnnxModel {
                         if !bw.is_finite() || !bh.is_finite() {
                             return Err(VisionError::Invalid("YuNet nonfinite extent".into()));
                         }
-                        let x0 = ((cx - bw / 2.) / w as f32 * iw as f32).clamp(0., iw as f32);
-                        let y0 = ((cy - bh / 2.) / h as f32 * ih as f32).clamp(0., ih as f32);
-                        let x1 = ((cx + bw / 2.) / w as f32 * iw as f32).clamp(0., iw as f32);
-                        let y1 = ((cy + bh / 2.) / h as f32 * ih as f32).clamp(0., ih as f32);
+                        // YuNet coordinates are in the native image's padded frame.
+                        let x0 = (cx - bw / 2.).clamp(0., iw as f32);
+                        let y0 = (cy - bh / 2.).clamp(0., ih as f32);
+                        let x1 = (cx + bw / 2.).clamp(0., iw as f32);
+                        let y1 = (cy + bh / 2.).clamp(0., ih as f32);
                         if x1 <= x0 || y1 <= y0 {
                             continue;
                         }
                         let points = (0..5)
                             .map(|k| {
                                 [
-                                    (x + landmarks[index * 10 + k * 2]) * stride as f32 / w as f32
-                                        * iw as f32,
-                                    (y + landmarks[index * 10 + k * 2 + 1]) * stride as f32
-                                        / h as f32
-                                        * ih as f32,
+                                    ((x + landmarks[index * 10 + k * 2]) * stride as f32)
+                                        .clamp(0., iw.saturating_sub(1) as f32),
+                                    ((y + landmarks[index * 10 + k * 2 + 1]) * stride as f32)
+                                        .clamp(0., ih.saturating_sub(1) as f32),
                                 ]
                             })
                             .collect();
@@ -439,12 +443,19 @@ impl FaceDetector for super::runtime::OnnxModel {
                     .zip(scores.values.as_chunks::<2>().0.iter())
                 {
                     if s[1] >= 0.6 {
+                        let x0 = (b[0] * iw as f32).clamp(0., iw as f32);
+                        let y0 = (b[1] * ih as f32).clamp(0., ih as f32);
+                        let x1 = (b[2] * iw as f32).clamp(0., iw as f32);
+                        let y1 = (b[3] * ih as f32).clamp(0., ih as f32);
+                        if x1 <= x0 || y1 <= y0 {
+                            continue;
+                        }
                         faces.push(Face {
                             bbox: Rect {
-                                x: b[0] * iw as f32,
-                                y: b[1] * ih as f32,
-                                width: (b[2] - b[0]) * iw as f32,
-                                height: (b[3] - b[1]) * ih as f32,
+                                x: x0,
+                                y: y0,
+                                width: x1 - x0,
+                                height: y1 - y0,
                             },
                             score: s[1],
                             landmarks: vec![],

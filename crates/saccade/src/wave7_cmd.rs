@@ -24,7 +24,7 @@ fn registry(path: Option<&Path>) -> Result<Registry, CliError> {
         None => home()?.join(".config/saccade/models.json"),
     };
     if !p.exists() && path.is_none() {
-        Ok(Registry::empty())
+        Registry::pinned_wave7().map_err(error)
     } else {
         Registry::load(&p).map_err(error)
     }
@@ -154,11 +154,66 @@ pub(crate) fn locate(a: LocateArgs) -> Result<u8, CliError> {
         LocateReport::replay(p, &image, &a.phrase, a.segment).map_err(error)?
     } else {
         let reg = registry(a.model.registry.as_deref())?;
-        let _ = reg.model(&a.detector).map_err(error)?;
-        if a.segment {
-            let _ = reg.model(&a.segmenter).map_err(error)?;
+        #[cfg(feature = "local-models")]
+        {
+            use saccade_core::wave7::{
+                native::{EfficientSam, TextDetector},
+                vision,
+            };
+            let library = a
+                .model
+                .runtime_library
+                .as_deref()
+                .ok_or_else(|| CliError::usage("--runtime-library is required"))?;
+            let cache = cache(a.model.cache.as_deref())?;
+            // The supplied primary export cannot preserve its processor on a rectangle.
+            let detector_id = if a.detector == "grounding-dino-tiny"
+                && (image.size()[0] != image.size()[1] || reg.model(&a.detector).is_err())
+            {
+                "owlv2-base"
+            } else {
+                &a.detector
+            };
+            let mut detector = TextDetector::load(
+                reg.model(detector_id).map_err(error)?,
+                &cache,
+                library,
+                a.model.allow_download,
+            )
+            .map_err(error)?;
+            let mut segmenter = if a.segment {
+                let id = if a.segmenter == "sam-2.1-tiny" && reg.model(&a.segmenter).is_err() {
+                    "efficientsam-ti"
+                } else {
+                    &a.segmenter
+                };
+                Some(
+                    EfficientSam::load(
+                        reg.model(id).map_err(error)?,
+                        &cache,
+                        library,
+                        a.model.allow_download,
+                    )
+                    .map_err(error)?,
+                )
+            } else {
+                None
+            };
+            vision::locate(
+                &image,
+                &a.phrase,
+                &mut detector,
+                segmenter.as_mut().map(|s| s as &mut dyn vision::Segmenter),
+            )
+            .map_err(error)?
         }
-        return Err(error(VisionError::Unavailable("checkpoint-specific text tokenizer/detector/SAM adapter is not qualified; supply --observations for explicit replay".into())));
+        #[cfg(not(feature = "local-models"))]
+        {
+            let _ = reg;
+            return Err(error(VisionError::Unavailable(
+                "compile local-models for native detection".into(),
+            )));
+        }
     };
     let out = a
         .overlay

@@ -12,8 +12,8 @@ Validation: light checks/fmt/strict Clippy/docs/schema pass; 22 focused core + 4
 
 ## Wave 7b continuation
 
-7b.registry done (commit recorded in next receipt) — five executable graph bundles with exact pins; 13 detector auxiliary hashes computed locally 2026-10-05; verified SAM archive/inner graph hashes retained separately, not promoted. No fabricated source-parity digest.
-7b.detectors partial — native DINO square/OWLv2 fallback and EfficientSAM adapters implemented; reference CPU smoke passes; native Rust acceptance blocked by installed API16 versus required API22.
-7b.faces partial — dynamic YuNet padding and UltraFace decoding corrected; generated portrait reference smokes pass; native Rust acceptance blocked by runtime ABI.
+7b.registry done (84fc2c2) — five executable graph bundles with exact pins; 13 detector auxiliary hashes computed locally 2026-10-05; verified SAM archive/inner graph hashes retained separately, not promoted. No fabricated source-parity digest.
+7b.detectors partial (commit recorded in next receipt) — native DINO square/OWLv2 fallback and EfficientSAM adapters implemented; reference CPU smoke passes; native Rust acceptance blocked by installed API16 versus required API22.
+7b.faces partial (commit recorded in next receipt) — dynamic YuNet padding and UltraFace decoding corrected; generated portrait reference smokes pass; native Rust acceptance blocked by runtime ABI.
 7b.deferred — SAM2 archive exporter licence/preprocessing; LPIPS/DISTS complete exports/backbone licences; MUSIQ immutable checkpoint/conversion; TrustMark immutable decoder/resizer/encoder or sample. Interfaces retained; no false measurements.
 7b.gates partial — generated inference/assertion tests and immutable pull/reuse gate implemented; full gate not run. Final development receipts follow below.

@@ -219,3 +219,54 @@ load-dynamic), `ureq` (MIT OR Apache-2.0), `fs2` (MIT OR Apache-2.0),
 `base64` (MIT OR Apache-2.0), `sha2` (MIT OR Apache-2.0) and `tempfile`
 (MIT OR Apache-2.0); no new crate dependencies. No TrustMark upstream code
 or undocumented dependency version is copied.
+
+## Wave 7b pinned model pipelines
+
+Optional `local-models` adds tokenizers 0.22.2 (Apache-2.0), with default
+features disabled and the Rust fancy-regex backend. Licenses below were read
+from each fetched crate source Cargo.toml on 2026-10-05. The frozen inventory
+is `scripts/wave7/dependency-licenses.json`; no new dependency enters defaults.
+
+| Crate | Version | License choice from fetched source |
+| --- | --- | --- |
+| base64 | 0.13.1 | MIT/Apache-2.0 |
+| castaway | 0.2.4 | MIT |
+| compact_str | 0.9.1 | MIT |
+| darling | 0.20.11 | MIT |
+| darling_core | 0.20.11 | MIT |
+| darling_macro | 0.20.11 | MIT |
+| dary_heap | 0.3.9 | MIT OR Apache-2.0 |
+| derive_builder | 0.20.2 | MIT OR Apache-2.0 |
+| derive_builder_core | 0.20.2 | MIT OR Apache-2.0 |
+| derive_builder_macro | 0.20.2 | MIT OR Apache-2.0 |
+| esaxx-rs | 0.1.10 | Apache-2.0 |
+| fnv | 1.0.7 | Apache-2.0 / MIT |
+| ident_case | 1.0.1 | MIT/Apache-2.0 |
+| itertools | 0.14.0 | MIT OR Apache-2.0 |
+| macro_rules_attribute | 0.2.3 | Apache-2.0 OR MIT OR Zlib |
+| macro_rules_attribute-proc_macro | 0.2.3 | Apache-2.0 OR MIT OR Zlib |
+| minimal-lexical | 0.2.1 | MIT/Apache-2.0 |
+| monostate | 0.1.18 | MIT OR Apache-2.0 |
+| monostate-impl | 0.1.18 | MIT OR Apache-2.0 |
+| nom | 7.1.3 | MIT |
+| pastey | 0.2.3 | MIT OR Apache-2.0 |
+| ppv-lite86 | 0.2.21 | MIT OR Apache-2.0 |
+| rand | 0.9.5 | MIT OR Apache-2.0 |
+| rand_chacha | 0.9.0 | MIT OR Apache-2.0 |
+| rand_core | 0.9.5 | MIT OR Apache-2.0 |
+| rayon-cond | 0.4.0 | Apache-2.0/MIT |
+| ryu | 1.0.23 | Apache-2.0 OR BSL-1.0 |
+| spm_precompiled | 0.1.4 | Apache-2.0 |
+| static_assertions | 1.1.0 | MIT OR Apache-2.0 |
+| tokenizers | 0.22.2 | Apache-2.0 |
+| unicode-normalization-alignments | 0.1.12 | MIT/Apache-2.0 |
+| unicode-segmentation | 1.13.3 | MIT OR Apache-2.0 |
+| unicode_categories | 0.1.1 | MIT OR Apache-2.0 |
+
+Model artifact identities and declared weight licenses are in
+`scripts/wave7/receipt.json`. DINO/OWLv2/EfficientSAM declare Apache-2.0,
+YuNet declares MIT. UltraFace model-card body declares MIT while host metadata
+says Apache-2.0; this discrepancy is retained, not resolved by inference.
+SAM archive exporter licensing/preprocessing remain unknown and the archive
+is excluded from the executable registry. Exact exporter identities and
+source/export parity remain unknown for community graphs. No model is vendored.
