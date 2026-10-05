@@ -6,6 +6,8 @@ use std::path::{Path, PathBuf};
 #[derive(clap::Args)]
 pub(crate) struct Args {
     image: PathBuf,
+    #[command(flatten)]
+    checks: crate::vision_checks::Checks,
     /// Explicitly include unsigned EXIF GPS coordinates in the report.
     #[arg(long)]
     include_gps: bool,
@@ -27,7 +29,8 @@ pub(crate) struct Args {
     json: bool,
 }
 pub(crate) fn run(args: Args) -> Result<u8, CliError> {
-    let value = measure(&args)?;
+    let mut value = measure(&args)?;
+    value["vision_checks"] = args.checks.measure(&args.image)?;
     general_cmd::emit_document(value, Some(&args.out), args.json)
 }
 fn archive(path: &Path, hash: u64) -> Result<Value, CliError> {
@@ -228,6 +231,7 @@ pub(crate) fn imported(
     crop: Option<Vec<u32>>,
 ) -> Result<Value, CliError> {
     measure(&Args {
+        checks: Default::default(),
         image,
         out,
         include_gps,

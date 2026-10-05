@@ -173,7 +173,10 @@ mod ocr {
         image: &[u8],
         dimensions: [u32; 2],
     ) -> Result<ui_review::Source, CliError> {
-        let contract: Contract = crate::parse_contract(&bytes(path)?, "saccade-tesseract.v1")?;
+        let value = saccade_core::wave7::models::contract(&bytes(path)?, "saccade-tesseract.v1")
+            .map_err(crate::wave7_cmd::error)?;
+        let contract: Contract =
+            crate::parse_contract(&serde_json::to_vec(&value)?, "saccade-tesseract.v1")?;
         if contract.schema != "saccade-tesseract.v1"
             || contract.version.is_empty()
             || contract.models.is_empty()

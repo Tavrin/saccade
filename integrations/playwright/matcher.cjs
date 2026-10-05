@@ -92,6 +92,8 @@ async function compareFiles(expected, actual, out, options, declared = []) {
     // Relative mask-image paths must retain their original base. Combining those
     // with generated masks would silently rebase them, so refuse explicitly.
     if (/^\s*image\s*=/m.test(text)) throw new Error('use rectangle masks when combining config and matcher exclusions');
+    text = text.replace(/^\s*mask_mode\s*=.*$/gm, '');
+    text = 'mask_mode = "neutralize"\n' + text;
     text += declared.map(mask => `\n[[mask]]\nrect = ${JSON.stringify(mask.rect)}\n`).join('');
     const config = path.join(out, 'saccade.toml'); fs.writeFileSync(config, text); args.push('--config', config);
   } else if (options.config) args.push('--config', options.config);

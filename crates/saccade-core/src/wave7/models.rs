@@ -292,6 +292,9 @@ pub struct Registry {
     pub schema: String,
     /// Pinned executable models.
     pub models: Vec<Model>,
+    /// Typed wave 6 embedding/OCR contracts sharing this registry's pins.
+    #[serde(default)]
+    pub contracts: std::collections::BTreeMap<String, serde_json::Value>,
 }
 fn license_ok(s: &str) -> bool {
     matches!(
@@ -317,6 +320,7 @@ impl Registry {
         Self {
             schema: REGISTRY_SCHEMA.into(),
             models: Vec::new(),
+            contracts: Default::default(),
         }
     }
     /// Load bounded JSON and reject incomplete/malformed pins.
@@ -327,6 +331,32 @@ impl Registry {
     }
     /// Validate all licences, identities and resource bounds without IO.
     pub fn validate(&self) -> Result<()> {
+        for (id, value) in &self.contracts {
+            if !safe_id(id) {
+                return Err(VisionError::Invalid("contract id".into()));
+            }
+            match value["schema"].as_str() {
+                Some(crate::general::embedding::MODEL_SCHEMA) => {
+                    let m: crate::general::embedding::Model =
+                        serde_json::from_value(value.clone())?;
+                    crate::general::embedding::validate(&m)
+                        .map_err(|e| VisionError::Invalid(e.to_string()))?;
+                }
+                Some(crate::general::ocr::SCHEMA) => {
+                    let c: crate::general::ocr::Contract = serde_json::from_value(value.clone())?;
+                    crate::general::ocr::validate(&c)
+                        .map_err(|e| VisionError::Invalid(e.to_string()))?;
+                }
+                Some("saccade-tesseract.v1") => {
+                    let _: crate::ui_review::OcrContract = serde_json::from_value(value.clone())?;
+                }
+                _ => {
+                    return Err(VisionError::Invalid(
+                        "unknown registry contract schema".into(),
+                    ));
+                }
+            }
+        }
         let mut ids = BTreeSet::new();
         if self.schema != REGISTRY_SCHEMA || self.models.len() > 64 {
             return Err(VisionError::Invalid("registry schema/count".into()));
@@ -412,7 +442,7 @@ impl Registry {
             serde_json::json!({"model":m,"status":state,"source_parity":m.parity_sha256.is_some()})
         }).collect();
         let candidates:Vec<_>=selections().into_iter().filter(|s| !self.models.iter().any(|m| m.id==s.id)).map(|s| serde_json::json!({"selection":s,"status":"unavailable","reason":deferred_reason(s.id)})).collect();
-        serde_json::json!({"schema":MODELS_SCHEMA,"models":models,"unavailable_selections":candidates})
+        serde_json::json!({"schema":MODELS_SCHEMA,"models":models,"contracts":self.contracts,"unavailable_selections":candidates})
     }
 }
 fn deferred_reason(id: &str) -> String {
@@ -649,4 +679,25 @@ mod tests {
         std::fs::write(&p, b"1234").unwrap();
         assert!(read_bounded(&p, 3).is_err());
     }
+}
+
+/// Project one typed wave 6 contract from the shared registry, rejecting ambiguity.
+pub fn contract(bytes: &[u8], schema: &str) -> Result<serde_json::Value> {
+    let value: serde_json::Value = serde_json::from_slice(bytes)?;
+    if value["schema"] != REGISTRY_SCHEMA {
+        return Ok(value);
+    }
+    let r: Registry = serde_json::from_value(value)?;
+    r.validate()?;
+    let matches: Vec<_> = r
+        .contracts
+        .values()
+        .filter(|v| v["schema"] == schema)
+        .collect();
+    if matches.len() != 1 {
+        return Err(VisionError::Invalid(
+            "registry needs exactly one matching contract".into(),
+        ));
+    }
+    Ok(matches[0].clone())
 }

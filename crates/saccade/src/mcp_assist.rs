@@ -114,6 +114,10 @@ impl Server {
             ));
         }
         let common = Common {
+            #[cfg(feature = "vision-providers")]
+            vision_provider: None,
+            #[cfg(feature = "vision-providers")]
+            vision_response: None,
             user_policy_file: self.providers.user_config.clone(),
             experimental: arg_bool(args, "experimental")?.unwrap_or(false),
             out: self.resolve("out", &require_str(args, "out")?)?,
@@ -201,6 +205,7 @@ impl Server {
                         kind,
                         target: arg_str(args, "target")?,
                         second_target: arg_str(args, "second_target")?,
+                        grounding: Default::default(),
                         common,
                     },
                     false,

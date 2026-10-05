@@ -88,6 +88,10 @@ pub(crate) fn run(
 }
 fn common(task: &batch::SourceTask, user_file: Option<&Path>) -> Common {
     Common {
+        #[cfg(feature = "vision-providers")]
+        vision_provider: None,
+        #[cfg(feature = "vision-providers")]
+        vision_response: None,
         user_policy_file: user_file.map(Path::to_owned),
         experimental: true,
         out: PathBuf::new(),
@@ -167,6 +171,7 @@ pub(crate) fn verify_sources(
                     kind,
                     target: task.target.clone(),
                     second_target: task.second_target.clone(),
+                    grounding: Default::default(),
                     common: args,
                 },
                 roots,

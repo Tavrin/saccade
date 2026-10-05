@@ -175,3 +175,40 @@ The final-source [Wave 4 receipt](/mnt/linux-extra/saccade-integ-evidence/2026-1
 After every batch and cache monitor finished, the exact prescribed target was deleted with both debug/release Cargo locks held. [Cleanup receipt](/mnt/linux-extra/saccade-integ-evidence/target-cleanup.json) confirms removal and 45.3 GB free at that point. Logs, receipts, binary identity and showcase/browser artifacts remain outside the deleted target.
 
 The report is the only final documentation change; source code remains the tested `c9da934` tree. No push or Git changes outside this worktree.
+
+## Round 2 work in progress
+
+Authority: SPEC-integrate-r2.md, starting clean at c52416d; merge 63e91c6 preserves
+feat/wave7 at 5753506. This worktree alone owns Git state. No push, main/other-worktree
+mutations, subagents or live providers. The prescribed target and heavy wrapper remain.
+
+Decision: pre-filter neutralization is opt-in core behavior; browser/sweep/generated
+UI dynamic masks select it. Raw excluded error is separately measured so the no-mask
+audit remains truthful. Rejected automatic mask growth and looser assertions. Reversal
+is a small mode/config change while unmerged. Historical core defaults/numbers remain.
+
+Vision integration is explicit and attributed: hosted adapters prepare/decode fixtures
+inside assist, grounding is advisory, and wave 6 image reports attach face/crop/watermark
+contracts. The registry is shared, with typed legacy contract projections retained.
+Default/minimal builds gain no native model dependency. TrustMark ECC/source parity and
+unimplemented selected learned models remain unavailable; neural inference is not decoding.
+
+Official immutable DINOv2-small revision ed25f3a31f01632728cabb09d1542f84ab7b0056
+is Apache-2.0 by its official model card. A reproducible isolated CPU export and an
+8-image generated corpus with disjoint fit/holdout are produced under cache/r2. Scope
+is procedural geometry, not natural-image semantic qualification. CPU wheels use the
+official immutable PyTorch CPU wheel index; remaining export tooling uses pinned PyPI
+versions. No global install or GPU. Local exports have no remote distribution URL;
+cache bytes and official checkpoint provenance are separately pinned.
+
+Tesseract/French assets were extracted from version-pinned Ubuntu packages and locally
+hashed, without system installation. The exact original accent fixture reads CAFÉ.
+Contracts are generated, pending coordinator review. Rust OCR's default alphabet is
+ASCII; no accent-capable RTen exports are supplied, relabelled or fabricated. This
+remains a prerequisite gap. A local test-only C2PA certificate is generated; its signed
+fixture and tampered variants will be produced by the crate in the admitted preparation.
+
+Development all-feature cargo check passes after reusing the pinned dav1d tool prefix.
+Initial dav1d-path and strict-Clippy constant-chunk diagnostics are retained under
+/mnt/linux-extra/saccade-models/r2; forward fixes preserve every original assertion.
+Heavy qualification and release receipts are pending the batch below.

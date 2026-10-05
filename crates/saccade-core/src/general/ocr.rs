@@ -24,6 +24,9 @@ pub struct Contract {
     pub alphabet: String,
     /// Licence evidence source and review scope (not a qualification claim).
     pub license_evidence: String,
+    /// Contract review status, never a qualification receipt.
+    #[serde(default)]
+    pub review_status: Option<String>,
 }
 fn manifest(c: &Contract) -> semantic::ModelManifest {
     semantic::ModelManifest { schema:"saccade-region-models.v1".into(), qualification:"supplied_ocr_exports_unqualified".into(), runtime:"ONNX Runtime 1.22".into(), preprocessing:"ocrs 0.10.4 with RTen 0.21.0, explicit CTC alphabet".into(), execution_provider:"CPU f32".into(), artifacts:vec![c.detection.clone(),c.recognition.clone()],residuals:vec!["cache transport manifest reuses semantic downloader; execution uses RTen, not ONNX Runtime".into()] }

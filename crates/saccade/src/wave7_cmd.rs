@@ -19,7 +19,7 @@ fn home() -> Result<PathBuf, CliError> {
         .map(PathBuf::from)
         .ok_or_else(|| CliError::usage("HOME unavailable; supply registry/cache paths"))
 }
-fn registry(path: Option<&Path>) -> Result<Registry, CliError> {
+pub(crate) fn registry(path: Option<&Path>) -> Result<Registry, CliError> {
     let p = match path {
         Some(p) => p.to_path_buf(),
         None => home()?.join(".config/saccade/models.json"),
@@ -30,7 +30,7 @@ fn registry(path: Option<&Path>) -> Result<Registry, CliError> {
         Registry::load(&p).map_err(error)
     }
 }
-fn cache(path: Option<&Path>) -> Result<PathBuf, CliError> {
+pub(crate) fn cache(path: Option<&Path>) -> Result<PathBuf, CliError> {
     match path {
         Some(p) => Ok(p.to_path_buf()),
         None => Ok(home()?.join(".cache/saccade/models")),
@@ -172,6 +172,11 @@ pub(crate) fn write_png(path: &Path, pixels: &image::RgbImage) -> Result<(), Cli
 }
 
 pub(crate) fn locate(a: LocateArgs) -> Result<u8, CliError> {
+    let json = a.json;
+    let r = locate_measure(a)?;
+    emit(&r, json)
+}
+fn locate_measure(a: LocateArgs) -> Result<saccade_core::wave7::vision::LocateReport, CliError> {
     use saccade_core::wave7::vision::{LocateReport, VisionImage};
     let image = VisionImage::load(&a.image).map_err(error)?;
     let r = if let Some(p) = &a.observations {
@@ -250,7 +255,7 @@ pub(crate) fn locate(a: LocateArgs) -> Result<u8, CliError> {
         &out,
         &saccade_core::wave7::vision::overlay(&image, &r.detections).map_err(error)?,
     )?;
-    emit(&r, a.json)
+    Ok(r)
 }
 
 #[cfg(feature = "local-vlm")]
@@ -394,7 +399,7 @@ pub(crate) struct WatermarkArgs {
     #[arg(long)]
     json: bool,
 }
-fn unhex(s: &str) -> Result<Vec<u8>, CliError> {
+pub(crate) fn unhex(s: &str) -> Result<Vec<u8>, CliError> {
     if s.is_empty()
         || s.len() > 128
         || !s.len().is_multiple_of(2)
@@ -806,4 +811,46 @@ mod tests {
         assert!(write_png(&p, &image::RgbImage::new(1, 1)).is_err());
         assert_eq!(std::fs::read(p).unwrap(), b"original");
     }
+}
+
+#[cfg(feature = "assist")]
+#[derive(clap::Args, Default)]
+pub(crate) struct Grounding {
+    /// Attach advisory phrase localization to check-ui; never establish visibility by detection alone.
+    #[arg(long)]
+    pub locate: bool,
+    #[arg(long)]
+    pub locate_observations: Option<PathBuf>,
+    #[arg(long)]
+    pub locate_registry: Option<PathBuf>,
+    #[arg(long)]
+    pub locate_cache: Option<PathBuf>,
+    #[arg(long)]
+    pub locate_runtime_library: Option<PathBuf>,
+}
+#[cfg(feature = "assist")]
+pub(crate) fn locate_for_check(
+    image: &Path,
+    phrase: &str,
+    options: &Grounding,
+) -> Result<serde_json::Value, CliError> {
+    let report = locate_measure(LocateArgs {
+        image: image.into(),
+        phrase: phrase.into(),
+        segment: false,
+        detector: "grounding-dino-tiny".into(),
+        segmenter: "sam-2.1-tiny".into(),
+        observations: options.locate_observations.clone(),
+        overlay: None,
+        model: ModelOptions {
+            registry: options.locate_registry.clone(),
+            cache: options.locate_cache.clone(),
+            runtime_library: options.locate_runtime_library.clone(),
+            allow_download: false,
+        },
+        json: true,
+    })?;
+    Ok(
+        serde_json::json!({"authority":"advisory model observation; never sufficient for a visible-condition verdict","report":report}),
+    )
 }

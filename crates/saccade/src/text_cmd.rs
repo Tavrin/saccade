@@ -52,7 +52,14 @@ fn source(
     let contract = contract.ok_or_else(|| {
         CliError::usage("text requires imported sources or an explicit pinned OCR contract")
     })?;
-    let value: Value = serde_json::from_slice(&input::bytes(contract, 65536)?)?;
+    let contract_bytes = input::bytes(contract, 2 * 1024 * 1024)?;
+    let raw: Value = serde_json::from_slice(&contract_bytes)?;
+    let value = if raw["schema"] == saccade_core::wave7::models::REGISTRY_SCHEMA {
+        saccade_core::wave7::models::contract(&contract_bytes, saccade_core::general::ocr::SCHEMA)
+            .map_err(crate::wave7_cmd::error)?
+    } else {
+        raw
+    };
     if value["schema"] == saccade_core::general::ocr::SCHEMA {
         #[cfg(feature = "ocr")]
         {

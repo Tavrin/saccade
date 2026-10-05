@@ -139,3 +139,7 @@ required-features = ["schema"]
 [[example]]
 name = "assist_qualify"
 required-features = ["assist"]
+
+[[example]]
+name = "r2_credentials"
+required-features = ["credentials"]

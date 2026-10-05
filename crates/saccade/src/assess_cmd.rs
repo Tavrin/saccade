@@ -6,6 +6,8 @@ use std::path::{Path, PathBuf};
 #[derive(clap::Args)]
 pub(crate) struct Args {
     image: PathBuf,
+    #[command(flatten)]
+    checks: crate::vision_checks::Checks,
     /// Reference quality measurements; deltas are image minus compare-to.
     #[arg(long)]
     compare_to: Option<PathBuf>,
@@ -15,7 +17,8 @@ pub(crate) struct Args {
     json: bool,
 }
 pub(crate) fn run(args: Args) -> Result<u8, CliError> {
-    let value = measure(&args.image, args.compare_to.as_deref(), &args.out)?;
+    let mut value = measure(&args.image, args.compare_to.as_deref(), &args.out)?;
+    value["vision_checks"] = args.checks.measure(&args.image)?;
     general_cmd::emit_document(value, Some(&args.out), args.json)
 }
 fn one(path: &Path) -> Result<Value, CliError> {

@@ -49,6 +49,14 @@ pub(crate) struct Common {
     /// Human startup/CLI policy file; never exposed as an MCP tool argument.
     #[arg(skip)]
     pub user_policy_file: Option<PathBuf>,
+    /// Prepare Claude/GPT mappings in the assist layer; no live calls.
+    #[cfg(feature = "vision-providers")]
+    #[arg(long,value_parser=["claude","gpt"],conflicts_with="run")]
+    pub vision_provider: Option<String>,
+    /// Explicit recorded response; bound to this catalog and request.
+    #[cfg(feature = "vision-providers")]
+    #[arg(long, requires = "vision_provider")]
+    pub vision_response: Option<PathBuf>,
     /// Required acknowledgement: this feature is unqualified experimental advice.
     #[arg(long)]
     pub experimental: bool,
@@ -129,6 +137,8 @@ pub(crate) struct CheckArgs {
     /// Containing panel or second source node ID.
     #[arg(long)]
     pub second_target: Option<String>,
+    #[command(flatten)]
+    pub grounding: crate::wave7_cmd::Grounding,
     #[command(flatten)]
     pub common: Common,
 }
@@ -303,6 +313,23 @@ pub(crate) fn check_input(
     // The visible condition is confined to the requested box; complete refers to it.
     catalog.images[0].capture_scope = args.r#box;
     add_source(&mut catalog, &args.common, roots)?;
+    if args.grounding.locate || args.grounding.locate_observations.is_some() {
+        let image = check_path(&args.image, roots)?;
+        if let Some(path) = &args.grounding.locate_observations {
+            check_path(path, roots)?;
+        }
+        if let Some(path) = &args.grounding.locate_registry {
+            check_path(path, roots)?;
+        }
+        // A server request cannot authorize loading host model/runtime files.
+        if roots.is_some() && args.grounding.locate_observations.is_none() {
+            return Err(CliError::usage(
+                "MCP/bound-root grounding requires explicit contained observation replay",
+            ));
+        }
+        catalog.measurements["advisory_locate"] =
+            crate::wave7_cmd::locate_for_check(&image, &args.condition, &args.grounding)?;
+    }
     let condition = match args.kind {
         VisibleKind::LabelVisible => Condition::LabelVisible {
             label: args.condition.clone(),
@@ -666,6 +693,26 @@ fn execute(
             "assist output must be a new empty directory",
         ));
     }
+    #[cfg(feature = "vision-providers")]
+    let hosted_mapping = common
+        .vision_provider
+        .as_deref()
+        .map(|provider| {
+            let response = common
+                .vision_response
+                .as_deref()
+                .map(|p| read(p, roots, 1024 * 1024))
+                .transpose()?;
+            let provider = match provider {
+                "claude" => saccade_core::wave7::providers::Provider::Claude,
+                "gpt" => saccade_core::wave7::providers::Provider::Gpt,
+                _ => return Err(CliError::usage("unsupported vision provider")),
+            };
+            let data = serde_json::to_string(&condition)?;
+            assist::vision_provider::mapped(&catalog, &pngs, provider, &data, response.as_deref())
+                .map_err(crate::wave7_cmd::error)
+        })
+        .transpose()?;
     let identity = catalog.identity(task, report_hash, condition.as_ref())?;
     let verdict = report.as_ref().map(|r| r.0.clone());
     let need = workflow::evidence_need(&catalog, condition.as_ref(), task)?;
@@ -946,6 +993,10 @@ fn execute(
     }
     std::fs::create_dir_all(&out).map_err(|_| CliError::io("cannot create assist output"))?;
     assist::write(&out.join("saccade-assist.v1.json"), &envelope)?;
+    #[cfg(feature = "vision-providers")]
+    if let Some(mapping) = &hosted_mapping {
+        assist::write(&out.join("vision-provider.json"), mapping)?;
+    }
     if !batch_requests.is_empty() {
         assist::write(
             &out.join("batch-plan.json"),
@@ -982,6 +1033,10 @@ fn execute(
     std::fs::write(out.join("index.html"), workflow::html(&envelope)?)
         .map_err(|_| CliError::io("cannot write assist report"))?;
     let mut value = local_cmd::base_result("review.assist");
+    #[cfg(feature = "vision-providers")]
+    if let Some(mapping) = hosted_mapping {
+        value["vision_provider"] = mapping;
+    }
     value["execution"] = json!(if envelope.incomplete {
         "incomplete"
     } else {

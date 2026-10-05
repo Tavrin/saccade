@@ -159,8 +159,8 @@ mod enabled {
     };
     const MAX_VECTOR_BYTES: u64 = 512 * 1024 * 1024;
     fn engine(runtime: &RuntimeArgs) -> Result<(e::Engine, String), CliError> {
-        let bytes = input::bytes(&runtime.model, 65536)?;
-        let model: e::Model = serde_json::from_slice(&bytes)?;
+        let bytes = input::bytes(&runtime.model, 2 * 1024 * 1024)?;
+        let model: e::Model = e::parse_model(&bytes)?;
         let identity = saccade_core::localized::digest(&serde_json::to_vec(&model)?);
         Ok((
             e::Engine::load(
@@ -177,7 +177,7 @@ mod enabled {
         model_path: &Path,
         out: &Path,
     ) -> Result<Value, CliError> {
-        let model: e::Model = serde_json::from_slice(&input::bytes(model_path, 65536)?)?;
+        let model: e::Model = e::parse_model(&input::bytes(model_path, 2 * 1024 * 1024)?)?;
         e::validate(&model)?;
         let files = input::files(dir, 128)?;
         if files.is_empty() {

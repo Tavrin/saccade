@@ -62,6 +62,21 @@
       "items": {
         "type": "string"
       }
+    },
+    "vision_checks": {
+      "type": "object",
+      "properties": {
+        "faces": {
+          "type": "object"
+        },
+        "crop_check": {
+          "type": "object"
+        },
+        "watermark": {
+          "type": "object"
+        }
+      },
+      "additionalProperties": false
     }
   },
   "required": [

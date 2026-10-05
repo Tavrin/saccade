@@ -391,5 +391,52 @@
       ],
       "parity_sha256": null
     }
-  ]
+  ],
+  "contracts": {
+    "dinov2-small": {
+      "schema": "saccade-embedding-model.v1",
+      "family": "dinov2-small",
+      "artifact": {
+        "role": "embedding",
+        "url": "https://example.invalid/local-exports/2fd91c205910154583815783892aa74f5414b88505ecda8e3cab8cf7f033822b.onnx",
+        "sha256": "2fd91c205910154583815783892aa74f5414b88505ecda8e3cab8cf7f033822b",
+        "bytes": 88487149,
+        "license": "Apache-2.0",
+        "version": "ed25f3a31f01632728cabb09d1542f84ab7b0056:local-onnx-export",
+        "format": "onnx"
+      },
+      "input": "pixel_values",
+      "output": "embedding",
+      "size": [
+        56,
+        56
+      ],
+      "mean": [
+        0.48500001430511475,
+        0.4560000002384186,
+        0.4059999883174896
+      ],
+      "std": [
+        0.2290000021457672,
+        0.2240000069141388,
+        0.22499999403953552
+      ],
+      "dimensions": 384,
+      "calibration": null
+    },
+    "tesseract-fra": {
+      "schema": "saccade-tesseract.v1",
+      "executable": "/mnt/linux-extra/saccade-models/r2/tesseract-run",
+      "executable_sha256": "sha256:e2de648809eb78cb01c64d8d9426b6ebc1f5a4a5b91e46e747bd4607aa0dc5f2",
+      "version": "5.3.4",
+      "version_output_sha256": "sha256:b0244d9f75aa00508fdb60e44c34390b452fbce9c0773fae505aed6fc1fb51bf",
+      "tessdata": "/mnt/linux-extra/saccade-models/r2/tesseract/usr/share/tesseract-ocr/5/tessdata",
+      "models": {
+        "fra": "sha256:ced037562e8c80c13122dece28dd477d399af80911a28791a66a63ac1e3445ca"
+      },
+      "psm": 6,
+      "timeout_ms": 10000,
+      "review_status": "generated, pending coordinator review"
+    }
+  }
 }

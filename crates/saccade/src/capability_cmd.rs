@@ -220,6 +220,41 @@ pub(crate) fn catalogue() -> Value {
         "--experimental; provider authority and budget required; never overrides deterministic measurements",
     );
     add(
+        "local_vision",
+        "locate; faces; crop-check; assess --faces; inspect-image --faces",
+        "images plus shared registry/cache and explicit CPU runtime",
+        vec!["local-models"],
+        if cfg!(feature = "local-models") {
+            "conditional_runtime"
+        } else {
+            "feature_unavailable"
+        },
+        "Where are detected objects or faces, and which crops retain them?",
+        "source/export parity and domain accuracy remain separate; no identity recognition",
+    );
+    add(
+        "watermark_decoding",
+        "watermark; inspect-image --watermark",
+        "one image; known legacy payload optional",
+        vec![],
+        "partial",
+        "Do named compatible decoders recover a marker?",
+        "TrustMark complete decoding unavailable; absence establishes no origin verdict",
+    );
+    add(
+        "hosted_vision_mapping",
+        "review check-ui --vision-provider; provider-map",
+        "exact image-bound request and explicit recorded provider response",
+        vec!["assist", "vision-providers"],
+        if cfg!(all(feature = "assist", feature = "vision-providers")) {
+            "fixture_only"
+        } else {
+            "feature_unavailable"
+        },
+        "What advisory observations does the named adapter map?",
+        "no live qualification or provider calls; never changes deterministic authority",
+    );
+    add(
         "browser_assertions",
         "saccade-playwright toMatchSaccade",
         "Playwright page or locator and retained baseline",

@@ -38,6 +38,53 @@ pub(crate) fn nonfinite_samples(image: &image::DynamicImage) -> (u64, u64) {
     )
 }
 
+/// Treatment of declared excluded pixels before spatial filtering.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default, serde::Serialize, serde::Deserialize)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
+#[serde(rename_all = "snake_case")]
+pub enum MaskMode {
+    /// Score exclusion only; preserves historical measurements.
+    #[default]
+    Exclude,
+    /// Replace excluded test pixels with reference pixels before filtering.
+    Neutralize,
+}
+
+/// Compare RGBA images with an explicit exclusion bitmap and mode.
+/// Neutralization preserves alpha and never grows the supplied mask.
+pub fn compare_rgba_masked(
+    capture: &image::RgbaImage,
+    baseline: &image::RgbaImage,
+    opts: &CompareOptions,
+    mask: Option<&[bool]>,
+    mode: MaskMode,
+) -> Result<Comparison> {
+    if mask.is_none() {
+        return compare_rgba(capture, baseline, opts);
+    }
+    let mut test = capture.clone();
+    if let Some(mask) = mask {
+        if mask.len() != test.pixels().len() || capture.dimensions() != baseline.dimensions() {
+            return Err(Error::Config(
+                "mask dimensions differ from comparison images".into(),
+            ));
+        }
+        if mode == MaskMode::Neutralize {
+            for ((test, reference), excluded) in test.pixels_mut().zip(baseline.pixels()).zip(mask)
+            {
+                if *excluded {
+                    *test = *reference;
+                }
+            }
+        }
+    }
+    let mut comparison = compare_rgba(&test, baseline, opts)?;
+    let (w, h) = capture.dimensions();
+    comparison.metrics = masked_metrics(&comparison.error_map, mask, w, h, [0, 0, w, h])
+        .ok_or_else(|| Error::Config("every pixel is masked".into()))?;
+    Ok(comparison)
+}
+
 /// Options for [`compare`].
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub struct CompareOptions {
@@ -261,5 +308,52 @@ pub fn hatch_masked(heatmap: &mut image::RgbImage, mask: &[bool]) {
             let v = if (x + y) % 8 < 3 { 150 } else { 96 };
             *px = image::Rgb([v, v, v]);
         }
+    }
+}
+
+#[cfg(test)]
+mod mask_mode_tests {
+    use super::*;
+    #[test]
+    #[allow(clippy::unwrap_used)]
+    fn neutralize_stops_masked_filter_bleed_but_preserves_adjacent_changes() {
+        let baseline = image::RgbaImage::from_pixel(96, 96, image::Rgba([100, 100, 100, 255]));
+        let mut test = baseline.clone();
+        let mask: Vec<bool> = (0..96 * 96)
+            .map(|i| (32..64).contains(&(i % 96)) && (32..64).contains(&(i / 96)))
+            .collect();
+        for (p, m) in test.pixels_mut().zip(&mask) {
+            if *m {
+                *p = image::Rgba([250, 0, 0, 0]);
+            }
+        }
+        let options = CompareOptions::default();
+        let excluded =
+            compare_rgba_masked(&test, &baseline, &options, Some(&mask), MaskMode::Exclude)
+                .unwrap();
+        assert!(excluded.metrics.max > 0.);
+        let neutral = compare_rgba_masked(
+            &test,
+            &baseline,
+            &options,
+            Some(&mask),
+            MaskMode::Neutralize,
+        )
+        .unwrap();
+        assert_eq!(neutral.metrics.max, 0.);
+        test.put_pixel(31, 45, image::Rgba([0, 0, 255, 255]));
+        assert!(
+            compare_rgba_masked(
+                &test,
+                &baseline,
+                &options,
+                Some(&mask),
+                MaskMode::Neutralize
+            )
+            .unwrap()
+            .metrics
+            .max > 0.
+        );
+        assert_eq!(MaskMode::default(), MaskMode::Exclude);
     }
 }

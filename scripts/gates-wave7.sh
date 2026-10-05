@@ -2,7 +2,7 @@
 # Coordinator only: run via the shared heavy queue after integration. No live providers.
 set -u
 cd "$(dirname "$0")/.." || exit 1
-export CARGO_TARGET_DIR=/mnt/linux-extra/moss-cargo-targets/codex-saccade-w7
+export CARGO_TARGET_DIR="${CARGO_TARGET_DIR:-/mnt/linux-extra/moss-cargo-targets/codex-saccade-w7}"
 features=local-models,local-vlm,vision-providers,schema
 failed=0
 gate() {

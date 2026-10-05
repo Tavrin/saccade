@@ -596,6 +596,7 @@ fn synthetic_report(entry: Entry, ppd: f32) -> Report {
         baseline_dir: None,
         capture_dir: None,
         config: ReportConfig {
+            mask_mode: crate::compare::MaskMode::default(),
             entries: Vec::new(),
             ignore: Vec::new(),
             default_threshold: 0.01,

@@ -305,3 +305,20 @@ build-time network/cache/platform behavior and binary packaging. Dynamic loading
 keeps optional native dependencies out of default builds, pins one inspectable
 release, and supports shared CLI/container/wheel caches. Reversal requires new
 per-platform archive pins or a deliberate packaging/build-policy change.
+
+## Integrated wave 4/6 commands
+
+`review check-ui --locate` attaches advisory phrase localization; `--locate-observations`
+reads an image-bound replay. Explicit `--locate-cache`, `--locate-registry` and
+`--locate-runtime-library` choose local inference inputs. Detected geometry never alone
+establishes a visible condition. MCP/root-bound operations allow contained replay only.
+`--vision-provider claude|gpt` prepares the hosted mappings inside the assist layer;
+`--vision-response FILE` decodes a recorded response. They never authorize live calls,
+change deterministic outcomes or supply monetary/live qualification receipts.
+
+`assess` and `inspect-image` accept `--faces`, `--face-observations`, `--face-crop X,Y,W,H`,
+`--model-registry`, `--model-cache` and `--runtime-library`. `--watermark` attaches the
+named decoder findings and `--watermark-payload HEX` selects a known-message legacy DWT
+check. Complete TrustMark decoding remains unavailable. The separately named face/crop/
+watermark documents appear in `vision_checks`, with their own input identity/provenance.
+The shared registry also holds wave 6 embedding and OCR contract pins. No implicit pull.

@@ -38,6 +38,7 @@ impl OnnxModel {
         super::models::Registry {
             schema: super::models::REGISTRY_SCHEMA.into(),
             models: vec![model.clone()],
+            contracts: Default::default(),
         }
         .validate()?;
         if model.runtime != "onnx" || !library.is_file() {

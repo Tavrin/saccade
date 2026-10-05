@@ -47,6 +47,8 @@ pub struct RunConfig {
     pub regions: Vec<crate::regions::RegionSpec>,
     /// Excluded areas (`[[mask]]`).
     pub masks: Vec<crate::regions::MaskSpec>,
+    /// Whether exclusions neutralize pixels before spatial filtering.
+    pub mask_mode: crate::compare::MaskMode,
     /// Directory mask-image paths are relative to (the config file's directory).
     pub config_dir: Option<std::path::PathBuf>,
     /// What the run is for (`compare` or `identity`).
@@ -104,6 +106,7 @@ impl Default for RunConfig {
             buffers: Vec::new(),
             regions: Vec::new(),
             masks: Vec::new(),
+            mask_mode: crate::compare::MaskMode::default(),
             config_dir: None,
             mode: Mode::default(),
             labels: Labels::default(),
@@ -169,6 +172,8 @@ struct FileConfig {
     regions: Vec<crate::regions::RegionSpec>,
     #[serde(default, rename = "mask")]
     masks: Vec<crate::regions::MaskSpec>,
+    #[serde(default)]
+    mask_mode: crate::compare::MaskMode,
     hdr: Option<FileHdr>,
     diagnostics: Option<FileDiagnostics>,
     decisions: Option<crate::decision::DecisionsConfig>,
@@ -368,6 +373,7 @@ impl RunConfig {
         cfg.regions = file.regions;
         cfg.buffers = file.buffers;
         cfg.masks = file.masks;
+        cfg.mask_mode = file.mask_mode;
         if let Some(d) = file.decisions {
             cfg.decisions = d;
         }

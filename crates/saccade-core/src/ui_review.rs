@@ -52,6 +52,9 @@ pub struct OcrContract {
     pub psm: u8,
     /// Per-process timeout, 1..60000 milliseconds.
     pub timeout_ms: u64,
+    /// Contract review status, never a qualification receipt.
+    #[serde(default)]
+    pub review_status: Option<String>,
 }
 /// One visible/semantic node exported by the capture producer.
 #[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]

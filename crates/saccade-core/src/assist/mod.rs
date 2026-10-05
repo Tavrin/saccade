@@ -96,3 +96,7 @@ mod tests;
 
 pub mod mask_audit;
 pub mod workflow;
+
+/// Fixture-only hosted vision mappings bound to immutable assist evidence.
+#[cfg(feature = "vision-providers")]
+pub mod vision_provider;

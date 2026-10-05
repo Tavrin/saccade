@@ -248,3 +248,19 @@ Constructed truth, its private oracle and heavy-gate receipts use
 The [source-bound Batch plan](../crates/saccade-core/schemas/saccade-assist-batch-plan.v1.schema.json)
 uses `saccade-assist-batch-plan.v1`. Public submission, status and collection
 reproduce its frozen payloads from hash-verified transitive source files.
+
+## Mask treatment
+
+`mask_mode = "exclude"` retains historical score exclusion after spatial filtering.
+`mask_mode = "neutralize"` replaces masked test samples (including alpha/HDR channels)
+with reference samples before FLIP filtering, and excludes the same bitmap from scoring.
+Core defaults to `exclude`; Playwright dynamic exclusions, sweeps and the generated UI
+configuration use `neutralize`. No mask grows automatically. Each pair report records
+`config.mask_mode`; older reports read as `exclude`. Exclusion audits retain original
+full-map errors and the diagnostic verdict with masks removed.
+
+The shared model registry can hold typed embedding and OCR contracts under `contracts`.
+Historical individual contracts remain readable projections. Generated local exports
+are supplied by hash in the cache; their `example.invalid/local-exports` URLs explicitly
+have no remote distribution endpoint. Official checkpoint URLs, licences and revisions
+are in the export receipt. These local exports must be reproduced rather than downloaded.

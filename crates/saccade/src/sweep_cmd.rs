@@ -402,6 +402,7 @@ pub(crate) fn compare_with_registration(
         }
     }
     let mut config = cfg.clone();
+    config.mask_mode = saccade_core::compare::MaskMode::Neutralize;
     config.fail_on_new = true;
     config.allow_empty = false;
     let (entries, totals, regression) = if let Some(options) = registration {
