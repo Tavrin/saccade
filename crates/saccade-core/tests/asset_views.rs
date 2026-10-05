@@ -302,3 +302,16 @@ mod images {
         }
     }
 }
+
+#[test]
+fn w3_f07_projective_duplicates_rejected() {
+    for scale in [2., 0.5, 3.] {
+        let mut m = manifest();
+        m.views[1].camera = m.views[0].camera.clone();
+        m.views[1].camera.projection = m.views[0].camera.projection.map(|v| v * scale);
+        assert!(
+            validate(&m).is_err(),
+            "scale {scale} counted as a distinct view"
+        );
+    }
+}

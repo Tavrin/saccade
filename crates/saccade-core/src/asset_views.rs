@@ -318,7 +318,22 @@ impl Manifest {
                 || !invertible(&camera.projection)
                 || camera.model_to_world[12..] != [0.0, 0.0, 0.0, 1.0]
                 || camera.world_to_view[12..] != [0.0, 0.0, 0.0, 1.0]
-                || !cameras.insert(hash(camera)?)
+                || !cameras.insert({
+                    // Positive homogeneous scale preserves division and clip inequalities.
+                    // Keep receipt hashes tied to the original bytes; normalize coverage only.
+                    let mut normalized = camera.clone();
+                    let scale = camera
+                        .projection
+                        .iter()
+                        .copied()
+                        .map(f64::abs)
+                        .fold(0.0, f64::max);
+                    normalized.projection = camera.projection.map(|v| {
+                        let v = v / scale;
+                        if v == 0.0 { 0.0 } else { v }
+                    });
+                    hash(&normalized)?
+                })
             {
                 return Err(invalid(
                     "view IDs/cameras must be distinct, finite, nonsingular and use the declared matrix convention",
