@@ -215,6 +215,7 @@ pub fn clusters(hashes: &[u64], threshold: u32) -> crate::Result<Vec<Vec<usize>>
     Ok(groups.into_values().collect())
 }
 #[cfg(test)]
+#[allow(clippy::expect_used, clippy::unwrap_used)]
 mod tests {
     use super::*;
     #[test]

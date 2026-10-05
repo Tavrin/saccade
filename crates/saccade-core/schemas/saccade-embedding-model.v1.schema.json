@@ -1,0 +1,96 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/Tavrin/saccade/crates/saccade-core/schemas/saccade-embedding-model.v1.schema.json",
+  "type": "object",
+  "properties": {
+    "schema": {
+      "const": "saccade-embedding-model.v1"
+    },
+    "family": {
+      "const": "dinov2-small"
+    },
+    "artifact": {
+      "type": "object",
+      "properties": {
+        "license": {
+          "const": "Apache-2.0"
+        },
+        "format": {
+          "const": "onnx"
+        },
+        "sha256": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$"
+        }
+      },
+      "required": [
+        "license",
+        "format",
+        "sha256",
+        "role",
+        "url",
+        "bytes",
+        "version"
+      ]
+    },
+    "input": {
+      "type": "string",
+      "minLength": 1
+    },
+    "output": {
+      "type": "string",
+      "minLength": 1
+    },
+    "size": {
+      "type": "array",
+      "minItems": 2,
+      "maxItems": 2,
+      "items": {
+        "type": "integer",
+        "minimum": 1,
+        "maximum": 1024
+      }
+    },
+    "mean": {
+      "type": "array",
+      "minItems": 3,
+      "maxItems": 3,
+      "items": {
+        "type": "number"
+      }
+    },
+    "std": {
+      "type": "array",
+      "minItems": 3,
+      "maxItems": 3,
+      "items": {
+        "type": "number",
+        "exclusiveMinimum": 0
+      }
+    },
+    "dimensions": {
+      "type": "integer",
+      "minimum": 1,
+      "maximum": 4096
+    },
+    "calibration": {
+      "type": [
+        "object",
+        "null"
+      ]
+    }
+  },
+  "required": [
+    "schema",
+    "family",
+    "artifact",
+    "input",
+    "output",
+    "size",
+    "mean",
+    "std",
+    "dimensions",
+    "calibration"
+  ],
+  "additionalProperties": false
+}

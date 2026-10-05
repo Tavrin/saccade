@@ -1,0 +1,68 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/Tavrin/saccade/crates/saccade-core/schemas/saccade-embedding-index.v1.schema.json",
+  "type": "object",
+  "properties": {
+    "schema": {
+      "const": "saccade-embedding-index.v1"
+    },
+    "operation": {
+      "const": "index_build"
+    },
+    "verdict": {
+      "enum": [
+        "pass",
+        "regression",
+        "unknown"
+      ]
+    },
+    "counts": {
+      "type": "object"
+    },
+    "model_contract_sha256": {
+      "type": "string"
+    },
+    "model": {
+      "type": "object"
+    },
+    "vector_file": {
+      "type": "string"
+    },
+    "vector_encoding": {
+      "type": "string"
+    },
+    "vectors_sha256": {
+      "type": "string"
+    },
+    "dimensions": {
+      "type": "integer",
+      "minimum": 1,
+      "maximum": 4096
+    },
+    "rows": {
+      "type": "array"
+    },
+    "errors": {
+      "type": "array"
+    },
+    "limitations": {
+      "type": "array"
+    }
+  },
+  "required": [
+    "schema",
+    "operation",
+    "verdict",
+    "counts",
+    "model_contract_sha256",
+    "model",
+    "vector_file",
+    "vector_encoding",
+    "vectors_sha256",
+    "dimensions",
+    "rows",
+    "errors",
+    "limitations"
+  ],
+  "additionalProperties": false
+}

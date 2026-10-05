@@ -45,6 +45,8 @@ gltf = { version = "=1.4.1", default-features = false, features = ["utils", "nam
 base64 = { version = "0.22", optional = true }
 
 [features]
+# wave6: dynamic CPU ONNX embeddings, no default dependency change
+embeddings = ["semantic-regions"]
 default = ["parallel"]
 # Parallel FLIP filtering; disable for the sequential FLIP backend on wasm.
 parallel = ["flip-rs/parallel"]

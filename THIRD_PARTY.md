@@ -215,3 +215,12 @@ FAST/oriented BRIEF, least-squares estimation and RANSAC in
 `general/registration.rs` are original pure Rust implementations under the
 project MIT OR Apache-2.0 licence; no OpenCV or additional dependency is used.
 The generated registration fixtures carry the same project licence.
+
+## Wave 6 optional embeddings
+
+No new package dependency. The `embeddings` feature reuses `ort` 2.0.0-rc.10
+(MIT OR Apache-2.0, verified in its local Cargo.toml and licence files),
+`ort-sys` and the existing dynamic ONNX/cache dependencies. No runtime is bundled.
+DINOv2-small checkpoint Apache-2.0 is a fact supplied by the lane specification;
+no canonical export/hash or calibration is shipped. Supplied ONNX exports must
+retain Apache-2.0 and pin their SHA-256, byte count and version. CLIP is deferred.

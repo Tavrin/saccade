@@ -27,6 +27,8 @@ globset = "0.4"
 fs2 = "0.4.3"
 
 [features]
+# wave6: dynamic CPU ONNX embeddings, no default dependency change
+embeddings = ["saccade-core/embeddings"]
 default = ["compression", "parallel", "graphics", "ai", "workbench", "mcp", "evaluation"]
 semantic-regions = ["saccade-core/semantic-regions"]
 compression = ["saccade-core/compression"]

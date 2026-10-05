@@ -1,0 +1,63 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/Tavrin/saccade/crates/saccade-core/schemas/saccade-similar.v1.schema.json",
+  "type": "object",
+  "properties": {
+    "schema": {
+      "const": "saccade-similar.v1"
+    },
+    "operation": {
+      "const": "similar"
+    },
+    "verdict": {
+      "enum": [
+        "pass",
+        "regression",
+        "unknown"
+      ]
+    },
+    "counts": {
+      "type": "object"
+    },
+    "inputs": {
+      "type": "object"
+    },
+    "model_contract_sha256": {
+      "type": "string"
+    },
+    "model": {
+      "type": "object"
+    },
+    "cosine": {
+      "type": "number",
+      "minimum": -1,
+      "maximum": 1
+    },
+    "band": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "calibration_status": {
+      "type": "string"
+    },
+    "limitations": {
+      "type": "array"
+    }
+  },
+  "required": [
+    "schema",
+    "operation",
+    "verdict",
+    "counts",
+    "inputs",
+    "model_contract_sha256",
+    "model",
+    "cosine",
+    "band",
+    "calibration_status",
+    "limitations"
+  ],
+  "additionalProperties": false
+}

@@ -1155,6 +1155,60 @@ impl Server {
         use clap::ValueEnum;
         // wave6
         let operation = require_str(args, "operation")?;
+        // wave6: model/runtime reads and cache writes use the same root authority.
+        if matches!(
+            operation.as_str(),
+            "similar" | "index_build" | "index_query"
+        ) {
+            let extra = match operation.as_str() {
+                "similar" => vec!["a", "b"],
+                "index_build" => vec!["dir"],
+                _ => vec!["index", "image"],
+            };
+            let mut keys = vec!["operation", "out", "model", "cache", "library"];
+            keys.extend(extra.iter().copied());
+            if operation == "index_query" {
+                keys.push("top");
+            }
+            reject_unknown(args, &keys)?;
+            let mut paths = std::collections::BTreeMap::new();
+            for key in ["model", "library"]
+                .into_iter()
+                .chain(extra.iter().copied())
+            {
+                let path = self.resolve(key, &require_str(args, key)?)?;
+                if path.is_dir() {
+                    self.input_tree(&path)?;
+                } else if !path.is_file() {
+                    return Err(CliError::io("embedding input unavailable"));
+                }
+                paths.insert(key.to_owned(), path);
+            }
+            let cache = self.resolve("cache", &require_str(args, "cache")?)?;
+            if !cache.is_dir() {
+                return Err(CliError::io(
+                    "MCP embedding cache must already exist; downloads are explicit CLI-only",
+                ));
+            }
+            self.input_tree(&cache)?;
+            paths.insert("cache".into(), cache);
+            let out = self.checked_out_dir(
+                &require_str(args, "out")?,
+                &paths.values().map(PathBuf::as_path).collect::<Vec<_>>(),
+            )?;
+            let top = args
+                .get("top")
+                .map(|v| {
+                    v.as_u64()
+                        .filter(|n| (1..=100).contains(n))
+                        .ok_or_else(|| CliError::usage("top must be 1..100"))
+                })
+                .transpose()?
+                .unwrap_or(10) as usize;
+            let value = crate::embedding_cmd::measure(&operation, &paths, top, &out)?;
+            let file = crate::general_cmd::persist_document(&value, &out)?;
+            return Ok(ToolOutput{structured:json!({"schema":saccade_core::general::RESULT_SCHEMA,"mode":operation,"verdict":value["verdict"],"data":{"schema":value["schema"],"counts":value["counts"]},"artifacts":[{"path":saccade_core::paths::record(&file,&self.root,false)}],"next_actions":[]}),text:"Conditional embedding evidence; no bundled export or calibration qualification.".into(),images:Vec::new()});
+        }
         if matches!(operation.as_str(), "hash" | "dedupe") {
             reject_unknown(
                 args,

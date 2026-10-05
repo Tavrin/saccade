@@ -13,6 +13,7 @@ use saccade_core::report::{Labels, Metric, Mode, Report, Status};
 use saccade_core::view::{ViewOptions, build_view, is_safe_name};
 
 // wave6
+mod embedding_cmd;
 mod general_cmd;
 mod hash_cmd;
 
@@ -199,6 +200,10 @@ impl From<MetricArg> for Metric {
 #[derive(Subcommand)]
 enum Command {
     // wave6
+    /// Cosine similarity with an explicitly pinned optional ONNX export.
+    Similar(embedding_cmd::SimilarArgs),
+    /// Build or query a streaming exact flat embedding index.
+    Index(embedding_cmd::IndexArgs),
     /// Compute perceptual hashes without changing originals.
     Hash(hash_cmd::HashArgs),
     /// Cluster near-duplicates with bounded Hamming search; never delete images.
@@ -996,6 +1001,8 @@ fn emit_run(
 fn dispatch(command: Command, record_absolute_paths: bool) -> Result<u8, CliError> {
     match command {
         // wave6
+        Command::Similar(args) => embedding_cmd::similar(args),
+        Command::Index(args) => embedding_cmd::index(args),
         Command::Hash(args) => hash_cmd::run_hash(args),
         Command::Dedupe(args) => hash_cmd::run_dedupe(args),
         Command::Prove {

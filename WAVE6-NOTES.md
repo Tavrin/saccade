@@ -8,3 +8,7 @@
 
 - Hashing: aHash/dHash/pHash, original Rust arithmetic, no added dependencies. Rejected blockhash as redundant low-frequency coverage. Reversal cost: additive algorithm/version and index rebuild.
 - Dedupe: BK-tree over unique hashes and transitive connected components, <=100000 inputs and 64 MiB path budget. Rejected decoded-pixel caching and all-pairs edges. Exact duplicates collapse; adversarial tree search remains a stated time limitation. Reversal cost: replace candidate search, retain hash contracts, requalify clustering.
+
+- Embeddings: implement configurable DINOv2-small pooled ONNX interface, SHA-pinned runtime cache, explicit preprocessing, f64 cosine and streaming exact flat index. Reject inventing an export hash or universal cosine bands. No new package/default feature dependency. Supplied calibration is labelled unqualified; canonical export parity/calibration and optional CLIP are deferred. Reversal cost: provision/review a pinned export and corpus, then heavy gates; no index-format change needed for the same export.
+
+- Resource decision: stop all compilation/tests after df reported 24 GB. Reject bypassing the disk gate or deleting shared targets. Reversal cost: coordinator restores >=25 GB and reruns light/heavy gates.

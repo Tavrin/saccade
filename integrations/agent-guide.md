@@ -88,3 +88,10 @@ Use `hash FILE... --out REPORT --json` or `dedupe DIR --threshold 6 --out REPORT
 --json` for candidate retrieval. Hex hashes are not identities; clusters are
 transitive and originals remain unchanged. MCP `saccade_general` operations
 `hash`/`dedupe` mirror these commands. See [hashing](../docs/hashing.md).
+
+<!-- wave6 -->
+Optional `similar A B` and `index build|query` require `embeddings`, a supplied
+SHA-pinned model contract, CPU runtime and cache. Raw cosine and supplied bands
+remain conditional evidence; built-in calibration is unqualified. MCP
+`saccade_general` mirrors these measurements without network access. See
+[embeddings](../docs/embeddings.md).

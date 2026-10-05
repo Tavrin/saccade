@@ -112,3 +112,28 @@ pub fn files(root: &Path, max: usize) -> Result<Vec<std::path::PathBuf>> {
     out.sort();
     Ok(out)
 }
+
+/// SHA-256 with a streaming byte bound; a growing untrusted file cannot make reads unbounded.
+pub fn sha256(path: &Path, limit: u64) -> Result<String> {
+    use sha2::{Digest, Sha256};
+    let file = std::fs::File::open(path)
+        .map_err(crate::run::io_err("opening bounded digest input".into()))?;
+    let mut reader = file.take(limit.saturating_add(1));
+    let mut hasher = Sha256::new();
+    let mut buffer = [0; 65536];
+    let mut count = 0u64;
+    loop {
+        let n = reader
+            .read(&mut buffer)
+            .map_err(crate::run::io_err("hashing bounded input".into()))?;
+        if n == 0 {
+            break;
+        }
+        count += n as u64;
+        if count > limit {
+            return Err(Error::Config("digest input exceeds byte limit".into()));
+        }
+        hasher.update(&buffer[..n]);
+    }
+    Ok(format!("{:x}", hasher.finalize()))
+}
