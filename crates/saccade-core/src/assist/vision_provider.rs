@@ -15,7 +15,7 @@ pub fn mapped(
     response: Option<&[u8]>,
 ) -> Result<serde_json::Value> {
     let mut images = Vec::new();
-    for (role, png) in pngs {
+    for (index, (role, png)) in pngs.iter().enumerate() {
         let image = catalog
             .images
             .iter()
@@ -25,6 +25,11 @@ pub fn mapped(
                     "provider image absent from catalog".into(),
                 )
             })?;
+        if crate::evidence::canonical::Digest::of_bytes(png) != image.encoded_sha256 {
+            return Err(crate::wave7::models::VisionError::Integrity(
+                "provider PNG differs from assist catalog".into(),
+            ));
+        }
         let dims = image.dimensions;
         // Wave 4 capture presentation can be resized. Do not guess a transform.
         if image.transform.crop != [0, 0, dims[0], dims[1]] {
@@ -33,7 +38,7 @@ pub fn mapped(
             ));
         }
         images.push(ImageInput {
-            id: format!("{role:?}"),
+            id: format!("image-{index}"),
             bytes: png.clone(),
             media_type: "image/png".into(),
             original_size: dims,
@@ -61,6 +66,6 @@ pub fn mapped(
         .map(|bytes| adapter.decode(&request, bytes))
         .transpose()?;
     Ok(
-        serde_json::json!({"authority":"advisory, fixture-only; deterministic measurements unchanged","catalog_sha256":super::digest(catalog).map_err(|e|crate::wave7::models::VisionError::Invalid(e.to_string()))?,"request_sha256":request.hash()?,"request":adapter.request(&request)?,"observation":observation,"cost":"unknown; no live transport or spend","live_qualification":false}),
+        serde_json::json!({"schema":"saccade-assist-vision-provider.v1","authority":"advisory, fixture-only; deterministic measurements unchanged","catalog_sha256":super::digest(catalog).map_err(|e|crate::wave7::models::VisionError::Invalid(e.to_string()))?,"request_sha256":request.hash()?,"request":adapter.request(&request)?,"observation":observation,"cost":"unknown; no live transport or spend","live_qualification":false}),
     )
 }

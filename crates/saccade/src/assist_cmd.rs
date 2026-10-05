@@ -289,8 +289,40 @@ pub(crate) fn check(
         let policy = configured_roots(&args.common)?;
         return check(args, json_output, Some(&policy), auth);
     }
+    let mut advisory_locate = None;
+    if args.grounding.locate || args.grounding.locate_observations.is_some() {
+        let image = check_path(&args.image, roots)?;
+        if let Some(path) = &args.grounding.locate_observations {
+            check_path(path, roots)?;
+        }
+        if let Some(path) = &args.grounding.locate_registry {
+            check_path(path, roots)?;
+        }
+        // A server request cannot authorize loading host model/runtime files.
+        if roots.is_some() && args.grounding.locate_observations.is_none() {
+            return Err(CliError::usage(
+                "MCP/bound-root grounding requires explicit contained observation replay",
+            ));
+        }
+        advisory_locate = Some(crate::wave7_cmd::locate_for_check(
+            &image,
+            &args.condition,
+            &args.grounding,
+        )?);
+    }
     let input = check_input(&args, roots)?;
-    let result = execute(input, args.common, roots, auth)?;
+    let out = args.common.out.clone();
+    let mut result = execute(input, args.common, roots, auth)?;
+    if let Some(observation) = advisory_locate {
+        let path = if let Some(roots) = roots {
+            roots.write(&out)?
+        } else {
+            out
+        }
+        .join("advisory-locate.json");
+        assist::write(&path, &observation)?;
+        result.0["data"]["advisory_locate"] = local_cmd::reference(&path)?;
+    }
     if json_output {
         local_cmd::print(&result.0, true)?;
     }
@@ -313,23 +345,6 @@ pub(crate) fn check_input(
     // The visible condition is confined to the requested box; complete refers to it.
     catalog.images[0].capture_scope = args.r#box;
     add_source(&mut catalog, &args.common, roots)?;
-    if args.grounding.locate || args.grounding.locate_observations.is_some() {
-        let image = check_path(&args.image, roots)?;
-        if let Some(path) = &args.grounding.locate_observations {
-            check_path(path, roots)?;
-        }
-        if let Some(path) = &args.grounding.locate_registry {
-            check_path(path, roots)?;
-        }
-        // A server request cannot authorize loading host model/runtime files.
-        if roots.is_some() && args.grounding.locate_observations.is_none() {
-            return Err(CliError::usage(
-                "MCP/bound-root grounding requires explicit contained observation replay",
-            ));
-        }
-        catalog.measurements["advisory_locate"] =
-            crate::wave7_cmd::locate_for_check(&image, &args.condition, &args.grounding)?;
-    }
     let condition = match args.kind {
         VisibleKind::LabelVisible => Condition::LabelVisible {
             label: args.condition.clone(),
@@ -1033,10 +1048,6 @@ fn execute(
     std::fs::write(out.join("index.html"), workflow::html(&envelope)?)
         .map_err(|_| CliError::io("cannot write assist report"))?;
     let mut value = local_cmd::base_result("review.assist");
-    #[cfg(feature = "vision-providers")]
-    if let Some(mapping) = hosted_mapping {
-        value["vision_provider"] = mapping;
-    }
     value["execution"] = json!(if envelope.incomplete {
         "incomplete"
     } else {
@@ -1044,6 +1055,10 @@ fn execute(
     });
     value["artifact"] = local_cmd::reference(&out.join("saccade-assist.v1.json"))?;
     value["data"] = json!({"task":task,"outcome":envelope.outcome,"experimental":true,"deterministic_verdict":envelope.deterministic_verdict,"depends_on_model_observation":envelope.verification.depends_on_model_observation,"order_consistency":envelope.verification.order_consistency,"support":envelope.verification.support});
+    #[cfg(feature = "vision-providers")]
+    if hosted_mapping.is_some() {
+        value["data"]["vision_provider"] = local_cmd::reference(&out.join("vision-provider.json"))?;
+    }
     value["limits"] = json!(envelope.limitations);
     value["counts"] = json!({"observations":envelope.observations.len(),"provider_stages":envelope.provenance.len()});
     Ok((

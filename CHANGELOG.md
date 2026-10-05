@@ -125,3 +125,9 @@ Pre-release flags fail with an error that names the replacement.
 [0.1.2]: https://github.com/Tavrin/saccade/compare/v0.1.1...v0.1.2
 [0.1.1]: https://github.com/Tavrin/saccade/compare/v0.1.0...v0.1.1
 [0.1.0]: https://github.com/Tavrin/saccade/releases/tag/v0.1.0
+
+Round 2 integration adds Wave 7 vision commands and explicit face/crop/watermark
+observations in image reports, fixture-only hosted mappings and advisory check-ui
+localization. Shared model contracts retain legacy readers. Dynamic browser/sweep masks
+neutralize excluded pixels before filtering; core score-exclusion defaults remain.
+Model export/parity and generated OCR contract review are separate qualification gates.

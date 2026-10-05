@@ -1,0 +1,16 @@
+{
+  "review_status": "generated, pending coordinator review",
+  "image": "accent.png",
+  "image_sha256": "6f92aa69f105d0c3bcc664dd34ce79a0f340f6faa9eb86b9272089835f3a61b8",
+  "expected_text": [
+    "CAFÉ"
+  ],
+  "fixture_license": "MIT OR Apache-2.0; generated project glyph pixels",
+  "rust_ocr_status": "unavailable: no pinned accent-capable RTen exports; default ocrs alphabet is English ASCII; no relabeling or fabricated model pins",
+  "dependencies": {
+    "tesseract-ocr-fra_1%3a4.1.0-2_all.deb": "ff68830b29c4bc8e66964221fa00a6cbe0efad7003794a44ff697e59e645fce9",
+    "liblept5_1.82.0-3build4_amd64.deb": "c2bb81d58f032b09917c0d50994cce905287a1596304a4e99681a03601456ea8",
+    "libtesseract5_5.3.4-1build5_amd64.deb": "a38438115dc203b5abc1e6a6b24eb5273ba82161a11faa2f619bf5f7622efb14",
+    "tesseract-ocr_5.3.4-1build5_amd64.deb": "2dfac382d77215aee0c3de4a2a2205505d5f2195e72e79b54ad32154fc08da77"
+  }
+}
