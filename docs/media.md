@@ -30,3 +30,27 @@ saliency fallback data while its requested face detector failed.
 Description is off by default. Library `analyze_with_provider` accepts an explicitly
 bound caption request and existing observation provider, and marks its output as a draft.
 No provider authority is obtained from media bytes, OCR or model text.
+
+## Video keyframes
+
+`saccade keyframes video.mp4 --out frames --json` invokes the user's external ffmpeg
+and ffprobe; Saccade neither links nor distributes FFmpeg, whose build licence belongs
+to its distributor. Missing executables return `video_decode_unavailable`, including a
+pre-extracted directory alternative: `saccade keyframes input-frames --out selected
+--sample-fps 2 --json`. Directory filenames sort lexically; timestamps and duration are
+explicitly derived from the sampling grid, not guessed from names or source metadata.
+
+Video files are limited to 4 GiB / 600 seconds, sampled at <=300 frames and scaled to
+fit 640x640; subprocesses have a 120-second terminating deadline and bounded diagnostics.
+`--sample-fps` defaults to 1 and is lowered for long inputs to stay within the sample
+limit. Histogram SSE uses the existing deterministic penalized change-point recurrence;
+`--shot-penalty` defaults to 0.15 (content-dependent, uncalibrated). One midpoint per shot
+is retained, followed by hash candidate checks and histogram-verified deduplication.
+No more than 64 unique keyframes are accepted; excessive shots fail rather than disappear.
+Fast shots between samples or same-colour shots can be missed. Exported timestamps use the
+normalized sample grid. Original video dimensions remain in decoder provenance.
+
+`analyze-media video.mp4 --json` (or a frame directory) analyzes every unique keyframe through
+the same image record path. Top-level image-only sections point to the video section;
+keyframe records bind their encoded frame hash and timestamp. No temporary pathname is
+presented as a persistent artifact. Existing output directories/files are never overwritten.

@@ -118,10 +118,11 @@ impl Analyzer {
         json(
             py,
             py.allow_threads(|| {
-                let b = read(&self.inner, source)?;
-                Ok(serde_json::to_value(
-                    self.inner.analyze_bytes(&b, &options)?,
-                )?)
+                let record = match source {
+                    Input::Path(path) => self.inner.analyze_media(&path, &options)?,
+                    Input::Bytes(bytes) => self.inner.analyze_bytes(&bytes, &options)?,
+                };
+                Ok(serde_json::to_value(record)?)
             }),
         )
     }

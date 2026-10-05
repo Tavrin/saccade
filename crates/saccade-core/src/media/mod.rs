@@ -9,6 +9,8 @@ use std::{
     time::Instant,
 };
 pub mod saliency;
+/// External video and directory keyframe analysis.
+pub mod video;
 /// Versioned media record discriminator.
 pub const SCHEMA: &str = "saccade-media-record.v1";
 /// Stable media error, shared by CLI, HTTP and Python.
@@ -238,6 +240,12 @@ impl Analyzer {
     }
     /// Analyze a local file or a bounded HTTP(S) URL. This does not pull models.
     pub fn analyze_media(&self, source: &str, options: &Options) -> Result<Record> {
+        if !source.starts_with("http://")
+            && !source.starts_with("https://")
+            && video::is_video(Path::new(source))
+        {
+            return self.analyze_video(Path::new(source), options, &video::VideoOptions::default());
+        }
         let bytes = self.read(source)?;
         self.analyze_bytes(&bytes, options)
     }

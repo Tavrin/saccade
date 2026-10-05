@@ -50,3 +50,14 @@ inherited model accuracy/parity and Rust OCR qualification remain explicitly inc
   flat/transparent fixtures assert the explicit centre fallback.
 - Learned saliency skipped until an official permissive pin is supplied. Reversal cost:
   replace/extend a versioned algorithm ID; preserve focal/map/crop transport contracts.
+
+## 8.5 video
+- Reuse onset's deterministic penalized segmentation recurrence with RGB histogram SSE
+  costs (not timing MAD/qualification). Reject invalid/empty/oversized inputs and excessive
+  unique shots. Dedup uses hashes only as candidates, then histogram verification, so
+  differently coloured flat frames are not collapsed by equal perceptual hashes.
+- External ffmpeg + ffprobe only; no new native/GPL dependency, executable redistribution
+  or linkage. Missing decoder is typed; supplied frame directories work offline.
+- Decode <=600 sec / <=300 frames / <=640x640 with 120 sec subprocess deadlines; normalize
+  timestamps to the explicit fps grid. Reject raising timeouts. Reversal cost: version a
+  different sampling/shot algorithm; retain keyframe/record schemas and frame manifests.

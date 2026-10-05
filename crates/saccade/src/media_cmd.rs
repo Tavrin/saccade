@@ -35,6 +35,9 @@ pub(crate) fn error(e: media::MediaError) -> CliError {
             "embedding_unavailable" => "embedding_unavailable",
             "text_embedding_unavailable" => "text_embedding_unavailable",
             "video_decode_unavailable" => "video_decode_unavailable",
+            "video_decode_failed" => "video_decode_failed",
+            "invalid_video_input" => "invalid_video_input",
+            "index_mismatch" => "index_mismatch",
             "media_fetch_unavailable" => "media_fetch_unavailable",
             "media_fetch_failed" => "media_fetch_failed",
             "invalid_json" => "invalid_json",
@@ -138,4 +141,32 @@ pub(crate) fn mcp(
 #[cfg(feature = "mcp")]
 pub(crate) fn mcp_schema() -> serde_json::Value {
     serde_json::json!({"type":"object","properties":{"operation":{"const":"analyze_media"},"image":{"type":"string"},"options":{"type":"object"}},"required":["operation","image"],"additionalProperties":false})
+}
+
+#[derive(clap::Args)]
+pub(crate) struct KeyframesArgs {
+    source: PathBuf,
+    #[arg(long)]
+    out: PathBuf,
+    #[arg(long, default_value_t = 1.)]
+    sample_fps: f64,
+    #[arg(long, default_value_t = 0.15)]
+    shot_penalty: f64,
+    #[arg(long)]
+    json: bool,
+}
+pub(crate) fn keyframes(a: KeyframesArgs) -> Result<u8, CliError> {
+    emit(
+        &media::video::keyframes(
+            &a.source,
+            &a.out,
+            &media::video::VideoOptions {
+                sample_fps: a.sample_fps,
+                shot_penalty: a.shot_penalty,
+                ..Default::default()
+            },
+        )
+        .map_err(error)?,
+        a.json,
+    )
 }
