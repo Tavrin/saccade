@@ -1,0 +1,29 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "saccade-imgtune-audit.v1",
+  "title": "saccade-imgtune-audit.v1",
+  "type": "object",
+  "properties": {
+    "schema": {
+      "const": "saccade-imgtune-audit.v1"
+    },
+    "verdict": {
+      "enum": [
+        "complete",
+        "incomplete"
+      ]
+    },
+    "items": {
+      "type": "array",
+      "items": {
+        "type": "object"
+      }
+    }
+  },
+  "required": [
+    "schema",
+    "verdict",
+    "items"
+  ],
+  "additionalProperties": false
+}

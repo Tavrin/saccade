@@ -86,3 +86,8 @@ matter during application initialization.
 Use `saccade sweep plan` then the [driver contract](../docs/sweep.md), then
 `saccade sweep compare --json` for sampled page sets. Every planned page must
 have a receipt; capture failures are regressions and must not be dropped.
+
+<!-- // wave5 -->
+Use [`imgtune audit|search`](../docs/imgtune.md) to measure negotiated delivery and
+select the smallest candidate in a declared perceptual-score grid. Incomplete
+searches have no selection; originals are retained. Numerical selection is advisory.
