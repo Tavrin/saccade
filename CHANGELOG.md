@@ -7,6 +7,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+- Add versioned media records with per-section status/provenance, reusable optional
+  CPU sessions, deterministic saliency and declared crop fitness.
+- Add the abi3 Python package, exact image/text index APIs, external ffmpeg
+  keyframe sampling and saved-fingerprint usage matching.
+- Add a bounded local HTTP API and unprivileged container recipe; configured
+  compatible/Azure provider mappings are verified with fixtures only.
+- Add pinned official SigLIP 2 checkpoint/tokenizer provenance and a reproducible
+  CPU export script; text retrieval requires that joint model and remains uncalibrated.
+
 - Add experimental `review explain`, `review audit-mask`, `review check-ui` and
   `review assist batch submit|status|collect`; optional Jev routing remains unqualified.
 - Add the local Playwright matcher, `sweep plan|compare`, `imgtune audit|search`,

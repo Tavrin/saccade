@@ -134,6 +134,9 @@ fn exif(bytes: &[u8], gps: bool, main: &image::RgbaImage) -> Option<Value> {
         }
     }
     let keys = [
+        (0x013b, "creator"),
+        (0x8298, "copyright"),
+        (0x010e, "caption"),
         (0x010f, "camera_make"),
         (0x0110, "camera_model"),
         (0x0131, "software"),

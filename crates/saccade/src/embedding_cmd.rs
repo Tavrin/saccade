@@ -69,7 +69,11 @@ enum Operation {
     /// Search an existing index; model/preprocessing must exactly match the index.
     Query {
         index: PathBuf,
-        image: PathBuf,
+        #[arg(required_unless_present = "text", conflicts_with = "text")]
+        image: Option<PathBuf>,
+        /// Text query requires a pinned SigLIP 2 joint text/image model.
+        #[arg(long)]
+        text: Option<String>,
         #[command(flatten)]
         runtime: RuntimeArgs,
         #[arg(long, default_value_t = 10)]
@@ -129,12 +133,18 @@ pub(crate) fn index(args: IndexArgs) -> Result<u8, CliError> {
             Operation::Query {
                 index,
                 image,
+                text,
                 runtime,
                 top,
                 out,
                 json,
             } => {
-                let value = enabled::query(&index, &image, &runtime, top, &out)?;
+                let value = if let Some(text) = text {
+                    enabled::query_text(&index, &text, &runtime, top, &out)?
+                } else {
+                    let image = image.ok_or_else(|| CliError::usage("image or --text required"))?;
+                    enabled::query(&index, &image, &runtime, top, &out)?
+                };
                 general_cmd::emit_document(value, Some(&out), json)
             }
         }
@@ -303,6 +313,51 @@ mod enabled {
         writer.flush().map_err(|e| CliError::io(e.to_string()))?;
         Ok(
             json!({"schema":e::INDEX_SCHEMA,"operation":"index_build","verdict":if errors.is_empty()&&!rows.is_empty(){"pass"}else{"regression"},"counts":{"images":rows.len(),"errors":errors.len()},"model_contract_sha256":model_id,"model":engine.model(),"vector_file":"vectors.bin","vector_encoding":"f32-little-endian-row-major-l2-normalized","vectors_sha256":input::sha256(&out.join("vectors.bin"),MAX_VECTOR_BYTES)?,"dimensions":engine.model().dimensions,"rows":rows,"errors":errors,"limitations":["exact flat cosine search, <=100000 rows and <=512 MiB vectors","index build pass means successful execution, not semantic qualification","failed images remain listed; they are unavailable to query","canonical model export and calibration are not bundled or qualified"]}),
+        )
+    }
+    pub(super) fn query_text(
+        index: &Path,
+        text: &str,
+        runtime: &RuntimeArgs,
+        top: usize,
+        out: &Path,
+    ) -> Result<Value, CliError> {
+        let model = e::parse_model(&input::bytes(&runtime.model, 2 * 1024 * 1024)?)?;
+        if model.text.is_none() {
+            return Err(CliError::new(
+                "text_embedding_unavailable",
+                "image-only model cannot answer text queries",
+            ));
+        }
+        let index_value = saccade_core::media::search::Index::load(index)
+            .map_err(|err| CliError::new("index_mismatch", err.message))?;
+        let (mut engine, model_id) = engine(runtime)?;
+        let metadata_bytes = input::bytes(
+            &index.join(format!("{}.json", e::INDEX_SCHEMA)),
+            128 * 1024 * 1024,
+        )?;
+        let metadata: Value = serde_json::from_slice(&metadata_bytes)?;
+        if metadata["model_contract_sha256"] != model_id {
+            return Err(CliError::new(
+                "index_mismatch",
+                "text model differs from index",
+            ));
+        }
+        general_cmd::prepare_out(
+            out,
+            &[index, &runtime.model, &runtime.cache, &runtime.library],
+        )?;
+        let hit = index_value
+            .query_vector(&engine.embed_text(text)?, top, "text")
+            .map_err(|err| CliError::new("index_mismatch", err.message))?;
+        let results: Vec<Value> = hit["hits"]
+            .as_array()
+            .ok_or_else(|| CliError::usage("missing hits"))?
+            .iter()
+            .map(|h| json!({"row":h["row_index"],"source":h["row"],"cosine":h["cosine"],"band":null}))
+            .collect();
+        Ok(
+            json!({"schema":e::QUERY_SCHEMA,"operation":"index_query","verdict":"unknown", "counts":{"indexed":metadata["rows"].as_array().map_or(0,Vec::len),"returned":results.len(),"index_errors":metadata["errors"].as_array().map_or(0,Vec::len)},"query_sha256":saccade_core::localized::digest(text.as_bytes()),"index_metadata_sha256":saccade_core::localized::digest(&metadata_bytes),"model_contract_sha256":model_id,"results":results,"limitations":["text retrieval is conditional on the pinned joint export and tokenizer","cosine bands are uncalibrated; no semantic accuracy or acceptance verdict","indexed file names are provenance; current image bytes are not revalidated"]}),
         )
     }
     pub(super) fn query(

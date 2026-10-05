@@ -322,3 +322,30 @@ named decoder findings and `--watermark-payload HEX` selects a known-message leg
 check. Complete TrustMark decoding remains unavailable. The separately named face/crop/
 watermark documents appear in `vision_checks`, with their own input identity/provenance.
 The shared registry also holds wave 6 embedding and OCR contract pins. No implicit pull.
+
+<!-- wave8 -->
+Configured fixture mappings extend GPT observations with `provider-map --provider gpt
+--endpoint-profile openai-compatible|azure-openai`. User configuration is read from
+`~/.config/saccade/openai-compatible.env` or `azure-openai.env`:
+
+```dotenv
+OPENAI_BASE_URL=https://api.example.org/v1
+OPENAI_MODEL=configured-model
+OPENAI_API_STYLE=responses
+# OPENAI_API_KEY belongs only in this user-owned file; never in a request or receipt.
+```
+
+`OPENAI_API_STYLE=chat-completions` uses the Chat Completions mapping. Azure uses the
+classic deployment path and these fields (plus `OPENAI_MODEL`):
+
+```dotenv
+AZURE_OPENAI_ENDPOINT=https://resource.example.org
+AZURE_OPENAI_DEPLOYMENT=deployment-one
+AZURE_OPENAI_API_VERSION=2025-04-01-preview
+# AZURE_OPENAI_API_KEY supplies the api-key header, not Bearer authentication.
+```
+
+Azure classic deployment mapping uses Chat Completions; no unsupported Responses URL
+is guessed. Optional keys are handed only to a separately authorized transport; mapping
+JSON contains the header name and never its value. URL userinfo/query/fragment credentials
+are refused with redacted errors. These adapters have fixture proof only, no live calls.

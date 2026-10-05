@@ -103,6 +103,8 @@ pub const COMPILED_FEATURES: &[&str] = &[
     "local-vlm",
     #[cfg(feature = "vision-providers")]
     "vision-providers",
+    #[cfg(feature = "media-http")]
+    "media-http",
     #[cfg(feature = "parallel")]
     "parallel",
     #[cfg(feature = "graphics")]
@@ -157,3 +159,7 @@ pub mod wave7;
 
 // wave9
 pub mod evidence_quality;
+
+// wave8
+/// Versioned media analysis, saliency, usage and search primitives.
+pub mod media;

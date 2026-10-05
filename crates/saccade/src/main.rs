@@ -15,6 +15,8 @@ use saccade_core::view::{ViewOptions, build_view, is_safe_name};
 // wave7
 mod vision_checks;
 mod wave7_cmd;
+// wave8
+mod media_cmd;
 #[cfg(feature = "mcp")]
 mod wave7_mcp;
 // wave9
@@ -256,6 +258,13 @@ enum Command {
     Hash(hash_cmd::HashArgs),
     /// Cluster near-duplicates with bounded Hamming search; never delete images.
     Dedupe(hash_cmd::DedupeArgs),
+    // wave8
+    /// Analyze an image into a versioned media record (no model downloads by default).
+    AnalyzeMedia(media_cmd::AnalyzeArgs),
+    /// Extract shot representatives with timestamps, without linking a video decoder.
+    Keyframes(media_cmd::KeyframesArgs),
+    /// Match an image or media record against generic target images.
+    FindUsage(media_cmd::UsageArgs),
     // wave7
     /// List or explicitly pull pinned local models.
     Models(wave7_cmd::ModelsArgs),
@@ -619,9 +628,24 @@ Examples:
   saccade serve captures/ reports/ --port 0    Several roots; pick a free port"
     )]
     Serve {
+        // wave8
+        /// Serve the local versioned media API instead of the archive viewer.
+        #[arg(long)]
+        api: bool,
+        #[arg(long,default_value_t=16*1024*1024)]
+        api_max_bytes: usize,
+        #[arg(long, default_value = "127.0.0.1")]
+        api_bind: std::net::IpAddr,
+        /// Optional bearer-token env file; default ~/.config/saccade/api.env if present.
+        #[arg(long)]
+        api_token_file: Option<PathBuf>,
+        #[arg(long)]
+        api_model_dir: Option<PathBuf>,
+        #[arg(long)]
+        api_registry: Option<PathBuf>,
         /// Archive roots to browse (read-only). With several, each is a
         /// top-level entry named after its directory.
-        #[arg(num_args = 1..)]
+        #[arg(num_args = 0..)]
         roots: Vec<PathBuf>,
         /// Additional read-only archive roots (repeatable).
         #[arg(long = "root")]
@@ -1096,6 +1120,10 @@ fn dispatch(command: Command, record_absolute_paths: bool) -> Result<u8, CliErro
         Command::Index(args) => embedding_cmd::index(args),
         Command::Hash(args) => hash_cmd::run_hash(args),
         Command::Dedupe(args) => hash_cmd::run_dedupe(args),
+        // wave8
+        Command::AnalyzeMedia(args) => media_cmd::analyze(args),
+        Command::Keyframes(args) => media_cmd::keyframes(args),
+        Command::FindUsage(args) => media_cmd::usage(args),
         // wave7
         Command::Models(args) => wave7_cmd::models(args),
         Command::Locate(args) => wave7_cmd::locate(args),
@@ -1654,6 +1682,12 @@ fn dispatch(command: Command, record_absolute_paths: bool) -> Result<u8, CliErro
         }
         #[cfg(feature = "workbench")]
         Command::Serve {
+            api,
+            api_max_bytes,
+            api_bind,
+            api_token_file,
+            api_model_dir,
+            api_registry,
             mut roots,
             registered_roots,
             out_root,
@@ -1671,6 +1705,18 @@ fn dispatch(command: Command, record_absolute_paths: bool) -> Result<u8, CliErro
             perf,
         } => {
             roots.extend(registered_roots);
+            // wave8
+            if api {
+                return media_cmd::serve_api(
+                    roots,
+                    port,
+                    api_max_bytes,
+                    api_bind,
+                    api_token_file,
+                    api_model_dir.unwrap_or_else(saccade_core::media::default_model_dir),
+                    api_registry,
+                );
+            }
             if roots.is_empty() {
                 return Err(CliError::usage("serve requires ROOT or --root DIR"));
             }
@@ -1918,6 +1964,8 @@ fn doctor(json: bool) -> Result<u8, CliError> {
     if cfg!(feature = "vision-providers") {
         capabilities.push("vision-provider-mapping-v1");
     }
+    // wave8
+    capabilities.push("media-record-v1");
     capabilities.sort_unstable();
     let git_commit = option_env!("SACCADE_GIT_COMMIT").filter(|value| !value.is_empty());
     let git_commit_short =

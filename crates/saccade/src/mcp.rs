@@ -1107,6 +1107,22 @@ impl Server {
                 }),
             );
         }
+        // wave8: rooted image records, no download/provider authority from arguments.
+        if name == "saccade_measure"
+            && args.get("operation").and_then(Value::as_str) == Some("analyze_media")
+        {
+            return Some(
+                crate::media_cmd::mcp(&self.policy, &Value::Object(args.clone())).map(
+                    |structured| ToolOutput {
+                        structured,
+                        text:
+                            "Versioned media record; skipped and failed sections remain explicit."
+                                .into(),
+                        images: vec![],
+                    },
+                ),
+            );
+        }
         // wave7
         if args
             .get("operation")
@@ -2305,6 +2321,8 @@ fn tool_schemas() -> Value {
     measures.extend(crate::wave7_mcp::measure_schemas());
     // wave9
     measures.extend(crate::wave9_mcp::schemas());
+    // wave8
+    measures.push(crate::media_cmd::mcp_schema());
     let common = json!({"artifact":{"oneOf":[{"type":"string"},{"type":"object","properties":{"path":{"type":"string"},"sha256":{"type":"string","pattern":"^sha256:[0-9a-f]{64}$"}},"required":["path","sha256"],"additionalProperties":false}]},"out":{"type":"string"},"entry":{"type":"string"},"include_images":{"type":"boolean","default":false},"expected_case_id":{"type":"string","pattern":"^sha256:[0-9a-f]{64}$"}});
     let make = |name: &str, description: &str, operations: Vec<(&str, Vec<&str>, Value)>| {
         let variants=operations.into_iter().map(|(op,required,extra)|{

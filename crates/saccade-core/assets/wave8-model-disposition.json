@@ -1,0 +1,30 @@
+{
+  "schema": "saccade-wave8-model-disposition.v1",
+  "text_image": {
+    "requested": "SigLIP 2 base class official checkpoint or official ONNX export",
+    "status": "pinned-local-export",
+    "reason": "Official Apache-2.0 checkpoint/tokenizer pins verified; separate local CPU exports pass the fixed normalized checkpoint parity gate. Installed Rust/Python/CLI retrieval remains gated; bands uncalibrated.",
+    "evidence": [
+      "scripts/models/export-siglip2.py",
+      "WAVE8-NOTES.md"
+    ],
+    "required_to_enable": [
+      "install hash-verified exported image/text graphs and tokenizer",
+      "supply generated model contract or registry",
+      "pass installed joint-model gates"
+    ],
+    "calibration": "uncalibrated",
+    "revision": "75de2d55ec2d0b4efc50b3e9ad70dba96a7b2fa2",
+    "repository": "google/siglip2-base-patch16-224",
+    "weights_license": "Apache-2.0",
+    "license_evidence_url": "https://huggingface.co/google/siglip2-base-patch16-224/blob/75de2d55ec2d0b4efc50b3e9ad70dba96a7b2fa2/README.md",
+    "checkpoint_sha256": "612923381c76ec5a9bed335d1c48827e3f2e506ac31b044b63b2031fadee6a0b",
+    "tokenizer_sha256": "cb9140fae3ac5122c972d37adf83e1248471a38147ad76f8215c8872c6fd8322",
+    "image_export_sha256": "50319b38e8350a79e720ca3e11aee99020538bbd5c5d429a30a7f53f9a9134db",
+    "text_export_sha256": "331a15b3bf3c4bad090ff2a8d6dccaaf07b98a0406eafd102febb929c2e184f3"
+  },
+  "learned_saliency": {
+    "status": "skipped",
+    "reason": "No licence-verified pinned learned artifact supplied; deterministic colour-surround saliency ships without external weights."
+  }
+}

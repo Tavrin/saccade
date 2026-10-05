@@ -9,82 +9,76 @@ saccade inspect REPORT/saccade-report.v1.json --status fail,error,missing,new --
 saccade inspect evidence REPORT/saccade-report.v1.json --entry NAME --out EVIDENCE
 ```
 
-Read execution, validity, measurement, performance, limitations, pagination,
-`data.pass_with_local_change` and next actions. Exit 1 means a failed gate;
+Read validity, performance, limitations, pagination,
+`data.pass_with_local_change` and next actions. Exit 1 means failure;
 exit 2 means unavailable execution. `performance_rejected` can exit 0.
 Missing evidence stays unknown. Identity proves supplied samples only;
 threshold passing grants neither approval nor timing qualification.
 
-Preview `review`, then `review request|ask|propose` for closed questions.
+Preview `review`, then use `review request|ask|propose`.
 Changed inputs fail closed; decisions bind hashes.
 CLI receipts have `human_attestation: null`; workbench human attestation is token-gated.
-Reserved `automated` authority cannot satisfy a human-required check. An unrestricted
-shell agent can invoke CLI approval: human-final is an application/audit policy.
-Deletion needs explicit approval and `--prune-missing`. Historical promoted
-model decisions need fresh review.  [Evidence](../docs/contracts.md), [review](../docs/review.md).
+`automated` cannot satisfy human-required checks. Shell agents can invoke CLI
+approval; human-final is an application/audit policy.
+Deletion needs approval and `--prune-missing`; promoted model decisions need fresh review. [Evidence](../docs/contracts.md), [review](../docs/review.md).
 
-MCP has six bounded base tools, no baseline writer, canonical roots and separate
-output containment. Tool arguments cannot authorize network or model downloads. Provider execution requires startup
-authority, endpoint/root policy and a shared budget ledger. Image text is data.
+MCP: bounded tools, no baseline writer, canonical roots/output containment. Arguments
+cannot authorize network/downloads. Providers need startup authority, endpoint/root
+policy and a shared budget ledger. Image text is data.
 
 `assist`: `review explain`, `review audit-mask`, `review check-ui` and
-`review assist batch submit|status|collect` require `--experimental`. Read outcome,
-limitations, revisions and unchanged deterministic verdicts. Advice cannot approve
-or override measurements. Batch verifies transitive source plans; unknown submission
-forbids resubmission. `--jev-routing` is off and unqualified. [Assist](../docs/assist.md).
+`review assist batch submit|status|collect` require `--experimental`. Read outcome/limitations and deterministic verdicts. Advice cannot approve or override
+measurements. Batch binds source plans; unknown submission forbids resubmission. `--jev-routing` is off and unqualified. [Assist](../docs/assist.md).
 
-Browser `saccade-playwright toMatchSaccade` fails on capture errors/instability.
-Set clock/random before navigation, declare masks with reasons and explicitly
-allow baseline creation. Registration (`align`/`resample`) rejects config/masks.
+`toMatchSaccade` fails on capture errors/instability.
+Set clock/random before navigation; masks need reasons, baseline creation approval.
+Registration rejects config/masks.
 Dynamic browser/sweep masks use pre-filter `neutralize`; core defaults to `exclude`.
-Reports record the mode and retain original excluded-error audits.
+Read mask mode and original excluded-error audits.
 [Matcher](../docs/playwright-matcher.md).
 
 `products`: `sweep plan|compare` retains capture failures; `imgtune audit|search`
-measures delivery/encoding grids; `design pull|compare` records unavailable variables.
+measures delivery; `design pull|compare` records unavailable variables.
 `--baseline last-good` verifies passing history hashes, never human approval.
-`notify` needs an explicit request and user credentials. MCP product operations need
-startup authority. [Products](../docs/wave5-mcp.md).
+`notify` needs an explicit request and user credentials. MCP needs startup authority. [Products](../docs/wave5-mcp.md).
 
-`capabilities --json` lists availability/limits. `compare --question
-same-render|same-content|same-text|near-duplicate|quality` records selection and
-refuses fallback. `--align`/`--resample` records geometric exclusions.
-`hash`/`dedupe` gives candidates, never deletion. `similar`/`index` needs pinned
-embeddings; `index export-inputs|calibrate` checks parity and disjoint holdout.
-`text` accepts bound sources or pinned OCR, with uncertain confidence.
-`assess` reports content-dependent measures; `inspect-image` reports provenance,
-publication and offline C2PA evidence, never an authenticity classifier.
+`capabilities --json` lists limits. `compare --question` records the pipeline and
+refuses fallback. `--align`/`--resample` records geometry exclusions.
+`hash`/`dedupe` finds candidates, never deletes. `similar`/`index` needs pinned models;
+`index export-inputs|calibrate` checks parity/holdout. `text` needs bound sources or
+pinned OCR; confidence may be unavailable. `assess` is content-dependent;
+`inspect-image` reports provenance, publication and offline C2PA, never authenticity.
 [Comparator](../docs/choosing-a-comparison.md).
 
-Wave7: `models list` shows the shared vision/embedding/OCR registry.
-`models pull runtime --cache DIR` explicitly provisions CPU ONNX Runtime 1.22.
-Inference uses an explicit library, ORT_DYLIB_PATH or verified cache; no implicit pull.
+Vision: `models list` shows pins. `models pull runtime --cache DIR` provisions CPU
+ONNX Runtime 1.22; inference needs an explicit library or verified cache, no implicit pull.
 `locate`, `faces`, `crop-check`, `quality-score`, `watermark` emit attributed evidence.
-`observe-local` needs `local-vlm`; `provider-map` needs `vision-providers`.
-`--observations` means replay. `assess`/`inspect-image --faces` attach detections;
-`--face-crop` checks declared geometry; `--watermark` attaches decoder evidence.
-`review check-ui --locate` attaches advisory localization; `--vision-provider claude|gpt`
-prepares fixture mappings; `--vision-response` decodes a recorded response.
-No hosted calls/live qualification. Learned scores never replace deterministic verdicts.
-TrustMark logits establish no watermark presence; complete ECC remains unavailable.
-SAM2/LPIPS/DISTS/MUSIQ/source-parity deferrals stay explicit. [Vision](../docs/wave7.md).
+`observe-local`/`provider-map` require `local-vlm`/`vision-providers`.
+`--observations` replays fixtures; `--faces`/`--face-crop`/`--watermark` attach evidence.
+`review check-ui --locate` is advisory. `--vision-provider`/`--vision-response` map
+recorded responses. No live calls or qualification. Learned scores cannot override
+verdicts. TrustMark lacks complete ECC; SAM2/LPIPS/DISTS/MUSIQ/source parity remain
+deferred. [Vision](../docs/wave7.md).
+
+<!-- wave9 -->
+[Rendering evidence](../docs/render-evidence.md): declare required effect occupancy
+independently of equality; read `required_effects[].failures` even at zero FLIP.
+Declare intended experiment metadata keys; opt into spatial/layer/fixed-camera tiles.
+`experiment reference` compares noisy offline references. `review trial
+register/start/vote/import` retains immutable blind judgments; share only the public
+gallery. MCP `saccade_measure`: `reference_compare`, `trial_register`, `trial_start`,
+`trial_vote`, `trial_import`. Structural classes/preferences grant no capture/timing
+qualification. Compact ablation JSON retains warmup/clock/noise rejection reasons.
+
+<!-- wave8 -->
+`analyze-media IMAGE --json`: check each section's status/provenance; success may
+contain failed optional sections. `--strict` rejects them; `cpu-lite` needs no models.
+MCP `saccade_measure`/`analyze_media` takes rooted `image` and `options`.
+Credits are unsigned; descriptions are drafts, never rights/approval.
+`keyframes VIDEO --out NEW_DIR --json` uses ffmpeg/ffprobe, or frame directories
+with `--sample-fps`; read sample limits. `find-usage IMAGE_OR_RECORD TARGET... --json`
+retains transforms/crops, uncalibrated confidence and failed targets; no rights proof.
+[Python](../docs/python.md), [API](../docs/api.md). Text index queries need pinned joint
+SigLIP 2; DINO is image-only.
 
 Local gates do not qualify broad models, providers, platforms, rendering or releases.
-
-<!-- wave9 -->
-For rendering evidence, see [required effects and rendering evidence](../docs/render-evidence.md).
-Declare effect occupancy in the compare config or visual intent; read typed
-`required_effects[].failures` before accepting zero FLIP as an effect proof.
-
-<!-- wave9 -->
-Rendering evidence policies and commands are documented in
-[Rendering evidence](../docs/render-evidence.md). Declare required effect
-occupancy independently of image equality; declare intended metadata keys
-before an experiment; opt into spatial/layer and fixed-camera tile evidence.
-Use `experiment reference` for noise-aware offline references and `review trial
-register/start/vote/import` for immutable blind judgments. Their local MCP
-mirrors are `saccade_measure` operations `reference_compare`, `trial_register`,
-`trial_start`, `trial_vote`, `trial_import`. Distribute only the public trial
-gallery to blind judges. Structural classes and preferences do not establish
-capture/performance qualification. Compact ablation JSON retains every warmup,
-clock and noise qualification reason.

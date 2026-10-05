@@ -136,8 +136,15 @@ pub struct ProviderAdapter {
 impl ProviderAdapter {
     /// Request/response mapping only. Does not read a key or call a provider.
     pub fn request(&self, r: &ObservationRequest) -> Result<Value> {
+        self.request_checked(r, true)
+    }
+    pub(crate) fn request_checked(
+        &self,
+        r: &ObservationRequest,
+        check_model: bool,
+    ) -> Result<Value> {
         r.validate()?;
-        if r.model != self.provider.model() {
+        if check_model && r.model != self.provider.model() {
             return Err(VisionError::Invalid(
                 "requested provider model mismatch".into(),
             ));
@@ -168,7 +175,15 @@ impl ProviderAdapter {
     }
     /// Decode only a recorded response; identity/refusal/truncation/geometry fail closed.
     pub fn decode(&self, r: &ObservationRequest, bytes: &[u8]) -> Result<ObservationReport> {
-        self.request(r)?;
+        self.decode_checked(r, bytes, true)
+    }
+    pub(crate) fn decode_checked(
+        &self,
+        r: &ObservationRequest,
+        bytes: &[u8],
+        check_model: bool,
+    ) -> Result<ObservationReport> {
+        self.request_checked(r, check_model)?;
         if bytes.len() > 1024 * 1024 {
             return Err(VisionError::Invalid("provider response bound".into()));
         }
