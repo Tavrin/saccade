@@ -130,3 +130,6 @@ pub fn judge_bench_sources(case: &evidence::case::EvidenceCase) -> Vec<String> {
         .into_iter()
         .collect()
 }
+
+// wave6
+pub mod general;

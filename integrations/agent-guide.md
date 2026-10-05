@@ -74,3 +74,11 @@ Workbench receipts have token-gated human attestation. CLI receipts have
 human-required check and has no current writer. Human-final is an application
 policy and audit boundary; an unrestricted shell agent can invoke CLI approval.
 MCP exposes six bounded tools and no baseline-write operation.
+
+<!-- wave6 -->
+For rotation, scaling or perspective changes, use `compare A B --align
+similarity|affine|homography|auto --resample reference|common --out REPORT --json`.
+Read `saccade-registration.v1.json`, model residual and geometry inclusion mask.
+It measures only geometric overlap and cannot establish native identity.
+MCP `saccade_general` / `registered_compare` mirrors this route; see
+[registration](../docs/registration.md).

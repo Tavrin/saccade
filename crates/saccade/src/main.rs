@@ -12,6 +12,9 @@ use saccade_core::config::RunConfig;
 use saccade_core::report::{Labels, Metric, Mode, Report, Status};
 use saccade_core::view::{ViewOptions, build_view, is_safe_name};
 
+// wave6
+mod general_cmd;
+
 mod agent;
 mod agent_ui;
 mod approval;
@@ -257,6 +260,9 @@ Examples:
 Exit codes: 0 no regression, 1 regression found, 2 the command could not run."
     )]
     Compare {
+        // wave6
+        #[command(flatten)]
+        general: general_cmd::CompareArgs,
         /// Directory of approved baseline images.
         baseline_dir: PathBuf,
         /// Directory of fresh captures.
@@ -1194,6 +1200,8 @@ fn dispatch(command: Command, record_absolute_paths: bool) -> Result<u8, CliErro
             )
         }
         Command::Compare {
+            // wave6
+            general,
             baseline_dir,
             capture_dir,
             out,
@@ -1213,6 +1221,31 @@ fn dispatch(command: Command, record_absolute_paths: bool) -> Result<u8, CliErro
             perf,
             intent,
         } => {
+            // wave6: explicit registration has its own evidence contract.
+            if general.align.is_some() {
+                if config.is_some()
+                    || !entries.is_empty()
+                    || junit.is_some()
+                    || ppd.is_some()
+                    || labels.is_some()
+                    || fail_on_new
+                    || allow_empty
+                    || !general_cmd::plain_options(&intent, &meta, &require, &perf, &hdr)
+                {
+                    return Err(CliError::usage(
+                        "explicit registration supports threshold/metric/resample only; other evidence options require the existing unregistered pipeline",
+                    ));
+                }
+                return general_cmd::compare(
+                    &baseline_dir,
+                    &capture_dir,
+                    &out,
+                    &general,
+                    threshold.unwrap_or(0.02),
+                    metric.unwrap_or(MetricArg::Mean),
+                    json,
+                );
+            }
             let mut cfg = load_config(config.as_deref())?;
             cfg.record_absolute_paths = record_absolute_paths;
             perf.apply(&mut cfg.perf)?;

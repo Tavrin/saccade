@@ -1041,7 +1041,9 @@ impl Server {
     fn call_tool(&self, name: &str, args: &Map<String, Value>) -> Option<ToolResult> {
         if !matches!(
             name,
-            "saccade_measure"
+            // wave6
+            "saccade_general"
+                | "saccade_measure"
                 | "saccade_inspect"
                 | "saccade_evidence"
                 | "saccade_propose"
@@ -1148,7 +1150,69 @@ impl Server {
             images: vec![],
         })
     }
+    // wave6
+    fn wave6_tool(&self, args: &Map<String, Value>) -> ToolResult {
+        use clap::ValueEnum;
+        reject_unknown(
+            args,
+            &[
+                "operation",
+                "reference",
+                "capture",
+                "out",
+                "align",
+                "resample",
+                "threshold",
+                "metric",
+            ],
+        )?;
+        if require_str(args, "operation")? != "registered_compare" {
+            return Err(CliError::usage("unknown general operation"));
+        }
+        let resolve_input = |key: &str| -> Result<PathBuf, CliError> {
+            let path = self.resolve(key, &require_str(args, key)?)?;
+            if path.is_dir() {
+                self.input_tree(&path)?;
+            } else if !path.is_file() {
+                return Err(CliError::io("input must be file or directory"));
+            }
+            Ok(path)
+        };
+        let reference = resolve_input("reference")?;
+        let capture = resolve_input("capture")?;
+        let out = self.checked_out_dir(&require_str(args, "out")?, &[&reference, &capture])?;
+        let align = crate::general_cmd::Align::from_str(&require_str(args, "align")?, false)
+            .map_err(CliError::usage)?;
+        let resample = arg_str(args, "resample")?
+            .map(|v| crate::general_cmd::Resample::from_str(&v, false).map_err(CliError::usage))
+            .transpose()?;
+        let metric = match arg_str(args, "metric")?.as_deref().unwrap_or("mean") {
+            "mean" => crate::MetricArg::Mean,
+            "p95" => crate::MetricArg::P95,
+            "p99" => crate::MetricArg::P99,
+            "max" => crate::MetricArg::Max,
+            _ => return Err(CliError::usage("invalid metric")),
+        };
+        let value = crate::general_cmd::compare_document(
+            &reference,
+            &capture,
+            &out,
+            &crate::general_cmd::CompareArgs {
+                align: Some(align),
+                resample,
+            },
+            arg_f64(args, "threshold")?.unwrap_or(0.02),
+            metric,
+        )?;
+        let file = crate::general_cmd::persist_document(&value, &out)?;
+        Ok(ToolOutput{structured:json!({"schema":saccade_core::general::RESULT_SCHEMA,"mode":"registered_compare","verdict":value["verdict"],"data":{"schema":value["schema"],"counts":value["counts"]},"artifacts":[{"path":saccade_core::paths::record(&file,&self.root,false)}],"next_actions":[]}),text:"Registered comparison over explicit geometric overlap; inspect model, residual and exclusion mask.".into(),images:Vec::new()})
+    }
+
     fn local_tool(&self, name: &str, args: &Map<String, Value>) -> ToolResult {
+        // wave6
+        if name == "saccade_general" {
+            return self.wave6_tool(args);
+        }
         let operation = require_str(args, "operation")?;
         if let Some(case) = arg_str(args, "expected_case_id")? {
             let artifact = self.existing_file("artifact", &require_str(args, "artifact")?)?;
@@ -1818,6 +1882,10 @@ fn tool_schemas() -> Value {
         );
         tool["annotations"]["openWorldHint"] = json!(true);
         list.push(tool);
+    }
+    // wave6
+    if let Some(list) = schemas.as_array_mut() {
+        list.push(crate::general_cmd::tool_schema());
     }
     schemas
 }
