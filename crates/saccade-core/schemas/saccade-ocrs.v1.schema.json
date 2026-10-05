@@ -1,0 +1,36 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/Tavrin/saccade/crates/saccade-core/schemas/saccade-ocrs.v1.schema.json",
+  "type": "object",
+  "properties": {
+    "schema": {
+      "const": "saccade-ocrs.v1"
+    },
+    "cache": {
+      "type": "string"
+    },
+    "detection": {
+      "type": "object"
+    },
+    "recognition": {
+      "type": "object"
+    },
+    "alphabet": {
+      "type": "string",
+      "minLength": 1
+    },
+    "license_evidence": {
+      "type": "string",
+      "minLength": 1
+    }
+  },
+  "required": [
+    "schema",
+    "cache",
+    "detection",
+    "recognition",
+    "alphabet",
+    "license_evidence"
+  ],
+  "additionalProperties": false
+}

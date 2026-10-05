@@ -123,3 +123,66 @@ webhook credentials come from the user env file, never project/MCP arguments.
 The additive [`saccade_products` MCP tool](../docs/wave5-mcp.md) returns bounded
 product results. HTTP and notifications require separate human startup authority;
 recorded fixture pulls and local image tuning need neither.
+<!-- wave6 -->
+For rotation, scaling or perspective changes, use `compare A B --align
+similarity|affine|homography|auto --resample reference|common --out REPORT --json`.
+Read `saccade-registration.v1.json`, model residual and geometry inclusion mask.
+It measures only geometric overlap and cannot establish native identity.
+MCP `saccade_general` / `registered_compare` mirrors this route; see
+[registration](../docs/registration.md).
+
+<!-- wave6 -->
+Use `hash FILE... --out REPORT --json` or `dedupe DIR --threshold 6 --out REPORT
+--json` for candidate retrieval. Hex hashes are not identities; clusters are
+transitive and originals remain unchanged. MCP `saccade_general` operations
+`hash`/`dedupe` mirror these commands. See [hashing](../docs/hashing.md).
+
+<!-- wave6 -->
+Optional `similar A B` and `index build|query` require `embeddings`, a supplied
+SHA-pinned model contract, CPU runtime and cache. Raw cosine and supplied bands
+remain conditional evidence; built-in calibration is unqualified. MCP
+`saccade_general` mirrors these measurements without network access. See
+[embeddings](../docs/embeddings.md).
+
+<!-- wave6 -->
+Use `text A B --a-source A.json --b-source B.json --expect-text 'café' --out
+REPORT --json` for image-bound text observations. Missing OCR and confidence stay
+unknown; CER/WER do not prove source truth. Optional CLI `ocr` reuses pinned
+Tesseract; MCP accepts imports only. See [text](../docs/text.md).
+
+<!-- wave6 -->
+`assess IMAGE --compare-to REFERENCE --out REPORT --json` reports content-dependent
+quality measures and deltas. Its unknown verdict never means publication approval.
+MCP `saccade_general` / `assess` mirrors it; see [assessment](../docs/assessment.md).
+
+<!-- wave6 -->
+`inspect-image IMAGE --out REPORT --json` reports single-image indicators, never
+real/fake or heuristic AI-generation claims. Credentials are unvalidated; GPS
+requires explicit opt-in. MCP `saccade_general` / `inspect_image` mirrors it.
+Read each indicator's limits; see [inspection](../docs/inspect-image.md).
+
+<!-- wave6 -->
+Use `capabilities --json` to discover family availability, inputs and limits.
+`compare --question same-render|same-content|same-text|near-duplicate|quality`
+records an explicit selection and refuses unsupported fallbacks. MCP
+`saccade_general` / `capabilities` and `compare_question` mirror these routes;
+embedding execution additionally needs the operator-owned runtime pin. See
+[Choosing a comparison](../docs/choosing-a-comparison.md).
+
+<!-- wave6b -->
+Wave 6b optional `documents` renders bounded SVG/PDF inputs. File-pair
+`compare a.pdf b.pdf --dpi 96 --out pages --json` emits per-page
+`saccade-documents.v1` evidence; missing/error pages fail. MCP
+`saccade_general/documents_compare` mirrors reference/capture/out/dpi/threshold.
+Unsupported fonts/resources/content fail explicitly; broad PDF and every
+historical-family routing remain unqualified.
+Optional `credentials` adds offline validated C2PA declarations to inspect-image;
+unsigned heuristics never infer generation. `ocr` accepts pinned `saccade-ocrs.v1`
+contracts with runtime-only explicit model downloads. ocrs confidence stays absent;
+expected readability cannot pass from an invented value.
+`index export-inputs` prepares exact preprocessing tensors; operator-only
+`scripts/export-wave6-embeddings.py` exports a local pinned checkpoint, and
+`index calibrate` checks independent parity plus frozen fit/holdout labels.
+MCP embedding_export_inputs/embedding_calibrate preserve roots and existing
+ONNX library authority. These jobs establish only their recorded corpus scope,
+never human approval, exact text semantics or universal model accuracy.

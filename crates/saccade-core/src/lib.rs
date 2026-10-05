@@ -86,6 +86,16 @@ pub const COMPILED_FEATURES: &[&str] = &[
     // wave4
     #[cfg(feature = "assist")]
     "assist",
+    // wave6b
+    #[cfg(feature = "documents")]
+    "documents",
+    #[cfg(feature = "credentials")]
+    "credentials",
+    #[cfg(feature = "ocr")]
+    "ocr",
+    // wave6
+    #[cfg(feature = "embeddings")]
+    "embeddings",
     #[cfg(feature = "parallel")]
     "parallel",
     #[cfg(feature = "graphics")]
@@ -137,3 +147,5 @@ pub fn judge_bench_sources(case: &evidence::case::EvidenceCase) -> Vec<String> {
 // wave4
 #[cfg(feature = "assist")]
 pub mod assist;
+// wave6
+pub mod general;

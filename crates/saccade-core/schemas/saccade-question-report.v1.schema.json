@@ -1,0 +1,135 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/Tavrin/saccade/crates/saccade-core/schemas/saccade-question-report.v1.schema.json",
+  "type": "object",
+  "properties": {
+    "schema": {
+      "const": "saccade-question-report.v1"
+    },
+    "operation": {
+      "const": "quality"
+    },
+    "verdict": {
+      "enum": [
+        "unknown",
+        "regression"
+      ]
+    },
+    "counts": {
+      "type": "object",
+      "properties": {
+        "total": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "failures": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "errors": {
+          "type": "integer",
+          "minimum": 0
+        }
+      },
+      "required": [
+        "total",
+        "failures",
+        "errors"
+      ],
+      "additionalProperties": false
+    },
+    "entries": {
+      "type": "array",
+      "maxItems": 100000,
+      "items": {
+        "type": "object",
+        "required": [
+          "name",
+          "status"
+        ]
+      }
+    },
+    "limitations": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "pipeline_choice": {
+      "type": "object",
+      "properties": {
+        "schema": {
+          "const": "saccade-pipeline-choice.v1"
+        },
+        "question": {
+          "enum": [
+            "same-render",
+            "same-content",
+            "same-text",
+            "near-duplicate",
+            "quality"
+          ]
+        },
+        "family": {
+          "type": "string"
+        },
+        "command": {
+          "type": "string"
+        },
+        "reason": {
+          "type": "string"
+        },
+        "fallback": {
+          "const": "none"
+        },
+        "measurement": {
+          "type": "object",
+          "properties": {
+            "schema": {
+              "const": "saccade-report.v1"
+            },
+            "path": {
+              "type": "string"
+            },
+            "sha256": {
+              "type": "string",
+              "pattern": "^[a-f0-9]{64}$"
+            },
+            "verdict": {
+              "enum": [
+                "pass",
+                "regression"
+              ]
+            }
+          },
+          "required": [
+            "schema",
+            "path",
+            "sha256",
+            "verdict"
+          ],
+          "additionalProperties": false
+        }
+      },
+      "required": [
+        "schema",
+        "question",
+        "family",
+        "command",
+        "reason",
+        "fallback"
+      ],
+      "additionalProperties": false
+    }
+  },
+  "required": [
+    "schema",
+    "operation",
+    "verdict",
+    "counts",
+    "entries",
+    "limitations",
+    "pipeline_choice"
+  ],
+  "additionalProperties": false
+}

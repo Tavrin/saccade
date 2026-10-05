@@ -1061,7 +1061,9 @@ impl Server {
         }
         if !matches!(
             name,
-            "saccade_measure"
+            // wave6
+            "saccade_general"
+                | "saccade_measure"
                 | "saccade_inspect"
                 | "saccade_evidence"
                 | "saccade_propose"
@@ -1187,7 +1189,464 @@ impl Server {
             images: vec![],
         })
     }
+    // wave6
+    fn wave6_tool(&self, args: &Map<String, Value>) -> ToolResult {
+        use clap::ValueEnum;
+        // wave6
+        let operation = require_str(args, "operation")?;
+        // wave6
+        if operation == "capabilities" {
+            reject_unknown(args, &["operation"])?;
+            return Ok(ToolOutput {
+                structured: crate::capability_cmd::catalogue(),
+                text: "Comparison families and conditional/deferred availability.".into(),
+                images: Vec::new(),
+            });
+        }
+        // wave6b: document rendering has no native execution or network authority.
+        if operation == "documents_compare" {
+            reject_unknown(
+                args,
+                &[
+                    "operation",
+                    "reference",
+                    "capture",
+                    "out",
+                    "dpi",
+                    "threshold",
+                ],
+            )?;
+            let a = self.existing_file("reference", &require_str(args, "reference")?)?;
+            let b = self.existing_file("capture", &require_str(args, "capture")?)?;
+            let out = self.checked_out_dir(&require_str(args, "out")?, &[&a, &b])?;
+            let options = crate::general_cmd::CompareArgs {
+                dpi: arg_f64(args, "dpi")?,
+                ..Default::default()
+            };
+            let value = crate::documents_cmd::measure(
+                &a,
+                &b,
+                &out,
+                &options,
+                arg_f64(args, "threshold")?.unwrap_or(0.02),
+                crate::MetricArg::Mean,
+            )?;
+            let file = crate::general_cmd::persist_document(&value, &out)?;
+            return Ok(ToolOutput {structured:json!({"schema":saccade_core::general::RESULT_SCHEMA,"mode":operation,"verdict":value["verdict"],"data":{"schema":value["schema"],"counts":value["counts"]},"artifacts":[{"path":saccade_core::paths::record(&file,&self.root,false)}],"next_actions":[]}),text:"Rendered pages at declared density; page errors and missingness remain failures.".into(),images:Vec::new()});
+        }
+        if operation == "embedding_export_inputs" {
+            reject_unknown(args, &["operation", "dir", "model", "out"])?;
+            let mut paths = std::collections::BTreeMap::new();
+            let dir = self.resolve("dir", &require_str(args, "dir")?)?;
+            self.input_tree(&dir)?;
+            let model = self.existing_file("model", &require_str(args, "model")?)?;
+            let out = self.checked_out_dir(&require_str(args, "out")?, &[&dir, &model])?;
+            paths.insert("dir".into(), dir);
+            paths.insert("model".into(), model);
+            let value = crate::embedding_cmd::measure(&operation, &paths, 10, &out)?;
+            let file = crate::general_cmd::persist_document(&value, &out)?;
+            return Ok(ToolOutput {
+                structured: json!({"schema":saccade_core::general::RESULT_SCHEMA,"mode":operation,"verdict":value["verdict"],"data":{"schema":value["schema"],"counts":value["counts"]},"artifacts":[{"path":saccade_core::paths::record(&file,&self.root,false)}],"next_actions":[]}),
+                text: "Exact preprocessing tensors; no model execution or qualification.".into(),
+                images: Vec::new(),
+            });
+        }
+        if operation == "compare_question" {
+            reject_unknown(
+                args,
+                &[
+                    "operation",
+                    "reference",
+                    "capture",
+                    "out",
+                    "question",
+                    "align",
+                    "resample",
+                    "threshold",
+                    "model",
+                    "cache",
+                    "library",
+                    "reference_source",
+                    "capture_source",
+                ],
+            )?;
+            let mut paths = std::collections::BTreeMap::new();
+            for key in [
+                "reference",
+                "capture",
+                "model",
+                "cache",
+                "library",
+                "reference_source",
+                "capture_source",
+            ] {
+                if let Some(p) = arg_str(args, key)? {
+                    let path = self.resolve(key, &p)?;
+                    if path.is_dir() {
+                        self.input_tree(&path)?;
+                    } else if !path.is_file() {
+                        return Err(CliError::io("question input unavailable"));
+                    }
+                    paths.insert(key, path);
+                }
+            }
+            let reference = paths
+                .get("reference")
+                .ok_or_else(|| CliError::usage("reference required"))?;
+            let capture = paths
+                .get("capture")
+                .ok_or_else(|| CliError::usage("capture required"))?;
+            let out = self.checked_out_dir(
+                &require_str(args, "out")?,
+                &paths.values().map(PathBuf::as_path).collect::<Vec<_>>(),
+            )?;
+            let question =
+                crate::capability_cmd::Question::from_str(&require_str(args, "question")?, false)
+                    .map_err(CliError::usage)?;
+            let options = crate::general_cmd::CompareArgs {
+                dpi: None,
+                question: Some(question),
+                align: arg_str(args, "align")?
+                    .map(|v| {
+                        crate::general_cmd::Align::from_str(&v, false).map_err(CliError::usage)
+                    })
+                    .transpose()?,
+                resample: arg_str(args, "resample")?
+                    .map(|v| {
+                        crate::general_cmd::Resample::from_str(&v, false).map_err(CliError::usage)
+                    })
+                    .transpose()?,
+                model: paths.get("model").cloned(),
+                cache: paths.get("cache").cloned(),
+                library: paths.get("library").cloned(),
+                reference_source: paths.get("reference_source").cloned(),
+                capture_source: paths.get("capture_source").cloned(),
+                ocr_contract: None,
+            };
+            crate::capability_cmd::validate(&options)?;
+            if question == crate::capability_cmd::Question::SameContent {
+                crate::embedding_cmd::authorize_runtime(
+                    options
+                        .library
+                        .as_deref()
+                        .ok_or_else(|| CliError::usage("same-content requires library"))?,
+                )?;
+            }
+            if question == crate::capability_cmd::Question::SameRender && options.align.is_none() {
+                let mut mapped = Map::new();
+                mapped.insert("baseline_dir".into(), json!(reference));
+                mapped.insert("capture_dir".into(), json!(capture));
+                mapped.insert("out_dir".into(), json!(out));
+                if let Some(v) = args.get("threshold") {
+                    mapped.insert("threshold".into(), v.clone());
+                }
+                let mut result = self.tool_compare(&mapped)?;
+                let report = crate::read_report(&out.join(saccade_core::report::REPORT_FILE_NAME))?;
+                let choice = crate::capability_cmd::record_render(&report, &out, &options)?;
+                result.structured["data"]["pipeline_choice"] = choice;
+                return Ok(result);
+            }
+            let value = if question == crate::capability_cmd::Question::SameRender {
+                let mut value = crate::general_cmd::compare_document(
+                    reference,
+                    capture,
+                    &out,
+                    &options,
+                    arg_f64(args, "threshold")?.unwrap_or(0.02),
+                    crate::MetricArg::Mean,
+                )?;
+                value["pipeline"]["selected_question"] = json!("same-render");
+                value["pipeline"]["command"] = json!("compare --align");
+                value
+            } else {
+                crate::capability_cmd::measure(
+                    reference,
+                    capture,
+                    &out,
+                    &options,
+                    arg_f64(args, "threshold")?,
+                )?
+            };
+            let file = crate::general_cmd::persist_document(&value, &out)?;
+            return Ok(ToolOutput {
+                structured: json!({"schema":saccade_core::general::RESULT_SCHEMA,"mode":"compare_question","verdict":value["verdict"],"data":{"schema":value["schema"],"counts":value["counts"]},"artifacts":[{"path":saccade_core::paths::record(&file,&self.root,false)}],"next_actions":[]}),
+                text: "Explicit comparison question recorded; no fallback to a different family."
+                    .into(),
+                images: Vec::new(),
+            });
+        }
+        // wave6
+        if operation == "inspect_image" {
+            reject_unknown(
+                args,
+                &[
+                    "operation",
+                    "image",
+                    "out",
+                    "include_gps",
+                    "hash_index",
+                    "text_source",
+                    "output_size",
+                    "crop",
+                ],
+            )?;
+            let image = self.existing_file("image", &require_str(args, "image")?)?;
+            let hash_index = arg_str(args, "hash_index")?
+                .map(|p| self.existing_file("hash_index", &p))
+                .transpose()?;
+            let text_source = arg_str(args, "text_source")?
+                .map(|p| self.existing_file("text_source", &p))
+                .transpose()?;
+            let mut inputs = vec![image.as_path()];
+            inputs.extend(hash_index.as_deref());
+            inputs.extend(text_source.as_deref());
+            let out = self.checked_out_dir(&require_str(args, "out")?, &inputs)?;
+            let crop = args
+                .get("crop")
+                .map(|v| {
+                    v.as_array()
+                        .filter(|a| a.len() == 4)
+                        .ok_or_else(|| CliError::usage("crop needs four integers"))?
+                        .iter()
+                        .map(|v| {
+                            v.as_u64()
+                                .and_then(|v| u32::try_from(v).ok())
+                                .ok_or_else(|| CliError::usage("crop coordinates must be u32"))
+                        })
+                        .collect::<Result<Vec<_>, CliError>>()
+                })
+                .transpose()?;
+            let value = crate::inspect_image_cmd::imported(
+                image,
+                out.clone(),
+                arg_bool(args, "include_gps")?.unwrap_or(false),
+                hash_index,
+                text_source,
+                arg_strings(args, "output_size")?,
+                crop,
+            )?;
+            let file = crate::general_cmd::persist_document(&value, &out)?;
+            return Ok(ToolOutput{structured:json!({"schema":saccade_core::general::RESULT_SCHEMA,"mode":operation,"verdict":"unknown","data":{"schema":value["schema"],"counts":value["counts"]},"artifacts":[{"path":saccade_core::paths::record(&file,&self.root,false)}],"next_actions":[]}),text:"Single-image indicators; offline credentials when compiled, GPS opt-in; no authenticity verdict.".into(),images:Vec::new()});
+        }
+        // wave6
+        if operation == "assess" {
+            reject_unknown(args, &["operation", "image", "compare_to", "out"])?;
+            let image = self.existing_file("image", &require_str(args, "image")?)?;
+            let before = arg_str(args, "compare_to")?
+                .map(|p| self.existing_file("compare_to", &p))
+                .transpose()?;
+            let mut inputs = vec![image.as_path()];
+            inputs.extend(before.as_deref());
+            let out = self.checked_out_dir(&require_str(args, "out")?, &inputs)?;
+            let value = crate::assess_cmd::measure(&image, before.as_deref(), &out)?;
+            let file = crate::general_cmd::persist_document(&value, &out)?;
+            return Ok(ToolOutput{structured:json!({"schema":saccade_core::general::RESULT_SCHEMA,"mode":operation,"verdict":value["verdict"],"data":{"schema":value["schema"],"counts":value["counts"]},"artifacts":[{"path":saccade_core::paths::record(&file,&self.root,false)}],"next_actions":[]}),text:"Content-dependent quality indicators and optional paired deltas; no heuristic quality verdict.".into(),images:Vec::new()});
+        }
+        // wave6: imported text observations are data; MCP never executes a supplied program.
+        if operation == "text" {
+            reject_unknown(
+                args,
+                &[
+                    "operation",
+                    "a",
+                    "b",
+                    "a_source",
+                    "b_source",
+                    "out",
+                    "expect_text",
+                    "readable_confidence",
+                    "moved_px",
+                ],
+            )?;
+            let a = self.existing_file("a", &require_str(args, "a")?)?;
+            let b = self.existing_file("b", &require_str(args, "b")?)?;
+            let sa = self.existing_file("a_source", &require_str(args, "a_source")?)?;
+            let sb = self.existing_file("b_source", &require_str(args, "b_source")?)?;
+            let out = self.checked_out_dir(&require_str(args, "out")?, &[&a, &b, &sa, &sb])?;
+            let value = crate::text_cmd::imported(
+                [a, b],
+                [sa, sb],
+                out.clone(),
+                arg_strings(args, "expect_text")?,
+                [
+                    arg_f64(args, "readable_confidence")?.unwrap_or(80.),
+                    arg_f64(args, "moved_px")?.unwrap_or(3.),
+                ],
+            )?;
+            let file = crate::general_cmd::persist_document(&value, &out)?;
+            return Ok(ToolOutput{structured:json!({"schema":saccade_core::general::RESULT_SCHEMA,"mode":operation,"verdict":value["verdict"],"data":{"schema":value["schema"],"counts":value["counts"]},"artifacts":[{"path":saccade_core::paths::record(&file,&self.root,false)}],"next_actions":[]}),text:"OCR/source observations compared; missing text and confidence are uncertain evidence.".into(),images:Vec::new()});
+        }
+        // wave6: model/runtime reads and cache writes use the same root authority.
+        if matches!(
+            operation.as_str(),
+            "similar" | "index_build" | "index_query" | "embedding_calibrate"
+        ) {
+            let extra = match operation.as_str() {
+                "similar" => vec!["a", "b"],
+                "index_build" => vec!["dir"],
+                "embedding_calibrate" => vec!["corpus"],
+                _ => vec!["index", "image"],
+            };
+            let mut keys = vec!["operation", "out", "model", "cache", "library"];
+            keys.extend(extra.iter().copied());
+            if operation == "index_query" {
+                keys.push("top");
+            }
+            reject_unknown(args, &keys)?;
+            let mut paths = std::collections::BTreeMap::new();
+            for key in ["model", "library"]
+                .into_iter()
+                .chain(extra.iter().copied())
+            {
+                let path = self.resolve(key, &require_str(args, key)?)?;
+                if path.is_dir() {
+                    self.input_tree(&path)?;
+                } else if !path.is_file() {
+                    return Err(CliError::io("embedding input unavailable"));
+                }
+                paths.insert(key.to_owned(), path);
+            }
+            let cache = self.resolve("cache", &require_str(args, "cache")?)?;
+            if !cache.is_dir() {
+                return Err(CliError::io(
+                    "MCP embedding cache must already exist; downloads are explicit CLI-only",
+                ));
+            }
+            self.input_tree(&cache)?;
+            paths.insert("cache".into(), cache);
+            let out = self.checked_out_dir(
+                &require_str(args, "out")?,
+                &paths.values().map(PathBuf::as_path).collect::<Vec<_>>(),
+            )?;
+            let top = args
+                .get("top")
+                .map(|v| {
+                    v.as_u64()
+                        .filter(|n| (1..=100).contains(n))
+                        .ok_or_else(|| CliError::usage("top must be 1..100"))
+                })
+                .transpose()?
+                .unwrap_or(10) as usize;
+            crate::embedding_cmd::authorize_runtime(
+                paths
+                    .get("library")
+                    .ok_or_else(|| CliError::usage("library required"))?,
+            )?;
+            let value = crate::embedding_cmd::measure(&operation, &paths, top, &out)?;
+            let file = crate::general_cmd::persist_document(&value, &out)?;
+            return Ok(ToolOutput{structured:json!({"schema":saccade_core::general::RESULT_SCHEMA,"mode":operation,"verdict":value["verdict"],"data":{"schema":value["schema"],"counts":value["counts"]},"artifacts":[{"path":saccade_core::paths::record(&file,&self.root,false)}],"next_actions":[]}),text:"Conditional embedding evidence; no bundled export or calibration qualification.".into(),images:Vec::new()});
+        }
+        if matches!(operation.as_str(), "hash" | "dedupe") {
+            reject_unknown(
+                args,
+                &["operation", "files", "out", "algorithm", "threshold"],
+            )?;
+            let files = arg_strings(args, "files")?
+                .iter()
+                .map(|p| {
+                    let path = self.resolve("files", p)?;
+                    if path.is_dir() {
+                        self.input_tree(&path)?;
+                    } else if !path.is_file() {
+                        return Err(CliError::io("hash input must exist"));
+                    }
+                    Ok(path)
+                })
+                .collect::<Result<Vec<_>, CliError>>()?;
+            let out = self.checked_out_dir(
+                &require_str(args, "out")?,
+                &files.iter().map(PathBuf::as_path).collect::<Vec<_>>(),
+            )?;
+            let algorithm = crate::hash_cmd::Algorithm::from_str(
+                arg_str(args, "algorithm")?.as_deref().unwrap_or("phash"),
+                false,
+            )
+            .map_err(CliError::usage)?;
+            let threshold = args
+                .get("threshold")
+                .map(|v| {
+                    v.as_u64()
+                        .filter(|v| *v <= 64)
+                        .ok_or_else(|| CliError::usage("threshold must be 0..64"))
+                })
+                .transpose()?
+                .unwrap_or(6) as u32;
+            if operation == "hash"
+                && (args.contains_key("algorithm") || args.contains_key("threshold"))
+            {
+                return Err(CliError::usage(
+                    "algorithm and threshold apply only to dedupe",
+                ));
+            }
+            let value = crate::hash_cmd::measure(
+                &files,
+                &out,
+                (operation == "dedupe").then_some((algorithm.into(), threshold)),
+            )?;
+            let file = crate::general_cmd::persist_document(&value, &out)?;
+            return Ok(ToolOutput{structured:json!({"schema":saccade_core::general::RESULT_SCHEMA,"mode":operation,"verdict":value["verdict"],"data":{"schema":value["schema"],"counts":value["counts"]},"artifacts":[{"path":saccade_core::paths::record(&file,&self.root,false)}],"next_actions":[]}),text:"Perceptual hash candidate retrieval; originals unchanged, collisions require review.".into(),images:Vec::new()});
+        }
+        reject_unknown(
+            args,
+            &[
+                "operation",
+                "reference",
+                "capture",
+                "out",
+                "align",
+                "resample",
+                "threshold",
+                "metric",
+            ],
+        )?;
+        if require_str(args, "operation")? != "registered_compare" {
+            return Err(CliError::usage("unknown general operation"));
+        }
+        let resolve_input = |key: &str| -> Result<PathBuf, CliError> {
+            let path = self.resolve(key, &require_str(args, key)?)?;
+            if path.is_dir() {
+                self.input_tree(&path)?;
+            } else if !path.is_file() {
+                return Err(CliError::io("input must be file or directory"));
+            }
+            Ok(path)
+        };
+        let reference = resolve_input("reference")?;
+        let capture = resolve_input("capture")?;
+        let out = self.checked_out_dir(&require_str(args, "out")?, &[&reference, &capture])?;
+        let align = crate::general_cmd::Align::from_str(&require_str(args, "align")?, false)
+            .map_err(CliError::usage)?;
+        let resample = arg_str(args, "resample")?
+            .map(|v| crate::general_cmd::Resample::from_str(&v, false).map_err(CliError::usage))
+            .transpose()?;
+        let metric = match arg_str(args, "metric")?.as_deref().unwrap_or("mean") {
+            "mean" => crate::MetricArg::Mean,
+            "p95" => crate::MetricArg::P95,
+            "p99" => crate::MetricArg::P99,
+            "max" => crate::MetricArg::Max,
+            _ => return Err(CliError::usage("invalid metric")),
+        };
+        let value = crate::general_cmd::compare_document(
+            &reference,
+            &capture,
+            &out,
+            &crate::general_cmd::CompareArgs {
+                align: Some(align),
+                resample,
+                ..Default::default()
+            },
+            arg_f64(args, "threshold")?.unwrap_or(0.02),
+            metric,
+        )?;
+        let file = crate::general_cmd::persist_document(&value, &out)?;
+        Ok(ToolOutput{structured:json!({"schema":saccade_core::general::RESULT_SCHEMA,"mode":"registered_compare","verdict":value["verdict"],"data":{"schema":value["schema"],"counts":value["counts"]},"artifacts":[{"path":saccade_core::paths::record(&file,&self.root,false)}],"next_actions":[]}),text:"Registered comparison over explicit geometric overlap; inspect model, residual and exclusion mask.".into(),images:Vec::new()})
+    }
+
     fn local_tool(&self, name: &str, args: &Map<String, Value>) -> ToolResult {
+        // wave6
+        if name == "saccade_general" {
+            return self.wave6_tool(args);
+        }
         let operation = require_str(args, "operation")?;
         if let Some(case) = arg_str(args, "expected_case_id")? {
             let artifact = self.existing_file("artifact", &require_str(args, "artifact")?)?;
@@ -1876,6 +2335,10 @@ fn tool_schemas() -> Value {
     #[cfg(feature = "products")]
     if let Some(list) = schemas.as_array_mut() {
         list.push(products::schema());
+    }
+    // wave6
+    if let Some(list) = schemas.as_array_mut() {
+        list.push(crate::general_cmd::tool_schema());
     }
     schemas
 }

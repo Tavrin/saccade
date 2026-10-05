@@ -24,6 +24,16 @@ mod notifier_cmd;
 mod product_io;
 #[cfg(feature = "products")]
 mod sweep_cmd;
+// wave6
+mod assess_cmd;
+mod capability_cmd;
+mod embedding_cmd;
+mod general_cmd;
+// wave6b
+mod documents_cmd;
+mod hash_cmd;
+mod inspect_image_cmd;
+mod text_cmd;
 
 mod agent;
 mod agent_ui;
@@ -220,6 +230,23 @@ enum Command {
     /// Send a generic report summary to a user-configured webhook.
     #[cfg(feature = "products")]
     Notify(notifier_cmd::NotifyArgs),
+    // wave6
+    /// List comparison questions, inputs, features and honest availability.
+    Capabilities(capability_cmd::Args),
+    /// Inspect provenance/integrity indicators without a real/fake verdict.
+    InspectImage(inspect_image_cmd::Args),
+    /// Measure content-dependent no-reference quality indicators.
+    Assess(assess_cmd::Args),
+    /// Compare image-bound OCR/text observations and literal expected strings.
+    Text(text_cmd::Args),
+    /// Cosine similarity with an explicitly pinned optional ONNX export.
+    Similar(embedding_cmd::SimilarArgs),
+    /// Build or query a streaming exact flat embedding index.
+    Index(embedding_cmd::IndexArgs),
+    /// Compute perceptual hashes without changing originals.
+    Hash(hash_cmd::HashArgs),
+    /// Cluster near-duplicates with bounded Hamming search; never delete images.
+    Dedupe(hash_cmd::DedupeArgs),
     /// Align optional Vulkan replay evidence and locate native-resource divergence.
     RenderdocLocalize(renderdoc_cmd::Args),
     /// Import and freeze phrase regions, or inspect optional model plumbing.
@@ -284,6 +311,9 @@ Examples:
 Exit codes: 0 no regression, 1 regression found, 2 the command could not run."
     )]
     Compare {
+        // wave6
+        #[command(flatten)]
+        general: Box<general_cmd::CompareArgs>,
         /// Directory of approved baseline images.
         #[arg(required_unless_present = "baseline", conflicts_with = "baseline")]
         baseline_dir: Option<PathBuf>,
@@ -1027,6 +1057,15 @@ fn emit_run(
 
 fn dispatch(command: Command, record_absolute_paths: bool) -> Result<u8, CliError> {
     match command {
+        // wave6
+        Command::Capabilities(args) => capability_cmd::run(args),
+        Command::InspectImage(args) => inspect_image_cmd::run(args),
+        Command::Assess(args) => assess_cmd::run(args),
+        Command::Text(args) => text_cmd::run(args),
+        Command::Similar(args) => embedding_cmd::similar(args),
+        Command::Index(args) => embedding_cmd::index(args),
+        Command::Hash(args) => hash_cmd::run_hash(args),
+        Command::Dedupe(args) => hash_cmd::run_dedupe(args),
         Command::Prove {
             operation: ProveOperation::Identity(args),
         } => dispatch(
@@ -1247,6 +1286,8 @@ fn dispatch(command: Command, record_absolute_paths: bool) -> Result<u8, CliErro
             )
         }
         Command::Compare {
+            // wave6
+            general,
             baseline_dir,
             baseline,
             history_store,
@@ -1281,6 +1322,99 @@ fn dispatch(command: Command, record_absolute_paths: bool) -> Result<u8, CliErro
                 .map(|dir| dir.path().to_path_buf())
                 .or(baseline_dir)
                 .ok_or_else(|| CliError::usage("baseline directory required"))?;
+            // wave6: explicit questions never discard unrelated evidence options or fall back.
+            capability_cmd::validate(&general)?;
+            // wave6b: document files stream pages into a separate versioned summary.
+            let document_pair = baseline_dir.is_file()
+                && capture_dir.is_file()
+                && (documents_cmd::is_document(&baseline_dir)
+                    || documents_cmd::is_document(&capture_dir));
+            if document_pair
+                && general
+                    .question
+                    .is_none_or(|q| q == capability_cmd::Question::SameRender)
+            {
+                if config.is_some()
+                    || !entries.is_empty()
+                    || junit.is_some()
+                    || ppd.is_some()
+                    || labels.is_some()
+                    || fail_on_new
+                    || allow_empty
+                    || !general_cmd::plain_options(&intent, &meta, &require, &perf, &hdr)
+                {
+                    return Err(CliError::usage(
+                        "document compare supports DPI, threshold, metric and alignment; other evidence options require explicit raster inputs",
+                    ));
+                }
+                return documents_cmd::compare(
+                    &baseline_dir,
+                    &capture_dir,
+                    &out,
+                    &general,
+                    threshold.unwrap_or(0.02),
+                    metric.unwrap_or(MetricArg::Mean),
+                    json,
+                );
+            }
+            if general.dpi.is_some() {
+                return Err(CliError::usage(
+                    "--dpi requires a document file pair with same-render comparison",
+                ));
+            }
+
+            if general
+                .question
+                .is_some_and(|q| q != capability_cmd::Question::SameRender)
+            {
+                if config.is_some()
+                    || !entries.is_empty()
+                    || junit.is_some()
+                    || ppd.is_some()
+                    || labels.is_some()
+                    || fail_on_new
+                    || allow_empty
+                    || metric.is_some()
+                    || !general_cmd::plain_options(&intent, &meta, &require, &perf, &hdr)
+                {
+                    return Err(CliError::usage(
+                        "routed question supports its own declared inputs and threshold units; use the dedicated family command for other options",
+                    ));
+                }
+                return capability_cmd::route(
+                    &baseline_dir,
+                    &capture_dir,
+                    &out,
+                    &general,
+                    threshold,
+                    json,
+                );
+            }
+            // wave6: explicit registration has its own evidence contract.
+            if general.align.is_some() {
+                if config.is_some()
+                    || !entries.is_empty()
+                    || junit.is_some()
+                    || ppd.is_some()
+                    || labels.is_some()
+                    || fail_on_new
+                    || allow_empty
+                    || !general_cmd::plain_options(&intent, &meta, &require, &perf, &hdr)
+                {
+                    return Err(CliError::usage(
+                        "explicit registration supports threshold/metric/resample only; other evidence options require the existing unregistered pipeline",
+                    ));
+                }
+                return general_cmd::compare(
+                    &baseline_dir,
+                    &capture_dir,
+                    &out,
+                    &general,
+                    threshold.unwrap_or(0.02),
+                    metric.unwrap_or(MetricArg::Mean),
+                    json,
+                );
+            }
             let mut cfg = load_config(config.as_deref())?;
             cfg.record_absolute_paths = record_absolute_paths;
             perf.apply(&mut cfg.perf)?;
@@ -1316,7 +1450,24 @@ fn dispatch(command: Command, record_absolute_paths: bool) -> Result<u8, CliErro
                 &intent,
             )?;
             let intent_mismatch = local_cmd::verify_visual_intent(&report, &out, visual.as_ref())?;
-            emit_run(&report, &out, json, record_absolute_paths)?;
+            // wave6: hash-bound route component preserves the ordinary immutable report contract.
+            if general.question.is_some() {
+                let choice = capability_cmd::record_render(&report, &out, &general)?;
+                if json {
+                    let mut value = agent::result_value(
+                        &report,
+                        &out.join(saccade_core::report::REPORT_FILE_NAME),
+                        agent::DEFAULT_TOP_FAILING,
+                        false,
+                    );
+                    value["data"]["pipeline_choice"] = choice;
+                    emit(&format!("{}\n", value))?;
+                } else {
+                    emit_run(&report, &out, false, record_absolute_paths)?;
+                }
+            } else {
+                emit_run(&report, &out, json, record_absolute_paths)?;
+            }
             Ok(u8::from(report.is_regression() || intent_mismatch))
         }
         Command::Identity {
