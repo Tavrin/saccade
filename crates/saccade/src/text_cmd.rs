@@ -19,6 +19,9 @@ pub(crate) struct Args {
     /// Existing pinned external Tesseract contract; requires ocr feature.
     #[arg(long)]
     ocr_contract: Option<PathBuf>,
+    /// Explicitly fetch SHA-pinned Rust OCR models into the contract cache.
+    #[arg(long, requires = "ocr_contract")]
+    download_model: bool,
     /// Literal Unicode strings expected in the candidate (repeatable); always inert data.
     #[arg(long)]
     expect_text: Vec<String>,
@@ -38,6 +41,7 @@ fn source(
     contract: Option<&Path>,
     bytes: &[u8],
     size: [u32; 2],
+    download: bool,
 ) -> Result<ui_review::Source, CliError> {
     if let Some(path) = path {
         let source: ui_review::Source =
@@ -45,13 +49,33 @@ fn source(
         source.validate(&saccade_core::localized::digest(bytes), size)?;
         return Ok(source);
     }
-    crate::ui_review_cmd::recognize_text(
-        contract.ok_or_else(|| {
-            CliError::usage("text requires imported sources or an explicit pinned OCR contract")
-        })?,
-        bytes,
-        size,
-    )
+    let contract = contract.ok_or_else(|| {
+        CliError::usage("text requires imported sources or an explicit pinned OCR contract")
+    })?;
+    let value: Value = serde_json::from_slice(&input::bytes(contract, 65536)?)?;
+    if value["schema"] == saccade_core::general::ocr::SCHEMA {
+        #[cfg(feature = "ocr")]
+        {
+            let c: saccade_core::general::ocr::Contract = serde_json::from_value(value)?;
+            let cache = contract.parent().unwrap_or(Path::new(".")).join(&c.cache);
+            return Ok(saccade_core::general::ocr::recognize(
+                &c, &cache, bytes, download,
+            )?);
+        }
+        #[cfg(not(feature = "ocr"))]
+        {
+            return Err(CliError::new(
+                "feature_unavailable",
+                "Rust OCR requires ocr",
+            ));
+        }
+    }
+    if download {
+        return Err(CliError::usage(
+            "--download-model applies only to a Rust OCR contract",
+        ));
+    }
+    crate::ui_review_cmd::recognize_text(contract, bytes, size)
 }
 pub(crate) fn run(args: Args) -> Result<u8, CliError> {
     let value = measure(&args)?;
@@ -67,12 +91,14 @@ fn measure(args: &Args) -> Result<Value, CliError> {
         args.ocr_contract.as_deref(),
         &aa,
         [ai.width(), ai.height()],
+        args.download_model,
     )?;
     let b = source(
         args.b_source.as_deref(),
         args.ocr_contract.as_deref(),
         &bb,
         [bi.width(), bi.height()],
+        args.download_model,
     )?;
     let comparison = text::compare(
         &a,
@@ -120,6 +146,7 @@ pub(crate) fn imported(
         a_source: Some(a_source),
         b_source: Some(b_source),
         ocr_contract: None,
+        download_model: false,
         expect_text: expected,
         readable_confidence: confidence,
         moved_px: moved,
@@ -142,6 +169,7 @@ pub(crate) fn routed(
         a_source: sa.map(Path::to_path_buf),
         b_source: sb.map(Path::to_path_buf),
         ocr_contract: contract.map(Path::to_path_buf),
+        download_model: false,
         expect_text: vec![],
         readable_confidence: 80.,
         moved_px: 3.,

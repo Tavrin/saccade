@@ -21,6 +21,9 @@ pub mod text;
 /// Offline embedded Content Credentials validation.
 pub mod credentials;
 
+/// Pinned pure Rust OCR and observation adapter.
+pub mod ocr;
+
 /// Bounded unsigned XMP and IPTC extraction.
 pub mod metadata;
 

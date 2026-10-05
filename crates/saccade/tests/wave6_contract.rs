@@ -189,11 +189,7 @@ fn hash_dedupe_and_imported_accent_text_contracts() {
     }
 }
 #[cfg(feature = "ocr")]
-#[test]
-#[ignore = "heavy: ocr-accents"]
-fn pinned_ocr_reads_generated_accent_glyphs() {
-    let temp = tempfile::tempdir().unwrap();
-    let path = temp.path().join("accent.png");
+fn accent_fixture(path: &std::path::Path) {
     let glyphs = [
         [14u8, 17, 16, 16, 16, 17, 14],
         [14, 17, 17, 31, 17, 17, 17],
@@ -230,7 +226,15 @@ fn pinned_ocr_reads_generated_accent_glyphs() {
             }
         }
     }
-    image.save(&path).unwrap();
+    image.save(path).unwrap();
+}
+#[cfg(feature = "ocr")]
+#[test]
+#[ignore = "heavy: ocr-accents"]
+fn pinned_ocr_reads_generated_accent_glyphs() {
+    let temp = tempfile::tempdir().unwrap();
+    let path = temp.path().join("accent.png");
+    accent_fixture(&path);
     let contract = std::env::var_os("SACCADE_W6_OCR_CONTRACT")
         .expect("coordinator supplies pinned OCR contract");
     let out = temp.path().join("text");
@@ -737,6 +741,42 @@ fn mcp_question_inputs_and_native_execution_keep_authority_boundaries() {
             .contains("execution_authorization_required")
     );
     assert!(!out.join("native").join("saccade-similar.v1.json").exists());
+}
+
+#[cfg(feature = "ocr")]
+#[test]
+#[ignore = "heavy: rust-ocr-accents"]
+fn rust_ocr_recognizes_accents_without_inventing_confidence() {
+    let temp = tempfile::tempdir().unwrap();
+    let path = temp.path().join("accent.png");
+    accent_fixture(&path);
+    let contract = std::env::var_os("SACCADE_W6_RUST_OCR_CONTRACT")
+        .expect("reviewed accent-capable pinned Rust OCR models");
+    let out = temp.path().join("rust-text");
+    let result = cli(&[
+        "text",
+        path.to_str().unwrap(),
+        path.to_str().unwrap(),
+        "--ocr-contract",
+        std::path::Path::new(&contract).to_str().unwrap(),
+        "--expect-text",
+        "CAFÉ",
+        "--out",
+        out.to_str().unwrap(),
+        "--json",
+    ]);
+    assert_eq!(
+        result.status.code(),
+        Some(1),
+        "confidence absent, expected-text readability must fail: {result:?}"
+    );
+    let value: Value =
+        serde_json::from_slice(&std::fs::read(out.join("saccade-text.v1.json")).unwrap()).unwrap();
+    validate_schema("saccade-text.v1", &value);
+    assert_eq!(value["comparison"]["expected"][0]["present"], true);
+    assert_eq!(value["comparison"]["expected"][0]["readable"], Value::Null);
+    assert_eq!(value["comparison"]["rates"]["character_edits"], 0);
+    assert_eq!(value["producers"][0]["engine"], "ocrs 0.10.4");
 }
 
 #[cfg(feature = "mcp")]

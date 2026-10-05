@@ -122,3 +122,6 @@
 
 - Document item committed as 6836261; source coverage and heavy acceptance limits
   remain exactly as recorded above. Credential/metadata/forensic item follows.
+
+- Credential/metadata/forensic item committed as 0e24e07; unknown authenticity,
+  offline validation and unqualified history observations retain their limits.

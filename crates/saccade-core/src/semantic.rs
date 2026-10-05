@@ -93,7 +93,7 @@ pub fn artifact_path(cache: &Path, artifact: &ModelArtifact) -> Result<PathBuf> 
     Ok(cache.join(&artifact.sha256))
 }
 
-#[cfg(feature = "semantic-regions")]
+#[cfg(any(feature = "semantic-regions", feature = "ocr"))]
 fn verify_file(path: &Path, a: &ModelArtifact) -> Result<()> {
     use sha2::{Digest, Sha256};
     use std::io::Read;
@@ -124,7 +124,7 @@ fn verify_file(path: &Path, a: &ModelArtifact) -> Result<()> {
     }
     Ok(())
 }
-#[cfg(feature = "semantic-regions")]
+#[cfg(any(feature = "semantic-regions", feature = "ocr"))]
 fn install(cache: &Path, a: &ModelArtifact, reader: impl std::io::Read) -> Result<PathBuf> {
     use std::io::Write;
     let mut temporary = tempfile::NamedTempFile::new_in(cache)
@@ -145,7 +145,7 @@ fn install(cache: &Path, a: &ModelArtifact, reader: impl std::io::Read) -> Resul
     Ok(path)
 }
 /// Explicit runtime download. Ordinary comparisons and imports never call this.
-#[cfg(feature = "semantic-regions")]
+#[cfg(any(feature = "semantic-regions", feature = "ocr"))]
 pub fn cache_models(manifest: &ModelManifest, cache: &Path) -> Result<Vec<PathBuf>> {
     use fs2::FileExt;
     validate(manifest)?;
