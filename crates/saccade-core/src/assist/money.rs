@@ -1,4 +1,5 @@
 //! Monetary reservations under the existing ledger lock. Crashes retain charges.
+#[cfg(feature = "assist")]
 use super::Ledger;
 use serde::{Deserialize, Serialize};
 use std::collections::BTreeMap;
@@ -6,6 +7,7 @@ use std::collections::BTreeMap;
 /// Independent monetary ceiling, expressed in integer nanodollars.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
+#[cfg(feature = "assist")]
 pub struct MoneyScope {
     /// Entry, run, repository/day or evaluation/epoch identity.
     pub id: String,
@@ -38,6 +40,7 @@ pub(super) struct MoneyState {
     counters: BTreeMap<String, (u64, u64)>,
     receipts: Vec<MoneyReceipt>,
 }
+#[cfg(feature = "assist")]
 impl Ledger {
     /// Reserve every monetary scope under the same lock as request accounting.
     /// Money is reserved first; a later request refusal conservatively retains it.
@@ -133,5 +136,43 @@ impl Ledger {
     /// Return bounded metadata receipts for review and partial-failure handoff.
     pub fn money_receipts(&self) -> Result<Vec<MoneyReceipt>, String> {
         self.transaction(|state| Ok(state.money.receipts.clone()))
+    }
+}
+
+#[cfg(test)]
+#[allow(clippy::unwrap_used)]
+mod tests {
+    use super::super::Ledger;
+    use super::*;
+
+    #[test]
+    fn ordinary_ai_ledger_rewrites_preserve_assist_money_receipts() {
+        let temp = tempfile::tempdir().unwrap();
+        let ledger = Ledger::new(temp.path(), false);
+        let expected = MoneyState {
+            counters: BTreeMap::from([("epoch/frozen".into(), (100, 60))]),
+            receipts: vec![MoneyReceipt {
+                id: "reserved-before-feature-change".into(),
+                request_hash: crate::evidence::canonical::Digest::of_bytes(b"frozen request"),
+                scopes: vec!["epoch/frozen".into()],
+                reserved_nano_usd: 60,
+                actual_nano_usd: None,
+                outcome: "reserved".into(),
+                usage: serde_json::Value::Null,
+            }],
+        };
+        let expected = serde_json::to_value(expected).unwrap();
+        ledger
+            .transaction(|state| {
+                state.money = serde_json::from_value(expected.clone()).unwrap();
+                Ok(())
+            })
+            .unwrap();
+        // This is the ordinary AI ledger path, compiled with assist disabled too.
+        assert_eq!(ledger.used("unrelated").unwrap(), 0);
+        let actual = ledger
+            .transaction(|state| Ok(serde_json::to_value(&state.money).unwrap()))
+            .unwrap();
+        assert_eq!(actual, expected);
     }
 }

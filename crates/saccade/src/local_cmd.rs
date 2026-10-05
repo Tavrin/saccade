@@ -861,6 +861,7 @@ pub(crate) fn review(args: ReviewArgs, absolute: bool) -> Result<u8, CliError> {
                     a,
                     saccade_core::assist::schema::Task::Explain,
                     args.json,
+                    args.user_config.as_deref(),
                 );
             }
             #[cfg(feature = "assist")]
@@ -869,10 +870,13 @@ pub(crate) fn review(args: ReviewArgs, absolute: bool) -> Result<u8, CliError> {
                     a,
                     saccade_core::assist::schema::Task::AuditMask,
                     args.json,
+                    args.user_config.as_deref(),
                 );
             }
             #[cfg(feature = "assist")]
-            ReviewOperation::CheckUi(a) => return crate::assist_cmd::run_check(a, args.json),
+            ReviewOperation::CheckUi(a) => {
+                return crate::assist_cmd::run_check(a, args.json, args.user_config.as_deref());
+            }
             ReviewOperation::Brand(brand) => return crate::brand_cmd::run(brand, args.json),
             ReviewOperation::Ui(ui) => return crate::ui_review_cmd::run(ui, args.json),
             ReviewOperation::Motion(motion) => return crate::motion_cmd::run(motion, args.json),

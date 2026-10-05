@@ -1,0 +1,151 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/Tavrin/saccade/crates/saccade-core/schemas/saccade-constructed-truth.v1.schema.json",
+  "title": "saccade-constructed-truth.v1",
+  "oneOf": [
+    {
+      "type": "object",
+      "properties": {
+        "schema": {
+          "const": "saccade-constructed-truth.v1"
+        },
+        "epoch": {
+          "const": "wave4-constructed/1"
+        },
+        "manifest_hash": {
+          "type": "string",
+          "pattern": "^sha256:[0-9a-f]{64}$"
+        },
+        "oracle_hash": {
+          "type": "string",
+          "pattern": "^sha256:[0-9a-f]{64}$"
+        },
+        "models": {
+          "type": "object"
+        },
+        "policy": {
+          "type": "object"
+        },
+        "seed": {
+          "type": "integer"
+        },
+        "target_per_workload": {
+          "type": "integer",
+          "minimum": 5,
+          "maximum": 1000
+        },
+        "families": {
+          "type": "object"
+        },
+        "versions": {
+          "type": "object"
+        },
+        "licence": {
+          "type": "string"
+        },
+        "cases": {
+          "type": "array"
+        },
+        "exclusions": {
+          "type": "array"
+        }
+      },
+      "required": [
+        "schema",
+        "epoch",
+        "manifest_hash",
+        "oracle_hash",
+        "models",
+        "policy",
+        "seed",
+        "target_per_workload",
+        "families",
+        "versions",
+        "licence",
+        "cases",
+        "exclusions"
+      ],
+      "additionalProperties": false
+    },
+    {
+      "type": "object",
+      "properties": {
+        "schema": {
+          "const": "saccade-constructed-truth.v1"
+        },
+        "epoch": {
+          "const": "wave4-constructed/1"
+        },
+        "manifest_hash": {
+          "type": "string",
+          "pattern": "^sha256:[0-9a-f]{64}$"
+        },
+        "oracle_hash": {
+          "type": "string",
+          "pattern": "^sha256:[0-9a-f]{64}$"
+        },
+        "models": {
+          "type": "object"
+        },
+        "policy": {
+          "type": "object"
+        },
+        "synthetic_domain_only": {
+          "const": true
+        },
+        "human_labels_used": {
+          "const": false
+        },
+        "exclusions": {
+          "type": "array"
+        },
+        "results_hash": {
+          "oneOf": [
+            {
+              "type": "string",
+              "pattern": "^sha256:[0-9a-f]{64}$"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "workloads": {
+          "type": "object"
+        },
+        "feature_decisions": {
+          "type": "object"
+        },
+        "limitations": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "mechanical_fixture_receipt": {
+          "type": [
+            "string",
+            "null"
+          ]
+        }
+      },
+      "required": [
+        "schema",
+        "epoch",
+        "manifest_hash",
+        "oracle_hash",
+        "models",
+        "policy",
+        "synthetic_domain_only",
+        "human_labels_used",
+        "exclusions",
+        "results_hash",
+        "workloads",
+        "feature_decisions",
+        "limitations",
+        "mechanical_fixture_receipt"
+      ],
+      "additionalProperties": false
+    }
+  ]
+}

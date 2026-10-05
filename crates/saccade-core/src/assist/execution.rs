@@ -31,6 +31,23 @@ pub fn nano_usd(value: f64) -> Result<u64> {
     )?;
     Ok((value * 1e9).ceil() as u64)
 }
+fn details(value: Option<&Value>) -> Value {
+    Value::Array(
+        value
+            .and_then(Value::as_array)
+            .into_iter()
+            .flatten()
+            .take(16)
+            .map(|row| {
+                let modality = row["modality"]
+                    .as_str()
+                    .filter(|m| ["TEXT", "IMAGE", "VIDEO", "AUDIO", "DOCUMENT"].contains(m))
+                    .unwrap_or("UNKNOWN");
+                json!({"modality":modality,"token_count":row["tokenCount"].as_u64()})
+            })
+            .collect(),
+    )
+}
 /// Full normalized usage; total counters are cross-checks, not additive inputs.
 pub fn usage(body: &[u8]) -> Usage {
     let value: Value = serde_json::from_slice(body).unwrap_or(Value::Null);
@@ -45,7 +62,7 @@ pub fn usage(body: &[u8]) -> Usage {
         thinking_tokens: n(&["thoughtsTokenCount", "thinking_tokens"]),
         cached_input_tokens: n(&["cachedContentTokenCount", "cached_input_tokens"]),
         total_tokens: n(&["totalTokenCount", "total_tokens"]),
-        modality_details: json!({"input":u.get("promptTokensDetails"),"output":u.get("candidatesTokensDetails"),"cached":u.get("cacheTokensDetails")}),
+        modality_details: json!({"input":details(u.get("promptTokensDetails")),"output":details(u.get("candidatesTokensDetails")),"cached":details(u.get("cacheTokensDetails"))}),
     }
 }
 /// Cost is unknown without required counts or after expiry. Thinking is billed.
@@ -174,6 +191,16 @@ pub struct Completed {
     /// Local request/revision/usage/cost provenance.
     pub provenance: Provenance,
 }
+/// Reject token-count replies without the authoritative bounded prompt count.
+pub fn counted_input(body: &[u8]) -> Result<u64> {
+    require(body.len() <= 256 * 1024, "token-count reply size")?;
+    let value: Value = decode(body)?;
+    let count = value["totalTokens"]
+        .as_u64()
+        .ok_or(Error::Invalid("missing authoritative input token count"))?;
+    require(count <= INPUT_LIMIT, "input token ceiling exceeded")?;
+    Ok(count)
+}
 /// Shared authorization, egress, request count and money envelope for one call.
 pub struct Executor<'a> {
     /// Existing authorization/egress/attempt boundary (constructed with fixed_keys).
@@ -188,6 +215,127 @@ pub struct Executor<'a> {
     pub deadline: Instant,
 }
 impl Executor<'_> {
+    fn count_input(
+        &self,
+        key: &CacheKey,
+        payload: &[u8],
+        started: u64,
+        timeout: Duration,
+    ) -> Result<()> {
+        use crate::budget_ledger::Attempt;
+        let mut request: Value = decode(payload)?;
+        request["model"] = json!(format!("models/{}", key.model));
+        let body = crate::evidence::canonical::bytes(&json!({"generateContentRequest":request}))
+            .map_err(|_| Error::Invalid("token-count payload"))?;
+        let reservation = cost_nano(
+            "gemini",
+            &Usage {
+                input_tokens: Some(INPUT_LIMIT),
+                candidate_tokens: Some(OUTPUT_LIMIT),
+                thinking_tokens: Some(0),
+                ..Default::default()
+            },
+            started,
+            false,
+        )
+        .ok_or(Error::Policy("unknown counting reservation"))?;
+        let money_id = crate::local::random_token();
+        self.ledger
+            .reserve_money(
+                &self.money_scopes,
+                MoneyReceipt {
+                    id: money_id.clone(),
+                    request_hash: Digest::of_bytes(&body),
+                    scopes: self.money_scopes.iter().map(|s| s.id.clone()).collect(),
+                    reserved_nano_usd: reservation,
+                    actual_nano_usd: None,
+                    outcome: "reserved".into(),
+                    usage: Value::Null,
+                },
+            )
+            .map_err(|_| Error::Policy("token-count spend exhausted"))?;
+        let key_secret = self
+            .transport
+            .keys
+            .load("gemini.env", "SACCADE_GEMINI_API_KEY")
+            .map_err(|_| Error::Policy("fixed Gemini credentials unavailable"))?;
+        let (provider_pace, model_pace) = self.transport.user.pace("gemini", &key.model);
+        let pace = crate::budget_ledger::PaceLimits {
+            provider_rpm: provider_pace.requests_per_minute,
+            provider_concurrency: provider_pace.concurrency,
+            model_rpm: model_pace.requests_per_minute,
+            model_concurrency: model_pace.concurrency,
+            lease_ms: timeout.as_millis() as u64 + 30_000,
+        };
+        let attempt = self
+            .ledger
+            .reserve_paced(
+                &self.transport.authorization.scopes,
+                Attempt {
+                    id: crate::local::random_token(),
+                    provider: "gemini".into(),
+                    model: key.model.clone(),
+                    payload_sha256: Digest::of_bytes(&body),
+                    source_roots: self.sources.clone(),
+                    batch_size: 1,
+                    started_ms: started,
+                    outcome: "reserved".into(),
+                },
+                false,
+                Some(&pace),
+            )
+            .map_err(|_| Error::Policy("token-count request cap or pacing"))?;
+        self.transport
+            .user
+            .authorize(&self.sources, self.transport.roots)
+            .map_err(|_| Error::Policy("counting egress denied"))?;
+        let endpoint = format!(
+            "https://generativelanguage.googleapis.com/v1beta/models/{}:countTokens",
+            key.model
+        );
+        let response = self.transport.http.post(
+            &endpoint,
+            ("x-goog-api-key", key_secret.expose()),
+            &body,
+            timeout,
+        );
+        let count = response
+            .ok()
+            .filter(|r| (200..300).contains(&r.status))
+            .and_then(|r| {
+                if key_secret.scrub(String::from_utf8_lossy(&r.body).as_ref())
+                    != String::from_utf8_lossy(&r.body).as_ref()
+                {
+                    None
+                } else {
+                    counted_input(&r.body).ok()
+                }
+            });
+        self.ledger
+            .finish(
+                &attempt,
+                if count.is_some() {
+                    "counted_input"
+                } else {
+                    "counting_incomplete"
+                },
+                false,
+                None,
+            )
+            .map_err(|_| Error::Storage)?;
+        self.ledger
+            .finish_money(
+                &money_id,
+                None,
+                json!({"counted_input_tokens":count,"price":"unknown"}),
+                count.is_some(),
+            )
+            .map_err(|_| Error::Storage)?;
+        count.ok_or(Error::Policy(
+            "exact input count unavailable or above ceiling",
+        ))?;
+        Ok(())
+    }
     /// One bounded dispatch, no fallback or automatic retry. Ambiguous calls stay charged.
     pub fn call(&self, key: &CacheKey, payload: &[u8]) -> Result<Completed> {
         key.validate()?;
@@ -206,7 +354,7 @@ impl Executor<'_> {
             .user
             .authorize(&self.sources, self.transport.roots)
             .map_err(|_| Error::Policy("evidence egress denied"))?;
-        let timeout = self
+        let mut timeout = self
             .deadline
             .saturating_duration_since(Instant::now())
             .min(Duration::from_secs(60));
@@ -218,6 +366,20 @@ impl Executor<'_> {
         let start = crate::budget_ledger::now_ms();
         if start >= PRICE_EXPIRES_MS {
             return Err(Error::Policy("price schedule expired"));
+        }
+        // Count the exact Gemini input using the existing provider API shape.
+        // The auxiliary HTTP request consumes both attempt and money allowance.
+        // Its price is not established by the brief, so its cost remains unknown
+        // and its conservative full reservation is retained, never reported free.
+        if key.provider == "gemini" {
+            self.count_input(key, payload, start, timeout)?;
+            timeout = self
+                .deadline
+                .saturating_duration_since(Instant::now())
+                .min(Duration::from_secs(60));
+            if timeout.is_zero() {
+                return Err(Error::Policy("deadline after token count"));
+            }
         }
         let reservation = cost_nano(
             &key.provider,
@@ -266,6 +428,31 @@ impl Executor<'_> {
             }
         };
         let u = usage(&response);
+        let key_file = if key.provider == "gemini" {
+            ("gemini.env", "SACCADE_GEMINI_API_KEY")
+        } else {
+            ("jev.env", "JEV_API_KEY")
+        };
+        let secret = self
+            .transport
+            .keys
+            .load(key_file.0, key_file.1)
+            .map_err(|_| Error::Policy("fixed credential receipt unavailable"))?;
+        let text = String::from_utf8_lossy(&response);
+        if secret.scrub(text.as_ref()) != text.as_ref() {
+            self.ledger
+                .finish_money(
+                    &id,
+                    None,
+                    serde_json::to_value(&u).map_err(|_| Error::Storage)?,
+                    false,
+                )
+                .map_err(|_| Error::Storage)?;
+            self.ledger
+                .finish(&attempt, "credential_envelope_refused", false, None)
+                .map_err(|_| Error::Storage)?;
+            return Err(Error::Invalid("credential material in provider envelope"));
+        }
         let finish = crate::budget_ledger::now_ms();
         let cost = cost_nano(&key.provider, &u, start, false);
         self.ledger
@@ -319,8 +506,18 @@ impl Executor<'_> {
                 response_hash: Digest::of_bytes(&response),
                 order: key.order.clone(),
                 usage: u,
-                cost_usd: cost.map(|c| c as f64 / 1e9),
-                cost_basis: PRICE_ID.into(),
+                cost_usd: if key.provider == "gemini" {
+                    None
+                } else {
+                    cost.map(|c| c as f64 / 1e9)
+                },
+                cost_basis: if key.provider == "gemini" {
+                    format!(
+                        "{PRICE_ID}; token-count API billing unknown; full auxiliary reservation retained"
+                    )
+                } else {
+                    PRICE_ID.into()
+                },
                 cache_status: "miss".into(),
                 started_ms: start,
                 finished_ms: finish,

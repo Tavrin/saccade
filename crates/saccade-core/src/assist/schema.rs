@@ -238,3 +238,19 @@ pub struct Envelope {
     /// True means execution ended with missing stages, distinct from semantic abstention.
     pub incomplete: bool,
 }
+
+/// Exact prepared request artifact; not authorization to dispatch.
+pub const REQUESTS_SCHEMA: &str = "saccade-assist-requests.v1";
+/// Replay records, never independent qualification samples.
+pub const OBSERVATIONS_SCHEMA: &str = "saccade-assist-observations.v1";
+/// Individual and aggregate mask accounting, without verdict authority.
+pub const MASK_AUDIT_SCHEMA: &str = "saccade-assist-mask-audit.v1";
+/// Separate constructed-only evaluation schema.
+pub const CONSTRUCTED_SCHEMA: &str = "saccade-constructed-truth.v1";
+/// Private renderer-verified oracle artifact, never sent to vision.
+pub const ORACLE_SCHEMA: &str = "saccade-constructed-oracle.v1";
+/// Exact-source receipt emitted only after every heavy gate passes.
+pub const GATES_SCHEMA: &str = "saccade-assist-gates.v1";
+
+/// Report-bound original individual mask membership input.
+pub const MASKS_SCHEMA: &str = "saccade-assist-masks.v1";

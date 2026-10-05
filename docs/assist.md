@@ -77,13 +77,17 @@ The coordinator must establish actual revision selectors with provider receipts.
 Drift is refused rather than substituted. Provider errors are retained as bounded
 local classifications, never echoed as instructions or raw secret-bearing text.
 
-The envelope caps one entry at $0.15, four actual requests and a shared overall
+The envelope caps one entry at $0.15, at most eight actual requests (six by default, including exact input counting) and a shared overall
 300-second deadline. Conservative reservations precede dispatch under the
 existing locked ledger; absent/inconsistent usage remains unknown and consumes
 its full allowance. Thinking tokens are billed without adding provider totals
 again. Daily assist is capped at $5; prices expire on 2027-01-01. Payloads over
-the conservative input-size limit are refused rather than under-reserved.
-Unknown tokenization/revision behavior requires provider conformance before
+the conservative input-size limit are refused. Exact Gemini prompt counts are
+checked before generation against 16,000 tokens. Count requests consume attempt
+and monetary allowance. The brief does not establish token-count endpoint
+billing: its full reservation remains consumed and Gemini aggregate cost remains
+unknown until provider conformance establishes that price.
+Unknown counting-price/revision behavior requires provider conformance before
 qualification. No live calls run in development or ordinary tests.
 
 MCP extends `saccade_review` with `explain`, `audit-mask`, `check-ui`. Use

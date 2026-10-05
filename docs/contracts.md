@@ -190,3 +190,11 @@ sidecar; it cannot alter measured reports or numerical grounded explanations.
 The [Batch receipt](../crates/saccade-core/schemas/saccade-assist-batch.v1.schema.json)
 separates uncertain submission and per-item failure from job completion.
 See [assist](assist.md) for the closed input, identity and advisory contracts.
+
+<!-- wave4 artifact wrappers -->
+Prepared requests, replay records and mask accounting use
+`saccade-assist-requests.v1`, `saccade-assist-observations.v1` and
+`saccade-assist-mask-audit.v1`. Individual-mask input is `saccade-assist-masks.v1`.
+Constructed truth, its private oracle and heavy-gate receipts use
+`saccade-constructed-truth.v1`, `saccade-constructed-oracle.v1` and
+`saccade-assist-gates.v1`; schemas are in the existing schema directory.

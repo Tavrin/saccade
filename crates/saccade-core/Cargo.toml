@@ -113,3 +113,8 @@ required-features = ["prechecks"]
 [[test]]
 name = "schemas"
 required-features = ["schema"]
+
+# wave4
+[[example]]
+name = "assist_qualify"
+required-features = ["assist"]

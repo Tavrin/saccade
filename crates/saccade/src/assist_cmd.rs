@@ -46,6 +46,9 @@ pub(crate) enum VisibleKind {
 }
 #[derive(Args, Clone)]
 pub(crate) struct Common {
+    /// Human startup/CLI policy file; never exposed as an MCP tool argument.
+    #[arg(skip)]
+    pub user_policy_file: Option<PathBuf>,
     /// Required acknowledgement: this feature is unqualified experimental advice.
     #[arg(long)]
     pub experimental: bool,
@@ -65,7 +68,7 @@ pub(crate) struct Common {
     #[arg(long, value_enum, default_value = "cascade")]
     pub route: Routing,
     /// Real provider request cap; no retries or automatic top-up.
-    #[arg(long,default_value_t=4,value_parser=clap::value_parser!(u64).range(1..=4))]
+    #[arg(long,default_value_t=4,value_parser=clap::value_parser!(u64).range(1..=8))]
     pub budget_calls: u64,
     /// Finite per-entry USD ceiling, at most 0.15.
     #[arg(long, default_value_t = 0.15)]
@@ -270,7 +273,7 @@ pub(crate) fn check(
     auth: Option<&Authorization>,
 ) -> Result<(Value, u8), CliError> {
     if args.common.run && roots.is_none() {
-        let policy = configured_roots()?;
+        let policy = configured_roots(&args.common)?;
         return check(args, json_output, Some(&policy), auth);
     }
     let p = pixels(&args.image, Role::Single, &args.common, roots, None)?;
@@ -339,12 +342,14 @@ pub(crate) fn check(
         }
     };
     let result = execute(
-        catalog,
-        Task::CheckUi,
-        None,
-        Some(condition),
-        vec![(Role::Single, p.png)],
-        None,
+        AssistInput {
+            catalog,
+            task: Task::CheckUi,
+            report_hash: None,
+            condition: Some(condition),
+            pngs: vec![(Role::Single, p.png)],
+            report: None,
+        },
         args.common,
         roots,
         auth,
@@ -363,7 +368,7 @@ pub(crate) fn report(
     auth: Option<&Authorization>,
 ) -> Result<(Value, u8), CliError> {
     if args.common.run && roots.is_none() {
-        let policy = configured_roots()?;
+        let policy = configured_roots(&args.common)?;
         return report(args, task, json_output, Some(&policy), auth);
     }
     let bytes = read(&args.report, roots, 32 * 1024 * 1024)?;
@@ -459,7 +464,7 @@ pub(crate) fn report(
     let mut audit = None;
     if let Some(path) = args.mask_manifest {
         let manifest: mask_audit::Manifest = assist::decode(&read(&path, roots, 8 * 1024 * 1024)?)?;
-        if manifest.schema != "saccade-assist-masks.v1" || manifest.report_hash != report_hash {
+        if manifest.schema != MASKS_SCHEMA || manifest.report_hash != report_hash {
             return Err(CliError::new(
                 "invalid_evidence",
                 "mask manifest report identity mismatch",
@@ -497,12 +502,14 @@ pub(crate) fn report(
         .into()
     });
     let result = execute(
-        catalog,
-        task,
-        Some(report_hash),
-        None,
-        vec![(Role::Before, before.png), (Role::After, after.png)],
-        Some((verdict, audit)),
+        AssistInput {
+            catalog,
+            task,
+            report_hash: Some(report_hash),
+            condition: None,
+            pngs: vec![(Role::Before, before.png), (Role::After, after.png)],
+            report: Some((verdict, audit)),
+        },
         args.common,
         roots,
         auth,
@@ -512,17 +519,28 @@ pub(crate) fn report(
     }
     Ok(result)
 }
-fn execute(
+struct AssistInput {
     catalog: Catalog,
     task: Task,
     report_hash: Option<Digest>,
     condition: Option<Condition>,
     pngs: Vec<(Role, Vec<u8>)>,
     report: Option<(String, Option<Value>)>,
+}
+fn execute(
+    input: AssistInput,
     common: Common,
     roots: Option<&RootPolicy>,
     startup_auth: Option<&Authorization>,
 ) -> Result<(Value, u8), CliError> {
+    let AssistInput {
+        catalog,
+        task,
+        report_hash,
+        condition,
+        pngs,
+        report,
+    } = input;
     if !common.experimental {
         return Err(CliError::usage(
             "assist requires --experimental until qualification is recorded",
@@ -539,7 +557,7 @@ fn execute(
     if common.deadline_secs == 0
         || common.deadline_secs > 300
         || common.budget_calls == 0
-        || common.budget_calls > 4
+        || common.budget_calls > 8
     {
         return Err(CliError::usage("assist deadline or request cap"));
     }
@@ -591,13 +609,24 @@ fn execute(
         }
         _ => true,
     };
-    let config_path = saccade_core::judge_provider::Keys::default_dir().join("user.toml");
+    let config_path = crate::review_cmd::user_file(common.user_policy_file.as_deref());
     let user = crate::review_cmd::load_user(&config_path)?;
     let api_config_hash = assist::digest(&user)?;
     let deadline = Instant::now() + Duration::from_secs(common.deadline_secs);
     let mut saved = Vec::<Cached>::new();
     let records = if let Some(file) = common.replay.as_deref() {
-        assist::decode::<Vec<Cached>>(&read(file, roots, 8 * 1024 * 1024)?)?
+        {
+            let replay: Value = assist::decode(&read(file, roots, 8 * 1024 * 1024)?)?;
+            if replay["schema"] != OBSERVATIONS_SCHEMA
+                || replay["identity"] != serde_json::to_value(&identity)?
+            {
+                return Err(CliError::new(
+                    "invalid_evidence",
+                    "replay artifact schema or request identity mismatch",
+                ));
+            }
+            assist::decode::<Vec<Cached>>(&serde_json::to_vec(&replay["records"])?)?
+        }
     } else {
         vec![]
     };
@@ -631,13 +660,22 @@ fn execute(
                     &request.key,
                     &request.payload,
                     &common,
-                    &user,
-                    roots,
-                    startup_auth,
-                    &records,
-                    deadline,
+                    CallContext {
+                        user: &user,
+                        roots,
+                        startup_auth,
+                        records: &records,
+                        deadline,
+                    },
                 ) {
                     Ok(Some(record)) => {
+                        if record.provenance.cache_status == "replay" {
+                            envelope.limitations.push(format!(
+                                "Recorded replay age_ms={}; not an independent sample.",
+                                saccade_core::budget_ledger::now_ms()
+                                    .saturating_sub(record.provenance.finished_ms)
+                            ));
+                        }
                         envelope.provenance.push(record.provenance.clone());
                         match workflow::decode_answer(
                             &catalog,
@@ -703,13 +741,22 @@ fn execute(
                         &key,
                         &payload,
                         &common,
-                        &user,
-                        roots,
-                        startup_auth,
-                        &records,
-                        deadline,
+                        CallContext {
+                            user: &user,
+                            roots,
+                            startup_auth,
+                            records: &records,
+                            deadline,
+                        },
                     ) {
                         Ok(Some(record)) => {
+                            if record.provenance.cache_status == "replay" {
+                                envelope.limitations.push(format!(
+                                    "Recorded replay age_ms={}; not an independent sample.",
+                                    saccade_core::budget_ledger::now_ms()
+                                        .saturating_sub(record.provenance.finished_ms)
+                                ));
+                            }
                             envelope.provenance.push(record.provenance.clone());
                             envelope.verification.support =
                                 workflow::support_answer(&record.response, &key.revision)
@@ -746,10 +793,19 @@ fn execute(
     }
     std::fs::create_dir_all(&out).map_err(|_| CliError::io("cannot create assist output"))?;
     assist::write(&out.join("saccade-assist.v1.json"), &envelope)?;
-    assist::write(&out.join("requests.json"), &request_artifacts)?;
-    assist::write(&out.join("observations.json"), &saved)?;
+    assist::write(
+        &out.join("requests.json"),
+        &json!({"schema":REQUESTS_SCHEMA,"identity":identity,"requests":request_artifacts}),
+    )?;
+    assist::write(
+        &out.join("observations.json"),
+        &json!({"schema":OBSERVATIONS_SCHEMA,"identity":identity,"records":saved}),
+    )?;
     if let Some((_, Some(audit))) = report {
-        assist::write(&out.join("mask-audit.json"), &audit)?;
+        assist::write(
+            &out.join("mask-audit.json"),
+            &json!({"schema":MASK_AUDIT_SCHEMA,"identity":identity,"individual":audit}),
+        )?;
     }
     std::fs::write(out.join("index.html"), workflow::html(&envelope)?)
         .map_err(|_| CliError::io("cannot write assist report"))?;
@@ -768,16 +824,26 @@ fn execute(
         if envelope.incomplete { 4 } else { 0 },
     ))
 }
+struct CallContext<'a> {
+    user: &'a transport::UserConfig,
+    roots: Option<&'a RootPolicy>,
+    startup_auth: Option<&'a Authorization>,
+    records: &'a [Cached],
+    deadline: Instant,
+}
 fn acquire(
     key: &CacheKey,
     payload: &[u8],
     common: &Common,
-    user: &transport::UserConfig,
-    roots: Option<&RootPolicy>,
-    startup_auth: Option<&Authorization>,
-    records: &[Cached],
-    deadline: Instant,
+    context: CallContext<'_>,
 ) -> Result<Option<Cached>, CliError> {
+    let CallContext {
+        user,
+        roots,
+        startup_auth,
+        records,
+        deadline,
+    } = context;
     let cache_dir = saccade_core::judge_provider::Keys::default_dir().join("assist-cache");
     if common.offline {
         if !records.is_empty() {
@@ -862,15 +928,15 @@ fn acquire(
             user,
         )
     };
-    if !common.bypass_cache {
-        if let Some(record) = execution::load_cache(
+    if !common.bypass_cache
+        && let Some(record) = execution::load_cache(
             &cache_dir,
             key,
             saccade_core::budget_ledger::now_ms(),
             7 * 24 * 3600 * 1000,
-        )? {
-            return Ok(Some(record));
-        }
+        )?
+    {
+        return Ok(Some(record));
     }
     let keys = execution::fixed_keys()?;
     let ledger = Ledger::new(
@@ -922,10 +988,10 @@ fn acquire(
     )?;
     Ok(Some(record))
 }
-fn configured_roots() -> Result<RootPolicy, CliError> {
-    let user = crate::review_cmd::load_user(
-        &saccade_core::judge_provider::Keys::default_dir().join("user.toml"),
-    )?;
+fn configured_roots(common: &Common) -> Result<RootPolicy, CliError> {
+    let user = crate::review_cmd::load_user(&crate::review_cmd::user_file(
+        common.user_policy_file.as_deref(),
+    ))?;
     if user.roots.is_empty() {
         return Err(CliError::new(
             "egress_denied",
@@ -946,14 +1012,25 @@ fn configured_roots() -> Result<RootPolicy, CliError> {
         .map_err(|_| CliError::new("egress_denied", "invalid assist root policy"))?;
     Ok(roots)
 }
-pub(crate) fn run_report(args: ReportArgs, task: Task, json_output: bool) -> Result<u8, CliError> {
+pub(crate) fn run_report(
+    mut args: ReportArgs,
+    task: Task,
+    json_output: bool,
+    user_policy: Option<&Path>,
+) -> Result<u8, CliError> {
+    args.common.user_policy_file = user_policy.map(Path::to_owned);
     let (value, exit) = report(args, task, json_output, None, None)?;
     if !json_output {
         local_cmd::print(&value, false)?;
     }
     Ok(exit)
 }
-pub(crate) fn run_check(args: CheckArgs, json_output: bool) -> Result<u8, CliError> {
+pub(crate) fn run_check(
+    mut args: CheckArgs,
+    json_output: bool,
+    user_policy: Option<&Path>,
+) -> Result<u8, CliError> {
+    args.common.user_policy_file = user_policy.map(Path::to_owned);
     let (value, exit) = check(args, json_output, None, None)?;
     if !json_output {
         local_cmd::print(&value, false)?;

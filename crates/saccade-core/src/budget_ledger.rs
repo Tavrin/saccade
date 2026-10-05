@@ -91,7 +91,6 @@ struct Probe {
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 struct State {
     // wave4
-    #[cfg(feature = "assist")]
     #[serde(default)]
     money: money::MoneyState,
     scopes: BTreeMap<String, Counter>,
@@ -386,7 +385,6 @@ pub fn now_ms() -> u64 {
 }
 
 // wave4
-#[cfg(feature = "assist")]
 #[path = "assist/money.rs"]
 mod money;
 #[cfg(feature = "assist")]

@@ -208,3 +208,14 @@ LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 ```
+
+## Wave 4 constructed fixtures
+
+No new Cargo dependencies or model weights are introduced. Assist reuses the
+existing optional AI dependencies. The CPU-only qualification generator uses the
+already required Pillow renderer (MIT-CMU/HPND; installed at development/runtime,
+not vendored) and installed DejaVu Sans/Serif fonts. Font input hashes and the local
+DejaVu/Bitstream Vera copyright/licence notice are recorded in each frozen corpus;
+font binaries are not redistributed in this repository. Generated pixels use this
+repository's MIT OR Apache-2.0 licence. The font rendering input is confined to
+constructed fixtures and does not enter the default Cargo feature set.

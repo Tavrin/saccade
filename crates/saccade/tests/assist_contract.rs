@@ -96,3 +96,96 @@ fn wave4_experimental_flag_and_invalid_inputs_fail_closed() {
         assert_eq!(result["execution"], "error");
     }
 }
+#[test]
+#[ignore = "heavy: wave4-cli"]
+fn wave4_report_workflows_preserve_verdict_and_mirror_mcp() {
+    let temp = tempfile::tempdir().unwrap();
+    let inputs = temp.path().join("inputs");
+    let outputs = temp.path().join("outputs");
+    std::fs::create_dir_all(&inputs).unwrap();
+    std::fs::create_dir_all(&outputs).unwrap();
+    let before = inputs.join("before.png");
+    let after = inputs.join("after.png");
+    for (path, red) in [(&before, 30), (&after, 170)] {
+        image::RgbImage::from_pixel(20, 20, image::Rgb([red, 60, 90]))
+            .save(path)
+            .unwrap();
+    }
+    let report_dir = inputs.join("report");
+    let compared = Command::new(binary())
+        .args(["compare"])
+        .arg(&before)
+        .arg(&after)
+        .arg("--out")
+        .arg(&report_dir)
+        .output()
+        .unwrap();
+    assert!(
+        matches!(compared.status.code(), Some(0 | 1)),
+        "{}",
+        String::from_utf8_lossy(&compared.stderr)
+    );
+    let report = report_dir.join("saccade-report.v1.json");
+    let original = std::fs::read(&report).unwrap();
+    let original_report: Value = serde_json::from_slice(&original).unwrap();
+    for operation in ["explain", "audit-mask"] {
+        let cli_out = outputs.join(format!("cli-{operation}"));
+        let output = Command::new(binary())
+            .args(["review", operation, "--report"])
+            .arg(&report)
+            .args([
+                "--experimental",
+                "--offline",
+                "--route",
+                "rules",
+                "--json",
+                "--out",
+            ])
+            .arg(&cli_out)
+            .output()
+            .unwrap();
+        assert!(
+            output.status.success(),
+            "{}",
+            String::from_utf8_lossy(&output.stderr)
+        );
+        let cli: Value = serde_json::from_slice(&output.stdout).unwrap();
+        assert_eq!(
+            cli["data"]["deterministic_verdict"],
+            original_report["combined_verdict"]
+                .as_str()
+                .unwrap_or("regression")
+        );
+        assert_eq!(std::fs::read(&report).unwrap(), original);
+        let mut child = Command::new(binary())
+            .args(["mcp", "--root"])
+            .arg(&inputs)
+            .arg("--out-root")
+            .arg(&outputs)
+            .stdin(Stdio::piped())
+            .stdout(Stdio::piped())
+            .stderr(Stdio::piped())
+            .spawn()
+            .unwrap();
+        let call = json!({"jsonrpc":"2.0","id":1,"method":"tools/call","params":{"name":"saccade_review","arguments":{"operation":operation,"artifact":report,"out":outputs.join(format!("mcp-{operation}")),"experimental":true,"offline":true,"route":"rules"}}});
+        writeln!(child.stdin.as_mut().unwrap(), "{call}").unwrap();
+        drop(child.stdin.take());
+        let reply: Value =
+            serde_json::from_slice(&child.wait_with_output().unwrap().stdout).unwrap();
+        assert_eq!(reply["result"]["structuredContent"]["data"], cli["data"]);
+        for (file, schema) in [
+            ("requests.json", "saccade-assist-requests.v1"),
+            ("observations.json", "saccade-assist-observations.v1"),
+        ] {
+            let artifact: Value =
+                serde_json::from_slice(&std::fs::read(cli_out.join(file)).unwrap()).unwrap();
+            assert_eq!(artifact["schema"], schema);
+        }
+        if operation == "audit-mask" {
+            let audit: Value =
+                serde_json::from_slice(&std::fs::read(cli_out.join("mask-audit.json")).unwrap())
+                    .unwrap();
+            assert_eq!(audit["individual"]["availability"], "unavailable");
+        }
+    }
+}

@@ -44,7 +44,11 @@ impl Server {
         let operation = require_str(args, "operation")?;
         let file = self.existing_file("artifact", &require_str(args, "artifact")?)?;
         if let Some(reference) = args.get("artifact").and_then(Value::as_object) {
-            let actual = format!("sha256:{}", saccade_core::run::sha256_file(&file)?);
+            let actual = saccade_core::evidence::canonical::Digest::of_bytes(
+                &saccade_core::assist::read_bytes(&file, 32 * 1024 * 1024)?,
+            )
+            .as_str()
+            .to_owned();
             if reference["sha256"].as_str() != Some(&actual) {
                 return Err(CliError::new(
                     "stale_action",
@@ -53,9 +57,9 @@ impl Server {
             }
         }
         let run = arg_bool(args, "run")?.unwrap_or(false);
-        let user = crate::review_cmd::load_user(
-            &saccade_core::judge_provider::Keys::default_dir().join("user.toml"),
-        )?;
+        let user = crate::review_cmd::load_user(&crate::review_cmd::user_file(
+            self.providers.user_config.as_deref(),
+        ))?;
         let startup_budget = self.providers.budget_calls.unwrap_or(0);
         let auth = crate::review_cmd::authorization(
             self.providers.allow_provider_calls,
@@ -79,7 +83,7 @@ impl Server {
                     .ok_or_else(|| CliError::usage(format!("{name} must be an integer"))),
             }
         };
-        let budget = number("budget_calls", 4.min(startup_budget.max(1)))?;
+        let budget = number("budget_calls", 6.min(startup_budget.max(1)))?;
         if run && budget > startup_budget {
             return Err(CliError::usage(
                 "tool request budget exceeds startup authorization",
@@ -105,6 +109,7 @@ impl Server {
             ));
         }
         let common = Common {
+            user_policy_file: self.providers.user_config.clone(),
             experimental: arg_bool(args, "experimental")?.unwrap_or(false),
             out: self.resolve("out", &require_str(args, "out")?)?,
             offline,
@@ -127,6 +132,8 @@ impl Server {
                 if args.contains_key("condition")
                     || args.contains_key("box")
                     || args.contains_key("kind")
+                    || args.contains_key("target")
+                    || args.contains_key("second_target")
                 {
                     return Err(CliError::usage(
                         "report assist does not take a single-image condition",
@@ -203,7 +210,7 @@ impl Server {
 pub(super) fn schemas() -> Vec<Value> {
     let mut variants = Vec::new();
     for op in ["explain", "audit-mask", "check-ui"] {
-        let mut props = json!({"operation":{"const":op},"artifact":{"oneOf":[{"type":"string"},{"type":"object","properties":{"path":{"type":"string"},"sha256":{"type":"string","pattern":"^sha256:[0-9a-f]{64}$"}},"required":["path","sha256"],"additionalProperties":false}]},"out":{"type":"string"},"experimental":{"type":"boolean","const":true},"run":{"type":"boolean","default":false},"offline":{"type":"boolean","default":false},"replay":{"type":"string"},"route":{"enum":["rules","cascade","all-vision"]},"budget_calls":{"type":"integer","minimum":1,"maximum":4},"max_spend_usd":{"type":"number","exclusiveMinimum":0,"maximum":0.15},"deadline_secs":{"type":"integer","minimum":1,"maximum":300},"gemini_revision":{"type":"string"},"jev_revision":{"type":"string"},"bypass_cache":{"type":"boolean"},"source_evidence":{"type":"array","items":{"type":"string"},"maxItems":2},"incomplete_capture":{"type":"boolean"},"pre_masked":{"type":"boolean"}});
+        let mut props = json!({"operation":{"const":op},"artifact":{"oneOf":[{"type":"string"},{"type":"object","properties":{"path":{"type":"string"},"sha256":{"type":"string","pattern":"^sha256:[0-9a-f]{64}$"}},"required":["path","sha256"],"additionalProperties":false}]},"out":{"type":"string"},"experimental":{"type":"boolean","const":true},"run":{"type":"boolean","default":false},"offline":{"type":"boolean","default":false},"replay":{"type":"string"},"route":{"enum":["rules","cascade","all-vision"]},"budget_calls":{"type":"integer","minimum":1,"maximum":8},"max_spend_usd":{"type":"number","exclusiveMinimum":0,"maximum":0.15},"deadline_secs":{"type":"integer","minimum":1,"maximum":300},"gemini_revision":{"type":"string"},"jev_revision":{"type":"string"},"bypass_cache":{"type":"boolean"},"source_evidence":{"type":"array","items":{"type":"string"},"maxItems":2},"incomplete_capture":{"type":"boolean"},"pre_masked":{"type":"boolean"}});
         let mut required = vec!["operation", "artifact", "out", "experimental"];
         if op == "check-ui" {
             props["condition"] = json!({"type":"string","maxLength":512});
