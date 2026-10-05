@@ -96,6 +96,13 @@ pub const COMPILED_FEATURES: &[&str] = &[
     "ocr",
     #[cfg(feature = "embeddings")]
     "embeddings",
+    // wave7
+    #[cfg(feature = "local-models")]
+    "local-models",
+    #[cfg(feature = "local-vlm")]
+    "local-vlm",
+    #[cfg(feature = "vision-providers")]
+    "vision-providers",
     #[cfg(feature = "parallel")]
     "parallel",
     #[cfg(feature = "graphics")]
@@ -143,3 +150,7 @@ pub fn judge_bench_sources(case: &evidence::case::EvidenceCase) -> Vec<String> {
         .into_iter()
         .collect()
 }
+
+// wave7
+/// Standalone local vision, provenance and crop-safety interfaces.
+pub mod wave7;

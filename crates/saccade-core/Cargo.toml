@@ -51,6 +51,12 @@ hayro = { version = "=0.3.0", default-features = false, optional = true }
 c2pa = { version = "=0.90.22", default-features = false, features = ["rust_native_crypto"], optional = true }
 ocrs = { version = "=0.10.4", optional = true }
 rten = { version = "=0.21.0", default-features = false, optional = true }
+# wave7b: pinned BERT/CLIP tokenizers, no network/pretrained loader feature.
+tokenizers = { version = "=0.22.2", default-features = false, features = ["fancy-regex"], optional = true }
+
+# wave7c: bounded release archive provisioning, optional CPU runtime only.
+flate2 = { version = "=1.1.10", optional = true }
+tar = { version = "=0.4.46", default-features = false, optional = true }
 
 [features]
 documents = ["dep:resvg", "dep:hayro"]
@@ -83,6 +89,10 @@ prechecks = []
 schema = ["dep:schemars"]
 
 assist = ["ai"]
+# wave7
+local-models = ["dep:ort", "dep:ureq", "dep:fs2", "dep:tokenizers", "dep:flate2", "dep:tar"]
+local-vlm = ["dep:ureq", "dep:base64"]
+vision-providers = ["dep:base64"]
 
 [dev-dependencies]
 tempfile = "3"

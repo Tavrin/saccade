@@ -1,0 +1,20 @@
+[
+  {
+    "name": "torchvision-license",
+    "url": "https://raw.githubusercontent.com/pytorch/vision/v0.20.1/LICENSE",
+    "bytes": 1517,
+    "sha256": "6502f676851cfe25f8af75531dfb32375b7325b73c37e7b43741fa422893e71d"
+  },
+  {
+    "name": "torchvision-alexnet",
+    "url": "https://raw.githubusercontent.com/pytorch/vision/v0.20.1/torchvision/models/alexnet.py",
+    "bytes": 4488,
+    "sha256": "76f0592d51fad133931c234d9168344c52edb89e46861ff15cdef7af7572ab9f"
+  },
+  {
+    "name": "torchvision-vgg",
+    "url": "https://raw.githubusercontent.com/pytorch/vision/v0.20.1/torchvision/models/vgg.py",
+    "bytes": 19225,
+    "sha256": "8d88c8a18da3b4a01cf9a511090b2f6e0071ba9d468787d5652b7637314b9596"
+  }
+]

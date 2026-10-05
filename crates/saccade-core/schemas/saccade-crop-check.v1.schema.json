@@ -1,0 +1,327 @@
+{
+  "$defs": {
+    "CropResult": {
+      "additionalProperties": false,
+      "description": "Per-declaration evidence; safe suggestion can be unavailable.",
+      "properties": {
+        "crop": {
+          "$ref": "#/$defs/Rect",
+          "description": "Actual original-pixel crop at the declared focal point."
+        },
+        "declared": {
+          "$ref": "#/$defs/CropSpec",
+          "description": "Original declaration preserved."
+        },
+        "faces": {
+          "description": "Status in face-detector order.",
+          "items": {
+            "$ref": "#/$defs/FaceCropStatus"
+          },
+          "type": "array"
+        },
+        "suggested_safe_crop": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Rect"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "A crop with the same ratio retaining all detected faces, if geometrically possible."
+        },
+        "suggestion_reason": {
+          "description": "Why a suggestion exists/does not exist; recall limits remain independent.",
+          "type": "string"
+        }
+      },
+      "required": [
+        "declared",
+        "crop",
+        "faces",
+        "suggestion_reason"
+      ],
+      "type": "object"
+    },
+    "CropSpec": {
+      "description": "Face-preserving declared crop, ratio or original-pixel rectangle.",
+      "oneOf": [
+        {
+          "additionalProperties": false,
+          "description": "Largest crop with specified width/height ratio.",
+          "properties": {
+            "height": {
+              "description": "Positive vertical ratio component.",
+              "format": "float",
+              "type": "number"
+            },
+            "kind": {
+              "const": "ratio",
+              "type": "string"
+            },
+            "width": {
+              "description": "Positive horizontal ratio component.",
+              "format": "float",
+              "type": "number"
+            }
+          },
+          "required": [
+            "kind",
+            "width",
+            "height"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "description": "Declared original-pixel rectangle.",
+          "properties": {
+            "kind": {
+              "const": "rectangle",
+              "type": "string"
+            },
+            "rect": {
+              "$ref": "#/$defs/Rect",
+              "description": "Explicit crop, never silently clamped."
+            }
+          },
+          "required": [
+            "kind",
+            "rect"
+          ],
+          "type": "object"
+        }
+      ]
+    },
+    "Face": {
+      "additionalProperties": false,
+      "description": "Face box and optional landmarks, never an identity.",
+      "properties": {
+        "bbox": {
+          "$ref": "#/$defs/Rect",
+          "description": "Original-pixel box."
+        },
+        "landmarks": {
+          "description": "Original-pixel landmarks; empty for exports without a landmark head.",
+          "items": {
+            "items": {
+              "format": "float",
+              "type": "number"
+            },
+            "maxItems": 2,
+            "minItems": 2,
+            "type": "array"
+          },
+          "type": "array"
+        },
+        "score": {
+          "description": "Predicted detection score.",
+          "format": "float",
+          "type": "number"
+        }
+      },
+      "required": [
+        "bbox",
+        "score",
+        "landmarks"
+      ],
+      "type": "object"
+    },
+    "FaceCropStatus": {
+      "description": "Independent outcome for each detected face.",
+      "oneOf": [
+        {
+          "const": "included",
+          "description": "Entire face retained.",
+          "type": "string"
+        },
+        {
+          "const": "cut",
+          "description": "Crop intersects and cuts through the face.",
+          "type": "string"
+        },
+        {
+          "const": "excluded",
+          "description": "Entire detected face excluded.",
+          "type": "string"
+        }
+      ]
+    },
+    "FaceReport": {
+      "additionalProperties": false,
+      "description": "Source-bound face detector receipt.",
+      "properties": {
+        "faces": {
+          "description": "Detected faces, never recognition labels.",
+          "items": {
+            "$ref": "#/$defs/Face"
+          },
+          "type": "array"
+        },
+        "image_sha256": {
+          "description": "Exact encoded image digest.",
+          "type": "string"
+        },
+        "image_size": {
+          "description": "Original resolution.",
+          "items": {
+            "format": "uint32",
+            "minimum": 0,
+            "type": "integer"
+          },
+          "maxItems": 2,
+          "minItems": 2,
+          "type": "array"
+        },
+        "limitations": {
+          "description": "Mandatory detection-recall limits.",
+          "type": "string"
+        },
+        "provenance": {
+          "$ref": "#/$defs/Provenance",
+          "description": "Exact model/export identity."
+        },
+        "schema": {
+          "description": "FACES_SCHEMA.",
+          "type": "string"
+        }
+      },
+      "required": [
+        "schema",
+        "image_sha256",
+        "image_size",
+        "faces",
+        "provenance",
+        "limitations"
+      ],
+      "type": "object"
+    },
+    "Provenance": {
+      "additionalProperties": false,
+      "description": "Explicit model/export attribution on every observation.",
+      "properties": {
+        "artifact_sha256": {
+          "description": "Exact consumed export/auxiliary hashes.",
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "input_resolution": {
+          "description": "Actual graph input size.",
+          "items": {
+            "format": "uint32",
+            "minimum": 0,
+            "type": "integer"
+          },
+          "maxItems": 2,
+          "minItems": 2,
+          "type": "array"
+        },
+        "model_id": {
+          "description": "Model id (or generated fixture id).",
+          "type": "string"
+        },
+        "resolution_handling": {
+          "description": "How original resolution was handled.",
+          "type": "string"
+        },
+        "runtime": {
+          "description": "onnx-cpu, replay, or external-http; replay is always marked unqualified.",
+          "type": "string"
+        },
+        "source_parity": {
+          "description": "Source-model/export parity, independent of successful graph loading.",
+          "type": "boolean"
+        },
+        "version": {
+          "description": "Exact model/checkpoint version.",
+          "type": "string"
+        }
+      },
+      "required": [
+        "model_id",
+        "version",
+        "artifact_sha256",
+        "runtime",
+        "input_resolution",
+        "resolution_handling",
+        "source_parity"
+      ],
+      "type": "object"
+    },
+    "Rect": {
+      "additionalProperties": false,
+      "description": "Canonical `[x,y,width,height]` in original pixels; right/bottom exclusive.",
+      "properties": {
+        "height": {
+          "description": "Positive height.",
+          "format": "float",
+          "type": "number"
+        },
+        "width": {
+          "description": "Positive width.",
+          "format": "float",
+          "type": "number"
+        },
+        "x": {
+          "description": "Left edge.",
+          "format": "float",
+          "type": "number"
+        },
+        "y": {
+          "description": "Top edge.",
+          "format": "float",
+          "type": "number"
+        }
+      },
+      "required": [
+        "x",
+        "y",
+        "width",
+        "height"
+      ],
+      "type": "object"
+    }
+  },
+  "$id": "https://github.com/Tavrin/saccade/crates/saccade-core/schemas/saccade-crop-check.v1.schema.json",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "description": "Crop assessment carries the complete face receipt.",
+  "properties": {
+    "crops": {
+      "description": "One result per declared crop; never dropped.",
+      "items": {
+        "$ref": "#/$defs/CropResult"
+      },
+      "type": "array"
+    },
+    "detection": {
+      "$ref": "#/$defs/FaceReport",
+      "description": "Face detector evidence including provenance and recall limits."
+    },
+    "focal_point": {
+      "description": "Original-pixel focal point, defaults to image center.",
+      "items": {
+        "format": "float",
+        "type": "number"
+      },
+      "maxItems": 2,
+      "minItems": 2,
+      "type": "array"
+    },
+    "schema": {
+      "const": "saccade-crop-check.v1",
+      "description": "CROP_SCHEMA.",
+      "type": "string"
+    }
+  },
+  "required": [
+    "schema",
+    "detection",
+    "focal_point",
+    "crops"
+  ],
+  "title": "CropReport",
+  "type": "object"
+}

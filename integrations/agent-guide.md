@@ -68,3 +68,33 @@ ocrs contracts; downloads are explicit CLI-only and confidence remains absent.
 `index export-inputs|calibrate` checks supplied parity/holdout evidence. MCP
 `saccade_general` mirrors these families; native runtime needs an operator pin.
 Local gates do not qualify models, providers, broad rendering or releases.
+Deletion requires explicit decision approval and `--prune-missing`. Changed
+inputs fail closed. Historical promoted decisions require fresh review.
+Workbench receipts have token-gated human attestation. CLI receipts have
+`human_attestation: null`. Reserved `automated` authority never satisfies a
+human-required check and has no current writer. Human-final is an application
+policy and audit boundary; an unrestricted shell agent can invoke CLI approval.
+MCP exposes six bounded tools and no baseline-write operation.
+
+<!-- wave7 -->
+Standalone local vision commands and unavailable-model handling are documented in
+[wave 7](../docs/wave7.md). Use `saccade models list --json` before requesting a
+model-backed observation. Model output never grants baseline authority.
+
+<!-- wave7 -->
+Use `locate`, `quality-score`, `watermark`, `faces` and `crop-check` for standalone
+attributed evidence; `observe-local` requires `local-vlm`, and `provider-map`
+requires `vision-providers` and performs fixture mapping only. Check runtime,
+source-parity and availability before describing output as inference. `--observations`
+is explicit replay. MCP preserves six tools: `saccade_inspect.models_list` and
+`saccade_measure.vision_*` use registered inputs and the separate output root;
+tool arguments cannot authorize downloads or local/provider HTTP calls.
+
+<!-- wave7c -->
+For optional local vision, `saccade models pull runtime --cache DIR --json`
+provisions pinned ONNX Runtime 1.22.0 on Linux x64. Inference selects
+`--runtime-library`, then `ORT_DYLIB_PATH`, then the verified runtime in the model
+cache; it never provisions a runtime implicitly. `runtime_incompatible` names
+required API22 and the observed failure. `watermark --trustmark` can run the pinned
+Q neural graph but currently returns `unavailable` for complete decoding until
+resize/ECC/sample qualification; raw logits establish no watermark presence.

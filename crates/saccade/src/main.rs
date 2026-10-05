@@ -12,6 +12,11 @@ use saccade_core::config::RunConfig;
 use saccade_core::report::{Labels, Metric, Mode, Report, Status};
 use saccade_core::view::{ViewOptions, build_view, is_safe_name};
 
+// wave7
+mod wave7_cmd;
+#[cfg(feature = "mcp")]
+mod wave7_mcp;
+
 mod agent;
 mod agent_ui;
 mod approval;
@@ -241,6 +246,25 @@ enum Command {
     Hash(hash_cmd::HashArgs),
     /// Cluster near-duplicates with bounded Hamming search; never delete images.
     Dedupe(hash_cmd::DedupeArgs),
+    // wave7
+    /// List or explicitly pull pinned local models.
+    Models(wave7_cmd::ModelsArgs),
+    /// Locate a phrase with boxes, optional masks, and an overlay PNG.
+    Locate(wave7_cmd::LocateArgs),
+    /// Measure a separately named learned quality score.
+    QualityScore(wave7_cmd::QualityArgs),
+    /// Decode explicitly compatible watermark schemes without an origin verdict.
+    Watermark(wave7_cmd::WatermarkArgs),
+    /// Detect faces and optionally create a privacy-redacted PNG.
+    Faces(wave7_cmd::FacesArgs),
+    /// Assess declared crops against detected faces, without identity recognition.
+    CropCheck(wave7_cmd::CropArgs),
+    /// Bounded advisory observations from an explicitly configured local VLM.
+    #[cfg(feature = "local-vlm")]
+    ObserveLocal(wave7_cmd::ObserveArgs),
+    /// Map provider requests or decode recorded vision responses; no live calls.
+    #[cfg(feature = "vision-providers")]
+    ProviderMap(wave7_cmd::ProviderArgs),
     /// Align optional Vulkan replay evidence and locate native-resource divergence.
     RenderdocLocalize(renderdoc_cmd::Args),
     /// Import and freeze phrase regions, or inspect optional model plumbing.
@@ -1056,6 +1080,17 @@ fn dispatch(command: Command, record_absolute_paths: bool) -> Result<u8, CliErro
         Command::Index(args) => embedding_cmd::index(args),
         Command::Hash(args) => hash_cmd::run_hash(args),
         Command::Dedupe(args) => hash_cmd::run_dedupe(args),
+        // wave7
+        Command::Models(args) => wave7_cmd::models(args),
+        Command::Locate(args) => wave7_cmd::locate(args),
+        Command::QualityScore(args) => wave7_cmd::quality(args),
+        Command::Watermark(args) => wave7_cmd::watermark(args),
+        Command::Faces(args) => wave7_cmd::faces(args),
+        Command::CropCheck(args) => wave7_cmd::crop(args),
+        #[cfg(feature = "local-vlm")]
+        Command::ObserveLocal(args) => wave7_cmd::observe(args),
+        #[cfg(feature = "vision-providers")]
+        Command::ProviderMap(args) => wave7_cmd::provider(args),
         Command::Prove {
             operation: ProveOperation::Identity(args),
         } => dispatch(
@@ -1837,6 +1872,22 @@ fn doctor(json: bool) -> Result<u8, CliError> {
     if cfg!(feature = "assist") {
         capabilities.push("experimental-assist");
     }
+    // wave7
+    capabilities.extend([
+        "local-model-registry-v1",
+        "vision-replay-v1",
+        "crop-safety-v1",
+        "watermark-dwt-v1",
+    ]);
+    if cfg!(feature = "local-models") {
+        capabilities.push("onnx-cpu-adapter-v1");
+    }
+    if cfg!(feature = "local-vlm") {
+        capabilities.push("local-vlm-http-v1");
+    }
+    if cfg!(feature = "vision-providers") {
+        capabilities.push("vision-provider-mapping-v1");
+    }
     capabilities.sort_unstable();
     let git_commit = option_env!("SACCADE_GIT_COMMIT").filter(|value| !value.is_empty());
     let git_commit_short =
@@ -1858,6 +1909,8 @@ fn doctor(json: bool) -> Result<u8, CliError> {
         "features": features,
         "capabilities": capabilities,
         "schemas": {
+            // wave7
+            "local_vision": ["saccade-model-registry.v1", "saccade-model-status.v1", "saccade-locate.v1", "saccade-vision-observation.v1", "saccade-learned-quality.v1", "saccade-watermark.v1", "saccade-faces.v1", "saccade-crop-check.v1", "saccade-provider-mapping.v1"],
             "report": ["saccade-report.v1"],
             "result": ["saccade-result.v1", "saccade-result.v2"],
             "evidence": ["saccade-evidence.v1"],
@@ -1996,6 +2049,16 @@ fn reject_newer_nested_schemas(value: &serde_json::Value) -> Result<(), CliError
         serde_json::Value::Object(fields) => {
             if let Some(actual) = fields.get("schema").and_then(|v| v.as_str()) {
                 for prefix in [
+                    // wave7
+                    "saccade-model-registry.v",
+                    "saccade-model-status.v",
+                    "saccade-locate.v",
+                    "saccade-vision-observation.v",
+                    "saccade-learned-quality.v",
+                    "saccade-watermark.v",
+                    "saccade-faces.v",
+                    "saccade-crop-check.v",
+                    "saccade-provider-mapping.v",
                     "saccade-report.v",
                     "saccade-perf-diff.v",
                     "saccade-noise.v",

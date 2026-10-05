@@ -54,6 +54,11 @@ ocr = ["saccade-core/ocr"]
 
 assist = ["ai", "saccade-core/assist"]
 
+# wave7
+local-models = ["saccade-core/local-models"]
+local-vlm = ["saccade-core/local-vlm"]
+vision-providers = ["saccade-core/vision-providers"]
+
 [dev-dependencies]
 tempfile = "3"
 # Validates real command output against the shipped schemas (MIT).
