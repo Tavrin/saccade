@@ -217,12 +217,39 @@ pub fn compare(
                     n.reading_order
                 }
             };
-            // Relative sequence of common nodes avoids labelling reindexing after a deletion as a reorder.
+            // Compare only ordinals observed on both sides of the same common node.
+            let common: Vec<_> = b
+                .keys()
+                .filter(|id| a.contains_key(**id))
+                .copied()
+                .collect();
+            let missing_before: Vec<_> = common
+                .iter()
+                .filter(|id| ordinal(b[**id]).is_none())
+                .copied()
+                .collect();
+            let missing_after: Vec<_> = common
+                .iter()
+                .filter(|id| ordinal(a[**id]).is_none())
+                .copied()
+                .collect();
+            if !missing_before.is_empty() || !missing_after.is_empty() {
+                findings.push(finding(
+                    if keyboard { "keyboard_order_coverage" } else { "reading_order_coverage" },
+                    "common_nodes", "unavailable",
+                    json!({"missing_before":missing_before,"missing_after":missing_after,"reason":"relative order is compared only for jointly observed producer ordinals"}),
+                ));
+            }
+            let supported: BTreeSet<_> = common
+                .into_iter()
+                .filter(|id| ordinal(b[*id]).is_some() && ordinal(a[*id]).is_some())
+                .collect();
+            // Relative sequence avoids labelling reindexing after deletion as a reorder.
             let order = |s: &Source| {
                 let mut nodes: Vec<_> = s
                     .nodes
                     .iter()
-                    .filter(|n| b.contains_key(n.id.as_str()) && a.contains_key(n.id.as_str()))
+                    .filter(|n| supported.contains(n.id.as_str()))
                     .filter_map(|n| ordinal(n).map(|i| (i, n.id.as_str())))
                     .collect();
                 nodes.sort_unstable();

@@ -133,3 +133,31 @@ fn tesseract_price_and_identifier_observations_remain_uncertain_at_100_confidenc
     assert!(r.findings.iter().all(|f| f.assurance == "uncertain_ocr"));
     assert!(r.sources.iter().all(|s| !s.complete));
 }
+
+#[test]
+fn w3_f05_missing_order_is_coverage() {
+    for both_missing in [false, true] {
+        let m = measurement();
+        let mut b = source(m.region.reference_sha256.clone());
+        let mut a = source(m.candidate_sha256.clone());
+        b.nodes = vec![node("A", "A", 0), node("B", "B", 1)];
+        a.nodes = b.nodes.clone();
+        a.nodes[0].reading_order = None;
+        a.nodes[0].keyboard_order = None;
+        if both_missing {
+            b.nodes[0].reading_order = None;
+            b.nodes[0].keyboard_order = None;
+        }
+        let r = compare(&b, &a, m).expect("report");
+        assert!(!r.findings.iter().any(|f| f.rule.ends_with("order_changed")));
+        for rule in ["reading_order_coverage", "keyboard_order_coverage"] {
+            let f = r
+                .findings
+                .iter()
+                .find(|f| f.rule == rule)
+                .expect("coverage");
+            assert_eq!(f.assurance, "unavailable");
+            assert_eq!(f.evidence["missing_after"], serde_json::json!(["A"]));
+        }
+    }
+}
