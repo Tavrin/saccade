@@ -10,7 +10,7 @@ a subprocess or writing a report directory. Rust 1.88 or newer is required.
 `flip-rs`. The result contains mean, p95, p99 and maximum error, along with a
 per-pixel error map. Viewing conditions are explicit; the default is 67 pixels
 per degree. `compare_rgba` handles alpha, and `hdr` provides HDR comparison.
-A score below a chosen threshold is not a proof of image identity.
+A score below a chosen threshold does not prove that the images are identical.
 
 Add these dependencies to an application:
 
@@ -56,8 +56,8 @@ identity claim also requires every selected pair to exist and decode.
 
 With `graphics` enabled, `perf` evaluates timing evidence and produces
 performance verdicts. It checks measurement comparability, repeat noise and
-attribution before accepting a performance claim. Missing noise is unknown,
-not zero. Equal images alone do not establish a speedup. The
+attribution before accepting a performance claim. Missing noise is treated
+as unknown rather than zero. Equal images alone do not establish a speedup. The
 [identity and performance guide](https://github.com/Tavrin/saccade/blob/main/docs/identity-and-performance.md)
 describes the evidence requirements.
 
