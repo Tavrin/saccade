@@ -8,7 +8,7 @@ python3 - <<'PYCHECK'
 import json
 from pathlib import Path
 r=Path('/mnt/linux-extra/saccade-models/r2')
-registry=json.loads(Path('crates/saccade-core/assets/wave7-models.json').read_text())['contracts']
+registry=json.loads((r/'registry.json').read_text())['contracts']
 assert registry['dinov2-small']==json.loads((r/'model.json').read_text()),'export projection differs from shared registry'
 assert registry['tesseract-fra']==json.loads((r/'tesseract-contract.json').read_text()),'OCR projection differs from shared registry'
 PYCHECK

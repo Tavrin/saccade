@@ -59,7 +59,7 @@ if args.round2:
                SACCADE_W6_C2PA_ASSET=str(assets/'c2pa/signed.jpg'),
                SACCADE_W6_C2PA_SHA256=hashlib.sha256((assets/'c2pa/signed.jpg').read_bytes()).hexdigest(),
                SACCADE_W6_OCR_CONTRACT=str(assets/'tesseract-contract.json'),
-               WAVE7_MODEL_CACHE=str(assets.parent))
+               WAVE7_MODEL_CACHE=str(assets.parent),WAVE7_MODEL_REGISTRY=str(assets/'registry.json'))
     (args.evidence/'asset-pins.json').write_text(json.dumps({k:v for k,v in env.items() if k.startswith('SACCADE_W6_') or k=='WAVE7_MODEL_CACHE'},indent=2)+'\n')
 if args.only:
     unknown=set(args.only)-{name for name,_ in commands}

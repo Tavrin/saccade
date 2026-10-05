@@ -28,7 +28,7 @@ gate default-tests nice -n 19 cargo test -j 4 -p saccade -p saccade-core --featu
 gate minimal-tests nice -n 19 cargo test -j 4 -p saccade-core --no-default-features
 # Only immutable URLs and exact hashes from the lane's frozen pin catalog.
 export WAVE7_MODEL_CACHE=/mnt/linux-extra/saccade-models
-export WAVE7_MODEL_REGISTRY="$PWD/crates/saccade-core/assets/wave7-models.json"
+export WAVE7_MODEL_REGISTRY="${WAVE7_MODEL_REGISTRY:-$PWD/crates/saccade-core/assets/wave7-models.json}"
 gate model-pins python3 scripts/wave7/pull.py
 gate model-fixtures python3 scripts/wave7/fixtures.py "$WAVE7_MODEL_CACHE/fixtures"
 # Runtime provisioning is explicit in this coordinator-operated gate; inference never pulls it.
