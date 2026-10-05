@@ -18,3 +18,5 @@
 
 - Assessment: report content-dependent blur/noise/block/banding/clipping indicators and paired deltas; unknown verdict, no universal pass threshold. Learned score skipped absent reviewed permissive pin. Reversal cost: qualify a model behind a feature or add explicit content-scoped policies without changing raw indicators.
 - Disk admission reopened at 29 GB; resume bounded light checks without heavy execution.
+
+- Documents: defer concrete SVG/PDF adapters and all-command/page-summary routing; retain bounded DPI/page renderer interface and a real-rendering acceptance gate. Reject writing an incomplete SVG/PDF interpreter or inferring dependency licences from names. Reversal cost: provision/review permissive sources, add feature-gated adapters, connect input routes and page summaries, then pass generated document gates.

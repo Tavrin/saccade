@@ -6,6 +6,8 @@ pub mod registration;
 pub const RESULT_SCHEMA: &str = "saccade-general-result.v1";
 /// No-reference blur, noise, compression-pattern and clipping measures.
 pub mod assessment;
+/// Bounded document renderer interface; concrete adapters remain unavailable.
+pub mod documents;
 /// Optional ONNX embeddings and cosine arithmetic.
 pub mod embedding;
 /// Perceptual hashes and Hamming search.

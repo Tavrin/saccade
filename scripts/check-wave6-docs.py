@@ -7,7 +7,7 @@ for schema in ('saccade-general-result.v1', 'saccade-registration.v1', 'saccade-
     value = json.loads((root / f'crates/saccade-core/schemas/{schema}.schema.json').read_text())
     assert value['properties']['schema']['const'] == schema
     assert value['$id'].endswith(f'/{schema}.schema.json')
-for name in ('registration', 'hashing', 'embeddings', 'text', 'assessment'):
+for name in ('registration', 'hashing', 'embeddings', 'text', 'assessment', 'documents'):
     assert (root / f'docs/{name}.md').is_file()
 assert 'wave6' in (root / 'integrations/agent-guide.md').read_text()
 print('Wave 6 docs and schema discriminators checked')

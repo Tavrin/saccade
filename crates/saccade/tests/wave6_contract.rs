@@ -275,3 +275,50 @@ fn assessment_reports_paired_deltas_without_quality_verdict() {
         .validate(&report)
         .unwrap();
 }
+
+#[test]
+#[ignore = "heavy: documents-deferred"]
+fn generated_svg_pdf_inputs_require_real_rendering_and_page_summary() {
+    let temp = tempfile::tempdir().unwrap();
+    let svg = temp.path().join("vector.svg");
+    std::fs::write(&svg,b"<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"100\" height=\"100\"><rect width=\"100\" height=\"100\" fill=\"white\"/><rect x=\"20\" y=\"20\" width=\"60\" height=\"60\" fill=\"black\"/></svg>").unwrap();
+    // Generated public-domain-style primitive content; fixture code is project licensed.
+    let objects = [
+        "<< /Type /Catalog /Pages 2 0 R >>",
+        "<< /Type /Pages /Kids [3 0 R] /Count 1 >>",
+        "<< /Type /Page /Parent 2 0 R /MediaBox [0 0 100 100] /Contents 4 0 R >>",
+        "<< /Length 23 >>\nstream\n20 20 60 60 re\nf\nendstream",
+    ];
+    let mut bytes = b"%PDF-1.4\n".to_vec();
+    let mut offsets = vec![0];
+    for (i, object) in objects.iter().enumerate() {
+        offsets.push(bytes.len());
+        bytes.extend_from_slice(format!("{} 0 obj\n{}\nendobj\n", i + 1, object).as_bytes());
+    }
+    let xref = bytes.len();
+    bytes.extend_from_slice(b"xref\n0 5\n0000000000 65535 f \n");
+    for offset in offsets.iter().skip(1) {
+        bytes.extend_from_slice(format!("{offset:010} 00000 n \n").as_bytes());
+    }
+    bytes.extend_from_slice(
+        format!("trailer\n<< /Size 5 /Root 1 0 R >>\nstartxref\n{xref}\n%%EOF\n").as_bytes(),
+    );
+    let pdf = temp.path().join("document.pdf");
+    std::fs::write(&pdf, bytes).unwrap();
+    for file in [&svg, &pdf] {
+        let out = temp.path().join(file.extension().unwrap());
+        let result = cli(&[
+            "compare",
+            file.to_str().unwrap(),
+            file.to_str().unwrap(),
+            "--out",
+            out.to_str().unwrap(),
+            "--json",
+        ]);
+        assert!(
+            result.status.success(),
+            "deferred: real document adapter/routing required: {}",
+            String::from_utf8_lossy(&result.stderr)
+        );
+    }
+}
