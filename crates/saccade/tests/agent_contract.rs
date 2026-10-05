@@ -87,7 +87,7 @@ fn help_lists_active_commands_and_watch_alias_stays_hidden() {
         .collect::<Vec<_>>();
     assert_eq!(
         top.len(),
-        20 + usize::from(cfg!(feature = "compression")),
+        21 + usize::from(cfg!(feature = "compression")),
         "{top:?}"
     );
     for name in [

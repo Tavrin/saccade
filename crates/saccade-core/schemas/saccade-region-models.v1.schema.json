@@ -1,0 +1,101 @@
+{
+  "$defs": {
+    "ModelArtifact": {
+      "additionalProperties": false,
+      "description": "One pinned runtime-downloaded model, graph, tokenizer or parity artifact.",
+      "properties": {
+        "bytes": {
+          "description": "Exact expected encoded bytes.",
+          "format": "uint64",
+          "minimum": 0,
+          "type": "integer"
+        },
+        "format": {
+          "description": "checkpoint, onnx, tokenizer or parity.",
+          "type": "string"
+        },
+        "license": {
+          "description": "Commercial-safe reviewed license, Apache-2.0 or MIT.",
+          "type": "string"
+        },
+        "role": {
+          "description": "Unique role, such as grounding_dino, sam_encoder or sam_decoder.",
+          "type": "string"
+        },
+        "sha256": {
+          "description": "SHA-256 of artifact bytes.",
+          "type": "string"
+        },
+        "url": {
+          "description": "Revision-pinned HTTPS download URL.",
+          "type": "string"
+        },
+        "version": {
+          "description": "Exact checkpoint/export version.",
+          "type": "string"
+        }
+      },
+      "required": [
+        "role",
+        "version",
+        "format",
+        "url",
+        "bytes",
+        "sha256",
+        "license"
+      ],
+      "type": "object"
+    }
+  },
+  "$id": "https://github.com/Tavrin/saccade/crates/saccade-core/schemas/saccade-region-models.v1.schema.json",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "description": "Checkpoint/export provenance; a known checkpoint is not a qualified ONNX export.",
+  "properties": {
+    "artifacts": {
+      "description": "Pinned artifacts, including checkpoint/export hashes and licenses.",
+      "items": {
+        "$ref": "#/$defs/ModelArtifact"
+      },
+      "type": "array"
+    },
+    "execution_provider": {
+      "description": "CPU f32 for this initial runtime boundary.",
+      "type": "string"
+    },
+    "preprocessing": {
+      "description": "Original preprocessing and tokenizer specification/version.",
+      "type": "string"
+    },
+    "qualification": {
+      "description": "Explicit qualification state, not inferred from graph loading.",
+      "type": "string"
+    },
+    "residuals": {
+      "description": "Explicit missing parity/export conditions.",
+      "items": {
+        "type": "string"
+      },
+      "type": "array"
+    },
+    "runtime": {
+      "description": "Pinned runtime API version.",
+      "type": "string"
+    },
+    "schema": {
+      "description": "saccade-region-models.v1.",
+      "type": "string"
+    }
+  },
+  "required": [
+    "schema",
+    "qualification",
+    "runtime",
+    "preprocessing",
+    "execution_provider",
+    "artifacts",
+    "residuals"
+  ],
+  "title": "ModelManifest",
+  "type": "object"
+}

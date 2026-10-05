@@ -28,6 +28,7 @@ mod local_cmd;
 mod localized_cmd;
 #[cfg(feature = "compression")]
 mod quality_cmd;
+mod region_cmd;
 #[cfg(feature = "ai")]
 mod review_cmd;
 
@@ -189,6 +190,8 @@ impl From<MetricArg> for Metric {
 
 #[derive(Subcommand)]
 enum Command {
+    /// Import and freeze phrase regions, or inspect optional model plumbing.
+    Regions(region_cmd::Args),
     /// Render verified atomic numerical claims with region and evidence citations.
     ExplainGrounded(grounded_cmd::Args),
     /// Measure intended-region, boundary and protected-complement changes independently.
@@ -1013,6 +1016,7 @@ fn dispatch(command: Command, record_absolute_paths: bool) -> Result<u8, CliErro
             operation: ExperimentOperation::Geometry(args),
         } => geometry_cmd::compare(args),
         Command::History(args) => history::run(args),
+        Command::Regions(args) => region_cmd::run(args),
         Command::ExplainGrounded(args) => grounded_cmd::run(args),
         Command::LocalizedCheck(args) => localized_cmd::run(args),
         Command::Inventory(args) => inventory_cmd::run(args),

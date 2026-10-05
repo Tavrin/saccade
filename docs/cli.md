@@ -5,7 +5,7 @@ Generated from compiled capabilities and `--help`; do not edit by hand.
 Generation: `cargo build --release -p saccade --all-features`, then `python3 scripts/gen-docs.py --saccade target/release/saccade`.
 The all-features binary includes every supported operation.
 
-Compiled features: `ai`, `compression`, `evaluation`, `geometry`, `graphics`, `mcp`, `parallel`, `prechecks`, `schema`, `workbench`.
+Compiled features: `ai`, `compression`, `evaluation`, `geometry`, `graphics`, `mcp`, `parallel`, `prechecks`, `schema`, `semantic-regions`, `workbench`.
 
 Exit 1 means a failed image measurement/evaluation gate or located divergence.
 Exit 0 for compare/identity means no image regression; inspect `performance` for qualification.
@@ -21,10 +21,11 @@ Usage: saccade [OPTIONS] <COMMAND>
 
 Commands:
   compare           Compare a directory of captures against a directory of baselines
-  explain-grounded  Render verified atomic numerical claims with region and evidence citations
   prove             Check whether image identity or performance evidence proves a claim
-  localized-check   Measure intended-region, boundary and protected-complement changes independently
+  regions           Import and freeze phrase regions, or inspect optional model plumbing
+  explain-grounded  Render verified atomic numerical claims with region and evidence citations
   review            Preview a review plan or handle a local closed decision request
+  localized-check   Measure intended-region, boundary and protected-complement changes independently
   inventory         Reconcile expected and supplied stable capture cases against a comparison report
   quality-sweep     Measure externally encoded quality candidates under a frozen score and byte budget
 
@@ -46,6 +47,96 @@ Start here:
 Exit codes: 0 no image regression, 1 image regression found, 2 the command could not run.
 Advanced: demo, identity, noise, view, inspect, experiment, approve, init,
 serve, mcp, ingest, bisect, history, doctor. Existing commands keep working; use `saccade COMMAND --help`.
+```
+
+## saccade regions
+
+```text
+Import and freeze phrase regions, or inspect optional model plumbing
+
+Usage: saccade regions [OPTIONS] <COMMAND>
+
+Commands:
+  import         Freeze a manually accepted phrase region from an imported inclusion mask
+  status         Report honest text-to-mask and import capabilities without loading models
+  cache          Explicitly download hash-pinned model artifacts into a local cache
+  runtime-probe  Load self-contained ONNX graphs; graph loading does not qualify inference/parity
+
+Options:
+  -h, --help  Print help
+
+Global options:
+      --allow-out-near-captures  Silence warnings when --out is next to capture metadata
+      --record-absolute-paths    Opt in to absolute local paths in reports and machine-readable output
+```
+
+## saccade regions import
+
+```text
+Freeze a manually accepted phrase region from an imported inclusion mask
+
+Usage: saccade regions import [OPTIONS] --reference <REFERENCE> --mask <MASK> --phrase <PHRASE> --out <OUT>
+
+Options:
+      --reference <REFERENCE>
+      --mask <MASK>
+      --phrase <PHRASE>
+      --out <OUT>              New frozen-region JSON file; use it with localized-check --region
+  -h, --help                   Print help
+
+Global options:
+      --allow-out-near-captures  Silence warnings when --out is next to capture metadata
+      --record-absolute-paths    Opt in to absolute local paths in reports and machine-readable output
+```
+
+## saccade regions status
+
+```text
+Report honest text-to-mask and import capabilities without loading models
+
+Usage: saccade regions status [OPTIONS]
+
+Options:
+  -h, --help  Print help
+
+Global options:
+      --allow-out-near-captures  Silence warnings when --out is next to capture metadata
+      --record-absolute-paths    Opt in to absolute local paths in reports and machine-readable output
+```
+
+## saccade regions cache
+
+```text
+Explicitly download hash-pinned model artifacts into a local cache
+
+Usage: saccade regions cache [OPTIONS] --manifest <MANIFEST> --cache <CACHE>
+
+Options:
+      --manifest <MANIFEST>
+      --cache <CACHE>
+  -h, --help                 Print help
+
+Global options:
+      --allow-out-near-captures  Silence warnings when --out is next to capture metadata
+      --record-absolute-paths    Opt in to absolute local paths in reports and machine-readable output
+```
+
+## saccade regions runtime-probe
+
+```text
+Load self-contained ONNX graphs; graph loading does not qualify inference/parity
+
+Usage: saccade regions runtime-probe [OPTIONS] --manifest <MANIFEST> --cache <CACHE> --library <LIBRARY>
+
+Options:
+      --manifest <MANIFEST>
+      --cache <CACHE>
+      --library <LIBRARY>
+  -h, --help                 Print help
+
+Global options:
+      --allow-out-near-captures  Silence warnings when --out is next to capture metadata
+      --record-absolute-paths    Opt in to absolute local paths in reports and machine-readable output
 ```
 
 ## saccade explain-grounded

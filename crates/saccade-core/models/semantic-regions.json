@@ -1,0 +1,32 @@
+{
+  "schema": "saccade-region-models.v1",
+  "qualification": "checkpoint_only_export_and_parity_unqualified",
+  "runtime": "ONNX Runtime 1.22",
+  "preprocessing": "Residual: detector resize/tokenizer and SAM 2.1 checkpoint-specific preprocessing/export parity must be pinned before inference. Preserve original phrase; no automatic expansions.",
+  "execution_provider": "CPU f32",
+  "artifacts": [
+    {
+      "role": "grounding_dino_checkpoint",
+      "version": "Grounding DINO Tiny; Hugging Face revision a2bb814dd30d776dcf7e30523b00659f4f141c71",
+      "format": "checkpoint",
+      "url": "https://huggingface.co/IDEA-Research/grounding-dino-tiny/resolve/a2bb814dd30d776dcf7e30523b00659f4f141c71/model.safetensors",
+      "bytes": 689359096,
+      "sha256": "1a2412ef99bd74bcd3c2a246fa1e48581f8889a1300c9051974741314fc042f3",
+      "license": "Apache-2.0"
+    },
+    {
+      "role": "sam_checkpoint",
+      "version": "SAM 2.1 Hiera Tiny; Hugging Face revision de431c4043854a71d8101e17995dfe596bf101a5",
+      "format": "checkpoint",
+      "url": "https://huggingface.co/facebook/sam2.1-hiera-tiny/resolve/de431c4043854a71d8101e17995dfe596bf101a5/sam2.1_hiera_tiny.pt",
+      "bytes": 156008466,
+      "sha256": "7402e0d864fa82708a20fbd15bc84245c2f26dff0eb43a4b5b93452deb34be69",
+      "license": "Apache-2.0"
+    }
+  ],
+  "residuals": [
+    "Official SAM ONNX exporter --help failed: ModuleNotFoundError: No module named torch. Python torch, onnx and onnxruntime absent; no ONNX Runtime shared library found.",
+    "No pinned detector/SAM 2.1 ONNX export, tokenizer or source parity witness was produced. The checkpoint hashes are upstream LFS declarations, not downloaded-model validation.",
+    "Text-to-mask inference, absent-target/ambiguity accuracy and device reproducibility remain unqualified. Use explicit reviewed mask import."
+  ]
+}

@@ -94,3 +94,23 @@ The default uses deterministic atomic templates. An optional proposal file is a 
 Use exact IDs and numbers from the catalog. Supported kinds are `mean_flip`, `max_flip`, `thresholded_hotspot_pixels`, and localized `changed_pixels`. Unsupported semantic/causal observations, compound citations and inconsistent quantities are dropped. Free-form wording is not accepted. A model may supply this finite contract offline; the application performs the same verification and inserts the final wording. Source hashes and JSON pointers let reviewers resolve each fact. Pixel counts in hotspots depend on thresholds/exclusions; localized counts use native samples.
 
 MCP: call `saccade_inspect` with `operation: "grounded"`, `artifact` pointing to a comparison report, and optional `limit` (1–5) and numeric `cursor`. Each page carries accepted claims and the matching region/fact/source citations. Numerical support does not establish semantic success, causation, or a human review decision.
+
+## Regions described in words
+
+Text-to-mask inference remains unavailable in this lane; `saccade regions status` states this explicitly. Freeze a reviewed phrase mask without model dependencies:
+
+```sh
+saccade regions import --reference reference.png --mask left-sphere.png --phrase 'the left sphere' --out left-sphere.json
+saccade localized-check reference.png candidate.png --region left-sphere.json --out measured-region
+```
+
+The mask must be binary grayscale, reference-sized, 255 inside. The original phrase, explicit import, source-mask hash and reference hash are saved before measurement. Use the same reference region if the candidate object disappears. Spatial measurement does not verify that the phrase selected the correct object.
+
+Optional plumbing: `cargo build -p saccade --features semantic-regions`. The pinned checkpoint manifest is [semantic-regions.json](../crates/saccade-core/models/semantic-regions.json). No weights or ONNX Runtime binaries ship with the repository.
+
+```sh
+saccade regions cache --manifest crates/saccade-core/models/semantic-regions.json --cache ~/.cache/saccade/models
+saccade regions runtime-probe --manifest qualified-exports.json --cache ~/.cache/saccade/models --library /path/to/libonnxruntime.so
+```
+
+Only `cache` performs explicit downloads; it verifies hashes and exact byte counts before storing artifacts. Cache hits are verified again. The shipped manifest contains checkpoints, so runtime probing rejects it until detector/SAM encoder/SAM decoder self-contained ONNX artifacts are supplied. Runtime 1.22, CPU f32, pinned preprocessing/tokenizer and checkpoint/export/license provenance must be recorded. Graph loading is diagnostic plumbing and does not establish source-model parity or successful text segmentation. The export, inference and accuracy residuals are recorded in the design decisions.

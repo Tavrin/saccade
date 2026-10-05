@@ -53,3 +53,42 @@ fn box_and_selector_freeze_before_measurement_and_preserve_collateral() {
     assert_eq!(report["outside"]["changed_pixels"], 1);
     assert_eq!(report["collateral"], "collateral_change");
 }
+
+#[test]
+fn phrase_mask_import_freezes_reference_scope_without_model_inference() {
+    let temp = tempfile::tempdir().unwrap();
+    let reference = temp.path().join("reference.png");
+    let mask = temp.path().join("mask.png");
+    let region = temp.path().join("phrase.json");
+    image::RgbImage::from_pixel(16, 16, image::Rgb([30, 40, 50]))
+        .save(&reference)
+        .unwrap();
+    image::GrayImage::from_fn(16, 16, |x, y| {
+        image::Luma([if (4..8).contains(&x) && (4..8).contains(&y) {
+            255
+        } else {
+            0
+        }])
+    })
+    .save(&mask)
+    .unwrap();
+    let output = Command::new(env!("CARGO_BIN_EXE_saccade"))
+        .args(["regions", "import", "--reference"])
+        .arg(&reference)
+        .arg("--mask")
+        .arg(&mask)
+        .args(["--phrase", "the left sphere", "--out"])
+        .arg(&region)
+        .output()
+        .unwrap();
+    assert!(output.status.success(), "{output:?}");
+    let frozen: saccade_core::localized::FrozenRegion =
+        serde_json::from_slice(&std::fs::read(region).unwrap()).unwrap();
+    assert_eq!(frozen.provenance["original_phrase"], "the left sphere");
+    assert_eq!(frozen.provenance["model_inference"], "not_run");
+    assert_eq!(frozen.inclusion.iter().filter(|&&v| v == 1).count(), 16);
+    assert_eq!(
+        frozen.reference_sha256,
+        digest(&std::fs::read(reference).unwrap())
+    );
+}

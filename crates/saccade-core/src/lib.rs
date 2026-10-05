@@ -61,6 +61,7 @@ pub mod run;
 pub mod runs;
 #[cfg(feature = "prechecks")]
 pub mod safety;
+pub mod semantic;
 pub mod sequence;
 #[cfg(feature = "workbench")]
 pub mod serve;
@@ -81,6 +82,8 @@ pub const COMPILED_FEATURES: &[&str] = &[
     "geometry",
     #[cfg(feature = "compression")]
     "compression",
+    #[cfg(feature = "semantic-regions")]
+    "semantic-regions",
     #[cfg(feature = "ai")]
     "ai",
     #[cfg(feature = "workbench")]

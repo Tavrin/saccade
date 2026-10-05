@@ -154,6 +154,7 @@ The last three names appear only when the corresponding feature is compiled in.
 - [saccade-quality-report.v1.schema.json](../crates/saccade-core/schemas/saccade-quality-report.v1.schema.json) — Sweep
 - [saccade-quality-sweep.v1.schema.json](../crates/saccade-core/schemas/saccade-quality-sweep.v1.schema.json) — Manifest
 - [saccade-rank.v1.schema.json](../crates/saccade-core/schemas/saccade-rank.v1.schema.json) — RankReport
+- [saccade-region-models.v1.schema.json](../crates/saccade-core/schemas/saccade-region-models.v1.schema.json) — ModelManifest
 - [saccade-report.v1.schema.json](../crates/saccade-core/schemas/saccade-report.v1.schema.json) — Report
 - [saccade-result.v1.schema.json](../crates/saccade-core/schemas/saccade-result.v1.schema.json) — saccade-result.v1
 - [saccade-result.v2.schema.json](../crates/saccade-core/schemas/saccade-result.v2.schema.json) — ResultEnvelope
