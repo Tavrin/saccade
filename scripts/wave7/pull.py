@@ -14,6 +14,8 @@ def fetch(entry, cache):
             raise RuntimeError('HARD FAILURE: corrupt cached pin '+entry['model'])
         entry['bytes'] = dest.stat().st_size
         return dest
+    if os.environ.get('SACCADE_REQUIRE_IMMUTABLE_DOWNLOADS') == '1' and entry['model'] == 'trustmark':
+        raise RuntimeError('TrustMark mutable source is cache-only in integration round 2')
     if shutil.disk_usage(cache).free < 25 * 1024**3 + 800_000_000:
         raise RuntimeError('disk headroom would fall below 25 GiB')
     fd, temporary_name = tempfile.mkstemp(prefix='download-',dir=cache)
