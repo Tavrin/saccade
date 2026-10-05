@@ -45,7 +45,11 @@ fn generated<T: schemars::JsonSchema>(file: &str) -> String {
     }
     ordered.insert("$id".into(), format!("{BASE}/{file}").into());
     ordered.extend(std::mem::take(obj));
-    let mut text = serde_json::to_string_pretty(&ordered).expect("schema serializes");
+    // Optional C2PA enables serde_json/preserve_order. Schema bytes must remain
+    // independent of that feature while retaining every semantic field.
+    let mut canonical = serde_json::Value::Object(ordered);
+    canonical.sort_all_objects();
+    let mut text = serde_json::to_string_pretty(&canonical).expect("schema serializes");
     text.push('\n');
     text
 }
