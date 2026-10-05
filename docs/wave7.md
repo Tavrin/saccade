@@ -46,3 +46,25 @@ rather than returning invented boxes or treating missing models as no objects.
 The library's `Detector`, `Segmenter`, `locate`, `Mask` and `Rect` interfaces are
 ready for the coordinator's check-ui/mask audit/crop adapters. Detector and
 segmenter provenance is separate; a box is not a segmentation mask.
+
+## Small local VLM (`local-vlm`)
+
+`saccade observe-local request.json --endpoint
+http://127.0.0.1:9000/v1/chat/completions --runtime-revision REV --json`
+uses an explicitly operated OpenAI-compatible server. Only literal IPv4/IPv6
+loopback HTTP endpoints are accepted; redirects are disabled. There is no
+ambient key, remote endpoint or weight download. `--response recorded.json`
+decodes a recorded response instead, clearly labelled replay.
+
+`ObservationRequest` records the closed task (`caption`, `ocr`, `grounding`,
+`reasoning`), bounded data, model, encoder revision, token cap, and up to four
+images. Each image has a catalog id, encoded PNG/JPEG bytes, original/presented
+sizes and resize/padding transform. Returned boxes/points map back to original
+pixels; invented ids, invalid geometry, truncated output, refusals and model
+identity changes fail closed. Usage is preserved; unknown monetary cost is null.
+
+Florence-2 Base-FT supports bounded caption/OCR/grounding through a local server
+implementing this contract. Qwen3.5-4B supports general advisory reasoning.
+Deploy the selected processor/template/quantization/runtime yourself and record
+its revision. Neither model has a qualified complete native ONNX path in this
+lane; HTTP is the selected adapter, not a claim of source/export qualification.

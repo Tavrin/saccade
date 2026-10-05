@@ -166,3 +166,42 @@ pub(crate) fn locate(a: LocateArgs) -> Result<u8, CliError> {
     )?;
     emit(&r, a.json)
 }
+
+#[derive(clap::Args)]
+pub(crate) struct ObserveArgs {
+    /// Bounded saccade observation request JSON with exact encoded images/transforms.
+    request: PathBuf,
+    #[arg(long)]
+    endpoint: String,
+    #[arg(long)]
+    runtime_revision: String,
+    /// Decode an explicitly recorded response without making any HTTP request.
+    #[arg(long)]
+    response: Option<PathBuf>,
+    #[arg(long)]
+    json: bool,
+}
+#[cfg(feature = "local-vlm")]
+pub(crate) fn observe(a: ObserveArgs) -> Result<u8, CliError> {
+    use saccade_core::wave7::{
+        local_vlm::LocalVlm,
+        observation::{ObservationProvider, ObservationRequest},
+    };
+    let r: ObservationRequest = serde_json::from_slice(
+        &models::read_bounded(&a.request, 24 * 1024 * 1024).map_err(error)?,
+    )?;
+    let mut p = LocalVlm {
+        endpoint: a.endpoint,
+        runtime_revision: a.runtime_revision,
+    };
+    let mut report = if let Some(path) = &a.response {
+        p.decode(&r, &models::read_bounded(path, 1024 * 1024).map_err(error)?)
+            .map_err(error)?
+    } else {
+        p.observe(&r).map_err(error)?
+    };
+    if report.provenance.runtime == "external-http" && a.response.is_some() {
+        report.provenance.runtime = "replay".into();
+    }
+    emit(&report, a.json)
+}

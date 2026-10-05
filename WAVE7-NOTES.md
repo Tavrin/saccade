@@ -34,3 +34,11 @@
   are implemented. Native selected pipeline is explicitly deferred: research has
   neither an exact tokenizer nor pinned graphs/SAM preprocessing/parity. A fake
   detector is used only in tests and explicit replay, never as a default model.
+- Local observations: closed tasks and statements, exact image/order/transform and
+  request/response/model identity, unknown-cost usage receipt. HTTP adapter only
+  accepts literal loopback with no redirects. Rejected implicit remote endpoints
+  and fallback keys. Reversal cost: add an explicitly authorized remote transport
+  in wave 4; observation contract remains stable.
+- Reused dependency licences checked in local registry Cargo.toml: ort rc.10,
+  ureq 3.3.0, base64 0.22.1, sha2 0.10.9, tempfile 3.27.0 MIT OR Apache-2.0;
+  fs2 0.4.3 MIT/Apache-2.0. No new dependency/lockfile change.
