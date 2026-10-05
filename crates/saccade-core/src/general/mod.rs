@@ -8,3 +8,5 @@ pub const RESULT_SCHEMA: &str = "saccade-general-result.v1";
 pub mod embedding;
 /// Perceptual hashes and Hamming search.
 pub mod hashing;
+/// OCR text observations, CER/WER and positional differences.
+pub mod text;

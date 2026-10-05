@@ -357,6 +357,7 @@ pub(crate) fn tool_schema() -> Value {
     let mut variants = vec![registration];
     variants.extend(crate::hash_cmd::schemas());
     variants.extend(crate::embedding_cmd::schemas());
+    variants.extend(crate::text_cmd::schemas());
     tool["inputSchema"] = json!({"type":"object","oneOf":variants});
     tool
 }

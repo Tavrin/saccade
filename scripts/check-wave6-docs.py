@@ -3,11 +3,11 @@
 import json
 from pathlib import Path
 root = Path(__file__).resolve().parent.parent
-for schema in ('saccade-general-result.v1', 'saccade-registration.v1', 'saccade-hash.v1', 'saccade-dedupe.v1', 'saccade-similar.v1', 'saccade-embedding-model.v1', 'saccade-embedding-index.v1', 'saccade-embedding-query.v1'):
+for schema in ('saccade-general-result.v1', 'saccade-registration.v1', 'saccade-hash.v1', 'saccade-dedupe.v1', 'saccade-similar.v1', 'saccade-embedding-model.v1', 'saccade-embedding-index.v1', 'saccade-embedding-query.v1', 'saccade-text.v1'):
     value = json.loads((root / f'crates/saccade-core/schemas/{schema}.schema.json').read_text())
     assert value['properties']['schema']['const'] == schema
     assert value['$id'].endswith(f'/{schema}.schema.json')
-for name in ('registration', 'hashing', 'embeddings'):
+for name in ('registration', 'hashing', 'embeddings', 'text'):
     assert (root / f'docs/{name}.md').is_file()
 assert 'wave6' in (root / 'integrations/agent-guide.md').read_text()
 print('Wave 6 docs and schema discriminators checked')

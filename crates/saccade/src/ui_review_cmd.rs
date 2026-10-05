@@ -38,7 +38,7 @@ pub(crate) struct Args {
     out: PathBuf,
 }
 fn bytes(p: &Path) -> Result<Vec<u8>, CliError> {
-    std::fs::read(p).map_err(|e| CliError::io(e.to_string()))
+    saccade_core::general::input::bytes(p, 64 * 1024 * 1024).map_err(Into::into)
 }
 fn load_source(
     path: Option<&Path>,
@@ -287,5 +287,25 @@ mod ocr {
             dimensions,
             producer,
         )?)
+    }
+}
+
+// wave6: reuse the existing pinned OCR adapter without guessing a new model licence.
+pub(crate) fn recognize_text(
+    contract: &Path,
+    image: &[u8],
+    dimensions: [u32; 2],
+) -> Result<ui_review::Source, CliError> {
+    #[cfg(feature = "ocr")]
+    {
+        ocr::recognize(contract, image, dimensions)
+    }
+    #[cfg(not(feature = "ocr"))]
+    {
+        let _ = (contract, image, dimensions);
+        Err(CliError::new(
+            "feature_unavailable",
+            "OCR execution requires ocr; imported image-bound sources remain available",
+        ))
     }
 }

@@ -95,3 +95,9 @@ SHA-pinned model contract, CPU runtime and cache. Raw cosine and supplied bands
 remain conditional evidence; built-in calibration is unqualified. MCP
 `saccade_general` mirrors these measurements without network access. See
 [embeddings](../docs/embeddings.md).
+
+<!-- wave6 -->
+Use `text A B --a-source A.json --b-source B.json --expect-text 'café' --out
+REPORT --json` for image-bound text observations. Missing OCR and confidence stay
+unknown; CER/WER do not prove source truth. Optional CLI `ocr` reuses pinned
+Tesseract; MCP accepts imports only. See [text](../docs/text.md).

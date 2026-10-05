@@ -2,8 +2,8 @@
 
 6.1 registration: done, 8ded843; focused core tests 4 PASS, heavy rotation/perspective + CLI/schema fixture gates written, not run. Explicit route rejects unsupported evidence options.
 6.2 hashing/dedupe: done, c47e67a; focused tests 3 PASS, 100k scale + CLI heavy gates written and not run.
-6.3 embeddings: partial (implementation commit recorded next); configurable pinned DINOv2 ONNX inference and streaming flat index written; feature check PASS. Canonical export pin/parity and calibrated corpus absent, CLIP deferred. One clippy iterator correction written after disk fell below 25 GB; subsequent light checks and model gates NOT RUN.
-6.4 OCR/text: deferred pending preceding items; ocrs and model licence sources absent locally.
+6.3 embeddings: partial, baf3a66; configurable pinned DINOv2 ONNX inference and streaming flat index written; feature check PASS. Canonical export pin/parity and calibrated corpus absent, CLIP deferred. One clippy iterator correction written after disk fell below 25 GB; subsequent light checks and model gates NOT RUN.
+6.4 OCR/text: partial (implementation commit recorded next); image-bound imports, line/word changes, Unicode CER/WER and expectations written; reuse existing pinned Tesseract adapter behind ocr. ONNX/Rust OCR engine/model licence verification and real Latin-accent qualification deferred: ocrs/model sources absent. Tests written, NOT RUN due disk admission.
 6.5 assessment: deferred pending preceding items; no blocker yet.
 6.6 documents: deferred pending preceding items; renderer licence sources absent locally.
 6.7a integrity: deferred pending preceding items; c2pa licence source absent locally.

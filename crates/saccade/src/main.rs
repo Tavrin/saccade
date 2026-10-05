@@ -16,6 +16,7 @@ use saccade_core::view::{ViewOptions, build_view, is_safe_name};
 mod embedding_cmd;
 mod general_cmd;
 mod hash_cmd;
+mod text_cmd;
 
 mod agent;
 mod agent_ui;
@@ -200,6 +201,8 @@ impl From<MetricArg> for Metric {
 #[derive(Subcommand)]
 enum Command {
     // wave6
+    /// Compare image-bound OCR/text observations and literal expected strings.
+    Text(text_cmd::Args),
     /// Cosine similarity with an explicitly pinned optional ONNX export.
     Similar(embedding_cmd::SimilarArgs),
     /// Build or query a streaming exact flat embedding index.
@@ -1001,6 +1004,7 @@ fn emit_run(
 fn dispatch(command: Command, record_absolute_paths: bool) -> Result<u8, CliError> {
     match command {
         // wave6
+        Command::Text(args) => text_cmd::run(args),
         Command::Similar(args) => embedding_cmd::similar(args),
         Command::Index(args) => embedding_cmd::index(args),
         Command::Hash(args) => hash_cmd::run_hash(args),

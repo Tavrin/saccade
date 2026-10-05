@@ -1155,6 +1155,40 @@ impl Server {
         use clap::ValueEnum;
         // wave6
         let operation = require_str(args, "operation")?;
+        // wave6: imported text observations are data; MCP never executes a supplied program.
+        if operation == "text" {
+            reject_unknown(
+                args,
+                &[
+                    "operation",
+                    "a",
+                    "b",
+                    "a_source",
+                    "b_source",
+                    "out",
+                    "expect_text",
+                    "readable_confidence",
+                    "moved_px",
+                ],
+            )?;
+            let a = self.existing_file("a", &require_str(args, "a")?)?;
+            let b = self.existing_file("b", &require_str(args, "b")?)?;
+            let sa = self.existing_file("a_source", &require_str(args, "a_source")?)?;
+            let sb = self.existing_file("b_source", &require_str(args, "b_source")?)?;
+            let out = self.checked_out_dir(&require_str(args, "out")?, &[&a, &b, &sa, &sb])?;
+            let value = crate::text_cmd::imported(
+                a,
+                b,
+                sa,
+                sb,
+                out.clone(),
+                arg_strings(args, "expect_text")?,
+                arg_f64(args, "readable_confidence")?.unwrap_or(80.),
+                arg_f64(args, "moved_px")?.unwrap_or(3.),
+            )?;
+            let file = crate::general_cmd::persist_document(&value, &out)?;
+            return Ok(ToolOutput{structured:json!({"schema":saccade_core::general::RESULT_SCHEMA,"mode":operation,"verdict":value["verdict"],"data":{"schema":value["schema"],"counts":value["counts"]},"artifacts":[{"path":saccade_core::paths::record(&file,&self.root,false)}],"next_actions":[]}),text:"OCR/source observations compared; missing text and confidence are uncertain evidence.".into(),images:Vec::new()});
+        }
         // wave6: model/runtime reads and cache writes use the same root authority.
         if matches!(
             operation.as_str(),
