@@ -1155,6 +1155,20 @@ impl Server {
         use clap::ValueEnum;
         // wave6
         let operation = require_str(args, "operation")?;
+        // wave6
+        if operation == "assess" {
+            reject_unknown(args, &["operation", "image", "compare_to", "out"])?;
+            let image = self.existing_file("image", &require_str(args, "image")?)?;
+            let before = arg_str(args, "compare_to")?
+                .map(|p| self.existing_file("compare_to", &p))
+                .transpose()?;
+            let mut inputs = vec![image.as_path()];
+            inputs.extend(before.as_deref());
+            let out = self.checked_out_dir(&require_str(args, "out")?, &inputs)?;
+            let value = crate::assess_cmd::measure(&image, before.as_deref(), &out)?;
+            let file = crate::general_cmd::persist_document(&value, &out)?;
+            return Ok(ToolOutput{structured:json!({"schema":saccade_core::general::RESULT_SCHEMA,"mode":operation,"verdict":value["verdict"],"data":{"schema":value["schema"],"counts":value["counts"]},"artifacts":[{"path":saccade_core::paths::record(&file,&self.root,false)}],"next_actions":[]}),text:"Content-dependent quality indicators and optional paired deltas; no heuristic quality verdict.".into(),images:Vec::new()});
+        }
         // wave6: imported text observations are data; MCP never executes a supplied program.
         if operation == "text" {
             reject_unknown(
@@ -1177,14 +1191,14 @@ impl Server {
             let sb = self.existing_file("b_source", &require_str(args, "b_source")?)?;
             let out = self.checked_out_dir(&require_str(args, "out")?, &[&a, &b, &sa, &sb])?;
             let value = crate::text_cmd::imported(
-                a,
-                b,
-                sa,
-                sb,
+                [a, b],
+                [sa, sb],
                 out.clone(),
                 arg_strings(args, "expect_text")?,
-                arg_f64(args, "readable_confidence")?.unwrap_or(80.),
-                arg_f64(args, "moved_px")?.unwrap_or(3.),
+                [
+                    arg_f64(args, "readable_confidence")?.unwrap_or(80.),
+                    arg_f64(args, "moved_px")?.unwrap_or(3.),
+                ],
             )?;
             let file = crate::general_cmd::persist_document(&value, &out)?;
             return Ok(ToolOutput{structured:json!({"schema":saccade_core::general::RESULT_SCHEMA,"mode":operation,"verdict":value["verdict"],"data":{"schema":value["schema"],"counts":value["counts"]},"artifacts":[{"path":saccade_core::paths::record(&file,&self.root,false)}],"next_actions":[]}),text:"OCR/source observations compared; missing text and confidence are uncertain evidence.".into(),images:Vec::new()});

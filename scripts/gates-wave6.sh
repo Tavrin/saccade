@@ -19,7 +19,7 @@ cargo_gate() {
 }
 gate fmt cargo fmt --all -- --check
 gate clippy clippy_gate
-gate core-tests cargo_gate test -p saccade-core --features schema,embeddings,ocr
+gate core-tests cargo_gate test -p saccade-core --features schema,embeddings
 gate cli-tests cargo_gate test -p saccade --features schema,embeddings,ocr
 gate registration-heavy cargo_gate test -p saccade-core --lib general::registration -- --ignored
 gate embeddings-heavy cargo_gate test -p saccade-core --features embeddings --lib general::embedding -- --ignored

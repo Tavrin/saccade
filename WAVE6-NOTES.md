@@ -15,3 +15,6 @@
 
 - Text: literal Unicode-scalar CER and whitespace WER, heuristic line/word position/content matching and expectations; preserve accents and boxes. Reject ASCII normalization, instructions from extracted text and confidence-as-probability. Reversal cost: add opt-in grapheme normalization or a global matching algorithm with a new recorded policy.
 - OCR: reuse the existing repository's pinned Tesseract CLI adapter under the existing ocr feature; no new engine/model licence asserted. Bound adapter reads at 64 MiB. MCP imports observations only, since arbitrary executable/model paths introduce an execution authority not granted by root reads. ONNX/Rust OCR engine/model licence verification deferred because crate/model sources are absent. Reversal cost: verify a permissive engine/artifacts, implement behind the same source interface, run generated accent gates.
+
+- Assessment: report content-dependent blur/noise/block/banding/clipping indicators and paired deltas; unknown verdict, no universal pass threshold. Learned score skipped absent reviewed permissive pin. Reversal cost: qualify a model behind a feature or add explicit content-scoped policies without changing raw indicators.
+- Disk admission reopened at 29 GB; resume bounded light checks without heavy execution.

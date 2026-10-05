@@ -235,19 +235,18 @@ fn changes(a: &[Unit], b: &[Unit], asize: [u32; 2], bsize: [u32; 2], moved_px: f
                     .total_cmp(&delta(aa, y, asize, bsize))
                     .then(j.cmp(k))
             });
-        if let Some((j, bb)) = found {
-            if delta(aa, bb, asize, bsize) <= aa.bounds[3].max(8.) {
-                used[j] = true;
-                matched[i] = true;
-                out.push(Change {
-                    kind: "changed".into(),
-                    before: Some(aa.clone()),
-                    after: Some(bb.clone()),
-                    basis:
-                        "nearby unmatched normalized box centre; OCR correspondence is heuristic"
-                            .into(),
-                });
-            }
+        if let Some((j, bb)) = found
+            && delta(aa, bb, asize, bsize) <= aa.bounds[3].max(8.)
+        {
+            used[j] = true;
+            matched[i] = true;
+            out.push(Change {
+                kind: "changed".into(),
+                before: Some(aa.clone()),
+                after: Some(bb.clone()),
+                basis: "nearby unmatched normalized box centre; OCR correspondence is heuristic"
+                    .into(),
+            });
         }
         if !matched[i] {
             out.push(Change {

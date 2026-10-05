@@ -44,8 +44,12 @@ fn registration_report_has_schema_and_visible_geometry() {
         ("saccade-general-result.v1", summary),
         ("saccade-registration.v1", report.clone()),
     ] {
-        let schema: Value = serde_json::from_str(
-            &std::fs::read(format!("../saccade-core/schemas/{name}.schema.json")).unwrap(),
+        let schema: Value = serde_json::from_slice(
+            &std::fs::read(
+                std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+                    .join(format!("../saccade-core/schemas/{name}.schema.json")),
+            )
+            .unwrap(),
         )
         .unwrap();
         jsonschema::validator_for(&schema)
@@ -225,4 +229,49 @@ fn pinned_ocr_reads_generated_accent_glyphs() {
         "{}",
         String::from_utf8_lossy(&result.stderr)
     );
+}
+
+#[test]
+#[ignore = "heavy: wave6-cli"]
+fn assessment_reports_paired_deltas_without_quality_verdict() {
+    let temp = tempfile::tempdir().unwrap();
+    let a = temp.path().join("before.png");
+    let b = temp.path().join("after.png");
+    let sharp = image::RgbaImage::from_fn(64, 64, |x, _| {
+        image::Rgba(if x < 32 { [0, 0, 0, 255] } else { [255; 4] })
+    });
+    sharp.save(&a).unwrap();
+    image::imageops::blur(&sharp, 2.).save(&b).unwrap();
+    let out = temp.path().join("quality");
+    let result = cli(&[
+        "assess",
+        b.to_str().unwrap(),
+        "--compare-to",
+        a.to_str().unwrap(),
+        "--out",
+        out.to_str().unwrap(),
+        "--json",
+    ]);
+    assert!(
+        result.status.success(),
+        "{}",
+        String::from_utf8_lossy(&result.stderr)
+    );
+    let report: Value =
+        serde_json::from_slice(&std::fs::read(out.join("saccade-assess.v1.json")).unwrap())
+            .unwrap();
+    assert_eq!(report["verdict"], "unknown");
+    assert!(report["deltas"]["laplacian_variance"].as_f64().unwrap() < 0.);
+    let schema: Value = serde_json::from_slice(
+        &std::fs::read(
+            std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+                .join("../saccade-core/schemas/saccade-assess.v1.schema.json"),
+        )
+        .unwrap(),
+    )
+    .unwrap();
+    jsonschema::validator_for(&schema)
+        .unwrap()
+        .validate(&report)
+        .unwrap();
 }

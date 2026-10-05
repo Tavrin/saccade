@@ -101,3 +101,8 @@ Use `text A B --a-source A.json --b-source B.json --expect-text 'café' --out
 REPORT --json` for image-bound text observations. Missing OCR and confidence stay
 unknown; CER/WER do not prove source truth. Optional CLI `ocr` reuses pinned
 Tesseract; MCP accepts imports only. See [text](../docs/text.md).
+
+<!-- wave6 -->
+`assess IMAGE --compare-to REFERENCE --out REPORT --json` reports content-dependent
+quality measures and deltas. Its unknown verdict never means publication approval.
+MCP `saccade_general` / `assess` mirrors it; see [assessment](../docs/assessment.md).

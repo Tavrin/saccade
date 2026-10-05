@@ -681,10 +681,11 @@ mod tests {
             let mut b = RgbaImage::from_pixel(256, 256, image::Rgba([30, 30, 30, 255]));
             for (y, row) in a.rows().enumerate() {
                 for (x, p) in row.enumerate() {
-                    if let Some([u, v]) = project(&m, [x as f64, y as f64]) {
-                        if (0.0..256.).contains(&u) && (0.0..256.).contains(&v) {
-                            b.put_pixel(u.round().min(255.) as u32, v.round().min(255.) as u32, *p);
-                        }
+                    if let Some([u, v]) = project(&m, [x as f64, y as f64])
+                        && (0.0..256.).contains(&u)
+                        && (0.0..256.).contains(&v)
+                    {
+                        b.put_pixel(u.round().min(255.) as u32, v.round().min(255.) as u32, *p);
                     }
                 }
             }

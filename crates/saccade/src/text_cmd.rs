@@ -105,15 +105,15 @@ pub(crate) fn schemas() -> Vec<Value> {
 }
 #[cfg(feature = "mcp")]
 pub(crate) fn imported(
-    a: PathBuf,
-    b: PathBuf,
-    a_source: PathBuf,
-    b_source: PathBuf,
+    images: [PathBuf; 2],
+    sources: [PathBuf; 2],
     out: PathBuf,
     expected: Vec<String>,
-    confidence: f64,
-    moved: f64,
+    policy: [f64; 2],
 ) -> Result<Value, CliError> {
+    let [a, b] = images;
+    let [a_source, b_source] = sources;
+    let [confidence, moved] = policy;
     measure(&Args {
         a,
         b,

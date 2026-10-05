@@ -13,6 +13,7 @@ use saccade_core::report::{Labels, Metric, Mode, Report, Status};
 use saccade_core::view::{ViewOptions, build_view, is_safe_name};
 
 // wave6
+mod assess_cmd;
 mod embedding_cmd;
 mod general_cmd;
 mod hash_cmd;
@@ -201,6 +202,8 @@ impl From<MetricArg> for Metric {
 #[derive(Subcommand)]
 enum Command {
     // wave6
+    /// Measure content-dependent no-reference quality indicators.
+    Assess(assess_cmd::Args),
     /// Compare image-bound OCR/text observations and literal expected strings.
     Text(text_cmd::Args),
     /// Cosine similarity with an explicitly pinned optional ONNX export.
@@ -1004,6 +1007,7 @@ fn emit_run(
 fn dispatch(command: Command, record_absolute_paths: bool) -> Result<u8, CliError> {
     match command {
         // wave6
+        Command::Assess(args) => assess_cmd::run(args),
         Command::Text(args) => text_cmd::run(args),
         Command::Similar(args) => embedding_cmd::similar(args),
         Command::Index(args) => embedding_cmd::index(args),
