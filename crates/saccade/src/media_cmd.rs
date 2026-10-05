@@ -170,3 +170,31 @@ pub(crate) fn keyframes(a: KeyframesArgs) -> Result<u8, CliError> {
         a.json,
     )
 }
+
+#[derive(clap::Args)]
+pub(crate) struct UsageArgs {
+    source: PathBuf,
+    #[arg(required=true,num_args=1..)]
+    targets: Vec<PathBuf>,
+    #[arg(long)]
+    json: bool,
+}
+pub(crate) fn usage(a: UsageArgs) -> Result<u8, CliError> {
+    let source = media::usage::Source::load(&a.source).map_err(error)?;
+    let mut targets = Vec::new();
+    for path in a.targets {
+        if path.is_dir() {
+            for p in saccade_core::general::input::files(&path, 1000)? {
+                targets.push(p.to_string_lossy().into_owned());
+            }
+        } else {
+            targets.push(path.to_string_lossy().into_owned());
+        }
+    }
+    let result = media::usage::find_usage(&source, &targets).map_err(error)?;
+    let failed = result["targets"]
+        .as_array()
+        .is_some_and(|rows| rows.iter().any(|r| r["status"] == "failed"));
+    emit(&result, a.json)?;
+    Ok(if failed { 2 } else { 0 })
+}

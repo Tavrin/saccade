@@ -61,3 +61,12 @@ inherited model accuracy/parity and Rust OCR qualification remain explicitly inc
 - Decode <=600 sec / <=300 frames / <=640x640 with 120 sec subprocess deadlines; normalize
   timestamps to the explicit fps grid. Reject raising timeouts. Reversal cost: version a
   different sampling/shot algorithm; retain keyframe/record schemas and frame manifests.
+
+## 8.6 usage matching
+- Reuse wave 6 FAST/oriented-BRIEF matcher/RANSAC for both source pixels and saved records.
+  No source image reopen is required for a fingerprint record. Reports retain transform,
+  source-space crop bounds, consensus confidence and every failed target.
+- Reject a hard global-hash cutoff: crops and larger page captures can have dissimilar
+  global hashes even with good registration. Hashes provide candidate evidence; keypoints
+  decide. Reversal cost: tune a future separately versioned prefilter without changing
+  the stored compact fingerprint or matched-transform direction.

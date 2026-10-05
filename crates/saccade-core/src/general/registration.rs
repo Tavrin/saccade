@@ -710,6 +710,67 @@ pub fn copy_move(image: &RgbaImage) -> Result<Vec<CopyMove>, RegistrationError> 
     Ok(candidates)
 }
 
+/// Fit a source fingerprint to a target's keypoints without retaining source pixels.
+/// Uses exactly the registration matcher, consensus thresholds and RANSAC estimator.
+/// Returns (matrix, actual model, match count, inlier count, RMS source-pixel residual).
+pub fn fit_fingerprint(
+    source_size: [u32; 2],
+    source: &[Keypoint],
+    target_size: [u32; 2],
+    target: &[Keypoint],
+    model: Model,
+) -> Result<([f64; 9], Model, usize, usize, f64), RegistrationError> {
+    let valid = |size: [u32; 2], points: &[Keypoint]| {
+        size[0] > 0
+            && size[1] > 0
+            && u64::from(size[0]) * u64::from(size[1]) <= super::input::MAX_PIXELS
+            && points.len() <= 1200
+            && points.iter().all(|p| {
+                p.point.iter().all(|v| v.is_finite())
+                    && p.point[0] >= 0.
+                    && p.point[1] >= 0.
+                    && p.point[0] < f64::from(size[0])
+                    && p.point[1] < f64::from(size[1])
+            })
+    };
+    if !valid(source_size, source) || !valid(target_size, target) || model == Model::None {
+        return Err(RegistrationError::InvalidGeometry);
+    }
+    let to_features = |points: &[Keypoint]| {
+        points
+            .iter()
+            .map(|p| Feature {
+                x: p.point[0],
+                y: p.point[1],
+                descriptor: p.descriptor,
+                score: 0,
+            })
+            .collect::<Vec<_>>()
+    };
+    let pairs = correspondences(&to_features(source), &to_features(target));
+    let candidates = if model == Model::Auto {
+        vec![
+            Model::Translation,
+            Model::Similarity,
+            Model::Affine,
+            Model::Homography,
+        ]
+    } else {
+        vec![model]
+    };
+    let factor = f64::from(source_size[0].max(source_size[1]))
+        / f64::from(target_size[0].max(target_size[1]));
+    candidates
+        .into_iter()
+        .find_map(|m| {
+            estimate(&pairs, m, 3. / factor)
+                .map(|(matrix, inliers, rms)| (matrix, m, pairs.len(), inliers.len(), rms * factor))
+        })
+        .ok_or(RegistrationError::InsufficientInliers {
+            matches: pairs.len(),
+        })
+}
+
 #[cfg(test)]
 #[allow(clippy::expect_used, clippy::unwrap_used)]
 mod tests {

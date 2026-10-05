@@ -54,3 +54,19 @@ normalized sample grid. Original video dimensions remain in decoder provenance.
 the same image record path. Top-level image-only sections point to the video section;
 keyframe records bind their encoded frame hash and timestamp. No temporary pathname is
 presented as a persistent artifact. Existing output directories/files are never overwritten.
+
+## Find usage
+
+`saccade find-usage image.png target.png captures/ --json` accepts an image or a saved
+image media record with available `FAST-oriented-BRIEF/1` fingerprints. Targets are
+generic raster files or directories; failed files remain failed rows and produce exit 2.
+A source record does not need the original pixels to estimate registration.
+
+Hashes prioritize candidate evidence; a high full-frame Hamming distance cannot reject a
+crop or page-capture match. The existing reciprocal ratio test and deterministic RANSAC
+fit the least flexible successful translation/similarity/affine/homography. Matches report
+source-to-target transform, source crop rectangle, inliers, RMS residual and confidence.
+The crop is a source-space bounding rectangle of target coverage (an approximation for
+rotation/projective edges). Confidence is an uncalibrated consensus score, not probability.
+Exact encoded equality is separately labelled. Insufficient texture is `no_match` with an
+explicit consensus reason, never a guessed transform. Matching does not establish rights.

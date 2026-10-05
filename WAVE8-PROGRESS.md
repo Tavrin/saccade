@@ -11,3 +11,5 @@
 8.4 implemented (this commit): deterministic saliency and generated displacement/fallback fixtures; learned model skipped. Initial position test passed in 8.1; added fixture awaits disk recovery.
 
 8.5 implemented (this commit): external keyframes and directory fixtures, video records; ffmpeg test heavy-gated. No decoder run. Validation remains disk-paused.
+
+8.6 implemented (this commit): usage matches from records/images with retained failures; generated crop/JPEG/resize fixtures written, not yet compiled due disk.

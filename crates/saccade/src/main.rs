@@ -254,6 +254,8 @@ enum Command {
     AnalyzeMedia(media_cmd::AnalyzeArgs),
     /// Extract shot representatives with timestamps, without linking a video decoder.
     Keyframes(media_cmd::KeyframesArgs),
+    /// Match an image or media record against generic target images.
+    FindUsage(media_cmd::UsageArgs),
     // wave7
     /// List or explicitly pull pinned local models.
     Models(wave7_cmd::ModelsArgs),
@@ -1091,6 +1093,7 @@ fn dispatch(command: Command, record_absolute_paths: bool) -> Result<u8, CliErro
         // wave8
         Command::AnalyzeMedia(args) => media_cmd::analyze(args),
         Command::Keyframes(args) => media_cmd::keyframes(args),
+        Command::FindUsage(args) => media_cmd::usage(args),
         // wave7
         Command::Models(args) => wave7_cmd::models(args),
         Command::Locate(args) => wave7_cmd::locate(args),

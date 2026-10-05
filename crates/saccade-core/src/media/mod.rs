@@ -9,6 +9,8 @@ use std::{
     time::Instant,
 };
 pub mod saliency;
+/// Source-record and image usage matching.
+pub mod usage;
 /// External video and directory keyframe analysis.
 pub mod video;
 /// Versioned media record discriminator.
@@ -727,6 +729,32 @@ pub fn credit_candidates(metadata: &Value) -> Vec<Value> {
 fn portable_configuration(a: &Analyzer) {
     let _ = (&a.model_dir, &a.registry, a.allow_download, &a.sessions);
 }
+/// Exact flat index shared by Python and HTTP transports.
+pub mod search;
+impl Analyzer {
+    /// Canonical pinned embedding contract (paths and runtime location excluded).
+    pub fn embedding_model(&self) -> Result<Value> {
+        let value = self.registry.contracts.get("embedding").ok_or_else(|| {
+            MediaError::new("embedding_unavailable", "no pinned embedding contract")
+        })?;
+        let model = crate::general::embedding::parse_model(&serde_json::to_vec(value)?)?;
+        Ok(serde_json::to_value(model)?)
+    }
+    /// Compare retained SDR encoded inputs through the established FLIP computation.
+    pub fn compare(&self, a: &[u8], b: &[u8], ppd: f32) -> Result<Value> {
+        let aa = input::decode(a)?;
+        let bb = input::decode(b)?;
+        let options = crate::compare::CompareOptions {
+            pixels_per_degree: ppd,
+            ..Default::default()
+        };
+        let result = crate::compare::compare_rgba(&aa, &bb, &options)?;
+        Ok(
+            json!({"schema":"saccade-media-compare.v1","reference_sha256":models::digest(b),"capture_sha256":models::digest(a),"metrics":result.metrics,"ppd":ppd}),
+        )
+    }
+}
+
 #[cfg(test)]
 #[allow(clippy::unwrap_used)]
 mod tests {
@@ -792,30 +820,5 @@ mod tests {
                 });
             }
         });
-    }
-}
-/// Exact flat index shared by Python and HTTP transports.
-pub mod search;
-impl Analyzer {
-    /// Canonical pinned embedding contract (paths and runtime location excluded).
-    pub fn embedding_model(&self) -> Result<Value> {
-        let value = self.registry.contracts.get("embedding").ok_or_else(|| {
-            MediaError::new("embedding_unavailable", "no pinned embedding contract")
-        })?;
-        let model = crate::general::embedding::parse_model(&serde_json::to_vec(value)?)?;
-        Ok(serde_json::to_value(model)?)
-    }
-    /// Compare retained SDR encoded inputs through the established FLIP computation.
-    pub fn compare(&self, a: &[u8], b: &[u8], ppd: f32) -> Result<Value> {
-        let aa = input::decode(a)?;
-        let bb = input::decode(b)?;
-        let options = crate::compare::CompareOptions {
-            pixels_per_degree: ppd,
-            ..Default::default()
-        };
-        let result = crate::compare::compare_rgba(&aa, &bb, &options)?;
-        Ok(
-            json!({"schema":"saccade-media-compare.v1","reference_sha256":models::digest(b),"capture_sha256":models::digest(a),"metrics":result.metrics,"ppd":ppd}),
-        )
     }
 }
