@@ -71,6 +71,7 @@ pub mod sequence;
 #[cfg(feature = "workbench")]
 pub mod serve;
 pub mod snapshot;
+pub mod ui_review;
 pub mod view;
 
 pub use error::{Error, Result};

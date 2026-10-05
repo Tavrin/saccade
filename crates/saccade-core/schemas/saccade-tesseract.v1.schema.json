@@ -1,0 +1,72 @@
+{
+  "$defs": {
+    "Digest": {
+      "description": "Validated lowercase SHA-256 identity or content hash.",
+      "pattern": "^sha256:[0-9a-f]{64}$",
+      "type": "string"
+    }
+  },
+  "$id": "https://github.com/Tavrin/saccade/crates/saccade-core/schemas/saccade-tesseract.v1.schema.json",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "description": "Optional external Tesseract contract; readable without the CLI OCR feature.",
+  "properties": {
+    "executable": {
+      "description": "Pinned local executable, resolved relative to the contract.",
+      "type": "string"
+    },
+    "executable_sha256": {
+      "$ref": "#/$defs/Digest",
+      "description": "Exact executable bytes."
+    },
+    "models": {
+      "additionalProperties": {
+        "$ref": "#/$defs/Digest"
+      },
+      "description": "Language names and exact traineddata hashes.",
+      "type": "object"
+    },
+    "psm": {
+      "description": "Fixed segmentation mode, 6 or 11.",
+      "format": "uint8",
+      "maximum": 255,
+      "minimum": 0,
+      "type": "integer"
+    },
+    "schema": {
+      "description": "saccade-tesseract.v1.",
+      "type": "string"
+    },
+    "tessdata": {
+      "description": "Directory of pinned traineddata, relative to the contract.",
+      "type": "string"
+    },
+    "timeout_ms": {
+      "description": "Per-process timeout, 1..60000 milliseconds.",
+      "format": "uint64",
+      "minimum": 0,
+      "type": "integer"
+    },
+    "version": {
+      "description": "Expected version on the first line of --version output.",
+      "type": "string"
+    },
+    "version_output_sha256": {
+      "$ref": "#/$defs/Digest",
+      "description": "Exact version output, retaining linked-library versions."
+    }
+  },
+  "required": [
+    "schema",
+    "executable",
+    "executable_sha256",
+    "version",
+    "version_output_sha256",
+    "tessdata",
+    "models",
+    "psm",
+    "timeout_ms"
+  ],
+  "title": "OcrContract",
+  "type": "object"
+}

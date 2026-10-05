@@ -167,6 +167,9 @@ The last three names appear only when the corresponding feature is compiled in.
 - [saccade-safety.v1.schema.json](../crates/saccade-core/schemas/saccade-safety.v1.schema.json) — safety PRE-CHECK only; not certification or formal compliance
 - [saccade-sequence.v1.schema.json](../crates/saccade-core/schemas/saccade-sequence.v1.schema.json) — SequenceReport
 - [saccade-summary.v1.schema.json](../crates/saccade-core/schemas/saccade-summary.v1.schema.json) — saccade-summary.v1
+- [saccade-tesseract.v1.schema.json](../crates/saccade-core/schemas/saccade-tesseract.v1.schema.json) — OcrContract
+- [saccade-ui-review.v1.schema.json](../crates/saccade-core/schemas/saccade-ui-review.v1.schema.json) — Report
+- [saccade-ui-source.v1.schema.json](../crates/saccade-core/schemas/saccade-ui-source.v1.schema.json) — Source
 - [saccade-view-summary.v1.schema.json](../crates/saccade-core/schemas/saccade-view-summary.v1.schema.json) — saccade-view-summary.v1
 <!-- schema-index:end -->
 

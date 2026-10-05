@@ -44,6 +44,7 @@ mod precheck;
 mod precheck_mcp;
 #[cfg(feature = "graphics")]
 mod temporal_cmd;
+mod ui_review_cmd;
 
 #[cfg(feature = "graphics")]
 mod s6;
@@ -1563,6 +1564,9 @@ fn dispatch(command: Command, record_absolute_paths: bool) -> Result<u8, CliErro
 
 fn doctor(json: bool) -> Result<u8, CliError> {
     let mut features = saccade_core::COMPILED_FEATURES.to_vec();
+    if cfg!(feature = "ocr") {
+        features.push("ocr");
+    }
     if cfg!(feature = "mcp") {
         features.push("mcp");
     }
@@ -1583,12 +1587,17 @@ fn doctor(json: bool) -> Result<u8, CliError> {
         "grounded-v1",
         "frozen-region-v1",
         "renderdoc-v1",
+        "brand-review-v1",
+        "ui-review-v1",
     ];
     if cfg!(feature = "compression") {
         capabilities.push("quality-v1");
     }
     if cfg!(feature = "prechecks") {
         capabilities.push("prechecks");
+    }
+    if cfg!(feature = "ocr") {
+        capabilities.push("ocr-tesseract-v1");
     }
     if cfg!(feature = "mcp") {
         capabilities.push("mcp");
@@ -2211,6 +2220,9 @@ pub(crate) fn capabilities(json: bool) -> Result<u8, CliError> {
     let mut names = Vec::new();
     operations(&Cli::command(), "", &mut names);
     let mut features = saccade_core::COMPILED_FEATURES.to_vec();
+    if cfg!(feature = "ocr") {
+        features.push("ocr");
+    }
     if cfg!(feature = "mcp") {
         features.push("mcp");
     }
@@ -2218,7 +2230,7 @@ pub(crate) fn capabilities(json: bool) -> Result<u8, CliError> {
     let value = serde_json::json!({
         "features": features,
         "operations": names,
-        "contract_versions": ["saccade-report.v1", "saccade-result.v2", "saccade-evidence.v1", "saccade-noise.v1"],
+        "contract_versions": ["saccade-report.v1", "saccade-result.v2", "saccade-evidence.v1", "saccade-noise.v1", "saccade-brand-review.v1", "saccade-ui-review.v1"],
     });
     if json {
         let mut result = local_cmd::base_result("capabilities");

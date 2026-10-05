@@ -1,0 +1,126 @@
+{
+  "$defs": {
+    "Node": {
+      "additionalProperties": false,
+      "description": "One visible/semantic node exported by the capture producer.",
+      "properties": {
+        "bounds": {
+          "description": "x,y,width,height in capture pixels; omitted when unavailable.",
+          "items": {
+            "format": "double",
+            "type": "number"
+          },
+          "maxItems": 4,
+          "minItems": 4,
+          "type": [
+            "array",
+            "null"
+          ]
+        },
+        "disclosure": {
+          "default": false,
+          "description": "Explicit disclosure/footnote declaration from the source producer.",
+          "type": "boolean"
+        },
+        "id": {
+          "description": "Stable source ID, never matched by approximate text.",
+          "type": "string"
+        },
+        "keyboard_order": {
+          "description": "Producer keyboard traversal ordinal; omitted for nonfocusable nodes.",
+          "format": "uint32",
+          "minimum": 0,
+          "type": [
+            "integer",
+            "null"
+          ]
+        },
+        "ocr_confidence": {
+          "description": "OCR confidence, retained as observation rather than probability/proof.",
+          "format": "double",
+          "type": [
+            "number",
+            "null"
+          ]
+        },
+        "reading_order": {
+          "description": "Authoritative producer reading ordinal; never geometric top-to-bottom order.",
+          "format": "uint32",
+          "minimum": 0,
+          "type": [
+            "integer",
+            "null"
+          ]
+        },
+        "role": {
+          "default": "",
+          "description": "Producer-declared role, not an OCR inference.",
+          "type": "string"
+        },
+        "text": {
+          "description": "Exact Unicode content; prices and identifiers are not normalized.",
+          "type": "string"
+        }
+      },
+      "required": [
+        "id",
+        "text"
+      ],
+      "type": "object"
+    }
+  },
+  "$id": "https://github.com/Tavrin/saccade/crates/saccade-core/schemas/saccade-ui-source.v1.schema.json",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "description": "Capture-bound producer text and layout facts.",
+  "properties": {
+    "capture_sha256": {
+      "description": "Exact screenshot file SHA-256 (64 lowercase hex, like DOM region metadata).",
+      "type": "string"
+    },
+    "complete": {
+      "description": "True only if the producer declares complete captured source scope.",
+      "type": "boolean"
+    },
+    "dimensions": {
+      "description": "Capture-pixel dimensions.",
+      "items": {
+        "format": "uint32",
+        "minimum": 0,
+        "type": "integer"
+      },
+      "maxItems": 2,
+      "minItems": 2,
+      "type": "array"
+    },
+    "kind": {
+      "description": "dom, accessibility_tree, or tesseract_tsv. Never inferred from image geometry.",
+      "type": "string"
+    },
+    "nodes": {
+      "description": "Stable producer IDs for DOM/AX; OCR IDs name geometric word slots only.",
+      "items": {
+        "$ref": "#/$defs/Node"
+      },
+      "type": "array"
+    },
+    "producer": {
+      "description": "Producer/version, or pinned OCR executable/model hashes and settings."
+    },
+    "schema": {
+      "description": "saccade-ui-source.v1.",
+      "type": "string"
+    }
+  },
+  "required": [
+    "schema",
+    "capture_sha256",
+    "dimensions",
+    "kind",
+    "producer",
+    "nodes",
+    "complete"
+  ],
+  "title": "Source",
+  "type": "object"
+}

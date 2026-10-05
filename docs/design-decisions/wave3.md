@@ -27,3 +27,25 @@ steps, not a linear blend of the severity-one endpoint.
 APCA is explicitly unavailable, labelled WCAG 3 draft, because the research's
 reviewed apca-w3 terms are restricted. Implementing its arithmetic would not
 resolve that licence boundary. This residual is not a WCAG 2.x blocker.
+
+## Item 2: one UI/agent change packet
+
+`review ui` joins source text/layout/order findings with the existing frozen
+localized inside/boundary/complement measurement. Playwright reporter metadata
+is additive and capture-bound for both sides; ingest preserves it in named
+sidecars and mapping entries. Source IDs and exact strings are authoritative
+producer assertions. Common-node semantic order is compared independently of
+pixels and geometric reflow; incomplete scope cannot prove a missing disclosure.
+
+The one OCR fallback is external Tesseract behind the optional CLI `ocr` feature.
+The engine and official traineddata are Apache-2.0, with separate local native
+runtime dependencies. No new Cargo dependencies. Pin executable and each model,
+stage checked models in isolation, use fixed PSM, bound process time/TSV size,
+and retain confidence without promotion to proof. A stale supplied DOM/AX record
+is rejected rather than replaced. Exact version output and executable digest
+are runtime pins; linked-library versions are recorded, but individual library
+binary hashes are not established. No runtime/model is downloaded. Tesseract is absent locally;
+constructed TSV/price/identifier tests qualify parsing and uncertainty, not
+recognizer accuracy. Live small/rotated/multilingual text qualification remains
+an explicit deployment residual. Geometric word-slot IDs are deliberately
+labelled uncertain rather than inventing semantic OCR node identity.

@@ -39,6 +39,8 @@ mcp = []
 evaluation = ["ai", "saccade-core/evaluation"]
 prechecks = ["saccade-core/prechecks"]
 schema = ["saccade-core/schema"]
+# Optional external pinned Tesseract execution; no bundled runtime/models.
+ocr = []
 
 [dev-dependencies]
 tempfile = "3"

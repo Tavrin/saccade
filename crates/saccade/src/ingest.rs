@@ -101,6 +101,8 @@ struct Snapshot {
     case_id: Option<String>,
     #[serde(default)]
     dom_regions: Option<saccade_core::localized::DomMetadata>,
+    #[serde(default)]
+    ui_sources: Option<[saccade_core::ui_review::Source; 2]>,
     project: String,
     browser: String,
     viewport: Option<[u32; 2]>,
@@ -357,6 +359,22 @@ pub(crate) fn run(args: IngestArgs, absolute: bool) -> Result<u8, CliError> {
                         &serde_json::to_value(metadata)?,
                     )?;
                 }
+                if let Some(sources) = &entry.ui_sources {
+                    let dir = out.join("ui-sources");
+                    std::fs::create_dir_all(&dir).map_err(|e| CliError::io(e.to_string()))?;
+                    for (side, (metadata, path)) in
+                        sources.iter().zip([expected, actual]).enumerate()
+                    {
+                        let hash = saccade_core::run::sha256_file(path)?;
+                        let (w, h) = image::image_dimensions(path)
+                            .map_err(|e| CliError::usage(e.to_string()))?;
+                        metadata.validate(&hash, [w, h])?;
+                        crate::local_cmd::write_value(
+                            &dir.join(format!("{index:04}-{side}.json")),
+                            &serde_json::to_value(metadata)?,
+                        )?;
+                    }
+                }
                 let sidecar = json!({
                     "playwright_test_id":entry.test_id,
                     "playwright_project":entry.project,
@@ -368,7 +386,7 @@ pub(crate) fn run(args: IngestArgs, absolute: bool) -> Result<u8, CliError> {
                 for dir in [&baseline, &capture] {
                     crate::local_cmd::write_value(&dir.join(&sidecar_name), &sidecar)?;
                 }
-                mapping.push(json!({"entry":name,"test_id":entry.test_id,"case_id":entry.case_id,"dom_regions":entry.dom_regions.as_ref().map(|_|format!("dom-regions/{index:04}.json")),"project":entry.project,"browser":entry.browser,"viewport":entry.viewport,"diff":diff.as_ref().map(|_|format!("playwright-diffs/{index:04}.png"))}));
+                mapping.push(json!({"entry":name,"test_id":entry.test_id,"case_id":entry.case_id,"dom_regions":entry.dom_regions.as_ref().map(|_|format!("dom-regions/{index:04}.json")),"ui_sources":entry.ui_sources.as_ref().map(|_|[format!("ui-sources/{index:04}-0.json"),format!("ui-sources/{index:04}-1.json")]),"project":entry.project,"browser":entry.browser,"viewport":entry.viewport,"diff":diff.as_ref().map(|_|format!("playwright-diffs/{index:04}.png"))}));
             }
             crate::local_cmd::write_value(
                 &out.join("playwright-mapping.json"),

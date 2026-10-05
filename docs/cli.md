@@ -5,7 +5,7 @@ Generated from compiled capabilities and `--help`; do not edit by hand.
 Generation: `cargo build --release -p saccade --all-features`, then `python3 scripts/gen-docs.py --saccade target/release/saccade`.
 The all-features binary includes every supported operation.
 
-Compiled features: `ai`, `compression`, `evaluation`, `geometry`, `graphics`, `mcp`, `parallel`, `prechecks`, `schema`, `semantic-regions`, `workbench`.
+Compiled features: `ai`, `compression`, `evaluation`, `geometry`, `graphics`, `mcp`, `ocr`, `parallel`, `prechecks`, `schema`, `semantic-regions`, `workbench`.
 
 Exit 1 means a failed image measurement/evaluation gate or located divergence.
 Exit 0 for compare/identity means no image regression; inspect `performance` for qualification.
@@ -1200,6 +1200,7 @@ Usage: saccade review [OPTIONS] [REPORT] [COMMAND]
 
 Commands:
   brand    Review brand colours, theme contrast, CVD and source typography together
+  ui       Review source text/layout and localized UI changes in one packet
   request  Prepare a closed request from an existing canonical case, locally
   propose  Validate and record proposed answers against the exact request
   ask      Create or retrieve a local human review item for an unresolved request
@@ -1239,6 +1240,48 @@ Options:
       --user-config <USER_CONFIG>
       --json
   -h, --help                       Print help
+
+Global options:
+      --allow-out-near-captures  Silence warnings when --out is next to capture metadata
+      --record-absolute-paths    Opt in to absolute local paths in reports and machine-readable output
+```
+
+## saccade review ui
+
+```text
+Review source text/layout and localized UI changes in one packet
+
+Usage: saccade review ui [OPTIONS] --out <OUT> <REFERENCE> <CANDIDATE>
+
+Arguments:
+  <REFERENCE>
+  <CANDIDATE>
+
+Options:
+      --reference-source <REFERENCE_SOURCE>
+          Source JSON exported by the Playwright ingest, or a DOM/AX producer
+      --candidate-source <CANDIDATE_SOURCE>
+
+      --region <REGION>
+          Frozen reference inclusion region; protected complement is exact by default
+      --box <BBOX>
+          Intended pixel box x,y,width,height
+      --ocr-contract <OCR_CONTRACT>
+          Optional saccade-tesseract.v1 runtime/model contract; requires the ocr feature
+      --perceptual-outside
+
+      --maximum-outside-flip <MAXIMUM_OUTSIDE_FLIP>
+          [default: 0.01]
+      --ppd <PPD>
+          [default: 67]
+      --out <OUT>
+
+      --user-config <USER_CONFIG>
+
+      --json
+
+  -h, --help
+          Print help
 
 Global options:
       --allow-out-near-captures  Silence warnings when --out is next to capture metadata

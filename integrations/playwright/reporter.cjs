@@ -52,7 +52,12 @@ class SaccadeReporter {
       if (state !== 'captured') continue;
       const geometryAttachment = result.attachments.find(a => a.name === `saccade-dom-regions-${i}`);
       const dom_regions = geometryAttachment ? JSON.parse(geometryAttachment.body ? geometryAttachment.body.toString('utf8') : fs.readFileSync(geometryAttachment.path, 'utf8')) : null;
-      this.entries.push({ dom_regions,
+      const uiAttachments = result.attachments.filter(a => a.name === `saccade-ui-sources-${i}`);
+      if (uiAttachments.length > 1) throw new Error('duplicate UI source evidence');
+      const uiAttachment = uiAttachments[0];
+      const ui_sources = uiAttachment ? JSON.parse(uiAttachment.body ? uiAttachment.body.toString('utf8') : fs.readFileSync(uiAttachment.path, 'utf8')) : null;
+      if (ui_sources && (!Array.isArray(ui_sources) || ui_sources.length !== 2)) throw new Error('UI source evidence requires reference and candidate');
+      this.entries.push({ dom_regions, ui_sources,
         test_id: `${test.id}:${result.retry ?? 0}:${i}`, case_id, project: projectName, browser,
         viewport: viewport && Number.isInteger(viewport.width) && Number.isInteger(viewport.height) ? [viewport.width, viewport.height] : null,
         expected: path.resolve(roles.expected[0]), actual: path.resolve(roles.actual[0]), diff: roles.diff[0] ? path.resolve(roles.diff[0]) : null,

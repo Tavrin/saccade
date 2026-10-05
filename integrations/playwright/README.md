@@ -59,3 +59,8 @@ Ingest writes `inventory.json`; incomplete required coverage exits 1, independen
 of image pass/fail results. Additional snapshots receive separate indexed IDs.
 For a predeclared multi-state suite, use the generic `saccade inventory` manifest
 in [the wave 2 guide](../../docs/wave2.md).
+
+For source-backed text, disclosure, layout and order review, attach a
+`saccade-ui-sources-N` reference/candidate source pair. Ingest checks capture
+hashes and dimensions and preserves both in `ui-sources/` and the mapping.
+See [UI review](../../docs/ui-review.md) for the producer contract and command.

@@ -119,6 +119,8 @@ pub(crate) struct ReviewArgs {
 pub(crate) enum ReviewOperation {
     /// Review brand colours, theme contrast, CVD and source typography together.
     Brand(crate::brand_cmd::Args),
+    /// Review source text/layout and localized UI changes in one packet.
+    Ui(crate::ui_review_cmd::Args),
     /// Prepare a closed request from an existing canonical case, locally.
     Request {
         report: PathBuf,
@@ -841,6 +843,7 @@ pub(crate) fn review(args: ReviewArgs, absolute: bool) -> Result<u8, CliError> {
     let value = if let Some(operation) = args.operation {
         match operation {
             ReviewOperation::Brand(brand) => return crate::brand_cmd::run(brand, args.json),
+            ReviewOperation::Ui(ui) => return crate::ui_review_cmd::run(ui, args.json),
             ReviewOperation::Request {
                 report,
                 question,
