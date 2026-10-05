@@ -186,3 +186,60 @@ At least three equal-size paired SDR frames are required. Frames are not
 resampled in time; energy units are normalized sRGB squared per frame.
 Object movement and rotation can confound the translation-based camera check;
 the producer's fixed-camera declaration alone never establishes that condition.
+
+## Noisy offline references
+
+`experiment reference RENDER REFERENCE --json` fits one global exposure gain
+in linear RGB before scoring. `--policy policy.json` records all settings:
+`version = "reference-1"`, `tile_size = 32`, `fit_exposure = true`, optional
+`tonemap` (`aces`, `hable`, `reinhard`), `noise_k = 3`, and
+`absolute_tolerance = 0.001`. Both sides use the same declared mapping.
+`--out result.json` creates a new artifact, refusing an existing file.
+
+Noise can come from repeatable `--seed-reference IMAGE` (independent reference
+seeds, averaged with the main reference), or `--variance IMAGE` (native scalar
+sample-mean variance in linear luminance squared). These options are mutually
+exclusive. Without either, a robust high-frequency estimate is used and labelled
+as containing scene-detail contamination. `--mask IMAGE` includes nonzero pixels
+for fitting and scoring. Inputs are bounded and raw source hashes are recorded.
+
+The `saccade-reference-evidence.v1` result records exposure scale/stops, mapping,
+noise method, per-tile RMS and signed bias with their explicit noise limits, and
+`within_noise_floor` (exit 0) or `reference_difference` (exit 1). Errors exit 2.
+FLIP is a secondary clipped-display measure; noise decisions use unquantized
+luminance. Exposure fitting can hide a global gain error; disable it to measure
+that error. Pixel independence and nonlinear variance propagation are documented
+approximations, not an offline-renderer convergence guarantee.
+
+## Preregistered blind trials
+
+`review trial register PLAN --out TRIAL --json` hashes the plan and transitive
+pair/mask bytes without decoding them. The output must be a new directory.
+The JSON plan has schema `saccade-visual-trial-plan.v1`, a neutral `objective`,
+`metrics` (from `flip`, `rgb_mad`, `detail_energy`, `tile_bias`, `coverage`), an
+explicit `spatial_policy`, `pairs` with unique `id`, relative `first`, `second`
+and optional `mask`, and a `seed`. No external background selection is allowed;
+freeze inclusion using each pair's mask. Paths remain under the plan's parent.
+
+`review trial start PLAN --out TRIAL --json` locks inspection, verifies hashes,
+and presents randomized pairs in `TRIAL/public/index.html`. Distribute only
+`public/` to judges: the registration and `private-key.json` contain roles,
+paths, metric results and randomization seed. Blind panels expose only opaque
+IDs and Image 1 / Image 2. Numeric results remain private while voting.
+
+`review trial vote PLAN --out TRIAL --voter NAME --item ID --answer P1 --json`
+records `P1`, `P2` or `unsure` using the existing core judge store.
+The gallery exports judgments; import them with
+`review trial import PLAN judgments.json --out TRIAL --voter NAME --json`.
+Every submitted item/answer is validated before import. A partial filesystem
+write failure is explicit; votes are persisted individually by the core store.
+Changing metrics, masks, pairs, seed, input bytes or a presentation artifact is
+refused (`trial_plan_changed`, exit 2), requiring a new registration. The local
+hash pins are audit invariants, not a signature against an operator rewriting
+both pins and artifacts. A blind preference is a recorded judgment, not capture,
+performance or baseline qualification.
+
+MCP mirrors use the existing `saccade_measure` operations `reference_compare`,
+`trial_register`, `trial_start`, `trial_vote`, and `trial_import`. Inputs and
+transitive files must be in registered roots; trial artifacts need `--out-root`.
+No providers, model downloads or automatic verdicts are involved.

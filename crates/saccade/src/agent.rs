@@ -114,6 +114,7 @@ impl From<saccade_core::Error> for CliError {
     fn from(e: saccade_core::Error) -> Self {
         use saccade_core::Error;
         let code = match e {
+            Error::TrialPlanChanged => "trial_plan_changed",
             Error::Config(_) => "config",
             Error::VersionSkew { .. } => "version_skew",
             Error::WrongNoiseKind { .. } => "wrong_noise_kind",

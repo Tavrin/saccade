@@ -75,3 +75,16 @@ Local gates do not qualify broad models, providers, platforms, rendering or rele
 For rendering evidence, see [required effects and rendering evidence](../docs/render-evidence.md).
 Declare effect occupancy in the compare config or visual intent; read typed
 `required_effects[].failures` before accepting zero FLIP as an effect proof.
+
+<!-- wave9 -->
+Rendering evidence policies and commands are documented in
+[Rendering evidence](../docs/render-evidence.md). Declare required effect
+occupancy independently of image equality; declare intended metadata keys
+before an experiment; opt into spatial/layer and fixed-camera tile evidence.
+Use `experiment reference` for noise-aware offline references and `review trial
+register/start/vote/import` for immutable blind judgments. Their local MCP
+mirrors are `saccade_measure` operations `reference_compare`, `trial_register`,
+`trial_start`, `trial_vote`, `trial_import`. Distribute only the public trial
+gallery to blind judges. Structural classes and preferences do not establish
+capture/performance qualification. Compact ablation JSON retains every warmup,
+clock and noise qualification reason.

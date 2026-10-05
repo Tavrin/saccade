@@ -1,9 +1,11 @@
 //! Opt-in rendering evidence: occupancy, structure, layers and temporal uncertainty.
 pub mod effect;
+pub mod gallery;
 pub mod layers;
+pub mod reference;
 pub mod spatial;
 pub mod temporal;
-pub mod gallery;
+pub mod trial;
 
 use crate::{Error, Result};
 use std::io::Read;
@@ -53,7 +55,11 @@ pub fn relative(root: &Path, name: &str) -> Result<std::path::PathBuf> {
 
 /// Decode from bounded retained bytes, with a pixel allocation limit.
 pub fn image(path: &Path) -> Result<image::DynamicImage> {
-    let bytes = read(path, 128 << 20)?;
+    decode(&read(path, 128 << 20)?, path)
+}
+
+/// Decode the exact bytes whose identity was recorded by the caller.
+pub fn decode(bytes: &[u8], path: &Path) -> Result<image::DynamicImage> {
     let mut reader = image::ImageReader::new(std::io::Cursor::new(bytes))
         .with_guessed_format()
         .map_err(crate::run::io_err("recognizing evidence image".into()))?;

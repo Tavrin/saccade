@@ -5,6 +5,9 @@ use std::path::PathBuf;
 /// Errors returned by `saccade-core`.
 #[derive(Debug, thiserror::Error)]
 pub enum Error {
+    /// A preregistered trial or displayed evidence changed after registration.
+    #[error("trial_plan_changed: preregistered plan or evidence differs")]
+    TrialPlanChanged,
     /// The FLIP backend rejected the input or viewing parameters.
     #[error("FLIP comparison failed: {0}")]
     Flip(#[from] flip_rs::FlipError),

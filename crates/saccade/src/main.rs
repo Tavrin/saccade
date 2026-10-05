@@ -15,8 +15,12 @@ use saccade_core::view::{ViewOptions, build_view, is_safe_name};
 // wave7
 mod vision_checks;
 mod wave7_cmd;
+// wave9
 #[cfg(feature = "mcp")]
 mod wave7_mcp;
+mod wave9_cmd;
+#[cfg(feature = "mcp")]
+mod wave9_mcp;
 
 mod agent;
 mod agent_ui;
@@ -196,7 +200,8 @@ impl MetaArgs {
 
 impl MetaRequireArgs {
     fn apply(&self, meta: &mut saccade_core::meta::MetaOptions) {
-        meta.intended.extend(self.intended_variables.iter().cloned());
+        meta.intended
+            .extend(self.intended_variables.iter().cloned());
         meta.required |= self.require_matching_meta;
         meta.declared.extend(self.declare.iter().cloned());
     }
@@ -758,6 +763,9 @@ struct ProveIdentityArgs {
 
 #[derive(Subcommand)]
 enum ExperimentOperation {
+    // wave9
+    /// Compare a render with a noisy offline reference and record alignment/noise floors.
+    Reference(wave9_cmd::ReferenceArgs),
     /// Measure bidirectional triangle-surface distance and oriented normal deviation.
     #[cfg(feature = "geometry")]
     Geometry(geometry_cmd::GeometryArgs),
@@ -1169,6 +1177,9 @@ fn dispatch(command: Command, record_absolute_paths: bool) -> Result<u8, CliErro
         Command::Experiment {
             operation: ExperimentOperation::Ablate(args),
         } => perf_cmd::ablate(args, record_absolute_paths),
+        Command::Experiment {
+            operation: ExperimentOperation::Reference(args),
+        } => wave9_cmd::reference(args),
         #[cfg(feature = "graphics")]
         Command::Experiment {
             operation: ExperimentOperation::Temporal(args),
@@ -1202,7 +1213,9 @@ fn dispatch(command: Command, record_absolute_paths: bool) -> Result<u8, CliErro
                 },
         } => {
             let mut cfg = load_config(config.as_deref())?;
-            if fixed_camera && cfg.temporal_tiles.is_none() { cfg.temporal_tiles=Some(Default::default()); }
+            if fixed_camera && cfg.temporal_tiles.is_none() {
+                cfg.temporal_tiles = Some(Default::default());
+            }
             cfg.record_absolute_paths = record_absolute_paths;
             if let Some(t) = threshold {
                 cfg.default_threshold = t;
@@ -1472,7 +1485,9 @@ fn dispatch(command: Command, record_absolute_paths: bool) -> Result<u8, CliErro
                 cfg.labels = parse_labels(&l)?;
             }
             let visual = local_cmd::visual_intent(&intent)?;
-            if let Some((declaration, source)) = &visual { saccade_core::intent::apply_effects(declaration, source, &mut cfg)?; }
+            if let Some((declaration, source)) = &visual {
+                saccade_core::intent::apply_effects(declaration, source, &mut cfg)?;
+            }
             let report = saccade_core::run::run(&baseline_dir, &capture_dir, &out, &cfg)?;
             if let Some(path) = junit {
                 saccade_core::ergonomics::junit(&report, &path)?;
@@ -1551,7 +1566,9 @@ fn dispatch(command: Command, record_absolute_paths: bool) -> Result<u8, CliErro
                 cfg.labels = parse_labels(&l)?;
             }
             let visual = local_cmd::visual_intent(&intent)?;
-            if let Some((declaration, source)) = &visual { saccade_core::intent::apply_effects(declaration, source, &mut cfg)?; }
+            if let Some((declaration, source)) = &visual {
+                saccade_core::intent::apply_effects(declaration, source, &mut cfg)?;
+            }
             let report = saccade_core::run::run(&parent_dir, &candidate_dir, &out, &cfg)?;
             if let Some(path) = junit {
                 saccade_core::ergonomics::junit(&report, &path)?;
