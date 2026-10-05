@@ -31,3 +31,11 @@ A separate diagnostic accepts an explicit pixel box, binary inclusion mask, froz
 DOM selector geometry must bind to the reference file hash and dimensions. Exactly one selector and one box are required; disappearance/ambiguity abstains. Reference regions survive candidate deletion. Playwright ingest retains producer-supplied DOM metadata; it never runs a browser or invents geometry. RGB/alpha SDR types must match, and HDR/float inputs are explicitly rejected. Full or empty masks are rejected because both region and complement need measured coverage. The diagnostic reports spatial changes and collateral, never semantic edit success or approval.
 
 Residual: live selector/scroll/device-scale capture and reflow pilot are unrun; the producer must convert CSS boxes to screenshot pixels. Semantic success still needs an independent assertion. Perceptual 16-bit reduction is documented beside exact native evidence.
+
+## 5. Grounded explanations
+
+Freeze a source-hash-bound region/fact catalog before evaluating proposals. Deterministic templates explain full-frame and hotspot FLIP statistics, thresholded hotspot areas, and independent localized native-change measurements. Every fact carries an exact JSON pointer. Every atomic claim must cite exactly one region and one compatible fact, use a finite supported kind and quote the exact observed number. Unknown IDs, wrong numbers, unrelated citations, compound observations and semantic/causal kinds are dropped with index/reason diagnostics. Rejected wording is not echoed. Source and catalog hashes bind the result.
+
+Optional offline model proposals use the same finite typed contract and verification. Arbitrary prose and prompt-only semantic checks are rejected; application-controlled templates render accepted facts. No provider call or model approval authority is added. MCP inspection exposes paginated claims plus their region/fact citations and source pointer, not prose alone. A valid numeric claim establishes consistency with its source measurement, not physical correctness, requested-edit success or cause.
+
+Residual: semantic/OCR verification and independently labeled human support/coverage benchmark are unrun. The finite numerical vocabulary therefore abstains on semantic observations and all causal assertions. Masked/thresholded hotspot facts retain their measurement limits.

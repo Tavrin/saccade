@@ -77,3 +77,20 @@ DOM metadata is supplied by the capture producer:
 ```
 
 Bind geometry to the reference screenshot bytes, accounting for scroll, screenshot crop and device scale. A missing or multiply matched selector is unmeasurable. For Playwright, attach this JSON as `saccade-dom-regions-0` (body or path); the reporter adds `dom_regions`, and ingest retains it in `dom-regions/0000.json`. Use the ingested baseline PNG and that metadata with `localized-check`. The reference region is retained even if the candidate object disappears. Configuration masks cannot hide collateral from this diagnostic.
+
+## Grounded explanations
+
+```sh
+saccade explain-grounded --report report/saccade-report.v1.json --out explanation.json
+saccade explain-grounded --report localized-report/localized.json --proposals atomic-proposals.json --out verified.json --json
+```
+
+The default uses deterministic atomic templates. An optional proposal file is a JSON array, for example:
+
+```json
+[{"claim_kind": "mean_flip", "region_ids": ["e0.full"], "evidence_ids": ["e0.full.mean_flip"], "value": 0.01}]
+```
+
+Use exact IDs and numbers from the catalog. Supported kinds are `mean_flip`, `max_flip`, `thresholded_hotspot_pixels`, and localized `changed_pixels`. Unsupported semantic/causal observations, compound citations and inconsistent quantities are dropped. Free-form wording is not accepted. A model may supply this finite contract offline; the application performs the same verification and inserts the final wording. Source hashes and JSON pointers let reviewers resolve each fact. Pixel counts in hotspots depend on thresholds/exclusions; localized counts use native samples.
+
+MCP: call `saccade_inspect` with `operation: "grounded"`, `artifact` pointing to a comparison report, and optional `limit` (1–5) and numeric `cursor`. Each page carries accepted claims and the matching region/fact/source citations. Numerical support does not establish semantic success, causation, or a human review decision.

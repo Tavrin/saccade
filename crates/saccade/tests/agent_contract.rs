@@ -87,7 +87,7 @@ fn help_lists_active_commands_and_watch_alias_stays_hidden() {
         .collect::<Vec<_>>();
     assert_eq!(
         top.len(),
-        19 + usize::from(cfg!(feature = "compression")),
+        20 + usize::from(cfg!(feature = "compression")),
         "{top:?}"
     );
     for name in [
@@ -519,4 +519,41 @@ fn local_tools_and_preview_never_authorize_network_and_images_are_explicit() {
             "feature_unavailable"
         }
     );
+}
+
+#[test]
+fn mcp_grounded_returns_atomic_claims_with_resolvable_numeric_citations() {
+    let temp = tempfile::tempdir().unwrap();
+    let path = report(temp.path(), 1);
+    let replies = mcp(
+        &[temp.path()],
+        None,
+        &[],
+        &[call(
+            1,
+            "saccade_inspect",
+            json!({"operation":"grounded","artifact":path,"limit":2}),
+        )],
+    );
+    let value = &replies[0]["result"]["structuredContent"];
+    let claims = value["data"]["claims"].as_array().unwrap();
+    assert!(!claims.is_empty(), "{value}");
+    let source: Value = serde_json::from_slice(&std::fs::read(&path).unwrap()).unwrap();
+    for claim in claims {
+        let id = &claim["observation"]["evidence_ids"][0];
+        let fact = value["data"]["facts"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .find(|f| &f["id"] == id)
+            .unwrap();
+        assert_eq!(
+            source
+                .pointer(fact["source_pointer"].as_str().unwrap())
+                .unwrap(),
+            &fact["value"]
+        );
+        assert_eq!(claim["verification"], "supported_measurement");
+        assert!(claim["causal_claim"].is_null());
+    }
 }

@@ -1343,6 +1343,32 @@ impl Server {
                     images: Vec::new(),
                 });
             }
+            ("saccade_inspect", "grounded") => {
+                reject_unknown(
+                    args,
+                    &[
+                        "operation",
+                        "artifact",
+                        "limit",
+                        "cursor",
+                        "expected_case_id",
+                    ],
+                )?;
+                let path = self.existing_file("artifact", &require_str(args, "artifact")?)?;
+                self.document_inputs(&path)?;
+                let limit = args
+                    .get("limit")
+                    .map(|v| {
+                        v.as_u64()
+                            .filter(|n| *n <= 5)
+                            .ok_or_else(|| CliError::usage("grounded limit must be 1..5"))
+                    })
+                    .transpose()?
+                    .unwrap_or(3) as usize;
+                let value =
+                    crate::grounded_cmd::page(&path, limit, arg_str(args, "cursor")?.as_deref())?;
+                return Ok(ToolOutput {structured:value,text:"Verified numerical observations with source, region and evidence citations; semantic and causal claims unproven.".into(),images:Vec::new()});
+            }
             ("saccade_inspect", "summary" | "entries" | "request_status") => {
                 reject_unknown(
                     args,
@@ -1762,6 +1788,7 @@ fn tool_schemas() -> Value {
         make("saccade_inspect","Read bounded evidence pages and local capabilities.",vec![
             ("summary",vec!["artifact"],json!({"limit":{"type":"integer","minimum":1,"maximum":10},"status":{"type":"array","items":{"type":"string"}},"cursor":{"type":"string"}})),
             ("entries",vec!["artifact"],json!({"limit":{"type":"integer","minimum":1,"maximum":10},"status":{"type":"array","items":{"type":"string"}},"cursor":{"type":"string"}})),
+            ("grounded",vec!["artifact"],json!({"limit":{"type":"integer","minimum":1,"maximum":5},"cursor":{"type":"string"}})),
             ("request_status",vec!["artifact"],json!({})),("capabilities",vec![],json!({})),("config",vec![],json!({"config":{"type":"string"}}))]),
         make("saccade_evidence","Prepare local context/crops, an existing closed request, or a selected snapshot.",vec![
             ("context",vec!["artifact","out"],json!({"top":{"type":"integer","minimum":0,"maximum":5},"stretch":{"type":"boolean"},"blind":{"type":"boolean"},"key_out":{"type":"string"},"seed":{"type":"integer"}})),

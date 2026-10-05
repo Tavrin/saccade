@@ -20,12 +20,13 @@ Tell when visual or performance evidence is not good enough to support a claim
 Usage: saccade [OPTIONS] <COMMAND>
 
 Commands:
-  compare          Compare a directory of captures against a directory of baselines
-  localized-check  Measure intended-region, boundary and protected-complement changes independently
-  prove            Check whether image identity or performance evidence proves a claim
-  inventory        Reconcile expected and supplied stable capture cases against a comparison report
-  review           Preview a review plan or handle a local closed decision request
-  quality-sweep    Measure externally encoded quality candidates under a frozen score and byte budget
+  compare           Compare a directory of captures against a directory of baselines
+  explain-grounded  Render verified atomic numerical claims with region and evidence citations
+  prove             Check whether image identity or performance evidence proves a claim
+  localized-check   Measure intended-region, boundary and protected-complement changes independently
+  review            Preview a review plan or handle a local closed decision request
+  inventory         Reconcile expected and supplied stable capture cases against a comparison report
+  quality-sweep     Measure externally encoded quality candidates under a frozen score and byte budget
 
 Options:
   -h, --help     Print help
@@ -45,6 +46,25 @@ Start here:
 Exit codes: 0 no image regression, 1 image regression found, 2 the command could not run.
 Advanced: demo, identity, noise, view, inspect, experiment, approve, init,
 serve, mcp, ingest, bisect, history, doctor. Existing commands keep working; use `saccade COMMAND --help`.
+```
+
+## saccade explain-grounded
+
+```text
+Render verified atomic numerical claims with region and evidence citations
+
+Usage: saccade explain-grounded [OPTIONS] --report <REPORT> --out <OUT>
+
+Options:
+      --report <REPORT>        Immutable comparison or localized measurement JSON
+      --proposals <PROPOSALS>  Optional JSON array of atomic proposals; no provider calls are made
+      --out <OUT>              New explanation JSON file
+      --json
+  -h, --help                   Print help
+
+Global options:
+      --allow-out-near-captures  Silence warnings when --out is next to capture metadata
+      --record-absolute-paths    Opt in to absolute local paths in reports and machine-readable output
 ```
 
 ## saccade localized-check

@@ -56,6 +56,10 @@ fn committed_schemas_match_the_rust_types() {
     let update = std::env::var_os("UPDATE_SCHEMAS").is_some();
     let all = [
         (
+            "saccade-grounded.v1.schema.json",
+            generated::<saccade_core::grounded::Explanation>("saccade-grounded.v1.schema.json"),
+        ),
+        (
             "saccade-frozen-region.v1.schema.json",
             generated::<saccade_core::localized::FrozenRegion>(
                 "saccade-frozen-region.v1.schema.json",

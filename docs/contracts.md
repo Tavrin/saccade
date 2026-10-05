@@ -134,6 +134,7 @@ The last three names appear only when the corresponding feature is compiled in.
 - [saccade-frozen-region.v1.schema.json](../crates/saccade-core/schemas/saccade-frozen-region.v1.schema.json) — FrozenRegion
 - [saccade-geometry.v1.schema.json](../crates/saccade-core/schemas/saccade-geometry.v1.schema.json) — Document
 - [saccade-gpu-clock.v1.schema.json](../crates/saccade-core/schemas/saccade-gpu-clock.v1.schema.json) — GpuClock
+- [saccade-grounded.v1.schema.json](../crates/saccade-core/schemas/saccade-grounded.v1.schema.json) — Explanation
 - [saccade-inbox-item.v1.schema.json](../crates/saccade-core/schemas/saccade-inbox-item.v1.schema.json) — Item
 - [saccade-inventory-report.v1.schema.json](../crates/saccade-core/schemas/saccade-inventory-report.v1.schema.json) — Inventory
 - [saccade-inventory.v1.schema.json](../crates/saccade-core/schemas/saccade-inventory.v1.schema.json) — Manifest

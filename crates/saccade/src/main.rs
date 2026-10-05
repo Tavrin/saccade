@@ -20,6 +20,7 @@ mod f1;
 #[cfg(feature = "geometry")]
 mod geometry_cmd;
 mod git_bisect;
+mod grounded_cmd;
 mod history;
 mod ingest;
 mod inventory_cmd;
@@ -188,6 +189,8 @@ impl From<MetricArg> for Metric {
 
 #[derive(Subcommand)]
 enum Command {
+    /// Render verified atomic numerical claims with region and evidence citations.
+    ExplainGrounded(grounded_cmd::Args),
     /// Measure intended-region, boundary and protected-complement changes independently.
     LocalizedCheck(localized_cmd::Args),
     /// Reconcile expected and supplied stable capture cases against a comparison report.
@@ -1010,6 +1013,7 @@ fn dispatch(command: Command, record_absolute_paths: bool) -> Result<u8, CliErro
             operation: ExperimentOperation::Geometry(args),
         } => geometry_cmd::compare(args),
         Command::History(args) => history::run(args),
+        Command::ExplainGrounded(args) => grounded_cmd::run(args),
         Command::LocalizedCheck(args) => localized_cmd::run(args),
         Command::Inventory(args) => inventory_cmd::run(args),
         #[cfg(feature = "compression")]

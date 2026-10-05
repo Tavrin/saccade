@@ -21,6 +21,7 @@ pub mod explain;
 #[cfg(feature = "geometry")]
 pub mod geometry;
 pub mod gpu_clock;
+pub mod grounded;
 pub mod hdr;
 pub mod hotspots;
 pub mod inbox;
