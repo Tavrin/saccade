@@ -120,6 +120,8 @@ The last three names appear only when the corresponding feature is compiled in.
 - [saccade-ask-result.v1.schema.json](../crates/saccade-core/schemas/saccade-ask-result.v1.schema.json) — AskResult
 - [saccade-bisect.v1.schema.json](../crates/saccade-core/schemas/saccade-bisect.v1.schema.json) — BisectResult
 - [saccade-blind-key.v1.schema.json](../crates/saccade-core/schemas/saccade-blind-key.v1.schema.json) — BlindKey
+- [saccade-brand-review.v1.schema.json](../crates/saccade-core/schemas/saccade-brand-review.v1.schema.json) — Report
+- [saccade-brand-source.v1.schema.json](../crates/saccade-core/schemas/saccade-brand-source.v1.schema.json) — Evidence
 - [saccade-calibration.v1.schema.json](../crates/saccade-core/schemas/saccade-calibration.v1.schema.json) — Historical reader contract
 - [saccade-decide-result.v1.schema.json](../crates/saccade-core/schemas/saccade-decide-result.v1.schema.json) — saccade-decide-result.v1
 - [saccade-decision-request.v1.schema.json](../crates/saccade-core/schemas/saccade-decision-request.v1.schema.json) — saccade-decision-request.v1

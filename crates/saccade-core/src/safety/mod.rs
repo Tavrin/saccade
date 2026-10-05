@@ -1,7 +1,7 @@
 //! Photosensitivity pre-check using WCAG flash and BT.1702 pattern guidance.
 //! See `docs/safety-a11y.md` for assumptions, source citations and limitations.
 
-pub mod color;
+pub use crate::color;
 mod input;
 pub mod output;
 mod patterns;

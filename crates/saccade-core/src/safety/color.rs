@@ -131,3 +131,31 @@ pub fn delta_e(a: [f64; 3], b: [f64; 3]) -> f64 {
     let (dl, dc, dh) = ((l2 - l1) / sl, (c2 - c1) / sc, d_h / sh);
     (dl * dl + dc * dc + dh * dh + rt * dc * dh).max(0.0).sqrt()
 }
+
+/// Machado severity interpolation between the published 0.1-step matrices.
+/// Invalid kinds/severities are errors, never endpoint aliases.
+pub fn simulate_severity(c: [f64; 3], kind: usize, severity: f64) -> crate::Result<[f64; 3]> {
+    if kind > 2
+        || !severity.is_finite()
+        || !(0.0..=1.0).contains(&severity)
+        || c.iter().any(|v| !v.is_finite())
+    {
+        return Err(crate::Error::Config(
+            "invalid Machado kind, severity or RGB".into(),
+        ));
+    }
+    let position = severity * 10.0;
+    let lo = position.floor() as usize;
+    let hi = (lo + 1).min(10);
+    let fraction = position - lo as f64;
+    Ok(std::array::from_fn(|row| {
+        (0..3)
+            .map(|col| {
+                let a = crate::machado::TABLES[kind][lo][row][col];
+                let b = crate::machado::TABLES[kind][hi][row][col];
+                (a + fraction * (b - a)) * c[col]
+            })
+            .sum::<f64>()
+            .clamp(0.0, 1.0)
+    }))
+}

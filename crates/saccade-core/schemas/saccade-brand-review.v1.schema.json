@@ -1,0 +1,424 @@
+{
+  "$defs": {
+    "Colour": {
+      "additionalProperties": false,
+      "description": "Explicit encoding for a source or target colour.",
+      "properties": {
+        "profile": {
+          "description": "srgb, display_p3, bt2020_pq, or a configured profile name.",
+          "type": "string"
+        },
+        "rgb": {
+          "description": "Normalized encoded RGB, not linear values. PQ is absolute BT.2020/ST 2084.",
+          "items": {
+            "format": "double",
+            "type": "number"
+          },
+          "maxItems": 3,
+          "minItems": 3,
+          "type": "array"
+        }
+      },
+      "required": [
+        "rgb",
+        "profile"
+      ],
+      "type": "object"
+    },
+    "CvdPair": {
+      "additionalProperties": false,
+      "description": "A pair of named colours with an explicitly selected simulation severity.",
+      "properties": {
+        "kind": {
+          "description": "protan, deutan or tritan; anomaly is indicated by severity below one.",
+          "type": "string"
+        },
+        "minimum_delta_e2000": {
+          "description": "Report confusability below this ΔE2000, with no accessibility guarantee.",
+          "format": "double",
+          "type": "number"
+        },
+        "names": {
+          "description": "Names of supplied chart-series swatches.",
+          "items": {
+            "type": "string"
+          },
+          "maxItems": 2,
+          "minItems": 2,
+          "type": "array"
+        },
+        "severity": {
+          "description": "Machado severity from zero to one.",
+          "format": "double",
+          "type": "number"
+        }
+      },
+      "required": [
+        "names",
+        "kind",
+        "severity",
+        "minimum_delta_e2000"
+      ],
+      "type": "object"
+    },
+    "Digest": {
+      "description": "Validated lowercase SHA-256 identity or content hash.",
+      "pattern": "^sha256:[0-9a-f]{64}$",
+      "type": "string"
+    },
+    "Evidence": {
+      "additionalProperties": false,
+      "description": "Capture-bound values exported by a DOM/layout or image-sampling producer.",
+      "properties": {
+        "chromatic_adaptation": {
+          "description": "bradford_icc_pcs; the RGB profiles carry D50-adapted colorants.",
+          "type": "string"
+        },
+        "rendering_intent": {
+          "description": "ICC relative_colorimetric; other intents are rejected in this version.",
+          "type": "string"
+        },
+        "samples": {
+          "description": "Supplied named samples.",
+          "items": {
+            "$ref": "#/$defs/Sample"
+          },
+          "type": "array"
+        },
+        "schema": {
+          "description": "saccade-brand-source.v1.",
+          "type": "string"
+        },
+        "source_artifact": {
+          "description": "Artifact containing the source facts, resolved relative to this document.",
+          "type": "string"
+        },
+        "source_sha256": {
+          "$ref": "#/$defs/Digest",
+          "description": "Exact bytes of the producer artifact."
+        },
+        "text": {
+          "default": [],
+          "description": "Optional source-backed text facts.",
+          "items": {
+            "$ref": "#/$defs/Text"
+          },
+          "type": "array"
+        }
+      },
+      "required": [
+        "schema",
+        "source_artifact",
+        "source_sha256",
+        "rendering_intent",
+        "chromatic_adaptation",
+        "samples"
+      ],
+      "type": "object"
+    },
+    "Finding": {
+      "description": "A bounded finding with its source and numerical evidence.",
+      "properties": {
+        "evidence": {
+          "description": "Numeric facts and applicability retained without threshold rounding."
+        },
+        "rule": {
+          "description": "Rule or algorithm.",
+          "type": "string"
+        },
+        "sources": {
+          "description": "Source locators.",
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "status": {
+          "description": "pass, fail, review, or unavailable; never human approval.",
+          "type": "string"
+        },
+        "subject": {
+          "description": "Swatch, node or pair name.",
+          "type": "string"
+        }
+      },
+      "required": [
+        "subject",
+        "rule",
+        "status",
+        "evidence",
+        "sources"
+      ],
+      "type": "object"
+    },
+    "Policy": {
+      "additionalProperties": false,
+      "description": "Policy read from `[brand]` in saccade.toml.",
+      "properties": {
+        "cvd": {
+          "default": [],
+          "description": "Declared chart pairs to check under Machado simulation.",
+          "items": {
+            "$ref": "#/$defs/CvdPair"
+          },
+          "type": "array"
+        },
+        "profiles": {
+          "additionalProperties": {
+            "$ref": "#/$defs/Profile"
+          },
+          "default": {},
+          "description": "Named, hash-pinned external RGB matrix/shaper ICC profiles.",
+          "type": "object"
+        },
+        "swatches": {
+          "default": [],
+          "description": "Expected named colours and independently declared tolerances.",
+          "items": {
+            "$ref": "#/$defs/Swatch"
+          },
+          "type": "array"
+        }
+      },
+      "type": "object"
+    },
+    "Profile": {
+      "additionalProperties": false,
+      "description": "A pinned profile, resolved relative to the project configuration.",
+      "properties": {
+        "path": {
+          "description": "ICC file path.",
+          "type": "string"
+        },
+        "sha256": {
+          "$ref": "#/$defs/Digest",
+          "description": "SHA-256 of exact profile bytes."
+        }
+      },
+      "required": [
+        "path",
+        "sha256"
+      ],
+      "type": "object"
+    },
+    "Sample": {
+      "additionalProperties": false,
+      "description": "Source-provided sample with a locator for the evidence reader.",
+      "properties": {
+        "colour": {
+          "$ref": "#/$defs/Colour",
+          "description": "Producer-supplied encoded colour."
+        },
+        "name": {
+          "description": "Stable swatch name.",
+          "type": "string"
+        },
+        "source": {
+          "description": "CSS token, selector or sampling region description in the source artifact.",
+          "type": "string"
+        }
+      },
+      "required": [
+        "name",
+        "colour",
+        "source"
+      ],
+      "type": "object"
+    },
+    "Swatch": {
+      "additionalProperties": false,
+      "description": "Target colour and tolerances, chosen by the maintainer.",
+      "properties": {
+        "colour": {
+          "$ref": "#/$defs/Colour",
+          "description": "Expected physical colour."
+        },
+        "delta_e2000": {
+          "description": "CIEDE2000 threshold; only relative SDR profiles.",
+          "format": "double",
+          "type": [
+            "number",
+            "null"
+          ]
+        },
+        "delta_e_itp": {
+          "description": "BT.2124 threshold; only absolute BT.2020 PQ colours.",
+          "format": "double",
+          "type": [
+            "number",
+            "null"
+          ]
+        },
+        "name": {
+          "description": "Stable token name, e.g. logo_red.",
+          "type": "string"
+        }
+      },
+      "required": [
+        "name",
+        "colour"
+      ],
+      "type": "object"
+    },
+    "Text": {
+      "additionalProperties": false,
+      "description": "Source text and layout facts; a screenshot estimate is not accepted here.",
+      "properties": {
+        "backgrounds": {
+          "description": "Opaque sRGB background samples, including all relevant gradient extrema.",
+          "items": {
+            "items": {
+              "format": "double",
+              "type": "number"
+            },
+            "maxItems": 3,
+            "minItems": 3,
+            "type": "array"
+          },
+          "type": "array"
+        },
+        "clip_box": {
+          "description": "Effective ancestor clipping intersection in capture pixels.",
+          "items": {
+            "format": "double",
+            "type": "number"
+          },
+          "maxItems": 4,
+          "minItems": 4,
+          "type": [
+            "array",
+            "null"
+          ]
+        },
+        "expected_font": {
+          "description": "Required selected font, when declared.",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "font": {
+          "description": "Actual selected font, when known.",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "font_size_px": {
+          "description": "Actual CSS font size in px, not screenshot-inferred.",
+          "format": "double",
+          "type": "number"
+        },
+        "font_weight": {
+          "description": "Actual CSS font weight (100..900).",
+          "format": "uint16",
+          "maximum": 65535,
+          "minimum": 0,
+          "type": "integer"
+        },
+        "foreground": {
+          "description": "Effective sRGB foreground, including alpha (0..1).",
+          "items": {
+            "format": "double",
+            "type": "number"
+          },
+          "maxItems": 4,
+          "minItems": 4,
+          "type": "array"
+        },
+        "id": {
+          "description": "Stable node identifier.",
+          "type": "string"
+        },
+        "ink_box": {
+          "description": "Source-established glyph ink bounds, x,y,width,height, in capture pixels.",
+          "items": {
+            "format": "double",
+            "type": "number"
+          },
+          "maxItems": 4,
+          "minItems": 4,
+          "type": [
+            "array",
+            "null"
+          ]
+        },
+        "missing_glyphs": {
+          "description": "Source-established missing-glyph count, when known.",
+          "format": "uint32",
+          "minimum": 0,
+          "type": [
+            "integer",
+            "null"
+          ]
+        },
+        "source": {
+          "description": "Locator in the DOM/layout source artifact.",
+          "type": "string"
+        }
+      },
+      "required": [
+        "id",
+        "source",
+        "foreground",
+        "backgrounds",
+        "font_size_px",
+        "font_weight"
+      ],
+      "type": "object"
+    }
+  },
+  "$id": "https://github.com/Tavrin/saccade/crates/saccade-core/schemas/saccade-brand-review.v1.schema.json",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "description": "One review packet for colour, contrast, simulation and typography.",
+  "properties": {
+    "findings": {
+      "description": "Independent findings, without a universal score.",
+      "items": {
+        "$ref": "#/$defs/Finding"
+      },
+      "type": "array"
+    },
+    "limits": {
+      "description": "Capability and evidence limits.",
+      "items": {
+        "type": "string"
+      },
+      "type": "array"
+    },
+    "policy": {
+      "$ref": "#/$defs/Policy",
+      "description": "Effective tolerances."
+    },
+    "profile_identities": {
+      "additionalProperties": {
+        "$ref": "#/$defs/Digest"
+      },
+      "description": "Profile identities, including builtins pinned to moxcms 0.7.11.",
+      "type": "object"
+    },
+    "schema": {
+      "description": "saccade-brand-review.v1.",
+      "type": "string"
+    },
+    "source": {
+      "$ref": "#/$defs/Evidence",
+      "description": "Source evidence and all policy values retained verbatim."
+    },
+    "source_identity": {
+      "$ref": "#/$defs/Digest",
+      "description": "Hash of the evidence document's semantic content."
+    }
+  },
+  "required": [
+    "schema",
+    "source",
+    "source_identity",
+    "policy",
+    "profile_identities",
+    "findings",
+    "limits"
+  ],
+  "title": "Report",
+  "type": "object"
+}

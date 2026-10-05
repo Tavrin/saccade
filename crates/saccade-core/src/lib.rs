@@ -4,9 +4,12 @@
 pub mod a11y;
 pub mod ablate;
 pub mod bisect;
+pub mod brand;
 #[cfg(feature = "ai")]
 pub mod budget_ledger;
 pub mod buffer;
+#[path = "safety/color.rs"]
+pub mod color;
 pub mod compare;
 pub mod config;
 pub mod decision;
@@ -42,6 +45,7 @@ pub mod judge_vote;
 pub mod labels;
 pub mod local;
 pub mod localized;
+mod machado;
 pub mod meta;
 pub mod object_ids;
 pub mod onset;

@@ -1199,6 +1199,7 @@ Preview a review plan or handle a local closed decision request
 Usage: saccade review [OPTIONS] [REPORT] [COMMAND]
 
 Commands:
+  brand    Review brand colours, theme contrast, CVD and source typography together
   request  Prepare a closed request from an existing canonical case, locally
   propose  Validate and record proposed answers against the exact request
   ask      Create or retrieve a local human review item for an unresolved request
@@ -1216,6 +1217,28 @@ Options:
       --intent <INTENT>
       --json
   -h, --help                         Print help
+
+Global options:
+      --allow-out-near-captures  Silence warnings when --out is next to capture metadata
+      --record-absolute-paths    Opt in to absolute local paths in reports and machine-readable output
+```
+
+## saccade review brand
+
+```text
+Review brand colours, theme contrast, CVD and source typography together
+
+Usage: saccade review brand [OPTIONS] --out <OUT> <SOURCE>
+
+Arguments:
+  <SOURCE>  Capture-bound source JSON, exported by the colour/DOM/layout producer
+
+Options:
+      --config <CONFIG>            Project swatches, profiles and CVD tolerances [default: saccade.toml]
+      --out <OUT>                  New review packet JSON file
+      --user-config <USER_CONFIG>
+      --json
+  -h, --help                       Print help
 
 Global options:
       --allow-out-near-captures  Silence warnings when --out is next to capture metadata

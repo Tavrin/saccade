@@ -59,6 +59,8 @@ pub struct RunConfig {
     pub meta: crate::meta::MetaOptions,
     /// Run-level attribution and repeat noise settings.
     pub perf: crate::perf::PerfOptions,
+    /// Integrated brand/theme/accessibility policy.
+    pub brand: crate::brand::Policy,
     /// Error value above which a pixel belongs to a hotspot (`hotspot_threshold`).
     pub hotspot_threshold: f32,
     /// Hotspots kept per entry; `0` disables them (`hotspots`).
@@ -108,6 +110,7 @@ impl Default for RunConfig {
             hdr: crate::hdr::HdrConfig::default(),
             meta: crate::meta::MetaOptions::default(),
             perf: crate::perf::PerfOptions::default(),
+            brand: crate::brand::Policy::default(),
             hotspot_threshold: crate::hotspots::DEFAULT_HOTSPOT_THRESHOLD,
             hotspots: crate::hotspots::DEFAULT_HOTSPOTS,
             hotspot_min_share: crate::hotspots::DEFAULT_HOTSPOT_MIN_SHARE,
@@ -128,6 +131,7 @@ impl Default for RunConfig {
 #[serde(deny_unknown_fields)]
 struct FileConfig {
     capture: Option<FileCapture>,
+    brand: Option<crate::brand::Policy>,
     #[serde(default)]
     changes: Vec<crate::meta::DeclaredChange>,
     #[serde(default)]
@@ -269,6 +273,7 @@ impl RunConfig {
             explicit_tolerances: file.threshold.is_some() || file.metric.is_some(),
             ..Self::default()
         };
+        cfg.brand = file.brand.unwrap_or_default();
         if let Some(capture) = file.capture {
             if capture.required_keys.is_empty() {
                 return Err(Error::Config(
@@ -451,6 +456,7 @@ impl RunConfig {
             ));
         }
         self.perf.validate()?;
+        self.brand.validate()?;
         #[cfg(not(feature = "graphics"))]
         if !self.buffers.is_empty() || self.perf != crate::perf::PerfOptions::default() {
             return Err(Error::FeatureUnavailable {
@@ -509,6 +515,7 @@ impl RunConfig {
         use serde_json::{Value, json};
         fn settings(c: &RunConfig) -> Value {
             json!({
+                "brand": c.brand,
                 "threshold": c.default_threshold, "metric": c.default_metric,
                 "ppd": c.pixels_per_degree, "fail_on_new": c.fail_on_new,
                 "require_matching_meta": c.meta.required, "meta_name": c.meta.name,

@@ -56,6 +56,14 @@ fn committed_schemas_match_the_rust_types() {
     let update = std::env::var_os("UPDATE_SCHEMAS").is_some();
     let all = [
         (
+            "saccade-brand-source.v1.schema.json",
+            generated::<saccade_core::brand::Evidence>("saccade-brand-source.v1.schema.json"),
+        ),
+        (
+            "saccade-brand-review.v1.schema.json",
+            generated::<saccade_core::brand::Report>("saccade-brand-review.v1.schema.json"),
+        ),
+        (
             "saccade-renderdoc-extract.v1.schema.json",
             generated::<saccade_core::renderdoc::Capture>(
                 "saccade-renderdoc-extract.v1.schema.json",
