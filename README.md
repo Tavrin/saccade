@@ -38,6 +38,16 @@ Add `--features prechecks` for the experimental safety and accessibility checks.
 
 Check the install with `saccade --version` or `saccade doctor --json`.
 
+### Optional Cargo features
+
+- `prechecks`: experimental safety and accessibility checks.
+- `products`: image delivery tuning with JPEG/lossless WebP and HTTP adapters.
+- `imgtune-avif`: adds AVIF encoding and native decoding to `products`; requires
+  the system **dav1d >= 1.3.0** development library and **pkg-config**. On Ubuntu
+  24.04 or newer, install `libdav1d-dev` and `pkg-config`. This requirement also
+  applies to `--all-features` builds and packaging. See
+  [image tuning prerequisites](docs/imgtune.md#system-prerequisites).
+
 ## Quickstart (60 seconds)
 
 ```sh
