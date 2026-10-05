@@ -839,6 +839,9 @@ pub struct TermDiff {
 #[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct PerfDiff {
+    /// Optional fixed-plan paired frame estimate; historical absence remains unavailable.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub robust_effect: Option<crate::paired_stats::Effect>,
     /// Capture-side comparison identity, including the timing statistic. Historical absence is unknown.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub history_identity: Option<crate::evidence::canonical::Digest>,
@@ -1130,6 +1133,7 @@ impl PerfDiff {
         policy_sources.insert("noise_k".into(), "effective_options".into());
         policy_sources.extend(opts.policy_sources.clone());
         Self {
+            robust_effect: None,
             schema: "saccade-perf-diff.v1".into(),
             history_identity: a.comparison_identity(),
             unit: "ms".into(),
@@ -1156,6 +1160,40 @@ impl PerfDiff {
             gpu_clock_before: None,
             gpu_clock_after: None,
         }
+    }
+    /// Attach a robust frame estimate without bypassing capture/noise qualification.
+    pub fn attach_robust(&mut self, effect: crate::paired_stats::Effect) {
+        let qualified = self.comparability == Comparability::Qualified
+            && self.noise_comparability == Comparability::Qualified;
+        let [low, high] = effect.interval_ms;
+        let threshold = self.frame.noise_threshold;
+        self.frame.beyond_noise = if effect.degenerate {
+            None
+        } else {
+            threshold.and_then(|t| {
+                if low > t || high < -t {
+                    Some(true)
+                } else if low >= -t && high <= t {
+                    Some(false)
+                } else {
+                    None
+                }
+            })
+        };
+        self.frame_change = if !qualified || effect.degenerate {
+            FrameChange::Unknown
+        } else {
+            match (self.frame.beyond_noise, threshold) {
+                (Some(true), Some(t)) if high < -t => FrameChange::Faster,
+                (Some(true), Some(t)) if low > t => FrameChange::Slower,
+                (Some(false), _) => FrameChange::WithinMeasuredNoise,
+                _ => FrameChange::Unknown,
+            }
+        };
+        if self.frame_change == FrameChange::Unknown {
+            self.warnings.push("Paired bootstrap interval is inconclusive, degenerate or lacks qualified capture/repeat conditions; no frame speedup/slowdown established.".into());
+        }
+        self.robust_effect = Some(effect);
     }
     pub fn top(&self, n: usize, beyond_only: bool) -> Vec<&TermDiff> {
         let mut terms: Vec<_> = self
@@ -1215,7 +1253,23 @@ impl PerfDiff {
             .into_iter()
             .map(|t| format!("{} {}", clean(&t.id), describe(&t.change, self.noise_k)))
             .collect();
-        parts.push(format!("frame {}", describe(&self.frame, self.noise_k)));
+        if let Some(effect) = &self.robust_effect {
+            parts.push(format!(
+                "frame paired HL {:+.6} ms, {:.1}% CI [{:+.6}, {:+.6}] ms; {:?}{}",
+                effect.delta_ms,
+                effect.confidence * 100.0,
+                effect.interval_ms[0],
+                effect.interval_ms[1],
+                self.frame_change,
+                if effect.degenerate {
+                    " (degenerate)"
+                } else {
+                    ""
+                }
+            ));
+        } else {
+            parts.push(format!("frame {}", describe(&self.frame, self.noise_k)));
+        }
         if self.comparability != Comparability::Qualified
             || self.noise_comparability != Comparability::Qualified
         {
@@ -1274,7 +1328,23 @@ impl PerfDiff {
             .map(|t| self.describe_unpaired(t))
             .collect();
         parts.extend(unpaired);
-        parts.push(format!("frame {}", describe(&self.frame, self.noise_k)));
+        if let Some(effect) = &self.robust_effect {
+            parts.push(format!(
+                "frame paired HL {:+.6} ms, {:.1}% CI [{:+.6}, {:+.6}] ms; {:?}{}",
+                effect.delta_ms,
+                effect.confidence * 100.0,
+                effect.interval_ms[0],
+                effect.interval_ms[1],
+                self.frame_change,
+                if effect.degenerate {
+                    " (degenerate)"
+                } else {
+                    ""
+                }
+            ));
+        } else {
+            parts.push(format!("frame {}", describe(&self.frame, self.noise_k)));
+        }
         parts.join(" · ")
     }
     /// Unmatched or structurally different terms, largest recorded duration first.
@@ -1549,6 +1619,17 @@ pub fn pair(
                 diff.comparability = Comparability::Rejected;
                 diff.frame_change = FrameChange::Unknown;
                 diff.qualification_reasons.extend(reasons);
+            }
+            match crate::paired_stats::read(before, after, &opts.name) {
+                Ok(Some(effect)) => diff.attach_robust(effect),
+                Ok(None) => {}
+                Err(error) => {
+                    diff.comparability = Comparability::Rejected;
+                    diff.frame_change = FrameChange::Unknown;
+                    diff.frame.beyond_noise = None;
+                    diff.qualification_reasons
+                        .push(format!("invalid fixed-plan paired performance: {error}"));
+                }
             }
             diff.gpu_clock_before = clocks[0].clone();
             diff.gpu_clock_after = clocks[1].clone();

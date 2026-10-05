@@ -1580,6 +1580,7 @@ fn doctor(json: bool) -> Result<u8, CliError> {
         "provenance-warnings",
         "repeat-detection",
         "perf-v2",
+        "paired-robust-perf-v1",
         "identity-json-v1",
         "history-v1",
         "inventory-v1",

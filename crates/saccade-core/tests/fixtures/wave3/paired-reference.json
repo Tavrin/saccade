@@ -1,0 +1,31 @@
+{
+  "source": "independent NumPy median over all Walsh pairs; linear np.quantile; SplitMix64 index stream; synthetic values",
+  "before_ms": [
+    10.0,
+    20.0,
+    30.0,
+    40.0,
+    50.0,
+    60.0
+  ],
+  "after_ms": [
+    9.0,
+    22.0,
+    32.0,
+    43.0,
+    54.0,
+    65.0
+  ],
+  "seed": 42,
+  "resamples": 2048,
+  "delta_ms": 2.5,
+  "interval_ms": [
+    0.5,
+    4.0
+  ],
+  "delta_pct": 7.500000000000001,
+  "interval_pct": [
+    -1.6384221354699913,
+    8.995412747509732
+  ]
+}

@@ -49,6 +49,7 @@ mod machado;
 pub mod meta;
 pub mod object_ids;
 pub mod onset;
+pub mod paired_stats;
 pub mod paths;
 pub mod perf;
 pub mod properties;

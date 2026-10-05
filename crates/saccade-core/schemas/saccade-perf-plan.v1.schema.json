@@ -1,0 +1,76 @@
+{
+  "$defs": {
+    "Assignment": {
+      "additionalProperties": false,
+      "description": "Frozen assignment for one independently acquired matched run pair.",
+      "properties": {
+        "id": {
+          "description": "Stable run pair ID, declared before acquisition.",
+          "type": "string"
+        },
+        "order": {
+          "description": "ab or ba, the actual acquisition order to control/report order bias.",
+          "type": "string"
+        }
+      },
+      "required": [
+        "id",
+        "order"
+      ],
+      "type": "object"
+    }
+  },
+  "$id": "https://github.com/Tavrin/saccade/crates/saccade-core/schemas/saccade-perf-plan.v1.schema.json",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "description": "A fixed acquisition and analysis plan, not a sequential stopping procedure.",
+  "properties": {
+    "confidence": {
+      "description": "Confidence level chosen in advance (0.8..0.99).",
+      "format": "double",
+      "type": "number"
+    },
+    "independent_unit": {
+      "description": "run; correlated frames are not independent resampling units.",
+      "type": "string"
+    },
+    "pairs": {
+      "description": "All expected run pairs, in acquisition order (6..128).",
+      "items": {
+        "$ref": "#/$defs/Assignment"
+      },
+      "type": "array"
+    },
+    "resamples": {
+      "description": "Fixed number of bootstrap draws (1024..8192).",
+      "format": "uint32",
+      "minimum": 0,
+      "type": "integer"
+    },
+    "schema": {
+      "description": "saccade-perf-plan.v1.",
+      "type": "string"
+    },
+    "seed": {
+      "description": "SplitMix64 seed chosen in advance.",
+      "format": "uint64",
+      "minimum": 0,
+      "type": "integer"
+    },
+    "stopping_rule": {
+      "description": "fixed_count; opportunistic stopping is not supported.",
+      "type": "string"
+    }
+  },
+  "required": [
+    "schema",
+    "independent_unit",
+    "stopping_rule",
+    "pairs",
+    "confidence",
+    "resamples",
+    "seed"
+  ],
+  "title": "Plan",
+  "type": "object"
+}

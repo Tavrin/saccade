@@ -49,3 +49,29 @@ constructed TSV/price/identifier tests qualify parsing and uncertainty, not
 recognizer accuracy. Live small/rotated/multilingual text qualification remains
 an explicit deployment residual. Geometric word-slot IDs are deliberately
 labelled uncertain rather than inventing semantic OCR node identity.
+
+## Item 3: paired robust performance statistics
+
+A candidate-side optional saccade-perf-pairs.json binds the complete fixed
+acquisition plan and run pairs to both exact aggregate performance files. This
+avoids changing historical measurement inputs or pretending a frame spread is
+an independent-run sample. Validate every planned ID/order/count, both AB/BA
+orders, run-level independence declaration, plan hash and prespecified analysis.
+No acquisition or opportunistic stopping. Freezing/independence are producer
+assertions; Saccade cannot establish their chronology itself.
+
+Use an independent native paired HL implementation: median of Walsh averages
+of within-pair differences, including i=j. Paired log-ratios give a separate
+relative effect. Seeded whole-pair percentile bootstrap uses SplitMix64 and
+linear empirical quantiles. Percentile was chosen for transparent reproducible
+behaviour; BCa and dependent/block sampling remain unqualified. Degenerate
+bootstrap distributions do not establish a new speedup. Independent NumPy
+reference values and constructed symmetric null/alternative coverage are tested.
+No new dependencies or copied reference code; no timing measurements.
+
+PerfDiff's robust_effect is additive. Existing capture/noise checks still gate
+verdicts, and the complete interval must resolve the noise threshold. Invalid
+supplied paired evidence rejects performance qualification. Raw aggregate
+measurements and term/counter diagnostics remain present; robust inference is
+for frame timing only. Historical absence does not manufacture uncertainty or
+rewrite old verdict rules. It remains explicit in the user-facing limits.

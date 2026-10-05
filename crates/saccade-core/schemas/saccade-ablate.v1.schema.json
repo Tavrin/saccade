@@ -132,6 +132,25 @@
       ],
       "type": "object"
     },
+    "Assignment": {
+      "additionalProperties": false,
+      "description": "Frozen assignment for one independently acquired matched run pair.",
+      "properties": {
+        "id": {
+          "description": "Stable run pair ID, declared before acquisition.",
+          "type": "string"
+        },
+        "order": {
+          "description": "ab or ba, the actual acquisition order to control/report order bias.",
+          "type": "string"
+        }
+      },
+      "required": [
+        "id",
+        "order"
+      ],
+      "type": "object"
+    },
     "Attribution": {
       "enum": [
         "complete",
@@ -368,6 +387,113 @@
       "pattern": "^sha256:[0-9a-f]{64}$",
       "type": "string"
     },
+    "Effect": {
+      "description": "Reproducible robust frame effect, separate from aggregate and noise evidence.",
+      "properties": {
+        "confidence": {
+          "description": "Prespecified confidence level.",
+          "format": "double",
+          "type": "number"
+        },
+        "degenerate": {
+          "description": "Equal-valued bootstrap effect distribution; cannot support a new verdict.",
+          "type": "boolean"
+        },
+        "delta_ms": {
+          "description": "Candidate minus reference paired timing effect, ms.",
+          "format": "double",
+          "type": "number"
+        },
+        "delta_pct": {
+          "description": "100×(exp(HL(log(after)-log(before)))-1).",
+          "format": "double",
+          "type": "number"
+        },
+        "estimator": {
+          "description": "paired_hodges_lehmann_walsh; pseudomedian shift, not population median.",
+          "type": "string"
+        },
+        "interval_method": {
+          "description": "percentile bootstrap with whole run-pair resampling and linear quantiles.",
+          "type": "string"
+        },
+        "interval_ms": {
+          "description": "Paired percentile interval, ms.",
+          "items": {
+            "format": "double",
+            "type": "number"
+          },
+          "maxItems": 2,
+          "minItems": 2,
+          "type": "array"
+        },
+        "interval_pct": {
+          "description": "Transformed interval on the same paired log-ratios.",
+          "items": {
+            "format": "double",
+            "type": "number"
+          },
+          "maxItems": 2,
+          "minItems": 2,
+          "type": "array"
+        },
+        "limits": {
+          "description": "Numerical and sampling limits.",
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "pairs": {
+          "description": "Number of complete independently acquired run pairs.",
+          "format": "uint",
+          "minimum": 0,
+          "type": "integer"
+        },
+        "plan_sha256": {
+          "$ref": "#/$defs/Digest",
+          "description": "Canonical plan identity."
+        },
+        "resamples": {
+          "description": "Fixed resample count.",
+          "format": "uint32",
+          "minimum": 0,
+          "type": "integer"
+        },
+        "samples": {
+          "$ref": "#/$defs/Samples",
+          "description": "Complete fixed plan and raw observations, retained for independent replay."
+        },
+        "samples_sha256": {
+          "$ref": "#/$defs/Digest",
+          "description": "Complete series identity, including raw observations and aggregate pins."
+        },
+        "seed": {
+          "description": "Reproducible generator seed.",
+          "format": "uint64",
+          "minimum": 0,
+          "type": "integer"
+        }
+      },
+      "required": [
+        "estimator",
+        "interval_method",
+        "delta_ms",
+        "interval_ms",
+        "delta_pct",
+        "interval_pct",
+        "confidence",
+        "pairs",
+        "resamples",
+        "seed",
+        "plan_sha256",
+        "samples_sha256",
+        "samples",
+        "degenerate",
+        "limits"
+      ],
+      "type": "object"
+    },
     "FrameChange": {
       "enum": [
         "faster",
@@ -452,6 +578,37 @@
       "required": [
         "blocks_no_effect",
         "reasons"
+      ],
+      "type": "object"
+    },
+    "Observation": {
+      "additionalProperties": false,
+      "description": "One matched run observation, not an arbitrary pair of correlated frames.",
+      "properties": {
+        "after_ms": {
+          "description": "Candidate run timing in milliseconds, strictly positive and finite.",
+          "format": "double",
+          "type": "number"
+        },
+        "before_ms": {
+          "description": "Reference run timing in milliseconds, strictly positive and finite.",
+          "format": "double",
+          "type": "number"
+        },
+        "order": {
+          "description": "Actual acquisition order, matching its predeclared assignment.",
+          "type": "string"
+        },
+        "pair_id": {
+          "description": "Exactly the planned pair ID.",
+          "type": "string"
+        }
+      },
+      "required": [
+        "pair_id",
+        "order",
+        "before_ms",
+        "after_ms"
       ],
       "type": "object"
     },
@@ -701,6 +858,17 @@
           "minimum": 0,
           "type": "integer"
         },
+        "robust_effect": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Effect"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "Optional fixed-plan paired frame estimate; historical absence remains unavailable."
+        },
         "schema": {
           "type": "string"
         },
@@ -826,6 +994,58 @@
       ],
       "type": "object"
     },
+    "Plan": {
+      "additionalProperties": false,
+      "description": "A fixed acquisition and analysis plan, not a sequential stopping procedure.",
+      "properties": {
+        "confidence": {
+          "description": "Confidence level chosen in advance (0.8..0.99).",
+          "format": "double",
+          "type": "number"
+        },
+        "independent_unit": {
+          "description": "run; correlated frames are not independent resampling units.",
+          "type": "string"
+        },
+        "pairs": {
+          "description": "All expected run pairs, in acquisition order (6..128).",
+          "items": {
+            "$ref": "#/$defs/Assignment"
+          },
+          "type": "array"
+        },
+        "resamples": {
+          "description": "Fixed number of bootstrap draws (1024..8192).",
+          "format": "uint32",
+          "minimum": 0,
+          "type": "integer"
+        },
+        "schema": {
+          "description": "saccade-perf-plan.v1.",
+          "type": "string"
+        },
+        "seed": {
+          "description": "SplitMix64 seed chosen in advance.",
+          "format": "uint64",
+          "minimum": 0,
+          "type": "integer"
+        },
+        "stopping_rule": {
+          "description": "fixed_count; opportunistic stopping is not supported.",
+          "type": "string"
+        }
+      },
+      "required": [
+        "schema",
+        "independent_unit",
+        "stopping_rule",
+        "pairs",
+        "confidence",
+        "resamples",
+        "seed"
+      ],
+      "type": "object"
+    },
     "Qualification": {
       "additionalProperties": false,
       "properties": {
@@ -900,6 +1120,48 @@
         "stable",
         "unstable_images",
         "image_hashes"
+      ],
+      "type": "object"
+    },
+    "Samples": {
+      "additionalProperties": false,
+      "description": "Sidecar alongside candidate saccade-perf.json, bound to both aggregate inputs.",
+      "properties": {
+        "after_perf_sha256": {
+          "$ref": "#/$defs/Digest",
+          "description": "Exact candidate aggregate performance file bytes."
+        },
+        "before_perf_sha256": {
+          "$ref": "#/$defs/Digest",
+          "description": "Exact reference aggregate performance file bytes."
+        },
+        "observations": {
+          "description": "Complete pair observations, in the declared plan order.",
+          "items": {
+            "$ref": "#/$defs/Observation"
+          },
+          "type": "array"
+        },
+        "plan": {
+          "$ref": "#/$defs/Plan",
+          "description": "Frozen plan body, retained for review."
+        },
+        "plan_sha256": {
+          "$ref": "#/$defs/Digest",
+          "description": "Canonical plan hash, pinned before acquisition by the producer."
+        },
+        "schema": {
+          "description": "saccade-perf-pairs.v1.",
+          "type": "string"
+        }
+      },
+      "required": [
+        "schema",
+        "before_perf_sha256",
+        "after_perf_sha256",
+        "plan",
+        "plan_sha256",
+        "observations"
       ],
       "type": "object"
     },

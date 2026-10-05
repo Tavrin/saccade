@@ -56,6 +56,14 @@ fn committed_schemas_match_the_rust_types() {
     let update = std::env::var_os("UPDATE_SCHEMAS").is_some();
     let all = [
         (
+            "saccade-perf-plan.v1.schema.json",
+            generated::<saccade_core::paired_stats::Plan>("saccade-perf-plan.v1.schema.json"),
+        ),
+        (
+            "saccade-perf-pairs.v1.schema.json",
+            generated::<saccade_core::paired_stats::Samples>("saccade-perf-pairs.v1.schema.json"),
+        ),
+        (
             "saccade-tesseract.v1.schema.json",
             generated::<saccade_core::ui_review::OcrContract>("saccade-tesseract.v1.schema.json"),
         ),
