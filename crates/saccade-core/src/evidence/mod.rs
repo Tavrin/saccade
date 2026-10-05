@@ -5,6 +5,7 @@
 //! identities and bindings before a caller uses an artifact.
 
 pub mod action;
+pub mod analysis;
 pub mod canonical;
 pub mod case;
 pub mod human;
