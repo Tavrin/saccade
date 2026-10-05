@@ -112,7 +112,7 @@ Usage: saccade bisect [OPTIONS] --capture <CAPTURE> --baseline <BASELINE>
 Options:
       --good <GOOD>          Known good revision in the current repository
       --bad <BAD>            Known bad revision descended from --good
-      --capture <CAPTURE>    Shell capture command; write images to $SACCADE_CAPTURE_DIR
+      --capture <CAPTURE>    Shell capture command; write images to SACCADE_CAPTURE_DIR (sh on Unix, cmd on Windows)
       --baseline <BASELINE>  Stable baseline directory, copied before Git changes revisions
       --perf                 Require qualified performance evidence and count a slower frame as bad
       --out <OUT>            Evidence directory outside the repository; defaults to a new sibling
