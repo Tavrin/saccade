@@ -25,6 +25,8 @@ gate core-tests cargo_gate test -j 4 -p saccade-core --features assist,schema
 gate cli-tests cargo_gate test -j 4 -p saccade --features assist,schema
 gate wave4-heavy-core cargo_gate test -j 4 -p saccade-core --features assist,schema -- --ignored wave4
 gate wave4-heavy-cli cargo_gate test -j 4 -p saccade --features assist,schema --test assist_contract -- --ignored
+gate wave4-batch-routing cargo_gate test -j 4 -p saccade --features assist,schema --test assist_batch_contract -- --ignored
+gate qualification-preflight python3 scripts/assist/test_preflight.py
 gate constructed-python python3 scripts/assist/test_constructed.py
 gate docs python3 scripts/assist/check_docs.py
 gate shell bash -n scripts/gates-wave4.sh scripts/qualify-wave4.sh

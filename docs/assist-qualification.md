@@ -65,15 +65,26 @@ The runner uses the existing user-root egress policy, fixed key files, isolated
 **evaluation** attempt ledger and monetary reservations. It has no cache replay,
 model fallback, automatic retry or budget top-up. It durably records each root/arm
 as it finishes; provider errors and budget exhaustion remain in availability
-denominators. Reopening an epoch cannot raise its monetary allowance. Exact input
-counting consumes reservations too. Counting API billing is currently unknown;
-its conservative charge remains consumed and cost value gates stay unqualified
-until that price has been established. Unknown thinking/usage is never zero cost.
-Batch's public network CLI/MCP surface is deferred; interactive commands never
-wait on an asynchronous evaluation job.
+denominators. Reopening an epoch cannot raise its monetary allowance. The script
+checks the fixed ordinary credential files before corpus reads, output creation
+or any build; missing keys refuse with exit 4 without a provider request. Ambient
+keys cannot pass preflight. The corpus, new result directory and exact-source
+heavy receipt remain explicit required arguments alongside the cap.
 
-Six paired arms are recorded: rules, diagnostic oracle-text Jev, single Gemini,
-two Gemini plus mechanics, two Gemini plus mechanics and Jev, and routed cascade.
+Local conservative reservations replace mandatory Gemini counting. Output and
+thinking budgets are both explicit. Settlement needs consistent prompt,
+candidate, thinking and total counters; unknown usage is never zero cost.
+`countTokens` is off by default and only a separately versioned free/priced policy
+can enable it. Existing frozen epochs are invalidated by this policy/source change;
+freeze a new `wave4-constructed/2` epoch with `constructed-assist/2` policy.
+
+Seven paired arms are recorded: rules, diagnostic oracle-text Jev, single Gemini,
+two Gemini plus mechanics, two Gemini plus mechanics and Jev, rules-first cascade,
+and `cascade_jev_route` with the optional Jev evidence-need component. The last arm
+is measured separately against `cascade`, including its additional request,
+usage, cost, latency, withheld advice and necessary-evidence skips. Jev routing
+remains off by default; `jev_evidence_routing` gets its own value/recall/safety
+decision and cannot inherit the deterministic router's qualification.
 The full path evaluates cases the cascade routes to source facts. Necessary-pixel
 counterfactuals also run the full path; they remain descendants of the same root.
 Every observation retains actual model revision, exact request/response/prompt
@@ -102,10 +113,3 @@ qualified/unqualified decision and failed-gate list. Missing mechanical receipts
 insufficient corpus size, failed family assumptions or unknown cost preserve
 unqualified status. These are synthetic-domain results. They do not establish
 accuracy on arbitrary pages or grant baseline/exclusion authority.
-
-Gemini dispatch is currently refused before either counting or generation HTTP:
-the brief does not establish the counting API price, so an auxiliary reservation
-alone cannot prove the hard dollar cap. Confirm that external billing fact in a
-versioned execution policy and freeze a new epoch before enabling the Gemini path.
-Offline replay and rules remain available; the opt-in runner records this refusal
-as incomplete execution, with no Gemini request dispatched.

@@ -214,7 +214,7 @@ def freeze(out, target, seed, gemini_revision, jev_revision):
                     font_license_hash=digest(FONT_LICENSE.read_bytes()),
                     workflow_hash=digest((ROOT/"crates/saccade-core/src/assist/workflow.rs").read_bytes()),
                     schema_hash=digest((ROOT/"crates/saccade-core/schemas/saccade-assist.v1.schema.json").read_bytes()))
-    metadata = dict(schema=SCHEMA,epoch="wave4-constructed/1",seed=seed,target_per_workload=target,
+    metadata = dict(schema=SCHEMA,epoch="wave4-constructed/2",seed=seed,target_per_workload=target,
                     families=families,policy=POLICY,versions=versions,
                     models={"gemini":"gemini-3.8-flash","gemini_revision":gemini_revision,
                             "jev":"jev-1.13.0","jev_revision":jev_revision},
@@ -301,7 +301,7 @@ def verify(directory):
     oracle=oracle_document["cases"]
     expected_families={"development":list(range(8)),"calibration":list(range(8,12)),"heldout":list(range(12,32))}
     target=manifest["target_per_workload"]
-    if manifest["epoch"]!="wave4-constructed/1" or manifest["families"]!=expected_families or not isinstance(target,int) or target<=0 or target>1000 or target%5:
+    if manifest["epoch"]!="wave4-constructed/2" or manifest["families"]!=expected_families or not isinstance(target,int) or target<=0 or target>1000 or target%5:
         raise ValueError("preregistered split/epoch drift")
     if manifest["models"]["gemini"]!="gemini-3.8-flash" or manifest["models"]["jev"]!="jev-1.13.0" or not all(manifest["models"][m+"_revision"] for m in ("gemini","jev")):
         raise ValueError("pinned model binding drift")

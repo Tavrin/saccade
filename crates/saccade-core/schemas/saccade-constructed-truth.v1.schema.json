@@ -10,7 +10,7 @@
           "const": "saccade-constructed-truth.v1"
         },
         "epoch": {
-          "const": "wave4-constructed/1"
+          "const": "wave4-constructed/2"
         },
         "manifest_hash": {
           "type": "string",
@@ -74,7 +74,7 @@
           "const": "saccade-constructed-truth.v1"
         },
         "epoch": {
-          "const": "wave4-constructed/1"
+          "const": "wave4-constructed/2"
         },
         "manifest_hash": {
           "type": "string",

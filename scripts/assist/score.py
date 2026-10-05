@@ -82,12 +82,14 @@ def assertion_correct(observation, oracle, case, directory):
 def validate_record(row, case, manifest):
     allowed={"case_id","arm","outcome","complete","observations","provenance","mechanical_valid",
              "order_disagreement","contradiction_withheld","used_vision","queue_delay_ms","retries",
-             "counterfactual_checked","source_only","elapsed_ms","failure","counterfactual"}
+             "counterfactual_checked","source_only","elapsed_ms","failure","counterfactual","route_decision"}
     if not isinstance(row,dict) or set(row)-allowed: raise ValueError("unknown result field (manual scores/labels are forbidden)")
     if row["arm"] not in ARMS or row["case_id"]!=case["case_id"]: raise ValueError("result identity")
     if row.get("outcome") not in ("observed","not_observed","unverifiable"): raise ValueError("unknown semantic outcome")
     for field in ("complete","mechanical_valid","order_disagreement","contradiction_withheld","used_vision","counterfactual_checked","source_only"):
         if field in row and not isinstance(row[field],bool): raise ValueError("invalid result flag")
+    if row.get("route_decision") not in (None,"vision","insufficient"): raise ValueError("invalid routing choice")
+    if row.get("route_decision")=="insufficient" and (row.get("outcome")!="unverifiable" or row.get("used_vision")): raise ValueError("router abstention acquired semantic authority")
     if len(row.get("observations",[]))>64 or len(row.get("provenance",[]))>4: raise ValueError("unbounded result")
     child=row.get("counterfactual")
     if child:
@@ -105,6 +107,11 @@ def validate_record(row, case, manifest):
         if receipt.get("cache_status") not in ("miss","bypass"): raise ValueError("cache replay is not an independent evaluation sample")
         if receipt.get("cost_usd") is not None and (not math.isfinite(receipt["cost_usd"]) or receipt["cost_usd"]<0): raise ValueError("invalid cost")
         if receipt.get("finished_ms",0)<receipt.get("started_ms",0): raise ValueError("invalid timestamps")
+
+def execution_cost(receipts, complete):
+    """Failed stages may have charged reservations even without usable provenance."""
+    if not complete or any(r.get("cost_usd") is None for r in receipts): return None
+    return sum(r["cost_usd"] for r in receipts)
 
 def summarize(items):
     count=len(items);eligible=sum(i["eligible"] for i in items)
@@ -228,14 +235,14 @@ def evaluate(directory, result_file, gate_receipt=None):
             # Invalid geometry that was withheld is not an authority violation;
             # report failures separately while keeping unavailable execution.
             receipts=row.get("provenance",[])+(child.get("provenance",[]) if child else [])
-            cost=(sum(r["cost_usd"] for r in receipts) if all(r.get("cost_usd") is not None for r in receipts) else None) if row else None
+            cost=execution_cost(receipts,complete) if row else None
             item=dict(root=case_id,family=case["family"],eligible=truth["category"]!="unavailable",important=important,
                 necessary=truth["necessary_vision"],complete=complete,committed=committed,case_correct=case_correct,
                 detected=case_correct,reassurance=reassurance,assertions=assertion_count,correct_assertions=correct,
                 abstention=complete and outcome=="unverifiable",mechanical_valid=row.get("mechanical_valid",False),
                 order_disagreement=row.get("order_disagreement",False),contradiction_withheld=row.get("contradiction_withheld",True),
-                paired_order=case["task"]!="check_ui" and arm in ("two_gemini","two_gemini_jev","cascade") and complete and row.get("used_vision",False),
-                routing_error=truth["necessary_vision"] and arm=="cascade" and (not row.get("used_vision",False) or not row.get("counterfactual_checked",False)),
+                paired_order=case["task"]!="check_ui" and arm in ("two_gemini","two_gemini_jev","cascade","cascade_jev_route") and complete and row.get("used_vision",False),
+                routing_error=truth["necessary_vision"] and arm in ("cascade","cascade_jev_route") and (not row.get("used_vision",False) or not row.get("counterfactual_checked",False)),
                 cost=cost,provenance=receipts,elapsed_ms=row.get("elapsed_ms",0),queue_delay_ms=row.get("queue_delay_ms",0),retries=row.get("retries",0))
             grouped[(case["workload"],arm)].append(item)
     report={"schema":SCHEMA,"epoch":manifest["epoch"],"manifest_hash":manifest["manifest_hash"],"oracle_hash":manifest["oracle_hash"],
@@ -272,6 +279,20 @@ def evaluate(directory, result_file, gate_receipt=None):
         jev["unsupported_reduction"]=reduction
     report["feature_decisions"]["jev_support"]={"status":"qualified" if all(jev_checks) else "unqualified","value_gate_by_workload":dict(zip(WORKLOADS,jev_checks))}
     report["feature_decisions"]["routing"]={"status":"qualified" if all(routing_checks) else "unqualified","value_gate_by_workload":dict(zip(WORKLOADS,routing_checks))}
+    optional_checks=[]
+    for workload in WORKLOADS:
+        baseline=report["workloads"][workload]["cascade"]["metrics"]
+        routed=report["workloads"][workload]["cascade_jev_route"]["metrics"]
+        base_items=grouped[(workload,"cascade")];route_items=grouped[(workload,"cascade_jev_route")]
+        matched=min(sum(i["committed"] for i in base_items),sum(i["committed"] for i in route_items))
+        def recall_matched(items):
+            kept=sorted([i for i in items if i["committed"]],key=lambda i:hashlib.sha256(i["root"].encode()).digest())[:matched]
+            return fraction(sum(i["important"] and i["detected"] for i in kept),sum(i["important"] for i in items))
+        loss=recall_matched(base_items)-recall_matched(route_items)
+        saving=1-routed["cost_usd"]/baseline["cost_usd"] if routed["cost_usd"] is not None and baseline["cost_usd"] else None
+        routed["incremental_cost_reduction"]=saving;routed["matched_coverage_recall_loss"]=loss;routed["matched_committed_roots"]=matched
+        optional_checks.append(mechanical_fixtures and all(report["workloads"][workload]["cascade_jev_route"]["gates"].values()) and matched>=600 and saving is not None and saving>=POLICY["routing_cost_reduction_min"] and loss<=POLICY["routing_matched_coverage_recall_loss_max"] and routed["routing_error_upper99"]<=POLICY["necessary_evidence_skip_upper99_max"])
+    report["feature_decisions"]["jev_evidence_routing"]={"status":"qualified" if all(optional_checks) else "unqualified","default_enabled":False,"baseline_arm":"cascade","candidate_arm":"cascade_jev_route","value_gate_by_workload":dict(zip(WORKLOADS,optional_checks))}
     report["feature_decisions"]["blind_orders"]={"status":"qualified" if mechanical_fixtures and all(report["workloads"][w]["two_gemini"]["gates"]["order_handling"] and report["workloads"][w]["two_gemini"]["gates"]["availability"] for w in WORKLOADS) else "unqualified"}
     return report
 

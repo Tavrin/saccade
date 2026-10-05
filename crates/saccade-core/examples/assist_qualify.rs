@@ -257,6 +257,7 @@ struct Row {
     retries: u32,
     counterfactual_checked: bool,
     source_only: bool,
+    route_decision: Option<String>,
     elapsed_ms: u64,
     failure: Option<String>,
     counterfactual: Option<Box<Row>>,
@@ -277,6 +278,7 @@ fn row(case: &Case, arm: &str) -> Row {
         retries: 0,
         counterfactual_checked: case.counterfactual.is_none(),
         source_only: false,
+        route_decision: None,
         elapsed_ms: 0,
         failure: None,
         counterfactual: None,
@@ -325,7 +327,7 @@ fn run_case(
             result.complete = true;
             return Ok(());
         }
-        if arm == "rules" || arm == "cascade" {
+        if ["rules", "cascade", "cascade_jev_route"].contains(&arm) {
             if let Need::Structured(outcome) = need {
                 result.outcome = outcome;
                 result.complete = true;
@@ -335,6 +337,25 @@ fn run_case(
             if arm == "rules" {
                 result.complete = true;
                 return Ok(());
+            }
+        }
+        if arm == "cascade_jev_route" {
+            let (key, payload) = assist::routing::prepare(
+                &pack.catalog,
+                &pack.identity,
+                case.condition.as_ref(),
+                &models.jev_revision,
+                context.api.clone(),
+            )?;
+            let completed = call(context, pack, arm, &key, &payload, deadline)?;
+            result.provenance.push(completed.provenance);
+            match assist::routing::answer(&completed.response, &models.jev_revision)? {
+                assist::routing::Decision::Vision => result.route_decision = Some("vision".into()),
+                assist::routing::Decision::Insufficient => {
+                    result.route_decision = Some("insufficient".into());
+                    result.complete = true;
+                    return Ok(());
+                }
             }
         }
         if arm == "oracle_jev" {
@@ -412,7 +433,9 @@ fn run_case(
         }
         result.outcome = outputs[0].0;
         result.observations = outputs[0].1.clone();
-        if ["two_gemini_jev", "cascade"].contains(&arm) && !result.observations.is_empty() {
+        if ["two_gemini_jev", "cascade", "cascade_jev_route"].contains(&arm)
+            && !result.observations.is_empty()
+        {
             let (answer, receipt) = support(
                 context,
                 pack,
@@ -566,6 +589,10 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         return Err("qualification results must be new; no silent retry/relabel".into());
     }
     let keys = execution::fixed_keys()?;
+    keys.load("gemini.env", "SACCADE_GEMINI_API_KEY")
+        .map_err(|_| "fixed Gemini credentials unavailable")?;
+    keys.load("jev.env", "JEV_API_KEY")
+        .map_err(|_| "fixed Jev credentials unavailable")?;
     let ledger = Ledger::new(
         &saccade_core::judge_provider::Keys::default_dir().join("attempts"),
         true,
@@ -600,6 +627,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             "two_gemini",
             "two_gemini_jev",
             "cascade",
+            "cascade_jev_route",
         ] {
             let result = run_case(
                 case,

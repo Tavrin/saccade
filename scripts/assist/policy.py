@@ -1,9 +1,10 @@
 """Frozen constructed-domain policy. No human labels and no historical evaluator changes."""
 SCHEMA = "saccade-constructed-truth.v1"
-ARMS = ["rules", "oracle_jev", "single_gemini", "two_gemini", "two_gemini_jev", "cascade"]
+ARMS = ["rules", "oracle_jev", "single_gemini", "two_gemini", "two_gemini_jev", "cascade", "cascade_jev_route"]
 WORKLOADS = ["explain", "audit_mask", "check_ui", "routing"]
 POLICY = {
-    "version": "constructed-assist/1",
+    "version": "constructed-assist/2",
+    "optional_jev_routing": "separate cascade_jev_route arm versus cascade; off by default",
     "truth": "rendered_constructed_oracle_only",
     "target_per_workload": 1000,
     "classes": {"challenge": 600, "control": 200, "unavailable": 200},
@@ -33,6 +34,6 @@ POLICY = {
     "unknown_cost": "unknown; never zero and cannot pass a monetary value gate",
     "synthetic_domain_only": True,
 }
-GATES = ["fmt", "check", "clippy", "core-tests", "cli-tests", "wave4-heavy-core", "wave4-heavy-cli", "constructed-python", "docs", "shell"]
+GATES = ["fmt", "check", "clippy", "core-tests", "cli-tests", "wave4-heavy-core", "wave4-heavy-cli", "constructed-python", "docs", "shell", "wave4-batch-routing", "qualification-preflight"]
 
 ORACLE_SCHEMA = "saccade-constructed-oracle.v1"
