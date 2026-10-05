@@ -11,6 +11,8 @@ license = "MIT OR Apache-2.0"
 classifiers = ["Programming Language :: Python :: 3", "Programming Language :: Rust"]
 
 [tool.maturin]
+# Keep extension linking out of ordinary Cargo builds and tests.
+features = ["pyo3/extension-module"]
 python-source = "python"
 module-name = "saccade._native"
 

@@ -7,6 +7,25 @@ artifacts only. The development lane uses the targeted `python_package` Cargo te
 with feature `python-tests` to import the compiled abi3 extension and run light pytest;
 that check does not qualify a release wheel archive.
 
+PyO3's `extension-module` feature is enabled only in `[tool.maturin]` in
+`crates/saccade-py/pyproject.toml`, following the
+[PyO3 0.25.1 FAQ](https://pyo3.rs/v0.25.1/faq.html).
+Ordinary Cargo builds and workspace tests must link Python on macOS and Linux;
+enabling this feature unconditionally suppresses that linkage and caused the
+macOS test linker failure in CI run 37385348419. Maturin enables it for wheels,
+including the existing `python-wheels.yml` manifest-path invocation, while
+`abi3-py310` remains enabled for both build paths. A `build.rs` extension-linker
+workaround is unnecessary: this crate needs separate Cargo test and extension
+build modes, and maturin already supplies the extension linker arguments.
+
+Local verification for this fix: `cargo check -p saccade-py --locked -j 4`
+passed on Linux using `CARGO_TARGET_DIR=/mnt/linux-extra/moss-cargo-targets/codex-saccade-pyfix`
+after the free-space check reported 38 GB. The workspace feature graph excludes
+`extension-module`; selecting the maturin feature enables it. PyO3 emitted
+`rustc-link-lib=python3.12` for the ordinary build. Maturin was unavailable, so no
+wheel was built locally. This single check does not establish workspace test or
+macOS linker acceptance; those remain CI checks. The temporary target was removed.
+
 ```python
 import saccade
 analyzer = saccade.Analyzer(profile="cpu-lite", allow_download=False)
