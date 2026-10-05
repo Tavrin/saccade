@@ -52,6 +52,9 @@ pub struct OcrContract {
     pub psm: u8,
     /// Per-process timeout, 1..60000 milliseconds.
     pub timeout_ms: u64,
+    /// Contract review status, never a qualification receipt.
+    #[serde(default)]
+    pub review_status: Option<String>,
 }
 /// One visible/semantic node exported by the capture producer.
 #[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
@@ -119,7 +122,7 @@ impl Source {
             || self.dimensions != dimensions
             || dimensions.contains(&0)
             || self.nodes.len() > 100_000
-            || !["dom", "accessibility_tree", "tesseract_tsv"].contains(&self.kind.as_str())
+            || !["dom", "accessibility_tree", "tesseract_tsv", "ocrs"].contains(&self.kind.as_str())
             || hash.len() != 64
             || !hash
                 .bytes()
@@ -146,7 +149,7 @@ impl Source {
                     "invalid UI node IDs, ordinals, bounds or confidence",
                 ));
             }
-            if self.kind == "tesseract_tsv"
+            if matches!(self.kind.as_str(), "tesseract_tsv" | "ocrs")
                 && (n.reading_order.is_some()
                     || n.keyboard_order.is_some()
                     || n.disclosure
@@ -157,7 +160,7 @@ impl Source {
                 ));
             }
         }
-        if self.kind == "tesseract_tsv" && self.complete {
+        if matches!(self.kind.as_str(), "tesseract_tsv" | "ocrs") && self.complete {
             return Err(invalid("OCR cannot establish complete source coverage"));
         }
         Ok(())
@@ -183,12 +186,14 @@ pub fn compare(
         measurement.region.dimensions,
     )?;
     after.validate(&measurement.candidate_sha256, measurement.region.dimensions)?;
-    let source = before.kind != "tesseract_tsv"
-        && after.kind != "tesseract_tsv"
+    let source = !matches!(before.kind.as_str(), "tesseract_tsv" | "ocrs")
+        && !matches!(after.kind.as_str(), "tesseract_tsv" | "ocrs")
         && before.kind == after.kind;
     let assurance = if source {
         "source_fact"
-    } else if before.kind == "tesseract_tsv" || after.kind == "tesseract_tsv" {
+    } else if matches!(before.kind.as_str(), "tesseract_tsv" | "ocrs")
+        || matches!(after.kind.as_str(), "tesseract_tsv" | "ocrs")
+    {
         "uncertain_ocr"
     } else {
         "uncertain_correspondence"

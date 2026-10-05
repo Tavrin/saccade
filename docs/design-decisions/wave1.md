@@ -1,5 +1,9 @@
 # Wave 1 decisions
 
+Current requirements (integration round 3, 2026-10-05): Rust 1.89 and
+Butteraugli 0.9.3. Rust 1.88 / Butteraugli 0.4.0 statements below retain the
+original lane decisions and test history; see [integration report](../../INTEGRATION-REPORT.md).
+
 ## Item 0: shared evidence contracts
 
 Read FEATURE-RESEARCH-2026-10-05 sections 2, 5, 6 and build order, and

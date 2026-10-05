@@ -1,0 +1,54 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/Tavrin/saccade/crates/saccade-core/schemas/saccade-embedding-export-receipt.v1.schema.json",
+  "type": "object",
+  "properties": {
+    "schema": {
+      "const": "saccade-embedding-export-receipt.v1"
+    },
+    "checkpoint_sha256": {
+      "type": "string"
+    },
+    "source_revision": {
+      "type": "string"
+    },
+    "export_sha256": {
+      "type": "string"
+    },
+    "inputs_sha256": {
+      "type": "string"
+    },
+    "pairs_sha256": {
+      "type": "string"
+    },
+    "torch": {
+      "type": "string"
+    },
+    "numpy": {
+      "type": "string"
+    },
+    "onnx": {
+      "type": "string"
+    },
+    "script_sha256": {
+      "type": "string"
+    },
+    "qualification": {
+      "type": "string"
+    }
+  },
+  "required": [
+    "schema",
+    "checkpoint_sha256",
+    "source_revision",
+    "export_sha256",
+    "inputs_sha256",
+    "pairs_sha256",
+    "torch",
+    "numpy",
+    "onnx",
+    "script_sha256",
+    "qualification"
+  ],
+  "additionalProperties": false
+}

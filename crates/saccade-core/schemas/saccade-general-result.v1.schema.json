@@ -1,0 +1,51 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/Tavrin/saccade/crates/saccade-core/schemas/saccade-general-result.v1.schema.json",
+  "title": "saccade-general-result.v1",
+  "type": "object",
+  "properties": {
+    "schema": {
+      "const": "saccade-general-result.v1"
+    },
+    "mode": {
+      "type": "string"
+    },
+    "verdict": {
+      "enum": [
+        "pass",
+        "regression",
+        "unknown"
+      ]
+    },
+    "data": {
+      "type": "object"
+    },
+    "artifacts": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "path": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "path"
+        ],
+        "additionalProperties": false
+      }
+    },
+    "next_actions": {
+      "type": "array"
+    }
+  },
+  "required": [
+    "schema",
+    "mode",
+    "verdict",
+    "data",
+    "artifacts",
+    "next_actions"
+  ],
+  "additionalProperties": false
+}

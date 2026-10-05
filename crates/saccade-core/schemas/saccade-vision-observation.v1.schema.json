@@ -1,0 +1,287 @@
+{
+  "$defs": {
+    "Provenance": {
+      "additionalProperties": false,
+      "description": "Explicit model/export attribution on every observation.",
+      "properties": {
+        "artifact_sha256": {
+          "description": "Exact consumed export/auxiliary hashes.",
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "input_resolution": {
+          "description": "Actual graph input size.",
+          "items": {
+            "format": "uint32",
+            "minimum": 0,
+            "type": "integer"
+          },
+          "maxItems": 2,
+          "minItems": 2,
+          "type": "array"
+        },
+        "model_id": {
+          "description": "Model id (or generated fixture id).",
+          "type": "string"
+        },
+        "resolution_handling": {
+          "description": "How original resolution was handled.",
+          "type": "string"
+        },
+        "runtime": {
+          "description": "onnx-cpu, replay, or external-http; replay is always marked unqualified.",
+          "type": "string"
+        },
+        "source_parity": {
+          "description": "Source-model/export parity, independent of successful graph loading.",
+          "type": "boolean"
+        },
+        "version": {
+          "description": "Exact model/checkpoint version.",
+          "type": "string"
+        }
+      },
+      "required": [
+        "model_id",
+        "version",
+        "artifact_sha256",
+        "runtime",
+        "input_resolution",
+        "resolution_handling",
+        "source_parity"
+      ],
+      "type": "object"
+    },
+    "Rect": {
+      "additionalProperties": false,
+      "description": "Canonical `[x,y,width,height]` in original pixels; right/bottom exclusive.",
+      "properties": {
+        "height": {
+          "description": "Positive height.",
+          "format": "float",
+          "type": "number"
+        },
+        "width": {
+          "description": "Positive width.",
+          "format": "float",
+          "type": "number"
+        },
+        "x": {
+          "description": "Left edge.",
+          "format": "float",
+          "type": "number"
+        },
+        "y": {
+          "description": "Top edge.",
+          "format": "float",
+          "type": "number"
+        }
+      },
+      "required": [
+        "x",
+        "y",
+        "width",
+        "height"
+      ],
+      "type": "object"
+    },
+    "Statement": {
+      "additionalProperties": false,
+      "description": "Structured region/text observation, independent of any numerical measurement.",
+      "properties": {
+        "bbox": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Rect"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "Original-pixel box when grounding was supplied."
+        },
+        "confidence": {
+          "description": "Predicted score, absent when unavailable.",
+          "format": "float",
+          "type": [
+            "number",
+            "null"
+          ]
+        },
+        "image_id": {
+          "description": "Existing image catalog id.",
+          "type": "string"
+        },
+        "point": {
+          "description": "Original-pixel point when supplied.",
+          "items": {
+            "format": "float",
+            "type": "number"
+          },
+          "maxItems": 2,
+          "minItems": 2,
+          "type": [
+            "array",
+            "null"
+          ]
+        },
+        "text": {
+          "description": "Extracted text or advisory description, bounded and untrusted.",
+          "type": "string"
+        }
+      },
+      "required": [
+        "image_id",
+        "text"
+      ],
+      "type": "object"
+    },
+    "Usage": {
+      "additionalProperties": false,
+      "description": "Token counters, not an implied zero-dollar cost.",
+      "properties": {
+        "cache_creation_tokens": {
+          "description": "Separate cache creation input when provider reports it outside input.",
+          "format": "uint64",
+          "minimum": 0,
+          "type": [
+            "integer",
+            "null"
+          ]
+        },
+        "cached_input_tokens": {
+          "description": "Input subset served from cache.",
+          "format": "uint64",
+          "minimum": 0,
+          "type": [
+            "integer",
+            "null"
+          ]
+        },
+        "input_tokens": {
+          "description": "Provider input total (cached input is included, not added twice).",
+          "format": "uint64",
+          "minimum": 0,
+          "type": [
+            "integer",
+            "null"
+          ]
+        },
+        "output_tokens": {
+          "description": "Provider output total (reasoning is included when provider counts it).",
+          "format": "uint64",
+          "minimum": 0,
+          "type": [
+            "integer",
+            "null"
+          ]
+        },
+        "reasoning_tokens": {
+          "description": "Output subset used for reasoning.",
+          "format": "uint64",
+          "minimum": 0,
+          "type": [
+            "integer",
+            "null"
+          ]
+        },
+        "total_tokens": {
+          "description": "Provider total, if supplied.",
+          "format": "uint64",
+          "minimum": 0,
+          "type": [
+            "integer",
+            "null"
+          ]
+        }
+      },
+      "type": "object"
+    }
+  },
+  "$id": "https://github.com/Tavrin/saccade/crates/saccade-core/schemas/saccade-vision-observation.v1.schema.json",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "description": "Identity/usage receipt for advisory observations.",
+  "properties": {
+    "advisory_only": {
+      "description": "Always true; models cannot override deterministic results.",
+      "type": "boolean"
+    },
+    "cost_usd": {
+      "description": "Monetary cost unavailable to these interface-only adapters.",
+      "format": "double",
+      "type": [
+        "number",
+        "null"
+      ]
+    },
+    "data_sha256": {
+      "description": "Bounded data hash, not executable instruction text.",
+      "type": "string"
+    },
+    "provenance": {
+      "$ref": "#/$defs/Provenance",
+      "description": "Full local model/export attribution."
+    },
+    "provider": {
+      "description": "Provider/runtime identifier.",
+      "type": "string"
+    },
+    "request_sha256": {
+      "description": "Bound request hash.",
+      "type": "string"
+    },
+    "requested_model": {
+      "description": "Exact requested model.",
+      "type": "string"
+    },
+    "response_sha256": {
+      "description": "Exact response hash.",
+      "type": "string"
+    },
+    "returned_model": {
+      "description": "Exact returned model; mismatches rejected.",
+      "type": "string"
+    },
+    "returned_revision": {
+      "description": "Returned runtime/model revision when available, otherwise unknown.",
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "schema": {
+      "const": "saccade-vision-observation.v1",
+      "description": "OBSERVATION_SCHEMA.",
+      "type": "string"
+    },
+    "statements": {
+      "description": "At most 128 statements.",
+      "items": {
+        "$ref": "#/$defs/Statement"
+      },
+      "type": "array"
+    },
+    "usage": {
+      "$ref": "#/$defs/Usage",
+      "description": "Provider usage; missing fields remain unknown."
+    }
+  },
+  "required": [
+    "schema",
+    "advisory_only",
+    "request_sha256",
+    "response_sha256",
+    "data_sha256",
+    "requested_model",
+    "returned_model",
+    "provider",
+    "provenance",
+    "statements",
+    "usage"
+  ],
+  "title": "ObservationReport",
+  "type": "object"
+}

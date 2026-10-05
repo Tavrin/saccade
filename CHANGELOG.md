@@ -7,6 +7,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+- Add experimental `review explain`, `review audit-mask`, `review check-ui` and
+  `review assist batch submit|status|collect`; optional Jev routing remains unqualified.
+- Add the local Playwright matcher, `sweep plan|compare`, `imgtune audit|search`,
+  `design pull|compare`, `notify` and verified `--baseline last-good` lookup.
+- Add explicit registration/resampling, `hash`, `dedupe`, `similar`,
+  `index build|query|export-inputs|calibrate`, `text`, `assess`, `inspect-image`,
+  `capabilities` and comparison question routing.
+- Add optional SVG/PDF rendering, offline C2PA validation and pinned Rust OCR.
+  Model, OCR readability, forensic specificity and broad renderer qualification
+  retain the limits recorded in their evidence and documentation.
+- Raise the MSRV to Rust 1.89 and upgrade Butteraugli to 0.9.3; remove the vendored compatibility patch.
+
+- Round 2 integration adds Wave 7 vision commands and explicit face/crop/watermark observations in image reports, fixture-only hosted mappings and advisory check-ui localization. Shared model contracts retain legacy readers. Dynamic browser/sweep masks neutralize excluded pixels before filtering; core score-exclusion defaults remain. Model export/parity and generated OCR contract review are separate qualification gates.
+
 ## [0.1.2]
 
 Fixed: MCP Registry name uses the case-sensitive io.github.Tavrin namespace.

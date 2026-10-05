@@ -145,11 +145,13 @@ OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
 OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 ```
 
-### butteraugli 0.4.0: upstream LICENSE
+### butteraugli 0.9.3: BSD-3-Clause notice
 
-The published crate omits its LICENSE file. The retained text below comes from
-[its exact upstream source revision](https://github.com/imazen/butteraugli/blob/7a375b6bf25fc53ec19b790c6be22ed75e00019f/LICENSE).
-It is also retained in core assets and the generated release notices.
+The fetched 0.9.3 Cargo.toml and README declare BSD-3-Clause and Rust 1.89.
+The published crate omits its LICENSE file. The retained project-author notice below comes from
+[the prior 0.4.0 source revision](https://github.com/imazen/butteraugli/blob/7a375b6bf25fc53ec19b790c6be22ed75e00019f/LICENSE).
+It is retained as `assets/licenses/butteraugli-0.9.3.txt` in core and the generated release notices.
+The notice source revision predates 0.9.3; no fetched LICENSE file is claimed.
 
 ```text
 Copyright (c) the JPEG XL Project Authors.
@@ -208,3 +210,483 @@ LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 ```
+
+## Wave 4 constructed fixtures
+
+No new Cargo dependencies or model weights are introduced. Assist reuses the
+existing optional AI dependencies. The CPU-only qualification generator uses the
+already required Pillow renderer (MIT-CMU/HPND; installed at development/runtime,
+not vendored) and installed DejaVu Sans/Serif fonts. Font input hashes and the local
+DejaVu/Bitstream Vera copyright/licence notice are recorded in each frozen corpus;
+font binaries are not redistributed in this repository. Generated pixels use this
+repository's MIT OR Apache-2.0 licence. The font rendering input is confined to
+constructed fixtures and does not enter the default Cargo feature set.
+## Wave 5 product adapters
+
+- `url` 2.5.8 — MIT OR Apache-2.0; HTTP origin rewriting and adapter URL validation.
+- `roxmltree` 0.20.0 — MIT OR Apache-2.0; bounded sitemap XML (no DTD).
+- `ureq` 3.3.0 — MIT OR Apache-2.0; existing dependency reused for bounded product HTTP transport.
+- `@playwright/test` — Apache-2.0; consuming-project peer dependency for the local matcher/driver; no browser is vendored.
+- All new browser pages and HTTP/API fixtures are generated/project-authored, MIT OR Apache-2.0.
+
+### Wave 5 resolved dependency inventory
+
+Verified from published Cargo manifests through `cargo metadata --locked --all-features`.
+This includes optional AVIF/native-decoder, build, test and platform dependencies.
+
+| Crate | Version | Licence |
+| --- | --- | --- |
+| aligned | 0.4.3 | MIT OR Apache-2.0 |
+| anyhow | 1.0.104 | MIT OR Apache-2.0 |
+| arbitrary | 1.4.2 | MIT OR Apache-2.0 |
+| arg_enum_proc_macro | 0.3.4 | MIT |
+| as-slice | 0.2.1 | MIT OR Apache-2.0 |
+| av-scenechange | 0.14.1 | MIT |
+| av1-grain | 0.2.5 | BSD-2-Clause |
+| avif-serialize | 0.8.9 | BSD-3-Clause |
+| bitreader | 0.3.11 | MIT OR Apache-2.0 |
+| bitstream-io | 4.10.0 | MIT/Apache-2.0 |
+| built | 0.8.1 | MIT |
+| cfg-expr | 0.20.9 | MIT OR Apache-2.0 |
+| dav1d | 0.10.4 | MIT |
+| dav1d-sys | 0.8.3 | MIT |
+| fallible_collections | 0.4.9 | MIT/Apache-2.0 |
+| form_urlencoded | 1.2.2 | MIT OR Apache-2.0 |
+| hashbrown | 0.13.2 | MIT OR Apache-2.0 |
+| image-webp | 0.2.4 | MIT OR Apache-2.0 |
+| interpolate_name | 0.2.4 | MIT |
+| itertools | 0.14.0 | MIT OR Apache-2.0 |
+| jobserver | 0.1.35 | MIT OR Apache-2.0 |
+| libfuzzer-sys | 0.4.13 | (MIT OR Apache-2.0) AND NCSA |
+| loop9 | 0.1.5 | MIT |
+| maybe-rayon | 0.1.1 | MIT |
+| mp4parse | 0.17.0 | MPL-2.0 |
+| new_debug_unreachable | 1.0.6 | MIT |
+| no_std_io2 | 0.9.4 | Apache-2.0 OR MIT |
+| nom | 8.0.0 | MIT |
+| noop_proc_macro | 0.3.0 | MIT |
+| pastey | 0.1.1 | MIT OR Apache-2.0 |
+| ppv-lite86 | 0.2.21 | MIT OR Apache-2.0 |
+| profiling | 1.0.18 | MIT OR Apache-2.0 |
+| profiling-procmacros | 1.0.18 | MIT OR Apache-2.0 |
+| quick-error | 2.0.1 | MIT/Apache-2.0 |
+| rand | 0.9.5 | MIT OR Apache-2.0 |
+| rand_chacha | 0.9.0 | MIT OR Apache-2.0 |
+| rand_core | 0.9.5 | MIT OR Apache-2.0 |
+| rav1e | 0.8.1 | BSD-2-Clause |
+| ravif | 0.12.0 | BSD-3-Clause |
+| roxmltree | 0.20.0 | MIT OR Apache-2.0 |
+| serde_spanned | 1.1.1 | MIT OR Apache-2.0 |
+| simd_helpers | 0.1.0 | MIT |
+| static_assertions | 1.1.0 | MIT OR Apache-2.0 |
+| system-deps | 7.0.8 | MIT OR Apache-2.0 |
+| target-lexicon | 0.13.5 | Apache-2.0 WITH LLVM-exception |
+| toml | 1.1.6+spec-1.1.0 | MIT OR Apache-2.0 |
+| toml_datetime | 1.1.1+spec-1.1.0 | MIT OR Apache-2.0 |
+| toml_parser | 1.1.3+spec-1.1.0 | MIT OR Apache-2.0 |
+| toml_writer | 1.1.2+spec-1.1.0 | MIT OR Apache-2.0 |
+| url | 2.5.8 | MIT OR Apache-2.0 |
+| version-compare | 0.2.1 | MIT |
+| winnow | 1.0.4 | MIT |
+| y4m | 0.8.0 | MIT |
+
+MPL-2.0 use: `mp4parse` 0.17.0 (AVIF container parsing).
+Optional native `dav1d`/`dav1d-sys` are MIT; upstream dav1d decoder is BSD-2-Clause.
+Only permitted alternatives of dual/triple licences are selected; GPL alternatives
+are not selected. `libfuzzer-sys` has an NCSA licence component and is resolved only
+for upstream rav1e `cfg(fuzzing)`; this unsupported configuration is excluded from
+Wave 5 builds. This is a recorded licence qualification shortfall for fuzzing,
+not permission to distribute an NCSA-dependent fuzzing build.
+Full upstream notices are regenerated by the existing release notice script.
+## Wave 6 registration
+
+FAST/oriented BRIEF, least-squares estimation and RANSAC in
+`general/registration.rs` are original pure Rust implementations under the
+project MIT OR Apache-2.0 licence; no OpenCV or additional dependency is used.
+The generated registration fixtures carry the same project licence.
+
+## Wave 6 optional embeddings
+
+No new package dependency. The `embeddings` feature reuses `ort` 2.0.0-rc.10
+(MIT OR Apache-2.0, verified in its local Cargo.toml and licence files),
+`ort-sys` and the existing dynamic ONNX/cache dependencies. No runtime is bundled.
+DINOv2-small checkpoint Apache-2.0 is a fact supplied by the lane specification;
+no canonical export/hash or calibration is shipped. Supplied ONNX exports must
+retain Apache-2.0 and pin their SHA-256, byte count and version. CLIP is deferred.
+
+## Wave 6 metadata and inspection
+
+No new package dependency. The TIFF/JPEG/PNG header parser and self-match
+clustering are original project code. Conventional Annex K luminance coefficients
+were cross-checked against image 0.25.9's locally available JPEG encoder source
+(MIT OR Apache-2.0); encoder identity is not inferred from table compatibility.
+Generated metadata, copy and text glyph fixtures use the project licence.
+No C2PA, OCR model, SVG or PDF renderer dependency was added without licence review.
+
+## Wave 6b registry-source licence review
+
+Cargo fetch only; no browsing or weights downloaded. Every new resolved crate
+was reviewed from its registry Cargo.toml and root licence/notice files. The
+SHA-256 prefixes (16 hex characters) identify inspected notice bytes. Old Cargo
+licence slash syntax denotes dual-licence choices. Absent licence files are
+recorded; no text was invented. Selected permissive branches govern this lane.
+Release packaging may use scripts/generate-third-party-notices.py for full texts.
+Hayro/hayro-interpret 0.3.0 also state Apache-2.0 in their READMEs. C2PA 0.90.22
+states MIT/Apache-2.0 in its README but omits licence files. OCRs/RTen licence
+fields state MIT OR Apache-2.0; model licences are separate, supplied declarations.
+Hayro embedded fonts, OpenSSL and C2PA HTTP features are disabled.
+
+| Crate/version | Published licence | Selected branch | Inspected licence/notice files |
+| --- | --- | --- | --- |
+| abnf 0.13.0 | MIT OR Apache-2.0 | MIT | LICENSE-APACHE (c71d239df91726fc); LICENSE-MIT (028cf7a7c18f8e73) |
+| abnf-core 0.5.0 | MIT OR Apache-2.0 | MIT | LICENSE-APACHE (c71d239df91726fc); LICENSE-MIT (028cf7a7c18f8e73) |
+| alloc-no-stdlib 2.0.4 | BSD-3-Clause | BSD-3-Clause | LICENSE (c0c56f26d9c051ca) |
+| alloc-stdlib 0.2.4 | BSD-3-Clause | BSD-3-Clause | Not included; Cargo.toml licence field |
+| android_system_properties 0.1.6 | MIT OR Apache-2.0 | MIT | LICENSE-APACHE (216486f29671a426); LICENSE-MIT (80f275e90d799911) |
+| anyhow 1.0.104 | MIT OR Apache-2.0 | MIT | LICENSE-APACHE (62c7a1e35f564068); LICENSE-MIT (23f18e03dc49df91) |
+| arrayref 0.3.9 | BSD-2-Clause | BSD-2-Clause | LICENSE (1bc7e6f475b3ec99) |
+| asn1-rs 0.7.2 | MIT OR Apache-2.0 | MIT | LICENSE-APACHE (a60eea8175145316); LICENSE-MIT (a5c61b93b6ee1d10) |
+| asn1-rs-derive 0.6.0 | MIT OR Apache-2.0 | MIT | LICENSE-APACHE (a60eea8175145316); LICENSE-MIT (a5c61b93b6ee1d10) |
+| asn1-rs-impl 0.2.0 | MIT/Apache-2.0 | MIT | Not included; Cargo.toml licence field |
+| async-generic 1.1.2 | MIT OR Apache-2.0 | MIT | LICENSE-APACHE (661bac26aca538aa); LICENSE-MIT (e2f3f7651bcdcbad) |
+| async-trait 0.1.92 | MIT OR Apache-2.0 | MIT | LICENSE-APACHE (62c7a1e35f564068); LICENSE-MIT (23f18e03dc49df91) |
+| atree 0.5.4 | MIT | MIT | LICENSE (f8d0cfe50d73fbbe) |
+| base16ct 0.2.0 | Apache-2.0 OR MIT | Apache-2.0 | LICENSE-APACHE (a9040321c3712d8f); LICENSE-MIT (0aa8963e105e8b6e) |
+| base64 0.23.1 | MIT OR Apache-2.0 | MIT | LICENSE-APACHE (a60eea8175145316); LICENSE-MIT (ab499c75a0f0da8e) |
+| base64ct 1.8.3 | Apache-2.0 OR MIT | Apache-2.0 | LICENSE-APACHE (a9040321c3712d8f); LICENSE-MIT (2d1c57bff28344b9) |
+| bcder 0.7.7 | BSD-3-Clause | BSD-3-Clause | LICENSE (699edcf925cfe30b) |
+| bitflags 1.3.2 | MIT/Apache-2.0 | MIT | LICENSE-APACHE (a60eea8175145316); LICENSE-MIT (6485b8ed310d3f03) |
+| bitvec 1.1.1 | MIT | MIT | LICENSE.txt (411781fd38700f23) |
+| block-buffer 0.12.1 | MIT OR Apache-2.0 | MIT | LICENSE-APACHE (a9040321c3712d8f); LICENSE-MIT (98181e7249d0c017) |
+| brotli 7.0.0 | BSD-3-Clause AND MIT | BSD-3-Clause AND MIT | LICENSE.BSD-3-Clause (c0c56f26d9c051ca); LICENSE.MIT (3d180008e36922a4) |
+| brotli-decompressor 4.0.3 | BSD-3-Clause/MIT | BSD-3-Clause | LICENSE (c0c56f26d9c051ca) |
+| bs58 0.5.1 | MIT/Apache-2.0 | MIT | LICENSE-APACHE (a60eea8175145316); LICENSE-MIT (42d3bf7e7d4d49d7) |
+| btree-range-map 0.7.2 | MIT/Apache-2.0 | MIT | Not included; Cargo.toml licence field |
+| btree-slab 0.6.1 | MIT/Apache-2.0 | MIT | LICENSE-APACHE (a60eea8175145316); LICENSE-MIT (23f18e03dc49df91) |
+| bytemuck_derive 1.12.1 | Zlib OR Apache-2.0 OR MIT | Zlib | LICENSE-APACHE (e3ba223bb1423f0a); LICENSE-MIT (9df9ba60a11af705); LICENSE-ZLIB (84b34dd7608f7fb9) |
+| byteordered 0.6.0 | MIT OR Apache-2.0 | MIT | LICENSE-APACHE (cfc7749b96f63bd3); LICENSE-MIT (f58879f1835bd074) |
+| c2pa 0.90.22 | MIT OR Apache-2.0 | MIT | Not included; Cargo.toml licence field |
+| c2pa_cbor 0.77.4 | MIT OR Apache-2.0 | MIT | LICENSE-APACHE (c3a37a0f68a267a4); LICENSE-MIT (6846953932d0cb78) |
+| cc-traits 2.0.0 | MIT/Apache-2.0 | MIT | LICENSE-APACHE (a60eea8175145316); LICENSE-MIT (23f18e03dc49df91) |
+| chrono 0.4.45 | MIT OR Apache-2.0 | MIT | LICENSE.txt (946c9835d8034d24) |
+| ciborium 0.2.2 | Apache-2.0 | Apache-2.0 | LICENSE (c71d239df91726fc) |
+| ciborium-io 0.2.2 | Apache-2.0 | Apache-2.0 | LICENSE (c71d239df91726fc) |
+| ciborium-ll 0.2.2 | Apache-2.0 | Apache-2.0 | LICENSE (c71d239df91726fc) |
+| color_quant 1.1.0 | MIT | MIT | LICENSE (592dc80f1a865d20) |
+| console_log 1.1.0 | MIT/Apache-2.0 | MIT | LICENSE-APACHE (a60eea8175145316); LICENSE-MIT (0315568149476c50) |
+| const-hex 1.19.3 | MIT OR Apache-2.0 | MIT | LICENSE-APACHE (62c7a1e35f564068); LICENSE-MIT (23f18e03dc49df91) |
+| const-oid 0.10.2 | Apache-2.0 OR MIT | Apache-2.0 | LICENSE-APACHE (a9040321c3712d8f); LICENSE-MIT (73b9dc2e79c73089) |
+| const-oid 0.9.6 | Apache-2.0 OR MIT | Apache-2.0 | LICENSE-APACHE (a9040321c3712d8f); LICENSE-MIT (bada9e7ed8dc00d6) |
+| core-foundation-sys 0.8.7 | MIT OR Apache-2.0 | MIT | LICENSE-APACHE (a60eea8175145316); LICENSE-MIT (62065228e42caebc) |
+| coset 0.4.2 | Apache-2.0 | Apache-2.0 | LICENSE (cfc7749b96f63bd3) |
+| cpufeatures 0.3.1 | MIT OR Apache-2.0 | MIT | LICENSE-APACHE (a9040321c3712d8f); LICENSE-MIT (73b9dc2e79c73089) |
+| crypto-bigint 0.5.5 | Apache-2.0 OR MIT | Apache-2.0 | LICENSE-APACHE (a9040321c3712d8f); LICENSE-MIT (90c503b61dee04e1) |
+| crypto-common 0.2.2 | MIT OR Apache-2.0 | MIT | LICENSE-APACHE (a9040321c3712d8f); LICENSE-MIT (d2e7ec5355c96eea) |
+| curve25519-dalek 4.1.3 | BSD-3-Clause | BSD-3-Clause | LICENSE (cca0bd3c4fcdba74) |
+| curve25519-dalek-derive 0.1.1 | MIT/Apache-2.0 | MIT | LICENSE-APACHE (a60eea8175145316); LICENSE-MIT (23f18e03dc49df91) |
+| darling 0.24.1 | MIT | MIT | LICENSE (8ea93490d74a5a1b) |
+| darling_core 0.24.1 | MIT | MIT | LICENSE (8ea93490d74a5a1b) |
+| darling_macro 0.24.1 | MIT | MIT | LICENSE (8ea93490d74a5a1b) |
+| data-encoding 2.11.1 | MIT | MIT | LICENSE (b68ad1a3367b8254) |
+| data-url 0.3.2 | MIT OR Apache-2.0 | MIT | LICENSE-APACHE (a60eea8175145316); LICENSE-MIT (b38f11f6096706e6) |
+| defmt 1.1.1 | MIT OR Apache-2.0 | MIT | LICENSE-APACHE (8173d5c29b4f956d); LICENSE-MIT (2710a622a896bba6) |
+| defmt-macros 1.1.1 | MIT OR Apache-2.0 | MIT | LICENSE-APACHE (8173d5c29b4f956d); LICENSE-MIT (2710a622a896bba6) |
+| defmt-parser 1.0.0 | MIT OR Apache-2.0 | MIT | Not included; Cargo.toml licence field |
+| delegate 0.8.0 | MIT OR Apache-2.0 | MIT | Not included; Cargo.toml licence field |
+| der 0.7.10 | Apache-2.0 OR MIT | Apache-2.0 | LICENSE-APACHE (a9040321c3712d8f); LICENSE-MIT (ad64fcb9589f1627) |
+| der-parser 10.0.0 | MIT OR Apache-2.0 | MIT | LICENSE-APACHE (a60eea8175145316); LICENSE-MIT (a5c61b93b6ee1d10) |
+| deranged 0.5.8 | MIT OR Apache-2.0 | MIT | LICENSE-Apache (edd65bdd88957a20); LICENSE-MIT (231c837c45eb53f1) |
+| digest 0.11.3 | MIT OR Apache-2.0 | MIT | LICENSE-APACHE (a9040321c3712d8f); LICENSE-MIT (af59cea35d7f5e27) |
+| ecdsa 0.16.9 | Apache-2.0 OR MIT | Apache-2.0 | LICENSE-APACHE (78779d420019e6b4); LICENSE-MIT (bdebaf9156a298f8) |
+| ed25519 2.2.3 | Apache-2.0 OR MIT | Apache-2.0 | LICENSE-APACHE (78779d420019e6b4); LICENSE-MIT (b3470648aff02beb) |
+| ed25519-dalek 2.2.0 | BSD-3-Clause | BSD-3-Clause | LICENSE (7a313964a6e05079) |
+| elliptic-curve 0.13.8 | Apache-2.0 OR MIT | Apache-2.0 | LICENSE-APACHE (a9040321c3712d8f); LICENSE-MIT (d27687b51f287482) |
+| euclid 0.22.14 | MIT OR Apache-2.0 | MIT | LICENSE-APACHE (a60eea8175145316); LICENSE-MIT (62065228e42caebc) |
+| extfmt 0.2.0 | Apache-2.0 | Apache-2.0 | LICENSE (2f5666c5dc09d47f) |
+| ff 0.13.1 | MIT/Apache-2.0 | MIT | LICENSE-APACHE (3708458dee7f359a); LICENSE-MIT (8d0c1d1d4b2bebf5) |
+| fiat-crypto 0.2.9 | MIT OR Apache-2.0 OR BSD-1-Clause | MIT | LICENSE-APACHE (9eacbcb81be66084); LICENSE-BSD-1 (0c1240e29b4a2c52); LICENSE-MIT (0034712d5e97a4f5) |
+| flatbuffers 24.12.23 | Apache-2.0 | Apache-2.0 | Not included; Cargo.toml licence field |
+| float-cmp 0.9.0 | MIT | MIT | LICENSE (40be1e77825d7e49) |
+| font-types 0.10.1 | MIT OR Apache-2.0 | MIT | LICENSE-APACHE (a14f7d685a79c0f4); LICENSE-MIT (8a62fa27ffdccc3d) |
+| font-types 0.12.6 | MIT OR Apache-2.0 | MIT | LICENSE-APACHE (eba684204073ed71); LICENSE-MIT (7b4c9a3946dfcea7) |
+| fontdb 0.24.0 | MIT | MIT | LICENSE (59a1fdac3bd55004) |
+| form_urlencoded 1.2.2 | MIT OR Apache-2.0 | MIT | LICENSE-APACHE (a60eea8175145316); LICENSE-MIT (20c7855c364d57ea) |
+| funty 2.0.0 | MIT | MIT | LICENSE.txt (f790cc576999f599) |
+| gif 0.14.2 | MIT OR Apache-2.0 | MIT | LICENSE-APACHE (769f80b5bcb42ed0); LICENSE-MIT (77257f3d2181236b) |
+| glob 0.3.4 | MIT OR Apache-2.0 | MIT | LICENSE-APACHE (a60eea8175145316); LICENSE-MIT (6485b8ed310d3f03) |
+| group 0.13.0 | MIT/Apache-2.0 | MIT | LICENSE-APACHE (a60eea8175145316); LICENSE-MIT (23f18e03dc49df91) |
+| harfrust 0.12.0 | MIT | MIT | LICENSE (3a7c3f0b887abb7c) |
+| hashbrown 0.12.3 | MIT OR Apache-2.0 | MIT | LICENSE-APACHE (a60eea8175145316); LICENSE-MIT (ff8f68cb076caf8c) |
+| hayro 0.3.0 | Apache-2.0 | Apache-2.0 | Not included; Cargo.toml licence field |
+| hayro-font 0.2.0 | Apache-2.0 | Apache-2.0 | LICENSE-APACHE (a60eea8175145316) |
+| hayro-interpret 0.3.0 | Apache-2.0 | Apache-2.0 | Not included; Cargo.toml licence field |
+| hayro-syntax 0.3.0 | Apache-2.0 | Apache-2.0 | LICENSE_APACHE (0d542e0c8804e39a) |
+| hermit-abi 0.5.3 | MIT OR Apache-2.0 | MIT | LICENSE-APACHE (a60eea8175145316); LICENSE-MIT (23f18e03dc49df91) |
+| hex 0.4.3 | MIT OR Apache-2.0 | MIT | LICENSE-APACHE (c6596eb7be8581c1); LICENSE-MIT (f7bdb3426d045cd5) |
+| hex_fmt 0.3.0 | MIT/Apache-2.0 | MIT | LICENSE-APACHE (769f80b5bcb42ed0); LICENSE-MIT (7bb852a7f5c336c8) |
+| hkdf 0.12.4 | MIT OR Apache-2.0 | MIT | LICENSE-APACHE (59013a5c8d3a19c2); LICENSE-MIT (d288f9c9b4590446) |
+| hmac 0.12.1 | MIT OR Apache-2.0 | MIT | LICENSE-APACHE (a9040321c3712d8f); LICENSE-MIT (9e0dfd2dd4173a53) |
+| hybrid-array 0.4.15 | MIT OR Apache-2.0 | MIT | LICENSE-APACHE (a9040321c3712d8f); LICENSE-MIT (70c9d40f1f9545c3) |
+| iana-time-zone 0.1.65 | MIT OR Apache-2.0 | MIT | LICENSE-APACHE (696759d65dfe558f); LICENSE-MIT (da28ccc6b158fc2d) |
+| iana-time-zone-haiku 0.1.2 | MIT OR Apache-2.0 | MIT | LICENSE-APACHE (696759d65dfe558f); LICENSE-MIT (da28ccc6b158fc2d) |
+| id3 1.17.2 | MIT | MIT | LICENSE (8d3956eec944be83) |
+| ident_case 1.0.1 | MIT/Apache-2.0 | MIT | LICENSE (508a77d2e7b51d98) |
+| image-webp 0.2.4 | MIT OR Apache-2.0 | MIT | LICENSE-APACHE (0d542e0c8804e39a); LICENSE-MIT (c77a4cf9da729987) |
+| imagesize 0.15.0 | MIT | MIT | LICENSE (fa0d694967d5c279) |
+| img-parts 0.4.0 | MIT OR Apache-2.0 | MIT | LICENSE-APACHE (c71d239df91726fc); LICENSE-MIT (00ad23a86370b30f) |
+| indexmap 1.9.3 | Apache-2.0 OR MIT | Apache-2.0 | LICENSE-APACHE (a60eea8175145316); LICENSE-MIT (ecc269ef87fd38a1) |
+| indoc 2.0.7 | MIT OR Apache-2.0 | MIT | LICENSE-APACHE (62c7a1e35f564068); LICENSE-MIT (23f18e03dc49df91) |
+| iref 3.2.2 | MIT/Apache-2.0 | MIT | LICENSE-APACHE (a60eea8175145316); LICENSE-MIT (23f18e03dc49df91) |
+| iref-core 3.2.2 | MIT/Apache-2.0 | MIT | Not included; Cargo.toml licence field |
+| itertools 0.13.0 | MIT OR Apache-2.0 | MIT | LICENSE-APACHE (a60eea8175145316); LICENSE-MIT (7576269ea71f767b) |
+| jfifdump 0.6.0 | MIT OR Apache-2.0 | MIT | Not included; Cargo.toml licence field |
+| jiff 0.2.37 | Unlicense OR MIT | MIT | COPYING (01c266bced4a434d); LICENSE-MIT (0f96a83840e146e4) |
+| jiff-core 0.1.1 | Unlicense OR MIT | MIT | COPYING (01c266bced4a434d); LICENSE-MIT (0f96a83840e146e4) |
+| jiff-static 0.2.37 | Unlicense OR MIT | MIT | COPYING (01c266bced4a434d); LICENSE-MIT (0f96a83840e146e4) |
+| jiff-tzdb 0.1.8 | Unlicense OR MIT | MIT | COPYING (01c266bced4a434d); LICENSE-MIT (0f96a83840e146e4) |
+| jiff-tzdb-platform 0.1.3 | Unlicense OR MIT | MIT | COPYING (01c266bced4a434d); LICENSE-MIT (0f96a83840e146e4) |
+| kurbo 0.12.0 | Apache-2.0 OR MIT | Apache-2.0 | LICENSE-APACHE (cfc7749b96f63bd3); LICENSE-MIT (23c23145f6eac25c) |
+| kurbo 0.13.1 | Apache-2.0 OR MIT | Apache-2.0 | LICENSE-APACHE (cfc7749b96f63bd3); LICENSE-MIT (23c23145f6eac25c) |
+| minimal-lexical 0.2.1 | MIT/Apache-2.0 | MIT | LICENSE-APACHE (8173d5c29b4f956d); LICENSE-MIT (23f18e03dc49df91); LICENSE.md (dbe1fff0fb1314b6) |
+| nom 7.1.3 | MIT | MIT | LICENSE (4dbda04344456f09) |
+| non-empty-string 0.2.6 | MIT OR Apache-2.0 | MIT | LICENSE-APACHE (053e5be17654900a); LICENSE-MIT (466877d65c873371) |
+| nonempty-collections 1.4.0 | MIT | MIT | LICENSE (6a8f9cb0ae290d5f) |
+| num-bigint-dig 0.8.6 | MIT/Apache-2.0 | MIT | LICENSE-APACHE (a60eea8175145316); LICENSE-MIT (6485b8ed310d3f03) |
+| num-conv 0.2.2 | MIT OR Apache-2.0 | MIT | LICENSE-Apache (0d542e0c8804e39a); LICENSE-MIT (e2e245f2b566d0bf) |
+| num_cpus 1.17.0 | MIT OR Apache-2.0 | MIT | LICENSE-APACHE (a60eea8175145316); LICENSE-MIT (391a5396cec6230b) |
+| ocrs 0.10.4 | MIT OR Apache-2.0 | MIT | Not included; Cargo.toml licence field |
+| oid-registry 0.8.1 | MIT OR Apache-2.0 | MIT | LICENSE-APACHE (a60eea8175145316); LICENSE-MIT (a5c61b93b6ee1d10) |
+| p256 0.13.2 | Apache-2.0 OR MIT | Apache-2.0 | LICENSE-APACHE (a9040321c3712d8f); LICENSE-MIT (233b95ccbf90dc67) |
+| p384 0.13.1 | Apache-2.0 OR MIT | Apache-2.0 | LICENSE-APACHE (a9040321c3712d8f); LICENSE-MIT (02168781a5b59970) |
+| p521 0.13.3 | Apache-2.0 OR MIT | Apache-2.0 | LICENSE-APACHE (a9040321c3712d8f); LICENSE-MIT (d27687b51f287482) |
+| parsenic 0.2.1 | Apache-2.0 OR BSL-1.0 OR MIT | Apache-2.0 | LICENSE_APACHE (62c7a1e35f564068); LICENSE_BOOST (c9bff75738922193); LICENSE_MIT (508a77d2e7b51d98) |
+| pct-str 2.0.0 | MIT OR Apache-2.0 | MIT | LICENSE-APACHE (a60eea8175145316); LICENSE-MIT (23f18e03dc49df91) |
+| pem 3.0.6 | MIT | MIT | LICENSE.md (b7c76ff4466a3aeb) |
+| pem-rfc7468 0.7.0 | Apache-2.0 OR MIT | Apache-2.0 | LICENSE-APACHE (a9040321c3712d8f); LICENSE-MIT (90c503b61dee04e1) |
+| phf 0.13.1 | MIT | MIT | LICENSE (0ab4d106b6faac07) |
+| phf_generator 0.13.1 | MIT | MIT | LICENSE (0ab4d106b6faac07) |
+| phf_macros 0.13.1 | MIT | MIT | LICENSE (0ab4d106b6faac07) |
+| phf_shared 0.13.1 | MIT | MIT | LICENSE (0ab4d106b6faac07) |
+| pico-args 0.5.0 | MIT | MIT | LICENSE (f71452d91682fdae) |
+| pix 0.14.0 | MIT OR Apache-2.0 | MIT | LICENSE-APACHE (a60eea8175145316); LICENSE-MIT (23aaaf9e22440148) |
+| pkcs1 0.7.5 | Apache-2.0 OR MIT | Apache-2.0 | LICENSE-APACHE (a9040321c3712d8f); LICENSE-MIT (c995204cc6bad2ed) |
+| pkcs8 0.10.2 | Apache-2.0 OR MIT | Apache-2.0 | LICENSE-APACHE (a9040321c3712d8f); LICENSE-MIT (ad64fcb9589f1627) |
+| png_pong 0.10.0 | Apache-2.0 OR Zlib | Apache-2.0 | LICENSE-APACHE (62c7a1e35f564068); LICENSE-ZLIB (1b421d50a070abae) |
+| polycool 0.4.0 | MIT OR Apache-2.0 | MIT | LICENSE-APACHE (cfc7749b96f63bd3); LICENSE-MIT (23c23145f6eac25c) |
+| powerfmt 0.2.1 | MIT OR Apache-2.0 | MIT | LICENSE-Apache (155420c6403d4e0f); LICENSE-MIT (070dbc7dda03a292) |
+| ppv-lite86 0.2.21 | MIT OR Apache-2.0 | MIT | LICENSE-APACHE (0218327e7a480793); LICENSE-MIT (4cada0bd02ea3692) |
+| primeorder 0.13.6 | Apache-2.0 OR MIT | Apache-2.0 | LICENSE-APACHE (a9040321c3712d8f); LICENSE-MIT (233b95ccbf90dc67) |
+| proc-macro-error 1.0.4 | MIT OR Apache-2.0 | MIT | LICENSE-APACHE (4665f973ccb93938); LICENSE-MIT (544b3aed1fd723d0) |
+| proc-macro-error-attr 1.0.4 | MIT OR Apache-2.0 | MIT | LICENSE-APACHE (6fd0f3522047150c); LICENSE-MIT (544b3aed1fd723d0) |
+| proptest 1.11.0 | MIT OR Apache-2.0 | MIT | LICENSE-APACHE (a60eea8175145316); LICENSE-MIT (d8e0806926ce9f0a) |
+| quick-error 2.0.1 | MIT/Apache-2.0 | MIT | LICENSE-APACHE (c6596eb7be8581c1); LICENSE-MIT (058f01fe181608d0) |
+| quick-xml 0.41.0 | MIT | MIT | LICENSE-MIT.md (5b2c207dcf571267) |
+| radium 0.7.0 | MIT | MIT | LICENSE.txt (13f4cc9fbc8d4a44) |
+| rand 0.8.8 | MIT OR Apache-2.0 | MIT | LICENSE-APACHE (35242e7a83f69875); LICENSE-MIT (209fbbe0ad52d923) |
+| rand 0.9.5 | MIT OR Apache-2.0 | MIT | LICENSE-APACHE (35242e7a83f69875); LICENSE-MIT (209fbbe0ad52d923) |
+| rand_chacha 0.3.1 | MIT OR Apache-2.0 | MIT | LICENSE-APACHE (aaff376532ea30a0); LICENSE-MIT (209fbbe0ad52d923) |
+| rand_chacha 0.9.0 | MIT OR Apache-2.0 | MIT | LICENSE-APACHE (35242e7a83f69875); LICENSE-MIT (209fbbe0ad52d923) |
+| rand_core 0.6.4 | MIT OR Apache-2.0 | MIT | LICENSE-APACHE (6df43f6f4b5d4587); LICENSE-MIT (209fbbe0ad52d923) |
+| rand_core 0.9.5 | MIT OR Apache-2.0 | MIT | LICENSE-APACHE (6df43f6f4b5d4587); LICENSE-MIT (209fbbe0ad52d923) |
+| rand_xorshift 0.4.0 | MIT OR Apache-2.0 | MIT | LICENSE-APACHE (35242e7a83f69875); LICENSE-MIT (209fbbe0ad52d923) |
+| range-set 0.1.1 | Apache-2.0 | Apache-2.0 | LICENSE (e7b5a75ffce5a74f) |
+| range-traits 0.3.2 | MIT/Apache-2.0 | MIT | Not included; Cargo.toml licence field |
+| rasn 0.28.15 | MIT OR Apache-2.0 | MIT | LICENCE-APACHE (ebd8153ef4d2d160); LICENCE-MIT (ee1201a73de9b44a) |
+| rasn-cms 0.28.15 | MIT OR Apache-2.0 | MIT | Not included; Cargo.toml licence field |
+| rasn-derive 0.28.15 | MIT OR Apache-2.0 | MIT | LICENCE-APACHE (ebd8153ef4d2d160); LICENCE-MIT (ee1201a73de9b44a) |
+| rasn-derive-impl 0.28.15 | MIT OR Apache-2.0 | MIT | LICENCE-APACHE (ebd8153ef4d2d160); LICENCE-MIT (ee1201a73de9b44a) |
+| rasn-ocsp 0.28.15 | MIT OR Apache-2.0 | MIT | Not included; Cargo.toml licence field |
+| rasn-pkix 0.28.15 | MIT OR Apache-2.0 | MIT | Not included; Cargo.toml licence field |
+| read-fonts 0.35.0 | MIT OR Apache-2.0 | MIT | LICENSE-APACHE (a14f7d685a79c0f4); LICENSE-MIT (8a62fa27ffdccc3d) |
+| read-fonts 0.41.0 | MIT OR Apache-2.0 | MIT | LICENSE-APACHE (eba684204073ed71); LICENSE-MIT (7b4c9a3946dfcea7) |
+| resvg 0.48.1 | Apache-2.0 OR MIT | Apache-2.0 | LICENSE-APACHE (a6cba85bc92e0cff); LICENSE-MIT (f5d934dc281b44e0) |
+| rfc6979 0.4.0 | Apache-2.0 OR MIT | Apache-2.0 | LICENSE-APACHE (78779d420019e6b4); LICENSE-MIT (bdebaf9156a298f8) |
+| riff 2.0.0 | MIT | MIT | LICENSE (c790202b10c35a81) |
+| roxmltree 0.21.1 | MIT OR Apache-2.0 | MIT | LICENSE-APACHE (a60eea8175145316); LICENSE-MIT (fffe218c1e349e1d) |
+| rsa 0.9.10 | MIT OR Apache-2.0 | MIT | LICENSE-APACHE (769f80b5bcb42ed0); LICENSE-MIT (30fefc3a7d6a0041) |
+| rten 0.21.0 | MIT OR Apache-2.0 | MIT | Not included; Cargo.toml licence field |
+| rten-base 0.21.0 | MIT OR Apache-2.0 | MIT | Not included; Cargo.toml licence field |
+| rten-gemm 0.21.0 | MIT OR Apache-2.0 | MIT | Not included; Cargo.toml licence field |
+| rten-imageproc 0.21.0 | MIT OR Apache-2.0 | MIT | Not included; Cargo.toml licence field |
+| rten-simd 0.21.0 | MIT OR Apache-2.0 | MIT | Not included; Cargo.toml licence field |
+| rten-tensor 0.21.0 | MIT OR Apache-2.0 | MIT | Not included; Cargo.toml licence field |
+| rten-vecmath 0.21.0 | MIT OR Apache-2.0 | MIT | Not included; Cargo.toml licence field |
+| rustc-hash 2.1.3 | Apache-2.0 OR MIT | Apache-2.0 | LICENSE-APACHE (95bd3988beee069f); LICENSE-MIT (30fefc3a7d6a0041) |
+| rustc_version 0.4.1 | MIT OR Apache-2.0 | MIT | LICENSE-APACHE (a60eea8175145316); LICENSE-MIT (c9a75f18b9ab2927) |
+| rusticata-macros 4.1.0 | MIT/Apache-2.0 | MIT | LICENSE-APACHE (a60eea8175145316); LICENSE-MIT (a5c61b93b6ee1d10) |
+| schemars 0.9.0 | MIT | MIT | LICENSE (1954992a2b32e8a2) |
+| sec1 0.7.3 | Apache-2.0 OR MIT | Apache-2.0 | LICENSE-APACHE (a9040321c3712d8f); LICENSE-MIT (4a883ecc3bb1010f) |
+| semver 1.0.28 | MIT OR Apache-2.0 | MIT | LICENSE-APACHE (62c7a1e35f564068); LICENSE-MIT (23f18e03dc49df91) |
+| serde-transcode 1.1.1 | MIT/Apache-2.0 | MIT | LICENSE-APACHE (c6596eb7be8581c1); LICENSE-MIT (93e6bb3f4225a1df) |
+| serde-wasm-bindgen 0.6.5 | MIT | MIT | LICENSE (62a81c033fcf1736) |
+| serde_bytes 0.11.19 | MIT OR Apache-2.0 | MIT | LICENSE-APACHE (62c7a1e35f564068); LICENSE-MIT (23f18e03dc49df91) |
+| serde_spanned 1.1.1 | MIT OR Apache-2.0 | MIT | LICENSE-APACHE (c6596eb7be8581c1); LICENSE-MIT (6efb0476a1cc0850) |
+| serde_with 3.24.0 | MIT OR Apache-2.0 | MIT | LICENSE-APACHE (a60eea8175145316); LICENSE-MIT (7576269ea71f767b) |
+| serde_with_macros 3.24.0 | MIT OR Apache-2.0 | MIT | LICENSE-APACHE (a60eea8175145316); LICENSE-MIT (7576269ea71f767b) |
+| sha1 0.11.0 | MIT OR Apache-2.0 | MIT | LICENSE-APACHE (a9040321c3712d8f); LICENSE-MIT (831e0f43ad0bf014) |
+| sha2 0.11.0 | MIT OR Apache-2.0 | MIT | LICENSE-APACHE (a9040321c3712d8f); LICENSE-MIT (831e0f43ad0bf014) |
+| signature 2.2.0 | Apache-2.0 OR MIT | Apache-2.0 | LICENSE-APACHE (a9040321c3712d8f); LICENSE-MIT (b3470648aff02beb) |
+| simplecss 0.2.2 | Apache-2.0 OR MIT | Apache-2.0 | LICENSE-APACHE (a60eea8175145316); LICENSE-MIT (0b5f24524360e15b) |
+| siphasher 1.0.4 | MIT OR Apache-2.0 | MIT | COPYING (c962ee4d1d05ddc1); LICENSE-APACHE (cfc7749b96f63bd3); LICENSE-MIT (f9c4c77baa382800) |
+| skrifa 0.37.0 | MIT OR Apache-2.0 | MIT | LICENSE-APACHE (a14f7d685a79c0f4); LICENSE-MIT (8a62fa27ffdccc3d) |
+| skrifa 0.44.0 | MIT OR Apache-2.0 | MIT | LICENSE-APACHE (eba684204073ed71); LICENSE-MIT (7b4c9a3946dfcea7) |
+| slotmap 1.1.1 | Zlib | Zlib | LICENSE (6cec81441b2ab2b5) |
+| snafu 0.8.9 | MIT OR Apache-2.0 | MIT | LICENSE-APACHE (53231f493e357180); LICENSE-MIT (7003375a1162b751) |
+| snafu-derive 0.8.9 | MIT OR Apache-2.0 | MIT | LICENSE-APACHE (53231f493e357180); LICENSE-MIT (7003375a1162b751) |
+| spin 0.9.9 | MIT | MIT | LICENSE (6ac8711fb340c62c) |
+| spki 0.7.3 | Apache-2.0 OR MIT | Apache-2.0 | LICENSE-APACHE (a9040321c3712d8f); LICENSE-MIT (c995204cc6bad2ed) |
+| static-iref 3.0.0 | MIT/Apache-2.0 | MIT | LICENSE-APACHE (a60eea8175145316); LICENSE-MIT (23f18e03dc49df91) |
+| static-regular-grammar 2.0.2 | MIT/Apache-2.0 | MIT | Not included; Cargo.toml licence field |
+| strict-num 0.1.1 | MIT | MIT | LICENSE (3085885678bb161f) |
+| svgtypes 0.16.1 | Apache-2.0 OR MIT | Apache-2.0 | LICENSE-APACHE (a60eea8175145316); LICENSE-MIT (f3c9fe731c701ed7) |
+| syn 1.0.109 | MIT OR Apache-2.0 | MIT | LICENSE-APACHE (a60eea8175145316); LICENSE-MIT (23f18e03dc49df91) |
+| synstructure 0.13.2 | MIT | MIT | LICENSE (219920e865eee70b) |
+| tap 1.0.1 | MIT | MIT | LICENSE.txt (8b4e95f5cf0dc402) |
+| thiserror 1.0.69 | MIT OR Apache-2.0 | MIT | LICENSE-APACHE (62c7a1e35f564068); LICENSE-MIT (23f18e03dc49df91) |
+| thiserror-impl 1.0.69 | MIT OR Apache-2.0 | MIT | LICENSE-APACHE (62c7a1e35f564068); LICENSE-MIT (23f18e03dc49df91) |
+| time 0.3.55 | MIT OR Apache-2.0 | MIT | LICENSE-Apache (0d542e0c8804e39a); LICENSE-MIT (2537228d9a1b44a5) |
+| time-core 0.1.9 | MIT OR Apache-2.0 | MIT | LICENSE-Apache (0d542e0c8804e39a); LICENSE-MIT (2537228d9a1b44a5) |
+| time-macros 0.2.32 | MIT OR Apache-2.0 | MIT | LICENSE-Apache (0d542e0c8804e39a); LICENSE-MIT (2537228d9a1b44a5) |
+| tiny-skia 0.12.0 | BSD-3-Clause | BSD-3-Clause | LICENSE (6d41e05f1d54fe72) |
+| tiny-skia-path 0.12.0 | BSD-3-Clause | BSD-3-Clause | LICENSE (6d41e05f1d54fe72) |
+| tinyvec 1.13.3 | Zlib OR Apache-2.0 OR MIT | Zlib | LICENSE-APACHE.md (cfc7749b96f63bd3); LICENSE-MIT.md (fd80a26fbb3f644a); LICENSE-ZLIB.md (84b34dd7608f7fb9) |
+| toml 1.1.6+spec-1.1.0 | MIT OR Apache-2.0 | MIT | LICENSE-APACHE (c6596eb7be8581c1); LICENSE-MIT (6efb0476a1cc0850) |
+| toml_datetime 1.1.1+spec-1.1.0 | MIT OR Apache-2.0 | MIT | LICENSE-APACHE (c6596eb7be8581c1); LICENSE-MIT (6efb0476a1cc0850) |
+| toml_parser 1.1.3+spec-1.1.0 | MIT OR Apache-2.0 | MIT | LICENSE-APACHE (c6596eb7be8581c1); LICENSE-MIT (6efb0476a1cc0850) |
+| toml_writer 1.1.2+spec-1.1.0 | MIT OR Apache-2.0 | MIT | LICENSE-APACHE (c6596eb7be8581c1); LICENSE-MIT (6efb0476a1cc0850) |
+| traitful 0.3.0 | Apache-2.0 OR BSL-1.0 OR MIT | Apache-2.0 | LICENSE_APACHE (62c7a1e35f564068); LICENSE_BOOST (c9bff75738922193); LICENSE_MIT (508a77d2e7b51d98) |
+| typed-path 0.12.3 | MIT OR Apache-2.0 | MIT | LICENSE-APACHE (62c7a1e35f564068); LICENSE-MIT (23f18e03dc49df91) |
+| typeid 1.0.3 | MIT OR Apache-2.0 | MIT | LICENSE-APACHE (62c7a1e35f564068); LICENSE-MIT (23f18e03dc49df91) |
+| unarray 0.1.4 | MIT OR Apache-2.0 | MIT | LICENSE-APACHE (c71d239df91726fc); LICENSE-MIT (002c2696d92b5c8c) |
+| unicode-bidi 0.3.18 | MIT OR Apache-2.0 | MIT | LICENSE-APACHE (a60eea8175145316); LICENSE-MIT (7b63ecd5f1902af1) |
+| unicode-script 0.5.8 | MIT OR Apache-2.0 | MIT | LICENSE-APACHE (7cbb56d1b5d83d73); LICENSE-MIT (7ad3ea8ca3caf894) |
+| unicode-vo 0.1.0 | MIT/Apache-2.0 | MIT | LICENSE-APACHE (a60eea8175145316); LICENSE-MIT (0b5f24524360e15b) |
+| url 2.5.8 | MIT OR Apache-2.0 | MIT | LICENSE-APACHE (a60eea8175145316); LICENSE-MIT (b38f11f6096706e6) |
+| usvg 0.48.1 | Apache-2.0 OR MIT | Apache-2.0 | LICENSE-APACHE (a6cba85bc92e0cff); LICENSE-MIT (f5d934dc281b44e0) |
+| utf8-decode 1.0.1 | MIT/Apache-2.0 | MIT | LICENSE-APACHE (a60eea8175145316); LICENSE-MIT (23f18e03dc49df91) |
+| wasm-bindgen-futures 0.4.77 | MIT OR Apache-2.0 | MIT | LICENSE-APACHE (a60eea8175145316); LICENSE-MIT (378f5840b258e277) |
+| web-sys 0.3.104 | MIT OR Apache-2.0 | MIT | LICENSE-APACHE (a60eea8175145316); LICENSE-MIT (378f5840b258e277) |
+| web-time 1.1.0 | MIT OR Apache-2.0 | MIT | LICENSE-APACHE (54a744942eb3fa63); LICENSE-MIT (f428305bbf2e70fb) |
+| weezl 0.1.12 | MIT OR Apache-2.0 | MIT | LICENSE-APACHE (769f80b5bcb42ed0); LICENSE-MIT (573f5227db835cd3) |
+| windows-core 0.62.2 | MIT OR Apache-2.0 | MIT | license-apache-2.0 (c16f8dcf1a368b83); license-mit (c2cfccb812fe4821) |
+| windows-implement 0.60.2 | MIT OR Apache-2.0 | MIT | license-apache-2.0 (c16f8dcf1a368b83); license-mit (c2cfccb812fe4821) |
+| windows-interface 0.59.3 | MIT OR Apache-2.0 | MIT | license-apache-2.0 (c16f8dcf1a368b83); license-mit (c2cfccb812fe4821) |
+| windows-result 0.4.1 | MIT OR Apache-2.0 | MIT | license-apache-2.0 (c16f8dcf1a368b83); license-mit (c2cfccb812fe4821) |
+| windows-strings 0.5.1 | MIT OR Apache-2.0 | MIT | license-apache-2.0 (c16f8dcf1a368b83); license-mit (c2cfccb812fe4821) |
+| winnow 1.0.4 | MIT | MIT | LICENSE-MIT (cb5aedb296c5246d) |
+| wyz 0.5.1 | MIT | MIT | LICENSE.txt (411781fd38700f23) |
+| x509-parser 0.18.1 | MIT OR Apache-2.0 | MIT | LICENSE-APACHE (a60eea8175145316); LICENSE-MIT (a5c61b93b6ee1d10) |
+| xml-no-std 0.8.26 | MIT | MIT | LICENSE (0dc18d924dc0a5f4) |
+| xmlwriter 0.1.0 | MIT | MIT | LICENSE (2cdce1ff4ca8f455) |
+| zeroize_derive 1.5.0 | Apache-2.0 OR MIT | Apache-2.0 | LICENSE-APACHE (cfc7749b96f63bd3); LICENSE-MIT (b8c6939380a400f5) |
+| zip 8.6.0 | MIT | MIT | LICENSE (58545fed1565e42d) |
+| zune-core 0.4.12 | MIT OR Apache-2.0 OR Zlib | MIT | Not included; Cargo.toml licence field |
+| zune-jpeg 0.4.21 | MIT OR Apache-2.0 OR Zlib | MIT | Not included; Cargo.toml licence field |
+
+## Butteraugli 0.9.3 and Rust 1.89
+
+The workspace uses the published, exact-pinned Butteraugli 0.9.3 (BSD-3-Clause,
+MSRV 1.89); there is no vendored source or crates.io patch. Fetched SIMD
+implementation dependencies archmage 0.9.29, archmage-macros 0.9.29,
+magetypes 0.9.29, safe_unaligned_simd 0.2.5 and winarm-cpufeatures 0.1.2
+use MIT OR Apache-2.0. Full resolved notices are generated by the release gate.
+
+## Wave 7 local vision
+
+No model weights are vendored. `docs/wave7.md` and the research selection catalog
+record code/weight licences separately. Executable registry manifests must also
+record each backbone, calibration, graph, tokenizer and parity artifact licence.
+The optional wave 7 features reuse existing `ort` (MIT OR Apache-2.0,
+load-dynamic), `ureq` (MIT OR Apache-2.0), `fs2` (MIT OR Apache-2.0),
+`base64` (MIT OR Apache-2.0), `sha2` (MIT OR Apache-2.0) and `tempfile`
+(MIT OR Apache-2.0); no new crate dependencies. No TrustMark upstream code
+or undocumented dependency version is copied.
+
+## Wave 7b pinned model pipelines
+
+Optional `local-models` adds tokenizers 0.22.2 (Apache-2.0), with default
+features disabled and the Rust fancy-regex backend. Licenses below were read
+from each fetched crate source Cargo.toml on 2026-10-05. The frozen inventory
+is `scripts/wave7/dependency-licenses.json`; no new dependency enters defaults.
+
+| Crate | Version | License choice from fetched source |
+| --- | --- | --- |
+| base64 | 0.13.1 | MIT/Apache-2.0 |
+| castaway | 0.2.4 | MIT |
+| compact_str | 0.9.1 | MIT |
+| darling | 0.20.11 | MIT |
+| darling_core | 0.20.11 | MIT |
+| darling_macro | 0.20.11 | MIT |
+| dary_heap | 0.3.9 | MIT OR Apache-2.0 |
+| derive_builder | 0.20.2 | MIT OR Apache-2.0 |
+| derive_builder_core | 0.20.2 | MIT OR Apache-2.0 |
+| derive_builder_macro | 0.20.2 | MIT OR Apache-2.0 |
+| esaxx-rs | 0.1.10 | Apache-2.0 |
+| fnv | 1.0.7 | Apache-2.0 / MIT |
+| ident_case | 1.0.1 | MIT/Apache-2.0 |
+| itertools | 0.14.0 | MIT OR Apache-2.0 |
+| macro_rules_attribute | 0.2.3 | Apache-2.0 OR MIT OR Zlib |
+| macro_rules_attribute-proc_macro | 0.2.3 | Apache-2.0 OR MIT OR Zlib |
+| minimal-lexical | 0.2.1 | MIT/Apache-2.0 |
+| monostate | 0.1.18 | MIT OR Apache-2.0 |
+| monostate-impl | 0.1.18 | MIT OR Apache-2.0 |
+| nom | 7.1.3 | MIT |
+| pastey | 0.2.3 | MIT OR Apache-2.0 |
+| ppv-lite86 | 0.2.21 | MIT OR Apache-2.0 |
+| rand | 0.9.5 | MIT OR Apache-2.0 |
+| rand_chacha | 0.9.0 | MIT OR Apache-2.0 |
+| rand_core | 0.9.5 | MIT OR Apache-2.0 |
+| rayon-cond | 0.4.0 | Apache-2.0/MIT |
+| ryu | 1.0.23 | Apache-2.0 OR BSL-1.0 |
+| spm_precompiled | 0.1.4 | Apache-2.0 |
+| static_assertions | 1.1.0 | MIT OR Apache-2.0 |
+| tokenizers | 0.22.2 | Apache-2.0 |
+| unicode-normalization-alignments | 0.1.12 | MIT/Apache-2.0 |
+| unicode-segmentation | 1.13.3 | MIT OR Apache-2.0 |
+| unicode_categories | 0.1.1 | MIT OR Apache-2.0 |
+
+Model artifact identities and declared weight licenses are in
+`scripts/wave7/receipt.json`. DINO/OWLv2/EfficientSAM declare Apache-2.0,
+YuNet declares MIT. UltraFace model-card body declares MIT while host metadata
+says Apache-2.0; this discrepancy is retained, not resolved by inference.
+SAM archive exporter licensing/preprocessing remain unknown and the archive
+is excluded from the executable registry. Exact exporter identities and
+source/export parity remain unknown for community graphs. No model is vendored.
+
+## Wave 7c CPU runtime provisioning
+
+Optional `local-models` adds tar 0.4.46 and its filetime 0.2.29 dependency;
+flate2 1.1.10 was already resolved and is now a direct optional dependency.
+Fetched source Cargo.toml licences were checked: tar/flate2 `MIT OR Apache-2.0`,
+filetime `MIT/Apache-2.0`. tar default features are disabled (no xattr dependency).
+No new native dependency enters the default or minimal build.
+
+Official Microsoft ONNX Runtime **1.22.0**, CPU linux-x64 archive: **MIT**, as
+verified in the archive's LICENSE. `wave7-runtime.json` records the archive and
+five extracted-file hashes. Provisioning retains LICENSE and ThirdPartyNotices.txt;
+future Docker/wheel packaging must retain these notices. Runtime is downloaded,
+not vendored. Static linking and ort `download-binaries` are not enabled.
+
+TrustMark Q decoder: upstream research explicitly records MIT coverage for
+repository code and downloaded model files. Its authorized **mutable** Adobe URL
+is integrity pinned to locally measured SHA-256, not described as an immutable
+export revision. Exporter identity, upstream resizer/ECC and sample parity remain
+unqualified. SAM2 tagged README explicitly covers official checkpoints under
+Apache-2.0; Microsoft's v1.22.0 exporter headers are MIT. No SAM2 graph was exported.
+LPIPS/DISTS backbones and MUSIQ checkpoint remain deferred on independent grants
+and authorized immutable artifact identity; no new weight licence is inferred.
+
+## Integration round 2 generated qualification assets
+
+Official facebook/dinov2-small checkpoint revision
+`ed25f3a31f01632728cabb09d1542f84ab7b0056` declares Apache-2.0 in its pinned official
+model card. Checkpoint and local ONNX export hashes are retained in
+`/mnt/linux-extra/saccade-models/r2/upstream-pins.json` and `export-receipt.json`.
+Transformers 4.46.3 and ONNX tooling run only in the isolated CPU venv, not the default
+Rust dependency graph. Procedural geometry/glyph images use MIT OR Apache-2.0.
+Tesseract 5.3.4 and official French traineddata 4.1.0 were extracted from version-pinned
+Ubuntu archives into the cache (Apache-2.0); Leptonica 1.82.0 uses BSD-2-Clause.
+Archive copyright files and SHA-256 receipts remain beside them. No model is vendored.
+C2PA 0.90.22 generates the signed JPEG with a local test-only certificate; no real identity
+or external timestamp/trust service is used. OCR contracts remain generated, pending
+coordinator review; no accent-capable RTen pin has been invented.

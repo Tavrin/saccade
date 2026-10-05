@@ -12,28 +12,53 @@ use saccade_core::config::RunConfig;
 use saccade_core::report::{Labels, Metric, Mode, Report, Status};
 use saccade_core::view::{ViewOptions, build_view, is_safe_name};
 
+// wave7
+mod vision_checks;
+mod wave7_cmd;
+#[cfg(feature = "mcp")]
+mod wave7_mcp;
+
 mod agent;
 mod agent_ui;
 mod approval;
+mod assess_cmd;
 mod brand_cmd;
+mod capability_cmd;
+#[cfg(feature = "products")]
+mod design_cmd;
+mod documents_cmd;
+mod embedding_cmd;
 mod engine_ingest;
 mod f1;
+mod general_cmd;
 #[cfg(feature = "geometry")]
 mod geometry_cmd;
 mod git_bisect;
 mod grounded_cmd;
+mod hash_cmd;
 mod history;
+#[cfg(feature = "products")]
+mod imgtune_cmd;
 mod ingest;
+mod inspect_image_cmd;
 mod inventory_cmd;
+mod last_good;
 mod local_cmd;
 mod localized_cmd;
 mod motion_cmd;
+#[cfg(feature = "products")]
+mod notifier_cmd;
+#[cfg(feature = "products")]
+mod product_io;
 #[cfg(feature = "compression")]
 mod quality_cmd;
 mod region_cmd;
 mod renderdoc_cmd;
 #[cfg(feature = "ai")]
 mod review_cmd;
+#[cfg(feature = "products")]
+mod sweep_cmd;
+mod text_cmd;
 
 #[cfg(feature = "mcp")]
 mod mcp;
@@ -194,6 +219,53 @@ impl From<MetricArg> for Metric {
 
 #[derive(Subcommand)]
 enum Command {
+    /// Plan and compare deterministic page sweeps.
+    #[cfg(feature = "products")]
+    Sweep(sweep_cmd::SweepArgs),
+    /// Audit delivery formats and search perceptual-target encodings.
+    #[cfg(feature = "products")]
+    Imgtune(imgtune_cmd::ImgtuneArgs),
+    /// Pull design-source frames and compare implementation captures.
+    #[cfg(feature = "products")]
+    Design(design_cmd::DesignArgs),
+    /// Send a generic report summary to a user-configured webhook.
+    #[cfg(feature = "products")]
+    Notify(notifier_cmd::NotifyArgs),
+    /// List comparison questions, inputs, features and honest availability.
+    Capabilities(capability_cmd::Args),
+    /// Inspect provenance/integrity indicators without a real/fake verdict.
+    InspectImage(inspect_image_cmd::Args),
+    /// Measure content-dependent no-reference quality indicators.
+    Assess(assess_cmd::Args),
+    /// Compare image-bound OCR/text observations and literal expected strings.
+    Text(text_cmd::Args),
+    /// Cosine similarity with an explicitly pinned optional ONNX export.
+    Similar(embedding_cmd::SimilarArgs),
+    /// Build or query a streaming exact flat embedding index.
+    Index(embedding_cmd::IndexArgs),
+    /// Compute perceptual hashes without changing originals.
+    Hash(hash_cmd::HashArgs),
+    /// Cluster near-duplicates with bounded Hamming search; never delete images.
+    Dedupe(hash_cmd::DedupeArgs),
+    // wave7
+    /// List or explicitly pull pinned local models.
+    Models(wave7_cmd::ModelsArgs),
+    /// Locate a phrase with boxes, optional masks, and an overlay PNG.
+    Locate(wave7_cmd::LocateArgs),
+    /// Measure a separately named learned quality score.
+    QualityScore(wave7_cmd::QualityArgs),
+    /// Decode explicitly compatible watermark schemes without an origin verdict.
+    Watermark(wave7_cmd::WatermarkArgs),
+    /// Detect faces and optionally create a privacy-redacted PNG.
+    Faces(wave7_cmd::FacesArgs),
+    /// Assess declared crops against detected faces, without identity recognition.
+    CropCheck(wave7_cmd::CropArgs),
+    /// Bounded advisory observations from an explicitly configured local VLM.
+    #[cfg(feature = "local-vlm")]
+    ObserveLocal(wave7_cmd::ObserveArgs),
+    /// Map provider requests or decode recorded vision responses; no live calls.
+    #[cfg(feature = "vision-providers")]
+    ProviderMap(wave7_cmd::ProviderArgs),
     /// Align optional Vulkan replay evidence and locate native-resource divergence.
     RenderdocLocalize(renderdoc_cmd::Args),
     /// Import and freeze phrase regions, or inspect optional model plumbing.
@@ -241,6 +313,7 @@ The demo exits 1 on purpose: it contains a regression and a missing capture."
     Demo(f1::DemoArgs),
     /// Compare a directory of captures against a directory of baselines.
     #[command(
+        allow_missing_positional = true,
         display_order = 1,
         help_template = HELP_TEMPLATE,
         after_help = "\
@@ -257,8 +330,17 @@ Examples:
 Exit codes: 0 no regression, 1 regression found, 2 the command could not run."
     )]
     Compare {
+        #[command(flatten)]
+        general: Box<general_cmd::CompareArgs>,
         /// Directory of approved baseline images.
-        baseline_dir: PathBuf,
+        #[arg(required_unless_present = "baseline", conflicts_with = "baseline")]
+        baseline_dir: Option<PathBuf>,
+        /// Resolve the latest complete passing history run as an immutable baseline.
+        #[arg(long, value_parser = ["last-good"])]
+        baseline: Option<String>,
+        /// Local history store for --baseline last-good.
+        #[arg(long, requires = "baseline")]
+        history_store: Option<PathBuf>,
         /// Directory of fresh captures.
         capture_dir: PathBuf,
         /// Report output directory.
@@ -605,6 +687,14 @@ Example:
         #[cfg(feature = "ai")]
         #[command(flatten)]
         providers: review_cmd::Startup,
+        /// Authorize product HTTP operations from registered roots.
+        #[cfg(feature = "products")]
+        #[arg(long)]
+        allow_product_network: bool,
+        /// Authorize explicit webhook tool calls using user configuration.
+        #[cfg(feature = "products")]
+        #[arg(long)]
+        allow_webhook_notifications: bool,
     },
     /// Read, explain, prepare or export existing evidence.
     #[command(display_order = 9, hide = true)]
@@ -983,6 +1073,25 @@ fn emit_run(
 
 fn dispatch(command: Command, record_absolute_paths: bool) -> Result<u8, CliError> {
     match command {
+        Command::Capabilities(args) => capability_cmd::run(args),
+        Command::InspectImage(args) => inspect_image_cmd::run(args),
+        Command::Assess(args) => assess_cmd::run(args),
+        Command::Text(args) => text_cmd::run(args),
+        Command::Similar(args) => embedding_cmd::similar(args),
+        Command::Index(args) => embedding_cmd::index(args),
+        Command::Hash(args) => hash_cmd::run_hash(args),
+        Command::Dedupe(args) => hash_cmd::run_dedupe(args),
+        // wave7
+        Command::Models(args) => wave7_cmd::models(args),
+        Command::Locate(args) => wave7_cmd::locate(args),
+        Command::QualityScore(args) => wave7_cmd::quality(args),
+        Command::Watermark(args) => wave7_cmd::watermark(args),
+        Command::Faces(args) => wave7_cmd::faces(args),
+        Command::CropCheck(args) => wave7_cmd::crop(args),
+        #[cfg(feature = "local-vlm")]
+        Command::ObserveLocal(args) => wave7_cmd::observe(args),
+        #[cfg(feature = "vision-providers")]
+        Command::ProviderMap(args) => wave7_cmd::provider(args),
         Command::Prove {
             operation: ProveOperation::Identity(args),
         } => dispatch(
@@ -1026,6 +1135,14 @@ fn dispatch(command: Command, record_absolute_paths: bool) -> Result<u8, CliErro
         Command::Regions(args) => region_cmd::run(args),
         Command::ExplainGrounded(args) => grounded_cmd::run(args),
         Command::LocalizedCheck(args) => localized_cmd::run(args),
+        #[cfg(feature = "products")]
+        Command::Sweep(args) => sweep_cmd::run(args),
+        #[cfg(feature = "products")]
+        Command::Imgtune(args) => imgtune_cmd::run(args),
+        #[cfg(feature = "products")]
+        Command::Design(args) => design_cmd::run(args),
+        #[cfg(feature = "products")]
+        Command::Notify(args) => notifier_cmd::run(args),
         Command::Inventory(args) => inventory_cmd::run(args),
         #[cfg(feature = "compression")]
         Command::QualitySweep(args) => quality_cmd::run(args),
@@ -1194,7 +1311,10 @@ fn dispatch(command: Command, record_absolute_paths: bool) -> Result<u8, CliErro
             )
         }
         Command::Compare {
+            general,
             baseline_dir,
+            baseline,
+            history_store,
             capture_dir,
             out,
             threshold,
@@ -1213,6 +1333,111 @@ fn dispatch(command: Command, record_absolute_paths: bool) -> Result<u8, CliErro
             perf,
             intent,
         } => {
+            let last_good = if baseline.is_some() {
+                Some(last_good::resolve(history_store.as_deref().ok_or_else(
+                    || CliError::usage("--baseline last-good requires --history-store"),
+                )?)?)
+            } else {
+                None
+            };
+            let baseline_dir = last_good
+                .as_ref()
+                .map(|dir| dir.path().to_path_buf())
+                .or(baseline_dir)
+                .ok_or_else(|| CliError::usage("baseline directory required"))?;
+            // Explicit questions never discard unrelated evidence options or fall back.
+            capability_cmd::validate(&general)?;
+            // Document files stream pages into a separate versioned summary.
+            let document_pair = baseline_dir.is_file()
+                && capture_dir.is_file()
+                && (documents_cmd::is_document(&baseline_dir)
+                    || documents_cmd::is_document(&capture_dir));
+            if document_pair
+                && general
+                    .question
+                    .is_none_or(|q| q == capability_cmd::Question::SameRender)
+            {
+                if config.is_some()
+                    || !entries.is_empty()
+                    || junit.is_some()
+                    || ppd.is_some()
+                    || labels.is_some()
+                    || fail_on_new
+                    || allow_empty
+                    || !general_cmd::plain_options(&intent, &meta, &require, &perf, &hdr)
+                {
+                    return Err(CliError::usage(
+                        "document compare supports DPI, threshold, metric and alignment; other evidence options require explicit raster inputs",
+                    ));
+                }
+                return documents_cmd::compare(
+                    &baseline_dir,
+                    &capture_dir,
+                    &out,
+                    &general,
+                    threshold.unwrap_or(0.02),
+                    metric.unwrap_or(MetricArg::Mean),
+                    json,
+                );
+            }
+            if general.dpi.is_some() {
+                return Err(CliError::usage(
+                    "--dpi requires a document file pair with same-render comparison",
+                ));
+            }
+
+            if general
+                .question
+                .is_some_and(|q| q != capability_cmd::Question::SameRender)
+            {
+                if config.is_some()
+                    || !entries.is_empty()
+                    || junit.is_some()
+                    || ppd.is_some()
+                    || labels.is_some()
+                    || fail_on_new
+                    || allow_empty
+                    || metric.is_some()
+                    || !general_cmd::plain_options(&intent, &meta, &require, &perf, &hdr)
+                {
+                    return Err(CliError::usage(
+                        "routed question supports its own declared inputs and threshold units; use the dedicated family command for other options",
+                    ));
+                }
+                return capability_cmd::route(
+                    &baseline_dir,
+                    &capture_dir,
+                    &out,
+                    &general,
+                    threshold,
+                    json,
+                );
+            }
+            // Explicit registration has its own evidence contract.
+            if general.align.is_some() {
+                if config.is_some()
+                    || !entries.is_empty()
+                    || junit.is_some()
+                    || ppd.is_some()
+                    || labels.is_some()
+                    || fail_on_new
+                    || allow_empty
+                    || !general_cmd::plain_options(&intent, &meta, &require, &perf, &hdr)
+                {
+                    return Err(CliError::usage(
+                        "explicit registration supports threshold/metric/resample only; other evidence options require the existing unregistered pipeline",
+                    ));
+                }
+                return general_cmd::compare(
+                    &baseline_dir,
+                    &capture_dir,
+                    &out,
+                    &general,
+                    threshold.unwrap_or(0.02),
+                    metric.unwrap_or(MetricArg::Mean),
+                    json,
+                );
+            }
             let mut cfg = load_config(config.as_deref())?;
             cfg.record_absolute_paths = record_absolute_paths;
             perf.apply(&mut cfg.perf)?;
@@ -1248,7 +1473,24 @@ fn dispatch(command: Command, record_absolute_paths: bool) -> Result<u8, CliErro
                 &intent,
             )?;
             let intent_mismatch = local_cmd::verify_visual_intent(&report, &out, visual.as_ref())?;
-            emit_run(&report, &out, json, record_absolute_paths)?;
+            // Hash-bound route component preserves the ordinary immutable report contract.
+            if general.question.is_some() {
+                let choice = capability_cmd::record_render(&report, &out, &general)?;
+                if json {
+                    let mut value = agent::result_value(
+                        &report,
+                        &out.join(saccade_core::report::REPORT_FILE_NAME),
+                        agent::DEFAULT_TOP_FAILING,
+                        false,
+                    );
+                    value["data"]["pipeline_choice"] = choice;
+                    emit(&format!("{}\n", value))?;
+                } else {
+                    emit_run(&report, &out, false, record_absolute_paths)?;
+                }
+            } else {
+                emit_run(&report, &out, json, record_absolute_paths)?;
+            }
             Ok(u8::from(report.is_regression() || intent_mismatch))
         }
         Command::Identity {
@@ -1549,6 +1791,10 @@ fn dispatch(command: Command, record_absolute_paths: bool) -> Result<u8, CliErro
             symlink_targets,
             #[cfg(feature = "ai")]
             providers,
+            #[cfg(feature = "products")]
+            allow_product_network,
+            #[cfg(feature = "products")]
+            allow_webhook_notifications,
         } => {
             mcp::serve_stdio(
                 &roots,
@@ -1557,6 +1803,10 @@ fn dispatch(command: Command, record_absolute_paths: bool) -> Result<u8, CliErro
                 &symlink_targets,
                 #[cfg(feature = "ai")]
                 providers,
+                #[cfg(feature = "products")]
+                allow_product_network,
+                #[cfg(feature = "products")]
+                allow_webhook_notifications,
             )?;
             Ok(0)
         }
@@ -1571,7 +1821,14 @@ fn doctor(json: bool) -> Result<u8, CliError> {
     if cfg!(feature = "mcp") {
         features.push("mcp");
     }
+    if cfg!(feature = "products") {
+        features.push("products");
+    }
+    if cfg!(feature = "imgtune-avif") {
+        features.push("imgtune-avif");
+    }
     features.sort_unstable();
+    features.dedup();
     // These names are a script-facing contract. Add new names; keep existing
     // ones until they have an explicit deprecation path.
     let mut capabilities = vec![
@@ -1613,6 +1870,26 @@ fn doctor(json: bool) -> Result<u8, CliError> {
     if cfg!(feature = "ai") {
         capabilities.push("review");
     }
+    if cfg!(feature = "assist") {
+        capabilities.push("experimental-assist");
+    }
+    // wave7
+    capabilities.extend([
+        "local-model-registry-v1",
+        "mask-mode-v1",
+        "vision-replay-v1",
+        "crop-safety-v1",
+        "watermark-dwt-v1",
+    ]);
+    if cfg!(feature = "local-models") {
+        capabilities.push("onnx-cpu-adapter-v1");
+    }
+    if cfg!(feature = "local-vlm") {
+        capabilities.push("local-vlm-http-v1");
+    }
+    if cfg!(feature = "vision-providers") {
+        capabilities.push("vision-provider-mapping-v1");
+    }
     capabilities.sort_unstable();
     let git_commit = option_env!("SACCADE_GIT_COMMIT").filter(|value| !value.is_empty());
     let git_commit_short =
@@ -1634,6 +1911,8 @@ fn doctor(json: bool) -> Result<u8, CliError> {
         "features": features,
         "capabilities": capabilities,
         "schemas": {
+            // wave7
+            "local_vision": ["saccade-model-registry.v1", "saccade-model-status.v1", "saccade-locate.v1", "saccade-vision-observation.v1", "saccade-learned-quality.v1", "saccade-watermark.v1", "saccade-faces.v1", "saccade-crop-check.v1", "saccade-provider-mapping.v1"],
             "report": ["saccade-report.v1"],
             "result": ["saccade-result.v1", "saccade-result.v2"],
             "evidence": ["saccade-evidence.v1"],
@@ -1772,6 +2051,16 @@ fn reject_newer_nested_schemas(value: &serde_json::Value) -> Result<(), CliError
         serde_json::Value::Object(fields) => {
             if let Some(actual) = fields.get("schema").and_then(|v| v.as_str()) {
                 for prefix in [
+                    // wave7
+                    "saccade-model-registry.v",
+                    "saccade-model-status.v",
+                    "saccade-locate.v",
+                    "saccade-vision-observation.v",
+                    "saccade-learned-quality.v",
+                    "saccade-watermark.v",
+                    "saccade-faces.v",
+                    "saccade-crop-check.v",
+                    "saccade-provider-mapping.v",
                     "saccade-report.v",
                     "saccade-perf-diff.v",
                     "saccade-noise.v",
@@ -2250,7 +2539,14 @@ pub(crate) fn capabilities(json: bool) -> Result<u8, CliError> {
     if cfg!(feature = "mcp") {
         features.push("mcp");
     }
+    if cfg!(feature = "products") {
+        features.push("products");
+    }
+    if cfg!(feature = "imgtune-avif") {
+        features.push("imgtune-avif");
+    }
     features.sort_unstable();
+    features.dedup();
     let value = serde_json::json!({
         "features": features,
         "operations": names,
@@ -2305,3 +2601,8 @@ mod wave3_schema_tests {
         }
     }
 }
+
+#[cfg(feature = "assist")]
+mod assist_batch_cmd;
+#[cfg(feature = "assist")]
+mod assist_cmd;

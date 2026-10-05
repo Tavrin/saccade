@@ -596,6 +596,7 @@ fn synthetic_report(entry: Entry, ppd: f32) -> Report {
         baseline_dir: None,
         capture_dir: None,
         config: ReportConfig {
+            mask_mode: crate::compare::MaskMode::default(),
             entries: Vec::new(),
             ignore: Vec::new(),
             default_threshold: 0.01,
@@ -1444,7 +1445,10 @@ pub fn make_plan(
         panel.settings.name,
         opts.both_orders
     );
-    basis.push_str(&panel_value(panel, &BTreeMap::new()).to_string());
+    basis.push_str(&crate::labels::canonical_json(&panel_value(
+        panel,
+        &BTreeMap::new(),
+    )));
     basis.push_str("|blind-vote-layout-v1.1|");
     for spec in &panel.judges {
         basis.push_str(&json!([spec.role, spec.rubric]).to_string());
@@ -1453,7 +1457,7 @@ pub fn make_plan(
         basis.push('|');
         basis.push_str(&i.request_hash);
         basis.push_str(&i.id);
-        basis.push_str(&json!(i.states).to_string());
+        basis.push_str(&crate::labels::canonical_json(&json!(i.states)));
         if let Some((a, b)) = i.source.as_ref().and_then(PixelSource::load) {
             basis.push_str(&hex(&Sha256::digest(a.as_raw())));
             basis.push_str(&hex(&Sha256::digest(b.as_raw())));

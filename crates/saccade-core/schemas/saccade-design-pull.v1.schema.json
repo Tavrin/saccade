@@ -1,0 +1,46 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "saccade-design-pull.v1",
+  "title": "saccade-design-pull.v1",
+  "type": "object",
+  "properties": {
+    "schema": {
+      "const": "saccade-design-pull.v1"
+    },
+    "source": {
+      "type": "string"
+    },
+    "scale": {
+      "type": "number",
+      "minimum": 0.01,
+      "maximum": 4
+    },
+    "frames": {
+      "type": "array",
+      "items": {
+        "type": "object"
+      }
+    },
+    "tokens": {
+      "type": "array",
+      "items": {
+        "type": "object"
+      }
+    },
+    "degradations": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    }
+  },
+  "required": [
+    "schema",
+    "source",
+    "scale",
+    "frames",
+    "tokens",
+    "degradations"
+  ],
+  "additionalProperties": false
+}

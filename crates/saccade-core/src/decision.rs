@@ -845,6 +845,7 @@ mod tests {
             baseline_dir: Some("/b".into()),
             capture_dir: Some("/c".into()),
             config: ReportConfig {
+                mask_mode: crate::compare::MaskMode::default(),
                 entries: Vec::new(),
                 ignore: Vec::new(),
                 default_threshold: 0.01,

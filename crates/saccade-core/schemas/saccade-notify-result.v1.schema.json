@@ -1,0 +1,29 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "saccade-notify-result.v1",
+  "title": "saccade-notify-result.v1",
+  "type": "object",
+  "properties": {
+    "schema": {
+      "const": "saccade-notify-result.v1"
+    },
+    "delivered": {
+      "const": true
+    },
+    "status": {
+      "type": "integer",
+      "minimum": 200,
+      "maximum": 299
+    },
+    "summary": {
+      "type": "object"
+    }
+  },
+  "required": [
+    "schema",
+    "delivered",
+    "status",
+    "summary"
+  ],
+  "additionalProperties": false
+}

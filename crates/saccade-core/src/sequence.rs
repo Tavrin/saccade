@@ -446,6 +446,7 @@ pub fn run_sequence(
             cfg.record_absolute_paths,
         )),
         config: ReportConfig {
+            mask_mode: crate::compare::MaskMode::default(),
             entries: vec![pattern.into()],
             ignore: cfg.ignore.clone(),
             default_threshold: cfg.default_threshold,

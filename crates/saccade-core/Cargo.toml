@@ -26,8 +26,8 @@ rustfft = "6"
 # Published 0.5.1: BSD-2-Clause, MSRV 1.65; newer repository HEAD differs.
 ort = { version = "=2.0.0-rc.10", default-features = false, features = ["std", "load-dynamic"], optional = true }
 ssimulacra2 = { version = "=0.5.1", default-features = false, optional = true }
-# 0.4.0 retains Rust 1.85; later ports pull dependencies requiring Rust 1.89.
-butteraugli = { version = "=0.4.0", default-features = false, optional = true }
+# Published 0.9.3: BSD-3-Clause, MSRV 1.89; official reference-qualified.
+butteraugli = { version = "=0.9.3", default-features = false, optional = true }
 # Pure Rust ICC transforms; BSD-3-Clause OR Apache-2.0, Rust 1.85.
 moxcms = { version = "=0.7.11", default-features = false }
 sha2 = "0.10"
@@ -44,7 +44,26 @@ tobj = { version = "=4.0.3", default-features = false, features = ["use_f64"], o
 gltf = { version = "=1.4.1", default-features = false, features = ["utils", "names"], optional = true }
 base64 = { version = "0.22", optional = true }
 
+# Opt-in permissive document, credential and Rust OCR adapters
+roxmltree = "=0.21.1"
+resvg = { version = "=0.48.1", default-features = false, features = ["text", "raster-images"], optional = true }
+hayro = { version = "=0.3.0", default-features = false, optional = true }
+c2pa = { version = "=0.90.22", default-features = false, features = ["rust_native_crypto"], optional = true }
+ocrs = { version = "=0.10.4", optional = true }
+rten = { version = "=0.21.0", default-features = false, optional = true }
+# wave7b: pinned BERT/CLIP tokenizers, no network/pretrained loader feature.
+tokenizers = { version = "=0.22.2", default-features = false, features = ["fancy-regex"], optional = true }
+
+# wave7c: bounded release archive provisioning, optional CPU runtime only.
+flate2 = { version = "=1.1.10", optional = true }
+tar = { version = "=0.4.46", default-features = false, optional = true }
+
 [features]
+documents = ["dep:resvg", "dep:hayro"]
+credentials = ["dep:c2pa"]
+ocr = ["dep:ocrs", "dep:rten", "dep:ureq", "dep:fs2"]
+# Dynamic CPU ONNX embeddings, no default dependency change
+embeddings = ["semantic-regions"]
 default = ["parallel"]
 # Parallel FLIP filtering; disable for the sequential FLIP backend on wasm.
 parallel = ["flip-rs/parallel"]
@@ -68,6 +87,12 @@ evaluation = ["ai"]
 prechecks = []
 # Derives `schemars::JsonSchema` on the report, decisions and explain types.
 schema = ["dep:schemars"]
+
+assist = ["ai"]
+# wave7
+local-models = ["dep:ort", "dep:ureq", "dep:fs2", "dep:tokenizers", "dep:flate2", "dep:tar"]
+local-vlm = ["dep:ureq", "dep:base64"]
+vision-providers = ["dep:base64"]
 
 [dev-dependencies]
 tempfile = "3"
@@ -110,3 +135,11 @@ required-features = ["prechecks"]
 [[test]]
 name = "schemas"
 required-features = ["schema"]
+
+[[example]]
+name = "assist_qualify"
+required-features = ["assist"]
+
+[[example]]
+name = "r2_credentials"
+required-features = ["credentials"]

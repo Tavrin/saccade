@@ -94,10 +94,13 @@ def generated(binary=None):
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--saccade', help='also generate the command reference from this binary')
+    parser.add_argument('--skip-readme', action='store_true', help='preserve README during integration')
     parser.add_argument('--check', action='store_true', help='reject drift without rewriting files')
     args = parser.parse_args()
     stale = []
     for name, body in generated(args.saccade).items():
+        if args.skip_readme and name == "README.md":
+            continue
         dest = ROOT / name
         if args.check:
             if not dest.is_file() or dest.read_text(encoding="utf-8") != body:

@@ -41,7 +41,7 @@ pub(crate) fn template(t: Template) -> &'static str {
             "# Renderer captures: refuse comparisons from different settings.\nrequire_matching_meta = true\nmetric = \"p95\"\nthreshold = 0.01\n# Catch severe small defects even when p95 passes.\nhotspot_fail = 0.5\n"
         }
         Template::Ui => {
-            "# UI screenshots: small text/control changes matter.\nmetric = \"p95\"\nthreshold = 0.002\n\n[[region]]\nname = \"text\"\nrect = [0.05, 0.1, 0.9, 0.5]\nmetric = \"max\"\nthreshold = 0.02\n\n[[region]]\nname = \"controls\"\nrect = [0.05, 0.6, 0.9, 0.35]\nthreshold = 0.002\n\n# Example timestamp mask: adjust to your clock's rectangle.\n# [[mask]]\n# rect = [0.85, 0.0, 0.15, 0.05]\n"
+            "# UI screenshots: small text/control changes matter.\nmask_mode = \"neutralize\"\nmetric = \"p95\"\nthreshold = 0.002\n\n[[region]]\nname = \"text\"\nrect = [0.05, 0.1, 0.9, 0.5]\nmetric = \"max\"\nthreshold = 0.02\n\n[[region]]\nname = \"controls\"\nrect = [0.05, 0.6, 0.9, 0.35]\nthreshold = 0.002\n\n# Example timestamp mask: adjust to your clock's rectangle.\n# [[mask]]\n# rect = [0.85, 0.0, 0.15, 0.05]\n"
         }
         Template::Identity => {
             "# Pixel-preserving refactors and optimizations.\nmetric = \"max\"\nthreshold = 0\n"

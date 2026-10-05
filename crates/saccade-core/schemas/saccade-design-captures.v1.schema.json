@@ -1,0 +1,104 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "saccade-design-captures.v1",
+  "title": "saccade-design-captures.v1",
+  "type": "object",
+  "properties": {
+    "schema": {
+      "const": "saccade-design-captures.v1"
+    },
+    "mapping_sha256": {
+      "type": "string",
+      "pattern": "^[a-f0-9]{64}$"
+    },
+    "entries": {
+      "type": "array",
+      "maxItems": 64,
+      "items": {
+        "type": "object",
+        "properties": {
+          "file_key": {
+            "type": "string"
+          },
+          "node_id": {
+            "type": "string"
+          },
+          "url": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "test_name": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "selector": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "viewport": {
+            "type": "array",
+            "items": {
+              "type": "integer",
+              "minimum": 8,
+              "maximum": 16384
+            },
+            "minItems": 2,
+            "maxItems": 2
+          },
+          "css_tokens": {
+            "type": "array",
+            "items": {
+              "type": "object"
+            }
+          },
+          "status": {
+            "enum": [
+              "captured",
+              "error"
+            ]
+          },
+          "path": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "sha256": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "error": {
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        },
+        "required": [
+          "file_key",
+          "node_id",
+          "viewport",
+          "status",
+          "path",
+          "sha256",
+          "error"
+        ],
+        "additionalProperties": false
+      }
+    }
+  },
+  "required": [
+    "schema",
+    "mapping_sha256",
+    "entries"
+  ],
+  "additionalProperties": false
+}

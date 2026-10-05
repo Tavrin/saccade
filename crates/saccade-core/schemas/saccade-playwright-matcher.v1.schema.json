@@ -1,0 +1,54 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "saccade-playwright-matcher.v1",
+  "title": "saccade-playwright-matcher.v1",
+  "type": "object",
+  "properties": {
+    "schema": {
+      "const": "saccade-playwright-matcher.v1"
+    },
+    "status": {
+      "enum": [
+        "pass",
+        "fail",
+        "error",
+        "new"
+      ]
+    },
+    "declared_exclusions": {
+      "type": "array",
+      "items": {
+        "type": "object"
+      }
+    },
+    "proposed_masks": {
+      "type": "array",
+      "items": {
+        "type": "object"
+      }
+    },
+    "updated": {
+      "type": "boolean"
+    },
+    "pass": {
+      "type": "boolean"
+    },
+    "stable": {
+      "type": "boolean"
+    },
+    "result": {
+      "type": "object"
+    },
+    "error": {
+      "type": "string"
+    }
+  },
+  "required": [
+    "schema",
+    "status",
+    "declared_exclusions",
+    "proposed_masks",
+    "pass"
+  ],
+  "additionalProperties": false
+}

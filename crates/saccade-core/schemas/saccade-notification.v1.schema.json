@@ -1,0 +1,36 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "saccade-notification.v1",
+  "title": "saccade-notification.v1",
+  "type": "object",
+  "properties": {
+    "schema": {
+      "const": "saccade-notification.v1"
+    },
+    "counts": {
+      "type": "object"
+    },
+    "worst": {
+      "type": "array",
+      "maxItems": 5,
+      "items": {
+        "type": "object"
+      }
+    },
+    "report": {
+      "type": "string",
+      "maxLength": 2048
+    },
+    "verdict": {
+      "type": "string"
+    }
+  },
+  "required": [
+    "schema",
+    "counts",
+    "worst",
+    "report",
+    "verdict"
+  ],
+  "additionalProperties": false
+}

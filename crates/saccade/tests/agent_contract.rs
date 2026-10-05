@@ -87,10 +87,27 @@ fn help_lists_active_commands_and_watch_alias_stays_hidden() {
         .collect::<Vec<_>>();
     assert_eq!(
         top.len(),
-        22 + usize::from(cfg!(feature = "compression")),
+        36 + usize::from(cfg!(feature = "compression"))
+            + 4 * usize::from(cfg!(feature = "products"))
+            + usize::from(cfg!(feature = "local-vlm"))
+            + usize::from(cfg!(feature = "vision-providers")),
         "{top:?}"
     );
     for name in [
+        "models",
+        "locate",
+        "quality-score",
+        "watermark",
+        "faces",
+        "crop-check",
+        "capabilities",
+        "inspect-image",
+        "assess",
+        "text",
+        "similar",
+        "index",
+        "hash",
+        "dedupe",
         "init",
         "demo",
         "compare",
@@ -110,6 +127,17 @@ fn help_lists_active_commands_and_watch_alias_stays_hidden() {
         "history",
     ] {
         assert!(top.contains(&name));
+    }
+    if cfg!(feature = "products") {
+        for name in ["sweep", "imgtune", "design", "notify"] {
+            assert!(top.contains(&name), "missing product command {name}");
+        }
+    }
+    for (name, enabled) in [
+        ("observe-local", cfg!(feature = "local-vlm")),
+        ("provider-map", cfg!(feature = "vision-providers")),
+    ] {
+        assert_eq!(top.contains(&name), enabled, "{name} feature registration");
     }
     for name in [
         "inspect evidence",
@@ -466,7 +494,10 @@ fn local_tools_and_preview_never_authorize_network_and_images_are_explicit() {
         ],
     );
     let tools = replies[0]["result"]["tools"].as_array().unwrap();
-    assert_eq!(tools.len(), if cfg!(feature = "ai") { 6 } else { 5 });
+    assert_eq!(
+        tools.len(),
+        (if cfg!(feature = "ai") { 7 } else { 6 }) + usize::from(cfg!(feature = "products"))
+    );
     for tool in tools {
         assert!(tool["inputSchema"]["oneOf"].is_array());
         assert!(!matches!(tool["name"].as_str(), Some("saccade_approve")));

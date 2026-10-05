@@ -4,7 +4,7 @@ Bug reports, feature requests and pull requests are welcome.
 
 ## Build
 
-You need Rust 1.88 or newer. FLIP is implemented by the published pure-Rust
+You need Rust 1.89 or newer. FLIP is implemented by the published pure-Rust
 `flip-rs` dependency. No private dependency checkout or deploy key is needed.
 
 ```sh

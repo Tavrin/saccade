@@ -1,0 +1,132 @@
+{
+  "$defs": {
+    "Digest": {
+      "description": "Validated lowercase SHA-256 identity or content hash.",
+      "pattern": "^sha256:[0-9a-f]{64}$",
+      "type": "string"
+    },
+    "State": {
+      "description": "Durable state, independent of a provider's job-level success label.",
+      "oneOf": [
+        {
+          "const": "planned",
+          "description": "Immutable plan, not yet dispatched.",
+          "type": "string"
+        },
+        {
+          "const": "submitted",
+          "description": "Accepted operation with known provider ID.",
+          "type": "string"
+        },
+        {
+          "const": "submission_unknown",
+          "description": "Dispatch intent persisted, but receipt missing or timeout ambiguous.",
+          "type": "string"
+        },
+        {
+          "const": "pending",
+          "description": "Remote work still incomplete.",
+          "type": "string"
+        },
+        {
+          "const": "completed",
+          "description": "Every frozen item succeeded and its identity validated.",
+          "type": "string"
+        },
+        {
+          "const": "partial",
+          "description": "At least one item failed or is missing; success at job level is insufficient.",
+          "type": "string"
+        },
+        {
+          "const": "failed",
+          "description": "Terminal provider or identity failure.",
+          "type": "string"
+        }
+      ]
+    }
+  },
+  "$id": "https://github.com/Tavrin/saccade/crates/saccade-core/schemas/saccade-assist-batch.v1.schema.json",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "description": "Persisted job receipt, never containing credentials or provider error text.",
+  "properties": {
+    "failed_items": {
+      "description": "Missing/failed item count; not hidden by job success.",
+      "format": "uint",
+      "minimum": 0,
+      "type": "integer"
+    },
+    "money_id": {
+      "default": null,
+      "description": "Durable monetary reservation for settlement after collection.",
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "operation": {
+      "description": "Provider operation ID when known.",
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "plan_hash": {
+      "$ref": "#/$defs/Digest",
+      "description": "Exact immutable plan identity."
+    },
+    "results": {
+      "description": "Result identity and receipts per frozen item.",
+      "items": true,
+      "type": "array"
+    },
+    "schema": {
+      "const": "saccade-assist-batch.v1",
+      "description": "saccade-assist-batch.v1.",
+      "type": "string"
+    },
+    "source_plan_hash": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/Digest"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "description": "Canonical public source descriptor binding, when used by CLI/MCP."
+    },
+    "state": {
+      "$ref": "#/$defs/State",
+      "description": "Durable lifecycle."
+    },
+    "submitted_ms": {
+      "default": null,
+      "description": "Original dispatch time binds prices across delayed collection.",
+      "format": "uint64",
+      "minimum": 0,
+      "type": [
+        "integer",
+        "null"
+      ]
+    },
+    "updated_ms": {
+      "description": "Last local transition time.",
+      "format": "uint64",
+      "minimum": 0,
+      "type": "integer"
+    }
+  },
+  "required": [
+    "schema",
+    "plan_hash",
+    "state",
+    "results",
+    "failed_items",
+    "updated_ms"
+  ],
+  "title": "Job",
+  "type": "object"
+}

@@ -13,6 +13,9 @@ build = "build.rs"
 exclude = ["report/**"]
 
 [dependencies]
+ureq = { version = "3", optional = true }
+url = { version = "2.5", optional = true }
+roxmltree = { version = "0.20", optional = true }
 saccade-core = { workspace = true, default-features = false }
 image.workspace = true
 serde.workspace = true
@@ -27,6 +30,12 @@ globset = "0.4"
 fs2 = "0.4.3"
 
 [features]
+products = ["dep:ureq", "dep:url", "dep:roxmltree", "compression", "image/webp"]
+imgtune-avif = ["products", "image/avif", "image/avif-native"]
+documents = ["saccade-core/documents"]
+credentials = ["saccade-core/credentials"]
+# Dynamic CPU ONNX embeddings, no default dependency change
+embeddings = ["saccade-core/embeddings"]
 default = ["compression", "parallel", "graphics", "ai", "workbench", "mcp", "evaluation"]
 semantic-regions = ["saccade-core/semantic-regions"]
 compression = ["saccade-core/compression"]
@@ -41,7 +50,14 @@ evaluation = ["ai", "saccade-core/evaluation"]
 prechecks = ["saccade-core/prechecks"]
 schema = ["saccade-core/schema"]
 # Optional external pinned Tesseract execution; no bundled runtime/models.
-ocr = []
+ocr = ["saccade-core/ocr"]
+
+assist = ["ai", "saccade-core/assist"]
+
+# wave7
+local-models = ["saccade-core/local-models"]
+local-vlm = ["saccade-core/local-vlm"]
+vision-providers = ["saccade-core/vision-providers"]
 
 [dev-dependencies]
 tempfile = "3"
@@ -94,3 +110,7 @@ required-features = ["mcp"]
 [[test]]
 name = "f1_contract"
 required-features = ["ai", "mcp"]
+
+[[test]]
+name = "assist_contract"
+required-features = ["assist", "mcp"]

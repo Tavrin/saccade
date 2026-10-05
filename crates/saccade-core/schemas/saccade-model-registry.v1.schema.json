@@ -1,0 +1,227 @@
+{
+  "$defs": {
+    "Artifact": {
+      "additionalProperties": false,
+      "description": "One separately pinned graph, tokenizer, backbone, calibration or parity receipt.",
+      "properties": {
+        "bytes": {
+          "description": "Exact encoded bytes.",
+          "format": "uint64",
+          "minimum": 0,
+          "type": "integer"
+        },
+        "hash_provenance": {
+          "description": "Host-reported digest or locally computed date, retained as provenance.",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "license": {
+          "description": "Licence of this individual artifact (e.g. backbone independent of LPIPS).",
+          "type": "string"
+        },
+        "revision": {
+          "description": "Immutable export/checkpoint revision.",
+          "type": "string"
+        },
+        "role": {
+          "description": "Unique role within the model.",
+          "type": "string"
+        },
+        "sha256": {
+          "description": "Exact SHA-256, never the checkpoint's hash in place of an export hash.",
+          "type": "string"
+        },
+        "url": {
+          "description": "HTTPS source pinned to the recorded revision.",
+          "type": "string"
+        }
+      },
+      "required": [
+        "role",
+        "revision",
+        "url",
+        "bytes",
+        "sha256",
+        "license"
+      ],
+      "type": "object"
+    },
+    "InputContract": {
+      "additionalProperties": false,
+      "description": "Explicit tensor/preprocessing contract for a qualified export adapter.",
+      "properties": {
+        "adapter": {
+          "description": "Adapter id: normalized-vision-v1, scalar-pair-v1, scalar-image-v1, yunet-v1.",
+          "type": "string"
+        },
+        "color": {
+          "description": "RGB or BGR channel order.",
+          "type": "string"
+        },
+        "image_input": {
+          "description": "Named graph input for pixels.",
+          "type": "string"
+        },
+        "mean": {
+          "description": "Per-channel means.",
+          "items": {
+            "format": "float",
+            "type": "number"
+          },
+          "maxItems": 3,
+          "minItems": 3,
+          "type": "array"
+        },
+        "output": {
+          "description": "Named graph output.",
+          "type": "string"
+        },
+        "preprocessing": {
+          "description": "Exact processor/tokenizer/resize description and revision.",
+          "type": "string"
+        },
+        "reference_input": {
+          "description": "Named graph second image input for full-reference metrics.",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "resolution": {
+          "description": "NCHW input size; zero means native resolution for scalar metrics only.",
+          "items": {
+            "format": "uint32",
+            "minimum": 0,
+            "type": "integer"
+          },
+          "maxItems": 2,
+          "minItems": 2,
+          "type": "array"
+        },
+        "scale": {
+          "description": "Applied as (channel * scale - mean) / std.",
+          "format": "float",
+          "type": "number"
+        },
+        "std": {
+          "description": "Positive per-channel standard deviations.",
+          "items": {
+            "format": "float",
+            "type": "number"
+          },
+          "maxItems": 3,
+          "minItems": 3,
+          "type": "array"
+        }
+      },
+      "required": [
+        "adapter",
+        "preprocessing",
+        "resolution",
+        "color",
+        "scale",
+        "mean",
+        "std",
+        "image_input",
+        "output"
+      ],
+      "type": "object"
+    },
+    "Model": {
+      "additionalProperties": false,
+      "description": "Executable model entry. Every artifact must have a reviewed exact pin.",
+      "properties": {
+        "artifacts": {
+          "description": "Graph and all auxiliary artifacts, no external data omitted.",
+          "items": {
+            "$ref": "#/$defs/Artifact"
+          },
+          "type": "array"
+        },
+        "code_license": {
+          "description": "Code licence.",
+          "type": "string"
+        },
+        "id": {
+          "description": "Unique stable id.",
+          "type": "string"
+        },
+        "input": {
+          "$ref": "#/$defs/InputContract",
+          "description": "Exact export input contract."
+        },
+        "parity_sha256": {
+          "description": "Source/export parity receipt digest, absent means unqualified.",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "runtime": {
+          "description": "onnx (CPU FP32, dynamic runtime) or external_http.",
+          "type": "string"
+        },
+        "source_url": {
+          "description": "Original checkpoint source URL.",
+          "type": "string"
+        },
+        "task": {
+          "description": "Explicit task.",
+          "type": "string"
+        },
+        "version": {
+          "description": "Checkpoint/metric version.",
+          "type": "string"
+        },
+        "weights_license": {
+          "description": "Weight licence; component licences additionally live on artifacts.",
+          "type": "string"
+        }
+      },
+      "required": [
+        "id",
+        "task",
+        "version",
+        "code_license",
+        "weights_license",
+        "source_url",
+        "runtime",
+        "input",
+        "artifacts"
+      ],
+      "type": "object"
+    }
+  },
+  "$id": "https://github.com/Tavrin/saccade/crates/saccade-core/schemas/saccade-model-registry.v1.schema.json",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "description": "User-owned registry, never an ambient model download instruction.",
+  "properties": {
+    "contracts": {
+      "additionalProperties": true,
+      "default": {},
+      "description": "Typed wave 6 embedding/OCR contracts sharing this registry's pins.",
+      "type": "object"
+    },
+    "models": {
+      "description": "Pinned executable models.",
+      "items": {
+        "$ref": "#/$defs/Model"
+      },
+      "type": "array"
+    },
+    "schema": {
+      "const": "saccade-model-registry.v1",
+      "description": "REGISTRY_SCHEMA.",
+      "type": "string"
+    }
+  },
+  "required": [
+    "schema",
+    "models"
+  ],
+  "title": "Registry",
+  "type": "object"
+}

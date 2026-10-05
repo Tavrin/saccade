@@ -38,7 +38,7 @@ pub(crate) struct Args {
     out: PathBuf,
 }
 fn bytes(p: &Path) -> Result<Vec<u8>, CliError> {
-    std::fs::read(p).map_err(|e| CliError::io(e.to_string()))
+    saccade_core::general::input::bytes(p, 64 * 1024 * 1024).map_err(Into::into)
 }
 fn load_source(
     path: Option<&Path>,
@@ -173,7 +173,10 @@ mod ocr {
         image: &[u8],
         dimensions: [u32; 2],
     ) -> Result<ui_review::Source, CliError> {
-        let contract: Contract = crate::parse_contract(&bytes(path)?, "saccade-tesseract.v1")?;
+        let value = saccade_core::wave7::models::contract(&bytes(path)?, "saccade-tesseract.v1")
+            .map_err(crate::wave7_cmd::error)?;
+        let contract: Contract =
+            crate::parse_contract(&serde_json::to_vec(&value)?, "saccade-tesseract.v1")?;
         if contract.schema != "saccade-tesseract.v1"
             || contract.version.is_empty()
             || contract.models.is_empty()
@@ -287,5 +290,25 @@ mod ocr {
             dimensions,
             producer,
         )?)
+    }
+}
+
+// Reuse the existing pinned OCR adapter without guessing a new model licence.
+pub(crate) fn recognize_text(
+    contract: &Path,
+    image: &[u8],
+    dimensions: [u32; 2],
+) -> Result<ui_review::Source, CliError> {
+    #[cfg(feature = "ocr")]
+    {
+        ocr::recognize(contract, image, dimensions)
+    }
+    #[cfg(not(feature = "ocr"))]
+    {
+        let _ = (contract, image, dimensions);
+        Err(CliError::new(
+            "feature_unavailable",
+            "OCR execution requires ocr; imported image-bound sources remain available",
+        ))
     }
 }

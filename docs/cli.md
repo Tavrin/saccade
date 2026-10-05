@@ -5,7 +5,7 @@ Generated from compiled capabilities and `--help`; do not edit by hand.
 Generation: `cargo build --release -p saccade --all-features`, then `python3 scripts/gen-docs.py --saccade target/release/saccade`.
 The all-features binary includes every supported operation.
 
-Compiled features: `ai`, `compression`, `dense-motion`, `evaluation`, `geometry`, `graphics`, `mcp`, `ocr`, `parallel`, `prechecks`, `schema`, `semantic-regions`, `workbench`.
+Compiled features: `ai`, `assist`, `compression`, `credentials`, `dense-motion`, `documents`, `embeddings`, `evaluation`, `geometry`, `graphics`, `imgtune-avif`, `local-models`, `local-vlm`, `mcp`, `ocr`, `parallel`, `prechecks`, `products`, `schema`, `semantic-regions`, `vision-providers`, `workbench`.
 
 Exit 1 means a failed image measurement/evaluation gate or located divergence.
 Exit 0 for compare/identity means no image regression; inspect `performance` for qualification.
@@ -22,9 +22,29 @@ Usage: saccade [OPTIONS] <COMMAND>
 Commands:
   compare             Compare a directory of captures against a directory of baselines
   prove               Check whether image identity or performance evidence proves a claim
+  sweep               Plan and compare deterministic page sweeps
+  imgtune             Audit delivery formats and search perceptual-target encodings
+  review              Preview a review plan or handle a local closed decision request
+  design              Pull design-source frames and compare implementation captures
+  notify              Send a generic report summary to a user-configured webhook
+  capabilities        List comparison questions, inputs, features and honest availability
+  inspect-image       Inspect provenance/integrity indicators without a real/fake verdict
+  assess              Measure content-dependent no-reference quality indicators
+  text                Compare image-bound OCR/text observations and literal expected strings
+  similar             Cosine similarity with an explicitly pinned optional ONNX export
+  index               Build or query a streaming exact flat embedding index
+  hash                Compute perceptual hashes without changing originals
+  dedupe              Cluster near-duplicates with bounded Hamming search; never delete images
+  models              List or explicitly pull pinned local models
+  locate              Locate a phrase with boxes, optional masks, and an overlay PNG
+  quality-score       Measure a separately named learned quality score
+  watermark           Decode explicitly compatible watermark schemes without an origin verdict
+  faces               Detect faces and optionally create a privacy-redacted PNG
+  crop-check          Assess declared crops against detected faces, without identity recognition
+  observe-local       Bounded advisory observations from an explicitly configured local VLM
+  provider-map        Map provider requests or decode recorded vision responses; no live calls
   renderdoc-localize  Align optional Vulkan replay evidence and locate native-resource divergence
   regions             Import and freeze phrase regions, or inspect optional model plumbing
-  review              Preview a review plan or handle a local closed decision request
   explain-grounded    Render verified atomic numerical claims with region and evidence citations
   localized-check     Measure intended-region, boundary and protected-complement changes independently
   inventory           Reconcile expected and supplied stable capture cases against a comparison report
@@ -48,6 +68,842 @@ Start here:
 Exit codes: 0 no image regression, 1 image regression found, 2 the command could not run.
 Advanced: demo, identity, noise, view, inspect, experiment, approve, init,
 serve, mcp, ingest, bisect, history, doctor. Existing commands keep working; use `saccade COMMAND --help`.
+```
+
+## saccade sweep
+
+```text
+Plan and compare deterministic page sweeps
+
+Usage: saccade sweep [OPTIONS] <COMMAND>
+
+Commands:
+  plan     Sample a URL list or bounded sitemap tree into a driver-neutral manifest
+  compare  Compare every planned capture, including explicit failure receipts
+
+Options:
+  -h, --help  Print help
+
+Global options:
+      --allow-out-near-captures  Silence warnings when --out is next to capture metadata
+      --record-absolute-paths    Opt in to absolute local paths in reports and machine-readable output
+```
+
+## saccade sweep plan
+
+```text
+Sample a URL list or bounded sitemap tree into a driver-neutral manifest
+
+Usage: saccade sweep plan [OPTIONS] --before-origin <BEFORE_ORIGIN> --after-origin <AFTER_ORIGIN> --out <OUT>
+
+Options:
+      --urls <URLS>
+      --sitemap <SITEMAP>
+      --before-origin <BEFORE_ORIGIN>
+      --after-origin <AFTER_ORIGIN>
+      --samples <SAMPLES>              [default: 3]
+      --seed <SEED>                    [default: 42]
+      --viewport <VIEWPORT>            Repeat WIDTHxHEIGHT. Default: 1280x720
+      --out <OUT>
+      --json
+  -h, --help                           Print help
+
+Global options:
+      --allow-out-near-captures  Silence warnings when --out is next to capture metadata
+      --record-absolute-paths    Opt in to absolute local paths in reports and machine-readable output
+```
+
+## saccade sweep compare
+
+```text
+Compare every planned capture, including explicit failure receipts
+
+Usage: saccade sweep compare [OPTIONS] --captures <CAPTURES> --out <OUT> <MANIFEST>
+
+Arguments:
+  <MANIFEST>
+
+Options:
+      --captures <CAPTURES>
+      --out <OUT>
+      --config <CONFIG>
+      --baseline <BASELINE>            [possible values: last-good]
+      --history-store <HISTORY_STORE>
+      --align <ALIGN>                  Explicit registration; incompatible with ordinary comparison config [possible values: none, translation, similarity, affine, homography, auto]
+      --resample <RESAMPLE>            [possible values: reference, common]
+      --json
+  -h, --help                           Print help
+
+Global options:
+      --allow-out-near-captures  Silence warnings when --out is next to capture metadata
+      --record-absolute-paths    Opt in to absolute local paths in reports and machine-readable output
+```
+
+## saccade imgtune
+
+```text
+Audit delivery formats and search perceptual-target encodings
+
+Usage: saccade imgtune [OPTIONS] <COMMAND>
+
+Commands:
+  audit   Record actual HTTP content negotiation, bytes and decoded dimensions
+  search  Search a finite quality/format grid, retaining source and delivery evidence
+
+Options:
+  -h, --help  Print help
+
+Global options:
+      --allow-out-near-captures  Silence warnings when --out is next to capture metadata
+      --record-absolute-paths    Opt in to absolute local paths in reports and machine-readable output
+```
+
+## saccade imgtune audit
+
+```text
+Record actual HTTP content negotiation, bytes and decoded dimensions
+
+Usage: saccade imgtune audit [OPTIONS] --urls <URLS> --accept <ACCEPT> --out <OUT>
+
+Options:
+      --urls <URLS>
+      --accept <ACCEPT>
+      --out <OUT>
+      --json
+  -h, --help             Print help
+
+Global options:
+      --allow-out-near-captures  Silence warnings when --out is next to capture metadata
+      --record-absolute-paths    Opt in to absolute local paths in reports and machine-readable output
+```
+
+## saccade imgtune search
+
+```text
+Search a finite quality/format grid, retaining source and delivery evidence
+
+Usage: saccade imgtune search [OPTIONS] --out <OUT> <MANIFEST>
+
+Arguments:
+  <MANIFEST>
+
+Options:
+      --out <OUT>
+      --json
+  -h, --help       Print help
+
+Global options:
+      --allow-out-near-captures  Silence warnings when --out is next to capture metadata
+      --record-absolute-paths    Opt in to absolute local paths in reports and machine-readable output
+```
+
+## saccade design
+
+```text
+Pull design-source frames and compare implementation captures
+
+Usage: saccade design [OPTIONS] <COMMAND>
+
+Commands:
+  pull     Export mapped design frames and tokens, cached by file version
+  compare  Compare mapped frames and implementation captures; retain expected layout differences
+
+Options:
+  -h, --help  Print help
+
+Global options:
+      --allow-out-near-captures  Silence warnings when --out is next to capture metadata
+      --record-absolute-paths    Opt in to absolute local paths in reports and machine-readable output
+```
+
+## saccade design pull
+
+```text
+Export mapped design frames and tokens, cached by file version
+
+Usage: saccade design pull [OPTIONS] --out <OUT> <MAPPING>
+
+Arguments:
+  <MAPPING>
+
+Options:
+      --out <OUT>
+      --cache <CACHE>
+      --fixture-dir <FIXTURE_DIR>
+      --scale <SCALE>              [default: 1]
+      --json
+  -h, --help                       Print help
+
+Global options:
+      --allow-out-near-captures  Silence warnings when --out is next to capture metadata
+      --record-absolute-paths    Opt in to absolute local paths in reports and machine-readable output
+```
+
+## saccade design compare
+
+```text
+Compare mapped frames and implementation captures; retain expected layout differences
+
+Usage: saccade design compare [OPTIONS] --pull <PULL> --captures <CAPTURES> --out <OUT> <MAPPING>
+
+Arguments:
+  <MAPPING>
+
+Options:
+      --pull <PULL>
+      --captures <CAPTURES>
+      --out <OUT>
+      --config <CONFIG>
+      --align <ALIGN>        [default: translation] [possible values: none, translation]
+      --json
+  -h, --help                 Print help
+
+Global options:
+      --allow-out-near-captures  Silence warnings when --out is next to capture metadata
+      --record-absolute-paths    Opt in to absolute local paths in reports and machine-readable output
+```
+
+## saccade notify
+
+```text
+Send a generic report summary to a user-configured webhook
+
+Usage: saccade notify [OPTIONS] <REPORT>
+
+Arguments:
+  <REPORT>  Full report, sweep report or design report, read locally
+
+Options:
+      --template <TEMPLATE>        [default: generic] [possible values: generic, slack, teams]
+      --report-link <REPORT_LINK>  Display link; defaults to the report path. Never used as the webhook endpoint
+      --json
+  -h, --help                       Print help
+
+Global options:
+      --allow-out-near-captures  Silence warnings when --out is next to capture metadata
+      --record-absolute-paths    Opt in to absolute local paths in reports and machine-readable output
+```
+
+## saccade capabilities
+
+```text
+List comparison questions, inputs, features and honest availability
+
+Usage: saccade capabilities [OPTIONS]
+
+Options:
+      --json
+  -h, --help  Print help
+
+Global options:
+      --allow-out-near-captures  Silence warnings when --out is next to capture metadata
+      --record-absolute-paths    Opt in to absolute local paths in reports and machine-readable output
+```
+
+## saccade inspect-image
+
+```text
+Inspect provenance/integrity indicators without a real/fake verdict
+
+Usage: saccade inspect-image [OPTIONS] <IMAGE>
+
+Arguments:
+  <IMAGE>
+
+Options:
+      --faces
+          Run local face detection; never downloads models implicitly
+      --face-observations <FACE_OBSERVATIONS>
+          Image-bound face receipt; explicitly labelled replay
+      --model-registry <MODEL_REGISTRY>
+          Shared model registry (vision, embedding and OCR pins)
+      --model-cache <MODEL_CACHE>
+
+      --runtime-library <RUNTIME_LIBRARY>
+
+      --watermark
+          Inspect named watermark decoders; unavailable decoders stay explicit
+      --watermark-payload <WATERMARK_PAYLOAD>
+          Known legacy DWT message bytes in hex; arbitrary bits are not detection
+      --face-crop <FACE_CROP>
+          Declared face-protection crop in original pixels: X,Y,W,H
+      --include-gps
+          Explicitly include unsigned EXIF GPS coordinates in the report
+      --hash-index <HASH_INDEX>
+          Local saccade-hash.v1 / saccade-dedupe.v1 archive for candidate lookup
+      --output-size <OUTPUT_SIZE>
+          Declared publication output size, WIDTHxHEIGHT; repeatable
+      --crop <CROP>
+          Crop x,y,width,height in raw raster pixels
+      --text-source <TEXT_SOURCE>
+          Optional image-bound source/OCR observations for legibility evidence
+      --out <OUT>
+          [default: image-inspection]
+      --json
+
+  -h, --help
+          Print help
+
+Global options:
+      --allow-out-near-captures  Silence warnings when --out is next to capture metadata
+      --record-absolute-paths    Opt in to absolute local paths in reports and machine-readable output
+```
+
+## saccade assess
+
+```text
+Measure content-dependent no-reference quality indicators
+
+Usage: saccade assess [OPTIONS] <IMAGE>
+
+Arguments:
+  <IMAGE>
+
+Options:
+      --faces
+          Run local face detection; never downloads models implicitly
+      --face-observations <FACE_OBSERVATIONS>
+          Image-bound face receipt; explicitly labelled replay
+      --model-registry <MODEL_REGISTRY>
+          Shared model registry (vision, embedding and OCR pins)
+      --model-cache <MODEL_CACHE>
+
+      --runtime-library <RUNTIME_LIBRARY>
+
+      --watermark
+          Inspect named watermark decoders; unavailable decoders stay explicit
+      --watermark-payload <WATERMARK_PAYLOAD>
+          Known legacy DWT message bytes in hex; arbitrary bits are not detection
+      --face-crop <FACE_CROP>
+          Declared face-protection crop in original pixels: X,Y,W,H
+      --compare-to <COMPARE_TO>
+          Reference quality measurements; deltas are image minus compare-to
+      --out <OUT>
+          [default: assessment-report]
+      --json
+
+  -h, --help
+          Print help
+
+Global options:
+      --allow-out-near-captures  Silence warnings when --out is next to capture metadata
+      --record-absolute-paths    Opt in to absolute local paths in reports and machine-readable output
+```
+
+## saccade text
+
+```text
+Compare image-bound OCR/text observations and literal expected strings
+
+Usage: saccade text [OPTIONS] <A> <B>
+
+Arguments:
+  <A>
+  <B>
+
+Options:
+      --a-source <A_SOURCE>
+          Image-bound imported saccade-ui-source.v1 observations for the reference
+      --b-source <B_SOURCE>
+          Image-bound imported observations for the candidate
+      --ocr-contract <OCR_CONTRACT>
+          Existing pinned external Tesseract contract; requires ocr feature
+      --download-model
+          Explicitly fetch SHA-pinned Rust OCR models into the contract cache
+      --expect-text <EXPECT_TEXT>
+          Literal Unicode strings expected in the candidate (repeatable); always inert data
+      --readable-confidence <READABLE_CONFIDENCE>
+          OCR confidence cutoff for the readability observation; not a calibrated probability [default: 80]
+      --moved-px <MOVED_PX>
+          Movement threshold in reference pixels after dimension normalization [default: 3]
+      --out <OUT>
+          [default: text-report]
+      --json
+
+  -h, --help
+          Print help
+
+Global options:
+      --allow-out-near-captures  Silence warnings when --out is next to capture metadata
+      --record-absolute-paths    Opt in to absolute local paths in reports and machine-readable output
+```
+
+## saccade similar
+
+```text
+Cosine similarity with an explicitly pinned optional ONNX export
+
+Usage: saccade similar [OPTIONS] --model <MODEL> --cache <CACHE> --library <LIBRARY> <A> <B>
+
+Arguments:
+  <A>
+  <B>
+
+Options:
+      --model <MODEL>      Supplied saccade-embedding-model.v1 contract; includes export SHA-256 and preprocessing
+      --cache <CACHE>      Content-addressed model cache; downloads require --download-model
+      --library <LIBRARY>  Explicit ONNX Runtime 1.22 dynamic library, CPU execution only
+      --download-model     Explicitly allow the pinned export to be downloaded to the cache
+      --out <OUT>          [default: similar-report]
+      --json
+  -h, --help               Print help
+
+Global options:
+      --allow-out-near-captures  Silence warnings when --out is next to capture metadata
+      --record-absolute-paths    Opt in to absolute local paths in reports and machine-readable output
+```
+
+## saccade index
+
+```text
+Build or query a streaming exact flat embedding index
+
+Usage: saccade index [OPTIONS] <COMMAND>
+
+Commands:
+  export-inputs  Write exact Rust-preprocessed tensors for independent checkpoint/export parity
+  calibrate      Run pinned export parity and fit/holdout calibration over a frozen corpus (heavy)
+  build          Build a streaming exact flat index, up to 100000 images and 512 MiB vectors
+  query          Search an existing index; model/preprocessing must exactly match the index
+
+Options:
+  -h, --help  Print help
+
+Global options:
+      --allow-out-near-captures  Silence warnings when --out is next to capture metadata
+      --record-absolute-paths    Opt in to absolute local paths in reports and machine-readable output
+```
+
+## saccade index export-inputs
+
+```text
+Write exact Rust-preprocessed tensors for independent checkpoint/export parity
+
+Usage: saccade index export-inputs [OPTIONS] --model <MODEL> --out <OUT> <DIR>
+
+Arguments:
+  <DIR>
+
+Options:
+      --model <MODEL>
+      --out <OUT>
+      --json
+  -h, --help           Print help
+
+Global options:
+      --allow-out-near-captures  Silence warnings when --out is next to capture metadata
+      --record-absolute-paths    Opt in to absolute local paths in reports and machine-readable output
+```
+
+## saccade index calibrate
+
+```text
+Run pinned export parity and fit/holdout calibration over a frozen corpus (heavy)
+
+Usage: saccade index calibrate [OPTIONS] --model <MODEL> --cache <CACHE> --library <LIBRARY> --out <OUT> <CORPUS>
+
+Arguments:
+  <CORPUS>
+
+Options:
+      --model <MODEL>      Supplied saccade-embedding-model.v1 contract; includes export SHA-256 and preprocessing
+      --cache <CACHE>      Content-addressed model cache; downloads require --download-model
+      --library <LIBRARY>  Explicit ONNX Runtime 1.22 dynamic library, CPU execution only
+      --download-model     Explicitly allow the pinned export to be downloaded to the cache
+      --out <OUT>
+      --json
+  -h, --help               Print help
+
+Global options:
+      --allow-out-near-captures  Silence warnings when --out is next to capture metadata
+      --record-absolute-paths    Opt in to absolute local paths in reports and machine-readable output
+```
+
+## saccade index build
+
+```text
+Build a streaming exact flat index, up to 100000 images and 512 MiB vectors
+
+Usage: saccade index build [OPTIONS] --model <MODEL> --cache <CACHE> --library <LIBRARY> --out <OUT> <DIR>
+
+Arguments:
+  <DIR>
+
+Options:
+      --model <MODEL>      Supplied saccade-embedding-model.v1 contract; includes export SHA-256 and preprocessing
+      --cache <CACHE>      Content-addressed model cache; downloads require --download-model
+      --library <LIBRARY>  Explicit ONNX Runtime 1.22 dynamic library, CPU execution only
+      --download-model     Explicitly allow the pinned export to be downloaded to the cache
+      --out <OUT>
+      --json
+  -h, --help               Print help
+
+Global options:
+      --allow-out-near-captures  Silence warnings when --out is next to capture metadata
+      --record-absolute-paths    Opt in to absolute local paths in reports and machine-readable output
+```
+
+## saccade index query
+
+```text
+Search an existing index; model/preprocessing must exactly match the index
+
+Usage: saccade index query [OPTIONS] --model <MODEL> --cache <CACHE> --library <LIBRARY> <INDEX> <IMAGE>
+
+Arguments:
+  <INDEX>
+  <IMAGE>
+
+Options:
+      --model <MODEL>      Supplied saccade-embedding-model.v1 contract; includes export SHA-256 and preprocessing
+      --cache <CACHE>      Content-addressed model cache; downloads require --download-model
+      --library <LIBRARY>  Explicit ONNX Runtime 1.22 dynamic library, CPU execution only
+      --download-model     Explicitly allow the pinned export to be downloaded to the cache
+      --top <TOP>          [default: 10]
+      --out <OUT>          [default: query-report]
+      --json
+  -h, --help               Print help
+
+Global options:
+      --allow-out-near-captures  Silence warnings when --out is next to capture metadata
+      --record-absolute-paths    Opt in to absolute local paths in reports and machine-readable output
+```
+
+## saccade hash
+
+```text
+Compute perceptual hashes without changing originals
+
+Usage: saccade hash [OPTIONS] <FILES>...
+
+Arguments:
+  <FILES>...  Files or directories; each unique input is decoded once
+
+Options:
+      --out <OUT>  New or empty output directory [default: hash-report]
+      --json       Emit a bounded JSON artifact receipt
+  -h, --help       Print help
+
+Global options:
+      --allow-out-near-captures  Silence warnings when --out is next to capture metadata
+      --record-absolute-paths    Opt in to absolute local paths in reports and machine-readable output
+```
+
+## saccade dedupe
+
+```text
+Cluster near-duplicates with bounded Hamming search; never delete images
+
+Usage: saccade dedupe [OPTIONS] <DIR>
+
+Arguments:
+  <DIR>  Directory of images; never deletes originals
+
+Options:
+      --algorithm <ALGORITHM>  Algorithm for the Hamming index [default: phash] [possible values: ahash, dhash, phash]
+      --threshold <THRESHOLD>  Inclusive Hamming radius in 0..64; clusters use transitive connectivity [default: 6]
+      --out <OUT>              New or empty output directory [default: dedupe-report]
+      --json                   Emit a bounded JSON artifact receipt
+  -h, --help                   Print help
+
+Global options:
+      --allow-out-near-captures  Silence warnings when --out is next to capture metadata
+      --record-absolute-paths    Opt in to absolute local paths in reports and machine-readable output
+```
+
+## saccade models
+
+```text
+List or explicitly pull pinned local models
+
+Usage: saccade models [OPTIONS] <COMMAND>
+
+Commands:
+  list  Inspect selections, real pins, cache integrity and source-parity status
+  pull  Explicit opt-in to download only the named model's pinned artifacts
+
+Options:
+  -h, --help  Print help
+
+Global options:
+      --allow-out-near-captures  Silence warnings when --out is next to capture metadata
+      --record-absolute-paths    Opt in to absolute local paths in reports and machine-readable output
+```
+
+## saccade models list
+
+```text
+Inspect selections, real pins, cache integrity and source-parity status
+
+Usage: saccade models list [OPTIONS]
+
+Options:
+      --registry <REGISTRY>
+      --cache <CACHE>
+      --json
+  -h, --help                 Print help
+
+Global options:
+      --allow-out-near-captures  Silence warnings when --out is next to capture metadata
+      --record-absolute-paths    Opt in to absolute local paths in reports and machine-readable output
+```
+
+## saccade models pull
+
+```text
+Explicit opt-in to download only the named model's pinned artifacts
+
+Usage: saccade models pull [OPTIONS] <ID>
+
+Arguments:
+  <ID>
+
+Options:
+      --registry <REGISTRY>
+      --cache <CACHE>
+      --json
+  -h, --help                 Print help
+
+Global options:
+      --allow-out-near-captures  Silence warnings when --out is next to capture metadata
+      --record-absolute-paths    Opt in to absolute local paths in reports and machine-readable output
+```
+
+## saccade locate
+
+```text
+Locate a phrase with boxes, optional masks, and an overlay PNG
+
+Usage: saccade locate [OPTIONS] <IMAGE> <PHRASE>
+
+Arguments:
+  <IMAGE>
+  <PHRASE>
+
+Options:
+      --segment
+
+      --detector <DETECTOR>
+          [default: grounding-dino-tiny]
+      --segmenter <SEGMENTER>
+          [default: sam-2.1-tiny]
+      --observations <OBSERVATIONS>
+          Explicit generated/frozen observation receipt; output is labelled replay
+      --overlay <OVERLAY>
+          New overlay PNG; existing files are never overwritten
+      --registry <REGISTRY>
+
+      --cache <CACHE>
+
+      --runtime-library <RUNTIME_LIBRARY>
+          ONNX Runtime 1.22 library; otherwise ORT_DYLIB_PATH or verified model cache
+      --allow-download
+
+      --json
+
+  -h, --help
+          Print help
+
+Global options:
+      --allow-out-near-captures  Silence warnings when --out is next to capture metadata
+      --record-absolute-paths    Opt in to absolute local paths in reports and machine-readable output
+```
+
+## saccade quality-score
+
+```text
+Measure a separately named learned quality score
+
+Usage: saccade quality-score [OPTIONS] <IMAGE>
+
+Arguments:
+  <IMAGE>
+
+Options:
+      --reference <REFERENCE>
+          Full-reference metric command needs an explicit reference
+      --metric <METRIC>
+          [default: musiq]
+      --observations <OBSERVATIONS>
+          Explicit stand-in/frozen measurement receipt, always labelled replay
+      --registry <REGISTRY>
+
+      --cache <CACHE>
+
+      --runtime-library <RUNTIME_LIBRARY>
+          ONNX Runtime 1.22 library; otherwise ORT_DYLIB_PATH or verified model cache
+      --allow-download
+
+      --json
+
+  -h, --help
+          Print help
+
+Global options:
+      --allow-out-near-captures  Silence warnings when --out is next to capture metadata
+      --record-absolute-paths    Opt in to absolute local paths in reports and machine-readable output
+```
+
+## saccade watermark
+
+```text
+Decode explicitly compatible watermark schemes without an origin verdict
+
+Usage: saccade watermark [OPTIONS] <IMAGE>
+
+Arguments:
+  <IMAGE>
+
+Options:
+      --expected-payload <EXPECTED_PAYLOAD>
+          Known legacy message bytes in hex; arbitrary recovered bits are not detection
+      --quantization-step <QUANTIZATION_STEP>
+          [default: 36]
+      --minimum-agreement <MINIMUM_AGREEMENT>
+          [default: 0.9]
+      --observations <OBSERVATIONS>
+          Explicit frozen/generated primary-decoder observation report
+      --trustmark
+          Run the pinned Q neural graph; ECC/resize qualification remains unavailable
+      --registry <REGISTRY>
+
+      --cache <CACHE>
+
+      --runtime-library <RUNTIME_LIBRARY>
+          ONNX Runtime 1.22 library; otherwise ORT_DYLIB_PATH or verified model cache
+      --allow-download
+
+      --json
+
+  -h, --help
+          Print help
+
+Global options:
+      --allow-out-near-captures  Silence warnings when --out is next to capture metadata
+      --record-absolute-paths    Opt in to absolute local paths in reports and machine-readable output
+```
+
+## saccade faces
+
+```text
+Detect faces and optionally create a privacy-redacted PNG
+
+Usage: saccade faces [OPTIONS] <IMAGE>
+
+Arguments:
+  <IMAGE>
+
+Options:
+      --detector <DETECTOR>
+          [default: yunet-2026may]
+      --observations <OBSERVATIONS>
+
+      --blur-faces <BLUR_FACES>
+          Write a new strongly redacted PNG; never overwrite an original
+      --registry <REGISTRY>
+
+      --cache <CACHE>
+
+      --runtime-library <RUNTIME_LIBRARY>
+          ONNX Runtime 1.22 library; otherwise ORT_DYLIB_PATH or verified model cache
+      --allow-download
+
+      --json
+
+  -h, --help
+          Print help
+
+Global options:
+      --allow-out-near-captures  Silence warnings when --out is next to capture metadata
+      --record-absolute-paths    Opt in to absolute local paths in reports and machine-readable output
+```
+
+## saccade crop-check
+
+```text
+Assess declared crops against detected faces, without identity recognition
+
+Usage: saccade crop-check [OPTIONS] --crop <CROP> <IMAGE>
+
+Arguments:
+  <IMAGE>
+
+Options:
+      --detector <DETECTOR>
+          [default: yunet-2026may]
+      --observations <OBSERVATIONS>
+
+      --blur-faces <BLUR_FACES>
+          Write a new strongly redacted PNG; never overwrite an original
+      --registry <REGISTRY>
+
+      --cache <CACHE>
+
+      --runtime-library <RUNTIME_LIBRARY>
+          ONNX Runtime 1.22 library; otherwise ORT_DYLIB_PATH or verified model cache
+      --allow-download
+
+      --json
+
+      --crop <CROP>
+          Repeat aspect ratio W:H or original-pixel rectangle X,Y,W,H
+      --focal-point <FOCAL_POINT>
+          Original-pixel X,Y, optional
+  -h, --help
+          Print help
+
+Global options:
+      --allow-out-near-captures  Silence warnings when --out is next to capture metadata
+      --record-absolute-paths    Opt in to absolute local paths in reports and machine-readable output
+```
+
+## saccade observe-local
+
+```text
+Bounded advisory observations from an explicitly configured local VLM
+
+Usage: saccade observe-local [OPTIONS] --endpoint <ENDPOINT> --runtime-revision <RUNTIME_REVISION> <REQUEST>
+
+Arguments:
+  <REQUEST>  Bounded saccade observation request JSON with exact encoded images/transforms
+
+Options:
+      --endpoint <ENDPOINT>
+
+      --runtime-revision <RUNTIME_REVISION>
+
+      --response <RESPONSE>
+          Decode an explicitly recorded response without making any HTTP request
+      --json
+
+  -h, --help
+          Print help
+
+Global options:
+      --allow-out-near-captures  Silence warnings when --out is next to capture metadata
+      --record-absolute-paths    Opt in to absolute local paths in reports and machine-readable output
+```
+
+## saccade provider-map
+
+```text
+Map provider requests or decode recorded vision responses; no live calls
+
+Usage: saccade provider-map [OPTIONS] --provider <PROVIDER> <REQUEST>
+
+Arguments:
+  <REQUEST>
+
+Options:
+      --provider <PROVIDER>
+      --response <RESPONSE>        Explicit recorded response; omit to show request mapping only (no credentials)
+      --coordinates <COORDINATES>  [default: pixels]
+      --json
+  -h, --help                       Print help
+
+Global options:
+      --allow-out-near-captures  Silence warnings when --out is next to capture metadata
+      --record-absolute-paths    Opt in to absolute local paths in reports and machine-readable output
 ```
 
 ## saccade renderdoc-localize
@@ -556,7 +1412,7 @@ Global options:
 ```text
 Compare a directory of captures against a directory of baselines
 
-Usage: saccade compare [OPTIONS] <BASELINE_DIR> <CAPTURE_DIR>
+Usage: saccade compare [OPTIONS] [BASELINE_DIR] <CAPTURE_DIR>
 
 
 
@@ -573,11 +1429,36 @@ Examples:
 Exit codes: 0 no regression, 1 regression found, 2 the command could not run.
 
 Arguments:
-  <BASELINE_DIR>  Directory of approved baseline images
+  [BASELINE_DIR]  Directory of approved baseline images
   <CAPTURE_DIR>   Directory of fresh captures
 
 Options:
-  -h, --help  Print help
+      --dpi <DPI>
+          Declared document raster density, 36..600 DPI (default 96)
+      --question <QUESTION>
+          Explicit comparison question; no automatic model fallback [possible values: same-render, same-content, same-text, near-duplicate, quality]
+      --model <MODEL>
+          Supplied embedding export contract for same-content
+      --cache <CACHE>
+          Content-addressed model cache for same-content
+      --library <LIBRARY>
+          Explicit ONNX Runtime library for same-content
+      --reference-source <REFERENCE_SOURCE>
+          Image-bound reference text observations for same-text
+      --capture-source <CAPTURE_SOURCE>
+          Image-bound candidate text observations for same-text
+      --ocr-contract <OCR_CONTRACT>
+          Existing pinned OCR contract for same-text; requires ocr feature
+      --align <ALIGN>
+          Explicit registration; defaults to the existing unregistered pipeline [possible values: none, translation, similarity, affine, homography, auto]
+      --resample <RESAMPLE>
+          Explicit cross-resolution comparison scale; registration evidence records it [possible values: reference, common]
+      --baseline <BASELINE>
+          Resolve the latest complete passing history run as an immutable baseline [possible values: last-good]
+      --history-store <HISTORY_STORE>
+          Local history store for --baseline last-good
+  -h, --help
+          Print help
 
 Output:
       --out <OUT>         Report output directory [default: report]
@@ -1048,6 +1929,8 @@ Options:
       --allow-provider-calls          Explicitly authorize provider calls for this MCP server lifetime
       --budget-calls <BUDGET_CALLS>   Finite startup attempt cap; no implicit MCP allowance
       --user-config <USER_CONFIG>     Human-owned endpoints, credential bindings and root egress policy
+      --allow-product-network         Authorize product HTTP operations from registered roots
+      --allow-webhook-notifications   Authorize explicit webhook tool calls using user configuration
   -h, --help                          Print help
 
 Global options:
@@ -1199,13 +2082,17 @@ Preview a review plan or handle a local closed decision request
 Usage: saccade review [OPTIONS] [REPORT] [COMMAND]
 
 Commands:
-  brand    Review brand colours, theme contrast, CVD and source typography together
-  ui       Review source text/layout and localized UI changes in one packet
-  motion   Diagnose dense correspondence and validate supplied renderer vectors
-  request  Prepare a closed request from an existing canonical case, locally
-  propose  Validate and record proposed answers against the exact request
-  ask      Create or retrieve a local human review item for an unresolved request
-  eval     Plan or run a resumable evaluation manifest
+  assist      Experimental assist lifecycle operations
+  explain     Experimental localized visible explanations, advisory only
+  audit-mask  Experimental individual-mask audit, advisory only
+  check-ui    Experimental bounded visible condition, never behavioral success
+  brand       Review brand colours, theme contrast, CVD and source typography together
+  ui          Review source text/layout and localized UI changes in one packet
+  motion      Diagnose dense correspondence and validate supplied renderer vectors
+  request     Prepare a closed request from an existing canonical case, locally
+  propose     Validate and record proposed answers against the exact request
+  ask         Create or retrieve a local human review item for an unresolved request
+  eval        Plan or run a resumable evaluation manifest
 
 Arguments:
   [REPORT]
@@ -1219,6 +2106,323 @@ Options:
       --intent <INTENT>
       --json
   -h, --help                         Print help
+
+Global options:
+      --allow-out-near-captures  Silence warnings when --out is next to capture metadata
+      --record-absolute-paths    Opt in to absolute local paths in reports and machine-readable output
+```
+
+## saccade review assist
+
+```text
+Experimental assist lifecycle operations
+
+Usage: saccade review assist [OPTIONS] <COMMAND>
+
+Commands:
+  batch  Asynchronous frozen evaluation jobs; never used by interactive advice
+
+Options:
+      --user-config <USER_CONFIG>
+      --json
+  -h, --help                       Print help
+
+Global options:
+      --allow-out-near-captures  Silence warnings when --out is next to capture metadata
+      --record-absolute-paths    Opt in to absolute local paths in reports and machine-readable output
+```
+
+## saccade review assist batch
+
+```text
+Asynchronous frozen evaluation jobs; never used by interactive advice
+
+Usage: saccade review assist batch [OPTIONS] <COMMAND>
+
+Commands:
+  submit   Verify and submit once; ambiguous submissions cannot repeat
+  status   Read local status, or poll once with --run
+  collect  Collect once and settle terminal known usage; never wait
+
+Options:
+      --user-config <USER_CONFIG>
+      --json
+  -h, --help                       Print help
+
+Global options:
+      --allow-out-near-captures  Silence warnings when --out is next to capture metadata
+      --record-absolute-paths    Opt in to absolute local paths in reports and machine-readable output
+```
+
+## saccade review assist batch submit
+
+```text
+Verify and submit once; ambiguous submissions cannot repeat
+
+Usage: saccade review assist batch submit [OPTIONS] --plan <PLAN> --job <JOB>
+
+Options:
+      --plan <PLAN>                    Source-bound saccade-assist-batch-plan.v1 artifact
+      --job <JOB>                      Durable receipt under the output root
+      --experimental
+      --run                            Authorize one live submission or one poll; default local only
+      --response <RESPONSE>            Recorded collection fixture; cannot settle a live reservation
+      --budget-calls <BUDGET_CALLS>    [default: 8]
+      --deadline-secs <DEADLINE_SECS>  [default: 300]
+      --user-config <USER_CONFIG>
+      --json
+  -h, --help                           Print help
+
+Global options:
+      --allow-out-near-captures  Silence warnings when --out is next to capture metadata
+      --record-absolute-paths    Opt in to absolute local paths in reports and machine-readable output
+```
+
+## saccade review assist batch status
+
+```text
+Read local status, or poll once with --run
+
+Usage: saccade review assist batch status [OPTIONS] --plan <PLAN> --job <JOB>
+
+Options:
+      --plan <PLAN>                    Source-bound saccade-assist-batch-plan.v1 artifact
+      --job <JOB>                      Durable receipt under the output root
+      --experimental
+      --run                            Authorize one live submission or one poll; default local only
+      --response <RESPONSE>            Recorded collection fixture; cannot settle a live reservation
+      --budget-calls <BUDGET_CALLS>    [default: 8]
+      --deadline-secs <DEADLINE_SECS>  [default: 300]
+      --user-config <USER_CONFIG>
+      --json
+  -h, --help                           Print help
+
+Global options:
+      --allow-out-near-captures  Silence warnings when --out is next to capture metadata
+      --record-absolute-paths    Opt in to absolute local paths in reports and machine-readable output
+```
+
+## saccade review assist batch collect
+
+```text
+Collect once and settle terminal known usage; never wait
+
+Usage: saccade review assist batch collect [OPTIONS] --plan <PLAN> --job <JOB>
+
+Options:
+      --plan <PLAN>                    Source-bound saccade-assist-batch-plan.v1 artifact
+      --job <JOB>                      Durable receipt under the output root
+      --experimental
+      --run                            Authorize one live submission or one poll; default local only
+      --response <RESPONSE>            Recorded collection fixture; cannot settle a live reservation
+      --budget-calls <BUDGET_CALLS>    [default: 8]
+      --deadline-secs <DEADLINE_SECS>  [default: 300]
+      --user-config <USER_CONFIG>
+      --json
+  -h, --help                           Print help
+
+Global options:
+      --allow-out-near-captures  Silence warnings when --out is next to capture metadata
+      --record-absolute-paths    Opt in to absolute local paths in reports and machine-readable output
+```
+
+## saccade review explain
+
+```text
+Experimental localized visible explanations, advisory only
+
+Usage: saccade review explain [OPTIONS] --report <REPORT> --out <OUT>
+
+Options:
+      --report <REPORT>
+
+      --entry <ENTRY>
+          Select exactly one report entry; required when the report contains several
+      --mask-manifest <MASK_MANIFEST>
+          Optional original individual-mask declarations, bound to exact report bytes
+      --vision-provider <VISION_PROVIDER>
+          Prepare Claude/GPT mappings in the assist layer; no live calls [possible values: claude, gpt]
+      --vision-response <VISION_RESPONSE>
+          Explicit recorded response; bound to this catalog and request
+      --experimental
+          Required acknowledgement: this feature is unqualified experimental advice
+      --out <OUT>
+          New empty directory for immutable sidecars and the advice report
+      --offline
+          Replay existing observations; never authorize providers
+      --replay <REPLAY>
+          Recorded exact cache entries for offline fixture replay
+      --run
+          Explicitly authorize evidence export under fixed user root policy
+      --route <ROUTE>
+          Deterministic rules, routed cascade or the full visual path [default: cascade] [possible values: rules, cascade, all-vision]
+      --jev-routing
+          Optional separately measured Jev evidence-need routing; disabled by default
+      --budget-calls <BUDGET_CALLS>
+          Real provider request cap; no retries or automatic top-up [default: 4]
+      --max-spend-usd <MAX_SPEND_USD>
+          Finite per-entry USD ceiling, at most 0.15 [default: 0.15]
+      --deadline-secs <DEADLINE_SECS>
+          Overall deadline, including both orders and support [default: 300]
+      --user-config <USER_CONFIG>
+
+      --gemini-revision <GEMINI_REVISION>
+          Required immutable returned revision for dispatch/replay
+      --jev-revision <JEV_REVISION>
+          Required Jev returned revision; the pinned model ID is the initial binding [default: jev-1.13.0]
+      --bypass-cache
+          Do not reuse cache; required for independent qualification samples
+      --json
+
+      --source-evidence <SOURCE_EVIDENCE>
+          Hash/dimension-bound Wave 3 source packets (at most one per image)
+      --incomplete-capture
+          Producer states some requested capture scope was not captured
+      --pre-masked
+          Original pixels were blacked out before capture and are unavailable
+  -h, --help
+          Print help
+
+Global options:
+      --allow-out-near-captures  Silence warnings when --out is next to capture metadata
+      --record-absolute-paths    Opt in to absolute local paths in reports and machine-readable output
+```
+
+## saccade review audit-mask
+
+```text
+Experimental individual-mask audit, advisory only
+
+Usage: saccade review audit-mask [OPTIONS] --report <REPORT> --out <OUT>
+
+Options:
+      --report <REPORT>
+
+      --entry <ENTRY>
+          Select exactly one report entry; required when the report contains several
+      --mask-manifest <MASK_MANIFEST>
+          Optional original individual-mask declarations, bound to exact report bytes
+      --vision-provider <VISION_PROVIDER>
+          Prepare Claude/GPT mappings in the assist layer; no live calls [possible values: claude, gpt]
+      --vision-response <VISION_RESPONSE>
+          Explicit recorded response; bound to this catalog and request
+      --experimental
+          Required acknowledgement: this feature is unqualified experimental advice
+      --out <OUT>
+          New empty directory for immutable sidecars and the advice report
+      --offline
+          Replay existing observations; never authorize providers
+      --replay <REPLAY>
+          Recorded exact cache entries for offline fixture replay
+      --run
+          Explicitly authorize evidence export under fixed user root policy
+      --route <ROUTE>
+          Deterministic rules, routed cascade or the full visual path [default: cascade] [possible values: rules, cascade, all-vision]
+      --jev-routing
+          Optional separately measured Jev evidence-need routing; disabled by default
+      --budget-calls <BUDGET_CALLS>
+          Real provider request cap; no retries or automatic top-up [default: 4]
+      --max-spend-usd <MAX_SPEND_USD>
+          Finite per-entry USD ceiling, at most 0.15 [default: 0.15]
+      --deadline-secs <DEADLINE_SECS>
+          Overall deadline, including both orders and support [default: 300]
+      --user-config <USER_CONFIG>
+
+      --gemini-revision <GEMINI_REVISION>
+          Required immutable returned revision for dispatch/replay
+      --jev-revision <JEV_REVISION>
+          Required Jev returned revision; the pinned model ID is the initial binding [default: jev-1.13.0]
+      --bypass-cache
+          Do not reuse cache; required for independent qualification samples
+      --json
+
+      --source-evidence <SOURCE_EVIDENCE>
+          Hash/dimension-bound Wave 3 source packets (at most one per image)
+      --incomplete-capture
+          Producer states some requested capture scope was not captured
+      --pre-masked
+          Original pixels were blacked out before capture and are unavailable
+  -h, --help
+          Print help
+
+Global options:
+      --allow-out-near-captures  Silence warnings when --out is next to capture metadata
+      --record-absolute-paths    Opt in to absolute local paths in reports and machine-readable output
+```
+
+## saccade review check-ui
+
+```text
+Experimental bounded visible condition, never behavioral success
+
+Usage: saccade review check-ui [OPTIONS] --image <IMAGE> --box <BOX> --out <OUT> <CONDITION>
+
+Arguments:
+  <CONDITION>  Literal visible label, never an acting agent's success claim
+
+Options:
+      --image <IMAGE>
+
+      --box <BOX>
+          Original image pixels: X,Y,W,H
+      --kind <KIND>
+          Closed screenshot-only condition category [default: label-visible] [possible values: label-visible, banner-absent, not-clipped, non-overlap]
+      --target <TARGET>
+          Stable source node ID for geometric conditions
+      --second-target <SECOND_TARGET>
+          Containing panel or second source node ID
+      --locate
+          Attach advisory phrase localization to check-ui; never establish visibility by detection alone
+      --locate-observations <LOCATE_OBSERVATIONS>
+
+      --locate-registry <LOCATE_REGISTRY>
+
+      --locate-cache <LOCATE_CACHE>
+
+      --locate-runtime-library <LOCATE_RUNTIME_LIBRARY>
+
+      --vision-provider <VISION_PROVIDER>
+          Prepare Claude/GPT mappings in the assist layer; no live calls [possible values: claude, gpt]
+      --vision-response <VISION_RESPONSE>
+          Explicit recorded response; bound to this catalog and request
+      --experimental
+          Required acknowledgement: this feature is unqualified experimental advice
+      --out <OUT>
+          New empty directory for immutable sidecars and the advice report
+      --offline
+          Replay existing observations; never authorize providers
+      --user-config <USER_CONFIG>
+
+      --replay <REPLAY>
+          Recorded exact cache entries for offline fixture replay
+      --run
+          Explicitly authorize evidence export under fixed user root policy
+      --json
+
+      --route <ROUTE>
+          Deterministic rules, routed cascade or the full visual path [default: cascade] [possible values: rules, cascade, all-vision]
+      --jev-routing
+          Optional separately measured Jev evidence-need routing; disabled by default
+      --budget-calls <BUDGET_CALLS>
+          Real provider request cap; no retries or automatic top-up [default: 4]
+      --max-spend-usd <MAX_SPEND_USD>
+          Finite per-entry USD ceiling, at most 0.15 [default: 0.15]
+      --deadline-secs <DEADLINE_SECS>
+          Overall deadline, including both orders and support [default: 300]
+      --gemini-revision <GEMINI_REVISION>
+          Required immutable returned revision for dispatch/replay
+      --jev-revision <JEV_REVISION>
+          Required Jev returned revision; the pinned model ID is the initial binding [default: jev-1.13.0]
+      --bypass-cache
+          Do not reuse cache; required for independent qualification samples
+      --source-evidence <SOURCE_EVIDENCE>
+          Hash/dimension-bound Wave 3 source packets (at most one per image)
+      --incomplete-capture
+          Producer states some requested capture scope was not captured
+      --pre-masked
+          Original pixels were blacked out before capture and are unavailable
+  -h, --help
+          Print help
 
 Global options:
       --allow-out-near-captures  Silence warnings when --out is next to capture metadata

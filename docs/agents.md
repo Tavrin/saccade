@@ -138,7 +138,9 @@ provider is contacted. See [review](review.md).
 
 ## MCP tools
 
-The official MCP interface has six tools:
+The MCP interface retains six established tools and adds `saccade_general` for
+general comparison pipelines plus feature-gated `saccade_products` for product
+workflows. The established tools are:
 
 | Tool | Purpose |
 | --- | --- |

@@ -27,7 +27,7 @@ No Rust toolchain is needed. Each archive includes the licences and
 third-party notices. See [releasing](docs/releasing.md) for how releases are
 built and checked.
 
-To build from source with Cargo (Rust 1.88 or newer):
+To build from source with Cargo (Rust 1.89 or newer):
 
 ```sh
 cargo install --locked --git https://github.com/Tavrin/saccade saccade
@@ -37,6 +37,16 @@ From a clone, `cargo install --locked --path crates/saccade` does the same.
 Add `--features prechecks` for the experimental safety and accessibility checks.
 
 Check the install with `saccade --version` or `saccade doctor --json`.
+
+### Optional Cargo features
+
+- `prechecks`: experimental safety and accessibility checks.
+- `products`: image delivery tuning with JPEG/lossless WebP and HTTP adapters.
+- `imgtune-avif`: adds AVIF encoding and native decoding to `products`; requires
+  the system **dav1d >= 1.3.0** development library and **pkg-config**. On Ubuntu
+  24.04 or newer, install `libdav1d-dev` and `pkg-config`. This requirement also
+  applies to `--all-features` builds and packaging. See
+  [image tuning prerequisites](docs/imgtune.md#system-prerequisites).
 
 ## Quickstart (60 seconds)
 

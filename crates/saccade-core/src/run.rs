@@ -99,7 +99,7 @@ pub(crate) fn collect_images(root: &Path) -> Result<Collected> {
             .extension()
             .and_then(|e| e.to_str())
             .is_some_and(|e| {
-                ["png", "jpg", "jpeg", "exr", "hdr"]
+                ["png", "jpg", "jpeg", "exr", "hdr", "svg", "pdf"]
                     .iter()
                     .any(|known| e.eq_ignore_ascii_case(known))
             });
@@ -112,6 +112,13 @@ pub(crate) fn collect_images(root: &Path) -> Result<Collected> {
 
 /// Decodes an image to 8-bit RGBA (16-bit and other formats are converted).
 pub(crate) fn decode(path: &Path) -> std::result::Result<image::RgbaImage, Error> {
+    if path
+        .extension()
+        .and_then(|s| s.to_str())
+        .is_some_and(|s| s.eq_ignore_ascii_case("svg") || s.eq_ignore_ascii_case("pdf"))
+    {
+        return crate::general::input::load(path);
+    }
     image::open(path)
         .map(|i| i.to_rgba8())
         .map_err(|source| Error::Decode {
@@ -127,10 +134,25 @@ fn decode_audited(
     side: &str,
     losses: &mut Vec<String>,
 ) -> Result<image::DynamicImage> {
-    let img = image::open(path).map_err(|source| Error::Decode {
-        path: path.to_path_buf(),
-        source,
-    })?;
+    let img = if path
+        .extension()
+        .and_then(|s| s.to_str())
+        .is_some_and(|s| s.eq_ignore_ascii_case("svg") || s.eq_ignore_ascii_case("pdf"))
+    {
+        image::DynamicImage::ImageRgba8(crate::general::input::load(path)?)
+    } else {
+        image::open(path).map_err(|source| Error::Decode {
+            path: path.to_path_buf(),
+            source,
+        })?
+    };
+    if path
+        .extension()
+        .and_then(|s| s.to_str())
+        .is_some_and(|s| s.eq_ignore_ascii_case("svg") || s.eq_ignore_ascii_case("pdf"))
+    {
+        losses.push(format!("{side}: document rasterized at 96 DPI using the optional bounded document adapter; native sample identity covers this raster only."));
+    }
     let colour = img.color();
     let bits = colour.bits_per_pixel() / u16::from(colour.channel_count());
     if hdr {
@@ -262,6 +284,8 @@ pub fn guard_output_dir(out: &Path, inputs: &[&Path], markers: &[&str]) -> Resul
 /// stale report behind.
 pub(crate) fn clear_previous_report(report_dir: &Path) -> Result<()> {
     for leaf in [
+        // Clear stale explicit-question provenance with its measured report.
+        "saccade-pipeline-choice.v1.json",
         REPORT_FILE_NAME,
         "index.html",
         "images",
@@ -557,6 +581,7 @@ pub fn run(
             config.record_absolute_paths,
         )),
         config: ReportConfig {
+            mask_mode: config.mask_mode,
             entries: config.entries.clone(),
             ignore: config.ignore.clone(),
             default_threshold: config.default_threshold,
@@ -1002,7 +1027,30 @@ fn fill_entry(
     entry.sample_exclusions = Some(losses);
     entry.baseline_properties = Some(properties::validate(&flatten_over(&base_img, 0)));
     entry.bit_identical = Some(crate::compare::native_samples_identical(base, cap));
-    match compare_rgba(&cap_img, &base_img, opts) {
+    let comparison = if config.mask_mode == crate::compare::MaskMode::Neutralize
+        && cap_img.dimensions() == base_img.dimensions()
+    {
+        let mask = crate::regions::mask_for(
+            &entry.name,
+            cap_img.width(),
+            cap_img.height(),
+            &config.masks,
+            config.config_dir.as_deref(),
+        )?;
+        if mask.as_ref().is_some_and(|m| m.iter().all(|v| *v)) {
+            return Err(Error::Config("every pixel is masked".into()));
+        }
+        crate::compare::compare_rgba_masked(
+            &cap_img,
+            &base_img,
+            opts,
+            mask.as_deref(),
+            config.mask_mode,
+        )
+    } else {
+        compare_rgba(&cap_img, &base_img, opts)
+    };
+    match comparison {
         Ok(cmp) => {
             let pair = PairPixels {
                 baseline: crate::diagnostics::Pixels::Ldr(&base_img),
@@ -1028,8 +1076,24 @@ fn finish_entry(
 ) -> Result<()> {
     let name = entry.name.clone();
     let scene = crate::regions::evaluate(entry, &cmp, config)?;
+    // Keep original excluded error and the no-mask diagnostic independent of
+    // neutralized scoring. Raw pixels remain authoritative for this audit.
+    let raw_comparison =
+        if config.mask_mode == crate::compare::MaskMode::Neutralize && scene.mask.is_some() {
+            Some(match (&pair.capture, &pair.baseline) {
+                (crate::diagnostics::Pixels::Ldr(c), crate::diagnostics::Pixels::Ldr(b)) => {
+                    compare_rgba(c, b, pair.flip)?
+                }
+                (crate::diagnostics::Pixels::Hdr(c), crate::diagnostics::Pixels::Hdr(b)) => {
+                    crate::hdr::compare_hdr(c, b, pair.flip)?.0
+                }
+                _ => return Err(Error::Config("comparison pixel kinds differ".into())),
+            })
+        } else {
+            None
+        };
     entry.pixel_exclusions = Some(crate::exclusions::pixels(
-        &cmp,
+        raw_comparison.as_ref().unwrap_or(&cmp),
         scene.mask.as_deref(),
         entry,
         config,
@@ -1268,7 +1332,32 @@ fn fill_hdr_pair(
     entry.sample_exclusions = Some(losses);
     entry.baseline_properties = Some(crate::hdr::validate_hdr(&base_img));
     entry.bit_identical = Some(crate::compare::native_samples_identical(base, cap));
-    match crate::hdr::compare_hdr(&cap_img, &base_img, opts) {
+    let mut filtered_capture = cap_img.clone();
+    if config.mask_mode == crate::compare::MaskMode::Neutralize
+        && cap_img.width == base_img.width
+        && cap_img.height == base_img.height
+        && let Some(mask) = crate::regions::mask_for(
+            &entry.name,
+            cap_img.width,
+            cap_img.height,
+            &config.masks,
+            config.config_dir.as_deref(),
+        )?
+    {
+        for ((test, reference), excluded) in filtered_capture
+            .data
+            .as_chunks_mut::<3>()
+            .0
+            .iter_mut()
+            .zip(base_img.data.as_chunks::<3>().0.iter())
+            .zip(mask)
+        {
+            if excluded {
+                test.copy_from_slice(reference);
+            }
+        }
+    }
+    match crate::hdr::compare_hdr(&filtered_capture, &base_img, opts) {
         Ok((cmp, info)) => {
             entry.hdr = Some(info);
             let pair = PairPixels {

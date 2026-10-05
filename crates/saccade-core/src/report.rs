@@ -59,6 +59,9 @@ pub struct Report {
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct ReportConfig {
+    /// Mask treatment; historical reports default to score exclusion.
+    #[serde(default)]
+    pub mask_mode: crate::compare::MaskMode,
     /// Selected name globs; empty selects every name in the supplied inputs.
     #[serde(default)]
     pub entries: Vec<String>,

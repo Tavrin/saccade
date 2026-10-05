@@ -1,0 +1,27 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/Tavrin/saccade/crates/saccade-core/schemas/saccade-assist-gates.v1.schema.json",
+  "title": "saccade-assist-gates.v1",
+  "type": "object",
+  "properties": {
+    "schema": {
+      "const": "saccade-assist-gates.v1"
+    },
+    "source_hash": {
+      "type": "string",
+      "pattern": "^sha256:[0-9a-f]{64}$"
+    },
+    "gates": {
+      "type": "object",
+      "additionalProperties": {
+        "const": "PASS"
+      }
+    }
+  },
+  "required": [
+    "schema",
+    "source_hash",
+    "gates"
+  ],
+  "additionalProperties": false
+}

@@ -1,0 +1,11 @@
+{
+  "export_sha256": "2fd91c205910154583815783892aa74f5414b88505ecda8e3cab8cf7f033822b",
+  "corpus_sha256": "f58f12e4db3de8d89923d8ccea500e61cdf7c77fb8feed71fed28af7f2019983",
+  "checkpoint_sha256": "ae1e99fcefd534ed978cdeb8326f08030c96e28b7a81ffcbc98a857c84d14be1",
+  "script_sha256": "cd0360cf3471c14a37e9411a8ce709d002c6d50346aaa9c22789faebf4cb6f3d",
+  "torch": "2.5.1+cpu",
+  "numpy": "1.26.4",
+  "onnx": "1.17.0",
+  "processor": "56x56 RGB /255 ImageNet normalization, matches explicit Rust seam; no hidden resize",
+  "status": "export produced; independent Rust parity and holdout gate pending"
+}

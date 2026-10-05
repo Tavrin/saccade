@@ -1,0 +1,95 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/Tavrin/saccade/crates/saccade-core/schemas/saccade-assess.v1.schema.json",
+  "type": "object",
+  "properties": {
+    "schema": {
+      "const": "saccade-assess.v1"
+    },
+    "operation": {
+      "const": "assess"
+    },
+    "verdict": {
+      "const": "unknown"
+    },
+    "counts": {
+      "type": "object"
+    },
+    "image": {
+      "type": "object",
+      "required": [
+        "encoded_sha256",
+        "dimensions",
+        "measures"
+      ]
+    },
+    "compare_to": {
+      "type": [
+        "object",
+        "null"
+      ]
+    },
+    "deltas": {
+      "type": "object"
+    },
+    "meanings": {
+      "type": "object"
+    },
+    "learned_score": {
+      "type": "object",
+      "properties": {
+        "status": {
+          "const": "unavailable"
+        },
+        "reason": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "status",
+        "reason"
+      ],
+      "additionalProperties": false
+    },
+    "limitations": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "related_commands": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "vision_checks": {
+      "type": "object",
+      "properties": {
+        "faces": {
+          "type": "object"
+        },
+        "crop_check": {
+          "type": "object"
+        },
+        "watermark": {
+          "type": "object"
+        }
+      },
+      "additionalProperties": false
+    }
+  },
+  "required": [
+    "schema",
+    "operation",
+    "verdict",
+    "counts",
+    "image",
+    "compare_to",
+    "deltas",
+    "meanings",
+    "learned_score",
+    "limitations"
+  ],
+  "additionalProperties": false
+}

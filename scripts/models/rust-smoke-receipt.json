@@ -1,0 +1,383 @@
+{
+  "binary": "/mnt/linux-extra/moss-cargo-targets/codex-saccade-w7/debug/deps/saccade_core-62249c030c9162ca",
+  "binary_sha256": "92bf5fd1bd185f58d8cf156ea7464461f5175986636103f0eb996fe5a39224ba",
+  "runtime": "/mnt/linux-extra/saccade-models/runtime/8344d55f93d5bc5021ce342db50f62079daf39aaafb5d311a451846228be49b3/lib/libonnxruntime.so.1.22.0",
+  "models": [
+    {
+      "model": "grounding-dino-tiny",
+      "exit": 0,
+      "elapsed_seconds": 47.627757576003205,
+      "measurement": {
+        "image_sha256": "e418a1f749338f6e70d73e3f9a3bf5f154b7e6ba6573f0cc32fce11fee8444e6",
+        "model": "grounding-dino-tiny",
+        "result": {
+          "detections": [
+            {
+              "bbox": {
+                "height": 207.83145141601562,
+                "width": 80.02691650390625,
+                "x": 88.41767883300781,
+                "y": 22.400833129882812
+              },
+              "mask": null,
+              "score": 0.9234859943389893
+            }
+          ],
+          "provenance": {
+            "artifact_sha256": [
+              "267c8b00d269dc2dda0d8592812d3027abd5fb59f1cabf8e3d56f8fdf07f68ec",
+              "f4b79138d4a83efb56ebad85c194a5a99a57102204c9829f76c0cd109acb0aeb",
+              "c17fd68afb1f124bfb87a494d409925eec4201b3487c8a694dde64d9ce7109a3",
+              "d241a60d5e8f04cc1b2b3e9ef7a4921b27bf526d9f6050ab90f9267a1f9e5c66",
+              "5723ed14feabd5c974010123a7c93005116bdc5e3d69bcce3d9334987241f53c",
+              "5d5b662e421ea9fac075174bb0688ee0d9431699900b90662acd44b2a350503a",
+              "07eced375cec144d27c900241f3e339478dec958f92fddbc551f295c992038a3"
+            ],
+            "input_resolution": [
+              800,
+              800
+            ],
+            "model_id": "grounding-dino-tiny",
+            "resolution_handling": "aspect-preserving longest-edge800 bilinear resize; normalize valid RGB then zero-pad bottom/right to800 square with validity pixel_mask; inverse rounded resize maps clipped boxes to original pixels (adapted square export, not upstream shortest-edge parity); detection thresholds DINO0.4 OWLv2 0.1; NMS0.5; whole query phrase",
+            "runtime": "onnx-cpu",
+            "source_parity": false,
+            "version": "11778337bb87ff84af72a64928c86616d86c495e"
+          }
+        },
+        "seconds": 47.573255393
+      }
+    },
+    {
+      "model": "owlv2-base",
+      "exit": 0,
+      "elapsed_seconds": 40.846864120976534,
+      "measurement": {
+        "image_sha256": "e418a1f749338f6e70d73e3f9a3bf5f154b7e6ba6573f0cc32fce11fee8444e6",
+        "model": "owlv2-base",
+        "result": {
+          "detections": [
+            {
+              "bbox": {
+                "height": 208.07406616210938,
+                "width": 79.1014633178711,
+                "x": 89.07160186767578,
+                "y": 22.97826385498047
+              },
+              "mask": null,
+              "score": 0.24411262571811676
+            }
+          ],
+          "provenance": {
+            "artifact_sha256": [
+              "ca3ea10811d55cd8763058c6eaddec514bbb91cc07ab774a0db0775346aef732",
+              "9222fb235dd16154d94e7bdc7f4d8b0c0bf696eba9f68fd260da6733fd18f731",
+              "cf3e396635b797ee1a464e1b2836e98748f8edac19e89aaa2c93b55ac15b0064",
+              "e277946093d72c7748281a6a344d6c79a5226c48954d6797dc36984aea23ac60",
+              "bf011c6d421981c3102428c6390472e83d8c097653262b15573ff10af44348ee",
+              "c4dbb96da703fb38f10ccf0490df2fd476811c5a3e71b7e0189cffeed3224e25",
+              "5047b556ce86ccaf6aa22b3ffccfc52d391ea4accdab9c2f2407da5b742d4363",
+              "9fd691f7c8039210e0fced15865466c65820d09b63988b0174bfe25de299051a"
+            ],
+            "input_resolution": [
+              960,
+              960
+            ],
+            "model_id": "owlv2-base",
+            "resolution_handling": "per-channel-mean bottom/right square padding, bilinear resize 960; tokenizer max16; detection thresholds DINO0.4 OWLv2 0.1; NMS0.5; whole query phrase",
+            "runtime": "onnx-cpu",
+            "source_parity": false,
+            "version": "180d6ef7599bd69bb48db5c72bd49ad03ddfab80"
+          }
+        },
+        "seconds": 40.796491105
+      }
+    },
+    {
+      "model": "efficientsam-ti",
+      "exit": 0,
+      "elapsed_seconds": 5.405266760993982,
+      "measurement": {
+        "image_sha256": "e418a1f749338f6e70d73e3f9a3bf5f154b7e6ba6573f0cc32fce11fee8444e6",
+        "model": "efficientsam-ti",
+        "result": {
+          "area": 14442,
+          "provenance": {
+            "artifact_sha256": [
+              "84ed466ffcc5c1f8d08409bc34a23bb364ab2c15e402cb12d4335a42be0e0951",
+              "a62f8fa5ea080447c0689418d69e58f1e83e0b7adf9c142e2bd9bcc8045c0b11"
+            ],
+            "input_resolution": [
+              256,
+              256
+            ],
+            "model_id": "efficientsam-ti",
+            "resolution_handling": "native RGB /255; internal resize/normalization; original-pixel corners labels2,3; IoU selection and logits>0; efficientsam-v1; input 256x256, graph 256x256",
+            "runtime": "onnx-cpu",
+            "source_parity": false,
+            "version": "d8dbb1eee73bfb3392aa6f6e8944aeb13f3f4036"
+          }
+        },
+        "seconds": 5.392960522
+      }
+    },
+    {
+      "model": "yunet-2026may",
+      "exit": 0,
+      "elapsed_seconds": 0.05959624602110125,
+      "measurement": {
+        "image_sha256": "ed8e8fbfe46d20d6d15dfa6432e90406907ee1a26765021576b87835429af48f",
+        "model": "yunet-2026may",
+        "result": {
+          "faces": [
+            {
+              "bbox": {
+                "height": 164.45346069335938,
+                "width": 129.6026611328125,
+                "x": 61.072662353515625,
+                "y": 45.44927215576172
+              },
+              "landmarks": [
+                [
+                  100.43241882324219,
+                  103.59200286865234
+                ],
+                [
+                  160.41058349609375,
+                  102.76727294921875
+                ],
+                [
+                  132.24371337890625,
+                  137.7283477783203
+                ],
+                [
+                  109.21682739257812,
+                  163.9226531982422
+                ],
+                [
+                  157.11495971679688,
+                  163.60165405273438
+                ]
+              ],
+              "score": 0.8740943670272827
+            }
+          ],
+          "image_sha256": "ed8e8fbfe46d20d6d15dfa6432e90406907ee1a26765021576b87835429af48f",
+          "image_size": [
+            256,
+            256
+          ],
+          "limitations": "Protect detected faces only. No detection does not certify that no face is present; small, occluded or out-of-domain faces may be missed. This is not identity recognition.",
+          "provenance": {
+            "artifact_sha256": [
+              "ebafce4e3c118d6554634be5c27ab333b4c047a9a8c3faf1d7cf93101c22f0f0"
+            ],
+            "input_resolution": [
+              256,
+              256
+            ],
+            "model_id": "yunet-2026may",
+            "resolution_handling": "native pixels; bottom/right zero pad to multiple32; scores>=0.6 NMS0.3; yunet-v1; input 256x256, graph 256x256",
+            "runtime": "onnx-cpu",
+            "source_parity": false,
+            "version": "47534e27c9851bb1128ccc0102f1145e27f23f98"
+          },
+          "schema": "saccade-faces.v1"
+        },
+        "seconds": 0.046517684
+      }
+    },
+    {
+      "model": "ultraface-rfb",
+      "exit": 0,
+      "elapsed_seconds": 0.16147092101164162,
+      "measurement": {
+        "image_sha256": "ed8e8fbfe46d20d6d15dfa6432e90406907ee1a26765021576b87835429af48f",
+        "model": "ultraface-rfb",
+        "result": {
+          "faces": [
+            {
+              "bbox": {
+                "height": 173.91049194335938,
+                "width": 130.31927490234375,
+                "x": 62.19940948486328,
+                "y": 38.417442321777344
+              },
+              "landmarks": [],
+              "score": 0.9996153116226196
+            }
+          ],
+          "image_sha256": "ed8e8fbfe46d20d6d15dfa6432e90406907ee1a26765021576b87835429af48f",
+          "image_size": [
+            256,
+            256
+          ],
+          "limitations": "Protect detected faces only. No detection does not certify that no face is present; small, occluded or out-of-domain faces may be missed. This is not identity recognition.",
+          "provenance": {
+            "artifact_sha256": [
+              "34cd7e60aeff28744c657de7a3dc64e872d506741de66987f3426f2b79f88017"
+            ],
+            "input_resolution": [
+              320,
+              240
+            ],
+            "model_id": "ultraface-rfb",
+            "resolution_handling": "bilinear resize320x240; (pixel-127)/128; decoded boxes; scores>=0.6 NMS0.3; weight card MIT vs metadata Apache discrepancy retained in notes; ultraface-v1; input 256x256, graph 320x240",
+            "runtime": "onnx-cpu",
+            "source_parity": false,
+            "version": "6fd293d22b523ec88959f104b8eef5395e3adfbc"
+          },
+          "schema": "saccade-faces.v1"
+        },
+        "seconds": 0.152495428
+      }
+    }
+  ],
+  "additional_smokes": [
+    {
+      "model": "trustmark",
+      "exit": 0,
+      "binary_sha256": "ce1303e3aba71d9197cb561884e14bbbe9179139779cb195faf4eb64fd473621",
+      "measurement": {
+        "image_sha256": "e418a1f749338f6e70d73e3f9a3bf5f154b7e6ba6573f0cc32fce11fee8444e6",
+        "model": "trustmark",
+        "result": {
+          "logits": [
+            0.011339033953845501,
+            0.0741162896156311,
+            -0.0032110363245010376,
+            -0.08158373832702637,
+            -0.04401557520031929,
+            -0.027172178030014038,
+            -0.034588221460580826,
+            0.11834874749183655,
+            0.03939763829112053,
+            0.03755519911646843,
+            -0.02329522743821144,
+            0.008506834506988525,
+            -0.02206651121377945,
+            -0.059800781309604645,
+            0.07072669267654419,
+            0.022928105667233467,
+            -0.08146598190069199,
+            0.04622665420174599,
+            -0.023044133558869362,
+            -0.03751940280199051,
+            0.11198088526725769,
+            -0.0038895122706890106,
+            -0.03206154331564903,
+            0.032216209918260574,
+            -0.0311146043241024,
+            0.07671765983104706,
+            -0.07265064120292664,
+            0.06821621209383011,
+            -0.03462092950940132,
+            0.010914405807852745,
+            0.02545606531202793,
+            -0.057341571897268295,
+            -0.1383434236049652,
+            0.10448253154754639,
+            0.023663660511374474,
+            -0.09851463884115219,
+            -0.059981800615787506,
+            0.007811627350747585,
+            0.03776521980762482,
+            0.06431248039007187,
+            -0.08169887959957123,
+            0.0742829442024231,
+            0.018421972170472145,
+            0.05784038454294205,
+            0.09792046993970871,
+            0.03249124437570572,
+            0.06868837773799896,
+            -0.06484877318143845,
+            0.02005782350897789,
+            -0.0562964528799057,
+            -0.18348675966262817,
+            -0.03342721611261368,
+            -0.08333048224449158,
+            -0.10782884061336517,
+            0.09919559955596924,
+            -0.09524554014205933,
+            0.001831267960369587,
+            -0.015417253598570824,
+            -0.010336085222661495,
+            -0.03740765154361725,
+            0.03563237935304642,
+            -0.01153101772069931,
+            -0.02963251993060112,
+            -0.08294045180082321,
+            0.0766182392835617,
+            -0.06297123432159424,
+            0.12168894708156586,
+            0.04351099580526352,
+            0.05305694043636322,
+            -0.14118795096874237,
+            0.059176817536354065,
+            -0.052509456872940063,
+            0.11528468132019043,
+            0.021330930292606354,
+            0.12044370919466019,
+            -0.1158733069896698,
+            0.003970537334680557,
+            0.0820673406124115,
+            0.08793991804122925,
+            -0.1151471883058548,
+            0.06887088716030121,
+            -0.018418582156300545,
+            -0.01941884681582451,
+            -0.10387084633111954,
+            0.023848408833146095,
+            -0.06591976433992386,
+            0.024931326508522034,
+            -0.06775842607021332,
+            -0.03823835402727127,
+            -0.004554400220513344,
+            -0.04728054255247116,
+            0.023474156856536865,
+            -0.06495897471904755,
+            -0.07028387486934662,
+            0.10006879270076752,
+            0.03796301782131195,
+            0.08345407992601395,
+            -0.034255869686603546,
+            0.11968730390071869,
+            -0.051536910235881805
+          ],
+          "provenance": {
+            "artifact_sha256": [
+              "ee3268f057c9dabef680e169302f5973d0589feea86189ed229a896cc3aa88df"
+            ],
+            "input_resolution": [
+              256,
+              256
+            ],
+            "model_id": "trustmark",
+            "resolution_handling": "Q RGB/255 256x256; center-square crop only outside aspect[0.5,2]; triangle resize (upstream antialiased resizer not qualified); 100 logits>=0; BCH decoding deferred, no watermark presence claim; trustmark-q-v1; input 256x256, graph 256x256",
+            "runtime": "onnx-cpu",
+            "source_parity": false,
+            "version": "Q-sha256-ee3268f057c9dabef680e169302f5973d0589feea86189ed229a896cc3aa88df"
+          },
+          "qualification": "neural-only; ECC/resize deferred"
+        },
+        "seconds": 2.473368795
+      }
+    },
+    {
+      "model": "grounding-dino-tiny",
+      "case": "rectangle384x256",
+      "exit": 0,
+      "binary_sha256": "ce1303e3aba71d9197cb561884e14bbbe9179139779cb195faf4eb64fd473621",
+      "seconds": 47.31,
+      "box": [
+        88.09119,
+        22.250145,
+        80.60037,
+        208.24136
+      ],
+      "score": 0.93987954,
+      "validation": "IoU >0.8, original-image bounds"
+    }
+  ],
+  "runtime_version": "1.22.0",
+  "scope": "five one-image reference smokes; TrustMark neural only; DINO rectangle regression; all CPU thread1/timeout55; no source-export parity"
+}

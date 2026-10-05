@@ -37,35 +37,67 @@ impl BatchHttp for BatchNetwork {
         key: &str,
         body: Option<&[u8]>,
     ) -> Result<BatchReply, String> {
-        let agent: ureq::Agent = ureq::Agent::config_builder()
-            .timeout_global(Some(Duration::from_secs(240)))
-            .max_redirects(0)
-            .http_status_as_error(false)
-            .build()
-            .into();
-        let mut response = match (method, body) {
-            ("POST", Some(bytes)) => agent
-                .post(url)
-                .header("x-goog-api-key", key)
-                .header("Content-Type", "application/json")
-                .send(bytes),
-            ("GET", None) => agent.get(url).header("x-goog-api-key", key).call(),
-            _ => return Err("invalid batch HTTP operation".into()),
-        }
-        .map_err(|_| "batch transport unavailable or timed out".to_owned())?;
-        let status = response.status().as_u16();
-        let body = response
-            .body_mut()
-            .with_config()
-            .limit(32 * 1024 * 1024)
-            .read_to_vec()
-            .map_err(|_| "batch response unavailable or too large".to_owned())?;
-        Ok(BatchReply {
-            status,
-            body: serde_json::from_slice(&body)
-                .map_err(|_| "invalid batch JSON response".to_owned())?,
-        })
+        network_send(method, url, key, body, Duration::from_secs(240))
     }
+}
+/// The same production Batch boundary, limited by the caller's overall deadline.
+pub struct DeadlineBatchNetwork {
+    /// No request may outlive this deadline.
+    pub deadline: std::time::Instant,
+}
+impl BatchHttp for DeadlineBatchNetwork {
+    fn send(
+        &self,
+        method: &str,
+        url: &str,
+        key: &str,
+        body: Option<&[u8]>,
+    ) -> Result<BatchReply, String> {
+        let timeout = self
+            .deadline
+            .saturating_duration_since(std::time::Instant::now())
+            .min(Duration::from_secs(240));
+        if timeout.is_zero() {
+            return Err("batch deadline exhausted".into());
+        }
+        network_send(method, url, key, body, timeout)
+    }
+}
+fn network_send(
+    method: &str,
+    url: &str,
+    key: &str,
+    body: Option<&[u8]>,
+    timeout: Duration,
+) -> Result<BatchReply, String> {
+    let agent: ureq::Agent = ureq::Agent::config_builder()
+        .timeout_global(Some(timeout))
+        .max_redirects(0)
+        .http_status_as_error(false)
+        .build()
+        .into();
+    let mut response = match (method, body) {
+        ("POST", Some(bytes)) => agent
+            .post(url)
+            .header("x-goog-api-key", key)
+            .header("Content-Type", "application/json")
+            .send(bytes),
+        ("GET", None) => agent.get(url).header("x-goog-api-key", key).call(),
+        _ => return Err("invalid batch HTTP operation".into()),
+    }
+    .map_err(|_| "batch transport unavailable or timed out".to_owned())?;
+    let status = response.status().as_u16();
+    let body = response
+        .body_mut()
+        .with_config()
+        .limit(32 * 1024 * 1024)
+        .read_to_vec()
+        .map_err(|_| "batch response unavailable or too large".to_owned())?;
+    Ok(BatchReply {
+        status,
+        body: crate::evidence::canonical::decode(&body)
+            .map_err(|_| "invalid batch JSON response".to_owned())?,
+    })
 }
 
 fn model_id(model: &str) -> Result<(), String> {
@@ -198,6 +230,11 @@ impl GeminiBatch<'_> {
         let reply = self.http.send(method, url, key.expose(), body)?;
         if reply.status != 200 {
             return Err(format!("Gemini Batch HTTP {}", reply.status));
+        }
+        // Refuse reflected credentials before persisting Batch artifacts.
+        let text = serde_json::to_string(&reply.body).map_err(|_| "invalid batch reply")?;
+        if key.scrub(&text) != text {
+            return Err("credential material in batch reply".into());
         }
         Ok(reply.body)
     }

@@ -8,7 +8,16 @@ failed=0
 run() {
   local name="$1"
   shift
-  if "$@"; then echo "PASS $name"; return 0; else echo "FAIL $name"; failed=1; return 1; fi
+  local -a command=("$@")
+  if [[ -n "${SACCADE_RELEASE_ADMISSION_GB:-}" ]]; then
+    if ! python3 -c 'import os; s=os.statvfs("/mnt/linux-extra"); raise SystemExit(s.f_bavail*s.f_frsize < 25*1024**3)'; then
+      echo "FAIL $name (less than 25 GiB free; not executed)"
+      failed=1
+      return 75
+    fi
+    command=(/mnt/linux-extra/moss-coord/bin/moss-heavy.sh "$SACCADE_RELEASE_ADMISSION_GB" timeout 900 "${command[@]}")
+  fi
+  if "${command[@]}"; then echo "PASS $name"; return 0; else echo "FAIL $name"; failed=1; return 1; fi
 }
 run renderdoc-worker-boundaries python3 scripts/test-renderdoc-worker.py
 run formatting cargo fmt --check

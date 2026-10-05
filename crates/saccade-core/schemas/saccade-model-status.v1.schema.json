@@ -1,0 +1,54 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/Tavrin/saccade/crates/saccade-core/schemas/saccade-model-status.v1.schema.json",
+  "title": "saccade-model-status.v1",
+  "type": "object",
+  "properties": {
+    "schema": {
+      "type": "string",
+      "const": "saccade-model-status.v1"
+    },
+    "models": {
+      "type": "array"
+    },
+    "unavailable_selections": {
+      "type": "array"
+    },
+    "model": {
+      "type": "object"
+    },
+    "status": {
+      "const": "cached_verified"
+    },
+    "artifact_count": {
+      "type": "integer",
+      "minimum": 1
+    },
+    "source_parity": {
+      "type": "boolean"
+    },
+    "contracts": {
+      "type": "object"
+    }
+  },
+  "required": [
+    "schema"
+  ],
+  "additionalProperties": false,
+  "oneOf": [
+    {
+      "required": [
+        "models",
+        "unavailable_selections"
+      ]
+    },
+    {
+      "required": [
+        "model",
+        "status",
+        "artifact_count",
+        "source_parity"
+      ]
+    }
+  ]
+}
