@@ -10,7 +10,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     });
     let mut bytes = Vec::new();
     image::codecs::jpeg::JpegEncoder::new_with_quality(&mut bytes, 95).encode_image(&image)?;
-    let mut builder = c2pa::Builder::from_json(
+    let mut builder = c2pa::Builder::from_context(c2pa::Context::new()).with_definition(
         r#"{"title":"Generated local test image; no real identity","claim_generator_info":[{"name":"saccade qualification fixture"}],"assertions":[{"label":"c2pa.actions","data":{"actions":[{"action":"c2pa.created","digitalSourceType":"http://cv.iptc.org/newscodes/digitalsourcetype/algorithmicMedia"}]}}]}"#,
     )?;
     let mut signed = Cursor::new(Vec::new());

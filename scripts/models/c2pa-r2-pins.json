@@ -3,16 +3,16 @@
   "network": false,
   "files": {
     "signed.jpg": {
-      "sha256": "7bac5c5de6579c8b8d48fb74e956bbfede37d9868f78833641d20cd8e1e07432",
-      "bytes": 14104
+      "sha256": "55f8f54f02a96c004a9b1245d93cb4e0d1f52b4d786b9620c0ac1f224bae958b",
+      "bytes": 14408
     },
     "stripped.jpg": {
       "sha256": "964cec00965730387ae3d6128ce54705958ced21fe0c01615128c9ba6c14c288",
       "bytes": 1083
     },
     "transplant.jpg": {
-      "sha256": "a92178eb9af421a42f857c8ee9b05091ebc8f0a7c8cc47246584f63d10a3e92f",
-      "bytes": 13535
+      "sha256": "91d9d605c8a252f2b52d80098785483b8a5d99dfa1d420a706ff6e17213c950c",
+      "bytes": 13839
     },
     "certificate.pem": {
       "sha256": "e00c75988c5416885d1961b63b8bf405cd1a94e359095d6a4d8fcacc439f23c9",
