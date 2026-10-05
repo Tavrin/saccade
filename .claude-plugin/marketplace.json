@@ -1,0 +1,15 @@
+{
+  "name": "saccade",
+  "description": "Saccade agent integrations",
+  "owner": {
+    "name": "Tavrin",
+    "url": "https://github.com/Tavrin"
+  },
+  "plugins": [
+    {
+      "name": "saccade",
+      "source": "./integrations/claude-code",
+      "description": "Measure and review visual changes with the installed Saccade CLI."
+    }
+  ]
+}

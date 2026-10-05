@@ -26,6 +26,14 @@ def generated(binary=None):
         'integrations/claude-code/skills/saccade/SKILL.md':
             '---\nname: saccade\ndescription: Measure visual changes and prepare human review within authorized scope.\n---\n\n' + PACK_HEADER + guide,
     }
+    packs['integrations/codex/skills/saccade/SKILL.md'] = packs[
+        'integrations/claude-code/skills/saccade/SKILL.md']
+    prompt = (ROOT / 'integrations/codex/check-visual-change.prompt.md').read_text(encoding="utf-8")
+    packs['integrations/codex/skills/check-visual-change/SKILL.md'] = (
+        '---\nname: check-visual-change\n'
+        'description: Check supplied baseline and candidate captures with the installed Saccade CLI for visual, identity, or performance claims.\n---\n\n'
+        '<!-- Generated from integrations/codex/check-visual-change.prompt.md by scripts/gen-docs.py. -->\n'
+        + prompt)
     for name, body in packs.items():
         if len(body.encode()) > 4800:
             raise ValueError(f'{name}: exceeds estimated 1200-token budget (4800 UTF-8 bytes)')

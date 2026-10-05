@@ -1,0 +1,32 @@
+{
+  "name": "saccade",
+  "version": "0.1.0",
+  "description": "Measure and review visual changes with the installed Saccade CLI.",
+  "author": {
+    "name": "Tavrin",
+    "url": "https://github.com/Tavrin"
+  },
+  "homepage": "https://github.com/Tavrin/saccade",
+  "repository": "https://github.com/Tavrin/saccade",
+  "license": "MIT OR Apache-2.0",
+  "keywords": [
+    "visual-regression",
+    "image-diff",
+    "testing"
+  ],
+  "displayName": "Saccade",
+  "userConfig": {
+    "source_root": {
+      "type": "directory",
+      "title": "Capture root",
+      "description": "Absolute existing directory containing captures Saccade may read.",
+      "required": true
+    },
+    "out_root": {
+      "type": "directory",
+      "title": "Report root",
+      "description": "Absolute directory for generated reports; must not contain or be inside the capture root.",
+      "required": true
+    }
+  }
+}

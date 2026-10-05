@@ -1,0 +1,8 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="512" height="512" viewBox="0 0 512 512">
+  <title>Saccade</title>
+  <rect width="512" height="512" rx="96" fill="#14252f"/>
+  <path d="M88 256 Q256 64 424 256 Q256 448 88 256Z" fill="none" stroke="#f0f5f2" stroke-width="24" stroke-linejoin="round"/>
+  <circle cx="256" cy="256" r="66" fill="#67dbc2"/>
+  <path d="M256 190 A66 66 0 0 1 256 322Z" fill="#f4b76a"/>
+  <path d="M256 176V336" stroke="#14252f" stroke-width="12"/>
+</svg>

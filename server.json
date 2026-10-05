@@ -1,7 +1,7 @@
 {
   "$schema": "https://static.modelcontextprotocol.io/schemas/2025-12-11/server.schema.json",
   "name": "io.github.tavrin/saccade",
-  "title": "saccade",
+  "title": "Saccade",
   "description": "Perceptual visual regression, image evidence inspection and bounded decision proposals.",
   "repository": {
     "url": "https://github.com/Tavrin/saccade",
@@ -14,27 +14,31 @@
       "registryBaseUrl": "https://crates.io",
       "identifier": "saccade",
       "version": "0.1.0",
-      "runtimeHint": "saccade",
       "transport": {
         "type": "stdio"
       },
       "packageArguments": [
-        { "type": "positional", "value": "mcp" },
+        {
+          "type": "positional",
+          "value": "mcp"
+        },
         {
           "type": "named",
           "name": "--root",
-          "valueHint": "project_root",
-          "description": "Absolute project directory to confine MCP file access.",
+          "valueHint": "capture_root",
+          "description": "Absolute existing directory containing readable captures.",
+          "isRequired": true,
+          "format": "filepath"
+        },
+        {
+          "type": "named",
+          "name": "--out-root",
+          "valueHint": "report_root",
+          "description": "Absolute report directory; must not contain or be inside the capture root.",
           "isRequired": true,
           "format": "filepath"
         }
       ]
     }
-  ],
-  "_meta": {
-    "io.modelcontextprotocol.registry/publisher-provided": {
-      "status": "not yet published",
-      "installHint": "cargo install --git https://github.com/Tavrin/saccade saccade --locked; then run saccade mcp --root /absolute/project/path"
-    }
-  }
+  ]
 }

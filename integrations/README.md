@@ -1,6 +1,8 @@
 # Agent integrations
 
-Install Saccade and put it on PATH. These packs are generated from
+Install Saccade and put it on PATH. For packaged installation in Claude Code,
+Codex, Cursor, Copilot CLI and VS Code, see [plugins](../docs/plugins.md).
+The agent guide packs are generated from
 [agent-guide.md](agent-guide.md) by `python3 scripts/gen-docs.py`.
 Copy the Claude skill directory to `.claude/skills/saccade/`, or append the Codex
 pack to the project's existing `AGENTS.md`, preserving its other instructions.
@@ -29,5 +31,6 @@ Provider execution requires human startup authorization, finite budgets and
 allowed source-root egress. No baseline-write tool exists.
 See [the agent workflow](../docs/agents.md).
 
-`server.json` remains draft registry metadata; package and registry publication
-are not established by this integration.
+`server.json` describes the 0.1.0 Cargo package over stdio. Registry publication
+requires a later crate release containing the visible ownership marker added
+to the crate README, followed by a manifest version update and owner submission.

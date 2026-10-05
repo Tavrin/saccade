@@ -1,0 +1,31 @@
+{
+  "$schema": "https://agent-plugins.org/schemas/1.0.0/plugin.schema.json",
+  "name": "saccade",
+  "version": "0.1.0",
+  "description": "Measure and review visual changes with the installed Saccade CLI.",
+  "author": {
+    "name": "Tavrin",
+    "url": "https://github.com/Tavrin"
+  },
+  "homepage": "https://github.com/Tavrin/saccade",
+  "repository": "https://github.com/Tavrin/saccade",
+  "license": "MIT OR Apache-2.0",
+  "keywords": [
+    "visual-regression",
+    "image-diff",
+    "testing"
+  ],
+  "extensions": {
+    "com.openai": {
+      "interface": {
+        "displayName": "Saccade",
+        "shortDescription": "Visual regression reviews",
+        "longDescription": "Measure supplied captures and inspect bounded Saccade reports using the installed CLI.",
+        "developerName": "Tavrin",
+        "category": "Developer Tools",
+        "logo": "./assets/logo.svg",
+        "composerIcon": "./assets/icon.svg"
+      }
+    }
+  }
+}

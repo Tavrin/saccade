@@ -1,0 +1,46 @@
+name: Plugins
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - '.agents/plugins/**'
+      - '.claude-plugin/**'
+      - 'integrations/**'
+      - 'server.json'
+      - 'Cargo.toml'
+      - 'crates/saccade/Cargo.toml'
+      - 'crates/saccade/README.md'
+      - 'scripts/gen-docs.py'
+      - 'scripts/validate-plugin-manifests.py'
+      - 'scripts/plugin-schemas/**'
+      - '.github/workflows/plugins.yml'
+  pull_request:
+    paths:
+      - '.agents/plugins/**'
+      - '.claude-plugin/**'
+      - 'integrations/**'
+      - 'server.json'
+      - 'Cargo.toml'
+      - 'crates/saccade/Cargo.toml'
+      - 'crates/saccade/README.md'
+      - 'scripts/gen-docs.py'
+      - 'scripts/validate-plugin-manifests.py'
+      - 'scripts/plugin-schemas/**'
+      - '.github/workflows/plugins.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  manifests:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5
+        with:
+          python-version: '3.12'
+      - run: python3 -m pip install jsonschema==4.10.3
+      - run: python3 scripts/validate-plugin-manifests.py
+      - run: python3 scripts/gen-docs.py --check
