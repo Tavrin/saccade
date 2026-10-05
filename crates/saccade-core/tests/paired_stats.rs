@@ -132,7 +132,7 @@ fn seeded_symmetric_null_and_shift_have_constructed_coverage() {
         let noise: Vec<_> = (0..24)
             .map(|_| {
                 (0..12)
-                    .map(|_| (generator.index(1 << 20) as f64 + 0.5) / (1 << 20) as f64)
+                    .map(|_| (generator.index(1 << 20).unwrap() as f64 + 0.5) / (1 << 20) as f64)
                     .sum::<f64>()
                     - 6.
             })
@@ -244,4 +244,60 @@ fn paired_sidecar_is_integrated_and_stale_or_partial_series_rejects_qualificatio
                 .any(|s| s.contains("escapes"))
         );
     }
+}
+
+#[test]
+fn w3_f12_quantile_extreme_finite() {
+    assert_eq!(quantile(&[-f64::MAX, f64::MAX], 0.5).unwrap(), 0.);
+    assert_eq!(quantile(&[-f64::MAX, f64::MAX], 0.).unwrap(), -f64::MAX);
+    assert_eq!(quantile(&[-f64::MAX, f64::MAX], 1.).unwrap(), f64::MAX);
+    assert!(
+        quantile(&[f64::MAX / 2., f64::MAX], 0.75)
+            .unwrap()
+            .is_finite()
+    );
+}
+#[test]
+fn w3_f13_empty_generator_does_not_panic() {
+    assert!(
+        std::panic::catch_unwind(|| Generator::new(1).index(0))
+            .unwrap()
+            .is_err()
+    );
+    let mut a = Generator::new(1);
+    let mut b = Generator::new(1);
+    assert!(a.index(0).is_err());
+    for length in [1, 2, 17, usize::MAX] {
+        let i = a.index(length).unwrap();
+        assert!(i < length);
+        assert_eq!(i, b.index(length).unwrap());
+    }
+}
+#[cfg(all(unix, feature = "graphics"))]
+#[test]
+fn w3_f02_dangling_pairs_rejected() {
+    use saccade_core::perf::{self, Comparability, PerfOptions};
+    let t = tempfile::tempdir().unwrap();
+    let before = t.path().join("b");
+    let after = t.path().join("a");
+    std::fs::create_dir(&before).unwrap();
+    std::fs::create_dir(&after).unwrap();
+    let b = serde_json::json!({"schema":"saccade-perf.v1","unit":"ms","frame":{"value":10.,"samples":6,"stat":"p50"},"terms":[],"counters":{}});
+    for dir in [&before, &after] {
+        std::fs::write(dir.join("saccade-perf.json"), b.to_string()).unwrap();
+    }
+    let opts = PerfOptions {
+        gpu_clocks_not_applicable: true,
+        ..Default::default()
+    };
+    let historical = perf::pair(&before, &after, &opts).unwrap().0.unwrap();
+    std::os::unix::fs::symlink(
+        after.join("missing.json"),
+        after.join("saccade-perf-pairs.json"),
+    )
+    .unwrap();
+    let d = perf::pair(&before, &after, &opts).unwrap().0.unwrap();
+    assert_eq!(d.comparability, Comparability::Rejected);
+    assert!(d.qualification_reasons.iter().any(|s| s.contains("paired")));
+    assert_ne!(d.qualification_reasons, historical.qualification_reasons);
 }

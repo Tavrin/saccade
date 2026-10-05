@@ -141,7 +141,15 @@ pub fn quantile(sorted: &[f64], q: f64) -> Result<f64> {
     let p = q * (sorted.len() - 1) as f64;
     let low = p.floor() as usize;
     let high = p.ceil() as usize;
-    Ok(sorted[low] + (p - low as f64) * (sorted[high] - sorted[low]))
+    let weight = p - low as f64;
+    let a = sorted[low];
+    let b = sorted[high];
+    // Opposite signs can overflow b-a; same-sign interpolation retains precision.
+    Ok(if a.signum() != b.signum() {
+        a * (1.0 - weight) + b * weight
+    } else {
+        a + weight * (b - a)
+    })
 }
 /// Deterministic SplitMix64 stream; no global random state.
 #[derive(Debug, Clone)]
@@ -151,9 +159,11 @@ impl Generator {
     pub fn new(seed: u64) -> Self {
         Self(seed)
     }
-    /// Uniform bounded index using rejection sampling, avoiding modulo bias.
-    pub fn index(&mut self, length: usize) -> usize {
-        assert!(length > 0, "nonempty sample required");
+    /// Uniform bounded index using rejection sampling; returns an error for zero length.
+    pub fn index(&mut self, length: usize) -> Result<usize> {
+        if length == 0 {
+            return Err(invalid("nonempty sample required"));
+        }
         let n = length as u64;
         let threshold = n.wrapping_neg() % n;
         loop {
@@ -163,7 +173,7 @@ impl Generator {
             z = (z ^ (z >> 27)).wrapping_mul(0x94d049bb133111eb);
             z ^= z >> 31;
             if z >= threshold {
-                return (z % n) as usize;
+                return Ok((z % n) as usize);
             }
         }
     }
@@ -231,7 +241,7 @@ pub fn estimate(samples: &Samples) -> Result<Effect> {
     let mut resampled_logs = vec![0.; d.len()];
     for _ in 0..samples.plan.resamples {
         for i in 0..d.len() {
-            let j = generator.index(d.len());
+            let j = generator.index(d.len())?;
             resampled[i] = d[j];
             resampled_logs[i] = ratios[j];
         }
@@ -282,7 +292,8 @@ pub(crate) fn read(
     name: &str,
 ) -> Result<Option<Effect>> {
     let path = after.join("saccade-perf-pairs.json");
-    let metadata = match std::fs::metadata(&path) {
+    // Entry absence alone enables historical fallback; a dangling link is supplied evidence.
+    let entry = match std::fs::symlink_metadata(&path) {
         Ok(v) => v,
         Err(e) if e.kind() == std::io::ErrorKind::NotFound => return Ok(None),
         Err(source) => {
@@ -291,6 +302,14 @@ pub(crate) fn read(
                 source,
             });
         }
+    };
+    let metadata = if entry.file_type().is_symlink() {
+        std::fs::metadata(&path).map_err(|source| Error::Io {
+            context: "resolving supplied paired performance sidecar".into(),
+            source,
+        })?
+    } else {
+        entry
     };
     if !metadata.is_file() || metadata.len() > 4 * 1024 * 1024 {
         return Err(invalid("paired sidecar must be a regular file <=4 MiB"));
