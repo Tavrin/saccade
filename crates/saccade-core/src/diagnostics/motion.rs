@@ -99,6 +99,78 @@ fn texture_rank(base: Pixels<'_>) -> bool {
     }
     xx > 1e-8 && yy > 1e-8 && (xx * yy - xy * xy) / (xx * yy) > 0.01
 }
+// Hann windows can select one phase peak on an exactly repeating texture.
+// Independently search the unwindowed, overlap-normalized texture
+// autocorrelation for distant local peaks. Linear zero padding avoids inventing
+// repetitions across image edges; integral energies normalize overlap loss.
+fn periodic_alias(px: Pixels<'_>) -> bool {
+    let (iw, ih) = px.dims();
+    let factor = iw.max(ih).div_ceil(256).max(1);
+    let (plane, w, h) = luma_plane(px, 0, 0, iw, ih, factor, None);
+    if w < 16 || h < 16 {
+        return false;
+    }
+    let (pw, ph) = ((2 * w).next_power_of_two(), (2 * h).next_power_of_two());
+    let mean = plane.iter().map(|&v| f64::from(v)).sum::<f64>() / plane.len() as f64;
+    let mut data = vec![Complex::new(0.0, 0.0); pw * ph];
+    let mut energy = vec![0.0; (w + 1) * (h + 1)];
+    for y in 0..h {
+        for x in 0..w {
+            let v = (f64::from(plane[y * w + x]) - mean) as f32;
+            data[y * pw + x].re = v;
+            let i = (y + 1) * (w + 1) + x + 1;
+            energy[i] =
+                f64::from(v).powi(2) + energy[i - 1] + energy[i - w - 1] - energy[i - w - 2];
+        }
+    }
+    let rect = |x0: usize, y0: usize, x1: usize, y1: usize| {
+        energy[y1 * (w + 1) + x1] - energy[y0 * (w + 1) + x1] - energy[y1 * (w + 1) + x0]
+            + energy[y0 * (w + 1) + x0]
+    };
+    if rect(0, 0, w, h) < 1e-8 {
+        return false;
+    }
+    let mut planner = FftPlanner::new();
+    fft2(&mut planner, &mut data, pw, ph, false);
+    for value in &mut data {
+        *value = Complex::new(value.norm_sqr(), 0.0);
+    }
+    fft2(&mut planner, &mut data, pw, ph, true);
+    let correlation = |dx: isize, dy: isize| {
+        let (x0, y0) = (dx.max(0) as usize, dy.max(0) as usize);
+        let (x1, y1) = (w - (-dx).max(0) as usize, h - (-dy).max(0) as usize);
+        let first = rect(x0, y0, x1, y1);
+        let second = rect(
+            (x0 as isize - dx) as usize,
+            (y0 as isize - dy) as usize,
+            (x1 as isize - dx) as usize,
+            (y1 as isize - dy) as usize,
+        );
+        let denom = (first * second).sqrt();
+        if denom < 1e-10 {
+            return 0.0;
+        }
+        let x = dx.rem_euclid(pw as isize) as usize;
+        let y = dy.rem_euclid(ph as isize) as usize;
+        f64::from(data[y * pw + x].re) / (pw * ph) as f64 / denom
+    };
+    for dy in -(h as isize / 2)..=h as isize / 2 {
+        for dx in 0..=w as isize / 2 {
+            if dx.abs().max(dy.abs()) <= 3 {
+                continue;
+            }
+            let peak = correlation(dx, dy);
+            if peak >= 0.9995
+                && [(dx - 1, dy), (dx + 1, dy), (dx, dy - 1), (dx, dy + 1)]
+                    .iter()
+                    .all(|&(x, y)| peak + 1e-6 >= correlation(x, y))
+            {
+                return true;
+            }
+        }
+    }
+    false
+}
 /// Records why the computation did not run, including explicit user exclusions.
 pub(super) fn unavailable(reason: &str, excluded: bool) -> Analysis<MotionEvidence> {
     Analysis {
@@ -151,7 +223,9 @@ pub(super) fn analyze(
             && a.peak_ratio >= 1.2
             && b.peak_ratio >= 1.2
     }) && consistency.is_some_and(|e| e <= 0.2)
-        && texture_rank(req.baseline);
+        && texture_rank(req.baseline)
+        && !periodic_alias(req.baseline)
+        && !periodic_alias(req.capture);
     let correspondence = if qualified {
         Capability::Available
     } else {
@@ -281,7 +355,7 @@ pub(super) fn analyze(
             }
         })
         .collect();
-    let mut provenance = Provenance::native("phase-correlation-hotspots/1");
+    let mut provenance = Provenance::native("phase-correlation-hotspots/2");
     provenance.resources = [("baseline", base), ("capture", cap)]
         .into_iter()
         .map(|(name, image)| Resource {
@@ -305,6 +379,7 @@ pub(super) fn analyze(
         "minimum_global_gradient_rank".into(),
         "0.01; gradient energies each > 1e-8".into(),
     );
+    provenance.settings.insert("periodic_alias_test".into(), "unwindowed linear autocorrelation; distant local peak >=0.9995 with at least half-axis overlap; maximum side 256".into());
     provenance.settings.extend([("dimensions".into(),format!("{w}x{h}")),("phase".into(),"RustFFT 6.4.1 (MIT OR Apache-2.0); Hann window; whitened cross-spectrum; low-frequency phase-slope subpixel fit".into()),("interpolation".into(),"one Catmull-Rom bicubic inverse warp in encoded RGBA8; rounded/clamped samples; border support excluded".into()),("minimum_peak_ratio".into(),"1.2 outside 3px peak neighbourhood".into()),("maximum_forward_backward_error_px".into(),"0.2".into()),("minimum_phase_coherence".into(),req.config.shift_min_confidence.to_string()),("minimum_displacement_px".into(),req.config.shift_min_px.to_string()),("maximum_aligned_flip_mean_and_peak".into(),req.config.noise_max_flip.to_string()),("minimum_explained_fraction".into(),req.config.explained_min.to_string()),("minimum_local_texture_std".into(),"0.002".into()),("minimum_valid_pixels_and_fraction".into(),"8 and 0.5".into())]);
     Analysis { capability:Capability::Available,provenance:Some(provenance),evidence:Some(MotionEvidence { correspondence,translation:estimate.map(|e| [e.dx,e.dy]),phase_coherence:estimate.map(|e| e.confidence),peak_ratio:estimate.map(|e| e.peak_ratio),forward_backward_error:consistency,raw_full_frame_flip_mean:req.comparison.metrics.mean,aligned_valid_flip_mean:aligned_mean,border_margin_px:margin,invalid_border_runs:runs(&invalid),hotspots,dense_flow:Capability::Unsupported { reason:"dis_not_in_this_build".into() } }),limitations:vec!["Unaligned FLIP, entry thresholds and verdict remain authoritative; movement can itself be a regression.".into(),"Hotspot labels are conditional on one global translation, not independent-object flow or causal proof. Interior disocclusion and local deformation are not qualified.".into(),"HDR, transparency and dense DIS flow are unsupported for these hotspot labels. Ambiguous, untextured or border-dominated hotspots stay unknown.".into()] }
 }

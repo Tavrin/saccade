@@ -2288,6 +2288,57 @@ mod tests {
         assert_eq!(d.motion, analyse(&base, &cap).motion);
     }
     #[test]
+    fn periodic_aliases_never_qualify_correspondence() {
+        let wave = |x: f64, y: f64| {
+            (128.0
+                + 40.0 * (2.0 * std::f64::consts::PI * x / 24.0).sin()
+                + 40.0 * (2.0 * std::f64::consts::PI * y / 24.0).sin())
+            .round()
+                / 255.0
+        };
+        let base = render(wave);
+        let cap = render(|x, y| wave(x - 25.0, y));
+        let evidence = analyse(&base, &cap)
+            .motion
+            .expect("motion")
+            .evidence
+            .expect("evidence");
+        assert!(
+            matches!(
+                evidence.correspondence,
+                crate::evidence::analysis::Capability::Unknown { .. }
+            ),
+            "{evidence:?}"
+        );
+        assert!(
+            evidence
+                .hotspots
+                .iter()
+                .all(|h| h.class == MotionClass::Unknown)
+        );
+        let base = RgbaImage::from_fn(N, N, |x, y| {
+            let value = (wave(f64::from(x), f64::from(y)) * 255.0).round() as u8;
+            image::Rgba([value, value, value, 255])
+        });
+        let cap = RgbaImage::from_fn(N, N, |x, y| {
+            let value = (wave(f64::from(x) - 25.0, f64::from(y)) * 255.0).round() as u8;
+            image::Rgba([value, value, value, 255])
+        });
+        let evidence = analyse(&base, &cap)
+            .motion
+            .expect("motion")
+            .evidence
+            .expect("evidence");
+        assert!(
+            matches!(
+                evidence.correspondence,
+                crate::evidence::analysis::Capability::Unknown { .. }
+            ),
+            "{evidence:?}"
+        );
+    }
+
+    #[test]
     fn motion_abstains_on_aperture_ambiguity_and_transparency() {
         let base = render(|x, _| 0.4 + 0.15 * (x / 3.0).sin());
         let cap = render(|x, _| 0.4 + 0.15 * ((x - 1.0) / 3.0).sin());
