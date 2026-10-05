@@ -11,6 +11,50 @@
         "evidence": {
           "anyOf": [
             {
+              "$ref": "#/$defs/MotionEvidence"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "Measurements, never an independent approval authority."
+        },
+        "limitations": {
+          "description": "Scope restrictions in stable order.",
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "provenance": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Provenance"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "Reproduction information; absent for historical, unrecorded evidence."
+        }
+      },
+      "required": [
+        "capability",
+        "limitations"
+      ],
+      "type": "object"
+    },
+    "Analysis2": {
+      "additionalProperties": false,
+      "description": "One optional result. Historical absence cannot imply successful execution.",
+      "properties": {
+        "capability": {
+          "$ref": "#/$defs/Capability",
+          "description": "Whether this producer established the requested evidence."
+        },
+        "evidence": {
+          "anyOf": [
+            {
               "$ref": "#/$defs/ExclusionAudit"
             },
             {
@@ -670,6 +714,17 @@
           "description": "Wall time of the whole analysis in milliseconds.",
           "format": "double",
           "type": "number"
+        },
+        "motion": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Analysis"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "Conditional per-hotspot motion evidence; raw unaligned FLIP remains authoritative."
         },
         "nonfinite": {
           "anyOf": [
@@ -1647,6 +1702,214 @@
           "type": "string"
         }
       ]
+    },
+    "MotionClass": {
+      "description": "Per-hotspot interpretation under the recorded global translation hypothesis.",
+      "oneOf": [
+        {
+          "const": "stable",
+          "description": "Displacement and aligned residual are below the declared diagnostic limits.",
+          "type": "string"
+        },
+        {
+          "const": "moved",
+          "description": "Qualified global displacement explains this hotspot's appearance residual.",
+          "type": "string"
+        },
+        {
+          "const": "changed",
+          "description": "Significant appearance residual without appreciable global displacement.",
+          "type": "string"
+        },
+        {
+          "const": "moved_and_changed",
+          "description": "Appreciable global displacement and significant remaining appearance residual.",
+          "type": "string"
+        },
+        {
+          "const": "unknown",
+          "description": "Correspondence, texture or valid coverage is insufficient.",
+          "type": "string"
+        }
+      ]
+    },
+    "MotionEvidence": {
+      "description": "Reproducible evidence alongside unaligned FLIP.",
+      "properties": {
+        "aligned_valid_flip_mean": {
+          "description": "Aligned FLIP mean only on valid interior pixels.",
+          "format": "double",
+          "type": [
+            "number",
+            "null"
+          ]
+        },
+        "border_margin_px": {
+          "description": "Conservative interpolation plus FLIP filter border margin.",
+          "format": "uint",
+          "minimum": 0,
+          "type": "integer"
+        },
+        "correspondence": {
+          "$ref": "#/$defs/Capability",
+          "description": "Conditional global correspondence qualification."
+        },
+        "dense_flow": {
+          "$ref": "#/$defs/Capability",
+          "description": "Dense independent-object correspondence is unsupported in this build."
+        },
+        "forward_backward_error": {
+          "description": "Length of forward + reverse displacement, in pixels.",
+          "format": "double",
+          "type": [
+            "number",
+            "null"
+          ]
+        },
+        "hotspots": {
+          "description": "Per-original-hotspot diagnostics.",
+          "items": {
+            "$ref": "#/$defs/MotionHotspot"
+          },
+          "type": "array"
+        },
+        "invalid_border_runs": {
+          "description": "Pixels excluded from aligned evidence, as row-major [start,length] runs.",
+          "items": {
+            "items": {
+              "format": "uint32",
+              "minimum": 0,
+              "type": "integer"
+            },
+            "maxItems": 2,
+            "minItems": 2,
+            "type": "array"
+          },
+          "type": "array"
+        },
+        "peak_ratio": {
+          "description": "Best correlation peak divided by the strongest peak outside a 3-pixel neighbourhood.",
+          "format": "double",
+          "type": [
+            "number",
+            "null"
+          ]
+        },
+        "phase_coherence": {
+          "description": "Weighted phase coherence; not a probability.",
+          "format": "double",
+          "type": [
+            "number",
+            "null"
+          ]
+        },
+        "raw_full_frame_flip_mean": {
+          "description": "Original complete-frame FLIP mean; never replaced with aligned measurements.",
+          "format": "double",
+          "type": "number"
+        },
+        "translation": {
+          "description": "Capture displacement against baseline, right/down positive, in pixels.",
+          "items": {
+            "format": "double",
+            "type": "number"
+          },
+          "maxItems": 2,
+          "minItems": 2,
+          "type": [
+            "array",
+            "null"
+          ]
+        }
+      },
+      "required": [
+        "correspondence",
+        "raw_full_frame_flip_mean",
+        "border_margin_px",
+        "invalid_border_runs",
+        "hotspots",
+        "dense_flow"
+      ],
+      "type": "object"
+    },
+    "MotionHotspot": {
+      "description": "One original hotspot measured without changing its selected pixel mask.",
+      "properties": {
+        "aligned_flip_max": {
+          "description": "Peak aligned FLIP on the same valid pixels; prevents small defects being diluted in a large hotspot.",
+          "format": "double",
+          "type": [
+            "number",
+            "null"
+          ]
+        },
+        "aligned_flip_mean": {
+          "description": "Aligned FLIP mean on those same valid pixels.",
+          "format": "double",
+          "type": [
+            "number",
+            "null"
+          ]
+        },
+        "class": {
+          "$ref": "#/$defs/MotionClass",
+          "description": "Conditional diagnostic class, not an acceptance decision."
+        },
+        "explained_fraction": {
+          "description": "Fraction of raw mean removed by alignment, clamped to [0,1].",
+          "format": "double",
+          "type": [
+            "number",
+            "null"
+          ]
+        },
+        "hotspot": {
+          "description": "Index in the original ordered hotspot list.",
+          "format": "uint",
+          "minimum": 0,
+          "type": "integer"
+        },
+        "raw_flip_mean": {
+          "description": "Original FLIP mean on those same valid pixels.",
+          "format": "double",
+          "type": [
+            "number",
+            "null"
+          ]
+        },
+        "reasons": {
+          "description": "Why correspondence or classification remains unresolved.",
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "texture_std": {
+          "description": "Baseline encoded-luminance standard deviation on the valid pixels.",
+          "format": "double",
+          "type": "number"
+        },
+        "valid_fraction": {
+          "description": "Fraction of original hotspot pixels retained.",
+          "format": "double",
+          "type": "number"
+        },
+        "valid_pixels": {
+          "description": "Number of original hotspot pixels retained after border exclusion.",
+          "format": "uint",
+          "minimum": 0,
+          "type": "integer"
+        }
+      },
+      "required": [
+        "hotspot",
+        "class",
+        "valid_pixels",
+        "valid_fraction",
+        "texture_std",
+        "reasons"
+      ],
+      "type": "object"
     },
     "NonFiniteCluster": {
       "description": "A connected group of non-finite samples.",
@@ -3043,7 +3306,7 @@
     "exclusion_audit": {
       "anyOf": [
         {
-          "$ref": "#/$defs/Analysis"
+          "$ref": "#/$defs/Analysis2"
         },
         {
           "type": "null"

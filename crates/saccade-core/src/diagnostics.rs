@@ -29,6 +29,9 @@
 //! size of the images: pixels are read through [`Pixels`] instead of being
 //! converted to float planes.
 
+mod motion;
+pub use motion::{MotionClass, MotionEvidence, MotionHotspot};
+
 use std::path::Path;
 use std::sync::OnceLock;
 use std::time::Instant;
@@ -335,6 +338,9 @@ pub struct PerfNotComparable {
 #[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct Diagnostics {
+    /// Conditional per-hotspot motion evidence; raw unaligned FLIP remains authoritative.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub motion: Option<crate::evidence::analysis::Analysis<MotionEvidence>>,
     /// The kind of change.
     pub class: ChangeClass,
     /// A deterministic, template-based sentence; every cause it names is
@@ -563,6 +569,10 @@ pub fn diagnose(req: &DiagnoseRequest<'_>) -> Result<DiagnoseOutput> {
     let identical = native_identical || metrics.max == 0.0;
     let mut out = DiagnoseOutput {
         diagnostics: Diagnostics {
+            motion: Some(motion::unavailable(
+                "no_motion_estimation_for_identical_or_unusable_map",
+                !cfg.shift_detection,
+            )),
             class: ChangeClass::Identical,
             description: String::new(),
             tone: None,
@@ -645,6 +655,7 @@ pub fn diagnose(req: &DiagnoseRequest<'_>) -> Result<DiagnoseOutput> {
         },
     );
 
+    out.diagnostics.motion = Some(motion::analyze(req, est.as_ref(), shift_cmp.as_ref()));
     let mut tone_frac = 0.0;
     if let Some(fit) = &fit {
         let mut residual = Residual {
@@ -1026,6 +1037,7 @@ fn apply_tone(cap: Pixels<'_>, fit: &ToneFit) -> Owned {
 // ---------------------------------------------------------------------------
 
 struct RawShift {
+    peak_ratio: f64,
     dx: f64,
     dy: f64,
     confidence: f64,
@@ -1147,7 +1159,7 @@ fn signed_freq(k: usize, n: usize) -> f64 {
 /// down. The peak of the whitened correlation gives the integer offset; a
 /// weighted fit of the residual phase slope over the low frequencies gives the
 /// sub-pixel part.
-fn phase_correlate(base: &[f32], cap: &[f32], w: usize, h: usize) -> Option<(f64, f64, f64)> {
+fn phase_correlate(base: &[f32], cap: &[f32], w: usize, h: usize) -> Option<(f64, f64, f64, f64)> {
     if w < 16 || h < 16 {
         return None;
     }
@@ -1175,6 +1187,17 @@ fn phase_correlate(base: &[f32], cap: &[f32], w: usize, h: usize) -> Option<(f64
         return None;
     }
     let (px, py) = (idx % pw, idx / pw);
+    let second = surface
+        .iter()
+        .enumerate()
+        .filter(|(i, _)| {
+            let dx = (i % pw).abs_diff(px);
+            let dy = (i / pw).abs_diff(py);
+            dx.min(pw - dx) > 3 || dy.min(ph - dy) > 3
+        })
+        .map(|(_, c)| c.re)
+        .fold(0.0f32, f32::max);
+    let peak_ratio = f64::from(best) / f64::from(second.max(1e-9));
     let wrap = |p: usize, n: usize| {
         if p < n / 2 {
             p as isize
@@ -1246,7 +1269,7 @@ fn phase_correlate(base: &[f32], cap: &[f32], w: usize, h: usize) -> Option<(f64
     } else {
         0.0
     };
-    Some((ix as f64 + ex, iy as f64 + ey, confidence))
+    Some((ix as f64 + ex, iy as f64 + ey, confidence, peak_ratio))
 }
 
 /// Shift of `cap` against `base`: a coarse estimate on a plane of at most
@@ -1263,7 +1286,7 @@ fn estimate_shift(
     if f > 1 {
         let (a, aw, ah) = luma_plane(base, 0, 0, w, h, f, None);
         let (b, _, _) = luma_plane(cap, 0, 0, w, h, f, nonfinite_codes);
-        let (dx, dy, _) = phase_correlate(&a, &b, aw, ah)?;
+        let (dx, dy, _, _) = phase_correlate(&a, &b, aw, ah)?;
         rx = (dx * f as f64).round() as isize;
         ry = (dy * f as f64).round() as isize;
     }
@@ -1283,8 +1306,9 @@ fn estimate_shift(
     let cap_x = (ox as isize + rx) as usize;
     let cap_y = (oy as isize + ry) as usize;
     let (b, _, _) = luma_plane(cap, cap_x, cap_y, cw, ch, 1, nonfinite_codes);
-    let (ex, ey, confidence) = phase_correlate(&a, &b, aw, ah)?;
+    let (ex, ey, confidence, peak_ratio) = phase_correlate(&a, &b, aw, ah)?;
     Some(RawShift {
+        peak_ratio,
         dx: rx as f64 + ex,
         dy: ry as f64 + ey,
         confidence,
@@ -2199,6 +2223,90 @@ mod tests {
             );
             assert!(s.detected, "{s:?}");
         }
+    }
+
+    #[test]
+    fn motion_evidence_tracks_constructed_subpixel_jitter_and_preserves_raw_error() {
+        let base = render(scene);
+        for dx in [-2.0, -1.0, -0.5, -0.25, -0.125, 0.125, 0.25, 0.5, 1.0, 2.0] {
+            let cap = render(|x, y| scene(x - dx, y));
+            let d = analyse(&base, &cap);
+            let shift = d.shift.as_ref().expect("phase estimate");
+            assert!(
+                (shift.dx - dx).abs() < 0.1 && shift.dy.abs() < 0.1,
+                "{dx}: {shift:?}"
+            );
+            let m = d
+                .motion
+                .as_ref()
+                .expect("motion")
+                .evidence
+                .as_ref()
+                .expect("evidence");
+            assert!(m.raw_full_frame_flip_mean > 0.0);
+            if dx.abs() >= 1.0 {
+                assert!(
+                    matches!(
+                        m.correspondence,
+                        crate::evidence::analysis::Capability::Available
+                    ),
+                    "{dx}: {m:?}"
+                );
+                assert!(
+                    m.hotspots.iter().any(|h| h.class == MotionClass::Moved),
+                    "{dx}: {m:?}"
+                );
+            }
+        }
+    }
+    #[test]
+    fn motion_keeps_planted_appearance_defects_and_is_deterministic() {
+        let base = render(scene);
+        let cap = render(|x, y| {
+            scene(x - 1.0, y)
+                + if (x - 105.0).hypot(y - 105.0) < 12.0 {
+                    0.25
+                } else {
+                    0.0
+                }
+        });
+        let d = analyse(&base, &cap);
+        let m = d
+            .motion
+            .as_ref()
+            .expect("motion")
+            .evidence
+            .as_ref()
+            .expect("evidence");
+        assert!(
+            m.hotspots.iter().any(|h| matches!(
+                h.class,
+                MotionClass::Changed | MotionClass::MovedAndChanged
+            ) && h.aligned_flip_max.is_some_and(|v| v > 0.05)),
+            "{m:?}"
+        );
+        assert_eq!(d.motion, analyse(&base, &cap).motion);
+    }
+    #[test]
+    fn motion_abstains_on_aperture_ambiguity_and_transparency() {
+        let base = render(|x, _| 0.4 + 0.15 * (x / 3.0).sin());
+        let cap = render(|x, _| 0.4 + 0.15 * ((x - 1.0) / 3.0).sin());
+        let d = analyse(&base, &cap);
+        let m = d.motion.expect("motion").evidence.expect("evidence");
+        assert!(matches!(
+            m.correspondence,
+            crate::evidence::analysis::Capability::Unknown { .. }
+        ));
+        assert!(m.hotspots.iter().all(|h| h.class == MotionClass::Unknown));
+        let mut translucent = render(|x, y| scene(x - 1.0, y));
+        translucent.pixels_mut().for_each(|p| p.0[3] = 128);
+        assert!(matches!(
+            analyse(&render(scene), &translucent)
+                .motion
+                .expect("motion")
+                .capability,
+            crate::evidence::analysis::Capability::Unsupported { .. }
+        ));
     }
 
     #[test]

@@ -44,10 +44,31 @@ pub(crate) fn build_html(
     let (middle, after) = tail
         .split_once("__SACCADE_DATA__")
         .ok_or_else(|| Error::Config("report template lacks data slot".into()))?;
+    let motion = report
+        .entries
+        .iter()
+        .filter_map(|e| {
+            e.diagnostics
+                .as_ref()
+                .and_then(|d| d.motion.as_ref())
+                .map(|m| (e, m))
+        })
+        .map(|(e, m)| {
+            Ok(format!(
+                "<h3>{}</h3><pre>{}</pre>",
+                escape(&e.name),
+                escape(&serde_json::to_string_pretty(m)?)
+            ))
+        })
+        .collect::<Result<Vec<_>>>()?
+        .join("");
     let summary = format!(
         "{}<details><summary>Exclusion audit</summary><pre>{}</pre></details>",
         super::bundle::summary(report, case)?,
         escape(&crate::exclusions::text(report))
+    );
+    let summary = format!(
+        "{summary}<details><summary>Motion diagnostics (raw FLIP remains authoritative)</summary>{motion}</details>"
     );
     let (head, tail) = before
         .split_once("__SACCADE_META__")

@@ -101,3 +101,31 @@ Each resource is limited to 64 MiB; glTF document and buffers share a 64 MiB
 aggregate limit. Meshes are limited to one million vertices and triangles.
 Buffers may be embedded or local relative files. Parent paths, URL escapes,
 remote URLs and symlinks escaping the mesh directory are rejected.
+
+## Motion diagnostics
+
+Ordinary comparisons with diagnostics enabled now include `diagnostics.motion`.
+The portable report's Motion diagnostics section shows the same evidence.
+The existing `[diagnostics] shift_detection = false` setting excludes this work;
+disabling diagnostics omits it entirely. Missing historical fields mean unknown.
+
+A global phase-correlation estimate comes first. Qualification requires sufficient
+two-dimensional texture, phase coherence, a distinct correlation peak, and
+forward/backward consistency. Per-hotspot labels are `stable`, `moved`, `changed`,
+`moved_and_changed`, or `unknown`, conditional on that one global translation.
+They do not establish independent-object flow or the cause of a change.
+
+The record includes raw and aligned FLIP, displacement, phase coherence, peak
+ratio, forward/backward error, exact excluded border runs and per-hotspot valid
+coverage. Alignment uses one encoded-RGBA8 Catmull-Rom warp. Its valid interior
+excludes interpolation support plus the pinned FLIP filter radius. Hotspots with
+insufficient texture or valid coverage remain unknown. Both residual mean and
+peak matter, so a small defect cannot disappear into a large moving hotspot's
+mean. Displacements below `shift_min_px` remain in the estimate but do not count
+as appreciable movement. Only the configured original hotspots receive labels.
+
+The original unaligned FLIP map, thresholds, entry verdict and exit code remain
+authoritative. Moving content may itself be a regression. These labels support
+opaque SDR pairs; HDR and transparency are explicitly unsupported. Dense DIS
+flow, independent motion, interior disocclusion and field TAA qualification remain
+residuals. No OpenCV or learned model is added.

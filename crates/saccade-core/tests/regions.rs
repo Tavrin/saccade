@@ -177,3 +177,36 @@ fn audit_lists_selected_missing_ignored_captures_and_unknown_performance() {
         Some(cfg.default_threshold)
     );
 }
+
+#[test]
+fn motion_diagnostics_cannot_turn_a_raw_flip_failure_into_a_pass() {
+    let tmp = tempfile::tempdir().expect("tmp");
+    let base = RgbImage::from_fn(64, 64, |x, y| {
+        Rgb([((x * 17 + y * 31) % 200 + 20) as u8, 90, 100])
+    });
+    let cap = RgbImage::from_fn(64, 64, |x, y| *base.get_pixel(x.saturating_sub(1), y));
+    save(&tmp.path().join("base"), "a.png", &base);
+    save(&tmp.path().join("cap"), "a.png", &cap);
+    let mut cfg = RunConfig {
+        default_threshold: 0.001,
+        ..Default::default()
+    };
+    let with = run(
+        &tmp.path().join("base"),
+        &tmp.path().join("cap"),
+        &tmp.path().join("with"),
+        &cfg,
+    )
+    .expect("with diagnostics");
+    cfg.diagnostics.enabled = false;
+    let without = run(
+        &tmp.path().join("base"),
+        &tmp.path().join("cap"),
+        &tmp.path().join("without"),
+        &cfg,
+    )
+    .expect("without diagnostics");
+    assert_eq!(with.entries[0].status, Status::Fail);
+    assert_eq!(with.entries[0].status, without.entries[0].status);
+    assert_eq!(with.entries[0].metrics, without.entries[0].metrics);
+}

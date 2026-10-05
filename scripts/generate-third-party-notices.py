@@ -8,9 +8,9 @@ import subprocess
 parser = argparse.ArgumentParser()
 parser.add_argument('output', type=pathlib.Path)
 args = parser.parse_args()
-metadata = json.loads(subprocess.check_output(['cargo', 'metadata', '--locked', '--format-version', '1']))
+metadata = json.loads(subprocess.check_output(['cargo', 'metadata', '--locked', '--all-features', '--format-version', '1']))
 packages = sorted((p for p in metadata['packages'] if p['source']), key=lambda p: (p['name'], p['version']))
-lines = ['# Third-party notices', '', 'Generated from Cargo.lock via cargo metadata --locked.',
+lines = ['# Third-party notices', '', 'Generated from Cargo.lock via cargo metadata --locked --all-features.',
          'This inventory includes every resolved external crate, including build, optional,',
          'development and platform-specific dependencies, so no target is omitted.',
          'SPDX expressions identify the upstream license choices. The project MIT and',

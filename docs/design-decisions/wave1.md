@@ -73,3 +73,40 @@ unknown; face-normal orientation is preserved. Static triangle-only input reject
 unsupported animation, skins, morphs and required extensions. No automatic ICP,
 unit conversion or polygon triangulation. Residuals: adaptive certified bounds,
 attribute-level comparison, overlapping-surface tie resolution and renderer quality.
+
+## Item 4: motion-aware diagnostics
+
+The code already had Hann-window RustFFT phase correlation, phase-slope subpixel
+refinement, inverse bicubic resampling and diagnostic FLIP reruns. Extend that
+implementation instead of introducing a competing estimator. Preserve raw FLIP
+and every configured verdict. Add per-hotspot original-mask evidence, peak
+uniqueness, two-dimensional texture, reverse-shift consistency, recorded
+thresholds, valid-border masks and shared input/provenance manifests. Both mean
+and peak aligned error participate: a synthetic shifted image with a small
+appearance defect showed that mean-only classification could wrongly say moved.
+
+Opaque SDR is the qualified initial scope. HDR/transparency, local deformation
+and interior disocclusion remain unknown/unsupported rather than being inferred
+from a small aligned residual. Global forward/backward consistency is only one
+check; the global model cannot verify independent local object motion.
+Constructed translations cover both signs at 0.125, 0.25, 0.5, 1 and 2 pixels;
+passing these fixtures does not qualify arbitrary TAA or rendered scenes.
+
+DIS assessment (2026-10-05): the [standalone author implementation](https://github.com/tikroeger/OF_DIS)
+is GPL-3.0 and is excluded. The bounded search found Rust Lucas-Kanade and
+Farneback implementations, not a suitable pure-Rust DIS implementation.
+[OpenCV's DIS](https://github.com/opencv/opencv/blob/4.x/modules/video/src/dis_flow.cpp)
+and its [Rust binding](https://github.com/twistedfall/opencv-rust/blob/master/INSTALL.md)
+require a native OpenCV build. `pkg-config --modversion opencv4` exits 1 here
+(package not found), and the repository release workflows contain no OpenCV
+installation/packaging path. A clean supported-platform build was not established.
+Therefore ship phase correlation and record DIS as a residual under the lane's
+explicit fallback; do not import GPL code or silently add an unqualified native
+build dependency. RustFFT 6.4.1 (MIT OR Apache-2.0) was already present. No new
+motion dependencies or model weights.
+
+Final integration found that the existing notice generator used default-feature
+metadata and omitted all three optional geometry crates. Request all features
+when generating release notices so the shipped all-features binary has its
+complete dependency inventory and upstream licence texts. The default metadata
+probe contained none of parry3d-f64/tobj/gltf; the corrected inventory includes all.
