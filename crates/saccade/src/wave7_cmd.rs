@@ -348,3 +348,133 @@ pub(crate) fn watermark(a: WatermarkArgs) -> Result<u8, CliError> {
     };
     emit(&r, a.json)
 }
+
+#[derive(clap::Args)]
+pub(crate) struct FacesArgs {
+    image: PathBuf,
+    #[arg(long, default_value = "yunet-2026may")]
+    detector: String,
+    #[arg(long)]
+    observations: Option<PathBuf>,
+    /// Write a new strongly redacted PNG; never overwrite an original.
+    #[arg(long)]
+    blur_faces: Option<PathBuf>,
+    #[command(flatten)]
+    model: ModelOptions,
+    #[arg(long)]
+    json: bool,
+}
+fn face_report(
+    a: &FacesArgs,
+    image: &saccade_core::wave7::vision::VisionImage,
+) -> Result<saccade_core::wave7::faces::FaceReport, CliError> {
+    use saccade_core::wave7::faces::{self, FaceReport};
+    if let Some(p) = &a.observations {
+        let mut r: FaceReport =
+            serde_json::from_slice(&models::read_bounded(p, 1024 * 1024).map_err(error)?)?;
+        r.validate(image).map_err(error)?;
+        r.provenance.runtime = "replay".into();
+        r.provenance.source_parity = false;
+        return Ok(r);
+    }
+    let reg = registry(a.model.registry.as_deref())?;
+    let m = reg.model(&a.detector).map_err(error)?;
+    #[cfg(feature = "local-models")]
+    {
+        let library = a
+            .model
+            .runtime_library
+            .as_deref()
+            .ok_or_else(|| CliError::usage("--runtime-library is required"))?;
+        let mut runtime = saccade_core::wave7::runtime::OnnxModel::load(
+            m,
+            &cache(a.model.cache.as_deref())?,
+            library,
+            a.model.allow_download,
+        )
+        .map_err(error)?;
+        faces::detect(image, &mut runtime).map_err(error)
+    }
+    #[cfg(not(feature = "local-models"))]
+    {
+        let _ = m;
+        let _ = faces::FACES_SCHEMA;
+        Err(error(VisionError::Unavailable(
+            "compile local-models for face inference".into(),
+        )))
+    }
+}
+pub(crate) fn faces(a: FacesArgs) -> Result<u8, CliError> {
+    let image = saccade_core::wave7::vision::VisionImage::load(&a.image).map_err(error)?;
+    let r = face_report(&a, &image)?;
+    if let Some(p) = &a.blur_faces {
+        write_png(
+            p,
+            &saccade_core::wave7::faces::blur_faces(&image, &r).map_err(error)?,
+        )?;
+    }
+    emit(&r, a.json)
+}
+#[derive(clap::Args)]
+pub(crate) struct CropArgs {
+    #[command(flatten)]
+    faces: FacesArgs,
+    /// Repeat aspect ratio W:H or original-pixel rectangle X,Y,W,H.
+    #[arg(long, required = true)]
+    crop: Vec<String>,
+    /// Original-pixel X,Y, optional.
+    #[arg(long)]
+    focal_point: Option<String>,
+}
+fn numbers(s: &str, separator: char, count: usize) -> Result<Vec<f32>, CliError> {
+    let values = s
+        .split(separator)
+        .map(|s| {
+            s.parse::<f32>()
+                .map_err(|_| CliError::usage("crop coordinates must be numbers"))
+        })
+        .collect::<Result<Vec<_>, _>>()?;
+    if values.len() != count || values.iter().any(|v| !v.is_finite()) {
+        return Err(CliError::usage("invalid crop coordinate count/value"));
+    }
+    Ok(values)
+}
+pub(crate) fn crop(a: CropArgs) -> Result<u8, CliError> {
+    use saccade_core::wave7::{
+        faces::{self, CropSpec},
+        vision::{Rect, VisionImage},
+    };
+    let image = VisionImage::load(&a.faces.image).map_err(error)?;
+    let r = face_report(&a.faces, &image)?;
+    let specs = a
+        .crop
+        .iter()
+        .map(|s| {
+            if s.contains(':') {
+                numbers(s, ':', 2).map(|v| CropSpec::Ratio {
+                    width: v[0],
+                    height: v[1],
+                })
+            } else {
+                numbers(s, ',', 4).map(|v| CropSpec::Rectangle {
+                    rect: Rect {
+                        x: v[0],
+                        y: v[1],
+                        width: v[2],
+                        height: v[3],
+                    },
+                })
+            }
+        })
+        .collect::<Result<Vec<_>, _>>()?;
+    let focal = a
+        .focal_point
+        .as_deref()
+        .map(|s| numbers(s, ',', 2).map(|v| [v[0], v[1]]))
+        .transpose()?;
+    let report = faces::crop_check(&image, &r, &specs, focal).map_err(error)?;
+    if let Some(p) = &a.faces.blur_faces {
+        write_png(p, &faces::blur_faces(&image, &r).map_err(error)?)?;
+    }
+    emit(&report, a.faces.json)
+}

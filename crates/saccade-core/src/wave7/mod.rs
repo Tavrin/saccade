@@ -1,4 +1,5 @@
 //! Standalone local vision boundaries for wave 7; observations never confer approval.
+pub mod faces;
 #[cfg(feature = "local-vlm")]
 pub mod local_vlm;
 pub mod models;

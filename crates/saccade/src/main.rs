@@ -206,6 +206,10 @@ enum Command {
     QualityScore(wave7_cmd::QualityArgs),
     /// Decode explicitly compatible watermark schemes without an origin verdict.
     Watermark(wave7_cmd::WatermarkArgs),
+    /// Detect faces and optionally create a privacy-redacted PNG.
+    Faces(wave7_cmd::FacesArgs),
+    /// Assess declared crops against detected faces, without identity recognition.
+    CropCheck(wave7_cmd::CropArgs),
     /// Bounded advisory observations from an explicitly configured local VLM.
     #[cfg(feature = "local-vlm")]
     ObserveLocal(wave7_cmd::ObserveArgs),
@@ -1003,6 +1007,8 @@ fn dispatch(command: Command, record_absolute_paths: bool) -> Result<u8, CliErro
         Command::Locate(args) => wave7_cmd::locate(args),
         Command::QualityScore(args) => wave7_cmd::quality(args),
         Command::Watermark(args) => wave7_cmd::watermark(args),
+        Command::Faces(args) => wave7_cmd::faces(args),
+        Command::CropCheck(args) => wave7_cmd::crop(args),
         #[cfg(feature = "local-vlm")]
         Command::ObserveLocal(args) => wave7_cmd::observe(args),
         Command::Prove {

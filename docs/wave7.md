@@ -115,3 +115,29 @@ signers or generators. No detection never establishes human origin.
 
 The coordinator combines `watermark::inspect` with wave 6's C2PA indicators;
 watermarks remain separate from cryptographically signed provenance.
+
+## Faces and crop safety
+
+`saccade faces image.png --json` returns original-pixel face boxes, landmarks,
+scores and model provenance (`saccade-faces.v1`). `--detector ultraface-rfb`
+selects the fallback. YuNet `yunet-v1` decodes stride 8/16/32 cls/obj/bbox/kps
+heads; UltraFace `ultraface-v1` decodes boxes/scores. Both run optional pinned
+ONNX graphs on CPU, with threshold 0.6 and deterministic NMS IoU 0.3.
+YuNet's export requires fixed BGR NCHW input; preprocessing must be explicitly
+recorded in the registry. Raw boxes clipped at the image edge are mapped to
+original pixels; malformed landmarks fail. UltraFace has no landmark head and
+reports an empty landmark list. Exact May 2026 export/source parity is pending.
+
+`saccade crop-check image.png --crop 16:9 --crop 0,0,320,240
+--focal-point 160,120 --json` evaluates every declared ratio or rectangle:
+face included, cut or excluded. Ratios use the largest inscribed crop around the
+focal point (image center by default). Suggested safe translations preserve all
+detected boxes if geometrically possible; impossible requests are explicit.
+No detected face does not certify face absence or a safe publication crop.
+
+`--observations faces.json` supports explicitly labelled generated/frozen face
+receipts. `--blur-faces redacted.png` on either command writes a **new** PNG,
+strongly redacting detected boxes plus a 15% margin with a constant average
+colour. This sacrifices detail for privacy; it is stronger than a weak Gaussian
+blur. Undetected faces remain a recall limitation. Originals are never changed.
+No identity labels, face embeddings or identity recognition are present.

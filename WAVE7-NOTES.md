@@ -55,3 +55,10 @@
   invented TrustMark pin or interpreting random recovered bits as a marker.
   Reversal: install a reviewed decoder adapter. Legacy exact upstream parity is a
   heavy gate; generated native-marker roundtrip is only focused proof.
+- Faces: native YuNet stride-head and UltraFace boxes/scores decoders, deterministic
+  NMS, bounded landmarks, crop geometry and strong privacy redaction are implemented.
+  Actual selected artifact pin/parity remains external; fallback has no landmarks.
+  Suggested crops retain all detected boxes or explicitly state impossibility.
+  Rejected weak Gaussian blur for privacy; constant average box plus 15% margin
+  is more destructive but removes facial detail. Reversal cost: change output
+  redaction policy; detection/geometry/report interfaces remain stable.

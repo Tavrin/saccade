@@ -330,6 +330,7 @@ impl Registry {
                         | "scalar-pair-v1"
                         | "scalar-image-v1"
                         | "yunet-v1"
+                        | "ultraface-v1"
                         | "external-observation-v1"
                 )
                 || !matches!(i.color.as_str(), "RGB" | "BGR")
