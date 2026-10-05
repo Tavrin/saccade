@@ -106,3 +106,10 @@ per item; job success does not make failed cells successful. Reservations remain
 consumed when per-item billing is unknown. Interactive workflows never wait for
 Batch completion. Qualification and heavy gate commands are described in
 [constructed qualification](assist-qualification.md).
+
+Gemini dispatch is currently refused before either counting or generation HTTP:
+the brief does not establish the counting API price, so an auxiliary reservation
+alone cannot prove the hard dollar cap. Confirm that external billing fact in a
+versioned execution policy and freeze a new epoch before enabling the Gemini path.
+Offline replay and rules remain available; the opt-in runner records this refusal
+as incomplete execution, with no Gemini request dispatched.

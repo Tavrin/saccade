@@ -191,6 +191,11 @@ pub struct Completed {
     /// Local request/revision/usage/cost provenance.
     pub provenance: Provenance,
 }
+/// No Gemini dispatch is admitted until auxiliary counting has a confirmed price.
+/// Establishing this external fact requires a versioned policy and a new epoch.
+pub fn counting_price_confirmed() -> bool {
+    false
+}
 /// Reject token-count replies without the authoritative bounded prompt count.
 pub fn counted_input(body: &[u8]) -> Result<u64> {
     require(body.len() <= 256 * 1024, "token-count reply size")?;
@@ -339,8 +344,14 @@ impl Executor<'_> {
     /// One bounded dispatch, no fallback or automatic retry. Ambiguous calls stay charged.
     pub fn call(&self, key: &CacheKey, payload: &[u8]) -> Result<Completed> {
         key.validate()?;
+        let byte_limit = if key.provider == "gemini" {
+            64_000
+        } else {
+            // Text-only scoring leaves half the token ceiling for fixed API framing.
+            INPUT_LIMIT as usize / 2
+        };
         require(
-            Digest::of_bytes(payload) == key.payload_hash && payload.len() <= 64_000,
+            Digest::of_bytes(payload) == key.payload_hash && payload.len() <= byte_limit,
             "payload hash or conservative input limit",
         )?;
         if !self.transport.keys.default_policy_dir() {
@@ -372,6 +383,11 @@ impl Executor<'_> {
         // Its price is not established by the brief, so its cost remains unknown
         // and its conservative full reservation is retained, never reported free.
         if key.provider == "gemini" {
+            if !counting_price_confirmed() {
+                return Err(Error::Policy(
+                    "token-count billing unestablished; Gemini dispatch refused",
+                ));
+            }
             self.count_input(key, payload, start, timeout)?;
             timeout = self
                 .deadline

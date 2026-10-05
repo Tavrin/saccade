@@ -102,3 +102,10 @@ qualified/unqualified decision and failed-gate list. Missing mechanical receipts
 insufficient corpus size, failed family assumptions or unknown cost preserve
 unqualified status. These are synthetic-domain results. They do not establish
 accuracy on arbitrary pages or grant baseline/exclusion authority.
+
+Gemini dispatch is currently refused before either counting or generation HTTP:
+the brief does not establish the counting API price, so an auxiliary reservation
+alone cannot prove the hard dollar cap. Confirm that external billing fact in a
+versioned execution policy and freeze a new epoch before enabling the Gemini path.
+Offline replay and rules remain available; the opt-in runner records this refusal
+as incomplete execution, with no Gemini request dispatched.

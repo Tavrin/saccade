@@ -437,6 +437,7 @@ fn missing_pixels_incomplete_scope_and_injected_text_never_become_success() {
 }
 #[test]
 fn counted_input_limits_and_modality_receipts_fail_closed_without_secret_text() {
+    assert!(!execution::counting_price_confirmed());
     assert_eq!(
         execution::counted_input(br#"{"totalTokens":16000}"#).unwrap(),
         16000
