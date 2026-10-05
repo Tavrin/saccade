@@ -17,6 +17,7 @@ mod assess_cmd;
 mod embedding_cmd;
 mod general_cmd;
 mod hash_cmd;
+mod inspect_image_cmd;
 mod text_cmd;
 
 mod agent;
@@ -202,6 +203,8 @@ impl From<MetricArg> for Metric {
 #[derive(Subcommand)]
 enum Command {
     // wave6
+    /// Inspect provenance/integrity indicators without a real/fake verdict.
+    InspectImage(inspect_image_cmd::Args),
     /// Measure content-dependent no-reference quality indicators.
     Assess(assess_cmd::Args),
     /// Compare image-bound OCR/text observations and literal expected strings.
@@ -1007,6 +1010,7 @@ fn emit_run(
 fn dispatch(command: Command, record_absolute_paths: bool) -> Result<u8, CliError> {
     match command {
         // wave6
+        Command::InspectImage(args) => inspect_image_cmd::run(args),
         Command::Assess(args) => assess_cmd::run(args),
         Command::Text(args) => text_cmd::run(args),
         Command::Similar(args) => embedding_cmd::similar(args),

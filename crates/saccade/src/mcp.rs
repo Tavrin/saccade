@@ -1156,6 +1156,59 @@ impl Server {
         // wave6
         let operation = require_str(args, "operation")?;
         // wave6
+        if operation == "inspect_image" {
+            reject_unknown(
+                args,
+                &[
+                    "operation",
+                    "image",
+                    "out",
+                    "include_gps",
+                    "hash_index",
+                    "text_source",
+                    "output_size",
+                    "crop",
+                ],
+            )?;
+            let image = self.existing_file("image", &require_str(args, "image")?)?;
+            let hash_index = arg_str(args, "hash_index")?
+                .map(|p| self.existing_file("hash_index", &p))
+                .transpose()?;
+            let text_source = arg_str(args, "text_source")?
+                .map(|p| self.existing_file("text_source", &p))
+                .transpose()?;
+            let mut inputs = vec![image.as_path()];
+            inputs.extend(hash_index.as_deref());
+            inputs.extend(text_source.as_deref());
+            let out = self.checked_out_dir(&require_str(args, "out")?, &inputs)?;
+            let crop = args
+                .get("crop")
+                .map(|v| {
+                    v.as_array()
+                        .filter(|a| a.len() == 4)
+                        .ok_or_else(|| CliError::usage("crop needs four integers"))?
+                        .iter()
+                        .map(|v| {
+                            v.as_u64()
+                                .and_then(|v| u32::try_from(v).ok())
+                                .ok_or_else(|| CliError::usage("crop coordinates must be u32"))
+                        })
+                        .collect::<Result<Vec<_>, CliError>>()
+                })
+                .transpose()?;
+            let value = crate::inspect_image_cmd::imported(
+                image,
+                out.clone(),
+                arg_bool(args, "include_gps")?.unwrap_or(false),
+                hash_index,
+                text_source,
+                arg_strings(args, "output_size")?,
+                crop,
+            )?;
+            let file = crate::general_cmd::persist_document(&value, &out)?;
+            return Ok(ToolOutput{structured:json!({"schema":saccade_core::general::RESULT_SCHEMA,"mode":operation,"verdict":"unknown","data":{"schema":value["schema"],"counts":value["counts"]},"artifacts":[{"path":saccade_core::paths::record(&file,&self.root,false)}],"next_actions":[]}),text:"Single-image indicators only; credentials unvalidated, AI generation unknown, GPS opt-in.".into(),images:Vec::new()});
+        }
+        // wave6
         if operation == "assess" {
             reject_unknown(args, &["operation", "image", "compare_to", "out"])?;
             let image = self.existing_file("image", &require_str(args, "image")?)?;

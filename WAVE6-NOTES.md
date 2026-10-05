@@ -20,3 +20,6 @@
 - Disk admission reopened at 29 GB; resume bounded light checks without heavy execution.
 
 - Documents: defer concrete SVG/PDF adapters and all-command/page-summary routing; retain bounded DPI/page renderer interface and a real-rendering acceptance gate. Reject writing an incomplete SVG/PDF interpreter or inferring dependency licences from names. Reversal cost: provision/review permissive sources, add feature-gated adapters, connect input routes and page summaries, then pass generated document gates.
+
+- Inspection: emit unsigned metadata, current JPEG-table compatibility, copy-move candidates, weak ELA, archive candidates and declared publication geometry. Always unknown authenticity/AI-generation status. Reject heuristic real/fake inference or trusting unvalidated JUMBF assertions. GPS is opt-in; opaque XMP/IPTC hashes do not expose their location text. Reversal cost: add licensed C2PA validation and signed/watermark evidence with explicit provenance.
+- Deferred integrity portions: c2pa source/licence and dependency review unavailable; XMP/IPTC parsing, encoder signatures and double-compression/resampling detector qualification lack implementation/constructed evidence. These remain labelled unavailable, not substitute heuristics. Reversal cost: review/provision sources and implement focused indicators with generated truth and failure cases.

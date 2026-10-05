@@ -338,6 +338,9 @@ pub(crate) fn persist_document(value: &Value, out: &Path) -> Result<PathBuf, Cli
             }
         }
     }
+    if let Some(path) = value["error_level_analysis"]["artifact"].as_str() {
+        figures.push_str(&format!("<figure><figcaption>Error level analysis: weak visual evidence only</figcaption><img style=\"max-width:600px\" src=\"{}\"></figure>",html(path)));
+    }
     let content = format!(
         "<!doctype html><meta charset=\"utf-8\"><title>Saccade evidence</title><h1>Saccade evidence</h1><p>Measurements are conditional on the selected pipeline. Read limitations in the evidence. Geometry exclusions are hatched in heatmaps and black in inclusion masks. Preview shows at most 100 entries; JSON contains every entry.</p>{figures}<pre>{escaped}</pre>"
     );
@@ -359,6 +362,7 @@ pub(crate) fn tool_schema() -> Value {
     variants.extend(crate::embedding_cmd::schemas());
     variants.extend(crate::text_cmd::schemas());
     variants.extend(crate::assess_cmd::schemas());
+    variants.extend(crate::inspect_image_cmd::schemas());
     tool["inputSchema"] = json!({"type":"object","oneOf":variants});
     tool
 }

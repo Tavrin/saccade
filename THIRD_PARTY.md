@@ -224,3 +224,12 @@ No new package dependency. The `embeddings` feature reuses `ort` 2.0.0-rc.10
 DINOv2-small checkpoint Apache-2.0 is a fact supplied by the lane specification;
 no canonical export/hash or calibration is shipped. Supplied ONNX exports must
 retain Apache-2.0 and pin their SHA-256, byte count and version. CLIP is deferred.
+
+## Wave 6 metadata and inspection
+
+No new package dependency. The TIFF/JPEG/PNG header parser and self-match
+clustering are original project code. Conventional Annex K luminance coefficients
+were cross-checked against image 0.25.9's locally available JPEG encoder source
+(MIT OR Apache-2.0); encoder identity is not inferred from table compatibility.
+Generated metadata, copy and text glyph fixtures use the project licence.
+No C2PA, OCR model, SVG or PDF renderer dependency was added without licence review.

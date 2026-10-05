@@ -12,5 +12,7 @@ pub mod documents;
 pub mod embedding;
 /// Perceptual hashes and Hamming search.
 pub mod hashing;
+/// Bounded image metadata and current compression evidence.
+pub mod integrity;
 /// OCR text observations, CER/WER and positional differences.
 pub mod text;

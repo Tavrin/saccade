@@ -287,7 +287,7 @@ fn generated_svg_pdf_inputs_require_real_rendering_and_page_summary() {
         "<< /Type /Catalog /Pages 2 0 R >>",
         "<< /Type /Pages /Kids [3 0 R] /Count 1 >>",
         "<< /Type /Page /Parent 2 0 R /MediaBox [0 0 100 100] /Contents 4 0 R >>",
-        "<< /Length 23 >>\nstream\n20 20 60 60 re\nf\nendstream",
+        "<< /Length 17 >>\nstream\n20 20 60 60 re\nf\nendstream",
     ];
     let mut bytes = b"%PDF-1.4\n".to_vec();
     let mut offsets = vec![0];
@@ -321,4 +321,143 @@ fn generated_svg_pdf_inputs_require_real_rendering_and_page_summary() {
             String::from_utf8_lossy(&result.stderr)
         );
     }
+}
+
+#[test]
+#[ignore = "heavy: wave6-cli"]
+fn inspection_never_infers_generation_and_has_weak_visual_layer() {
+    let temp = tempfile::tempdir().unwrap();
+    let image = temp.path().join("input.jpg");
+    image::RgbImage::from_fn(64, 64, |x, y| {
+        image::Rgb([(x * 3) as u8, (y * 3) as u8, 100])
+    })
+    .save(&image)
+    .unwrap();
+    let out = temp.path().join("inspection");
+    let result = cli(&[
+        "inspect-image",
+        image.to_str().unwrap(),
+        "--output-size",
+        "128x128",
+        "--out",
+        out.to_str().unwrap(),
+        "--json",
+    ]);
+    assert!(
+        result.status.success(),
+        "{}",
+        String::from_utf8_lossy(&result.stderr)
+    );
+    let report: Value =
+        serde_json::from_slice(&std::fs::read(out.join("saccade-inspect-image.v1.json")).unwrap())
+            .unwrap();
+    assert_eq!(report["ai_generation"], "unknown");
+    assert_eq!(report["verdict"], "unknown");
+    assert_eq!(
+        report["publication"]["outputs"][0]["requires_upsampling"],
+        true
+    );
+    assert_eq!(
+        report["error_level_analysis"]["assurance"],
+        "weak visual layer only"
+    );
+    assert!(out.join("error-level-analysis.png").is_file());
+    assert!(
+        std::fs::read_to_string(out.join("index.html"))
+            .unwrap()
+            .contains("weak visual evidence")
+    );
+    let schema: Value = serde_json::from_slice(
+        &std::fs::read(
+            std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+                .join("../saccade-core/schemas/saccade-inspect-image.v1.schema.json"),
+        )
+        .unwrap(),
+    )
+    .unwrap();
+    jsonschema::validator_for(&schema)
+        .unwrap()
+        .validate(&report)
+        .unwrap();
+}
+#[cfg(feature = "embeddings")]
+#[test]
+#[ignore = "heavy: embeddings-index"]
+fn supplied_embedding_index_build_and_query_preserve_pins() {
+    let temp = tempfile::tempdir().unwrap();
+    let images = temp.path().join("images");
+    std::fs::create_dir(&images).unwrap();
+    let a = images.join("a.png");
+    let b = images.join("b.png");
+    let image = image::RgbaImage::from_fn(64, 64, |x, y| {
+        image::Rgba([(x * 3) as u8, (y * 3) as u8, 100, 255])
+    });
+    image.save(&a).unwrap();
+    image::imageops::flip_horizontal(&image).save(&b).unwrap();
+    let model = std::env::var("SACCADE_W6_EMBEDDING_MODEL").expect("model");
+    let cache = std::env::var("SACCADE_W6_MODEL_CACHE").expect("cache");
+    let library = std::env::var("SACCADE_W6_ORT_LIBRARY").expect("runtime");
+    let index = temp.path().join("index");
+    let result = cli(&[
+        "index",
+        "build",
+        images.to_str().unwrap(),
+        "--model",
+        &model,
+        "--cache",
+        &cache,
+        "--library",
+        &library,
+        "--out",
+        index.to_str().unwrap(),
+        "--json",
+    ]);
+    assert!(
+        result.status.success(),
+        "{}",
+        String::from_utf8_lossy(&result.stderr)
+    );
+    let out = temp.path().join("matches");
+    let result = cli(&[
+        "index",
+        "query",
+        index.to_str().unwrap(),
+        a.to_str().unwrap(),
+        "--model",
+        &model,
+        "--cache",
+        &cache,
+        "--library",
+        &library,
+        "--out",
+        out.to_str().unwrap(),
+        "--json",
+    ]);
+    assert!(
+        result.status.success(),
+        "{}",
+        String::from_utf8_lossy(&result.stderr)
+    );
+    let report: Value = serde_json::from_slice(
+        &std::fs::read(out.join("saccade-embedding-query.v1.json")).unwrap(),
+    )
+    .unwrap();
+    assert!(report["results"][0]["cosine"].as_f64().unwrap() > 0.9999);
+    std::fs::write(index.join("vectors.bin"), b"corrupt").unwrap();
+    let rejected = cli(&[
+        "index",
+        "query",
+        index.to_str().unwrap(),
+        a.to_str().unwrap(),
+        "--model",
+        &model,
+        "--cache",
+        &cache,
+        "--library",
+        &library,
+        "--out",
+        temp.path().join("rejected").to_str().unwrap(),
+        "--json",
+    ]);
+    assert_eq!(rejected.status.code(), Some(2));
 }

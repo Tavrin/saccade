@@ -562,9 +562,12 @@ pub fn register(
         excluded,
         evidence: Evidence {
             model: actual,
-            detector:
+            detector: if model == Model::None {
+                "none; explicit resampling".into()
+            } else {
                 "FAST-9/oriented-BRIEF-256; pyramid-v1; reciprocal-ratio-0.8; RANSAC-seed-0x6accade"
-                    .into(),
+                    .into()
+            },
             matrix,
             matches,
             inliers,
@@ -582,6 +585,113 @@ pub fn register(
         },
     })
 }
+/// A translation-clustered copy-move candidate, not proof of manipulation.
+#[derive(Clone, Debug, Serialize, Deserialize)]
+pub struct CopyMove {
+    /// First duplicated-region bounding box in image pixels.
+    pub first: [u32; 4],
+    /// Second duplicated-region bounding box in image pixels.
+    pub second: [u32; 4],
+    /// Reciprocal descriptor matches supporting the displacement cluster.
+    pub matches: usize,
+    /// Average displacement between matched features.
+    pub displacement: [f64; 2],
+    /// RMS displacement residual in pixels.
+    pub residual_px: f64,
+}
+/// Self-matches the bounded detector with reciprocal ratio testing, excluding features within 24px.
+/// Groups by 12px translation bins, requires four matches, and returns at most 32 candidates.
+/// Repeated natural structures can produce candidates; rotations/projective copies may be missed.
+pub fn copy_move(image: &RgbaImage) -> Result<Vec<CopyMove>, RegistrationError> {
+    if image.width() == 0
+        || image.height() == 0
+        || u64::from(image.width()) * u64::from(image.height()) > super::input::MAX_PIXELS
+    {
+        return Err(RegistrationError::InvalidGeometry);
+    }
+    let features = features(image);
+    let nearest: Vec<_> = features
+        .iter()
+        .enumerate()
+        .map(|(id, a)| {
+            let mut first = (u32::MAX, 0);
+            let mut second = u32::MAX;
+            for (j, b) in features.iter().enumerate() {
+                if id == j || (a.x - b.x).hypot(a.y - b.y) < 24. {
+                    continue;
+                }
+                let d = distance(a, b);
+                if d < first.0 {
+                    second = first.0;
+                    first = (d, j);
+                } else if d < second {
+                    second = d;
+                }
+            }
+            (first.0 <= 80 && first.0 * 5 < second.saturating_mul(4) && second != u32::MAX)
+                .then_some(first.1)
+        })
+        .collect();
+    type Pair = ([f64; 2], [f64; 2]);
+    let mut clusters: std::collections::BTreeMap<(i32, i32), Vec<Pair>> =
+        std::collections::BTreeMap::new();
+    for (i, other) in nearest.iter().enumerate() {
+        if let Some(j) = *other {
+            if j <= i || nearest[j] != Some(i) {
+                continue;
+            }
+            let a = &features[i];
+            let b = &features[j];
+            let (mut a, mut b) = ([a.x, a.y], [b.x, b.y]);
+            if a[0] > b[0] || (a[0] == b[0] && a[1] > b[1]) {
+                std::mem::swap(&mut a, &mut b);
+            }
+            let key = (
+                ((b[0] - a[0]) / 12.).round() as i32,
+                ((b[1] - a[1]) / 12.).round() as i32,
+            );
+            clusters.entry(key).or_default().push((a, b));
+        }
+    }
+    let bounds = |points: Vec<[f64; 2]>| {
+        let x = points.iter().map(|p| p[0]).fold(f64::INFINITY, f64::min) - 16.;
+        let y = points.iter().map(|p| p[1]).fold(f64::INFINITY, f64::min) - 16.;
+        let x1 = (points.iter().map(|p| p[0]).fold(0., f64::max) + 16.)
+            .ceil()
+            .min(f64::from(image.width()));
+        let y1 = (points.iter().map(|p| p[1]).fold(0., f64::max) + 16.)
+            .ceil()
+            .min(f64::from(image.height()));
+        let (x, y) = (x.floor().max(0.) as u32, y.floor().max(0.) as u32);
+        [x, y, x1 as u32 - x, y1 as u32 - y]
+    };
+    let mut candidates = Vec::new();
+    for pairs in clusters.into_values() {
+        if pairs.len() < 4 {
+            continue;
+        }
+        let n = pairs.len() as f64;
+        let dx = pairs.iter().map(|(a, b)| b[0] - a[0]).sum::<f64>() / n;
+        let dy = pairs.iter().map(|(a, b)| b[1] - a[1]).sum::<f64>() / n;
+        let residual = (pairs
+            .iter()
+            .map(|(a, b)| (b[0] - a[0] - dx).powi(2) + (b[1] - a[1] - dy).powi(2))
+            .sum::<f64>()
+            / n)
+            .sqrt();
+        candidates.push(CopyMove {
+            first: bounds(pairs.iter().map(|(a, _)| *a).collect()),
+            second: bounds(pairs.iter().map(|(_, b)| *b).collect()),
+            matches: pairs.len(),
+            displacement: [dx, dy],
+            residual_px: residual,
+        });
+    }
+    candidates.sort_by_key(|c| (std::cmp::Reverse(c.matches), c.first, c.second));
+    candidates.truncate(32);
+    Ok(candidates)
+}
+
 #[cfg(test)]
 #[allow(clippy::expect_used, clippy::unwrap_used)]
 mod tests {

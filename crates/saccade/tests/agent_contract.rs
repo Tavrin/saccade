@@ -466,7 +466,8 @@ fn local_tools_and_preview_never_authorize_network_and_images_are_explicit() {
         ],
     );
     let tools = replies[0]["result"]["tools"].as_array().unwrap();
-    assert_eq!(tools.len(), if cfg!(feature = "ai") { 6 } else { 5 });
+    // wave6: the additive general comparator tool leaves the original tools intact.
+    assert_eq!(tools.len(), if cfg!(feature = "ai") { 7 } else { 6 });
     for tool in tools {
         assert!(tool["inputSchema"]["oneOf"].is_array());
         assert!(!matches!(tool["name"].as_str(), Some("saccade_approve")));

@@ -106,3 +106,9 @@ Tesseract; MCP accepts imports only. See [text](../docs/text.md).
 `assess IMAGE --compare-to REFERENCE --out REPORT --json` reports content-dependent
 quality measures and deltas. Its unknown verdict never means publication approval.
 MCP `saccade_general` / `assess` mirrors it; see [assessment](../docs/assessment.md).
+
+<!-- wave6 -->
+`inspect-image IMAGE --out REPORT --json` reports single-image indicators, never
+real/fake or heuristic AI-generation claims. Credentials are unvalidated; GPS
+requires explicit opt-in. MCP `saccade_general` / `inspect_image` mirrors it.
+Read each indicator's limits; see [inspection](../docs/inspect-image.md).
