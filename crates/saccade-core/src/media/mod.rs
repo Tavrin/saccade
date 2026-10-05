@@ -196,6 +196,8 @@ fn section(id: &str, f: impl FnOnce() -> Result<Value>) -> Section {
 struct Sessions {
     #[cfg(feature = "local-models")]
     faces: Option<crate::wave7::runtime::OnnxModel>,
+    #[cfg(feature = "ocr")]
+    ocr: Option<crate::general::ocr::Engine>,
     #[cfg(feature = "embeddings")]
     embeddings: Option<crate::general::embedding::Engine>,
 }
@@ -280,7 +282,7 @@ impl Analyzer {
                 "compile media-http for URL inputs",
             ));
         }
-        Ok(models::read_bounded(Path::new(source), input::MAX_BYTES)?)
+        Ok(input::bytes(Path::new(source), input::MAX_BYTES)?)
     }
     /// Analyze bytes retained by the caller; input is decoded and hashed from this buffer.
     pub fn analyze_bytes(&self, bytes: &[u8], options: &Options) -> Result<Record> {
@@ -518,16 +520,27 @@ impl Analyzer {
         }
         #[cfg(feature = "ocr")]
         {
-            let contract = self.registry.contracts.get("ocr").ok_or_else(|| {
-                MediaError::new("ocr_unavailable", "no supplied reviewed OCR contract")
-            })?;
-            let contract: crate::general::ocr::Contract = serde_json::from_value(contract.clone())?;
-            let source = crate::general::ocr::recognize(
-                &contract,
-                &self.model_dir,
-                bytes,
-                self.allow_download,
-            )?;
+            let mut sessions = self
+                .sessions
+                .lock()
+                .map_err(|_| MediaError::new("analyzer_poisoned", "model lock poisoned"))?;
+            if sessions.ocr.is_none() {
+                let contract = self.registry.contracts.get("ocr").ok_or_else(|| {
+                    MediaError::new("ocr_unavailable", "no supplied reviewed OCR contract")
+                })?;
+                let contract: crate::general::ocr::Contract =
+                    serde_json::from_value(contract.clone())?;
+                sessions.ocr = Some(crate::general::ocr::Engine::load(
+                    &contract,
+                    &self.model_dir,
+                    self.allow_download,
+                )?);
+            }
+            let source = sessions
+                .ocr
+                .as_ref()
+                .ok_or_else(|| MediaError::new("ocr_unavailable", "OCR session unavailable"))?
+                .recognize(bytes)?;
             Ok(
                 json!({"words":source.nodes,"provenance":source.producer,"confidence":"unavailable in upstream API; never invented"}),
             )
@@ -627,7 +640,9 @@ impl Analyzer {
         let m = self.registry.contracts.get("embedding").ok_or_else(|| {
             MediaError::new("embedding_unavailable", "no pinned embedding contract")
         })?;
-        Ok(models::digest(&serde_json::to_vec(m)?))
+        Ok(models::digest(&serde_json::to_vec(
+            &crate::general::embedding::parse_model(&serde_json::to_vec(m)?)?,
+        )?))
     }
 }
 fn enforce_strict(record: Record, strict: bool) -> Result<Record> {
@@ -769,5 +784,30 @@ mod tests {
                 });
             }
         });
+    }
+}
+/// Exact flat index shared by Python and HTTP transports.
+pub mod search;
+impl Analyzer {
+    /// Canonical pinned embedding contract (paths and runtime location excluded).
+    pub fn embedding_model(&self) -> Result<Value> {
+        let value = self.registry.contracts.get("embedding").ok_or_else(|| {
+            MediaError::new("embedding_unavailable", "no pinned embedding contract")
+        })?;
+        let model = crate::general::embedding::parse_model(&serde_json::to_vec(value)?)?;
+        Ok(serde_json::to_value(model)?)
+    }
+    /// Compare retained SDR encoded inputs through the established FLIP computation.
+    pub fn compare(&self, a: &[u8], b: &[u8], ppd: f32) -> Result<Value> {
+        let aa = input::decode(a)?;
+        let bb = input::decode(b)?;
+        let options = crate::compare::CompareOptions {
+            pixels_per_degree: ppd,
+            ..Default::default()
+        };
+        let result = crate::compare::compare_rgba(&aa, &bb, &options)?;
+        Ok(
+            json!({"schema":"saccade-media-compare.v1","reference_sha256":models::digest(b),"capture_sha256":models::digest(a),"metrics":result.metrics,"ppd":ppd}),
+        )
     }
 }

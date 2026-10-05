@@ -690,3 +690,11 @@ Archive copyright files and SHA-256 receipts remain beside them. No model is ven
 C2PA 0.90.22 generates the signed JPEG with a local test-only certificate; no real identity
 or external timestamp/trust service is used. OCR contracts remain generated, pending
 coordinator review; no accent-capable RTen pin has been invented.
+
+## Wave 8 Python bindings
+
+Fetched Cargo source manifests were verified for the exact lockfile versions:
+PyO3, pyo3-build-config, pyo3-ffi, pyo3-macros and pyo3-macros-backend **0.25.1**:
+MIT OR Apache-2.0; unindent **0.2.4**: MIT OR Apache-2.0; memoffset **0.9.1**: MIT.
+These are binding/build dependencies only; models and ONNX Runtime are not bundled in
+wheels. Existing image, hashing, FFT, XML and HTTP dependencies are reused unchanged.

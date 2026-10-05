@@ -64,40 +64,68 @@ pub fn recognize(
     encoded: &[u8],
     download: bool,
 ) -> Result<ui_review::Source> {
-    validate(c)?;
-    if download {
-        semantic::cache_models(&manifest(c), cache)?;
-    }
-    let load = |a: &semantic::ModelArtifact| -> Result<rten::Model> {
-        let bytes = super::input::bytes(&semantic::artifact_path(cache, a)?, a.bytes)?;
-        if bytes.len() as u64 != a.bytes || crate::localized::digest(&bytes) != a.sha256 {
-            return Err(Error::Config("OCR model hash/size mismatch".into()));
+    Engine::load(c, cache, download)?.recognize(encoded)
+}
+/// Reusable pure-Rust OCR model sessions, loaded once by a media analyzer.
+#[cfg(feature = "ocr")]
+pub struct Engine {
+    engine: ocrs::OcrEngine,
+    contract: Contract,
+}
+#[cfg(feature = "ocr")]
+impl Engine {
+    /// Verify and load the supplied models exactly once, with explicit download opt-in.
+    pub fn load(c: &Contract, cache: &Path, download: bool) -> Result<Self> {
+        validate(c)?;
+        if download {
+            semantic::cache_models(&manifest(c), cache)?;
         }
-        rten::Model::load(bytes).map_err(|e| Error::Config(format!("RTen model: {e}")))
-    };
-    let image = super::input::decode(encoded)?;
-    let rgb = crate::compare::flatten_over(&image, 255);
-    std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| -> Result<ui_review::Source> {
+        let load = |a: &semantic::ModelArtifact| -> Result<rten::Model> {
+            let bytes = super::input::bytes(&semantic::artifact_path(cache, a)?, a.bytes)?;
+            if bytes.len() as u64 != a.bytes || crate::localized::digest(&bytes) != a.sha256 {
+                return Err(Error::Config("OCR model hash/size mismatch".into()));
+            }
+            rten::Model::load(bytes).map_err(|e| Error::Config(format!("RTen model: {e}")))
+        };
+        let engine = ocrs::OcrEngine::new(ocrs::OcrEngineParams {
+            detection_model: Some(load(&c.detection)?),
+            recognition_model: Some(load(&c.recognition)?),
+            alphabet: Some(c.alphabet.clone()),
+            ..Default::default()
+        })
+        .map_err(|e| Error::Config(format!("ocrs: {e}")))?;
+        Ok(Self {
+            engine,
+            contract: c.clone(),
+        })
+    }
+    /// Recognize retained bytes using the already-loaded engine; confidence stays absent.
+    pub fn recognize(&self, encoded: &[u8]) -> Result<ui_review::Source> {
+        let image = super::input::decode(encoded)?;
+        let rgb = crate::compare::flatten_over(&image, 255);
+        std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| -> Result<ui_review::Source> {
         use ocrs::TextItem;
         let map_error = |e: String|Error::Config(format!("ocrs: {e}"));
-        let engine = ocrs::OcrEngine::new(ocrs::OcrEngineParams { detection_model:Some(load(&c.detection)?),recognition_model:Some(load(&c.recognition)?),alphabet:Some(c.alphabet.clone()),..Default::default() }).map_err(|e|map_error(e.to_string()))?;
+
         let source = ocrs::ImageSource::from_bytes(rgb.as_raw(),rgb.dimensions()).map_err(|e|map_error(e.to_string()))?;
-        let prepared = engine.prepare_input(source).map_err(|e|map_error(e.to_string()))?;
-        let words = engine.detect_words(&prepared).map_err(|e|map_error(e.to_string()))?;
+        let prepared = self.engine.prepare_input(source).map_err(|e|map_error(e.to_string()))?;
+        let words = self.engine.detect_words(&prepared).map_err(|e|map_error(e.to_string()))?;
         if words.len() > 2048 { return Err(Error::Config("OCR observation limit exceeded".into())); }
-        let lines = engine.find_text_lines(&prepared,&words);
-        let text = engine.recognize_text(&prepared,&lines).map_err(|e|map_error(e.to_string()))?;
+        let lines = self.engine.find_text_lines(&prepared,&words);
+        let text = self.engine.recognize_text(&prepared,&lines).map_err(|e|map_error(e.to_string()))?;
         let mut nodes = Vec::new();
         for line in text.into_iter().flatten() { for word in line.words() {
             let r = word.bounding_rect();
             nodes.push(ui_review::Node {id:format!("ocrs-slot:{}",nodes.len()),text:word.to_string(),bounds:Some([f64::from(r.left()),f64::from(r.top()),f64::from(r.width()),f64::from(r.height())]),role:String::new(),reading_order:None,keyboard_order:None,disclosure:false,ocr_confidence:None});
             if nodes.len() > 2048 { return Err(Error::Config("OCR observation limit exceeded".into())); }
         } }
-        let result = ui_review::Source { schema:"saccade-ui-source.v1".into(), capture_sha256:crate::localized::digest(encoded),dimensions:[image.width(),image.height()],kind:"ocrs".into(),complete:false,nodes,producer:serde_json::json!({"engine":"ocrs 0.10.4","runtime":"RTen 0.21.0","contract":c,"confidence":"unavailable in upstream API; never synthesized","qualification":"supplied_models_unqualified"}) };
+        let result = ui_review::Source { schema:"saccade-ui-source.v1".into(), capture_sha256:crate::localized::digest(encoded),dimensions:[image.width(),image.height()],kind:"ocrs".into(),complete:false,nodes,producer:serde_json::json!({"engine":"ocrs 0.10.4","runtime":"RTen 0.21.0","contract":self.contract,"confidence":"unavailable in upstream API; never synthesized","qualification":"supplied_models_unqualified"}) };
         result.validate(&result.capture_sha256,result.dimensions)?;
         Ok(result)
     })).map_err(|_|Error::Config("Rust OCR model/inference failed".into()))?
+    }
 }
+
 #[cfg(test)]
 #[allow(clippy::unwrap_used)]
 mod tests {

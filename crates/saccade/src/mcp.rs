@@ -1078,12 +1078,15 @@ impl Server {
             && args.get("operation").and_then(Value::as_str) == Some("analyze_media")
         {
             return Some(
-                crate::media_cmd::mcp(&self.policy, &Value::Object(args.clone())).map(|structured| ToolOutput {
-                    structured,
-                    text: "Versioned media record; skipped and failed sections remain explicit."
-                        .into(),
-                    images: vec![],
-                }),
+                crate::media_cmd::mcp(&self.policy, &Value::Object(args.clone())).map(
+                    |structured| ToolOutput {
+                        structured,
+                        text:
+                            "Versioned media record; skipped and failed sections remain explicit."
+                                .into(),
+                        images: vec![],
+                    },
+                ),
             );
         }
         // wave7

@@ -26,3 +26,5 @@ inherited model accuracy/parity and Rust OCR qualification remain explicitly inc
   description is off by default and requires an injected observation provider.
 - Rust structs own library contracts; CLI, MCP, Python and HTTP delegate to them.
   Reversal cost: additive APIs/schemas only; no legacy contract migration.
+
+- Disk crossed below floor after the first targeted test completed: 22 GB available. Cargo paused; continuing source/tests/docs. First media test receipt: 4 passed, 110 filtered out, no models, no downloads.
