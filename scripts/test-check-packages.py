@@ -69,7 +69,7 @@ class PackagedReadmeTests(unittest.TestCase):
             self.check()
 
     def test_registry_marker_must_be_visible_in_archive(self):
-        marker = 'mcp-name: io.github.tavrin/saccade'
+        marker = 'mcp-name: io.github.Tavrin/saccade'
         for suffix, accepted in [('', False), (f'<!-- {marker} -->\n', False),
                                  (f'MCP Registry name: `{marker}`\n', True)]:
             with self.subTest(suffix=suffix):

@@ -162,7 +162,7 @@ def main():
     for name in ['saccade', 'check-visual-change']:
         require((ROOT / f'integrations/claude-code/commands/{name}.md').is_file(), f'missing command: {name}')
     server = data['server.json']
-    require(server['$schema'] == MCP and server['name'] == 'io.github.tavrin/saccade', 'registry identity mismatch')
+    require(server['$schema'] == MCP and server['name'] == 'io.github.Tavrin/saccade', 'registry identity mismatch')
     require(server['version'] == version and len(server['packages']) == 1, 'registry version/package mismatch')
     package = server['packages'][0]
     require(package['registryType'] == 'cargo' and package['identifier'] == 'saccade'

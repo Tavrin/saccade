@@ -1,7 +1,7 @@
 {
   "$schema": "https://agent-plugins.org/schemas/1.0.0/plugin.schema.json",
   "name": "saccade",
-  "version": "0.1.1",
+  "version": "0.1.2",
   "description": "Measure and review visual changes with the installed Saccade CLI.",
   "author": {
     "name": "Tavrin",

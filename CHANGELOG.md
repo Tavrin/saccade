@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.1.2]
+
+Fixed: MCP Registry name uses the case-sensitive io.github.Tavrin namespace.
+
 ## [0.1.1] - Unreleased
 
 ### Added
@@ -105,6 +109,7 @@ Pre-release flags fail with an error that names the replacement.
 | `--compat` | `--json` and `inspect export --format json` |
 | `approve --force` | `approve --dry-run`, then `approve --decisions` |
 
-[Unreleased]: https://github.com/Tavrin/saccade/compare/v0.1.1...HEAD
+[Unreleased]: https://github.com/Tavrin/saccade/compare/v0.1.2...HEAD
+[0.1.2]: https://github.com/Tavrin/saccade/compare/v0.1.1...v0.1.2
 [0.1.1]: https://github.com/Tavrin/saccade/compare/v0.1.0...v0.1.1
 [0.1.0]: https://github.com/Tavrin/saccade/releases/tag/v0.1.0

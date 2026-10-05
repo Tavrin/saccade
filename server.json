@@ -1,19 +1,19 @@
 {
   "$schema": "https://static.modelcontextprotocol.io/schemas/2025-12-11/server.schema.json",
-  "name": "io.github.tavrin/saccade",
+  "name": "io.github.Tavrin/saccade",
   "title": "Saccade",
   "description": "Perceptual visual regression, image evidence inspection and bounded decision proposals.",
   "repository": {
     "url": "https://github.com/Tavrin/saccade",
     "source": "github"
   },
-  "version": "0.1.1",
+  "version": "0.1.2",
   "packages": [
     {
       "registryType": "cargo",
       "registryBaseUrl": "https://crates.io",
       "identifier": "saccade",
-      "version": "0.1.1",
+      "version": "0.1.2",
       "transport": {
         "type": "stdio"
       },
