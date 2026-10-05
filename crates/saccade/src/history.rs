@@ -152,52 +152,8 @@ fn read_index(store: &Path) -> Result<Vec<Row>, CliError> {
     Ok(rows)
 }
 
-#[cfg(test)]
-fn record(report_path: &Path, store: &Path) -> Result<Value, CliError> {
-    record_trial(report_path, store, None)
-}
-
-fn record_trial(report_path: &Path, store: &Path, trial: Option<Trial>) -> Result<Value, CliError> {
-    if trial
-        .as_ref()
-        .is_some_and(|t| t.run_id.trim().is_empty() || t.environment_id.trim().is_empty())
-    {
-        return Err(CliError::usage(
-            "run and environment identities must be nonempty",
-        ));
-    }
-    let report = crate::read_report(report_path)?;
-    if report.config.mode != Mode::Regression {
-        return Err(CliError::usage(
-            "history accepts comparison reports, not identity proofs",
-        ));
-    }
-    let bytes = fs::read(report_path)
-        .map_err(|e| CliError::io(format!("{}: {e}", report_path.display())))?;
-    let report_hash = hash(&bytes);
-    let config_hash = hash(&serde_json::to_vec(&report.config)?);
-    fs::create_dir_all(store.join("objects"))
-        .map_err(|e| CliError::io(format!("creating history store: {e}")))?;
-    let lock = OpenOptions::new()
-        .read(true)
-        .write(true)
-        .create(true)
-        .truncate(false)
-        .open(store.join("record.lock"))
-        .map_err(|e| CliError::io(format!("opening history lock: {e}")))?;
-    lock.lock_exclusive()
-        .map_err(|e| CliError::io(format!("locking history store: {e}")))?;
-    let existing = read_index(store)?;
-    if existing.iter().any(|r| match (&trial, &r.trial) {
-        (Some(a), Some(b)) => a.run_id == b.run_id && a.environment_id == b.environment_id,
-        (None, None) => r.report_sha256 == report_hash,
-        _ => false,
-    }) {
-        return Ok(
-            json!({"schema":SCHEMA,"operation":"record","recorded":false,"reason":"report_already_recorded","report_sha256":report_hash}),
-        );
-    }
-    let samples: Vec<_> = report
+fn report_samples(report: &saccade_core::Report) -> Vec<Sample> {
+    report
         .entries
         .iter()
         .filter_map(|e| {
@@ -226,7 +182,82 @@ fn record_trial(report_path: &Path, store: &Path, trial: Option<Trial>) -> Resul
                 value,
             })
         })
-        .collect();
+        .collect()
+}
+
+fn verified_rows(store: &Path) -> Result<Vec<Row>, CliError> {
+    let mut rows = read_index(store)?;
+    for row in &mut rows {
+        if row.report_sha256.len() != 64
+            || !row
+                .report_sha256
+                .bytes()
+                .all(|b| b.is_ascii_hexdigit() && !b.is_ascii_uppercase())
+        {
+            return Err(CliError::io("invalid history object identity"));
+        }
+        let path = store
+            .join("objects")
+            .join(format!("{}.json", row.report_sha256));
+        let bytes =
+            fs::read(&path).map_err(|e| CliError::io(format!("{}: {e}", path.display())))?;
+        if hash(&bytes) != row.report_sha256 {
+            return Err(CliError::io("history object content hash mismatch"));
+        }
+        let report: saccade_core::Report = crate::parse_contract(&bytes, "saccade-report.v1")?;
+        row.samples = report_samples(&report);
+        row.config_sha256 = hash(&serde_json::to_vec(&report.config)?);
+        row.generated_at_unix = report.generated_at_unix;
+    }
+    Ok(rows)
+}
+
+#[cfg(test)]
+fn record(report_path: &Path, store: &Path) -> Result<Value, CliError> {
+    record_trial(report_path, store, None)
+}
+
+fn record_trial(report_path: &Path, store: &Path, trial: Option<Trial>) -> Result<Value, CliError> {
+    if trial
+        .as_ref()
+        .is_some_and(|t| t.run_id.trim().is_empty() || t.environment_id.trim().is_empty())
+    {
+        return Err(CliError::usage(
+            "run and environment identities must be nonempty",
+        ));
+    }
+    let bytes = fs::read(report_path)
+        .map_err(|e| CliError::io(format!("{}: {e}", report_path.display())))?;
+    let report: saccade_core::Report = crate::parse_contract(&bytes, "saccade-report.v1")?;
+    if report.config.mode != Mode::Regression {
+        return Err(CliError::usage(
+            "history accepts comparison reports, not identity proofs",
+        ));
+    }
+    let report_hash = hash(&bytes);
+    let config_hash = hash(&serde_json::to_vec(&report.config)?);
+    fs::create_dir_all(store.join("objects"))
+        .map_err(|e| CliError::io(format!("creating history store: {e}")))?;
+    let lock = OpenOptions::new()
+        .read(true)
+        .write(true)
+        .create(true)
+        .truncate(false)
+        .open(store.join("record.lock"))
+        .map_err(|e| CliError::io(format!("opening history lock: {e}")))?;
+    lock.lock_exclusive()
+        .map_err(|e| CliError::io(format!("locking history store: {e}")))?;
+    let existing = read_index(store)?;
+    if existing.iter().any(|r| match (&trial, &r.trial) {
+        (Some(a), Some(b)) => a.run_id == b.run_id && a.environment_id == b.environment_id,
+        (None, None) => r.report_sha256 == report_hash,
+        _ => false,
+    }) {
+        return Ok(
+            json!({"schema":SCHEMA,"operation":"record","recorded":false,"reason":"report_already_recorded","report_sha256":report_hash}),
+        );
+    }
+    let samples = report_samples(&report);
     if samples.is_empty() {
         return Err(CliError::new(
             "nothing_compared",
@@ -413,9 +444,15 @@ fn run_analysis(rows: &[Row], entry: Option<&str>, limit: usize, drift: bool) ->
         let effect = if values.len() >= 10 { Some(median(&values[values.len()-5..]) - median(&values[..5])) } else { None };
         // Keep the same baseline anchor. Sustained, mostly increasing changes
         // smaller than a per-revision tolerance still accumulate here.
-        let recent = &values[values.len().saturating_sub(10)..];
+        // Equal repeated captures and a settled plateau preserve a sustained
+        // displacement. Collapse adjacent equals for the trend check while the
+        // endpoint medians retain independent runs and the fixed anchor.
+        let mut levels = values.clone();
+        levels.dedup();
+        let recent = &levels[levels.len().saturating_sub(10)..];
         let increasing = recent.windows(2).filter(|w| w[1] > w[0]).count();
-        let candidate = drift && enough && effect.is_some_and(|e| e > span.max(1e-9)) && increasing * 4 >= recent.len().saturating_sub(1) * 3;
+        let candidate = drift && enough && effect.is_some_and(|e| e > span.max(1e-9))
+            && recent.len() >= 2 && increasing * 4 >= (recent.len() - 1) * 3;
         let suggestion = (enough && !candidate).then_some((hi + span).min(1.0));
         json!({"entry":key.0,"baseline_sha256":key.1,"config_sha256":key.2,"environment_id":environment,
             "independent_runs":runs.len(),"unchanged_build_runs":noise.len(),
@@ -692,7 +729,7 @@ pub(crate) fn run(args: HistoryArgs) -> Result<u8, CliError> {
             limit,
             json,
         } => {
-            let rows = read_index(&store)?;
+            let rows = verified_rows(&store)?;
             (
                 {
                     let mut value = analyze(&rows, entry.as_deref(), limit as usize);
@@ -768,6 +805,55 @@ pub(crate) fn run(args: HistoryArgs) -> Result<u8, CliError> {
 mod tests {
     use super::*;
 
+    #[test]
+    fn repeated_and_settled_anchor_drift_remains_detected() {
+        let mut rows = Vec::new();
+        for i in 0..30 {
+            rows.push(Row {
+                schema: SCHEMA.into(),
+                report_sha256: format!("report{i}"),
+                config_sha256: "config".into(),
+                generated_at_unix: 0,
+                trial: Some(Trial {
+                    run_id: format!("run{i}"),
+                    environment_id: "env".into(),
+                    unchanged_build: i < 10,
+                }),
+                samples: vec![Sample {
+                    entry: "ui.png".into(),
+                    baseline_sha256: "anchor".into(),
+                    capture_sha256: format!("image{i}"),
+                    metric: Metric::Mean,
+                    threshold: 0.5,
+                    value: if i < 10 {
+                        0.0
+                    } else {
+                        ((i - 10) / 2 + 1) as f64 * 0.001
+                    },
+                }],
+            });
+        }
+        assert_eq!(
+            run_analysis(&rows, None, 10, true)["entries"][0]["drift"],
+            "candidate"
+        );
+        for i in 30..45 {
+            let mut row = rows.last().expect("row").clone();
+            row.trial.as_mut().expect("trial").run_id = format!("run{i}");
+            rows.push(row);
+        }
+        assert_eq!(
+            run_analysis(&rows, None, 10, true)["entries"][0]["drift"],
+            "candidate"
+        );
+        for row in &mut rows {
+            row.samples[0].value = 0.0;
+        }
+        assert_eq!(
+            run_analysis(&rows, None, 10, true)["entries"][0]["drift"],
+            "not_detected"
+        );
+    }
     #[test]
     fn onset_reads_hash_bound_reports_partitions_hardware_and_keeps_exclusions() {
         let dir = tempfile::tempdir().expect("store");
