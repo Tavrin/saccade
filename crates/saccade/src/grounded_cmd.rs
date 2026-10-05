@@ -22,9 +22,23 @@ pub(crate) fn explanation(path: &Path, proposals: Option<&Path>) -> Result<Expla
     let value: serde_json::Value = serde_json::from_slice(&bytes)?;
     let digest = saccade_core::localized::digest(&bytes);
     let catalog = match value["schema"].as_str() {
-        Some("saccade-report.v1") => grounded::report_catalog(&crate::read_report(path)?, digest),
-        Some("saccade-localized.v1") => {
-            grounded::localized_catalog(&serde_json::from_slice(&bytes)?, digest)
+        Some("saccade-report.v1") => {
+            grounded::report_catalog(&crate::parse_contract(&bytes, "saccade-report.v1")?, digest)
+        }
+        Some("saccade-localized.v1") => grounded::localized_catalog(
+            &crate::parse_contract(&bytes, "saccade-localized.v1")?,
+            digest,
+        ),
+        Some(schema)
+            if schema.starts_with("saccade-localized.v")
+                || schema.starts_with("saccade-report.v") =>
+        {
+            return Err(CliError::new(
+                "version_skew",
+                format!(
+                    "written by {schema}; installed saccade supports report.v1 and localized.v1, upgrade"
+                ),
+            ));
         }
         _ => {
             return Err(CliError::usage(

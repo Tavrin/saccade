@@ -31,9 +31,9 @@ pub(crate) fn value(
 }
 pub(crate) fn run(args: Args) -> Result<u8, CliError> {
     let manifest_bytes = std::fs::read(&args.manifest).map_err(|e| CliError::io(e.to_string()))?;
-    let manifest = serde_json::from_slice(&manifest_bytes)?;
-    let report = crate::read_report(&args.report)?;
+    let manifest = crate::parse_contract(&manifest_bytes, "saccade-inventory.v1")?;
     let report_bytes = std::fs::read(&args.report).map_err(|e| CliError::io(e.to_string()))?;
+    let report = crate::parse_contract(&report_bytes, "saccade-report.v1")?;
     let inventory = value(&manifest, &report, &manifest_bytes, &report_bytes)?;
     let file = std::fs::OpenOptions::new()
         .write(true)

@@ -50,13 +50,18 @@ pub(crate) fn run(args: Args) -> Result<u8, CliError> {
     let hash = localized::digest(&reference_bytes);
     let dimensions = [reference.width(), reference.height()];
     let region: FrozenRegion = if let Some(path) = args.region {
-        serde_json::from_slice(&std::fs::read(path).map_err(|e| CliError::io(e.to_string()))?)?
+        crate::parse_contract(
+            &std::fs::read(path).map_err(|e| CliError::io(e.to_string()))?,
+            "saccade-frozen-region.v1",
+        )?
     } else if let Some(name) = args.selector {
         let path = args
             .metadata
             .ok_or_else(|| CliError::usage("selector metadata missing"))?;
-        let metadata =
-            serde_json::from_slice(&std::fs::read(path).map_err(|e| CliError::io(e.to_string()))?)?;
+        let metadata = crate::parse_contract(
+            &std::fs::read(path).map_err(|e| CliError::io(e.to_string()))?,
+            "saccade-dom-regions.v1",
+        )?;
         localized::selector(&metadata, &name, &hash, dimensions)?
     } else if let Some(path) = args.mask {
         let data = std::fs::read(path).map_err(|e| CliError::io(e.to_string()))?;

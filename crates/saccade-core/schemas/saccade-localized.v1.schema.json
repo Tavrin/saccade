@@ -66,6 +66,7 @@
       "type": "object"
     },
     "Scope": {
+      "additionalProperties": false,
       "description": "Exact sample and full-frame FLIP statistics within a scope.",
       "properties": {
         "changed_pixels": {
@@ -76,7 +77,7 @@
         },
         "max_flip": {
           "description": "Maximum full-frame FLIP value in the scope.",
-          "format": "float",
+          "format": "double",
           "type": "number"
         },
         "mean_flip": {
@@ -102,6 +103,7 @@
   },
   "$id": "https://github.com/Tavrin/saccade/crates/saccade-core/schemas/saccade-localized.v1.schema.json",
   "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
   "description": "Measurements do not establish success of the requested semantic edit.",
   "properties": {
     "boundary": {

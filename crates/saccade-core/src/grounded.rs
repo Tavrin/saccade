@@ -5,6 +5,7 @@ use serde::{Deserialize, Serialize};
 /// A region in an immutable source report.
 #[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 #[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct Region {
     /// Catalog-local stable ID.
     pub id: String,
@@ -12,10 +13,17 @@ pub struct Region {
     pub entry: String,
     /// Pixel rectangle when source evidence provides one.
     pub rect_px: Option<[u32; 4]>,
+    /// full_frame, included_pixels, scope_unknown or localized_scope.
+    pub measurement_scope: String,
+    /// Exact resolved exclusion evidence from the source entry.
+    pub pixel_exclusions: Option<crate::exclusions::PixelExclusions>,
+    /// Channel and sample interpretation exclusions from the source entry.
+    pub sample_exclusions: Vec<String>,
 }
 /// One numerical measurement and its exact source JSON pointer.
 #[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 #[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct Fact {
     /// Unique evidence ID.
     pub id: String,
@@ -33,6 +41,7 @@ pub struct Fact {
 /// Facts frozen before any proposal is inspected.
 #[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 #[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct Catalog {
     /// SHA-256 of exact source bytes.
     pub source_sha256: String,
@@ -58,6 +67,7 @@ pub struct Proposal {
 /// One verified observation; arbitrary semantic/cause wording never enters this type.
 #[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 #[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct Claim {
     /// Verified numerical proposal.
     pub observation: Proposal,
@@ -71,6 +81,7 @@ pub struct Claim {
 /// Reason an unverified atomic proposal was discarded; its wording is not echoed.
 #[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 #[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct Rejection {
     /// Zero-based proposal position.
     pub index: usize,
@@ -80,6 +91,7 @@ pub struct Rejection {
 /// Grounded observations and their evidence links, with explicit abstention coverage.
 #[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 #[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct Explanation {
     /// saccade-grounded.v1.
     pub schema: String,
@@ -109,6 +121,9 @@ fn add(
         id: id.clone(),
         entry,
         rect_px,
+        measurement_scope: "localized_scope".into(),
+        pixel_exclusions: None,
+        sample_exclusions: vec![],
     });
     for &(kind, value) in values {
         if value.is_finite() && value >= 0.0 {
@@ -150,6 +165,16 @@ pub fn report_catalog(report: &Report, source_sha256: String) -> Catalog {
                 format!("/entries/{i}/metrics"),
                 &[("mean_flip", metrics.mean), ("max_flip", metrics.max)],
             );
+            if let Some(region) = catalog.regions.last_mut() {
+                region.measurement_scope = match &entry.pixel_exclusions {
+                    Some(exclusions) if exclusions.pixels > 0 => "included_pixels",
+                    Some(_) => "full_frame",
+                    None => "scope_unknown",
+                }
+                .into();
+                region.pixel_exclusions = entry.pixel_exclusions.clone();
+                region.sample_exclusions = entry.sample_exclusions.clone().unwrap_or_default();
+            }
             // Metrics fields are named mean/max, unlike hotspot fields.
             for fact in catalog
                 .facts
@@ -214,7 +239,7 @@ pub fn localized_catalog(
             format!("/{id}"),
             &[
                 ("mean_flip", scope.mean_flip),
-                ("max_flip", scope.max_flip as f64),
+                ("max_flip", scope.max_flip),
                 ("changed_pixels", scope.changed_pixels as f64),
             ],
         );
@@ -273,10 +298,24 @@ pub fn verify(catalog: Catalog, proposals: &[Proposal]) -> crate::Result<Explana
             "changed_pixels" => "native changed pixels",
             _ => "thresholded hotspot pixels",
         };
+        let region = catalog.regions.iter().find(|r| r.id == p.region_ids[0]);
+        let scope = region
+            .map(|r| {
+                format!(
+                    "{}; {} excluded pixels; sample exclusions {:?}",
+                    r.measurement_scope,
+                    r.pixel_exclusions.as_ref().map_or(0, |e| e.pixels),
+                    r.sample_exclusions
+                )
+            })
+            .unwrap_or_default();
         claims.push(Claim {
             observation: p.clone(),
             verification: "supported_measurement".into(),
-            text: format!("Region {}: {} = {}.", p.region_ids[0], label, p.value),
+            text: format!(
+                "Region {} ({scope}): {} = {}.",
+                p.region_ids[0], label, p.value
+            ),
             causal_claim: None,
         });
     }

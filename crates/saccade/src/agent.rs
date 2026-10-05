@@ -97,7 +97,16 @@ impl From<String> for CliError {
 
 impl From<serde_json::Error> for CliError {
     fn from(e: serde_json::Error) -> Self {
-        Self::io(format!("JSON error: {e}"))
+        if e.to_string().contains("unknown field") {
+            Self::new(
+                "version_skew",
+                format!(
+                    "written by a newer producer; installed saccade does not support this field, upgrade: {e}"
+                ),
+            )
+        } else {
+            Self::io(format!("JSON error: {e}"))
+        }
     }
 }
 

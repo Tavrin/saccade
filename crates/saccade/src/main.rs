@@ -1577,7 +1577,15 @@ fn doctor(json: bool) -> Result<u8, CliError> {
         "perf-v2",
         "identity-json-v1",
         "history-v1",
+        "inventory-v1",
+        "localized-v1",
+        "grounded-v1",
+        "frozen-region-v1",
+        "renderdoc-v1",
     ];
+    if cfg!(feature = "compression") {
+        capabilities.push("quality-v1");
+    }
     if cfg!(feature = "prechecks") {
         capabilities.push("prechecks");
     }
@@ -1612,6 +1620,13 @@ fn doctor(json: bool) -> Result<u8, CliError> {
             "result": ["saccade-result.v1", "saccade-result.v2"],
             "evidence": ["saccade-evidence.v1"],
             "image_noise": ["saccade-noise.v1"],
+            "inventory": ["saccade-inventory.v1", "saccade-inventory-report.v1"],
+            "localized": ["saccade-localized.v1"],
+            "grounded": ["saccade-grounded.v1"],
+            "frozen_region": ["saccade-frozen-region.v1"],
+            "dom_regions": ["saccade-dom-regions.v1"],
+            "quality": ["saccade-quality-sweep.v1", "saccade-quality-report.v1"],
+            "renderdoc": ["saccade-renderdoc-extract.v1", "saccade-renderdoc-localization.v1"],
             "performance": ["saccade-perf.v1", "saccade-perf.v2"]
         }
     });
@@ -1673,26 +1688,38 @@ fn open_browser(url: &str) {
 fn read_report(path: &Path) -> Result<Report, CliError> {
     let text = std::fs::read_to_string(path)
         .map_err(|e| CliError::io(format!("reading report {}: {e}", path.display())))?;
-    let value: serde_json::Value = serde_json::from_str(&text)?;
-    if let Some(schema) = value.get("schema").and_then(|v| v.as_str())
-        && schema
-            .strip_prefix("saccade-report.v")
-            .and_then(|v| v.parse::<u32>().ok())
-            .is_some_and(|v| v > 1)
-    {
-        return Err(CliError::new(
-            "version_skew",
-            format!(
-                "written by {schema}; installed saccade supports up to saccade-report.v1, upgrade"
-            ),
-        ));
+    parse_contract(text.as_bytes(), saccade_core::report::REPORT_SCHEMA)
+}
+
+/// Parses the exact retained bytes that callers hash; newer producers fail distinctly.
+fn parse_contract<T: serde::de::DeserializeOwned>(
+    bytes: &[u8],
+    schema: &str,
+) -> Result<T, CliError> {
+    let value: serde_json::Value = serde_json::from_slice(bytes)?;
+    if let Some(actual) = value.get("schema").and_then(|v| v.as_str()) {
+        if actual != schema {
+            let prefix = schema
+                .rsplit_once('v')
+                .map(|(prefix, _)| prefix)
+                .unwrap_or(schema);
+            if actual.starts_with(prefix) {
+                return Err(CliError::new(
+                    "version_skew",
+                    format!(
+                        "written by {actual}; installed saccade supports up to {schema}, upgrade"
+                    ),
+                ));
+            }
+            return Err(CliError::usage(format!(
+                "expected {schema}, found {actual}"
+            )));
+        }
     }
     serde_json::from_value(value).map_err(|e| {
         if e.to_string().contains("unknown field") {
-            CliError::new("version_skew", format!("written by a newer producer; installed saccade supports up to saccade-report.v1, upgrade: {e}"))
-        } else {
-            CliError::io(format!("parsing report {}: {e}", path.display()))
-        }
+            CliError::new("version_skew", format!("written by a newer producer; installed saccade supports up to {schema}, upgrade: {e}"))
+        } else { CliError::io(format!("JSON error: {e}")) }
     })
 }
 

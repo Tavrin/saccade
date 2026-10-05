@@ -107,8 +107,9 @@ pub(crate) fn run(args: Args) -> Result<u8, CliError> {
         }
         #[cfg(feature = "semantic-regions")]
         Operation::Cache { manifest, cache } => {
-            let model = serde_json::from_slice(
+            let model = crate::parse_contract(
                 &std::fs::read(manifest).map_err(|e| CliError::io(e.to_string()))?,
+                "saccade-region-models.v1",
             )?;
             let paths = saccade_core::semantic::cache_models(&model, &cache)?;
             crate::emit(&format!(
@@ -122,8 +123,9 @@ pub(crate) fn run(args: Args) -> Result<u8, CliError> {
             cache,
             library,
         } => {
-            let model = serde_json::from_slice(
+            let model = crate::parse_contract(
                 &std::fs::read(manifest).map_err(|e| CliError::io(e.to_string()))?,
+                "saccade-region-models.v1",
             )?;
             let loaded = saccade_core::semantic::probe_runtime(&model, &cache, &library)?;
             crate::emit(&format!(

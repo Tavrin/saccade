@@ -227,7 +227,8 @@ pub(crate) fn run(args: IngestArgs, absolute: bool) -> Result<u8, CliError> {
                 return Err(CliError::usage("ingest --out must not be a symlink"));
             }
             let raw = std::fs::read(&manifest).map_err(|e| CliError::io(e.to_string()))?;
-            let mut source_manifest: Manifest = serde_json::from_slice(&raw)?;
+            let mut source_manifest: Manifest =
+                crate::parse_contract(&raw, "saccade-playwright.v1")?;
             if source_manifest.schema != "saccade-playwright.v1"
                 || (source_manifest.entries.is_empty() && source_manifest.inventory.is_none())
             {

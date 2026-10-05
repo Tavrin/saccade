@@ -29,6 +29,7 @@ pub struct FrozenRegion {
 /// Exact sample and full-frame FLIP statistics within a scope.
 #[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 #[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct Scope {
     /// Number of pixels in the scope.
     pub pixels: u64,
@@ -37,11 +38,12 @@ pub struct Scope {
     /// Ordered mean of full-frame FLIP values in the scope.
     pub mean_flip: f64,
     /// Maximum full-frame FLIP value in the scope.
-    pub max_flip: f32,
+    pub max_flip: f64,
 }
 /// Measurements do not establish success of the requested semantic edit.
 #[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 #[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct Measurement {
     /// saccade-localized.v1.
     pub schema: String,
@@ -150,6 +152,46 @@ fn validate(region: &FrozenRegion) -> Result<()> {
                 .into(),
         ));
     }
+    let nonempty = |key: &str| {
+        region
+            .provenance
+            .get(key)
+            .is_some_and(|v| !v.trim().is_empty())
+    };
+    let source_hash = || {
+        region
+            .provenance
+            .get("source_mask_sha256")
+            .is_some_and(|v| {
+                v.len() == 64
+                    && v.bytes()
+                        .all(|b| b.is_ascii_hexdigit() && !b.is_ascii_uppercase())
+            })
+    };
+    let valid = match region.provenance.get("method").map(String::as_str) {
+        Some("box") => true,
+        Some("dom_selector") => nonempty("selector"),
+        Some("mask_import") => source_hash(),
+        Some("phrase_mask_import") => {
+            source_hash()
+                && nonempty("original_phrase")
+                && region
+                    .provenance
+                    .get("selection_status")
+                    .is_some_and(|v| v == "explicit_import")
+                && region
+                    .provenance
+                    .get("model_inference")
+                    .is_some_and(|v| v == "not_run")
+        }
+        Some("unverified_import") => nonempty("reason"),
+        _ => false,
+    };
+    if !valid {
+        return Err(Error::Config(
+            "invalid or missing method-specific frozen-region provenance".into(),
+        ));
+    }
     Ok(())
 }
 /// Freezes union of explicit pixel boxes; invalid/out-of-frame boxes are rejected.
@@ -178,6 +220,10 @@ pub fn boxes(
             }
         }
     }
+    let mut provenance = provenance;
+    provenance
+        .entry("method".into())
+        .or_insert_with(|| "box".into());
     freeze(reference_sha256, dimensions, inclusion, provenance)
 }
 /// Resolves a unique selector from reference-bound producer metadata; no browser is queried.
@@ -292,21 +338,21 @@ pub fn measure(
             pixels,
             changed_pixels,
             mean_flip: if pixels > 0 { sum / pixels as f64 } else { 0.0 },
-            max_flip: max,
+            max_flip: max as f64,
         }
     };
     let inside = scope(&|i| region.inclusion[i] == 1);
     let outside = scope(&|i| region.inclusion[i] == 0);
     let boundary = scope(&|i| boundary[i]);
     let collateral = if (exact_outside && outside.changed_pixels > 0)
-        || (!exact_outside && outside.max_flip > maximum_outside_flip)
+        || (!exact_outside && outside.max_flip > maximum_outside_flip as f64)
     {
         "collateral_change"
     } else {
         "preserved"
     }
     .into();
-    Ok(Measurement{schema:"saccade-localized.v1".into(),region,candidate_sha256,pixels_per_degree:ppd,intended_change_detected:inside.changed_pixels>0,inside,outside,boundary,exact_outside,maximum_outside_flip,collateral,limits:vec!["Spatial change does not establish success of the requested semantic edit.".into(),"Full-frame FLIP neighborhood support can cross the region boundary; exact sample differences are reported independently, including alpha.".into(),"SDR perceptual measurement converts 16-bit samples to 8-bit; exact collateral retains native precision. HDR/float inputs are rejected.".into()]})
+    Ok(Measurement{schema:"saccade-localized.v1".into(),region,candidate_sha256,pixels_per_degree:ppd,intended_change_detected:inside.changed_pixels>0,inside,outside,boundary,exact_outside,maximum_outside_flip,collateral,limits:vec!["Authoring provenance is a validated producer declaration, not independently authenticated. unverified_import explicitly denotes unavailable authoring evidence.".into(),"Spatial change does not establish success of the requested semantic edit.".into(),"Full-frame FLIP neighborhood support can cross the region boundary; exact sample differences are reported independently, including alpha.".into(),"SDR perceptual measurement converts 16-bit samples to 8-bit; exact collateral retains native precision. HDR/float inputs are rejected.".into()]})
 }
 
 #[cfg(test)]
