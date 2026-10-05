@@ -1,0 +1,280 @@
+{
+  "$defs": {
+    "Artifact": {
+      "additionalProperties": false,
+      "description": "Frozen input artifact, relative to the manifest directory.",
+      "properties": {
+        "path": {
+          "description": "Relative filename.",
+          "type": "string"
+        },
+        "sha256": {
+          "description": "Expected lowercase SHA-256 of the encoded bytes.",
+          "type": "string"
+        }
+      },
+      "required": [
+        "path",
+        "sha256"
+      ],
+      "type": "object"
+    },
+    "Candidate": {
+      "additionalProperties": false,
+      "description": "A candidate's ordered stages, all measured against the resized reference.",
+      "properties": {
+        "id": {
+          "description": "Unique candidate name.",
+          "type": "string"
+        },
+        "stages": {
+          "description": "Processing order, for example Drupal then delivered Imgix image.",
+          "items": {
+            "$ref": "#/$defs/Stage"
+          },
+          "type": "array"
+        }
+      },
+      "required": [
+        "id",
+        "stages"
+      ],
+      "type": "object"
+    },
+    "CandidateResult": {
+      "description": "One candidate's evidence or explicit error.",
+      "properties": {
+        "error": {
+          "description": "Missing, hash-mismatched or unusable candidate reason.",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "id": {
+          "description": "Candidate ID.",
+          "type": "string"
+        },
+        "meets_policy": {
+          "description": "True only when every stage meets the score budget and delivery meets byte budget.",
+          "type": "boolean"
+        },
+        "stages": {
+          "description": "All measured stages before any failure.",
+          "items": {
+            "$ref": "#/$defs/StageResult"
+          },
+          "type": "array"
+        }
+      },
+      "required": [
+        "id",
+        "stages",
+        "meets_policy"
+      ],
+      "type": "object"
+    },
+    "Manifest": {
+      "additionalProperties": false,
+      "description": "Frozen sweep policy and its externally produced candidates.",
+      "properties": {
+        "candidates": {
+          "description": "Nonempty candidate list. Missing or malformed candidates prevent selection.",
+          "items": {
+            "$ref": "#/$defs/Candidate"
+          },
+          "type": "array"
+        },
+        "maximum_bytes": {
+          "description": "Maximum bytes of the delivered stage.",
+          "format": "uint64",
+          "minimum": 0,
+          "type": "integer"
+        },
+        "minimum_score": {
+          "description": "Minimum cumulative SSIMULACRA2 score for every stage.",
+          "format": "double",
+          "type": "number"
+        },
+        "original": {
+          "$ref": "#/$defs/Artifact",
+          "description": "Immutable original; never rewritten by the sweep."
+        },
+        "reference": {
+          "$ref": "#/$defs/Artifact",
+          "description": "Orientation/profile-normalized, resized opaque sRGB reference."
+        },
+        "schema": {
+          "description": "Must be saccade-quality-sweep.v1.",
+          "type": "string"
+        },
+        "viewing_conditions": {
+          "description": "Display, scale, viewing distance, background and review conditions.",
+          "type": "string"
+        }
+      },
+      "required": [
+        "schema",
+        "original",
+        "reference",
+        "minimum_score",
+        "maximum_bytes",
+        "viewing_conditions",
+        "candidates"
+      ],
+      "type": "object"
+    },
+    "Stage": {
+      "additionalProperties": false,
+      "description": "One externally encoded pipeline stage.",
+      "properties": {
+        "dimensions": {
+          "description": "Expected decoded dimensions.",
+          "items": {
+            "format": "uint32",
+            "minimum": 0,
+            "type": "integer"
+          },
+          "maxItems": 2,
+          "minItems": 2,
+          "type": "array"
+        },
+        "encoder": {
+          "description": "Encoder and version, including settings other than quality.",
+          "type": "string"
+        },
+        "id": {
+          "description": "Stable pipeline stage ID.",
+          "type": "string"
+        },
+        "output": {
+          "$ref": "#/$defs/Artifact",
+          "description": "Encoded output."
+        },
+        "pixel_policy": {
+          "description": "Must be normalized_srgb_opaque; profile/orientation normalization is external.",
+          "type": "string"
+        },
+        "quality": {
+          "description": "Encoder-specific quality setting; no universal visibility interpretation.",
+          "format": "double",
+          "type": "number"
+        },
+        "subsampling": {
+          "description": "Explicit subsampling, such as 4:4:4.",
+          "type": "string"
+        }
+      },
+      "required": [
+        "id",
+        "encoder",
+        "quality",
+        "subsampling",
+        "pixel_policy",
+        "dimensions",
+        "output"
+      ],
+      "type": "object"
+    },
+    "StageResult": {
+      "description": "A measured processing stage. Scores are not additive across stages.",
+      "properties": {
+        "bytes": {
+          "description": "Exact encoded bytes.",
+          "format": "uint64",
+          "minimum": 0,
+          "type": "integer"
+        },
+        "cumulative_score": {
+          "description": "Quality against the retained resized reference.",
+          "format": "double",
+          "type": "number"
+        },
+        "incremental_score": {
+          "description": "Quality against the preceding stage (or reference for the first stage).",
+          "format": "double",
+          "type": "number"
+        },
+        "stage": {
+          "$ref": "#/$defs/Stage",
+          "description": "Frozen stage declaration, including output hash."
+        }
+      },
+      "required": [
+        "stage",
+        "bytes",
+        "incremental_score",
+        "cumulative_score"
+      ],
+      "type": "object"
+    }
+  },
+  "$id": "https://github.com/Tavrin/saccade/crates/saccade-core/schemas/saccade-quality-report.v1.schema.json",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "description": "Advisory sweep output. No visibility or approval assertion is made.",
+  "properties": {
+    "candidates": {
+      "description": "Every supplied candidate, including errors.",
+      "items": {
+        "$ref": "#/$defs/CandidateResult"
+      },
+      "type": "array"
+    },
+    "coverage": {
+      "description": "incomplete, no_candidate_meets_policy or complete.",
+      "type": "string"
+    },
+    "human_visual_review": {
+      "description": "Always pending; a numerical threshold cannot prove invisibility.",
+      "type": "string"
+    },
+    "lowest_quality_candidate": {
+      "description": "Lowest final encoder quality meeting policy, only for one encoder/settings family.",
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "manifest": {
+      "$ref": "#/$defs/Manifest",
+      "description": "Frozen policy and original/reference identities."
+    },
+    "manifest_sha256": {
+      "description": "SHA-256 of the exact manifest bytes, assigned by the caller.",
+      "type": "string"
+    },
+    "metric": {
+      "description": "Metric implementation and license.",
+      "type": "string"
+    },
+    "original_bytes": {
+      "description": "Exact bytes of the preserved original.",
+      "format": "uint64",
+      "minimum": 0,
+      "type": "integer"
+    },
+    "schema": {
+      "description": "saccade-quality-report.v1.",
+      "type": "string"
+    },
+    "selected_candidate": {
+      "description": "Smallest measured delivered file meeting policy; null for incomplete sweeps.",
+      "type": [
+        "string",
+        "null"
+      ]
+    }
+  },
+  "required": [
+    "schema",
+    "manifest",
+    "manifest_sha256",
+    "original_bytes",
+    "metric",
+    "candidates",
+    "coverage",
+    "human_visual_review"
+  ],
+  "title": "Sweep",
+  "type": "object"
+}

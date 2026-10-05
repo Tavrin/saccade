@@ -55,6 +55,16 @@ fn committed_schemas_match_the_rust_types() {
     let dir = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("schemas");
     let update = std::env::var_os("UPDATE_SCHEMAS").is_some();
     let all = [
+        #[cfg(feature = "compression")]
+        (
+            "saccade-quality-sweep.v1.schema.json",
+            generated::<saccade_core::quality::Manifest>("saccade-quality-sweep.v1.schema.json"),
+        ),
+        #[cfg(feature = "compression")]
+        (
+            "saccade-quality-report.v1.schema.json",
+            generated::<saccade_core::quality::Sweep>("saccade-quality-report.v1.schema.json"),
+        ),
         (
             "saccade-onset.v1.schema.json",
             generated::<saccade_core::onset::Document>("saccade-onset.v1.schema.json"),

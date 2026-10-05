@@ -23,6 +23,8 @@ dunce = "1"
 toml = "0.8"
 rayon = "1"
 rustfft = "6"
+# Published 0.5.1: BSD-2-Clause, MSRV 1.65; newer repository HEAD differs.
+ssimulacra2 = { version = "=0.5.1", default-features = false, optional = true }
 sha2 = "0.10"
 tiny_http = { version = "0.12", optional = true }
 # Blocking HTTP client for the judge-mode providers (MIT OR Apache-2.0); no async runtime.
@@ -43,6 +45,8 @@ default = ["parallel"]
 parallel = ["flip-rs/parallel"]
 # Graphics computations; their report types remain available in every build.
 graphics = []
+# Compression scoring is independent of graphics and provider adapters.
+compression = ["dep:ssimulacra2"]
 # Deterministic f64 triangle-surface measurement and mesh loaders.
 geometry = ["dep:parry3d-f64", "dep:tobj", "dep:gltf", "dep:base64"]
 # Provider adapters and review orchestration.

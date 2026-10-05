@@ -25,7 +25,8 @@ globset = "0.4"
 fs2 = "0.4.3"
 
 [features]
-default = ["parallel", "graphics", "ai", "workbench", "mcp", "evaluation"]
+default = ["compression", "parallel", "graphics", "ai", "workbench", "mcp", "evaluation"]
+compression = ["saccade-core/compression"]
 parallel = ["saccade-core/parallel"]
 geometry = ["saccade-core/geometry"]
 graphics = ["saccade-core/graphics", "dep:colorvideovdp"]

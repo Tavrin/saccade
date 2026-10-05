@@ -45,6 +45,8 @@ pub mod onset;
 pub mod paths;
 pub mod perf;
 pub mod properties;
+#[cfg(feature = "compression")]
+pub mod quality;
 pub mod questions;
 pub mod rank;
 pub mod regions;
@@ -74,6 +76,8 @@ pub const COMPILED_FEATURES: &[&str] = &[
     "graphics",
     #[cfg(feature = "geometry")]
     "geometry",
+    #[cfg(feature = "compression")]
+    "compression",
     #[cfg(feature = "ai")]
     "ai",
     #[cfg(feature = "workbench")]

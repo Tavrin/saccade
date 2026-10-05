@@ -5,7 +5,7 @@ Generated from compiled capabilities and `--help`; do not edit by hand.
 Generation: `cargo build --release -p saccade --all-features`, then `python3 scripts/gen-docs.py --saccade target/release/saccade`.
 The all-features binary includes every supported operation.
 
-Compiled features: `ai`, `evaluation`, `geometry`, `graphics`, `mcp`, `parallel`, `prechecks`, `schema`, `workbench`.
+Compiled features: `ai`, `compression`, `evaluation`, `geometry`, `graphics`, `mcp`, `parallel`, `prechecks`, `schema`, `workbench`.
 
 Exit 1 means a failed image measurement/evaluation gate or located divergence.
 Exit 0 for compare/identity means no image regression; inspect `performance` for qualification.
@@ -20,9 +20,10 @@ Tell when visual or performance evidence is not good enough to support a claim
 Usage: saccade [OPTIONS] <COMMAND>
 
 Commands:
-  compare  Compare a directory of captures against a directory of baselines
-  prove    Check whether image identity or performance evidence proves a claim
-  review   Preview a review plan or handle a local closed decision request
+  compare        Compare a directory of captures against a directory of baselines
+  prove          Check whether image identity or performance evidence proves a claim
+  quality-sweep  Measure externally encoded quality candidates under a frozen score and byte budget
+  review         Preview a review plan or handle a local closed decision request
 
 Options:
   -h, --help     Print help
@@ -42,6 +43,26 @@ Start here:
 Exit codes: 0 no image regression, 1 image regression found, 2 the command could not run.
 Advanced: demo, identity, noise, view, inspect, experiment, approve, init,
 serve, mcp, ingest, bisect, history, doctor. Existing commands keep working; use `saccade COMMAND --help`.
+```
+
+## saccade quality-sweep
+
+```text
+Measure externally encoded quality candidates under a frozen score and byte budget
+
+Usage: saccade quality-sweep [OPTIONS] --out <OUT> <MANIFEST>
+
+Arguments:
+  <MANIFEST>  Frozen sweep manifest. All artifacts must be beneath its directory
+
+Options:
+      --out <OUT>  New JSON report file; existing files are preserved
+      --json
+  -h, --help       Print help
+
+Global options:
+      --allow-out-near-captures  Silence warnings when --out is next to capture metadata
+      --record-absolute-paths    Opt in to absolute local paths in reports and machine-readable output
 ```
 
 ## saccade history
@@ -93,9 +114,18 @@ Arguments:
   <REPORT>
 
 Options:
+      --run-id <RUN_ID>
+          Producer-assigned independent capture run, never an image or report hash
+      --environment-id <ENVIRONMENT_ID>
+          Frozen browser/device, fonts, viewport, warmup and temporal protocol identity
+      --unchanged-build
+          Declare an unchanged-build repeat eligible for normal-variation advice
       --store <STORE>
+
       --json
-  -h, --help           Print help
+
+  -h, --help
+          Print help
 
 Global options:
       --allow-out-near-captures  Silence warnings when --out is next to capture metadata
@@ -112,6 +142,7 @@ Usage: saccade history analyze [OPTIONS] --store <STORE>
 Options:
       --store <STORE>
       --entry <ENTRY>
+      --drift          Diagnose sustained anchor-relative drift in recorded run order
       --limit <LIMIT>  [default: 10]
       --json
   -h, --help           Print help

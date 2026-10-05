@@ -23,6 +23,8 @@ mod git_bisect;
 mod history;
 mod ingest;
 mod local_cmd;
+#[cfg(feature = "compression")]
+mod quality_cmd;
 #[cfg(feature = "ai")]
 mod review_cmd;
 
@@ -184,6 +186,9 @@ impl From<MetricArg> for Metric {
 
 #[derive(Subcommand)]
 enum Command {
+    /// Measure externally encoded quality candidates under a frozen score and byte budget.
+    #[cfg(feature = "compression")]
+    QualitySweep(quality_cmd::Args),
     /// Record and inspect local visual-test variation across runs.
     #[command(hide = true)]
     History(history::HistoryArgs),
@@ -999,6 +1004,8 @@ fn dispatch(command: Command, record_absolute_paths: bool) -> Result<u8, CliErro
             operation: ExperimentOperation::Geometry(args),
         } => geometry_cmd::compare(args),
         Command::History(args) => history::run(args),
+        #[cfg(feature = "compression")]
+        Command::QualitySweep(args) => quality_cmd::run(args),
         Command::Inspect(args) => local_cmd::inspect(args, record_absolute_paths),
         Command::Review(args) => local_cmd::review(args, record_absolute_paths),
         #[cfg(feature = "prechecks")]
