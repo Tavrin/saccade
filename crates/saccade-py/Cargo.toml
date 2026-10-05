@@ -14,7 +14,7 @@ crate-type = ["cdylib", "rlib"]
 
 [dependencies]
 saccade-core = { workspace = true }
-pyo3 = { version = "=0.25.1", features = ["extension-module", "abi3-py310"] }
+pyo3 = { version = "=0.25.1", features = ["abi3-py310"] }
 serde_json.workspace = true
 
 [features]
