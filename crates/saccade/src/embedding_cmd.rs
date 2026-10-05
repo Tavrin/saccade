@@ -69,7 +69,11 @@ enum Operation {
     /// Search an existing index; model/preprocessing must exactly match the index.
     Query {
         index: PathBuf,
-        image: PathBuf,
+        #[arg(required_unless_present = "text", conflicts_with = "text")]
+        image: Option<PathBuf>,
+        /// Text query requires the deferred pinned joint text/image model.
+        #[arg(long)]
+        text: Option<String>,
         #[command(flatten)]
         runtime: RuntimeArgs,
         #[arg(long, default_value_t = 10)]
@@ -129,11 +133,19 @@ pub(crate) fn index(args: IndexArgs) -> Result<u8, CliError> {
             Operation::Query {
                 index,
                 image,
+                text,
                 runtime,
                 top,
                 out,
                 json,
             } => {
+                if text.is_some() {
+                    return Err(CliError::new(
+                        "text_embedding_unavailable",
+                        "SigLIP 2 official export pins/licence deferred; image-only indices cannot answer text queries",
+                    ));
+                }
+                let image = image.ok_or_else(|| CliError::usage("image or --text required"))?;
                 let value = enabled::query(&index, &image, &runtime, top, &out)?;
                 general_cmd::emit_document(value, Some(&out), json)
             }

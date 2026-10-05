@@ -1,0 +1,15 @@
+{
+  "schema": "saccade-wave8-model-disposition.v1",
+  "text_image": {
+    "requested": "SigLIP 2 base class official checkpoint or official ONNX export",
+    "status": "deferred",
+    "reason": "No joint model contract in inherited pinned registry. Wave 6 validation only accepts dinov2-small image embeddings. Shared rules prohibit reading web content; development prohibits model downloads. An official immutable revision, weights licence file and export SHA-256 cannot be established from supplied facts or fetched crate sources.",
+    "evidence": ["crates/saccade-core/assets/wave7-models.json", "crates/saccade-core/src/general/embedding.rs:60", "WAVE8-NOTES.md"],
+    "required_to_enable": ["official immutable revision", "upstream weights licence evidence", "pinned tokenizer and joint export digests", "reproducible image/text preprocessing and export parity receipt"],
+    "calibration": "uncalibrated"
+  },
+  "learned_saliency": {
+    "status": "skipped",
+    "reason": "No licence-verified pinned learned artifact supplied; deterministic colour-surround saliency ships without external weights."
+  }
+}

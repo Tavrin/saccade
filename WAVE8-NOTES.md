@@ -28,3 +28,16 @@ inherited model accuracy/parity and Rust OCR qualification remain explicitly inc
   Reversal cost: additive APIs/schemas only; no legacy contract migration.
 
 - Disk crossed below floor after the first targeted test completed: 22 GB available. Cargo paused; continuing source/tests/docs. First media test receipt: 4 passed, 110 filtered out, no models, no downloads.
+
+## 8.3 text-image search disposition
+- Implemented shared exact index add/build/load/save and image/text/vector query boundaries,
+  interoperable with wave 6 vectors.bin and index schema v1. Ties sort by row order;
+  bands always uncalibrated until heavy qualification. Generated vector tests verify ranking
+  and corruption rejection, not learned text semantics.
+- Deferred SigLIP 2 inference: supplied registry has no joint export; existing embedding
+  contract only admits DINOv2. No official revision or weights licence supplied, and the
+  shared rule prohibits web-content research/model downloads in development. This is an
+  evidence availability gap, not a claim that no permissive checkpoint exists.
+- Rejected guessing a hash/revision/licence and using image-only vectors for text queries.
+  Reversal cost: add a verified joint model/tokenizer contract and engine adapter; retain
+  index files, query transport and explicit uncalibrated bands.
