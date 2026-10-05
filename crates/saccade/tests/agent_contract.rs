@@ -87,10 +87,19 @@ fn help_lists_active_commands_and_watch_alias_stays_hidden() {
         .collect::<Vec<_>>();
     assert_eq!(
         top.len(),
-        22 + usize::from(cfg!(feature = "compression")),
+        30 + usize::from(cfg!(feature = "compression"))
+            + 4 * usize::from(cfg!(feature = "products")),
         "{top:?}"
     );
     for name in [
+        "capabilities",
+        "inspect-image",
+        "assess",
+        "text",
+        "similar",
+        "index",
+        "hash",
+        "dedupe",
         "init",
         "demo",
         "compare",
@@ -110,6 +119,11 @@ fn help_lists_active_commands_and_watch_alias_stays_hidden() {
         "history",
     ] {
         assert!(top.contains(&name));
+    }
+    if cfg!(feature = "products") {
+        for name in ["sweep", "imgtune", "design", "notify"] {
+            assert!(top.contains(&name), "missing product command {name}");
+        }
     }
     for name in [
         "inspect evidence",

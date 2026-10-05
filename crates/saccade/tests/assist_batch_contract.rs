@@ -207,9 +207,17 @@ fn wave4_report_batch_plan_binds_the_original_pair_and_report() {
     );
     assert_eq!(exit, 0);
     let mut incomplete = frozen.clone();
+    // Report evidence reads retained encoded originals, not the capture's old path.
+    let after_hash =
+        saccade_core::evidence::canonical::Digest::of_bytes(&std::fs::read(&after).unwrap());
     incomplete.tasks[0]
         .transitive
-        .retain(|r| r.path != saccade_core::paths::portable(&after));
+        .retain(|r| r.sha256 != after_hash);
+    assert_eq!(
+        incomplete.tasks[0].transitive.len(),
+        2,
+        "must remove the actual after-capture reference"
+    );
     assist::write(&plan, &incomplete).unwrap();
     let (exit, _) = cli(
         &["review", "assist", "batch", "submit", "--experimental"],

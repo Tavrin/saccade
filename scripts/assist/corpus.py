@@ -33,6 +33,8 @@ def gate_source_hash():
         paths.update((ROOT/"crates"/crate/"examples").rglob("*.rs"))
         paths.add(ROOT/"crates"/crate/"Cargo.toml")
     paths.update((ROOT/"crates/saccade-core/schemas").glob("*.json"))
+    paths.update((ROOT/"vendor/butteraugli").rglob("*.rs"))
+    paths.add(ROOT/"vendor/butteraugli/Cargo.toml")
     paths.update(ROOT/path for path in ["scripts/gates-wave4.sh","scripts/qualify-wave4.sh","Cargo.toml","Cargo.lock"])
     return digest(encoded([(str(p.relative_to(ROOT)),digest(p.read_bytes())) for p in sorted(paths)]))
 
