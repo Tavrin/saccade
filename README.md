@@ -198,7 +198,7 @@ transcripts. It never accepts changed output on its own.
 
 ## Status
 
-saccade 0.1.0 is the first public release.
+saccade 0.1.1 updates the crates.io documentation and agent integration packages.
 
 - Stable: `compare`, `identity`, `approve`, `view`, `inspect`, `init`,
   `noise`, `demo`, `serve`, the local `review` preview and request commands,
@@ -254,3 +254,5 @@ saccade is licensed under either of [MIT](LICENSE-MIT) or
 [flip-rs](https://crates.io/crates/flip-rs) port of NVIDIA FLIP, which is
 BSD-3-Clause. See [third-party notices](THIRD_PARTY.md); release archives
 also carry a generated `THIRD_PARTY_NOTICES.md` covering every dependency.
+
+MCP Registry name: `mcp-name: io.github.tavrin/saccade`

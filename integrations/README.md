@@ -31,6 +31,7 @@ Provider execution requires human startup authorization, finite budgets and
 allowed source-root egress. No baseline-write tool exists.
 See [the agent workflow](../docs/agents.md).
 
-`server.json` describes the 0.1.0 Cargo package over stdio. Registry publication
-requires a later crate release containing the visible ownership marker added
-to the crate README, followed by a manifest version update and owner submission.
+`server.json` describes the 0.1.1 Cargo package over stdio. Registry publication
+requires publishing that crate version with the visible ownership marker in
+the packaged root README, then verifying the rendered marker and submitting
+the manifest as the owner.

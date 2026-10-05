@@ -1,7 +1,4 @@
-//! Perceptual image comparison (NVIDIA FLIP) and the report model behind the
-//! `saccade` visual-regression CLI.
-//!
-//! See `docs/design.md` for the frozen contracts.
+#![doc = include_str!("../README.md")]
 
 #[cfg(feature = "prechecks")]
 pub mod a11y;

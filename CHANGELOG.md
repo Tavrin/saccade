@@ -7,7 +7,27 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-## [0.1.0] - Unreleased
+## [0.1.1] - Unreleased
+
+### Added
+
+- Claude Code and portable Agent Plugins packages, marketplace catalogs, and
+  local manifest validation.
+- MCP Registry metadata and the Cargo package README ownership marker.
+- Release checks for the source, length and contents of packaged READMEs.
+
+### Changed
+
+- The `saccade` crates.io page uses the full repository README.
+- `saccade-core` has library documentation with a tested Rust example and
+  feature descriptions.
+
+### Fixed
+
+- Windows capture shell syntax in `experiment bisect` (`c8bb6da`).
+- Regenerated the CLI reference after the bisect help change (`966ecc5`).
+
+## [0.1.0]
 
 First public release.
 
@@ -85,5 +105,6 @@ Pre-release flags fail with an error that names the replacement.
 | `--compat` | `--json` and `inspect export --format json` |
 | `approve --force` | `approve --dry-run`, then `approve --decisions` |
 
-[Unreleased]: https://github.com/Tavrin/saccade/compare/v0.1.0...HEAD
+[Unreleased]: https://github.com/Tavrin/saccade/compare/v0.1.1...HEAD
+[0.1.1]: https://github.com/Tavrin/saccade/compare/v0.1.0...v0.1.1
 [0.1.0]: https://github.com/Tavrin/saccade/releases/tag/v0.1.0
