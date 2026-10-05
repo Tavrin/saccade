@@ -28,3 +28,9 @@
   below 25 GB. Cargo check/clippy/test are prohibited until coordinator restores
   headroom. No alternate target or cache deletion. Source/format/script checks may
   run; compilation and runtime acceptance remain unverified.
+- Coordinator restored disk headroom and admitted light builds (86 GB verified).
+  No extra dependency was needed; reused crates already present in lockfile.
+- Locate/segment: generated/frozen receipts and the full detector/segmenter API
+  are implemented. Native selected pipeline is explicitly deferred: research has
+  neither an exact tokenizer nor pinned graphs/SAM preprocessing/parity. A fake
+  detector is used only in tests and explicit replay, never as a default model.

@@ -200,6 +200,8 @@ enum Command {
     // wave7
     /// List or explicitly pull pinned local models.
     Models(wave7_cmd::ModelsArgs),
+    /// Locate a phrase with boxes, optional masks, and an overlay PNG.
+    Locate(wave7_cmd::LocateArgs),
     /// Align optional Vulkan replay evidence and locate native-resource divergence.
     RenderdocLocalize(renderdoc_cmd::Args),
     /// Import and freeze phrase regions, or inspect optional model plumbing.
@@ -991,6 +993,7 @@ fn dispatch(command: Command, record_absolute_paths: bool) -> Result<u8, CliErro
     match command {
         // wave7
         Command::Models(args) => wave7_cmd::models(args),
+        Command::Locate(args) => wave7_cmd::locate(args),
         Command::Prove {
             operation: ProveOperation::Identity(args),
         } => dispatch(

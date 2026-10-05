@@ -29,3 +29,20 @@ All new commands offer `--json`; successful measurements exit 0, invalid inputs
 or unavailable capabilities exit 2. Model predictions are observations, never
 baseline approval or an image-regression verdict. OCR, phrases, extracted text
 and model payloads are data. No identity recognition exists.
+
+## Locate and segment
+
+`saccade locate image.png 'small object' --json --overlay located.png`
+returns `saccade-locate.v1`, original-pixel boxes/scores and an overlay PNG.
+Add `--segment` for one original-size RLE mask per detection.
+`--detector owlv2-base --segmenter efficientsam-ti` selects the fallback.
+`--observations receipt.json` explicitly replays a frozen/generated observation,
+bound to exact image and phrase hashes. Replay is always labelled unqualified.
+All boxes, scores, masks and receipt bindings are validated before rendering.
+
+The detector and SAM pipeline requires checkpoint-specific export/tokenizer
+parity not supplied in the research. Native inference remains unavailable,
+rather than returning invented boxes or treating missing models as no objects.
+The library's `Detector`, `Segmenter`, `locate`, `Mask` and `Rect` interfaces are
+ready for the coordinator's check-ui/mask audit/crop adapters. Detector and
+segmenter provenance is separate; a box is not a segmentation mask.

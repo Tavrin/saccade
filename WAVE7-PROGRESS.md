@@ -1,7 +1,7 @@
 # Wave 7 progress
 
-7.1 partial — pinned registry/cache/status/pull implemented; selected real artifacts deferred pending supplied exact pins/export/parity. Cargo gates blocked by 18 GB free (<25 GB).
-7.2 pending — locate/segment.
+7.1 partial (a1c568c) — pinned registry/cache/status/pull implemented; selected real artifacts deferred pending supplied exact pins/export/parity. Cargo gates blocked by 18 GB free (<25 GB).
+7.2 partial — validated locate/segment API, generated fixtures, replay/overlay CLI; native selected export/tokenizer parity deferred.
 7.3 pending — local VLM.
 7.4 pending — learned quality.
 7.5 pending — watermark.
