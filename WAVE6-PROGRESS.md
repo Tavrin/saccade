@@ -3,11 +3,25 @@
 6.6 documents: partial, 6836261; resvg/usvg 0.48.1 + hayro 0.3.0 implemented, feature-gated offline SVG/PDF file-pair page summaries, single-page general loader/directory routes and MCP. Generated nonblank SVG/two-page PDF/missing-page acceptance written. Broad fonts/resources/PDF semantics and all historical-family routes explicitly deferred with source/API evidence in NOTES; heavy document gate NOT RUN.
 6.7a C2PA/forensics: partial, 0e24e07; offline c2pa 0.90.22 Rust-crypto read/validate, active signer/actions/ingredients and signed generation declarations; known XMP/IPTC fields and bounded DCT/periodicity observations. Full metadata formats, encoder attribution and specificity qualification explicitly deferred (no frozen corpus/policy); signed/tamper/history heavy gates written, NOT RUN.
 6.4 OCR: partial, 6edaeaf; pinned pure Rust ocrs 0.10.4/RTen 0.21.0 adapter, runtime-only explicit cache pulls, Unicode boxes/diff behind existing interface. Canonical accent model/licence/pins unavailable in published source; no recognition confidence in upstream API. Model/accent/readability qualification explicitly deferred with exact source evidence; heavy accent gate written, NOT RUN.
-6.3 embeddings: done (export/calibration plumbing), embedding implementation in this commit (SHA receipt follows); exact Rust tensor preparation, offline pinned-source/checkpoint exporter, source-vector parity and frozen sample-disjoint fit/holdout bands/receipts. Actual export/model/corpus qualification and optional CLIP deferred to heavy queue. No weights downloaded.
+6.3 embeddings: done (export/calibration plumbing), cebf1c9; exact Rust tensor preparation, offline pinned-source/checkpoint exporter, source-vector parity and frozen sample-disjoint fit/holdout bands/receipts. Actual export/model/corpus qualification and optional CLIP deferred to heavy queue. No weights downloaded.
 
 Worktree/branch verified: feat/wave6 at handoff 1505d7a7b5c1e3ac9dfe5a9cd82ad72ba3d8faa1, initially clean. Cargo fetching authorized; 244 added registry packages licence-reviewed in THIRD_PARTY.md. Target fixed at /mnt/linux-extra/moss-cargo-targets/codex-saccade-w6. Disk admission stayed >=25 GB during builds.
 
-Light verification: final relevant-feature clippy -D warnings PASS; minimal-feature check PASS (four pre-existing warnings in local_cmd/grounded_cmd); focused general tests 27 PASS, 7 heavy ignored. Fmt/diff/shell/docs/Python syntax/help PASS. Isolated Wave 6 Rust 1.88 check PASS (defaults disabled; three pre-existing local_cmd warnings). Full/default Rust 1.88 check FAILED on pre-existing butteraugli 0.4.0 AVX-512 target-feature E0658; owning-lane blocker, not repaired here. Heavy script NOT RUN. Target deletion required after final checks.
+Light verification: final relevant-feature clippy -D warnings PASS; minimal-feature check PASS (four pre-existing warnings in local_cmd/grounded_cmd); focused general tests 27 PASS, 7 heavy ignored. Fmt/diff/shell/docs/Python syntax/help PASS. Isolated Wave 6 Rust 1.88 check PASS (defaults disabled; three pre-existing local_cmd warnings). Full/default Rust 1.88 check FAILED on pre-existing butteraugli 0.4.0 AVX-512 target-feature E0658; owning-lane blocker, not repaired here. Heavy script NOT RUN. Lane target deleted and absence verified after final checks. No push/merge/integration.
+
+
+Final receipts (all Cargo commands used the fixed lane target, nice -n 19, -j 4 and >=25 GB disk admission):
+- `cargo check -p saccade --features schema,documents,credentials,ocr,embeddings`: PASS.
+- `cargo clippy -p saccade-core -p saccade --all-targets --features schema,documents,credentials,ocr,embeddings -- -D warnings`: PASS on final implementation sources, including all ignored test compilation.
+- `cargo test -p saccade-core --features embeddings,ocr,documents,credentials --lib general::`: 27 PASS, 7 ignored, 64 filtered; no heavy execution.
+- `cargo check -p saccade --no-default-features`: PASS with four pre-existing local_cmd/grounded_cmd warnings.
+- `cargo +1.88 check --offline --locked -p saccade --no-default-features --features schema,documents,credentials,ocr,embeddings,mcp,parallel`: PASS with three pre-existing local_cmd warnings.
+- Full/default Rust 1.88 check: FAILED in existing butteraugli 0.4.0 AVX-512 E0658; outside this lane. This does not invalidate the separately passed new-feature MSRV check, and remains an integration blocker.
+- Final fmt, git diff whitespace, gate shell syntax, docs/schema discriminators, Python export syntax and lightweight --help: PASS. Python export computation itself NOT RUN.
+- `scripts/gates-wave6.sh`: NOT RUN under the coordinator-only rule. Covers touched-crate full tests, all existing Wave 6 heavy groups and new document/MCP, credentials/tamper, Rust OCR accents, forensic sensitivity, actual embedding parity/holdout gates. Required model/corpus/credential fixture contracts and hashes are documented per item; missing provision is a failing gate, never a skip.
+- `/mnt/linux-extra/moss-cargo-targets/codex-saccade-w6`: deleted after no active lane build was found; final path absence verified. The initial rm-style invocation was rejected; guarded directory removal completed. No other target was removed.
+
+Coordinator documentation follow-up: summarize new adapters and remaining qualification limits in README/CHANGELOG and regenerate docs/cli.md after shared registration integration. Those files were not edited here.
 
 ---
 

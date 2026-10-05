@@ -128,3 +128,8 @@
 
 - Rust OCR adapter committed as 6edaeaf; no canonical model or confidence is
   invented. The queued accent/readability gate remains a qualification boundary.
+
+- Embedding export/calibration plumbing committed as cebf1c9. Final non-heavy
+  verification receipts are in PROGRESS. The exact lane target was removed after
+  checking identity and active builds; other targets were not touched. Source
+  implementation is complete to the recorded evidence/deferred boundaries.

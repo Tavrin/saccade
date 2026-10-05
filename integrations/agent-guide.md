@@ -120,3 +120,21 @@ records an explicit selection and refuses unsupported fallbacks. MCP
 `saccade_general` / `capabilities` and `compare_question` mirror these routes;
 embedding execution additionally needs the operator-owned runtime pin. See
 [Choosing a comparison](../docs/choosing-a-comparison.md).
+
+<!-- wave6b -->
+Wave 6b optional `documents` renders bounded SVG/PDF inputs. File-pair
+`compare a.pdf b.pdf --dpi 96 --out pages --json` emits per-page
+`saccade-documents.v1` evidence; missing/error pages fail. MCP
+`saccade_general/documents_compare` mirrors reference/capture/out/dpi/threshold.
+Unsupported fonts/resources/content fail explicitly; broad PDF and every
+historical-family routing remain unqualified.
+Optional `credentials` adds offline validated C2PA declarations to inspect-image;
+unsigned heuristics never infer generation. `ocr` accepts pinned `saccade-ocrs.v1`
+contracts with runtime-only explicit model downloads. ocrs confidence stays absent;
+expected readability cannot pass from an invented value.
+`index export-inputs` prepares exact preprocessing tensors; operator-only
+`scripts/export-wave6-embeddings.py` exports a local pinned checkpoint, and
+`index calibrate` checks independent parity plus frozen fit/holdout labels.
+MCP embedding_export_inputs/embedding_calibrate preserve roots and existing
+ONNX library authority. These jobs establish only their recorded corpus scope,
+never human approval, exact text semantics or universal model accuracy.
