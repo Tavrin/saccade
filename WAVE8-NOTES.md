@@ -168,3 +168,10 @@ inherited model accuracy/parity and Rust OCR qualification remain explicitly inc
   a blanket 6 GiB declaration was inappropriate for metadata/formatting gates.
   Per-gate declarations now use 1 GiB for lightweight checks, 4 GiB for Clippy/
   Python, 6 GiB for full tests and 8 GiB for builds. Time limits are unchanged.
+- Retained first-batch failures: core gates passed CLI-only `mcp` to the core
+  package, so Cargo refused before tests. Correct core feature projection is
+  prepared; no feature that exists on core is removed.
+- CLI active-command count omitted the three new always-registered media
+  commands. Count increases by exactly three, and the same test now individually
+  requires `analyze-media`, `keyframes`, and `find-usage`; old assertions remain.
+  Full CLI/core gates use `--no-fail-fast` to collect every test target.
