@@ -16,6 +16,14 @@ pub const MAX_ARTIFACT_BYTES: u64 = 16 * 1024 * 1024 * 1024;
 /// Typed failures for standalone vision commands.
 #[derive(Debug, thiserror::Error)]
 pub enum VisionError {
+    /// Dynamic library ABI is incompatible with the compiled ort consumer.
+    #[error("ONNX Runtime {required} required: {detail}")]
+    RuntimeIncompatible {
+        /// Required runtime version line.
+        required: String,
+        /// Observed ABI/load failure.
+        detail: String,
+    },
     /// Invalid contract, geometry or input.
     #[error("invalid vision input: {0}")]
     Invalid(String),
@@ -349,6 +357,7 @@ impl Registry {
                         | "grounding-dino-v1"
                         | "owlv2-v1"
                         | "efficientsam-v1"
+                        | "trustmark-q-v1"
                 )
                 || !matches!(i.color.as_str(), "RGB" | "BGR")
                 || !i.scale.is_finite()
@@ -402,9 +411,15 @@ impl Registry {
             let state=if m.artifacts.iter().all(|a| verify(cache,a).is_ok()) {"cached_verified"} else {"missing_or_corrupt"};
             serde_json::json!({"model":m,"status":state,"source_parity":m.parity_sha256.is_some()})
         }).collect();
-        let candidates:Vec<_>=selections().into_iter().filter(|s| !self.models.iter().any(|m| m.id==s.id)).map(|s| serde_json::json!({"selection":s,"status":"unavailable","reason":"exact export pins and input contract not supplied by research"})).collect();
+        let candidates:Vec<_>=selections().into_iter().filter(|s| !self.models.iter().any(|m| m.id==s.id)).map(|s| serde_json::json!({"selection":s,"status":"unavailable","reason":deferred_reason(s.id)})).collect();
         serde_json::json!({"schema":MODELS_SCHEMA,"models":models,"unavailable_selections":candidates})
     }
+}
+fn deferred_reason(id: &str) -> String {
+    serde_json::from_str::<serde_json::Value>(include_str!("../../assets/wave7-disposition.json"))
+        .ok()
+        .and_then(|v| v["deferred"][id].as_str().map(str::to_owned))
+        .unwrap_or_else(|| "exact export pins and input contract not supplied by research".into())
 }
 /// Content-addressed artifact path, with no caller-controlled path component.
 pub fn artifact_path(cache: &Path, a: &Artifact) -> Result<PathBuf> {
@@ -601,7 +616,7 @@ mod tests {
     #[test]
     fn shipped_pins_keep_aux_hash_origin_and_no_invented_parity() {
         let r = Registry::pinned_wave7().unwrap();
-        assert_eq!(r.models.len(), 5);
+        assert_eq!(r.models.len(), 6);
         assert!(r.models.iter().all(|m| m.parity_sha256.is_none()));
         let dino = r.model("grounding-dino-tiny").unwrap();
         assert_eq!(
@@ -623,7 +638,6 @@ mod tests {
             "lpips-alex-v0.1",
             "dists",
             "musiq-technical",
-            "trustmark",
         ] {
             assert!(r.model(missing).is_err());
         }

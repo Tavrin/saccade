@@ -19,3 +19,10 @@ pub mod watermark;
 // wave7b
 #[cfg(feature = "local-models")]
 pub mod native;
+
+// wave7c
+#[cfg(feature = "local-models")]
+pub mod runtime_install;
+
+#[cfg(feature = "local-models")]
+pub mod trustmark;

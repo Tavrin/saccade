@@ -270,3 +270,26 @@ says Apache-2.0; this discrepancy is retained, not resolved by inference.
 SAM archive exporter licensing/preprocessing remain unknown and the archive
 is excluded from the executable registry. Exact exporter identities and
 source/export parity remain unknown for community graphs. No model is vendored.
+
+## Wave 7c CPU runtime provisioning
+
+Optional `local-models` adds tar 0.4.46 and its filetime 0.2.29 dependency;
+flate2 1.1.10 was already resolved and is now a direct optional dependency.
+Fetched source Cargo.toml licences were checked: tar/flate2 `MIT OR Apache-2.0`,
+filetime `MIT/Apache-2.0`. tar default features are disabled (no xattr dependency).
+No new native dependency enters the default or minimal build.
+
+Official Microsoft ONNX Runtime **1.22.0**, CPU linux-x64 archive: **MIT**, as
+verified in the archive's LICENSE. `wave7-runtime.json` records the archive and
+five extracted-file hashes. Provisioning retains LICENSE and ThirdPartyNotices.txt;
+future Docker/wheel packaging must retain these notices. Runtime is downloaded,
+not vendored. Static linking and ort `download-binaries` are not enabled.
+
+TrustMark Q decoder: upstream research explicitly records MIT coverage for
+repository code and downloaded model files. Its authorized **mutable** Adobe URL
+is integrity pinned to locally measured SHA-256, not described as an immutable
+export revision. Exporter identity, upstream resizer/ECC and sample parity remain
+unqualified. SAM2 tagged README explicitly covers official checkpoints under
+Apache-2.0; Microsoft's v1.22.0 exporter headers are MIT. No SAM2 graph was exported.
+LPIPS/DISTS backbones and MUSIQ checkpoint remain deferred on independent grants
+and authorized immutable artifact identity; no new weight licence is inferred.

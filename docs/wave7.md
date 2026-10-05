@@ -1,13 +1,13 @@
 # Standalone local vision (wave 7)
 
 `models list --json` never downloads or loads a runtime. `models pull ID --json`
-explicitly downloads the named entry from `~/.config/saccade/models.json` into
+explicitly downloads the named entry from the user or bundled pinned registry into
 `~/.cache/saccade/models`. Override with `--registry FILE --cache DIR`.
 `local-models` enables downloads and dynamically loaded ONNX Runtime 1.22
 (`ort` 2.0.0-rc.10); the default build adds no native model dependency.
 
-The supplied research selects families, not immutable ONNX artifacts. Until a
-reviewed registry is installed, selections appear as **unavailable**. Every
+The bundled registry pins five selected inference pipelines and the TrustMark Q
+neural graph. Other selections remain **unavailable** with recorded evidence. Every
 executable entry requires real exact SHA-256/size/revision/licence pins, a task,
 code and weight licences, source URL, runtime and preprocessing contract. No
 placeholder hash is shipped. Backbone/calibration/tokenizer/external-data files
@@ -40,9 +40,9 @@ Add `--segment` for one original-size RLE mask per detection.
 bound to exact image and phrase hashes. Replay is always labelled unqualified.
 All boxes, scores, masks and receipt bindings are validated before rendering.
 
-The detector and SAM pipeline requires checkpoint-specific export/tokenizer
-parity not supplied in the research. Native inference remains unavailable,
-rather than returning invented boxes or treating missing models as no objects.
+DINO/OWLv2 detection and EfficientSAM segmentation execute native pinned CPU
+graphs. Source/export parity is not supplied; SAM2 remains deferred with evidence.
+Missing models are unavailable, never interpreted as no objects.
 The library's `Detector`, `Segmenter`, `locate`, `Mask` and `Rect` interfaces are
 ready for the coordinator's check-ui/mask audit/crop adapters. Detector and
 segmenter provenance is separate; a box is not a segmentation mask.
@@ -74,8 +74,8 @@ lane; HTTP is the selected adapter, not a claim of source/export qualification.
 `saccade quality-score image.png --metric musiq --json` measures the technical
 MUSIQ checkpoint. `--metric lpips --reference reference.png` selects LPIPS-Alex
 v0.1; `--metric dists --reference reference.png` selects the full-reference
-fallback. Supply `--registry`, `--cache`, and `--runtime-library` for actual
-inference; `--allow-download` is the explicit per-run download opt-in.
+fallback. Supply reviewed metric manifests with `--registry` and `--cache` for actual
+inference (runtime selection is described below); `--allow-download` is the explicit per-run download opt-in.
 `--observations measurement.json` validates/replays a generated or frozen
 `saccade-learned-quality.v1` report without loading a runtime.
 
@@ -97,8 +97,9 @@ UI-quality thresholds or native published exports are claimed.
 ## Watermarks
 
 `saccade watermark image.png --json` reports independent scheme outcomes and
-absence limits, without a real/fake or AI-origin verdict. TrustMark's exact
-variant/ECC/export is unavailable until pinned and qualified. `WatermarkDecoder`
+absence limits, without a real/fake or AI-origin verdict. `--trustmark` executes
+the pinned Q neural graph, but complete decoding still reports **unavailable**
+until antialiased resize, BCH/ECC and positive-sample parity are qualified. `WatermarkDecoder`
 is the primary integration boundary; `--observations report.json` explicitly
 replays generated/frozen decoder observations with unqualified provenance.
 
@@ -123,7 +124,7 @@ scores and model provenance (`saccade-faces.v1`). `--detector ultraface-rfb`
 selects the fallback. YuNet `yunet-v1` decodes stride 8/16/32 cls/obj/bbox/kps
 heads; UltraFace `ultraface-v1` decodes boxes/scores. Both run optional pinned
 ONNX graphs on CPU, with threshold 0.6 and deterministic NMS IoU 0.3.
-YuNet's export requires fixed BGR NCHW input; preprocessing must be explicitly
+YuNet's export accepts dynamic BGR NCHW input; preprocessing is explicitly
 recorded in the registry. Raw boxes clipped at the image edge are mapped to
 original pixels; malformed landmarks fail. UltraFace has no landmark head and
 reports an empty landmark list. Exact May 2026 export/source parity is pending.
@@ -195,9 +196,9 @@ Run `scripts/gates-wave7.sh` only in the coordinator's heavy queue. It checks di
 headroom before each build, fmt, strict Clippy, full touched-crate tests,
 no-default core tests, schema drift, docs and every ignored model/network group.
 The implementation agent does not run it. No live hosted provider gate exists.
-The selected-native-adapters gate explicitly fails while detector tokenizer/SAM
-and TrustMark ECC integrations are deferred; compatibility receipts cannot close
-that gap. No showcase or browser code was touched, so no browser/showcase gate is
+The selected-native-adapters gate prints DEFERRED for SAM2, learned metrics and
+full TrustMark decoding. Set `WAVE7_REQUIRE_ALL_MODELS=1` to fail on these deferrals.
+Compatible replay receipts cannot qualify missing native adapters. No showcase or browser code was touched, so no browser/showcase gate is
 needed.
 
 Set `WAVE7_HEAVY_FIXTURES` to an external frozen parity bundle containing:
@@ -207,20 +208,22 @@ Set `WAVE7_HEAVY_FIXTURES` to an external frozen parity bundle containing:
 `grounding-dino-tiny.locate.json`, `owlv2-base.locate.json`, `watermarked.png`,
 `trustmark.watermark.json`, `legacy-watermarked.png`, `legacy-payload.json`
 (byte array), and `local-vlm.request.json`. Supply `WAVE7_RUNTIME_LIBRARY`.
-No gate downloads models or changes pins. Source-parity receipts must be
+The gate explicitly pulls/verifies frozen model pins and provisions the pinned
+runtime. It never changes pins. Source-parity receipts must be
 independently reviewed, separately pinned as artifact role `parity`, and match
 the manifest's `parity_sha256`. The boolean reports this declared parity
 provenance; graph loading alone never establishes it.
 
 Real face and quality gates run cached graphs against frozen source outputs
 (score tolerance 0.001, face edges 1 pixel); face tests include a negative image
-and pair metrics include identity. Detection/SAM/TrustMark tests currently check
-external receipt **compatibility only**, not native inference. Legacy DWT's
+and pair metrics include identity. Generated DINO/OWLv2/EfficientSAM/face tests
+run native inference. TrustMark's neural smoke is separate from complete decoding;
+external receipts only establish **compatibility**, not native parity. Legacy DWT's
 upstream workflow parity is separate from the generated marker roundtrip.
 Set `WAVE7_LOCAL_VLM_ENDPOINT` and `WAVE7_LOCAL_VLM_REVISION` for the loopback
 smoke test; it establishes contract/availability, not domain accuracy.
 
-## Wave 7b pinned native adapters (2026-10-05)
+## Pinned native adapters (Wave 7c, 2026-10-05)
 
 When no user registry exists, the standalone CLI uses the bundled exact manifest
 in `crates/saccade-core/assets/wave7-models.json`. An explicit `--registry` still
@@ -229,31 +232,76 @@ artifact catalog in `/mnt/linux-extra/saccade-models`; graph and auxiliary hashe
 are checked before use. Locally computed tokenizer/config digests are dated and
 kept distinct from host-reported graph hashes. Weights are never stored in Git.
 
-With `local-models`, `locate` uses the pinned BERT DINO adapter on square images.
-The supplied graph is fixed at 800×800; preserving its processor on rectangles
-requires the OWLv2 fallback, which pads with per-channel mean and resizes to
-960×960. Detector identity always names the graph actually executed. Detection
+With `local-models`, `locate` uses the pinned BERT DINO adapter. Its graph is
+fixed at 800×800. Rectangles use aspect-preserving longest-edge 800 resize,
+normalization then zero padding, and a validity pixel mask. DINO boxes normalize
+to that valid image extent and map to the original width/height, not padded
+canvas dimensions. This adapts the square graph; it does not claim upstream
+shortest-edge processor parity. OWLv2 pads with per-channel mean and resizes
+to 960×960, mapping boxes through its complete square canvas. Detector identity always names the graph actually executed. Detection
 thresholds are 0.4 (DINO) and 0.1 (OWLv2), with explicit NMS 0.5; these example
 settings are not calibration. The query is one phrase, and the receipt binds it.
 `--segment` selects EfficientSAM when the default SAM2 bundle is unavailable:
 original-pixel box corners, encoder/decoder inference, highest-IoU candidate,
-and positive-logit foreground runs. SAM2 remains unavailable because its verified
-archive lacks a complete exporter licence and preprocessing contract.
+and positive-logit foreground runs. SAM2's official checkpoint and tagged
+Apache/MIT export sources are verified, but isolated export tooling is missing.
+The prepared script is `scripts/models/sam2.1-tiny.sh`; no graph was exported.
+The earlier community archive remains excluded on exporter licence evidence.
 
 YuNet uses native BGR pixels with bottom/right zero padding to multiples of 32;
 UltraFace uses RGB 320×240 and `(pixel−127)/128`. Both apply the recorded score
 0.6/NMS 0.3 policy. Successful face detection never certifies absence of other
-faces. LPIPS, DISTS, MUSIQ and TrustMark remain unavailable until their incomplete
-pins are supplied; they never produce fabricated measurements or watermark
-presence. LPIPS/DISTS compare attachment remains coordinator work after exports
+faces. LPIPS/DISTS remain deferred on independent backbone-weight grants;
+MUSIQ's official checkpoint lies outside allowed downloads without a complete pin.
+TrustMark Q's pinned neural graph works; complete watermark decoding remains
+unavailable until ECC/resize/sample qualification. No raw-bit presence claim. LPIPS/DISTS compare attachment remains coordinator work after exports
 exist. The reason for each missing model is in `scripts/wave7/disposition.json`.
 
-`gates-wave7.sh` prepares MIT-licensed generated bottle/portrait/blank fixtures
-with Python Pillow, verifies frozen pins, and runs ignored native inference tests
-with box/mask/negative-image/crop assertions. Set `WAVE7_RUNTIME_LIBRARY` to an
-explicit installed CPU ONNX Runtime API22 (1.22+) library. Development reference
-smokes used an existing 1.16.3 C API runtime and succeeded for five models, but
-Rust inference failed at that ABI boundary before executing a graph. The complete
-receipts and tensor declarations are in `scripts/wave7/smoke-receipt.json` and
-`scripts/wave7/signatures.json`. These checks do not establish source/export
-parity, native Rust runtime acceptance, cross-platform behavior or integration.
+`gates-wave7.sh` prepares MIT-licensed generated bottle/portrait/blank fixtures,
+verifies frozen pins, provisions the runtime and runs one-image CPU smokes with
+external 55-second bounds. A rectangular DINO regression verifies IoU >0.8 and
+original-image bounds. `scripts/models/rust-smoke-receipt.json` records five
+successful native reference smokes plus TrustMark neural-only and rectangle
+results. The earlier API16 Python receipt remains historical in
+`scripts/wave7/smoke-receipt.json`. None establishes source/export parity,
+cross-platform behavior, GPU or merged integration. The full gate was not run.
+
+## ONNX Runtime provisioning and deployment
+
+With `local-models`, run `saccade models pull runtime --cache DIR --json`.
+On Linux x64 this fetches Microsoft's official CPU **1.22.0** release archive,
+7,798,730 bytes, SHA-256
+`8344d55f93d5bc5021ce342db50f62079daf39aaafb5d311a451846228be49b3`.
+The digest was computed locally on 2026-10-05; `wave7-runtime.json` records
+inner-library and notice hashes. Installation copies only allowlisted regular
+members into `DIR/runtime/<archive-sha>/`, atomically, and verifies all files.
+Archive symlinks are not extracted. MIT LICENSE and ThirdPartyNotices.txt are
+retained. Changed/corrupt bytes fail integrity instead of being silently replaced.
+
+Runtime precedence: explicit `--runtime-library`, then `ORT_DYLIB_PATH`, then
+the verified cached runtime. JSON pull output includes the exact path under
+`ORT_DYLIB_PATH`; exporting it is optional for this CLI and useful to other
+consumers. No implicit runtime download, ambient system-library probing, or
+process-wide environment mutation occurs. An incompatible ABI produces typed
+`runtime_incompatible` (exit2), naming required **1.22.x/API22** and the observed
+version/load failure. One process cannot change runtime libraries after selection.
+Other platforms use an explicit compatible library; no untested archive is pinned.
+
+Future **Docker** consumption: build the CLI with `local-models`; in an image
+preparation step run `models pull runtime --cache /opt/saccade/models --json`.
+Carry the runtime directory and its notices into the final image, set
+`ORT_DYLIB_PATH` to the reported absolute library path and use the same cache
+for inference. Network-free runtime containers can copy a previously verified
+cache. This lane documents the route; no Docker image was built.
+
+Future **Python wheel** consumption: a binding should call the same runtime
+provisioner during an explicit user bootstrap, using its model cache, or accept
+`ORT_DYLIB_PATH` from a host ONNX Runtime1.22 installation. Keep the native wheel
+separate from downloaded runtime/model bytes, enforce the same pins and retain
+runtime notices if redistribution is later selected. No Python wheel was built.
+
+Rejected ort `download-binaries`/static linking: they couple provisioning to
+build-time network/cache/platform behavior and binary packaging. Dynamic loading
+keeps optional native dependencies out of default builds, pins one inspectable
+release, and supports shared CLI/container/wheel caches. Reversal requires new
+per-platform archive pins or a deliberate packaging/build-policy change.

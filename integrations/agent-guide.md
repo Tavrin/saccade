@@ -88,3 +88,12 @@ source-parity and availability before describing output as inference. `--observa
 is explicit replay. MCP preserves six tools: `saccade_inspect.models_list` and
 `saccade_measure.vision_*` use registered inputs and the separate output root;
 tool arguments cannot authorize downloads or local/provider HTTP calls.
+
+<!-- wave7c -->
+For optional local vision, `saccade models pull runtime --cache DIR --json`
+provisions pinned ONNX Runtime 1.22.0 on Linux x64. Inference selects
+`--runtime-library`, then `ORT_DYLIB_PATH`, then the verified runtime in the model
+cache; it never provisions a runtime implicitly. `runtime_incompatible` names
+required API22 and the observed failure. `watermark --trustmark` can run the pinned
+Q neural graph but currently returns `unavailable` for complete decoding until
+resize/ECC/sample qualification; raw logits establish no watermark presence.

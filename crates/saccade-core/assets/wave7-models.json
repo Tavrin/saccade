@@ -11,7 +11,7 @@
       "runtime": "onnx",
       "input": {
         "adapter": "grounding-dino-v1",
-        "preprocessing": "square only: supplied shortest-edge 800 matches static graph; other aspect ratios refused",
+        "preprocessing": "aspect-preserving longest-edge800 bilinear resize; normalize valid RGB then zero-pad bottom/right to800 square with validity pixel_mask; boxes normalized to valid mask extent scale to original width/height and clip (adapted square export, not upstream shortest-edge parity)",
         "resolution": [
           800,
           800
@@ -343,6 +343,50 @@
           "sha256": "34cd7e60aeff28744c657de7a3dc64e872d506741de66987f3426f2b79f88017",
           "license": "MIT",
           "hash_provenance": "host-reported, WAVE7-PINS-2026-10-05.md"
+        }
+      ],
+      "parity_sha256": null
+    },
+    {
+      "id": "trustmark",
+      "task": "watermark_decode",
+      "version": "Q-sha256-ee3268f057c9dabef680e169302f5973d0589feea86189ed229a896cc3aa88df",
+      "code_license": "MIT",
+      "weights_license": "MIT",
+      "source_url": "https://github.com/adobe/trustmark",
+      "runtime": "onnx",
+      "input": {
+        "adapter": "trustmark-q-v1",
+        "preprocessing": "Q RGB/255 256x256; center-square crop only outside aspect[0.5,2]; triangle resize (upstream antialiased resizer not qualified); 100 logits>=0; BCH decoding deferred, no watermark presence claim",
+        "resolution": [
+          256,
+          256
+        ],
+        "color": "RGB",
+        "scale": 0.00392156862745098,
+        "mean": [
+          0,
+          0,
+          0
+        ],
+        "std": [
+          1,
+          1,
+          1
+        ],
+        "image_input": "image",
+        "reference_input": null,
+        "output": "output"
+      },
+      "artifacts": [
+        {
+          "role": "graph",
+          "revision": "content-sha256-ee3268f057c9dabef680e169302f5973d0589feea86189ed229a896cc3aa88df",
+          "url": "https://cai-watermark.adobe.net/watermarking/trustmark-models/decoder_Q.onnx",
+          "bytes": 47401222,
+          "sha256": "ee3268f057c9dabef680e169302f5973d0589feea86189ed229a896cc3aa88df",
+          "license": "MIT",
+          "hash_provenance": "computed locally on 2026-10-05; explicitly authorized mutable upstream URL, integrity locked by hash"
         }
       ],
       "parity_sha256": null

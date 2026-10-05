@@ -5,6 +5,7 @@ use std::path::{Path, PathBuf};
 
 pub(crate) fn error(e: VisionError) -> CliError {
     let code = match &e {
+        VisionError::RuntimeIncompatible { .. } => "runtime_incompatible",
         VisionError::Unavailable(_) => "vision_unavailable",
         VisionError::Integrity(_) => "model_integrity",
         VisionError::Invalid(_) => "invalid_vision_input",
@@ -77,13 +78,39 @@ pub(crate) fn models(args: ModelsArgs) -> Result<u8, CliError> {
             registry: p,
             cache: c,
             json,
-        } => emit(&registry(p.as_deref())?.status(&cache(c.as_deref())?), json),
+        } => {
+            let cache = cache(c.as_deref())?;
+            let mut status = registry(p.as_deref())?.status(&cache);
+            #[cfg(feature = "local-models")]
+            {
+                status["runtime"] = saccade_core::wave7::runtime_install::status(&cache);
+            }
+            emit(&status, json)
+        }
         ModelsOperation::Pull {
             id,
             registry: p,
             cache: c,
             json,
         } => {
+            if id == "runtime" {
+                #[cfg(feature = "local-models")]
+                {
+                    let cache = cache(c.as_deref())?;
+                    let library =
+                        saccade_core::wave7::runtime_install::pull(&cache).map_err(error)?;
+                    return emit(
+                        &serde_json::json!({"schema":models::MODELS_SCHEMA,
+                        "runtime":saccade_core::wave7::runtime_install::status(&cache),
+                        "ORT_DYLIB_PATH":library}),
+                        json,
+                    );
+                }
+                #[cfg(not(feature = "local-models"))]
+                return Err(error(VisionError::Unavailable(
+                    "compile local-models to provision the runtime".into(),
+                )));
+            }
             let r = registry(p.as_deref())?;
             let m = r.model(&id).map_err(error)?;
             let paths = models::ensure(m, &cache(c.as_deref())?, true).map_err(error)?;
@@ -101,7 +128,7 @@ pub(crate) struct ModelOptions {
     registry: Option<PathBuf>,
     #[arg(long)]
     cache: Option<PathBuf>,
-    /// Explicit ONNX Runtime 1.22 shared library; no ambient library probing.
+    /// ONNX Runtime 1.22 library; otherwise ORT_DYLIB_PATH or verified model cache.
     #[arg(long)]
     runtime_library: Option<PathBuf>,
     #[arg(long)]
@@ -160,24 +187,22 @@ pub(crate) fn locate(a: LocateArgs) -> Result<u8, CliError> {
                 native::{EfficientSam, TextDetector},
                 vision,
             };
-            let library = a
-                .model
-                .runtime_library
-                .as_deref()
-                .ok_or_else(|| CliError::usage("--runtime-library is required"))?;
             let cache = cache(a.model.cache.as_deref())?;
-            // The supplied primary export cannot preserve its processor on a rectangle.
-            let detector_id = if a.detector == "grounding-dino-tiny"
-                && (image.size()[0] != image.size()[1] || reg.model(&a.detector).is_err())
-            {
-                "owlv2-base"
-            } else {
-                &a.detector
-            };
+            let library = saccade_core::wave7::runtime_install::resolve(
+                a.model.runtime_library.as_deref(),
+                &cache,
+            )
+            .map_err(error)?;
+            let detector_id =
+                if a.detector == "grounding-dino-tiny" && reg.model(&a.detector).is_err() {
+                    "owlv2-base"
+                } else {
+                    &a.detector
+                };
             let mut detector = TextDetector::load(
                 reg.model(detector_id).map_err(error)?,
                 &cache,
-                library,
+                &library,
                 a.model.allow_download,
             )
             .map_err(error)?;
@@ -191,7 +216,7 @@ pub(crate) fn locate(a: LocateArgs) -> Result<u8, CliError> {
                     EfficientSam::load(
                         reg.model(id).map_err(error)?,
                         &cache,
-                        library,
+                        &library,
                         a.model.allow_download,
                     )
                     .map_err(error)?,
@@ -319,13 +344,16 @@ pub(crate) fn quality(a: QualityArgs) -> Result<u8, CliError> {
         let m = reg.model(metric.model_id()).map_err(error)?;
         #[cfg(feature = "local-models")]
         {
-            let library = a.model.runtime_library.as_deref().ok_or_else(|| {
-                CliError::usage("--runtime-library is required for ONNX inference")
-            })?;
+            let model_cache = cache(a.model.cache.as_deref())?;
+            let library = saccade_core::wave7::runtime_install::resolve(
+                a.model.runtime_library.as_deref(),
+                &model_cache,
+            )
+            .map_err(error)?;
             let mut runtime = saccade_core::wave7::runtime::OnnxModel::load(
                 m,
                 &cache(a.model.cache.as_deref())?,
-                library,
+                &library,
                 a.model.allow_download,
             )
             .map_err(error)?;
@@ -356,6 +384,11 @@ pub(crate) struct WatermarkArgs {
     /// Explicit frozen/generated primary-decoder observation report.
     #[arg(long)]
     observations: Option<PathBuf>,
+    /// Run the pinned Q neural graph; ECC/resize qualification remains unavailable.
+    #[arg(long)]
+    trustmark: bool,
+    #[command(flatten)]
+    model: ModelOptions,
     #[arg(long)]
     json: bool,
 }
@@ -404,7 +437,32 @@ pub(crate) fn watermark(a: WatermarkArgs) -> Result<u8, CliError> {
                 })
             })
             .transpose()?;
-        watermark::inspect(&image, None, legacy.as_ref()).map_err(error)?
+        if a.trustmark {
+            #[cfg(feature = "local-models")]
+            {
+                let reg = registry(a.model.registry.as_deref())?;
+                let cache = cache(a.model.cache.as_deref())?;
+                let library = saccade_core::wave7::runtime_install::resolve(
+                    a.model.runtime_library.as_deref(),
+                    &cache,
+                )
+                .map_err(error)?;
+                let mut decoder = saccade_core::wave7::trustmark::TrustMarkQ::load(
+                    reg.model("trustmark").map_err(error)?,
+                    &cache,
+                    &library,
+                    a.model.allow_download,
+                )
+                .map_err(error)?;
+                watermark::inspect(&image, Some(&mut decoder), legacy.as_ref()).map_err(error)?
+            }
+            #[cfg(not(feature = "local-models"))]
+            return Err(error(VisionError::Unavailable(
+                "compile local-models for TrustMark Q".into(),
+            )));
+        } else {
+            watermark::inspect(&image, None, legacy.as_ref()).map_err(error)?
+        }
     };
     emit(&r, a.json)
 }
@@ -441,15 +499,16 @@ fn face_report(
     let m = reg.model(&a.detector).map_err(error)?;
     #[cfg(feature = "local-models")]
     {
-        let library = a
-            .model
-            .runtime_library
-            .as_deref()
-            .ok_or_else(|| CliError::usage("--runtime-library is required"))?;
+        let model_cache = cache(a.model.cache.as_deref())?;
+        let library = saccade_core::wave7::runtime_install::resolve(
+            a.model.runtime_library.as_deref(),
+            &model_cache,
+        )
+        .map_err(error)?;
         let mut runtime = saccade_core::wave7::runtime::OnnxModel::load(
             m,
             &cache(a.model.cache.as_deref())?,
-            library,
+            &library,
             a.model.allow_download,
         )
         .map_err(error)?;

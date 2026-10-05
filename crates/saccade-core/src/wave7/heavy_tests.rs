@@ -337,3 +337,140 @@ fn pinned_pair_metrics_identity_and_distortion() {
         assert!(large > small);
     }
 }
+
+#[test]
+#[ignore = "heavy: models"]
+fn pinned_single_image_cpu_smoke() {
+    use super::{
+        native::{EfficientSam, TextDetector},
+        vision::{Detector, Rect, Segmenter},
+    };
+    let id = std::env::var("WAVE7_SMOKE_MODEL").expect("one explicit model per bounded CPU smoke");
+    let started = std::time::Instant::now();
+    let registry = pinned_registry();
+    let m = registry.model(&id).unwrap();
+    let name = if matches!(id.as_str(), "yunet-2026may" | "ultraface-rfb") {
+        "face.png"
+    } else {
+        "bottle.png"
+    };
+    let image = generated(name);
+    let summary = match id.as_str() {
+        "grounding-dino-tiny" | "owlv2-base" => {
+            let mut detector = TextDetector::load(m, &model_cache(), &library(), false).unwrap();
+            let (detections, p) = detector.detect(&image, "bottle").unwrap();
+            let expected = Rect {
+                x: 89.,
+                y: 23.,
+                width: 78.,
+                height: 206.,
+            };
+            assert!(
+                detections.iter().any(|d| d.bbox.intersection(expected)
+                    / (expected.width * expected.height)
+                    > 0.7)
+            );
+            assert_eq!(p.model_id, id);
+            serde_json::json!({"detections":detections,"provenance":p})
+        }
+        "efficientsam-ti" => {
+            let mut segmenter = EfficientSam::load(m, &model_cache(), &library(), false).unwrap();
+            let (masks, p) = segmenter
+                .segment(
+                    &image,
+                    &[Rect {
+                        x: 88.,
+                        y: 22.,
+                        width: 80.,
+                        height: 208.,
+                    }],
+                )
+                .unwrap();
+            masks[0].validate(image.size()).unwrap();
+            let area: u32 = masks[0].runs.iter().map(|r| r[1]).sum();
+            assert!((7000..18000).contains(&area));
+            let contains = |x: u32, y: u32| {
+                masks[0]
+                    .runs
+                    .iter()
+                    .any(|r| r[0] <= y * 256 + x && y * 256 + x < r[0] + r[1])
+            };
+            assert!(contains(128, 100));
+            assert!(!contains(5, 5));
+            serde_json::json!({"area":area,"provenance":p})
+        }
+        "yunet-2026may" | "ultraface-rfb" => {
+            let mut graph = OnnxModel::load(m, &model_cache(), &library(), false).unwrap();
+            let result = faces::detect(&image, &mut graph).unwrap();
+            let expected = Rect {
+                x: 63.,
+                y: 26.,
+                width: 129.,
+                height: 186.,
+            };
+            assert!(
+                result.faces.iter().any(|f| f.bbox.intersection(expected)
+                    / (expected.width * expected.height)
+                    > 0.5)
+            );
+            serde_json::to_value(result).unwrap()
+        }
+        "trustmark" => {
+            let mut decoder =
+                super::trustmark::TrustMarkQ::load(m, &model_cache(), &library(), false).unwrap();
+            let (logits, p) = decoder.logits(&image).unwrap();
+            assert!(logits.iter().all(|v| v.is_finite()));
+            serde_json::json!({"logits":logits.as_slice(),"provenance":p,"qualification":"neural-only; ECC/resize deferred"})
+        }
+        _ => panic!("unsupported smoke model"),
+    };
+    assert!(started.elapsed().as_secs_f64() < 60.);
+    println!(
+        "SMOKE {}",
+        serde_json::json!({"model":id,"seconds":started.elapsed().as_secs_f64(),"image_sha256":image.sha256,"result":summary})
+    );
+}
+#[test]
+#[ignore = "heavy: models"]
+fn pinned_dino_rectangle_maps_to_original_image() {
+    use super::{
+        native::TextDetector,
+        vision::{Detector, Rect},
+    };
+    let mut image = generated("bottle.png");
+    let mut pixels = image::RgbImage::from_pixel(384, 256, image::Rgb([255, 255, 255]));
+    image::imageops::replace(&mut pixels, &image.pixels, 0, 0);
+    image.pixels = pixels;
+    image.sha256 = super::models::digest(image.pixels.as_raw());
+    let registry = pinned_registry();
+    let mut detector = TextDetector::load(
+        registry.model("grounding-dino-tiny").unwrap(),
+        &model_cache(),
+        &library(),
+        false,
+    )
+    .unwrap();
+    let (detections, p) = detector.detect(&image, "bottle").unwrap();
+    assert_eq!(p.model_id, "grounding-dino-tiny");
+    let expected = Rect {
+        x: 89.,
+        y: 23.,
+        width: 78.,
+        height: 206.,
+    };
+    assert!(
+        detections.iter().any(|d| {
+            let intersection = d.bbox.intersection(expected);
+            intersection
+                / (d.bbox.width * d.bbox.height + expected.width * expected.height - intersection)
+                > 0.8
+        }),
+        "{detections:?}"
+    );
+    assert!(
+        detections
+            .iter()
+            .all(|d| d.bbox.validate([384, 256]).is_ok())
+    );
+    println!("RECTANGLE {}", serde_json::to_string(&detections).unwrap());
+}

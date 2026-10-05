@@ -1,0 +1,36 @@
+{
+  "version": "1.22.0",
+  "platform": "linux-x64",
+  "license": "MIT",
+  "url": "https://github.com/microsoft/onnxruntime/releases/download/v1.22.0/onnxruntime-linux-x64-1.22.0.tgz",
+  "bytes": 7798730,
+  "sha256": "8344d55f93d5bc5021ce342db50f62079daf39aaafb5d311a451846228be49b3",
+  "hash_provenance": "computed locally on 2026-10-05",
+  "files": [
+    {
+      "path": "lib/libonnxruntime.so.1.22.0",
+      "bytes": 21042416,
+      "sha256": "3da6146e14e7b8aaec625dde11d6114c7457c87a5f93d744897da8781e35c673"
+    },
+    {
+      "path": "lib/libonnxruntime_providers_shared.so",
+      "bytes": 14632,
+      "sha256": "e4706ea02be3999167f000bb1ff7391c86e95d2d96f78eb33225c14b172a8451"
+    },
+    {
+      "path": "LICENSE",
+      "bytes": 1073,
+      "sha256": "2f07c72751aed99790b8a4869cf2311df85a860b22ded05fa22803587a48922c"
+    },
+    {
+      "path": "ThirdPartyNotices.txt",
+      "bytes": 326866,
+      "sha256": "e9e90971a8e75a9a8ac0c6412e29c1202d079998389915aa485f46c816c3b4cc"
+    },
+    {
+      "path": "VERSION_NUMBER",
+      "bytes": 7,
+      "sha256": "a482aec6f30758f5ba391b686d1f33d8ef1ab78ac649da44307ae41eb5ecad43"
+    }
+  ]
+}

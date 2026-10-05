@@ -115,6 +115,40 @@ fn owl_tensor(image: &VisionImage, model: &super::models::Model) -> Result<Tenso
     }
     Tensor::from_array(([1usize, 3, 960, 960], data)).map_err(ort_error)
 }
+fn dino_geometry(size: [u32; 2]) -> ([u32; 2], [f32; 2]) {
+    let side = size[0].max(size[1]) as f32;
+    let resized = size.map(|v| (v as f32 * 800. / side).round().max(1.) as u32);
+    // DINO pred_boxes are normalized to the valid image extent supplied by pixel_mask,
+    // unlike OWLv2's full square canvas. Undo resize on that valid extent.
+    (resized, size.map(|v| v as f32))
+}
+fn dino_tensor(
+    image: &VisionImage,
+    model: &super::models::Model,
+) -> Result<(Tensor<f32>, Tensor<i64>)> {
+    let ([w, h], _) = dino_geometry(image.size());
+    let resized =
+        image::imageops::resize(&image.pixels, w, h, image::imageops::FilterType::Triangle);
+    // Normalize valid pixels, then zero-pad bottom/right in normalized space.
+    let mut data = vec![0.; 3 * 800 * 800];
+    let mut mask = vec![0i64; 800 * 800];
+    for y in 0..h {
+        for x in 0..w {
+            let i = y as usize * 800 + x as usize;
+            let pixel = resized.get_pixel(x, y);
+            mask[i] = 1;
+            for c in 0..3 {
+                data[c * 800 * 800 + i] = (f32::from(pixel[c]) * model.input.scale
+                    - model.input.mean[c])
+                    / model.input.std[c];
+            }
+        }
+    }
+    Ok((
+        Tensor::from_array(([1usize, 3, 800, 800], data)).map_err(ort_error)?,
+        Tensor::from_array(([1usize, 800, 800], mask)).map_err(ort_error)?,
+    ))
+}
 impl Detector for TextDetector {
     fn detect(
         &mut self,
@@ -125,9 +159,6 @@ impl Detector for TextDetector {
             return Err(VisionError::Invalid("text query length".into()));
         }
         let dino = self.graph.model.id == "grounding-dino-tiny";
-        if dino && image.size()[0] != image.size()[1] {
-            return Err(VisionError::Unavailable("pinned DINO graph is static 800x800; rectangular supplied processor output requires OWLv2".into()));
-        }
         let query = if dino {
             let p = phrase.trim().to_lowercase();
             if p.ends_with('.') { p } else { format!("{p}.") }
@@ -154,10 +185,11 @@ impl Detector for TextDetector {
                 .collect::<Vec<_>>(),
         ))
         .map_err(ort_error)?;
-        let pixels = if dino {
-            self.graph.tensor(image)?
+        let (pixels, pixel_mask) = if dino {
+            let (pixels, mask) = dino_tensor(image, &self.graph.model)?;
+            (pixels, Some(mask))
         } else {
-            owl_tensor(image, &self.graph.model)?
+            (owl_tensor(image, &self.graph.model)?, None)
         };
         let mut inputs =
             ort::inputs!["pixel_values"=>pixels,"input_ids"=>ids,"attention_mask"=>attention];
@@ -177,8 +209,8 @@ impl Detector for TextDetector {
             ));
             inputs.push((
                 "pixel_mask".into(),
-                Tensor::from_array(([1usize, 800, 800], vec![1i64; 800 * 800]))
-                    .map_err(ort_error)?
+                pixel_mask
+                    .ok_or_else(|| VisionError::Invalid("DINO padding mask".into()))?
                     .into(),
             ));
         }
@@ -196,7 +228,7 @@ impl Detector for TextDetector {
         let size = image.size();
         let side = size[0].max(size[1]) as f32;
         let scale = if dino {
-            [size[0] as f32, size[1] as f32]
+            dino_geometry(size).1
         } else {
             [side, side]
         };
@@ -372,6 +404,23 @@ mod tests {
             }
         );
         assert!(center_box(&[0.5, 0.9, 0.2, 0.1], [200, 100], [200., 200.]).is_none());
+    }
+    #[test]
+    fn dino_padding_preserves_aspect_and_inverse_coordinates() {
+        let (resized, scale) = dino_geometry([400, 200]);
+        assert_eq!(resized, [800, 400]);
+        assert_eq!(scale, [400., 200.]);
+        let bbox = center_box(&[0.5, 0.5, 0.5, 1.0], [400, 200], scale).unwrap();
+        assert_eq!(
+            bbox,
+            Rect {
+                x: 100.,
+                y: 0.,
+                width: 200.,
+                height: 200.
+            }
+        );
+        assert!(center_box(&[0.5, 1.2, 0.1, 0.1], [400, 200], scale).is_none());
     }
     #[test]
     fn mask_threshold_is_positive_and_runs_preserve_original_pixels() {

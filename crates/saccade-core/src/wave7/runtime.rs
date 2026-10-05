@@ -41,9 +41,10 @@ impl OnnxModel {
         }
         .validate()?;
         if model.runtime != "onnx" || !library.is_file() {
-            return Err(VisionError::Unavailable(
-                "explicit ONNX graph/runtime library required".into(),
-            ));
+            return Err(VisionError::Unavailable(format!(
+                "explicit ONNX graph/runtime library required; ONNX Runtime {}",
+                super::runtime_install::REQUIRED_VERSION
+            )));
         }
         ensure(model, cache, allow_download)?;
         let graph=model.artifacts.iter().find(|a|a.role==role).ok_or_else(||VisionError::Unavailable("self-contained graph role required (external-data exports need a qualified adapter)".into()))?;
@@ -71,7 +72,7 @@ impl OnnxModel {
                 model: model.clone(),
             })
         })
-        .map_err(|_| VisionError::Unavailable("dynamic ONNX ABI/library failure".into()))?
+        .map_err(runtime_panic)?
     }
     /// Run explicitly named tensors and retrieve only needed outputs (no OWLv2 feature map).
     pub(crate) fn run_named(
@@ -216,6 +217,18 @@ impl OnnxModel {
 fn valid_float(value: f32, dino_padding: bool) -> bool {
     value.is_finite() || (dino_padding && value == f32::NEG_INFINITY)
 }
+fn runtime_panic(payload: Box<dyn std::any::Any + Send>) -> VisionError {
+    let detail = payload
+        .downcast_ref::<String>()
+        .map(String::as_str)
+        .or_else(|| payload.downcast_ref::<&str>().copied())
+        .unwrap_or("dynamic ONNX ABI/library failure");
+    VisionError::RuntimeIncompatible {
+        required: super::runtime_install::REQUIRED_VERSION.into(),
+        detail: detail.chars().take(2048).collect(),
+    }
+}
+
 #[cfg(test)]
 mod tests {
     #[test]
