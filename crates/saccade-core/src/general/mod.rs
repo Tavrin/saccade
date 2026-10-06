@@ -20,7 +20,7 @@ pub mod text;
 /// Offline embedded Content Credentials validation.
 pub mod credentials;
 
-/// Pinned pure Rust OCR and observation adapter.
+/// Pinned PP-OCRv5 OCR and observation adapter.
 pub mod ocr;
 
 /// Bounded unsigned XMP and IPTC extraction.
@@ -31,3 +31,9 @@ pub mod forensics;
 
 /// Frozen export parity and held-out calibration.
 pub mod embedding_qualification;
+
+#[cfg(feature = "ocr")]
+mod ocr_geometry;
+
+/// Optional page-structured hosted OCR mapping.
+pub mod document_ocr;

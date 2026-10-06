@@ -1,62 +1,97 @@
-//! Hash-pinned RTen/ocrs OCR. No models or native libraries bundled.
-#[cfg(feature = "ocr")]
-use crate::ui_review;
+//! SHA-pinned PP-OCRv5 detector and Latin CTC recognizer on CPU ONNX Runtime.
 use crate::{Error, Result, semantic};
 use serde::{Deserialize, Serialize};
-#[cfg(feature = "ocr")]
-use std::path::Path;
 use std::path::PathBuf;
-/// Rust OCR contract schema.
-pub const SCHEMA: &str = "saccade-ocrs.v1";
-/// Explicit runtime artifacts and alphabet; supplied licences remain operator declarations.
+#[cfg(feature = "ocr")]
+use {crate::ui_review, std::path::Path};
+/// PP-OCRv5 model contract. Historical OCR outputs remain readable.
+pub const SCHEMA: &str = "saccade-paddle-ocr.v1";
+/// Fixed processor revision, bound to the supplied official inference configurations.
+pub const PROCESSOR: &str = "ppocr-v5-latin/1";
+/// Explicit model and dictionary pins; no implicit network access.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct Contract {
-    /// saccade-ocrs.v1.
+    /// SCHEMA.
     pub schema: String,
-    /// Cache directory, relative to the contract file.
+    /// Content-addressed cache, relative to the contract file.
     pub cache: PathBuf,
-    /// Detection RTen export, format checkpoint, role detection.
+    /// Self-contained ONNX detection graph.
     pub detection: semantic::ModelArtifact,
-    /// Recognition RTen export, format checkpoint, role recognition.
+    /// Self-contained ONNX Latin recognition graph.
     pub recognition: semantic::ModelArtifact,
-    /// CTC alphabet matching the export, excluding blank. Accents must be explicit.
-    pub alphabet: String,
-    /// Licence evidence source and review scope (not a qualification claim).
+    /// Official recognition inference.yml, containing the ordered character dictionary.
+    pub dictionary: semantic::ModelArtifact,
+    /// Immutable licence/source receipts, never a quality claim.
     pub license_evidence: String,
-    /// Contract review status, never a qualification receipt.
+    /// Review status, independent of inference acceptance.
     #[serde(default)]
     pub review_status: Option<String>,
 }
 fn manifest(c: &Contract) -> semantic::ModelManifest {
-    semantic::ModelManifest { schema:"saccade-region-models.v1".into(), qualification:"supplied_ocr_exports_unqualified".into(), runtime:"ONNX Runtime 1.22".into(), preprocessing:"ocrs 0.10.4 with RTen 0.21.0, explicit CTC alphabet".into(), execution_provider:"CPU f32".into(), artifacts:vec![c.detection.clone(),c.recognition.clone()],residuals:vec!["cache transport manifest reuses semantic downloader; execution uses RTen, not ONNX Runtime".into()] }
+    semantic::ModelManifest {
+        schema: "saccade-region-models.v1".into(),
+        qualification: "generated_contracts_pending_review".into(),
+        runtime: "ONNX Runtime 1.22".into(),
+        preprocessing: PROCESSOR.into(),
+        execution_provider: "CPU f32".into(),
+        artifacts: vec![
+            c.detection.clone(),
+            c.recognition.clone(),
+            c.dictionary.clone(),
+        ],
+        residuals: vec![
+            "Source/export parity and production accuracy are not established by fixture gates"
+                .into(),
+        ],
+    }
 }
-/// Validates model pins and declared alphabet without inference/downloads.
+/// Validate roles, formats, immutable revisions and licences without IO.
 pub fn validate(c: &Contract) -> Result<()> {
     if c.schema != SCHEMA
         || c.cache.as_os_str().is_empty()
         || c.detection.role != "detection"
         || c.recognition.role != "recognition"
-        || c.detection.format != "checkpoint"
-        || c.recognition.format != "checkpoint"
-        || c.alphabet.is_empty()
-        || c.alphabet.chars().count() > 1024
+        || c.dictionary.role != "dictionary"
+        || c.detection.format != "onnx"
+        || c.recognition.format != "onnx"
+        || c.dictionary.format != "checkpoint"
         || c.license_evidence.is_empty()
         || c.license_evidence.len() > 4096
-        || c.alphabet
-            .chars()
-            .collect::<std::collections::BTreeSet<_>>()
-            .len()
-            != c.alphabet.chars().count()
+        || [&c.detection, &c.recognition, &c.dictionary]
+            .iter()
+            .any(|a| {
+                a.version.len() != 40
+                    || !a.version.bytes().all(|v| v.is_ascii_hexdigit())
+                    || !a.url.contains(&a.version)
+            })
     {
         return Err(Error::Config(
-            "invalid supplied OCR export/alphabet/licence contract".into(),
+            "invalid PP-OCRv5 graph/dictionary/licence contract".into(),
         ));
     }
     semantic::validate(&manifest(c))
 }
-/// Runs pinned models using the pure Rust engine. Download is explicit and hash verified.
-/// The upstream API exposes boxes and characters but no recognition confidence; it stays absent.
+/// Built-in default pins; cache location remains caller-owned.
+pub fn default_contract() -> Result<Contract> {
+    let c: Contract = serde_json::from_str(include_str!("../../assets/paddle-ocr.json"))
+        .map_err(|e| Error::Config(e.to_string()))?;
+    validate(&c)?;
+    Ok(c)
+}
+#[cfg(feature = "ocr")]
+fn ort_error(_: ort::Error) -> Error {
+    Error::Config("PP-OCRv5 ONNX runtime operation failed".into())
+}
+/// Reusable detector and recognizer sessions, one CPU thread each.
+#[cfg(feature = "ocr")]
+pub struct Engine {
+    detection: ort::session::Session,
+    recognition: ort::session::Session,
+    dictionary: Vec<String>,
+    contract: Contract,
+}
+/// Runs verified PP-OCRv5 sessions. Downloads require an explicit opt-in.
 #[cfg(feature = "ocr")]
 pub fn recognize(
     c: &Contract,
@@ -66,142 +101,215 @@ pub fn recognize(
 ) -> Result<ui_review::Source> {
     Engine::load(c, cache, download)?.recognize(encoded)
 }
-/// Reusable pure-Rust OCR model sessions, loaded once by a media analyzer.
-#[cfg(feature = "ocr")]
-pub struct Engine {
-    engine: ocrs::OcrEngine,
-    contract: Contract,
-}
 #[cfg(feature = "ocr")]
 impl Engine {
-    /// Verify and load the supplied models exactly once, with explicit download opt-in.
+    /// Verify every pin before loading any graph; resolve the existing runtime cache or ORT_DYLIB_PATH.
     pub fn load(c: &Contract, cache: &Path, download: bool) -> Result<Self> {
-        std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| -> Result<Self> {
-            validate(c)?;
-            if download {
-                semantic::cache_models(&manifest(c), cache)?;
+        validate(c)?;
+        if download {
+            semantic::cache_models(&manifest(c), cache)?;
+        }
+        let verify = |a: &semantic::ModelArtifact| -> Result<Vec<u8>> {
+            let b = super::input::bytes(&semantic::artifact_path(cache, a)?, a.bytes)?;
+            if b.len() as u64 != a.bytes || crate::localized::digest(&b) != a.sha256 {
+                return Err(Error::Config("OCR model hash/size mismatch".into()));
             }
-            let load = |a: &semantic::ModelArtifact| -> Result<rten::Model> {
-                let bytes = super::input::bytes(&semantic::artifact_path(cache, a)?, a.bytes)?;
-                if bytes.len() as u64 != a.bytes || crate::localized::digest(&bytes) != a.sha256 {
-                    return Err(Error::Config("OCR model hash/size mismatch".into()));
+            Ok(b)
+        };
+        let det = verify(&c.detection)?;
+        let rec = verify(&c.recognition)?;
+        let dict = verify(&c.dictionary)?;
+        let config: serde_yaml::Value = serde_yaml::from_slice(&dict)
+            .map_err(|_| Error::Config("OCR dictionary configuration".into()))?;
+        let chars = config["PostProcess"]["character_dict"]
+            .as_sequence()
+            .ok_or_else(|| Error::Config("OCR dictionary missing".into()))?;
+        if chars.is_empty() || chars.len() > 4096 {
+            return Err(Error::Config("OCR dictionary bound".into()));
+        }
+        let mut dictionary = vec![String::new()];
+        for char in chars {
+            let char = char
+                .as_str()
+                .ok_or_else(|| Error::Config("OCR dictionary entry".into()))?;
+            if char.chars().count() != 1 {
+                return Err(Error::Config("OCR dictionary scalar".into()));
+            }
+            dictionary.push(char.into());
+        }
+        dictionary.push(" ".into()); // official CTC blank=0 and use_space_char=true; duplicates retain their indices.
+        let library = crate::wave7::runtime_install::resolve(None, cache)
+            .map_err(|e| Error::Config(e.to_string()))?;
+        std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| -> Result<Self> {
+            ort::init_from(library.display().to_string())
+                .commit()
+                .map_err(ort_error)?;
+            let load = |b: &[u8]| -> Result<ort::session::Session> {
+                let s = ort::session::Session::builder()
+                    .map_err(ort_error)?
+                    .with_intra_threads(1)
+                    .map_err(ort_error)?
+                    .with_inter_threads(1)
+                    .map_err(ort_error)?
+                    .commit_from_memory(b)
+                    .map_err(ort_error)?;
+                if s.inputs.len() != 1
+                    || s.inputs[0].name != "x"
+                    || s.outputs.len() != 1
+                    || s.outputs[0].name != "fetch_name_0"
+                {
+                    return Err(Error::Config("PP-OCRv5 tensor names".into()));
                 }
-                rten::Model::load(bytes).map_err(|e| Error::Config(format!("RTen model: {e}")))
+                Ok(s)
             };
-            let engine = ocrs::OcrEngine::new(ocrs::OcrEngineParams {
-                detection_model: Some(load(&c.detection)?),
-                recognition_model: Some(load(&c.recognition)?),
-                alphabet: Some(c.alphabet.clone()),
-                ..Default::default()
-            })
-            .map_err(|e| Error::Config(format!("ocrs: {e}")))?;
             Ok(Self {
-                engine,
+                detection: load(&det)?,
+                recognition: load(&rec)?,
+                dictionary,
                 contract: c.clone(),
             })
         }))
-        .map_err(|_| Error::Config("Rust OCR model loading failed".into()))?
+        .map_err(|_| Error::Config("OCR dynamic runtime ABI/load failure".into()))?
     }
-    /// Recognize retained bytes using the already-loaded engine; confidence stays absent.
-    pub fn recognize(&self, encoded: &[u8]) -> Result<ui_review::Source> {
+    /// Detect, rectify and decode exact Unicode; confidence is mean selected CTC score, not calibrated probability.
+    pub fn recognize(&mut self, encoded: &[u8]) -> Result<ui_review::Source> {
         let image = super::input::decode(encoded)?;
         let rgb = crate::compare::flatten_over(&image, 255);
         std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| -> Result<ui_review::Source> {
-        use ocrs::TextItem;
-        let map_error = |e: String|Error::Config(format!("ocrs: {e}"));
-
-        let source = ocrs::ImageSource::from_bytes(rgb.as_raw(),rgb.dimensions()).map_err(|e|map_error(e.to_string()))?;
-        let prepared = self.engine.prepare_input(source).map_err(|e|map_error(e.to_string()))?;
-        let words = self.engine.detect_words(&prepared).map_err(|e|map_error(e.to_string()))?;
-        if words.len() > 2048 { return Err(Error::Config("OCR observation limit exceeded".into())); }
-        let lines = self.engine.find_text_lines(&prepared,&words);
-        let text = self.engine.recognize_text(&prepared,&lines).map_err(|e|map_error(e.to_string()))?;
-        let mut nodes = Vec::new();
-        for line in text.into_iter().flatten() { for word in line.words() {
-            let r = word.bounding_rect();
-            nodes.push(ui_review::Node {id:format!("ocrs-slot:{}",nodes.len()),text:word.to_string(),bounds:Some([f64::from(r.left()),f64::from(r.top()),f64::from(r.width()),f64::from(r.height())]),role:String::new(),reading_order:None,keyboard_order:None,disclosure:false,ocr_confidence:None});
-            if nodes.len() > 2048 { return Err(Error::Config("OCR observation limit exceeded".into())); }
-        } }
-        let result = ui_review::Source { schema:"saccade-ui-source.v1".into(), capture_sha256:crate::localized::digest(encoded),dimensions:[image.width(),image.height()],kind:"ocrs".into(),complete:false,nodes,producer:serde_json::json!({"engine":"ocrs 0.10.4","runtime":"RTen 0.21.0","contract":self.contract,"confidence":"unavailable in upstream API; never synthesized","qualification":"supplied_models_unqualified"}) };
-        result.validate(&result.capture_sha256,result.dimensions)?;
-        Ok(result)
-    })).map_err(|_|Error::Config("Rust OCR model/inference failed".into()))?
+            let ratio=960. / f64::from(rgb.width().max(rgb.height()));
+            let w=((f64::from(rgb.width())*ratio) as u32).div_ceil(128)*128;
+            let h=((f64::from(rgb.height())*ratio) as u32).div_ceil(128)*128;
+            let resized=super::ocr_geometry::resize(&rgb,w.max(128),h.max(128))?;
+            let (shape,map)=run(&mut self.detection,&resized,true,w.max(128))?;
+            if shape!=[1,1,i64::from(resized.height()),i64::from(resized.width())] { return Err(Error::Config("DB output shape".into())); }
+            let boxes=super::ocr_geometry::boxes(&map,resized.width(),resized.height(),rgb.dimensions())?;
+            let mut nodes=Vec::new(); let mut quads=Vec::new();
+            for quad in boxes {
+                let crop=super::ocr_geometry::rectify(&rgb,quad)?;
+                let rw=((48.*f64::from(crop.width())/f64::from(crop.height())).ceil() as u32).max(1);
+                if rw>3200 { return Err(Error::Config("OCR recognition crop width limit".into())); }
+                let crop=super::ocr_geometry::resize(&crop,rw,48)?;
+                let (shape,values)=run(&mut self.recognition,&crop,false,rw.max(320))?;
+                if shape.len()!=3 || shape[0]!=1 || shape[2]!=self.dictionary.len() as i64 { return Err(Error::Config("CTC output/dictionary shape mismatch".into())); }
+                let (text,confidence)=decode_ctc(&values,self.dictionary.len(),&self.dictionary)?;
+                if text.trim().is_empty() { continue; }
+                let x=quad.iter().map(|p|p[0]).fold(f32::INFINITY,f32::min).max(0.);
+                let y=quad.iter().map(|p|p[1]).fold(f32::INFINITY,f32::min).max(0.);
+                let right=quad.iter().map(|p|p[0]).fold(0.,f32::max).min(rgb.width() as f32);
+                let bottom=quad.iter().map(|p|p[1]).fold(0.,f32::max).min(rgb.height() as f32);
+                nodes.push(ui_review::Node { id:format!("paddle-line:{}",nodes.len()),text,bounds:Some([f64::from(x),f64::from(y),f64::from(right-x),f64::from(bottom-y)]),role:String::new(),reading_order:None,keyboard_order:None,disclosure:false,ocr_confidence:Some(confidence*100.) });
+                quads.push(quad);
+            }
+            let source=ui_review::Source {schema:"saccade-ui-source.v1".into(),capture_sha256:crate::localized::digest(encoded),dimensions:[image.width(),image.height()],kind:"paddle_ocr".into(),complete:false,nodes,producer:serde_json::json!({"engine":"PP-OCRv5-mobile/Latin","runtime":"ONNX Runtime 1.22 CPU f32","processor":PROCESSOR,"contract":self.contract,"quadrilaterals":quads,"units":"detected text lines; word boxes unavailable","confidence":"mean retained CTC scores, uncalibrated","orientation":"no optional 180-degree classifier in pinned set"})};
+            source.validate(&source.capture_sha256,source.dimensions)?; Ok(source)
+        })).map_err(|_|Error::Config("OCR model/inference failed".into()))?
     }
 }
-
+#[cfg(feature = "ocr")]
+fn run(
+    session: &mut ort::session::Session,
+    rgb: &image::RgbImage,
+    detection: bool,
+    width: u32,
+) -> Result<(Vec<i64>, Vec<f32>)> {
+    let h = rgb.height() as usize;
+    let w = width as usize;
+    let mut data = vec![0.; 3 * h * w];
+    for (x, y, p) in rgb.enumerate_pixels() {
+        for c in 0..3 {
+            // Both official processors decode BGR.
+            let v = f32::from(p[2 - c]) / 255.;
+            data[c * h * w + y as usize * w + x as usize] = if detection {
+                (v - [0.485, 0.456, 0.406][c]) / [0.229, 0.224, 0.225][c]
+            } else {
+                (v - 0.5) / 0.5
+            };
+        }
+    }
+    let tensor = ort::value::Tensor::from_array(([1, 3, h, w], data)).map_err(ort_error)?;
+    let outputs = session.run(ort::inputs!["x"=>tensor]).map_err(ort_error)?;
+    let (shape, values) = outputs["fetch_name_0"]
+        .try_extract_tensor::<f32>()
+        .map_err(ort_error)?;
+    if values.len() > 8 * 1024 * 1024
+        || values.iter().any(|v| {
+            !v.is_finite() || !(-4.0 * f32::EPSILON..=1.0 + 4.0 * f32::EPSILON).contains(v)
+        })
+    {
+        return Err(Error::Config(format!(
+            "OCR output bound/probability range: len={}, min={}, max={}",
+            values.len(),
+            values.iter().copied().fold(f32::INFINITY, f32::min),
+            values.iter().copied().fold(f32::NEG_INFINITY, f32::max)
+        )));
+    }
+    Ok((shape.to_vec(), values.to_vec()))
+}
+/// CTC greedy decode: blank-separated duplicates retained; exact dictionary index order.
+#[cfg(any(test, feature = "ocr"))]
+fn decode_ctc(values: &[f32], classes: usize, dictionary: &[String]) -> Result<(String, f64)> {
+    if classes != dictionary.len()
+        || classes < 2
+        || values.is_empty()
+        || !values.len().is_multiple_of(classes)
+        || values.iter().any(|v| {
+            !v.is_finite() || !(-4.0 * f32::EPSILON..=1.0 + 4.0 * f32::EPSILON).contains(v)
+        })
+    {
+        return Err(Error::Config("invalid CTC tensor".into()));
+    }
+    let mut text = String::new();
+    let mut previous = usize::MAX;
+    let mut sum = 0.;
+    let mut count = 0;
+    for row in values.chunks_exact(classes) {
+        let (index, score) = row
+            .iter()
+            .enumerate()
+            .max_by(|a, b| a.1.total_cmp(b.1).then(b.0.cmp(&a.0)))
+            .ok_or_else(|| Error::Config("empty CTC row".into()))?;
+        if index != 0 && index != previous {
+            text.push_str(&dictionary[index]);
+            sum += f64::from(score.clamp(0., 1.));
+            count += 1;
+        }
+        previous = index;
+    }
+    Ok((text, if count == 0 { 0. } else { sum / count as f64 }))
+}
 #[cfg(test)]
 #[allow(clippy::unwrap_used)]
 mod tests {
     use super::*;
-    fn artifact(role: &str) -> semantic::ModelArtifact {
-        semantic::ModelArtifact {
-            role: role.into(),
-            version: "supplied-revision".into(),
-            format: "checkpoint".into(),
-            url: "https://example.org/pinned/model.rten".into(),
-            bytes: 1,
-            sha256: "a".repeat(64),
-            license: "Apache-2.0".into(),
-        }
-    }
     #[test]
-    fn contract_keeps_accents_and_refuses_ambiguous_alphabet_or_unlicensed_models() {
-        let mut c = Contract {
-            review_status: None,
-            schema: SCHEMA.into(),
-            cache: "cache".into(),
-            detection: artifact("detection"),
-            recognition: artifact("recognition"),
-            alphabet: " caféÉ".into(),
-            license_evidence: "supplied evidence".into(),
-        };
-        assert!(validate(&c).is_ok());
-        c.alphabet.push('é');
-        assert!(validate(&c).is_err());
-        c.alphabet.pop();
-        c.recognition.license = "unknown".into();
+    fn default_pins_validate_and_ctc_preserves_accents_and_blank_separated_duplicates() {
+        validate(&default_contract().unwrap()).unwrap();
+        let dict = vec!["".into(), "é".into(), "ß".into()];
+        let v = [0., 1., 0., 0., 1., 0., 1., 0., 0., 0., 1., 0., 0., 0., 1.];
+        assert_eq!(decode_ctc(&v, 3, &dict).unwrap(), ("ééß".into(), 1.));
+        assert!(decode_ctc(&[f32::NAN; 3], 3, &dict).is_err());
+        assert_eq!(
+            decode_ctc(&[0., 1. + f32::EPSILON, 0.], 3, &dict).unwrap(),
+            ("é".into(), 1.)
+        );
+        assert!(decode_ctc(&[0., 1.01, 0.], 3, &dict).is_err());
+        let mut c = default_contract().unwrap();
+        c.recognition.url = c.recognition.url.replace(&c.recognition.version, "main");
         assert!(validate(&c).is_err());
     }
     #[cfg(feature = "ocr")]
     #[test]
-    fn model_pin_failure_never_falls_back_or_synthesizes_source_facts() {
-        let cache = tempfile::tempdir().unwrap();
-        let c = Contract {
-            review_status: None,
-            schema: SCHEMA.into(),
-            cache: "cache".into(),
-            detection: artifact("detection"),
-            recognition: artifact("recognition"),
-            alphabet: " CAFÉ".into(),
-            license_evidence: "declared evidence".into(),
-        };
-        std::fs::write(cache.path().join(&c.detection.sha256), [0u8]).unwrap();
-        let image = image::RgbImage::from_pixel(16, 16, image::Rgb([255; 3]));
-        let mut encoded = Vec::new();
-        image::codecs::jpeg::JpegEncoder::new(&mut encoded)
-            .encode_image(&image)
-            .unwrap();
-        let error = recognize(&c, cache.path(), &encoded, false).unwrap_err();
-        assert!(error.to_string().contains("hash/size mismatch"));
-        let mut source = ui_review::Source {
-            schema: "saccade-ui-source.v1".into(),
-            capture_sha256: "b".repeat(64),
-            dimensions: [16, 16],
-            kind: "ocrs".into(),
-            complete: true,
-            nodes: Vec::new(),
-            producer: serde_json::json!({}),
-        };
+    fn pin_failure_precedes_runtime_loading() {
+        let dir = tempfile::tempdir().unwrap();
+        let mut c = default_contract().unwrap();
+        c.detection.bytes = 1;
+        std::fs::write(dir.path().join(&c.detection.sha256), [0]).unwrap();
         assert!(
-            source
-                .validate(&source.capture_sha256, source.dimensions)
-                .is_err()
-        );
-        source.complete = false;
-        assert!(
-            source
-                .validate(&source.capture_sha256, source.dimensions)
-                .is_ok()
+            Engine::load(&c, dir.path(), false)
+                .err()
+                .unwrap()
+                .to_string()
+                .contains("hash/size mismatch")
         );
     }
 }

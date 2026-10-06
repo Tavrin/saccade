@@ -40,3 +40,14 @@ Rust smokes and exact deferral evidence, and equals the bundled disposition asse
 `smoke-rust.py` runs one generated image per selected pinned model, each with
 one CPU inference thread and an external 55-second process bound. These smokes
 are behavioral evidence, not source/export parity or cross-platform qualification.
+
+## PP-OCRv5 local OCR
+
+`fetch-paddle-ocr.py` verifies and provisions only immutable official ONNX and
+licence/configuration pins into `/mnt/linux-extra/saccade-models/` by default.
+The ordered Latin dictionary is taken from recognition `inference.yml`; the
+older upstream `latin_dict.txt` differs and must not be substituted.
+`paddle-ocr-provenance.json` records revisions, bytes and SHA-256 for the graphs,
+configurations and source/licence evidence. No conversion or Python inference
+runtime is needed. Generated font fixtures and accent gates are in
+`generate-ocr-accents.py` and `../gates-ocr.sh`; see `../../docs/text.md`.

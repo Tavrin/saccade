@@ -122,7 +122,15 @@ impl Source {
             || self.dimensions != dimensions
             || dimensions.contains(&0)
             || self.nodes.len() > 100_000
-            || !["dom", "accessibility_tree", "tesseract_tsv", "ocrs"].contains(&self.kind.as_str())
+            || ![
+                "dom",
+                "accessibility_tree",
+                "tesseract_tsv",
+                "ocrs",
+                "paddle_ocr",
+                "provider_ocr",
+            ]
+            .contains(&self.kind.as_str())
             || hash.len() != 64
             || !hash
                 .bytes()
@@ -149,18 +157,24 @@ impl Source {
                     "invalid UI node IDs, ordinals, bounds or confidence",
                 ));
             }
-            if matches!(self.kind.as_str(), "tesseract_tsv" | "ocrs")
-                && (n.reading_order.is_some()
-                    || n.keyboard_order.is_some()
-                    || n.disclosure
-                    || !n.role.is_empty())
+            if matches!(
+                self.kind.as_str(),
+                "tesseract_tsv" | "ocrs" | "paddle_ocr" | "provider_ocr"
+            ) && (n.reading_order.is_some()
+                || n.keyboard_order.is_some()
+                || n.disclosure
+                || !n.role.is_empty())
             {
                 return Err(invalid(
                     "OCR cannot establish semantic role, disclosure or source order",
                 ));
             }
         }
-        if matches!(self.kind.as_str(), "tesseract_tsv" | "ocrs") && self.complete {
+        if matches!(
+            self.kind.as_str(),
+            "tesseract_tsv" | "ocrs" | "paddle_ocr" | "provider_ocr"
+        ) && self.complete
+        {
             return Err(invalid("OCR cannot establish complete source coverage"));
         }
         Ok(())
@@ -186,14 +200,22 @@ pub fn compare(
         measurement.region.dimensions,
     )?;
     after.validate(&measurement.candidate_sha256, measurement.region.dimensions)?;
-    let source = !matches!(before.kind.as_str(), "tesseract_tsv" | "ocrs")
-        && !matches!(after.kind.as_str(), "tesseract_tsv" | "ocrs")
-        && before.kind == after.kind;
+    let source = !matches!(
+        before.kind.as_str(),
+        "tesseract_tsv" | "ocrs" | "paddle_ocr" | "provider_ocr"
+    ) && !matches!(
+        after.kind.as_str(),
+        "tesseract_tsv" | "ocrs" | "paddle_ocr" | "provider_ocr"
+    ) && before.kind == after.kind;
     let assurance = if source {
         "source_fact"
-    } else if matches!(before.kind.as_str(), "tesseract_tsv" | "ocrs")
-        || matches!(after.kind.as_str(), "tesseract_tsv" | "ocrs")
-    {
+    } else if matches!(
+        before.kind.as_str(),
+        "tesseract_tsv" | "ocrs" | "paddle_ocr" | "provider_ocr"
+    ) || matches!(
+        after.kind.as_str(),
+        "tesseract_tsv" | "ocrs" | "paddle_ocr" | "provider_ocr"
+    ) {
         "uncertain_ocr"
     } else {
         "uncertain_correspondence"

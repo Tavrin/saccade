@@ -1,0 +1,57 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/Tavrin/saccade/crates/saccade-core/schemas/saccade-document-ocr.v1.schema.json",
+  "type": "object",
+  "properties": {
+    "schema": {
+      "const": "saccade-document-ocr.v1"
+    },
+    "pages": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "index": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "markdown": {
+            "type": "string"
+          },
+          "dimensions": {
+            "type": [
+              "array",
+              "null"
+            ]
+          },
+          "observations": {
+            "type": "array",
+            "items": {
+              "type": "object"
+            }
+          }
+        },
+        "required": [
+          "index",
+          "markdown",
+          "dimensions",
+          "observations"
+        ],
+        "additionalProperties": false
+      }
+    },
+    "text": {
+      "type": "string"
+    },
+    "provenance": {
+      "type": "object"
+    }
+  },
+  "required": [
+    "schema",
+    "pages",
+    "text",
+    "provenance"
+  ],
+  "additionalProperties": false
+}

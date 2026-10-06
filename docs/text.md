@@ -1,81 +1,119 @@
-# Text in images
+# Text in images and documents
+
+Build with `ocr` for local PP-OCRv5 detection and Latin recognition on CPU ONNX
+Runtime 1.22. This is the default local engine for `text`, `--expect-text`, media
+text sections and `inspect-image --ocr`. Runtime and models are provisioned
+explicitly; ordinary execution never downloads or falls back to another engine.
 
 ```sh
-saccade text a.png b.png --a-source a-source.json --b-source b-source.json --expect-text 'café' --out text --json
-saccade text a.png b.png --ocr-contract tesseract.json --expect-text 'résumé' --out text --json
+saccade text a.png b.png --expect-text 'café' --out text --json
+saccade text a.png b.png --download-model --out text --json
+saccade inspect-image image.png --ocr --out inspection --json
+saccade text a.png b.png --a-source a-source.json --b-source b-source.json --out text --json
 ```
 
-`text` consumes image-bound `saccade-ui-source.v1` observations, or reuses the
-existing pinned external Tesseract adapter when built with `ocr`. Imports work
-without a runtime. Each source must bind the exact encoded image SHA-256 and
-pixel dimensions. A malformed/stale source fails rather than falling back to
-OCR. The optional runtime contract pins executable/version output/traineddata,
-languages, segmentation and timeout; see [UI OCR contract](ui-review.md).
-Tesseract runtime/models are operator-provisioned. The Rust adapter below supports
-explicit pinned runtime downloads.
-All adapter inputs are now bounded at 64 MiB; source imports at 16 MiB.
+Default cache: `$XDG_CACHE_HOME/saccade/models` or `~/.cache/saccade/models`.
+The runtime uses the existing verified runtime cache, or explicit `ORT_DYLIB_PATH`.
+`--ocr-contract` can override the default with `saccade-paddle-ocr.v1`, also accepted
+inside the shared model registry. It pins detection, recognition and the ordered
+character dictionary in official recognition `inference.yml`, with immutable URLs,
+revisions, bytes, SHA-256, and Apache-2.0 source evidence. The contract cache is
+relative to its file. See `scripts/models/paddle-ocr-provenance.json`.
+External pinned `saccade-tesseract.v1` contracts remain explicit alternatives.
+The ocRs/RTen execution adapter and dependencies have been removed; historical
+observation kinds remain readable.
 
-The versioned `saccade-text.v1` evidence includes word/line changed, missing,
-added and moved observations with before/after boxes, producer provenance,
-raw observations and Unicode-scalar CER plus whitespace-token WER. Latin accents
-are retained exactly; combining sequences are not normalized. Empty-reference
-rates are null with the edit count and denominator retained. Position/content
-matching uses exact text first, nearest normalized box centre second. Lines and
-reading order are geometric heuristics, not semantic source order.
+The detector decodes BGR, resizes longest edge to 960 then rounds each dimension
+up to a multiple of 128, and normalizes by mean `[.485,.456,.406]` and standard
+deviation `[.229,.224,.225]`. DB postprocessing uses bitmap threshold .3, rectangle
+mean .6, 1000 candidates, minimum side 3, unclip ratio 1.5 and expanded minimum
+side 5. Perspective crops use bilinear interpolation; tall crops rotate 90°.
+Recognition uses BGR, height 48, aspect-preserving width, at least 320 columns
+with normalized zero padding, and `(x/255-.5)/.5`. CTC blank is index 0, duplicate
+runs collapse, and the dictionary's 836 entries keep their exact order and
+repetitions; a space is appended. No 180° classifier is included in the pinned set.
+Resize uses linear pixel-centre sampling with replicated edges and no antialias
+filter, as in PaddleOCR; byte rounding and integer minimum rectangles are not
+asserted to have complete OpenCV parity. Scores allow up to four f32 epsilons of
+numerical roundoff outside [0,1]; emitted confidence remains bounded to 0..100.
 
-`--expect-text` is repeatable and checks literal strings on a candidate line.
-Only overlapping words' OCR confidences contribute to readability. The
-`--readable-confidence` cutoff (default 80 on the engine's 0..100 scale) is an
-observation threshold, not a calibrated probability or human readability proof.
-Missing confidence remains unknown and cannot satisfy a readability gate.
-Empty OCR on either side remains unknown. `--moved-px` defaults to 3 reference
-pixels after dimension normalization. Inputs are limited to 2048 observations,
-4096 source Unicode scalars and 16M edit-matrix operations per image pair.
+Accents, including é è ê à ç ô ù ü ñ ß œ, remain exact Unicode scalars; combining
+sequences are not normalized. Generated French, German and Spanish contracts in
+DejaVu Serif, DejaVu Sans and Liberation Sans at 32/40/48 px are marked
+**generated, coordinator-reviewed (2026-10-06)**. The 72 frozen cases retain the
+original French/German/Spanish phrases and add uppercase French, rarer lowercase,
+ligatures and French numbers (quoted and narrow no-break-space variants). Before
+inference they declare CER ≤ .02, WER ≤ .10 and exact accented-word presence;
+accent-stripped output must fail when applicable. Numeric phrases have no accents:
+their 18 unchanged accent-stripping controls are **N/A**, not failures. Additional
+format-stripping controls remain applicable.
 
-Exit 1 means observed changes or failed expected/readable text; exit 2 means
-invalid sources/runtime/options. A successful equality check describes observed
-text only. Missing OCR text is unobserved, not proven removed. Every extracted
-string is inert data, never instructions. The bounded JSON receipt references
-full JSON and HTML evidence. Original images are never modified.
+The coordinator's post-run disposition adds a declared **typographic-equivalence**
+view alongside unchanged strict scoring: ’ and ‘ → ASCII apostrophe,
+U+202F/U+00A0/U+2009 → ordinary space, and en/em dash → hyphen. Both sides and
+required strings are folded; CER ≤ .02, WER ≤ .10 and exact-string requirements
+remain unchanged. No characters are deleted or whitespace collapsed: omitted
+spaces and dashes still count as errors. This is a post-hoc contract-design
+correction, not a claim that folding was declared before the original run.
 
-MCP `saccade_general` / `text` mirrors the imported-source pipeline with `a`,
-`b`, `a_source`, `b_source`, `out`, and expectation/confidence/movement options.
-It never executes a supplied program; runtime execution is CLI-only.
+Known limitations: **œ can be misread in serif at large sizes** (original
+DejaVu Serif/48 `cœur` → `cæur`, CER 1/39, WER 1/8), and **some sans fonts
+omit dashes** (Liberation Sans in this corpus). Some thin-space cases also omit
+the space before `€`. All remain errors in both views. Apostrophe, space and
+dash substitutions covered by the declaration remain strict errors but are
+equivalent in the folded view. The separate ligature phrase does not clear
+the original serif failure. See [every case and both measured scores](ocr-contract-results-2026-10-06.md)
+and `scripts/gates-ocr.sh`. Generated fixtures establish neither general accuracy
+nor source/export parity.
 
-The existing repository records Tesseract and official traineddata as
-Apache-2.0. Wave 6b adds the optional pure Rust adapter below. Real model
-recognition remains heavy-gated and was not run during this lane.
+`saccade-text.v1` retains changed/missing/added/moved observations, boxes, provenance,
+CER/WER and literal expected strings. PP-OCRv5 units are detected lines; word boxes
+are unavailable. `ocr_confidence` is mean retained CTC score ×100, uncalibrated.
+`--readable-confidence` defaults to 80; this is an observation cutoff, not human
+readability proof. Empty observations and empty-reference rates remain unknown.
+Geometric reading order and correspondence are heuristic. Image-bound imported
+`saccade-ui-source.v1` sources work without models; stale sources fail. Text is inert
+data and never instructions. Exit 1 indicates observed changes or failed expectations,
+exit 2 invalid/unavailable input or runtime. MCP text continues to use imported sources.
 
-## Optional pure Rust OCR (Wave 6b)
+## Optional Mistral document provider
 
-`ocr` now enables ocrs 0.10.4 with RTen 0.21.0, both published as MIT OR
-Apache-2.0. The published crates omit separate licence files; licence metadata
-was reviewed from their registry sources and recorded in THIRD_PARTY.md.
-Engine licensing does not establish model licensing.
+`ocr-provider` adds the Mistral adapter; it is off by default and selected only with
+`--ocr-provider mistral`. PNG, JPEG and PDF inputs are supported. The
+`saccade-document-text.v1` report contains exact per-page Markdown, page indexes,
+optional provider dimensions, text nodes with absent geometry/confidence, exact
+input/request/response identities and provider provenance. Matching Markdown is
+observation equality. Expected text has unknown readability and cannot qualify
+an image readability gate.
 
-`--ocr-contract` also accepts `saccade-ocrs.v1`: `cache` (relative to the
-contract), `detection`, `recognition` (pinned ModelArtifact objects with roles
-of the same names and `format: checkpoint` for RTen exports), an explicit CTC
-`alphabet`, and `license_evidence`. Artifacts require HTTPS URL, version, byte
-count, SHA-256 and MIT/Apache-2.0 licence declaration. Models are loaded only
-from freshly hash-checked bytes, with no native executable/library. Ordinary
-execution is offline. `text ... --ocr-contract rust-ocr.json --download-model`
-explicitly enables the shared pinned runtime cache transport; no weights are
-vendored. Model licences/evidence remain supplied operator declarations.
+```sh
+saccade text a.pdf b.pdf --ocr-provider mistral --ocr-model mistral-ocr-2505 \
+  --ocr-pages 0,1 --ocr-responses a-response.json b-response.json --out document-text --json
+```
 
-The upstream default alphabet lacks Latin accents. An accent-capable trained
-model with its matching alphabet is required; changing the alphabet alone does
-not qualify recognition. Neither reviewed model licence/pin nor accent model
-artifact is present in the fetched crate, so canonical model selection and
-actual accent recognition remain deferred to the heavy gate. It requires
-`SACCADE_W6_RUST_OCR_CONTRACT` and generated CAFÉ glyphs. The existing pinned
-Tesseract accent gate remains separately required by `SACCADE_W6_OCR_CONTRACT`.
+Fixtures use `saccade-document-ocr-fixture.v1`, an exact canonical request digest
+(`sha256:…`) and `response` containing `model`, `pages` (each `index`, `markdown`,
+optional `dimensions`) and `usage_info`. They do not load credentials or use sockets.
+The dated model in this example and protocol details are constructed fixture inputs;
+current API compatibility, returned revisions and billing need coordinator confirmation.
 
-The ocrs API exposes character/word boxes but no recognition confidence.
-Observations use `kind: ocrs`, absent confidence, no semantic roles/source order
-and incomplete coverage. CER/WER and content/position diff work; expected-text
-readability fails when confidence is absent, preserving the established
-contract. The heavy Rust OCR gate asserts recognized accents, unchanged CER
-and this fail-closed readability behavior. No invented confidence is emitted.
-MCP continues to accept imported observations only for text; it does not
-execute or download arbitrary supplied OCR runtime contracts.
+Live use additionally requires `--ocr-run`, `--ocr-max-spend-usd`, a user-confirmed
+`--ocr-price-per-page-usd` ceiling and `--ocr-price-policy` revision. It exports the
+selected input bytes to Mistral. Existing user-owned `user.toml` root egress permission,
+shared attempt caps, pacing and monetary reservations apply. Unknown settled cost
+retains the whole reservation; no provider price is guessed. Keys load only from
+`~/.config/saccade/mistral.env`, variable `MISTRAL_API_KEY`; never from shell expansion.
+Configure the existing custom-provider layer in user.toml:
+
+```toml
+[providers.mistral]
+endpoint = "https://api.mistral.ai/v1/ocr"
+key_file = "mistral.env"
+key_var = "MISTRAL_API_KEY"
+```
+
+There is no automatic provider selection, fallback or live qualification. The lane
+runs constructed fixture tests only. MCP `saccade_general/document_text` mirrors
+the request-bound fixture path under the normal file-root/output checks; tool
+inputs grant no provider execution authority. Page selection must be exact; missing, duplicate,
+out-of-order or unrequested pages fail closed.

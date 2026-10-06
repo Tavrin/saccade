@@ -447,9 +447,9 @@ impl Analyzer {
         });
         focal.timing_ms += face_elapsed;
         let text = if options.text.unwrap_or(full) {
-            section("ocrs-rten", || self.ocr(bytes, profile))
+            section("paddle-ocr-v5-latin", || self.ocr(bytes, profile))
         } else {
-            skipped("ocrs-rten", "disabled by preset or options")
+            skipped("paddle-ocr-v5-latin", "disabled by preset or options")
         };
         let fingerprints = section("perceptual-fast-brief", || {
             Ok(
@@ -506,8 +506,8 @@ impl Analyzer {
         if record.text.status == Status::Ok
             && let Ok(c) = self.contract(crate::general::ocr::SCHEMA)
         {
-            record.text.provenance.version = "ocrs-0.10.4/rten-0.21.0".into();
-            record.text.provenance.pins = ["detection", "recognition"]
+            record.text.provenance.version = "PP-OCRv5-mobile/Latin; ppocr-v5-latin/1".into();
+            record.text.provenance.pins = ["detection", "recognition", "dictionary"]
                 .iter()
                 .filter_map(|k| c[*k]["sha256"].as_str().map(str::to_owned))
                 .collect();
@@ -614,11 +614,11 @@ impl Analyzer {
             }
             let source = sessions
                 .ocr
-                .as_ref()
+                .as_mut()
                 .ok_or_else(|| MediaError::new("ocr_unavailable", "OCR session unavailable"))?
                 .recognize(bytes)?;
             Ok(
-                json!({"words":source.nodes,"provenance":source.producer,"confidence":"unavailable in upstream API; never invented"}),
+                json!({"words":source.nodes,"provenance":source.producer,"confidence":"mean retained CTC scores; uncalibrated"}),
             )
         }
         #[cfg(not(feature = "ocr"))]

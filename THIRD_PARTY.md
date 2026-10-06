@@ -454,7 +454,6 @@ Hayro embedded fonts, OpenSSL and C2PA HTTP features are disabled.
 | num-bigint-dig 0.8.6 | MIT/Apache-2.0 | MIT | LICENSE-APACHE (a60eea8175145316); LICENSE-MIT (6485b8ed310d3f03) |
 | num-conv 0.2.2 | MIT OR Apache-2.0 | MIT | LICENSE-Apache (0d542e0c8804e39a); LICENSE-MIT (e2e245f2b566d0bf) |
 | num_cpus 1.17.0 | MIT OR Apache-2.0 | MIT | LICENSE-APACHE (a60eea8175145316); LICENSE-MIT (391a5396cec6230b) |
-| ocrs 0.10.4 | MIT OR Apache-2.0 | MIT | Not included; Cargo.toml licence field |
 | oid-registry 0.8.1 | MIT OR Apache-2.0 | MIT | LICENSE-APACHE (a60eea8175145316); LICENSE-MIT (a5c61b93b6ee1d10) |
 | p256 0.13.2 | Apache-2.0 OR MIT | Apache-2.0 | LICENSE-APACHE (a9040321c3712d8f); LICENSE-MIT (233b95ccbf90dc67) |
 | p384 0.13.1 | Apache-2.0 OR MIT | Apache-2.0 | LICENSE-APACHE (a9040321c3712d8f); LICENSE-MIT (02168781a5b59970) |
@@ -504,13 +503,6 @@ Hayro embedded fonts, OpenSSL and C2PA HTTP features are disabled.
 | riff 2.0.0 | MIT | MIT | LICENSE (c790202b10c35a81) |
 | roxmltree 0.21.1 | MIT OR Apache-2.0 | MIT | LICENSE-APACHE (a60eea8175145316); LICENSE-MIT (fffe218c1e349e1d) |
 | rsa 0.9.10 | MIT OR Apache-2.0 | MIT | LICENSE-APACHE (769f80b5bcb42ed0); LICENSE-MIT (30fefc3a7d6a0041) |
-| rten 0.21.0 | MIT OR Apache-2.0 | MIT | Not included; Cargo.toml licence field |
-| rten-base 0.21.0 | MIT OR Apache-2.0 | MIT | Not included; Cargo.toml licence field |
-| rten-gemm 0.21.0 | MIT OR Apache-2.0 | MIT | Not included; Cargo.toml licence field |
-| rten-imageproc 0.21.0 | MIT OR Apache-2.0 | MIT | Not included; Cargo.toml licence field |
-| rten-simd 0.21.0 | MIT OR Apache-2.0 | MIT | Not included; Cargo.toml licence field |
-| rten-tensor 0.21.0 | MIT OR Apache-2.0 | MIT | Not included; Cargo.toml licence field |
-| rten-vecmath 0.21.0 | MIT OR Apache-2.0 | MIT | Not included; Cargo.toml licence field |
 | rustc-hash 2.1.3 | Apache-2.0 OR MIT | Apache-2.0 | LICENSE-APACHE (95bd3988beee069f); LICENSE-MIT (30fefc3a7d6a0041) |
 | rustc_version 0.4.1 | MIT OR Apache-2.0 | MIT | LICENSE-APACHE (a60eea8175145316); LICENSE-MIT (c9a75f18b9ab2927) |
 | rusticata-macros 4.1.0 | MIT/Apache-2.0 | MIT | LICENSE-APACHE (a60eea8175145316); LICENSE-MIT (a5c61b93b6ee1d10) |
@@ -716,3 +708,34 @@ cache artifacts, with their hashes recorded in the model disposition and export
 receipt; no weights/runtime are bundled in crates or wheels. Optional embeddings
 reuse the already recorded Apache-2.0 tokenizers 0.22.2 dependency. Retrieval bands
 remain uncalibrated.
+
+
+## OCR lane dependencies and model sources (2026-10-06)
+
+Published Cargo registry sources were checked directly. Removed ocRs/RTen dependencies.
+No model or font binaries are vendored. Official PP-OCRv5 mobile detection and Latin
+recognition ONNX exports, their inference.yml dictionary/configurations, and upstream
+PaddleOCR source are Apache-2.0; immutable URL/revision/bytes/SHA receipts are in
+`scripts/models/paddle-ocr-provenance.json`. Licence metadata was verified in official
+model repository declarations and the pinned upstream LICENSE and source headers.
+
+| Added dependency | Licence verified from fetched Cargo.toml/source |
+| --- | --- |
+| imageproc 0.25.0 | MIT |
+| serde_yaml 0.9.34+deprecated | MIT OR Apache-2.0 |
+| unsafe-libyaml 0.2.11 | MIT |
+| ab_glyph 0.2.32 | Apache-2.0 |
+| ab_glyph_rasterizer 0.1.10 | Apache-2.0 |
+| owned_ttf_parser 0.25.1 | Apache-2.0 |
+| ttf-parser 0.25.1 | MIT OR Apache-2.0 |
+| itertools 0.12.1 | MIT OR Apache-2.0 |
+| nalgebra 0.32.6 | BSD-3-Clause |
+| simba 0.8.1 | Apache-2.0 |
+| rand_distr 0.4.3 | MIT OR Apache-2.0 |
+
+Generated accent glyph images use installed DejaVu Sans/Serif (Bitstream Vera licence,
+DejaVu changes public domain) and Liberation Sans (SIL OFL 1.1). Font files are not
+redistributed; generator outputs carry font hashes and exact local licence receipts.
+SIL OFL and Bitstream font licences apply only to the generated fixture fonts,
+not to additional software dependencies. This permissive font choice follows the
+OCR spec's generated-font exception to the shared software-dependency licence list.

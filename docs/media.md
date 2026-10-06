@@ -38,6 +38,13 @@ Description is off by default. Library `analyze_with_provider` accepts an explic
 bound caption request and existing observation provider, and marks its output as a draft.
 No provider authority is obtained from media bytes, OCR or model text.
 
+## MCP entry point
+
+The `saccade_measure` operation `analyze_media` accepts `image` and `options`.
+The image must be under a registered input root; normal MCP containment applies.
+Read each section's status and provenance, including skipped and failed sections,
+just as with the CLI. Tool arguments grant no download or provider authority.
+
 ## Video keyframes
 
 `saccade keyframes video.mp4 --out frames --json` invokes the user's external ffmpeg
@@ -77,3 +84,9 @@ The crop is a source-space bounding rectangle of target coverage (an approximati
 rotation/projective edges). Confidence is an uncalibrated consensus score, not probability.
 Exact encoded equality is separately labelled. Insufficient texture is `no_match` with an
 explicit consensus reason, never a guessed transform. Matching does not establish rights.
+
+With `ocr`, the default media text section uses pinned PP-OCRv5 mobile detection
+and Latin recognition via CPU ONNX Runtime 1.22. The shared registry carries
+all three graph/dictionary pins. The model cache and download opt-in remain
+explicit. Text units are detected lines, confidence is mean selected CTC score
+(uncalibrated), and source coverage stays incomplete. See [OCR contracts](text.md).

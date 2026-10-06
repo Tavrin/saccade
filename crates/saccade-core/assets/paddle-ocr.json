@@ -1,0 +1,33 @@
+{
+  "schema": "saccade-paddle-ocr.v1",
+  "cache": "models",
+  "detection": {
+    "role": "detection",
+    "version": "e6f4fa85f00e168c862bc462aebca69eef9b3d3d",
+    "format": "onnx",
+    "url": "https://huggingface.co/PaddlePaddle/PP-OCRv5_mobile_det_onnx/resolve/e6f4fa85f00e168c862bc462aebca69eef9b3d3d/inference.onnx",
+    "bytes": 4826518,
+    "sha256": "a431985659dc921974177a95adcfbb90fd9e51989a5e04d70d0b75f597b6e61d",
+    "license": "Apache-2.0"
+  },
+  "recognition": {
+    "role": "recognition",
+    "version": "89d3a50e2c27e2e7cceeab0e944c25c807d5db4f",
+    "format": "onnx",
+    "url": "https://huggingface.co/PaddlePaddle/latin_PP-OCRv5_mobile_rec_onnx/resolve/89d3a50e2c27e2e7cceeab0e944c25c807d5db4f/inference.onnx",
+    "bytes": 8042023,
+    "sha256": "7888113072263cb471b93f66dd5e2ad70548dc526fa1ace760d0d973dd121498",
+    "license": "Apache-2.0"
+  },
+  "dictionary": {
+    "role": "dictionary",
+    "version": "89d3a50e2c27e2e7cceeab0e944c25c807d5db4f",
+    "format": "checkpoint",
+    "url": "https://huggingface.co/PaddlePaddle/latin_PP-OCRv5_mobile_rec_onnx/resolve/89d3a50e2c27e2e7cceeab0e944c25c807d5db4f/inference.yml",
+    "bytes": 6817,
+    "sha256": "0bbe984570f597af3638e50bdf2e8276f3ab26a61966096538b3b0d1849f5c84",
+    "license": "Apache-2.0"
+  },
+  "license_evidence": "Official PaddlePaddle model repositories declare Apache-2.0; upstream PaddleOCR LICENSE at c2b0390d9a89ee76148be5c9d758a028527214d4. See scripts/models/paddle-ocr-provenance.json.",
+  "review_status": "generated, pending coordinator review"
+}

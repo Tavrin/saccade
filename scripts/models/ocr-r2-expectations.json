@@ -6,7 +6,7 @@
     "CAFÉ"
   ],
   "fixture_license": "MIT OR Apache-2.0; generated project glyph pixels",
-  "rust_ocr_status": "unavailable: no pinned accent-capable RTen exports; default ocrs alphabet is English ASCII; no relabeling or fabricated model pins",
+  "historical_r2_status": "RTen accent exports were unavailable at R2; superseded by PP-OCRv5 generated accent contracts in the OCR lane",
   "dependencies": {
     "tesseract-ocr-fra_1%3a4.1.0-2_all.deb": "ff68830b29c4bc8e66964221fa00a6cbe0efad7003794a44ff697e59e645fce9",
     "liblept5_1.82.0-3build4_amd64.deb": "c2bb81d58f032b09917c0d50994cce905287a1596304a4e99681a03601456ea8",

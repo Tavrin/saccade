@@ -3,9 +3,21 @@
 Use the [shared guide](../integrations/agent-guide.md) and generated
 [Claude Code skill](../integrations/claude-code/skills/saccade/SKILL.md) or
 [Codex pack](../integrations/codex/AGENTS.saccade.md).
-Regenerate with `python3 scripts/gen-docs.py`; `--check` rejects drift.
-Entry packs stay below an estimated 1,200 tokens, measured conservatively as
-UTF-8 bytes divided by four. They are not exact tokenizer counts.
+Edit `integrations/agent-guide.md`, keeping feature summaries concise and linking
+to the detailed docs. Generated headers count toward each pack's 4,800-byte
+budget (an estimated 1,200 tokens at four UTF-8 bytes per token, not an exact
+tokenizer count). Do not edit generated packs or raise the budget.
+
+Regenerate all outputs, including the CLI reference, with the all-features
+release binary as described in [release maintenance](design-decisions/release.md):
+
+```sh
+cargo build --release -p saccade --all-features --locked
+python3 scripts/gen-docs.py --saccade "${CARGO_TARGET_DIR:-target}/release/saccade"
+python3 scripts/gen-docs.py --saccade "${CARGO_TARGET_DIR:-target}/release/saccade" --check
+```
+
+Without `--saccade`, `--check` verifies packs and indexes only.
 
 ## Install the one-call workflow
 

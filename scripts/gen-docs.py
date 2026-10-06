@@ -70,15 +70,19 @@ def generated(binary=None):
         binary = shutil.which(binary) or str(Path(binary).resolve())
         result = subprocess.run([binary, 'inspect', 'capabilities', '--json'], check=True, capture_output=True, text=True, encoding="utf-8")
         data = json.loads(result.stdout)['data']
+        # The family catalogue owns the complete compiled-feature inventory;
+        # inspect capabilities supplies the recursively discovered CLI operations.
+        catalogue = subprocess.run([binary, 'capabilities', '--json'], check=True, capture_output=True, text=True, encoding="utf-8")
+        features = json.loads(catalogue.stdout)['compiled_features']
         manifest = tomllib.loads((ROOT / 'crates/saccade/Cargo.toml').read_text(encoding="utf-8"))
-        missing = set(manifest['features']) - {'default'} - set(data['features'])
+        missing = set(manifest['features']) - {'default'} - set(features)
         if missing:
             raise ValueError('CLI reference requires an --all-features binary; missing: ' + ', '.join(sorted(missing)))
         operations = data['operations']
         lines = ['# Command reference', '', 'Generated from compiled capabilities and `--help`; do not edit by hand.', '',
             'Generation: `cargo build --release -p saccade --all-features`, then `python3 scripts/gen-docs.py --saccade target/release/saccade`.',
             'The all-features binary includes every supported operation.', '',
-            'Compiled features: ' + ', '.join(f'`{f}`' for f in data['features']) + '.', '',
+            'Compiled features: ' + ', '.join(f'`{f}`' for f in features) + '.', '',
             'Exit 1 means a failed image measurement/evaluation gate or located divergence.',
             'Exit 0 for compare/identity means no image regression; inspect `performance` for qualification.',
             'Inspection, review, rank and ablation completion grant no acceptance authority.',

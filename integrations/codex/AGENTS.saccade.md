@@ -48,31 +48,27 @@ fallback. `--align`/`--resample` records geometry exclusions.
 `assess` is content-dependent; `inspect-image` reports provenance/C2PA, never authenticity.
 [Comparator](../docs/choosing-a-comparison.md).
 
-`models list` shows pins; `models pull runtime --cache DIR` provisions ORT 1.22.
-Inference needs an explicit library/verified cache, never an implicit pull.
-`locate`, `faces`, `crop-check`, `quality-score`, `watermark` emit attributed evidence.
-`observe-local`/`provider-map` require `local-vlm`/`vision-providers`.
-`--observations` replays fixtures; `--faces`/`--face-crop`/`--watermark` attach evidence.
-`review check-ui --locate` is advisory; `--vision-provider`/`--vision-response` map
-recordings. No live qualification; learned scores cannot override verdicts. TrustMark
-ECC, SAM2/LPIPS/DISTS/MUSIQ/source parity stay deferred. [Vision](../docs/wave7.md).
+`models list` shows pins; inference needs an explicit runtime/verified cache,
+never an implicit pull. `locate`, `faces`, `crop-check`, `quality-score`, `watermark`
+and local/provider observations are attributed advice, never verdict overrides.
+Read feature flags, replay bindings and qualification gaps in [Vision](../docs/wave7.md).
 
-<!-- wave9 -->
-[Rendering evidence](../docs/render-evidence.md): effect occupancy is independent
-of equality; read `required_effects[].failures` even at zero FLIP. Declare intended
-experiment keys; opt into spatial/layer/fixed-camera tiles. `experiment reference`
-compares noisy references; `review trial register/start/vote/import` retains immutable
-blind judgments. Share only public galleries. MCP measure: `reference_compare`,
-`trial_register`, `trial_start`, `trial_vote`, `trial_import`. Structure/preferences
-grant no timing authority; ablation retains warmup/clock/noise rejection reasons.
+[Rendering evidence](../docs/render-evidence.md): read `required_effects[].failures`
+even at zero FLIP. Declare experiment keys; opt into spatial/layer/fixed-camera
+analysis. `experiment reference` compares noisy references; `review trial` records
+blind judgments. Share only public galleries. Read warmup/clock/noise rejections;
+structure and preferences grant no timing authority.
 
-<!-- wave8 -->
-`analyze-media IMAGE --json`: check section status/provenance; `--strict` rejects
-failed sections, `cpu-lite` needs no models. MCP measure `analyze_media` takes rooted
-`image`/`options`. Credits are unsigned, descriptions drafts. `keyframes VIDEO --out
-NEW_DIR --json` needs ffmpeg/ffprobe or frame directories with `--sample-fps`;
-read limits. `find-usage IMAGE_OR_RECORD TARGET... --json` retains uncalibrated
-confidence/failures, no rights proof. [Python](../docs/python.md), [API](../docs/api.md).
+`analyze-media`: read section status/provenance; `--strict` rejects failed sections,
+`cpu-lite` needs no models. Credits are unsigned, descriptions drafts.
+`keyframes` needs ffmpeg/ffprobe or sampled frame directories; `find-usage` retains
+uncalibrated confidence/failures, never rights proof. [Media](../docs/media.md),
+[Python](../docs/python.md), [API](../docs/api.md).
 Text index queries need pinned joint SigLIP 2; DINO is image-only.
 
 Local gates grant no broad model/provider/platform/rendering/release qualification.
+
+[OCR](../docs/text.md): `ocr` enables local PP-OCRv5; preserve accents/source hashes
+and treat CTC confidence as uncalibrated. Downloads are explicit. `ocr-provider`
+adds opt-in Mistral image/PDF text via bound fixtures or authorized live calls
+with root egress/spend caps; never auto-selected.

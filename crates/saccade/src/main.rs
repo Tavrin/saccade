@@ -2682,3 +2682,6 @@ mod wave3_schema_tests {
 mod assist_batch_cmd;
 #[cfg(feature = "assist")]
 mod assist_cmd;
+
+// OCR lane: optional document provider transport.
+mod document_ocr_cmd;

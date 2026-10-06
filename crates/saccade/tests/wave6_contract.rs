@@ -746,13 +746,15 @@ fn mcp_question_inputs_and_native_execution_keep_authority_boundaries() {
 #[cfg(feature = "ocr")]
 #[test]
 #[ignore = "heavy: rust-ocr-accents"]
-fn rust_ocr_recognizes_accents_without_inventing_confidence() {
+fn paddle_ocr_recognizes_generated_accents_with_observed_confidence() {
     let temp = tempfile::tempdir().unwrap();
-    let path = temp.path().join("accent.png");
-    accent_fixture(&path);
-    let contract = std::env::var_os("SACCADE_W6_RUST_OCR_CONTRACT")
-        .expect("reviewed accent-capable pinned Rust OCR models");
-    let out = temp.path().join("rust-text");
+    let root = std::path::PathBuf::from(
+        std::env::var_os("SACCADE_OCR_ACCENTS").expect("generated OCR fixture directory"),
+    );
+    let path = root.join("fr-DejaVuSans-40.png");
+    let contract =
+        std::env::var_os("SACCADE_W6_RUST_OCR_CONTRACT").expect("pinned PP-OCRv5 contract/cache");
+    let out = temp.path().join("paddle-text");
     let result = cli(&[
         "text",
         path.to_str().unwrap(),
@@ -760,23 +762,23 @@ fn rust_ocr_recognizes_accents_without_inventing_confidence() {
         "--ocr-contract",
         std::path::Path::new(&contract).to_str().unwrap(),
         "--expect-text",
-        "CAFÉ",
+        "café",
         "--out",
         out.to_str().unwrap(),
         "--json",
     ]);
     assert_eq!(
         result.status.code(),
-        Some(1),
-        "confidence absent, expected-text readability must fail: {result:?}"
+        Some(0),
+        "real accent/readability contract: {result:?}"
     );
     let value: Value =
         serde_json::from_slice(&std::fs::read(out.join("saccade-text.v1.json")).unwrap()).unwrap();
     validate_schema("saccade-text.v1", &value);
     assert_eq!(value["comparison"]["expected"][0]["present"], true);
-    assert_eq!(value["comparison"]["expected"][0]["readable"], Value::Null);
+    assert_eq!(value["comparison"]["expected"][0]["readable"], true);
     assert_eq!(value["comparison"]["rates"]["character_edits"], 0);
-    assert_eq!(value["producers"][0]["engine"], "ocrs 0.10.4");
+    assert_eq!(value["producers"][0]["engine"], "PP-OCRv5-mobile/Latin");
 }
 
 #[cfg(feature = "mcp")]

@@ -153,6 +153,8 @@ The last three names appear only when the corresponding feature is compiled in.
 - [saccade-design-map.v1.schema.json](../crates/saccade-core/schemas/saccade-design-map.v1.schema.json) — saccade-design-map.v1
 - [saccade-design-pull.v1.schema.json](../crates/saccade-core/schemas/saccade-design-pull.v1.schema.json) — saccade-design-pull.v1
 - [saccade-design-report.v1.schema.json](../crates/saccade-core/schemas/saccade-design-report.v1.schema.json) — saccade-design-report.v1
+- [saccade-document-ocr.v1.schema.json](../crates/saccade-core/schemas/saccade-document-ocr.v1.schema.json) — Historical reader contract
+- [saccade-document-text.v1.schema.json](../crates/saccade-core/schemas/saccade-document-text.v1.schema.json) — Historical reader contract
 - [saccade-documents.v1.schema.json](../crates/saccade-core/schemas/saccade-documents.v1.schema.json) — Historical reader contract
 - [saccade-dom-regions.v1.schema.json](../crates/saccade-core/schemas/saccade-dom-regions.v1.schema.json) — DomMetadata
 - [saccade-embedding-corpus.v1.schema.json](../crates/saccade-core/schemas/saccade-embedding-corpus.v1.schema.json) — Historical reader contract
@@ -208,6 +210,7 @@ The last three names appear only when the corresponding feature is compiled in.
 - [saccade-ocrs.v1.schema.json](../crates/saccade-core/schemas/saccade-ocrs.v1.schema.json) — Historical reader contract
 - [saccade-onnx-runtime-authority.v1.schema.json](../crates/saccade-core/schemas/saccade-onnx-runtime-authority.v1.schema.json) — Historical reader contract
 - [saccade-onset.v1.schema.json](../crates/saccade-core/schemas/saccade-onset.v1.schema.json) — Document
+- [saccade-paddle-ocr.v1.schema.json](../crates/saccade-core/schemas/saccade-paddle-ocr.v1.schema.json) — Historical reader contract
 - [saccade-perf-diff.v1.schema.json](../crates/saccade-core/schemas/saccade-perf-diff.v1.schema.json) — PerfDiff
 - [saccade-perf-pairs.v1.schema.json](../crates/saccade-core/schemas/saccade-perf-pairs.v1.schema.json) — Samples
 - [saccade-perf-plan.v1.schema.json](../crates/saccade-core/schemas/saccade-perf-plan.v1.schema.json) — Plan
