@@ -44,8 +44,12 @@ pub fn require_binaries(names: &[&str]) -> crate::Result<()> {
         Ok(())
     } else {
         Err(crate::Error::Config(format!(
-            "optional binaries missing: {}; fix: {}; or supply pre-extracted frame images",
-            missing.join(", "),
+            "missing optional dependencies: requires {}; fix: {}; or supply numbered PNG frames",
+            missing
+                .iter()
+                .map(|name| format!("{name} on PATH"))
+                .collect::<Vec<_>>()
+                .join(", "),
             decoder_fix()
         )))
     }
