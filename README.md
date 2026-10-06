@@ -166,6 +166,7 @@ licences and third-party notices. See [release instructions](docs/releasing.md).
 | `semantic-regions`, `embeddings`, `local-models` | No | Pinned CPU model artifacts and dynamically loaded ONNX Runtime 1.22 (API 22). Runtime/model pulls are explicit provisioning operations; analysis never downloads them. |
 | `ocr`, `ocr-provider` | No | Local PP-OCRv5 Latin with pinned models/runtime; separately opt-in hosted document OCR with spend/egress controls. |
 | `documents`, `credentials` | No | SVG/PDF rasterization and offline C2PA validation. |
+| `media-http` | No | Bounded URL inputs for media analysis; network fetches require an explicit URL input. |
 | `local-vlm`, `vision-providers` | No | Configured local/hosted vision adapters; observations remain advice. |
 | `geometry`, `dense-motion`, `prechecks`, `schema` | No | Mesh measurements, dense motion, experimental safety/accessibility checks and schema generation. |
 
