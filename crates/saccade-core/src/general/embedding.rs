@@ -146,6 +146,13 @@ pub fn validate(model: &Model) -> Result<()> {
     }
     Ok(())
 }
+/// Download and verify every pinned artifact of the supplied embedding contract into `cache`.
+/// This is the explicit provisioning step behind `saccade models pull embedding`.
+#[cfg(feature = "embeddings")]
+pub fn provision(model: &Model, cache: &Path) -> Result<Vec<std::path::PathBuf>> {
+    validate(model)?;
+    semantic::cache_models(&cache_manifest(model), cache)
+}
 fn cache_manifest(model: &Model) -> semantic::ModelManifest {
     semantic::ModelManifest {
         schema: "saccade-region-models.v1".into(),

@@ -1,7 +1,7 @@
-"""Reusable local media analysis. Model downloads require explicit opt-in."""
+"""Reusable local media analysis. Models resolve from one operator configuration (see ``model_config()``); downloads only through ``pull_models``."""
 from ._native import (
     __version__, compare_maps, Analyzer, Index, SaccadeError, InputError, ModelError, AnalysisError,
-    pull_models, pull_runtime,
+    pull_models, pull_runtime, model_config,
 )
 __all__ = ["__version__", "compare_maps", "Analyzer", "Index", "SaccadeError", "InputError", "ModelError",
-           "AnalysisError", "pull_models", "pull_runtime"]
+           "AnalysisError", "pull_models", "pull_runtime", "model_config"]

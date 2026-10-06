@@ -539,9 +539,9 @@ Options:
       --model-registry <MODEL_REGISTRY>
           Shared model registry (vision, embedding and OCR pins)
       --model-cache <MODEL_CACHE>
-
+          Deprecated: set SACCADE_MODELS_DIR or [models].dir
       --runtime-library <RUNTIME_LIBRARY>
-
+          Deprecated: set SACCADE_MODELS_RUNTIME_LIBRARY or [models].runtime_library
       --watermark
           Inspect named watermark decoders; unavailable decoders stay explicit
       --watermark-payload <WATERMARK_PAYLOAD>
@@ -592,9 +592,9 @@ Options:
       --model-registry <MODEL_REGISTRY>
           Shared model registry (vision, embedding and OCR pins)
       --model-cache <MODEL_CACHE>
-
+          Deprecated: set SACCADE_MODELS_DIR or [models].dir
       --runtime-library <RUNTIME_LIBRARY>
-
+          Deprecated: set SACCADE_MODELS_RUNTIME_LIBRARY or [models].runtime_library
       --watermark
           Inspect named watermark decoders; unavailable decoders stay explicit
       --watermark-payload <WATERMARK_PAYLOAD>
@@ -650,9 +650,9 @@ Options:
       --b-source <B_SOURCE>
           Image-bound imported observations for the candidate
       --ocr-contract <OCR_CONTRACT>
-          Override the default pinned PP-OCRv5 contract (or select external Tesseract)
+          Override the default pinned PP-OCRv5 contract (or select external Tesseract). Deprecated for registries: a configured registry (SACCADE_MODELS_REGISTRY / [models].registry) with one OCR contract is used automatically
       --download-model
-          Explicitly fetch SHA-pinned Rust OCR models into the contract cache
+          Deprecated: provision with `saccade models pull ocr`. Still fetches the SHA-pinned Rust OCR models into the contract cache
       --expect-text <EXPECT_TEXT>
           Literal Unicode strings expected in the candidate (repeatable); always inert data
       --readable-confidence <READABLE_CONFIDENCE>
@@ -676,17 +676,17 @@ Global options:
 ```text
 Cosine similarity with an explicitly pinned optional ONNX export
 
-Usage: saccade similar [OPTIONS] --model <MODEL> --cache <CACHE> --library <LIBRARY> <A> <B>
+Usage: saccade similar [OPTIONS] <A> <B>
 
 Arguments:
   <A>
   <B>
 
 Options:
-      --model <MODEL>      Supplied saccade-embedding-model.v1 contract; includes export SHA-256 and preprocessing
-      --cache <CACHE>      Content-addressed model cache; downloads require --download-model
-      --library <LIBRARY>  Explicit ONNX Runtime 1.22 dynamic library, CPU execution only
-      --download-model     Explicitly allow the pinned export to be downloaded to the cache
+      --model <MODEL>      Supplied saccade-embedding-model.v1 contract; includes export SHA-256 and preprocessing. Default: SACCADE_MODELS_EMBEDDING_CONTRACT or [models].embedding_contract
+      --cache <CACHE>      Deprecated: set SACCADE_MODELS_DIR or [models].dir. Content-addressed model cache
+      --library <LIBRARY>  Deprecated: set SACCADE_MODELS_RUNTIME_LIBRARY or [models].runtime_library. Explicit ONNX Runtime 1.22 dynamic library, CPU execution only
+      --download-model     Deprecated: provision with `saccade models pull embedding`. Still downloads the pinned export to the cache
       --out <OUT>          [default: similar-report]
       --json
   -h, --help               Print help
@@ -743,16 +743,16 @@ Global options:
 ```text
 Run pinned export parity and fit/holdout calibration over a frozen corpus (heavy)
 
-Usage: saccade index calibrate [OPTIONS] --model <MODEL> --cache <CACHE> --library <LIBRARY> --out <OUT> <CORPUS>
+Usage: saccade index calibrate [OPTIONS] --out <OUT> <CORPUS>
 
 Arguments:
   <CORPUS>
 
 Options:
-      --model <MODEL>      Supplied saccade-embedding-model.v1 contract; includes export SHA-256 and preprocessing
-      --cache <CACHE>      Content-addressed model cache; downloads require --download-model
-      --library <LIBRARY>  Explicit ONNX Runtime 1.22 dynamic library, CPU execution only
-      --download-model     Explicitly allow the pinned export to be downloaded to the cache
+      --model <MODEL>      Supplied saccade-embedding-model.v1 contract; includes export SHA-256 and preprocessing. Default: SACCADE_MODELS_EMBEDDING_CONTRACT or [models].embedding_contract
+      --cache <CACHE>      Deprecated: set SACCADE_MODELS_DIR or [models].dir. Content-addressed model cache
+      --library <LIBRARY>  Deprecated: set SACCADE_MODELS_RUNTIME_LIBRARY or [models].runtime_library. Explicit ONNX Runtime 1.22 dynamic library, CPU execution only
+      --download-model     Deprecated: provision with `saccade models pull embedding`. Still downloads the pinned export to the cache
       --out <OUT>
       --json
   -h, --help               Print help
@@ -767,16 +767,16 @@ Global options:
 ```text
 Build a streaming exact flat index, up to 100000 images and 512 MiB vectors
 
-Usage: saccade index build [OPTIONS] --model <MODEL> --cache <CACHE> --library <LIBRARY> --out <OUT> <DIR>
+Usage: saccade index build [OPTIONS] --out <OUT> <DIR>
 
 Arguments:
   <DIR>
 
 Options:
-      --model <MODEL>      Supplied saccade-embedding-model.v1 contract; includes export SHA-256 and preprocessing
-      --cache <CACHE>      Content-addressed model cache; downloads require --download-model
-      --library <LIBRARY>  Explicit ONNX Runtime 1.22 dynamic library, CPU execution only
-      --download-model     Explicitly allow the pinned export to be downloaded to the cache
+      --model <MODEL>      Supplied saccade-embedding-model.v1 contract; includes export SHA-256 and preprocessing. Default: SACCADE_MODELS_EMBEDDING_CONTRACT or [models].embedding_contract
+      --cache <CACHE>      Deprecated: set SACCADE_MODELS_DIR or [models].dir. Content-addressed model cache
+      --library <LIBRARY>  Deprecated: set SACCADE_MODELS_RUNTIME_LIBRARY or [models].runtime_library. Explicit ONNX Runtime 1.22 dynamic library, CPU execution only
+      --download-model     Deprecated: provision with `saccade models pull embedding`. Still downloads the pinned export to the cache
       --out <OUT>
       --json
   -h, --help               Print help
@@ -791,7 +791,7 @@ Global options:
 ```text
 Search an existing index; model/preprocessing must exactly match the index
 
-Usage: saccade index query [OPTIONS] --model <MODEL> --cache <CACHE> --library <LIBRARY> <INDEX> [IMAGE]
+Usage: saccade index query [OPTIONS] <INDEX> [IMAGE]
 
 Arguments:
   <INDEX>
@@ -799,10 +799,10 @@ Arguments:
 
 Options:
       --text <TEXT>        Text query requires a pinned SigLIP 2 joint text/image model
-      --model <MODEL>      Supplied saccade-embedding-model.v1 contract; includes export SHA-256 and preprocessing
-      --cache <CACHE>      Content-addressed model cache; downloads require --download-model
-      --library <LIBRARY>  Explicit ONNX Runtime 1.22 dynamic library, CPU execution only
-      --download-model     Explicitly allow the pinned export to be downloaded to the cache
+      --model <MODEL>      Supplied saccade-embedding-model.v1 contract; includes export SHA-256 and preprocessing. Default: SACCADE_MODELS_EMBEDDING_CONTRACT or [models].embedding_contract
+      --cache <CACHE>      Deprecated: set SACCADE_MODELS_DIR or [models].dir. Content-addressed model cache
+      --library <LIBRARY>  Deprecated: set SACCADE_MODELS_RUNTIME_LIBRARY or [models].runtime_library. Explicit ONNX Runtime 1.22 dynamic library, CPU execution only
+      --download-model     Deprecated: provision with `saccade models pull embedding`. Still downloads the pinned export to the cache
       --top <TOP>          [default: 10]
       --out <OUT>          [default: query-report]
       --json
@@ -867,8 +867,8 @@ Arguments:
 
 Options:
       --profile <PROFILE>          [default: cpu-lite] [possible values: cpu-lite, cpu-full, gpu]
-      --model-dir <MODEL_DIR>
-      --registry <REGISTRY>
+      --model-dir <MODEL_DIR>      Deprecated: set SACCADE_MODELS_DIR or [models].dir (see `saccade models config`)
+      --registry <REGISTRY>        Deprecated: set SACCADE_MODELS_REGISTRY or [models].registry
       --options <OPTIONS>          Per-section options JSON file
       --strict
       --output-size <OUTPUT_SIZE>  Repeat output size WxH
@@ -930,8 +930,9 @@ List or explicitly pull pinned local models
 Usage: saccade models [OPTIONS] <COMMAND>
 
 Commands:
-  list  Inspect selections, real pins, cache integrity and source-parity status
-  pull  Explicit opt-in to download only the named model's pinned artifacts
+  list    Inspect selections, real pins, cache integrity and source-parity status
+  config  Show the resolved model configuration and where each value came from
+  pull    The one provisioning verb: download and verify the named pinned artifacts
 
 Options:
   -h, --help  Print help
@@ -949,10 +950,26 @@ Inspect selections, real pins, cache integrity and source-parity status
 Usage: saccade models list [OPTIONS]
 
 Options:
-      --registry <REGISTRY>
-      --cache <CACHE>
+      --registry <REGISTRY>  Deprecated: set SACCADE_MODELS_REGISTRY or [models].registry
+      --cache <CACHE>        Deprecated: set SACCADE_MODELS_DIR or [models].dir
       --json
   -h, --help                 Print help
+
+Global options:
+      --allow-out-near-captures  Silence warnings when --out is next to capture metadata
+      --record-absolute-paths    Opt in to absolute local paths in reports and machine-readable output
+```
+
+## saccade models config
+
+```text
+Show the resolved model configuration and where each value came from
+
+Usage: saccade models config [OPTIONS]
+
+Options:
+      --json
+  -h, --help  Print help
 
 Global options:
       --allow-out-near-captures  Silence warnings when --out is next to capture metadata
@@ -962,22 +979,38 @@ Global options:
 ## saccade models pull
 
 ```text
-Explicit opt-in to download only the named model's pinned artifacts
+The one provisioning verb: download and verify the named pinned artifacts.
+
+ID is a registry model, `runtime` (ONNX Runtime), `ocr` (the pinned OCR contract, or --contract FILE) or `embedding` (--contract FILE or the configured embedding contract). Nothing else downloads on request.
 
 Usage: saccade models pull [OPTIONS] <ID>
 
 Arguments:
   <ID>
 
+
 Options:
+      --contract <CONTRACT>
+          Contract file for `ocr` / `embedding`
+
       --registry <REGISTRY>
+          Deprecated: set SACCADE_MODELS_REGISTRY or [models].registry
+
       --cache <CACHE>
+          Deprecated: set SACCADE_MODELS_DIR or [models].dir
+
       --json
-  -h, --help                 Print help
+
+
+  -h, --help
+          Print help (see a summary with '-h')
 
 Global options:
-      --allow-out-near-captures  Silence warnings when --out is next to capture metadata
-      --record-absolute-paths    Opt in to absolute local paths in reports and machine-readable output
+      --allow-out-near-captures
+          Silence warnings when --out is next to capture metadata
+
+      --record-absolute-paths
+          Opt in to absolute local paths in reports and machine-readable output
 ```
 
 ## saccade locate
@@ -1003,13 +1036,13 @@ Options:
       --overlay <OVERLAY>
           New overlay PNG; existing files are never overwritten
       --registry <REGISTRY>
-
+          Deprecated: set SACCADE_MODELS_REGISTRY or [models].registry
       --cache <CACHE>
-
+          Deprecated: set SACCADE_MODELS_DIR or [models].dir
       --runtime-library <RUNTIME_LIBRARY>
-          ONNX Runtime 1.22 library; otherwise ORT_DYLIB_PATH or verified model cache
+          Deprecated: set SACCADE_MODELS_RUNTIME_LIBRARY or [models].runtime_library. ONNX Runtime 1.22 library; otherwise ORT_DYLIB_PATH or verified model cache
       --allow-download
-
+          Deprecated: provision with `saccade models pull <id>` instead
       --json
 
   -h, --help
@@ -1038,13 +1071,13 @@ Options:
       --observations <OBSERVATIONS>
           Explicit stand-in/frozen measurement receipt, always labelled replay
       --registry <REGISTRY>
-
+          Deprecated: set SACCADE_MODELS_REGISTRY or [models].registry
       --cache <CACHE>
-
+          Deprecated: set SACCADE_MODELS_DIR or [models].dir
       --runtime-library <RUNTIME_LIBRARY>
-          ONNX Runtime 1.22 library; otherwise ORT_DYLIB_PATH or verified model cache
+          Deprecated: set SACCADE_MODELS_RUNTIME_LIBRARY or [models].runtime_library. ONNX Runtime 1.22 library; otherwise ORT_DYLIB_PATH or verified model cache
       --allow-download
-
+          Deprecated: provision with `saccade models pull <id>` instead
       --json
 
   -h, --help
@@ -1077,13 +1110,13 @@ Options:
       --trustmark
           Run the pinned Q neural graph; ECC/resize qualification remains unavailable
       --registry <REGISTRY>
-
+          Deprecated: set SACCADE_MODELS_REGISTRY or [models].registry
       --cache <CACHE>
-
+          Deprecated: set SACCADE_MODELS_DIR or [models].dir
       --runtime-library <RUNTIME_LIBRARY>
-          ONNX Runtime 1.22 library; otherwise ORT_DYLIB_PATH or verified model cache
+          Deprecated: set SACCADE_MODELS_RUNTIME_LIBRARY or [models].runtime_library. ONNX Runtime 1.22 library; otherwise ORT_DYLIB_PATH or verified model cache
       --allow-download
-
+          Deprecated: provision with `saccade models pull <id>` instead
       --json
 
   -h, --help
@@ -1112,13 +1145,13 @@ Options:
       --blur-faces <BLUR_FACES>
           Write a new strongly redacted PNG; never overwrite an original
       --registry <REGISTRY>
-
+          Deprecated: set SACCADE_MODELS_REGISTRY or [models].registry
       --cache <CACHE>
-
+          Deprecated: set SACCADE_MODELS_DIR or [models].dir
       --runtime-library <RUNTIME_LIBRARY>
-          ONNX Runtime 1.22 library; otherwise ORT_DYLIB_PATH or verified model cache
+          Deprecated: set SACCADE_MODELS_RUNTIME_LIBRARY or [models].runtime_library. ONNX Runtime 1.22 library; otherwise ORT_DYLIB_PATH or verified model cache
       --allow-download
-
+          Deprecated: provision with `saccade models pull <id>` instead
       --json
 
   -h, --help
@@ -1147,13 +1180,13 @@ Options:
       --blur-faces <BLUR_FACES>
           Write a new strongly redacted PNG; never overwrite an original
       --registry <REGISTRY>
-
+          Deprecated: set SACCADE_MODELS_REGISTRY or [models].registry
       --cache <CACHE>
-
+          Deprecated: set SACCADE_MODELS_DIR or [models].dir
       --runtime-library <RUNTIME_LIBRARY>
-          ONNX Runtime 1.22 library; otherwise ORT_DYLIB_PATH or verified model cache
+          Deprecated: set SACCADE_MODELS_RUNTIME_LIBRARY or [models].runtime_library. ONNX Runtime 1.22 library; otherwise ORT_DYLIB_PATH or verified model cache
       --allow-download
-
+          Deprecated: provision with `saccade models pull <id>` instead
       --json
 
       --crop <CROP>

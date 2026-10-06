@@ -1,6 +1,7 @@
 # Perceptual Playwright assertions
 
-Use the local package in `integrations/playwright` (no npm publication). Install
+Use the package in `integrations/playwright` (vendor it, or install `saccade-playwright` once the
+maintainer has published it; see [releasing](releasing.md#playwright-package-owner-step)). Install
 `@playwright/test` in the consuming project and use a Saccade binary on PATH:
 
 ```js

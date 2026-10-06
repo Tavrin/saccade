@@ -216,6 +216,16 @@ fn arg_str(args: &Map<String, Value>, key: &str) -> Result<Option<String>, CliEr
     }
 }
 
+/// Operator-resolved embedding inputs (see `operator_model`); the guard keeps a
+/// materialised registry contract alive for the duration of the call.
+#[derive(Default)]
+struct OperatorModel {
+    guard: Option<tempfile::TempDir>,
+    model: Option<PathBuf>,
+    cache: Option<PathBuf>,
+    library: Option<PathBuf>,
+}
+
 fn require_str(args: &Map<String, Value>, key: &str) -> Result<String, CliError> {
     if key == "artifact"
         && let Some(reference) = args.get(key).and_then(Value::as_object)
@@ -741,6 +751,69 @@ impl Server {
                 path.display()
             )))
         }
+    }
+
+    /// Embedding model, cache and runtime for a request, from operator configuration only.
+    /// `model` must be a contract id in the operator registry; a path is refused. `cache`
+    /// and `library` may only restate the configured location.
+    fn operator_model(
+        &self,
+        args: &Map<String, Value>,
+        want: bool,
+    ) -> Result<OperatorModel, CliError> {
+        let refuse = |m: String| CliError::new("model_location_not_request_controlled", m);
+        let cfg = crate::wave7_cmd::config()?;
+        let mut out = OperatorModel::default();
+        if !want
+            && !["model", "cache", "library"]
+                .iter()
+                .any(|k| args.contains_key(*k))
+        {
+            return Ok(out);
+        }
+        if let Some(id) = arg_str(args, "model")? {
+            let registry = crate::wave7_cmd::registry(None)?;
+            let contract = registry
+                .contracts
+                .get(&id)
+                .filter(|c| c["schema"] == saccade_core::general::embedding::MODEL_SCHEMA)
+                .ok_or_else(|| {
+                    refuse(
+                        "`model` must be an embedding contract id in the operator registry; a request cannot supply a path"
+                            .into(),
+                    )
+                })?;
+            let dir = tempfile::tempdir().map_err(|e| CliError::io(e.to_string()))?;
+            let file = dir.path().join("embedding-model.json");
+            std::fs::write(&file, serde_json::to_vec(contract)?)
+                .map_err(|e| CliError::io(e.to_string()))?;
+            out.model = Some(file);
+            out.guard = Some(dir);
+        } else {
+            out.model = cfg.embedding_contract.clone();
+        }
+        for (key, configured) in [
+            ("cache", Some(cfg.dir.clone())),
+            ("library", cfg.runtime_library.clone()),
+        ] {
+            if let Some(p) = arg_str(args, key)? {
+                let requested = self.resolve(key, &p)?;
+                cfg.check_request_location(key, &requested)
+                    .map_err(|e| refuse(e.to_string()))?;
+            }
+            match key {
+                "cache" => out.cache = configured,
+                _ => out.library = configured,
+            }
+        }
+        if let Some(c) = &out.cache
+            && !c.is_dir()
+        {
+            return Err(CliError::io(
+                "MCP embedding cache must already exist; downloads are explicit CLI-only (saccade models pull)",
+            ));
+        }
+        Ok(out)
     }
 
     /// Resolves `out_dir` under the root. That it is not inside an input
@@ -1459,7 +1532,10 @@ impl Server {
             let mut paths = std::collections::BTreeMap::new();
             let dir = self.resolve("dir", &require_str(args, "dir")?)?;
             self.input_tree(&dir)?;
-            let model = self.existing_file("model", &require_str(args, "model")?)?;
+            let operator = self.operator_model(args, true)?;
+            let model = operator.model.clone().ok_or_else(|| {
+                CliError::usage("model contract id required (or configure an embedding contract)")
+            })?;
             let out = self.checked_out_dir(&require_str(args, "out")?, &[&dir, &model])?;
             paths.insert("dir".into(), dir);
             paths.insert("model".into(), model);
@@ -1491,15 +1567,7 @@ impl Server {
                 ],
             )?;
             let mut paths = std::collections::BTreeMap::new();
-            for key in [
-                "reference",
-                "capture",
-                "model",
-                "cache",
-                "library",
-                "reference_source",
-                "capture_source",
-            ] {
+            for key in ["reference", "capture", "reference_source", "capture_source"] {
                 if let Some(p) = arg_str(args, key)? {
                     let path = self.resolve(key, &p)?;
                     if path.is_dir() {
@@ -1508,6 +1576,17 @@ impl Server {
                         return Err(CliError::io("question input unavailable"));
                     }
                     paths.insert(key, path);
+                }
+            }
+            let same_content = arg_str(args, "question")?.as_deref() == Some("same-content");
+            let operator = self.operator_model(args, same_content)?;
+            for (key, value) in [
+                ("model", &operator.model),
+                ("cache", &operator.cache),
+                ("library", &operator.library),
+            ] {
+                if let Some(p) = value {
+                    paths.insert(key, p.clone());
                 }
             }
             let reference = paths
@@ -1753,11 +1832,23 @@ impl Server {
                 keys.push("top");
             }
             reject_unknown(args, &keys)?;
+            // Model, cache and runtime come from operator configuration; a request may only
+            // name a registry contract id or restate a configured location, never a path.
+            let operator = self.operator_model(args, true)?;
             let mut paths = std::collections::BTreeMap::new();
-            for key in ["model", "library"]
-                .into_iter()
-                .chain(extra.iter().copied())
-            {
+            for (key, value) in [
+                ("model", &operator.model),
+                ("library", &operator.library),
+                ("cache", &operator.cache),
+            ] {
+                paths.insert(
+                    key.to_owned(),
+                    value.clone().ok_or_else(|| {
+                        CliError::usage(format!("{key} is not configured by the operator"))
+                    })?,
+                );
+            }
+            for key in extra.iter().copied() {
                 let path = self.resolve(key, &require_str(args, key)?)?;
                 if path.is_dir() {
                     self.input_tree(&path)?;
@@ -1766,14 +1857,6 @@ impl Server {
                 }
                 paths.insert(key.to_owned(), path);
             }
-            let cache = self.resolve("cache", &require_str(args, "cache")?)?;
-            if !cache.is_dir() {
-                return Err(CliError::io(
-                    "MCP embedding cache must already exist; downloads are explicit CLI-only",
-                ));
-            }
-            self.input_tree(&cache)?;
-            paths.insert("cache".into(), cache);
             let out = self.checked_out_dir(
                 &require_str(args, "out")?,
                 &paths.values().map(PathBuf::as_path).collect::<Vec<_>>(),

@@ -1,0 +1,34 @@
+{
+  "schema": "saccade-bundles.v1",
+  "note": "Single source for the release bundles. Cargo default features are always on; `features` are added to them.",
+  "bundles": {
+    "default": {
+      "title": "Default",
+      "asset": "saccade-{target}",
+      "also_published_as": "saccade-default-{target}",
+      "features": ["prechecks"],
+      "expect_features": ["parallel", "graphics", "compression", "ai", "workbench", "evaluation", "mcp", "prechecks"],
+      "platforms": ["x86_64-unknown-linux-gnu", "aarch64-unknown-linux-gnu", "aarch64-apple-darwin", "x86_64-pc-windows-msvc"],
+      "summary": "Compare, prove, review, perf and arms evidence, MCP server, workbench. Nothing to provision."
+    },
+    "media": {
+      "title": "Media",
+      "asset": "saccade-media-{target}",
+      "features": ["prechecks", "credentials", "documents", "products", "ocr"],
+      "expect_features": ["prechecks", "credentials", "documents", "products", "ocr", "local-models", "mcp"],
+      "platforms": ["x86_64-unknown-linux-gnu", "aarch64-unknown-linux-gnu", "aarch64-apple-darwin", "x86_64-pc-windows-msvc"],
+      "summary": "Default plus C2PA credentials, PDF/SVG documents, imgtune/product tools and Rust OCR. OCR models and the ONNX runtime are provisioned with `saccade models pull`."
+    },
+    "full": {
+      "title": "Full",
+      "asset": "saccade-full-{target}",
+      "features": ["prechecks", "credentials", "documents", "products", "ocr", "embeddings", "geometry", "dense-motion", "semantic-regions", "local-models", "local-vlm", "vision-providers", "assist", "ocr-provider", "media-http", "schema"],
+      "expect_features": ["prechecks", "credentials", "documents", "products", "ocr", "embeddings", "geometry", "dense-motion", "semantic-regions", "local-models", "local-vlm", "vision-providers", "assist", "media-http", "schema", "mcp"],
+      "platforms": ["x86_64-unknown-linux-gnu", "aarch64-unknown-linux-gnu", "aarch64-apple-darwin", "x86_64-pc-windows-msvc"],
+      "summary": "Media plus embeddings, geometry, dense motion, local models and providers, assist and media HTTP."
+    }
+  },
+  "excluded_everywhere": {
+    "imgtune-avif": "Links libdav1d dynamically through pkg-config; a prebuilt binary would need that library on the user's machine. Build from source with `cargo install saccade --features imgtune-avif`."
+  }
+}

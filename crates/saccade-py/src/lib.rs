@@ -57,6 +57,56 @@ fn json(py: Python<'_>, value: media::Result<serde_json::Value>) -> PyResult<Py<
         .map_err(|e| error(py, MediaError::new("invalid_json", e.to_string())))?;
     Ok(py.import("json")?.call_method1("loads", (text,))?.unbind())
 }
+/// Emit a `DeprecationWarning` for a superseded argument; behaviour is unchanged.
+fn deprecated(py: Python<'_>, what: &str, replacement: &str) -> PyResult<()> {
+    let message = format!(
+        "{what} is deprecated; use {replacement}. It keeps working and will not be removed before {}",
+        saccade_core::model_config::REMOVAL_NOT_BEFORE
+    );
+    py.import("warnings")?.call_method1(
+        "warn",
+        (
+            message,
+            py.get_type::<pyo3::exceptions::PyDeprecationWarning>(),
+            3,
+        ),
+    )?;
+    Ok(())
+}
+/// Shared operator configuration (the same resolver the CLI and MCP use) with the
+/// deprecated `model_dir` / `registry` arguments applied over it.
+fn resolved(
+    py: Python<'_>,
+    model_dir: Option<&str>,
+    registry: Option<&str>,
+) -> PyResult<saccade_core::model_config::ModelConfig> {
+    let mut cfg = saccade_core::model_config::ModelConfig::resolve()
+        .map_err(|e| error(py, MediaError::new("invalid_media_options", e.to_string())))?;
+    if let Some(d) = model_dir {
+        deprecated(
+            py,
+            "model_dir=",
+            "SACCADE_MODELS_DIR or [models].dir (see saccade.model_config())",
+        )?;
+        cfg.dir = PathBuf::from(d);
+    }
+    if let Some(r) = registry {
+        deprecated(
+            py,
+            "registry=",
+            "SACCADE_MODELS_REGISTRY or [models].registry",
+        )?;
+        cfg.registry = Some(PathBuf::from(r));
+    }
+    Ok(cfg)
+}
+/// The resolved model configuration and where each value came from.
+#[pyfunction]
+fn model_config(py: Python<'_>) -> PyResult<Py<PyAny>> {
+    let cfg = saccade_core::model_config::ModelConfig::resolve()
+        .map_err(|e| error(py, MediaError::new("invalid_media_options", e.to_string())))?;
+    json(py, Ok(cfg.to_json()))
+}
 enum Input {
     Bytes(Vec<u8>),
     Path(String),
@@ -121,23 +171,23 @@ impl Analyzer {
                 ));
             }
         };
+        if allow_download {
+            deprecated(
+                py,
+                "allow_download=",
+                "saccade.pull_models([...]) (the one provisioning call)",
+            )?;
+        }
+        let cfg = resolved(py, model_dir, registry)?;
         let a = py
-            .allow_threads(|| match registry {
+            .allow_threads(|| match cfg.registry {
                 Some(p) => CoreAnalyzer::with_registry(
                     profile,
-                    model_dir
-                        .map(PathBuf::from)
-                        .unwrap_or_else(media::default_model_dir),
+                    cfg.dir,
                     allow_download,
-                    models::Registry::load(&PathBuf::from(p))?,
+                    models::Registry::load(&p)?,
                 ),
-                None => CoreAnalyzer::new(
-                    profile,
-                    model_dir
-                        .map(PathBuf::from)
-                        .unwrap_or_else(media::default_model_dir),
-                    allow_download,
-                ),
+                None => CoreAnalyzer::new(profile, cfg.dir, allow_download),
             })
             .map_err(|e| error(py, e))?;
         Ok(Self { inner: Arc::new(a) })
@@ -303,14 +353,11 @@ impl Index {
 fn pull_runtime(py: Python<'_>, model_dir: Option<&str>) -> PyResult<String> {
     #[cfg(feature = "models")]
     {
+        let dir = resolved(py, model_dir, None)?.dir;
         py.allow_threads(|| {
-            saccade_core::wave7::runtime_install::pull(
-                &model_dir
-                    .map(PathBuf::from)
-                    .unwrap_or_else(media::default_model_dir),
-            )
-            .map(|p| p.to_string_lossy().into_owned())
-            .map_err(MediaError::from)
+            saccade_core::wave7::runtime_install::pull(&dir)
+                .map(|p| p.to_string_lossy().into_owned())
+                .map_err(MediaError::from)
         })
         .map_err(|e| error(py, e))
     }
@@ -334,23 +381,18 @@ fn pull_models(
     model_dir: Option<&str>,
     registry: Option<&str>,
 ) -> PyResult<Py<PyAny>> {
+    let cfg = resolved(py, model_dir, registry)?;
     json(
         py,
         py.allow_threads(|| {
-            let reg = match registry {
-                Some(p) => models::Registry::load(&PathBuf::from(p))?,
+            let reg = match &cfg.registry {
+                Some(p) => models::Registry::load(p)?,
                 None => models::Registry::pinned_wave7()?,
             };
             let mut rows = Vec::new();
             for id in ids {
                 let model = reg.model(&id)?;
-                let paths = models::ensure(
-                    model,
-                    &model_dir
-                        .map(PathBuf::from)
-                        .unwrap_or_else(media::default_model_dir),
-                    true,
-                )?;
+                let paths = models::ensure(model, &cfg.dir, true)?;
                 rows.push(serde_json::json!({"id":id,"artifact_count":paths.len()}));
             }
             Ok(serde_json::json!({"schema":models::MODELS_SCHEMA,"models":rows}))
@@ -437,5 +479,6 @@ fn _native(py: Python<'_>, m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add("AnalysisError", py.get_type::<AnalysisError>())?;
     m.add_function(wrap_pyfunction!(pull_runtime, m)?)?;
     m.add_function(wrap_pyfunction!(pull_models, m)?)?;
+    m.add_function(wrap_pyfunction!(model_config, m)?)?;
     Ok(())
 }

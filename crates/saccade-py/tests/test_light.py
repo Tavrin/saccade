@@ -73,3 +73,13 @@ def test_compare_maps_returns_native_numpy_error_and_tile_grids():
     assert maps["tile_signed_shift"].shape == (2, 2)
     assert np.allclose(maps["tile_signed_shift"], 20 / 255)
     assert np.max(saccade.compare_maps(fixture(100), fixture(100))["flip"]) == 0
+
+
+def test_model_config_is_the_shared_resolver_and_old_arguments_warn(tmp_path, monkeypatch):
+    monkeypatch.setenv('SACCADE_MODELS_DIR', str(tmp_path))
+    config = saccade.model_config()
+    assert config['schema'] == 'saccade-model-config.v1'
+    assert config['dir']['value'] == str(tmp_path)
+    assert config['dir']['source']['name'] == 'SACCADE_MODELS_DIR'
+    with pytest.warns(DeprecationWarning, match='model_dir='):
+        saccade.Analyzer(model_dir=str(tmp_path))

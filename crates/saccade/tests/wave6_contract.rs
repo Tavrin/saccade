@@ -714,6 +714,8 @@ fn mcp_question_inputs_and_native_execution_keep_authority_boundaries() {
         .arg("--out-root")
         .arg(&out)
         .env("XDG_CONFIG_HOME", &config)
+        // The cache is operator configuration; the request below only restates it.
+        .env("SACCADE_MODELS_DIR", root.join("cache"))
         .stdin(Stdio::piped())
         .stdout(Stdio::piped())
         .stderr(Stdio::piped())
@@ -738,7 +740,7 @@ fn mcp_question_inputs_and_native_execution_keep_authority_boundaries() {
     assert!(
         values[2]
             .to_string()
-            .contains("execution_authorization_required")
+            .contains("model_location_not_request_controlled")
     );
     assert!(!out.join("native").join("saccade-similar.v1.json").exists());
 }
