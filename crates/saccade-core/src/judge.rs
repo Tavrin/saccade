@@ -654,6 +654,11 @@ fn compute_entry(
     })?;
     let value = cmp.metrics.mean;
     let entry = Entry {
+        intended_variables: Vec::new(),
+        spatial: None,
+        gallery: Vec::new(),
+        layers: None,
+        required_effects: Vec::new(),
         buffer: None,
         name: name.to_owned(),
         status: if value > 0.01 {

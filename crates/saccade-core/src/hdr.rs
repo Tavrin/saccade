@@ -377,6 +377,11 @@ pub fn compare_hdr(
     Ok((Comparison { metrics, error_map }, info))
 }
 
+/// Apply a declared tone mapper to a linear RGB sample, without quantizing it.
+pub fn map_colour(rgb: [f32; 3], mapper: Tonemapper) -> [f32; 3] {
+    tonemap_px(rgb, mapper)
+}
+
 #[cfg(test)]
 #[allow(clippy::expect_used)]
 mod tests {

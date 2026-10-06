@@ -19,6 +19,10 @@ mod wave7_cmd;
 mod media_cmd;
 #[cfg(feature = "mcp")]
 mod wave7_mcp;
+// wave9
+mod wave9_cmd;
+#[cfg(feature = "mcp")]
+mod wave9_mcp;
 
 mod agent;
 mod agent_ui;
@@ -171,6 +175,9 @@ struct MetaArgs {
 #[derive(clap::Args, Clone, Default)]
 #[command(next_help_heading = "Metadata sidecars")]
 struct MetaRequireArgs {
+    /// Intended experiment metadata variables (exact keys or globs).
+    #[arg(long = "intended-variable", value_delimiter = ',')]
+    intended_variables: Vec<String>,
     /// Make an entry an error when a sidecar key differs and is not declared.
     #[arg(long)]
     require_matching_meta: bool,
@@ -195,6 +202,8 @@ impl MetaArgs {
 
 impl MetaRequireArgs {
     fn apply(&self, meta: &mut saccade_core::meta::MetaOptions) {
+        meta.intended
+            .extend(self.intended_variables.iter().cloned());
         meta.required |= self.require_matching_meta;
         meta.declared.extend(self.declare.iter().cloned());
     }
@@ -778,6 +787,9 @@ struct ProveIdentityArgs {
 
 #[derive(Subcommand)]
 enum ExperimentOperation {
+    // wave9
+    /// Compare a render with a noisy offline reference and record alignment/noise floors.
+    Reference(wave9_cmd::ReferenceArgs),
     /// Measure bidirectional triangle-surface distance and oriented normal deviation.
     #[cfg(feature = "geometry")]
     Geometry(geometry_cmd::GeometryArgs),
@@ -790,6 +802,9 @@ enum ExperimentOperation {
     /// Compare numbered colour frames by sorted index and measure added flicker.
     #[cfg(feature = "graphics")]
     Sequence {
+        /// Declare a fixed camera and measure per-tile flicker with motion qualification.
+        #[arg(long)]
+        fixed_camera: bool,
         baseline_dir: PathBuf,
         capture_dir: PathBuf,
         /// Relative-name glob; frames must end in an integer before the extension.
@@ -1190,6 +1205,9 @@ fn dispatch(command: Command, record_absolute_paths: bool) -> Result<u8, CliErro
         Command::Experiment {
             operation: ExperimentOperation::Ablate(args),
         } => perf_cmd::ablate(args, record_absolute_paths),
+        Command::Experiment {
+            operation: ExperimentOperation::Reference(args),
+        } => wave9_cmd::reference(args),
         #[cfg(feature = "graphics")]
         Command::Experiment {
             operation: ExperimentOperation::Temporal(args),
@@ -1203,6 +1221,7 @@ fn dispatch(command: Command, record_absolute_paths: bool) -> Result<u8, CliErro
         Command::Experiment {
             operation:
                 ExperimentOperation::Sequence {
+                    fixed_camera,
                     baseline_dir,
                     capture_dir,
                     pattern,
@@ -1222,6 +1241,9 @@ fn dispatch(command: Command, record_absolute_paths: bool) -> Result<u8, CliErro
                 },
         } => {
             let mut cfg = load_config(config.as_deref())?;
+            if fixed_camera && cfg.temporal_tiles.is_none() {
+                cfg.temporal_tiles = Some(Default::default());
+            }
             cfg.record_absolute_paths = record_absolute_paths;
             if let Some(t) = threshold {
                 cfg.default_threshold = t;
@@ -1491,6 +1513,9 @@ fn dispatch(command: Command, record_absolute_paths: bool) -> Result<u8, CliErro
                 cfg.labels = parse_labels(&l)?;
             }
             let visual = local_cmd::visual_intent(&intent)?;
+            if let Some((declaration, source)) = &visual {
+                saccade_core::intent::apply_effects(declaration, source, &mut cfg)?;
+            }
             let report = saccade_core::run::run(&baseline_dir, &capture_dir, &out, &cfg)?;
             if let Some(path) = junit {
                 saccade_core::ergonomics::junit(&report, &path)?;
@@ -1569,6 +1594,9 @@ fn dispatch(command: Command, record_absolute_paths: bool) -> Result<u8, CliErro
                 cfg.labels = parse_labels(&l)?;
             }
             let visual = local_cmd::visual_intent(&intent)?;
+            if let Some((declaration, source)) = &visual {
+                saccade_core::intent::apply_effects(declaration, source, &mut cfg)?;
+            }
             let report = saccade_core::run::run(&parent_dir, &candidate_dir, &out, &cfg)?;
             if let Some(path) = junit {
                 saccade_core::ergonomics::junit(&report, &path)?;

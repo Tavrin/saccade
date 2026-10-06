@@ -1119,13 +1119,15 @@ Global options:
 ```text
 Measure intended-region, boundary and protected-complement changes independently
 
-Usage: saccade localized-check [OPTIONS] --out <OUT> <--box <BBOX>|--mask <MASK>|--selector <SELECTOR>|--region <REGION>> <REFERENCE> <CANDIDATE>
+Usage: saccade localized-check [OPTIONS] --out <OUT> <--box <BBOX>|--mask <MASK>|--selector <SELECTOR>|--region <REGION>|--required-effect <REQUIRED_EFFECT>> <REFERENCE> <CANDIDATE>
 
 Arguments:
   <REFERENCE>  Reference screenshot, retaining the intended region if candidate content disappears
   <CANDIDATE>
 
 Options:
+      --required-effect <REQUIRED_EFFECT>
+          Required-effect policy JSON; records occupancy, including an empty mask
       --box <BBOX>
           Pixel box x,y,width,height
       --mask <MASK>
@@ -1560,10 +1562,16 @@ Selection:
       --entry <GLOB>  Include only matching names (repeatable; union of globs)
 
 Metadata sidecars:
-      --meta-name <NAME>        Sidecar file name (default `saccade-meta.json`); the per-image sidecar is `<stem>.<name>` and overrides the directory-level one
-      --meta-ignore <GLOB,...>  Extra sidecar key globs to ignore, added to the built-in timing, timestamp and run-id defaults
-      --require-matching-meta   Make an entry an error when a sidecar key differs and is not declared
-      --declare <KEY,...>       Sidecar keys (or globs) that may differ with --require-matching-meta
+      --meta-name <NAME>
+          Sidecar file name (default `saccade-meta.json`); the per-image sidecar is `<stem>.<name>` and overrides the directory-level one
+      --meta-ignore <GLOB,...>
+          Extra sidecar key globs to ignore, added to the built-in timing, timestamp and run-id defaults
+      --intended-variable <INTENDED_VARIABLES>
+          Intended experiment metadata variables (exact keys or globs)
+      --require-matching-meta
+          Make an entry an error when a sidecar key differs and is not declared
+      --declare <KEY,...>
+          Sidecar keys (or globs) that may differ with --require-matching-meta
 
 Performance:
       --perf-name <NAME>           Run performance sidecar file name (default saccade-perf.json)
@@ -1627,10 +1635,16 @@ Selection:
       --entry <GLOB>  Include only matching names (repeatable; union of globs)
 
 Metadata sidecars:
-      --meta-name <NAME>        Sidecar file name (default `saccade-meta.json`); the per-image sidecar is `<stem>.<name>` and overrides the directory-level one
-      --meta-ignore <GLOB,...>  Extra sidecar key globs to ignore, added to the built-in timing, timestamp and run-id defaults
-      --require-matching-meta   Make an entry an error when a sidecar key differs and is not declared
-      --declare <KEY,...>       Sidecar keys (or globs) that may differ with --require-matching-meta
+      --meta-name <NAME>
+          Sidecar file name (default `saccade-meta.json`); the per-image sidecar is `<stem>.<name>` and overrides the directory-level one
+      --meta-ignore <GLOB,...>
+          Extra sidecar key globs to ignore, added to the built-in timing, timestamp and run-id defaults
+      --intended-variable <INTENDED_VARIABLES>
+          Intended experiment metadata variables (exact keys or globs)
+      --require-matching-meta
+          Make an entry an error when a sidecar key differs and is not declared
+      --declare <KEY,...>
+          Sidecar keys (or globs) that may differ with --require-matching-meta
 
 Performance:
       --perf-name <NAME>           Run performance sidecar file name (default saccade-perf.json)
@@ -1717,10 +1731,16 @@ Options:
   -h, --help              Print help
 
 Metadata sidecars:
-      --meta-name <NAME>        Sidecar file name (default `saccade-meta.json`); the per-image sidecar is `<stem>.<name>` and overrides the directory-level one
-      --meta-ignore <GLOB,...>  Extra sidecar key globs to ignore, added to the built-in timing, timestamp and run-id defaults
-      --require-matching-meta   Make an entry an error when a sidecar key differs and is not declared
-      --declare <KEY,...>       Sidecar keys (or globs) that may differ with --require-matching-meta
+      --meta-name <NAME>
+          Sidecar file name (default `saccade-meta.json`); the per-image sidecar is `<stem>.<name>` and overrides the directory-level one
+      --meta-ignore <GLOB,...>
+          Extra sidecar key globs to ignore, added to the built-in timing, timestamp and run-id defaults
+      --intended-variable <INTENDED_VARIABLES>
+          Intended experiment metadata variables (exact keys or globs)
+      --require-matching-meta
+          Make an entry an error when a sidecar key differs and is not declared
+      --declare <KEY,...>
+          Sidecar keys (or globs) that may differ with --require-matching-meta
 
 Performance:
       --perf-name <NAME>           Run performance sidecar file name (default saccade-perf.json)
@@ -1755,13 +1775,24 @@ Arguments:
   [ARMS]...
 
 Options:
-      --base <RUN_DIR>...     Base repeat directories. Accepts a directory or a quoted glob; repeatable
-      --arm <LABEL=RUN_GLOB>  Labelled arm repeats, e.g. --arm 's2=s2_r*'; repeatable
-      --out <OUT>             [default: ablation]
+      --intended-variable <INTENDED_VARIABLES>
+          Intended metadata variable for every arm
+      --arm-variable <ARM_VARIABLES>
+          Arm-specific variable, LABEL=KEY (repeatable; KEY may be a glob)
+      --base <RUN_DIR>...
+          Base repeat directories. Accepts a directory or a quoted glob; repeatable
+      --arm <LABEL=RUN_GLOB>
+          Labelled arm repeats, e.g. --arm 's2=s2_r*'; repeatable
+      --out <OUT>
+          [default: ablation]
       --config <CONFIG>
+
       --json
-      --top <TOP>             Per-term deltas beyond noise to show per arm [default: 5]
-  -h, --help                  Print help
+
+      --top <TOP>
+          Per-term deltas beyond noise to show per arm [default: 5]
+  -h, --help
+          Print help
 
 Performance:
       --perf-name <NAME>           Run performance sidecar file name (default saccade-perf.json)
@@ -2172,6 +2203,7 @@ Preview a review plan or handle a local closed decision request
 Usage: saccade review [OPTIONS] [REPORT] [COMMAND]
 
 Commands:
+  trial       Preregister and present offline blind visual trials
   assist      Experimental assist lifecycle operations
   explain     Experimental localized visible explanations, advisory only
   audit-mask  Experimental individual-mask audit, advisory only
@@ -2196,6 +2228,118 @@ Options:
       --intent <INTENT>
       --json
   -h, --help                         Print help
+
+Global options:
+      --allow-out-near-captures  Silence warnings when --out is next to capture metadata
+      --record-absolute-paths    Opt in to absolute local paths in reports and machine-readable output
+```
+
+## saccade review trial
+
+```text
+Preregister and present offline blind visual trials
+
+Usage: saccade review trial [OPTIONS] <COMMAND>
+
+Commands:
+  register  Hash a plan and all inputs before decoding or showing images
+  start     Lock inspection state and write the blind HTML gallery
+  vote      Persist one explicit judgment through the core vote store
+  import    Import the exported blind gallery judgments for an explicit voter
+
+Options:
+      --user-config <USER_CONFIG>
+      --json
+  -h, --help                       Print help
+
+Global options:
+      --allow-out-near-captures  Silence warnings when --out is next to capture metadata
+      --record-absolute-paths    Opt in to absolute local paths in reports and machine-readable output
+```
+
+## saccade review trial register
+
+```text
+Hash a plan and all inputs before decoding or showing images
+
+Usage: saccade review trial register [OPTIONS] --out <OUT> <PLAN>
+
+Arguments:
+  <PLAN>
+
+Options:
+      --out <OUT>
+      --user-config <USER_CONFIG>
+      --json
+  -h, --help                       Print help
+
+Global options:
+      --allow-out-near-captures  Silence warnings when --out is next to capture metadata
+      --record-absolute-paths    Opt in to absolute local paths in reports and machine-readable output
+```
+
+## saccade review trial start
+
+```text
+Lock inspection state and write the blind HTML gallery
+
+Usage: saccade review trial start [OPTIONS] --out <OUT> <PLAN>
+
+Arguments:
+  <PLAN>
+
+Options:
+      --out <OUT>
+      --user-config <USER_CONFIG>
+      --json
+  -h, --help                       Print help
+
+Global options:
+      --allow-out-near-captures  Silence warnings when --out is next to capture metadata
+      --record-absolute-paths    Opt in to absolute local paths in reports and machine-readable output
+```
+
+## saccade review trial vote
+
+```text
+Persist one explicit judgment through the core vote store
+
+Usage: saccade review trial vote [OPTIONS] --out <OUT> --voter <VOTER> --item <ITEM> --answer <ANSWER> <PLAN>
+
+Arguments:
+  <PLAN>
+
+Options:
+      --out <OUT>
+      --voter <VOTER>
+      --item <ITEM>
+      --answer <ANSWER>
+      --user-config <USER_CONFIG>
+      --json
+  -h, --help                       Print help
+
+Global options:
+      --allow-out-near-captures  Silence warnings when --out is next to capture metadata
+      --record-absolute-paths    Opt in to absolute local paths in reports and machine-readable output
+```
+
+## saccade review trial import
+
+```text
+Import the exported blind gallery judgments for an explicit voter
+
+Usage: saccade review trial import [OPTIONS] --out <OUT> --voter <VOTER> <PLAN> <JUDGMENTS>
+
+Arguments:
+  <PLAN>
+  <JUDGMENTS>
+
+Options:
+      --out <OUT>
+      --voter <VOTER>
+      --user-config <USER_CONFIG>
+      --json
+  -h, --help                       Print help
 
 Global options:
       --allow-out-near-captures  Silence warnings when --out is next to capture metadata
@@ -2354,10 +2498,10 @@ Options:
           Finite per-entry USD ceiling, at most 0.15 [default: 0.15]
       --deadline-secs <DEADLINE_SECS>
           Overall deadline, including both orders and support [default: 300]
-      --user-config <USER_CONFIG>
-
       --gemini-revision <GEMINI_REVISION>
           Required immutable returned revision for dispatch/replay
+      --user-config <USER_CONFIG>
+
       --jev-revision <JEV_REVISION>
           Required Jev returned revision; the pinned model ID is the initial binding [default: jev-1.13.0]
       --bypass-cache
@@ -2416,10 +2560,10 @@ Options:
           Finite per-entry USD ceiling, at most 0.15 [default: 0.15]
       --deadline-secs <DEADLINE_SECS>
           Overall deadline, including both orders and support [default: 300]
-      --user-config <USER_CONFIG>
-
       --gemini-revision <GEMINI_REVISION>
           Required immutable returned revision for dispatch/replay
+      --user-config <USER_CONFIG>
+
       --jev-revision <JEV_REVISION>
           Required Jev returned revision; the pinned model ID is the initial binding [default: jev-1.13.0]
       --bypass-cache
@@ -2481,18 +2625,18 @@ Options:
           New empty directory for immutable sidecars and the advice report
       --offline
           Replay existing observations; never authorize providers
-      --user-config <USER_CONFIG>
-
       --replay <REPLAY>
           Recorded exact cache entries for offline fixture replay
+      --user-config <USER_CONFIG>
+
       --run
           Explicitly authorize evidence export under fixed user root policy
-      --json
-
       --route <ROUTE>
           Deterministic rules, routed cascade or the full visual path [default: cascade] [possible values: rules, cascade, all-vision]
       --jev-routing
           Optional separately measured Jev evidence-need routing; disabled by default
+      --json
+
       --budget-calls <BUDGET_CALLS>
           Real provider request cap; no retries or automatic top-up [default: 4]
       --max-spend-usd <MAX_SPEND_USD>
@@ -2709,17 +2853,43 @@ Analyze existing graphics captures: ablation, sequences, ranking, bisection
 Usage: saccade experiment [OPTIONS] <COMMAND>
 
 Commands:
-  geometry  Measure bidirectional triangle-surface distance and oriented normal deviation
-  ablate    Compare ablation arms against a base with image and performance evidence
-  temporal  Compare numbered SDR frames with the ColorVideoVDP temporal model
-  sequence  Compare numbered colour frames by sorted index and measure added flicker
-  rank      Rank candidate directories against one common FLIP reference
-  bisect    Find the first diverging run or revision in an ordered series
-  safety    Photosensitivity PRE-CHECK only; not certification or formal compliance
-  a11y      Accessibility PRE-CHECK only; not certification or formal compliance
+  reference  Compare a render with a noisy offline reference and record alignment/noise floors
+  geometry   Measure bidirectional triangle-surface distance and oriented normal deviation
+  ablate     Compare ablation arms against a base with image and performance evidence
+  temporal   Compare numbered SDR frames with the ColorVideoVDP temporal model
+  sequence   Compare numbered colour frames by sorted index and measure added flicker
+  rank       Rank candidate directories against one common FLIP reference
+  bisect     Find the first diverging run or revision in an ordered series
+  safety     Photosensitivity PRE-CHECK only; not certification or formal compliance
+  a11y       Accessibility PRE-CHECK only; not certification or formal compliance
 
 Options:
   -h, --help  Print help
+
+Global options:
+      --allow-out-near-captures  Silence warnings when --out is next to capture metadata
+      --record-absolute-paths    Opt in to absolute local paths in reports and machine-readable output
+```
+
+## saccade experiment reference
+
+```text
+Compare a render with a noisy offline reference and record alignment/noise floors
+
+Usage: saccade experiment reference [OPTIONS] <RENDER> <REFERENCE>
+
+Arguments:
+  <RENDER>
+  <REFERENCE>
+
+Options:
+      --seed-reference <SEEDS>  Additional independent reference seed images
+      --variance <VARIANCE>     Native scalar image of sample-mean variance in linear luminance squared
+      --mask <MASK>             White pixels include the reference/fit scope
+      --policy <POLICY>
+      --out <OUT>
+      --json
+  -h, --help                    Print help
 
 Global options:
       --allow-out-near-captures  Silence warnings when --out is next to capture metadata
@@ -2762,13 +2932,24 @@ Arguments:
   [ARMS]...
 
 Options:
-      --base <RUN_DIR>...     Base repeat directories. Accepts a directory or a quoted glob; repeatable
-      --arm <LABEL=RUN_GLOB>  Labelled arm repeats, e.g. --arm 's2=s2_r*'; repeatable
-      --out <OUT>             [default: ablation]
+      --intended-variable <INTENDED_VARIABLES>
+          Intended metadata variable for every arm
+      --arm-variable <ARM_VARIABLES>
+          Arm-specific variable, LABEL=KEY (repeatable; KEY may be a glob)
+      --base <RUN_DIR>...
+          Base repeat directories. Accepts a directory or a quoted glob; repeatable
+      --arm <LABEL=RUN_GLOB>
+          Labelled arm repeats, e.g. --arm 's2=s2_r*'; repeatable
+      --out <OUT>
+          [default: ablation]
       --config <CONFIG>
+
       --json
-      --top <TOP>             Per-term deltas beyond noise to show per arm [default: 5]
-  -h, --help                  Print help
+
+      --top <TOP>
+          Per-term deltas beyond noise to show per arm [default: 5]
+  -h, --help
+          Print help
 
 Performance:
       --perf-name <NAME>           Run performance sidecar file name (default saccade-perf.json)
@@ -2823,6 +3004,7 @@ Arguments:
   <CAPTURE_DIR>
 
 Options:
+      --fixed-camera           Declare a fixed camera and measure per-tile flicker with motion qualification
       --pattern <PATTERN>      Relative-name glob; frames must end in an integer before the extension [default: *]
       --out <OUT>              [default: sequence-report]
       --threshold <THRESHOLD>
@@ -2841,10 +3023,16 @@ HDR images:
       --junit <FILE.xml>              Write one JUnit testcase per entry
 
 Metadata sidecars:
-      --meta-name <NAME>        Sidecar file name (default `saccade-meta.json`); the per-image sidecar is `<stem>.<name>` and overrides the directory-level one
-      --meta-ignore <GLOB,...>  Extra sidecar key globs to ignore, added to the built-in timing, timestamp and run-id defaults
-      --require-matching-meta   Make an entry an error when a sidecar key differs and is not declared
-      --declare <KEY,...>       Sidecar keys (or globs) that may differ with --require-matching-meta
+      --meta-name <NAME>
+          Sidecar file name (default `saccade-meta.json`); the per-image sidecar is `<stem>.<name>` and overrides the directory-level one
+      --meta-ignore <GLOB,...>
+          Extra sidecar key globs to ignore, added to the built-in timing, timestamp and run-id defaults
+      --intended-variable <INTENDED_VARIABLES>
+          Intended experiment metadata variables (exact keys or globs)
+      --require-matching-meta
+          Make an entry an error when a sidecar key differs and is not declared
+      --declare <KEY,...>
+          Sidecar keys (or globs) that may differ with --require-matching-meta
 
 Global options:
       --allow-out-near-captures  Silence warnings when --out is next to capture metadata
@@ -2880,10 +3068,16 @@ HDR images:
       --junit <FILE.xml>              Write one JUnit testcase per entry
 
 Metadata sidecars:
-      --meta-name <NAME>        Sidecar file name (default `saccade-meta.json`); the per-image sidecar is `<stem>.<name>` and overrides the directory-level one
-      --meta-ignore <GLOB,...>  Extra sidecar key globs to ignore, added to the built-in timing, timestamp and run-id defaults
-      --require-matching-meta   Make an entry an error when a sidecar key differs and is not declared
-      --declare <KEY,...>       Sidecar keys (or globs) that may differ with --require-matching-meta
+      --meta-name <NAME>
+          Sidecar file name (default `saccade-meta.json`); the per-image sidecar is `<stem>.<name>` and overrides the directory-level one
+      --meta-ignore <GLOB,...>
+          Extra sidecar key globs to ignore, added to the built-in timing, timestamp and run-id defaults
+      --intended-variable <INTENDED_VARIABLES>
+          Intended experiment metadata variables (exact keys or globs)
+      --require-matching-meta
+          Make an entry an error when a sidecar key differs and is not declared
+      --declare <KEY,...>
+          Sidecar keys (or globs) that may differ with --require-matching-meta
 
 Global options:
       --allow-out-near-captures  Silence warnings when --out is next to capture metadata

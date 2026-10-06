@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+- Add opt-in rendering evidence: required effect occupancy, intended experiment
+  variables, spatial and layer scope, automatic evidence regions, fixed-camera
+  temporal tiles, noisy offline references, preregistered blind trials and warmup
+  convergence qualification. Capability discovery lists the new workflows;
+  media records can expose descriptive spatial tiles through `quality_tile_size`.
+  Structural classes and human preferences do not qualify performance or approve baselines.
 - Add versioned media records with per-section status/provenance, reusable optional
   CPU sessions, deterministic saliency and declared crop fitness.
 - Add the abi3 Python package, exact image/text index APIs, external ffmpeg

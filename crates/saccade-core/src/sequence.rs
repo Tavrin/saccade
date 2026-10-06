@@ -59,6 +59,9 @@ pub struct WorstFrame {
 #[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct SequenceReport {
+    /// Fixed-camera per-tile flicker and global motion qualification.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub tile_stability: Option<crate::evidence_quality::temporal::Report>,
     /// Always `saccade-sequence.v1`.
     pub schema: String,
     /// `pass` or `regression`, with the same rules as compare plus temporal errors.
@@ -370,23 +373,15 @@ pub fn run_sequence(
             &local,
         );
         if let (Some(b), Some(c)) = (b, c) {
-            let checked = (|| {
-                let (bm, cm) = (meta.load(baseline, &b.name)?, meta.load(capture, &c.name)?);
-                let (diff, ignored) = meta.diff_split(bm.as_ref(), cm.as_ref());
-                let bad = meta.violations(&diff);
-                let error = (!bad.is_empty()).then(|| {
-                    format!(
-                        "configuration differs on undeclared keys: {}",
-                        bad.join(", ")
-                    )
-                });
-                Ok::<_, String>((diff, ignored, error))
-            })();
+            let checked = meta.check_named(baseline, &b.name, capture, &c.name);
             let failure = match checked {
-                Ok((diff, ignored, failure)) => {
-                    entry.meta_diff = diff;
-                    entry.meta_ignored_diff = ignored;
-                    failure
+                Ok(checked) => {
+                    entry.meta_diff = checked.diff;
+                    entry.meta_ignored_diff = checked.ignored;
+                    entry.intended_variables = checked.intended;
+                    entry.meta_declared_unchanged = checked.unchanged;
+                    entry.capture_validity = checked.validity;
+                    checked.failure
                 }
                 Err(e) => Some(e),
             };
@@ -490,7 +485,111 @@ pub fn run_sequence(
                 .total_cmp(&b.mean_flip)
                 .then(b.index.cmp(&a.index))
         });
+    let tile_stability = if let Some(policy) = &cfg.temporal_tiles {
+        let mut allocated_pixels = 0_u64;
+        let mut load = |frames: &[Frame]| -> Result<Vec<image::RgbaImage>> {
+            if frames.len() > 256 {
+                return Err(Error::Config("temporal frame limit exceeded".into()));
+            }
+            frames
+                .iter()
+                .map(|f| {
+                    let path = f
+                        .path
+                        .as_ref()
+                        .ok_or_else(|| Error::Config("unreadable temporal frame".into()))?;
+                    if crate::hdr::is_hdr_path(path) {
+                        return Err(Error::Config(
+                            "tile stability currently requires SDR frames".into(),
+                        ));
+                    }
+                    let image = crate::evidence_quality::image(path)?.to_rgba8();
+                    allocated_pixels += u64::from(image.width()) * u64::from(image.height());
+                    if allocated_pixels > 33_554_432 {
+                        return Err(Error::Config(
+                            "temporal sequence allocation limit exceeded".into(),
+                        ));
+                    }
+                    Ok(image)
+                })
+                .collect()
+        };
+        match load(&base).and_then(|b| {
+            load(&cap).and_then(|c| {
+                if b.len() != c.len() {
+                    return Err(Error::Config("temporal paired frame count differs".into()));
+                }
+                let mut persistent: Option<Vec<bool>> = None;
+                for (i, (bi, ci)) in b.iter().zip(&c).enumerate() {
+                    let mut local = cfg.clone();
+                    if let Some(layers) = &cfg.layers {
+                        let bp = base[i]
+                            .path
+                            .as_ref()
+                            .ok_or_else(|| Error::Config("missing frame".into()))?;
+                        let cp = cap[i]
+                            .path
+                            .as_ref()
+                            .ok_or_else(|| Error::Config("missing frame".into()))?;
+                        let bl = crate::evidence_quality::layers::load_for_image(
+                            bp,
+                            layers,
+                            &image::DynamicImage::ImageRgba8(bi.clone()),
+                        )?;
+                        let cl = crate::evidence_quality::layers::load_for_image(
+                            cp,
+                            layers,
+                            &image::DynamicImage::ImageRgba8(ci.clone()),
+                        )?;
+                        local.layer_mask = Some(
+                            crate::evidence_quality::layers::scope_pair(&bl, &cl, layers)?
+                                .0
+                                .into_iter()
+                                .map(|v| !v)
+                                .collect(),
+                        );
+                    }
+                    for name in [&base[i].name, &cap[i].name] {
+                        if let Some(mask) =
+                            crate::regions::effective_mask(name, bi.width(), bi.height(), &local)?
+                        {
+                            let all = persistent.get_or_insert_with(|| vec![false; mask.len()]);
+                            if all.len() != mask.len() {
+                                return Err(Error::Config(
+                                    "temporal scope geometry differs".into(),
+                                ));
+                            }
+                            for (a, v) in all.iter_mut().zip(mask) {
+                                *a |= v;
+                            }
+                        }
+                    }
+                }
+                crate::evidence_quality::temporal::analyze_scoped(
+                    &b,
+                    &c,
+                    policy,
+                    persistent.as_deref(),
+                )
+            })
+        }) {
+            Ok(evidence) => {
+                if evidence.verdict != "stable" {
+                    temporal_errors
+                        .push(format!("fixed-camera tile stability: {}", evidence.verdict));
+                }
+                Some(evidence)
+            }
+            Err(e) => {
+                temporal_errors.push(e.to_string());
+                None
+            }
+        }
+    } else {
+        None
+    };
     let full = SequenceReport {
+        tile_stability,
         exclusion_audit: report.exclusion_audit.clone(),
         schema: SEQUENCE_SCHEMA.into(),
         verdict: if report.is_regression() || !temporal_errors.is_empty() {

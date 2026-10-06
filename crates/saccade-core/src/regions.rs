@@ -220,13 +220,7 @@ pub(crate) struct Scene {
 /// nothing, a mask image cannot be read, or every pixel is masked.
 pub(crate) fn evaluate(entry: &mut Entry, cmp: &Comparison, config: &RunConfig) -> Result<Scene> {
     let (w, h) = (cmp.metrics.width, cmp.metrics.height);
-    let mask = mask_for(
-        &entry.name,
-        w,
-        h,
-        &config.masks,
-        config.config_dir.as_deref(),
-    )?;
+    let mask = effective_mask(&entry.name, w, h, config)?;
     let mask_ref = mask.as_deref();
     if let Some(m) = mask_ref {
         let excluded = m.iter().filter(|&&b| b).count();
@@ -289,4 +283,24 @@ pub(crate) fn combine(status: Status, regions: &[RegionResult]) -> Status {
     } else {
         status
     }
+}
+
+/// Combine ordinary exclusions with a resolved layer inclusion scope.
+pub(crate) fn effective_mask(
+    name: &str,
+    w: u32,
+    h: u32,
+    config: &RunConfig,
+) -> Result<Option<Vec<bool>>> {
+    let mut mask = mask_for(name, w, h, &config.masks, config.config_dir.as_deref())?;
+    if let Some(layer) = &config.layer_mask {
+        if layer.len() != w as usize * h as usize {
+            return Err(Error::Config("layer scope dimensions differ".into()));
+        }
+        let combined = mask.get_or_insert_with(|| vec![false; layer.len()]);
+        for (value, excluded) in combined.iter_mut().zip(layer) {
+            *value |= *excluded;
+        }
+    }
+    Ok(mask)
 }

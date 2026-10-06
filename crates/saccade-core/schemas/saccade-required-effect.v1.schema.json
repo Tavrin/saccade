@@ -1,0 +1,403 @@
+{
+  "$defs": {
+    "Failure": {
+      "description": "Typed non-vacuity failure retained even when FLIP is zero.",
+      "oneOf": [
+        {
+          "description": "Effect occupancy is below the declared minimum.",
+          "properties": {
+            "covered": {
+              "description": "Measured count.",
+              "format": "uint64",
+              "minimum": 0,
+              "type": "integer"
+            },
+            "kind": {
+              "const": "insufficient_effect_coverage",
+              "type": "string"
+            },
+            "required": {
+              "description": "Required count after resolving the fractional minimum.",
+              "format": "uint64",
+              "minimum": 0,
+              "type": "integer"
+            },
+            "side": {
+              "description": "Side being checked.",
+              "type": "string"
+            }
+          },
+          "required": [
+            "kind",
+            "side",
+            "covered",
+            "required"
+          ],
+          "type": "object"
+        }
+      ]
+    },
+    "Predicate": {
+      "description": "Selection rule evaluated in native units (ID PNGs retain integer values).",
+      "oneOf": [
+        {
+          "additionalProperties": false,
+          "description": "Exact native integer labels.",
+          "properties": {
+            "kind": {
+              "const": "ids",
+              "type": "string"
+            },
+            "values": {
+              "description": "Allowed labels.",
+              "items": {
+                "format": "uint32",
+                "minimum": 0,
+                "type": "integer"
+              },
+              "type": "array"
+            }
+          },
+          "required": [
+            "kind",
+            "values"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "description": "Inclusive range in scalar/depth units.",
+          "properties": {
+            "kind": {
+              "const": "range",
+              "type": "string"
+            },
+            "max": {
+              "description": "Inclusive upper bound.",
+              "format": "double",
+              "type": "number"
+            },
+            "min": {
+              "description": "Inclusive lower bound.",
+              "format": "double",
+              "type": "number"
+            }
+          },
+          "required": [
+            "kind",
+            "min",
+            "max"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "description": "Scalar greater than the declared threshold.",
+          "properties": {
+            "kind": {
+              "const": "above",
+              "type": "string"
+            },
+            "threshold": {
+              "description": "Threshold in native units.",
+              "format": "double",
+              "type": "number"
+            }
+          },
+          "required": [
+            "kind",
+            "threshold"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "description": "Nonzero scalar mask samples.",
+          "properties": {
+            "kind": {
+              "const": "mask",
+              "type": "string"
+            }
+          },
+          "required": [
+            "kind"
+          ],
+          "type": "object"
+        }
+      ]
+    },
+    "RequiredEffect": {
+      "additionalProperties": false,
+      "description": "Opt-in occupancy gate for a named effect.",
+      "properties": {
+        "glob": {
+          "default": "**",
+          "description": "Relative entry glob; ** selects all.",
+          "type": "string"
+        },
+        "min_fraction": {
+          "default": 0.0,
+          "description": "Minimum fraction of the full image. Both minima must hold.",
+          "format": "double",
+          "type": "number"
+        },
+        "min_pixels": {
+          "default": 1,
+          "description": "Minimum occupied pixels. Defaults to one to forbid vacuous proofs.",
+          "format": "uint64",
+          "minimum": 0,
+          "type": "integer"
+        },
+        "name": {
+          "description": "Name recorded in the report.",
+          "type": "string"
+        },
+        "selection": {
+          "$ref": "#/$defs/Selection",
+          "description": "Inclusion source."
+        },
+        "sides": {
+          "$ref": "#/$defs/Sides",
+          "default": "both",
+          "description": "Side(s) on which to enforce occupancy."
+        }
+      },
+      "required": [
+        "name",
+        "selection"
+      ],
+      "type": "object"
+    },
+    "Selection": {
+      "description": "Generic inclusion source, never an exclusion mask.",
+      "oneOf": [
+        {
+          "additionalProperties": false,
+          "description": "Source-bound named layer from the image-adjacent manifest.",
+          "properties": {
+            "kind": {
+              "const": "named_layer",
+              "type": "string"
+            },
+            "manifest": {
+              "default": null,
+              "description": "Optional plain manifest filename; defaults to <filename>.layers.json.",
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "name": {
+              "description": "Layer name.",
+              "type": "string"
+            },
+            "predicate": {
+              "$ref": "#/$defs/Predicate",
+              "description": "Native inclusion predicate."
+            }
+          },
+          "required": [
+            "kind",
+            "name",
+            "predicate"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "description": "White/nonzero image pixels; exact dimensions required.",
+          "properties": {
+            "image": {
+              "description": "Path relative to policy directory.",
+              "type": "string"
+            },
+            "kind": {
+              "const": "mask",
+              "type": "string"
+            }
+          },
+          "required": [
+            "kind",
+            "image"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "description": "Pixel boxes with exclusive far edges.",
+          "properties": {
+            "boxes": {
+              "description": "[x,y,width,height] boxes.",
+              "items": {
+                "items": {
+                  "format": "uint32",
+                  "minimum": 0,
+                  "type": "integer"
+                },
+                "maxItems": 4,
+                "minItems": 4,
+                "type": "array"
+              },
+              "type": "array"
+            },
+            "kind": {
+              "const": "boxes",
+              "type": "string"
+            }
+          },
+          "required": [
+            "kind",
+            "boxes"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "description": "Native side-specific layer.",
+          "properties": {
+            "image": {
+              "description": "Layer file relative to each image's parent.",
+              "type": "string"
+            },
+            "kind": {
+              "const": "layer",
+              "type": "string"
+            },
+            "predicate": {
+              "$ref": "#/$defs/Predicate",
+              "description": "Native predicate."
+            }
+          },
+          "required": [
+            "kind",
+            "image",
+            "predicate"
+          ],
+          "type": "object"
+        }
+      ]
+    },
+    "Sides": {
+      "description": "Which side must contain the required effect.",
+      "oneOf": [
+        {
+          "const": "both",
+          "description": "Both captures (default).",
+          "type": "string"
+        },
+        {
+          "const": "baseline",
+          "description": "Baseline only.",
+          "type": "string"
+        },
+        {
+          "const": "candidate",
+          "description": "Candidate only.",
+          "type": "string"
+        }
+      ]
+    },
+    "Stats": {
+      "description": "Statistics from the full-frame error map within a selected footprint.",
+      "properties": {
+        "changed_pixels": {
+          "description": "Native RGBA pixels that differ.",
+          "format": "uint64",
+          "minimum": 0,
+          "type": "integer"
+        },
+        "max_flip": {
+          "description": "Maximum FLIP; absent for an empty footprint.",
+          "format": "double",
+          "type": [
+            "number",
+            "null"
+          ]
+        },
+        "mean_flip": {
+          "description": "Mean FLIP; absent for an empty footprint.",
+          "format": "double",
+          "type": [
+            "number",
+            "null"
+          ]
+        },
+        "pixels": {
+          "description": "Pixels in this footprint.",
+          "format": "uint64",
+          "minimum": 0,
+          "type": "integer"
+        }
+      },
+      "required": [
+        "pixels",
+        "changed_pixels"
+      ],
+      "type": "object"
+    }
+  },
+  "$id": "https://github.com/Tavrin/saccade/crates/saccade-core/schemas/saccade-required-effect.v1.schema.json",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "description": "Required effect evidence and its exact policy.",
+  "properties": {
+    "baseline_fraction": {
+      "description": "Baseline fraction.",
+      "format": "double",
+      "type": "number"
+    },
+    "baseline_pixels": {
+      "description": "Occupied baseline pixels.",
+      "format": "uint64",
+      "minimum": 0,
+      "type": "integer"
+    },
+    "candidate_fraction": {
+      "description": "Candidate fraction.",
+      "format": "double",
+      "type": "number"
+    },
+    "candidate_pixels": {
+      "description": "Occupied candidate pixels.",
+      "format": "uint64",
+      "minimum": 0,
+      "type": "integer"
+    },
+    "failures": {
+      "description": "Explicit coverage failures.",
+      "items": {
+        "$ref": "#/$defs/Failure"
+      },
+      "type": "array"
+    },
+    "inside": {
+      "$ref": "#/$defs/Stats",
+      "description": "Union of effect footprints."
+    },
+    "outside": {
+      "$ref": "#/$defs/Stats",
+      "description": "Complement of that union."
+    },
+    "policy": {
+      "$ref": "#/$defs/RequiredEffect",
+      "description": "Declared policy."
+    },
+    "schema": {
+      "const": "saccade-required-effect.v1",
+      "description": "Contract discriminator.",
+      "type": "string"
+    }
+  },
+  "required": [
+    "schema",
+    "policy",
+    "baseline_pixels",
+    "candidate_pixels",
+    "baseline_fraction",
+    "candidate_fraction",
+    "inside",
+    "outside",
+    "failures"
+  ],
+  "title": "EffectResult",
+  "type": "object"
+}

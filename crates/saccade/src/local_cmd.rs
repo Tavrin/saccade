@@ -117,6 +117,9 @@ pub(crate) struct ReviewArgs {
 }
 #[derive(Subcommand)]
 pub(crate) enum ReviewOperation {
+    // wave9
+    /// Preregister and present offline blind visual trials.
+    Trial(crate::wave9_cmd::TrialArgs),
     /// Experimental assist lifecycle operations.
     #[cfg(feature = "assist")]
     Assist(crate::assist_batch_cmd::AssistArgs),
@@ -884,6 +887,7 @@ pub(crate) fn review(args: ReviewArgs, absolute: bool) -> Result<u8, CliError> {
             }
             ReviewOperation::Brand(brand) => return crate::brand_cmd::run(brand, args.json),
             ReviewOperation::Ui(ui) => return crate::ui_review_cmd::run(ui, args.json),
+            ReviewOperation::Trial(trial) => return crate::wave9_cmd::trial(trial, args.json),
             ReviewOperation::Motion(motion) => return crate::motion_cmd::run(motion, args.json),
             ReviewOperation::Request {
                 report,

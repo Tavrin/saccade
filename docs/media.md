@@ -18,6 +18,13 @@ Metadata includes bounded EXIF, XMP, IPTC, unsigned credit/copyright candidates 
 source fields, and offline C2PA state. Missing metadata never becomes invented credit.
 GPS is withheld by default. ICC presence is not colour-profile validation.
 Quality exposes content-dependent wave 6 measurements and geometric resolution fitness.
+Opt into Wave 9 tile descriptors with `"quality_tile_size": 32` in the options JSON
+(4..=4096). `quality.data.spatial` retains edge tiles, normalized sRGB luminance
+over black, population variance, contrast and absolute Laplacian detail energy.
+Its policy version and provenance pin bind the shared spatial basis. These are
+single-image descriptors; paired FLIP, bias intervals and change verdicts require
+the [spatial comparison policy](render-evidence.md). Invalid grids fail the quality
+section and are rejected by `--strict`. Default output omits this optional field.
 Faces use the installed wave 7 detector; deterministic colour-surround saliency supplies a
 fallback focal point. Crops carry an explicit `face_crop_checks_available` flag; no face
 inference does not certify absence. OCR confidence stays null when the engine lacks it.

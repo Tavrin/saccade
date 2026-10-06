@@ -1,0 +1,795 @@
+{
+  "$defs": {
+    "Background": {
+      "description": "Optional background definition for gap/coverage statistics.",
+      "oneOf": [
+        {
+          "additionalProperties": false,
+          "description": "Luminance at or below a normalized sRGB threshold.",
+          "properties": {
+            "kind": {
+              "const": "luminance",
+              "type": "string"
+            },
+            "max": {
+              "description": "Upper bound.",
+              "format": "double",
+              "type": "number"
+            }
+          },
+          "required": [
+            "kind",
+            "max"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "description": "All RGB channels within a normalized distance from a colour.",
+          "properties": {
+            "kind": {
+              "const": "colour",
+              "type": "string"
+            },
+            "rgb": {
+              "description": "Normalized RGB.",
+              "items": {
+                "format": "double",
+                "type": "number"
+              },
+              "maxItems": 3,
+              "minItems": 3,
+              "type": "array"
+            },
+            "tolerance": {
+              "description": "Maximum per-channel distance.",
+              "format": "double",
+              "type": "number"
+            }
+          },
+          "required": [
+            "kind",
+            "rgb",
+            "tolerance"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "description": "Supplied mask or side-specific native layer selection marks background.",
+          "properties": {
+            "kind": {
+              "const": "selection",
+              "type": "string"
+            },
+            "selection": {
+              "$ref": "#/$defs/Selection",
+              "description": "Inclusion source."
+            }
+          },
+          "required": [
+            "kind",
+            "selection"
+          ],
+          "type": "object"
+        }
+      ]
+    },
+    "ChangeClass": {
+      "description": "What kind of change separates the capture from the baseline.",
+      "oneOf": [
+        {
+          "const": "texture_noise_only",
+          "description": "High-frequency texture differences without significant spatial bias.",
+          "type": "string"
+        },
+        {
+          "const": "systematic_shift",
+          "description": "Spatially clustered signed bias, coverage or detail loss; regions in spatial evidence.",
+          "type": "string"
+        },
+        {
+          "const": "identical",
+          "description": "Decoded pixels are exactly equal.",
+          "type": "string"
+        },
+        {
+          "const": "zero_flip_native_difference",
+          "description": "FLIP is zero, while native decoded samples differ.",
+          "type": "string"
+        },
+        {
+          "const": "noise",
+          "description": "A difference whose peak FLIP is at or below `noise_max_flip` and that\nno tone shift or offset explains.",
+          "type": "string"
+        },
+        {
+          "const": "global_tone",
+          "description": "One global tone fit (exposure, tint, black level) removes at least\n`explained_min` of the error.",
+          "type": "string"
+        },
+        {
+          "const": "local_structure",
+          "description": "Neither a tone fit nor an offset removes `partial_min` of the error and\nthe error is above noise level.",
+          "type": "string"
+        },
+        {
+          "const": "mixed",
+          "description": "A tone fit or an offset explains part (at least `partial_min`, below\n`explained_min`) of the error; the rest is something else.",
+          "type": "string"
+        },
+        {
+          "const": "misaligned",
+          "description": "A detected sub-pixel or whole-pixel offset removes at least\n`explained_min` of the error.",
+          "type": "string"
+        },
+        {
+          "const": "broken_frame",
+          "description": "The capture is unusable: all black or all white (the baseline is not),\na flat colour, or it holds NaN or infinite samples.",
+          "type": "string"
+        }
+      ]
+    },
+    "Policy": {
+      "additionalProperties": false,
+      "description": "Versioned, recorded numerical policy; opt-in to normal compare.",
+      "properties": {
+        "absolute_shift": {
+          "default": 0.02,
+          "description": "Absolute tile luminance shift threshold.",
+          "format": "double",
+          "type": "number"
+        },
+        "background": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Background"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Optional declared background predicate."
+        },
+        "ci_z": {
+          "default": 1.96,
+          "description": "Normal-approximation CI multiplier over paired pixel residuals.",
+          "format": "double",
+          "type": "number"
+        },
+        "coarse_flip_ratio_max": {
+          "default": 0.3,
+          "description": "Full-resolution/coarse FLIP attenuation threshold for texture noise.",
+          "format": "double",
+          "type": "number"
+        },
+        "coarse_mad_max": {
+          "default": 0.002,
+          "description": "Coarse normalized mean absolute RGB tolerance (half an 8-bit code).",
+          "format": "double",
+          "type": "number"
+        },
+        "decide": {
+          "default": false,
+          "description": "If true, use the structural verdict for acceptance; historical metric remains recorded.",
+          "type": "boolean"
+        },
+        "detail_ratio_tolerance": {
+          "default": 0.1,
+          "description": "Maximum relative change in absolute Laplacian detail energy.",
+          "format": "double",
+          "type": "number"
+        },
+        "gallery_top": {
+          "default": 5,
+          "description": "Maximum gallery regions; zero disables generated crops.",
+          "format": "uint",
+          "minimum": 0,
+          "type": "integer"
+        },
+        "gap_shift": {
+          "default": 0.05,
+          "description": "Minimum absolute gap-fraction change to mark a tile.",
+          "format": "double",
+          "type": "number"
+        },
+        "luminance_floor": {
+          "default": 0.02,
+          "description": "Minimum luminance denominator for relative shifts and contrast.",
+          "format": "double",
+          "type": "number"
+        },
+        "min_cluster_tiles": {
+          "default": 3,
+          "description": "Minimum connected significant tiles for a clustered bias finding.",
+          "format": "uint",
+          "minimum": 0,
+          "type": "integer"
+        },
+        "relative_shift": {
+          "default": 0.02,
+          "description": "Relative tile luminance shift threshold.",
+          "format": "double",
+          "type": "number"
+        },
+        "scales": {
+          "default": [
+            2,
+            4,
+            8
+          ],
+          "description": "Integer area-reduction factors; full resolution is always reported.",
+          "items": {
+            "format": "uint32",
+            "minimum": 0,
+            "type": "integer"
+          },
+          "type": "array"
+        },
+        "shifted_share_max": {
+          "default": 0.25,
+          "description": "Fraction of relative-shifted tiles above which bias cannot be called benign.",
+          "format": "double",
+          "type": "number"
+        },
+        "sparse_tiles": {
+          "default": 2,
+          "description": "Sparse absolute outlier tiles tolerated by small coarse-error evidence.",
+          "format": "uint",
+          "minimum": 0,
+          "type": "integer"
+        },
+        "ssimulacra2": {
+          "default": false,
+          "description": "Optional pinned SSIMULACRA2 at meaningful (>=8x8 opaque) scales.",
+          "type": "boolean"
+        },
+        "tile_size": {
+          "default": 32,
+          "description": "Regular tile width and height in capture pixels; edge tiles are retained.",
+          "format": "uint32",
+          "minimum": 0,
+          "type": "integer"
+        },
+        "version": {
+          "default": "spatial-1",
+          "description": "Must equal POLICY_VERSION.",
+          "type": "string"
+        }
+      },
+      "type": "object"
+    },
+    "Predicate": {
+      "description": "Selection rule evaluated in native units (ID PNGs retain integer values).",
+      "oneOf": [
+        {
+          "additionalProperties": false,
+          "description": "Exact native integer labels.",
+          "properties": {
+            "kind": {
+              "const": "ids",
+              "type": "string"
+            },
+            "values": {
+              "description": "Allowed labels.",
+              "items": {
+                "format": "uint32",
+                "minimum": 0,
+                "type": "integer"
+              },
+              "type": "array"
+            }
+          },
+          "required": [
+            "kind",
+            "values"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "description": "Inclusive range in scalar/depth units.",
+          "properties": {
+            "kind": {
+              "const": "range",
+              "type": "string"
+            },
+            "max": {
+              "description": "Inclusive upper bound.",
+              "format": "double",
+              "type": "number"
+            },
+            "min": {
+              "description": "Inclusive lower bound.",
+              "format": "double",
+              "type": "number"
+            }
+          },
+          "required": [
+            "kind",
+            "min",
+            "max"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "description": "Scalar greater than the declared threshold.",
+          "properties": {
+            "kind": {
+              "const": "above",
+              "type": "string"
+            },
+            "threshold": {
+              "description": "Threshold in native units.",
+              "format": "double",
+              "type": "number"
+            }
+          },
+          "required": [
+            "kind",
+            "threshold"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "description": "Nonzero scalar mask samples.",
+          "properties": {
+            "kind": {
+              "const": "mask",
+              "type": "string"
+            }
+          },
+          "required": [
+            "kind"
+          ],
+          "type": "object"
+        }
+      ]
+    },
+    "Region": {
+      "description": "Spatially connected tile finding.",
+      "properties": {
+        "reasons": {
+          "description": "Reason categories (bias, coverage or detail).",
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "rect_px": {
+          "description": "Pixel bounding box.",
+          "items": {
+            "format": "uint32",
+            "minimum": 0,
+            "type": "integer"
+          },
+          "maxItems": 4,
+          "minItems": 4,
+          "type": "array"
+        },
+        "signed_shift": {
+          "description": "Signed average tile bias.",
+          "format": "double",
+          "type": "number"
+        },
+        "tiles": {
+          "description": "Contributing tile indexes in row-major order.",
+          "items": {
+            "format": "uint",
+            "minimum": 0,
+            "type": "integer"
+          },
+          "type": "array"
+        }
+      },
+      "required": [
+        "rect_px",
+        "tiles",
+        "signed_shift",
+        "reasons"
+      ],
+      "type": "object"
+    },
+    "Scale": {
+      "description": "Independent perceptual statistics and floating area RGB difference at a scale.",
+      "properties": {
+        "dimensions": {
+          "description": "Reduced dimensions.",
+          "items": {
+            "format": "uint32",
+            "minimum": 0,
+            "type": "integer"
+          },
+          "maxItems": 2,
+          "minItems": 2,
+          "type": "array"
+        },
+        "divisor": {
+          "description": "Area reduction divisor; 1 is the original.",
+          "format": "uint32",
+          "minimum": 0,
+          "type": "integer"
+        },
+        "mad_rgb": {
+          "description": "Floating area mean absolute normalized RGB difference.",
+          "format": "double",
+          "type": "number"
+        },
+        "max_flip": {
+          "description": "Maximum FLIP.",
+          "format": "double",
+          "type": "number"
+        },
+        "mean_flip": {
+          "description": "Mean FLIP.",
+          "format": "double",
+          "type": "number"
+        },
+        "ssimulacra2": {
+          "description": "SSIMULACRA2, absent for disabled/unmeaningful scales.",
+          "format": "double",
+          "type": [
+            "number",
+            "null"
+          ]
+        }
+      },
+      "required": [
+        "divisor",
+        "dimensions",
+        "mean_flip",
+        "max_flip",
+        "mad_rgb"
+      ],
+      "type": "object"
+    },
+    "Selection": {
+      "description": "Generic inclusion source, never an exclusion mask.",
+      "oneOf": [
+        {
+          "additionalProperties": false,
+          "description": "Source-bound named layer from the image-adjacent manifest.",
+          "properties": {
+            "kind": {
+              "const": "named_layer",
+              "type": "string"
+            },
+            "manifest": {
+              "default": null,
+              "description": "Optional plain manifest filename; defaults to <filename>.layers.json.",
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "name": {
+              "description": "Layer name.",
+              "type": "string"
+            },
+            "predicate": {
+              "$ref": "#/$defs/Predicate",
+              "description": "Native inclusion predicate."
+            }
+          },
+          "required": [
+            "kind",
+            "name",
+            "predicate"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "description": "White/nonzero image pixels; exact dimensions required.",
+          "properties": {
+            "image": {
+              "description": "Path relative to policy directory.",
+              "type": "string"
+            },
+            "kind": {
+              "const": "mask",
+              "type": "string"
+            }
+          },
+          "required": [
+            "kind",
+            "image"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "description": "Pixel boxes with exclusive far edges.",
+          "properties": {
+            "boxes": {
+              "description": "[x,y,width,height] boxes.",
+              "items": {
+                "items": {
+                  "format": "uint32",
+                  "minimum": 0,
+                  "type": "integer"
+                },
+                "maxItems": 4,
+                "minItems": 4,
+                "type": "array"
+              },
+              "type": "array"
+            },
+            "kind": {
+              "const": "boxes",
+              "type": "string"
+            }
+          },
+          "required": [
+            "kind",
+            "boxes"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "description": "Native side-specific layer.",
+          "properties": {
+            "image": {
+              "description": "Layer file relative to each image's parent.",
+              "type": "string"
+            },
+            "kind": {
+              "const": "layer",
+              "type": "string"
+            },
+            "predicate": {
+              "$ref": "#/$defs/Predicate",
+              "description": "Native predicate."
+            }
+          },
+          "required": [
+            "kind",
+            "image",
+            "predicate"
+          ],
+          "type": "object"
+        }
+      ]
+    },
+    "Tile": {
+      "description": "One tile, including signed effects that max FLIP obscures.",
+      "properties": {
+        "absolute_shifted": {
+          "description": "CI excludes zero and absolute threshold exceeded.",
+          "type": "boolean"
+        },
+        "baseline_contrast": {
+          "description": "Baseline coefficient of variation.",
+          "format": "double",
+          "type": "number"
+        },
+        "baseline_gap": {
+          "description": "Baseline share satisfying the declared background criterion.",
+          "format": "double",
+          "type": [
+            "number",
+            "null"
+          ]
+        },
+        "baseline_mean": {
+          "description": "Baseline mean normalized luminance.",
+          "format": "double",
+          "type": "number"
+        },
+        "candidate_contrast": {
+          "description": "Candidate coefficient of variation.",
+          "format": "double",
+          "type": "number"
+        },
+        "candidate_gap": {
+          "description": "Candidate gap share.",
+          "format": "double",
+          "type": [
+            "number",
+            "null"
+          ]
+        },
+        "candidate_mean": {
+          "description": "Candidate mean luminance.",
+          "format": "double",
+          "type": "number"
+        },
+        "coarse_mean_flip": {
+          "description": "Coarsest-scale mean FLIP for the tile footprint.",
+          "format": "double",
+          "type": "number"
+        },
+        "detail_energy_ratio": {
+          "description": "Candidate/base absolute Laplacian energy.",
+          "format": "double",
+          "type": [
+            "number",
+            "null"
+          ]
+        },
+        "gap_change": {
+          "description": "Signed gap share change.",
+          "format": "double",
+          "type": [
+            "number",
+            "null"
+          ]
+        },
+        "mean_flip": {
+          "description": "Full-resolution mean FLIP.",
+          "format": "double",
+          "type": "number"
+        },
+        "pixels": {
+          "description": "Included pixels.",
+          "format": "uint64",
+          "minimum": 0,
+          "type": "integer"
+        },
+        "rect_px": {
+          "description": "[x,y,width,height] in full-resolution pixels.",
+          "items": {
+            "format": "uint32",
+            "minimum": 0,
+            "type": "integer"
+          },
+          "maxItems": 4,
+          "minItems": 4,
+          "type": "array"
+        },
+        "relative_shift": {
+          "description": "Signed shift divided by max(baseline_mean,luminance_floor).",
+          "format": "double",
+          "type": "number"
+        },
+        "relative_shifted": {
+          "description": "CI excludes zero and relative threshold exceeded.",
+          "type": "boolean"
+        },
+        "shift_ci": {
+          "description": "Normal approximation CI over paired pixel shifts.",
+          "items": {
+            "format": "double",
+            "type": "number"
+          },
+          "maxItems": 2,
+          "minItems": 2,
+          "type": "array"
+        },
+        "signed_shift": {
+          "description": "Candidate minus baseline.",
+          "format": "double",
+          "type": "number"
+        },
+        "variance_ratio": {
+          "description": "Candidate variance / baseline variance, null if baseline zero and candidate nonzero.",
+          "format": "double",
+          "type": [
+            "number",
+            "null"
+          ]
+        }
+      },
+      "required": [
+        "rect_px",
+        "pixels",
+        "baseline_mean",
+        "candidate_mean",
+        "signed_shift",
+        "relative_shift",
+        "shift_ci",
+        "baseline_contrast",
+        "candidate_contrast",
+        "mean_flip",
+        "coarse_mean_flip",
+        "absolute_shifted",
+        "relative_shifted"
+      ],
+      "type": "object"
+    }
+  },
+  "$id": "https://github.com/Tavrin/saccade/crates/saccade-core/schemas/saccade-spatial-evidence.v1.schema.json",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "description": "Structural evidence; the original FLIP value remains available independently.",
+  "properties": {
+    "absolute_shifted_share": {
+      "description": "Absolute shifted-tile share.",
+      "format": "double",
+      "type": "number"
+    },
+    "absolute_shifted_tiles": {
+      "description": "Number of absolute shifted tiles.",
+      "format": "uint",
+      "minimum": 0,
+      "type": "integer"
+    },
+    "class": {
+      "$ref": "#/$defs/ChangeClass",
+      "description": "Extended ChangeClass."
+    },
+    "coverage_ratio": {
+      "description": "Baseline/candidate non-background coverage ratio.",
+      "format": "double",
+      "type": [
+        "number",
+        "null"
+      ]
+    },
+    "detail_energy_ratio": {
+      "description": "Whole-frame detail-energy ratio.",
+      "format": "double",
+      "type": [
+        "number",
+        "null"
+      ]
+    },
+    "limits": {
+      "description": "Interpretation limits.",
+      "items": {
+        "type": "string"
+      },
+      "type": "array"
+    },
+    "policy": {
+      "$ref": "#/$defs/Policy",
+      "description": "Exact thresholds and version."
+    },
+    "regions": {
+      "description": "Connected systematic changes.",
+      "items": {
+        "$ref": "#/$defs/Region"
+      },
+      "type": "array"
+    },
+    "relative_shifted_share": {
+      "description": "Relative shifted-tile share.",
+      "format": "double",
+      "type": "number"
+    },
+    "scales": {
+      "description": "Full and reduced statistics.",
+      "items": {
+        "$ref": "#/$defs/Scale"
+      },
+      "type": "array"
+    },
+    "schema": {
+      "const": "saccade-spatial-evidence.v1",
+      "description": "Versioned artifact discriminator.",
+      "type": "string"
+    },
+    "silhouette_disagreement": {
+      "description": "Gap-mask XOR / union, if a background predicate was declared.",
+      "format": "double",
+      "type": [
+        "number",
+        "null"
+      ]
+    },
+    "tiles": {
+      "description": "Regular row-major grid.",
+      "items": {
+        "$ref": "#/$defs/Tile"
+      },
+      "type": "array"
+    }
+  },
+  "required": [
+    "schema",
+    "policy",
+    "class",
+    "scales",
+    "tiles",
+    "regions",
+    "absolute_shifted_tiles",
+    "absolute_shifted_share",
+    "relative_shifted_share",
+    "limits"
+  ],
+  "title": "SpatialReport",
+  "type": "object"
+}

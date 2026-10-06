@@ -12,6 +12,9 @@ pub const RESULT_FILE: &str = "intent-verification.v1.json";
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct VisualIntent {
+    /// Required occupancy in addition to expected visual changes (wave9).
+    #[serde(default)]
+    pub required_effects: Vec<crate::evidence_quality::effect::RequiredEffect>,
     /// Must equal [`SCHEMA`].
     pub schema: String,
     /// Intended outcome in the author's words.
@@ -86,6 +89,9 @@ impl VisualIntent {
             return Err(Error::Config(format!(
                 "intent needs schema {SCHEMA}, objective and no_change_elsewhere: true"
             )));
+        }
+        for effect in &self.required_effects {
+            effect.validate()?;
         }
         for change in &self.changes {
             if change.entry.trim().is_empty() || change.rect_frac.is_some() == change.mask.is_some()
@@ -199,6 +205,43 @@ pub fn verify(intent: &VisualIntent, source: &Path, report: &Report) -> Verifica
         missing: vec![],
         unmeasurable: vec![],
     };
+    for effect in &intent.required_effects {
+        let entries: Vec<_> = report
+            .entries
+            .iter()
+            .filter(|e| {
+                crate::config::compile_glob(&effect.glob).is_ok_and(|g| g.is_match(&e.name))
+            })
+            .collect();
+        if entries.is_empty() {
+            result.unmeasurable.push(Finding {
+                entry: effect.glob.clone(),
+                kind: "required_effect".into(),
+                detail: "effect has no measured entries".into(),
+            });
+        }
+        for entry in entries {
+            let measured = entry.required_effects.iter().find(|r| r.policy == *effect);
+            let finding = Finding {
+                entry: entry.name.clone(),
+                kind: "required_effect".into(),
+                detail: measured.map_or_else(
+                    || "required occupancy not measured".into(),
+                    |r| {
+                        format!(
+                            "baseline {} candidate {}; failures {:?}",
+                            r.baseline_pixels, r.candidate_pixels, r.failures
+                        )
+                    },
+                ),
+            };
+            match measured {
+                Some(r) if r.failures.is_empty() => result.matched.push(finding),
+                Some(_) => result.missing.push(finding),
+                None => result.unmeasurable.push(finding),
+            }
+        }
+    }
     for change in &intent.changes {
         let Some(entry) = report.entries.iter().find(|e| e.name == change.entry) else {
             result.unmeasurable.push(Finding {
@@ -344,6 +387,27 @@ pub fn verify(intent: &VisualIntent, source: &Path, report: &Report) -> Verifica
     result
 }
 
+/// Attach predeclared required effects to the normal comparison policy.
+pub fn apply_effects(
+    intent: &VisualIntent,
+    source: &Path,
+    config: &mut crate::config::RunConfig,
+) -> crate::Result<()> {
+    for effect in &intent.required_effects {
+        if config.required_effect.iter().any(|e| e.name == effect.name) {
+            return Err(crate::Error::Config(
+                "duplicate required-effect name".into(),
+            ));
+        }
+        config.effect_roots.insert(
+            effect.name.clone(),
+            source.parent().unwrap_or(Path::new(".")).to_path_buf(),
+        );
+        config.required_effect.push(effect.clone());
+    }
+    Ok(())
+}
+
 #[cfg(test)]
 #[allow(clippy::unwrap_used)]
 mod tests {
@@ -376,6 +440,7 @@ mod tests {
         assert!(!report.entries[0].hotspots.is_empty());
         let source = tmp.path().join("intent.json");
         let mut intent = VisualIntent {
+            required_effects: Vec::new(),
             schema: SCHEMA.into(),
             objective: "brighten patch".into(),
             no_change_elsewhere: true,

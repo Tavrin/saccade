@@ -64,6 +64,8 @@ fn measurement_schemas() -> Value {
             "meta_name":{"type":"string"},
             "require_matching_meta":{"type":"boolean","default":false},
             "declare":{"type":"array","items":{"type":"string"}},
+            "intended_variables":{"type":"array","items":{"type":"string"}},
+            "fixed_camera":{"type":"boolean"},
             "fail_on_new":{"type":"boolean","default":true},
             "allow_empty":{"type":"boolean","default":false},
             "include_images":{"type":"boolean","default":false},
@@ -291,6 +293,8 @@ const RUN_ARGS: &[&str] = &[
     "meta_name",
     "require_matching_meta",
     "declare",
+    "intended_variables",
+    "fixed_camera",
     "fail_on_new",
     "allow_empty",
     "include_images",
@@ -350,6 +354,12 @@ fn apply_run_args(args: &Map<String, Value>, cfg: &mut RunConfig) -> Result<(), 
             "`declare` needs `require_matching_meta: true`",
         ));
     }
+    if arg_bool(args, "fixed_camera")?.unwrap_or(false) && cfg.temporal_tiles.is_none() {
+        cfg.temporal_tiles = Some(Default::default());
+    }
+    cfg.meta
+        .intended
+        .extend(arg_strings(args, "intended_variables")?);
     cfg.meta.required |= required;
     cfg.meta.declared.extend(declared);
     cfg.entries = arg_strings(args, "entries")?;
@@ -558,6 +568,16 @@ impl Server {
                 "unsafe_path",
                 "project settings cannot authorize symlink targets",
             ));
+        }
+        // wave9: mask inclusion inputs obey the same registered read policy.
+        for effect in &cfg.required_effect {
+            if let saccade_core::evidence_quality::effect::Selection::Mask { image } =
+                &effect.selection
+            {
+                self.policy
+                    .read(&cfg.config_dir.as_deref().unwrap_or(&self.root).join(image))
+                    .map_err(|e| CliError::new("unsafe_path", e.to_string()))?;
+            }
         }
         for mask in &cfg.masks {
             if let Some(path) = &mask.image {
@@ -1072,6 +1092,20 @@ impl Server {
         #[cfg(feature = "ai")]
         if name == "saccade_review" {
             return Some(self.provider_review(args));
+        }
+        // wave9
+        if args
+            .get("operation")
+            .and_then(Value::as_str)
+            .is_some_and(|op| crate::wave9_mcp::handles(name, op))
+        {
+            return Some(
+                crate::wave9_mcp::call(&self.policy, args).map(|structured| ToolOutput {
+                    structured,
+                    text: "Local reference evidence or an immutable blind trial receipt.".into(),
+                    images: vec![],
+                }),
+            );
         }
         // wave8: rooted image records, no download/provider authority from arguments.
         if name == "saccade_measure"
@@ -2285,6 +2319,8 @@ fn tool_schemas() -> Value {
     }
     // wave7
     measures.extend(crate::wave7_mcp::measure_schemas());
+    // wave9
+    measures.extend(crate::wave9_mcp::schemas());
     // wave8
     measures.push(crate::media_cmd::mcp_schema());
     let common = json!({"artifact":{"oneOf":[{"type":"string"},{"type":"object","properties":{"path":{"type":"string"},"sha256":{"type":"string","pattern":"^sha256:[0-9a-f]{64}$"}},"required":["path","sha256"],"additionalProperties":false}]},"out":{"type":"string"},"entry":{"type":"string"},"include_images":{"type":"boolean","default":false},"expected_case_id":{"type":"string","pattern":"^sha256:[0-9a-f]{64}$"}});

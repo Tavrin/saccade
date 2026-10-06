@@ -150,6 +150,10 @@ impl DiagnosticsConfig {
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum ChangeClass {
+    /// High-frequency texture differences without significant spatial bias.
+    TextureNoiseOnly,
+    /// Spatially clustered signed bias, coverage or detail loss; regions in spatial evidence.
+    SystematicShift,
     /// Decoded pixels are exactly equal.
     Identical,
     /// FLIP is zero, while native decoded samples differ.
@@ -178,6 +182,8 @@ impl ChangeClass {
     /// The snake_case name used in the JSON.
     pub fn as_str(self) -> &'static str {
         match self {
+            Self::TextureNoiseOnly => "texture_noise_only",
+            Self::SystematicShift => "systematic_shift",
             Self::Identical => "identical",
             Self::ZeroFlipNativeDifference => "zero_flip_native_difference",
             Self::Noise => "noise",
@@ -1793,6 +1799,10 @@ fn describe(f: &Facts<'_>) -> String {
     let frame_px = f64::from(f.metrics.width) * f64::from(f.metrics.height);
     let mean = f.metrics.mean;
     match f.class {
+        ChangeClass::TextureNoiseOnly => {
+            "Texture noise only under the declared spatial policy.".into()
+        }
+        ChangeClass::SystematicShift => "Systematic tile shift; inspect spatial regions.".into(),
         ChangeClass::Identical => "Bit-identical.".to_owned(),
         ChangeClass::ZeroFlipNativeDifference => {
             "FLIP is zero, but native decoded samples differ.".to_owned()
@@ -2003,6 +2013,19 @@ pub fn perf_summary(perf: &[PerfDelta]) -> Option<String> {
         s.push_str(&format!(" · +{more} more"));
     }
     Some(s)
+}
+
+/// Global phase-correlation translation without correction or a new FLIP run.
+/// Returns dx, dy and phase coherence; absent when scene texture cannot support a fit.
+pub fn global_translation(
+    base: &image::RgbaImage,
+    candidate: &image::RgbaImage,
+) -> Option<[f64; 3]> {
+    if base.dimensions() != candidate.dimensions() {
+        return None;
+    }
+    estimate_shift(Pixels::Ldr(base), Pixels::Ldr(candidate), None)
+        .map(|s| [s.dx, s.dy, s.confidence])
 }
 
 #[cfg(test)]

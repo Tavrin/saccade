@@ -23,6 +23,20 @@ pub struct Override {
 /// Settings for [`crate::run::run`].
 #[derive(Debug, Clone, PartialEq)]
 pub struct RunConfig {
+    /// Opt-in fixed-camera temporal tile evidence.
+    pub temporal_tiles: Option<crate::evidence_quality::temporal::Policy>,
+    /// Source-bound capture layers and optional inclusion scope.
+    pub layers: Option<crate::evidence_quality::layers::Policy>,
+    /// Internal per-pair exclusion bitmap derived from layer inclusion.
+    pub layer_mask: Option<Vec<bool>>,
+    /// Opt-in spatial structure versus texture analysis.
+    pub spatial: Option<crate::evidence_quality::spatial::Policy>,
+    /// Additional intended-variable patterns per ablation label.
+    pub arm_variables: std::collections::BTreeMap<String, Vec<String>>,
+    /// Required effect occupancy gates (wave9).
+    pub required_effect: Vec<crate::evidence_quality::effect::RequiredEffect>,
+    /// Per-effect declaration directories, keyed by effect name.
+    pub effect_roots: std::collections::BTreeMap<String, std::path::PathBuf>,
     /// Default pass threshold.
     pub default_threshold: f64,
     /// Default deciding metric.
@@ -94,6 +108,13 @@ pub struct RunConfig {
 impl Default for RunConfig {
     fn default() -> Self {
         Self {
+            temporal_tiles: None,
+            layers: None,
+            layer_mask: None,
+            spatial: None,
+            arm_variables: Default::default(),
+            required_effect: Vec::new(),
+            effect_roots: Default::default(),
             default_threshold: 0.01,
             default_metric: Metric::Mean,
             explicit_tolerances: false,
@@ -133,6 +154,15 @@ impl Default for RunConfig {
 #[derive(Deserialize)]
 #[serde(deny_unknown_fields)]
 struct FileConfig {
+    temporal_tiles: Option<crate::evidence_quality::temporal::Policy>,
+    layers: Option<crate::evidence_quality::layers::Policy>,
+    spatial: Option<crate::evidence_quality::spatial::Policy>,
+    #[serde(default)]
+    intended_variables: Vec<String>,
+    #[serde(default)]
+    arm_variables: std::collections::BTreeMap<String, Vec<String>>,
+    #[serde(default)]
+    required_effect: Vec<crate::evidence_quality::effect::RequiredEffect>,
     capture: Option<FileCapture>,
     brand: Option<crate::brand::Policy>,
     #[serde(default)]
@@ -278,6 +308,12 @@ impl RunConfig {
             explicit_tolerances: file.threshold.is_some() || file.metric.is_some(),
             ..Self::default()
         };
+        cfg.temporal_tiles = file.temporal_tiles;
+        cfg.layers = file.layers;
+        cfg.spatial = file.spatial;
+        cfg.meta.intended = file.intended_variables;
+        cfg.arm_variables = file.arm_variables;
+        cfg.required_effect = file.required_effect;
         cfg.brand = file.brand.unwrap_or_default();
         if let Some(capture) = file.capture {
             if capture.required_keys.is_empty() {
@@ -461,6 +497,22 @@ impl RunConfig {
                 "hotspot_local_min_pixels must be positive".into(),
             ));
         }
+        let mut effect_names = std::collections::BTreeSet::new();
+        for effect in &self.required_effect {
+            effect.validate()?;
+            if !effect_names.insert(&effect.name) {
+                return Err(Error::Config("duplicate required-effect name".into()));
+            }
+        }
+        if let Some(policy) = &self.layers {
+            policy.validate()?;
+        }
+        if let Some(policy) = &self.spatial {
+            policy.validate()?;
+        }
+        if let Some(policy) = &self.temporal_tiles {
+            policy.validate()?;
+        }
         self.perf.validate()?;
         self.brand.validate()?;
         #[cfg(not(feature = "graphics"))]
@@ -472,6 +524,11 @@ impl RunConfig {
         self.hdr.validate()?;
         self.diagnostics.validate()?;
         self.meta.checker()?;
+        for patterns in self.arm_variables.values() {
+            for pattern in patterns {
+                compile_glob(pattern)?;
+            }
+        }
         for g in self.ignore.iter().chain(&self.entries) {
             compile_glob(g)?;
         }

@@ -70,6 +70,26 @@
       "pattern": "^sha256:[0-9a-f]{64}$",
       "type": "string"
     },
+    "Evidence": {
+      "additionalProperties": false,
+      "properties": {
+        "iterations_ms": {
+          "items": {
+            "format": "double",
+            "type": "number"
+          },
+          "type": "array"
+        },
+        "policy": {
+          "$ref": "#/$defs/Policy"
+        }
+      },
+      "required": [
+        "policy",
+        "iterations_ms"
+      ],
+      "type": "object"
+    },
     "Frame": {
       "additionalProperties": false,
       "properties": {
@@ -336,6 +356,37 @@
       ],
       "type": "object"
     },
+    "Policy": {
+      "additionalProperties": false,
+      "properties": {
+        "coefficient_of_variation_max": {
+          "default": 0.03,
+          "format": "double",
+          "type": "number"
+        },
+        "mean_relative_tolerance": {
+          "default": 0.02,
+          "format": "double",
+          "type": "number"
+        },
+        "slope_relative_max": {
+          "default": 0.001,
+          "format": "double",
+          "type": "number"
+        },
+        "version": {
+          "default": "warmup-1",
+          "type": "string"
+        },
+        "window": {
+          "default": 16,
+          "format": "uint",
+          "minimum": 0,
+          "type": "integer"
+        }
+      },
+      "type": "object"
+    },
     "Qualification": {
       "additionalProperties": false,
       "properties": {
@@ -363,6 +414,18 @@
         },
         "version": {
           "type": "string"
+        },
+        "warmup": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Evidence"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Optional producer-supplied per-iteration evidence, recomputed locally."
         }
       },
       "required": [

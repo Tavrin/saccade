@@ -1,0 +1,214 @@
+{
+  "$defs": {
+    "Alignment": {
+      "description": "Exposure fit and the declared common mapping.",
+      "properties": {
+        "exposure_scale": {
+          "description": "Scalar multiplying render linear RGB.",
+          "format": "double",
+          "type": "number"
+        },
+        "exposure_stops": {
+          "description": "log2(exposure_scale).",
+          "format": "double",
+          "type": "number"
+        },
+        "method": {
+          "description": "Fit algorithm identity.",
+          "type": "string"
+        },
+        "tonemap": {
+          "description": "Declared mapping; absent means raw linear RGB.",
+          "type": [
+            "string",
+            "null"
+          ]
+        }
+      },
+      "required": [
+        "exposure_scale",
+        "exposure_stops",
+        "method"
+      ],
+      "type": "object"
+    },
+    "Policy": {
+      "additionalProperties": false,
+      "description": "Versioned noise/alignment policy.",
+      "properties": {
+        "absolute_tolerance": {
+          "default": 0.001,
+          "description": "Absolute linear/mapped luminance tolerance above the noise floor.",
+          "format": "double",
+          "type": "number"
+        },
+        "fit_exposure": {
+          "default": true,
+          "description": "Fit one global render-to-reference exposure gain in linear RGB.",
+          "type": "boolean"
+        },
+        "noise_k": {
+          "default": 3.0,
+          "description": "Noise-floor multiplier.",
+          "format": "double",
+          "type": "number"
+        },
+        "tile_size": {
+          "default": 32,
+          "description": "Regular tile width/height.",
+          "format": "uint32",
+          "minimum": 0,
+          "type": "integer"
+        },
+        "tonemap": {
+          "default": null,
+          "description": "Optional aces, hable or reinhard, applied identically to both sides before scoring.",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "version": {
+          "default": "reference-1",
+          "description": "Must be reference-1.",
+          "type": "string"
+        }
+      },
+      "type": "object"
+    },
+    "Tile": {
+      "description": "Difference evidence for one noisy-reference tile.",
+      "properties": {
+        "beyond_noise": {
+          "description": "Either RMS or signed bias exceeds its recorded noise floor.",
+          "type": "boolean"
+        },
+        "mean_limit": {
+          "description": "Noise-derived signed mean tolerance including absolute floor.",
+          "format": "double",
+          "type": "number"
+        },
+        "pixels": {
+          "description": "Included sample count.",
+          "format": "uint64",
+          "minimum": 0,
+          "type": "integer"
+        },
+        "rect_px": {
+          "description": "Pixel box.",
+          "items": {
+            "format": "uint32",
+            "minimum": 0,
+            "type": "integer"
+          },
+          "maxItems": 4,
+          "minItems": 4,
+          "type": "array"
+        },
+        "reference_noise_sigma": {
+          "description": "Standard deviation of the reference estimator.",
+          "format": "double",
+          "type": "number"
+        },
+        "rms_difference": {
+          "description": "Root mean squared luminance difference.",
+          "format": "double",
+          "type": "number"
+        },
+        "rms_limit": {
+          "description": "Noise-derived RMS tolerance including absolute floor.",
+          "format": "double",
+          "type": "number"
+        },
+        "signed_mean": {
+          "description": "Signed aligned render-minus-reference luminance.",
+          "format": "double",
+          "type": "number"
+        }
+      },
+      "required": [
+        "rect_px",
+        "pixels",
+        "signed_mean",
+        "rms_difference",
+        "reference_noise_sigma",
+        "rms_limit",
+        "mean_limit",
+        "beyond_noise"
+      ],
+      "type": "object"
+    }
+  },
+  "$id": "https://github.com/Tavrin/saccade/crates/saccade-core/schemas/saccade-reference-evidence.v1.schema.json",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "description": "Offline reference result; source hashes are attached by the transport.",
+  "properties": {
+    "alignment": {
+      "$ref": "#/$defs/Alignment",
+      "description": "Fitted alignment parameters."
+    },
+    "input_sha256": {
+      "additionalProperties": {
+        "type": "string"
+      },
+      "default": {},
+      "description": "Raw source identities filled by file transports.",
+      "type": "object"
+    },
+    "limits": {
+      "description": "Interpretation limits.",
+      "items": {
+        "type": "string"
+      },
+      "type": "array"
+    },
+    "mean_flip": {
+      "description": "Mean aligned/display-mapped FLIP (secondary diagnostic).",
+      "format": "double",
+      "type": "number"
+    },
+    "noise_method": {
+      "description": "multiple_seeds, supplied_variance, or high_frequency_estimate.",
+      "type": "string"
+    },
+    "policy": {
+      "$ref": "#/$defs/Policy",
+      "description": "Exact policy."
+    },
+    "reference_seeds": {
+      "description": "Number of reference seeds averaged (1 for single-reference modes).",
+      "format": "uint",
+      "minimum": 0,
+      "type": "integer"
+    },
+    "schema": {
+      "const": "saccade-reference-evidence.v1",
+      "description": "Versioned discriminator.",
+      "type": "string"
+    },
+    "tiles": {
+      "description": "Recorded tile differences and floors.",
+      "items": {
+        "$ref": "#/$defs/Tile"
+      },
+      "type": "array"
+    },
+    "verdict": {
+      "description": "within_noise_floor or reference_difference.",
+      "type": "string"
+    }
+  },
+  "required": [
+    "schema",
+    "policy",
+    "alignment",
+    "noise_method",
+    "reference_seeds",
+    "verdict",
+    "tiles",
+    "mean_flip",
+    "limits"
+  ],
+  "title": "Report",
+  "type": "object"
+}

@@ -1,0 +1,138 @@
+{
+  "$defs": {
+    "ColourSpace": {
+      "description": "Explicit transfer function for RGB component layers.",
+      "oneOf": [
+        {
+          "const": "linear",
+          "description": "Linear-light numeric RGB.",
+          "type": "string"
+        },
+        {
+          "const": "srgb",
+          "description": "sRGB samples, decoded to linear light for decomposition.",
+          "type": "string"
+        }
+      ]
+    },
+    "Kind": {
+      "description": "Native layer interpretation; supplied components have no implicit engine meaning.",
+      "oneOf": [
+        {
+          "const": "id",
+          "description": "Integer labels.",
+          "type": "string"
+        },
+        {
+          "const": "depth",
+          "description": "Native depth/scalar units.",
+          "type": "string"
+        },
+        {
+          "const": "mask",
+          "description": "Nonzero mask.",
+          "type": "string"
+        },
+        {
+          "const": "scalar",
+          "description": "Arbitrary scalar component.",
+          "type": "string"
+        },
+        {
+          "const": "colour",
+          "description": "RGB colour/radiance component.",
+          "type": "string"
+        }
+      ]
+    },
+    "Layer": {
+      "additionalProperties": false,
+      "description": "One named layer in a sidecar manifest.",
+      "properties": {
+        "additive": {
+          "default": false,
+          "description": "Whether this is part of an additive RGB decomposition.",
+          "type": "boolean"
+        },
+        "colour_space": {
+          "$ref": "#/$defs/ColourSpace",
+          "default": "linear",
+          "description": "Explicit colour encoding."
+        },
+        "image": {
+          "description": "Path relative to the sidecar directory.",
+          "type": "string"
+        },
+        "kind": {
+          "$ref": "#/$defs/Kind",
+          "description": "Native semantic kind."
+        },
+        "name": {
+          "description": "Unique component name.",
+          "type": "string"
+        },
+        "scale": {
+          "default": 1.0,
+          "description": "Native scalar/colour scale multiplier.",
+          "format": "double",
+          "type": "number"
+        },
+        "sha256": {
+          "default": null,
+          "description": "Optional content hash; required by immutable trial binding if used there.",
+          "type": [
+            "string",
+            "null"
+          ]
+        }
+      },
+      "required": [
+        "name",
+        "image",
+        "kind"
+      ],
+      "type": "object"
+    }
+  },
+  "$id": "https://github.com/Tavrin/saccade/crates/saccade-core/schemas/saccade-capture-layers.v1.schema.json",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "description": "Source-bound capture layers; the manifest must describe the supplied final image.",
+  "properties": {
+    "dimensions": {
+      "description": "Final-image width/height.",
+      "items": {
+        "format": "uint32",
+        "minimum": 0,
+        "type": "integer"
+      },
+      "maxItems": 2,
+      "minItems": 2,
+      "type": "array"
+    },
+    "image_sha256": {
+      "description": "Final-image encoded SHA-256.",
+      "type": "string"
+    },
+    "layers": {
+      "description": "Named ID/depth/mask/scalar/colour layers.",
+      "items": {
+        "$ref": "#/$defs/Layer"
+      },
+      "type": "array"
+    },
+    "schema": {
+      "const": "saccade-capture-layers.v1",
+      "description": "Must equal SCHEMA.",
+      "type": "string"
+    }
+  },
+  "required": [
+    "schema",
+    "image_sha256",
+    "dimensions",
+    "layers"
+  ],
+  "title": "Manifest",
+  "type": "object"
+}

@@ -70,6 +70,26 @@ pub(crate) fn build_html(
     let summary = format!(
         "{summary}<details><summary>Motion diagnostics (raw FLIP remains authoritative)</summary>{motion}</details>"
     );
+    let mut gallery = String::new();
+    for entry in &report.entries {
+        if entry.gallery.is_empty() {
+            continue;
+        }
+        gallery.push_str(&format!("<h3>{}</h3>", escape(&entry.name)));
+        for region in &entry.gallery {
+            if !region.strip.starts_with("regions/")
+                || region.strip.contains("..")
+                || !region.zoom_2x.starts_with("regions/")
+                || region.zoom_2x.contains("..")
+            {
+                continue;
+            }
+            gallery.push_str(&format!("<figure><figcaption>{:?}: {} | FLIP mean {:.5}, max {:.5}; signed luminance {:+.5}; detail {:?}; gap {:?}. Base | candidate | heatmap</figcaption><img loading=\"lazy\" style=\"max-width:100%\" src=\"{}\" alt=\"Region comparison strip\"><details><summary>2× nearest-neighbour zoom</summary><img loading=\"lazy\" style=\"image-rendering:pixelated;max-width:100%\" src=\"{}\" alt=\"Two times crop zoom\"></details></figure>", region.rect_px,escape(&region.reasons.join(", ")),region.mean_flip,region.max_flip,region.signed_shift,region.detail_energy_ratio,region.gap_change,escape(&region.strip),escape(&region.zoom_2x)));
+        }
+    }
+    let summary = format!(
+        "{summary}<details><summary>Automatic regions of interest</summary>{gallery}</details>"
+    );
     let (head, tail) = before
         .split_once("__SACCADE_META__")
         .ok_or_else(|| Error::Config("report template lacks metadata slot".into()))?;

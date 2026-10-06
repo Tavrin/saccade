@@ -315,6 +315,47 @@ pub(crate) fn catalogue() -> Value {
         "Which verified passing run or explicit summary should be used?",
         "passing history is not human approval; sending needs explicit authorization",
     );
+    // wave9: deterministic evidence commands and opt-in policies.
+    add(
+        "rendering_evidence",
+        "compare --config (required_effects, spatial, layers); compare --intended-variable",
+        "paired captures, declared effect occupancy, layer sidecars and experiment metadata",
+        vec![],
+        "available",
+        "Is the required effect present, and is the difference texture or clustered structural bias?",
+        "opt-in policies; graphics also enables experiment ablate --intended-variable; zero FLIP proves no effect; structural classes do not qualify timing",
+    );
+    add(
+        "temporal_tiles",
+        "experiment sequence --config (temporal_tiles)",
+        "fixed-camera frame sequences and declared provenance",
+        vec!["graphics"],
+        if cfg!(feature = "graphics") {
+            "available"
+        } else {
+            "feature_unavailable"
+        },
+        "Did per-tile temporal shimmer increase under qualified fixed-camera conditions?",
+        "moving cameras are refused; missing qualification remains explicit",
+    );
+    add(
+        "noisy_reference",
+        "experiment reference",
+        "render, offline reference, optional independent seeds or sample-mean variance and mask",
+        vec![],
+        "available",
+        "Does the render differ beyond the declared reference noise floor?",
+        "input hashes and fitted exposure retained; sample-mean variance is not a universal tolerance",
+    );
+    add(
+        "blind_trials",
+        "review trial register|start|vote|import",
+        "immutable preregistered plan, image pairs and explicit judgments",
+        vec![],
+        "available",
+        "What preferences were recorded against a hash-bound blind trial?",
+        "only public galleries go to judges; preferences grant no baseline or performance approval",
+    );
     let mut features: Vec<_> = saccade_core::COMPILED_FEATURES
         .iter()
         .map(|s| s.to_string())
@@ -645,6 +686,37 @@ pub(crate) fn related_commands() -> Value {
         "imgtune audit|search",
         "design pull|compare",
         "notify",
-        "compare --baseline last-good"
+        "compare --baseline last-good",
+        "analyze-media --json",
+        "experiment reference",
+        "review trial register|start|vote|import"
     ])
+}
+
+#[cfg(test)]
+#[allow(clippy::unwrap_used)]
+mod tests {
+    #[test]
+    fn wave9_families_retain_commands_limits_and_feature_availability() {
+        let catalogue = super::catalogue();
+        let families = catalogue["families"].as_array().unwrap();
+        for (name, command) in [
+            ("rendering_evidence", "compare --config"),
+            ("noisy_reference", "experiment reference"),
+            ("blind_trials", "review trial register|start|vote|import"),
+            ("temporal_tiles", "experiment sequence"),
+        ] {
+            let family = families.iter().find(|v| v["family"] == name).unwrap();
+            assert!(family["command"].as_str().unwrap().contains(command));
+            assert!(!family["limits"].as_str().unwrap().is_empty());
+            assert_eq!(
+                family["status"],
+                if name == "temporal_tiles" && !cfg!(feature = "graphics") {
+                    "feature_unavailable"
+                } else {
+                    "available"
+                }
+            );
+        }
+    }
 }
