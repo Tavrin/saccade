@@ -176,3 +176,6 @@ pub mod mask_spec;
 
 /// Wave 11 timing implementation.
 pub mod timing;
+
+/// Wave 11 settling implementation.
+pub mod settling;

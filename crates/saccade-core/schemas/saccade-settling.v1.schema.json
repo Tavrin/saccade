@@ -1,0 +1,230 @@
+{
+  "$defs": {
+    "Policy": {
+      "additionalProperties": false,
+      "description": "Declared analysis settings, using normalized RGB error.",
+      "properties": {
+        "change_frame": {
+          "description": "Zero-based frame at which the external change was requested.",
+          "format": "uint",
+          "minimum": 0,
+          "type": "integer"
+        },
+        "consecutive": {
+          "description": "Required consecutive frames under threshold.",
+          "format": "uint",
+          "minimum": 0,
+          "type": "integer"
+        },
+        "final_frames": {
+          "description": "Final frames averaged when no reference sequence is supplied.",
+          "format": "uint",
+          "minimum": 0,
+          "type": "integer"
+        },
+        "fps": {
+          "description": "Frame rate for conversion to seconds.",
+          "format": "double",
+          "type": "number"
+        },
+        "threshold": {
+          "description": "Mean absolute normalized RGB threshold.",
+          "format": "double",
+          "type": "number"
+        },
+        "tile_size": {
+          "description": "Tile edge in pixels.",
+          "format": "uint32",
+          "minimum": 0,
+          "type": "integer"
+        }
+      },
+      "required": [
+        "change_frame",
+        "fps",
+        "tile_size",
+        "threshold",
+        "consecutive",
+        "final_frames"
+      ],
+      "type": "object"
+    },
+    "Tile": {
+      "description": "One spatial tile trajectory.",
+      "properties": {
+        "error": {
+          "description": "Mean RGB absolute error against the reference for every frame.",
+          "items": {
+            "format": "double",
+            "type": "number"
+          },
+          "type": "array"
+        },
+        "ghosting": {
+          "description": "Projection coefficient onto pre-change minus reference content, per frame.",
+          "items": {
+            "format": "double",
+            "type": [
+              "number",
+              "null"
+            ]
+          },
+          "type": "array"
+        },
+        "lag_frames": {
+          "description": "Signed onset lag in frames relative to declared change.",
+          "format": "int64",
+          "type": [
+            "integer",
+            "null"
+          ]
+        },
+        "onset_frame": {
+          "description": "First observed deviation from the initial pre-change frame.",
+          "format": "uint",
+          "minimum": 0,
+          "type": [
+            "integer",
+            "null"
+          ]
+        },
+        "persistent_ghosting": {
+          "description": "Mean residual coefficient in the declared final window.",
+          "format": "double",
+          "type": [
+            "number",
+            "null"
+          ]
+        },
+        "rect": {
+          "description": "Pixel rectangle x, y, width, height.",
+          "items": {
+            "format": "uint32",
+            "minimum": 0,
+            "type": "integer"
+          },
+          "maxItems": 4,
+          "minItems": 4,
+          "type": "array"
+        },
+        "settle_frame": {
+          "description": "First frame with K consecutive under-threshold observations, or null.",
+          "format": "uint",
+          "minimum": 0,
+          "type": [
+            "integer",
+            "null"
+          ]
+        },
+        "time_to_settle_seconds": {
+          "description": "Elapsed time from declared change to settle, seconds.",
+          "format": "double",
+          "type": [
+            "number",
+            "null"
+          ]
+        }
+      },
+      "required": [
+        "rect",
+        "error",
+        "ghosting"
+      ],
+      "type": "object"
+    }
+  },
+  "$id": "https://github.com/Tavrin/saccade/crates/saccade-core/schemas/saccade-settling.v1.schema.json",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "description": "Full report, including worst tiles (descending final error).",
+  "properties": {
+    "global_error": {
+      "description": "Maximum tile error at every frame.",
+      "items": {
+        "format": "double",
+        "type": "number"
+      },
+      "type": "array"
+    },
+    "lag_frames": {
+      "description": "Onset lag in frames.",
+      "format": "int64",
+      "type": [
+        "integer",
+        "null"
+      ]
+    },
+    "limits": {
+      "description": "Diagnostic interpretation limits.",
+      "items": {
+        "type": "string"
+      },
+      "type": "array"
+    },
+    "onset_frame": {
+      "description": "First onset among all tiles.",
+      "format": "uint",
+      "minimum": 0,
+      "type": [
+        "integer",
+        "null"
+      ]
+    },
+    "policy": {
+      "$ref": "#/$defs/Policy",
+      "description": "Recorded effective policy."
+    },
+    "reference": {
+      "description": "Reference source mode.",
+      "type": "string"
+    },
+    "schema": {
+      "const": "saccade-settling.v1",
+      "description": "Version discriminator.",
+      "type": "string"
+    },
+    "settle_frame": {
+      "description": "First K-frame interval in which every tile settles.",
+      "format": "uint",
+      "minimum": 0,
+      "type": [
+        "integer",
+        "null"
+      ]
+    },
+    "tiles": {
+      "description": "Per-tile trajectories.",
+      "items": {
+        "$ref": "#/$defs/Tile"
+      },
+      "type": "array"
+    },
+    "time_to_settle_seconds": {
+      "description": "Elapsed time from change to global settling.",
+      "format": "double",
+      "type": [
+        "number",
+        "null"
+      ]
+    },
+    "worst_tiles": {
+      "description": "Up to sixteen worst tile indices.",
+      "items": {
+        "format": "uint",
+        "minimum": 0,
+        "type": "integer"
+      },
+      "type": "array"
+    }
+  },
+  "required": [
+    "schema",
+    "policy",
+    "reference",
+    "tiles",
+    "global_error",
+    "worst_tiles",
+    "limits"
+  ],
+  "title": "Report",
+  "type": "object"
+}
