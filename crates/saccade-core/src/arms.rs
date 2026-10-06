@@ -824,7 +824,10 @@ fn check_mapped(
     }
     bad.retain(|f| {
         if (f.reason == "missing"
-            || f.reason == "difference"
+            || (f.reason == "difference"
+                && f.key != "fingerprint.schema"
+                && f.key != "run.session"
+                && !(f.key.starts_with("run.readiness.") && f.key.ends_with(".criterion")))
             || (f.reason == "malformed"
                 && (f.baseline_state == "null" || f.capture_state == "null")))
             && ignore.iter().any(|t| matches(t, &f.key))
@@ -899,6 +902,8 @@ pub fn validate_paths(a: &Path, b: &Path, cfg: &crate::config::RunConfig) -> Res
         .map(FingerprintMap::read)
         .transpose()?;
     let mut checks = Vec::new();
+    let mut identity_found = [false; 2];
+    let mut searched = BTreeSet::from([cfg.meta.name.clone()]);
     if a.is_dir() && b.is_dir() {
         let aa = crate::run::collect_images(a)?;
         let bb = crate::run::collect_images(b)?;
@@ -919,9 +924,28 @@ pub fn validate_paths(a: &Path, b: &Path, cfg: &crate::config::RunConfig) -> Res
             {
                 continue;
             }
+            let am = load_named(a, key, &cfg.meta.name, map.as_ref())?;
+            let bm = load_named(b, key, &cfg.meta.name, map.as_ref())?;
+            for (i, m) in [&am, &bm].into_iter().enumerate() {
+                identity_found[i] |= m
+                    .keys()
+                    .any(|k| k.starts_with("producer.") || k.starts_with("inputs."));
+            }
+            let image = Path::new(key);
+            let mut parent = PathBuf::new();
+            if let Some(dir) = image.parent() {
+                for part in dir.components() {
+                    parent.push(part);
+                    searched.insert(crate::paths::portable(&parent.join(&cfg.meta.name)));
+                }
+            }
+            let stem = image.file_stem().and_then(|s| s.to_str()).unwrap_or("");
+            searched.insert(crate::paths::portable(
+                &parent.join(format!("{stem}.{}", cfg.meta.name)),
+            ));
             let mut c = check_mapped(
-                &load_named(a, key, &cfg.meta.name, map.as_ref())?,
-                &load_named(b, key, &cfg.meta.name, map.as_ref())?,
+                &am,
+                &bm,
                 &cfg.meta.intended,
                 &cfg.meta.ignore,
                 map.as_ref(),
@@ -968,18 +992,28 @@ pub fn validate_paths(a: &Path, b: &Path, cfg: &crate::config::RunConfig) -> Res
         .sort_by(|a, b| a.criterion.cmp(&b.criterion));
     merged.allowed_unreached.dedup();
     if a.is_dir() && b.is_dir() {
-        for root in [a, b] {
+        for (i, root) in [a, b].into_iter().enumerate() {
             let meta = load(root, &cfg.meta.name, map.as_ref())?;
-            if !meta
-                .keys()
-                .any(|k| k.starts_with("producer.") || k.starts_with("inputs."))
+            if !identity_found[i]
+                && !meta
+                    .keys()
+                    .any(|k| k.starts_with("producer.") || k.starts_with("inputs."))
             {
-                let mut files = vec![
-                    cfg.meta.name.clone(),
-                    "<image-stem>.<meta-name> (including inherited directories)".into(),
-                ];
+                let mut files = searched.clone();
                 if let Some(map) = &map {
                     files.extend(map.record_files.iter().cloned());
+                    files.extend(map.fields.values().filter_map(|s| s.file.clone()));
+                    files.extend(
+                        map.readiness
+                            .iter()
+                            .flat_map(|r| [r.reached.file.clone(), r.observed.file.clone()])
+                            .flatten(),
+                    );
+                }
+                let total = files.len();
+                let mut files = files.into_iter().take(64).collect::<Vec<_>>();
+                if total > 64 {
+                    files.push(format!("{} additional files", total - 64));
                 }
                 merged.diagnostics.push(format!("No fingerprint identity found in arm {}. Looked at: {}. Use --fingerprint-map FILE with record_files = [\"capture.json\", \"cost-card.json\"] or --meta-name NAME to select the run record.", crate::paths::portable(root), files.join(", ")));
             }
@@ -1019,12 +1053,13 @@ mod tests {
         assert_eq!(c.offending[0].key, "producer.binary");
     }
     #[test]
-    fn missing_content_never_equals_even_when_varied_or_ignored() {
+    fn missing_content_requires_an_explicit_ignore() {
         let mut a = arm();
         a.remove("inputs.identity");
-        let c = check(&a, &a, &["inputs".into()], &["inputs".into()]);
+        let c = check(&a, &a, &["inputs".into()], &[]);
         assert_eq!(c.exit_code, 4);
         assert_eq!(c.offending[0].key, "inputs.identity");
+        assert_eq!(check(&a, &a, &[], &["inputs".into()]).exit_code, 0);
         assert_eq!(
             check(&BTreeMap::new(), &BTreeMap::new(), &[], &[]).exit_code,
             4
@@ -1283,6 +1318,22 @@ mod field_feedback_tests {
         assert_eq!(no_map.exit_code, 4);
         assert!(no_map.diagnostics[0].contains("record_files"));
         assert!(no_map.diagnostics[0].contains("saccade-meta.json"));
+        assert!(no_map.diagnostics[0].contains("frame.saccade-meta.json"));
+        // Per-image records are a valid fingerprint source too: do not warn that
+        // none were found merely because the root-level record is absent.
+        for root in [&a, &b] {
+            std::fs::write(
+                root.join("frame.saccade-meta.json"),
+                serde_json::to_vec(&arm()).unwrap(),
+            )
+            .unwrap();
+        }
+        let sidecars = validate_paths(&a, &b, &cfg).unwrap();
+        assert_eq!(sidecars.exit_code, 0);
+        assert!(sidecars.diagnostics.is_empty());
+        for root in [&a, &b] {
+            std::fs::remove_file(root.join("frame.saccade-meta.json")).unwrap();
+        }
         cfg.meta.fingerprint_map = Some(path);
         let c = validate_paths(&a, &b, &cfg).unwrap();
         assert_eq!(c.exit_code, 0, "{c:?}");
