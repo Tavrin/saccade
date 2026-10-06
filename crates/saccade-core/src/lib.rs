@@ -170,3 +170,6 @@ pub mod media;
 pub mod schema_catalog;
 
 pub mod optional;
+
+/// Wave 11 mask spec implementation.
+pub mod mask_spec;

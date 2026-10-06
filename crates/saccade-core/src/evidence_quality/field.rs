@@ -362,6 +362,7 @@ mod tests {
         .save(root.join("ids.png"))
         .unwrap();
         let manifest = layers::Manifest {
+            labels: Default::default(),
             schema: layers::SCHEMA.into(),
             image_sha256: crate::run::sha256_file(&path).unwrap(),
             dimensions: [64, 64],

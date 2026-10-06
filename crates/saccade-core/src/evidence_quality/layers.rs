@@ -8,6 +8,11 @@ use std::path::Path;
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(tag = "kind", rename_all = "snake_case", deny_unknown_fields)]
 pub enum Predicate {
+    /// Generic ID label glob from the manifest or dump dictionary.
+    Labels {
+        /// Explicit glob; no vocabulary is built in.
+        pattern: String,
+    },
     /// Exact native integer labels.
     Ids {
         /// Allowed labels.
@@ -32,6 +37,9 @@ impl Predicate {
     /// Reject ambiguous or nonfinite predicates.
     pub fn validate(&self) -> Result<()> {
         let valid = match self {
+            Self::Labels { pattern } => {
+                !pattern.is_empty() && crate::config::compile_glob(pattern).is_ok()
+            }
             Self::Ids { values } => !values.is_empty() && values.len() <= 65536,
             Self::Range { min, max } => min.is_finite() && max.is_finite() && min <= max,
             Self::Above { threshold } => threshold.is_finite(),
@@ -45,12 +53,81 @@ impl Predicate {
     /// Test a native scalar.
     pub fn matches(&self, value: f64) -> bool {
         match self {
+            Self::Labels { .. } => false,
             Self::Ids { values } => values.iter().any(|v| f64::from(*v) == value),
             Self::Range { min, max } => value >= *min && value <= *max,
             Self::Above { threshold } => value > *threshold,
             Self::Mask => value != 0.0,
         }
     }
+}
+/// Parse the stable `NAME=PREDICATE` mask-spec grammar used by CLI and MCP.
+///
+/// Predicates are `id=U32[,U32...]`, `label=GLOB`, `material=GLOB` (an alias
+/// for `label`), `mask`, `above=FINITE` or `range=FINITE,FINITE` (inclusive).
+/// Names and patterns are case-sensitive; whitespace is not trimmed. Native IDs
+/// are preserved. Invalid, empty and nonfinite predicates return [`Error::Config`].
+/// This API parses and validates syntax; evaluating a label requires the supplied
+/// layer dictionary and evaluating samples requires native scalar data.
+///
+/// ```
+/// use saccade_core::evidence_quality::layers::{parse_layer_spec, Predicate};
+/// let (name, rule) = parse_layer_spec("specimen=id=12,13")?;
+/// assert_eq!(name, "specimen");
+/// assert_eq!(rule, Predicate::Ids { values: vec![12, 13] });
+/// # Ok::<(), saccade_core::Error>(())
+/// ```
+pub fn parse_layer_spec(spec: &str) -> Result<(String, Predicate)> {
+    let (layer, p) = spec
+        .split_once('=')
+        .ok_or_else(|| Error::Config("mask layer requires NAME=PREDICATE".into()))?;
+    if layer.is_empty() {
+        return Err(Error::Config("layer name is empty".into()));
+    }
+    let pred = if let Some(ids) = p.strip_prefix("id=") {
+        Predicate::Ids {
+            values: ids
+                .split(',')
+                .map(|v| {
+                    v.parse::<u32>()
+                        .map_err(|_| Error::Config("ID must be a native unsigned integer".into()))
+                })
+                .collect::<Result<Vec<_>, _>>()?,
+        }
+    } else if let Some(pattern) = p
+        .strip_prefix("label=")
+        .or_else(|| p.strip_prefix("material="))
+    {
+        Predicate::Labels {
+            pattern: pattern.into(),
+        }
+    } else if p == "mask" {
+        Predicate::Mask
+    } else if let Some(v) = p.strip_prefix("above=") {
+        Predicate::Above {
+            threshold: v
+                .parse()
+                .map_err(|_| Error::Config("above requires a numeric threshold".into()))?,
+        }
+    } else if let Some(v) = p.strip_prefix("range=") {
+        let (min, max) = v
+            .split_once(',')
+            .ok_or_else(|| Error::Config("range=min,max".into()))?;
+        Predicate::Range {
+            min: min
+                .parse()
+                .map_err(|_| Error::Config("invalid range".into()))?,
+            max: max
+                .parse()
+                .map_err(|_| Error::Config("invalid range".into()))?,
+        }
+    } else {
+        return Err(Error::Config(
+            "predicate must be id=, label=, material=, mask, above= or range=".into(),
+        ));
+    };
+    pred.validate()?;
+    Ok((layer.into(), pred))
 }
 /// Scalar layer samples without display conversion.
 pub fn scalar(path: &Path, dimensions: (u32, u32)) -> Result<Vec<f64>> {
@@ -136,6 +213,9 @@ fn scale_one() -> f64 {
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct Manifest {
+    /// Optional native ID-to-label dictionary for generic label selection.
+    #[serde(default)]
+    pub labels: std::collections::BTreeMap<u32, String>,
     /// Must equal SCHEMA.
     pub schema: String,
     /// Final-image encoded SHA-256.
@@ -369,6 +449,7 @@ fn load_inner(
         let encoded = encoded.into_inner();
         let layer_name = "derived_instances".to_string();
         let manifest = Manifest {
+            labels: Default::default(),
             schema: SCHEMA.into(),
             image_sha256: crate::localized::digest(&final_bytes),
             dimensions: [dimensions.0, dimensions.1],
@@ -471,7 +552,7 @@ fn load_inner(
         images.insert(layer.name.clone(), img);
     }
     Ok(Loaded {
-        names: Default::default(),
+        names: manifest.labels.clone(),
         retained,
         manifest_bytes: bytes.clone(),
         manifest,
@@ -503,7 +584,10 @@ pub fn selection(loaded: &Loaded, scope: &LayerScope) -> Result<Vec<bool>> {
     scope.predicate.validate()?;
     let (layer, img) = definition(loaded, &scope.layer)?;
     if matches!(layer.kind, Kind::Colour)
-        || (matches!(scope.predicate, Predicate::Ids { .. }) && layer.kind != Kind::Id)
+        || (matches!(
+            scope.predicate,
+            Predicate::Ids { .. } | Predicate::Labels { .. }
+        ) && layer.kind != Kind::Id)
     {
         return Err(Error::Config(
             "predicate incompatible with layer kind".into(),
@@ -523,9 +607,23 @@ pub fn selection(loaded: &Loaded, scope: &LayerScope) -> Result<Vec<bool>> {
     if samples.iter().any(|v| !v.is_finite()) {
         return Err(Error::Config("nonfinite scalar layer".into()));
     }
+    let label_glob = if let Predicate::Labels { pattern } = &scope.predicate {
+        Some(crate::config::compile_glob(pattern)?)
+    } else {
+        None
+    };
     Ok(samples
         .into_iter()
-        .map(|v| scope.predicate.matches(v * layer.scale))
+        .map(|v| {
+            if let Some(g) = &label_glob {
+                loaded
+                    .names
+                    .get(&(v as u32))
+                    .is_some_and(|name| g.is_match(name))
+            } else {
+                scope.predicate.matches(v * layer.scale)
+            }
+        })
         .collect())
 }
 /// Merge the declared side-specific footprints; empty results are errors.
@@ -778,6 +876,7 @@ mod tests {
         .save(root.join("ids.png"))
         .unwrap();
         let manifest = Manifest {
+            labels: Default::default(),
             schema: SCHEMA.into(),
             image_sha256: crate::localized::digest(&super::super::read(&path, 128 << 20).unwrap()),
             dimensions: [64, 64],
@@ -872,6 +971,7 @@ mod tests {
                 });
             }
             let manifest = Manifest {
+                labels: Default::default(),
                 schema: SCHEMA.into(),
                 image_sha256: crate::localized::digest(
                     &super::super::read(&final_path, 128 << 20).unwrap(),
@@ -956,6 +1056,7 @@ mod buffer_tests {
             .save(root.join("ids.png"))
             .unwrap();
             let m = Manifest {
+                labels: Default::default(),
                 schema: SCHEMA.into(),
                 image_sha256: crate::localized::digest(
                     &super::super::read(&final_path, 128 << 20).unwrap(),
@@ -1002,6 +1103,7 @@ values = [513]
             name: "surface".into(),
             predicate: Predicate::Ids { values: vec![513] },
             manifest: None,
+            dump: None,
         };
         assert_eq!(
             super::super::effect::select(&sel, &paths[0], tmp.path(), (64, 64))
