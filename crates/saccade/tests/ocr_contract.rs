@@ -1,16 +1,19 @@
 //! Local OCR and optional provider CLI contracts. No live provider calls.
 #![allow(clippy::unwrap_used, clippy::expect_used)]
-use serde_json::{Value, json};
-use std::{
-    path::Path,
-    process::{Command, Output},
-};
+#[cfg(any(feature = "ocr", feature = "ocr-provider"))]
+use serde_json::Value;
+#[cfg(feature = "ocr-provider")]
+use serde_json::json;
+#[cfg(feature = "ocr-provider")]
+use std::path::Path;
+use std::process::{Command, Output};
 fn cli(args: &[&str]) -> Output {
     Command::new(env!("CARGO_BIN_EXE_saccade"))
         .args(args)
         .output()
         .unwrap()
 }
+#[cfg(feature = "ocr-provider")]
 fn png(path: &Path) {
     image::RgbImage::from_pixel(48, 32, image::Rgb([255; 3]))
         .save(path)
