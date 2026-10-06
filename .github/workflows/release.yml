@@ -161,7 +161,7 @@ jobs:
       commit: ${{ github.event.pull_request.head.sha || github.sha }}
       tag: ${{ github.event_name == 'push' && github.ref_name || inputs.tag || 'v0.2.4' }}
 
-  draft:
+  release:
     needs: [assemble, qualify]
     if: github.event_name == 'push'
     runs-on: ubuntu-latest
@@ -173,7 +173,7 @@ jobs:
         with:
           name: release-dist
           path: dist
-      - name: Verify and create draft
+      - name: Verify and publish release
         shell: bash
         env:
           GH_TOKEN: ${{ github.token }}
@@ -182,4 +182,124 @@ jobs:
         run: |
           set -euo pipefail
           (cd dist && sha256sum -c SHA256SUMS)
-          gh release create "$TAG" dist/saccade-*.tar.gz dist/saccade-*.zip dist/SHA256SUMS --repo "$REPO" --title "$TAG" --generate-notes --draft
+          gh release create "$TAG" dist/saccade-*.tar.gz dist/saccade-*.zip dist/SHA256SUMS --repo "$REPO" --title "$TAG" --generate-notes
+
+  crates:
+    name: Publish crates.io
+    if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v')
+    runs-on: ubuntu-latest
+    environment: release
+    timeout-minutes: 30
+    concurrency:
+      group: crates-release-${{ github.ref }}
+      cancel-in-progress: false
+    permissions:
+      contents: read
+      id-token: write
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: false
+      - name: Check tag and already published versions
+        id: versions
+        env:
+          RELEASE_TAG: ${{ github.ref_name }}
+        run: |
+          python3 - <<'PYTHON'
+          import json, os, pathlib, tomllib, urllib.error, urllib.request
+          version = os.environ['RELEASE_TAG'].removeprefix('v')
+          workspace = tomllib.loads(pathlib.Path('Cargo.toml').read_text())
+          if workspace['workspace']['package']['version'] != version:
+              raise SystemExit('::error::Tag and workspace versions differ')
+          for crate, output in [('saccade-core', 'core'), ('saccade', 'cli')]:
+              manifest = tomllib.loads(pathlib.Path(f'crates/{crate}/Cargo.toml').read_text())
+              package_version = manifest['package']['version']
+              if package_version != version and package_version != {'workspace': True}:
+                  raise SystemExit(f'::error::{crate} version differs from tag')
+              request = urllib.request.Request(
+                  f'https://crates.io/api/v1/crates/{crate}/{version}',
+                  headers={'User-Agent': 'Tavrin/saccade release automation'})
+              try:
+                  with urllib.request.urlopen(request, timeout=30) as response:
+                      published = json.load(response)['version']
+                  if published['num'] != version or published['yanked']:
+                      raise SystemExit(f'::error::{crate} registry version is mismatched or yanked')
+                  print(f'::notice::{crate} {version} is already on crates.io; skipping publish')
+                  needed = 'false'
+              except urllib.error.HTTPError as error:
+                  if error.code != 404:
+                      raise
+                  needed = 'true'
+              with open(os.environ['GITHUB_OUTPUT'], 'a') as output_file:
+                  print(f'{output}={needed}', file=output_file)
+          PYTHON
+      - uses: dtolnay/rust-toolchain@7e38f4b43b4db5c8dd498af069a4f6196df1d067 # stable
+        if: steps.versions.outputs.core == 'true' || steps.versions.outputs.cli == 'true'
+        with:
+          toolchain: stable
+      - name: Authenticate for saccade-core
+        if: steps.versions.outputs.core == 'true'
+        id: core-auth
+        uses: rust-lang/crates-io-auth-action@v1.0.5
+      - name: Publish saccade-core
+        if: steps.versions.outputs.core == 'true'
+        env:
+          CARGO_REGISTRY_TOKEN: ${{ steps.core-auth.outputs.token }}
+        run: cargo publish --locked --registry crates-io -p saccade-core
+      - name: Authenticate for saccade
+        if: steps.versions.outputs.cli == 'true'
+        id: cli-auth
+        uses: rust-lang/crates-io-auth-action@v1.0.5
+      - name: Publish saccade
+        if: steps.versions.outputs.cli == 'true'
+        env:
+          CARGO_REGISTRY_TOKEN: ${{ steps.cli-auth.outputs.token }}
+        run: cargo publish --locked --registry crates-io -p saccade
+
+  mcp:
+    name: Publish MCP registry
+    needs: crates
+    if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v')
+    runs-on: ubuntu-latest
+    environment: release
+    timeout-minutes: 10
+    permissions:
+      contents: read
+      id-token: write
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: false
+      - name: Check MCP version against tag
+        env:
+          RELEASE_TAG: ${{ github.ref_name }}
+        run: |
+          python3 - <<'PYTHON'
+          import json, os
+          with open('server.json') as source:
+              server = json.load(source)
+          version = os.environ['RELEASE_TAG'].removeprefix('v')
+          if server['version'] != version:
+              raise SystemExit('::error::server.json version differs from tag; refusing MCP publication')
+          packages = [p for p in server['packages'] if p['registryType'] == 'cargo']
+          if not packages or any(p['identifier'] != 'saccade' or p['version'] != version for p in packages):
+              raise SystemExit('::error::server.json cargo package differs from tagged saccade version')
+          PYTHON
+      - name: Install checksum-verified MCP publisher v1.8.1
+        env:
+          PUBLISHER_SHA256: a06c9096dcb9727c13555b6be26c7effa707b01f06a4c561ba7a3635443cf2cc
+        run: |
+          set -euo pipefail
+          mkdir -p "$RUNNER_TEMP/mcp-publisher"
+          cd "$RUNNER_TEMP/mcp-publisher"
+          curl --fail --silent --show-error --location --retry 3 \
+            https://github.com/modelcontextprotocol/registry/releases/download/v1.8.1/mcp-publisher_linux_amd64.tar.gz \
+            --output publisher.tar.gz
+          printf '%s  publisher.tar.gz\n' "$PUBLISHER_SHA256" | sha256sum --check --strict
+          tar -xzf publisher.tar.gz mcp-publisher
+          echo "$RUNNER_TEMP/mcp-publisher" >> "$GITHUB_PATH"
+      - name: Authenticate and publish MCP manifest
+        run: |
+          set -euo pipefail
+          mcp-publisher login github-oidc
+          mcp-publisher publish server.json
