@@ -65,7 +65,9 @@ carries `request_bytes`, `estimated_input_tokens`, `estimated_output_tokens`,
 
 Strict comparisons and standalone checks use `saccade-arms-check.v1`. An
 `invalid_comparison` has no pixel verdict: exit 3 names undeclared differences or
-readiness violations; exit 4 names missing identity. Successful strict reports
+readiness violations; exit 4 names missing identity. Maps may explicitly treat
+optional field absence as a value; `absent_fields` records absent/absent or
+absent/value states, while present null remains distinct. Successful strict reports
 record explicit exceptions in metadata settings. See [arm validation](arm-validity.md).
 
 ## Identity and bundles

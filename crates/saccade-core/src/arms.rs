@@ -82,10 +82,10 @@ pub struct Finding {
     pub baseline: Option<Value>,
     /// Candidate declaration.
     pub capture: Option<Value>,
-    /// Baseline state: missing, null or value.
+    /// Baseline state: missing, absent (when explicitly a value), null or value.
     #[serde(default)]
     pub baseline_state: String,
-    /// Candidate state: missing, null or value.
+    /// Candidate state: missing, absent (when explicitly a value), null or value.
     #[serde(default)]
     pub capture_state: String,
     /// Stable reason: missing, difference, readiness_not_reached, malformed.
@@ -162,6 +162,9 @@ pub struct Check {
     /// Fields explicitly excluded by the map's outcome globs in either mode.
     #[serde(default)]
     pub outcomes: KeySummary,
+    /// Mapped fields explicitly treating absence as a value, including equal absences.
+    #[serde(default)]
+    pub absent_fields: Vec<Finding>,
     /// Declared variable tokens.
     pub vary: Vec<String>,
 }
@@ -223,6 +226,16 @@ pub enum UnreachedPolicy {
     /// Both false flags and exact matching observations/criteria are required.
     Matched,
 }
+/// Meaning of an absent mapped field; null remains a distinct present value.
+#[derive(Debug, Default, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum AbsencePolicy {
+    /// Missing evidence refuses the comparison (the compatibility default).
+    #[default]
+    Missing,
+    /// Absence is a comparable value: two absences equal, one absence differs.
+    Value,
+}
 /// A source path in a capture or a sibling JSON file.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
@@ -231,6 +244,9 @@ pub struct Source {
     pub file: Option<String>,
     /// Dotted object/array path with zero-based numeric indices; exact flat keys take precedence.
     pub path: String,
+    /// Override the map-level absence policy for this field.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub absent: Option<AbsencePolicy>,
     /// Effective metadata keys computed from this mapped field.
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub derives: Vec<String>,
@@ -259,6 +275,9 @@ pub struct FingerprintMap {
     /// Field selection; all preserves the historical comparison behaviour.
     #[serde(default)]
     pub compare: CompareMode,
+    /// Default policy for absent mapped fields; readiness evidence remains required.
+    #[serde(default)]
+    pub absent: AbsencePolicy,
     /// Globs matching effective metadata keys that are never compared.
     #[serde(default)]
     pub outcomes: Vec<String>,
@@ -360,6 +379,11 @@ impl FingerprintMap {
         }
         let mut names = BTreeSet::new();
         for r in &map.readiness {
+            if r.reached.absent.is_some() || r.observed.absent.is_some() {
+                return Err(Error::Config(
+                    "absent is supported only in field mappings".into(),
+                ));
+            }
             if !r.reached.derives.is_empty() || !r.observed.derives.is_empty() {
                 return Err(Error::Config(
                     "derives is supported only in field mappings".into(),
@@ -698,6 +722,43 @@ fn token_matches(tokens: &[String], key: &str, map: Option<&FingerprintMap>) -> 
     }
     result
 }
+fn absence_policy(map: Option<&FingerprintMap>, key: &str) -> AbsencePolicy {
+    if key.starts_with("run.readiness") {
+        return AbsencePolicy::Missing;
+    }
+    map.and_then(|m| {
+        m.fields
+            .iter()
+            .filter(|(dest, _)| {
+                key == dest.trim_end_matches("[]")
+                    || key.starts_with(&format!("{}.", dest.trim_end_matches("[]")))
+            })
+            .max_by_key(|(dest, _)| dest.len())
+            .map(|(_, source)| source.absent.unwrap_or(m.absent))
+    })
+    .unwrap_or_default()
+}
+fn field_value(meta: &crate::meta::Meta, key: &str) -> Option<Value> {
+    meta.get(key).cloned().or_else(|| {
+        let prefix = format!("{key}.");
+        let fields: serde_json::Map<_, _> = meta
+            .iter()
+            .filter(|(k, _)| k.starts_with(&prefix))
+            .map(|(k, v)| (k[prefix.len()..].to_owned(), v.clone()))
+            .collect();
+        (!fields.is_empty()).then_some(Value::Object(fields))
+    })
+}
+fn mark_absence(f: &mut Finding, map: Option<&FingerprintMap>) {
+    if absence_policy(map, &f.key) == AbsencePolicy::Value {
+        if f.baseline_state == "missing" {
+            f.baseline_state = "absent".into();
+        }
+        if f.capture_state == "missing" {
+            f.capture_state = "absent".into();
+        }
+    }
+}
 fn known(value: Option<&Value>) -> bool {
     value.is_some()
 }
@@ -808,7 +869,44 @@ fn check_mapped(
     let compares = |key: &str| map.is_none_or(|m| m.compares(key, &outcome_globs));
     let mut unmapped = KeySummary::default();
     let mut outcomes = KeySummary::default();
-    // Mapped-only requires every named destination even if absent on both arms.
+    let mut absent_fields = Vec::new();
+    if let Some(map) = map {
+        for dest in map.fields.keys() {
+            let key = dest.trim_end_matches("[]");
+            if !compares(key) || absence_policy(Some(map), key) != AbsencePolicy::Value {
+                continue;
+            }
+            let (av, bv) = (field_value(&a, key), field_value(&b, key));
+            if av.is_none() || bv.is_none() {
+                let mut f = finding(
+                    key,
+                    &a,
+                    &b,
+                    if av == bv {
+                        "equal_absent"
+                    } else {
+                        "difference"
+                    },
+                );
+                f.baseline_state = if av.is_none() {
+                    "absent"
+                } else {
+                    state(av.as_ref())
+                }
+                .into();
+                f.capture_state = if bv.is_none() {
+                    "absent"
+                } else {
+                    state(bv.as_ref())
+                }
+                .into();
+                f.baseline = av;
+                f.capture = bv;
+                absent_fields.push(f);
+            }
+        }
+    }
+    // Mapped-only requires every named destination unless absence is explicitly a value.
     // All retains the historical native identity and union-of-present-keys checks.
     if let Some(map) = map
         && map.compare == CompareMode::MappedOnly
@@ -819,7 +917,10 @@ fn check_mapped(
                 meta.keys()
                     .any(|k| k == key || k.starts_with(&format!("{key}.")))
             };
-            if compares(key) && (!present(&a) || !present(&b)) {
+            if compares(key)
+                && absence_policy(Some(map), key) == AbsencePolicy::Missing
+                && (!present(&a) || !present(&b))
+            {
                 bad.push(finding(key, &a, &b, "missing"));
             }
         }
@@ -832,6 +933,11 @@ fn check_mapped(
         "run.session",
     ] {
         if !compares(key) {
+            continue;
+        }
+        if absence_policy(map, key) == AbsencePolicy::Value
+            && (!a.contains_key(key) || !b.contains_key(key))
+        {
             continue;
         }
         if !known(a.get(key)) || !known(b.get(key)) {
@@ -849,9 +955,11 @@ fn check_mapped(
     for group in ["producer.build", "run.env"] {
         if !compares(group)
             && !map.is_some_and(|m| {
-                m.fields
-                    .keys()
-                    .any(|k| k.starts_with(&format!("{group}.")) && compares(k))
+                m.fields.keys().any(|k| {
+                    k.starts_with(&format!("{group}."))
+                        && compares(k)
+                        && absence_policy(map, k) == AbsencePolicy::Missing
+                })
             })
         {
             continue;
@@ -864,7 +972,7 @@ fn check_mapped(
                 .iter()
                 .any(|(k, v)| k.starts_with(&format!("{group}.")) && known(Some(v)))
         };
-        if !present(&a) || !present(&b) {
+        if (!present(&a) || !present(&b)) && absence_policy(map, group) == AbsencePolicy::Missing {
             bad.push(finding(
                 group,
                 &a,
@@ -975,7 +1083,11 @@ fn check_mapped(
         } else if criteria_differ {
             Some("readiness_criteria_mismatch")
         } else if !known(av) || !known(bv) {
-            Some("missing")
+            Some(if absence_policy(map, key) == AbsencePolicy::Value {
+                "difference"
+            } else {
+                "missing"
+            })
         } else if key.starts_with("run.readiness.")
             && key.ends_with(".criterion")
             && [av, bv].iter().any(|v| {
@@ -1023,13 +1135,15 @@ fn check_mapped(
         }
         if let Some(reason) = reason {
             let mut f = finding(key, &a, &b, reason);
+            mark_absence(&mut f, map);
             if reason == "difference"
                 && key != "fingerprint.schema"
                 && !(key.starts_with("run.readiness.") && key.ends_with(".criterion"))
                 && vary_matches.is_empty()
                 && derived.contains(key)
             {
-                covered_by_derivation.push(finding(key, &a, &b, "covered_by_derivation"));
+                f.reason = "covered_by_derivation".into();
+                covered_by_derivation.push(f);
             } else if reason == "difference"
                 && key != "fingerprint.schema"
                 && key != "run.session"
@@ -1093,6 +1207,7 @@ fn check_mapped(
         compare: map.map_or(CompareMode::All, |m| m.compare),
         unmapped,
         outcomes,
+        absent_fields,
         offending: bad,
         ignore: ignore.to_vec(),
         ignored,
@@ -1233,6 +1348,7 @@ pub fn validate_paths(a: &Path, b: &Path, cfg: &crate::config::RunConfig) -> Res
     for c in checks {
         merged.unmapped.keys.extend(c.unmapped.keys);
         merged.outcomes.keys.extend(c.outcomes.keys);
+        merged.absent_fields.extend(c.absent_fields);
         merged.offending.extend(c.offending);
         merged.ignored.extend(c.ignored);
         merged.covered_by_vary.extend(c.covered_by_vary);
@@ -1244,6 +1360,8 @@ pub fn validate_paths(a: &Path, b: &Path, cfg: &crate::config::RunConfig) -> Res
     if merged.exit_code != 0 {
         merged.result = ComparisonResult::InvalidComparison;
     }
+    merged.absent_fields.sort_by(|a, b| a.key.cmp(&b.key));
+    merged.absent_fields.dedup();
     merged.offending.sort_by(|a, b| a.key.cmp(&b.key));
     merged.offending.dedup();
     merged.ignored.sort_by(|a, b| a.key.cmp(&b.key));
@@ -1743,6 +1861,7 @@ mod field_feedback_tests {
                 Source {
                     file: None,
                     path: "content.hash".into(),
+                    absent: None,
                     derives: vec!["cache_key".into()],
                 },
             );
@@ -1824,6 +1943,7 @@ mod field_feedback_tests {
                 Source {
                     file: Some("setup.json".into()),
                     path: "environment".into(),
+                    absent: None,
                     derives: vec![],
                 },
             );
@@ -1837,11 +1957,13 @@ mod field_feedback_tests {
                 reached: Source {
                     file: None,
                     path: "receiver.ready".into(),
+                    absent: None,
                     derives: vec![],
                 },
                 observed: Source {
                     file: None,
                     path: "receiver.observed".into(),
+                    absent: None,
                     derives: vec![],
                 },
             });
@@ -1902,5 +2024,81 @@ mod field_feedback_tests {
         assert!(c.unmapped.count >= 100);
         assert_eq!(c.unmapped.keys.len(), 64);
         assert!(c.unmapped.truncated);
+    }
+}
+
+#[cfg(test)]
+#[allow(clippy::unwrap_used)]
+mod absence_tests {
+    use super::*;
+    use serde_json::json;
+
+    fn check(map: &FingerprintMap, a: Value, b: Value) -> Check {
+        check_mapped(
+            &mapped(Path::new("."), a, Some(map)).unwrap(),
+            &mapped(Path::new("."), b, Some(map)).unwrap(),
+            &[],
+            &[],
+            Some(map),
+            &[],
+        )
+    }
+    #[test]
+    fn field_and_map_absence_policies_keep_missing_default_and_report_states() {
+        let mut map: FingerprintMap = serde_json::from_value(json!({"compare":"mapped_only","fields":{"run.mode":{"path":"mode"},"run.env.OPTIONAL_FEATURE":{"path":"env.OPTIONAL_FEATURE"}}})).unwrap();
+        let absent = json!({"mode":"fixed","env":{}});
+        let value = json!({"mode":"fixed","env":{"OPTIONAL_FEATURE":"on"}});
+        assert_eq!(check(&map, absent.clone(), absent.clone()).exit_code, 4);
+        map.absent = AbsencePolicy::Value;
+        let equal = check(&map, absent.clone(), absent.clone());
+        assert_eq!(equal.exit_code, 0, "{equal:?}");
+        assert_eq!(equal.absent_fields.len(), 1);
+        assert_eq!(equal.absent_fields[0].baseline_state, "absent");
+        assert_eq!(equal.absent_fields[0].capture_state, "absent");
+        for (a, b, states) in [
+            (absent.clone(), value.clone(), ("absent", "value")),
+            (value, absent.clone(), ("value", "absent")),
+        ] {
+            let diff = check(&map, a, b);
+            assert_eq!(diff.exit_code, 3, "{diff:?}");
+            assert_eq!(diff.offending.len(), 1);
+            assert_eq!(diff.offending[0].reason, "difference");
+            assert_eq!(diff.offending[0].baseline_state, states.0);
+            assert_eq!(diff.offending[0].capture_state, states.1);
+            assert_eq!(diff.absent_fields[0], diff.offending[0]);
+        }
+        map.fields
+            .get_mut("run.env.OPTIONAL_FEATURE")
+            .unwrap()
+            .absent = Some(AbsencePolicy::Missing);
+        assert_eq!(check(&map, absent.clone(), absent.clone()).exit_code, 4);
+        map.absent = AbsencePolicy::Missing;
+        map.fields
+            .get_mut("run.env.OPTIONAL_FEATURE")
+            .unwrap()
+            .absent = Some(AbsencePolicy::Value);
+        assert_eq!(check(&map, absent.clone(), absent).exit_code, 0);
+        let null = json!({"mode":"fixed","env":{"OPTIONAL_FEATURE":null}});
+        let equal = check(&map, null.clone(), null);
+        assert_eq!(equal.exit_code, 0);
+        assert!(equal.absent_fields.is_empty());
+    }
+    #[test]
+    fn optional_objects_are_compared_and_required_readiness_cannot_be_waived() {
+        let map: FingerprintMap=serde_json::from_value(json!({"compare":"mapped_only","absent":"value","fields":{"run.mode":{"path":"mode"},"run.env":{"path":"env"}}})).unwrap();
+        let absent = json!({"mode":"fixed"});
+        assert_eq!(check(&map, absent.clone(), absent.clone()).exit_code, 0);
+        let changed = check(
+            &map,
+            absent,
+            json!({"mode":"fixed","env":{"OPTIONAL_FEATURE":"on"}}),
+        );
+        assert_eq!(changed.exit_code, 3, "{changed:?}");
+        assert_eq!(changed.absent_fields[0].capture_state, "value");
+        let map: FingerprintMap=serde_json::from_value(json!({"compare":"mapped_only","absent":"value","fields":{"run.mode":{"path":"mode"}},"readiness":[{"name":"pipeline_ready","reached":{"path":"ready"},"observed":{"path":"frame"}}]})).unwrap();
+        assert_eq!(
+            check(&map, json!({"mode":"fixed"}), json!({"mode":"fixed"})).exit_code,
+            4
+        );
     }
 }

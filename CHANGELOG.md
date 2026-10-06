@@ -2,6 +2,9 @@
 
 ## 0.2.5
 
+- Add map-level and per-field `absent = "missing"|"value"` policies for optional
+  fingerprint fields, retaining the strict default and reporting absent states.
+
 - Add TOML/JSON GPU telemetry maps via `--gpu-clock-map FILE`, config
   `gpu_clock_map`, and MCP, sharing fingerprint-map dotted paths and array indices.
 - Deprecate automatic `moss.gpu-clock.v2` telemetry ingestion; it remains accepted
