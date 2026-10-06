@@ -168,3 +168,5 @@ pub mod media;
 
 // wave10
 pub mod schema_catalog;
+
+pub mod optional;

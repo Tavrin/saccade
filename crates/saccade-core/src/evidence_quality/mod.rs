@@ -83,3 +83,9 @@ pub fn decode(bytes: &[u8], path: &Path) -> Result<image::DynamicImage> {
 
 #[cfg(test)]
 mod realworld;
+
+// wave10
+pub mod dump;
+pub mod field;
+pub mod maps;
+pub mod repeat_noise;

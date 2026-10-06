@@ -303,6 +303,16 @@ pub fn result_value(
     }
     value["counts"]["validity_reasons"] = json!(validity.reasons.len());
     value["scope"] = json!({"entries":report.config.entries,"ignore":report.config.ignore});
+    let scopes = report
+        .entries
+        .iter()
+        .filter_map(|e| e.field_evidence.as_ref().map(|f| f.scope.as_str()))
+        .collect::<std::collections::BTreeSet<_>>();
+    value["scope"]["kind"] = json!(if scopes.len() == 1 {
+        scopes.first().copied().unwrap_or("unknown")
+    } else {
+        "mixed"
+    });
     value["counts"] = json!({"total":report.totals.total,"pass":report.totals.pass,"fail":report.totals.fail,"error":report.totals.error,"missing":report.totals.missing,"new":report.totals.new});
     value["counts"]["validity_reasons"] = json!(validity.reasons.len());
     let local_changes = report

@@ -1,5 +1,15 @@
 # Changelog
 
+## Unreleased
+
+- Embed schema discovery and performance-sidecar validation for installed producers.
+- Distinguish null fingerprint values from absent fields; record ignored states,
+  exact matched-unreached exceptions, and ordered run-record selection.
+- Attribute shifts per ID, flag whole-frame scope, accept generic screen-space dumps,
+  export float32 NumPy/EXR maps, and estimate noise envelopes from same-arm repeats.
+- Expose Python version and NumPy maps; inventory optional dependencies in doctor
+  with early missing-dependency hints.
+
 All notable changes to this project are documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),

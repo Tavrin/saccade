@@ -32,14 +32,51 @@
       ],
       "type": "object"
     },
+    "AllowedUnreached": {
+      "description": "An explicit readiness exception; it never claims convergence.",
+      "properties": {
+        "baseline_observed": {
+          "description": "Baseline observation, retained even when null."
+        },
+        "capture_observed": {
+          "description": "Candidate observation."
+        },
+        "criterion": {
+          "description": "Exact criterion name.",
+          "type": "string"
+        }
+      },
+      "required": [
+        "criterion",
+        "baseline_observed",
+        "capture_observed"
+      ],
+      "type": "object"
+    },
     "Check": {
       "description": "Validity only; this result never contains a pixel pass/fail verdict.",
       "properties": {
+        "allowed_unreached": {
+          "default": [],
+          "description": "Explicitly permitted matched unreached predicates with both observations.",
+          "items": {
+            "$ref": "#/$defs/AllowedUnreached"
+          },
+          "type": "array"
+        },
         "covered_by_derivation": {
           "default": [],
           "description": "Differences covered by explicit field derivations, with both values.",
           "items": {
             "$ref": "#/$defs/Finding"
+          },
+          "type": "array"
+        },
+        "diagnostics": {
+          "default": [],
+          "description": "Record discovery diagnostics, including exact searched filenames.",
+          "items": {
+            "type": "string"
           },
           "type": "array"
         },
@@ -58,7 +95,7 @@
           "type": "array"
         },
         "ignored": {
-          "description": "Ignored differences (missing identity is never ignored).",
+          "description": "Explicitly waived findings, including missing fields and equal nulls.",
           "items": {
             "$ref": "#/$defs/Finding"
           },
@@ -114,13 +151,23 @@
       ]
     },
     "Finding": {
-      "description": "A recorded field finding, with unknown values represented by null.",
+      "description": "A recorded field finding; explicit states distinguish null from absence.",
       "properties": {
         "baseline": {
           "description": "Baseline declaration."
         },
+        "baseline_state": {
+          "default": "",
+          "description": "Baseline state: missing, null or value.",
+          "type": "string"
+        },
         "capture": {
           "description": "Candidate declaration."
+        },
+        "capture_state": {
+          "default": "",
+          "description": "Candidate state: missing, null or value.",
+          "type": "string"
         },
         "key": {
           "description": "Canonical metadata path.",

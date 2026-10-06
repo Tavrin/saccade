@@ -263,6 +263,7 @@ pub(crate) fn fill_pair(
     capture: &Path,
     out: &Path,
     spec: &BufferSpec,
+    field_policy: &crate::evidence_quality::field::Policy,
 ) -> Result<()> {
     spec.validate()?;
     let (b, c) = (decode(baseline, spec)?, decode(capture, spec)?);
@@ -320,6 +321,7 @@ pub(crate) fn fill_pair(
         vec![true; w as usize * h as usize]
     };
     let mut relative = Vec::new();
+    let mut signed = Vec::new();
     let mut changed = None;
     let errors: Vec<f32> = if matches!(spec.kind, BufferKind::Mask | BufferKind::Id) {
         if b.color() != c.color() {
@@ -365,6 +367,7 @@ pub(crate) fn fill_pair(
                                 "depth buffer contains non-finite samples".into(),
                             ));
                         }
+                        signed.push(c - b);
                         let abs = (c - b).abs();
                         relative.push(abs / b.abs().max(1e-12));
                         abs
@@ -402,6 +405,78 @@ pub(crate) fn fill_pair(
             })
             .collect::<Result<_>>()?
     };
+    if signed.is_empty() {
+        signed = errors.iter().map(|v| f64::from(*v)).collect();
+    }
+    use crate::evidence_quality::{field, maps};
+    let ids = layer_pair
+        .as_ref()
+        .map(|(b, c)| {
+            Ok::<_, Error>((
+                crate::evidence_quality::layers::id_layer(b)?,
+                crate::evidence_quality::layers::id_layer(c)?,
+            ))
+        })
+        .transpose()?;
+    let masked = selected.iter().any(|v| !*v);
+    let excluded: Vec<_> = selected.iter().map(|v| !*v).collect();
+    let id_pair = match ids {
+        Some((Some(b), Some(c))) => Some((b, c)),
+        None | Some((None, None)) => None,
+        _ => return Err(Error::Config("ID layer absent on one buffer arm".into())),
+    };
+    let scope = field::scope(id_pair.is_some(), masked);
+    if field_policy.require_scope && scope == "whole_frame_unmasked" {
+        return Err(Error::Config(
+            "render evidence requires buffer ID/mask scope".into(),
+        ));
+    }
+    let unit = match spec.kind {
+        BufferKind::Depth => "depth",
+        BufferKind::Normal => "degrees",
+        BufferKind::Motion => "pixels",
+        BufferKind::Id | BufferKind::Mask => "changed_fraction",
+    };
+    let mut field_result = field::Report {
+        class: if identical {
+            "identical"
+        } else {
+            "local_structure"
+        }
+        .into(),
+        scope: scope.into(),
+        per_id: Vec::new(),
+        ids_measured: 0,
+        provenance: Vec::new(),
+        maps: None,
+        noise: None,
+    };
+    if let Some((bl, cl)) = &id_pair {
+        let (rows, count, mean_over_threshold) = field::attribute(
+            bl,
+            cl,
+            (w, h),
+            &signed,
+            if relative.is_empty() {
+                None
+            } else {
+                Some(&relative)
+            },
+            Some(&excluded),
+            unit,
+            spec.threshold(),
+            field_policy.top,
+        )?;
+        field_result.per_id = rows;
+        field_result.ids_measured = count;
+        field_result.provenance = vec![bl.provenance.clone(), cl.provenance.clone()];
+        if mean_over_threshold {
+            field_result.class = "systematic_shift".into();
+        }
+    }
+    if !field_policy.noise_from.is_empty() {
+        return Err(Error::Config("repeat noise requires colour captures; native buffer noise is not inferred from display pixels".into()));
+    }
     let kept: Vec<_> = errors
         .iter()
         .zip(&selected)
@@ -440,6 +515,32 @@ pub(crate) fn fill_pair(
     cmp.heatmap_rgb()
         .save(&path)
         .map_err(|source| Error::Encode { path, source })?;
+    field::crops(
+        &mut field_result.per_id,
+        &b.to_rgba8(),
+        &c.to_rgba8(),
+        &cmp.error_map,
+        out,
+        &entry.name,
+    )?;
+    if field_policy.export_maps {
+        let values = errors
+            .iter()
+            .zip(&selected)
+            .map(|(v, selected)| if *selected { *v } else { f32::NAN })
+            .collect();
+        field_result.maps = Some(maps::write(
+            &[maps::Map {
+                name: "native_error".into(),
+                dimensions: [w, h],
+                unit: unit.into(),
+                values,
+            }],
+            out,
+            &entry.name,
+        )?);
+    }
+    entry.field_evidence = Some(field_result);
     entry.metric_used = spec.metric;
     entry.threshold = spec.threshold();
     entry.value = Some(value);
@@ -483,6 +584,7 @@ pub(crate) fn fill_pair(
     _capture: &Path,
     _out: &Path,
     _spec: &BufferSpec,
+    _field_policy: &crate::evidence_quality::field::Policy,
 ) -> Result<()> {
     Err(Error::FeatureUnavailable {
         feature: "graphics",

@@ -73,3 +73,21 @@ The package ships `.pyi` stubs and `py.typed`.
 
 `Index.query` returns `saccade-media-index-query.v1` with compact `hits`;
 standalone CLI query evidence retains `saccade-embedding-query.v1`.
+
+## Version and native maps
+
+`saccade.__version__` matches the distribution version. NumPy is a declared
+runtime dependency for the array API; no external FLIP package is needed.
+
+```python
+import saccade
+maps = saccade.compare_maps("reference.png", "candidate.png", tile_size=32)
+print(saccade.__version__, maps["flip"].shape)
+print(maps["tile_signed_shift"])
+```
+
+Maps are independent float32 NumPy arrays. FLIP is `[height,width]`; tile statistics
+have the actual tile-grid shape. This SDR pair API accepts paths or encoded bytes,
+imports NumPy before input work, and releases the GIL during native comparison.
+`compare --export-maps` provides the same maps as `.npy`/float32 `.exr` with a
+versioned JSON index. See [rendering evidence](render-evidence.md) for units and limits.

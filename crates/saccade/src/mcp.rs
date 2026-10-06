@@ -69,6 +69,8 @@ fn measurement_schemas() -> Value {
             "fingerprint_map":{"type":"string"},
             "arm_ignore":{"type":"array","items":{"type":"string"}},
             "allow_unreached":{"type":"array","items":{"type":"string"}},
+            "export_maps":{"type":"boolean"},"require_scope":{"type":"boolean"},"render_evidence":{"type":"boolean"},
+            "noise_from":{"type":"array","minItems":2,"maxItems":32,"items":{"type":"string"}},"mask_dump":{"type":"string"},"id_top":{"type":"integer","minimum":0,"maximum":32},"id_threshold":{"type":"number","minimum":0},
             "fixed_camera":{"type":"boolean"},
             "fail_on_new":{"type":"boolean","default":true},
             "allow_empty":{"type":"boolean","default":false},
@@ -150,6 +152,8 @@ fn measurement_schemas() -> Value {
                 "intended_variables":{"type":"array","items":{"type":"string"}},
                 "arm_ignore":{"type":"array","items":{"type":"string"}},
             "allow_unreached":{"type":"array","items":{"type":"string"}},
+            "export_maps":{"type":"boolean"},"require_scope":{"type":"boolean"},"render_evidence":{"type":"boolean"},
+            "noise_from":{"type":"array","minItems":2,"maxItems":32,"items":{"type":"string"}},"mask_dump":{"type":"string"},"id_top":{"type":"integer","minimum":0,"maximum":32},"id_threshold":{"type":"number","minimum":0},
                 "top":{"type":"integer","minimum":0,"default":5},
                 "perf_name":{"type":"string"}, "perf_noise":{"type":"string"},
                 "perf_noise_k":{"type":"number","exclusiveMinimum":0,"default":3},
@@ -306,6 +310,13 @@ const RUN_ARGS: &[&str] = &[
     "fingerprint_map",
     "arm_ignore",
     "allow_unreached",
+    "export_maps",
+    "require_scope",
+    "render_evidence",
+    "noise_from",
+    "mask_dump",
+    "id_top",
+    "id_threshold",
     "fixed_camera",
     "fail_on_new",
     "allow_empty",
@@ -380,6 +391,35 @@ fn apply_run_args(args: &Map<String, Value>, cfg: &mut RunConfig) -> Result<(), 
     cfg.meta
         .allow_unreached
         .extend(arg_strings(args, "allow_unreached")?);
+    let field = crate::wave10_cmd::CompareArgs {
+        export_maps: arg_bool(args, "export_maps")?.unwrap_or(false),
+        require_scope: arg_bool(args, "require_scope")?.unwrap_or(false),
+        noise_from: arg_strings(args, "noise_from")?
+            .into_iter()
+            .map(PathBuf::from)
+            .collect(),
+        mask_dump: arg_str(args, "mask_dump")?,
+        id_top: args
+            .get("id_top")
+            .map(|v| {
+                v.as_u64()
+                    .map(|n| n as usize)
+                    .ok_or_else(|| CliError::usage("id_top requires an unsigned integer"))
+            })
+            .transpose()?,
+        id_threshold: args
+            .get("id_threshold")
+            .map(|v| {
+                v.as_f64()
+                    .ok_or_else(|| CliError::usage("id_threshold requires a number"))
+            })
+            .transpose()?,
+    };
+    field.apply(cfg)?;
+    if arg_bool(args, "render_evidence")?.unwrap_or(false) && cfg.buffers.is_empty() {
+        cfg.spatial.get_or_insert_with(Default::default).decide = true;
+    }
+
     cfg.meta.required |= required;
     cfg.meta.declared.extend(declared);
     cfg.entries = arg_strings(args, "entries")?;
@@ -611,6 +651,9 @@ impl Server {
                 .read(path)
                 .map_err(|e| CliError::new("unsafe_path", e.to_string()))?;
         }
+        for repeat in &cfg.field.noise_from {
+            self.input_tree(&self.policy.read(repeat)?)?;
+        }
         if let Some(path) = &cfg.meta.fingerprint_map {
             self.policy.read(path)?;
         }
@@ -712,6 +755,9 @@ impl Server {
         self.validate_config(cfg)?;
         self.input_tree(baseline)?;
         self.input_tree(capture)?;
+        for repeat in &cfg.field.noise_from {
+            self.input_tree(&self.policy.read(repeat)?)?;
+        }
         if let Some(path) = &cfg.meta.fingerprint_map {
             crate::arms_mcp::validate_map(&self.policy, path, &[baseline, capture])?;
         }
@@ -825,7 +871,13 @@ impl Server {
                 "intended_variables",
                 "arm_ignore",
                 "allow_unreached",
-                "allow_unreached",
+                "export_maps",
+                "require_scope",
+                "render_evidence",
+                "noise_from",
+                "mask_dump",
+                "id_top",
+                "id_threshold",
             ],
         )?;
         let base = self.existing_dir("base_dir", &require_str(args, "base_dir")?)?;
@@ -839,6 +891,12 @@ impl Server {
             None => RunConfig::default(),
         };
         apply_run_args(args, &mut cfg)?;
+        cfg.field.noise_from = cfg
+            .field
+            .noise_from
+            .iter()
+            .map(|p| self.policy.read(p))
+            .collect::<Result<Vec<_>, _>>()?;
         if let Some(map) = cfg.meta.fingerprint_map.as_mut() {
             *map = self.policy.read(map)?;
         }
@@ -889,6 +947,12 @@ impl Server {
             }
         };
         apply_run_args(args, &mut cfg)?;
+        cfg.field.noise_from = cfg
+            .field
+            .noise_from
+            .iter()
+            .map(|p| self.policy.read(p))
+            .collect::<Result<Vec<_>, _>>()?;
         if let Some(map) = cfg.meta.fingerprint_map.as_mut() {
             *map = self.policy.read(map)?;
         }
@@ -913,6 +977,12 @@ impl Server {
         let mut run_args = args.clone();
         run_args.remove("labels");
         apply_run_args(&run_args, &mut cfg)?;
+        cfg.field.noise_from = cfg
+            .field
+            .noise_from
+            .iter()
+            .map(|p| self.policy.read(p))
+            .collect::<Result<Vec<_>, _>>()?;
         if let Some(map) = cfg.meta.fingerprint_map.as_mut() {
             *map = self.policy.read(map)?;
         }
@@ -1037,6 +1107,12 @@ impl Server {
             ..RunConfig::default()
         };
         apply_run_args(args, &mut cfg)?;
+        cfg.field.noise_from = cfg
+            .field
+            .noise_from
+            .iter()
+            .map(|p| self.policy.read(p))
+            .collect::<Result<Vec<_>, _>>()?;
         if let Some(map) = cfg.meta.fingerprint_map.as_mut() {
             *map = self.policy.read(map)?;
         }
@@ -1157,6 +1233,20 @@ impl Server {
                         images: vec![],
                     },
                 ),
+            );
+        }
+        // wave10
+        if args
+            .get("operation")
+            .and_then(Value::as_str)
+            .is_some_and(|op| crate::wave10_mcp::handles(name, op))
+        {
+            return Some(
+                crate::wave10_mcp::call(&self.policy, args).map(|structured| ToolOutput {
+                    structured,
+                    text: "Embedded schema or empirical repeat noise evidence.".into(),
+                    images: vec![],
+                }),
             );
         }
         // wave9
@@ -2430,6 +2520,8 @@ fn tool_schemas() -> Value {
     // wave9
     measures.push(crate::arms_mcp::schema());
     measures.extend(crate::wave9_mcp::schemas());
+    // wave10
+    measures.extend(crate::wave10_mcp::schemas());
     // wave8
     measures.push(crate::media_cmd::mcp_schema());
     let common = json!({"artifact":{"oneOf":[{"type":"string"},{"type":"object","properties":{"path":{"type":"string"},"sha256":{"type":"string","pattern":"^sha256:[0-9a-f]{64}$"}},"required":["path","sha256"],"additionalProperties":false}]},"out":{"type":"string"},"entry":{"type":"string"},"include_images":{"type":"boolean","default":false},"expected_case_id":{"type":"string","pattern":"^sha256:[0-9a-f]{64}$"}});

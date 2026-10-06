@@ -83,6 +83,23 @@ pub fn default_contract() -> Result<Contract> {
 fn ort_error(_: ort::Error) -> Error {
     Error::Config("PP-OCRv5 ONNX runtime operation failed".into())
 }
+/// Check optional runtime/artifact availability before input work. Explicit downloads
+/// are performed by loading/inference, never by this discovery-only preflight.
+#[cfg(feature = "ocr")]
+pub fn preflight(c: &Contract, cache: &Path, download: bool) -> Result<()> {
+    validate(c)?;
+    let library = crate::wave7::runtime_install::resolve(None, cache)
+        .map_err(|e| Error::Config(e.to_string()))?;
+    crate::optional::require_library(&library)?;
+    if !download {
+        for a in [&c.detection, &c.recognition, &c.dictionary] {
+            if !semantic::artifact_path(cache, a)?.is_file() {
+                return Err(Error::Config("optional OCR artifact missing; fix: saccade text A B --download-model (add --ocr-contract FILE for a custom contract)".into()));
+            }
+        }
+    }
+    Ok(())
+}
 /// Reusable detector and recognizer sessions, one CPU thread each.
 #[cfg(feature = "ocr")]
 pub struct Engine {
@@ -106,11 +123,18 @@ impl Engine {
     /// Verify every pin before loading any graph; resolve the existing runtime cache or ORT_DYLIB_PATH.
     pub fn load(c: &Contract, cache: &Path, download: bool) -> Result<Self> {
         validate(c)?;
+        let library = crate::wave7::runtime_install::resolve(None, cache)
+            .map_err(|e| Error::Config(e.to_string()))?;
+        crate::optional::require_library(&library)?;
         if download {
             semantic::cache_models(&manifest(c), cache)?;
         }
         let verify = |a: &semantic::ModelArtifact| -> Result<Vec<u8>> {
-            let b = super::input::bytes(&semantic::artifact_path(cache, a)?, a.bytes)?;
+            let path = semantic::artifact_path(cache, a)?;
+            if !path.is_file() {
+                return Err(Error::Config("optional OCR artifact missing; fix: saccade text A B --download-model (add --ocr-contract FILE for a custom contract)".into()));
+            }
+            let b = super::input::bytes(&path, a.bytes)?;
             if b.len() as u64 != a.bytes || crate::localized::digest(&b) != a.sha256 {
                 return Err(Error::Config("OCR model hash/size mismatch".into()));
             }
@@ -138,8 +162,7 @@ impl Engine {
             dictionary.push(char.into());
         }
         dictionary.push(" ".into()); // official CTC blank=0 and use_space_char=true; duplicates retain their indices.
-        let library = crate::wave7::runtime_install::resolve(None, cache)
-            .map_err(|e| Error::Config(e.to_string()))?;
+
         std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| -> Result<Self> {
             ort::init_from(library.display().to_string())
                 .commit()

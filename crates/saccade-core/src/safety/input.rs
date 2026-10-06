@@ -57,6 +57,7 @@ pub(crate) fn load(path: &Path, fps: Option<f64>) -> Result<Input> {
                 "safety input must be a numbered frame directory or mp4/mov/mkv video".into(),
             ));
         }
+        crate::optional::require_binaries(&["ffmpeg", "ffprobe"])?;
         let installed = Command::new("ffmpeg")
             .arg("-version")
             .stdin(Stdio::null())

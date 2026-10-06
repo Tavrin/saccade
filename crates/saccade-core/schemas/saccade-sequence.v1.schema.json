@@ -591,6 +591,51 @@
       ],
       "type": "object"
     },
+    "Decision": {
+      "description": "Pair result relative to an empirical noise floor.",
+      "properties": {
+        "beyond_tiles": {
+          "description": "Tile indexes above either empirical envelope.",
+          "items": {
+            "format": "uint",
+            "minimum": 0,
+            "type": "integer"
+          },
+          "type": "array"
+        },
+        "class": {
+          "description": "texture_noise_only or systematic_shift.",
+          "type": "string"
+        },
+        "floor": {
+          "$ref": "#/$defs/Floor",
+          "description": "Exact repeat-derived floor, including source identities and method limits."
+        },
+        "method": {
+          "description": "Method and fixed quantization tolerance.",
+          "type": "string"
+        },
+        "rms": {
+          "description": "Global RMS difference.",
+          "format": "double",
+          "type": "number"
+        },
+        "signed_mean": {
+          "description": "Pairwise global signed luminance shift.",
+          "format": "double",
+          "type": "number"
+        }
+      },
+      "required": [
+        "class",
+        "floor",
+        "signed_mean",
+        "rms",
+        "beyond_tiles",
+        "method"
+      ],
+      "type": "object"
+    },
     "Diagnostics": {
       "description": "What the diagnostics engine found for one compared pair.",
       "properties": {
@@ -889,6 +934,17 @@
             "string",
             "null"
           ]
+        },
+        "field_evidence": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Report2"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "Scope, per-ID numerical shifts, repeat floor and exported map index."
         },
         "file_bytes_identical": {
           "default": null,
@@ -1300,6 +1356,61 @@
         }
       ]
     },
+    "Floor": {
+      "description": "Noise envelope for one capture name.",
+      "properties": {
+        "dimensions": {
+          "description": "Width/height.",
+          "items": {
+            "format": "uint32",
+            "minimum": 0,
+            "type": "integer"
+          },
+          "maxItems": 2,
+          "minItems": 2,
+          "type": "array"
+        },
+        "global_mean_limit": {
+          "description": "Maximum pairwise global signed-mean magnitude.",
+          "format": "double",
+          "type": "number"
+        },
+        "global_rms_limit": {
+          "description": "Maximum pairwise global RMS.",
+          "format": "double",
+          "type": "number"
+        },
+        "repeat_sha256": {
+          "description": "Repeat content identities in declared order.",
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "tile_size": {
+          "description": "Tile width/height.",
+          "format": "uint32",
+          "minimum": 0,
+          "type": "integer"
+        },
+        "tiles": {
+          "description": "Tile envelopes.",
+          "items": {
+            "$ref": "#/$defs/Tile2"
+          },
+          "type": "array"
+        }
+      },
+      "required": [
+        "repeat_sha256",
+        "dimensions",
+        "tile_size",
+        "global_mean_limit",
+        "global_rms_limit",
+        "tiles"
+      ],
+      "type": "object"
+    },
     "GalleryRegion": {
       "description": "Automatic gallery region with its artifact links and local statistics.",
       "properties": {
@@ -1557,6 +1668,85 @@
         "name",
         "error_share",
         "pixels"
+      ],
+      "type": "object"
+    },
+    "IdShift": {
+      "description": "One ID, ranked by its total absolute-difference contribution.",
+      "properties": {
+        "contribution": {
+          "description": "Sum absolute error, split equally for pixels that switch IDs.",
+          "format": "double",
+          "type": "number"
+        },
+        "contribution_share": {
+          "description": "Contribution divided by total scoped error, including omitted IDs.",
+          "format": "double",
+          "type": "number"
+        },
+        "crop": {
+          "description": "Portable base | candidate | error crop strip, if generated.",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "id": {
+          "description": "Native object/material/instance label.",
+          "format": "uint32",
+          "minimum": 0,
+          "type": "integer"
+        },
+        "name": {
+          "description": "Supplied name or numeric label.",
+          "type": "string"
+        },
+        "pixels": {
+          "description": "Included pixels in this ID's baseline/candidate footprint union.",
+          "format": "uint64",
+          "minimum": 0,
+          "type": "integer"
+        },
+        "rect_px": {
+          "description": "Bounding box of those included samples.",
+          "items": {
+            "format": "uint32",
+            "minimum": 0,
+            "type": "integer"
+          },
+          "maxItems": 4,
+          "minItems": 4,
+          "type": "array"
+        },
+        "relative": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Statistics"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "Depth relative difference, denominator max(abs(baseline),1e-12)."
+        },
+        "shift": {
+          "$ref": "#/$defs/Statistics",
+          "description": "Primary shift statistics (angular statistics for normal buffers)."
+        },
+        "unit": {
+          "description": "Luminance, depth, degrees, pixels or changed_fraction.",
+          "type": "string"
+        }
+      },
+      "required": [
+        "id",
+        "name",
+        "pixels",
+        "rect_px",
+        "unit",
+        "shift",
+        "contribution",
+        "contribution_share"
       ],
       "type": "object"
     },
@@ -2306,6 +2496,14 @@
           "description": "Decompose additive RGB layers into final-image delta plus residual.",
           "type": "boolean"
         },
+        "dump": {
+          "default": null,
+          "description": "Generic screen-space dump relative to the capture parent, used if no ID manifest exists.",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
         "manifest": {
           "default": null,
           "description": "Optional sidecar filename in each image parent; otherwise <filename>.layers.json.",
@@ -2815,6 +3013,65 @@
         "regions",
         "motion",
         "limits"
+      ],
+      "type": "object"
+    },
+    "Report2": {
+      "description": "Additive field evidence in ordinary comparison verdicts.",
+      "properties": {
+        "class": {
+          "description": "Structural/numerical class; the deciding metric remains independently recorded.",
+          "type": "string"
+        },
+        "ids_measured": {
+          "description": "Total IDs measured before top-N truncation.",
+          "format": "uint",
+          "minimum": 0,
+          "type": "integer"
+        },
+        "maps": {
+          "description": "Numeric map JSON index relative to the bundle.",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "noise": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Decision"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "Repeat-derived noise decision when requested."
+        },
+        "per_id": {
+          "description": "Unit-specific ID summaries; truncation is recorded.",
+          "items": {
+            "$ref": "#/$defs/IdShift"
+          },
+          "type": "array"
+        },
+        "provenance": {
+          "description": "Membership source; dump-derived layers explicitly have lower confidence.",
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "scope": {
+          "description": "Explicit scope: whole_frame_unmasked, masked, id_layer or id_layer_masked.",
+          "type": "string"
+        }
+      },
+      "required": [
+        "class",
+        "scope",
+        "per_id",
+        "ids_measured",
+        "provenance"
       ],
       "type": "object"
     },
@@ -3343,7 +3600,7 @@
         "tiles": {
           "description": "Regular row-major grid.",
           "items": {
-            "$ref": "#/$defs/Tile2"
+            "$ref": "#/$defs/Tile3"
           },
           "type": "array"
         }
@@ -3359,6 +3616,44 @@
         "absolute_shifted_share",
         "relative_shifted_share",
         "limits"
+      ],
+      "type": "object"
+    },
+    "Statistics": {
+      "description": "Signed and unsigned statistics over one ID's actual included samples.",
+      "properties": {
+        "mean_absolute": {
+          "description": "Mean absolute difference in the declared unit.",
+          "format": "double",
+          "type": "number"
+        },
+        "p95": {
+          "description": "Nearest-rank p95 absolute difference.",
+          "format": "double",
+          "type": "number"
+        },
+        "share_over_threshold": {
+          "description": "Fraction strictly over threshold, in [0,1].",
+          "format": "double",
+          "type": "number"
+        },
+        "signed_mean_shift": {
+          "description": "Candidate minus baseline mean (angular differences use nonnegative angles).",
+          "format": "double",
+          "type": "number"
+        },
+        "threshold": {
+          "description": "Declared per-pixel difference threshold.",
+          "format": "double",
+          "type": "number"
+        }
+      },
+      "required": [
+        "signed_mean_shift",
+        "mean_absolute",
+        "p95",
+        "threshold",
+        "share_over_threshold"
       ],
       "type": "object"
     },
@@ -3525,6 +3820,45 @@
       "type": "object"
     },
     "Tile2": {
+      "description": "Numerical differences: normalized sRGB signed luminance and RGB RMS over black.",
+      "properties": {
+        "mean_limit": {
+          "description": "Maximum pairwise absolute signed mean.",
+          "format": "double",
+          "type": "number"
+        },
+        "pixels": {
+          "description": "Included pixels.",
+          "format": "uint64",
+          "minimum": 0,
+          "type": "integer"
+        },
+        "rect_px": {
+          "description": "Pixel footprint.",
+          "items": {
+            "format": "uint32",
+            "minimum": 0,
+            "type": "integer"
+          },
+          "maxItems": 4,
+          "minItems": 4,
+          "type": "array"
+        },
+        "rms_limit": {
+          "description": "Maximum pairwise root mean squared difference.",
+          "format": "double",
+          "type": "number"
+        }
+      },
+      "required": [
+        "rect_px",
+        "pixels",
+        "mean_limit",
+        "rms_limit"
+      ],
+      "type": "object"
+    },
+    "Tile3": {
       "description": "One tile, including signed effects that max FLIP obscures.",
       "properties": {
         "absolute_shifted": {
@@ -3823,6 +4157,11 @@
           "default": {},
           "description": "Bundled exact layer bytes, keyed by layer name.",
           "type": "object"
+        },
+        "provenance": {
+          "default": "",
+          "description": "Actual ID buffer or derived-from-dump source, with confidence.",
+          "type": "string"
         }
       },
       "required": [

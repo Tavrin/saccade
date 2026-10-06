@@ -305,6 +305,9 @@ pub enum Metric {
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct Entry {
+    /// Scope, per-ID numerical shifts, repeat floor and exported map index.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub field_evidence: Option<crate::evidence_quality::field::Report>,
     /// Source-bound layer selection and additive component decomposition.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub layers: Option<crate::evidence_quality::layers::LayerResult>,

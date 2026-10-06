@@ -882,6 +882,7 @@ pub(crate) fn build_entry(
         covered_by_derivation: Vec::new(),
         spatial: None,
         gallery: Vec::new(),
+        field_evidence: None,
         layers: None,
         required_effects: Vec::new(),
         name: name.to_string(),
@@ -994,7 +995,7 @@ fn fill_entry(
                 if spec.capture_layers.is_none() {
                     spec.capture_layers = config.layers.clone();
                 }
-                crate::buffer::fill_pair(entry, b, c, report_dir, &spec)?;
+                crate::buffer::fill_pair(entry, b, c, report_dir, &spec, &config.field)?;
             }
             (None, Some(Source::File(c))) => {
                 crate::buffer::decode(c, spec)?;
@@ -1429,9 +1430,6 @@ fn apply_quality(
     report_dir: &Path,
     config: &RunConfig,
 ) -> Result<()> {
-    if config.spatial.is_none() && config.required_effect.is_empty() {
-        return Ok(());
-    }
     let base_display;
     let cap_display;
     let base_img = match &pair.baseline {
@@ -1548,6 +1546,145 @@ fn apply_quality(
         }
         entry.required_effects.push(result);
     }
+    use crate::evidence_quality::{field, maps, repeat_noise};
+    let excluded =
+        crate::regions::effective_mask(&entry.name, base_img.width(), base_img.height(), config)?;
+    let mut ids = config.field_ids.clone();
+    if ids.is_none()
+        && let Some(source) = entry.object_attribution.first()
+    {
+        let image = crate::evidence_quality::image(&report_dir.join(&source.image_path))?;
+        let values = field::ids(&image)?;
+        let layer = field::IdLayer {
+            values,
+            names: Default::default(),
+            provenance: format!(
+                "candidate {} ID buffer, sha256 {}; candidate footprint used on both arms",
+                source.kind, source.image_sha256
+            ),
+        };
+        ids = Some((layer.clone(), layer));
+    }
+    let masked = excluded.as_ref().is_some_and(|m| m.iter().any(|v| *v));
+    let scope = field::scope(ids.is_some(), masked);
+    if config.field.require_scope && scope == "whole_frame_unmasked" {
+        return Err(Error::Config(
+            "render evidence requires scope: supply an ID layer, mask or generic instance dump"
+                .into(),
+        ));
+    }
+    let mut result = field::Report {
+        class: entry
+            .spatial
+            .as_ref()
+            .map_or_else(
+                || {
+                    entry
+                        .diagnostics
+                        .as_ref()
+                        .map_or("unclassified", |d| d.class.as_str())
+                },
+                |s| s.class.as_str(),
+            )
+            .into(),
+        scope: scope.into(),
+        per_id: Vec::new(),
+        ids_measured: 0,
+        provenance: Vec::new(),
+        maps: None,
+        noise: None,
+    };
+    if let Some((b, c)) = &ids {
+        let lb = crate::evidence_quality::spatial::rgb(base_img);
+        let lc = crate::evidence_quality::spatial::rgb(cap_img);
+        let signed: Vec<_> = lb
+            .iter()
+            .zip(lc)
+            .map(|(b, c)| {
+                crate::evidence_quality::spatial::luminance(c)
+                    - crate::evidence_quality::spatial::luminance(*b)
+            })
+            .collect();
+        let (rows, count, _) = field::attribute(
+            b,
+            c,
+            base_img.dimensions(),
+            &signed,
+            None,
+            excluded.as_deref(),
+            "normalized_srgb_luminance",
+            config.field.threshold,
+            config.field.top,
+        )?;
+        result.per_id = rows;
+        result.ids_measured = count;
+        result.provenance = vec![b.provenance.clone(), c.provenance.clone()];
+        field::crops(
+            &mut result.per_id,
+            base_img,
+            cap_img,
+            errors,
+            report_dir,
+            &entry.name,
+        )?;
+    }
+    if config.field.export_maps {
+        result.maps = Some(maps::write(
+            &maps::collect(
+                errors,
+                base_img.dimensions(),
+                excluded.as_deref(),
+                entry.spatial.as_ref(),
+            )?,
+            report_dir,
+            &entry.name,
+        )?);
+    }
+    if !config.field.noise_from.is_empty() {
+        if entry.hdr.is_some() {
+            return Err(Error::Config("repeat noise currently requires SDR captures; HDR noise must retain native radiance".into()));
+        }
+        let paths = repeat_noise::paths(&config.field.noise_from, &entry.name)?;
+        for path in &paths {
+            crate::arms::enforce(pair.baseline_path, path, config)?;
+        }
+        let floor = repeat_noise::build(
+            &paths,
+            config.spatial.as_ref().map_or(32, |s| s.tile_size),
+            excluded.as_deref(),
+        )?;
+        let decision = repeat_noise::decide(base_img, cap_img, floor, excluded.as_deref())?;
+        result.class = decision.class.clone();
+        if config.mode != Mode::Identity && config.spatial.as_ref().is_some_and(|p| p.decide) {
+            entry.status = if decision.class == "texture_noise_only"
+                && !config
+                    .hotspot_fail
+                    .is_some_and(|limit| entry.metrics.as_ref().is_some_and(|m| m.max >= limit))
+                && entry.required_effects.iter().all(|e| e.failures.is_empty())
+                && entry.regions.iter().all(|r| r.status != Some(Status::Fail))
+            {
+                Status::Pass
+            } else {
+                Status::Fail
+            };
+            if let Some(s) = &mut entry.spatial {
+                s.class = if decision.class == "texture_noise_only" {
+                    crate::diagnostics::ChangeClass::TextureNoiseOnly
+                } else {
+                    crate::diagnostics::ChangeClass::SystematicShift
+                };
+            }
+            if let Some(d) = &mut entry.diagnostics {
+                d.class = if decision.class == "texture_noise_only" {
+                    crate::diagnostics::ChangeClass::TextureNoiseOnly
+                } else {
+                    crate::diagnostics::ChangeClass::SystematicShift
+                };
+            }
+        }
+        result.noise = Some(decision);
+    }
+    entry.field_evidence = Some(result);
     Ok(())
 }
 
@@ -1573,6 +1710,18 @@ fn layered_config<'a>(
         &bl, &cl, policy, &selected, nb, nc, b, c,
     )?);
     let mut local = config.clone();
+    local.field_ids = match (
+        crate::evidence_quality::layers::id_layer(&bl)?,
+        crate::evidence_quality::layers::id_layer(&cl)?,
+    ) {
+        (Some(b), Some(c)) => Some((b, c)),
+        (None, None) => None,
+        _ => {
+            return Err(Error::Config(
+                "ID layer missing on one comparison arm".into(),
+            ));
+        }
+    };
     local.layer_mask = Some(selected.into_iter().map(|v| !v).collect());
     Ok(std::borrow::Cow::Owned(local))
 }

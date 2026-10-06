@@ -118,3 +118,11 @@ required-features = ["ai", "mcp"]
 [[test]]
 name = "assist_contract"
 required-features = ["assist", "mcp"]
+
+[[test]]
+name = "quality_reference"
+required-features = ["compression"]
+
+[[test]]
+name = "wave10_field"
+required-features = ["graphics"]

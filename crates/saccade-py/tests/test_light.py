@@ -6,10 +6,10 @@ import zlib
 import pytest
 import saccade
 
-def png(width=40, height=30):
+def png(width=40, height=30, colour=(20,40,70)):
     def chunk(kind, data):
         return struct.pack('>I', len(data)) + kind + data + struct.pack('>I', zlib.crc32(kind + data))
-    data = b''.join(b'\0' + bytes([20, 40, 70]) * width for _ in range(height))
+    data = b''.join(b'\0' + bytes(colour) * width for _ in range(height))
     return (b'\x89PNG\r\n\x1a\n' + chunk(b'IHDR', struct.pack('>IIBBBBB', width, height, 8, 2, 0, 0, 0))
             + chunk(b'IDAT', zlib.compress(data)) + chunk(b'IEND', b''))
 
@@ -51,3 +51,25 @@ def test_concurrent_analyzer_calls():
     with concurrent.futures.ThreadPoolExecutor(max_workers=4) as pool:
         rows = list(pool.map(lambda _: a.analyze_media(png()), range(12)))
     assert len({r['identity']['data']['sha256'] for r in rows}) == 1
+
+
+def test_package_version_matches_distribution_source():
+    import pathlib
+    import re
+    import saccade
+    text = (pathlib.Path(__file__).parents[1] / "pyproject.toml").read_text()
+    assert saccade.__version__ == re.search(r'^version = "([^"]+)"', text, re.M).group(1)
+
+
+def test_compare_maps_returns_native_numpy_error_and_tile_grids():
+    import numpy as np
+    import saccade
+    def fixture(value):
+        return png(16,16,(value,value,value))
+    maps = saccade.compare_maps(fixture(100), fixture(120), tile_size=8)
+    assert maps["flip"].dtype == np.float32
+    assert maps["flip"].shape == (16, 16)
+    assert np.min(maps["flip"]) > 0
+    assert maps["tile_signed_shift"].shape == (2, 2)
+    assert np.allclose(maps["tile_signed_shift"], 20 / 255)
+    assert np.max(saccade.compare_maps(fixture(100), fixture(100))["flip"]) == 0

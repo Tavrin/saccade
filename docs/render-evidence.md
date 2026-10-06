@@ -268,3 +268,75 @@ producer qualification. Existing producer checks remain enforced.
 `qualification_reason_codes`, local results and all textual reasons appear in
 perf differences and compact ablation JSON. Threshold changes need a policy
 version; no truncated reason filter remains.
+
+## Field evidence and scope
+
+```sh
+saccade render-evidence BASE CANDIDATE --out REPORT --json
+saccade compare BASE CANDIDATE --export-maps --require-scope --out REPORT --json
+```
+
+The verdict shows `whole_frame_unmasked` when no ID layer or actual excluded
+pixels are available. Human output and HTML put scope first. `--require-scope`
+refuses entries without an ID layer or nonempty mask. Scope declares the measured
+footprint, not capture validity; use `--require-valid-arms` for that.
+
+With a capture ID layer, `field_evidence.per_id` ranks the top IDs by summed
+absolute difference, with counts, signed mean shift, absolute mean, p95 and share
+strictly above the declared threshold. `--id-top N` retains at most 32 rows;
+`--id-threshold T` declares normalized sRGB luminance units for colour. Numerical
+buffer thresholds come from `[[buffer]].threshold`: normal angles in degrees,
+depth absolute differences in declared decoded units, and depth relative differences
+against baseline magnitude (zero baseline uses a small positive denominator).
+Relative statistics use the same numeric threshold in dimensionless units.
+ID transitions contribute half to each ID; their counts can overlap. Masks exclude
+samples before attribution. HTML includes a per-ID table and top-ID diagnostic
+crops. The bounded render-evidence JSON lists top IDs; the artifact contains all
+retained rows and source provenance. Numerical-buffer declarations and actual
+native ID buffers avoid colour conversion.
+
+When no layer manifest exists, `--mask-dump instances.json` reads this file relative
+to each capture's parent. It accepts a generic screen-space JSON list:
+
+```json
+[{"id":7,"name":"foreground","boxes":[[8,8,16,16]],"polygons":[[[8,8],[24,8],[16,24]]]}]
+```
+
+Boxes are `[x,y,width,height]`, polygons are pixel coordinates. Pixel centres decide
+occupancy; later instances win overlaps. The synthesized integer ID layer scopes
+nonzero IDs and records **derived from dump; lower confidence than a real id buffer**.
+The retained source dump and its hash support audit. This is generic rasterisation,
+not an engine-specific visibility or occlusion interpretation.
+
+## Native error maps
+
+`--export-maps` writes FLIP and available per-tile statistics grids as NumPy v1
+little-endian float32 `.npy` and float32 `.exr`. Each EXR channel repeats the scalar
+without display scaling. `saccade-error-maps.v1` indices declare shape `[height,width]`,
+units and paths. NaN marks excluded or unavailable samples. Tile maps retain their
+actual grid dimensions. Numerical buffers export native error units instead of
+calling angular/depth errors FLIP. These files require no Python installation.
+Python's `saccade.compare_maps` exposes the SDR FLIP and tile grids as NumPy arrays.
+
+## Repeat-derived noise
+
+```sh
+saccade noise build REPEAT_A REPEAT_B REPEAT_C --out noise.json --json
+saccade render-evidence BASE CANDIDATE --noise-from REPEAT_A REPEAT_B REPEAT_C --out REPORT --json
+```
+
+Supply 2..32 same-arm SDR files or run directories with identical image names.
+`--require-valid-arms` checks repeat identities too. `--noise-from` constructs an
+inline floor; it does not read the persisted file. Every repeat pair contributes
+maximum global and tile signed-luminance mean magnitude and RGB RMS; the recorded
+method is `max_pairwise_rgb_luminance_envelope_v1`. A comparison inside every
+scoped envelope is `texture_noise_only`; one beyond it is `systematic_shift`.
+Masks apply before estimation. Required-effect, region and explicit hotspot
+failures remain failures. This finite-repeat envelope is empirical evidence,
+not population noise qualification. HDR/native buffers require their own noise
+models and refuse this SDR policy.
+
+`[render_evidence]` config accepts `require_scope`, `top`, `threshold`,
+`export_maps` and `noise_from`. MCP compare mirrors these as `require_scope`,
+`id_top`, `id_threshold`, `export_maps`, `noise_from`, `mask_dump` and
+`render_evidence: true`; `saccade_measure` mirrors `noise_build`.

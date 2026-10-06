@@ -82,6 +82,9 @@ mod schema_cmd;
 #[cfg(feature = "graphics")]
 mod temporal_cmd;
 mod ui_review_cmd;
+mod wave10_cmd;
+#[cfg(feature = "mcp")]
+mod wave10_mcp;
 
 #[cfg(feature = "graphics")]
 mod s6;
@@ -239,6 +242,8 @@ impl From<MetricArg> for Metric {
 #[derive(Subcommand)]
 enum Command {
     // wave10
+    /// Compare structural rendering evidence with explicit scope and ID attribution.
+    RenderEvidence(wave10_cmd::RenderArgs),
     /// Discover JSON Schemas without a source checkout.
     Schema(schema_cmd::Args),
     /// Validate producer performance sidecars.
@@ -365,6 +370,8 @@ Exit codes: 0 no regression, 1 regression found, 2 the command could not run."
     Compare {
         #[command(flatten)]
         general: Box<general_cmd::CompareArgs>,
+        #[command(flatten)]
+        field: wave10_cmd::CompareArgs,
         /// Directory of approved baseline images.
         #[arg(required_unless_present = "baseline", conflicts_with = "baseline")]
         baseline_dir: Option<PathBuf>,
@@ -1102,6 +1109,23 @@ fn emit_run(
             serde_json::to_string(&local_cmd::bounded(value, 4096)?)?
         ))
     } else {
+        for entry in &report.entries {
+            if let Some(field) = &entry.field_evidence {
+                emit(&format!(
+                    "scope: {} ({})\n",
+                    field.scope,
+                    escape_control(&entry.name)
+                ))?;
+            }
+        }
+        if let Some(check) = &report.config.meta.arm_validation
+            && !check.allowed_unreached.is_empty()
+        {
+            emit(&format!(
+                "allowed unreached: {}\n",
+                serde_json::to_string(&check.allowed_unreached)?
+            ))?;
+        }
         emit(&text_table(report))?;
         let verification_file = out.join(saccade_core::intent::RESULT_FILE);
         if verification_file.is_file() {
@@ -1130,6 +1154,7 @@ fn emit_run(
 
 fn dispatch(command: Command, record_absolute_paths: bool) -> Result<u8, CliError> {
     match command {
+        Command::RenderEvidence(args) => wave10_cmd::render(args),
         Command::Schema(args) => schema_cmd::run(args),
         Command::Perf(args) => schema_cmd::perf(args),
         Command::Arms(args) => arms_cmd::run(args),
@@ -1383,6 +1408,7 @@ fn dispatch(command: Command, record_absolute_paths: bool) -> Result<u8, CliErro
         }
         Command::Compare {
             general,
+            field,
             baseline_dir,
             baseline,
             history_store,
@@ -1433,7 +1459,8 @@ fn dispatch(command: Command, record_absolute_paths: bool) -> Result<u8, CliErro
                     .question
                     .is_none_or(|q| q == capability_cmd::Question::SameRender)
             {
-                if config.is_some()
+                if field.requested()
+                    || config.is_some()
                     || !entries.is_empty()
                     || junit.is_some()
                     || ppd.is_some()
@@ -1466,7 +1493,8 @@ fn dispatch(command: Command, record_absolute_paths: bool) -> Result<u8, CliErro
                 .question
                 .is_some_and(|q| q != capability_cmd::Question::SameRender)
             {
-                if config.is_some()
+                if field.requested()
+                    || config.is_some()
                     || !entries.is_empty()
                     || junit.is_some()
                     || ppd.is_some()
@@ -1491,7 +1519,8 @@ fn dispatch(command: Command, record_absolute_paths: bool) -> Result<u8, CliErro
             }
             // Explicit registration has its own evidence contract.
             if general.align.is_some() {
-                if config.is_some()
+                if field.requested()
+                    || config.is_some()
                     || !entries.is_empty()
                     || junit.is_some()
                     || ppd.is_some()
@@ -1516,6 +1545,7 @@ fn dispatch(command: Command, record_absolute_paths: bool) -> Result<u8, CliErro
             }
             let mut cfg = load_config(config.as_deref())?;
             cfg.record_absolute_paths = record_absolute_paths;
+            field.apply(&mut cfg)?;
             perf.apply(&mut cfg.perf)?;
             cfg.entries = entries;
             cfg.allow_empty |= allow_empty;
@@ -2034,6 +2064,8 @@ fn doctor(json: bool) -> Result<u8, CliError> {
             "asset_views": ["saccade-asset-views.v1", "saccade-asset-view-report.v1"]
         }
     });
+    let mut value = value;
+    value["optional_dependencies"] = saccade_core::optional::status();
     if json {
         emit(&format!("{}\n", serde_json::to_string(&value)?))?;
     } else {
@@ -2044,6 +2076,12 @@ fn doctor(json: bool) -> Result<u8, CliError> {
             features.join(", "),
             capabilities.join(", "),
             value["schemas"]
+        ))?;
+    }
+    if !json {
+        emit(&format!(
+            "optional dependencies (present/missing and fix commands): {}\n",
+            value["optional_dependencies"]
         ))?;
     }
     Ok(0)

@@ -6,6 +6,7 @@ build-backend = "maturin"
 name = "saccade-vision"
 version = "0.2.2"
 requires-python = ">=3.10"
+dependencies = ["numpy>=1.23"]
 description = "Local image and media analysis with explicit evidence provenance"
 readme = "README.md"
 keywords = ["image-analysis", "visual-regression", "image-comparison", "computer-vision"]

@@ -23,6 +23,13 @@ pub struct Override {
 /// Settings for [`crate::run::run`].
 #[derive(Debug, Clone, PartialEq)]
 pub struct RunConfig {
+    /// Field-analysis output and empirical repeats (wave10).
+    pub field: crate::evidence_quality::field::Policy,
+    /// Internal retained pair ID layers.
+    pub field_ids: Option<(
+        crate::evidence_quality::field::IdLayer,
+        crate::evidence_quality::field::IdLayer,
+    )>,
     /// Opt-in fixed-camera temporal tile evidence.
     pub temporal_tiles: Option<crate::evidence_quality::temporal::Policy>,
     /// Source-bound capture layers and optional inclusion scope.
@@ -109,6 +116,8 @@ impl Default for RunConfig {
     fn default() -> Self {
         Self {
             temporal_tiles: None,
+            field: Default::default(),
+            field_ids: None,
             layers: None,
             layer_mask: None,
             spatial: None,
@@ -162,6 +171,8 @@ struct FileConfig {
     fingerprint_map: Option<std::path::PathBuf>,
     temporal_tiles: Option<crate::evidence_quality::temporal::Policy>,
     layers: Option<crate::evidence_quality::layers::Policy>,
+    #[serde(default)]
+    render_evidence: crate::evidence_quality::field::Policy,
     spatial: Option<crate::evidence_quality::spatial::Policy>,
     #[serde(default)]
     intended_variables: Vec<String>,
@@ -294,6 +305,11 @@ impl RunConfig {
             *map = dir.join(&*map);
         }
         if let Some(dir) = &cfg.config_dir {
+            for repeat in &mut cfg.field.noise_from {
+                if repeat.is_relative() {
+                    *repeat = dir.join(&*repeat);
+                }
+            }
             for target in &mut cfg.symlink_targets {
                 if target.is_relative() {
                     *target = dir.join(&*target);
@@ -321,6 +337,7 @@ impl RunConfig {
         };
         cfg.temporal_tiles = file.temporal_tiles;
         cfg.layers = file.layers;
+        cfg.field = file.render_evidence;
         cfg.spatial = file.spatial;
         cfg.meta.require_valid_arms = file.require_valid_arms.unwrap_or(false);
         cfg.meta.fingerprint_map = file.fingerprint_map;
@@ -518,6 +535,12 @@ impl RunConfig {
             if !effect_names.insert(&effect.name) {
                 return Err(Error::Config("duplicate required-effect name".into()));
             }
+        }
+        self.field.validate()?;
+        if self.mode == Mode::Identity && !self.field.noise_from.is_empty() {
+            return Err(Error::Config(
+                "identity cannot accept repeat-noise tolerances".into(),
+            ));
         }
         if let Some(policy) = &self.layers {
             policy.validate()?;

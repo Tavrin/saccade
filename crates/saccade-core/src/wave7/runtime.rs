@@ -43,7 +43,7 @@ impl OnnxModel {
         .validate()?;
         if model.runtime != "onnx" || !library.is_file() {
             return Err(VisionError::Unavailable(format!(
-                "explicit ONNX graph/runtime library required; ONNX Runtime {}",
+                "explicit ONNX graph/runtime library required; fix: saccade models pull runtime; set ORT_DYLIB_PATH or --runtime-library; ONNX Runtime {}",
                 super::runtime_install::REQUIRED_VERSION
             )));
         }
