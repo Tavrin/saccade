@@ -87,13 +87,14 @@ fn help_lists_active_commands_and_watch_alias_stays_hidden() {
         .collect::<Vec<_>>();
     assert_eq!(
         top.len(),
-        39 + usize::from(cfg!(feature = "compression"))
+        40 + usize::from(cfg!(feature = "compression"))
             + 4 * usize::from(cfg!(feature = "products"))
             + usize::from(cfg!(feature = "local-vlm"))
             + usize::from(cfg!(feature = "vision-providers")),
         "{top:?}"
     );
     for name in [
+        "arms",
         "analyze-media",
         "keyframes",
         "find-usage",
@@ -131,6 +132,7 @@ fn help_lists_active_commands_and_watch_alias_stays_hidden() {
     ] {
         assert!(top.contains(&name));
     }
+    assert!(!top.contains(&"watch"));
     if cfg!(feature = "products") {
         for name in ["sweep", "imgtune", "design", "notify"] {
             assert!(top.contains(&name), "missing product command {name}");
