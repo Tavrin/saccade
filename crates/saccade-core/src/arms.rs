@@ -5,6 +5,23 @@ use serde_json::Value;
 use std::collections::{BTreeMap, BTreeSet};
 use std::path::{Path, PathBuf};
 
+/// Default per-record byte limit for fingerprint JSON, including telemetry.
+pub const DEFAULT_MAX_RECORD_BYTES: u64 = 16 * 1024 * 1024;
+/// Absolute per-record byte ceiling; map and caller overrides cannot exceed it.
+pub const HARD_MAX_RECORD_BYTES: u64 = 64 * 1024 * 1024;
+fn default_max_record_bytes() -> u64 {
+    DEFAULT_MAX_RECORD_BYTES
+}
+/// Validate a per-record limit before reading any fingerprint records.
+pub fn validate_record_limit(limit: u64) -> Result<()> {
+    if limit == 0 || limit > HARD_MAX_RECORD_BYTES {
+        return Err(Error::Config(format!(
+            "max_record_bytes must be in 1..={HARD_MAX_RECORD_BYTES} bytes (hard ceiling)"
+        )));
+    }
+    Ok(())
+}
+
 /// Producer fingerprint contract identifier.
 pub const FINGERPRINT_SCHEMA: &str = "saccade-arm-fingerprint.v1";
 /// Standalone validity result contract identifier.
@@ -170,6 +187,9 @@ pub struct Check {
     /// Every effective key covered by a mapping, including subtree leaves on either arm.
     #[serde(default)]
     pub mapped_keys: Vec<String>,
+    /// Effective per-record fingerprint byte limit, after caller and map overrides.
+    #[serde(default = "default_max_record_bytes")]
+    pub max_record_bytes: u64,
 }
 /// Field selection for arm validity checks.
 #[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
@@ -206,6 +226,8 @@ impl Check {
     fn finish(&mut self) {
         self.unmapped.finish();
         self.outcomes.finish();
+        self.mapped_keys.sort();
+        self.mapped_keys.dedup();
     }
 }
 /// An explicit readiness exception; it never claims convergence.
@@ -278,9 +300,12 @@ pub struct ReadinessMap {
     pub observed: Source,
 }
 /// Generic field mappings, read from bounded TOML or JSON.
-#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct FingerprintMap {
+    /// Per-record JSON byte limit, default 16 MiB, never above the 64 MiB ceiling.
+    #[serde(default = "default_max_record_bytes")]
+    pub max_record_bytes: u64,
     /// Field selection; all preserves the historical comparison behaviour.
     #[serde(default)]
     pub compare: CompareMode,
@@ -303,6 +328,20 @@ pub struct FingerprintMap {
     #[serde(default)]
     pub readiness: Vec<ReadinessMap>,
 }
+impl Default for FingerprintMap {
+    fn default() -> Self {
+        Self {
+            max_record_bytes: DEFAULT_MAX_RECORD_BYTES,
+            compare: Default::default(),
+            absent: Default::default(),
+            outcomes: vec![],
+            record_files: vec![],
+            fields: BTreeMap::new(),
+            subtrees: BTreeMap::new(),
+            readiness: vec![],
+        }
+    }
+}
 impl FingerprintMap {
     /// Load and validate a mapping file without interpreting project names.
     pub fn read(path: &Path) -> Result<Self> {
@@ -313,6 +352,7 @@ impl FingerprintMap {
             toml::from_str(std::str::from_utf8(&bytes).map_err(|e| Error::Config(e.to_string()))?)
                 .map_err(|e| Error::Config(e.to_string()))?
         };
+        validate_record_limit(map.max_record_bytes)?;
         for (key, mut source) in std::mem::take(&mut map.subtrees) {
             source.subtree = true;
             if map.fields.insert(key.clone(), source).is_some() {
@@ -491,13 +531,51 @@ fn safe_sibling(root: &Path, file: &str) -> Result<PathBuf> {
     }
     Ok(path)
 }
-fn raw(path: &Path) -> Result<Option<Value>> {
-    if !path.exists() {
-        return Ok(None);
+fn record_size_error(path: &Path, size: u64, limit: u64) -> Error {
+    Error::Config(format!(
+        "fingerprint record {} is {size} bytes; limit {limit} bytes; raise --max-record-bytes N or map max_record_bytes (hard ceiling {HARD_MAX_RECORD_BYTES} bytes)",
+        path.display()
+    ))
+}
+fn raw(path: &Path, limit: u64) -> Result<Option<Value>> {
+    use std::io::Read;
+    validate_record_limit(limit)?;
+    let metadata = match std::fs::symlink_metadata(path) {
+        Ok(m) => m,
+        Err(e) if e.kind() == std::io::ErrorKind::NotFound => return Ok(None),
+        Err(e) => return Err(crate::run::io_err(format!("reading {}", path.display()))(e)),
+    };
+    if !metadata.is_file() || metadata.file_type().is_symlink() {
+        return Err(Error::Config(format!(
+            "fingerprint record {} must be a regular file without symlinks",
+            path.display()
+        )));
     }
-    let v = serde_json::from_slice(&crate::evidence_quality::read(path, 1 << 20)?)?;
+    if metadata.len() > limit {
+        return Err(record_size_error(path, metadata.len(), limit));
+    }
+    let file = std::fs::File::open(path)
+        .map_err(crate::run::io_err(format!("opening {}", path.display())))?;
+    let opened_size = file
+        .metadata()
+        .map_err(crate::run::io_err(format!("reading {}", path.display())))?
+        .len();
+    if opened_size > limit {
+        return Err(record_size_error(path, opened_size, limit));
+    }
+    let mut bytes = Vec::new();
+    file.take(limit + 1)
+        .read_to_end(&mut bytes)
+        .map_err(crate::run::io_err(format!("reading {}", path.display())))?;
+    if bytes.len() as u64 > limit {
+        return Err(record_size_error(path, bytes.len() as u64, limit));
+    }
+    let v = serde_json::from_slice(&bytes)?;
     if !matches!(v, Value::Object(_)) {
-        return Err(Error::Config("capture record must be a JSON object".into()));
+        return Err(Error::Config(format!(
+            "capture record {} must be a JSON object",
+            path.display()
+        )));
     }
     Ok(Some(v))
 }
@@ -572,9 +650,28 @@ fn merge(a: &mut Value, b: Value) {
 }
 /// Load native metadata with per-image inheritance, then merge mapped siblings.
 pub fn load(input: &Path, name: &str, map: Option<&FingerprintMap>) -> Result<crate::meta::Meta> {
+    load_with_limit(
+        input,
+        name,
+        map,
+        map.map_or(DEFAULT_MAX_RECORD_BYTES, |m| m.max_record_bytes),
+    )
+}
+fn load_with_limit(
+    input: &Path,
+    name: &str,
+    map: Option<&FingerprintMap>,
+    limit: u64,
+) -> Result<crate::meta::Meta> {
+    validate_record_limit(limit)?;
     if input.extension().is_some_and(|e| e == "json") {
         let root = input.parent().unwrap_or(Path::new("."));
-        return mapped(root, raw(input)?.unwrap_or(serde_json::json!({})), map);
+        return mapped_with_limit(
+            root,
+            raw(input, limit)?.unwrap_or(serde_json::json!({})),
+            map,
+            limit,
+        );
     }
     let root = if input.is_dir() {
         input
@@ -586,7 +683,7 @@ pub fn load(input: &Path, name: &str, map: Option<&FingerprintMap>) -> Result<cr
     } else {
         input.file_name().and_then(|n| n.to_str()).unwrap_or("")
     };
-    load_named(root, rel, name, map)
+    load_named_with_limit(root, rel, name, map, limit)
 }
 /// Read effective inherited metadata for an image below its capture root.
 pub fn load_named(
@@ -595,6 +692,23 @@ pub fn load_named(
     name: &str,
     map: Option<&FingerprintMap>,
 ) -> Result<crate::meta::Meta> {
+    load_named_with_limit(
+        root,
+        rel,
+        name,
+        map,
+        map.map_or(DEFAULT_MAX_RECORD_BYTES, |m| m.max_record_bytes),
+    )
+}
+/// Load inherited fingerprint records with an explicit bounded caller override.
+pub fn load_named_with_limit(
+    root: &Path,
+    rel: &str,
+    name: &str,
+    map: Option<&FingerprintMap>,
+    limit: u64,
+) -> Result<crate::meta::Meta> {
+    validate_record_limit(limit)?;
     crate::meta::MetaOptions {
         name: name.into(),
         ..Default::default()
@@ -611,13 +725,13 @@ pub fn load_named(
     let mut primary = serde_json::json!({});
     if let Some(map) = map {
         for file in &map.record_files {
-            if let Some(v) = raw(&safe_sibling(root, file)?)? {
+            if let Some(v) = raw(&safe_sibling(root, file)?, limit)? {
                 merge(&mut primary, v);
             }
         }
     }
     let mut dir = root.to_path_buf();
-    if let Some(v) = raw(&safe_sibling(&dir, name)?)? {
+    if let Some(v) = raw(&safe_sibling(&dir, name)?, limit)? {
         merge(&mut primary, v);
     }
     let path = Path::new(rel);
@@ -627,18 +741,32 @@ pub fn load_named(
             if std::fs::symlink_metadata(&dir).is_ok_and(|m| m.file_type().is_symlink()) {
                 return Err(Error::Config("metadata cannot follow symlinks".into()));
             }
-            if let Some(v) = raw(&safe_sibling(&dir, name)?)? {
+            if let Some(v) = raw(&safe_sibling(&dir, name)?, limit)? {
                 merge(&mut primary, v);
             }
         }
     }
     let stem = path.file_stem().and_then(|s| s.to_str()).unwrap_or("");
-    if let Some(v) = raw(&safe_sibling(&dir, &format!("{stem}.{name}"))?)? {
+    if let Some(v) = raw(&safe_sibling(&dir, &format!("{stem}.{name}"))?, limit)? {
         merge(&mut primary, v);
     }
-    mapped(root, primary, map)
+    mapped_with_limit(root, primary, map, limit)
 }
+#[cfg(test)]
 fn mapped(root: &Path, primary: Value, map: Option<&FingerprintMap>) -> Result<crate::meta::Meta> {
+    mapped_with_limit(
+        root,
+        primary,
+        map,
+        map.map_or(DEFAULT_MAX_RECORD_BYTES, |m| m.max_record_bytes),
+    )
+}
+fn mapped_with_limit(
+    root: &Path,
+    primary: Value,
+    map: Option<&FingerprintMap>,
+    limit: u64,
+) -> Result<crate::meta::Meta> {
     let mut meta = BTreeMap::new();
     flatten("", &primary, &mut meta);
     let expanded = if let Some(map) = map.filter(|m| !m.subtrees.is_empty()) {
@@ -664,7 +792,7 @@ fn mapped(root: &Path, primary: Value, map: Option<&FingerprintMap>) -> Result<c
             if let Some(file) = &source.file
                 && !files.contains_key(file)
             {
-                files.insert(file.clone(), raw(&safe_sibling(root, file)?)?);
+                files.insert(file.clone(), raw(&safe_sibling(root, file)?, limit)?);
             }
         }
         for (file, value) in &files {
@@ -1270,6 +1398,7 @@ fn check_mapped(
         0
     };
     Check {
+        max_record_bytes: map.map_or(DEFAULT_MAX_RECORD_BYTES, |m| m.max_record_bytes),
         schema: RESULT_SCHEMA.into(),
         result: if code == 0 {
             ComparisonResult::ValidComparison
@@ -1311,6 +1440,13 @@ fn apply_compare(map: &mut Option<FingerprintMap>, compare: Option<CompareMode>)
     }
     Ok(())
 }
+fn record_limit(opts: &crate::meta::MetaOptions, map: Option<&FingerprintMap>) -> Result<u64> {
+    let limit = opts
+        .max_record_bytes
+        .unwrap_or_else(|| map.map_or(DEFAULT_MAX_RECORD_BYTES, |m| m.max_record_bytes));
+    validate_record_limit(limit)?;
+    Ok(limit)
+}
 /// Load and check two captures using effective metadata settings.
 pub fn check_paths(a: &Path, b: &Path, opts: &crate::meta::MetaOptions) -> Result<Check> {
     let mut map = opts
@@ -1319,7 +1455,9 @@ pub fn check_paths(a: &Path, b: &Path, opts: &crate::meta::MetaOptions) -> Resul
         .map(FingerprintMap::read)
         .transpose()?;
     apply_compare(&mut map, opts.compare)?;
-    let mut checked = check_loaded(a, b, opts, map.as_ref())?;
+    let limit = record_limit(opts, map.as_ref())?;
+    let mut checked = check_loaded(a, b, opts, map.as_ref(), limit)?;
+    checked.max_record_bytes = limit;
     checked.finish();
     Ok(checked)
 }
@@ -1328,10 +1466,11 @@ fn check_loaded(
     b: &Path,
     opts: &crate::meta::MetaOptions,
     map: Option<&FingerprintMap>,
+    limit: u64,
 ) -> Result<Check> {
     Ok(check_mapped(
-        &load(a, &opts.name, map)?,
-        &load(b, &opts.name, map)?,
+        &load_with_limit(a, &opts.name, map, limit)?,
+        &load_with_limit(b, &opts.name, map, limit)?,
         &opts.intended,
         &opts.ignore,
         map,
@@ -1358,6 +1497,7 @@ pub fn validate_paths(a: &Path, b: &Path, cfg: &crate::config::RunConfig) -> Res
         .map(FingerprintMap::read)
         .transpose()?;
     apply_compare(&mut map, cfg.meta.compare)?;
+    let limit = record_limit(&cfg.meta, map.as_ref())?;
     let mut checks = Vec::new();
     let mut identity_found = [false; 2];
     let mut searched = BTreeSet::from([cfg.meta.name.clone()]);
@@ -1381,8 +1521,8 @@ pub fn validate_paths(a: &Path, b: &Path, cfg: &crate::config::RunConfig) -> Res
             {
                 continue;
             }
-            let am = load_named(a, key, &cfg.meta.name, map.as_ref())?;
-            let bm = load_named(b, key, &cfg.meta.name, map.as_ref())?;
+            let am = load_named_with_limit(a, key, &cfg.meta.name, map.as_ref(), limit)?;
+            let bm = load_named_with_limit(b, key, &cfg.meta.name, map.as_ref(), limit)?;
             for (i, m) in [&am, &bm].into_iter().enumerate() {
                 identity_found[i] |= m
                     .keys()
@@ -1420,13 +1560,15 @@ pub fn validate_paths(a: &Path, b: &Path, cfg: &crate::config::RunConfig) -> Res
             checks.push(c);
         }
         if checks.is_empty() {
-            checks.push(check_loaded(a, b, &cfg.meta, map.as_ref())?);
+            checks.push(check_loaded(a, b, &cfg.meta, map.as_ref(), limit)?);
         }
     } else {
-        checks.push(check_loaded(a, b, &cfg.meta, map.as_ref())?);
+        checks.push(check_loaded(a, b, &cfg.meta, map.as_ref(), limit)?);
     }
     let mut merged = checks.remove(0);
+    merged.max_record_bytes = limit;
     for c in checks {
+        merged.mapped_keys.extend(c.mapped_keys);
         merged.unmapped.keys.extend(c.unmapped.keys);
         merged.outcomes.keys.extend(c.outcomes.keys);
         merged.absent_fields.extend(c.absent_fields);
@@ -1459,7 +1601,7 @@ pub fn validate_paths(a: &Path, b: &Path, cfg: &crate::config::RunConfig) -> Res
     merged.allowed_unreached.dedup();
     if a.is_dir() && b.is_dir() {
         for (i, root) in [a, b].into_iter().enumerate() {
-            let meta = load(root, &cfg.meta.name, map.as_ref())?;
+            let meta = load_with_limit(root, &cfg.meta.name, map.as_ref(), limit)?;
             if !identity_found[i]
                 && !meta
                     .keys()
@@ -2296,6 +2438,165 @@ mod subtree_tests {
                 Some(&map)
             )
             .is_err()
+        );
+    }
+}
+
+#[cfg(test)]
+#[allow(clippy::unwrap_used)]
+mod record_size_tests {
+    use super::*;
+    use serde_json::json;
+    #[test]
+    fn two_megabyte_specimen_record_passes_default_and_limits_are_explicit() {
+        let tmp = tempfile::tempdir().unwrap();
+        let path = tmp.path().join("specimen.json");
+        let record = json!({"schema":FINGERPRINT_SCHEMA,"producer":{"binary":"pin","build":{"profile":"release"}},"inputs":{"identity":"sample"},"run":{"mode":"lab","session":"session","env":{},"readiness":[{"criterion":{"name":"prepared","parameters":{}},"reached":true,"observed":1}]},"telemetry":"x".repeat(2*1024*1024)});
+        std::fs::write(&path, serde_json::to_vec(&record).unwrap()).unwrap();
+        let mut opts = crate::meta::MetaOptions::default();
+        let checked = check_paths(&path, &path, &opts).unwrap();
+        assert_eq!(checked.exit_code, 0);
+        assert_eq!(checked.max_record_bytes, DEFAULT_MAX_RECORD_BYTES);
+        let size = std::fs::metadata(&path).unwrap().len();
+        opts.max_record_bytes = Some(1024 * 1024);
+        let error = check_paths(&path, &path, &opts).unwrap_err().to_string();
+        for expected in [
+            path.display().to_string(),
+            size.to_string(),
+            (1024 * 1024).to_string(),
+            "--max-record-bytes".into(),
+            "max_record_bytes".into(),
+        ] {
+            assert!(error.contains(&expected), "{error}");
+        }
+        let map_path = tmp.path().join("map.json");
+        std::fs::write(&map_path, br#"{"max_record_bytes":1048576}"#).unwrap();
+        opts.fingerprint_map = Some(map_path.clone());
+        opts.max_record_bytes = None;
+        assert!(
+            check_paths(&path, &path, &opts)
+                .unwrap_err()
+                .to_string()
+                .contains("limit 1048576 bytes")
+        );
+        opts.max_record_bytes = Some(DEFAULT_MAX_RECORD_BYTES);
+        assert_eq!(
+            check_paths(&path, &path, &opts).unwrap().max_record_bytes,
+            DEFAULT_MAX_RECORD_BYTES
+        );
+        std::fs::write(
+            &map_path,
+            br#"{"max_record_bytes":1048576,"record_files":["capture.json"]}"#,
+        )
+        .unwrap();
+        std::fs::write(
+            tmp.path().join("capture.json"),
+            serde_json::to_vec(&record).unwrap(),
+        )
+        .unwrap();
+        std::fs::write(
+            tmp.path().join("frame.png"),
+            b"preflight does not decode pixels",
+        )
+        .unwrap();
+        let cfg = crate::config::RunConfig {
+            meta: opts.clone(),
+            ..Default::default()
+        };
+        let result = validate_paths(tmp.path(), tmp.path(), &cfg).unwrap();
+        assert_eq!(result.exit_code, 0);
+        assert_eq!(result.max_record_bytes, DEFAULT_MAX_RECORD_BYTES);
+        for limit in [0, HARD_MAX_RECORD_BYTES + 1] {
+            std::fs::write(
+                &map_path,
+                serde_json::to_vec(&json!({"max_record_bytes":limit})).unwrap(),
+            )
+            .unwrap();
+            assert!(
+                FingerprintMap::read(&map_path)
+                    .unwrap_err()
+                    .to_string()
+                    .contains("hard ceiling")
+            );
+            opts.fingerprint_map = None;
+            opts.max_record_bytes = Some(limit);
+            assert!(check_paths(&path, &path, &opts).is_err());
+        }
+    }
+    #[test]
+    fn sibling_records_use_the_map_limit_too() {
+        let tmp = tempfile::tempdir().unwrap();
+        let path = tmp.path().join("telemetry.json");
+        std::fs::write(
+            &path,
+            serde_json::to_vec(&json!({"stats":"x".repeat(2*1024*1024)})).unwrap(),
+        )
+        .unwrap();
+        let mut map = FingerprintMap {
+            record_files: vec!["telemetry.json".into()],
+            ..Default::default()
+        };
+        assert!(load(tmp.path(), "capture.json", Some(&map)).is_ok());
+        map.max_record_bytes = 1024 * 1024;
+        assert!(
+            load(tmp.path(), "capture.json", Some(&map))
+                .unwrap_err()
+                .to_string()
+                .contains("telemetry.json")
+        );
+        map.record_files.clear();
+        map.fields.insert(
+            "run.env.stats".into(),
+            Source {
+                file: Some("telemetry.json".into()),
+                path: "stats".into(),
+                absent: None,
+                derives: vec![],
+                exclude: vec![],
+                subtree: false,
+            },
+        );
+        assert!(
+            load(tmp.path(), "capture.json", Some(&map))
+                .unwrap_err()
+                .to_string()
+                .contains("telemetry.json")
+        );
+    }
+}
+
+#[cfg(test)]
+#[allow(clippy::unwrap_used)]
+mod directory_coverage_tests {
+    use super::*;
+    use serde_json::json;
+    #[test]
+    fn directory_check_lists_subtree_keys_from_every_image() {
+        let tmp = tempfile::tempdir().unwrap();
+        std::fs::write(tmp.path().join("a.png"), b"preflight only").unwrap();
+        std::fs::write(tmp.path().join("z.png"), b"preflight only").unwrap();
+        std::fs::write(
+            tmp.path().join("saccade-meta.json"),
+            br#"{"options":{"exposure":2}}"#,
+        )
+        .unwrap();
+        std::fs::write(
+            tmp.path().join("z.saccade-meta.json"),
+            br#"{"options":{"extra_filter":true}}"#,
+        )
+        .unwrap();
+        let map_path = tmp.path().join("map.json");
+        std::fs::write(&map_path, serde_json::to_vec(&json!({"compare":"mapped_only","absent":"value","subtrees":{"run.env":{"path":"options"}}})).unwrap()).unwrap();
+        let mut cfg = crate::config::RunConfig::default();
+        cfg.meta.fingerprint_map = Some(map_path);
+        let result = validate_paths(tmp.path(), tmp.path(), &cfg).unwrap();
+        assert_eq!(
+            result.mapped_keys,
+            [
+                "fingerprint.schema",
+                "run.env.exposure",
+                "run.env.extra_filter"
+            ]
         );
     }
 }

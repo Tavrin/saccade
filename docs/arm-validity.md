@@ -315,3 +315,8 @@ Readiness flags and observations remain required and keep their existing
 convergence checks; absence policies apply to field mappings.
 
 Whole-object `[subtrees."run.env"]` mappings discover newly recorded keys and support relative `exclude` globs. `mapped_keys` records the complete covered-key union. See [subtree maps](experiments-wave11.md#subtree-fingerprint-maps).
+
+Fingerprint JSON records default to a 16 MiB per-file limit. Map `max_record_bytes`
+and `arms check --max-record-bytes N` can raise it up to 64 MiB; the active bound
+is echoed and oversize errors identify the file, size, limit and override syntax.
+See [record-size limits](experiments-wave11.md#fingerprint-record-size).

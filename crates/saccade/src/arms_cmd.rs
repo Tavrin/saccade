@@ -62,6 +62,9 @@ enum Operation {
         ignore: Vec<String>,
         #[arg(long)]
         fingerprint_map: Option<PathBuf>,
+        /// Fingerprint record limit in bytes (default 16 MiB; hard ceiling 64 MiB); overrides map.
+        #[arg(long)]
+        max_record_bytes: Option<u64>,
         /// Override the map's field selection (mapped-only requires a map).
         #[arg(long, value_enum)]
         compare: Option<Compare>,
@@ -107,6 +110,7 @@ pub(crate) fn run(args: Args) -> Result<u8, CliError> {
             allow_unreached,
             ignore,
             fingerprint_map,
+            max_record_bytes,
             compare,
             config,
             meta_name,
@@ -114,6 +118,9 @@ pub(crate) fn run(args: Args) -> Result<u8, CliError> {
         } => {
             let mut cfg = crate::load_config(config.as_deref())?;
             cfg.meta.compare = compare.map(Into::into);
+            if let Some(limit) = max_record_bytes {
+                cfg.meta.max_record_bytes = Some(limit);
+            }
             cfg.meta.intended.extend(vary);
             cfg.meta.allow_unreached.extend(allow_unreached);
             cfg.meta.ignore.extend(ignore);

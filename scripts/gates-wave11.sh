@@ -42,6 +42,7 @@ cargo_gate minimal-core-clippy clippy -j4 -p saccade-core --no-default-features 
 cargo_gate full-core-tests test -j4 -p saccade-core --no-default-features --features graphics,schema,ai
 cargo_gate full-cli-tests test -j4 -p saccade --no-default-features --features "$features"
 cargo_gate minimal-core-tests test -j4 -p saccade-core --no-default-features
+cargo_gate fingerprint-record-size test -j4 -p saccade --no-default-features --features "$features" --test wave11 fingerprint_record_size
 cargo_gate wave11-cli test -j4 -p saccade --no-default-features --features "$features" --test wave11 -- --ignored
 cargo_gate null-peeking test -j4 -p saccade-core --no-default-features --features graphics,schema,ai --lib repeated_peeking_null_familywise_directional_rate_is_bounded -- --ignored --nocapture
 cargo_gate schemas test -j4 -p saccade-core --no-default-features --features graphics,schema,ai --test schemas

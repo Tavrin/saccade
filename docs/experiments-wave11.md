@@ -241,3 +241,18 @@ The stable library grammar is `saccade_core::mask_spec::parse_layer_spec` and
 use these same parsers. They perform no IO; consumers resolve mask images and producer
 manifest/dump dictionaries before evaluating samples. `material=` aliases the generic
 `label=` dictionary predicate. A final `:MIN_PIXELS` suffix is a positive `u64`, default one.
+
+## Fingerprint record size
+
+`arms check A B` accepts each fingerprint JSON record up to 16 MiB by default,
+including telemetry unrelated to mapped identity. A map-level `max_record_bytes`
+sets a byte limit; `--max-record-bytes N` overrides both the map and configuration.
+The effective limit is echoed as `max_record_bytes` in the arm-check output.
+For example, a laboratory map may set `max_record_bytes = 33554432`, or run
+`saccade arms check baseline candidate --max-record-bytes 33554432 --json`.
+The hard ceiling is 64 MiB; zero and larger limits are rejected. MCP `arms_check`
+also accepts `max_record_bytes`. Limits cover primary, inherited, record_files and
+mapped sibling JSON records. Mapping files retain their separate 1 MiB bound.
+Oversize errors name the record, observed bytes, active limit and override syntax.
+Parsing retains the full bounded JSON object, preserving existing all-field checks;
+streaming and pruning unmapped subtrees are deferred.

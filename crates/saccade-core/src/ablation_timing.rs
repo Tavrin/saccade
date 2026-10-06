@@ -255,8 +255,10 @@ mod external_inventory_tests {
         std::fs::create_dir_all(&inventory.out).unwrap();
         let mapping = inventory.out.join("subtree-map.json");
         std::fs::write(&mapping, serde_json::to_vec_pretty(&map).unwrap()).unwrap();
-        let mut options = crate::meta::MetaOptions::default();
-        options.fingerprint_map = Some(mapping);
+        let options = crate::meta::MetaOptions {
+            fingerprint_map: Some(mapping),
+            ..Default::default()
+        };
         let check =
             crate::arms::check_paths(&inventory.baseline[0], &inventory.baseline[0], &options)
                 .unwrap();

@@ -160,3 +160,73 @@ fn event_marker_produces_known_settling_and_a_standalone_strip_chart() {
     assert_eq!(r["tiles"].as_array().unwrap().len(), 4);
     assert!(root.join("trajectory/index.html").is_file());
 }
+
+#[test]
+fn fingerprint_record_size_cli_overrides_map_and_echoes_effective_limit() {
+    let tmp = tempfile::tempdir().unwrap();
+    let path = tmp.path().join("specimen.json");
+    let record = json!({"schema":"saccade-arm-fingerprint.v1","producer":{"binary":"pin","build":{"profile":"release"}},"inputs":{"identity":"sample"},"run":{"mode":"lab","session":"session","env":{},"readiness":[{"criterion":{"name":"prepared","parameters":{}},"reached":true,"observed":1}]},"telemetry":"x".repeat(2*1024*1024)});
+    std::fs::write(&path, serde_json::to_vec(&record).unwrap()).unwrap();
+    let run = |extra: &[&str]| {
+        Command::new(env!("CARGO_BIN_EXE_saccade"))
+            .current_dir(tmp.path())
+            .args(["arms", "check", "specimen.json", "specimen.json", "--json"])
+            .args(extra)
+            .output()
+            .unwrap()
+    };
+    let output = run(&[]);
+    assert!(
+        output.status.success(),
+        "{}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+    let value: Value = serde_json::from_slice(&output.stdout).unwrap();
+    assert_eq!(value["max_record_bytes"], 16 * 1024 * 1024);
+    std::fs::write(
+        tmp.path().join("map.json"),
+        br#"{"max_record_bytes":1048576}"#,
+    )
+    .unwrap();
+    let output = run(&["--fingerprint-map", "map.json"]);
+    assert_eq!(output.status.code(), Some(2));
+    let error = format!(
+        "{}{}",
+        String::from_utf8_lossy(&output.stdout),
+        String::from_utf8_lossy(&output.stderr)
+    );
+    for expected in [
+        "specimen.json".to_string(),
+        std::fs::metadata(&path).unwrap().len().to_string(),
+        "1048576".into(),
+        "--max-record-bytes".into(),
+        "max_record_bytes".into(),
+    ] {
+        assert!(error.contains(&expected), "{error}");
+    }
+    let output = run(&[
+        "--fingerprint-map",
+        "map.json",
+        "--max-record-bytes",
+        "16777216",
+    ]);
+    assert!(
+        output.status.success(),
+        "{}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+    assert_eq!(
+        serde_json::from_slice::<Value>(&output.stdout).unwrap()["max_record_bytes"],
+        16777216
+    );
+    let output = run(&["--max-record-bytes", "67108865"]);
+    assert_eq!(output.status.code(), Some(2));
+    assert!(
+        format!(
+            "{}{}",
+            String::from_utf8_lossy(&output.stdout),
+            String::from_utf8_lossy(&output.stderr)
+        )
+        .contains("hard ceiling")
+    );
+}

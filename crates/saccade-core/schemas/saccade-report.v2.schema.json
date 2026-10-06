@@ -679,6 +679,13 @@
           },
           "type": "array"
         },
+        "max_record_bytes": {
+          "default": 16777216,
+          "description": "Effective per-record fingerprint byte limit, after caller and map overrides.",
+          "format": "uint64",
+          "minimum": 0,
+          "type": "integer"
+        },
         "offending": {
           "description": "Offending fields, sorted by key.",
           "items": {

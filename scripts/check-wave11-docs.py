@@ -7,7 +7,7 @@ text = (root/'docs/experiments-wave11.md').read_text()
 for term in ['timing ab', 'hyperfine', 'CSV', 'JSON path', 'same-session', 'diagnostic-only',
              'Bonferroni', 'experiment settle', 'ghosting', 'ablate', 'IQR', 'No CI',
              '--mask-layer', '--mask-from-dump', '--require-effect', '--source-ref',
-             'index export', 'subtrees', 'mapped_keys', 'parse_layer_spec', 'parse_effect_spec', 'Measurement::report_identity', 'migration']:
+             'index export', 'subtrees', 'mapped_keys', 'parse_layer_spec', 'parse_effect_spec', 'Measurement::report_identity', 'migration', '--max-record-bytes', 'max_record_bytes', '64 MiB']:
     assert term.casefold() in text.casefold(), term
 assert '## Unreleased' in (root/'CHANGELOG.md').read_text()
 for name in ['saccade-timing-session.v1', 'saccade-timing-ab.v1', 'saccade-settling.v1', 'saccade-report-index-row.v1']:
