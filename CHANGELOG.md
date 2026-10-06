@@ -9,6 +9,10 @@
   verified billing ceilings are available. Add an OpenRouter chat-completions
   adapter and a fixture-only `qualify-wave4.sh --dry-run` with frozen expected output.
 
+## 0.2.6 (2026-10-06)
+
+- The shared report index is written beside each report inside --out; commands no longer create reports/index.jsonl in the working directory.
+
 - Refresh command/schema references and agent packs; allow documentation generation
   without the AVIF codec when dav1d is unavailable, recording the compiled features.
 

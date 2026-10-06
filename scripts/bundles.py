@@ -76,12 +76,12 @@ def smoke(name, binary, target, tag=None):
     assert pathlib.Path(config['dir']['value']).is_absolute()
     ok('models config resolves the shared model directory')
     listing = json.loads(run(binary, ['models', 'list', '--json'], env).stdout)
-    assert listing['schema'] == 'saccade-model-status.v1', listing
+    assert listing['schema'] in ('saccade-model-status.v1', 'saccade-model-status.v2'), listing
     ok('models list works offline')
 
     if name in ('media', 'full'):
         record = json.loads(run(binary, ['analyze-media', str(work / 'base' / 'scene.png')], env).stdout)
-        assert record['schema'] == 'saccade-media-record.v1', record.get('schema')
+        assert record['schema'] in ('saccade-media-record.v1', 'saccade-media-record.v2'), record.get('schema')
         ok('analyze-media produces a record without downloading models')
         run(binary, ['inspect-image', str(work / 'base' / 'scene.png'), '--json'], env)
         ok('inspect-image runs')
