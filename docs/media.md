@@ -38,6 +38,13 @@ Description is off by default. Library `analyze_with_provider` accepts an explic
 bound caption request and existing observation provider, and marks its output as a draft.
 No provider authority is obtained from media bytes, OCR or model text.
 
+## MCP entry point
+
+The `saccade_measure` operation `analyze_media` accepts `image` and `options`.
+The image must be under a registered input root; normal MCP containment applies.
+Read each section's status and provenance, including skipped and failed sections,
+just as with the CLI. Tool arguments grant no download or provider authority.
+
 ## Video keyframes
 
 `saccade keyframes video.mp4 --out frames --json` invokes the user's external ffmpeg

@@ -5,7 +5,7 @@ Generated from compiled capabilities and `--help`; do not edit by hand.
 Generation: `cargo build --release -p saccade --all-features`, then `python3 scripts/gen-docs.py --saccade target/release/saccade`.
 The all-features binary includes every supported operation.
 
-Compiled features: `ai`, `assist`, `compression`, `credentials`, `dense-motion`, `documents`, `embeddings`, `evaluation`, `geometry`, `graphics`, `imgtune-avif`, `local-models`, `local-vlm`, `mcp`, `media-http`, `ocr`, `parallel`, `prechecks`, `products`, `schema`, `semantic-regions`, `vision-providers`, `workbench`.
+Compiled features: `ai`, `assist`, `compression`, `credentials`, `dense-motion`, `documents`, `embeddings`, `evaluation`, `geometry`, `graphics`, `imgtune-avif`, `local-models`, `local-vlm`, `mcp`, `media-http`, `ocr`, `ocr-provider`, `parallel`, `prechecks`, `products`, `schema`, `semantic-regions`, `vision-providers`, `workbench`.
 
 Exit 1 means a failed image measurement/evaluation gate or located divergence.
 Exit 0 for compare/identity means no image regression; inspect `performance` for qualification.
@@ -340,6 +340,10 @@ Options:
           Crop x,y,width,height in raw raster pixels
       --text-source <TEXT_SOURCE>
           Optional image-bound source/OCR observations for legibility evidence
+      --ocr
+          Extract legibility observations with the default PP-OCRv5 engine
+      --ocr-contract <OCR_CONTRACT>
+          Explicit pinned OCR contract override
       --out <OUT>
           [default: image-inspection]
       --json
@@ -405,12 +409,30 @@ Arguments:
   <B>
 
 Options:
+      --ocr-provider <OCR_PROVIDER>
+          Optional document OCR provider; selecting it exports images/PDFs only with --ocr-run [possible values: mistral]
+      --ocr-model <OCR_MODEL>
+          Explicit dated OCR model (aliases refused)
+      --ocr-pages <OCR_PAGES>
+          Zero-based pages selected explicitly; images accept only 0 [default: 0]
+      --ocr-responses <OCR_RESPONSES> <OCR_RESPONSES>
+          Constructed/recorded request-bound fixture envelopes for both inputs; no network
+      --ocr-run
+          Explicitly authorize live document export under existing root policy
+      --ocr-max-spend-usd <OCR_MAX_SPEND_USD>
+          Finite overall monetary cap; unestablished usage keeps the full reservation
+      --ocr-price-per-page-usd <OCR_PRICE_PER_PAGE_USD>
+          User-confirmed conservative per-selected-page billing ceiling
+      --ocr-price-policy <OCR_PRICE_POLICY>
+          User-owned price-policy revision; no built-in unverified pricing
+      --ocr-user-config <OCR_USER_CONFIG>
+          Existing human-owned user.toml with explicit egress roots and Mistral credential binding
       --a-source <A_SOURCE>
           Image-bound imported saccade-ui-source.v1 observations for the reference
       --b-source <B_SOURCE>
           Image-bound imported observations for the candidate
       --ocr-contract <OCR_CONTRACT>
-          Existing pinned external Tesseract contract; requires ocr feature
+          Override the default pinned PP-OCRv5 contract (or select external Tesseract)
       --download-model
           Explicitly fetch SHA-pinned Rust OCR models into the contract cache
       --expect-text <EXPECT_TEXT>
