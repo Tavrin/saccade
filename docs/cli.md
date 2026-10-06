@@ -21,9 +21,12 @@ Usage: saccade [OPTIONS] <COMMAND>
 
 Commands:
   compare             Compare a directory of captures against a directory of baselines
-  arms                Validate producer identity before comparing pixels
   prove               Check whether image identity or performance evidence proves a claim
+  render-evidence     Compare structural rendering evidence with explicit scope and ID attribution
   review              Preview a review plan or handle a local closed decision request
+  schema              Discover JSON Schemas without a source checkout
+  perf                Validate producer performance sidecars
+  arms                Validate producer identity before comparing pixels
   sweep               Plan and compare deterministic page sweeps
   imgtune             Audit delivery formats and search perceptual-target encodings
   design              Pull design-source frames and compare implementation captures
@@ -74,6 +77,166 @@ Advanced: demo, identity, noise, view, inspect, experiment, approve, init,
 serve, mcp, ingest, bisect, history, doctor. Existing commands keep working; use `saccade COMMAND --help`.
 ```
 
+## saccade render-evidence
+
+```text
+Compare structural rendering evidence with explicit scope and ID attribution
+
+Usage: saccade render-evidence [OPTIONS] <BASELINE> <CANDIDATE>
+
+Arguments:
+  <BASELINE>
+  <CANDIDATE>
+
+Options:
+      --out <OUT>
+          [default: render-evidence]
+      --config <CONFIG>
+
+      --json
+
+      --allow-unreached <ALLOW_UNREACHED>
+          Permit both unreached arms only under an identical criterion and observation
+      --require-valid-arms
+          Refuse verdicts for incomplete or mismatched producer identity
+      --fingerprint-map <FINGERPRINT_MAP>
+          Generic TOML/JSON mapping from producer fields and sibling records
+      --arm-ignore <ARM_IGNORE>
+          Explicit ignored metadata tokens, echoed in arm validation output
+      --intended-variable <INTENDED>
+
+      --export-maps
+          Export native FLIP and tile grids as float32 NPY/EXR with a JSON index
+      --require-scope
+          Require an actual ID layer or nonempty mask scope
+      --noise-from <REPEAT> <REPEAT>...
+          Same-arm repeat files or run directories (2..32); enables noise-aware deciding evidence
+      --mask-dump <MASK_DUMP>
+          Generic screen-space dump filename relative to each capture; used when no layer manifest exists
+      --id-top <ID_TOP>
+          Per-ID rows and diagnostic crops retained, at most 32
+      --id-threshold <ID_THRESHOLD>
+          Declared normalized luminance threshold for colour per-ID statistics
+  -h, --help
+          Print help
+
+Global options:
+      --allow-out-near-captures  Silence warnings when --out is next to capture metadata
+      --record-absolute-paths    Opt in to absolute local paths in reports and machine-readable output
+```
+
+## saccade schema
+
+```text
+Discover JSON Schemas without a source checkout
+
+Usage: saccade schema [OPTIONS] <COMMAND>
+
+Commands:
+  list  List all schema IDs shipped in this binary
+  get   Print the exact embedded JSON Schema (or create a new file)
+  path  Locate an installed copy, if available; use get for portable discovery
+
+Options:
+  -h, --help  Print help
+
+Global options:
+      --allow-out-near-captures  Silence warnings when --out is next to capture metadata
+      --record-absolute-paths    Opt in to absolute local paths in reports and machine-readable output
+```
+
+## saccade schema list
+
+```text
+List all schema IDs shipped in this binary
+
+Usage: saccade schema list [OPTIONS]
+
+Options:
+      --json
+  -h, --help  Print help
+
+Global options:
+      --allow-out-near-captures  Silence warnings when --out is next to capture metadata
+      --record-absolute-paths    Opt in to absolute local paths in reports and machine-readable output
+```
+
+## saccade schema get
+
+```text
+Print the exact embedded JSON Schema (or create a new file)
+
+Usage: saccade schema get [OPTIONS] <ID>
+
+Arguments:
+  <ID>
+
+Options:
+      --out <OUT>
+      --json
+  -h, --help       Print help
+
+Global options:
+      --allow-out-near-captures  Silence warnings when --out is next to capture metadata
+      --record-absolute-paths    Opt in to absolute local paths in reports and machine-readable output
+```
+
+## saccade schema path
+
+```text
+Locate an installed copy, if available; use get for portable discovery
+
+Usage: saccade schema path [OPTIONS] <ID>
+
+Arguments:
+  <ID>
+
+Options:
+      --json
+  -h, --help  Print help
+
+Global options:
+      --allow-out-near-captures  Silence warnings when --out is next to capture metadata
+      --record-absolute-paths    Opt in to absolute local paths in reports and machine-readable output
+```
+
+## saccade perf
+
+```text
+Validate producer performance sidecars
+
+Usage: saccade perf [OPTIONS] <COMMAND>
+
+Commands:
+  validate  Validate a perf v1 or v2 sidecar against the exact embedded JSON Schema
+
+Options:
+  -h, --help  Print help
+
+Global options:
+      --allow-out-near-captures  Silence warnings when --out is next to capture metadata
+      --record-absolute-paths    Opt in to absolute local paths in reports and machine-readable output
+```
+
+## saccade perf validate
+
+```text
+Validate a perf v1 or v2 sidecar against the exact embedded JSON Schema
+
+Usage: saccade perf validate [OPTIONS] <SIDECAR>
+
+Arguments:
+  <SIDECAR>
+
+Options:
+      --json
+  -h, --help  Print help
+
+Global options:
+      --allow-out-near-captures  Silence warnings when --out is next to capture metadata
+      --record-absolute-paths    Opt in to absolute local paths in reports and machine-readable output
+```
+
 ## saccade arms
 
 ```text
@@ -106,6 +269,8 @@ Arguments:
 Options:
       --vary <VARY>
           Allowed difference: exact key, dotted prefix, suffix or explicit glob
+      --allow-unreached <ALLOW_UNREACHED>
+          Permit intentionally unreached captures with exactly matching observations
       --ignore <IGNORE>
           Explicit exception, echoed even when no keys match it
       --fingerprint-map <FINGERPRINT_MAP>
@@ -1199,6 +1364,8 @@ Arguments:
   <CANDIDATE>
 
 Options:
+      --allow-unreached <ALLOW_UNREACHED>
+          Permit both unreached arms only under an identical criterion and observation
       --require-valid-arms
           Refuse verdicts for incomplete or mismatched producer identity
       --fingerprint-map <FINGERPRINT_MAP>
@@ -1616,6 +1783,18 @@ Options:
           Explicit registration; defaults to the existing unregistered pipeline [possible values: none, translation, similarity, affine, homography, auto]
       --resample <RESAMPLE>
           Explicit cross-resolution comparison scale; registration evidence records it [possible values: reference, common]
+      --export-maps
+          Export native FLIP and tile grids as float32 NPY/EXR with a JSON index
+      --require-scope
+          Require an actual ID layer or nonempty mask scope
+      --noise-from <REPEAT> <REPEAT>...
+          Same-arm repeat files or run directories (2..32); enables noise-aware deciding evidence
+      --mask-dump <MASK_DUMP>
+          Generic screen-space dump filename relative to each capture; used when no layer manifest exists
+      --id-top <ID_TOP>
+          Per-ID rows and diagnostic crops retained, at most 32
+      --id-threshold <ID_THRESHOLD>
+          Declared normalized luminance threshold for colour per-ID statistics
       --baseline <BASELINE>
           Resolve the latest complete passing history run as an immutable baseline [possible values: last-good]
       --history-store <HISTORY_STORE>
@@ -1649,6 +1828,8 @@ Metadata sidecars:
           Sidecar file name (default `saccade-meta.json`); the per-image sidecar is `<stem>.<name>` and overrides the directory-level one
       --meta-ignore <GLOB,...>
           Extra sidecar key globs to ignore, added to the built-in timing, timestamp and run-id defaults
+      --allow-unreached <ALLOW_UNREACHED>
+          Permit both unreached arms only under an identical criterion and observation
       --require-valid-arms
           Refuse verdicts for incomplete or mismatched producer identity
       --fingerprint-map <FINGERPRINT_MAP>
@@ -1728,6 +1909,8 @@ Metadata sidecars:
           Sidecar file name (default `saccade-meta.json`); the per-image sidecar is `<stem>.<name>` and overrides the directory-level one
       --meta-ignore <GLOB,...>
           Extra sidecar key globs to ignore, added to the built-in timing, timestamp and run-id defaults
+      --allow-unreached <ALLOW_UNREACHED>
+          Permit both unreached arms only under an identical criterion and observation
       --require-valid-arms
           Refuse verdicts for incomplete or mismatched producer identity
       --fingerprint-map <FINGERPRINT_MAP>
@@ -1830,6 +2013,8 @@ Metadata sidecars:
           Sidecar file name (default `saccade-meta.json`); the per-image sidecar is `<stem>.<name>` and overrides the directory-level one
       --meta-ignore <GLOB,...>
           Extra sidecar key globs to ignore, added to the built-in timing, timestamp and run-id defaults
+      --allow-unreached <ALLOW_UNREACHED>
+          Permit both unreached arms only under an identical criterion and observation
       --require-valid-arms
           Refuse verdicts for incomplete or mismatched producer identity
       --fingerprint-map <FINGERPRINT_MAP>
@@ -1876,6 +2061,8 @@ Arguments:
   [ARMS]...
 
 Options:
+      --allow-unreached <ALLOW_UNREACHED>
+          Permit both unreached arms only under an identical criterion and observation
       --require-valid-arms
           Refuse verdicts for incomplete or mismatched producer identity
       --fingerprint-map <FINGERPRINT_MAP>
@@ -1923,6 +2110,10 @@ Global options:
 Calibrate thresholds from repeated captures of an unchanged build
 
 Usage: saccade noise [OPTIONS] <DIRS> <DIRS>...
+       saccade noise [OPTIONS] [DIRS] [DIRS]... <COMMAND>
+
+Commands:
+  build  Build per-tile empirical noise envelopes from same-arm repeats
 
 Options:
       --kind <KIND>  Image calibration (default) or qualified performance noise in ms [default: image] [possible values: image, performance]
@@ -1944,6 +2135,39 @@ Performance:
       --out <OUT>                  [default: saccade.noise.toml]
       --json
   <DIRS> <DIRS>...
+
+Global options:
+      --allow-out-near-captures  Silence warnings when --out is next to capture metadata
+      --record-absolute-paths    Opt in to absolute local paths in reports and machine-readable output
+```
+
+## saccade noise build
+
+```text
+Build per-tile empirical noise envelopes from same-arm repeats
+
+Usage: saccade noise build [OPTIONS] <REPEATS> <REPEATS>...
+
+Arguments:
+  <REPEATS> <REPEATS>...  2..32 repeats from the same arm, files or run directories
+
+Options:
+      --out <OUT>
+          [default: repeat-noise.json]
+      --tile-size <TILE_SIZE>
+          [default: 32]
+      --json
+
+      --allow-unreached <ALLOW_UNREACHED>
+          Permit both unreached arms only under an identical criterion and observation
+      --require-valid-arms
+          Refuse verdicts for incomplete or mismatched producer identity
+      --fingerprint-map <FINGERPRINT_MAP>
+          Generic TOML/JSON mapping from producer fields and sibling records
+      --arm-ignore <ARM_IGNORE>
+          Explicit ignored metadata tokens, echoed in arm validation output
+  -h, --help
+          Print help
 
 Global options:
       --allow-out-near-captures  Silence warnings when --out is next to capture metadata
@@ -2990,6 +3214,8 @@ Arguments:
   <REFERENCE>
 
 Options:
+      --allow-unreached <ALLOW_UNREACHED>
+          Permit both unreached arms only under an identical criterion and observation
       --require-valid-arms
           Refuse verdicts for incomplete or mismatched producer identity
       --fingerprint-map <FINGERPRINT_MAP>
@@ -3056,6 +3282,8 @@ Arguments:
   [ARMS]...
 
 Options:
+      --allow-unreached <ALLOW_UNREACHED>
+          Permit both unreached arms only under an identical criterion and observation
       --require-valid-arms
           Refuse verdicts for incomplete or mismatched producer identity
       --fingerprint-map <FINGERPRINT_MAP>
@@ -3109,6 +3337,8 @@ Arguments:
   <CAPTURE_DIR>   Directory of numbered capture PNG/JPEG frames
 
 Options:
+      --allow-unreached <ALLOW_UNREACHED>
+          Permit both unreached arms only under an identical criterion and observation
       --require-valid-arms
           Refuse verdicts for incomplete or mismatched producer identity
       --fingerprint-map <FINGERPRINT_MAP>
@@ -3174,6 +3404,8 @@ Metadata sidecars:
           Sidecar file name (default `saccade-meta.json`); the per-image sidecar is `<stem>.<name>` and overrides the directory-level one
       --meta-ignore <GLOB,...>
           Extra sidecar key globs to ignore, added to the built-in timing, timestamp and run-id defaults
+      --allow-unreached <ALLOW_UNREACHED>
+          Permit both unreached arms only under an identical criterion and observation
       --require-valid-arms
           Refuse verdicts for incomplete or mismatched producer identity
       --fingerprint-map <FINGERPRINT_MAP>
@@ -3225,6 +3457,8 @@ Metadata sidecars:
           Sidecar file name (default `saccade-meta.json`); the per-image sidecar is `<stem>.<name>` and overrides the directory-level one
       --meta-ignore <GLOB,...>
           Extra sidecar key globs to ignore, added to the built-in timing, timestamp and run-id defaults
+      --allow-unreached <ALLOW_UNREACHED>
+          Permit both unreached arms only under an identical criterion and observation
       --require-valid-arms
           Refuse verdicts for incomplete or mismatched producer identity
       --fingerprint-map <FINGERPRINT_MAP>

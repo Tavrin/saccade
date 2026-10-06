@@ -1,5 +1,26 @@
 {
   "$defs": {
+    "AllowedUnreached": {
+      "description": "An explicit readiness exception; it never claims convergence.",
+      "properties": {
+        "baseline_observed": {
+          "description": "Baseline observation, retained even when null."
+        },
+        "capture_observed": {
+          "description": "Candidate observation."
+        },
+        "criterion": {
+          "description": "Exact criterion name.",
+          "type": "string"
+        }
+      },
+      "required": [
+        "criterion",
+        "baseline_observed",
+        "capture_observed"
+      ],
+      "type": "object"
+    },
     "Analysis": {
       "additionalProperties": false,
       "description": "One optional result. Historical absence cannot imply successful execution.",
@@ -581,6 +602,88 @@
         }
       ]
     },
+    "Check": {
+      "description": "Validity only; this result never contains a pixel pass/fail verdict.",
+      "properties": {
+        "allowed_unreached": {
+          "default": [],
+          "description": "Explicitly permitted matched unreached predicates with both observations.",
+          "items": {
+            "$ref": "#/$defs/AllowedUnreached"
+          },
+          "type": "array"
+        },
+        "covered_by_derivation": {
+          "default": [],
+          "description": "Differences covered by explicit field derivations, with both values.",
+          "items": {
+            "$ref": "#/$defs/Finding"
+          },
+          "type": "array"
+        },
+        "diagnostics": {
+          "default": [],
+          "description": "Record discovery diagnostics, including exact searched filenames.",
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "exit_code": {
+          "description": "0 valid, 3 invalid difference/readiness, 4 missing identity.",
+          "format": "uint8",
+          "maximum": 255,
+          "minimum": 0,
+          "type": "integer"
+        },
+        "ignore": {
+          "description": "Explicit ignored tokens, including tokens matching no fields.",
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "ignored": {
+          "description": "Explicitly waived findings, including missing fields and equal nulls.",
+          "items": {
+            "$ref": "#/$defs/Finding"
+          },
+          "type": "array"
+        },
+        "offending": {
+          "description": "Offending fields, sorted by key.",
+          "items": {
+            "$ref": "#/$defs/Finding"
+          },
+          "type": "array"
+        },
+        "result": {
+          "$ref": "#/$defs/ComparisonResult",
+          "description": "valid_comparison or invalid_comparison."
+        },
+        "schema": {
+          "description": "Result contract version.",
+          "type": "string"
+        },
+        "vary": {
+          "description": "Declared variable tokens.",
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        }
+      },
+      "required": [
+        "schema",
+        "result",
+        "exit_code",
+        "offending",
+        "ignore",
+        "ignored",
+        "vary"
+      ],
+      "type": "object"
+    },
     "ClockRange": {
       "additionalProperties": false,
       "properties": {
@@ -672,6 +775,21 @@
         "unknown"
       ],
       "type": "string"
+    },
+    "ComparisonResult": {
+      "description": "Identity validity, independent of any pixel verdict.",
+      "oneOf": [
+        {
+          "const": "valid_comparison",
+          "description": "Complete identities differ only in declared variables or explicit ignores.",
+          "type": "string"
+        },
+        {
+          "const": "invalid_comparison",
+          "description": "Missing or mismatched identity prevents a measurement verdict.",
+          "type": "string"
+        }
+      ]
     },
     "ComponentDelta": {
       "description": "One additive component's observed difference in linear RGB.",
@@ -832,6 +950,51 @@
       "required": [
         "name",
         "status"
+      ],
+      "type": "object"
+    },
+    "Decision": {
+      "description": "Pair result relative to an empirical noise floor.",
+      "properties": {
+        "beyond_tiles": {
+          "description": "Tile indexes above either empirical envelope.",
+          "items": {
+            "format": "uint",
+            "minimum": 0,
+            "type": "integer"
+          },
+          "type": "array"
+        },
+        "class": {
+          "description": "texture_noise_only or systematic_shift.",
+          "type": "string"
+        },
+        "floor": {
+          "$ref": "#/$defs/Floor",
+          "description": "Exact repeat-derived floor, including source identities and method limits."
+        },
+        "method": {
+          "description": "Method and fixed quantization tolerance.",
+          "type": "string"
+        },
+        "rms": {
+          "description": "Global RMS difference.",
+          "format": "double",
+          "type": "number"
+        },
+        "signed_mean": {
+          "description": "Pairwise global signed luminance shift.",
+          "format": "double",
+          "type": "number"
+        }
+      },
+      "required": [
+        "class",
+        "floor",
+        "signed_mean",
+        "rms",
+        "beyond_tiles",
+        "method"
       ],
       "type": "object"
     },
@@ -1314,6 +1477,17 @@
             "null"
           ]
         },
+        "field_evidence": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Report"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "Scope, per-ID numerical shifts, repeat floor and exported map index."
+        },
         "file_bytes_identical": {
           "default": null,
           "description": "File-byte equality, separate from decoded-sample equality.",
@@ -1744,6 +1918,95 @@
         }
       ]
     },
+    "Finding": {
+      "description": "A recorded field finding; explicit states distinguish null from absence.",
+      "properties": {
+        "baseline": {
+          "description": "Baseline declaration."
+        },
+        "baseline_state": {
+          "default": "",
+          "description": "Baseline state: missing, null or value.",
+          "type": "string"
+        },
+        "capture": {
+          "description": "Candidate declaration."
+        },
+        "capture_state": {
+          "default": "",
+          "description": "Candidate state: missing, null or value.",
+          "type": "string"
+        },
+        "key": {
+          "description": "Canonical metadata path.",
+          "type": "string"
+        },
+        "reason": {
+          "description": "Stable reason: missing, difference, readiness_not_reached, malformed.",
+          "type": "string"
+        }
+      },
+      "required": [
+        "key",
+        "reason"
+      ],
+      "type": "object"
+    },
+    "Floor": {
+      "description": "Noise envelope for one capture name.",
+      "properties": {
+        "dimensions": {
+          "description": "Width/height.",
+          "items": {
+            "format": "uint32",
+            "minimum": 0,
+            "type": "integer"
+          },
+          "maxItems": 2,
+          "minItems": 2,
+          "type": "array"
+        },
+        "global_mean_limit": {
+          "description": "Maximum pairwise global signed-mean magnitude.",
+          "format": "double",
+          "type": "number"
+        },
+        "global_rms_limit": {
+          "description": "Maximum pairwise global RMS.",
+          "format": "double",
+          "type": "number"
+        },
+        "repeat_sha256": {
+          "description": "Repeat content identities in declared order.",
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "tile_size": {
+          "description": "Tile width/height.",
+          "format": "uint32",
+          "minimum": 0,
+          "type": "integer"
+        },
+        "tiles": {
+          "description": "Tile envelopes.",
+          "items": {
+            "$ref": "#/$defs/Tile"
+          },
+          "type": "array"
+        }
+      },
+      "required": [
+        "repeat_sha256",
+        "dimensions",
+        "tile_size",
+        "global_mean_limit",
+        "global_rms_limit",
+        "tiles"
+      ],
+      "type": "object"
+    },
     "FrameChange": {
       "enum": [
         "faster",
@@ -2043,6 +2306,85 @@
       ],
       "type": "object"
     },
+    "IdShift": {
+      "description": "One ID, ranked by its total absolute-difference contribution.",
+      "properties": {
+        "contribution": {
+          "description": "Sum absolute error, split equally for pixels that switch IDs.",
+          "format": "double",
+          "type": "number"
+        },
+        "contribution_share": {
+          "description": "Contribution divided by total scoped error, including omitted IDs.",
+          "format": "double",
+          "type": "number"
+        },
+        "crop": {
+          "description": "Portable base | candidate | error crop strip, if generated.",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "id": {
+          "description": "Native object/material/instance label.",
+          "format": "uint32",
+          "minimum": 0,
+          "type": "integer"
+        },
+        "name": {
+          "description": "Supplied name or numeric label.",
+          "type": "string"
+        },
+        "pixels": {
+          "description": "Included pixels in this ID's baseline/candidate footprint union.",
+          "format": "uint64",
+          "minimum": 0,
+          "type": "integer"
+        },
+        "rect_px": {
+          "description": "Bounding box of those included samples.",
+          "items": {
+            "format": "uint32",
+            "minimum": 0,
+            "type": "integer"
+          },
+          "maxItems": 4,
+          "minItems": 4,
+          "type": "array"
+        },
+        "relative": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Statistics"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "Depth relative difference, denominator max(abs(baseline),1e-12)."
+        },
+        "shift": {
+          "$ref": "#/$defs/Statistics",
+          "description": "Primary shift statistics (angular statistics for normal buffers)."
+        },
+        "unit": {
+          "description": "Luminance, depth, degrees, pixels or changed_fraction.",
+          "type": "string"
+        }
+      },
+      "required": [
+        "id",
+        "name",
+        "pixels",
+        "rect_px",
+        "unit",
+        "shift",
+        "contribution",
+        "contribution_share"
+      ],
+      "type": "object"
+    },
     "Kind": {
       "enum": [
         "pass",
@@ -2222,6 +2564,14 @@
       "additionalProperties": false,
       "description": "Metadata-sidecar settings recorded for reproducibility.",
       "properties": {
+        "allow_unreached": {
+          "default": [],
+          "description": "Exact criteria permitted only when both unreached observations match.",
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
         "arm_ignore": {
           "default": [],
           "description": "Explicit strict exceptions, with no automatic ignore patterns.",
@@ -2229,6 +2579,17 @@
             "type": "string"
           },
           "type": "array"
+        },
+        "arm_validation": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Check"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "Complete strict arm validation receipt, including explicit exceptions."
         },
         "changes": {
           "default": [],
@@ -3276,6 +3637,14 @@
           "description": "Decompose additive RGB layers into final-image delta plus residual.",
           "type": "boolean"
         },
+        "dump": {
+          "default": null,
+          "description": "Generic screen-space dump relative to the capture parent, used if no ID manifest exists.",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
         "manifest": {
           "default": null,
           "description": "Optional sidecar filename in each image parent; otherwise <filename>.layers.json.",
@@ -3815,6 +4184,65 @@
       ],
       "type": "object"
     },
+    "Report": {
+      "description": "Additive field evidence in ordinary comparison verdicts.",
+      "properties": {
+        "class": {
+          "description": "Structural/numerical class; the deciding metric remains independently recorded.",
+          "type": "string"
+        },
+        "ids_measured": {
+          "description": "Total IDs measured before top-N truncation.",
+          "format": "uint",
+          "minimum": 0,
+          "type": "integer"
+        },
+        "maps": {
+          "description": "Numeric map JSON index relative to the bundle.",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "noise": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Decision"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "Repeat-derived noise decision when requested."
+        },
+        "per_id": {
+          "description": "Unit-specific ID summaries; truncation is recorded.",
+          "items": {
+            "$ref": "#/$defs/IdShift"
+          },
+          "type": "array"
+        },
+        "provenance": {
+          "description": "Membership source; dump-derived layers explicitly have lower confidence.",
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "scope": {
+          "description": "Explicit scope: whole_frame_unmasked, masked, id_layer or id_layer_masked.",
+          "type": "string"
+        }
+      },
+      "required": [
+        "class",
+        "scope",
+        "per_id",
+        "ids_measured",
+        "provenance"
+      ],
+      "type": "object"
+    },
     "ReportConfig": {
       "additionalProperties": false,
       "description": "Run-wide settings recorded for reproducibility.",
@@ -3896,6 +4324,7 @@
         "meta": {
           "$ref": "#/$defs/MetaSettings",
           "default": {
+            "allow_unreached": [],
             "arm_ignore": [],
             "changes": [],
             "declared": [],
@@ -4459,7 +4888,7 @@
         "tiles": {
           "description": "Regular row-major grid.",
           "items": {
-            "$ref": "#/$defs/Tile"
+            "$ref": "#/$defs/Tile2"
           },
           "type": "array"
         }
@@ -4475,6 +4904,44 @@
         "absolute_shifted_share",
         "relative_shifted_share",
         "limits"
+      ],
+      "type": "object"
+    },
+    "Statistics": {
+      "description": "Signed and unsigned statistics over one ID's actual included samples.",
+      "properties": {
+        "mean_absolute": {
+          "description": "Mean absolute difference in the declared unit.",
+          "format": "double",
+          "type": "number"
+        },
+        "p95": {
+          "description": "Nearest-rank p95 absolute difference.",
+          "format": "double",
+          "type": "number"
+        },
+        "share_over_threshold": {
+          "description": "Fraction strictly over threshold, in [0,1].",
+          "format": "double",
+          "type": "number"
+        },
+        "signed_mean_shift": {
+          "description": "Candidate minus baseline mean (angular differences use nonnegative angles).",
+          "format": "double",
+          "type": "number"
+        },
+        "threshold": {
+          "description": "Declared per-pixel difference threshold.",
+          "format": "double",
+          "type": "number"
+        }
+      },
+      "required": [
+        "signed_mean_shift",
+        "mean_absolute",
+        "p95",
+        "threshold",
+        "share_over_threshold"
       ],
       "type": "object"
     },
@@ -4721,6 +5188,45 @@
       "type": "object"
     },
     "Tile": {
+      "description": "Numerical differences: normalized sRGB signed luminance and RGB RMS over black.",
+      "properties": {
+        "mean_limit": {
+          "description": "Maximum pairwise absolute signed mean.",
+          "format": "double",
+          "type": "number"
+        },
+        "pixels": {
+          "description": "Included pixels.",
+          "format": "uint64",
+          "minimum": 0,
+          "type": "integer"
+        },
+        "rect_px": {
+          "description": "Pixel footprint.",
+          "items": {
+            "format": "uint32",
+            "minimum": 0,
+            "type": "integer"
+          },
+          "maxItems": 4,
+          "minItems": 4,
+          "type": "array"
+        },
+        "rms_limit": {
+          "description": "Maximum pairwise root mean squared difference.",
+          "format": "double",
+          "type": "number"
+        }
+      },
+      "required": [
+        "rect_px",
+        "pixels",
+        "mean_limit",
+        "rms_limit"
+      ],
+      "type": "object"
+    },
+    "Tile2": {
       "description": "One tile, including signed effects that max FLIP obscures.",
       "properties": {
         "absolute_shifted": {
@@ -5044,6 +5550,11 @@
           "default": {},
           "description": "Bundled exact layer bytes, keyed by layer name.",
           "type": "object"
+        },
+        "provenance": {
+          "default": "",
+          "description": "Actual ID buffer or derived-from-dump source, with confidence.",
+          "type": "string"
         }
       },
       "required": [

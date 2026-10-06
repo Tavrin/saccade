@@ -79,3 +79,20 @@ become inconclusive and the command exits nonzero. `inspect export ABLATION
 --format markdown --out summary.md` includes the finding.
 A disabled feature can have identical pixels because it contributed nothing at
 that camera. A model cannot qualify timing or establish a speedup.
+
+## Producer schema discovery
+
+Use `saccade schema list` to discover the IDs embedded in the installed binary.
+`saccade schema get saccade-perf.v2 --out perf.schema.json` creates an exact
+JSON Schema copy. `saccade schema path saccade-perf.v2` prints a matching
+installed copy when present (exit 1 if absent); `get` always works without one.
+An installer can place schemas in `share/saccade/schemas` beside its prefix;
+`SACCADE_SCHEMA_DIR` selects another installed schema directory. Copies must
+match this binary's schema bytes.
+
+Producers should run `saccade perf validate saccade-perf.json --json` directly.
+It checks the embedded v1/v2 schema, including performance-noise documents,
+and exits 0 for valid, 1 for schema violations, or 2 for input/command errors.
+Schema validation does not establish timing comparability or qualification.
+Cost-card producers should use `schema get` or `perf validate` when emitting
+performance sidecars. Never hardcode a source-tree schema path.

@@ -15,6 +15,8 @@ struct Args {
     vary: Vec<String>,
     #[serde(default)]
     ignore: Vec<String>,
+    #[serde(default)]
+    allow_unreached: Vec<String>,
     meta_name: Option<String>,
 }
 pub(crate) fn validate_map(
@@ -29,6 +31,12 @@ pub(crate) fn validate_map(
         } else {
             input.parent().unwrap_or(Path::new("."))
         };
+        for file in &map.record_files {
+            let record = root.join(file);
+            if record.exists() {
+                policy.read(&record)?;
+            }
+        }
         for s in map
             .fields
             .values()
@@ -53,6 +61,7 @@ pub(crate) fn call(policy: &RootPolicy, value: Value) -> Result<Value, CliError>
     let b = policy.read(&args.b)?;
     let opts = saccade_core::meta::MetaOptions {
         intended: args.vary,
+        allow_unreached: args.allow_unreached,
         ignore: args.ignore,
         fingerprint_map: args.fingerprint_map.map(|p| policy.read(&p)).transpose()?,
         name: args
@@ -72,5 +81,5 @@ pub(crate) fn call(policy: &RootPolicy, value: Value) -> Result<Value, CliError>
     )?)?)
 }
 pub(crate) fn schema() -> Value {
-    json!({"type":"object","additionalProperties":false,"required":["operation","a","b"],"properties":{"operation":{"const":"arms_check"},"a":{"type":"string"},"b":{"type":"string"},"vary":{"type":"array","items":{"type":"string"}},"ignore":{"type":"array","items":{"type":"string"}},"fingerprint_map":{"type":"string"},"meta_name":{"type":"string"}}})
+    json!({"type":"object","additionalProperties":false,"required":["operation","a","b"],"properties":{"operation":{"const":"arms_check"},"a":{"type":"string"},"b":{"type":"string"},"vary":{"type":"array","items":{"type":"string"}},"ignore":{"type":"array","items":{"type":"string"}},"fingerprint_map":{"type":"string"},"meta_name":{"type":"string"},"allow_unreached":{"type":"array","items":{"type":"string"}}}})
 }

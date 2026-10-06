@@ -29,6 +29,9 @@ tempfile = "3"
 globset = "0.4"
 fs2 = "0.4.3"
 
+# wave10: embedded-schema producer validation (MIT).
+jsonschema = { version = "0.30", default-features = false }
+
 [features]
 ocr-provider = ["assist", "saccade-core/ocr-provider"]
 media-http = ["saccade-core/media-http"]
@@ -64,7 +67,6 @@ vision-providers = ["saccade-core/vision-providers"]
 [dev-dependencies]
 tempfile = "3"
 # Validates real command output against the shipped schemas (MIT).
-jsonschema = { version = "0.30", default-features = false }
 
 [lints]
 workspace = true
@@ -116,3 +118,11 @@ required-features = ["ai", "mcp"]
 [[test]]
 name = "assist_contract"
 required-features = ["assist", "mcp"]
+
+[[test]]
+name = "quality_reference"
+required-features = ["compression"]
+
+[[test]]
+name = "wave10_field"
+required-features = ["graphics"]

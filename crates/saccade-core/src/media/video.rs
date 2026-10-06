@@ -247,7 +247,7 @@ fn external(mut command: Command) -> Result<Vec<u8>> {
     let mut child = command.spawn().map_err(|_| {
         MediaError::new(
             "video_decode_unavailable",
-            "external ffmpeg/ffprobe unavailable; supply pre-extracted frame directory",
+            format!("external ffmpeg/ffprobe unavailable; fix: {}; or supply pre-extracted frame directory",crate::optional::decoder_fix()),
         )
     })?;
     let start = Instant::now();
@@ -297,6 +297,8 @@ fn external(mut command: Command) -> Result<Vec<u8>> {
 }
 fn decoded(video: &Path, dir: &Path, opts: &VideoOptions) -> Result<Keyframes> {
     validate(opts)?;
+    crate::optional::require_binaries(&["ffmpeg", "ffprobe"])
+        .map_err(|e| MediaError::new("video_decode_unavailable", e.to_string()))?;
     let path = std::fs::canonicalize(video)
         .map_err(|_| MediaError::new("invalid_video_input", "video path unavailable"))?;
     let meta = std::fs::metadata(&path)

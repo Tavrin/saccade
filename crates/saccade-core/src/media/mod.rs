@@ -259,8 +259,90 @@ impl Analyzer {
             sessions: Mutex::new(Sessions::default()),
         })
     }
+    // Preserve relaxed per-section failure receipts; strict requests load dependencies
+    // once before input I/O, so a missing model cannot fail after pixel processing.
+    fn preflight(&self, options: &Options) -> Result<()> {
+        if !options.strict {
+            return Ok(());
+        }
+        let profile = options.profile.unwrap_or(self.profile);
+        let full = profile != Profile::CpuLite;
+        let prepare = || -> Result<()> {
+            if options.faces.unwrap_or(full) {
+                #[cfg(feature = "local-models")]
+                {
+                    let mut sessions = self
+                        .sessions
+                        .lock()
+                        .map_err(|_| MediaError::new("analyzer_poisoned", "model lock poisoned"))?;
+                    if sessions.faces.is_none() {
+                        let library =
+                            crate::wave7::runtime_install::resolve(None, &self.model_dir)?;
+                        crate::optional::require_library(&library)?;
+                        let model = self.registry.model("yunet-2026may")?;
+                        models::ensure(model,&self.model_dir,self.allow_download).map_err(|_|MediaError::new("vision_unavailable","optional face model missing; fix: saccade models pull yunet-2026may --cache CACHE"))?;
+                        sessions.faces = Some(crate::wave7::runtime::OnnxModel::load(
+                            model,
+                            &self.model_dir,
+                            &library,
+                            false,
+                        )?);
+                    }
+                }
+                #[cfg(not(feature = "local-models"))]
+                return Err(MediaError::new(
+                    "vision_unavailable",
+                    "optional face runtime missing; fix: install a local-models build, then saccade models pull yunet-2026may and saccade models pull runtime",
+                ));
+            }
+            if options.text.unwrap_or(full) {
+                #[cfg(feature = "ocr")]
+                {
+                    let mut sessions = self
+                        .sessions
+                        .lock()
+                        .map_err(|_| MediaError::new("analyzer_poisoned", "model lock poisoned"))?;
+                    if sessions.ocr.is_none() {
+                        let c = serde_json::from_value(
+                            self.contract(crate::general::ocr::SCHEMA)?.clone(),
+                        )?;
+                        sessions.ocr = Some(crate::general::ocr::Engine::load(
+                            &c,
+                            &self.model_dir,
+                            self.allow_download,
+                        )?);
+                    }
+                }
+                #[cfg(not(feature = "ocr"))]
+                return Err(MediaError::new(
+                    "ocr_unavailable",
+                    "optional OCR runtime missing; fix: install an ocr build, then saccade models pull runtime and saccade text A B --download-model",
+                ));
+            }
+            if options.embeddings.unwrap_or(full) {
+                #[cfg(feature = "embeddings")]
+                {
+                    let mut sessions = self
+                        .sessions
+                        .lock()
+                        .map_err(|_| MediaError::new("analyzer_poisoned", "model lock poisoned"))?;
+                    if sessions.embeddings.is_none() {
+                        sessions.embeddings = Some(self.load_embeddings()?);
+                    }
+                }
+                #[cfg(not(feature = "embeddings"))]
+                return Err(MediaError::new(
+                    "embedding_unavailable",
+                    "optional embedding runtime missing; fix: install an embeddings build and supply a pinned contract; saccade models list --json",
+                ));
+            }
+            Ok(())
+        };
+        prepare().map_err(|e| MediaError::new("media_section_failed", e.to_string()))
+    }
     /// Analyze a local file or a bounded HTTP(S) URL. This does not pull models.
     pub fn analyze_media(&self, source: &str, options: &Options) -> Result<Record> {
+        self.preflight(options)?;
         if !source.starts_with("http://")
             && !source.starts_with("https://")
             && video::is_video(Path::new(source))
@@ -315,6 +397,7 @@ impl Analyzer {
     }
     /// Analyze bytes retained by the caller; input is decoded and hashed from this buffer.
     pub fn analyze_bytes(&self, bytes: &[u8], options: &Options) -> Result<Record> {
+        self.preflight(options)?;
         if bytes.len() as u64 > input::MAX_BYTES {
             return Err(MediaError::new(
                 "request_too_large",

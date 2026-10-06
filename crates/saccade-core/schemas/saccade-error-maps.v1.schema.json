@@ -1,0 +1,72 @@
+{
+  "$defs": {
+    "Artifact": {
+      "description": "One map's encoded artifacts.",
+      "properties": {
+        "exr": {
+          "description": "EXR f32 R/G/B channels each carry the same scalar.",
+          "type": "string"
+        },
+        "name": {
+          "description": "Name.",
+          "type": "string"
+        },
+        "npy": {
+          "description": "NumPy v1 little-endian f32, row-major.",
+          "type": "string"
+        },
+        "shape": {
+          "description": "Array height/width.",
+          "items": {
+            "format": "uint32",
+            "minimum": 0,
+            "type": "integer"
+          },
+          "maxItems": 2,
+          "minItems": 2,
+          "type": "array"
+        },
+        "unit": {
+          "description": "Unit.",
+          "type": "string"
+        }
+      },
+      "required": [
+        "name",
+        "shape",
+        "unit",
+        "npy",
+        "exr"
+      ],
+      "type": "object"
+    }
+  },
+  "$id": "https://github.com/Tavrin/saccade/crates/saccade-core/schemas/saccade-error-maps.v1.schema.json",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "description": "Numeric map index.",
+  "properties": {
+    "layout": {
+      "description": "Describes shape, NaN exclusions and EXR channel layout.",
+      "type": "string"
+    },
+    "maps": {
+      "description": "Artifacts.",
+      "items": {
+        "$ref": "#/$defs/Artifact"
+      },
+      "type": "array"
+    },
+    "schema": {
+      "const": "saccade-error-maps.v1",
+      "description": "Versioned discriminator.",
+      "type": "string"
+    }
+  },
+  "required": [
+    "schema",
+    "layout",
+    "maps"
+  ],
+  "title": "Index",
+  "type": "object"
+}

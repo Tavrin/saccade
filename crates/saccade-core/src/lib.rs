@@ -165,3 +165,8 @@ pub mod evidence_quality;
 // wave8
 /// Versioned media analysis, saliency, usage and search primitives.
 pub mod media;
+
+// wave10
+pub mod schema_catalog;
+
+pub mod optional;

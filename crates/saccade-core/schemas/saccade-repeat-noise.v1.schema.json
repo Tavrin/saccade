@@ -1,0 +1,134 @@
+{
+  "$defs": {
+    "Floor": {
+      "description": "Noise envelope for one capture name.",
+      "properties": {
+        "dimensions": {
+          "description": "Width/height.",
+          "items": {
+            "format": "uint32",
+            "minimum": 0,
+            "type": "integer"
+          },
+          "maxItems": 2,
+          "minItems": 2,
+          "type": "array"
+        },
+        "global_mean_limit": {
+          "description": "Maximum pairwise global signed-mean magnitude.",
+          "format": "double",
+          "type": "number"
+        },
+        "global_rms_limit": {
+          "description": "Maximum pairwise global RMS.",
+          "format": "double",
+          "type": "number"
+        },
+        "repeat_sha256": {
+          "description": "Repeat content identities in declared order.",
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "tile_size": {
+          "description": "Tile width/height.",
+          "format": "uint32",
+          "minimum": 0,
+          "type": "integer"
+        },
+        "tiles": {
+          "description": "Tile envelopes.",
+          "items": {
+            "$ref": "#/$defs/Tile"
+          },
+          "type": "array"
+        }
+      },
+      "required": [
+        "repeat_sha256",
+        "dimensions",
+        "tile_size",
+        "global_mean_limit",
+        "global_rms_limit",
+        "tiles"
+      ],
+      "type": "object"
+    },
+    "Tile": {
+      "description": "Numerical differences: normalized sRGB signed luminance and RGB RMS over black.",
+      "properties": {
+        "mean_limit": {
+          "description": "Maximum pairwise absolute signed mean.",
+          "format": "double",
+          "type": "number"
+        },
+        "pixels": {
+          "description": "Included pixels.",
+          "format": "uint64",
+          "minimum": 0,
+          "type": "integer"
+        },
+        "rect_px": {
+          "description": "Pixel footprint.",
+          "items": {
+            "format": "uint32",
+            "minimum": 0,
+            "type": "integer"
+          },
+          "maxItems": 4,
+          "minItems": 4,
+          "type": "array"
+        },
+        "rms_limit": {
+          "description": "Maximum pairwise root mean squared difference.",
+          "format": "double",
+          "type": "number"
+        }
+      },
+      "required": [
+        "rect_px",
+        "pixels",
+        "mean_limit",
+        "rms_limit"
+      ],
+      "type": "object"
+    }
+  },
+  "$id": "https://github.com/Tavrin/saccade/crates/saccade-core/schemas/saccade-repeat-noise.v1.schema.json",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "description": "Persisted per-entry repeat noise floors.",
+  "properties": {
+    "entries": {
+      "additionalProperties": {
+        "$ref": "#/$defs/Floor"
+      },
+      "description": "Repeat capture names and floors.",
+      "type": "object"
+    },
+    "limits": {
+      "description": "Declaration/interpretation limits.",
+      "items": {
+        "type": "string"
+      },
+      "type": "array"
+    },
+    "method": {
+      "description": "max_pairwise_rgb_luminance_envelope_v1, fully deterministic.",
+      "type": "string"
+    },
+    "schema": {
+      "const": "saccade-repeat-noise.v1",
+      "description": "Versioned discriminator.",
+      "type": "string"
+    }
+  },
+  "required": [
+    "schema",
+    "method",
+    "entries",
+    "limits"
+  ],
+  "title": "Report",
+  "type": "object"
+}

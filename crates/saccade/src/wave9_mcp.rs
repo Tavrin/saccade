@@ -17,6 +17,8 @@ enum Operation {
         intended_variables: Vec<String>,
         #[serde(default)]
         arm_ignore: Vec<String>,
+        #[serde(default)]
+        allow_unreached: Vec<String>,
         reference: PathBuf,
         #[serde(default)]
         seeds: Vec<PathBuf>,
@@ -75,6 +77,7 @@ pub(crate) fn call(
             fingerprint_map,
             intended_variables,
             arm_ignore,
+            allow_unreached,
             render,
             reference,
             seeds,
@@ -87,6 +90,7 @@ pub(crate) fn call(
                     require_valid_arms,
                     fingerprint_map: fingerprint_map.map(|p| policy.read(&p)).transpose()?,
                     arm_ignore,
+                    allow_unreached,
                 },
                 intended_variables,
                 config: None,
@@ -170,7 +174,7 @@ fn check_frozen(policy: &RootPolicy, out: &Path) -> Result<(), CliError> {
 }
 pub(crate) fn schemas() -> Vec<Value> {
     let mut result = vec![
-        json!({"type":"object","additionalProperties":false,"required":["operation","render","reference"],"properties":{"operation":{"const":"reference_compare"},"render":{"type":"string"},"reference":{"type":"string"},"seeds":{"type":"array","maxItems":31,"items":{"type":"string"}},"variance":{"type":"string"},"mask":{"type":"string"},"policy":{"type":"string"},"require_valid_arms":{"type":"boolean"},"fingerprint_map":{"type":"string"},"intended_variables":{"type":"array","items":{"type":"string"}},"arm_ignore":{"type":"array","items":{"type":"string"}}}}),
+        json!({"type":"object","additionalProperties":false,"required":["operation","render","reference"],"properties":{"operation":{"const":"reference_compare"},"render":{"type":"string"},"reference":{"type":"string"},"seeds":{"type":"array","maxItems":31,"items":{"type":"string"}},"variance":{"type":"string"},"mask":{"type":"string"},"policy":{"type":"string"},"require_valid_arms":{"type":"boolean"},"fingerprint_map":{"type":"string"},"intended_variables":{"type":"array","items":{"type":"string"}},"arm_ignore":{"type":"array","items":{"type":"string"}},"allow_unreached":{"type":"array","items":{"type":"string"}}}}),
     ];
     for operation in [
         "trial_register",

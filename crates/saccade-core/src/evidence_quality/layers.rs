@@ -178,6 +178,8 @@ pub struct LayerScope {
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(default, deny_unknown_fields)]
 pub struct Policy {
+    /// Generic screen-space dump relative to the capture parent, used if no ID manifest exists.
+    pub dump: Option<String>,
     /// Optional sidecar filename in each image parent; otherwise <filename>.layers.json.
     pub manifest: Option<String>,
     /// Optional layer inclusion predicate.
@@ -188,6 +190,7 @@ pub struct Policy {
 impl Default for Policy {
     fn default() -> Self {
         Self {
+            dump: None,
             manifest: None,
             scope: None,
             attribution: true,
@@ -219,6 +222,9 @@ impl Policy {
 #[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct Witness {
+    /// Actual ID buffer or derived-from-dump source, with confidence.
+    #[serde(default)]
+    pub provenance: String,
     /// Bundled manifest path, when comparison wrote a portable report.
     #[serde(default)]
     pub manifest_path: Option<String>,
@@ -275,6 +281,7 @@ pub struct LayerResult {
 }
 /// Loaded, bounded layers and their provenance; no re-reading after validation.
 pub struct Loaded {
+    names: std::collections::BTreeMap<u32, String>,
     retained: std::collections::BTreeMap<String, Vec<u8>>,
     manifest_bytes: Vec<u8>,
     manifest: Manifest,
@@ -347,6 +354,60 @@ fn load_inner(
             path.file_name().unwrap_or_default().to_string_lossy()
         )
     });
+    if let Some(dump) = &policy.dump
+        && !root.join(&name).exists()
+    {
+        let source = super::relative(root, dump)?;
+        let dump_bytes = super::read(&source, 1 << 20)?;
+        let (img, names) = super::dump::rasterize(&dump_bytes, dimensions)?;
+        let mut encoded = std::io::Cursor::new(Vec::new());
+        img.write_to(&mut encoded, image::ImageFormat::Png)
+            .map_err(|source| Error::Encode {
+                path: source_path(root),
+                source,
+            })?;
+        let encoded = encoded.into_inner();
+        let layer_name = "derived_instances".to_string();
+        let manifest = Manifest {
+            schema: SCHEMA.into(),
+            image_sha256: crate::localized::digest(&final_bytes),
+            dimensions: [dimensions.0, dimensions.1],
+            layers: vec![Layer {
+                name: layer_name.clone(),
+                image: "derived-id.png".into(),
+                kind: Kind::Id,
+                sha256: Some(crate::localized::digest(&encoded)),
+                scale: 1.0,
+                colour_space: ColourSpace::Linear,
+                additive: false,
+            }],
+        };
+        let bytes = serde_json::to_vec(&manifest)?;
+        let hash = crate::localized::digest(&encoded);
+        return Ok(Loaded {
+            names,
+            retained: std::collections::BTreeMap::from([
+                (layer_name.clone(), encoded),
+                ("dump".into(), dump_bytes.clone()),
+            ]),
+            manifest_bytes: bytes.clone(),
+            manifest,
+            images: std::collections::BTreeMap::from([(layer_name.clone(), img)]),
+            witness: Witness {
+                provenance: format!(
+                    "derived from dump; lower confidence than real id buffer; dump sha256 {}",
+                    crate::localized::digest(&dump_bytes)
+                ),
+                manifest_path: None,
+                paths: Default::default(),
+                manifest_sha256: crate::localized::digest(&bytes),
+                layers: std::collections::BTreeMap::from([
+                    (layer_name, hash),
+                    ("dump".into(), crate::localized::digest(&dump_bytes)),
+                ]),
+            },
+        });
+    }
     let source = super::relative(root, &name)?;
     let bytes = super::read(&source, 1 << 20)?;
     let manifest: Manifest = serde_json::from_slice(&bytes)?;
@@ -410,11 +471,13 @@ fn load_inner(
         images.insert(layer.name.clone(), img);
     }
     Ok(Loaded {
+        names: Default::default(),
         retained,
         manifest_bytes: bytes.clone(),
         manifest,
         images,
         witness: Witness {
+            provenance: "real id buffer / source-bound capture layers".into(),
             manifest_path: None,
             paths: Default::default(),
             manifest_sha256: crate::localized::digest(&bytes),
@@ -641,6 +704,12 @@ pub fn bundle(loaded: &mut Loaded, out: &Path, entry: &str, side: &str) -> Resul
     std::fs::write(out.join(&manifest_path), &loaded.manifest_bytes)
         .map_err(crate::run::io_err("writing bundled manifest".into()))?;
     loaded.witness.manifest_path = Some(manifest_path);
+    if let Some(bytes) = loaded.retained.get("dump") {
+        let path = format!("{dir}/{side}-dump.json");
+        std::fs::write(out.join(&path), bytes)
+            .map_err(crate::run::io_err("writing bundled dump".into()))?;
+        loaded.witness.paths.insert("dump".into(), path);
+    }
     for (index, layer) in loaded.manifest.layers.iter().enumerate() {
         let extension = Path::new(&layer.image)
             .extension()
@@ -659,6 +728,35 @@ pub fn bundle(loaded: &mut Loaded, out: &Path, entry: &str, side: &str) -> Resul
     Ok(())
 }
 
+fn source_path(root: &Path) -> std::path::PathBuf {
+    root.join("derived-id.png")
+}
+/// Retrieve the first named ID layer in manifest order, retaining source confidence.
+pub fn id_layer(loaded: &Loaded) -> Result<Option<super::field::IdLayer>> {
+    let Some(layer) = loaded.manifest.layers.iter().find(|l| l.kind == Kind::Id) else {
+        return Ok(None);
+    };
+    if layer.scale != 1.0 {
+        return Err(Error::Config(
+            "ID attribution requires unscaled integer IDs".into(),
+        ));
+    }
+    let (_, img) = definition(loaded, &layer.name)?;
+    Ok(Some(super::field::IdLayer {
+        values: super::field::ids(img)?,
+        names: loaded.names.clone(),
+        provenance: format!(
+            "{}; layer {}; sha256 {}",
+            loaded.witness.provenance,
+            layer.name,
+            loaded
+                .witness
+                .layers
+                .get(&layer.name)
+                .map_or("unknown", String::as_str)
+        ),
+    }))
+}
 #[cfg(test)]
 mod tests {
     use super::*;

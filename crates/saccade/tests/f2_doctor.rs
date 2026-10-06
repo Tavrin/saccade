@@ -8,6 +8,59 @@ use std::process::Command;
 const BIN: &str = env!("CARGO_BIN_EXE_saccade");
 
 #[test]
+fn doctor_missing_optional_dependencies_are_informational() {
+    let tmp = tempfile::tempdir().unwrap();
+    for json in [true, false] {
+        let mut command = Command::new(BIN);
+        command
+            .arg("doctor")
+            .current_dir(tmp.path())
+            .env("PATH", tmp.path())
+            .env("XDG_CACHE_HOME", tmp.path())
+            .env("ORT_DYLIB_PATH", tmp.path().join("missing-runtime"));
+        if json {
+            command.arg("--json");
+        }
+        let output = command.output().unwrap();
+        assert!(output.status.success(), "{output:?}");
+        if json {
+            let doctor: Value = serde_json::from_slice(&output.stdout).unwrap();
+            // These fields are read directly by both release workflows.
+            assert_eq!(doctor["version"], env!("CARGO_PKG_VERSION"));
+            assert_eq!(
+                doctor["build"]["git_commit"].as_str(),
+                option_env!("SACCADE_GIT_COMMIT").filter(|s| !s.is_empty())
+            );
+            assert_eq!(
+                doctor["build"]["git_dirty"].as_bool(),
+                match option_env!("SACCADE_GIT_DIRTY") {
+                    Some("true") => Some(true),
+                    Some("false") => Some(false),
+                    _ => None,
+                }
+            );
+            let optional = &doctor["optional_dependencies"];
+            let binaries = optional["binaries"].as_array().unwrap();
+            assert_eq!(binaries.len(), 3);
+            for binary in binaries {
+                assert_eq!(binary["status"], "missing");
+                assert!(binary["path"].is_null());
+                assert!(binary["fix_command"].is_string());
+            }
+            assert_eq!(optional["onnx_runtime"]["status"], "missing");
+            assert!(optional["onnx_runtime"]["library"].is_null());
+            let models = optional["models"].as_array().unwrap();
+            assert!(!models.is_empty());
+            assert!(models.iter().all(|model| model["status"] == "missing"));
+        } else {
+            let text = String::from_utf8(output.stdout).unwrap();
+            assert!(text.contains("optional dependencies"));
+            assert!(text.contains("missing"));
+        }
+    }
+}
+
+#[test]
 fn doctor_exposes_build_identity_and_named_capabilities() {
     let output = Command::new(BIN)
         .args(["doctor", "--json"])

@@ -3,6 +3,9 @@ use crate::agent::CliError;
 use std::path::PathBuf;
 #[derive(clap::Args, Clone, Default)]
 pub(crate) struct StrictArgs {
+    /// Permit both unreached arms only under an identical criterion and observation.
+    #[arg(long = "allow-unreached")]
+    pub allow_unreached: Vec<String>,
     /// Refuse verdicts for incomplete or mismatched producer identity.
     #[arg(long)]
     pub require_valid_arms: bool,
@@ -20,6 +23,8 @@ impl StrictArgs {
             opts.fingerprint_map = Some(map.clone());
         }
         opts.ignore.extend(self.arm_ignore.iter().cloned());
+        opts.allow_unreached
+            .extend(self.allow_unreached.iter().cloned());
     }
 }
 #[derive(clap::Args)]
@@ -36,6 +41,9 @@ enum Operation {
         /// Allowed difference: exact key, dotted prefix, suffix or explicit glob.
         #[arg(long)]
         vary: Vec<String>,
+        /// Permit intentionally unreached captures with exactly matching observations.
+        #[arg(long = "allow-unreached")]
+        allow_unreached: Vec<String>,
         /// Explicit exception, echoed even when no keys match it.
         #[arg(long)]
         ignore: Vec<String>,
@@ -63,6 +71,7 @@ pub(crate) fn run(args: Args) -> Result<u8, CliError> {
             a,
             b,
             vary,
+            allow_unreached,
             ignore,
             fingerprint_map,
             config,
@@ -71,6 +80,7 @@ pub(crate) fn run(args: Args) -> Result<u8, CliError> {
         } => {
             let mut cfg = crate::load_config(config.as_deref())?;
             cfg.meta.intended.extend(vary);
+            cfg.meta.allow_unreached.extend(allow_unreached);
             cfg.meta.ignore.extend(ignore);
             if let Some(map) = fingerprint_map {
                 cfg.meta.fingerprint_map = Some(map);

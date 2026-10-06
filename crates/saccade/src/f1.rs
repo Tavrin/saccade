@@ -206,7 +206,10 @@ pub(crate) enum NoiseKind {
     Performance,
 }
 #[derive(Args)]
+#[command(subcommand_negates_reqs = true)]
 pub(crate) struct NoiseArgs {
+    #[command(subcommand)]
+    operation: Option<NoiseOperation>,
     /// Image calibration (default) or qualified performance noise in ms.
     #[arg(long, value_enum, default_value = "image")]
     kind: NoiseKind,
@@ -226,7 +229,19 @@ pub(crate) struct NoiseArgs {
     json: bool,
 }
 
+#[derive(clap::Subcommand)]
+enum NoiseOperation {
+    /// Build per-tile empirical noise envelopes from same-arm repeats.
+    Build(crate::wave10_cmd::NoiseBuildArgs),
+}
+
 pub(crate) fn noise(args: NoiseArgs, record_absolute_paths: bool) -> Result<u8, CliError> {
+    if let Some(NoiseOperation::Build(build)) = args.operation {
+        return crate::wave10_cmd::noise_build(build);
+    }
+    if args.dirs.len() < 2 {
+        return Err(CliError::usage("noise needs at least two repeats"));
+    }
     if matches!(args.kind, NoiseKind::Image)
         && let Some(path) = &args.config
     {

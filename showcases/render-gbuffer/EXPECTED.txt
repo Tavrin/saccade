@@ -1,4 +1,8 @@
 === compare (exit 1) ===
+scope: whole_frame_unmasked (depth.png)
+scope: whole_frame_unmasked (lit.png)
+scope: whole_frame_unmasked (motion.png)
+scope: whole_frame_unmasked (normal.png)
 compare: ❌ regression: 2 fail of 4 images
 
 STATUS  NAME        METRIC          VALUE    THRESHOLD

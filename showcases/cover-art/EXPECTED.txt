@@ -1,4 +1,7 @@
 === compare (exit 1) ===
+scope: whole_frame_unmasked (crop.png)
+scope: whole_frame_unmasked (jpeg-q40.png)
+scope: whole_frame_unmasked (warmer.png)
 compare: ❌ regression: 3 fail of 3 images
 
 STATUS  NAME          METRIC  VALUE    THRESHOLD

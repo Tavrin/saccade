@@ -17,7 +17,7 @@ variables; inspect ignores and covered derivations. [Arms](../docs/arm-validity.
 Identity binds supplied samples; threshold passing grants no approval/timing authority.
 
 `review` previews; `review request|ask|propose` binds input hashes.
-CLI attestation is null; workbench human attestation is token-gated;
+CLI attestation is null; workbench attestation is token-gated;
 `automated` cannot satisfy human-required checks. Shell agents can invoke approval;
 human-final is an audit policy. Deletion needs approval and `--prune-missing`;
 Model decisions need fresh review. [Evidence](../docs/contracts.md),
@@ -33,8 +33,7 @@ forbids resubmission. Jev routing is off/unqualified. [Assist](../docs/assist.md
 
 `toMatchSaccade` fails on errors/instability. Set clock/random before navigation;
 masks need reasons, new baselines approval.
-Registration rejects config/masks.
-Dynamic browser/sweep masks use pre-filter `neutralize`; core defaults to `exclude`.
+Browser/sweep masks `neutralize`; core masks `exclude`.
 Read mask mode/excluded-error audits.
 [Matcher](../docs/playwright-matcher.md).
 
@@ -53,7 +52,7 @@ fallback. `--align`/`--resample` records geometry exclusions.
 `models list` shows pins; inference needs an explicit runtime/verified cache,
 never an implicit pull. `locate`, `faces`, `crop-check`, `quality-score`, `watermark`
 and local/provider observations are attributed advice, never verdict overrides.
-Read feature flags, replay bindings and qualification gaps in [Vision](../docs/wave7.md).
+[Vision](../docs/wave7.md) records features, replay and qualification.
 
 [Rendering evidence](../docs/render-evidence.md): read `required_effects[].failures`
 even at zero FLIP. Declare experiment keys; opt into spatial/layer/fixed-camera
@@ -68,9 +67,15 @@ uncalibrated confidence/failures, never rights proof. [Media](../docs/media.md),
 [Python](../docs/python.md), [API](../docs/api.md).
 Text index queries need pinned joint SigLIP 2; DINO is image-only.
 
-Local gates grant no broad model/provider/platform/rendering/release qualification.
+Local gates grant no runtime/release qualification.
 
 [OCR](../docs/text.md): `ocr` enables local PP-OCRv5; preserve accents/source hashes
-and treat CTC confidence as uncalibrated. Downloads are explicit. `ocr-provider`
+and treats CTC confidence as uncalibrated. Explicit pulls. `ocr-provider`
 adds opt-in Mistral image/PDF text via bound fixtures or authorized live calls
 with root egress/spend caps; never auto-selected.
+
+<!-- wave10 -->
+Producers: `schema list|get|path`, `perf validate FILE --json`.
+Field evidence: `render-evidence`, `noise build REPEATS...`, `compare --export-maps --noise-from REPEATS... --require-scope`.
+[Arm policies](../docs/arm-validity.md): null is a value; `--ignore` waives missing
+fields; `--allow-unreached` requires exact observations; maps select `record_files`.

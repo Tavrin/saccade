@@ -118,6 +118,12 @@ fn default_true() -> bool {
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct MetaSettings {
+    /// Complete strict arm validation receipt, including explicit exceptions.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub arm_validation: Option<crate::arms::Check>,
+    /// Exact criteria permitted only when both unreached observations match.
+    #[serde(default)]
+    pub allow_unreached: Vec<String>,
     /// Whether strict arm identity was required before measurement.
     #[serde(default)]
     pub require_valid_arms: bool,
@@ -146,6 +152,8 @@ pub struct MetaSettings {
 impl Default for MetaSettings {
     fn default() -> Self {
         Self {
+            arm_validation: None,
+            allow_unreached: Vec::new(),
             require_valid_arms: false,
             arm_ignore: Vec::new(),
             intended: Vec::new(),
@@ -297,6 +305,9 @@ pub enum Metric {
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct Entry {
+    /// Scope, per-ID numerical shifts, repeat floor and exported map index.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub field_evidence: Option<crate::evidence_quality::field::Report>,
     /// Source-bound layer selection and additive component decomposition.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub layers: Option<crate::evidence_quality::layers::LayerResult>,

@@ -739,3 +739,11 @@ redistributed; generator outputs carry font hashes and exact local licence recei
 SIL OFL and Bitstream font licences apply only to the generated fixture fonts,
 not to additional software dependencies. This permissive font choice follows the
 OCR spec's generated-font exception to the shared software-dependency licence list.
+
+## Wave 10 array API
+
+NumPy (Python runtime dependency, >=1.23): BSD-3-Clause. Verified from the installed
+NumPy distribution's `licenses/LICENSE.txt`; arrays use its public Python API,
+without new Rust native dependencies. NumPy is distributed separately and its
+wheel contains its own notices. `jsonschema` 0.30 was already used by schema tests;
+the CLI now uses that same MIT-licensed dependency for embedded perf validation.

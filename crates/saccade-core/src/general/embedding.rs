@@ -239,17 +239,13 @@ impl Engine {
     /// The dynamic runtime file must already exist. Ordinary loading does not download.
     pub fn load(model: Model, cache: &Path, library: &Path, download: bool) -> Result<Self> {
         validate(&model)?;
-        if !library.is_file() {
-            return Err(Error::Config(
-                "explicit ONNX Runtime library unavailable".into(),
-            ));
-        }
+        crate::optional::require_library(library)?;
         if download {
             semantic::cache_models(&cache_manifest(&model), cache)?;
         }
         let path = semantic::artifact_path(cache, &model.artifact)?;
         let file = std::fs::File::open(&path)
-            .map_err(crate::run::io_err("opening pinned embedding export".into()))?;
+            .map_err(crate::run::io_err("opening pinned embedding export; fix: saccade models pull MODEL_ID --registry REGISTRY --cache CACHE (or this command --download-model for the supplied pinned contract)".into()))?;
         use sha2::{Digest, Sha256};
         use std::io::Read;
         if file

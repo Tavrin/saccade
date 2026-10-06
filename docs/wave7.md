@@ -349,3 +349,18 @@ Azure classic deployment mapping uses Chat Completions; no unsupported Responses
 is guessed. Optional keys are handed only to a separately authorized transport; mapping
 JSON contains the header name and never its value. URL userinfo/query/fragment credentials
 are refused with redacted errors. These adapters have fixture proof only, no live calls.
+
+## Optional dependency preflight
+
+`doctor --json` lists ffmpeg, ffprobe, dav1d, ONNX Runtime and pinned model cache
+status as `present`/`missing`, with `fix_command` for each. Presence is file/cache
+availability, not ABI or model parity qualification. Doctor executes no decoder,
+loads no runtime and downloads nothing. Local vision commands resolve requested
+models and runtime paths before reading pixels; missing dependencies include the
+provisioning command. Replay does not require inference dependencies. Video input
+checks ffmpeg/ffprobe before reading it. Strict media analysis preloads requested
+models before input I/O; relaxed analysis retains per-section failure receipts.
+Local OCR checks runtime/artifact availability before decoding input. Pre-extracted frame directories remain
+usable without those binaries. `dav1d` is listed for external tooling; video
+commands use ffmpeg/ffprobe. A build without optional model features tells you to
+install the feature-enabled build first.

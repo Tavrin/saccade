@@ -16,7 +16,7 @@ png = (b"\x89PNG\r\n\x1a\n"
        + chunk(b"IHDR", struct.pack(">IIBBBBB", 40, 30, 8, 2, 0, 0, 0))
        + chunk(b"IDAT", zlib.compress((b"\0" + bytes([20, 40, 70]) * 40) * 30))
        + chunk(b"IEND", b""))
-assert version("saccade-vision") == "0.2.2"
+assert saccade.__version__ == version("saccade-vision") == "0.2.3"
 analyzer = saccade.Analyzer(profile="cpu-lite", allow_download=False)
 record = analyzer.analyze_media(png)
 assert record["schema"] == "saccade-media-record.v1"
@@ -24,4 +24,5 @@ assert record["profile"] == "cpu-lite"
 assert record["identity"]["data"]["sha256"] == hashlib.sha256(png).hexdigest()
 assert record["description"]["status"] == "skipped"
 assert analyzer.compare(png, png)["metrics"]["mean"] == 0
+assert saccade.compare_maps(png, png)["flip"].max() == 0
 print("Installed saccade-vision wheel: cpu-lite smoke PASS")

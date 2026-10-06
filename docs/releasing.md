@@ -2,8 +2,8 @@
 
 Run `scripts/release-check.sh` against the exact revision to be tagged. It prints each local PASS/FAIL and names the CI-only gates. Keep `Cargo.lock` fixed. Inspect its package inventory, unpacked-workspace package build and dependency notices output. The CI feature matrix, schema and historical-reader checks run on PRs; `release.yml` runs on a tag or manual dispatch.
 
-1. Push the reviewed branch and open a pull request. The release workflow runs a `v0.2.2` dry run at the PR head commit when release machinery changes; this also works before GitHub recognizes the new `workflow_dispatch` trigger on the default branch. After the workflow lands on the default branch, `gh workflow run release.yml --ref <branch> -f tag=v0.2.2` is another dry-run route. Download `release-dist` and four `qualification-*` artifacts from that run. Confirm `SHA256SUMS` lists all four archives, each result identifies the expected full commit/hash, and all four jobs passed. Neither dry-run route creates a GitHub release.
-2. After the dry run and other release checklist evidence are reviewed, create and push the `v0.2.2` tag on **the same commit**. The tag workflow rebuilds on four clean target runners, checks `doctor --json` identity, assembles the checksums, runs `qualify.yml`, and creates a draft only if every job succeeds.
+1. Push the reviewed branch and open a pull request. The release workflow runs a `v0.2.3` dry run at the PR head commit when release machinery changes; this also works before GitHub recognizes the new `workflow_dispatch` trigger on the default branch. After the workflow lands on the default branch, `gh workflow run release.yml --ref <branch> -f tag=v0.2.3` is another dry-run route. Download `release-dist` and four `qualification-*` artifacts from that run. Confirm `SHA256SUMS` lists all four archives, each result identifies the expected full commit/hash, and all four jobs passed. Neither dry-run route creates a GitHub release.
+2. After the dry run and other release checklist evidence are reviewed, create and push the `v0.2.3` tag on **the same commit**. The tag workflow rebuilds on four clean target runners, checks `doctor --json` identity, assembles the checksums, runs `qualify.yml`, and creates a draft only if every job succeeds.
 3. Inspect the draft's four archives, `SHA256SUMS`, generated notices and qualification results. Check the release notes and compare the draft's commit with the reviewed tag. Publish the draft manually when the human release decision is complete.
 
 `qualify.yml` is called automatically from `release.yml`. Once the workflow file is on the default branch, it can also be dispatched with the producing release workflow `run_id`, full `commit`, and `tag` to rerun clean-machine checks on its existing artifacts. It verifies the entire checksum manifest, extracts the target archive, checks version/commit, reproduces all showcase `EXPECTED.txt` transcripts, validates schema-bearing showcase JSON, and uploads one result per target. It does not build or publish.
@@ -48,7 +48,7 @@ One-time setup, performed by the maintainer:
    `python-dist-*` artifacts. Confirm the version matches the intended tag and
    inspect the wheel/sdist metadata, README and licenses. All four native wheel
    jobs must pass their installed-wheel smoke and fixture tests.
-4. Once approved, push the matching `v0.2.2` tag on the reviewed commit. Only a tag
+4. Once approved, push the matching `v0.2.3` tag on the reviewed commit. Only a tag
    push triggers publishing: the `publish` job needs every wheel job and the
    sdist job, requests the `pypi` environment, and exchanges GitHub OIDC identity
    for PyPI access using `pypa/gh-action-pypi-publish`. PRs, branches and manual

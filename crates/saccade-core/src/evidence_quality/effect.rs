@@ -200,6 +200,7 @@ pub fn select(
             manifest,
         } => {
             let policy = super::layers::Policy {
+                dump: None,
                 manifest: manifest.clone(),
                 scope: None,
                 attribution: false,

@@ -658,6 +658,7 @@ fn compute_entry(
         covered_by_derivation: Vec::new(),
         spatial: None,
         gallery: Vec::new(),
+        field_evidence: None,
         layers: None,
         required_effects: Vec::new(),
         buffer: None,

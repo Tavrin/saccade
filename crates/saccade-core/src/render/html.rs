@@ -67,9 +67,48 @@ pub(crate) fn build_html(
         super::bundle::summary(report, case)?,
         escape(&crate::exclusions::text(report))
     );
+    let summary = if let Some(check) = &report.config.meta.arm_validation {
+        format!(
+            "<p><strong>Allowed unreached (intentionally unconverged):</strong> {}</p>{summary}",
+            escape(&serde_json::to_string(&check.allowed_unreached)?)
+        )
+    } else {
+        summary
+    };
     let summary = format!(
         "{summary}<details><summary>Motion diagnostics (raw FLIP remains authoritative)</summary>{motion}</details>"
     );
+    let mut scope_notice = String::new();
+    let mut id_tables = String::new();
+    for entry in &report.entries {
+        if let Some(field) = &entry.field_evidence {
+            scope_notice.push_str(&format!(
+                "<p><strong>Scope: {}</strong> — {} ({})</p>",
+                escape(&field.scope),
+                escape(&entry.name),
+                escape(&field.class)
+            ));
+            if !field.per_id.is_empty() {
+                id_tables.push_str(&format!("<h3>Per-ID shifts: {}</h3><p>{} IDs measured; top {} shown. {}</p><table><thead><tr><th>ID / name</th><th>Pixels</th><th>Unit</th><th>Signed mean</th><th>Mean absolute</th><th>p95</th><th>Threshold</th><th>% over</th><th>Contribution %</th><th>Relative depth mean / p95</th></tr></thead><tbody>",escape(&entry.name),field.ids_measured,field.per_id.len(),escape(&field.provenance.join("; "))));
+                for row in &field.per_id {
+                    id_tables.push_str(&format!("<tr><td>{}: {}</td><td>{}</td><td>{}</td><td>{:+.6}</td><td>{:.6}</td><td>{:.6}</td><td>{:.6}</td><td>{:.2}</td><td>{:.2}</td><td>{}</td></tr>",row.id,escape(&row.name),row.pixels,escape(&row.unit),row.shift.signed_mean_shift,row.shift.mean_absolute,row.shift.p95,row.shift.threshold,100.0*row.shift.share_over_threshold,100.0*row.contribution_share,row.relative.as_ref().map_or_else(||"—".into(),|r|format!("{:.6} / {:.6}",r.mean_absolute,r.p95))));
+                }
+                id_tables.push_str("</tbody></table>");
+                for row in &field.per_id {
+                    if let Some(crop) = &row.crop
+                        && crop.starts_with("regions/")
+                        && !crop.contains("..")
+                    {
+                        id_tables.push_str(&format!("<figure><figcaption>Top ID {}: {} — base | candidate | error (crops downsampled to at most 512 px per panel)</figcaption><img loading=\"lazy\" style=\"max-width:100%\" src=\"{}\" alt=\"ID comparison crop\"></figure>",row.id,escape(&row.name),escape(crop)));
+                    }
+                }
+            }
+            if let Some(noise) = &field.noise {
+                id_tables.push_str(&format!("<p>Repeat noise: {}; signed mean {:+.6}; RMS {:.6}; beyond-envelope tiles {}. {}</p>",escape(&noise.class),noise.signed_mean,noise.rms,noise.beyond_tiles.len(),escape(&noise.method)));
+            }
+        }
+    }
+    let summary = format!("{scope_notice}{summary}{id_tables}");
     let mut gallery = String::new();
     for entry in &report.entries {
         if entry.gallery.is_empty() {

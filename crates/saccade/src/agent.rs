@@ -303,6 +303,16 @@ pub fn result_value(
     }
     value["counts"]["validity_reasons"] = json!(validity.reasons.len());
     value["scope"] = json!({"entries":report.config.entries,"ignore":report.config.ignore});
+    let scopes = report
+        .entries
+        .iter()
+        .filter_map(|e| e.field_evidence.as_ref().map(|f| f.scope.as_str()))
+        .collect::<std::collections::BTreeSet<_>>();
+    value["scope"]["kind"] = json!(if scopes.len() == 1 {
+        scopes.first().copied().unwrap_or("unknown")
+    } else {
+        "mixed"
+    });
     value["counts"] = json!({"total":report.totals.total,"pass":report.totals.pass,"fail":report.totals.fail,"error":report.totals.error,"missing":report.totals.missing,"new":report.totals.new});
     value["counts"]["validity_reasons"] = json!(validity.reasons.len());
     let local_changes = report
@@ -318,6 +328,11 @@ pub fn result_value(
             value["data"] = json!({});
         }
         value["data"]["arm_validation"] = json!({"result":"valid_comparison","ignore":report.config.meta.arm_ignore,"vary":report.config.meta.intended,"covered_by_derivation":report.entries.iter().filter(|e| !e.covered_by_derivation.is_empty()).map(|e|json!({"entry":e.name,"fields":e.covered_by_derivation})).collect::<Vec<_>>()});
+    }
+    if let Some(check) = &report.config.meta.arm_validation {
+        value["data"]["arm_validation"]["allowed_unreached"] = json!(check.allowed_unreached);
+        value["data"]["arm_validation"]["ignored"] =
+            json!(check.ignored.iter().take(8).collect::<Vec<_>>());
     }
     let failing = failing_entries(report);
     let summaries=failing.iter().take(top.min(5)).map(|e|json!({"entry_id":e.name,"measurement":if e.status==Status::Fail{"regression"}else{"unknown"},"error":e.error.as_ref().map(|s|crate::local_cmd::short(s,256))})).collect::<Vec<_>>();

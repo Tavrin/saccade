@@ -1,0 +1,48 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/Tavrin/saccade/crates/saccade-core/schemas/saccade-render-evidence.v1.schema.json",
+  "title": "Bounded render evidence verdict; complete measured evidence in artifact",
+  "type": "object",
+  "required": [
+    "schema",
+    "scope",
+    "verdict",
+    "counts",
+    "artifact",
+    "entries"
+  ],
+  "properties": {
+    "schema": {
+      "const": "saccade-render-evidence.v1"
+    },
+    "scope": {
+      "enum": [
+        "whole_frame_unmasked",
+        "masked",
+        "id_layer",
+        "id_layer_masked",
+        "mixed",
+        "unknown"
+      ]
+    },
+    "verdict": {
+      "enum": [
+        "pass",
+        "fail"
+      ]
+    },
+    "counts": {
+      "type": "object"
+    },
+    "artifact": {
+      "type": "object"
+    },
+    "entries": {
+      "type": "array",
+      "maxItems": 3,
+      "items": {
+        "type": "object"
+      }
+    }
+  }
+}

@@ -136,6 +136,40 @@ pub(crate) struct ModelOptions {
     #[arg(long)]
     allow_download: bool,
 }
+impl ModelOptions {
+    // Dependency resolution precedes pixel reads; observation replay bypasses inference.
+    fn preflight(&self, requested: &[&str]) -> Result<(), CliError> {
+        #[cfg(not(feature = "local-models"))]
+        {
+            let _ = requested;
+            Err(error(VisionError::Unavailable("optional model runtime missing; fix: install a saccade build with local-models; saccade models list --json, then saccade models pull MODEL_ID and saccade models pull runtime".into())))
+        }
+        #[cfg(feature = "local-models")]
+        {
+            let reg = registry(self.registry.as_deref())?;
+            let cache = cache(self.cache.as_deref())?;
+            let library = saccade_core::wave7::runtime_install::resolve(
+                self.runtime_library.as_deref(),
+                &cache,
+            )
+            .map_err(error)?;
+            saccade_core::optional::require_library(&library)?;
+            for id in requested {
+                let fallback = match *id {
+                    "grounding-dino-tiny" => "owlv2-base",
+                    "sam-2.1-tiny" => "efficientsam-ti",
+                    _ => id,
+                };
+                let model = reg
+                    .model(id)
+                    .or_else(|_| reg.model(fallback))
+                    .map_err(error)?;
+                models::ensure(model, &cache, self.allow_download).map_err(|_|error(VisionError::Unavailable(format!("optional model {} missing or corrupt; fix: saccade models pull {} (use the same --registry and --cache); saccade models list --json",model.id,model.id))))?;
+            }
+            Ok(())
+        }
+    }
+}
 #[derive(clap::Args)]
 pub(crate) struct LocateArgs {
     image: PathBuf,
@@ -178,6 +212,13 @@ pub(crate) fn locate(a: LocateArgs) -> Result<u8, CliError> {
 }
 fn locate_measure(a: LocateArgs) -> Result<saccade_core::wave7::vision::LocateReport, CliError> {
     use saccade_core::wave7::vision::{LocateReport, VisionImage};
+    if a.observations.is_none() {
+        let mut ids = vec![a.detector.as_str()];
+        if a.segment {
+            ids.push(a.segmenter.as_str());
+        }
+        a.model.preflight(&ids)?;
+    }
     let image = VisionImage::load(&a.image).map_err(error)?;
     let r = if let Some(p) = &a.observations {
         if a.model.allow_download {
@@ -329,6 +370,9 @@ pub(crate) fn quality(a: QualityArgs) -> Result<u8, CliError> {
         vision::VisionImage,
     };
     let metric = learned_metric(&a.metric)?;
+    if a.observations.is_none() {
+        a.model.preflight(&[metric.model_id()])?;
+    }
     let image = VisionImage::load(&a.image).map_err(error)?;
     let reference = a
         .reference
@@ -419,6 +463,9 @@ pub(crate) fn watermark(a: WatermarkArgs) -> Result<u8, CliError> {
         vision::VisionImage,
         watermark::{self, DwtConfig, WatermarkReport},
     };
+    if a.trustmark && a.observations.is_none() {
+        a.model.preflight(&["trustmark"])?;
+    }
     let image = VisionImage::load(&a.image).map_err(error)?;
     let r = if let Some(p) = a.observations {
         let mut r: WatermarkReport =
@@ -531,6 +578,9 @@ fn face_report(
     }
 }
 pub(crate) fn faces(a: FacesArgs) -> Result<u8, CliError> {
+    if a.observations.is_none() {
+        a.model.preflight(&[a.detector.as_str()])?;
+    }
     let image = saccade_core::wave7::vision::VisionImage::load(&a.image).map_err(error)?;
     let r = face_report(&a, &image)?;
     if let Some(p) = &a.blur_faces {
@@ -570,6 +620,9 @@ pub(crate) fn crop(a: CropArgs) -> Result<u8, CliError> {
         faces::{self, CropSpec},
         vision::{Rect, VisionImage},
     };
+    if a.faces.observations.is_none() {
+        a.faces.model.preflight(&[a.faces.detector.as_str()])?;
+    }
     let image = VisionImage::load(&a.faces.image).map_err(error)?;
     let r = face_report(&a.faces, &image)?;
     let specs = a

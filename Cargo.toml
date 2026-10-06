@@ -4,7 +4,7 @@ members = ["crates/saccade-core", "crates/saccade", "crates/saccade-py"]
 default-members = ["crates/saccade-core", "crates/saccade"]
 
 [workspace.package]
-version = "0.2.2"
+version = "0.2.3"
 edition = "2024"
 rust-version = "1.89"
 license = "MIT OR Apache-2.0"
@@ -13,7 +13,7 @@ keywords = ["visual-regression", "flip", "rendering", "image-diff", "ci"]
 categories = ["graphics", "development-tools::testing", "command-line-utilities"]
 
 [workspace.dependencies]
-saccade-core = { path = "crates/saccade-core", version = "0.2.2", default-features = false }
+saccade-core = { path = "crates/saccade-core", version = "0.2.3", default-features = false }
 image = { version = "0.25", default-features = false, features = ["png", "jpeg", "exr", "hdr"] }
 flip-rs = { version = "0.1.2", default-features = false }
 serde = { version = "1", features = ["derive"] }

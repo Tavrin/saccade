@@ -116,6 +116,64 @@ pub(crate) fn source(
     }
     crate::ui_review_cmd::recognize_text(contract, bytes, size)
 }
+fn preflight(contract: Option<&Path>, download: bool) -> Result<(), CliError> {
+    #[cfg(not(feature = "ocr"))]
+    {
+        let _ = (contract, download);
+        Err(CliError::new(
+            "feature_unavailable",
+            "optional OCR runtime missing; fix: install an ocr build, then saccade models pull runtime and saccade text A B --download-model; or import image-bound sources",
+        ))
+    }
+    #[cfg(feature = "ocr")]
+    {
+        let (value, dir) = if let Some(path) = contract {
+            let raw: Value = serde_json::from_slice(&input::bytes(path, 2 << 20)?)?;
+            let value = if raw["schema"] == saccade_core::wave7::models::REGISTRY_SCHEMA {
+                let r = saccade_core::wave7::models::Registry::load(path)
+                    .map_err(crate::wave7_cmd::error)?;
+                let c = r
+                    .contracts
+                    .values()
+                    .filter(|v| {
+                        v["schema"] == saccade_core::general::ocr::SCHEMA
+                            || v["schema"] == "saccade-tesseract.v1"
+                    })
+                    .collect::<Vec<_>>();
+                if c.len() != 1 {
+                    return Err(CliError::usage(
+                        "shared registry needs one unambiguous OCR contract",
+                    ));
+                }
+                c[0].clone()
+            } else {
+                raw
+            };
+            (value, path.parent().unwrap_or(Path::new(".")).to_path_buf())
+        } else {
+            (
+                serde_json::to_value(saccade_core::general::ocr::default_contract()?)?,
+                saccade_core::media::default_model_dir(),
+            )
+        };
+        if value["schema"] == saccade_core::general::ocr::SCHEMA {
+            let c: saccade_core::general::ocr::Contract = serde_json::from_value(value)?;
+            let cache = if contract.is_some() {
+                dir.join(&c.cache)
+            } else {
+                dir
+            };
+            saccade_core::general::ocr::preflight(&c, &cache, download)?;
+        } else if let Some(executable) = value["executable"].as_str()
+            && !dir.join(executable).is_file()
+        {
+            return Err(CliError::usage(
+                "optional Tesseract executable missing; fix: install tesseract-ocr and supply its pinned contract",
+            ));
+        }
+        Ok(())
+    }
+}
 pub(crate) fn run(args: Args) -> Result<u8, CliError> {
     let value = measure(&args)?;
     general_cmd::emit_document(value, Some(&args.out), args.json)
@@ -138,6 +196,9 @@ fn measure(args: &Args) -> Result<Value, CliError> {
         )?;
         general_cmd::prepare_out(&args.out, &[&args.a, &args.b])?;
         return Ok(value);
+    }
+    if args.a_source.is_none() || args.b_source.is_none() {
+        preflight(args.ocr_contract.as_deref(), args.download_model)?;
     }
     let aa = input::bytes(&args.a, input::MAX_BYTES)?;
     let bb = input::bytes(&args.b, input::MAX_BYTES)?;

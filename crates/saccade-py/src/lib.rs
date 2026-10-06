@@ -358,8 +358,77 @@ fn pull_models(
     )
 }
 /// Native module loaded by the ordinary Python package.
+/// Return the native FLIP map and numerical tile grids as NumPy float32 arrays.
+#[pyfunction]
+#[pyo3(signature=(reference,candidate,tile_size=32))]
+fn compare_maps(
+    py: Python<'_>,
+    reference: &Bound<'_, PyAny>,
+    candidate: &Bound<'_, PyAny>,
+    tile_size: u32,
+) -> PyResult<Py<PyAny>> {
+    // Resolve numpy before any image computation; package declares it as a dependency.
+    let numpy = py.import("numpy")?;
+    let (reference, candidate) = (input(reference)?, input(candidate)?);
+    let maps = py
+        .allow_threads(|| -> saccade_core::Result<_> {
+            let read = |input: Input| -> saccade_core::Result<Vec<u8>> {
+                match input {
+                    Input::Bytes(b) => Ok(b),
+                    Input::Path(p) => {
+                        saccade_core::evidence_quality::read(std::path::Path::new(&p), 64 << 20)
+                    }
+                }
+            };
+            let b = saccade_core::evidence_quality::decode(
+                &read(reference)?,
+                std::path::Path::new("reference"),
+            )?
+            .to_rgba8();
+            let c = saccade_core::evidence_quality::decode(
+                &read(candidate)?,
+                std::path::Path::new("candidate"),
+            )?
+            .to_rgba8();
+            let options = Default::default();
+            let comparison = saccade_core::compare::compare_rgba(&c, &b, &options)?;
+            let policy = saccade_core::evidence_quality::spatial::Policy {
+                tile_size,
+                ..Default::default()
+            };
+            let spatial = saccade_core::evidence_quality::spatial::analyze(
+                &b,
+                &c,
+                &comparison.error_map,
+                None,
+                None,
+                &policy,
+                &options,
+                saccade_core::diagnostics::ChangeClass::LocalStructure,
+            )?;
+            saccade_core::evidence_quality::maps::collect(
+                &comparison.error_map,
+                b.dimensions(),
+                None,
+                Some(&spatial),
+            )
+        })
+        .map_err(|e| error(py, MediaError::new("invalid_map_input", e.to_string())))?;
+    let result = PyDict::new(py);
+    for map in maps {
+        let bytes: Vec<u8> = map.values.iter().flat_map(|v| v.to_le_bytes()).collect();
+        let array = numpy
+            .call_method1("frombuffer", (PyBytes::new(py, &bytes), "<f4"))?
+            .call_method0("copy")?
+            .call_method1("reshape", (map.dimensions[1], map.dimensions[0]))?;
+        result.set_item(map.name, array)?;
+    }
+    Ok(result.into_any().unbind())
+}
 #[pymodule]
 fn _native(py: Python<'_>, m: &Bound<'_, PyModule>) -> PyResult<()> {
+    m.add("__version__", VERSION)?;
+    m.add_function(wrap_pyfunction!(compare_maps, m)?)?;
     m.add_class::<Analyzer>()?;
     m.add_class::<Index>()?;
     m.add("SaccadeError", py.get_type::<SaccadeError>())?;

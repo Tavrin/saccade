@@ -28,6 +28,13 @@ fn installed_media_sections_reuse_sessions() {
     assert_eq!(first.focal.data["faces"]["status"], "ok");
     assert_eq!(first.text.status, Status::Ok);
     assert_eq!(first.embeddings.status, Status::Ok);
+    let strict = Options {
+        strict: true,
+        ..Default::default()
+    };
+    let strict_record = analyzer.analyze_bytes(&bytes, &strict).unwrap();
+    assert_eq!(strict_record.text.status, Status::Ok);
+    assert_eq!(strict_record.embeddings.status, Status::Ok);
     let sessions = analyzer.sessions.lock().unwrap();
     assert!(sessions.faces.is_some() && sessions.ocr.is_some() && sessions.embeddings.is_some());
     drop(sessions);

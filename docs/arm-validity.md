@@ -19,8 +19,10 @@ to the config file; command-line mapping paths resolve relative to the command.
 
 Strict mode refuses measurement if any fingerprint or metadata field differs
 outside the intended variables, explicit derivations or ignores. There are no automatic
-timing, timestamp or run-ID exceptions. Missing, null or empty identity never
-counts as equal, including when both sides omit it or it is varied/ignored.
+timing, timestamp or run-ID exceptions. Explicit JSON null is a value: null equals null, and null versus a value is
+a difference (exit 3). Only an absent key is missing (exit 4). Required typed
+identity fields still reject malformed values. `--ignore` can explicitly waive
+null and missing fields; waived findings retain both states in the receipt.
 It checks every selected image's inherited and per-image metadata and every
 supplied ablation repeat before exclusions. Session differences require an
 intended-variable or derivation declaration. Default comparisons retain warning
@@ -34,8 +36,9 @@ exact key, a dotted prefix (`TOKEN.*`) or suffix (`*.TOKEN`); explicit globs
 also work. For example, `--vary mode` matches `run.mode`, and `--vary run.env`
 matches all selected environment fields. Use `--arm-ignore TOKEN` on verdict
 commands. Ignores are echoed even when they match no keys; ignored differences
-remain visible. An ignore cannot supply missing identity, waive a session mismatch, or waive
-an unreached or mismatched readiness predicate.
+remain visible. Ignores waive explicitly selected null and missing fields and ordinary differences.
+They cannot waive a session mismatch or an unreached/mismatched readiness predicate;
+use the specific readiness policy below for intentionally unconverged captures.
 
 ## Producer fingerprint schema
 
@@ -80,7 +83,7 @@ Example hash strings are illustrative; producers should emit full content
 hashes. `producer.build` must have at least one known field; `run.env = {}`
 means explicitly no selected flags. Readiness is a nonempty list of unique
 criterion names. Every record requires exact parameters (possibly `{}`),
-`reached: true`, and a non-null observed value. Records compare by name,
+`reached: true`, and an observed value (including explicit null). Records compare by name,
 independent of order. Different names or parameters refuse even if both arms
 claim convergence or declare the readiness fields as varying. Observation
 changes are ordinary differences and can be declared explicitly.
@@ -105,7 +108,7 @@ JSON read is at most 1 MiB. Traversal and symlink files are refused.
 Missing sibling files or source fields remain missing.
 
 Destinations are `producer.binary`, `producer.build` or `producer.build.*`,
-`inputs.identity`, `run.mode`, `run.env` or `run.env.*`, `run.readiness[]`, and
+`inputs.identity` or `inputs.*`, `run.mode`, `run.env` or `run.env.*`, `run.readiness[]`, and
 `run.session`. `run.readiness[]` selects a whole native readiness list. The
 optional `[[readiness]]` form adapts independent producer flags to named
 criteria with fixed parameters and sourced reached/observed values. Several
@@ -132,7 +135,8 @@ change remains undeclared and exits 3. Targets use canonical keys after mapping,
 or unmapped primary keys / `file:NAME.KEY` sibling keys; no target globs are
 accepted. Each field allows at most 128 derived keys. Explicit chains propagate
 coverage; cycles alone grant none. Ignores do not activate derivations.
-Missing or malformed identity and readiness failures still refuse comparison. These are producer declarations,
+Missing identity refuses unless explicitly ignored; malformed identity and readiness
+failures still refuse comparison. These are producer declarations,
 not verification that the values were actually computed from one another.
 
 See the runnable [generic example](../examples/arm-validity/fingerprint-map.toml).
@@ -152,9 +156,10 @@ represent synthetic identities, not external assets.
 The [result schema](../crates/saccade-core/schemas/saccade-arms-check.v1.schema.json)
 uses `schema: saccade-arms-check.v1`, `result: valid_comparison` or
 `invalid_comparison`, `exit_code`, `offending`, `vary`, `ignore`, `ignored`, and
-`covered_by_derivation`.
+`covered_by_derivation`, `allowed_unreached`, and `diagnostics`.
 Each finding contains its canonical key, baseline and capture JSON values
-(null for absence), and a reason. Directory findings prefix keys with their
+(null for absence), `baseline_state`/`capture_state` (`missing`, `null`, or
+`value`), and a reason. Directory findings prefix keys with their
 image name. A refusal has no pass/fail verdict and produces no measurement
 report. Existing output artifacts are left untouched.
 
@@ -176,3 +181,64 @@ Compare/identity/ablate and `reference_compare` accept `require_valid_arms`,
 `fingerprint_map`, `intended_variables`, and `arm_ignore` under the existing
 read-root policy. An invalid result is typed `invalid_comparison`, not a
 regression or successful measurement.
+
+
+## Intentionally unconverged pairs
+
+`arms check A B --allow-unreached warmup --json` permits the `warmup` criterion
+only when both flags are exactly `false`, the named criterion and parameters
+match, and both observed values are present and exactly equal. Different
+observations, one reached arm, missing observations, or different criteria
+still refuse, including with `--vary run.*`. The visible `allowed_unreached`
+list contains the criterion and both observations; it does not claim convergence.
+Verdict commands accept the same flag; config uses `allow_unreached = ["warmup"]`.
+
+A fingerprint map may declare this for one criterion:
+
+```toml
+[[readiness]]
+name = "warmup"
+unreached_policy = "matched"
+[readiness.reached]
+path = "warmup.reached"
+[readiness.observed]
+path = "warmup.frame_index"
+```
+
+## Run-record discovery in directories
+
+A map's `record_files = ["capture.json", "cost-card.json"]` reads those ordered
+JSON files from each arm root and merges them into the primary record (later
+files win). Inherited/per-image sidecars then override the run record. Ordinary
+source paths resolve against that merged object; explicit `file` mappings keep
+their existing sibling semantics. Missing files do not become null values.
+When no fingerprint identity is found, the check's `diagnostics` names the files
+searched and explains how to select the record with `record_files` or `--meta-name`.
+Each record is bounded to 1 MiB; traversal and symlinks are refused.
+
+A generic preparation identity map uses this producer shape:
+
+```json
+{"binary":{"hash":"sha256:binary"},"content":{"hash":"sha256:input","preparation_report_sha256":"sha256:report","preparer":null},"cache_key":"sha256:cache"}
+```
+
+The `preparer` may instead be `{"commit":"revision","dirty":false}`. Retain
+explicit null when preparation predates the identity stamp; omit a key only
+when its value is actually missing. Add these entries to a complete map:
+
+```toml
+record_files = ["capture.json"]
+[fields."producer.binary"]
+path = "binary.hash"
+derives = ["cache_key"]
+[fields."inputs.identity"]
+path = "content.hash"
+[fields."inputs.preparation_report_sha256"]
+path = "content.preparation_report_sha256"
+[fields."inputs.preparer"]
+path = "content.preparer"
+```
+
+MCP `arms_check`, strict comparisons and `reference_compare` accept
+`allow_unreached` as a list of exact names. Strict full reports retain the
+validation receipt, including ignored states and allowed observations.
