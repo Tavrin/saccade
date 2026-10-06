@@ -9,6 +9,7 @@ pub const PRICE_VERSION: &str = "openrouter-recorded-prices/2026-10-06-v1";
 pub const ENDPOINT: &str = "https://openrouter.ai/api/v1/chat/completions";
 /// Build chat messages from the same anonymous image extraction packet.
 pub fn request(gemini: &[u8], model: &str) -> Result<Vec<u8>> {
+    let price = super::price::openrouter_price(model)?;
     require(
         !model.is_empty()
             && model.len() <= 128
@@ -36,7 +37,7 @@ pub fn request(gemini: &[u8], model: &str) -> Result<Vec<u8>> {
             content.push(json!({"type":"image_url","image_url":{"url":format!("data:image/png;base64,{data}")}}));
         }
     }
-    crate::evidence::canonical::bytes(&json!({"model":model,"messages":[{"role":"system","content":source["systemInstruction"]["parts"][0]["text"]},{"role":"user","content":content}],"temperature":0,"max_tokens":4096,"response_format":{"type":"json_object"},"provider":{"allow_fallbacks":false,"require_parameters":true},"usage":{"include":true}})).map_err(|_|super::Error::Invalid("OpenRouter payload"))
+    crate::evidence::canonical::bytes(&json!({"model":model,"messages":[{"role":"system","content":source["systemInstruction"]["parts"][0]["text"]},{"role":"user","content":content}],"temperature":0,"max_tokens":4096,"response_format":{"type":"json_object"},"provider":{"allow_fallbacks":false,"require_parameters":true,"max_price":price.max_price()},"usage":{"include":true}})).map_err(|_|super::Error::Invalid("OpenRouter payload"))
 }
 /// Recorded execution identity and routing, distinct from immutable model identity.
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -175,11 +176,71 @@ mod tests {
         assert_eq!(prices["live_verified"], false);
     }
     #[test]
+    fn g12_model_price_caps_and_payload_bounds_fail_closed() {
+        let source = json!({"systemInstruction":{"parts":[{"text":"fixture"}]},"contents":[{"parts":[{"text":"fixture"}]}]});
+        let source = serde_json::to_vec(&source).unwrap();
+        let model = "google/gemini-3.8-flash";
+        let mut payload: Value = decode(&request(&source, model).unwrap()).unwrap();
+        assert_eq!(
+            payload["provider"]["max_price"],
+            json!({"prompt":0.75,"completion":3.75})
+        );
+        assert!(validate_request(&serde_json::to_vec(&payload).unwrap(), model).is_ok());
+        payload["messages"][1]["content"][0]["text"] = json!("x".repeat(16000));
+        assert!(validate_request(&serde_json::to_vec(&payload).unwrap(), model).is_err());
+        assert!(request(&source, "unpriced/expensive-model").is_err());
+    }
+    #[test]
+    fn g12_inline_png_header_ceiling_and_unsupported_content_are_bounded() {
+        let model = "google/gemini-3.8-flash";
+        // Base64 PNG signature, IHDR length/type and dimensions 512 by 512.
+        let source = json!({"systemInstruction":{"parts":[{"text":"fixture"}]},"contents":[{"parts":[{"inline_data":{"data":"iVBORw0KGgoAAAANSUhEUgAAAgAAAAIA"}}]}]});
+        let mut payload: Value =
+            decode(&request(&serde_json::to_vec(&source).unwrap(), model).unwrap()).unwrap();
+        let bytes = serde_json::to_vec(&payload).unwrap();
+        let admitted = admission(&bytes, model).unwrap();
+        assert!(admitted.bounds.input >= 8192 + 1024);
+        assert_eq!(
+            admitted.reservation,
+            admitted.bounds.input * 750 + 4096 * 3750
+        );
+        assert_eq!(admitted.bounds.output, 4096);
+        let second = payload["messages"][1]["content"][0].clone();
+        payload["messages"][1]["content"]
+            .as_array_mut()
+            .unwrap()
+            .push(second);
+        assert!(validate_request(&serde_json::to_vec(&payload).unwrap(), model).is_err());
+        for url in [
+            "https://example.org/image.png",
+            "data:image/png;base64,invalid",
+            "data:image/jpeg;base64,iVBORw0KGgoAAAANSUhEUgAAAgAAAAIA",
+            "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAEAAAAAAB",
+        ] {
+            let mut v: Value = decode(&bytes).unwrap();
+            v["messages"][1]["content"][0]["image_url"]["url"] = json!(url);
+            assert!(validate_request(&serde_json::to_vec(&v).unwrap(), model).is_err());
+        }
+        for field in ["tools", "audio", "prompt"] {
+            let mut v: Value = decode(&bytes).unwrap();
+            v[field] = json!({});
+            assert!(validate_request(&serde_json::to_vec(&v).unwrap(), model).is_err());
+        }
+        payload = decode(&bytes).unwrap();
+        payload["provider"]["max_price"]["prompt"] = json!(0.76);
+        assert!(validate_request(&serde_json::to_vec(&payload).unwrap(), model).is_err());
+        payload["provider"]
+            .as_object_mut()
+            .unwrap()
+            .remove("max_price");
+        assert!(validate_request(&serde_json::to_vec(&payload).unwrap(), model).is_err());
+    }
+    #[test]
     fn chat_request_has_chat_messages_bounded_output_and_pinned_routing() {
         let source = json!({"systemInstruction":{"parts":[{"text":"untrusted data"}]},"contents":[{"parts":[{"text":"P1"},{"inline_data":{"data":"fixture-base64"}}]}]});
         let bytes = request(
             &serde_json::to_vec(&source).unwrap(),
-            "openai/fixture-model",
+            super::super::price::OPENROUTER_MODEL,
         )
         .unwrap();
         let value: Value = serde_json::from_slice(&bytes).unwrap();
@@ -209,6 +270,17 @@ mod execution_tests {
     };
     #[test]
     fn g12_openrouter_reserves_settles_unknown_zero_and_quarantines_usage_breach() {
+        scenarios(0..11);
+    }
+    #[test]
+    fn g12_reservation_tracks_payload_and_explicit_output_before_dispatch() {
+        scenarios(11..12);
+    }
+    #[test]
+    fn g12_returned_cost_over_reservation_is_charged_and_stops_campaign() {
+        scenarios(12..13);
+    }
+    fn scenarios(indices: std::ops::Range<usize>) {
         struct Fake<'a> {
             ledger: &'a Ledger,
             calls: Cell<u32>,
@@ -279,7 +351,7 @@ mod execution_tests {
                 })
             }
         }
-        for index in 0..11 {
+        for index in indices {
             let temp = tempfile::tempdir().unwrap();
             std::fs::write(
                 temp.path().join("openrouter.env"),
@@ -312,11 +384,15 @@ mod execution_tests {
                 "../../tests/fixtures/assist-openrouter/chat-completion.json"
             ))
             .unwrap();
+            value["model"] = json!("google/gemini-3.8-flash");
             if index == 1 {
                 value["usage"] = json!({"cost":0});
             }
             if index == 10 {
                 value["usage"]["cost"] = json!(0);
+            }
+            if index == 12 {
+                value["usage"]["cost"] = json!(0.04);
             }
             if index == 2 {
                 value["usage"]["prompt_tokens"] = json!(16001);
@@ -347,17 +423,27 @@ mod execution_tests {
                 sources: vec!["fixture".into()],
                 deadline: Instant::now() + Duration::from_secs(1),
             };
-            let payload = serde_json::to_vec(
-                &json!({"model":"openai/fixture-model","max_tokens":4096,"messages":[{"role":"user","content":"fixture"}],"temperature":0,"response_format":{"type":"json_object"},"provider":{"allow_fallbacks":false,"require_parameters":true},"usage":{"include":true}}),
+            let source = json!({"systemInstruction":{"parts":[{"text":"system fixture"}]},
+                "contents":[{"parts":[{"text":"fixture"}]}]});
+            let mut payload: Value = decode(
+                &request(
+                    &serde_json::to_vec(&source).unwrap(),
+                    "google/gemini-3.8-flash",
+                )
+                .unwrap(),
             )
             .unwrap();
+            if index == 11 {
+                payload["max_tokens"] = json!(64);
+            }
+            let payload = serde_json::to_vec(&payload).unwrap();
             let key = CacheKey {
                 evidence_hash: Digest::of_bytes(b"fixture-request"),
                 payload_hash: Digest::of_bytes(&payload),
                 prompt_hash: Digest::of_bytes(b"fixture"),
                 encoder_version: ENCODER.into(),
                 provider: "openrouter".into(),
-                model: "openai/fixture-model".into(),
+                model: "google/gemini-3.8-flash".into(),
                 revision: "fixture-revision-1".into(),
                 settings: json!({}),
                 api_config_hash: Digest::of_bytes(b"user"),
@@ -368,6 +454,14 @@ mod execution_tests {
             let campaign =
                 std::fs::read_to_string(temp.path().join("ledger/campaign.json")).unwrap();
             assert!(!campaign.contains("fixture-openrouter-key"));
+            if index == 12 {
+                assert!(result.is_err());
+                assert_eq!(receipts[0].actual_nano_usd, Some(40_000_000));
+                assert_eq!(receipts[0].outcome, "cost_limit_exceeded");
+                assert!(executor.call(&key, &payload).is_err());
+                assert_eq!(fake.calls.get(), 1);
+                continue;
+            }
             if [3, 4, 5, 6, 8].contains(&index) {
                 assert!(result.is_err(), "scenario {index}");
                 assert_eq!(fake.calls.get(), 0);
@@ -398,6 +492,17 @@ mod execution_tests {
                 );
             }
             let receipt = &receipts[0];
+            if index == 11 {
+                assert_eq!(
+                    receipt.reserved_nano_usd,
+                    (payload.len() as u64 + 1024) * 750 + 64 * 3750
+                );
+                assert_eq!(
+                    receipt.usage["input_bound"],
+                    json!(payload.len() as u64 + 1024)
+                );
+                assert_eq!(receipt.usage["output_bound"], json!(64));
+            }
             assert_eq!(fake.calls.get(), 1);
             let reconciliation = reconcile(&transport, Duration::from_secs(1));
             assert_eq!(reconciliation.is_ok(), ![1, 7].contains(&index));
@@ -486,6 +591,12 @@ pub fn body_amount(body: &[u8], path: &[&str], round_up: bool) -> Option<u64> {
 }
 /// Validate the closed chat-completions request before authorization or accounting.
 pub fn validate_request(payload: &[u8], model: &str) -> Result<()> {
+    admission(payload, model).map(|_| ())
+}
+/// Bind the allowlisted model, route price caps and actual payload reservation.
+pub fn admission(payload: &[u8], model: &str) -> Result<super::price::OpenRouterAdmission> {
+    require(payload.len() <= 32 * 1024 * 1024, "OpenRouter payload size")?;
+    let price = super::price::openrouter_price(model)?;
     let v: Value = decode(payload)?;
     require(
         v.as_object().is_some_and(|o| {
@@ -506,13 +617,15 @@ pub fn validate_request(payload: &[u8], model: &str) -> Result<()> {
             && v["messages"].as_array().is_some_and(|a| !a.is_empty())
             && v["temperature"] == 0
             && v["response_format"] == json!({"type":"json_object"})
-            && v["provider"] == json!({"allow_fallbacks":false,"require_parameters":true})
+            && v["provider"]
+                == json!({"allow_fallbacks":false,"require_parameters":true,"max_price":price.max_price()})
             && v["usage"] == json!({"include":true})
             && v["max_tokens"]
                 .as_u64()
                 .is_some_and(|n| n > 0 && n <= super::execution::OUTPUT_LIMIT),
         "OpenRouter closed request shape",
-    )
+    )?;
+    super::price::openrouter_bounds(payload, price)
 }
 /// Exact decimal USD parser shared by CLI authorization and accounting.
 pub fn decimal_amount(text: &str, round_up: bool) -> Option<u64> {
@@ -610,11 +723,16 @@ pub fn parse_ceiling(key: &[u8], credits: &[u8]) -> std::result::Result<Ceiling,
     }
     let key_usage = body_amount(key, &["data", "usage"], true);
     let account_usage = body_amount(credits, &["data", "total_usage"], true);
-    let key_remaining = if !k["data"]["limit"].is_null()
-        && body_amount(key, &["data", "limit"], false).is_some()
-        && key_usage.is_some()
-    {
-        body_amount(key, &["data", "limit_remaining"], false)
+    let key_remaining = if !k["data"]["limit"].is_null() {
+        // A present limit cannot fall back to credits when any required key
+        // accounting field is malformed, negative or outside the decimal range.
+        body_amount(key, &["data", "limit"], false)
+            .zip(key_usage)
+            .ok_or("openrouter_ceiling_unavailable")?;
+        Some(
+            body_amount(key, &["data", "limit_remaining"], false)
+                .ok_or("openrouter_ceiling_unavailable")?,
+        )
     } else {
         None
     };
@@ -743,7 +861,7 @@ mod ceiling_tests {
         assert!(
             parse_ceiling(
                 br#"{"data":{"limit":"invalid","limit_remaining":1,"usage":0}}"#,
-                br#"{}"#
+                credits
             )
             .is_err()
         );
@@ -753,6 +871,34 @@ mod ceiling_tests {
         for invalid in ["NaN", "Infinity", "-1", "1e100", "1e-100", ""] {
             assert!(decimal_amount(invalid, false).is_none());
         }
+    }
+    #[test]
+    fn g12_non_null_malformed_key_limit_never_falls_back_to_credits() {
+        let credits = br#"{"data":{"total_credits":20,"total_usage":0}}"#;
+        for key in [
+            br#"{"data":{"limit":"5","limit_remaining":5,"usage":0}}"#.as_slice(),
+            br#"{"data":{"limit":5,"limit_remaining":"5","usage":0}}"#,
+            br#"{"data":{"limit":5,"limit_remaining":5,"usage":"0"}}"#,
+            br#"{"data":{"limit":5,"usage":0}}"#,
+            br#"{"data":{"limit":5,"limit_remaining":5}}"#,
+            br#"{"data":{"limit":-5,"limit_remaining":5,"usage":0}}"#,
+            br#"{"data":{"limit":5,"limit_remaining":-5,"usage":0}}"#,
+            br#"{"data":{"limit":5,"limit_remaining":5,"usage":-1}}"#,
+            br#"{"data":{"limit":1e100,"limit_remaining":5,"usage":0}}"#,
+            br#"{"data":{"limit":5,"limit_remaining":5,"usage":1e100}}"#,
+            br#"{"data":{"limit":5,"limit_remaining":"Infinity","usage":0}}"#,
+        ] {
+            assert_eq!(
+                parse_ceiling(key, credits).unwrap_err(),
+                "openrouter_ceiling_unavailable"
+            );
+        }
+        assert_eq!(
+            parse_ceiling(br#"{"data":{"limit":null,"usage":0}}"#, credits)
+                .unwrap()
+                .remaining,
+            20_000_000_000
+        );
     }
     #[test]
     fn permit_is_single_use_payload_bound_and_raw_network_remains_refused() {
@@ -778,6 +924,77 @@ mod ceiling_tests {
 mod outstanding_tests {
     use super::*;
     use crate::budget_ledger::{Ledger, MoneyReceipt, MoneyScope};
+    #[test]
+    fn g12_settled_unreported_spend_is_subtracted_before_dispatch() {
+        for (key_usage, account_usage, admitted) in [
+            (0, 0, false),
+            (60_000_000, 0, false),
+            (60_000_000, 60_000_000, true),
+            (30_000_000, 30_000_000, false),
+        ] {
+            let temp = tempfile::tempdir().unwrap();
+            let ledger = Ledger::new(temp.path(), true);
+            let baseline = parse_ceiling(
+                br#"{"data":{"limit":1,"limit_remaining":0.2,"usage":0}}"#,
+                br#"{"data":{"total_credits":0.2,"total_usage":0}}"#,
+            )
+            .unwrap();
+            ledger
+                .openrouter_preflight(200_000_000, || Ok(baseline.clone()))
+                .unwrap();
+            let scopes = vec![MoneyScope {
+                id: "smoke".into(),
+                cap_nano_usd: 200_000_000,
+            }];
+            for (id, amount) in [("first", 60_000_000), ("next", 115_000_000)] {
+                ledger
+                    .reserve_money(
+                        &scopes,
+                        MoneyReceipt {
+                            id: id.into(),
+                            request_hash: Digest::of_bytes(id.as_bytes()),
+                            scopes: vec!["smoke".into()],
+                            reserved_nano_usd: amount,
+                            actual_nano_usd: None,
+                            outcome: "reserved".into(),
+                            usage: Value::Null,
+                        },
+                    )
+                    .unwrap();
+                if id == "first" {
+                    ledger
+                        .openrouter_dispatch_check(Digest::of_bytes(b"first"), || {
+                            Ok(baseline.clone())
+                        })
+                        .unwrap();
+                    ledger
+                        .finish_money(id, Some(amount), json!({}), true)
+                        .unwrap();
+                }
+            }
+            let mut fresh = baseline;
+            // First call is settled; another consumer has removed the same $0.06
+            // while provider usage can still be at baseline. Remaining is $0.14.
+            fresh.remaining = 140_000_000;
+            fresh.key_usage = Some(key_usage);
+            fresh.account_usage = Some(account_usage);
+            let result = ledger.openrouter_dispatch_check(Digest::of_bytes(b"next"), || Ok(fresh));
+            assert_eq!(result.is_ok(), admitted);
+            if !admitted {
+                assert_eq!(result.err().unwrap(), "openrouter_remaining_exhausted");
+                assert!(
+                    ledger
+                        .openrouter_preflight(200_000_000, || unreachable!())
+                        .is_err()
+                );
+                assert!(
+                    std::fs::read_to_string(temp.path().join("campaign.json"))
+                        .unwrap()
+                        .contains("openrouter_remaining_exhausted")
+                );
+            }
+        }
+    }
     #[test]
     fn fresh_ceiling_subtracts_all_outstanding_campaign_reservations() {
         let temp = tempfile::tempdir().unwrap();

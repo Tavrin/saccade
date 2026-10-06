@@ -379,9 +379,11 @@ impl Executor<'_> {
     ) -> Result<Completed> {
         key.validate()?;
         policy.validate()?;
-        if key.provider == "openrouter" {
-            super::openrouter::validate_request(payload, &key.model)?;
-        }
+        let openrouter_admission = if key.provider == "openrouter" {
+            Some(super::openrouter::admission(payload, &key.model)?)
+        } else {
+            None
+        };
         let byte_limit = if ["gemini", "openrouter"].contains(&key.provider.as_str()) {
             32 * 1024 * 1024
         } else {
@@ -423,16 +425,12 @@ impl Executor<'_> {
                 "generation settings identity",
             )?;
             super::price::gemini_bounds(payload)?
+        } else if let Some(admission) = openrouter_admission {
+            admission.bounds
         } else {
             super::price::Bounds {
                 input: INPUT_LIMIT,
-                output: if key.provider == "openrouter" {
-                    decode::<Value>(payload)?["max_tokens"]
-                        .as_u64()
-                        .unwrap_or(OUTPUT_LIMIT)
-                } else {
-                    0
-                },
+                output: 0,
             }
         };
         let mut auxiliary_cost = Some(0);
@@ -454,16 +452,8 @@ impl Executor<'_> {
                 return Err(Error::Policy("deadline after token count"));
             }
         }
-        let reservation = if key.provider == "openrouter" {
-            require(
-                decode::<Value>(payload)?["model"] == key.model
-                    && decode::<Value>(payload)?["max_tokens"]
-                        .as_u64()
-                        .is_some_and(|n| n > 0 && n <= OUTPUT_LIMIT),
-                "OpenRouter output ceiling",
-            )?;
-            // Local reservation only; the provider ceiling is authoritative.
-            INPUT_LIMIT * 750 + OUTPUT_LIMIT * 3750
+        let reservation = if let Some(admission) = openrouter_admission {
+            admission.reservation
         } else {
             cost_nano(
                 &key.provider,
@@ -595,7 +585,7 @@ impl Executor<'_> {
             .finish_money(
                 &id,
                 cost,
-                json!({"usage":u,"input_bound":bounds.input,"output_bound":bounds.output,"bound_breach":breach,"price_policy":policy.id,"generation_id":generation_id(&response)}),
+                json!({"usage":u,"input_bound":bounds.input,"output_bound":bounds.output,"bound_breach":breach,"price_policy":if key.provider == "openrouter" { super::price::OPENROUTER_PRICE_ID } else { policy.id },"generation_id":generation_id(&response)}),
                 true,
             )
             .map_err(|_| Error::Storage)?;
@@ -663,7 +653,7 @@ impl Executor<'_> {
                 cost_basis: if key.provider == "openrouter" {
                     format!(
                         "{}; OpenRouter billing source; provider prices without markup; alias-bound and time-specific",
-                        super::openrouter::PRICE_VERSION
+                        super::price::OPENROUTER_PRICE_ID
                     )
                 } else {
                     format!(

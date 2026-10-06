@@ -210,3 +210,43 @@ supplied; adding it requires provider evidence and fixtures, not a guessed API.
 Keep Gemini-direct refused; changing that requires a provider-side hard cap.
 Use exact monetary decimal parsing and fixed tolerances; changing tolerances or
 limits requires reviewed policy and renewed fixtures.
+
+Ceiling review fixes bind live dispatch to the single supplied model price pin
+(`openrouter-price-allowlist/2026-10-07-v1`, OpenRouter models API record dated
+2026-10-07), payload-derived text/PNG token ceilings, explicit completion bounds
+and provider route price caps. The smoke admits the entire schedule's worst-case
+reservations against its cap before the first call. Malformed non-null key limits
+cannot fall back to valid credits. Settled spend remains deducted until both
+tracked provider usage counters reflect it. Fixtures cover stale usage plus an
+equal spend by another consumer, partial reflection and full reflection.
+
+Decisions: accept only the model with supplied price evidence; reject guessing a
+second price or fetching prices in the fixture lane. Adding a model requires a
+new recorded price pin and renewed admission fixtures. Reuse the PNG ceiling
+table with high-resolution bounds for every image detail; unsupported content
+refuses. Broadening content requires a conservative token bound and fixtures.
+Require the reviewed request file to carry the exact route caps, preserving
+payload hashes; reject mutating request bytes after hashing. Existing files must
+be regenerated with the pinned adapter. Deduct the least reflected spend across
+key/account usage; reject releasing settled reservations on a stale counter.
+The previously recorded scope, permit lookup, parallel consumer classification,
+reconciliation placement and artifact-test limitations remain outside this round.
+No live call, provider route enforcement or current model availability is verified.
+
+Focused regression evidence was replayed against `b09e99f` with implementation
+code unchanged (the smoke adds only an argument-injection seam). The following
+tests fail there and pass with the ceiling fixes:
+
+| Finding | Focused regression |
+| --- | --- |
+| Model/input/output-dependent reservation | `g12_reservation_tracks_payload_and_explicit_output_before_dispatch` |
+| Model pin and provider route price caps | `g12_model_price_caps_and_payload_bounds_fail_closed` |
+| Entire smoke schedule must fit its cap | `g12_smoke_total_reservations_must_fit_before_policy_or_dispatch` |
+| Invalid non-null limit with valid $20 credits | `g12_non_null_malformed_key_limit_never_falls_back_to_credits` |
+| Settled spend with stale provider usage | `g12_settled_unreported_spend_is_subtracted_before_dispatch` |
+
+Additional fixtures cover PNG headers, unsupported content, explicit output
+bounds, exact-cap admission, malformed key accounting, partial/full usage
+reflection, and returned cost overruns that remain charged and stop the campaign.
+This evidence is limited to offline fixtures; no network, credential or live
+model/provider validation was performed.

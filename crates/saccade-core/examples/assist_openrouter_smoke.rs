@@ -41,8 +41,34 @@ fn allowance(text: &str, above_25: bool) -> Result<u64, &'static str> {
     }
     Ok(cap)
 }
-fn run() -> Result<(), Box<dyn std::error::Error>> {
-    let mut args = std::env::args().skip(1);
+// All roots must fit at their worst-case pinned price before credentials,
+// accounting, artifact creation or the first dispatch can occur.
+fn validate_rows(rows: &[Row], count: usize, cap: u64) -> Result<(), Box<dyn std::error::Error>> {
+    let mut ids = BTreeSet::new();
+    if rows.len() != count
+        || rows.iter().any(|r| {
+            r.root.is_empty()
+                || !ids.insert(&r.root)
+                || r.model.ends_with(":batch")
+                || r.revision.is_empty()
+        })
+    {
+        return Err("invalid reviewed smoke topology or unsupported batch arm".into());
+    }
+    let mut total = 0u64;
+    for row in rows {
+        let bytes = serde_json::to_vec(&row.payload)?;
+        total = total
+            .checked_add(openrouter::admission(&bytes, &row.model)?.reservation)
+            .ok_or("smoke_reservation_overflow")?;
+    }
+    if total > cap {
+        return Err("smoke_reservations_exceed_cap".into());
+    }
+    Ok(())
+}
+fn run_with(args: impl IntoIterator<Item = String>) -> Result<(), Box<dyn std::error::Error>> {
+    let mut args = args.into_iter();
     let mut options = BTreeMap::new();
     let mut above_25 = false;
     while let Some(arg) = args.next() {
@@ -72,17 +98,7 @@ fn run() -> Result<(), Box<dyn std::error::Error>> {
     }
     let path = PathBuf::from(required("--requests")?);
     let rows: Vec<Row> = assist::decode(&assist::read_bytes(&path, 32 * 1024 * 1024)?)?;
-    let mut ids = BTreeSet::new();
-    if rows.len() != count
-        || rows.iter().any(|r| {
-            r.root.is_empty()
-                || !ids.insert(&r.root)
-                || r.model.ends_with(":batch")
-                || r.revision.is_empty()
-        })
-    {
-        return Err("invalid reviewed smoke topology or unsupported batch arm".into());
-    }
+    validate_rows(&rows, count, cap)?;
     let user = UserConfig::load(&PathBuf::from(required("--user-policy")?))?;
     let mut roots = RootPolicy::new(
         &user
@@ -186,7 +202,7 @@ fn run() -> Result<(), Box<dyn std::error::Error>> {
     Ok(())
 }
 fn main() {
-    if run().is_err() {
+    if run_with(std::env::args().skip(1)).is_err() {
         eprintln!("OpenRouter smoke refused or failed; inspect campaign receipts when created");
         std::process::exit(4);
     }
@@ -194,7 +210,69 @@ fn main() {
 
 #[cfg(test)]
 mod tests {
-    use super::allowance;
+    use super::*;
+    #[test]
+    fn g12_smoke_total_reservations_must_fit_before_policy_or_dispatch() {
+        let temp = tempfile::tempdir().unwrap();
+        let model = "google/gemini-3.8-flash";
+        let source = json!({"systemInstruction":{"parts":[{"text":"fixture"}]},"contents":[{"parts":[{"text":"fixture"}]}]});
+        let payload: Value = assist::decode(
+            &openrouter::request(&serde_json::to_vec(&source).unwrap(), model).unwrap(),
+        )
+        .unwrap();
+        let rows: Vec<_> = (0..10).map(|i| json!({"root":format!("root-{i}"),"model":model,"revision":"fixture","payload":payload})).collect();
+        let requests = temp.path().join("requests.json");
+        std::fs::write(&requests, serde_json::to_vec(&rows).unwrap()).unwrap();
+        let out = temp.path().join("out");
+        let args = vec![
+            "--requests".into(),
+            requests.to_string_lossy().into_owned(),
+            "--roots".into(),
+            "10".into(),
+            "--max-spend-usd".into(),
+            "0.1".into(),
+            "--out".into(),
+            out.to_string_lossy().into_owned(),
+            "--user-policy".into(),
+            temp.path()
+                .join("absent-user.toml")
+                .to_string_lossy()
+                .into_owned(),
+        ];
+        // Each root fits $0.10, but all ten worst-case reservations do not.
+        assert_eq!(
+            run_with(args).unwrap_err().to_string(),
+            "smoke_reservations_exceed_cap"
+        );
+        assert!(!out.exists());
+    }
+    #[test]
+    fn smoke_admission_refuses_unpriced_models_oversized_inputs_and_exact_cap_shortfall() {
+        let model = "google/gemini-3.8-flash";
+        let source = json!({"systemInstruction":{"parts":[{"text":"fixture"}]},"contents":[{"parts":[{"text":"fixture"}]}]});
+        let payload: Value = assist::decode(
+            &openrouter::request(&serde_json::to_vec(&source).unwrap(), model).unwrap(),
+        )
+        .unwrap();
+        let mut rows = vec![Row {
+            root: "fixture".into(),
+            model: model.into(),
+            revision: "fixture".into(),
+            payload,
+        }];
+        let cost = openrouter::admission(&serde_json::to_vec(&rows[0].payload).unwrap(), model)
+            .unwrap()
+            .reservation;
+        assert!(validate_rows(&rows, 1, cost).is_ok());
+        assert!(validate_rows(&rows, 1, cost - 1).is_err());
+        rows[0].model = "unpriced/model".into();
+        rows[0].payload["model"] = json!("unpriced/model");
+        assert!(validate_rows(&rows, 1, u64::MAX).is_err());
+        rows[0].model = model.into();
+        rows[0].payload["model"] = json!(model);
+        rows[0].payload["messages"][1]["content"][0]["text"] = json!("x".repeat(16000));
+        assert!(validate_rows(&rows, 1, u64::MAX).is_err());
+    }
     #[test]
     fn caps_above_25_require_separate_flag_without_raising_campaign_parent() {
         assert_eq!(allowance("1", false), Ok(1_000_000_000));

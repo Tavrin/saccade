@@ -259,14 +259,14 @@ impl Ledger {
                             .ok_or("openrouter_accounting_overflow")?;
                     }
                 }
-                if outstanding > snapshot.remaining {
-                    return Err("openrouter_remaining_exhausted".into());
-                }
+                let mut unreflected = 0;
+                let mut has_usage_baseline = false;
                 for (old, new) in [
                     (baseline.key_usage, snapshot.key_usage),
                     (baseline.account_usage, snapshot.account_usage),
                 ] {
                     if let Some(old) = old {
+                        has_usage_baseline = true;
                         let new = new.ok_or("openrouter_usage_unavailable")?;
                         if new < old
                             || new - old
@@ -275,7 +275,21 @@ impl Ledger {
                         {
                             return Err("openrouter_concurrent_consumer".into());
                         }
+                        // Key and account counters can update at different times. Use
+                        // the least reflected spend so neither can release it early.
+                        unreflected = unreflected.max(settled.saturating_sub(new - old));
                     }
+                }
+                if !has_usage_baseline {
+                    unreflected = settled;
+                }
+                let effective_remaining = snapshot.remaining.saturating_sub(unreflected);
+                state.money.ceiling_events.push(serde_json::json!({
+                    "phase":"admission", "settled":settled, "unreflected":unreflected,
+                    "outstanding":outstanding, "effective_remaining":effective_remaining
+                }));
+                if outstanding > effective_remaining {
+                    return Err("openrouter_remaining_exhausted".into());
                 }
                 let receipt = state
                     .money

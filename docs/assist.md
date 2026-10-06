@@ -176,9 +176,13 @@ bodies are retained only as SHA-256 hashes and parsed monetary metadata.
 
 Preflight reads OpenRouter's `/api/v1/key` and `/api/v1/credits`. The ceiling is the
 minimum available key remaining limit and credit balance; a null key limit uses
-credits alone. Neither parseable means `openrouter_ceiling_unavailable`.
+credits alone. A non-null limit with invalid `limit`, `limit_remaining` or
+`usage` is refused even when credits are valid; refusal is
+`openrouter_ceiling_unavailable`. Neither parseable also refuses.
 The allowance must fit the ceiling. Before every dispatch, after pacing, another
-fresh read checks the outstanding reservations (including this request) and both
+fresh read subtracts settled spend not yet reflected in provider usage and the
+outstanding reservations (including this request). With two usage counters, the
+least reflected settled spend is used conservatively. It also checks both
 usage deltas against our settled spend plus a fixed $0.000001 tolerance. A missing
 check, insufficient remaining balance, regressing usage or another consumer stops
 the campaign, recording the reason. The ledger lock serializes these checks;
@@ -197,9 +201,28 @@ local token-price estimates alone do not prove a provider invoice bound.
 The request file is a JSON array of objects with exactly `root`, `model`,
 `revision` (expected returned fingerprint), and `payload` (the existing adapter's
 closed chat-completions shape). Ten distinct roots are required for `--roots 10`.
-Every payload requires a namespaced model, messages, temperature zero, bounded
-`max_tokens`, JSON-object output, disabled routing fallbacks, required parameters
-and included usage accounting. This runner does not consume oracle answers,
+Live admission accepts only `google/gemini-3.8-flash`, pinned by
+`openrouter-price-allowlist/2026-10-07-v1` to $0.75/M text input tokens,
+$3.75/M output tokens and $0.75/M image input tokens. Source: the supplied
+OpenRouter models API record (`https://openrouter.ai/api/v1/models`, 2026-10-07);
+no price discovery or second model is enabled. Historical recorded response
+fixtures do not authorize their model for dispatch.
+
+Every payload requires messages, temperature zero, explicit `max_tokens` (1–4096),
+JSON-object output, disabled routing fallbacks, required parameters and included
+usage accounting. `provider.max_price` must be exactly
+`{"prompt":0.75,"completion":3.75}` in OpenRouter's USD-per-million-token units;
+the adapter sets these caps, and reviewed request files must include them.
+Only text and inline PNG content are admitted. Prompt bounds count serialized
+non-image UTF-8 bytes plus 1024 framing tokens, adding the existing high-resolution
+image ceiling table from decoded PNG header dimensions (8192 tokens for edges
+through 2048, otherwise 16384). Invalid headers, remote/unsupported media and
+prompt bounds above 16000 tokens refuse before credential access or dispatch.
+Reservation uses those input bounds and explicit output tokens at the pinned
+integer nanodollar prices. Returned cost above reservation is charged, recorded
+as a failure and stops the campaign. The smoke sums all root reservations and
+refuses `smoke_reservations_exceed_cap` before policy loading or dispatch if they
+do not fit its allowance. This runner does not consume oracle answers,
 generate corpora, score outputs or confer immutable model identity.
 
 ```sh

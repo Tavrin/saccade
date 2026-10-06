@@ -94,7 +94,7 @@ pub fn image_tokens(resolution: &str, dimensions: [u32; 2]) -> u64 {
     }
 }
 // Decode only the PNG header; no image-sized allocation or pixel decoding.
-fn png_dimensions(data: &str) -> Result<[u32; 2]> {
+pub(crate) fn png_dimensions(data: &str) -> Result<[u32; 2]> {
     require(
         data.len() >= 32 && data.len() <= 24 * 1024 * 1024,
         "encoded image size",
@@ -246,4 +246,142 @@ pub fn gemini_bounds(payload: &[u8]) -> Result<Bounds> {
     let input = text_bytes * TOKENS_PER_TEXT_BYTE + FRAMING_TOKENS + image_total;
     require(input <= INPUT_LIMIT, "local input ceiling exceeded")?;
     Ok(Bounds { input, output })
+}
+
+/// Live admission allowlist, distinct from historical recorded response prices.
+pub const OPENROUTER_PRICE_ID: &str = "openrouter-price-allowlist/2026-10-07-v1";
+/// Recorded source supplied by the admission brief; no runtime price discovery.
+pub const OPENROUTER_PRICE_SOURCE: &str = "https://openrouter.ai/api/v1/models";
+/// Date of the supplied models API price record.
+pub const OPENROUTER_PRICE_DATE: &str = "2026-10-07";
+/// The only model with supplied price evidence for live admission.
+pub const OPENROUTER_MODEL: &str = "google/gemini-3.8-flash";
+/// Exact pinned nanodollars per token, including image input tokens.
+#[derive(Debug, Clone, Copy)]
+pub struct OpenRouterPrice {
+    /// Text prompt price.
+    pub input: u64,
+    /// Completion price, including billed reasoning.
+    pub output: u64,
+    /// Image prompt price.
+    pub image: u64,
+}
+impl OpenRouterPrice {
+    /// Provider route ceilings in USD per million tokens (OpenRouter max_price units).
+    pub fn max_price(self) -> Value {
+        serde_json::json!({"prompt":self.input.max(self.image) as f64 / 1000.0,
+                          "completion":self.output as f64 / 1000.0})
+    }
+}
+/// Fail closed for every model without a supplied, versioned price pin.
+pub fn openrouter_price(model: &str) -> Result<OpenRouterPrice> {
+    require(
+        model == OPENROUTER_MODEL,
+        "openrouter_model_not_allowlisted",
+    )?;
+    Ok(OpenRouterPrice {
+        input: 750,
+        output: 3750,
+        image: 750,
+    })
+}
+/// Payload-derived token ceilings and exact pre-dispatch monetary reservation.
+#[derive(Debug, Clone, Copy)]
+pub struct OpenRouterAdmission {
+    /// Aggregate prompt and explicit completion ceilings.
+    pub bounds: Bounds,
+    /// Integer nanodollars; supplied rates are integral, so no rounding is lost.
+    pub reservation: u64,
+}
+/// Bound closed text/PNG messages without treating base64 bytes as text tokens.
+/// Unsupported content is refused, including remote images and tool messages.
+pub(crate) fn openrouter_bounds(
+    payload: &[u8],
+    price: OpenRouterPrice,
+) -> Result<OpenRouterAdmission> {
+    let mut request: Value = decode(payload)?;
+    let output = request["max_tokens"]
+        .as_u64()
+        .filter(|n| *n > 0 && *n <= OUTPUT_LIMIT)
+        .ok_or(super::Error::Invalid("explicit output ceiling required"))?;
+    let messages = request["messages"]
+        .as_array_mut()
+        .ok_or(super::Error::Invalid("OpenRouter messages"))?;
+    let mut images = 0u64;
+    let mut image_count = 0;
+    for message in messages {
+        require(
+            message.as_object().is_some_and(|o| o.len() == 2)
+                && message["role"]
+                    .as_str()
+                    .is_some_and(|r| ["system", "user", "assistant"].contains(&r)),
+            "unsupported OpenRouter message",
+        )?;
+        if message["content"].is_string() {
+            continue;
+        }
+        let parts = message["content"]
+            .as_array_mut()
+            .ok_or(super::Error::Invalid("OpenRouter content"))?;
+        require(!parts.is_empty(), "empty OpenRouter content")?;
+        for part in parts {
+            require(
+                part.as_object().is_some_and(|o| o.len() == 2),
+                "unsupported OpenRouter part",
+            )?;
+            if part["type"] == "text" {
+                require(part["text"].is_string(), "OpenRouter text")?;
+            } else {
+                require(part["type"] == "image_url", "unsupported OpenRouter media")?;
+                let image = &mut part["image_url"];
+                require(
+                    image
+                        .as_object()
+                        .is_some_and(|o| o.keys().all(|k| ["url", "detail"].contains(&k.as_str())))
+                        && image
+                            .get("detail")
+                            .is_none_or(|d| ["auto", "high", "low"].iter().any(|v| d == v)),
+                    "unsupported OpenRouter image settings",
+                )?;
+                let data = image["url"]
+                    .as_str()
+                    .and_then(|s| s.strip_prefix("data:image/png;base64,"))
+                    .ok_or(super::Error::Invalid("OpenRouter inline PNG required"))?;
+                // Reserve high resolution even for low/auto detail. Unknown dimensions
+                // use the existing table's maximum and therefore cannot fit INPUT_LIMIT.
+                images = images
+                    .checked_add(image_tokens("MEDIA_RESOLUTION_HIGH", png_dimensions(data)?))
+                    .ok_or(super::Error::Invalid("image ceiling overflow"))?;
+                image_count += 1;
+                image["url"] = Value::Null;
+            }
+        }
+    }
+    require(image_count <= 2, "image count ceiling")?;
+    let text = serde_json::to_vec(&request)
+        .map_err(|_| super::Error::Invalid("request bytes"))?
+        .len() as u64
+        * TOKENS_PER_TEXT_BYTE
+        + FRAMING_TOKENS;
+    let input = text
+        .checked_add(images)
+        .ok_or(super::Error::Invalid("input ceiling overflow"))?;
+    require(input <= INPUT_LIMIT, "local input ceiling exceeded")?;
+    let reservation = text
+        .checked_mul(price.input)
+        .and_then(|n| {
+            images
+                .checked_mul(price.image)
+                .and_then(|i| n.checked_add(i))
+        })
+        .and_then(|n| {
+            output
+                .checked_mul(price.output)
+                .and_then(|o| n.checked_add(o))
+        })
+        .ok_or(super::Error::Invalid("reservation price overflow"))?;
+    Ok(OpenRouterAdmission {
+        bounds: Bounds { input, output },
+        reservation,
+    })
 }
