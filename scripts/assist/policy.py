@@ -1,9 +1,9 @@
 """Frozen constructed-domain policy. No human labels and no historical evaluator changes."""
 SCHEMA = "saccade-constructed-truth.v1"
-ARMS = ["rules", "oracle_jev", "single_gemini", "two_gemini", "two_gemini_jev", "cascade", "cascade_jev_route"]
+ARMS = ["rules", "oracle_jev", "single_gemini", "two_gemini", "two_gemini_jev", "cascade", "cascade_jev_route", "two_openrouter"]
 WORKLOADS = ["explain", "audit_mask", "check_ui", "routing"]
 POLICY = {
-    "version": "constructed-assist/2",
+    "version": "constructed-assist/3",
     "optional_jev_routing": "separate cascade_jev_route arm versus cascade; off by default",
     "truth": "rendered_constructed_oracle_only",
     "target_per_workload": 1000,
@@ -16,6 +16,9 @@ POLICY = {
     "challenge_recall_lower95_min": .90,
     "false_reassurance_upper99_max": .01,
     "order_disagreement_max": .05,
+    "usable_paired_roots_min": 600,
+    "control_false_positives_max": 0,
+    "unavailable_commitments_max": 0,
     "necessary_evidence_skip_upper99_max": .01,
     "routing_cost_reduction_min": .20,
     "routing_matched_coverage_recall_loss_max": .02,
@@ -34,6 +37,6 @@ POLICY = {
     "unknown_cost": "unknown; never zero and cannot pass a monetary value gate",
     "synthetic_domain_only": True,
 }
-GATES = ["fmt", "check", "clippy", "core-tests", "cli-tests", "wave4-heavy-core", "wave4-heavy-cli", "constructed-python", "docs", "shell", "wave4-batch-routing", "qualification-preflight"]
+GATES = ["fmt", "check", "clippy", "core-tests", "cli-tests", "wave4-heavy-cli", "constructed-python", "docs", "shell", "wave4-batch-routing", "qualification-preflight", "g12-regressions"]
 
 ORACLE_SCHEMA = "saccade-constructed-oracle.v1"

@@ -7,6 +7,8 @@
 //! custom providers, a dedicated file bound by user-level configuration inside
 //! that same directory. Project files cannot bind endpoints or credentials. The ambient environment (`GEMINI_API_KEY` and the
 //! like), other projects' `.env` files and global configs are never read. A
+//! `OPENROUTER_API_KEY` is the explicit exception: its fixed `openrouter.env` file
+//! is preferred and the environment is supported as a fallback. A
 //! key is never printed, logged, stored in a result or sent anywhere but its
 //! provider's endpoint, and it travels in an HTTP header inside this process,
 //! never on a command line.
@@ -50,6 +52,23 @@ impl Secret {
     /// The secret text; use it only to build a request header.
     pub fn expose(&self) -> &str {
         &self.0
+    }
+
+    /// Reject literal and decoded nested JSON reflections using the dispatch key.
+    pub fn reflected(&self, body: &[u8]) -> bool {
+        fn contains(value: &Value, key: &str) -> bool {
+            match value {
+                Value::String(s) => {
+                    s.contains(key)
+                        || serde_json::from_str::<Value>(s).is_ok_and(|v| contains(&v, key))
+                }
+                Value::Array(a) => a.iter().any(|v| contains(v, key)),
+                Value::Object(o) => o.iter().any(|(k, v)| k.contains(key) || contains(v, key)),
+                _ => false,
+            }
+        }
+        String::from_utf8_lossy(body).contains(&self.0)
+            || serde_json::from_slice::<Value>(body).is_ok_and(|v| contains(&v, &self.0))
     }
 
     /// `text` with every occurrence of the secret replaced by `***`.
@@ -128,6 +147,19 @@ impl Keys {
             .ok_or_else(|| format!("no key: {} has no {var} line", path.display()))
     }
 
+    /// OpenRouter's fixed file binding, with the explicitly supported ambient fallback.
+    pub fn openrouter(&self) -> Result<Secret, String> {
+        if let Ok(secret) = self.load("openrouter.env", "OPENROUTER_API_KEY") {
+            return Ok(secret);
+        }
+        if let Ok(value) = std::env::var("OPENROUTER_API_KEY")
+            && !value.trim().is_empty()
+        {
+            return Ok(Secret(value));
+        }
+        Err("OpenRouter credentials unavailable".into())
+    }
+
     /// The key a provider needs, per the key policy.
     pub fn for_spec(&self, spec: &JudgeSpec) -> Result<Option<Secret>, String> {
         if spec.base_url.is_some() || spec.key_file.is_some() || spec.key_var.is_some() {
@@ -136,9 +168,7 @@ impl Keys {
         match spec.provider {
             Provider::Jev => self.load("jev.env", "JEV_API_KEY").map(Some),
             Provider::Gemini => self.load("gemini.env", "SACCADE_GEMINI_API_KEY").map(Some),
-            Provider::OpenaiCompatible => {
-                Err("custom credential bindings must come from user configuration".into())
-            }
+            Provider::OpenaiCompatible => self.openrouter().map(Some),
             Provider::Opencode | Provider::Human => Ok(None),
         }
     }
@@ -352,7 +382,7 @@ pub fn parse_llm_answer(text: &str, allowed: &[String]) -> Result<(String, Optio
     let answer = allowed
         .iter()
         .find(|a| a.eq_ignore_ascii_case(raw))
-        .ok_or_else(|| format!("answer {raw:?} is not one of: {}", allowed.join(", ")))?
+        .ok_or_else(|| "reply contains an unrecognized answer".to_owned())?
         .clone();
     let prob = ["probability", "prob", "confidence"]
         .iter()
@@ -493,12 +523,20 @@ impl LiveBackend {
                 .unwrap_or("")
                 .trim_end_matches(":generateContent")
         });
-        let provider = if index == 0 { "jev" } else { "gemini" };
-        if !url.starts_with(if index == 0 {
-            "https://api.typesafe.ai/"
+        let provider = if url == "https://openrouter.ai/api/v1/chat/completions" {
+            "openrouter"
+        } else if index == 0 {
+            "jev"
         } else {
-            "https://generativelanguage.googleapis.com/"
-        }) {
+            "gemini"
+        };
+        if provider != "openrouter"
+            && !url.starts_with(if index == 0 {
+                "https://api.typesafe.ai/"
+            } else {
+                "https://generativelanguage.googleapis.com/"
+            })
+        {
             return Err(CallError::fatal(
                 "custom endpoints require the user-owned canonical transport",
             ));
@@ -637,10 +675,9 @@ impl LiveBackend {
             .as_str()
             .ok_or_else(|| CallError::fatal("the reply has no `choice` answer".to_owned()))?;
         if !req.wire_answers.iter().any(|w| w == choice) {
-            return Err(CallError::fatal(format!(
-                "answer {choice:?} is not one of: {}",
-                req.wire_answers.join(", ")
-            )));
+            return Err(CallError::fatal(
+                "reply contains an unrecognized choice".to_owned(),
+            ));
         }
         let probs: BTreeMap<String, f64> = a["probabilities"]
             .as_object()
@@ -847,11 +884,6 @@ impl LiveBackend {
         model: &str,
         key: Option<&Secret>,
     ) -> Result<Raw, CallError> {
-        let base = req
-            .spec
-            .base_url
-            .as_deref()
-            .ok_or_else(|| CallError::fatal("openai_compatible needs base_url"))?;
         let content = if req.images.is_empty() {
             json!(req.prompt.user)
         } else {
@@ -864,6 +896,9 @@ impl LiveBackend {
         let body = json!({
             "model": model,
             "temperature": 0,
+            "max_tokens": 4096,
+            "provider": {"allow_fallbacks":false,"require_parameters":true},
+            "usage": {"include":true},
             "response_format": {"type": "json_object"},
             "messages": [
                 {"role": "system", "content": req.prompt.system},
@@ -877,11 +912,25 @@ impl LiveBackend {
             .unwrap_or_default();
         let started = Instant::now();
         let reply = self.post(
-            &format!("{}/chat/completions", base.trim_end_matches('/')),
+            "https://openrouter.ai/api/v1/chat/completions",
             &headers,
             &body,
             key,
         )?;
+        if reply["model"].as_str() != Some(model)
+            || reply["id"].as_str().is_none_or(str::is_empty)
+            || reply["provider"].as_str().is_none_or(str::is_empty)
+            || reply["system_fingerprint"]
+                .as_str()
+                .is_none_or(str::is_empty)
+            || reply["choices"].as_array().is_none_or(|a| a.len() != 1)
+            || reply["choices"][0]["finish_reason"] != "stop"
+            || !reply["choices"][0]["message"]["refusal"].is_null()
+        {
+            return Err(CallError::fatal(
+                "incomplete or misrouted OpenRouter response",
+            ));
+        }
         let text = reply["choices"][0]["message"]["content"]
             .as_str()
             .unwrap_or_default();
@@ -892,7 +941,10 @@ impl LiveBackend {
             confidence: None,
             probs: BTreeMap::new(),
             prob_source: "verbalized",
-            model_version: reply["model"].as_str().unwrap_or(model).to_owned(),
+            model_version: reply["system_fingerprint"]
+                .as_str()
+                .unwrap_or_default()
+                .to_owned(),
             model: model.to_owned(),
             latency_ms: started.elapsed().as_millis() as u64,
             usage: reply["usage"].clone(),
@@ -1257,5 +1309,70 @@ mod review_chain_tests {
         assert_eq!(later.counts(), [0, 1]);
         assert!(later.ask(&req).result.is_err());
         assert_eq!(later.counts(), [0, 1]);
+    }
+    #[test]
+    fn g12_openrouter_historical_adapter_uses_fixed_key_and_namespaced_chat_dialect() {
+        let tmp = tempfile::tempdir().unwrap();
+        std::fs::write(
+            tmp.path().join("openrouter.env"),
+            "OPENROUTER_API_KEY=fixture-openrouter-key",
+        )
+        .unwrap();
+        let keys = Keys::new(Some(tmp.path().into()));
+        let mut spec = Profile::default().spec(Provider::Gemini).unwrap();
+        spec.provider = Provider::OpenaiCompatible;
+        spec.model = "openai/fixture-model".into();
+        spec.fallback.clear();
+        spec.base_url = None;
+        assert_eq!(
+            keys.for_spec(&spec).unwrap().unwrap().expose(),
+            "fixture-openrouter-key"
+        );
+        let mut context = security(tmp.path(), "openrouter", 1);
+        context.authorization.scopes[0].caps.providers = BTreeMap::from([("openrouter".into(), 1)]);
+        let mut backend = LiveBackend::new(
+            keys,
+            Retry {
+                max_retries: 0,
+                base_ms: 0,
+            },
+            Duration::from_secs(1),
+        )
+        .with_authorization(context);
+        backend.mock_replies = Some(RefCell::new(vec![(
+            200,
+            json!({"id":"gen-fixture","model":"openai/fixture-model","provider":"fixture-router","system_fingerprint":"fixture-revision","choices":[{"finish_reason":"stop","message":{"content":"{\"answer\":\"yes\",\"probability\":0.9}"}}],"usage":{"prompt_tokens":10,"completion_tokens":5,"total_tokens":15,"cost":0.00001}}),
+        )]));
+        let answers = vec!["yes".into(), "no".into()];
+        let prompt = Prompt {
+            system: "data".into(),
+            user: "data".into(),
+        };
+        let state = json!({});
+        let req = AskRequest {
+            spec: &spec,
+            question: "visible",
+            question_text: "visible",
+            kind: "choice",
+            wire_answers: &answers,
+            state: &state,
+            prompt: &prompt,
+            images: &[],
+        };
+        let result = backend.ask(&req).result.unwrap();
+        assert_eq!(result.answer, "yes");
+        assert_eq!(result.model_version, "fixture-revision");
+        assert_eq!(result.usage["cost"], 0.00001);
+        assert_eq!(
+            backend
+                .security
+                .as_ref()
+                .unwrap()
+                .ledger
+                .used("openrouter")
+                .unwrap(),
+            1
+        );
+        assert!(backend.ask(&req).result.is_err());
     }
 }

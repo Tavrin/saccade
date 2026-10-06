@@ -201,6 +201,7 @@ fn cache_separates_orders_conditions_settings_and_revisions() {
         key: key.clone(),
         response: b"{}".to_vec(),
         provenance: Provenance {
+            execution_id: None,
             provider: "gemini".into(),
             requested_model: GEMINI.into(),
             returned_model: GEMINI.into(),
@@ -304,6 +305,7 @@ fn png(value: u8) -> Vec<u8> {
 }
 fn provenance(prepared: &workflow::Prepared, body: &[u8]) -> Provenance {
     Provenance {
+        execution_id: None,
         provider: "gemini".into(),
         requested_model: GEMINI.into(),
         returned_model: GEMINI.into(),
@@ -569,6 +571,8 @@ fn fake_provider_reserves_before_dispatch_and_settles_or_retains_unknown_usage()
         ledger: &'a Ledger,
         calls: Cell<u32>,
         body: Vec<u8>,
+        status: u16,
+        count: u64,
     }
     impl Http for Fake<'_> {
         fn post(
@@ -590,9 +594,9 @@ fn fake_provider_reserves_before_dispatch_and_settles_or_retains_unknown_usage()
             );
             self.calls.set(self.calls.get() + 1);
             Ok(HttpReply {
-                status: 200,
+                status: self.status,
                 body: if url.ends_with(":countTokens") {
-                    br#"{"totalTokens":100}"#.to_vec()
+                    serde_json::to_vec(&json!({"totalTokens":self.count})).unwrap()
                 } else {
                     self.body.clone()
                 },
@@ -625,23 +629,129 @@ fn fake_provider_reserves_before_dispatch_and_settles_or_retains_unknown_usage()
         },
     ];
     for (policy_index, policy) in policies.iter().enumerate() {
-        for (index,usage) in [json!({"promptTokenCount":100,"candidatesTokenCount":20,"thoughtsTokenCount":10,"totalTokenCount":130}),json!({}),json!({"promptTokenCount":100,"candidatesTokenCount":20,"thoughtsTokenCount":10,"totalTokenCount":999})].into_iter().enumerate() {
+        for (index,usage) in [json!({"promptTokenCount":100,"candidatesTokenCount":20,"thoughtsTokenCount":10,"totalTokenCount":130}),json!({}),json!({"promptTokenCount":100,"candidatesTokenCount":20,"thoughtsTokenCount":10,"totalTokenCount":999}),json!({"promptTokenCount":16001,"candidatesTokenCount":20,"thoughtsTokenCount":10,"totalTokenCount":16031})].into_iter().enumerate() {
             let ledger=Ledger::new(&temp.path().join(format!("ledger-{policy_index}-{index}")),false);
-            let fake=Fake {ledger:&ledger,calls:Cell::new(0),body:serde_json::to_vec(&json!({"modelVersion":"r1","usageMetadata":usage})).unwrap()};
+            let fake=Fake {ledger:&ledger,calls:Cell::new(0),status:200,count:100,body:serde_json::to_vec(&json!({"modelVersion":"r1","usageMetadata":usage})).unwrap()};
             let transport=Transport {user:&user,roots:&roots,authorization:&auth,ledger:&ledger,keys:&keys,http:&fake};
             let executor=execution::Executor {transport:&transport,ledger:&ledger,money_scopes:vec![MoneyScope{id:"cap".into(),cap_nano_usd:100_000_000}],sources:vec![crate::paths::portable(temp.path())],deadline:Instant::now()+Duration::from_secs(30)};
-            let done=executor.call_with_policy(&request.key,&request.payload,policy).unwrap();
+            let done=executor.call_with_policy(&request.key,&request.payload,policy);
+            if index==3 {
+                assert!(done.is_err());
+                let receipts=ledger.money_receipts().unwrap();
+                assert_eq!(receipts.last().unwrap().actual_nano_usd,Some(12_113_250));
+                assert_eq!(receipts.last().unwrap().outcome,"usage_limit_exceeded");
+                assert!(executor.call(&request.key,&request.payload).is_err());
+                assert_eq!(fake.calls.get(),if policy_index==0{1}else{2});
+                continue;
+            }
+            let done=done.unwrap();
             let calls=if policy_index==0{1}else{2};
             assert_eq!(fake.calls.get(),calls);
             assert_eq!(done.provenance.cost_usd.is_some(),index==0);
             let receipts=ledger.money_receipts().unwrap();
             let receipt=receipts.last().unwrap();
+            assert_eq!(done.provenance.execution_id.as_deref(),Some(receipt.id.as_str()));
             assert_eq!(receipt.actual_nano_usd,if index==0{Some(187_500)}else{None});
             if policy_index>0 {assert_eq!(receipts[0].actual_nano_usd,Some(if policy_index==1{0}else{75_000}));}
             if index==0 {assert_eq!(done.provenance.cost_usd,Some(if policy_index==2{0.0002625}else{0.0001875}));}
             let denied=execution::Executor{money_scopes:vec![MoneyScope{id:"too-small".into(),cap_nano_usd:1}],..executor};
             assert!(denied.call(&request.key,&request.payload).is_err());assert_eq!(fake.calls.get(),calls);
         }
+    }
+
+    for (status, cap) in [(400, 8), (429, 8), (400, 1)] {
+        let ledger = Ledger::new(&temp.path().join(format!("failure-{status}-{cap}")), false);
+        let fake=Fake{ledger:&ledger,calls:Cell::new(0),status,count:100,body:serde_json::to_vec(&json!({"modelVersion":"r1","usageMetadata":{"promptTokenCount":100,"candidatesTokenCount":20,"thoughtsTokenCount":10,"totalTokenCount":130}})).unwrap()};
+        let auth = Authorization {
+            enabled: true,
+            scopes: vec![Scope {
+                id: "failed-calls".into(),
+                caps: Caps {
+                    total: cap,
+                    providers: BTreeMap::from([("gemini".into(), cap)]),
+                },
+            }],
+        };
+        let transport = Transport {
+            user: &user,
+            roots: &roots,
+            authorization: &auth,
+            ledger: &ledger,
+            keys: &keys,
+            http: &fake,
+        };
+        let executor = execution::Executor {
+            transport: &transport,
+            ledger: &ledger,
+            money_scopes: vec![MoneyScope {
+                id: "failures".into(),
+                cap_nano_usd: 100_000_000,
+            }],
+            sources: vec![crate::paths::portable(temp.path())],
+            deadline: Instant::now() + Duration::from_secs(1),
+        };
+        assert!(executor.call(&request.key, &request.payload).is_err());
+        assert_eq!(
+            ledger.money_receipts().unwrap()[0].actual_nano_usd,
+            Some(187_500)
+        );
+        assert!(executor.call(&request.key, &request.payload).is_err());
+        assert_eq!(
+            fake.calls.get(),
+            if cap == 1 { 1 } else { 2 },
+            "failed attempt must release concurrency slot"
+        );
+        if cap == 1 {
+            assert_eq!(
+                ledger.money_receipts().unwrap()[1].actual_nano_usd,
+                Some(0),
+                "proven local attempt-cap refusal must refund"
+            );
+        }
+    }
+    for status in [200, 400] {
+        let ledger = Ledger::new(&temp.path().join(format!("count-breach-{status}")), false);
+        let fake = Fake {
+            ledger: &ledger,
+            calls: Cell::new(0),
+            status,
+            count: 16001,
+            body: Vec::new(),
+        };
+        let transport = Transport {
+            user: &user,
+            roots: &roots,
+            authorization: &auth,
+            ledger: &ledger,
+            keys: &keys,
+            http: &fake,
+        };
+        let executor = execution::Executor {
+            transport: &transport,
+            ledger: &ledger,
+            money_scopes: vec![MoneyScope {
+                id: "count-breach".into(),
+                cap_nano_usd: 100_000_000,
+            }],
+            sources: vec![crate::paths::portable(temp.path())],
+            deadline: Instant::now() + Duration::from_secs(30),
+        };
+        assert!(
+            executor
+                .call_with_policy(&request.key, &request.payload, &policies[2])
+                .is_err()
+        );
+        let receipts = ledger.money_receipts().unwrap();
+        assert_eq!(receipts.len(), 1);
+        assert_eq!(receipts[0].actual_nano_usd, Some(12_000_750));
+        assert_eq!(receipts[0].usage["counted_input_tokens"], 16001);
+        assert_eq!(receipts[0].outcome, "usage_limit_exceeded");
+        assert!(executor.call(&request.key, &request.payload).is_err());
+        assert_eq!(
+            fake.calls.get(),
+            1,
+            "known counting breach must prevent generation and further counting"
+        );
     }
     let invalid = price::Policy {
         id: price::PRICE_ID,
@@ -664,7 +774,10 @@ fn optional_router_keeps_fixed_choices_and_deterministic_stops() {
     );
     assert_eq!(
         routing::answer(
-            &serde_json::to_vec(&json!({"model":JEV,"answers":{"q":{"choice":"vision"}}})).unwrap(),
+            &serde_json::to_vec(
+                &json!({"model":JEV,"modelVersion":JEV,"answers":{"q":{"choice":"vision"}}})
+            )
+            .unwrap(),
             JEV
         )
         .unwrap(),
@@ -672,8 +785,10 @@ fn optional_router_keeps_fixed_choices_and_deterministic_stops() {
     );
     assert_eq!(
         routing::answer(
-            &serde_json::to_vec(&json!({"model":JEV,"answers":{"q":{"choice":"insufficient"}}}))
-                .unwrap(),
+            &serde_json::to_vec(
+                &json!({"model":JEV,"modelVersion":JEV,"answers":{"q":{"choice":"insufficient"}}})
+            )
+            .unwrap(),
             JEV
         )
         .unwrap(),
@@ -768,6 +883,7 @@ fn fake_batch_dispatch_poll_collection_and_money_survive_partial_results() {
         calls: Cell<usize>,
         request: serde_json::Value,
         partial: bool,
+        breach: bool,
     }
     impl BatchHttp for Fake {
         fn send(
@@ -781,13 +897,19 @@ fn fake_batch_dispatch_poll_collection_and_money_survive_partial_results() {
             let body = if method == "POST" {
                 json!({"name":"batches/fixture"})
             } else {
-                json!({"name":"batches/fixture","state":"BATCH_STATE_SUCCEEDED","response":{"inlinedResponses":[if self.partial {json!({"metadata":self.request["metadata"],"error":{"status":"UNAVAILABLE"}})}else{json!({"metadata":self.request["metadata"],"response":{"modelVersion":"r1","usageMetadata":{"promptTokenCount":100,"candidatesTokenCount":20,"thoughtsTokenCount":10,"totalTokenCount":130}}})}]}})
+                json!({"name":"batches/fixture","state":"BATCH_STATE_SUCCEEDED","response":{"inlinedResponses":[if self.partial {json!({"metadata":self.request["metadata"],"error":{"status":"UNAVAILABLE"}})}else{json!({"metadata":self.request["metadata"],"response":{"modelVersion":"r1","candidates":[{"finishReason":"STOP","content":{"parts":[{"text":json!({"request_hash":serde_json::from_str::<serde_json::Value>(self.request["request"]["contents"][0]["parts"][0]["text"].as_str().unwrap()).unwrap()["request_hash"],"outcome":"unverifiable","observations":[]}).to_string()}]}}],"usageMetadata":{"promptTokenCount":if self.breach {16001}else{100},"candidatesTokenCount":20,"thoughtsTokenCount":10,"totalTokenCount":if self.breach {16031}else{130}}}})}]}})
             };
             Ok(BatchReply { status: 200, body })
         }
     }
-    for partial in [false, true] {
-        let dir = temp.path().join(if partial { "partial" } else { "known" });
+    for (partial, breach) in [(false, false), (true, false), (false, true)] {
+        let dir = temp.path().join(if partial {
+            "partial"
+        } else if breach {
+            "breach"
+        } else {
+            "known"
+        });
         std::fs::create_dir(&dir).unwrap();
         let ledger = Ledger::new(&dir, false);
         let network = Network;
@@ -815,6 +937,7 @@ fn fake_batch_dispatch_poll_collection_and_money_survive_partial_results() {
             calls: Cell::new(0),
             request: frozen.requests[0].clone(),
             partial,
+            breach,
         };
         assert_eq!(
             batch::submit_authorized(&path, &frozen, &executor, &fake)
@@ -840,9 +963,21 @@ fn fake_batch_dispatch_poll_collection_and_money_survive_partial_results() {
         let receipts = ledger.money_receipts().unwrap();
         assert_eq!(
             receipts[0].actual_nano_usd,
-            if partial { None } else { Some(93_750) }
+            if partial {
+                None
+            } else if breach {
+                Some(6_056_625)
+            } else {
+                Some(93_750)
+            }
         );
         assert_eq!(fake.calls.get(), 2);
+        if breach {
+            let blocked = dir.join("blocked.json");
+            batch::plan(&blocked, &frozen).unwrap();
+            assert!(batch::submit_authorized(&blocked, &frozen, &executor, &fake).is_err());
+            assert_eq!(fake.calls.get(), 2);
+        }
     }
 }
 
@@ -857,4 +992,297 @@ fn batch_deadline_expires_before_network_dispatch() {
             .send("GET", "https://example.com/fixture", "fixture-key", None)
             .is_err()
     );
+}
+
+#[test]
+fn g12_campaign_overrun_stops_other_epochs_namespaces_and_parallel_admission() {
+    use crate::budget_ledger::{Ledger, MoneyReceipt, MoneyScope};
+    let temp = tempfile::tempdir().unwrap();
+    let production = Ledger::new(temp.path(), false);
+    let evaluation = Ledger::new(temp.path(), true);
+    let reserve = |ledger: &Ledger, id: &str, scope: &str| {
+        ledger.reserve_money(
+            &[MoneyScope {
+                id: scope.into(),
+                cap_nano_usd: 1000,
+            }],
+            MoneyReceipt {
+                id: id.into(),
+                request_hash: Digest::of_bytes(id.as_bytes()),
+                scopes: vec![scope.into()],
+                reserved_nano_usd: 100,
+                actual_nano_usd: None,
+                outcome: "reserved".into(),
+                usage: json!({}),
+            },
+        )
+    };
+    reserve(&production, "batch", "production/batch").unwrap();
+    reserve(&evaluation, "epoch-a", "evaluation/a").unwrap();
+    evaluation
+        .finish_money("epoch-a", Some(101), json!({"input_tokens":10001}), true)
+        .unwrap();
+    let receipts = production.money_receipts().unwrap();
+    assert_eq!(receipts[1].actual_nano_usd, Some(101));
+    assert_eq!(receipts[1].outcome, "cost_limit_exceeded");
+    assert!(reserve(&production, "epoch-b", "evaluation/b").is_err());
+    assert!(reserve(&evaluation, "retry", "production/retry").is_err());
+}
+
+#[test]
+fn g12_campaign_parent_covers_parallel_namespaces_and_unknown_retains_allowance() {
+    use crate::budget_ledger::{Ledger, MoneyReceipt, MoneyScope};
+    let temp = tempfile::tempdir().unwrap();
+    let dir = temp.path().to_owned();
+    let workers: Vec<_> = (0..4)
+        .map(|n| {
+            let dir = dir.clone();
+            std::thread::spawn(move || {
+                let ledger = Ledger::new(&dir, n % 2 == 0);
+                let scope = format!("epoch/{n}");
+                ledger
+                    .reserve_money(
+                        &[MoneyScope {
+                            id: scope.clone(),
+                            cap_nano_usd: 30_000_000_000,
+                        }],
+                        MoneyReceipt {
+                            id: scope.clone(),
+                            request_hash: Digest::of_bytes(scope.as_bytes()),
+                            scopes: vec![scope],
+                            reserved_nano_usd: 16_000_000_000,
+                            actual_nano_usd: None,
+                            outcome: "reserved".into(),
+                            usage: json!({}),
+                        },
+                    )
+                    .is_ok()
+            })
+        })
+        .collect();
+    assert_eq!(
+        workers
+            .into_iter()
+            .map(|w| usize::from(w.join().unwrap()))
+            .sum::<usize>(),
+        1
+    );
+    let ledger = Ledger::new(&dir, true);
+    let receipt = ledger.money_receipts().unwrap().remove(0);
+    ledger
+        .finish_money(&receipt.id, None, json!({}), false)
+        .unwrap();
+    assert_eq!(ledger.money_receipts().unwrap()[0].actual_nano_usd, None);
+    assert_eq!(
+        ledger.money_receipts().unwrap()[0].reserved_nano_usd,
+        16_000_000_000
+    );
+}
+
+#[test]
+fn g12_dispatch_secret_rejects_unicode_nested_reflections_and_debug_sinks() {
+    use crate::decision_provider::{ProviderFailure, RetryClass};
+    use crate::judge_provider::{
+        Keys,
+        transport::{FailedAttempt, Rejection},
+    };
+    let temp = tempfile::tempdir().unwrap();
+    std::fs::write(
+        temp.path().join("gemini.env"),
+        "SACCADE_GEMINI_API_KEY=fixture-key",
+    )
+    .unwrap();
+    let keys = Keys::new(Some(temp.path().into()));
+    let dispatch = keys.load("gemini.env", "SACCADE_GEMINI_API_KEY").unwrap();
+    std::fs::write(
+        temp.path().join("gemini.env"),
+        "SACCADE_GEMINI_API_KEY=rotated-key",
+    )
+    .unwrap();
+    for body in [
+        br#"{"error":"fixture-key"}"#.as_slice(),
+        br#"{"error":"fixture\u002dkey"}"#,
+        br#"{"error":"{\"text\":\"fixture\\u002dkey\"}"}"#,
+    ] {
+        assert!(dispatch.reflected(body));
+    }
+    let failure = ProviderFailure {
+        class: RetryClass::InvalidResponse,
+        message: "invalid response".into(),
+        retry_after_secs: None,
+    };
+    let r = Rejection {
+        failure,
+        status: Some(400),
+        body: b"fixture-key".to_vec(),
+        reservation: None,
+    };
+    let a = FailedAttempt {
+        model: "model".into(),
+        reservation: None,
+        status: Some(400),
+        retry_after_secs: None,
+        body: b"fixture-key".to_vec(),
+    };
+    assert!(!format!("{r:?} {a:?}").contains("fixture-key"));
+}
+
+#[test]
+fn g12_live_boundaries_refuse_without_verified_billing_limits() {
+    use crate::judge_provider::{
+        batch::{BatchHttp, BatchNetwork},
+        transport::{Http, Network},
+    };
+    assert!(
+        Network
+            .post(
+                "https://example.org",
+                ("Authorization", "fixture"),
+                b"{}",
+                std::time::Duration::from_secs(1)
+            )
+            .is_err()
+    );
+    assert!(
+        BatchNetwork
+            .send("POST", "https://example.org", "fixture", Some(b"{}"))
+            .is_err()
+    );
+}
+
+#[test]
+fn g12_jev_closed_contract_rejects_extra_fields_bad_probabilities_and_missing_revision() {
+    for q in [
+        json!({"choice":"supported","approve":true}),
+        json!({"choice":"supported","probabilities":{"supported":2,"unsupported":-1,"insufficient":0}}),
+        json!({"choice":"supported","probabilities":{"supported":0,"unsupported":1,"insufficient":0}}),
+    ] {
+        assert!(
+            workflow::support_answer(
+                &serde_json::to_vec(&json!({"model":JEV,"modelVersion":"r1","answers":{"q":q}}))
+                    .unwrap(),
+                "r1"
+            )
+            .is_err()
+        );
+    }
+    assert!(
+        workflow::support_answer(
+            &serde_json::to_vec(&json!({"model":JEV,"answers":{"q":{"choice":"supported"}}}))
+                .unwrap(),
+            JEV
+        )
+        .is_err()
+    );
+}
+
+#[test]
+fn g12_incidental_presence_cannot_establish_label_condition_or_mask_audit() {
+    let c = catalog();
+    let observation = Observation {
+        observation_id: "incidental".into(),
+        image_role: Role::Single,
+        kind: Kind::Presence,
+        statement: "presence:present".into(),
+        geometry: Geometry::Box([0., 0., 20., 20.]),
+        visibility: Visibility::Visible,
+        evidence_refs: vec!["scope".into()],
+        uncertainty: 0.,
+    };
+    let condition = Condition::LabelVisible {
+        label: "Requested label".into(),
+    };
+    assert!(!workflow::relevant(
+        &c,
+        Task::CheckUi,
+        Some(&condition),
+        Outcome::Observed,
+        std::slice::from_ref(&observation)
+    ));
+    assert!(!workflow::relevant(
+        &c,
+        Task::Explain,
+        None,
+        Outcome::Observed,
+        std::slice::from_ref(&observation)
+    ));
+    assert!(!workflow::relevant(
+        &c,
+        Task::AuditMask,
+        None,
+        Outcome::Observed,
+        std::slice::from_ref(&observation)
+    ));
+    let text = Observation {
+        kind: Kind::Text,
+        statement: "text:Requested label".into(),
+        ..observation
+    };
+    assert!(workflow::relevant(
+        &c,
+        Task::CheckUi,
+        Some(&condition),
+        Outcome::Observed,
+        &[text]
+    ));
+}
+
+#[test]
+fn g12_batch_completion_requires_request_bound_complete_answers() {
+    let c = catalog();
+    let bytes = png(128);
+    let mut c = c;
+    c.images[0].encoded_sha256 = Digest::of_bytes(&bytes);
+    let prepared = workflow::prepare(
+        &c,
+        c.identity(Task::Explain, None, None).unwrap(),
+        None,
+        &[(Role::Single, bytes)],
+        false,
+        "r1",
+        Digest::of_bytes(b"api"),
+    )
+    .unwrap();
+    let inline = crate::judge_provider::batch::inline_request(
+        Digest::of_bytes(b"job").as_str(),
+        decode::<serde_json::Value>(&prepared.payload).unwrap(),
+    )
+    .unwrap();
+    let frozen = batch::Plan {
+        model: GEMINI.into(),
+        revision: "r1".into(),
+        requests: vec![inline.clone()],
+        price_id: price::PRICE_ID.into(),
+        max_spend_nano_usd: 100_000_000,
+    };
+    let valid = response(&prepared, "P1", "P1:R0", "appearance:changed");
+    let valid: serde_json::Value = decode(&valid).unwrap();
+    let mut wrong = valid.clone();
+    wrong["candidates"][0]["content"]["parts"][0]["text"]=json!(json!({"request_hash":Digest::of_bytes(b"wrong"),"outcome":"unverifiable","observations":[]}).to_string());
+    let mut truncated = valid.clone();
+    truncated["candidates"][0]["finishReason"] = json!("MAX_TOKENS");
+    for (index, body) in [
+        json!({"modelVersion":"r1","usageMetadata":{}}),
+        wrong,
+        truncated,
+        valid,
+    ]
+    .into_iter()
+    .enumerate()
+    {
+        let temp = tempfile::tempdir().unwrap();
+        let path = temp.path().join("job.json");
+        batch::plan(&path, &frozen).unwrap();
+        batch::begin_submit(&path, &frozen).unwrap();
+        batch::submitted(&path, &frozen, "batches/fixture").unwrap();
+        let envelope = json!({"name":"batches/fixture","state":"BATCH_STATE_SUCCEEDED","response":{"inlinedResponses":[{"metadata":inline["metadata"],"response":body}]}});
+        assert_eq!(
+            batch::collect(&path, &frozen, &envelope).unwrap().state,
+            if index == 3 {
+                batch::State::Completed
+            } else {
+                batch::State::Partial
+            }
+        );
+    }
 }

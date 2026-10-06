@@ -1,9 +1,11 @@
 //! Evaluation-only Gemini Batch API. Interactive review continues through `transport`.
+#[cfg(feature = "assist")]
 use super::Keys;
 use crate::evidence::canonical::Digest;
 use serde_json::{Value, json};
 use std::time::Duration;
 
+#[cfg(feature = "assist")]
 const BASE: &str = "https://generativelanguage.googleapis.com/v1beta";
 const MAX_INLINE_BYTES: usize = 20 * 1024 * 1024;
 
@@ -70,34 +72,8 @@ fn network_send(
     body: Option<&[u8]>,
     timeout: Duration,
 ) -> Result<BatchReply, String> {
-    let agent: ureq::Agent = ureq::Agent::config_builder()
-        .timeout_global(Some(timeout))
-        .max_redirects(0)
-        .http_status_as_error(false)
-        .build()
-        .into();
-    let mut response = match (method, body) {
-        ("POST", Some(bytes)) => agent
-            .post(url)
-            .header("x-goog-api-key", key)
-            .header("Content-Type", "application/json")
-            .send(bytes),
-        ("GET", None) => agent.get(url).header("x-goog-api-key", key).call(),
-        _ => return Err("invalid batch HTTP operation".into()),
-    }
-    .map_err(|_| "batch transport unavailable or timed out".to_owned())?;
-    let status = response.status().as_u16();
-    let body = response
-        .body_mut()
-        .with_config()
-        .limit(32 * 1024 * 1024)
-        .read_to_vec()
-        .map_err(|_| "batch response unavailable or too large".to_owned())?;
-    Ok(BatchReply {
-        status,
-        body: crate::evidence::canonical::decode(&body)
-            .map_err(|_| "invalid batch JSON response".to_owned())?,
-    })
+    let _ = (method, url, key, body, timeout);
+    Err("live provider dispatch disabled: verified billing ceiling unavailable".into())
 }
 
 fn model_id(model: &str) -> Result<(), String> {
@@ -218,12 +194,14 @@ pub fn collect(operation: &Value, requests: &[Value]) -> Result<Vec<(String, Val
 }
 
 /// Submit, count tokens, and poll with the existing file-only key loader.
-pub struct GeminiBatch<'a> {
+#[cfg(feature = "assist")]
+pub(crate) struct GeminiBatch<'a> {
     /// File-only key loader.
     pub keys: &'a Keys,
     /// HTTP boundary.
     pub http: &'a dyn BatchHttp,
 }
+#[cfg(feature = "assist")]
 impl GeminiBatch<'_> {
     fn call(&self, method: &str, url: &str, body: Option<&[u8]>) -> Result<Value, String> {
         let key = self.keys.load("gemini.env", "SACCADE_GEMINI_API_KEY")?;
@@ -233,26 +211,10 @@ impl GeminiBatch<'_> {
         }
         // Refuse reflected credentials before persisting Batch artifacts.
         let text = serde_json::to_string(&reply.body).map_err(|_| "invalid batch reply")?;
-        if key.scrub(&text) != text {
+        if key.reflected(text.as_bytes()) {
             return Err("credential material in batch reply".into());
         }
         Ok(reply.body)
-    }
-    /// Count prompt tokens before the spend reservation and submission.
-    pub fn count_tokens(&self, model: &str, request: &Value) -> Result<u64, String> {
-        model_id(model)?;
-        let mut counted = request.clone();
-        counted["model"] = json!(format!("models/{model}"));
-        let body = serde_json::to_vec(&json!({"generateContentRequest":counted}))
-            .map_err(|_| "invalid request JSON")?;
-        let value = self.call(
-            "POST",
-            &format!("{BASE}/models/{model}:countTokens"),
-            Some(&body),
-        )?;
-        value["totalTokens"]
-            .as_u64()
-            .ok_or("missing token count".into())
     }
     /// Submit an already budget-reserved batch.
     pub fn submit(&self, model: &str, body: &[u8]) -> Result<Value, String> {

@@ -79,3 +79,10 @@ Producers: `schema list|get|path`, `perf validate FILE --json`.
 Field evidence: `render-evidence`, `noise build REPEATS...`, `compare --export-maps --noise-from REPEATS... --require-scope`.
 [Arm policies](../docs/arm-validity.md): null is a value; `--ignore` waives missing
 fields; `--allow-unreached` requires exact observations; maps select `record_files`.
+
+G12 pre-spend: `scripts/qualify-wave4.sh --dry-run` verifies the fake-provider frozen
+corpus pipeline against checked expected output. Live provider adapters refuse
+until reviewed billing ceilings exist. Recorded OpenRouter uses chat-completions,
+`OPENROUTER_API_KEY` from the environment or the fixed `openrouter.env`, and
+versioned price/usage receipts. Offline pipeline success does not qualify a live
+model. See [assist qualification](../docs/assist-qualification.md#g12-pre-spend-correction-2026-10-06).
