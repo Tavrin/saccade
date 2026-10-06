@@ -42,6 +42,9 @@ impl CliError {
                 "config" => {
                     "check the named config setting or glob, correct its value, and rerun `saccade inspect config --entry NAME`"
                 }
+                "vision_unavailable" => {
+                    "run `saccade doctor` for the build's features and missing models, then follow the fix named in the message"
+                }
                 "unsafe_path" => "choose a path inside the allowed root without symlink escapes",
                 "not_empty_out_dir" => {
                     "choose an empty --out directory or an existing saccade report directory"

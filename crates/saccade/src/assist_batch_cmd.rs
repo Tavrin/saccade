@@ -66,8 +66,10 @@ pub(crate) struct BatchCommon {
     /// Recorded collection fixture; cannot settle a live reservation.
     #[arg(long)]
     pub response: Option<PathBuf>,
+    /// Maximum provider calls, 1-128 (default 8); the run stops when reached.
     #[arg(long,default_value_t=8,value_parser=clap::value_parser!(u64).range(1..=128))]
     pub budget_calls: u64,
+    /// Wall-clock limit in seconds, 1-300 (default 300).
     #[arg(long,default_value_t=300,value_parser=clap::value_parser!(u64).range(1..=300))]
     pub deadline_secs: u64,
 }

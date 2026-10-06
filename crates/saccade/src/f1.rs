@@ -17,6 +17,7 @@ pub(crate) enum Template {
     Ui,
     Identity,
     Ml,
+    ProducerStrict,
     #[cfg(feature = "ai")]
     Ci,
     #[cfg(feature = "ai")]
@@ -52,6 +53,9 @@ pub(crate) fn template(t: Template) -> &'static str {
         Template::Nightly => saccade_core::review::Profile::template("nightly").unwrap_or(""),
         #[cfg(feature = "ai")]
         Template::Lookdev => saccade_core::review::Profile::template("lookdev").unwrap_or(""),
+        Template::ProducerStrict => {
+            "# Strict capture-producer preset: refuse a verdict unless both sides declare\n# complete, matching producer identity. Nothing is waived by default.\nrequire_matching_meta = true\nrequire_valid_arms = true\n# Declare the variables you changed on purpose (exact keys or globs):\n# intended_variables = [\"run.mode\"]\n# Optional producer field mapping, relative to this file:\n# fingerprint_map = \"fingerprint-map.toml\"\n# Explicit waivers are echoed in the receipt:\n# arm_ignore = [\"capture.timestamp\"]\nmetric = \"p95\"\nthreshold = 0.01\n"
+        }
         Template::Ml => {
             "# Compare the same seeds/prompts across model checkpoints.\nmetric = \"p95\"\nthreshold = 0.01\n# Rank: saccade experiment rank reference checkpoint-a checkpoint-b --out ranking\n# Review: saccade review ranking/saccade-rank.v1.json\n"
         }
@@ -219,6 +223,7 @@ pub(crate) struct NoiseArgs {
     config: Option<PathBuf>,
     #[arg(required = true, num_args = 2..)]
     dirs: Vec<PathBuf>,
+    /// Multiplier on the largest observed metric value when setting the noise floor (default 1.5).
     #[arg(long, default_value_t = 1.5)]
     margin: f64,
     #[arg(long, value_enum, default_value = "p95")]

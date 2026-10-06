@@ -175,7 +175,7 @@ fn approve_report_resolves_and_binds_inputs() {
 fn init_templates_parse_and_refuse_overwrite() {
     let tmp = tempfile::tempdir().unwrap();
     let root = tmp.path();
-    for t in ["renderer", "ui", "identity", "ml"] {
+    for t in ["renderer", "ui", "identity", "ml", "producer-strict"] {
         let out = run(root, &["init", "--template", t, "--dir", t]);
         assert_eq!(out.status.code(), Some(0));
         let cfg =
@@ -184,6 +184,10 @@ fn init_templates_parse_and_refuse_overwrite() {
         if t == "renderer" {
             assert!(cfg.meta.required);
             assert!(cfg.hotspot_fail.is_some());
+        }
+        if t == "producer-strict" {
+            assert!(cfg.meta.required && cfg.meta.require_valid_arms);
+            assert!(cfg.meta.intended.is_empty() && cfg.meta.ignore.is_empty());
         }
         let out = run(root, &["init", "--template", t, "--dir", t]);
         assert_eq!(out.status.code(), Some(2));

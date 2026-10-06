@@ -29,8 +29,10 @@ enum Operation {
         before_origin: String,
         #[arg(long)]
         after_origin: String,
+        /// Samples per candidate setting, 1-100 (default 3).
         #[arg(long, default_value_t = 3, value_parser = clap::value_parser!(u16).range(1..=100))]
         samples: u16,
+        /// Integer seed for sample order (default 42).
         #[arg(long, default_value_t = 42)]
         seed: u64,
         /// Repeat WIDTHxHEIGHT. Default: 1280x720.
