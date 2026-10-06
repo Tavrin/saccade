@@ -1,0 +1,36 @@
+{
+  "id": "gen-fixture-001",
+  "object": "chat.completion",
+  "created": 1791324000,
+  "model": "openai/fixture-model",
+  "provider": "fixture-provider",
+  "system_fingerprint": "fixture-revision-1",
+  "choices": [
+    {
+      "index": 0,
+      "finish_reason": "stop",
+      "native_finish_reason": "stop",
+      "message": {
+        "role": "assistant",
+        "content": "{\"request_hash\":\"sha256:df888653ff06b055a0272aec6e0bbd81c42ea82437f237c027932bd679aef6aa\",\"outcome\":\"unverifiable\",\"observations\":[]}",
+        "refusal": null
+      }
+    }
+  ],
+  "usage": {
+    "prompt_tokens": 100,
+    "completion_tokens": 30,
+    "total_tokens": 130,
+    "cost": 0.0001875,
+    "is_byok": false,
+    "prompt_tokens_details": {
+      "cached_tokens": 0
+    },
+    "completion_tokens_details": {
+      "reasoning_tokens": 10
+    },
+    "cost_details": {
+      "upstream_inference_cost": 0.0001875
+    }
+  }
+}

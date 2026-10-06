@@ -502,6 +502,14 @@
           "description": "Payload encoding version.",
           "type": "string"
         },
+        "execution_id": {
+          "default": null,
+          "description": "Durable monetary execution receipt ID; absent only on historical replay records.",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
         "finished_ms": {
           "description": "Original request finish time.",
           "format": "uint64",

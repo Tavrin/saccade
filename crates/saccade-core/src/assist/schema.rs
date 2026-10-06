@@ -8,7 +8,7 @@ pub const SCHEMA: &str = "saccade-assist.v1";
 /// Catalog version, hashed into every request.
 pub const CATALOG_VERSION: &str = "assist-catalog/1";
 /// Advisory-only policy, independently qualified from historical human truth.
-pub const POLICY_VERSION: &str = "constructed-assist/2";
+pub const POLICY_VERSION: &str = "constructed-assist/3";
 /// Pinned starting Gemini model.
 pub const GEMINI: &str = "gemini-3.8-flash";
 /// Pinned starting Jev model.
@@ -176,6 +176,9 @@ pub struct Usage {
 #[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 #[serde(deny_unknown_fields)]
 pub struct Provenance {
+    /// Durable monetary execution receipt ID; absent only on historical replay records.
+    #[serde(default)]
+    pub execution_id: Option<String>,
     /// gemini or jev.
     pub provider: String,
     /// Fixed selected model.

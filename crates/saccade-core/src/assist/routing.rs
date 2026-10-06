@@ -58,18 +58,11 @@ pub fn prepare(
 pub fn answer(body: &[u8], revision: &str) -> Result<Decision> {
     let value: Value = decode(body)?;
     require(
-        value["model"] == JEV && value["modelVersion"].as_str().unwrap_or(JEV) == revision,
+        value["model"] == JEV && value["modelVersion"].as_str() == Some(revision),
         "Jev routing revision drift",
     )?;
-    let answer = &value["answers"]["q"];
-    require(
-        answer.as_object().is_some_and(|o| {
-            o.keys()
-                .all(|k| ["choice", "probabilities"].contains(&k.as_str()))
-        }),
-        "routing authority or unknown fields",
-    )?;
-    match answer["choice"].as_str() {
+    let choice = workflow::closed_choice(&value, &["vision", "insufficient"])?;
+    match Some(choice) {
         Some("vision") => Ok(Decision::Vision),
         Some("insufficient") => Ok(Decision::Insufficient),
         _ => Err(super::Error::Invalid("routing fixed choice")),

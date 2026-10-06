@@ -2,6 +2,13 @@
 
 ## Unreleased
 
+- Harden experimental assist pre-spend accounting: shared campaign reservations,
+  charged and quarantined usage overruns, request-bound recorded execution receipts,
+  nonvacuous qualification, independent control and glyph-localization checks, and
+  dispatch-key reflection suppression. Live provider dispatch is disabled until
+  verified billing ceilings are available. Add an OpenRouter chat-completions
+  adapter and a fixture-only `qualify-wave4.sh --dry-run` with frozen expected output.
+
 ## 0.2.6 (2026-10-06)
 
 - The shared report index is written beside each report inside --out; commands no longer create reports/index.jsonl in the working directory.

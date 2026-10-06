@@ -16,12 +16,49 @@
       "additionalProperties": {
         "const": "PASS"
       }
+    },
+    "execution": {
+      "type": "object",
+      "required": [
+        "source_before",
+        "test_counts",
+        "binary",
+        "binary_hash",
+        "toolchain",
+        "features",
+        "build_env"
+      ],
+      "properties": {
+        "source_before": {
+          "type": "string"
+        },
+        "test_counts": {
+          "type": "object"
+        },
+        "binary": {
+          "type": "string"
+        },
+        "binary_hash": {
+          "type": "string"
+        },
+        "toolchain": {
+          "type": "string"
+        },
+        "features": {
+          "type": "string"
+        },
+        "build_env": {
+          "type": "object"
+        }
+      },
+      "additionalProperties": false
     }
   },
   "required": [
     "schema",
     "source_hash",
-    "gates"
+    "gates",
+    "execution"
   ],
   "additionalProperties": false
 }

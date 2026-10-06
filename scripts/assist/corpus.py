@@ -26,12 +26,15 @@ def put(path, value):
     path.write_bytes(encoded(value) + b"\n")
 
 def gate_source_hash():
-    paths=set((ROOT/"scripts/assist").glob("*.py"))
+    paths=set((ROOT/"scripts").rglob("*.py")) | set((ROOT/"scripts").glob("*.sh"))
+    paths.update((ROOT/"scripts/assist/fixtures").glob("*.json"))
     for crate in ("saccade-core","saccade"):
         paths.update((ROOT/"crates"/crate/"src").rglob("*.rs"))
         paths.update((ROOT/"crates"/crate/"tests").rglob("*.rs"))
         paths.update((ROOT/"crates"/crate/"examples").rglob("*.rs"))
         paths.add(ROOT/"crates"/crate/"Cargo.toml")
+        paths.update((ROOT/"crates"/crate).glob("build.rs"))
+        paths.update((ROOT/"crates"/crate/"tests/fixtures").rglob("*.*"))
     paths.update((ROOT/"crates/saccade-core/schemas").glob("*.json"))
     paths.update(ROOT/path for path in ["scripts/gates-wave4.sh","scripts/qualify-wave4.sh","Cargo.toml","Cargo.lock"])
     return digest(encoded([(str(p.relative_to(ROOT)),digest(p.read_bytes())) for p in sorted(paths)]))
@@ -78,7 +81,7 @@ def render(seed, family, kind, workload):
     button = (25+rng.randrange(30),65+rng.randrange(30),140+rng.randrange(35))
     foreground = (255, 255, 255)
     font = ImageFont.truetype(str(FONT_FILES[family % 2]), (12 + family % 3 + rng.randrange(3)) * dpr)
-    label = ["Continuer", "État enregistré", "Vérifier les éléments sélectionnés"][family % 3] + " " + str(seed%100000)
+    label = ["Continuer", "État enregistré", "Vérifier les éléments sélectionnés"][family % 3]
     target = [(16+rng.randrange(16))*dpr,(24+rng.randrange(16))*dpr,min(width-64*dpr,(180+rng.randrange(60))*dpr),54*dpr]
     baseline = Image.new("RGB", (width,height), background)
     draw = ImageDraw.Draw(baseline)
@@ -122,7 +125,7 @@ def render(seed, family, kind, workload):
             # Replace only exact button-colour samples, preserving glyphs.
             after.putdata([(173,45,52) if p==button else p for p in baseline.getdata()])
         elif mode == 3:  # clipping/occlusion of glyph-bearing pixels
-            painter.rectangle((x+w//2,y,x+w-1,y+h-1),fill=background)
+            painter.rectangle((x+6*dpr+max(font.getbbox(text)[2] for text in lines)//2,y,x+w-1,y+h-1),fill=background)
         elif mode == 4:  # wrapping: move rendered rows inside the known target
             painter.rectangle((x,y,x+w-1,y+h-1),fill=button)
             for index,word in enumerate(label.split()):
@@ -167,6 +170,15 @@ def render(seed, family, kind, workload):
                    for expected in (base_glyphs,shifted_glyphs,wrapped_glyphs))
     label_complete=present(after)
     before_label_complete=present(baseline)
+    possible=base_glyphs|shifted_glyphs|wrapped_glyphs
+    def pixel_glyphs(image):
+        positions=sorted(gy*width+gx for gx,gy in possible if 0<=gx<width and 0<=gy<height and image.getpixel((gx,gy))==foreground)
+        intervals=[]
+        for n in positions:
+            if intervals and sum(intervals[-1])==n: intervals[-1][1]+=1
+            else: intervals.append([n,1])
+        return intervals
+    label_pixels=pixel_glyphs(after);before_label_pixels=pixel_glyphs(baseline)
     exclusions=[]
     if workload == "audit_mask":
         rects = [target,[x+w//3,y,2*w//3,h]] if important else [[0,height-12*dpr,width,12*dpr]]
@@ -189,6 +201,8 @@ def render(seed, family, kind, workload):
     witnesses=dict(changed_pixels=sum(changed),label_patch_hash=digest(after_patch),
                    label_template_hash=digest(template_patch),label_complete=label_complete,before_label_complete=before_label_complete,
                    target=target,masked_important_change=masked_important,
+                   label_pixels=label_pixels,before_label_pixels=before_label_pixels,
+                   mask_facts=[dict(id=e["id"],changed_pixels=sum(changed[start:start+length].count(1) for start,length in e["runs"]),target_changed_pixels=sum(sum(changed[max(start,row*width+x):min(start+length,row*width+x+w)]) for start,length in e["runs"] for row in range(max(y,start//width),min(y+h,(start+length-1)//width+1)) if max(start,row*width+x)<min(start+length,row*width+x+w))) for e in exclusions],
                    union_pixels=sum(union),dimensions=[width,height],lines=len(lines),
                    text=label,background=list(background))
     # Preregistered independent render admissibility.
@@ -214,9 +228,10 @@ def freeze(out, target, seed, gemini_revision, jev_revision):
                     font_license_hash=digest(FONT_LICENSE.read_bytes()),
                     workflow_hash=digest((ROOT/"crates/saccade-core/src/assist/workflow.rs").read_bytes()),
                     schema_hash=digest((ROOT/"crates/saccade-core/schemas/saccade-assist.v1.schema.json").read_bytes()))
-    metadata = dict(schema=SCHEMA,epoch="wave4-constructed/2",seed=seed,target_per_workload=target,
+    metadata = dict(schema=SCHEMA,epoch="wave4-constructed/3",seed=seed,target_per_workload=target,
                     families=families,policy=POLICY,versions=versions,
-                    models={"gemini":"gemini-3.8-flash","gemini_revision":gemini_revision,
+                    campaign="offline-fixture-campaign/1",
+                    models={"openrouter":"openai/fixture-model","openrouter_revision":"fixture-fingerprint-r1","gemini":"gemini-3.8-flash","gemini_revision":gemini_revision,
                             "jev":"jev-1.13.0","jev_revision":jev_revision},
                     licence="Generated pixels: MIT OR Apache-2.0; DejaVu rendered fonts: see font-license.txt")
     if out.exists() and any(out.iterdir()):
@@ -274,9 +289,9 @@ def freeze(out, target, seed, gemini_revision, jev_revision):
                     necessary_vision=workload=="routing" and kind=="challenge",
                     rendered_witness=case["witnesses"],oracle_verified=True,
                     counterfactual_witness=opposite["witnesses"] if case_record["counterfactual"] else None,
-                    diagnostic_statements=["presence:"+("present" if case["witnesses"]["label_complete"] else "absent")],
-                    assertion_vocabulary={"presence:present":case["witnesses"]["label_complete"],
-                                          "presence:absent":not case["witnesses"]["label_complete"],
+                    diagnostic_statements=["presence:"+("present" if case["witnesses"]["label_pixels"] else "absent")],
+                    assertion_vocabulary={"presence:present":bool(case["witnesses"]["label_pixels"]),
+                                          "presence:absent":not case["witnesses"]["label_pixels"],
                                           "appearance:changed":case["witnesses"]["changed_pixels"]>0,
                                           "appearance:unchanged":case["witnesses"]["changed_pixels"]==0,
                                           "text:"+case["label"]:case["witnesses"]["label_complete"]})
@@ -301,12 +316,28 @@ def verify(directory):
     oracle=oracle_document["cases"]
     expected_families={"development":list(range(8)),"calibration":list(range(8,12)),"heldout":list(range(12,32))}
     target=manifest["target_per_workload"]
-    if manifest["epoch"]!="wave4-constructed/2" or manifest["families"]!=expected_families or not isinstance(target,int) or target<=0 or target>1000 or target%5:
+    if manifest["epoch"]!="wave4-constructed/3" or manifest["families"]!=expected_families or not isinstance(target,int) or target<=0 or target>1000 or target%5:
         raise ValueError("preregistered split/epoch drift")
     if manifest["models"]["gemini"]!="gemini-3.8-flash" or manifest["models"]["jev"]!="jev-1.13.0" or not all(manifest["models"][m+"_revision"] for m in ("gemini","jev")):
         raise ValueError("pinned model binding drift")
+    scheduled=set()
+    for split,family_ids in expected_families.items():
+        count=target if split=="heldout" else min(target,20)
+        for workload in WORKLOADS:
+            for index in range(count):
+                seed=manifest["seed"]+100000*WORKLOADS.index(workload)+10000*list(expected_families).index(split)+index
+                family=family_ids[index%len(family_ids)]
+                scheduled.add(digest(encoded([manifest["seed"],workload,split,family,seed])))
+    retained={c["root_id"] for c in manifest["cases"]}
+    excluded={c["root"] for c in manifest["exclusions"]}
+    if retained & excluded or retained|excluded != scheduled or len(retained)!=len(manifest["cases"]) or len(excluded)!=len(manifest["exclusions"]) or set(oracle)!=retained:
+        raise ValueError("incomplete scheduled corpus topology or oracle membership")
+    # An exclusion must independently reproduce the preregistered failed witness.
+    if excluded:
+        raise ValueError("excluded roots require a separately reviewed freeze; this epoch admits all roots")
     families={};roots=set()
     for case in manifest["cases"]:
+        if case["case_id"] != case["root_id"]: raise ValueError("case/root identity drift")
         if case["root_id"] in roots: raise ValueError("duplicate root")
         roots.add(case["root_id"])
         if case["family"] in families and families[case["family"]]!=case["split"]: raise ValueError("family split leakage")
@@ -348,9 +379,9 @@ def verify(directory):
             raise ValueError("necessary-pixel counterfactual missing or invented")
         expected_outcome="observed" if case["workload"]=="routing" and expected_category=="control" else rendered["wanted"]
         expected_fields={"root_id","family","split","workload","category","expected_outcome","important","necessary_vision","rendered_witness","oracle_verified","counterfactual_witness","diagnostic_statements","assertion_vocabulary"}
-        if set(truth)!=expected_fields or truth["expected_outcome"]!=expected_outcome or truth["important"]!=(expected_category=="challenge") or truth["necessary_vision"]!=(case["workload"]=="routing" and expected_category=="challenge") or truth["diagnostic_statements"]!=["presence:"+("present" if rendered["witnesses"]["label_complete"] else "absent")]:
+        if set(truth)!=expected_fields or truth["expected_outcome"]!=expected_outcome or truth["important"]!=(expected_category=="challenge") or truth["necessary_vision"]!=(case["workload"]=="routing" and expected_category=="challenge") or truth["diagnostic_statements"]!=["presence:"+("present" if rendered["witnesses"]["label_pixels"] else "absent")]:
             raise ValueError("manual or unreproduced oracle truth is forbidden")
-        expected_assertions={"presence:present":rendered["witnesses"]["label_complete"],"presence:absent":not rendered["witnesses"]["label_complete"],"appearance:changed":rendered["witnesses"]["changed_pixels"]>0,"appearance:unchanged":rendered["witnesses"]["changed_pixels"]==0,"text:"+rendered["label"]:rendered["witnesses"]["label_complete"]}
+        expected_assertions={"presence:present":bool(rendered["witnesses"]["label_pixels"]),"presence:absent":not rendered["witnesses"]["label_pixels"],"appearance:changed":rendered["witnesses"]["changed_pixels"]>0,"appearance:unchanged":rendered["witnesses"]["changed_pixels"]==0,"text:"+rendered["label"]:rendered["witnesses"]["label_complete"]}
         if truth["assertion_vocabulary"]!=expected_assertions or case["label"]!=rendered["label"] or case["target"]!=rendered["target"]:
             raise ValueError("fixture content contract drift")
         if rendered is None or digest(rendered["before"])!=case["before_hash"] or digest(rendered["after"])!=case["after_hash"] or rendered["witnesses"]!=oracle[case["root_id"]]["rendered_witness"]:
@@ -359,6 +390,8 @@ def verify(directory):
         if case["counterfactual"]:
             child=case["counterfactual"]
             if child["root_id"]!=case["root_id"] or child["split"]!=case["split"] or child["structured_packet"]!=case["structured_packet"]: raise ValueError("counterfactual split/packet leakage")
+            child_path=directory/child["path"]
+            if child_path.is_symlink() or not child_path.resolve().is_relative_to(directory.resolve()): raise ValueError("unsafe counterfactual path")
             opposite=render(case["generator_seed"],int(case["family"].split("-")[1]),"control",case["workload"])
             if digest((directory/child["path"]).read_bytes())!=child["hash"] or digest(opposite["after"])!=child["hash"] or opposite["witnesses"]!=oracle[case["root_id"]]["counterfactual_witness"]: raise ValueError("counterfactual hash/oracle drift")
     manifest["manifest_hash"]=claimed

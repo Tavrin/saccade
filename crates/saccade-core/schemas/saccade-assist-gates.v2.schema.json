@@ -3,6 +3,42 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "additionalProperties": false,
   "properties": {
+    "execution": {
+      "additionalProperties": false,
+      "properties": {
+        "binary": {
+          "type": "string"
+        },
+        "binary_hash": {
+          "type": "string"
+        },
+        "build_env": {
+          "type": "object"
+        },
+        "features": {
+          "type": "string"
+        },
+        "source_before": {
+          "type": "string"
+        },
+        "test_counts": {
+          "type": "object"
+        },
+        "toolchain": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "source_before",
+        "test_counts",
+        "binary",
+        "binary_hash",
+        "toolchain",
+        "features",
+        "build_env"
+      ],
+      "type": "object"
+    },
     "gates": {
       "additionalProperties": {
         "const": "PASS"
@@ -34,6 +70,7 @@
     "schema",
     "source_hash",
     "gates",
+    "execution",
     "report_id",
     "source_refs"
   ],

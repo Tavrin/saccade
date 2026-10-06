@@ -3,6 +3,8 @@ pub mod batch;
 pub mod catalog;
 pub mod execution;
 pub mod geometry;
+/// Recorded OpenRouter chat-completions adapter.
+pub mod openrouter;
 pub mod price;
 pub mod routing;
 pub mod schema;
