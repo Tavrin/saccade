@@ -173,3 +173,6 @@ pub mod optional;
 
 /// Wave 11 mask spec implementation.
 pub mod mask_spec;
+
+/// Wave 11 timing implementation.
+pub mod timing;
