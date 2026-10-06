@@ -12,6 +12,8 @@ saccade inspect evidence REPORT/saccade-report.v1.json --entry NAME --out EVIDEN
 
 Read validity/performance/limits, pagination, `data.pass_with_local_change` and next
 actions. Exit 1 is failure; 2 unavailable; `performance_rejected` may exit 0.
+`--require-valid-arms` refuses mismatches (3) or missing identity (4); declare
+variables; inspect ignores and covered derivations. [Arms](../docs/arm-validity.md).
 Identity binds supplied samples; threshold passing grants no approval/timing authority.
 
 `review` previews; `review request|ask|propose` binds input hashes.

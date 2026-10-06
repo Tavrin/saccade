@@ -10,6 +10,13 @@ enum Operation {
     #[serde(rename = "reference_compare")]
     Reference {
         render: PathBuf,
+        #[serde(default)]
+        require_valid_arms: bool,
+        fingerprint_map: Option<PathBuf>,
+        #[serde(default)]
+        intended_variables: Vec<String>,
+        #[serde(default)]
+        arm_ignore: Vec<String>,
         reference: PathBuf,
         #[serde(default)]
         seeds: Vec<PathBuf>,
@@ -64,6 +71,10 @@ pub(crate) fn call(
     let op: Operation = serde_json::from_value(Value::Object(args.clone()))?;
     match op {
         Operation::Reference {
+            require_valid_arms,
+            fingerprint_map,
+            intended_variables,
+            arm_ignore,
             render,
             reference,
             seeds,
@@ -72,6 +83,13 @@ pub(crate) fn call(
             policy: p,
         } => {
             let args = crate::wave9_cmd::ReferenceArgs {
+                strict_arms: crate::arms_cmd::StrictArgs {
+                    require_valid_arms,
+                    fingerprint_map: fingerprint_map.map(|p| policy.read(&p)).transpose()?,
+                    arm_ignore,
+                },
+                intended_variables,
+                config: None,
                 render: policy.read(&render)?,
                 reference: policy.read(&reference)?,
                 seeds: seeds
@@ -84,6 +102,9 @@ pub(crate) fn call(
                 out: None,
                 json: true,
             };
+            if let Some(map) = &args.strict_arms.fingerprint_map {
+                crate::arms_mcp::validate_map(policy, map, &[&args.render, &args.reference])?;
+            }
             Ok(serde_json::to_value(crate::wave9_cmd::reference_value(
                 &args,
             )?)?)
@@ -149,7 +170,7 @@ fn check_frozen(policy: &RootPolicy, out: &Path) -> Result<(), CliError> {
 }
 pub(crate) fn schemas() -> Vec<Value> {
     let mut result = vec![
-        json!({"type":"object","additionalProperties":false,"required":["operation","render","reference"],"properties":{"operation":{"const":"reference_compare"},"render":{"type":"string"},"reference":{"type":"string"},"seeds":{"type":"array","maxItems":31,"items":{"type":"string"}},"variance":{"type":"string"},"mask":{"type":"string"},"policy":{"type":"string"}}}),
+        json!({"type":"object","additionalProperties":false,"required":["operation","render","reference"],"properties":{"operation":{"const":"reference_compare"},"render":{"type":"string"},"reference":{"type":"string"},"seeds":{"type":"array","maxItems":31,"items":{"type":"string"}},"variance":{"type":"string"},"mask":{"type":"string"},"policy":{"type":"string"},"require_valid_arms":{"type":"boolean"},"fingerprint_map":{"type":"string"},"intended_variables":{"type":"array","items":{"type":"string"}},"arm_ignore":{"type":"array","items":{"type":"string"}}}}),
     ];
     for operation in [
         "trial_register",

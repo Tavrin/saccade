@@ -7,6 +7,12 @@ use std::path::PathBuf;
 #[derive(clap::Args)]
 #[command(group(clap::ArgGroup::new("region-source").required(true).args(["bbox","mask","selector","region","required_effect"])))]
 pub(crate) struct Args {
+    #[command(flatten)]
+    strict_arms: crate::arms_cmd::StrictArgs,
+    #[arg(long = "intended-variable")]
+    intended_variables: Vec<String>,
+    #[arg(long)]
+    config: Option<PathBuf>,
     /// Required-effect policy JSON; records occupancy, including an empty mask.
     #[arg(long)]
     required_effect: Option<PathBuf>,
@@ -42,6 +48,16 @@ pub(crate) struct Args {
     json: bool,
 }
 pub(crate) fn run(args: Args) -> Result<u8, CliError> {
+    let mut cfg = crate::load_config(args.config.as_deref())?;
+    args.strict_arms.apply(&mut cfg.meta);
+    cfg.meta.intended.extend(args.intended_variables);
+    saccade_core::arms::enforce(&args.reference, &args.candidate, &cfg)?;
+    if cfg.meta.require_valid_arms && !args.json {
+        crate::arms_cmd::emit(
+            &saccade_core::arms::check_paths(&args.reference, &args.candidate, &cfg.meta)?,
+            false,
+        )?;
+    }
     let reference_bytes = saccade_core::evidence_quality::read(&args.reference, 128 << 20)
         .map_err(|e| CliError::io(e.to_string()))?;
     let candidate_bytes = saccade_core::evidence_quality::read(&args.candidate, 128 << 20)
@@ -75,12 +91,11 @@ pub(crate) fn run(args: Args) -> Result<u8, CliError> {
             &comparison.error_map,
         )?;
         std::fs::create_dir(&args.out).map_err(|e| CliError::io(e.to_string()))?;
-        crate::local_cmd::write_value(
-            &args.out.join("required-effect.json"),
-            &serde_json::to_value(&result)?,
-        )?;
+        let mut value = serde_json::to_value(&result)?;
+        crate::arms_cmd::annotate(&mut value, &cfg.meta);
+        crate::local_cmd::write_value(&args.out.join("required-effect.json"), &value)?;
         if args.json {
-            crate::emit(&format!("{}\n", serde_json::to_string(&result)?))?;
+            crate::emit(&format!("{}\n", serde_json::to_string(&value)?))?;
         } else {
             crate::emit(&format!(
                 "effect {}: baseline {} candidate {}; {:?}\n",
@@ -163,10 +178,9 @@ pub(crate) fn run(args: Args) -> Result<u8, CliError> {
         &serde_json::to_value(&measurement)?,
     )?;
     if args.json {
-        crate::emit(&format!(
-            "{}\n",
-            serde_json::json!({"schema":"saccade-localized-summary.v1","artifact":args.out.join("localized.json"),"region_id":measurement.region.region_id,"mask_sha256":measurement.region.mask_sha256,"inside":measurement.inside,"outside":measurement.outside,"boundary":measurement.boundary,"intended_change_detected":measurement.intended_change_detected,"collateral":measurement.collateral,"semantic_success":"unproven"})
-        ))?;
+        let mut value = serde_json::json!({"schema":"saccade-localized-summary.v1","artifact":args.out.join("localized.json"),"region_id":measurement.region.region_id,"mask_sha256":measurement.region.mask_sha256,"inside":measurement.inside,"outside":measurement.outside,"boundary":measurement.boundary,"intended_change_detected":measurement.intended_change_detected,"collateral":measurement.collateral,"semantic_success":"unproven"});
+        crate::arms_cmd::annotate(&mut value, &cfg.meta);
+        crate::emit(&format!("{value}\n"))?;
     } else {
         crate::emit(&format!(
             "localized: {}; {} inside and {} outside changed pixels; semantic success unproven\n",

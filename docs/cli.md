@@ -21,10 +21,11 @@ Usage: saccade [OPTIONS] <COMMAND>
 
 Commands:
   compare             Compare a directory of captures against a directory of baselines
+  arms                Validate producer identity before comparing pixels
   prove               Check whether image identity or performance evidence proves a claim
+  review              Preview a review plan or handle a local closed decision request
   sweep               Plan and compare deterministic page sweeps
   imgtune             Audit delivery formats and search perceptual-target encodings
-  review              Preview a review plan or handle a local closed decision request
   design              Pull design-source frames and compare implementation captures
   notify              Send a generic report summary to a user-configured webhook
   capabilities        List comparison questions, inputs, features and honest availability
@@ -71,6 +72,56 @@ Start here:
 Exit codes: 0 no image regression, 1 image regression found, 2 the command could not run.
 Advanced: demo, identity, noise, view, inspect, experiment, approve, init,
 serve, mcp, ingest, bisect, history, doctor. Existing commands keep working; use `saccade COMMAND --help`.
+```
+
+## saccade arms
+
+```text
+Validate producer identity before comparing pixels
+
+Usage: saccade arms [OPTIONS] <COMMAND>
+
+Commands:
+  check  Check two capture records, sidecars, images or capture directories
+
+Options:
+  -h, --help  Print help
+
+Global options:
+      --allow-out-near-captures  Silence warnings when --out is next to capture metadata
+      --record-absolute-paths    Opt in to absolute local paths in reports and machine-readable output
+```
+
+## saccade arms check
+
+```text
+Check two capture records, sidecars, images or capture directories
+
+Usage: saccade arms check [OPTIONS] <A> <B>
+
+Arguments:
+  <A>
+  <B>
+
+Options:
+      --vary <VARY>
+          Allowed difference: exact key, dotted prefix, suffix or explicit glob
+      --ignore <IGNORE>
+          Explicit exception, echoed even when no keys match it
+      --fingerprint-map <FINGERPRINT_MAP>
+
+      --config <CONFIG>
+
+      --meta-name <META_NAME>
+
+      --json
+
+  -h, --help
+          Print help
+
+Global options:
+      --allow-out-near-captures  Silence warnings when --out is next to capture metadata
+      --record-absolute-paths    Opt in to absolute local paths in reports and machine-readable output
 ```
 
 ## saccade sweep
@@ -1148,6 +1199,16 @@ Arguments:
   <CANDIDATE>
 
 Options:
+      --require-valid-arms
+          Refuse verdicts for incomplete or mismatched producer identity
+      --fingerprint-map <FINGERPRINT_MAP>
+          Generic TOML/JSON mapping from producer fields and sibling records
+      --arm-ignore <ARM_IGNORE>
+          Explicit ignored metadata tokens, echoed in arm validation output
+      --intended-variable <INTENDED_VARIABLES>
+
+      --config <CONFIG>
+
       --required-effect <REQUIRED_EFFECT>
           Required-effect policy JSON; records occupancy, including an empty mask
       --box <BBOX>
@@ -1588,6 +1649,12 @@ Metadata sidecars:
           Sidecar file name (default `saccade-meta.json`); the per-image sidecar is `<stem>.<name>` and overrides the directory-level one
       --meta-ignore <GLOB,...>
           Extra sidecar key globs to ignore, added to the built-in timing, timestamp and run-id defaults
+      --require-valid-arms
+          Refuse verdicts for incomplete or mismatched producer identity
+      --fingerprint-map <FINGERPRINT_MAP>
+          Generic TOML/JSON mapping from producer fields and sibling records
+      --arm-ignore <ARM_IGNORE>
+          Explicit ignored metadata tokens, echoed in arm validation output
       --intended-variable <INTENDED_VARIABLES>
           Intended experiment metadata variables (exact keys or globs)
       --require-matching-meta
@@ -1661,6 +1728,12 @@ Metadata sidecars:
           Sidecar file name (default `saccade-meta.json`); the per-image sidecar is `<stem>.<name>` and overrides the directory-level one
       --meta-ignore <GLOB,...>
           Extra sidecar key globs to ignore, added to the built-in timing, timestamp and run-id defaults
+      --require-valid-arms
+          Refuse verdicts for incomplete or mismatched producer identity
+      --fingerprint-map <FINGERPRINT_MAP>
+          Generic TOML/JSON mapping from producer fields and sibling records
+      --arm-ignore <ARM_IGNORE>
+          Explicit ignored metadata tokens, echoed in arm validation output
       --intended-variable <INTENDED_VARIABLES>
           Intended experiment metadata variables (exact keys or globs)
       --require-matching-meta
@@ -1757,6 +1830,12 @@ Metadata sidecars:
           Sidecar file name (default `saccade-meta.json`); the per-image sidecar is `<stem>.<name>` and overrides the directory-level one
       --meta-ignore <GLOB,...>
           Extra sidecar key globs to ignore, added to the built-in timing, timestamp and run-id defaults
+      --require-valid-arms
+          Refuse verdicts for incomplete or mismatched producer identity
+      --fingerprint-map <FINGERPRINT_MAP>
+          Generic TOML/JSON mapping from producer fields and sibling records
+      --arm-ignore <ARM_IGNORE>
+          Explicit ignored metadata tokens, echoed in arm validation output
       --intended-variable <INTENDED_VARIABLES>
           Intended experiment metadata variables (exact keys or globs)
       --require-matching-meta
@@ -1797,6 +1876,12 @@ Arguments:
   [ARMS]...
 
 Options:
+      --require-valid-arms
+          Refuse verdicts for incomplete or mismatched producer identity
+      --fingerprint-map <FINGERPRINT_MAP>
+          Generic TOML/JSON mapping from producer fields and sibling records
+      --arm-ignore <ARM_IGNORE>
+          Explicit ignored metadata tokens, echoed in arm validation output
       --intended-variable <INTENDED_VARIABLES>
           Intended metadata variable for every arm
       --arm-variable <ARM_VARIABLES>
@@ -2905,13 +2990,30 @@ Arguments:
   <REFERENCE>
 
 Options:
-      --seed-reference <SEEDS>  Additional independent reference seed images
-      --variance <VARIANCE>     Native scalar image of sample-mean variance in linear luminance squared
-      --mask <MASK>             White pixels include the reference/fit scope
+      --require-valid-arms
+          Refuse verdicts for incomplete or mismatched producer identity
+      --fingerprint-map <FINGERPRINT_MAP>
+          Generic TOML/JSON mapping from producer fields and sibling records
+      --arm-ignore <ARM_IGNORE>
+          Explicit ignored metadata tokens, echoed in arm validation output
+      --intended-variable <INTENDED_VARIABLES>
+          Intended metadata variables, exact paths, prefixes or suffixes
+      --config <CONFIG>
+
+      --seed-reference <SEEDS>
+          Additional independent reference seed images
+      --variance <VARIANCE>
+          Native scalar image of sample-mean variance in linear luminance squared
+      --mask <MASK>
+          White pixels include the reference/fit scope
       --policy <POLICY>
+
       --out <OUT>
+
       --json
-  -h, --help                    Print help
+
+  -h, --help
+          Print help
 
 Global options:
       --allow-out-near-captures  Silence warnings when --out is next to capture metadata
@@ -2954,6 +3056,12 @@ Arguments:
   [ARMS]...
 
 Options:
+      --require-valid-arms
+          Refuse verdicts for incomplete or mismatched producer identity
+      --fingerprint-map <FINGERPRINT_MAP>
+          Generic TOML/JSON mapping from producer fields and sibling records
+      --arm-ignore <ARM_IGNORE>
+          Explicit ignored metadata tokens, echoed in arm validation output
       --intended-variable <INTENDED_VARIABLES>
           Intended metadata variable for every arm
       --arm-variable <ARM_VARIABLES>
@@ -3001,13 +3109,30 @@ Arguments:
   <CAPTURE_DIR>   Directory of numbered capture PNG/JPEG frames
 
 Options:
-      --fps <FPS>          Frame rate used by the temporal visibility model
-      --display <DISPLAY>  Embedded ColorVideoVDP display model [default: standard_4k]
-      --pattern <PATTERN>  Relative-name glob for numbered frames [default: *]
-      --out <OUT>          Output directory for the sequence and temporal reports [default: temporal-report]
-      --min-jod <MIN_JOD>  Optional minimum acceptable video quality in JOD units
-      --json               Print a bounded JSON summary
-  -h, --help               Print help
+      --require-valid-arms
+          Refuse verdicts for incomplete or mismatched producer identity
+      --fingerprint-map <FINGERPRINT_MAP>
+          Generic TOML/JSON mapping from producer fields and sibling records
+      --arm-ignore <ARM_IGNORE>
+          Explicit ignored metadata tokens, echoed in arm validation output
+      --intended-variable <INTENDED_VARIABLES>
+
+      --config <CONFIG>
+
+      --fps <FPS>
+          Frame rate used by the temporal visibility model
+      --display <DISPLAY>
+          Embedded ColorVideoVDP display model [default: standard_4k]
+      --pattern <PATTERN>
+          Relative-name glob for numbered frames [default: *]
+      --out <OUT>
+          Output directory for the sequence and temporal reports [default: temporal-report]
+      --min-jod <MIN_JOD>
+          Optional minimum acceptable video quality in JOD units
+      --json
+          Print a bounded JSON summary
+  -h, --help
+          Print help
 
 Global options:
       --allow-out-near-captures  Silence warnings when --out is next to capture metadata
@@ -3049,6 +3174,12 @@ Metadata sidecars:
           Sidecar file name (default `saccade-meta.json`); the per-image sidecar is `<stem>.<name>` and overrides the directory-level one
       --meta-ignore <GLOB,...>
           Extra sidecar key globs to ignore, added to the built-in timing, timestamp and run-id defaults
+      --require-valid-arms
+          Refuse verdicts for incomplete or mismatched producer identity
+      --fingerprint-map <FINGERPRINT_MAP>
+          Generic TOML/JSON mapping from producer fields and sibling records
+      --arm-ignore <ARM_IGNORE>
+          Explicit ignored metadata tokens, echoed in arm validation output
       --intended-variable <INTENDED_VARIABLES>
           Intended experiment metadata variables (exact keys or globs)
       --require-matching-meta
@@ -3094,6 +3225,12 @@ Metadata sidecars:
           Sidecar file name (default `saccade-meta.json`); the per-image sidecar is `<stem>.<name>` and overrides the directory-level one
       --meta-ignore <GLOB,...>
           Extra sidecar key globs to ignore, added to the built-in timing, timestamp and run-id defaults
+      --require-valid-arms
+          Refuse verdicts for incomplete or mismatched producer identity
+      --fingerprint-map <FINGERPRINT_MAP>
+          Generic TOML/JSON mapping from producer fields and sibling records
+      --arm-ignore <ARM_IGNORE>
+          Explicit ignored metadata tokens, echoed in arm validation output
       --intended-variable <INTENDED_VARIABLES>
           Intended experiment metadata variables (exact keys or globs)
       --require-matching-meta

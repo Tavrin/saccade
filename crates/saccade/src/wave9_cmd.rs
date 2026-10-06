@@ -4,6 +4,13 @@ use saccade_core::evidence_quality::{self as eq, reference, trial};
 use std::path::{Path, PathBuf};
 #[derive(clap::Args)]
 pub(crate) struct ReferenceArgs {
+    #[command(flatten)]
+    pub strict_arms: crate::arms_cmd::StrictArgs,
+    /// Intended metadata variables, exact paths, prefixes or suffixes.
+    #[arg(long = "intended-variable")]
+    pub intended_variables: Vec<String>,
+    #[arg(long)]
+    pub config: Option<PathBuf>,
     pub render: PathBuf,
     pub reference: PathBuf,
     /// Additional independent reference seed images.
@@ -39,6 +46,15 @@ pub(crate) fn reference_value(args: &ReferenceArgs) -> Result<reference::Report,
         return Err(CliError::usage(
             "use at most 31 extra seeds, or a variance map",
         ));
+    }
+    let mut cfg = crate::load_config(args.config.as_deref())?;
+    args.strict_arms.apply(&mut cfg.meta);
+    cfg.meta
+        .intended
+        .extend(args.intended_variables.iter().cloned());
+    saccade_core::arms::enforce(&args.reference, &args.render, &cfg)?;
+    for seed in &args.seeds {
+        saccade_core::arms::enforce(&args.reference, seed, &cfg)?;
     }
     let mut hashes = Default::default();
     let render = load(&args.render, &mut hashes)?;
@@ -100,6 +116,13 @@ pub(crate) fn reference_value(args: &ReferenceArgs) -> Result<reference::Report,
         &policy,
         &Default::default(),
     )?;
+    if cfg.meta.require_valid_arms {
+        report.arm_validation = Some(saccade_core::arms::check_paths(
+            &args.reference,
+            &args.render,
+            &cfg.meta,
+        )?);
+    }
     report.input_sha256 = hashes;
     Ok(report)
 }

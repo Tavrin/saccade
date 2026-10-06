@@ -7,8 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## 0.2.2
 
-- Python package published on PyPI as `saccade-vision`; wheels for Linux, macOS and Windows.
-- No functional change.
+### Added
+
+- Python package published on PyPI as `saccade-vision` (import name stays `saccade`); wheels for Linux, macOS and Windows.
+- Producer arm fingerprints, `--require-valid-arms`, `saccade arms check`
+  and TOML/JSON fingerprint-map configuration. Per-field `derives` declarations
+  cover keys computed from varied fields and report both values separately;
+  undeclared differences still refuse comparison. See [arm validity](docs/arm-validity.md).
 
 ## 0.2.1
 

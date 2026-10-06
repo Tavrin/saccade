@@ -390,6 +390,7 @@ pub fn run(
     config: &RunConfig,
 ) -> Result<Report> {
     config.validate()?;
+    crate::arms::enforce(baseline_dir, capture_dir, config)?;
     let ignore: Vec<_> = config
         .ignore
         .iter()
@@ -461,7 +462,10 @@ pub fn run(
     // Timing keys are performance data, not capture configuration: they are
     // read for the perf pairing and never fail `--require-matching-meta`.
     let mut meta_options = config.meta.clone();
-    if config.diagnostics.enabled && config.meta.required_keys.is_empty() {
+    if config.diagnostics.enabled
+        && config.meta.required_keys.is_empty()
+        && !config.meta.require_valid_arms
+    {
         for k in &config.diagnostics.perf_keys {
             if !meta_options.ignore.contains(k)
                 && !crate::meta::DEFAULT_IGNORE.contains(&k.as_str())
@@ -727,6 +731,7 @@ fn apply_meta(
     let failure = match meta.check_named(baseline_dir, baseline_name, capture_dir, &entry.name) {
         Ok(checked) => {
             entry.intended_variables = checked.intended;
+            entry.covered_by_derivation = checked.covered_by_derivation;
             entry.meta_diff = checked.diff;
             entry.meta_ignored_diff = checked.ignored;
             entry.meta_declared_unchanged = checked.unchanged;
@@ -862,6 +867,7 @@ pub(crate) fn build_entry(
     let (metric_used, threshold) = config.effective_for(name);
     let mut entry = Entry {
         intended_variables: Vec::new(),
+        covered_by_derivation: Vec::new(),
         spatial: None,
         gallery: Vec::new(),
         layers: None,

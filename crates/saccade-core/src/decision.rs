@@ -789,6 +789,7 @@ mod tests {
     fn entry(name: &str, status: Status) -> Entry {
         Entry {
             intended_variables: Vec::new(),
+            covered_by_derivation: Vec::new(),
             spatial: None,
             gallery: Vec::new(),
             layers: None,

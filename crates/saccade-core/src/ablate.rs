@@ -42,6 +42,9 @@ pub struct Arm {
     /// Intended keys and observed values, distinct from undeclared configuration differences.
     #[serde(default)]
     pub intended_variables: Vec<crate::report::MetaDiff>,
+    /// Differences covered by explicit fingerprint-map derivations, with both values.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub covered_by_derivation: Vec<crate::report::MetaDiff>,
     /// Intended-variable patterns for this arm.
     #[serde(default)]
     pub intended_keys: Vec<String>,
@@ -121,6 +124,11 @@ impl Arm {
             .into_iter()
             .collect();
         Self {
+            covered_by_derivation: report
+                .entries
+                .iter()
+                .flat_map(|e| e.covered_by_derivation.clone())
+                .collect(),
             intended_variables: report
                 .entries
                 .iter()
@@ -400,6 +408,29 @@ pub fn run_repeats(
         return Err(crate::Error::Config("ablate needs at least one arm".into()));
     }
     cfg.validate()?;
+    if cfg.meta.require_valid_arms {
+        let base = bases
+            .first()
+            .ok_or_else(|| crate::Error::Config("ablate needs a base".into()))?;
+        for repeat in bases.iter().skip(1) {
+            crate::arms::enforce(base, repeat, cfg)?;
+        }
+        let paths = groups
+            .iter()
+            .filter_map(|(_, p)| p.first().cloned())
+            .collect::<Vec<_>>();
+        let labels = crate::runs::unique_labels(&paths);
+        for ((label, paths), fallback) in groups.iter().zip(labels) {
+            let mut arm_cfg = cfg.clone();
+            let label = if label.is_empty() { &fallback } else { label };
+            if let Some(keys) = cfg.arm_variables.get(label) {
+                arm_cfg.meta.intended.extend(keys.iter().cloned());
+            }
+            for arm in paths {
+                crate::arms::enforce(base, arm, &arm_cfg)?;
+            }
+        }
+    }
     cfg.perf.resolved_floor()?;
     let all_paths = bases
         .iter()

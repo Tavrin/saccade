@@ -16,6 +16,7 @@ fn sample() -> Report {
 fn entry(name: String, status: Status, value: Option<f64>) -> Entry {
     Entry {
         intended_variables: Vec::new(),
+        covered_by_derivation: Vec::new(),
         spatial: None,
         gallery: Vec::new(),
         layers: None,

@@ -1,0 +1,23 @@
+[fields."producer.binary"]
+path = "executable.sha256"
+[fields."producer.build.commit"]
+path = "source.commit"
+[fields."producer.build.dirty"]
+path = "source.dirty"
+[fields."producer.build.diff_hash"]
+path = "source.diff_hash"
+[fields."inputs.identity"]
+file = "prepared.json"
+path = "content_hash"
+[fields."run.mode"]
+path = "settings.mode"
+[fields."run.env"]
+file = "settings.json"
+path = "selected"
+[fields."run.session"]
+path = "session"
+[[readiness]]
+name = "receiver_ready"
+parameters = { version = 1 }
+reached = { file = "readiness.json", path = "ready" }
+observed = { file = "readiness.json", path = "observed" }

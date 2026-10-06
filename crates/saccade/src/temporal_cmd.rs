@@ -12,6 +12,12 @@ const MAP_HOTSPOT: f32 = 0.2; // raw CVVDP map: per-pixel JOD below 8
 
 #[derive(Args)]
 pub(crate) struct TemporalArgs {
+    #[command(flatten)]
+    strict_arms: crate::arms_cmd::StrictArgs,
+    #[arg(long = "intended-variable")]
+    intended_variables: Vec<String>,
+    #[arg(long)]
+    config: Option<PathBuf>,
     /// Directory of numbered baseline PNG/JPEG frames.
     baseline_dir: PathBuf,
     /// Directory of numbered capture PNG/JPEG frames.
@@ -191,10 +197,10 @@ pub(crate) fn run(args: TemporalArgs, absolute: bool) -> Result<u8, CliError> {
             "--min-jod must be finite and between 0 and 10",
         ));
     }
-    let cfg = saccade_core::config::RunConfig {
-        record_absolute_paths: absolute,
-        ..Default::default()
-    };
+    let mut cfg = crate::load_config(args.config.as_deref())?;
+    cfg.record_absolute_paths = absolute;
+    args.strict_arms.apply(&mut cfg.meta);
+    cfg.meta.intended.extend(args.intended_variables);
     let sequence = saccade_core::sequence::run_sequence(
         &args.baseline_dir,
         &args.capture_dir,
@@ -252,7 +258,7 @@ pub(crate) fn run(args: TemporalArgs, absolute: bool) -> Result<u8, CliError> {
     let hotspots = hotspots(map);
     let findings = findings(&test, &reference);
     let artifact = args.out.join(FILE);
-    let full = json!({"schema":"saccade-temporal.v1","display_model":args.display,
+    let mut full = json!({"schema":"saccade-temporal.v1","display_model":args.display,
         "fps":args.fps,"input_color":"sRGB","video_jod":video.jod,
         "min_jod":args.min_jod,"per_frame_jod":per_frame,
         "per_frame_jod_kind":"still_image",
@@ -261,10 +267,11 @@ pub(crate) fn run(args: TemporalArgs, absolute: bool) -> Result<u8, CliError> {
         "findings":findings,"sequence_report":sequence.report_json,
         "limits":["Flicker and ghosting kinds are deterministic heuristics, not classifier outputs from ColorVideoVDP.",
         "Hotspot boxes use four-connected raw-map pixels; diagonal-only pixels are separate components."]});
+    crate::arms_cmd::annotate(&mut full, &cfg.meta);
     std::fs::write(&artifact, serde_json::to_vec_pretty(&full)?)
         .map_err(|e| CliError::io(format!("{}: {e}", artifact.display())))?;
     let fail_jod = args.min_jod.is_some_and(|min| video.jod < min);
-    let summary = json!({"schema":"saccade-temporal.v1","operation":"temporal",
+    let mut summary = json!({"schema":"saccade-temporal.v1","operation":"temporal",
         "video_jod":video.jod,"min_jod":args.min_jod,"display_model":args.display,
         "fps":args.fps,"frames":per_frame.len(),
         "findings":findings.iter().take(5).collect::<Vec<_>>(),
@@ -273,6 +280,7 @@ pub(crate) fn run(args: TemporalArgs, absolute: bool) -> Result<u8, CliError> {
             "findings_omitted":findings.len().saturating_sub(5)},
         "artifact":saccade_core::paths::cwd(&artifact,absolute),
         "verdict":if sequence.is_regression() || fail_jod {"regression"} else {"pass"}});
+    crate::arms_cmd::annotate(&mut summary, &cfg.meta);
     if args.json {
         let bytes = serde_json::to_vec(&summary)?;
         if bytes.len() > 4096 {
@@ -283,6 +291,7 @@ pub(crate) fn run(args: TemporalArgs, absolute: bool) -> Result<u8, CliError> {
         }
         crate::emit(&format!("{}\n", String::from_utf8_lossy(&bytes)))?;
     } else {
+        crate::arms_cmd::success_text(&cfg.meta)?;
         crate::emit(&format!(
             "temporal: {} JOD on {} frames ({}, {} fps)\nfindings: {}\nreport: {}\n",
             video.jod,
@@ -335,6 +344,9 @@ mod tests {
         }
         let code = run(
             TemporalArgs {
+                strict_arms: Default::default(),
+                intended_variables: Vec::new(),
+                config: None,
                 baseline_dir: baseline,
                 capture_dir: capture,
                 fps: 30.0,

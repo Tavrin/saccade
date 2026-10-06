@@ -1,0 +1,165 @@
+{
+  "$defs": {
+    "Criterion": {
+      "description": "Predicate identity.",
+      "properties": {
+        "name": {
+          "description": "Stable name, unique within each arm.",
+          "type": "string"
+        },
+        "parameters": {
+          "additionalProperties": true,
+          "description": "Parameters used to test readiness (empty means no parameters).",
+          "type": "object"
+        }
+      },
+      "required": [
+        "name",
+        "parameters"
+      ],
+      "type": "object"
+    },
+    "Inputs": {
+      "description": "Prepared inputs identity.",
+      "properties": {
+        "identity": {
+          "description": "Content or preparation-report hash binding preparer identity.",
+          "type": [
+            "string",
+            "null"
+          ]
+        }
+      },
+      "type": "object"
+    },
+    "Producer": {
+      "description": "Executable identity.",
+      "properties": {
+        "binary": {
+          "description": "Content hash of the executable.",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "build": {
+          "additionalProperties": true,
+          "description": "Profile, features and other build settings.",
+          "type": [
+            "object",
+            "null"
+          ]
+        }
+      },
+      "type": "object"
+    },
+    "Readiness": {
+      "description": "One named readiness predicate and its observation.",
+      "properties": {
+        "criterion": {
+          "$ref": "#/$defs/Criterion",
+          "description": "Predicate name and exact parameters."
+        },
+        "observed": {
+          "description": "Measured value, not an inferred success."
+        },
+        "reached": {
+          "description": "Whether this predicate was satisfied.",
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "criterion",
+        "reached",
+        "observed"
+      ],
+      "type": "object"
+    },
+    "Run": {
+      "description": "Execution identity.",
+      "properties": {
+        "env": {
+          "additionalProperties": true,
+          "description": "Explicitly selected environment and CLI settings (empty means none).",
+          "type": [
+            "object",
+            "null"
+          ]
+        },
+        "mode": {
+          "description": "Producer's mode name.",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "readiness": {
+          "description": "Independently evaluated readiness predicates.",
+          "items": {
+            "$ref": "#/$defs/Readiness"
+          },
+          "type": [
+            "array",
+            "null"
+          ]
+        },
+        "session": {
+          "description": "Shared baseline/candidate capture session.",
+          "type": [
+            "string",
+            "null"
+          ]
+        }
+      },
+      "type": "object"
+    }
+  },
+  "$id": "https://github.com/Tavrin/saccade/crates/saccade-core/schemas/saccade-arm-fingerprint.v1.schema.json",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "description": "A producer's optional identity declarations; strict mode requires all groups.",
+  "properties": {
+    "inputs": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/Inputs"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "description": "Prepared content declaration."
+    },
+    "producer": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/Producer"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "description": "Executable and build declarations."
+    },
+    "run": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/Run"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "description": "Execution and readiness declarations."
+    },
+    "schema": {
+      "const": "saccade-arm-fingerprint.v1",
+      "description": "Versioned contract identifier.",
+      "type": "string"
+    }
+  },
+  "required": [
+    "schema"
+  ],
+  "title": "Fingerprint",
+  "type": "object"
+}

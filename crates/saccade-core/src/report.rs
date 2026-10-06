@@ -118,6 +118,12 @@ fn default_true() -> bool {
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct MetaSettings {
+    /// Whether strict arm identity was required before measurement.
+    #[serde(default)]
+    pub require_valid_arms: bool,
+    /// Explicit strict exceptions, with no automatic ignore patterns.
+    #[serde(default)]
+    pub arm_ignore: Vec<String>,
     /// Declared intended-variable patterns.
     #[serde(default)]
     pub intended: Vec<String>,
@@ -140,6 +146,8 @@ pub struct MetaSettings {
 impl Default for MetaSettings {
     fn default() -> Self {
         Self {
+            require_valid_arms: false,
+            arm_ignore: Vec::new(),
             intended: Vec::new(),
             required_keys: Vec::new(),
             changes: Vec::new(),
@@ -301,6 +309,9 @@ pub struct Entry {
     /// Intended metadata variables with before/after values, including unchanged keys.
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub intended_variables: Vec<MetaDiff>,
+    /// Differences covered by explicit fingerprint-map derivations, with both values.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub covered_by_derivation: Vec<MetaDiff>,
     /// Opt-in effect occupancy and region measurements (wave9).
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub required_effects: Vec<crate::evidence_quality::effect::EffectResult>,

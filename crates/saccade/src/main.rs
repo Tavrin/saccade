@@ -20,6 +20,9 @@ mod media_cmd;
 #[cfg(feature = "mcp")]
 mod wave7_mcp;
 // wave9
+mod arms_cmd;
+#[cfg(feature = "mcp")]
+mod arms_mcp;
 mod wave9_cmd;
 #[cfg(feature = "mcp")]
 mod wave9_mcp;
@@ -175,6 +178,8 @@ struct MetaArgs {
 #[derive(clap::Args, Clone, Default)]
 #[command(next_help_heading = "Metadata sidecars")]
 struct MetaRequireArgs {
+    #[command(flatten)]
+    arms: arms_cmd::StrictArgs,
     /// Intended experiment metadata variables (exact keys or globs).
     #[arg(long = "intended-variable", value_delimiter = ',')]
     intended_variables: Vec<String>,
@@ -202,6 +207,7 @@ impl MetaArgs {
 
 impl MetaRequireArgs {
     fn apply(&self, meta: &mut saccade_core::meta::MetaOptions) {
+        self.arms.apply(meta);
         meta.intended
             .extend(self.intended_variables.iter().cloned());
         meta.required |= self.require_matching_meta;
@@ -230,6 +236,8 @@ impl From<MetricArg> for Metric {
 
 #[derive(Subcommand)]
 enum Command {
+    /// Validate producer identity before comparing pixels.
+    Arms(arms_cmd::Args),
     /// Plan and compare deterministic page sweeps.
     #[cfg(feature = "products")]
     Sweep(sweep_cmd::SweepArgs),
@@ -996,13 +1004,16 @@ fn cli_main() -> ExitCode {
             if json_errors {
                 emit_json_error(&err);
             } else {
+                if let Some(check) = &err.arm_check {
+                    let _ = arms_cmd::emit(check, false);
+                }
                 eprintln!(
                     "saccade: error: {}\n  fix: {}",
                     escape_multiline(&err.message),
                     escape_control(&err.hint)
                 );
             }
-            ExitCode::from(2)
+            ExitCode::from(err.arm_check.as_ref().map_or(2, |c| c.exit_code))
         }
     }
 }
@@ -1112,6 +1123,7 @@ fn emit_run(
 
 fn dispatch(command: Command, record_absolute_paths: bool) -> Result<u8, CliError> {
     match command {
+        Command::Arms(args) => arms_cmd::run(args),
         Command::Capabilities(args) => capability_cmd::run(args),
         Command::InspectImage(args) => inspect_image_cmd::run(args),
         Command::Assess(args) => assess_cmd::run(args),
@@ -1395,6 +1407,11 @@ fn dispatch(command: Command, record_absolute_paths: bool) -> Result<u8, CliErro
                 .map(|dir| dir.path().to_path_buf())
                 .or(baseline_dir)
                 .ok_or_else(|| CliError::usage("baseline directory required"))?;
+            let mut arm_cfg = load_config(config.as_deref())?;
+            meta.apply(&mut arm_cfg.meta);
+            require.apply(&mut arm_cfg.meta);
+            arm_cfg.entries.clone_from(&entries);
+            saccade_core::arms::enforce(&baseline_dir, &capture_dir, &arm_cfg)?;
             // Explicit questions never discard unrelated evidence options or fall back.
             capability_cmd::validate(&general)?;
             // Document files stream pages into a separate versioned summary.

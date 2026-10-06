@@ -302,6 +302,7 @@ pub fn run_sequence(
     cfg: &RunConfig,
 ) -> Result<SequenceReport> {
     cfg.validate()?;
+    crate::arms::enforce(baseline, capture, cfg)?;
     let mut excluded = std::collections::BTreeSet::new();
     let (base, cap) = (
         collect(baseline, pattern, cfg, &mut excluded)?,
@@ -379,6 +380,7 @@ pub fn run_sequence(
                     entry.meta_diff = checked.diff;
                     entry.meta_ignored_diff = checked.ignored;
                     entry.intended_variables = checked.intended;
+                    entry.covered_by_derivation = checked.covered_by_derivation;
                     entry.meta_declared_unchanged = checked.unchanged;
                     entry.capture_validity = checked.validity;
                     checked.failure

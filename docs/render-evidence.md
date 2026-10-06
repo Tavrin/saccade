@@ -1,5 +1,8 @@
 # Rendering evidence
 
+Use [strict arm validation](arm-validity.md) before claiming a verdict in automated
+pipelines: `--require-valid-arms` refuses missing identity or undeclared differences.
+
 These opt-in policies extend the ordinary measured pair report. They do not
 qualify capture conditions or timing, and no pixel mask establishes causality.
 

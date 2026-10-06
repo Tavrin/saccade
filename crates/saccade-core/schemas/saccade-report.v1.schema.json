@@ -1289,6 +1289,13 @@
           },
           "type": "array"
         },
+        "covered_by_derivation": {
+          "description": "Differences covered by explicit fingerprint-map derivations, with both values.",
+          "items": {
+            "$ref": "#/$defs/MetaDiff"
+          },
+          "type": "array"
+        },
         "diagnostics": {
           "anyOf": [
             {
@@ -2215,6 +2222,14 @@
       "additionalProperties": false,
       "description": "Metadata-sidecar settings recorded for reproducibility.",
       "properties": {
+        "arm_ignore": {
+          "default": [],
+          "description": "Explicit strict exceptions, with no automatic ignore patterns.",
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
         "changes": {
           "default": [],
           "description": "Structured declarations, including their reasons and expected values.",
@@ -2248,6 +2263,11 @@
         "name": {
           "description": "Sidecar file name (the per-image sidecar is `<stem>.<name>`).",
           "type": "string"
+        },
+        "require_valid_arms": {
+          "default": false,
+          "description": "Whether strict arm identity was required before measurement.",
+          "type": "boolean"
         },
         "required": {
           "description": "Whether an undeclared differing key fails the entry.",
@@ -3876,11 +3896,13 @@
         "meta": {
           "$ref": "#/$defs/MetaSettings",
           "default": {
+            "arm_ignore": [],
             "changes": [],
             "declared": [],
             "ignored": [],
             "intended": [],
             "name": "saccade-meta.json",
+            "require_valid_arms": false,
             "required": false,
             "required_keys": []
           },

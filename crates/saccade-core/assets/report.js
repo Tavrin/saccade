@@ -309,11 +309,11 @@
       h("ul", null, ws.map(function (w) { return h("li", { text: w }); }).concat(lines)));
   }
 
-  function metaTable(e) {
-    var ds = e.meta_diff || [];
+  function metaTable(e, derived) {
+    var ds = (derived ? e.covered_by_derivation : e.meta_diff) || [];
     if (!ds.length) return null;
     return h("div", { class: "cfgwarn", role: "note" },
-      h("strong", { text: "\u26A0 Configuration differs: this comparison may not be like for like" }),
+      h("strong", { text: derived ? "Covered by derivation" : "\u26A0 Configuration differs: this comparison may not be like for like" }),
       h("div", { class: "rtab-wrap" }, h("table", { class: "rtab mtab" },
       h("thead", null, h("tr", null, ["Key", LB.baseline, LB.capture].map(function (t) { return h("th", { scope: "col", text: t }); }))),
       h("tbody", null, ds.map(function (d) {
@@ -970,8 +970,10 @@
     d.appendChild(decisionBar(e));
     var wb = warnBox(e);
     if (wb) d.appendChild(wb);
+    var derived = metaTable(e, true);
     var mt = metaTable(e);
     if (mt) d.appendChild(mt);
+    if (derived) d.appendChild(derived);
     d.appendChild(badges(e));
     if (e.error) d.appendChild(h("div", { class: "err-box", role: "alert", text: e.error }));
     var p = e.paths || {};

@@ -154,6 +154,10 @@ impl Default for RunConfig {
 #[derive(Deserialize)]
 #[serde(deny_unknown_fields)]
 struct FileConfig {
+    require_valid_arms: Option<bool>,
+    #[serde(default)]
+    arm_ignore: Vec<String>,
+    fingerprint_map: Option<std::path::PathBuf>,
     temporal_tiles: Option<crate::evidence_quality::temporal::Policy>,
     layers: Option<crate::evidence_quality::layers::Policy>,
     spatial: Option<crate::evidence_quality::spatial::Policy>,
@@ -282,6 +286,11 @@ impl RunConfig {
         {
             *noise = dir.join(&*noise);
         }
+        if let (Some(dir), Some(map)) = (&cfg.config_dir, cfg.meta.fingerprint_map.as_mut())
+            && map.is_relative()
+        {
+            *map = dir.join(&*map);
+        }
         if let Some(dir) = &cfg.config_dir {
             for target in &mut cfg.symlink_targets {
                 if target.is_relative() {
@@ -311,6 +320,9 @@ impl RunConfig {
         cfg.temporal_tiles = file.temporal_tiles;
         cfg.layers = file.layers;
         cfg.spatial = file.spatial;
+        cfg.meta.require_valid_arms = file.require_valid_arms.unwrap_or(false);
+        cfg.meta.fingerprint_map = file.fingerprint_map;
+        cfg.meta.ignore.extend(file.arm_ignore);
         cfg.meta.intended = file.intended_variables;
         cfg.arm_variables = file.arm_variables;
         cfg.required_effect = file.required_effect;
@@ -577,7 +589,7 @@ impl RunConfig {
     ) -> Result<serde_json::Value> {
         use serde_json::{Value, json};
         fn settings(c: &RunConfig) -> Value {
-            json!({
+            let mut value = json!({
                 "brand": c.brand,
                 "threshold": c.default_threshold, "metric": c.default_metric,
                 "ppd": c.pixels_per_degree, "fail_on_new": c.fail_on_new,
@@ -602,7 +614,17 @@ impl RunConfig {
                     "noise_max_flip": c.diagnostics.noise_max_flip, "explained_min": c.diagnostics.explained_min,
                     "partial_min": c.diagnostics.partial_min, "perf_keys": c.diagnostics.perf_keys},
                 "decisions": {}
-            })
+            });
+            value["require_valid_arms"] = json!(c.meta.require_valid_arms);
+            value["fingerprint_map"] = json!(
+                c.meta
+                    .fingerprint_map
+                    .as_ref()
+                    .map(|p| crate::paths::cwd(p, false))
+            );
+            value["intended_variables"] = json!(c.meta.intended);
+            value["arm_ignore"] = json!(c.meta.ignore);
+            value
         }
         let raw: Value = match file {
             Some(p) => {

@@ -13,6 +13,14 @@ fn schema<T: schemars::JsonSchema>(id: &str) -> Value {
 pub fn documents() -> Vec<(&'static str, Value)> {
     vec![
         (
+            crate::arms::FINGERPRINT_SCHEMA,
+            schema::<crate::arms::Fingerprint>(crate::arms::FINGERPRINT_SCHEMA),
+        ),
+        (
+            crate::arms::RESULT_SCHEMA,
+            schema::<crate::arms::Check>(crate::arms::RESULT_SCHEMA),
+        ),
+        (
             super::effect::SCHEMA,
             schema::<super::effect::EffectResult>(super::effect::SCHEMA),
         ),
