@@ -1,0 +1,44 @@
+{
+  "$id": "https://github.com/Tavrin/saccade/crates/saccade-core/schemas/saccade-imgtune-audit.v2.schema.json",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "properties": {
+    "items": {
+      "items": {
+        "type": "object"
+      },
+      "type": "array"
+    },
+    "report_id": {
+      "pattern": "^sha256:[0-9a-f]{64}$",
+      "type": "string"
+    },
+    "schema": {
+      "const": "saccade-imgtune-audit.v2"
+    },
+    "source_refs": {
+      "items": {
+        "maxLength": 2048,
+        "minLength": 1,
+        "type": "string"
+      },
+      "maxItems": 128,
+      "type": "array"
+    },
+    "verdict": {
+      "enum": [
+        "complete",
+        "incomplete"
+      ]
+    }
+  },
+  "required": [
+    "schema",
+    "verdict",
+    "items",
+    "report_id",
+    "source_refs"
+  ],
+  "title": "saccade-imgtune-audit.v1",
+  "type": "object"
+}

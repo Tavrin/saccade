@@ -9,6 +9,12 @@ fn run(args: &[&str]) -> std::process::Output {
         .expect("CLI fixture")
 }
 fn schema(id: &str, value: &Value) {
+    let successor = saccade_core::report_links::linked_schema(id);
+    let id = if value["schema"] == successor {
+        successor
+    } else {
+        id
+    };
     let dir = Path::new(env!("CARGO_MANIFEST_DIR")).join("../saccade-core/schemas");
     let s: Value =
         serde_json::from_slice(&std::fs::read(dir.join(format!("{id}.schema.json"))).unwrap())

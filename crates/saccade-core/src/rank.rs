@@ -437,7 +437,7 @@ pub fn run_rank(
         (RANK_MD, result.markdown()),
     ] {
         let path = out.join(file);
-        std::fs::write(&path, text).map_err(io_err(format!("writing {}", path.display())))?;
+        crate::report_links::write_bytes(&path, text)?;
     }
     crate::render::render_rank_html(&result, out)?;
     std::fs::remove_file(&sentinel).map_err(io_err(format!("removing {}", sentinel.display())))?;

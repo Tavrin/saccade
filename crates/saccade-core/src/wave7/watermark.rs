@@ -43,7 +43,7 @@ pub struct WatermarkReport {
 impl WatermarkReport {
     /// Validate binding, schemes, payloads and confidence before exposing evidence.
     pub fn validate(&self, image: &VisionImage) -> Result<()> {
-        if self.schema != WATERMARK_SCHEMA
+        if crate::report_links::original_schema(&self.schema) != WATERMARK_SCHEMA
             || self.image_sha256 != image.sha256
             || self.absence_limit != ABSENCE_LIMIT
             || self.findings.len() > 8

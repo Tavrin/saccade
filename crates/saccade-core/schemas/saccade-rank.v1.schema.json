@@ -280,6 +280,10 @@
       "minimum": 0,
       "type": "integer"
     },
+    "report_id": {
+      "pattern": "^sha256:[0-9a-f]{64}$",
+      "type": "string"
+    },
     "report_json": {
       "description": "Ranking JSON path relative to the working directory (absolute by opt-in).",
       "type": "string"
@@ -287,6 +291,14 @@
     "schema": {
       "description": "Always `saccade-rank.v1`.",
       "type": "string"
+    },
+    "source_refs": {
+      "items": {
+        "maxLength": 2048,
+        "type": "string"
+      },
+      "maxItems": 128,
+      "type": "array"
     },
     "verdict": {
       "description": "Compare's verdict across all candidate reports.",

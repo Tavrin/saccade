@@ -265,6 +265,25 @@
       "oneOf": [
         {
           "additionalProperties": false,
+          "description": "Generic ID label glob from the manifest or dump dictionary.",
+          "properties": {
+            "kind": {
+              "const": "labels",
+              "type": "string"
+            },
+            "pattern": {
+              "description": "Explicit glob; no vocabulary is built in.",
+              "type": "string"
+            }
+          },
+          "required": [
+            "kind",
+            "pattern"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
           "description": "Exact native integer labels.",
           "properties": {
             "kind": {
@@ -453,6 +472,14 @@
           "additionalProperties": false,
           "description": "Source-bound named layer from the image-adjacent manifest.",
           "properties": {
+            "dump": {
+              "default": null,
+              "description": "Generic screen-space dump when no native manifest is supplied.",
+              "type": [
+                "string",
+                "null"
+              ]
+            },
             "kind": {
               "const": "named_layer",
               "type": "string"
@@ -750,6 +777,10 @@
       "format": "double",
       "type": "number"
     },
+    "report_id": {
+      "pattern": "^sha256:[0-9a-f]{64}$",
+      "type": "string"
+    },
     "scales": {
       "description": "Full and reduced statistics.",
       "items": {
@@ -769,6 +800,14 @@
         "number",
         "null"
       ]
+    },
+    "source_refs": {
+      "items": {
+        "maxLength": 2048,
+        "type": "string"
+      },
+      "maxItems": 128,
+      "type": "array"
     },
     "tiles": {
       "description": "Regular row-major grid.",

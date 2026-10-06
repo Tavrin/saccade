@@ -3,6 +3,8 @@
 //!
 //! Exit codes: `0` no regression, `1` regression, `2` usage/config/IO error.
 
+#![recursion_limit = "256"]
+
 use std::io::Write;
 use std::path::{Path, PathBuf};
 use std::process::ExitCode;
@@ -83,8 +85,12 @@ mod schema_cmd;
 mod temporal_cmd;
 mod ui_review_cmd;
 mod wave10_cmd;
+// wave11
 #[cfg(feature = "mcp")]
 mod wave10_mcp;
+mod wave11_cmd;
+#[cfg(feature = "mcp")]
+mod wave11_mcp;
 
 #[cfg(feature = "graphics")]
 mod s6;
@@ -116,6 +122,12 @@ Advanced: demo, identity, noise, view, inspect, experiment, approve, init,
 serve, mcp, ingest, bisect, history, doctor. Existing commands keep working; use `saccade COMMAND --help`."
 )]
 struct Cli {
+    /// External capture URI/key (repeatable); recorded in generated reports.
+    #[arg(long, global = true)]
+    source_ref: Vec<String>,
+    /// Shared report index destination (default reports/index.jsonl next to each report, inside --out).
+    #[arg(long, global = true)]
+    report_index: Option<PathBuf>,
     /// Silence warnings when --out is next to capture metadata.
     #[arg(long, global = true, help_heading = "Global options")]
     allow_out_near_captures: bool,
@@ -241,6 +253,9 @@ impl From<MetricArg> for Metric {
 
 #[derive(Subcommand)]
 enum Command {
+    // wave11
+    /// Verdicts over timings acquired by external tools.
+    Timing(wave11_cmd::TimingArgs),
     // wave10
     /// Compare structural rendering evidence with explicit scope and ID attribution.
     RenderEvidence(wave10_cmd::RenderArgs),
@@ -809,6 +824,10 @@ struct ProveIdentityArgs {
 
 #[derive(Subcommand)]
 enum ExperimentOperation {
+    // wave11
+    /// Event-relative tile error, settling, lag and pre-change residual trajectories.
+    #[cfg(feature = "graphics")]
+    Settle(wave11_cmd::SettleArgs),
     // wave9
     /// Compare a render with a noisy offline reference and record alignment/noise floors.
     Reference(wave9_cmd::ReferenceArgs),
@@ -1010,6 +1029,10 @@ fn cli_main() -> ExitCode {
         }
     };
     let json_errors = args_want_json(&args);
+    if let Err(e) = saccade_core::report_links::context(cli.source_ref, cli.report_index) {
+        emit_json_error(&e.into());
+        return ExitCode::from(2);
+    }
     match outdirs::warn(&cli.command, cli.allow_out_near_captures)
         .and_then(|()| dispatch(cli.command, cli.record_absolute_paths))
     {
@@ -1154,6 +1177,11 @@ fn emit_run(
 
 fn dispatch(command: Command, record_absolute_paths: bool) -> Result<u8, CliError> {
     match command {
+        Command::Timing(args) => wave11_cmd::timing(args),
+        #[cfg(feature = "graphics")]
+        Command::Experiment {
+            operation: ExperimentOperation::Settle(args),
+        } => wave11_cmd::settling(args),
         Command::RenderEvidence(args) => wave10_cmd::render(args),
         Command::Schema(args) => schema_cmd::run(args),
         Command::Perf(args) => schema_cmd::perf(args),
@@ -2022,6 +2050,15 @@ fn doctor(json: bool) -> Result<u8, CliError> {
     }
     // wave8
     capabilities.push("media-record-v1");
+    // wave11
+    capabilities.extend([
+        "timing-ab-v1",
+        "fingerprint-subtrees-v1",
+        "report-index-v1",
+        "mask-shortcuts-v1",
+    ]);
+    #[cfg(feature = "graphics")]
+    capabilities.extend(["settling-v1", "ablation-repeat-spread-v1"]);
     capabilities.sort_unstable();
     let git_commit = option_env!("SACCADE_GIT_COMMIT").filter(|value| !value.is_empty());
     let git_commit_short =
@@ -2066,6 +2103,8 @@ fn doctor(json: bool) -> Result<u8, CliError> {
     });
     let mut value = value;
     value["optional_dependencies"] = saccade_core::optional::status();
+    value["schema_migrations"] =
+        serde_json::to_value(saccade_core::report_links::SCHEMA_MIGRATIONS)?;
     if json {
         emit(&format!("{}\n", serde_json::to_string(&value)?))?;
     } else {
@@ -2140,7 +2179,7 @@ fn parse_contract<T: serde::de::DeserializeOwned>(
 ) -> Result<T, CliError> {
     let value: serde_json::Value = serde_json::from_slice(bytes)?;
     if let Some(actual) = value.get("schema").and_then(|v| v.as_str())
-        && actual != schema
+        && saccade_core::report_links::original_schema(actual) != schema
         && !(schema == "saccade-report.v1" && actual == "flipdiff-report.v1")
     {
         let prefix = schema
@@ -2166,24 +2205,56 @@ fn parse_contract<T: serde::de::DeserializeOwned>(
         )));
     }
     reject_newer_nested_schemas(&value)?;
-    let mut parser = serde_json::Deserializer::from_slice(bytes);
-    let mut ignored = None;
-    let parsed: T = serde_ignored::deserialize(&mut parser, |path| {
-        if ignored.is_none() { ignored = Some(path.to_string()); }
-    }).map_err(|e| {
-        if e.to_string().starts_with("unknown field ") {
-            CliError::new("version_skew", format!("written by a newer producer; installed saccade supports up to {schema}, upgrade: {e}"))
-        } else { CliError::io(format!("JSON error: {e}")) }
-    })?;
-    if let Some(path) = ignored {
-        return Err(CliError::new(
-            "version_skew",
-            format!(
-                "written by a newer producer; installed saccade supports up to {schema}, upgrade: unknown field {path}"
-            ),
-        ));
+    enum ParseFailure {
+        UnknownField(String),
+        Malformed(String),
     }
-    Ok(parsed)
+    fn strict<T: serde::de::DeserializeOwned>(bytes: &[u8]) -> Result<T, ParseFailure> {
+        let mut parser = serde_json::Deserializer::from_slice(bytes);
+        let mut ignored = None;
+        let parsed = serde_ignored::deserialize(&mut parser, |path| {
+            if ignored.is_none() {
+                ignored = Some(path.to_string());
+            }
+        })
+        .map_err(|e| {
+            let message = e.to_string();
+            if message.starts_with("unknown field `") {
+                ParseFailure::UnknownField(message)
+            } else {
+                ParseFailure::Malformed(message)
+            }
+        })?;
+        if let Some(path) = ignored {
+            return Err(ParseFailure::UnknownField(format!("unknown field {path}")));
+        }
+        Ok(parsed)
+    }
+    match strict(bytes) {
+        Ok(parsed) => Ok(parsed),
+        Err(mut first) => {
+            let legacy = saccade_core::report_links::legacy_view(&value);
+            if legacy != value {
+                // Only known linkage is projected away, and duplicate keys still
+                // reject. Original retained bytes remain the artifact-hash source.
+                let _: serde_json::Value = saccade_core::evidence::canonical::decode(bytes)?;
+                let projected = serde_json::to_vec(&legacy)?;
+                match strict(&projected) {
+                    Ok(parsed) => return Ok(parsed),
+                    Err(error) => first = error,
+                }
+            }
+            match first {
+                ParseFailure::UnknownField(first) => Err(CliError::new(
+                    "version_skew",
+                    format!(
+                        "written by a newer producer; installed saccade supports {schema}, upgrade: {first}"
+                    ),
+                )),
+                ParseFailure::Malformed(first) => Err(CliError::io(format!("JSON error: {first}"))),
+            }
+        }
+    }
 }
 
 fn reject_newer_nested_schemas(value: &serde_json::Value) -> Result<(), CliError> {
@@ -2230,7 +2301,7 @@ fn reject_newer_nested_schemas(value: &serde_json::Value) -> Result<(), CliError
                     "saccade-asset-views.v",
                     "saccade-asset-view-report.v",
                 ] {
-                    if actual
+                    if saccade_core::report_links::original_schema(actual)
                         .strip_prefix(prefix)
                         .and_then(|v| v.parse::<u32>().ok())
                         .is_some_and(|v| v > 1)
@@ -2260,6 +2331,21 @@ fn reject_newer_nested_schemas(value: &serde_json::Value) -> Result<(), CliError
 
 /// Writes `text` to stdout. A closed pipe (for example `| head`) is not an error.
 fn emit(text: &str) -> Result<(), CliError> {
+    let linked = if let Ok(value) = serde_json::from_str::<serde_json::Value>(text) {
+        Some(if value["report_id"].is_string() {
+            saccade_core::report_links::migrate_linked(&value)
+        } else {
+            saccade_core::report_links::decorate(&value)?
+        })
+    } else {
+        None
+    };
+    let encoded = linked
+        .as_ref()
+        .map(serde_json::to_string)
+        .transpose()?
+        .map(|s| format!("{s}\n"));
+    let text = encoded.as_deref().unwrap_or(text);
     let mut out = std::io::stdout().lock();
     match out.write_all(text.as_bytes()).and_then(|()| out.flush()) {
         Ok(()) => Ok(()),
@@ -2719,6 +2805,13 @@ mod wave3_schema_tests {
     #[test]
     fn w3_f08_all_nested_families() {
         for id in [
+            "saccade-model-status",
+            "saccade-locate",
+            "saccade-vision-observation",
+            "saccade-learned-quality",
+            "saccade-watermark",
+            "saccade-faces",
+            "saccade-crop-check",
             "saccade-brand-source",
             "saccade-brand-review",
             "saccade-ui-source",
@@ -2732,12 +2825,19 @@ mod wave3_schema_tests {
             "saccade-asset-views",
             "saccade-asset-view-report",
         ] {
-            let value = serde_json::json!({"outer":[{"schema":format!("{id}.v2")} ]});
+            let legacy = format!("{id}.v1");
+            let linked = saccade_core::report_links::linked_schema(&legacy);
+            // A linked successor is supported; the next unknown version is not.
+            for schema in [&legacy, linked] {
+                let value = serde_json::json!({"outer":[{"schema":schema}]});
+                super::reject_newer_nested_schemas(&value).expect("supported");
+            }
+            let version = linked.rsplit_once('v').expect("version").1;
+            let newer = version.parse::<u32>().expect("integer version") + 1;
+            let value = serde_json::json!({"outer":[{"schema":format!("{id}.v{newer}")}]});
             let error = super::reject_newer_nested_schemas(&value).expect_err("upgrade required");
             assert_eq!(error.code, "version_skew");
             assert!(error.message.contains("upgrade"));
-            let value = serde_json::json!({"outer":[{"schema":format!("{id}.v1")} ]});
-            super::reject_newer_nested_schemas(&value).expect("supported");
         }
     }
 }

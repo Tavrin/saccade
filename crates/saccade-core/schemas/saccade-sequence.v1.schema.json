@@ -2662,6 +2662,25 @@
       "oneOf": [
         {
           "additionalProperties": false,
+          "description": "Generic ID label glob from the manifest or dump dictionary.",
+          "properties": {
+            "kind": {
+              "const": "labels",
+              "type": "string"
+            },
+            "pattern": {
+              "description": "Explicit glob; no vocabulary is built in.",
+              "type": "string"
+            }
+          },
+          "required": [
+            "kind",
+            "pattern"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
           "description": "Exact native integer labels.",
           "properties": {
             "kind": {
@@ -3263,6 +3282,14 @@
           "additionalProperties": false,
           "description": "Source-bound named layer from the image-adjacent manifest.",
           "properties": {
+            "dump": {
+              "default": null,
+              "description": "Generic screen-space dump when no native manifest is supplied.",
+              "type": [
+                "string",
+                "null"
+              ]
+            },
             "kind": {
               "const": "named_layer",
               "type": "string"
@@ -4276,6 +4303,10 @@
       "description": "Effective relative-name glob.",
       "type": "string"
     },
+    "report_id": {
+      "pattern": "^sha256:[0-9a-f]{64}$",
+      "type": "string"
+    },
     "report_json": {
       "description": "JSON report path relative to the working directory (absolute by opt-in).",
       "type": "string"
@@ -4283,6 +4314,14 @@
     "schema": {
       "description": "Always `saccade-sequence.v1`.",
       "type": "string"
+    },
+    "source_refs": {
+      "items": {
+        "maxLength": 2048,
+        "type": "string"
+      },
+      "maxItems": 128,
+      "type": "array"
     },
     "temporal_errors": {
       "description": "Reasons a temporal metric could not be measured. These fail the run.",

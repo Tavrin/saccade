@@ -28,9 +28,16 @@ fn assert_same_path(recorded: &str, expected: &Path) {
     );
 }
 fn validate(name: &str, value: &Value) {
-    let path = Path::new(env!("CARGO_MANIFEST_DIR")).join(format!(
-        "../saccade-core/schemas/saccade-{name}.v1.schema.json"
-    ));
+    let expected = format!("saccade-{name}.v1");
+    let successor = saccade_core::report_links::linked_schema(&expected);
+    let id = if value["schema"] == successor {
+        successor
+    } else {
+        &expected
+    };
+    let path = Path::new(env!("CARGO_MANIFEST_DIR"))
+        .join("../saccade-core/schemas")
+        .join(format!("{id}.schema.json"));
     let schema: Value = serde_json::from_slice(&std::fs::read(path).unwrap()).unwrap();
     let check = jsonschema::validator_for(&schema).unwrap();
     let errors: Vec<_> = check.iter_errors(value).map(|e| e.to_string()).collect();
@@ -143,7 +150,10 @@ fn bisect_a_identity_threshold_selection_skips_and_observed_non_monotonicity() {
         String::from_utf8_lossy(&cli.stderr)
     );
     let cli: Value = serde_json::from_slice(&cli.stdout).unwrap();
-    assert_eq!(cli["schema"], "saccade-result.v2");
+    assert_eq!(
+        cli["schema"],
+        saccade_core::report_links::linked_schema("saccade-result.v2")
+    );
     let full: Value = serde_json::from_slice(
         &std::fs::read(tmp.path().join("relative-out/saccade-bisect.v1.json")).unwrap(),
     )

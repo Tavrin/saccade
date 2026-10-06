@@ -93,6 +93,13 @@ pub struct Rejection {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct Explanation {
+    /// Content-addressed report identity, absent on historical records.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub report_id: Option<String>,
+    /// External capture URI/key backlinks.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub source_refs: Vec<String>,
+
     /// saccade-grounded.v1.
     pub schema: String,
     /// Immutable source catalog.
@@ -319,7 +326,7 @@ pub fn verify(catalog: Catalog, proposals: &[Proposal]) -> crate::Result<Explana
             causal_claim: None,
         });
     }
-    Ok(Explanation{schema:"saccade-grounded.v1".into(),catalog,catalog_sha256,claims,dropped,proposed:proposals.len(),limits:vec!["Numerical consistency with the immutable source catalog is verified; semantic edit success and root cause remain unproven.".into(),"Hotspot pixel counts depend on producer threshold and exclusions; they are not exact native-change counts.".into(),"No model or human-support precision benchmark was run; proposal acceptance coverage is reported explicitly.".into()]})
+    Ok(Explanation{report_id:None,source_refs:Vec::new(),schema:"saccade-grounded.v1".into(),catalog,catalog_sha256,claims,dropped,proposed:proposals.len(),limits:vec!["Numerical consistency with the immutable source catalog is verified; semantic edit success and root cause remain unproven.".into(),"Hotspot pixel counts depend on producer threshold and exclusions; they are not exact native-change counts.".into(),"No model or human-support precision benchmark was run; proposal acceptance coverage is reported explicitly.".into()]})
 }
 
 #[cfg(test)]

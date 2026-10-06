@@ -185,7 +185,7 @@ pub struct ObservationReport {
 impl ObservationReport {
     /// Validate request/identity, catalog references, content and geometry.
     pub fn validate(&self, r: &ObservationRequest) -> Result<()> {
-        if self.schema != OBSERVATION_SCHEMA
+        if crate::report_links::original_schema(&self.schema) != OBSERVATION_SCHEMA
             || !self.advisory_only
             || self.request_sha256 != r.hash()?
             || !valid_hash(&self.response_sha256)

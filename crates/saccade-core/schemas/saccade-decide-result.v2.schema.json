@@ -1,0 +1,80 @@
+{
+  "$id": "https://github.com/Tavrin/saccade/crates/saccade-core/schemas/saccade-decide-result.v2.schema.json",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "description": "Printed by `saccade decide --json`, one object per recorded answer.",
+  "properties": {
+    "answer": {
+      "type": "string"
+    },
+    "decided": {
+      "description": "True when the answer became the set's decision (a person's, or a model's promoted by the confidence gate).",
+      "type": "boolean"
+    },
+    "decision": {
+      "description": "The set's decision after recording.",
+      "enum": [
+        "accept",
+        "reject",
+        "needs-work",
+        null
+      ]
+    },
+    "entry": {
+      "type": "string"
+    },
+    "file": {
+      "description": "The decisions file written (absolute).",
+      "type": "string"
+    },
+    "proposed": {
+      "description": "True for every non-human source: the answer is advice.",
+      "type": "boolean"
+    },
+    "question": {
+      "type": "string"
+    },
+    "reason": {
+      "description": "Why a proposal was not promoted.",
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "report_id": {
+      "pattern": "^sha256:[0-9a-f]{64}$",
+      "type": "string"
+    },
+    "schema": {
+      "const": "saccade-decide-result.v2"
+    },
+    "source": {
+      "type": "string"
+    },
+    "source_refs": {
+      "items": {
+        "maxLength": 2048,
+        "minLength": 1,
+        "type": "string"
+      },
+      "maxItems": 128,
+      "type": "array"
+    }
+  },
+  "required": [
+    "schema",
+    "entry",
+    "question",
+    "answer",
+    "source",
+    "proposed",
+    "decided",
+    "decision",
+    "reason",
+    "file",
+    "report_id",
+    "source_refs"
+  ],
+  "title": "saccade-decide-result.v1",
+  "type": "object"
+}

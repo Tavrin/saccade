@@ -577,6 +577,8 @@ pub fn run(
         }
     }
     let mut report = Report {
+        report_id: None,
+        source_refs: Vec::new(),
         schema: REPORT_SCHEMA.to_string(),
         tool_version: env!("CARGO_PKG_VERSION").to_string(),
         generated_at_unix: SystemTime::now()
@@ -634,8 +636,10 @@ pub fn run(
     }
 
     let json_path = report_dir.join(REPORT_FILE_NAME);
-    let json = serde_json::to_string_pretty(&report)?;
-    std::fs::write(&json_path, json).map_err(io_err(format!("writing {}", json_path.display())))?;
+    report = serde_json::from_value(crate::report_links::decorate(&serde_json::to_value(
+        &report,
+    )?)?)?;
+    crate::report_links::write(&json_path, &report)?;
     render::render_html(&report, report_dir)?;
     std::fs::write(&sentinel, b"complete saccade run\n")
         .map_err(io_err(format!("writing {}", sentinel.display())))?;

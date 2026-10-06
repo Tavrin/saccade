@@ -1,0 +1,48 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/Tavrin/saccade/crates/saccade-core/schemas/saccade-report-index-row.v1.schema.json",
+  "type": "object",
+  "required": [
+    "schema",
+    "report_schema",
+    "report_id",
+    "source_refs",
+    "verdict_class",
+    "timestamp_unix",
+    "report_path"
+  ],
+  "properties": {
+    "schema": {
+      "const": "saccade-report-index-row.v1"
+    },
+    "report_schema": {
+      "type": "string"
+    },
+    "report_id": {
+      "type": "string",
+      "pattern": "^sha256:[0-9a-f]{64}$"
+    },
+    "source_refs": {
+      "type": "array",
+      "maxItems": 128,
+      "items": {
+        "type": "string",
+        "maxLength": 2048
+      }
+    },
+    "verdict_class": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "timestamp_unix": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "report_path": {
+      "type": "string"
+    }
+  },
+  "additionalProperties": false
+}

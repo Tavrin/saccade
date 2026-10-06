@@ -129,81 +129,113 @@ The last three names appear only when the corresponding feature is compiled in.
 
 <!-- schema-index:start -->
 - [saccade-a11y.v1.schema.json](../crates/saccade-core/schemas/saccade-a11y.v1.schema.json) — a11y PRE-CHECK only; not certification or formal compliance
+- [saccade-a11y.v2.schema.json](../crates/saccade-core/schemas/saccade-a11y.v2.schema.json) — a11y PRE-CHECK only; not certification or formal compliance
 - [saccade-ablate.v1.schema.json](../crates/saccade-core/schemas/saccade-ablate.v1.schema.json) — Ablation
 - [saccade-api-analyze.v1.schema.json](../crates/saccade-core/schemas/saccade-api-analyze.v1.schema.json) — Historical reader contract
 - [saccade-api-compare.v1.schema.json](../crates/saccade-core/schemas/saccade-api-compare.v1.schema.json) — Historical reader contract
 - [saccade-api-health.v1.schema.json](../crates/saccade-core/schemas/saccade-api-health.v1.schema.json) — Historical reader contract
+- [saccade-api-health.v2.schema.json](../crates/saccade-core/schemas/saccade-api-health.v2.schema.json) — Historical reader contract
 - [saccade-api-search.v1.schema.json](../crates/saccade-core/schemas/saccade-api-search.v1.schema.json) — Historical reader contract
 - [saccade-approve.v1.schema.json](../crates/saccade-core/schemas/saccade-approve.v1.schema.json) — saccade-approve.v1
+- [saccade-approve.v2.schema.json](../crates/saccade-core/schemas/saccade-approve.v2.schema.json) — saccade-approve.v1
 - [saccade-arm-fingerprint.v1.schema.json](../crates/saccade-core/schemas/saccade-arm-fingerprint.v1.schema.json) — Fingerprint
 - [saccade-arms-check.v1.schema.json](../crates/saccade-core/schemas/saccade-arms-check.v1.schema.json) — Check
 - [saccade-ask-result.v1.schema.json](../crates/saccade-core/schemas/saccade-ask-result.v1.schema.json) — AskResult
 - [saccade-assess.v1.schema.json](../crates/saccade-core/schemas/saccade-assess.v1.schema.json) — Historical reader contract
+- [saccade-assess.v2.schema.json](../crates/saccade-core/schemas/saccade-assess.v2.schema.json) — Historical reader contract
 - [saccade-asset-view-report.v1.schema.json](../crates/saccade-core/schemas/saccade-asset-view-report.v1.schema.json) — Report
 - [saccade-asset-views.v1.schema.json](../crates/saccade-core/schemas/saccade-asset-views.v1.schema.json) — Manifest
 - [saccade-assist-batch-plan.v1.schema.json](../crates/saccade-core/schemas/saccade-assist-batch-plan.v1.schema.json) — FrozenPlan
 - [saccade-assist-batch.v1.schema.json](../crates/saccade-core/schemas/saccade-assist-batch.v1.schema.json) — Job
 - [saccade-assist-gates.v1.schema.json](../crates/saccade-core/schemas/saccade-assist-gates.v1.schema.json) — saccade-assist-gates.v1
+- [saccade-assist-gates.v2.schema.json](../crates/saccade-core/schemas/saccade-assist-gates.v2.schema.json) — saccade-assist-gates.v1
 - [saccade-assist-mask-audit.v1.schema.json](../crates/saccade-core/schemas/saccade-assist-mask-audit.v1.schema.json) — saccade-assist-mask-audit.v1
+- [saccade-assist-mask-audit.v2.schema.json](../crates/saccade-core/schemas/saccade-assist-mask-audit.v2.schema.json) — saccade-assist-mask-audit.v1
 - [saccade-assist-masks.v1.schema.json](../crates/saccade-core/schemas/saccade-assist-masks.v1.schema.json) — saccade-assist-masks.v1
+- [saccade-assist-masks.v2.schema.json](../crates/saccade-core/schemas/saccade-assist-masks.v2.schema.json) — saccade-assist-masks.v1
 - [saccade-assist-observations.v1.schema.json](../crates/saccade-core/schemas/saccade-assist-observations.v1.schema.json) — saccade-assist-observations.v1
+- [saccade-assist-observations.v2.schema.json](../crates/saccade-core/schemas/saccade-assist-observations.v2.schema.json) — saccade-assist-observations.v1
 - [saccade-assist-requests.v1.schema.json](../crates/saccade-core/schemas/saccade-assist-requests.v1.schema.json) — saccade-assist-requests.v1
 - [saccade-assist-vision-provider.v1.schema.json](../crates/saccade-core/schemas/saccade-assist-vision-provider.v1.schema.json) — Historical reader contract
+- [saccade-assist-vision-provider.v2.schema.json](../crates/saccade-core/schemas/saccade-assist-vision-provider.v2.schema.json) — Historical reader contract
 - [saccade-assist.v1.schema.json](../crates/saccade-core/schemas/saccade-assist.v1.schema.json) — Envelope
+- [saccade-assist.v2.schema.json](../crates/saccade-core/schemas/saccade-assist.v2.schema.json) — Envelope
 - [saccade-bisect.v1.schema.json](../crates/saccade-core/schemas/saccade-bisect.v1.schema.json) — BisectResult
 - [saccade-blind-key.v1.schema.json](../crates/saccade-core/schemas/saccade-blind-key.v1.schema.json) — BlindKey
 - [saccade-brand-review.v1.schema.json](../crates/saccade-core/schemas/saccade-brand-review.v1.schema.json) — Report
 - [saccade-brand-source.v1.schema.json](../crates/saccade-core/schemas/saccade-brand-source.v1.schema.json) — Evidence
 - [saccade-calibration.v1.schema.json](../crates/saccade-core/schemas/saccade-calibration.v1.schema.json) — Historical reader contract
 - [saccade-capabilities.v1.schema.json](../crates/saccade-core/schemas/saccade-capabilities.v1.schema.json) — Historical reader contract
+- [saccade-capabilities.v2.schema.json](../crates/saccade-core/schemas/saccade-capabilities.v2.schema.json) — Historical reader contract
 - [saccade-capture-layers.v1.schema.json](../crates/saccade-core/schemas/saccade-capture-layers.v1.schema.json) — Manifest
 - [saccade-config.v1.schema.json](../crates/saccade-core/schemas/saccade-config.v1.schema.json) — saccade-config.v1
 - [saccade-constructed-oracle.v1.schema.json](../crates/saccade-core/schemas/saccade-constructed-oracle.v1.schema.json) — saccade-constructed-oracle.v1
 - [saccade-constructed-truth.v1.schema.json](../crates/saccade-core/schemas/saccade-constructed-truth.v1.schema.json) — saccade-constructed-truth.v1
 - [saccade-crop-check.v1.schema.json](../crates/saccade-core/schemas/saccade-crop-check.v1.schema.json) — CropReport
+- [saccade-crop-check.v2.schema.json](../crates/saccade-core/schemas/saccade-crop-check.v2.schema.json) — CropReport
 - [saccade-decide-result.v1.schema.json](../crates/saccade-core/schemas/saccade-decide-result.v1.schema.json) — saccade-decide-result.v1
+- [saccade-decide-result.v2.schema.json](../crates/saccade-core/schemas/saccade-decide-result.v2.schema.json) — saccade-decide-result.v1
 - [saccade-decision-request.v1.schema.json](../crates/saccade-core/schemas/saccade-decision-request.v1.schema.json) — saccade-decision-request.v1
 - [saccade-decisions.v1.schema.json](../crates/saccade-core/schemas/saccade-decisions.v1.schema.json) — Decisions
 - [saccade-dedupe.v1.schema.json](../crates/saccade-core/schemas/saccade-dedupe.v1.schema.json) — Historical reader contract
+- [saccade-dedupe.v2.schema.json](../crates/saccade-core/schemas/saccade-dedupe.v2.schema.json) — Historical reader contract
 - [saccade-design-captures.v1.schema.json](../crates/saccade-core/schemas/saccade-design-captures.v1.schema.json) — saccade-design-captures.v1
 - [saccade-design-map.v1.schema.json](../crates/saccade-core/schemas/saccade-design-map.v1.schema.json) — saccade-design-map.v1
 - [saccade-design-pull.v1.schema.json](../crates/saccade-core/schemas/saccade-design-pull.v1.schema.json) — saccade-design-pull.v1
+- [saccade-design-pull.v2.schema.json](../crates/saccade-core/schemas/saccade-design-pull.v2.schema.json) — saccade-design-pull.v1
 - [saccade-design-report.v1.schema.json](../crates/saccade-core/schemas/saccade-design-report.v1.schema.json) — saccade-design-report.v1
+- [saccade-design-report.v2.schema.json](../crates/saccade-core/schemas/saccade-design-report.v2.schema.json) — saccade-design-report.v1
 - [saccade-document-ocr-fixture.v1.schema.json](../crates/saccade-core/schemas/saccade-document-ocr-fixture.v1.schema.json) — saccade-document-ocr-fixture.v1
 - [saccade-document-ocr.v1.schema.json](../crates/saccade-core/schemas/saccade-document-ocr.v1.schema.json) — Historical reader contract
+- [saccade-document-ocr.v2.schema.json](../crates/saccade-core/schemas/saccade-document-ocr.v2.schema.json) — Historical reader contract
 - [saccade-document-text.v1.schema.json](../crates/saccade-core/schemas/saccade-document-text.v1.schema.json) — Historical reader contract
+- [saccade-document-text.v2.schema.json](../crates/saccade-core/schemas/saccade-document-text.v2.schema.json) — Historical reader contract
 - [saccade-documents.v1.schema.json](../crates/saccade-core/schemas/saccade-documents.v1.schema.json) — Historical reader contract
+- [saccade-documents.v2.schema.json](../crates/saccade-core/schemas/saccade-documents.v2.schema.json) — Historical reader contract
 - [saccade-dom-regions.v1.schema.json](../crates/saccade-core/schemas/saccade-dom-regions.v1.schema.json) — DomMetadata
 - [saccade-embedding-corpus.v1.schema.json](../crates/saccade-core/schemas/saccade-embedding-corpus.v1.schema.json) — Historical reader contract
 - [saccade-embedding-export-inputs.v1.schema.json](../crates/saccade-core/schemas/saccade-embedding-export-inputs.v1.schema.json) — Historical reader contract
 - [saccade-embedding-export-receipt.v1.schema.json](../crates/saccade-core/schemas/saccade-embedding-export-receipt.v1.schema.json) — Historical reader contract
+- [saccade-embedding-export-receipt.v2.schema.json](../crates/saccade-core/schemas/saccade-embedding-export-receipt.v2.schema.json) — Historical reader contract
 - [saccade-embedding-index.v1.schema.json](../crates/saccade-core/schemas/saccade-embedding-index.v1.schema.json) — Historical reader contract
 - [saccade-embedding-model.v1.schema.json](../crates/saccade-core/schemas/saccade-embedding-model.v1.schema.json) — Historical reader contract
 - [saccade-embedding-qualification.v1.schema.json](../crates/saccade-core/schemas/saccade-embedding-qualification.v1.schema.json) — Historical reader contract
+- [saccade-embedding-qualification.v2.schema.json](../crates/saccade-core/schemas/saccade-embedding-qualification.v2.schema.json) — Historical reader contract
 - [saccade-embedding-query.v1.schema.json](../crates/saccade-core/schemas/saccade-embedding-query.v1.schema.json) — Historical reader contract
+- [saccade-embedding-query.v2.schema.json](../crates/saccade-core/schemas/saccade-embedding-query.v2.schema.json) — Historical reader contract
 - [saccade-engine-ingest.v1.schema.json](../crates/saccade-core/schemas/saccade-engine-ingest.v1.schema.json) — saccade-engine-ingest.v1
 - [saccade-entries.v1.schema.json](../crates/saccade-core/schemas/saccade-entries.v1.schema.json) — EntriesPage
 - [saccade-error-maps.v1.schema.json](../crates/saccade-core/schemas/saccade-error-maps.v1.schema.json) — Index
 - [saccade-error.v1.schema.json](../crates/saccade-core/schemas/saccade-error.v1.schema.json) — saccade-error.v1
+- [saccade-error.v2.schema.json](../crates/saccade-core/schemas/saccade-error.v2.schema.json) — saccade-error.v1
 - [saccade-evaluation.v1.schema.json](../crates/saccade-core/schemas/saccade-evaluation.v1.schema.json) — saccade-evaluation.v1
 - [saccade-evidence.v1.schema.json](../crates/saccade-core/schemas/saccade-evidence.v1.schema.json) — Document
 - [saccade-explain-blind-key.v1.schema.json](../crates/saccade-core/schemas/saccade-explain-blind-key.v1.schema.json) — ExplainBlindKey
 - [saccade-explain-result.v1.schema.json](../crates/saccade-core/schemas/saccade-explain-result.v1.schema.json) — saccade-explain-result.v1
+- [saccade-explain-result.v2.schema.json](../crates/saccade-core/schemas/saccade-explain-result.v2.schema.json) — saccade-explain-result.v1
 - [saccade-explain.v1.schema.json](../crates/saccade-core/schemas/saccade-explain.v1.schema.json) — ExplainPack
 - [saccade-faces.v1.schema.json](../crates/saccade-core/schemas/saccade-faces.v1.schema.json) — FaceReport
+- [saccade-faces.v2.schema.json](../crates/saccade-core/schemas/saccade-faces.v2.schema.json) — FaceReport
 - [saccade-frozen-region.v1.schema.json](../crates/saccade-core/schemas/saccade-frozen-region.v1.schema.json) — FrozenRegion
 - [saccade-general-result.v1.schema.json](../crates/saccade-core/schemas/saccade-general-result.v1.schema.json) — saccade-general-result.v1
+- [saccade-general-result.v2.schema.json](../crates/saccade-core/schemas/saccade-general-result.v2.schema.json) — saccade-general-result.v1
 - [saccade-geometry.v1.schema.json](../crates/saccade-core/schemas/saccade-geometry.v1.schema.json) — Document
 - [saccade-git-bisect.v1.schema.json](../crates/saccade-core/schemas/saccade-git-bisect.v1.schema.json) — saccade-git-bisect.v1
 - [saccade-gpu-clock.v1.schema.json](../crates/saccade-core/schemas/saccade-gpu-clock.v1.schema.json) — GpuClock
 - [saccade-grounded.v1.schema.json](../crates/saccade-core/schemas/saccade-grounded.v1.schema.json) — Explanation
+- [saccade-grounded.v2.schema.json](../crates/saccade-core/schemas/saccade-grounded.v2.schema.json) — Explanation
 - [saccade-hash.v1.schema.json](../crates/saccade-core/schemas/saccade-hash.v1.schema.json) — Historical reader contract
+- [saccade-hash.v2.schema.json](../crates/saccade-core/schemas/saccade-hash.v2.schema.json) — Historical reader contract
 - [saccade-history.v1.schema.json](../crates/saccade-core/schemas/saccade-history.v1.schema.json) — saccade-history.v1
 - [saccade-imgtune-audit.v1.schema.json](../crates/saccade-core/schemas/saccade-imgtune-audit.v1.schema.json) — saccade-imgtune-audit.v1
+- [saccade-imgtune-audit.v2.schema.json](../crates/saccade-core/schemas/saccade-imgtune-audit.v2.schema.json) — saccade-imgtune-audit.v1
 - [saccade-imgtune-search.v1.schema.json](../crates/saccade-core/schemas/saccade-imgtune-search.v1.schema.json) — saccade-imgtune-search.v1
+- [saccade-imgtune-search.v2.schema.json](../crates/saccade-core/schemas/saccade-imgtune-search.v2.schema.json) — saccade-imgtune-search.v1
 - [saccade-imgtune.v1.schema.json](../crates/saccade-core/schemas/saccade-imgtune.v1.schema.json) — saccade-imgtune.v1
+- [saccade-imgtune.v2.schema.json](../crates/saccade-core/schemas/saccade-imgtune.v2.schema.json) — saccade-imgtune.v1
 - [saccade-inbox-item.v1.schema.json](../crates/saccade-core/schemas/saccade-inbox-item.v1.schema.json) — Item
 - [saccade-inspect-image.v1.schema.json](../crates/saccade-core/schemas/saccade-inspect-image.v1.schema.json) — Historical reader contract
+- [saccade-inspect-image.v2.schema.json](../crates/saccade-core/schemas/saccade-inspect-image.v2.schema.json) — Historical reader contract
 - [saccade-intent-verification.v1.schema.json](../crates/saccade-core/schemas/saccade-intent-verification.v1.schema.json) — saccade-intent-verification.v1
 - [saccade-inventory-report.v1.schema.json](../crates/saccade-core/schemas/saccade-inventory-report.v1.schema.json) — Inventory
 - [saccade-inventory.v1.schema.json](../crates/saccade-core/schemas/saccade-inventory.v1.schema.json) — Manifest
@@ -213,83 +245,121 @@ The last three names appear only when the corresponding feature is compiled in.
 - [saccade-judge-votes.v1.schema.json](../crates/saccade-core/schemas/saccade-judge-votes.v1.schema.json) — VoteRun
 - [saccade-judge.v1.schema.json](../crates/saccade-core/schemas/saccade-judge.v1.schema.json) — Historical reader contract
 - [saccade-keyframes.v1.schema.json](../crates/saccade-core/schemas/saccade-keyframes.v1.schema.json) — Historical reader contract
+- [saccade-keyframes.v2.schema.json](../crates/saccade-core/schemas/saccade-keyframes.v2.schema.json) — Historical reader contract
 - [saccade-labels.v1.schema.json](../crates/saccade-core/schemas/saccade-labels.v1.schema.json) — Labels
 - [saccade-labels.v2.schema.json](../crates/saccade-core/schemas/saccade-labels.v2.schema.json) — Labels
 - [saccade-learned-quality.v1.schema.json](../crates/saccade-core/schemas/saccade-learned-quality.v1.schema.json) — QualityReport
+- [saccade-learned-quality.v2.schema.json](../crates/saccade-core/schemas/saccade-learned-quality.v2.schema.json) — QualityReport
 - [saccade-localized-summary.v1.schema.json](../crates/saccade-core/schemas/saccade-localized-summary.v1.schema.json) — saccade-localized-summary.v1
 - [saccade-localized.v1.schema.json](../crates/saccade-core/schemas/saccade-localized.v1.schema.json) — Measurement
+- [saccade-localized.v2.schema.json](../crates/saccade-core/schemas/saccade-localized.v2.schema.json) — Measurement
 - [saccade-locate.v1.schema.json](../crates/saccade-core/schemas/saccade-locate.v1.schema.json) — LocateReport
+- [saccade-locate.v2.schema.json](../crates/saccade-core/schemas/saccade-locate.v2.schema.json) — LocateReport
 - [saccade-media-compare.v1.schema.json](../crates/saccade-core/schemas/saccade-media-compare.v1.schema.json) — Historical reader contract
+- [saccade-media-compare.v2.schema.json](../crates/saccade-core/schemas/saccade-media-compare.v2.schema.json) — Historical reader contract
 - [saccade-media-error.v1.schema.json](../crates/saccade-core/schemas/saccade-media-error.v1.schema.json) — Historical reader contract
+- [saccade-media-error.v2.schema.json](../crates/saccade-core/schemas/saccade-media-error.v2.schema.json) — Historical reader contract
 - [saccade-media-index-query.v1.schema.json](../crates/saccade-core/schemas/saccade-media-index-query.v1.schema.json) — Compact media index query
+- [saccade-media-index-query.v2.schema.json](../crates/saccade-core/schemas/saccade-media-index-query.v2.schema.json) — Compact media index query
 - [saccade-media-record.v1.schema.json](../crates/saccade-core/schemas/saccade-media-record.v1.schema.json) — Versioned media record
+- [saccade-media-record.v2.schema.json](../crates/saccade-core/schemas/saccade-media-record.v2.schema.json) — Versioned media record
 - [saccade-model-config.v1.schema.json](../crates/saccade-core/schemas/saccade-model-config.v1.schema.json) — saccade-model-config.v1
 - [saccade-model-registry.v1.schema.json](../crates/saccade-core/schemas/saccade-model-registry.v1.schema.json) — Registry
 - [saccade-model-status.v1.schema.json](../crates/saccade-core/schemas/saccade-model-status.v1.schema.json) — saccade-model-status.v1
+- [saccade-model-status.v2.schema.json](../crates/saccade-core/schemas/saccade-model-status.v2.schema.json) — saccade-model-status.v1
 - [saccade-motion-review.v1.schema.json](../crates/saccade-core/schemas/saccade-motion-review.v1.schema.json) — Report
 - [saccade-motion-vectors.v1.schema.json](../crates/saccade-core/schemas/saccade-motion-vectors.v1.schema.json) — Sidecar
 - [saccade-near-duplicate.v1.schema.json](../crates/saccade-core/schemas/saccade-near-duplicate.v1.schema.json) — Historical reader contract
+- [saccade-near-duplicate.v2.schema.json](../crates/saccade-core/schemas/saccade-near-duplicate.v2.schema.json) — Historical reader contract
 - [saccade-noise.v1.schema.json](../crates/saccade-core/schemas/saccade-noise.v1.schema.json) — NoiseReport
 - [saccade-notification.v1.schema.json](../crates/saccade-core/schemas/saccade-notification.v1.schema.json) — saccade-notification.v1
+- [saccade-notification.v2.schema.json](../crates/saccade-core/schemas/saccade-notification.v2.schema.json) — saccade-notification.v1
 - [saccade-notify-result.v1.schema.json](../crates/saccade-core/schemas/saccade-notify-result.v1.schema.json) — saccade-notify-result.v1
+- [saccade-notify-result.v2.schema.json](../crates/saccade-core/schemas/saccade-notify-result.v2.schema.json) — saccade-notify-result.v1
 - [saccade-object-ids.v1.schema.json](../crates/saccade-core/schemas/saccade-object-ids.v1.schema.json) — saccade-object-ids.v1
 - [saccade-ocr-accent-results.v1.schema.json](../crates/saccade-core/schemas/saccade-ocr-accent-results.v1.schema.json) — saccade-ocr-accent-results.v1
 - [saccade-ocrs.v1.schema.json](../crates/saccade-core/schemas/saccade-ocrs.v1.schema.json) — Historical reader contract
 - [saccade-onnx-runtime-authority.v1.schema.json](../crates/saccade-core/schemas/saccade-onnx-runtime-authority.v1.schema.json) — Historical reader contract
 - [saccade-onset.v1.schema.json](../crates/saccade-core/schemas/saccade-onset.v1.schema.json) — Document
+- [saccade-onset.v2.schema.json](../crates/saccade-core/schemas/saccade-onset.v2.schema.json) — Document
 - [saccade-paddle-ocr.v1.schema.json](../crates/saccade-core/schemas/saccade-paddle-ocr.v1.schema.json) — Historical reader contract
 - [saccade-perf-diff.v1.schema.json](../crates/saccade-core/schemas/saccade-perf-diff.v1.schema.json) — PerfDiff
 - [saccade-perf-pairs.v1.schema.json](../crates/saccade-core/schemas/saccade-perf-pairs.v1.schema.json) — Samples
 - [saccade-perf-plan.v1.schema.json](../crates/saccade-core/schemas/saccade-perf-plan.v1.schema.json) — Plan
 - [saccade-perf-validation.v1.schema.json](../crates/saccade-core/schemas/saccade-perf-validation.v1.schema.json) — Historical reader contract
+- [saccade-perf-validation.v2.schema.json](../crates/saccade-core/schemas/saccade-perf-validation.v2.schema.json) — Historical reader contract
 - [saccade-perf.v1.schema.json](../crates/saccade-core/schemas/saccade-perf.v1.schema.json) — CapturePerf
 - [saccade-perf.v2.schema.json](../crates/saccade-core/schemas/saccade-perf.v2.schema.json) — PerfDocument
 - [saccade-pipeline-choice.v1.schema.json](../crates/saccade-core/schemas/saccade-pipeline-choice.v1.schema.json) — Historical reader contract
+- [saccade-pipeline-choice.v2.schema.json](../crates/saccade-core/schemas/saccade-pipeline-choice.v2.schema.json) — Historical reader contract
 - [saccade-playwright-matcher.v1.schema.json](../crates/saccade-core/schemas/saccade-playwright-matcher.v1.schema.json) — saccade-playwright-matcher.v1
+- [saccade-playwright-matcher.v2.schema.json](../crates/saccade-core/schemas/saccade-playwright-matcher.v2.schema.json) — saccade-playwright-matcher.v1
 - [saccade-provider-mapping.v1.schema.json](../crates/saccade-core/schemas/saccade-provider-mapping.v1.schema.json) — saccade-provider-mapping.v1
 - [saccade-quality-report.v1.schema.json](../crates/saccade-core/schemas/saccade-quality-report.v1.schema.json) — Sweep
 - [saccade-quality-sweep.v1.schema.json](../crates/saccade-core/schemas/saccade-quality-sweep.v1.schema.json) — Manifest
 - [saccade-question-report.v1.schema.json](../crates/saccade-core/schemas/saccade-question-report.v1.schema.json) — Historical reader contract
+- [saccade-question-report.v2.schema.json](../crates/saccade-core/schemas/saccade-question-report.v2.schema.json) — Historical reader contract
 - [saccade-rank.v1.schema.json](../crates/saccade-core/schemas/saccade-rank.v1.schema.json) — RankReport
 - [saccade-reference-evidence.v1.schema.json](../crates/saccade-core/schemas/saccade-reference-evidence.v1.schema.json) — Report
 - [saccade-region-models.v1.schema.json](../crates/saccade-core/schemas/saccade-region-models.v1.schema.json) — ModelManifest
 - [saccade-registration.v1.schema.json](../crates/saccade-core/schemas/saccade-registration.v1.schema.json) — saccade-registration.v1
+- [saccade-registration.v2.schema.json](../crates/saccade-core/schemas/saccade-registration.v2.schema.json) — saccade-registration.v1
 - [saccade-render-evidence.v1.schema.json](../crates/saccade-core/schemas/saccade-render-evidence.v1.schema.json) — Bounded render evidence verdict; complete measured evidence in artifact
 - [saccade-renderdoc-extract.v1.schema.json](../crates/saccade-core/schemas/saccade-renderdoc-extract.v1.schema.json) — Capture
 - [saccade-renderdoc-localization.v1.schema.json](../crates/saccade-core/schemas/saccade-renderdoc-localization.v1.schema.json) — Localization
 - [saccade-repeat-noise.v1.schema.json](../crates/saccade-core/schemas/saccade-repeat-noise.v1.schema.json) — Report
+- [saccade-report-index-row.v1.schema.json](../crates/saccade-core/schemas/saccade-report-index-row.v1.schema.json) — Historical reader contract
 - [saccade-report.v1.schema.json](../crates/saccade-core/schemas/saccade-report.v1.schema.json) — Report
+- [saccade-report.v2.schema.json](../crates/saccade-core/schemas/saccade-report.v2.schema.json) — Report
 - [saccade-required-effect.v1.schema.json](../crates/saccade-core/schemas/saccade-required-effect.v1.schema.json) — EffectResult
 - [saccade-result.v1.schema.json](../crates/saccade-core/schemas/saccade-result.v1.schema.json) — saccade-result.v1
 - [saccade-result.v2.schema.json](../crates/saccade-core/schemas/saccade-result.v2.schema.json) — ResultEnvelope
+- [saccade-result.v3.schema.json](../crates/saccade-core/schemas/saccade-result.v3.schema.json) — saccade-result.v1
+- [saccade-result.v4.schema.json](../crates/saccade-core/schemas/saccade-result.v4.schema.json) — ResultEnvelope
 - [saccade-review.v1.schema.json](../crates/saccade-core/schemas/saccade-review.v1.schema.json) — Historical reader contract
 - [saccade-runs.v1.schema.json](../crates/saccade-core/schemas/saccade-runs.v1.schema.json) — saccade-runs.v1
+- [saccade-runs.v2.schema.json](../crates/saccade-core/schemas/saccade-runs.v2.schema.json) — saccade-runs.v1
 - [saccade-safety.v1.schema.json](../crates/saccade-core/schemas/saccade-safety.v1.schema.json) — safety PRE-CHECK only; not certification or formal compliance
+- [saccade-safety.v2.schema.json](../crates/saccade-core/schemas/saccade-safety.v2.schema.json) — safety PRE-CHECK only; not certification or formal compliance
 - [saccade-schema-list.v1.schema.json](../crates/saccade-core/schemas/saccade-schema-list.v1.schema.json) — Historical reader contract
+- [saccade-schema-list.v2.schema.json](../crates/saccade-core/schemas/saccade-schema-list.v2.schema.json) — Historical reader contract
 - [saccade-schema-path.v1.schema.json](../crates/saccade-core/schemas/saccade-schema-path.v1.schema.json) — Historical reader contract
+- [saccade-schema-path.v2.schema.json](../crates/saccade-core/schemas/saccade-schema-path.v2.schema.json) — Historical reader contract
 - [saccade-sequence.v1.schema.json](../crates/saccade-core/schemas/saccade-sequence.v1.schema.json) — SequenceReport
+- [saccade-settling.v1.schema.json](../crates/saccade-core/schemas/saccade-settling.v1.schema.json) — Report
 - [saccade-similar.v1.schema.json](../crates/saccade-core/schemas/saccade-similar.v1.schema.json) — Historical reader contract
+- [saccade-similar.v2.schema.json](../crates/saccade-core/schemas/saccade-similar.v2.schema.json) — Historical reader contract
 - [saccade-spatial-evidence.v1.schema.json](../crates/saccade-core/schemas/saccade-spatial-evidence.v1.schema.json) — SpatialReport
 - [saccade-summary.v1.schema.json](../crates/saccade-core/schemas/saccade-summary.v1.schema.json) — saccade-summary.v1
+- [saccade-summary.v2.schema.json](../crates/saccade-core/schemas/saccade-summary.v2.schema.json) — saccade-summary.v1
 - [saccade-sweep-captures.v1.schema.json](../crates/saccade-core/schemas/saccade-sweep-captures.v1.schema.json) — saccade-sweep-captures.v1
 - [saccade-sweep-report.v1.schema.json](../crates/saccade-core/schemas/saccade-sweep-report.v1.schema.json) — saccade-sweep-report.v1
+- [saccade-sweep-report.v2.schema.json](../crates/saccade-core/schemas/saccade-sweep-report.v2.schema.json) — saccade-sweep-report.v1
 - [saccade-sweep.v1.schema.json](../crates/saccade-core/schemas/saccade-sweep.v1.schema.json) — saccade-sweep.v1
 - [saccade-temporal.v1.schema.json](../crates/saccade-core/schemas/saccade-temporal.v1.schema.json) — saccade-temporal.v1
 - [saccade-tesseract.v1.schema.json](../crates/saccade-core/schemas/saccade-tesseract.v1.schema.json) — OcrContract
 - [saccade-text.v1.schema.json](../crates/saccade-core/schemas/saccade-text.v1.schema.json) — Historical reader contract
+- [saccade-text.v2.schema.json](../crates/saccade-core/schemas/saccade-text.v2.schema.json) — Historical reader contract
 - [saccade-tile-temporal.v1.schema.json](../crates/saccade-core/schemas/saccade-tile-temporal.v1.schema.json) — Report
+- [saccade-timing-ab.v1.schema.json](../crates/saccade-core/schemas/saccade-timing-ab.v1.schema.json) — Report
+- [saccade-timing-session.v1.schema.json](../crates/saccade-core/schemas/saccade-timing-session.v1.schema.json) — Session
 - [saccade-ui-review.v1.schema.json](../crates/saccade-core/schemas/saccade-ui-review.v1.schema.json) — Report
+- [saccade-ui-review.v2.schema.json](../crates/saccade-core/schemas/saccade-ui-review.v2.schema.json) — Report
 - [saccade-ui-source.v1.schema.json](../crates/saccade-core/schemas/saccade-ui-source.v1.schema.json) — Source
 - [saccade-usage.v1.schema.json](../crates/saccade-core/schemas/saccade-usage.v1.schema.json) — Historical reader contract
+- [saccade-usage.v2.schema.json](../crates/saccade-core/schemas/saccade-usage.v2.schema.json) — Historical reader contract
 - [saccade-vector-buffer.v1.schema.json](../crates/saccade-core/schemas/saccade-vector-buffer.v1.schema.json) — Buffer
 - [saccade-view-summary.v1.schema.json](../crates/saccade-core/schemas/saccade-view-summary.v1.schema.json) — saccade-view-summary.v1
+- [saccade-view-summary.v2.schema.json](../crates/saccade-core/schemas/saccade-view-summary.v2.schema.json) — saccade-view-summary.v1
 - [saccade-view.v1.schema.json](../crates/saccade-core/schemas/saccade-view.v1.schema.json) — saccade-view.v1
 - [saccade-vision-observation.v1.schema.json](../crates/saccade-core/schemas/saccade-vision-observation.v1.schema.json) — ObservationReport
+- [saccade-vision-observation.v2.schema.json](../crates/saccade-core/schemas/saccade-vision-observation.v2.schema.json) — ObservationReport
 - [saccade-visual-intent.v1.schema.json](../crates/saccade-core/schemas/saccade-visual-intent.v1.schema.json) — saccade-visual-intent.v1
 - [saccade-visual-trial-frozen.v1.schema.json](../crates/saccade-core/schemas/saccade-visual-trial-frozen.v1.schema.json) — Frozen
 - [saccade-visual-trial-plan.v1.schema.json](../crates/saccade-core/schemas/saccade-visual-trial-plan.v1.schema.json) — Plan
 - [saccade-visual-trial-receipt.v1.schema.json](../crates/saccade-core/schemas/saccade-visual-trial-receipt.v1.schema.json) — Receipt
 - [saccade-watermark.v1.schema.json](../crates/saccade-core/schemas/saccade-watermark.v1.schema.json) — WatermarkReport
+- [saccade-watermark.v2.schema.json](../crates/saccade-core/schemas/saccade-watermark.v2.schema.json) — WatermarkReport
 <!-- schema-index:end -->
 
 Historical validators and fixtures do not imply that retired writers or commands
@@ -348,3 +418,9 @@ and `perf validate FILE`. `schema path ID` only reports a matching installed cop
 Legacy discriminators without a previous field schema have explicitly labelled
 envelope-only documents; retrieval does not claim validation of their payload
 fields. Performance v1/v2 use their full typed schemas.
+
+Measurement reports add `report_id` and external `source_refs`; strict historical readers accept the reserved fields while rejecting unknown measurement fields. See [wave11 experiments](experiments-wave11.md) for canonical identity, index export and diagnostic qualification.
+
+Linked report successors preserve strict legacy schemas; see the
+[Wave 11 migration](experiments-wave11.md#linked-report-contract-migration) and the shipped
+`report_links::SCHEMA_MIGRATIONS` table. Select schemas by the JSON discriminator.

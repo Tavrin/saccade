@@ -234,6 +234,8 @@ pub fn result_value(
         "pass"
     });
     value["totals"] = json!(report.totals);
+    value["report_id"] = json!(report.report_id);
+    value["source_refs"] = json!(report.source_refs);
     if let Some(perf) = &report.perf_diff {
         value["performance"] = json!({"verdict":perf.verdict(),"comparability":perf.comparability,"repeat_qualification":perf.noise_comparability,"summary":perf.summary(3)});
         if !report.is_regression()

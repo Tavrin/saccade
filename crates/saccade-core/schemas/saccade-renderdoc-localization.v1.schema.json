@@ -208,6 +208,10 @@
       },
       "type": "array"
     },
+    "report_id": {
+      "pattern": "^sha256:[0-9a-f]{64}$",
+      "type": "string"
+    },
     "root_cause": {
       "description": "Always unproven.",
       "type": "string"
@@ -215,6 +219,14 @@
     "schema": {
       "description": "saccade-renderdoc-localization.v1.",
       "type": "string"
+    },
+    "source_refs": {
+      "items": {
+        "maxLength": 2048,
+        "type": "string"
+      },
+      "maxItems": 128,
+      "type": "array"
     },
     "unmatched_baseline": {
       "description": "Baseline events unmatched or ambiguous.",

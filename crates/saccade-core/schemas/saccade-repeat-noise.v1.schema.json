@@ -117,10 +117,22 @@
       "description": "max_pairwise_rgb_luminance_envelope_v1, fully deterministic.",
       "type": "string"
     },
+    "report_id": {
+      "pattern": "^sha256:[0-9a-f]{64}$",
+      "type": "string"
+    },
     "schema": {
       "const": "saccade-repeat-noise.v1",
       "description": "Versioned discriminator.",
       "type": "string"
+    },
+    "source_refs": {
+      "items": {
+        "maxLength": 2048,
+        "type": "string"
+      },
+      "maxItems": 128,
+      "type": "array"
     }
   },
   "required": [

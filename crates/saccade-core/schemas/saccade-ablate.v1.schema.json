@@ -46,6 +46,14 @@
             "null"
           ]
         },
+        "image_classes": {
+          "default": [],
+          "description": "Evidence-quality image classes from the baseline comparison.",
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
         "image_effect": {
           "$ref": "#/$defs/ImageEffect",
           "default": "unknown"
@@ -124,6 +132,27 @@
         },
         "report_html": {
           "type": "string"
+        },
+        "timing": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Summary"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "Timing distribution from every accepted repeat, never the representative alone."
+        },
+        "timing_rank": {
+          "default": null,
+          "description": "Timing rank among validated arms; unavailable for rejected evidence.",
+          "format": "uint",
+          "minimum": 0,
+          "type": [
+            "integer",
+            "null"
+          ]
         },
         "top_deltas": {
           "items": {
@@ -1391,6 +1420,59 @@
       ],
       "type": "object"
     },
+    "Summary": {
+      "description": "Per-arm repeat evidence. Unpaired intervals never imply matched acquisition.",
+      "properties": {
+        "hl_delta_ms": {
+          "description": "Independent-sample Hodges–Lehmann shift against baseline.",
+          "format": "double",
+          "type": "number"
+        },
+        "interval_ms": {
+          "description": "Seeded independent-arm bootstrap CI, unavailable without two repeats per arm.",
+          "items": {
+            "format": "double",
+            "type": "number"
+          },
+          "maxItems": 2,
+          "minItems": 2,
+          "type": [
+            "array",
+            "null"
+          ]
+        },
+        "iqr_ms": {
+          "description": "Interquartile range.",
+          "format": "double",
+          "type": "number"
+        },
+        "median_ms": {
+          "description": "Median timing.",
+          "format": "double",
+          "type": "number"
+        },
+        "method": {
+          "description": "Explicit method and independence limitation.",
+          "type": "string"
+        },
+        "samples_ms": {
+          "description": "All accepted repeat timings in milliseconds.",
+          "items": {
+            "format": "double",
+            "type": "number"
+          },
+          "type": "array"
+        }
+      },
+      "required": [
+        "samples_ms",
+        "median_ms",
+        "iqr_ms",
+        "hl_delta_ms",
+        "method"
+      ],
+      "type": "object"
+    },
     "TermDiff": {
       "properties": {
         "after": {
@@ -1580,6 +1662,17 @@
         }
       ]
     },
+    "base_timing": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/Summary"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "description": "Distribution over all accepted baseline repeats."
+    },
     "derived_noise": {
       "anyOf": [
         {
@@ -1622,8 +1715,20 @@
       },
       "type": "array"
     },
+    "report_id": {
+      "pattern": "^sha256:[0-9a-f]{64}$",
+      "type": "string"
+    },
     "schema": {
       "type": "string"
+    },
+    "source_refs": {
+      "items": {
+        "maxLength": 2048,
+        "type": "string"
+      },
+      "maxItems": 128,
+      "type": "array"
     }
   },
   "required": [

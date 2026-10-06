@@ -1,0 +1,44 @@
+{
+  "$id": "https://github.com/Tavrin/saccade/crates/saccade-core/schemas/saccade-notify-result.v2.schema.json",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "properties": {
+    "delivered": {
+      "const": true
+    },
+    "report_id": {
+      "pattern": "^sha256:[0-9a-f]{64}$",
+      "type": "string"
+    },
+    "schema": {
+      "const": "saccade-notify-result.v2"
+    },
+    "source_refs": {
+      "items": {
+        "maxLength": 2048,
+        "minLength": 1,
+        "type": "string"
+      },
+      "maxItems": 128,
+      "type": "array"
+    },
+    "status": {
+      "maximum": 299,
+      "minimum": 200,
+      "type": "integer"
+    },
+    "summary": {
+      "type": "object"
+    }
+  },
+  "required": [
+    "schema",
+    "delivered",
+    "status",
+    "summary",
+    "report_id",
+    "source_refs"
+  ],
+  "title": "saccade-notify-result.v1",
+  "type": "object"
+}

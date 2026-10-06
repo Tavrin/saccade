@@ -30,6 +30,11 @@ pub struct RootPolicy {
     targets: Vec<PathBuf>,
 }
 impl RootPolicy {
+    /// Authorized generated-output root, used for auxiliary report indexes.
+    pub fn output_root(&self) -> Option<&Path> {
+        self.output.as_deref()
+    }
+
     /// Normalize human-supplied startup settings. Output must be outside inputs/targets.
     pub fn new(
         roots: &[PathBuf],

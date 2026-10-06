@@ -1,0 +1,932 @@
+{
+  "$defs": {
+    "Catalog": {
+      "additionalProperties": false,
+      "description": "Existing measurements/source facts are never serialized as model observations.",
+      "properties": {
+        "exclusions": {
+          "description": "Individual exclusions, possibly overlapping.",
+          "items": {
+            "$ref": "#/$defs/Mask"
+          },
+          "type": "array"
+        },
+        "images": {
+          "description": "Immutable screenshot descriptors.",
+          "items": {
+            "$ref": "#/$defs/Image"
+          },
+          "type": "array"
+        },
+        "measurements": {
+          "description": "Numerical report measurements, attributed as deterministic."
+        },
+        "regions": {
+          "description": "Citation targets.",
+          "items": {
+            "$ref": "#/$defs/Region"
+          },
+          "type": "array"
+        },
+        "source_evidence": {
+          "description": "Wave 3 hash/dimension-bound source contracts.",
+          "items": {
+            "$ref": "#/$defs/Source"
+          },
+          "type": "array"
+        },
+        "source_evidence_hashes": {
+          "description": "Exact serialized source packet identities.",
+          "items": {
+            "$ref": "#/$defs/Digest"
+          },
+          "type": "array"
+        },
+        "version": {
+          "description": "assist-catalog/1.",
+          "type": "string"
+        }
+      },
+      "required": [
+        "version",
+        "images",
+        "regions",
+        "exclusions",
+        "measurements",
+        "source_evidence",
+        "source_evidence_hashes"
+      ],
+      "type": "object"
+    },
+    "Digest": {
+      "description": "Validated lowercase SHA-256 identity or content hash.",
+      "pattern": "^sha256:[0-9a-f]{64}$",
+      "type": "string"
+    },
+    "Geometry": {
+      "description": "Canonical geometry in original image pixels; boxes have exclusive far edges.",
+      "oneOf": [
+        {
+          "additionalProperties": false,
+          "description": "[x,y,width,height], finite, positive area and wholly inside the image.",
+          "properties": {
+            "pixels": {
+              "items": {
+                "format": "double",
+                "type": "number"
+              },
+              "maxItems": 4,
+              "minItems": 4,
+              "type": "array"
+            },
+            "type": {
+              "const": "box",
+              "type": "string"
+            }
+          },
+          "required": [
+            "type",
+            "pixels"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "description": "[x,y], inside the image (far edges excluded).",
+          "properties": {
+            "pixels": {
+              "items": {
+                "format": "double",
+                "type": "number"
+              },
+              "maxItems": 2,
+              "minItems": 2,
+              "type": "array"
+            },
+            "type": {
+              "const": "point",
+              "type": "string"
+            }
+          },
+          "required": [
+            "type",
+            "pixels"
+          ],
+          "type": "object"
+        }
+      ]
+    },
+    "Identity": {
+      "additionalProperties": false,
+      "description": "Locally bound task and input identities.",
+      "properties": {
+        "catalog_version": {
+          "description": "Catalog schema/version.",
+          "type": "string"
+        },
+        "condition_hash": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Digest"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "Exact visible condition hash."
+        },
+        "policy_version": {
+          "description": "Qualification policy/version.",
+          "type": "string"
+        },
+        "report_hash": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Digest"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "Exact report bytes when present."
+        },
+        "request_hash": {
+          "$ref": "#/$defs/Digest",
+          "description": "Complete immutable catalog, condition and policy hash."
+        },
+        "screenshot_hashes": {
+          "description": "Ordered screenshot hashes.",
+          "items": {
+            "$ref": "#/$defs/Digest"
+          },
+          "type": "array"
+        },
+        "task": {
+          "$ref": "#/$defs/Task",
+          "description": "Discriminated operation."
+        }
+      },
+      "required": [
+        "task",
+        "request_hash",
+        "screenshot_hashes",
+        "catalog_version",
+        "policy_version"
+      ],
+      "type": "object"
+    },
+    "Image": {
+      "additionalProperties": false,
+      "description": "Original screenshot scope; pre-masked captures cannot reveal original content.",
+      "properties": {
+        "capture_scope": {
+          "description": "Captured geometry within the original image.",
+          "items": {
+            "format": "uint32",
+            "minimum": 0,
+            "type": "integer"
+          },
+          "maxItems": 4,
+          "minItems": 4,
+          "type": "array"
+        },
+        "complete": {
+          "description": "True only when the producer declares the entire requested scope captured.",
+          "type": "boolean"
+        },
+        "dimensions": {
+          "description": "Original-pixel dimensions.",
+          "items": {
+            "format": "uint32",
+            "minimum": 0,
+            "type": "integer"
+          },
+          "maxItems": 2,
+          "minItems": 2,
+          "type": "array"
+        },
+        "encoded_sha256": {
+          "$ref": "#/$defs/Digest",
+          "description": "Exact encoded PNG view bytes, separately bound from the original file."
+        },
+        "original_pixels": {
+          "description": "False when blacking out happened before capture.",
+          "type": "boolean"
+        },
+        "role": {
+          "$ref": "#/$defs/Role",
+          "description": "Stable local image role, never included as a provider mutation label."
+        },
+        "sha256": {
+          "$ref": "#/$defs/Digest",
+          "description": "Exact screenshot file bytes."
+        },
+        "transform": {
+          "$ref": "#/$defs/Transform",
+          "description": "Identity or explicit crop/resize mapping."
+        }
+      },
+      "required": [
+        "role",
+        "sha256",
+        "encoded_sha256",
+        "dimensions",
+        "capture_scope",
+        "complete",
+        "original_pixels",
+        "transform"
+      ],
+      "type": "object"
+    },
+    "Kind": {
+      "description": "Typed visual statements; no behavior, causal or approval category exists.",
+      "oneOf": [
+        {
+          "const": "text",
+          "description": "Visible text.",
+          "type": "string"
+        },
+        {
+          "const": "presence",
+          "description": "Visible presence or absence.",
+          "type": "string"
+        },
+        {
+          "const": "clipping",
+          "description": "Clipping within the supplied region.",
+          "type": "string"
+        },
+        {
+          "const": "overlap",
+          "description": "Two known regions overlap.",
+          "type": "string"
+        },
+        {
+          "const": "appearance",
+          "description": "Visual appearance.",
+          "type": "string"
+        }
+      ]
+    },
+    "Mask": {
+      "additionalProperties": false,
+      "description": "Exclusion identity before union; overlap membership is retained in runs.",
+      "properties": {
+        "dimensions": {
+          "description": "Dimensions of membership map.",
+          "items": {
+            "format": "uint32",
+            "minimum": 0,
+            "type": "integer"
+          },
+          "maxItems": 2,
+          "minItems": 2,
+          "type": "array"
+        },
+        "id": {
+          "description": "Stable content/config identity.",
+          "type": "string"
+        },
+        "membership_hash": {
+          "$ref": "#/$defs/Digest",
+          "description": "Exact row-major 0/1 membership hash."
+        },
+        "origin": {
+          "description": "Producer/config origin.",
+          "type": "string"
+        },
+        "original_pixels": {
+          "description": "True only for masks that retain the original pixels.",
+          "type": "boolean"
+        },
+        "rationale": {
+          "description": "Stated reason; missing rationale stays explicit.",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "runs": {
+          "description": "Sorted nonoverlapping row-major [start,length] runs, before union.",
+          "items": {
+            "items": {
+              "format": "uint64",
+              "minimum": 0,
+              "type": "integer"
+            },
+            "maxItems": 2,
+            "minItems": 2,
+            "type": "array"
+          },
+          "type": "array"
+        }
+      },
+      "required": [
+        "id",
+        "origin",
+        "dimensions",
+        "runs",
+        "membership_hash",
+        "original_pixels"
+      ],
+      "type": "object"
+    },
+    "Node": {
+      "additionalProperties": false,
+      "description": "One visible/semantic node exported by the capture producer.",
+      "properties": {
+        "bounds": {
+          "description": "x,y,width,height in capture pixels; omitted when unavailable.",
+          "items": {
+            "format": "double",
+            "type": "number"
+          },
+          "maxItems": 4,
+          "minItems": 4,
+          "type": [
+            "array",
+            "null"
+          ]
+        },
+        "disclosure": {
+          "default": false,
+          "description": "Explicit disclosure/footnote declaration from the source producer.",
+          "type": "boolean"
+        },
+        "id": {
+          "description": "Stable source ID, never matched by approximate text.",
+          "type": "string"
+        },
+        "keyboard_order": {
+          "description": "Producer keyboard traversal ordinal; omitted for nonfocusable nodes.",
+          "format": "uint32",
+          "minimum": 0,
+          "type": [
+            "integer",
+            "null"
+          ]
+        },
+        "ocr_confidence": {
+          "description": "OCR confidence, retained as observation rather than probability/proof.",
+          "format": "double",
+          "type": [
+            "number",
+            "null"
+          ]
+        },
+        "reading_order": {
+          "description": "Authoritative producer reading ordinal; never geometric top-to-bottom order.",
+          "format": "uint32",
+          "minimum": 0,
+          "type": [
+            "integer",
+            "null"
+          ]
+        },
+        "role": {
+          "default": "",
+          "description": "Producer-declared role, not an OCR inference.",
+          "type": "string"
+        },
+        "text": {
+          "description": "Exact Unicode content; prices and identifiers are not normalized.",
+          "type": "string"
+        }
+      },
+      "required": [
+        "id",
+        "text"
+      ],
+      "type": "object"
+    },
+    "Observation": {
+      "additionalProperties": false,
+      "description": "Attributed observation, remapped to original-pixel space.",
+      "properties": {
+        "evidence_refs": {
+          "description": "Catalog references existing in the same image.",
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "geometry": {
+          "$ref": "#/$defs/Geometry",
+          "description": "Original pixels, not provider-normalized values."
+        },
+        "image_role": {
+          "$ref": "#/$defs/Role",
+          "description": "Original image identity role."
+        },
+        "kind": {
+          "$ref": "#/$defs/Kind",
+          "description": "Closed visual category."
+        },
+        "observation_id": {
+          "description": "Unique within the request.",
+          "type": "string"
+        },
+        "statement": {
+          "description": "Untrusted descriptive data, never instructions.",
+          "type": "string"
+        },
+        "uncertainty": {
+          "description": "Reported uncertainty, not a calibrated probability.",
+          "format": "double",
+          "type": "number"
+        },
+        "visibility": {
+          "$ref": "#/$defs/Visibility",
+          "description": "Visible scope."
+        }
+      },
+      "required": [
+        "observation_id",
+        "image_role",
+        "kind",
+        "statement",
+        "geometry",
+        "visibility",
+        "evidence_refs",
+        "uncertainty"
+      ],
+      "type": "object"
+    },
+    "Outcome": {
+      "description": "Semantic answer; never a comparison verdict.",
+      "oneOf": [
+        {
+          "const": "observed",
+          "description": "Evidence provisionally supports the condition/change.",
+          "type": "string"
+        },
+        {
+          "const": "not_observed",
+          "description": "Evidence provisionally does not support the condition/change.",
+          "type": "string"
+        },
+        {
+          "const": "unverifiable",
+          "description": "Missing, contradictory, unsupported or incomplete evidence.",
+          "type": "string"
+        }
+      ]
+    },
+    "Provenance": {
+      "additionalProperties": false,
+      "description": "Every dispatch or replay retains exact provider identity and costs.",
+      "properties": {
+        "cache_status": {
+          "description": "miss, replay or bypass; replay is never an independent sample.",
+          "type": "string"
+        },
+        "cost_basis": {
+          "description": "Expiring rate schedule ID.",
+          "type": "string"
+        },
+        "cost_usd": {
+          "description": "Actual cost if all required usage is available; unknown remains null.",
+          "format": "double",
+          "type": [
+            "number",
+            "null"
+          ]
+        },
+        "elapsed_ms": {
+          "description": "Wall time, retained independently from queue delay.",
+          "format": "uint64",
+          "minimum": 0,
+          "type": "integer"
+        },
+        "encoder_version": {
+          "description": "Payload encoding version.",
+          "type": "string"
+        },
+        "execution_id": {
+          "default": null,
+          "description": "Durable monetary execution receipt ID; absent only on historical replay records.",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "finished_ms": {
+          "description": "Original request finish time.",
+          "format": "uint64",
+          "minimum": 0,
+          "type": "integer"
+        },
+        "order": {
+          "description": "ab, ba, single or support.",
+          "type": "string"
+        },
+        "prompt_hash": {
+          "$ref": "#/$defs/Digest",
+          "description": "Exact system instruction hash."
+        },
+        "provider": {
+          "description": "gemini or jev.",
+          "type": "string"
+        },
+        "request_hash": {
+          "$ref": "#/$defs/Digest",
+          "description": "Exact payload bytes."
+        },
+        "requested_model": {
+          "description": "Fixed selected model.",
+          "type": "string"
+        },
+        "response_hash": {
+          "$ref": "#/$defs/Digest",
+          "description": "Exact response bytes."
+        },
+        "returned_model": {
+          "description": "Actual returned model.",
+          "type": "string"
+        },
+        "returned_revision": {
+          "description": "Required provider revision; drift is refused.",
+          "type": "string"
+        },
+        "sampling_settings": {
+          "description": "Explicit generation settings."
+        },
+        "started_ms": {
+          "description": "Original request start time.",
+          "format": "uint64",
+          "minimum": 0,
+          "type": "integer"
+        },
+        "usage": {
+          "$ref": "#/$defs/Usage",
+          "description": "Separate token counts and provider totals."
+        }
+      },
+      "required": [
+        "provider",
+        "requested_model",
+        "returned_model",
+        "returned_revision",
+        "prompt_hash",
+        "encoder_version",
+        "sampling_settings",
+        "request_hash",
+        "response_hash",
+        "order",
+        "usage",
+        "cost_basis",
+        "cache_status",
+        "started_ms",
+        "finished_ms",
+        "elapsed_ms"
+      ],
+      "type": "object"
+    },
+    "Region": {
+      "additionalProperties": false,
+      "description": "Catalog citation target; existing region geometry does not prove a statement.",
+      "properties": {
+        "id": {
+          "description": "Stable request-local ID.",
+          "type": "string"
+        },
+        "image_role": {
+          "$ref": "#/$defs/Role",
+          "description": "Owning image role."
+        },
+        "rect": {
+          "description": "Exact original-pixel rectangle.",
+          "items": {
+            "format": "uint32",
+            "minimum": 0,
+            "type": "integer"
+          },
+          "maxItems": 4,
+          "minItems": 4,
+          "type": "array"
+        }
+      },
+      "required": [
+        "id",
+        "image_role",
+        "rect"
+      ],
+      "type": "object"
+    },
+    "Role": {
+      "description": "Stable image role assigned locally after blind remapping.",
+      "oneOf": [
+        {
+          "const": "before",
+          "description": "Reference screenshot.",
+          "type": "string"
+        },
+        {
+          "const": "after",
+          "description": "Candidate screenshot.",
+          "type": "string"
+        },
+        {
+          "const": "single",
+          "description": "Single-image check.",
+          "type": "string"
+        }
+      ]
+    },
+    "Source": {
+      "additionalProperties": false,
+      "description": "Capture-bound producer text and layout facts.",
+      "properties": {
+        "capture_sha256": {
+          "description": "Exact screenshot file SHA-256 (64 lowercase hex, like DOM region metadata).",
+          "type": "string"
+        },
+        "complete": {
+          "description": "True only if the producer declares complete captured source scope.",
+          "type": "boolean"
+        },
+        "dimensions": {
+          "description": "Capture-pixel dimensions.",
+          "items": {
+            "format": "uint32",
+            "minimum": 0,
+            "type": "integer"
+          },
+          "maxItems": 2,
+          "minItems": 2,
+          "type": "array"
+        },
+        "kind": {
+          "description": "dom, accessibility_tree, or tesseract_tsv. Never inferred from image geometry.",
+          "type": "string"
+        },
+        "nodes": {
+          "description": "Stable producer IDs for DOM/AX; OCR IDs name geometric word slots only.",
+          "items": {
+            "$ref": "#/$defs/Node"
+          },
+          "type": "array"
+        },
+        "producer": {
+          "description": "Producer/version, or pinned OCR executable/model hashes and settings."
+        },
+        "schema": {
+          "const": "saccade-ui-source.v1",
+          "description": "saccade-ui-source.v1.",
+          "type": "string"
+        }
+      },
+      "required": [
+        "schema",
+        "capture_sha256",
+        "dimensions",
+        "kind",
+        "producer",
+        "nodes",
+        "complete"
+      ],
+      "type": "object"
+    },
+    "Support": {
+      "description": "Mechanical validity and textual support remain different assertions.",
+      "oneOf": [
+        {
+          "const": "supported",
+          "description": "Jev considers the statement supported by supplied evidence.",
+          "type": "string"
+        },
+        {
+          "const": "unsupported",
+          "description": "Jev considers it unsupported.",
+          "type": "string"
+        },
+        {
+          "const": "insufficient",
+          "description": "Support not established.",
+          "type": "string"
+        }
+      ]
+    },
+    "Task": {
+      "description": "Operations share evidence and verification, never decision authority.",
+      "oneOf": [
+        {
+          "const": "explain",
+          "description": "Describe visible changes.",
+          "type": "string"
+        },
+        {
+          "const": "audit_mask",
+          "description": "Describe potentially concealed content per exclusion.",
+          "type": "string"
+        },
+        {
+          "const": "check_ui",
+          "description": "Check a bounded visible condition.",
+          "type": "string"
+        }
+      ]
+    },
+    "Transform": {
+      "additionalProperties": false,
+      "description": "A view's exact original crop and encoded size; no implicit resize policy.",
+      "properties": {
+        "crop": {
+          "description": "Original-pixel x,y,width,height.",
+          "items": {
+            "format": "uint32",
+            "minimum": 0,
+            "type": "integer"
+          },
+          "maxItems": 4,
+          "minItems": 4,
+          "type": "array"
+        },
+        "encoded": {
+          "description": "Encoded view width,height.",
+          "items": {
+            "format": "uint32",
+            "minimum": 0,
+            "type": "integer"
+          },
+          "maxItems": 2,
+          "minItems": 2,
+          "type": "array"
+        }
+      },
+      "required": [
+        "crop",
+        "encoded"
+      ],
+      "type": "object"
+    },
+    "Usage": {
+      "additionalProperties": false,
+      "description": "Complete normalized usage; overlapping provider totals are retained, not summed.",
+      "properties": {
+        "cached_input_tokens": {
+          "description": "Cached subset of input.",
+          "format": "uint64",
+          "minimum": 0,
+          "type": [
+            "integer",
+            "null"
+          ]
+        },
+        "candidate_tokens": {
+          "description": "Candidate output, excluding separately reported thinking.",
+          "format": "uint64",
+          "minimum": 0,
+          "type": [
+            "integer",
+            "null"
+          ]
+        },
+        "input_tokens": {
+          "description": "Includes cached input when provider defines it so.",
+          "format": "uint64",
+          "minimum": 0,
+          "type": [
+            "integer",
+            "null"
+          ]
+        },
+        "modality_details": {
+          "description": "Modality usage as reported."
+        },
+        "thinking_tokens": {
+          "description": "Thinking count when exposed.",
+          "format": "uint64",
+          "minimum": 0,
+          "type": [
+            "integer",
+            "null"
+          ]
+        },
+        "total_tokens": {
+          "description": "Provider total, retained for cross-checking.",
+          "format": "uint64",
+          "minimum": 0,
+          "type": [
+            "integer",
+            "null"
+          ]
+        }
+      },
+      "required": [
+        "modality_details"
+      ],
+      "type": "object"
+    },
+    "Verification": {
+      "additionalProperties": false,
+      "description": "Locally calculated verification; providers cannot assign these fields.",
+      "properties": {
+        "citations_valid": {
+          "description": "References exist and intersect the observation geometry.",
+          "type": "boolean"
+        },
+        "depends_on_model_observation": {
+          "description": "False only for exact source-derived facts with no model dependency.",
+          "type": "boolean"
+        },
+        "geometry_valid": {
+          "description": "Coordinates map inside the original images.",
+          "type": "boolean"
+        },
+        "identity_valid": {
+          "description": "Hashes match frozen task and images.",
+          "type": "boolean"
+        },
+        "order_consistency": {
+          "description": "consistent, unresolved, or single_image.",
+          "type": "string"
+        },
+        "schema_valid": {
+          "description": "Closed wire decoding completed.",
+          "type": "boolean"
+        },
+        "support": {
+          "$ref": "#/$defs/Support",
+          "description": "Textual support, not pixel verification."
+        }
+      },
+      "required": [
+        "schema_valid",
+        "identity_valid",
+        "geometry_valid",
+        "citations_valid",
+        "order_consistency",
+        "support",
+        "depends_on_model_observation"
+      ],
+      "type": "object"
+    },
+    "Visibility": {
+      "description": "Visibility does not imply safety or complete capture.",
+      "oneOf": [
+        {
+          "const": "visible",
+          "description": "Wholly visible.",
+          "type": "string"
+        },
+        {
+          "const": "partial",
+          "description": "Partly visible.",
+          "type": "string"
+        },
+        {
+          "const": "occluded",
+          "description": "Hidden behind other content.",
+          "type": "string"
+        },
+        {
+          "const": "unavailable",
+          "description": "Original pixels/evidence unavailable.",
+          "type": "string"
+        }
+      ]
+    }
+  },
+  "$id": "https://github.com/Tavrin/saccade/crates/saccade-core/schemas/saccade-assist-masks.v2.schema.json",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "properties": {
+    "masks": {
+      "items": {
+        "$ref": "#/$defs/Mask"
+      },
+      "maxItems": 128,
+      "type": "array"
+    },
+    "report_hash": {
+      "pattern": "^sha256:[0-9a-f]{64}$",
+      "type": "string"
+    },
+    "report_id": {
+      "pattern": "^sha256:[0-9a-f]{64}$",
+      "type": "string"
+    },
+    "schema": {
+      "const": "saccade-assist-masks.v2"
+    },
+    "source_refs": {
+      "items": {
+        "maxLength": 2048,
+        "minLength": 1,
+        "type": "string"
+      },
+      "maxItems": 128,
+      "type": "array"
+    }
+  },
+  "required": [
+    "schema",
+    "report_hash",
+    "masks",
+    "report_id",
+    "source_refs"
+  ],
+  "title": "saccade-assist-masks.v1",
+  "type": "object"
+}

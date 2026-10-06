@@ -332,7 +332,7 @@ pub fn run(job: &Job) -> Result<(Value, String), CliError> {
     };
     let mut report: Option<Report> = None;
     let mut labels: Vec<String> = Vec::new();
-    let (items, skipped) = match doc["schema"].as_str() {
+    let (items, skipped) = match doc["schema"].as_str().map(saccade_core::report_links::original_schema) {
         Some(REPORT_SCHEMA) => {
             let r: Report = serde_json::from_value(doc)?;
             let out = report_items(&r, &dir, question, job.intent.as_deref(), &job.entries, &ev)?;

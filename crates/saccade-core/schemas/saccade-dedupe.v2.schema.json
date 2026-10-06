@@ -1,0 +1,157 @@
+{
+  "$id": "https://github.com/Tavrin/saccade/crates/saccade-core/schemas/saccade-dedupe.v2.schema.json",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "properties": {
+    "algorithm": {
+      "enum": [
+        "ahash",
+        "dhash",
+        "phash"
+      ]
+    },
+    "clustering": {
+      "type": "string"
+    },
+    "clusters": {
+      "items": {
+        "items": {
+          "maximum": 99999,
+          "minimum": 0,
+          "type": "integer"
+        },
+        "minItems": 1,
+        "type": "array"
+      },
+      "type": "array"
+    },
+    "counts": {
+      "type": "object"
+    },
+    "entries": {
+      "items": {
+        "additionalProperties": false,
+        "properties": {
+          "ahash": {
+            "pattern": "^[0-9a-f]{16}$",
+            "type": "string"
+          },
+          "dhash": {
+            "pattern": "^[0-9a-f]{16}$",
+            "type": "string"
+          },
+          "dimensions": {
+            "items": {
+              "minimum": 1,
+              "type": "integer"
+            },
+            "maxItems": 2,
+            "minItems": 2,
+            "type": "array"
+          },
+          "encoded_sha256": {
+            "pattern": "^[0-9a-f]{64}$",
+            "type": "string"
+          },
+          "path": {
+            "type": "string"
+          },
+          "phash": {
+            "pattern": "^[0-9a-f]{16}$",
+            "type": "string"
+          }
+        },
+        "required": [
+          "path",
+          "encoded_sha256",
+          "dimensions",
+          "ahash",
+          "dhash",
+          "phash"
+        ],
+        "type": "object"
+      },
+      "maxItems": 100000,
+      "type": "array"
+    },
+    "errors": {
+      "items": {
+        "additionalProperties": false,
+        "properties": {
+          "code": {
+            "type": "string"
+          },
+          "message": {
+            "type": "string"
+          },
+          "path": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "path",
+          "code",
+          "message"
+        ],
+        "type": "object"
+      },
+      "type": "array"
+    },
+    "limitations": {
+      "items": {
+        "type": "string"
+      },
+      "type": "array"
+    },
+    "operation": {
+      "const": "dedupe"
+    },
+    "preprocessing": {
+      "type": "string"
+    },
+    "report_id": {
+      "pattern": "^sha256:[0-9a-f]{64}$",
+      "type": "string"
+    },
+    "schema": {
+      "const": "saccade-dedupe.v2"
+    },
+    "source_refs": {
+      "items": {
+        "maxLength": 2048,
+        "minLength": 1,
+        "type": "string"
+      },
+      "maxItems": 128,
+      "type": "array"
+    },
+    "threshold": {
+      "maximum": 64,
+      "minimum": 0,
+      "type": "integer"
+    },
+    "verdict": {
+      "enum": [
+        "pass",
+        "regression"
+      ]
+    }
+  },
+  "required": [
+    "schema",
+    "operation",
+    "verdict",
+    "counts",
+    "preprocessing",
+    "entries",
+    "errors",
+    "limitations",
+    "algorithm",
+    "threshold",
+    "clustering",
+    "clusters",
+    "report_id",
+    "source_refs"
+  ],
+  "type": "object"
+}

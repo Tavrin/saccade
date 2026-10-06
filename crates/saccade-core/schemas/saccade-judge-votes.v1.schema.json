@@ -112,6 +112,10 @@
       },
       "type": "array"
     },
+    "report_id": {
+      "pattern": "^sha256:[0-9a-f]{64}$",
+      "type": "string"
+    },
     "run_id": {
       "description": "The run id.",
       "type": "string"
@@ -119,6 +123,14 @@
     "schema": {
       "description": "Always [`VOTES_SCHEMA`].",
       "type": "string"
+    },
+    "source_refs": {
+      "items": {
+        "maxLength": 2048,
+        "type": "string"
+      },
+      "maxItems": 128,
+      "type": "array"
     }
   },
   "required": [

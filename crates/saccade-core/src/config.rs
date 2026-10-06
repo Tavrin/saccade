@@ -169,6 +169,7 @@ struct FileConfig {
     #[serde(default)]
     arm_ignore: Vec<String>,
     fingerprint_map: Option<std::path::PathBuf>,
+    max_record_bytes: Option<u64>,
     temporal_tiles: Option<crate::evidence_quality::temporal::Policy>,
     layers: Option<crate::evidence_quality::layers::Policy>,
     #[serde(default)]
@@ -347,6 +348,7 @@ impl RunConfig {
         cfg.spatial = file.spatial;
         cfg.meta.require_valid_arms = file.require_valid_arms.unwrap_or(false);
         cfg.meta.fingerprint_map = file.fingerprint_map;
+        cfg.meta.max_record_bytes = file.max_record_bytes;
         cfg.meta.ignore.extend(file.arm_ignore);
         cfg.meta.allow_unreached = file.allow_unreached;
         cfg.meta.intended = file.intended_variables;
@@ -656,6 +658,7 @@ impl RunConfig {
                     .as_ref()
                     .map(|p| crate::paths::cwd(p, false))
             );
+            value["max_record_bytes"] = json!(c.meta.max_record_bytes);
             value["intended_variables"] = json!(c.meta.intended);
             value["arm_ignore"] = json!(c.meta.ignore);
             value["allow_unreached"] = json!(c.meta.allow_unreached);

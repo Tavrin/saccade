@@ -1,0 +1,247 @@
+{
+  "$id": "https://github.com/Tavrin/saccade/crates/saccade-core/schemas/saccade-registration.v2.schema.json",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "properties": {
+    "counts": {
+      "type": "object"
+    },
+    "entries": {
+      "items": {
+        "additionalProperties": false,
+        "allOf": [
+          {
+            "if": {
+              "properties": {
+                "status": {
+                  "enum": [
+                    "pass",
+                    "fail"
+                  ]
+                }
+              }
+            },
+            "then": {
+              "required": [
+                "registration",
+                "inputs",
+                "metrics",
+                "value",
+                "threshold",
+                "metric",
+                "artifacts"
+              ]
+            }
+          },
+          {
+            "if": {
+              "properties": {
+                "status": {
+                  "const": "error"
+                }
+              }
+            },
+            "then": {
+              "required": [
+                "error"
+              ]
+            }
+          }
+        ],
+        "properties": {
+          "artifacts": {
+            "type": "object"
+          },
+          "error": {
+            "properties": {
+              "code": {
+                "type": "string"
+              },
+              "message": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "code",
+              "message"
+            ],
+            "type": "object"
+          },
+          "inputs": {
+            "type": "object"
+          },
+          "metric": {
+            "enum": [
+              "mean",
+              "p95",
+              "p99",
+              "max"
+            ]
+          },
+          "metrics": {
+            "type": "object"
+          },
+          "name": {
+            "type": "string"
+          },
+          "registration": {
+            "additionalProperties": false,
+            "properties": {
+              "capture_size": {
+                "items": {
+                  "minimum": 1,
+                  "type": "integer"
+                },
+                "maxItems": 2,
+                "minItems": 2,
+                "type": "array"
+              },
+              "detector": {
+                "type": "string"
+              },
+              "excluded_by_geometry": {
+                "minimum": 0,
+                "type": "integer"
+              },
+              "inlier_ratio": {
+                "maximum": 1,
+                "minimum": 0,
+                "type": "number"
+              },
+              "inliers": {
+                "minimum": 0,
+                "type": "integer"
+              },
+              "matches": {
+                "minimum": 0,
+                "type": "integer"
+              },
+              "matrix": {
+                "items": {
+                  "type": "number"
+                },
+                "maxItems": 9,
+                "minItems": 9,
+                "type": "array"
+              },
+              "model": {
+                "enum": [
+                  "none",
+                  "translation",
+                  "similarity",
+                  "affine",
+                  "homography",
+                  "auto"
+                ]
+              },
+              "output_size": {
+                "items": {
+                  "minimum": 1,
+                  "type": "integer"
+                },
+                "maxItems": 2,
+                "minItems": 2,
+                "type": "array"
+              },
+              "reference_size": {
+                "items": {
+                  "minimum": 1,
+                  "type": "integer"
+                },
+                "maxItems": 2,
+                "minItems": 2,
+                "type": "array"
+              },
+              "residual_px": {
+                "minimum": 0,
+                "type": "number"
+              },
+              "scale": {
+                "enum": [
+                  "reference",
+                  "common"
+                ]
+              }
+            },
+            "required": [
+              "model",
+              "detector",
+              "matrix",
+              "matches",
+              "inliers",
+              "inlier_ratio",
+              "residual_px",
+              "scale",
+              "excluded_by_geometry",
+              "reference_size",
+              "capture_size",
+              "output_size"
+            ],
+            "type": "object"
+          },
+          "status": {
+            "enum": [
+              "pass",
+              "fail",
+              "error",
+              "new",
+              "missing"
+            ]
+          },
+          "threshold": {
+            "type": "number"
+          },
+          "value": {
+            "type": "number"
+          }
+        },
+        "required": [
+          "name",
+          "status"
+        ],
+        "type": "object"
+      },
+      "type": "array"
+    },
+    "operation": {
+      "const": "registered_compare"
+    },
+    "pipeline": {
+      "type": "object"
+    },
+    "report_id": {
+      "pattern": "^sha256:[0-9a-f]{64}$",
+      "type": "string"
+    },
+    "schema": {
+      "const": "saccade-registration.v2"
+    },
+    "source_refs": {
+      "items": {
+        "maxLength": 2048,
+        "minLength": 1,
+        "type": "string"
+      },
+      "maxItems": 128,
+      "type": "array"
+    },
+    "verdict": {
+      "enum": [
+        "pass",
+        "regression"
+      ]
+    }
+  },
+  "required": [
+    "schema",
+    "operation",
+    "verdict",
+    "counts",
+    "pipeline",
+    "entries",
+    "report_id",
+    "source_refs"
+  ],
+  "title": "saccade-registration.v1",
+  "type": "object"
+}

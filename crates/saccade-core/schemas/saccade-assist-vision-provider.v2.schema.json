@@ -1,0 +1,60 @@
+{
+  "$id": "https://github.com/Tavrin/saccade/crates/saccade-core/schemas/saccade-assist-vision-provider.v2.schema.json",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "properties": {
+    "authority": {
+      "type": "string"
+    },
+    "catalog_sha256": {
+      "type": "string"
+    },
+    "cost": {
+      "type": "string"
+    },
+    "live_qualification": {
+      "const": false
+    },
+    "observation": {
+      "type": [
+        "object",
+        "null"
+      ]
+    },
+    "report_id": {
+      "pattern": "^sha256:[0-9a-f]{64}$",
+      "type": "string"
+    },
+    "request": {
+      "type": "object"
+    },
+    "request_sha256": {
+      "type": "string"
+    },
+    "schema": {
+      "const": "saccade-assist-vision-provider.v2"
+    },
+    "source_refs": {
+      "items": {
+        "maxLength": 2048,
+        "minLength": 1,
+        "type": "string"
+      },
+      "maxItems": 128,
+      "type": "array"
+    }
+  },
+  "required": [
+    "schema",
+    "authority",
+    "catalog_sha256",
+    "request_sha256",
+    "request",
+    "observation",
+    "cost",
+    "live_qualification",
+    "report_id",
+    "source_refs"
+  ],
+  "type": "object"
+}

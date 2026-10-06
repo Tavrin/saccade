@@ -1,0 +1,135 @@
+{
+  "$id": "https://github.com/Tavrin/saccade/crates/saccade-core/schemas/saccade-inspect-image.v2.schema.json",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "properties": {
+    "ai_generation": {
+      "enum": [
+        "unknown",
+        "declared_in_validated_signed_credentials"
+      ]
+    },
+    "copy_move": {
+      "type": "object"
+    },
+    "counts": {
+      "type": "object"
+    },
+    "credentials": {
+      "type": "object"
+    },
+    "error_level_analysis": {
+      "additionalProperties": false,
+      "properties": {
+        "artifact": {
+          "type": "string"
+        },
+        "assurance": {
+          "const": "weak visual layer only"
+        },
+        "can_show": {
+          "type": "string"
+        },
+        "cannot_show": {
+          "type": "string"
+        },
+        "display_gain": {
+          "type": "integer"
+        },
+        "quality": {
+          "type": "integer"
+        }
+      },
+      "required": [
+        "assurance",
+        "artifact",
+        "quality",
+        "display_gain",
+        "can_show",
+        "cannot_show"
+      ],
+      "type": "object"
+    },
+    "headers": {
+      "type": "object"
+    },
+    "input": {
+      "type": "object"
+    },
+    "limitations": {
+      "items": {
+        "type": "string"
+      },
+      "type": "array"
+    },
+    "near_duplicates": {
+      "type": [
+        "object",
+        "null"
+      ]
+    },
+    "operation": {
+      "const": "inspect_image"
+    },
+    "publication": {
+      "type": "object"
+    },
+    "related_commands": {
+      "items": {
+        "type": "string"
+      },
+      "type": "array"
+    },
+    "report_id": {
+      "pattern": "^sha256:[0-9a-f]{64}$",
+      "type": "string"
+    },
+    "schema": {
+      "const": "saccade-inspect-image.v2"
+    },
+    "source_refs": {
+      "items": {
+        "maxLength": 2048,
+        "minLength": 1,
+        "type": "string"
+      },
+      "maxItems": 128,
+      "type": "array"
+    },
+    "verdict": {
+      "const": "unknown"
+    },
+    "vision_checks": {
+      "additionalProperties": false,
+      "properties": {
+        "crop_check": {
+          "type": "object"
+        },
+        "faces": {
+          "type": "object"
+        },
+        "watermark": {
+          "type": "object"
+        }
+      },
+      "type": "object"
+    }
+  },
+  "required": [
+    "schema",
+    "operation",
+    "verdict",
+    "counts",
+    "input",
+    "headers",
+    "copy_move",
+    "error_level_analysis",
+    "near_duplicates",
+    "publication",
+    "ai_generation",
+    "limitations",
+    "report_id",
+    "source_refs"
+  ],
+  "type": "object"
+}

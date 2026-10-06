@@ -31,9 +31,11 @@ pub(crate) fn write<T: Serialize>(path: &Path, value: &T) -> Result<(), CliError
     std::fs::create_dir_all(parent).map_err(|_| CliError::io("cannot create output parent"))?;
     let mut file = tempfile::NamedTempFile::new_in(parent)
         .map_err(|_| CliError::io("cannot reserve output"))?;
-    serde_json::to_writer_pretty(&mut file, value)?;
+    let linked = saccade_core::report_links::decorate(&serde_json::to_value(value)?)?;
+    serde_json::to_writer_pretty(&mut file, &linked)?;
     file.persist_noclobber(path)
         .map_err(|_| CliError::io("output already exists or cannot be written"))?;
+    saccade_core::report_links::index(path, &linked)?;
     Ok(())
 }
 pub(crate) fn url(text: &str) -> Result<Url, CliError> {

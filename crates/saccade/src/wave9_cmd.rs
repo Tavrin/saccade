@@ -144,8 +144,10 @@ pub(crate) fn reference(args: ReferenceArgs) -> Result<u8, CliError> {
             .create_new(true)
             .open(p)
             .map_err(|e| CliError::io(e.to_string()))?;
-        f.write_all(&serde_json::to_vec_pretty(&report)?)
+        let linked = saccade_core::report_links::decorate(&serde_json::to_value(&report)?)?;
+        f.write_all(&serde_json::to_vec_pretty(&linked)?)
             .map_err(|e| CliError::io(e.to_string()))?;
+        saccade_core::report_links::index(p, &linked)?;
     }
     emit(&report, args.json)?;
     Ok(if report.verdict == "within_noise_floor" {

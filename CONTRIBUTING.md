@@ -64,6 +64,23 @@ README and the relevant task documentation in the same pull request, and add a
 line to [CHANGELOG.md](CHANGELOG.md). Paste real output into the README: run
 the command and copy what it prints.
 
+`scripts/gen-docs.py` regenerates the CLI reference, schema index and agent packs
+(each pack is limited to 4,800 UTF-8 bytes). CI's complete feature set is
+`--all-features`. If system dav1d is unavailable, use that set minus only
+`imgtune-avif`; the generator records the actual compiled features:
+
+```sh
+export CARGO_TARGET_DIR="${CARGO_TARGET_DIR:-$PWD/target}"
+export CARGO_INCREMENTAL=0 CARGO_PROFILE_DEV_DEBUG=0
+features=$(python3 -c 'import pathlib,tomllib; print(",".join(sorted(set(tomllib.loads(pathlib.Path("crates/saccade/Cargo.toml").read_text())["features"])-{"default","imgtune-avif"})))')
+cargo build --locked -p saccade --no-default-features --features "$features"
+python3 scripts/gen-docs.py --allow-missing-imgtune-avif --saccade "$CARGO_TARGET_DIR/debug/saccade"
+python3 scripts/gen-docs.py --allow-missing-imgtune-avif --saccade "$CARGO_TARGET_DIR/debug/saccade" --check
+```
+
+The exception permits no other missing feature and does not validate AVIF support.
+Without `--saccade`, `--check` verifies the generated packs and indexes only.
+
 ## Pull requests
 
 - Keep a pull request to one change. Say what it does and why.

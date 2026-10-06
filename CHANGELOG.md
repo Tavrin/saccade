@@ -9,6 +9,21 @@
   verified billing ceilings are available. Add an OpenRouter chat-completions
   adapter and a fixture-only `qualify-wave4.sh --dry-run` with frozen expected output.
 
+- Refresh command/schema references and agent packs; allow documentation generation
+  without the AVIF codec when dav1d is unavailable, recording the compiled features.
+
+- Fingerprint records accept 16 MiB by default, with map/CLI byte limits, a 64 MiB hard ceiling and file-specific oversize diagnostics.
+
+- Analyze external paired timings with same-session A/A controls, block-bootstrap HL
+  verdicts and declared sequential looks; add event-relative tile settling trajectories.
+- Show per-arm repeat timing distributions and ranked ablation tables; add native mask
+  shortcuts and automatic fingerprint subtree mappings with exclusions.
+- Link measurement reports to external capture indexes using the existing semantic
+  measurement identity, source refs and JSON/JSONL export. Strict linked reports use
+  versioned successor schemas; legacy schemas and authority bindings stay readable.
+- Expose stable public mask-spec parsers in `saccade-core`; document block-bootstrap
+  validity and declared sequential stopping with a repeated-peeking null acceptance gate.
+
 ### Model configuration and distribution
 
 - One model and runtime configuration for the CLI, MCP server, Python and Rust library:

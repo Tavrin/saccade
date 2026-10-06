@@ -229,7 +229,7 @@ runs:
         failed=0
         new=0
         if [ "$written" = true ]; then
-          if jq -e '.schema == "saccade-report.v1" and ([.totals.pass, .totals.fail, .totals.error, .totals.missing, .totals.new, .totals.total] | all(type == "number" and . >= 0 and floor == .))' "$report" >/dev/null; then
+          if jq -e '(.schema == "saccade-report.v1" or .schema == "saccade-report.v2") and ([.totals.pass, .totals.fail, .totals.error, .totals.missing, .totals.new, .totals.total] | all(type == "number" and . >= 0 and floor == .))' "$report" >/dev/null; then
             failed=$(jq -r '.totals.fail' "$report")
             new=$(jq -r '.totals.new' "$report")
           else

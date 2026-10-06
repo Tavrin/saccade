@@ -108,6 +108,8 @@ pub struct DeclaredChange {
 /// Sidecar settings for a run or a view.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct MetaOptions {
+    /// Optional caller override of the fingerprint map per-record byte limit.
+    pub max_record_bytes: Option<u64>,
     /// Optional standalone arm-check override of the map comparison mode.
     pub compare: Option<crate::arms::CompareMode>,
     /// Explicitly permit matched unreached observations for these exact criteria.
@@ -138,6 +140,7 @@ impl Default for MetaOptions {
             allow_unreached: Vec::new(),
             require_valid_arms: false,
             fingerprint_map: None,
+            max_record_bytes: None,
             compare: None,
             intended: Vec::new(),
             name: DEFAULT_META_NAME.to_owned(),
@@ -214,6 +217,7 @@ pub fn same_capture(a: &BTreeMap<String, String>, b: &BTreeMap<String, String>) 
 
 /// [`MetaOptions`] with its globs compiled.
 pub struct MetaChecker {
+    max_record_bytes: Option<u64>,
     fingerprint_map: Option<std::path::PathBuf>,
     intended_globs: Vec<GlobMatcher>,
     name: String,
@@ -293,7 +297,11 @@ impl MetaOptions {
             .iter()
             .map(|g| compile_glob(g))
             .collect::<Result<Vec<_>>>()?;
+        if let Some(limit) = self.max_record_bytes {
+            crate::arms::validate_record_limit(limit)?;
+        }
         Ok(MetaChecker {
+            max_record_bytes: self.max_record_bytes,
             fingerprint_map: self.fingerprint_map.clone(),
             intended_globs: self
                 .intended
@@ -394,13 +402,19 @@ impl MetaChecker {
     pub fn load(&self, root: &Path, rel: &str) -> std::result::Result<Option<Meta>, String> {
         if let Some(path) = &self.fingerprint_map {
             let map = crate::arms::FingerprintMap::read(path).map_err(|e| e.to_string())?;
-            return crate::arms::load_named(root, rel, &self.name, Some(&map))
-                .map(|mut m| {
-                    crate::arms::readiness(&mut m);
-                    crate::arms::select(&mut m, &map);
-                    Some(m)
-                })
-                .map_err(|e| e.to_string());
+            return crate::arms::load_named_with_limit(
+                root,
+                rel,
+                &self.name,
+                Some(&map),
+                self.max_record_bytes.unwrap_or(map.max_record_bytes),
+            )
+            .map(|mut m| {
+                crate::arms::readiness(&mut m);
+                crate::arms::select(&mut m, &map);
+                Some(m)
+            })
+            .map_err(|e| e.to_string());
         }
         let parts: Vec<&str> = rel.split('/').collect();
         let Some((file, dirs)) = parts.split_last() else {

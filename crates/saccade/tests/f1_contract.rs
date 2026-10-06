@@ -28,13 +28,20 @@ fn value(out: &Output) -> Value {
     serde_json::from_slice(&out.stdout).unwrap()
 }
 fn schema(name: &str, v: &Value) {
+    let expected = format!(
+        "saccade-{}.{}",
+        if name == "error" { "result" } else { name },
+        if name == "error" { "v2" } else { "v1" }
+    );
+    let successor = saccade_core::report_links::linked_schema(&expected);
+    let id = if v["schema"] == successor {
+        successor
+    } else {
+        &expected
+    };
     let path = Path::new(env!("CARGO_MANIFEST_DIR"))
         .join("../saccade-core/schemas")
-        .join(format!(
-            "saccade-{}.{}.schema.json",
-            if name == "error" { "result" } else { name },
-            if name == "error" { "v2" } else { "v1" }
-        ));
+        .join(format!("{id}.schema.json"));
     let document: Value = serde_json::from_slice(&std::fs::read(path).unwrap()).unwrap();
     let validator = jsonschema::validator_for(&document).unwrap();
     assert!(validator.is_valid(v), "schema {name}: {v}");

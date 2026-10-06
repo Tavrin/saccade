@@ -183,8 +183,8 @@ impl Measurement {
         let raw = std::fs::read(crate::paths::native(&resolved))?;
         let report: crate::Report = canonical::decode(&raw)?;
         require(
-            report.schema == crate::report::REPORT_SCHEMA,
-            "expected saccade-report.v1",
+            crate::report_links::original_schema(&report.schema) == crate::report::REPORT_SCHEMA,
+            "expected a supported pair-report schema",
         )?;
         require(
             !entry_ids.is_empty()
@@ -210,12 +210,40 @@ impl Measurement {
     }
     /// Semantic projection of the measured report. Only explicit provenance is omitted.
     pub fn report_identity(report: &crate::Report) -> Result<Digest> {
-        let mut value = serde_json::to_value(report)?;
+        Self::report_identity_value(&serde_json::to_value(report)?)
+    }
+    /// Shared semantic projection for report IDs, extending the pair-report identity.
+    /// Pair-report paths and provenance retain their historical exclusions. Other
+    /// report types retain all measurement/configuration paths; only linkage and
+    /// explicit generation timestamps are omitted. Linked schema versions normalize
+    /// to their legacy measurement contract so adding links never changes identity.
+    pub fn report_identity_value(report: &Value) -> Result<Digest> {
+        let mut value = report.clone();
+        let schema = report
+            .get("schema")
+            .and_then(Value::as_str)
+            .unwrap_or_default();
+        let original = crate::report_links::original_schema(schema);
+        let paired = original == crate::report::REPORT_SCHEMA;
         if let Some(object) = value.as_object_mut() {
-            for key in ["generated_at_unix", "baseline_dir", "capture_dir"] {
+            if object.contains_key("schema") {
+                object.insert("schema".into(), original.into());
+            }
+            for key in [
+                "generated_at_unix",
+                "generated_at",
+                "generated_at_utc",
+                "report_id",
+                "source_refs",
+            ] {
                 object.remove(key);
             }
-            if let Some(entries) = object.get_mut("entries").and_then(Value::as_array_mut) {
+            if paired {
+                object.remove("baseline_dir");
+                object.remove("capture_dir");
+            }
+            if paired && let Some(entries) = object.get_mut("entries").and_then(Value::as_array_mut)
+            {
                 for entry in entries {
                     if let Some(object) = entry.as_object_mut() {
                         object.remove("paths");

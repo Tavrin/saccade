@@ -80,7 +80,7 @@ impl QualityReport {
         image: &VisionImage,
         reference: Option<&VisionImage>,
     ) -> Result<()> {
-        if self.schema != QUALITY_SCHEMA
+        if crate::report_links::original_schema(&self.schema) != QUALITY_SCHEMA
             || self.image_sha256 != image.sha256
             || self.reference_sha256 != reference.map(|i| i.sha256.clone())
             || self.affects_compare_verdict
