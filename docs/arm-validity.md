@@ -41,8 +41,13 @@ commands. Ignores are echoed even when they match no keys; ignored differences
 remain visible. Ignores waive explicitly selected null and missing fields and ordinary differences.
 They cannot waive a session mismatch or an unreached/mismatched readiness predicate;
 use the specific readiness policy below for intentionally unconverged captures.
-With a fingerprint map, tokens match canonical destination keys; source-path
-names do not automatically become token aliases.
+With a fingerprint map, vary and ignore tokens match either canonical destination
+names or mapped source paths using the same rules. For example, when
+`inputs.identity` maps from `content.hash`, `--vary content` covers that field.
+For mapped objects, each destination member uses the corresponding source member
+path. Source names use `path`, without a sibling filename prefix. Derived keys
+have no source alias; varying their mapped parent by either name activates its
+explicit `derives` declarations. Ignores never activate derivations.
 
 ## Producer fingerprint schema
 
@@ -190,13 +195,17 @@ represent synthetic identities, not external assets.
 The [result schema](../crates/saccade-core/schemas/saccade-arms-check.v1.schema.json)
 uses `schema: saccade-arms-check.v1`, `result: valid_comparison` or
 `invalid_comparison`, `exit_code`, `offending`, `vary`, `ignore`, `ignored`, and
-`covered_by_derivation`, `allowed_unreached`, `diagnostics`, `compare`,
+`covered_by_vary`, `covered_by_derivation`, `allowed_unreached`, `diagnostics`, `compare`,
 `unmapped`, and `outcomes`.
 Each finding contains its canonical key, baseline and capture JSON values
 (null for absence), `baseline_state`/`capture_state` (`missing`, `null`, or
 `value`), and a reason. Directory findings prefix keys with their
 image name. A refusal has no pass/fail verdict and produces no measurement
 report. Existing output artifacts are left untouched.
+`covered_by_vary` retains varied differences. Each token-covered finding in that
+list or `ignored` includes `token_matches`: the literal `token`, `via`
+(`destination` or `source`), and exact matched `name`. Both matches are retained
+when a token matches both names; image prefixes apply only to the finding key.
 
 | Exit | Meaning |
 | --- | --- |

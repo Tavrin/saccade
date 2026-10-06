@@ -51,13 +51,13 @@ enum Operation {
     Check {
         a: PathBuf,
         b: PathBuf,
-        /// Allowed difference: exact key, dotted prefix, suffix or explicit glob; repeat or comma-separate.
+        /// Allowed difference matching destination or mapped source: exact key, dotted prefix, suffix or glob; repeat or comma-separate.
         #[arg(long, value_delimiter = ',')]
         vary: Vec<String>,
         /// Permit intentionally unreached captures with exactly matching observations.
         #[arg(long = "allow-unreached")]
         allow_unreached: Vec<String>,
-        /// Explicit exception, echoed even when no keys match it; repeat or comma-separate.
+        /// Explicit exception matching destination or mapped source, echoed even if unmatched; repeat or comma-separate.
         #[arg(long, value_delimiter = ',')]
         ignore: Vec<String>,
         #[arg(long)]

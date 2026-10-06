@@ -77,6 +77,14 @@
           },
           "type": "array"
         },
+        "covered_by_vary": {
+          "default": [],
+          "description": "Differences covered by vary tokens, with matched names and both values.",
+          "items": {
+            "$ref": "#/$defs/Finding"
+          },
+          "type": "array"
+        },
         "diagnostics": {
           "default": [],
           "description": "Record discovery diagnostics, including exact searched filenames.",
@@ -214,6 +222,13 @@
         "reason": {
           "description": "Stable reason: missing, difference, readiness_not_reached, malformed.",
           "type": "string"
+        },
+        "token_matches": {
+          "description": "Tokens covering this finding, with the exact destination or source name matched.",
+          "items": {
+            "$ref": "#/$defs/TokenMatch"
+          },
+          "type": "array"
         }
       },
       "required": [
@@ -249,6 +264,21 @@
         "truncated"
       ],
       "type": "object"
+    },
+    "MatchedName": {
+      "description": "Origin of a name matched by an explicit token.",
+      "oneOf": [
+        {
+          "const": "destination",
+          "description": "Canonical metadata destination.",
+          "type": "string"
+        },
+        {
+          "const": "source",
+          "description": "Producer source path from the fingerprint map.",
+          "type": "string"
+        }
+      ]
     },
     "Policy": {
       "additionalProperties": false,
@@ -353,6 +383,29 @@
         "rms_limit",
         "mean_limit",
         "beyond_noise"
+      ],
+      "type": "object"
+    },
+    "TokenMatch": {
+      "description": "One explicit token match; both names are reported when both match.",
+      "properties": {
+        "name": {
+          "description": "Exact name tested against the token, without a directory image prefix.",
+          "type": "string"
+        },
+        "token": {
+          "description": "Literal vary or ignore token.",
+          "type": "string"
+        },
+        "via": {
+          "$ref": "#/$defs/MatchedName",
+          "description": "Whether the matched name is a canonical destination or producer source."
+        }
+      },
+      "required": [
+        "token",
+        "via",
+        "name"
       ],
       "type": "object"
     }

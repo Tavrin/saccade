@@ -90,6 +90,30 @@ pub struct Finding {
     pub capture_state: String,
     /// Stable reason: missing, difference, readiness_not_reached, malformed.
     pub reason: String,
+    /// Tokens covering this finding, with the exact destination or source name matched.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub token_matches: Vec<TokenMatch>,
+}
+/// One explicit token match; both names are reported when both match.
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct TokenMatch {
+    /// Literal vary or ignore token.
+    pub token: String,
+    /// Whether the matched name is a canonical destination or producer source.
+    pub via: MatchedName,
+    /// Exact name tested against the token, without a directory image prefix.
+    pub name: String,
+}
+/// Origin of a name matched by an explicit token.
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum MatchedName {
+    /// Canonical metadata destination.
+    Destination,
+    /// Producer source path from the fingerprint map.
+    Source,
 }
 /// Identity validity, independent of any pixel verdict.
 #[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
@@ -117,6 +141,9 @@ pub struct Check {
     pub ignore: Vec<String>,
     /// Explicitly waived findings, including missing fields and equal nulls.
     pub ignored: Vec<Finding>,
+    /// Differences covered by vary tokens, with matched names and both values.
+    #[serde(default)]
+    pub covered_by_vary: Vec<Finding>,
     /// Differences covered by explicit field derivations, with both values.
     #[serde(default)]
     pub covered_by_derivation: Vec<Finding>,
@@ -377,14 +404,14 @@ pub(crate) fn select(meta: &mut crate::meta::Meta, map: &FingerprintMap) {
     let outcomes = map.outcome_globs();
     meta.retain(|key, _| map.compares(key, &outcomes));
 }
-/// Resolve explicit derivations from varied canonical fields; ignores never activate them.
+/// Resolve explicit derivations from varied destination/source fields; ignores never activate them.
 pub(crate) fn derived_keys(map: Option<&FingerprintMap>, vary: &[String]) -> BTreeSet<String> {
     let mut covered = BTreeSet::new();
     if let Some(map) = map {
         loop {
             let before = covered.len();
             for (key, source) in &map.fields {
-                if vary.iter().any(|t| matches(t, key)) || covered.contains(key) {
+                if !token_matches(vary, key, Some(map)).is_empty() || covered.contains(key) {
                     covered.extend(source.derives.iter().cloned());
                 }
             }
@@ -633,6 +660,44 @@ pub fn matches(token: &str, key: &str) -> bool {
         || key.ends_with(&format!(".{token}"))
         || crate::config::compile_glob(token).is_ok_and(|g| g.is_match(key))
 }
+fn token_matches(tokens: &[String], key: &str, map: Option<&FingerprintMap>) -> Vec<TokenMatch> {
+    let mut sources = BTreeSet::new();
+    let mut add_source = |dest: &str, source: &Source| {
+        let dest = dest.trim_end_matches("[]");
+        if key == dest {
+            sources.insert(source.path.clone());
+        } else if let Some(suffix) = key.strip_prefix(dest).filter(|s| s.starts_with('.')) {
+            sources.insert(format!("{}{suffix}", source.path));
+        }
+    };
+    if let Some(map) = map {
+        for (dest, source) in &map.fields {
+            add_source(dest, source);
+        }
+        for r in &map.readiness {
+            add_source(&format!("run.readiness.{}.reached", r.name), &r.reached);
+            add_source(&format!("run.readiness.{}.observed", r.name), &r.observed);
+        }
+    }
+    let mut result = Vec::new();
+    for token in tokens {
+        for (via, name) in std::iter::once((MatchedName::Destination, key))
+            .chain(sources.iter().map(|s| (MatchedName::Source, s.as_str())))
+        {
+            if matches(token, name) {
+                let matched = TokenMatch {
+                    token: token.clone(),
+                    via,
+                    name: name.into(),
+                };
+                if !result.contains(&matched) {
+                    result.push(matched);
+                }
+            }
+        }
+    }
+    result
+}
 fn known(value: Option<&Value>) -> bool {
     value.is_some()
 }
@@ -673,6 +738,7 @@ fn finding(key: &str, a: &crate::meta::Meta, b: &crate::meta::Meta, reason: &str
         baseline_state: state(a.get(key)).into(),
         capture_state: state(b.get(key)).into(),
         reason: reason.into(),
+        token_matches: Vec::new(),
     }
 }
 pub(crate) fn readiness(meta: &mut crate::meta::Meta) {
@@ -734,6 +800,7 @@ fn check_mapped(
 ) -> Check {
     let derived = derived_keys(map, vary);
     let mut covered_by_derivation = Vec::new();
+    let mut covered_by_vary = Vec::new();
     let (mut a, mut b) = (a.clone(), b.clone());
     null_objects(&mut a, &mut b);
     let mut bad = Vec::new();
@@ -947,15 +1014,19 @@ fn check_mapped(
         } else {
             None
         };
-        if reason.is_none() && av == Some(&Value::Null) && ignore.iter().any(|t| matches(t, key)) {
-            ignored.push(finding(key, &a, &b, "equal_null"));
+        let vary_matches = token_matches(vary, key, map);
+        let ignore_matches = token_matches(ignore, key, map);
+        if reason.is_none() && av == Some(&Value::Null) && !ignore_matches.is_empty() {
+            let mut f = finding(key, &a, &b, "equal_null");
+            f.token_matches = ignore_matches.clone();
+            ignored.push(f);
         }
         if let Some(reason) = reason {
-            let f = finding(key, &a, &b, reason);
+            let mut f = finding(key, &a, &b, reason);
             if reason == "difference"
                 && key != "fingerprint.schema"
                 && !(key.starts_with("run.readiness.") && key.ends_with(".criterion"))
-                && !vary.iter().any(|t| matches(t, key))
+                && vary_matches.is_empty()
                 && derived.contains(key)
             {
                 covered_by_derivation.push(finding(key, &a, &b, "covered_by_derivation"));
@@ -963,15 +1034,19 @@ fn check_mapped(
                 && key != "fingerprint.schema"
                 && key != "run.session"
                 && !(key.starts_with("run.readiness.") && key.ends_with(".criterion"))
-                && ignore.iter().any(|t| matches(t, key))
+                && !ignore_matches.is_empty()
             {
+                f.token_matches = ignore_matches;
                 ignored.push(f);
             } else if reason != "difference"
                 || key == "fingerprint.schema"
                 || (key.starts_with("run.readiness.") && key.ends_with(".criterion"))
-                || !vary.iter().any(|t| matches(t, key))
+                || vary_matches.is_empty()
             {
                 bad.push(f);
+            } else {
+                f.token_matches = vary_matches;
+                covered_by_vary.push(f);
             }
         }
     }
@@ -986,9 +1061,11 @@ fn check_mapped(
                 && !(f.key.starts_with("run.readiness.") && f.key.ends_with(".criterion")))
             || (f.reason == "malformed"
                 && (f.baseline_state == "null" || f.capture_state == "null")))
-            && ignore.iter().any(|t| matches(t, &f.key))
+            && !token_matches(ignore, &f.key, map).is_empty()
         {
-            ignored.push(f.clone());
+            let mut f = f.clone();
+            f.token_matches = token_matches(ignore, &f.key, map);
+            ignored.push(f);
             false
         } else {
             true
@@ -1019,6 +1096,7 @@ fn check_mapped(
         offending: bad,
         ignore: ignore.to_vec(),
         ignored,
+        covered_by_vary,
         covered_by_derivation,
         allowed_unreached,
         diagnostics: Vec::new(),
@@ -1138,6 +1216,7 @@ pub fn validate_paths(a: &Path, b: &Path, cfg: &crate::config::RunConfig) -> Res
                 .offending
                 .iter_mut()
                 .chain(&mut c.ignored)
+                .chain(&mut c.covered_by_vary)
                 .chain(&mut c.covered_by_derivation)
             {
                 f.key = format!("{key}:{}", f.key);
@@ -1156,6 +1235,7 @@ pub fn validate_paths(a: &Path, b: &Path, cfg: &crate::config::RunConfig) -> Res
         merged.outcomes.keys.extend(c.outcomes.keys);
         merged.offending.extend(c.offending);
         merged.ignored.extend(c.ignored);
+        merged.covered_by_vary.extend(c.covered_by_vary);
         merged.covered_by_derivation.extend(c.covered_by_derivation);
         merged.allowed_unreached.extend(c.allowed_unreached);
         merged.diagnostics.extend(c.diagnostics);
@@ -1168,6 +1248,8 @@ pub fn validate_paths(a: &Path, b: &Path, cfg: &crate::config::RunConfig) -> Res
     merged.offending.dedup();
     merged.ignored.sort_by(|a, b| a.key.cmp(&b.key));
     merged.ignored.dedup();
+    merged.covered_by_vary.sort_by(|a, b| a.key.cmp(&b.key));
+    merged.covered_by_vary.dedup();
     merged
         .covered_by_derivation
         .sort_by(|a, b| a.key.cmp(&b.key));
@@ -1650,6 +1732,136 @@ mod field_feedback_tests {
             assert_eq!(c.outcomes.count, 2);
             assert_eq!(c.outcomes.keys, ["timing.cpu", "timing.gpu"]);
             assert!(!c.unmapped.keys.contains(&"timing.gpu".into()));
+        }
+    }
+    #[test]
+    fn mapped_tokens_report_destination_and_source_matches() {
+        for compare in [CompareMode::All, CompareMode::MappedOnly] {
+            let mut map = selected_map(compare);
+            map.fields.insert(
+                "inputs.identity".into(),
+                Source {
+                    file: None,
+                    path: "content.hash".into(),
+                    derives: vec!["cache_key".into()],
+                },
+            );
+            let mut a = arm();
+            // Canonicalization removes mapped record sources; use only effective fields here.
+            a.retain(|key, _| !key.starts_with("content."));
+            let mut b = a.clone();
+            b.insert("inputs.identity".into(), json!("recooked"));
+            assert_eq!(check_mapped(&a, &b, &[], &[], Some(&map), &[]).exit_code, 3);
+            for (token, via, name) in [
+                (
+                    "inputs.identity",
+                    MatchedName::Destination,
+                    "inputs.identity",
+                ),
+                ("inputs", MatchedName::Destination, "inputs.identity"),
+                ("inputs.*", MatchedName::Destination, "inputs.identity"),
+                ("*.identity", MatchedName::Destination, "inputs.identity"),
+                ("content.hash", MatchedName::Source, "content.hash"),
+                ("content", MatchedName::Source, "content.hash"),
+                ("content.*", MatchedName::Source, "content.hash"),
+                ("*.hash", MatchedName::Source, "content.hash"),
+                ("hash", MatchedName::Source, "content.hash"),
+            ] {
+                let expected = vec![TokenMatch {
+                    token: token.into(),
+                    via,
+                    name: name.into(),
+                }];
+                for ignore in [false, true] {
+                    let tokens = vec![token.into()];
+                    let (vary, ignores) = if ignore {
+                        (&[][..], tokens.as_slice())
+                    } else {
+                        (tokens.as_slice(), &[][..])
+                    };
+                    let c = check_mapped(&a, &b, vary, ignores, Some(&map), &[]);
+                    assert_eq!(c.exit_code, 0, "{token} ignore={ignore}");
+                    let fields = if ignore { c.ignored } else { c.covered_by_vary };
+                    assert_eq!(fields.len(), 1);
+                    assert_eq!(fields[0].key, "inputs.identity");
+                    assert_eq!(fields[0].token_matches, expected);
+                }
+            }
+            for token in ["contents", "*.hashes", "other.hash"] {
+                assert_eq!(
+                    check_mapped(&a, &b, &[token.into()], &[], Some(&map), &[]).exit_code,
+                    3
+                );
+                assert_eq!(
+                    check_mapped(&a, &b, &[], &[token.into()], Some(&map), &[]).exit_code,
+                    3
+                );
+            }
+            let c = check_mapped(&a, &b, &["*".into()], &[], Some(&map), &[]);
+            assert_eq!(c.covered_by_vary[0].token_matches.len(), 2);
+            let mut missing = b.clone();
+            missing.remove("inputs.identity");
+            assert_eq!(
+                check_mapped(&a, &missing, &["content".into()], &[], Some(&map), &[]).exit_code,
+                4
+            );
+            let c = check_mapped(&a, &missing, &[], &["content".into()], Some(&map), &[]);
+            assert_eq!(c.exit_code, 0);
+            assert!(
+                c.ignored
+                    .iter()
+                    .all(|f| f.token_matches[0].via == MatchedName::Source)
+            );
+            let mut null = a.clone();
+            null.insert("inputs.identity".into(), Value::Null);
+            let c = check_mapped(&null, &null, &[], &["content".into()], Some(&map), &[]);
+            assert_eq!(c.ignored[0].reason, "equal_null");
+            assert_eq!(c.ignored[0].token_matches[0].name, "content.hash");
+            assert!(derived_keys(Some(&map), &["content".into()]).contains("cache_key"));
+            assert!(!derived_keys(Some(&map), &[]).contains("cache_key"));
+            map.fields.insert(
+                "run.env".into(),
+                Source {
+                    file: Some("setup.json".into()),
+                    path: "environment".into(),
+                    derives: vec![],
+                },
+            );
+            let matched = token_matches(&["environment.mode".into()], "run.env.mode", Some(&map));
+            assert_eq!(matched[0].name, "environment.mode");
+            assert_eq!(matched[0].via, MatchedName::Source);
+            map.readiness.push(ReadinessMap {
+                name: "warmup".into(),
+                parameters: BTreeMap::new(),
+                unreached_policy: UnreachedPolicy::Refuse,
+                reached: Source {
+                    file: None,
+                    path: "receiver.ready".into(),
+                    derives: vec![],
+                },
+                observed: Source {
+                    file: None,
+                    path: "receiver.observed".into(),
+                    derives: vec![],
+                },
+            });
+            let mut unreached = a.clone();
+            unreached.get_mut("run.readiness").unwrap()[0]["reached"] = json!(false);
+            for ignore in [false, true] {
+                let tokens = vec!["receiver".into()];
+                let (vary, ignores) = if ignore {
+                    (&[][..], tokens.as_slice())
+                } else {
+                    (tokens.as_slice(), &[][..])
+                };
+                let c = check_mapped(&a, &unreached, vary, ignores, Some(&map), &[]);
+                assert_eq!(c.exit_code, 3);
+                assert!(
+                    c.offending
+                        .iter()
+                        .any(|f| f.reason == "readiness_not_reached")
+                );
+            }
         }
     }
     #[test]
