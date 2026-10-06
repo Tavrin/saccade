@@ -2,7 +2,9 @@
 """Offline Wave 10 discovery, field contracts and pack-budget checks."""
 from pathlib import Path
 import json
+import tomllib
 root = Path(__file__).resolve().parents[1]
+version = tomllib.loads((root / 'Cargo.toml').read_text())['workspace']['package']['version']
 checks = {
     'docs/render-evidence.md': ['whole_frame_unmasked', '--require-scope', '--mask-dump',
         '--export-maps', '--noise-from', 'noise build', 'p95', 'lower confidence',
@@ -13,8 +15,12 @@ checks = {
     'docs/captures.md': ['schema get', 'perf validate'],
     'docs/python.md': ['__version__', 'compare_maps', 'NumPy'],
     'docs/wave7.md': ['fix_command', 'doctor', 'before reading pixels'],
-    'CHANGELOG.md': ['Unreleased'],
+    'CHANGELOG.md': [f'## {version}\n'],
 }
+assert tomllib.loads((root / 'crates/saccade-py/pyproject.toml').read_text())['project']['version'] == version
+server = json.loads((root / 'server.json').read_text())
+assert server['version'] == version
+assert all(package['version'] == version for package in server['packages'])
 for file, terms in checks.items():
     text = (root / file).read_text()
     for term in terms:
