@@ -1,276 +1,249 @@
+[![CI](https://img.shields.io/github/actions/workflow/status/Tavrin/saccade/ci.yml?branch=main&label=CI)](https://github.com/Tavrin/saccade/actions/workflows/ci.yml)
+[![crates.io](https://img.shields.io/crates/v/saccade.svg)](https://crates.io/crates/saccade)
+[![docs.rs](https://img.shields.io/docsrs/saccade)](https://docs.rs/saccade)
+[![License](https://img.shields.io/badge/license-MIT%20OR%20Apache--2.0-blue)](#license)
+[![MSRV](https://img.shields.io/badge/MSRV-1.89-blue)](Cargo.toml)
+[MCP Registry: io.github.Tavrin/saccade](https://registry.modelcontextprotocol.io/?q=io.github.Tavrin%2Fsaccade)
+
 # saccade
 
-saccade checks whether image captures and timings are good enough to support
-a claim about a change. `compare` measures image changes, `prove` checks exact image identity
-or performance claims, and `review` prepares a decision for a human. Captures
-are paired by name and scored with NVIDIA FLIP. Each run writes an offline HTML
-report and JSON evidence. Baselines change only when a human approves.
+saccade is a visual and performance evidence tool for humans, CI and AI agents.
+It measures perceptual differences, locates them in measured regions (with
+optional advisory observations), and checks them against the thresholds and
+policies you declare. It writes offline HTML reports and versioned JSON.
+Performance conclusions require comparable captures, timing provenance and
+repeat evidence. Only a human can approve a baseline.
 
 ![Report with image differences and numbered hotspots](docs/images/report.png)
 
-## Install
-
-Each release has four archives and a `SHA256SUMS` file:
-`saccade-x86_64-unknown-linux-gnu.tar.gz`, `saccade-aarch64-unknown-linux-gnu.tar.gz`,
-`saccade-aarch64-apple-darwin.tar.gz` and `saccade-x86_64-pc-windows-msvc.zip`.
-Download the one for your system from
-[Releases](https://github.com/Tavrin/saccade/releases), check it, extract it,
-and put `saccade` on your PATH:
-
-```sh
-sha256sum -c SHA256SUMS --ignore-missing
-tar -xzf saccade-x86_64-unknown-linux-gnu.tar.gz
-```
-
-On macOS use `shasum -a 256 -c SHA256SUMS --ignore-missing`.
-No Rust toolchain is needed. Each archive includes the licences and
-third-party notices. See [releasing](docs/releasing.md) for how releases are
-built and checked.
-
-To build from source with Cargo (Rust 1.89 or newer):
-
-```sh
-cargo install --locked --git https://github.com/Tavrin/saccade saccade
-```
-
-From a clone, `cargo install --locked --path crates/saccade` does the same.
-Add `--features prechecks` for the experimental safety and accessibility checks.
-
-Check the install with `saccade --version` or `saccade doctor --json`.
-
-### Optional Cargo features
-
-- `prechecks`: experimental safety and accessibility checks.
-- `products`: image delivery tuning with JPEG/lossless WebP and HTTP adapters.
-- `imgtune-avif`: adds AVIF encoding and native decoding to `products`; requires
-  the system **dav1d >= 1.3.0** development library and **pkg-config**. On Ubuntu
-  24.04 or newer, install `libdav1d-dev` and `pkg-config`. This requirement also
-  applies to `--all-features` builds and packaging. See
-  [image tuning prerequisites](docs/imgtune.md#system-prerequisites).
-
-## Quickstart (60 seconds)
+## Quickstart
 
 ```sh
 saccade demo --out saccade-demo
 saccade view saccade-demo
 ```
 
-The demo writes three reports and exits with status 1 on purpose, because it
-includes a moved shadow, a changed UI label and a missing capture. `view`
-prints the page to open, `saccade-demo/report/index.html`. To compare your own
-images:
+The demo exits 1 on purpose: it contains changed and missing captures.
+Open `saccade-demo/report/index.html` to see the result. The
+[quickstart walkthrough](docs/quickstart.md) has copyable examples for
+comparison, exact identity, configuration, evidence export and local review.
+
+## Use cases
+
+### Visual verification for coding agents
+
+The local MCP server reads registered capture roots and writes reports under a
+separate output root. Its tools cannot approve baselines. Agents can inspect
+bounded results and follow recorded next actions.
 
 ```sh
-saccade compare BASELINE_DIR CAPTURE_DIR --out report
-saccade prove identity PARENT_DIR CANDIDATE_DIR --out proof
+saccade mcp --root captures --out-root agent-reports
+saccade compare captures/before captures/after --out agent-reports/change --json
 ```
 
-Exit status 0 means no image regression, 1 means at least one image failed,
-and 2 means the command could not run. The result is in `report/index.html`.
-saccade does not use the network, a GPU or an account for any of this.
+See the [agent guide](docs/agents.md) and [MCP and plugin setup](docs/plugins.md).
 
-## Compare files or directories
+### CI visual regression
+
+The local Playwright package provides `toMatchSaccade` and capture stabilization.
+A sweep groups page pairs and records capture failures as failures.
 
 ```sh
-saccade compare examples/baseline/sphere_shadow.png examples/capture/sphere_shadow.png --out file-report
-saccade compare examples/baseline examples/capture --out directory-report --json
-saccade inspect directory-report/saccade-report.v1.json --status fail,error,missing,new --limit 5 --json
-saccade inspect evidence directory-report/saccade-report.v1.json --entry sphere_shadow.png --out evidence-pack
-saccade inspect export directory-report/saccade-report.v1.json --format png --entry sphere_shadow.png --out shadow.png
+node integrations/playwright/sweep.cjs sweep.json captures capture-options.json
+saccade sweep compare sweep.json --captures captures/captures.json --out sweep-report --json
 ```
 
-Both comparisons exit 1 because the example captures differ. The inspect and
-export commands exit 0 when they finish. The default metric is mean FLIP, the
-threshold is 0.01, and the viewing setting is 67 pixels per degree. Passing the
-threshold only means the configured criteria were met. It does not mean nobody
-would notice the change, or that the renderer is correct.
+See the [Playwright matcher](docs/playwright-matcher.md), [sweep](docs/sweep.md)
+and [CI integration](docs/ci.md). Sweep needs the optional `products` feature.
 
-Measurement settings, regions, masks, capture requirements and declared changes
-go in `saccade.toml`. Options given on the command line override the project
-values. `inspect config` shows the effective settings and where each came from.
+### Render and engine evidence
+
+Declared spatial policies distinguish `texture_noise_only` from
+`systematic_shift`. Required-effect checks can fail on an empty footprint;
+capture layers restrict measurement scope and fixed-camera sequences measure
+temporal stability. Supply the policies and capture provenance with your inputs.
 
 ```sh
-saccade init --template renderer --dir capture-project
-saccade inspect config --config capture-project/saccade.toml --entry scene.png --json
+saccade compare before after --config render-evidence.toml --out render-report --json
+saccade experiment sequence before-frames after-frames --fixed-camera --out temporal-report --json
 ```
 
-Images are paired by relative name, and new or missing images fail by
-default. A comparison with no images proves nothing. If captures carry
-metadata, saccade can refuse to compare images made under different settings;
-without metadata, comparability is left as unknown.
-See [capture configuration](docs/captures.md).
+See [rendering evidence](docs/render-evidence.md) and
+[engine capture ingestion](docs/engine-ingest.md).
 
-## Optimization identity
+### Image delivery tuning
 
-This uses the demo from the quickstart:
+Audit served formats and search declared encodings for a perceptual target.
+Local and URL-template adapters record bytes and content types and do not modify originals.
 
 ```sh
-saccade identity saccade-demo/identity/baseline saccade-demo/identity/capture --out identity-report --json
+saccade imgtune audit --urls images.txt --accept 'image/avif,image/webp,image/*' --out audit.json --json
+saccade imgtune search tuning.json --out tuning-report.json --json
 ```
 
-Exit 0 establishes exact native decoded-sample equality for the selected
-images. The demo's PNG files have different bytes but equal samples. The
-dimensions, sample type and channel interpretation must match, and every
-selected pair must exist and decode. Perceptual tolerances, masks and
-region-only acceptance are not accepted as proof of identity.
+See [image tuning](docs/imgtune.md). Enable `products`, plus `imgtune-avif` for AVIF.
 
-The proof only covers the captures supplied and the entries selected. Without
-capture metadata, saccade can still show that the samples are equal, but
-whether the captures are comparable stays unknown. Identical images on their
-own do not show that anything got faster.
-See [identity and performance](docs/identity-and-performance.md).
+### Media analysis records
 
-## Optional model review (bring your own key)
-
-Start with a local preview. These commands do not call a provider:
+A media record keeps status and provenance for metadata, quality, fingerprints
+and optional model sections. Disabled or failed sections are recorded as such.
+The Python package and local HTTP API use the same analysis path.
 
 ```sh
-saccade review directory-report/saccade-report.v1.json --out review-plan --json
-saccade review request file-report/saccade-report.v1.json --question triage.route.v1 --out triage-request.json
-saccade review ask triage-request.json --out human-review
+saccade analyze-media image.jpg --profile cpu-lite --output-size 1200x800 --json
+saccade keyframes video.mp4 --out frames --json
 ```
 
-The preview writes the exact payloads to `review-plan/requests.json`, with
-estimated tokens and, if you configure model rates, an estimated cost.
-The request uses the file report because every image in it is paired; a
-question cannot be created while required facts are missing. Each request
-identifies the exact evidence it refers to. `review propose` checks answers
-against a request and records them as advice. It cannot approve anything.
+See [media analysis](docs/media.md), [Python](docs/python.md) and [HTTP API](docs/api.md).
+Python wheels are built in CI and are not on PyPI yet.
 
-To call a provider, you configure the endpoints and dedicated credentials in
-your user configuration, allow egress for the source roots, and run
-`review REPORT --run --budget-calls N` yourself. Egress is denied for any root
-you have not classified. A project's files can pick from approved models and
-lower budgets, but cannot grant network, credential, path or approval
-authority. Retries and fallbacks all spend from the same attempt budget.
-See [review](docs/review.md) for the workflow and limits.
+### Single-image provenance and integrity
 
-## GitHub Action
-
-```yaml
-- uses: Tavrin/saccade@v1
-  with:
-    baseline-dir: tests/baseline
-    capture-dir: artifacts/captures
-```
-
-The `v1` tag has not been published yet; the snippet shows the intended
-syntax. By default the action installs a release binary and verifies its
-checksum. Set `install-mode: source` to build from source instead. The report
-and JUnit results are uploaded even when the comparison fails. Comparisons on
-fork pull requests need only read permission and no AI keys.
-
-The verdict, exit code, report URL and immutable artifact ID are separate
-outputs. Baseline updates run only from a trusted dispatch tied to the selected,
-reviewed content, and open a pull request for review that is never merged
-automatically.
-See [CI](docs/ci.md) and [Action examples](examples/action/README.md).
-
-## For AI agents
-
-Start with the [agent guide](docs/agents.md). It explains the bounded JSON
-results (`verdict`, `worst`, `next_actions`), how to page through failures,
-and what an agent may not do. Ready-made packs are generated from
-[one guide](integrations/agent-guide.md): a
-[Claude Code skill](integrations/claude-code/skills/saccade/SKILL.md) and
-[Codex instructions](integrations/codex/AGENTS.saccade.md).
+Inspect C2PA credentials, metadata and compression-history indicators without a
+baseline. Heuristics have stated limits and do not establish a real/fake verdict.
+GPS disclosure is opt-in; C2PA validation needs `credentials`.
 
 ```sh
-saccade mcp --root examples --out-root agent-reports
+saccade inspect-image received.jpg --output-size 1600x900 --out inspection --json
+saccade inspect-image received.png --hash-index hashes/saccade-hash.v1.json --out indexed-inspection --json
 ```
 
-The MCP server has six tools. It reads only from the `--root` directories
-(read-only) and writes only under `--out-root`. Provider calls stay off unless a
-human starts the server with `--allow-provider-calls` and a positive
-`--budget-calls`. None of the tools writes baselines. Agents must not relax a
-threshold or update a baseline to make a task pass.
+See [single-image inspection](docs/inspect-image.md).
 
-## Reproducible showcases
+### General comparison
+
+Pick registration, hashes, embedding similarity/search, OCR text differences,
+no-reference quality or document rasterization to fit the question.
+Model workflows require supplied pinned artifacts and the relevant features.
+
+```sh
+saccade compare before.png after.png --align similarity --out aligned-report --json
+saccade text before.png after.png --out text-report --json
+saccade assess image.jpg --out quality-report --json
+```
+
+See [choosing a comparison](docs/choosing-a-comparison.md),
+[registration](docs/registration.md), [hashing](docs/hashing.md),
+[embeddings and search](docs/embeddings.md), [OCR](docs/text.md),
+[quality](docs/assessment.md) and [documents](docs/documents.md).
+
+### Performance evidence
+
+Compare supplied timing sidecars using paired statistics and uncertainty
+intervals, or locate changes in a sequence. Saccade does not run the benchmark;
+missing or rejected provenance cannot qualify a speedup.
+
+```sh
+saccade compare before after --out perf-report --json
+saccade history onset --store history --json
+```
+
+See [paired statistics](docs/paired-performance.md),
+[change points](docs/wave1.md) and [identity/performance](docs/identity-and-performance.md).
+
+## Install
+
+Install with Rust 1.89 or newer:
+
+```sh
+cargo install saccade --version 0.2.0 --locked
+saccade doctor --json
+```
+
+To build this checkout, use `cargo install --locked --path crates/saccade`.
+[Release archives](https://github.com/Tavrin/saccade/releases) include checksums,
+licences and third-party notices. See [release instructions](docs/releasing.md).
+
+| Cargo features | Default? | Purpose and requirements |
+| --- | --- | --- |
+| `compression`, `parallel`, `graphics` | Yes | FLIP, compression scores, graphics and temporal measurements; CPU processing. |
+| `ai`, `evaluation` | Yes | Provider review adapters and evaluation; calls require explicit authorization and budgets. |
+| `workbench`, `mcp` | Yes | Local report browsing and bounded agent tools. |
+| `assist` | No | Experimental explain, mask audit, visible-condition checks and batch advice. |
+| `products` | No | Sweep, image tuning, design-source and notifier adapters. Browser captures separately need Node.js and Playwright. |
+| `imgtune-avif` | No | AVIF encoding/decoding; system dav1d >=1.3.0 development library and pkg-config. |
+| `semantic-regions`, `embeddings`, `local-models` | No | Pinned CPU model artifacts and dynamically loaded ONNX Runtime 1.22 (API 22). Runtime/model pulls are explicit provisioning operations; analysis never downloads them. |
+| `ocr`, `ocr-provider` | No | Local PP-OCRv5 Latin with pinned models/runtime; separately opt-in hosted document OCR with spend/egress controls. |
+| `documents`, `credentials` | No | SVG/PDF rasterization and offline C2PA validation. |
+| `media-http` | No | Bounded URL inputs for media analysis; network fetches require an explicit URL input. |
+| `local-vlm`, `vision-providers` | No | Configured local/hosted vision adapters; observations remain advice. |
+| `geometry`, `dense-motion`, `prechecks`, `schema` | No | Mesh measurements, dense motion, experimental safety/accessibility checks and schema generation. |
+
+Video extraction invokes external `ffmpeg` and `ffprobe`; neither is bundled.
+See [model/runtime provisioning](docs/wave7.md) and [AVIF prerequisites](docs/imgtune.md#system-prerequisites).
+Default comparisons need no provider account or GPU. Add optional features with
+`cargo install ... --features products,ocr`, for example.
+
+## Metrics and algorithms
+
+Each qualification covers only the recorded contract and evidence. A passing
+score does not prove correctness or that a difference is invisible.
+
+| Metric or algorithm | Qualification status and scope |
+| --- | --- |
+| Native decoded-sample identity | Exact equality contract; covers only supplied, complete pairs. |
+| NVIDIA FLIP / HDR-FLIP | Reference-backed implementation; viewing conditions and HDR mapping must be declared. |
+| SSIMULACRA2 / Butteraugli 0.9.3 | Reference checks recorded; perceptual targets are user policy. See [implementation evidence](docs/design-decisions/backlog-2026-10.md). |
+| ColorVideoVDP, numerical buffers, motion and mesh distances | Declared display/unit/frame/camera contracts; fixture checks do not qualify a consumer renderer. |
+| Registration; aHash/dHash/pHash; FAST/oriented-BRIEF matching | Generated-fixture validation; match confidence is uncalibrated. |
+| Embedding similarity and image/text retrieval | Pinned model/export provenance; retrieval calibration remains unqualified. |
+| PP-OCRv5 Latin and positional text diff | Generated strict and typographic contracts reviewed; [font-specific failures remain](docs/ocr-contract-results-2026-10-06.md). |
+| Blur, noise, blockiness, banding, clipping and forensic indicators | Descriptive, content-dependent heuristics; no authenticity qualification. |
+| Spatial classes, effect occupancy, layers and temporal tiles | Constructed/fixture contracts; no general renderer or physical-effect qualification. |
+| Paired Hodges–Lehmann estimates, bootstrap and change points | Constructed statistical checks; actual timing requires independent qualified runs. |
+| Safety/accessibility prechecks | Experimental checks; no certification or formal compliance. |
+| AI assist, Jev support and routing ([Jev](https://typesafe.ai) is a decision model from TypeSafe), blind-order handling | Unqualified in this release; experimental. |
+| LPIPS, DISTS, MUSIQ; TrustMark payload decoding | Deferred / unavailable; neural-only TrustMark inference does not decode payloads. |
+
+## AI layer
+
+AI observations are advisory. They cannot approve baselines, create exclusions,
+override deterministic failures, establish equality or qualify timing. Providers
+are opt-in, with source-root egress authorization, dedicated credential files and
+call/spend caps; image text and provider output are data, never instructions.
+
+The release qualification attempt with a $15 cap stopped at the prerequisite
+check, before any provider request or spend. No frozen corpus with an observed
+immutable Gemini revision or exact-source heavy receipt was supplied. Explain,
+mask audit, visible-condition checks, blind orders, Jev support, deterministic
+cascade routing and optional Jev evidence routing all remain **unqualified**.
+Assist commands still require `--experimental`; Jev routing stays off by default.
+See [assist workflows](docs/assist.md), [qualification policy](docs/assist-qualification.md)
+and the [release record](docs/release-020.md).
+
+## Known limitations
+
+- OCR can misread œ in large serif text and omit dashes with some sans fonts;
+  omitted characters and missing spaces before € remain errors.
+- Retrieval scores lack qualified calibration. Model/runtime smokes establish
+  execution, not production accuracy or export parity.
+- GI occupancy uses supplied masks/layers as a proxy; it does not prove physical
+  illumination, causality or correct rendering.
+- LPIPS, DISTS and MUSIQ remain deferred; TrustMark payload decoding is unavailable.
+- Captures define the evidence scope. Equal images do not establish application
+  correctness, and perceptual passes do not establish native sample identity.
+- Performance conclusions need matched workload, clocks, warmup and repeat noise.
+  Missing checks remain unknown; human approval records do not authenticate an operator.
+
+## Documentation and integrations
+
+- [Documentation](docs/choosing-a-comparison.md), [CLI reference](docs/cli.md)
+  and [JSON contracts/schemas](docs/contracts.md).
+- [MCP server and plugins](docs/plugins.md), [agent guide](docs/agents.md),
+  [Python package](docs/python.md) (CI wheels; not on PyPI),
+  [HTTP API](docs/api.md) and [CI](docs/ci.md).
+- [CHANGELOG](CHANGELOG.md), [release record](docs/release-020.md)
+  and [contributing](CONTRIBUTING.md).
 
 <!-- showcase-count:start -->
 [9 reproducible cases](showcases/README.md) with commands, expected exits and measured output.
 [Pages gallery](https://tavrin.github.io/saccade/showcase/).
 <!-- showcase-count:end -->
 
-The datasets are procedural, and simulated timings are labeled illustrative.
-Generating them needs Python 3, Pillow and numpy, but no network, GPU or
-provider. Validating the showcases needs a build with `--features prechecks`:
-
-```sh
-cargo build --release --locked -p saccade --features prechecks
-scripts/run-showcases.sh
-python3 docs/showcase/build.py --saccade target/release/saccade --out target/pages/showcase
-```
-
-Put the built binary on PATH before running the showcase script. The script
-checks exit codes and compares output against the measured `EXPECTED.txt`
-transcripts. It never accepts changed output on its own.
-
-## Status
-
-saccade 0.1.2 fixes the case-sensitive MCP Registry namespace.
-
-- Stable: `compare`, `identity`, `approve`, `view`, `inspect`, `init`,
-  `noise`, `demo`, `serve`, the local `review` preview and request commands,
-  the MCP server, the HTML and JSON reports, exit codes, and the GitHub Action
-  inputs. The active formats are listed in [contracts](docs/contracts.md).
-  Scripts should gate on `doctor --json` capability names
-  ([list](docs/contracts.md#build-identity-and-behavior-capabilities)).
-- Experimental, and their output may change: the `experiment` commands
-  (ablation, sequences, ranking, bisection, and the safety and accessibility
-  prechecks) and `review eval`.
-- AI review accuracy is not yet qualified. The pilot evaluation has fewer
-  labeled cases per question than qualification requires, so we make no claim
-  about how accurate any model's answers are, or which model does better.
-  Treat every model answer as a proposal for a human to check.
-  See [evaluation](docs/evaluation.md).
-
-Local tests do not cover native installation on each platform or the behaviour
-of live providers; those need their own checks.
-
-## Limits
-
-saccade only measures the captures it is given. It does not run your renderer
-or schedule captures, it cannot tell when your application is ready to be
-captured, and it does not treat equal images as proof of correct output. FLIP
-scores depend on viewing conditions, and HDR display transforms and numerical
-buffers have to be interpreted explicitly. When repeat noise is missing it is
-treated as unknown rather than zero. A performance claim needs qualified
-timing, repeat noise and attribution.
-
-A model cannot establish equality, qualify timing, approve a baseline, or turn
-a tie into an acceptance. If a model's answers contradict each other across the
-two blind orderings, or the intent is ambiguous, the item stays unresolved. For
-an independent blind review, the reviewer must not have the mapping or the
-implementation context; whoever created the private key cannot review blind.
-
-"Human-final" approval is a policy and an audit record. It does not
-authenticate anyone: a shell agent with unrestricted access can still run
-`saccade approve`. Workbench receipts
-record a scoped token attestation; CLI receipts record `human_attestation: null`.
-
-## Documentation
-
-- [Captures](docs/captures.md) and [identity/performance](docs/identity-and-performance.md)
-- [Review](docs/review.md), [agents](docs/agents.md), [CI](docs/ci.md)
-- [Exclusion audits, performance onset, geometry and motion](docs/wave1.md)
-- [History drift, quality sweeps, capture inventory, localized checks and grounded explanations](docs/wave2.md)
-- [Brand, theme and accessibility review](docs/brand-review.md) and [UI/agent change review](docs/ui-review.md)
-- [Paired performance evidence](docs/paired-performance.md)
-- [Contracts and generated schema index](docs/contracts.md)
-- [Evaluation](docs/evaluation.md), [command reference](docs/cli.md), [experimental checks](docs/experimental.md)
-- [Architecture](docs/design.md), [contributing](CONTRIBUTING.md), [changes](CHANGELOG.md)
-
 ## License
 
-saccade is licensed under either of [MIT](LICENSE-MIT) or
-[Apache-2.0](LICENSE-APACHE), at your option. FLIP comes from the pure-Rust
-[flip-rs](https://crates.io/crates/flip-rs) port of NVIDIA FLIP, which is
-BSD-3-Clause. See [third-party notices](THIRD_PARTY.md); release archives
-also carry a generated `THIRD_PARTY_NOTICES.md` covering every dependency.
+[MIT](LICENSE-MIT) OR [Apache-2.0](LICENSE-APACHE), at your option.
+FLIP uses the BSD-3-Clause `flip-rs` port. See [third-party notices](THIRD_PARTY.md);
+release archives also include generated dependency notices.
 
-MCP Registry name: `mcp-name: io.github.Tavrin/saccade`
-
-Dense motion and renderer-vector conventions: [workflow](docs/dense-motion.md).
-
-Asset and LOD evidence: [geometry with supplied camera views](docs/asset-lod-review.md).
+MCP Registry ownership: `mcp-name: io.github.Tavrin/saccade`

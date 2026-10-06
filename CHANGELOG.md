@@ -5,19 +5,9 @@ All notable changes to this project are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [Unreleased]
+## [0.2.0] - 2026-10-06
 
-- Replace the local ocRs adapter with pinned PP-OCRv5 Latin; add optional,
-  explicitly selected Mistral document OCR with fixture-tested spend/egress controls.
-  Coordinator-reviewed generated OCR contracts retain unchanged strict scoring,
-  expectations and thresholds, with a declared typographic-equivalence view for
-  curly apostrophes, narrow/nonbreaking/thin spaces and en/em dashes. Omitted
-  characters remain errors; accent-stripping controls without accents are N/A.
-  Known limitations: œ misread in serif at large sizes (DejaVu Serif/48
-  `cœur` → `cæur`) and dash omission with some sans fonts (Liberation Sans).
-  Missing spaces before `€` also remain errors. See
-  [both scores for every case](docs/ocr-contract-results-2026-10-06.md).
-  Live Mistral API/billing behavior remains unqualified.
+### Added
 
 - Add opt-in rendering evidence: required effect occupancy, intended experiment
   variables, spatial and layer scope, automatic evidence regions, fixed-camera
@@ -33,7 +23,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   compatible/Azure provider mappings are verified with fixtures only.
 - Add pinned official SigLIP 2 checkpoint/tokenizer provenance and a reproducible
   CPU export script; text retrieval requires that joint model and remains uncalibrated.
-
 - Add experimental `review explain`, `review audit-mask`, `review check-ui` and
   `review assist batch submit|status|collect`; optional Jev routing remains unqualified.
 - Add the local Playwright matcher, `sweep plan|compare`, `imgtune audit|search`,
@@ -43,10 +32,37 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `capabilities` and comparison question routing.
 - Add optional SVG/PDF rendering, offline C2PA validation and pinned Rust OCR.
   Model, OCR readability, forensic specificity and broad renderer qualification
-  retain the limits recorded in their evidence and documentation.
-- Raise the MSRV to Rust 1.89 and upgrade Butteraugli to 0.9.3; remove the vendored compatibility patch.
+  keep the limits recorded in their evidence and documentation.
+- Add vision commands and explicit face/crop/watermark observations in image
+  reports, fixture-only hosted mappings and advisory check-ui localization.
+  Shared model contracts retain legacy readers. Browser/sweep masks neutralize
+  excluded pixels before filtering; core score-exclusion defaults remain.
+  Model export/parity and generated OCR review keep separate qualification gates.
 
-- Round 2 integration adds Wave 7 vision commands and explicit face/crop/watermark observations in image reports, fixture-only hosted mappings and advisory check-ui localization. Shared model contracts retain legacy readers. Dynamic browser/sweep masks neutralize excluded pixels before filtering; core score-exclusion defaults remain. Model export/parity and generated OCR contract review are separate qualification gates.
+### Changed
+
+- Raise the MSRV to Rust 1.89 and upgrade Butteraugli to 0.9.3; remove the
+  vendored compatibility patch.
+- Replace the local ocRs adapter with pinned PP-OCRv5 Latin on CPU ONNX Runtime
+  1.22. Add explicitly selected Mistral document OCR with fixture-tested spend
+  and egress controls. Strict scores, expectations and thresholds stay unchanged;
+  a separate declared typographic-equivalence view handles curly apostrophes,
+  narrow/nonbreaking/thin spaces and en/em dashes.
+- Update Cargo, Python, plugin and MCP Registry release metadata to 0.2.0.
+
+### Known limitations
+
+- PP-OCRv5 can misread œ in large serif text and omit dashes with some sans
+  fonts. Missing spaces before € remain errors. See the
+  [strict and typographic scores](docs/ocr-contract-results-2026-10-06.md).
+  Live Mistral API and billing behavior remains unqualified.
+- Constructed AI assist qualification could not start: the release has no frozen
+  corpus with an observed immutable Gemini revision or exact-source gate receipt.
+  All assist features remain experimental and unqualified; no provider spend occurred.
+- Image/text retrieval calibration remains unqualified. GI effect occupancy is a
+  supplied proxy, not proof of physical illumination or causality.
+- LPIPS, DISTS and MUSIQ exports remain deferred. TrustMark neural inference
+  does not establish payload decoding.
 
 ## [0.1.2]
 
@@ -150,7 +166,7 @@ Pre-release flags fail with an error that names the replacement.
 | `--compat` | `--json` and `inspect export --format json` |
 | `approve --force` | `approve --dry-run`, then `approve --decisions` |
 
-[Unreleased]: https://github.com/Tavrin/saccade/compare/v0.1.2...HEAD
+[0.2.0]: https://github.com/Tavrin/saccade/compare/v0.1.2...v0.2.0
 [0.1.2]: https://github.com/Tavrin/saccade/compare/v0.1.1...v0.1.2
 [0.1.1]: https://github.com/Tavrin/saccade/compare/v0.1.0...v0.1.1
 [0.1.0]: https://github.com/Tavrin/saccade/releases/tag/v0.1.0
