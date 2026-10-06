@@ -44,6 +44,14 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "description": "Validity only; this result never contains a pixel pass/fail verdict.",
   "properties": {
+    "covered_by_derivation": {
+      "default": [],
+      "description": "Differences covered by explicit field derivations, with both values.",
+      "items": {
+        "$ref": "#/$defs/Finding"
+      },
+      "type": "array"
+    },
     "exit_code": {
       "description": "0 valid, 3 invalid difference/readiness, 4 missing identity.",
       "format": "uint8",

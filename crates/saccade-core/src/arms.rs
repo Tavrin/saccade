@@ -111,6 +111,9 @@ pub struct Check {
     pub ignore: Vec<String>,
     /// Ignored differences (missing identity is never ignored).
     pub ignored: Vec<Finding>,
+    /// Differences covered by explicit field derivations, with both values.
+    #[serde(default)]
+    pub covered_by_derivation: Vec<Finding>,
     /// Declared variable tokens.
     pub vary: Vec<String>,
 }
@@ -122,6 +125,9 @@ pub struct Source {
     pub file: Option<String>,
     /// Dotted object path (exact flat keys are also supported).
     pub path: String,
+    /// Effective metadata keys computed from this mapped field.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub derives: Vec<String>,
 }
 /// Map a producer readiness flag to a named generic criterion.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -199,8 +205,25 @@ impl FingerprintMap {
                 safe_sibling(Path::new("."), file)?;
             }
         }
+        for source in map.fields.values() {
+            if source.derives.len() > 128
+                || source
+                    .derives
+                    .iter()
+                    .any(|k| k.trim().is_empty() || k.contains(['*', '?', '[', '{']))
+            {
+                return Err(Error::Config(
+                    "derives requires at most 128 exact nonempty keys per field".into(),
+                ));
+            }
+        }
         let mut names = BTreeSet::new();
         for r in &map.readiness {
+            if !r.reached.derives.is_empty() || !r.observed.derives.is_empty() {
+                return Err(Error::Config(
+                    "derives is supported only in field mappings".into(),
+                ));
+            }
             if r.name.trim().is_empty() || !names.insert(&r.name) {
                 return Err(Error::Config(
                     "readiness mapping names must be nonempty and unique".into(),
@@ -209,6 +232,24 @@ impl FingerprintMap {
         }
         Ok(map)
     }
+}
+/// Resolve explicit derivations from varied canonical fields; ignores never activate them.
+pub(crate) fn derived_keys(map: Option<&FingerprintMap>, vary: &[String]) -> BTreeSet<String> {
+    let mut covered = BTreeSet::new();
+    if let Some(map) = map {
+        loop {
+            let before = covered.len();
+            for (key, source) in &map.fields {
+                if vary.iter().any(|t| matches(t, key)) || covered.contains(key) {
+                    covered.extend(source.derives.iter().cloned());
+                }
+            }
+            if covered.len() == before {
+                break;
+            }
+        }
+    }
+    covered
 }
 fn safe_sibling(root: &Path, file: &str) -> Result<PathBuf> {
     if file.is_empty()
@@ -484,6 +525,17 @@ pub fn check(
     vary: &[String],
     ignore: &[String],
 ) -> Check {
+    check_mapped(a, b, vary, ignore, None)
+}
+fn check_mapped(
+    a: &crate::meta::Meta,
+    b: &crate::meta::Meta,
+    vary: &[String],
+    ignore: &[String],
+    map: Option<&FingerprintMap>,
+) -> Check {
+    let derived = derived_keys(map, vary);
+    let mut covered_by_derivation = Vec::new();
     let (mut a, mut b) = (a.clone(), b.clone());
     let mut bad = Vec::new();
     for key in [
@@ -596,6 +648,13 @@ pub fn check(
             let f = finding(key, &a, &b, reason);
             if reason == "difference"
                 && key != "fingerprint.schema"
+                && !(key.starts_with("run.readiness.") && key.ends_with(".criterion"))
+                && !vary.iter().any(|t| matches(t, key))
+                && derived.contains(key)
+            {
+                covered_by_derivation.push(finding(key, &a, &b, "covered_by_derivation"));
+            } else if reason == "difference"
+                && key != "fingerprint.schema"
                 && key != "run.session"
                 && !(key.starts_with("run.readiness.") && key.ends_with(".criterion"))
                 && ignore.iter().any(|t| matches(t, key))
@@ -630,6 +689,7 @@ pub fn check(
         offending: bad,
         ignore: ignore.to_vec(),
         ignored,
+        covered_by_derivation,
         vary: vary.to_vec(),
     }
 }
@@ -640,11 +700,12 @@ pub fn check_paths(a: &Path, b: &Path, opts: &crate::meta::MetaOptions) -> Resul
         .as_deref()
         .map(FingerprintMap::read)
         .transpose()?;
-    Ok(check(
+    Ok(check_mapped(
         &load(a, &opts.name, map.as_ref())?,
         &load(b, &opts.name, map.as_ref())?,
         &opts.intended,
         &opts.ignore,
+        map.as_ref(),
     ))
 }
 /// Refuse strict comparisons before output or measurements, including per-image overrides.
@@ -687,13 +748,19 @@ pub fn validate_paths(a: &Path, b: &Path, cfg: &crate::config::RunConfig) -> Res
             {
                 continue;
             }
-            let mut c = check(
+            let mut c = check_mapped(
                 &load_named(a, key, &cfg.meta.name, map.as_ref())?,
                 &load_named(b, key, &cfg.meta.name, map.as_ref())?,
                 &cfg.meta.intended,
                 &cfg.meta.ignore,
+                map.as_ref(),
             );
-            for f in &mut c.offending {
+            for f in c
+                .offending
+                .iter_mut()
+                .chain(&mut c.ignored)
+                .chain(&mut c.covered_by_derivation)
+            {
                 f.key = format!("{key}:{}", f.key);
             }
             checks.push(c);
@@ -708,6 +775,7 @@ pub fn validate_paths(a: &Path, b: &Path, cfg: &crate::config::RunConfig) -> Res
     for c in checks {
         merged.offending.extend(c.offending);
         merged.ignored.extend(c.ignored);
+        merged.covered_by_derivation.extend(c.covered_by_derivation);
         merged.exit_code = merged.exit_code.max(c.exit_code);
     }
     if merged.exit_code != 0 {
@@ -717,6 +785,10 @@ pub fn validate_paths(a: &Path, b: &Path, cfg: &crate::config::RunConfig) -> Res
     merged.offending.dedup();
     merged.ignored.sort_by(|a, b| a.key.cmp(&b.key));
     merged.ignored.dedup();
+    merged
+        .covered_by_derivation
+        .sort_by(|a, b| a.key.cmp(&b.key));
+    merged.covered_by_derivation.dedup();
     Ok(merged)
 }
 

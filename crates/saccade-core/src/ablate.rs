@@ -42,6 +42,9 @@ pub struct Arm {
     /// Intended keys and observed values, distinct from undeclared configuration differences.
     #[serde(default)]
     pub intended_variables: Vec<crate::report::MetaDiff>,
+    /// Differences covered by explicit fingerprint-map derivations, with both values.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub covered_by_derivation: Vec<crate::report::MetaDiff>,
     /// Intended-variable patterns for this arm.
     #[serde(default)]
     pub intended_keys: Vec<String>,
@@ -121,6 +124,11 @@ impl Arm {
             .into_iter()
             .collect();
         Self {
+            covered_by_derivation: report
+                .entries
+                .iter()
+                .flat_map(|e| e.covered_by_derivation.clone())
+                .collect(),
             intended_variables: report
                 .entries
                 .iter()

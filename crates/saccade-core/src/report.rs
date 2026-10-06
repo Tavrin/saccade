@@ -309,6 +309,9 @@ pub struct Entry {
     /// Intended metadata variables with before/after values, including unchanged keys.
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub intended_variables: Vec<MetaDiff>,
+    /// Differences covered by explicit fingerprint-map derivations, with both values.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub covered_by_derivation: Vec<MetaDiff>,
     /// Opt-in effect occupancy and region measurements (wave9).
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub required_effects: Vec<crate::evidence_quality::effect::EffectResult>,

@@ -459,3 +459,97 @@ fn standalone_result_obeys_its_schema_and_invalid_has_no_pixel_verdict() {
     invalid["result"] = json!("pass");
     assert!(!validator.is_valid(&invalid));
 }
+
+#[test]
+fn mapped_binary_derivation_is_visible_and_requires_a_declaration() {
+    let tmp = tempfile::tempdir().unwrap();
+    let (a, b) = captures(tmp.path());
+    for (root, binary, cache) in [
+        (&a, "sha256:before", "cache-before"),
+        (&b, "sha256:after", "cache-after"),
+    ] {
+        let mut m = metadata();
+        m["fingerprint"]["producer"]["binary"] = json!(binary);
+        m["cache_key"] = json!(cache);
+        write(&root.join("saccade-meta.json"), &m);
+    }
+    let map = tmp.path().join("map.toml");
+    for derives in [true, false] {
+        std::fs::write(
+            &map,
+            format!(
+                "[fields.\"producer.binary\"]\npath = \"fingerprint.producer.binary\"\n{}",
+                if derives {
+                    "derives = [\"cache_key\"]\n"
+                } else {
+                    ""
+                }
+            ),
+        )
+        .unwrap();
+        let code = if derives { 0 } else { 3 };
+        for token in ["producer.binary", "binary", "producer.*"] {
+            let v = run(
+                &[
+                    "arms",
+                    "check",
+                    path(&a),
+                    path(&b),
+                    "--fingerprint-map",
+                    path(&map),
+                    "--vary",
+                    token,
+                    "--json",
+                ],
+                code,
+            );
+            if derives {
+                assert_eq!(v["offending"], json!([]));
+                assert_eq!(v["ignored"], json!([]));
+                assert_eq!(
+                    v["covered_by_derivation"],
+                    json!([{"key":"frame.png:cache_key","baseline":"cache-before","capture":"cache-after","reason":"covered_by_derivation"}])
+                );
+            } else {
+                assert_eq!(v["offending"][0]["key"], "frame.png:cache_key");
+                assert_eq!(v["covered_by_derivation"], json!([]));
+            }
+        }
+        let cfg = tmp.path().join("config.toml");
+        std::fs::write(&cfg, "require_valid_arms = true\nfingerprint_map = \"map.toml\"\nintended_variables = [\"binary\"]\n").unwrap();
+        let out = tmp
+            .path()
+            .join(if derives { "covered" } else { "undeclared" });
+        run(
+            &[
+                "compare",
+                path(&a),
+                path(&b),
+                "--config",
+                path(&cfg),
+                "--out",
+                path(&out),
+                "--json",
+            ],
+            code,
+        );
+        if derives {
+            let report: Value =
+                serde_json::from_slice(&std::fs::read(out.join("saccade-report.v1.json")).unwrap())
+                    .unwrap();
+            assert_eq!(
+                report["entries"][0]["covered_by_derivation"],
+                json!([{"key":"cache_key","baseline":"cache-before","capture":"cache-after"}])
+            );
+            assert_eq!(
+                report["entries"][0]["meta_diff"]
+                    .as_array()
+                    .map(Vec::len)
+                    .unwrap_or(0),
+                0
+            );
+        } else {
+            assert!(!out.exists());
+        }
+    }
+}

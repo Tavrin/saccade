@@ -1289,6 +1289,13 @@
           },
           "type": "array"
         },
+        "covered_by_derivation": {
+          "description": "Differences covered by explicit fingerprint-map derivations, with both values.",
+          "items": {
+            "$ref": "#/$defs/MetaDiff"
+          },
+          "type": "array"
+        },
         "diagnostics": {
           "anyOf": [
             {

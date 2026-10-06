@@ -18,12 +18,12 @@ and `arm_ignore = ["capture.timestamp"]`. Config mapping paths resolve relative
 to the config file; command-line mapping paths resolve relative to the command.
 
 Strict mode refuses measurement if any fingerprint or metadata field differs
-outside the intended variables or explicit ignores. There are no automatic
+outside the intended variables, explicit derivations or ignores. There are no automatic
 timing, timestamp or run-ID exceptions. Missing, null or empty identity never
 counts as equal, including when both sides omit it or it is varied/ignored.
 It checks every selected image's inherited and per-image metadata and every
 supplied ablation repeat before exclusions. Session differences require an
-explicit intended-variable declaration. Default comparisons retain warning
+intended-variable or derivation declaration. Default comparisons retain warning
 behavior. Fingerprint differences appear by canonical field name in metadata
 reports, including under a field mapping.
 
@@ -96,7 +96,7 @@ hash claims or infer prepared-input identity from pixel similarity.
 ## Mapping existing producer records
 
 `--fingerprint-map FILE` accepts TOML or JSON. `fields` maps canonical
-fingerprint destinations to `{path, file?}` sources. `path` is a dotted object
+fingerprint destinations to `{path, file?, derives?}` sources. `path` is a dotted object
 path, with exact flat keys taking precedence. An omitted `file` selects the
 primary capture record/effective inherited sidecar. A `file` selects a sibling
 JSON file relative to the arm's capture root (or the JSON/image parent for
@@ -115,6 +115,26 @@ canonical keys; other primary metadata and sibling metadata remain comparable
 The mapping itself binds readiness parameters; use the same mapping for both
 arms and retain it with pipeline configuration.
 
+A field's optional `derives` list names exact effective metadata keys computed
+from that field. For example, a cache key that includes the executable hash:
+
+```toml
+[fields."producer.binary"]
+path = "exe.hash"
+derives = ["cache_key"]
+```
+
+When `--vary binary` (or a declared intended variable) covers `producer.binary`,
+a changed `cache_key` is reported separately as **covered by derivation** in
+`covered_by_derivation`, with both baseline and capture values. It is not an
+extra difference and does not cause exit 3. Without `derives`, that same cache
+change remains undeclared and exits 3. Targets use canonical keys after mapping,
+or unmapped primary keys / `file:NAME.KEY` sibling keys; no target globs are
+accepted. Each field allows at most 128 derived keys. Explicit chains propagate
+coverage; cycles alone grant none. Ignores do not activate derivations.
+Missing or malformed identity and readiness failures still refuse comparison. These are producer declarations,
+not verification that the values were actually computed from one another.
+
 See the runnable [generic example](../examples/arm-validity/fingerprint-map.toml).
 Its generated text fixtures bind a binary, source revision and dirty/diff
 state, prepared input identity, environment, mode and session. Try:
@@ -131,7 +151,8 @@ represent synthetic identities, not external assets.
 
 The [result schema](../crates/saccade-core/schemas/saccade-arms-check.v1.schema.json)
 uses `schema: saccade-arms-check.v1`, `result: valid_comparison` or
-`invalid_comparison`, `exit_code`, `offending`, `vary`, `ignore`, and `ignored`.
+`invalid_comparison`, `exit_code`, `offending`, `vary`, `ignore`, `ignored`, and
+`covered_by_derivation`.
 Each finding contains its canonical key, baseline and capture JSON values
 (null for absence), and a reason. Directory findings prefix keys with their
 image name. A refusal has no pass/fail verdict and produces no measurement

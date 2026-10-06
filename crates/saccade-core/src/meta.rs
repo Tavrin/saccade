@@ -224,6 +224,7 @@ pub struct MetaChecker {
 /// Checked metadata, including differences that were permitted or ignored.
 pub(crate) struct CheckedMeta {
     pub intended: Vec<MetaDiff>,
+    pub covered_by_derivation: Vec<MetaDiff>,
     pub diff: Vec<MetaDiff>,
     pub ignored: Vec<MetaDiff>,
     pub unchanged: Vec<String>,
@@ -564,7 +565,37 @@ impl MetaChecker {
                 capture: cm.get(k).map_or_else(|| ABSENT.into(), render),
             })
             .collect();
+        let map = self
+            .fingerprint_map
+            .as_deref()
+            .map(crate::arms::FingerprintMap::read)
+            .transpose()
+            .map_err(|e| e.to_string())?;
+        let derived = crate::arms::derived_keys(map.as_ref(), &self.settings.intended);
+        let is_derived = |key: &str| {
+            derived.contains(key)
+                && !self.is_intended(key)
+                && key != "fingerprint.schema"
+                && !(key.starts_with("run.readiness.")
+                    && (key.ends_with(".criterion") || key.ends_with(".reached")))
+                && bm.get(key).is_some_and(|v| !v.is_null())
+                && cm.get(key).is_some_and(|v| !v.is_null())
+        };
+        let covered_by_derivation = bm
+            .keys()
+            .chain(cm.keys())
+            .collect::<BTreeSet<_>>()
+            .into_iter()
+            .filter(|k| is_derived(k) && bm.get(*k) != cm.get(*k))
+            .map(|k| MetaDiff {
+                key: k.clone(),
+                baseline: bm.get(k).map_or_else(|| ABSENT.into(), render),
+                capture: cm.get(k).map_or_else(|| ABSENT.into(), render),
+            })
+            .collect();
         let (mut diff, mut ignored) = self.diff_split(b.as_ref(), c.as_ref());
+        diff.retain(|d| !is_derived(&d.key));
+        ignored.retain(|d| !is_derived(&d.key));
         diff.retain(|d| !self.is_intended(&d.key));
         ignored.retain(|d| !self.is_intended(&d.key));
         let bad = self.violations(&diff);
@@ -640,6 +671,7 @@ impl MetaChecker {
         let failure = (status == Validity::Invalid).then(|| reasons.join("; "));
         Ok(CheckedMeta {
             intended,
+            covered_by_derivation,
             diff,
             ignored,
             unchanged,
