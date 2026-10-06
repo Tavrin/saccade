@@ -156,6 +156,8 @@ impl Default for RunConfig {
 struct FileConfig {
     require_valid_arms: Option<bool>,
     #[serde(default)]
+    allow_unreached: Vec<String>,
+    #[serde(default)]
     arm_ignore: Vec<String>,
     fingerprint_map: Option<std::path::PathBuf>,
     temporal_tiles: Option<crate::evidence_quality::temporal::Policy>,
@@ -323,6 +325,7 @@ impl RunConfig {
         cfg.meta.require_valid_arms = file.require_valid_arms.unwrap_or(false);
         cfg.meta.fingerprint_map = file.fingerprint_map;
         cfg.meta.ignore.extend(file.arm_ignore);
+        cfg.meta.allow_unreached = file.allow_unreached;
         cfg.meta.intended = file.intended_variables;
         cfg.arm_variables = file.arm_variables;
         cfg.required_effect = file.required_effect;
@@ -624,6 +627,7 @@ impl RunConfig {
             );
             value["intended_variables"] = json!(c.meta.intended);
             value["arm_ignore"] = json!(c.meta.ignore);
+            value["allow_unreached"] = json!(c.meta.allow_unreached);
             value
         }
         let raw: Value = match file {

@@ -67,6 +67,14 @@ pub(crate) fn build_html(
         super::bundle::summary(report, case)?,
         escape(&crate::exclusions::text(report))
     );
+    let summary = if let Some(check) = &report.config.meta.arm_validation {
+        format!(
+            "<p><strong>Allowed unreached (intentionally unconverged):</strong> {}</p>{summary}",
+            escape(&serde_json::to_string(&check.allowed_unreached)?)
+        )
+    } else {
+        summary
+    };
     let summary = format!(
         "{summary}<details><summary>Motion diagnostics (raw FLIP remains authoritative)</summary>{motion}</details>"
     );

@@ -72,7 +72,7 @@ pub struct Criterion {
     /// Parameters used to test readiness (empty means no parameters).
     pub parameters: BTreeMap<String, Value>,
 }
-/// A recorded field finding, with unknown values represented by null.
+/// A recorded field finding; explicit states distinguish null from absence.
 #[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct Finding {
@@ -82,6 +82,12 @@ pub struct Finding {
     pub baseline: Option<Value>,
     /// Candidate declaration.
     pub capture: Option<Value>,
+    /// Baseline state: missing, null or value.
+    #[serde(default)]
+    pub baseline_state: String,
+    /// Candidate state: missing, null or value.
+    #[serde(default)]
+    pub capture_state: String,
     /// Stable reason: missing, difference, readiness_not_reached, malformed.
     pub reason: String,
 }
@@ -109,13 +115,40 @@ pub struct Check {
     pub offending: Vec<Finding>,
     /// Explicit ignored tokens, including tokens matching no fields.
     pub ignore: Vec<String>,
-    /// Ignored differences (missing identity is never ignored).
+    /// Explicitly waived findings, including missing fields and equal nulls.
     pub ignored: Vec<Finding>,
     /// Differences covered by explicit field derivations, with both values.
     #[serde(default)]
     pub covered_by_derivation: Vec<Finding>,
+    /// Explicitly permitted matched unreached predicates with both observations.
+    #[serde(default)]
+    pub allowed_unreached: Vec<AllowedUnreached>,
+    /// Record discovery diagnostics, including exact searched filenames.
+    #[serde(default)]
+    pub diagnostics: Vec<String>,
     /// Declared variable tokens.
     pub vary: Vec<String>,
+}
+/// An explicit readiness exception; it never claims convergence.
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct AllowedUnreached {
+    /// Exact criterion name.
+    pub criterion: String,
+    /// Baseline observation, retained even when null.
+    pub baseline_observed: Value,
+    /// Candidate observation.
+    pub capture_observed: Value,
+}
+/// Policy for intentionally unconverged captures.
+#[derive(Debug, Default, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum UnreachedPolicy {
+    /// Ordinary strict refusal.
+    #[default]
+    Refuse,
+    /// Both false flags and exact matching observations/criteria are required.
+    Matched,
 }
 /// A source path in a capture or a sibling JSON file.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -138,6 +171,9 @@ pub struct ReadinessMap {
     /// Exact predicate parameters.
     #[serde(default)]
     pub parameters: BTreeMap<String, Value>,
+    /// Explicit opt-in for identical intentionally unreached observations.
+    #[serde(default)]
+    pub unreached_policy: UnreachedPolicy,
     /// Source boolean flag.
     pub reached: Source,
     /// Source observation.
@@ -147,6 +183,9 @@ pub struct ReadinessMap {
 #[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct FingerprintMap {
+    /// Ordered arm-root JSON records merged before inherited/per-image sidecars.
+    #[serde(default)]
+    pub record_files: Vec<String>,
     /// Canonical destination to producer source.
     #[serde(default)]
     pub fields: BTreeMap<String, Source>,
@@ -170,10 +209,17 @@ impl FingerprintMap {
             .chain(map.readiness.iter().flat_map(|r| [&r.reached, &r.observed]))
             .filter_map(|s| s.file.as_ref())
             .collect();
-        if map.fields.len() > 128 || map.readiness.len() > 32 || siblings.len() > 32 {
+        if map.fields.len() > 128
+            || map.readiness.len() > 32
+            || siblings.len() > 32
+            || map.record_files.len() > 32
+        {
             return Err(Error::Config(
                 "fingerprint map exceeds field, predicate or sibling limit".into(),
             ));
+        }
+        for file in &map.record_files {
+            safe_sibling(Path::new("."), file)?;
         }
         for key in map.fields.keys() {
             if !matches!(
@@ -185,7 +231,8 @@ impl FingerprintMap {
                     | "run.env"
                     | "run.session"
                     | "run.readiness[]"
-            ) && !key.starts_with("producer.build.")
+            ) && !key.starts_with("inputs.")
+                && !key.starts_with("producer.build.")
                 && !key.starts_with("run.env.")
             {
                 return Err(Error::Config(format!(
@@ -382,6 +429,13 @@ pub fn load_named(
         ));
     }
     let mut primary = serde_json::json!({});
+    if let Some(map) = map {
+        for file in &map.record_files {
+            if let Some(v) = raw(&safe_sibling(root, file)?)? {
+                merge(&mut primary, v);
+            }
+        }
+    }
     let mut dir = root.to_path_buf();
     if let Some(v) = raw(&safe_sibling(&dir, name)?)? {
         merge(&mut primary, v);
@@ -459,7 +513,12 @@ fn mapped(root: &Path, primary: Value, map: Option<&FingerprintMap>) -> Result<c
             }
         }
         if !map.readiness.is_empty() {
-            meta.insert("run.readiness".into(), Value::Array(map.readiness.iter().map(|r| serde_json::json!({"criterion":{"name":r.name,"parameters":r.parameters},"reached":get(&r.reached),"observed":get(&r.observed)})).collect()));
+            meta.insert("run.readiness".into(), Value::Array(map.readiness.iter().map(|r| {
+                let mut record = serde_json::json!({"criterion":{"name":r.name,"parameters":r.parameters}});
+                if let Some(v) = get(&r.reached) { record["reached"] = v; }
+                if let Some(v) = get(&r.observed) { record["observed"] = v; }
+                record
+            }).collect()));
         }
     }
     Ok(meta)
@@ -472,20 +531,51 @@ pub fn matches(token: &str, key: &str) -> bool {
         || crate::config::compile_glob(token).is_ok_and(|g| g.is_match(key))
 }
 fn known(value: Option<&Value>) -> bool {
-    value.is_some_and(|v| !v.is_null() && !v.as_str().is_some_and(|s| s.trim().is_empty()))
+    value.is_some()
+}
+fn state(value: Option<&Value>) -> &'static str {
+    match value {
+        None => "missing",
+        Some(Value::Null) => "null",
+        Some(_) => "value",
+    }
+}
+// Collapse only object-vs-null roots. Ordinary object fields remain independently variable.
+fn null_objects(a: &mut crate::meta::Meta, b: &mut crate::meta::Meta) {
+    let keys: BTreeSet<_> = a
+        .iter()
+        .chain(b.iter())
+        .filter(|(_, v)| v.is_null())
+        .map(|(k, _)| k.clone())
+        .collect();
+    for key in keys {
+        let prefix = format!("{key}.");
+        for m in [&mut *a, &mut *b] {
+            if !m.contains_key(&key) && m.keys().any(|k| k.starts_with(&prefix)) {
+                let mut object = serde_json::Map::new();
+                for (k, v) in m.iter().filter(|(k, _)| k.starts_with(&prefix)) {
+                    object.insert(k[prefix.len()..].into(), v.clone());
+                }
+                m.insert(key.clone(), Value::Object(object));
+                m.retain(|k, _| !k.starts_with(&prefix));
+            }
+        }
+    }
 }
 fn finding(key: &str, a: &crate::meta::Meta, b: &crate::meta::Meta, reason: &str) -> Finding {
     Finding {
         key: key.into(),
         baseline: a.get(key).cloned(),
         capture: b.get(key).cloned(),
+        baseline_state: state(a.get(key)).into(),
+        capture_state: state(b.get(key)).into(),
         reason: reason.into(),
     }
 }
 pub(crate) fn readiness(meta: &mut crate::meta::Meta) {
     let records = match meta.remove("run.readiness") {
         Some(Value::Array(records)) => records,
-        None | Some(Value::Null) => return,
+        None => return,
         Some(value) => {
             meta.insert("run.readiness.malformed".into(), value);
             return;
@@ -514,7 +604,9 @@ pub(crate) fn readiness(meta: &mut crate::meta::Meta) {
             ("reached", r.get("reached")),
             ("observed", r.get("observed")),
         ] {
-            meta.insert(format!("{key}.{field}"), v.cloned().unwrap_or(Value::Null));
+            if let Some(v) = v {
+                meta.insert(format!("{key}.{field}"), v.clone());
+            }
         }
     }
 }
@@ -525,7 +617,7 @@ pub fn check(
     vary: &[String],
     ignore: &[String],
 ) -> Check {
-    check_mapped(a, b, vary, ignore, None)
+    check_mapped(a, b, vary, ignore, None, &[])
 }
 fn check_mapped(
     a: &crate::meta::Meta,
@@ -533,10 +625,12 @@ fn check_mapped(
     vary: &[String],
     ignore: &[String],
     map: Option<&FingerprintMap>,
+    allow_unreached: &[String],
 ) -> Check {
     let derived = derived_keys(map, vary);
     let mut covered_by_derivation = Vec::new();
     let (mut a, mut b) = (a.clone(), b.clone());
+    null_objects(&mut a, &mut b);
     let mut bad = Vec::new();
     for key in [
         "fingerprint.schema",
@@ -549,6 +643,8 @@ fn check_mapped(
             bad.push(finding(key, &a, &b, "missing"));
         } else if !a[key].is_string()
             || !b[key].is_string()
+            || a[key].as_str().is_some_and(|s| s.trim().is_empty())
+            || b[key].as_str().is_some_and(|s| s.trim().is_empty())
             || (key == "fingerprint.schema"
                 && (a[key] != FINGERPRINT_SCHEMA || b[key] != FINGERPRINT_SCHEMA))
         {
@@ -565,7 +661,18 @@ fn check_mapped(
                 .any(|(k, v)| k.starts_with(&format!("{group}.")) && known(Some(v)))
         };
         if !present(&a) || !present(&b) {
-            bad.push(finding(group, &a, &b, "missing"));
+            bad.push(finding(
+                group,
+                &a,
+                &b,
+                if a.get(group).is_some_and(Value::is_null)
+                    || b.get(group).is_some_and(Value::is_null)
+                {
+                    "malformed"
+                } else {
+                    "missing"
+                },
+            ));
         }
     }
     readiness(&mut a);
@@ -600,6 +707,35 @@ fn check_mapped(
                 .any(|k| k.starts_with("run.readiness.") && k.ends_with(".criterion"))
         {
             bad.push(finding("run.readiness", &a, &b, "malformed"));
+        }
+    }
+    let mut allowed_unreached = Vec::new();
+    let mut permitted = BTreeSet::new();
+    permitted.extend(allow_unreached.iter().cloned());
+    if let Some(map) = map {
+        permitted.extend(
+            map.readiness
+                .iter()
+                .filter(|r| r.unreached_policy == UnreachedPolicy::Matched)
+                .map(|r| r.name.clone()),
+        );
+    }
+    for name in &permitted {
+        let prefix = format!("run.readiness.{name}");
+        if a.get(&format!("{prefix}.reached")) == Some(&Value::Bool(false))
+            && b.get(&format!("{prefix}.reached")) == Some(&Value::Bool(false))
+            && a.get(&format!("{prefix}.criterion")) == b.get(&format!("{prefix}.criterion"))
+            && let (Some(av), Some(bv)) = (
+                a.get(&format!("{prefix}.observed")),
+                b.get(&format!("{prefix}.observed")),
+            )
+            && av == bv
+        {
+            allowed_unreached.push(AllowedUnreached {
+                criterion: name.clone(),
+                baseline_observed: av.clone(),
+                capture_observed: bv.clone(),
+            });
         }
     }
     let keys: BTreeSet<_> = a.keys().chain(b.keys()).collect();
@@ -637,13 +773,30 @@ fn check_mapped(
         } else if key.starts_with("run.readiness.")
             && key.ends_with(".reached")
             && (av != Some(&Value::Bool(true)) || bv != Some(&Value::Bool(true)))
+            && !allowed_unreached
+                .iter()
+                .any(|r| key == &format!("run.readiness.{}.reached", r.criterion))
         {
             Some("readiness_not_reached")
+        } else if key.starts_with("run.readiness.")
+            && key.ends_with(".observed")
+            && permitted.contains(
+                key.trim_start_matches("run.readiness.")
+                    .trim_end_matches(".observed"),
+            )
+            && (a.get(&key.replace(".observed", ".reached")) == Some(&Value::Bool(false))
+                || b.get(&key.replace(".observed", ".reached")) == Some(&Value::Bool(false)))
+            && av != bv
+        {
+            Some("unreached_observation_mismatch")
         } else if av != bv {
             Some("difference")
         } else {
             None
         };
+        if reason.is_none() && av == Some(&Value::Null) && ignore.iter().any(|t| matches(t, key)) {
+            ignored.push(finding(key, &a, &b, "equal_null"));
+        }
         if let Some(reason) = reason {
             let f = finding(key, &a, &b, reason);
             if reason == "difference"
@@ -669,6 +822,21 @@ fn check_mapped(
             }
         }
     }
+    bad.retain(|f| {
+        if (f.reason == "missing"
+            || f.reason == "difference"
+            || (f.reason == "malformed"
+                && (f.baseline_state == "null" || f.capture_state == "null")))
+            && ignore.iter().any(|t| matches(t, &f.key))
+        {
+            ignored.push(f.clone());
+            false
+        } else {
+            true
+        }
+    });
+    ignored.sort_by(|a, b| a.key.cmp(&b.key));
+    ignored.dedup();
     bad.sort_by(|a, b| a.key.cmp(&b.key));
     bad.dedup_by(|a, b| a.key == b.key && a.reason == b.reason);
     let code = if bad.iter().any(|f| f.reason == "missing") {
@@ -690,6 +858,8 @@ fn check_mapped(
         ignore: ignore.to_vec(),
         ignored,
         covered_by_derivation,
+        allowed_unreached,
+        diagnostics: Vec::new(),
         vary: vary.to_vec(),
     }
 }
@@ -706,6 +876,7 @@ pub fn check_paths(a: &Path, b: &Path, opts: &crate::meta::MetaOptions) -> Resul
         &opts.intended,
         &opts.ignore,
         map.as_ref(),
+        &opts.allow_unreached,
     ))
 }
 /// Refuse strict comparisons before output or measurements, including per-image overrides.
@@ -754,6 +925,7 @@ pub fn validate_paths(a: &Path, b: &Path, cfg: &crate::config::RunConfig) -> Res
                 &cfg.meta.intended,
                 &cfg.meta.ignore,
                 map.as_ref(),
+                &cfg.meta.allow_unreached,
             );
             for f in c
                 .offending
@@ -776,6 +948,8 @@ pub fn validate_paths(a: &Path, b: &Path, cfg: &crate::config::RunConfig) -> Res
         merged.offending.extend(c.offending);
         merged.ignored.extend(c.ignored);
         merged.covered_by_derivation.extend(c.covered_by_derivation);
+        merged.allowed_unreached.extend(c.allowed_unreached);
+        merged.diagnostics.extend(c.diagnostics);
         merged.exit_code = merged.exit_code.max(c.exit_code);
     }
     if merged.exit_code != 0 {
@@ -789,6 +963,28 @@ pub fn validate_paths(a: &Path, b: &Path, cfg: &crate::config::RunConfig) -> Res
         .covered_by_derivation
         .sort_by(|a, b| a.key.cmp(&b.key));
     merged.covered_by_derivation.dedup();
+    merged
+        .allowed_unreached
+        .sort_by(|a, b| a.criterion.cmp(&b.criterion));
+    merged.allowed_unreached.dedup();
+    if a.is_dir() && b.is_dir() {
+        for root in [a, b] {
+            let meta = load(root, &cfg.meta.name, map.as_ref())?;
+            if !meta
+                .keys()
+                .any(|k| k.starts_with("producer.") || k.starts_with("inputs."))
+            {
+                let mut files = vec![
+                    cfg.meta.name.clone(),
+                    "<image-stem>.<meta-name> (including inherited directories)".into(),
+                ];
+                if let Some(map) = &map {
+                    files.extend(map.record_files.iter().cloned());
+                }
+                merged.diagnostics.push(format!("No fingerprint identity found in arm {}. Looked at: {}. Use --fingerprint-map FILE with record_files = [\"capture.json\", \"cost-card.json\"] or --meta-name NAME to select the run record.", crate::paths::portable(root), files.join(", ")));
+            }
+        }
+    }
     Ok(merged)
 }
 
@@ -921,7 +1117,7 @@ mod tests {
         let a = arm();
         let mut b = a.clone();
         b.insert("generated_at".into(), json!("today"));
-        assert_eq!(check(&a, &b, &[], &[]).exit_code, 4); // unknown on one side cannot be ignored
+        assert_eq!(check(&a, &b, &[], &[]).exit_code, 4); // absence is missing unless explicitly ignored
         let mut a = a;
         a.insert("generated_at".into(), json!("yesterday"));
         assert_eq!(check(&a, &b, &[], &[]).exit_code, 3);
@@ -979,5 +1175,124 @@ mod tests {
         std::fs::remove_file(tmp.path().join("ready.json")).unwrap();
         let b = load(&primary, "saccade-meta.json", Some(&map)).unwrap();
         assert_eq!(check(&a, &b, &[], &[]).exit_code, 4);
+    }
+}
+
+#[cfg(test)]
+#[allow(clippy::unwrap_used)]
+mod field_feedback_tests {
+    use super::*;
+    use serde_json::json;
+    fn arm() -> crate::meta::Meta {
+        let mut m = BTreeMap::new();
+        flatten(
+            "",
+            &json!({"fingerprint":{"schema":FINGERPRINT_SCHEMA,"producer":{"binary":"sha256:b","build":{"profile":"debug"}},"inputs":{"identity":"sha256:i"},"run":{"mode":"fixed","env":{},"session":"one","readiness":[{"criterion":{"name":"warmup","parameters":{"limit":100}},"reached":true,"observed":12}]}},"content":{"hash":"sha256:c","preparation_report_sha256":"sha256:p","preparer":null}}),
+            &mut m,
+        );
+        m
+    }
+    #[test]
+    fn explicit_nulls_are_equal() {
+        let a = arm();
+        assert_eq!(check(&a, &a, &[], &[]).exit_code, 0);
+    }
+    #[test]
+    fn null_versus_preparer_object_is_a_difference_and_can_be_varied() {
+        let a = arm();
+        let mut b = a.clone();
+        b.remove("content.preparer");
+        flatten(
+            "content.preparer",
+            &json!({"commit":"abc","dirty":false}),
+            &mut b,
+        );
+        let c = check(&a, &b, &[], &[]);
+        assert_eq!(c.exit_code, 3);
+        assert_eq!(c.offending[0].baseline_state, "null");
+        assert_eq!(c.offending[0].capture_state, "value");
+        assert_eq!(check(&a, &b, &["preparer".into()], &[]).exit_code, 0);
+    }
+    #[test]
+    fn absent_is_missing_and_explicit_ignores_retain_states() {
+        let a = arm();
+        let mut b = a.clone();
+        b.remove("content.preparer");
+        assert_eq!(check(&a, &b, &[], &[]).exit_code, 4);
+        let c = check(&a, &b, &[], &["preparer".into()]);
+        assert_eq!(c.exit_code, 0);
+        assert_eq!(c.ignored[0].baseline_state, "null");
+        assert_eq!(c.ignored[0].capture_state, "missing");
+        assert_eq!(
+            check(&a, &a, &[], &["preparer".into()]).ignored[0].reason,
+            "equal_null"
+        );
+        b.insert("content.preparer".into(), json!("identity"));
+        assert_eq!(check(&a, &b, &[], &["preparer".into()]).exit_code, 0);
+        b.remove("inputs.identity");
+        let c = check(&b, &b, &[], &["inputs.identity".into()]);
+        assert_eq!(c.exit_code, 0);
+        assert!(
+            c.ignored
+                .iter()
+                .any(|f| f.key == "inputs.identity" && f.baseline_state == "missing")
+        );
+    }
+    #[test]
+    fn allow_unreached_requires_identical_observations_and_predicates() {
+        let mut a = arm();
+        a.get_mut("run.readiness").unwrap()[0]["reached"] = json!(false);
+        let allowed = vec!["warmup".into()];
+        assert_eq!(check(&a, &a, &[], &[]).exit_code, 3);
+        let c = check_mapped(&a, &a, &[], &[], None, &allowed);
+        assert_eq!(c.exit_code, 0);
+        assert_eq!(c.allowed_unreached[0].baseline_observed, 12);
+        assert_eq!(c.allowed_unreached[0].capture_observed, 12);
+        let mut b = a.clone();
+        b.get_mut("run.readiness").unwrap()[0]["observed"] = json!(13);
+        assert_eq!(
+            check_mapped(&a, &b, &["run.*".into()], &[], None, &allowed).exit_code,
+            3
+        );
+        b = a.clone();
+        b.get_mut("run.readiness").unwrap()[0]["reached"] = json!(true);
+        assert_eq!(check_mapped(&a, &b, &[], &[], None, &allowed).exit_code, 3);
+        b = a.clone();
+        b.get_mut("run.readiness").unwrap()[0]["criterion"]["parameters"]["limit"] = json!(101);
+        assert_eq!(check_mapped(&a, &b, &[], &[], None, &allowed).exit_code, 3);
+    }
+    #[test]
+    fn directory_records_and_map_readiness_policy_are_used() {
+        let tmp = tempfile::tempdir().unwrap();
+        let a = tmp.path().join("a");
+        let b = tmp.path().join("b");
+        for root in [&a, &b] {
+            std::fs::create_dir(root).unwrap();
+            std::fs::write(root.join("frame.png"), b"not decoded").unwrap();
+            std::fs::write(root.join("capture.json"), br#"{"exe":{"hash":"sha256:b","profile":"debug"},"content":{"hash":"sha256:c","preparer":null},"mode":"fixed","session":"one","env":{},"reached":false,"frame_index":12}"#).unwrap();
+            std::fs::write(
+                root.join("cost-card.json"),
+                br#"{"report_hash":"sha256:p"}"#,
+            )
+            .unwrap();
+        }
+        let path = tmp.path().join("map.json");
+        std::fs::write(&path, br#"{"record_files":["capture.json","cost-card.json"],"fields":{"producer.binary":{"path":"exe.hash"},"producer.build.profile":{"path":"exe.profile"},"inputs.identity":{"path":"content.hash"},"inputs.report_hash":{"path":"report_hash"},"inputs.preparer":{"path":"content.preparer"},"run.mode":{"path":"mode"},"run.session":{"path":"session"},"run.env":{"path":"env"}},"readiness":[{"name":"warmup","unreached_policy":"matched","reached":{"path":"reached"},"observed":{"path":"frame_index"}}]}"#).unwrap();
+        let mut cfg = crate::config::RunConfig::default();
+        let no_map = validate_paths(&a, &b, &cfg).unwrap();
+        assert_eq!(no_map.exit_code, 4);
+        assert!(no_map.diagnostics[0].contains("record_files"));
+        assert!(no_map.diagnostics[0].contains("saccade-meta.json"));
+        cfg.meta.fingerprint_map = Some(path);
+        let c = validate_paths(&a, &b, &cfg).unwrap();
+        assert_eq!(c.exit_code, 0, "{c:?}");
+        assert!(c.diagnostics.is_empty());
+        assert_eq!(c.allowed_unreached.len(), 1);
+        let map = FingerprintMap::read(cfg.meta.fingerprint_map.as_ref().unwrap()).unwrap();
+        let loaded = load(&a, "saccade-meta.json", Some(&map)).unwrap();
+        assert_eq!(loaded["inputs.preparer"], Value::Null);
+        assert_eq!(loaded["inputs.report_hash"], "sha256:p");
+        std::fs::remove_file(b.join("cost-card.json")).unwrap();
+        assert_eq!(validate_paths(&a, &b, &cfg).unwrap().exit_code, 4);
     }
 }

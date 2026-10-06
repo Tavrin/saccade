@@ -108,6 +108,8 @@ pub struct DeclaredChange {
 /// Sidecar settings for a run or a view.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct MetaOptions {
+    /// Explicitly permit matched unreached observations for these exact criteria.
+    pub allow_unreached: Vec<String>,
     /// Refuse verdicts without complete matching arm identity.
     pub require_valid_arms: bool,
     /// Generic producer field mapping file.
@@ -131,6 +133,7 @@ pub struct MetaOptions {
 impl Default for MetaOptions {
     fn default() -> Self {
         Self {
+            allow_unreached: Vec::new(),
             require_valid_arms: false,
             fingerprint_map: None,
             intended: Vec::new(),
@@ -309,6 +312,8 @@ impl MetaOptions {
             settings: MetaSettings {
                 require_valid_arms: self.require_valid_arms,
                 arm_ignore: self.ignore.clone(),
+                allow_unreached: self.allow_unreached.clone(),
+                arm_validation: None,
                 intended: self.intended.clone(),
                 name: self.name.clone(),
                 required: self.required || proof || self.require_valid_arms,

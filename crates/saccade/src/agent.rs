@@ -319,6 +319,11 @@ pub fn result_value(
         }
         value["data"]["arm_validation"] = json!({"result":"valid_comparison","ignore":report.config.meta.arm_ignore,"vary":report.config.meta.intended,"covered_by_derivation":report.entries.iter().filter(|e| !e.covered_by_derivation.is_empty()).map(|e|json!({"entry":e.name,"fields":e.covered_by_derivation})).collect::<Vec<_>>()});
     }
+    if let Some(check) = &report.config.meta.arm_validation {
+        value["data"]["arm_validation"]["allowed_unreached"] = json!(check.allowed_unreached);
+        value["data"]["arm_validation"]["ignored"] =
+            json!(check.ignored.iter().take(8).collect::<Vec<_>>());
+    }
     let failing = failing_entries(report);
     let summaries=failing.iter().take(top.min(5)).map(|e|json!({"entry_id":e.name,"measurement":if e.status==Status::Fail{"regression"}else{"unknown"},"error":e.error.as_ref().map(|s|crate::local_cmd::short(s,256))})).collect::<Vec<_>>();
     value["entries"] = json!(summaries);

@@ -390,7 +390,15 @@ pub fn run(
     config: &RunConfig,
 ) -> Result<Report> {
     config.validate()?;
-    crate::arms::enforce(baseline_dir, capture_dir, config)?;
+    let arm_validation = if config.meta.require_valid_arms {
+        let check = crate::arms::validate_paths(baseline_dir, capture_dir, config)?;
+        if check.exit_code != 0 {
+            return Err(Error::InvalidComparison(Box::new(check)));
+        }
+        Some(check)
+    } else {
+        None
+    };
     let ignore: Vec<_> = config
         .ignore
         .iter()
@@ -594,7 +602,11 @@ pub fn run(
             fail_on_new: config.fail_on_new || config.mode == Mode::Identity,
             mode: config.mode,
             labels: config.labels.clone(),
-            meta: meta.settings(),
+            meta: {
+                let mut settings = meta.settings();
+                settings.arm_validation = arm_validation;
+                settings
+            },
             allow_empty: false,
             fail_on_nonfinite: config.fail_on_nonfinite || config.mode == Mode::Identity,
             hotspot_fail: config.hotspot_fail,

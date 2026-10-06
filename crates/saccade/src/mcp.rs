@@ -68,6 +68,7 @@ fn measurement_schemas() -> Value {
             "require_valid_arms":{"type":"boolean"},
             "fingerprint_map":{"type":"string"},
             "arm_ignore":{"type":"array","items":{"type":"string"}},
+            "allow_unreached":{"type":"array","items":{"type":"string"}},
             "fixed_camera":{"type":"boolean"},
             "fail_on_new":{"type":"boolean","default":true},
             "allow_empty":{"type":"boolean","default":false},
@@ -148,6 +149,7 @@ fn measurement_schemas() -> Value {
                 "require_valid_arms":{"type":"boolean"}, "fingerprint_map":{"type":"string"},
                 "intended_variables":{"type":"array","items":{"type":"string"}},
                 "arm_ignore":{"type":"array","items":{"type":"string"}},
+            "allow_unreached":{"type":"array","items":{"type":"string"}},
                 "top":{"type":"integer","minimum":0,"default":5},
                 "perf_name":{"type":"string"}, "perf_noise":{"type":"string"},
                 "perf_noise_k":{"type":"number","exclusiveMinimum":0,"default":3},
@@ -303,6 +305,7 @@ const RUN_ARGS: &[&str] = &[
     "require_valid_arms",
     "fingerprint_map",
     "arm_ignore",
+    "allow_unreached",
     "fixed_camera",
     "fail_on_new",
     "allow_empty",
@@ -374,6 +377,9 @@ fn apply_run_args(args: &Map<String, Value>, cfg: &mut RunConfig) -> Result<(), 
         cfg.meta.fingerprint_map = Some(map.into());
     }
     cfg.meta.ignore.extend(arg_strings(args, "arm_ignore")?);
+    cfg.meta
+        .allow_unreached
+        .extend(arg_strings(args, "allow_unreached")?);
     cfg.meta.required |= required;
     cfg.meta.declared.extend(declared);
     cfg.entries = arg_strings(args, "entries")?;
@@ -818,6 +824,8 @@ impl Server {
                 "fingerprint_map",
                 "intended_variables",
                 "arm_ignore",
+                "allow_unreached",
+                "allow_unreached",
             ],
         )?;
         let base = self.existing_dir("base_dir", &require_str(args, "base_dir")?)?;

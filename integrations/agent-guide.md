@@ -78,3 +78,8 @@ with root egress/spend caps; never auto-selected.
 Schema discovery: `saccade schema list --json`, `schema get ID --out FILE`,
 `schema path ID --json`. Validate perf producers with `saccade perf validate
 FILE --json`; exit 1 means schema violations, not performance qualification.
+
+Arm field semantics: null is a value; absence exits 4 unless explicitly ignored.
+Use `arms check A B --allow-unreached NAME` only for intentionally unconverged
+pairs with identical observations; inspect `allowed_unreached`. Maps can select
+run records with `record_files` and readiness `unreached_policy = "matched"`.
