@@ -160,7 +160,7 @@ pub(crate) fn call(
                     .map_err(refuse)?;
             }
             let r = crate::wave7_cmd::registry(None)?;
-            Ok(r.status(&cfg.dir))
+            Ok(crate::wave7_cmd::status(&r, &cfg.dir))
         }
         Operation::Pull { id } => Err(error(VisionError::Unavailable(format!(
             "{id}: MCP cannot authorize model downloads; use explicit CLI models pull"

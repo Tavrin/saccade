@@ -116,7 +116,8 @@ fn abs_env(env: EnvFn<'_>, var: &str) -> Option<PathBuf> {
 fn default_dir(env: EnvFn<'_>) -> PathBuf {
     abs_env(env, "XDG_CACHE_HOME")
         .unwrap_or_else(|| home_with(env).join(".cache"))
-        .join("saccade/models")
+        .join("saccade")
+        .join("models")
 }
 
 fn config_path(env: EnvFn<'_>) -> PathBuf {
@@ -125,7 +126,8 @@ fn config_path(env: EnvFn<'_>) -> PathBuf {
     }
     abs_env(env, "XDG_CONFIG_HOME")
         .unwrap_or_else(|| home_with(env).join(".config"))
-        .join("saccade/config.toml")
+        .join("saccade")
+        .join("config.toml")
 }
 
 impl ModelConfig {
@@ -337,12 +339,14 @@ mod tests {
 
     #[test]
     fn defaults_follow_xdg_cache() {
+        let base = std::env::temp_dir();
+        let (home, cache) = (base.join("nowhere-home"), base.join("nowhere-cache"));
         let c = ModelConfig::resolve_with(&env_of(&[
-            ("HOME", "/nowhere/home"),
-            ("XDG_CACHE_HOME", "/nowhere/cache"),
+            ("HOME", home.to_str().unwrap()),
+            ("XDG_CACHE_HOME", cache.to_str().unwrap()),
         ]))
         .unwrap();
-        assert_eq!(c.dir, PathBuf::from("/nowhere/cache/saccade/models"));
+        assert_eq!(c.dir, cache.join("saccade").join("models"));
         assert_eq!(c.source("dir"), Source::Default);
         assert!(c.registry.is_none() && c.config_file.is_none());
     }
@@ -351,16 +355,21 @@ mod tests {
     fn file_then_env_then_flag_precedence() {
         let d = tempfile::tempdir().unwrap();
         let cfg = d.path().join("c.toml");
+        let abs = d.path().join("abs-models.json");
+        // A TOML literal string keeps Windows backslashes intact.
         std::fs::write(
             &cfg,
-            "[models]\ndir = \"store\"\nregistry = \"/abs/models.json\"\n",
+            format!(
+                "[models]\ndir = \"store\"\nregistry = '{}'\n",
+                abs.display()
+            ),
         )
         .unwrap();
         let cfg_s = cfg.to_str().unwrap();
         let from_file = ModelConfig::resolve_with(&env_of(&[(ENV_CONFIG, cfg_s)])).unwrap();
         assert_eq!(from_file.dir, d.path().join("store"));
         assert_eq!(from_file.source("dir"), Source::File(cfg.clone()));
-        assert_eq!(from_file.registry, Some(PathBuf::from("/abs/models.json")));
+        assert_eq!(from_file.registry, Some(abs.clone()));
 
         let from_env = ModelConfig::resolve_with(&env_of(&[
             (ENV_CONFIG, cfg_s),
@@ -383,7 +392,7 @@ mod tests {
         });
         assert_eq!(flagged.dir, PathBuf::from("/flag"));
         assert_eq!(flagged.source("dir"), Source::Flag);
-        assert_eq!(flagged.registry, Some(PathBuf::from("/abs/models.json")));
+        assert_eq!(flagged.registry, Some(abs.clone()));
     }
 
     #[test]

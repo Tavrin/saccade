@@ -15,6 +15,10 @@ fn command(home: &Path) -> Command {
     c
 }
 
+fn as_path(v: &Value) -> std::path::PathBuf {
+    std::path::PathBuf::from(v.as_str().unwrap())
+}
+
 fn json_of(out: &Output) -> Value {
     assert!(out.status.success(), "{out:?}");
     serde_json::from_slice(&out.stdout).unwrap()
@@ -43,18 +47,18 @@ fn config_file_env_and_legacy_env_resolve_in_order() {
         .validate(&v)
         .unwrap();
     assert_eq!(v["schema"], "saccade-model-config.v1");
-    assert_eq!(v["dir"]["value"], dir.join("from-file").to_str().unwrap());
+    assert_eq!(as_path(&v["dir"]["value"]), dir.join("from-file"));
     assert_eq!(v["dir"]["source"]["kind"], "config_file");
     let legacy = home.path().join("legacy");
     let v = show(&[("SACCADE_MODEL_CACHE", &legacy)]);
-    assert_eq!(v["dir"]["value"], legacy.to_str().unwrap());
+    assert_eq!(as_path(&v["dir"]["value"]), legacy);
     assert_eq!(v["dir"]["source"]["name"], "SACCADE_MODEL_CACHE");
     let new = home.path().join("new");
     let v = show(&[
         ("SACCADE_MODEL_CACHE", &legacy),
         ("SACCADE_MODELS_DIR", &new),
     ]);
-    assert_eq!(v["dir"]["value"], new.to_str().unwrap());
+    assert_eq!(as_path(&v["dir"]["value"]), new);
 }
 
 #[cfg(feature = "mcp")]

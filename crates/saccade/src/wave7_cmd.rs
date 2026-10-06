@@ -29,6 +29,17 @@ pub(crate) fn runtime_flag(flag: Option<&Path>) -> Result<Option<PathBuf>, CliEr
         })
         .runtime_library)
 }
+/// Registry status plus runtime status: the one model-status report CLI and MCP both emit.
+pub(crate) fn status(registry: &Registry, cache: &Path) -> serde_json::Value {
+    let status = registry.status(cache);
+    #[cfg(feature = "local-models")]
+    let status = {
+        let mut status = status;
+        status["runtime"] = saccade_core::wave7::runtime_install::status(cache);
+        status
+    };
+    status
+}
 /// The operator's model configuration (environment, config file), shared with every surface.
 pub(crate) fn config() -> Result<saccade_core::model_config::ModelConfig, CliError> {
     Ok(saccade_core::model_config::ModelConfig::resolve()?)
@@ -42,7 +53,7 @@ pub(crate) fn registry(path: Option<&Path>) -> Result<Registry, CliError> {
         Some(p) => Registry::load(&p).map_err(error),
         None => {
             // Compatibility reader: the registry file location used before the shared config.
-            let legacy = home()?.join(".config/saccade/models.json");
+            let legacy = home()?.join(".config").join("saccade").join("models.json");
             if legacy.exists() {
                 Registry::load(&legacy).map_err(error)
             } else {
@@ -136,14 +147,7 @@ pub(crate) fn models(args: ModelsArgs) -> Result<u8, CliError> {
             json,
         } => {
             let cache = cache(c.as_deref())?;
-            let status = registry(p.as_deref())?.status(&cache);
-            #[cfg(feature = "local-models")]
-            let status = {
-                let mut status = status;
-                status["runtime"] = saccade_core::wave7::runtime_install::status(&cache);
-                status
-            };
-            emit(&status, json)
+            emit(&status(&registry(p.as_deref())?, &cache), json)
         }
         ModelsOperation::Config { json } => emit(&config()?.to_json(), json),
         ModelsOperation::Pull {

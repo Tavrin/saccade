@@ -30,6 +30,36 @@ env:
   RUSTC_WRAPPER: ''
 
 jobs:
+  meta:
+    runs-on: ubuntu-latest
+    outputs:
+      tag: ${{ steps.tag.outputs.tag }}
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          persist-credentials: false
+      - name: Resolve the version label
+        id: tag
+        env:
+          EVENT: ${{ github.event_name }}
+          REF_NAME: ${{ github.ref_name }}
+          INPUT_TAG: ${{ inputs.tag }}
+        run: |
+          python3 - <<'PYTHON'
+          import os, pathlib, tomllib
+          if os.environ['EVENT'] == 'push':
+              tag = os.environ['REF_NAME']
+          elif os.environ['INPUT_TAG']:
+              tag = os.environ['INPUT_TAG']
+          else:
+              # Pull-request and manual dry runs validate the checked-out workspace version.
+              workspace = tomllib.loads(pathlib.Path('Cargo.toml').read_text())
+              tag = 'v' + workspace['workspace']['package']['version']
+          with open(os.environ['GITHUB_OUTPUT'], 'a') as output:
+              print(f'tag={tag}', file=output)
+          PYTHON
+
   package:
     runs-on: ubuntu-latest
     steps:
@@ -50,6 +80,7 @@ jobs:
 
   build:
     name: build (${{ matrix.target }})
+    needs: meta
     runs-on: ${{ matrix.os }}
     env:
       CARGO_TARGET_DIR: ${{ github.workspace }}/target
@@ -86,7 +117,7 @@ jobs:
         shell: bash
         env:
           TARGET: ${{ matrix.target }}
-          RELEASE_TAG: ${{ github.event_name == 'push' && github.ref_name || inputs.tag || 'v0.2.4' }}
+          RELEASE_TAG: ${{ needs.meta.outputs.tag }}
           RELEASE_COMMIT: ${{ github.event.pull_request.head.sha || github.sha }}
         run: |
           set -euo pipefail
@@ -126,7 +157,7 @@ jobs:
         env:
           TARGET: ${{ matrix.target }}
           EXT: ${{ matrix.ext }}
-          RELEASE_TAG: ${{ github.event_name == 'push' && github.ref_name || inputs.tag || 'v0.2.4' }}
+          RELEASE_TAG: ${{ needs.meta.outputs.tag }}
         run: |
           set -euo pipefail
           binary="$CARGO_TARGET_DIR/$TARGET/release/saccade"
@@ -177,6 +208,7 @@ jobs:
 
   bundle:
     name: bundle ${{ matrix.bundle }} (${{ matrix.target }})
+    needs: meta
     runs-on: ${{ matrix.os }}
     env:
       CARGO_TARGET_DIR: ${{ github.workspace }}/target
@@ -210,7 +242,7 @@ jobs:
           BUNDLE: ${{ matrix.bundle }}
           TARGET: ${{ matrix.target }}
           EXT: ${{ matrix.ext }}
-          RELEASE_TAG: ${{ github.event_name == 'push' && github.ref_name || inputs.tag || 'v0.2.4' }}
+          RELEASE_TAG: ${{ needs.meta.outputs.tag }}
           RELEASE_COMMIT: ${{ github.event.pull_request.head.sha || github.sha }}
         run: |
           set -euo pipefail
@@ -266,7 +298,7 @@ jobs:
           set -euo pipefail
           cd bundle-dist
           python3 ../scripts/bundles.py expected | sort > ../expected.txt
-          ls | sort > ../actual.txt
+          find . -maxdepth 1 -type f -printf '%f\n' | sort > ../actual.txt
           diff ../expected.txt ../actual.txt
           python3 - <<'PY'
           import glob, json
@@ -283,12 +315,12 @@ jobs:
           if-no-files-found: error
 
   qualify:
-    needs: assemble
+    needs: [meta, assemble]
     uses: ./.github/workflows/qualify.yml
     with:
       run_id: ${{ github.run_id }}
       commit: ${{ github.event.pull_request.head.sha || github.sha }}
-      tag: ${{ github.event_name == 'push' && github.ref_name || inputs.tag || 'v0.2.4' }}
+      tag: ${{ needs.meta.outputs.tag }}
 
   release:
     needs: [assemble, qualify, bundle-assemble]
