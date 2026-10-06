@@ -23,7 +23,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   compatible/Azure provider mappings are verified with fixtures only.
 - Add pinned official SigLIP 2 checkpoint/tokenizer provenance and a reproducible
   CPU export script; text retrieval requires that joint model and remains uncalibrated.
-
 - Add experimental `review explain`, `review audit-mask`, `review check-ui` and
   `review assist batch submit|status|collect`; optional Jev routing remains unqualified.
 - Add the local Playwright matcher, `sweep plan|compare`, `imgtune audit|search`,
@@ -33,12 +32,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `capabilities` and comparison question routing.
 - Add optional SVG/PDF rendering, offline C2PA validation and pinned Rust OCR.
   Model, OCR readability, forensic specificity and broad renderer qualification
-  retain the limits recorded in their evidence and documentation.
+  keep the limits recorded in their evidence and documentation.
 - Add vision commands and explicit face/crop/watermark observations in image
   reports, fixture-only hosted mappings and advisory check-ui localization.
   Shared model contracts retain legacy readers. Browser/sweep masks neutralize
   excluded pixels before filtering; core score-exclusion defaults remain.
-  Model export/parity and generated OCR review retain separate qualification gates.
+  Model export/parity and generated OCR review keep separate qualification gates.
 
 ### Changed
 

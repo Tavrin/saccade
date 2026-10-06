@@ -8,11 +8,11 @@
 # saccade
 
 saccade is a visual and performance evidence tool for humans, CI and AI agents.
-It measures perceptual differences, explains them with measured regions and
-optional advisory observations, and says whether they matter under declared
-thresholds and policies. It writes offline HTML reports and versioned JSON;
-performance conclusions require comparable captures, timing provenance and
-repeat evidence. Baseline approval stays with a human.
+It measures perceptual differences, locates them in measured regions (with
+optional advisory observations), and checks them against the thresholds and
+policies you declare. It writes offline HTML reports and versioned JSON.
+Performance conclusions require comparable captures, timing provenance and
+repeat evidence. Only a human can approve a baseline.
 
 ![Report with image differences and numbered hotspots](docs/images/report.png)
 
@@ -23,10 +23,10 @@ saccade demo --out saccade-demo
 saccade view saccade-demo
 ```
 
-The demo deliberately exits 1 because it contains changed and missing captures.
-Open `saccade-demo/report/index.html` to inspect the result. Follow the
-[copyable walkthrough](docs/quickstart.md) for comparison, exact identity,
-configuration, evidence export and local review examples.
+The demo exits 1 on purpose: it contains changed and missing captures.
+Open `saccade-demo/report/index.html` to see the result. The
+[quickstart walkthrough](docs/quickstart.md) has copyable examples for
+comparison, exact identity, configuration, evidence export and local review.
 
 ## Use cases
 
@@ -74,7 +74,7 @@ See [rendering evidence](docs/render-evidence.md) and
 ### Image delivery tuning
 
 Audit served formats and search declared encodings for a perceptual target.
-Local and URL-template adapters record bytes and content types; originals stay intact.
+Local and URL-template adapters record bytes and content types and do not modify originals.
 
 ```sh
 saccade imgtune audit --urls images.txt --accept 'image/avif,image/webp,image/*' --out audit.json --json
@@ -86,8 +86,8 @@ See [image tuning](docs/imgtune.md). Enable `products`, plus `imgtune-avif` for 
 ### Media analysis records
 
 A media record keeps status and provenance for metadata, quality, fingerprints
-and optional model sections. The Python package and local HTTP API expose the
-same analysis path; disabled or failed sections remain explicit.
+and optional model sections. Disabled or failed sections are recorded as such.
+The Python package and local HTTP API use the same analysis path.
 
 ```sh
 saccade analyze-media image.jpg --profile cpu-lite --output-size 1200x800 --json
@@ -112,8 +112,8 @@ See [single-image inspection](docs/inspect-image.md).
 
 ### General comparison
 
-Choose registration, hashes, embedding similarity/search, OCR text differences,
-no-reference quality or document rasterization for the question being asked.
+Pick registration, hashes, embedding similarity/search, OCR text differences,
+no-reference quality or document rasterization to fit the question.
 Model workflows require supplied pinned artifacts and the relevant features.
 
 ```sh
@@ -143,8 +143,7 @@ See [paired statistics](docs/paired-performance.md),
 
 ## Install
 
-The 0.2.0 release is prepared in this branch; the owner publishes packages and
-archives. Once published, install with Rust 1.89 or newer:
+Install with Rust 1.89 or newer:
 
 ```sh
 cargo install saccade --version 0.2.0 --locked
@@ -177,8 +176,8 @@ Default comparisons need no provider account or GPU. Add optional features with
 
 ## Metrics and algorithms
 
-Qualification is specific to the recorded contract and evidence, not a claim
-that a passing score proves correctness or invisibility.
+Each qualification covers only the recorded contract and evidence. A passing
+score does not prove correctness or that a difference is invisible.
 
 | Metric or algorithm | Qualification status and scope |
 | --- | --- |
@@ -193,7 +192,7 @@ that a passing score proves correctness or invisibility.
 | Spatial classes, effect occupancy, layers and temporal tiles | Constructed/fixture contracts; no general renderer or physical-effect qualification. |
 | Paired Hodges–Lehmann estimates, bootstrap and change points | Constructed statistical checks; actual timing requires independent qualified runs. |
 | Safety/accessibility prechecks | Experimental checks; no certification or formal compliance. |
-| AI assist, Jev support and routing, blind-order handling | Unqualified in this release; experimental. |
+| AI assist, Jev support and routing ([Jev](https://typesafe.ai) is a decision model from TypeSafe), blind-order handling | Unqualified in this release; experimental. |
 | LPIPS, DISTS, MUSIQ; TrustMark payload decoding | Deferred / unavailable; neural-only TrustMark inference does not decode payloads. |
 
 ## AI layer
