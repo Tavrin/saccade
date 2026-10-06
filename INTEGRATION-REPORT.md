@@ -461,3 +461,119 @@ without executing their contents. Admission remained in force.
 - Browser layout/offline relocation, current Moss consumer acceptance, GPU
   execution-provider support and authorized live provider/pilot evaluation were
   not executed by this lane.
+
+## Wave 9 integration — 2026-10-06
+
+Integrated in `/home/etienne/dev/saccade-wt/wave9`, branch `feat/wave9`.
+Merge `f778340` preserves original Wave 9 `4e8de95` and the required Wave 8
+`ef04811`. Module registration, both rooted MCP dispatch paths/schema variants,
+and both agent workflows are retained. No push, subagents, other-worktree Git
+changes, or README edits.
+
+### Implementation and decisions
+
+- `53904eb` adds opt-in `quality_tile_size` to media options. The quality section
+  exposes row-major edge-preserving mean luminance, population variance, contrast
+  and interior absolute Laplacian energy using the Wave 9 spatial helpers and
+  policy floor. It records policy/provenance and interpretation limits. Default
+  media output remains unchanged. Invalid tile controls produce an attributed
+  quality failure; strict mode refuses the record. Single-image descriptors do
+  not invent paired FLIP, bias intervals, structural classes or acceptance.
+- Capability discovery lists required-effect/spatial/layer/experiment evidence,
+  fixed-camera sequence tiles with the graphics prerequisite, noise-aware offline
+  references and preregistered blind trials; related-command navigation includes
+  the reference/trial/media workflows. Existing comparison-question selection
+  remains intact.
+- New regressions assert partial-edge coverage, actual luminance/variance/contrast
+  and alpha-over-black detail, invalid grids, strict rejection, opt-in omission,
+  and feature-dependent router availability. No test or threshold was weakened.
+- `7933ece` regenerates CLI help from the integrated all-features binary. Schema
+  index and agent packs also regenerated; guide prose was condensed to preserve
+  the original 4800-byte guard. CHANGELOG records the additions factually.
+- Rejected self-comparing a single media input to manufacture change evidence;
+  reversal removes the optional field/helper without changing default behavior.
+  Paired image and temporal evidence retains its existing policies. Full decision
+  and scout records live in this lane's scratch evidence.
+
+- `e00caff` fixes the failing Wave9 schema/gate check: synchronize the existing
+  explain change-class enum and use only real core features for core-only gates.
+- `eb66626` fixes minimal-core Clippy by moving the byte-identical `layers::bundle`
+  before test modules. No behavior or test changes.
+- Coordinator steering: fetched origin and merged main `7e12dc8` as `e95889f`;
+  `39ed8fe` is an ancestor. PyO3 extension-module is enabled only by maturin,
+  preserving cargo-test linking. Affected workspace/Python checks are rerun.
+
+### Gates and evidence
+
+Evidence root: `/mnt/linux-extra/moss-scratch/saccade-integ-w9/`, containing
+`MILESTONES.md`, `SCOUT.md`, `DECISIONS.md`, source/diff witnesses, per-command
+logs and exit receipts. Each heavy component uses installed shared admission,
+900 seconds maximum execution, jobs 4, disabled incremental/dev/test debug,
+CPU-only execution and the prescribed target. The existing guarded command
+supervisor is reused with its evidence destination explicitly set to this lane.
+Both preflight and live monitoring enforce 25 GiB free; no private target or
+manual deletion of another lane was performed. Shared admission may reclaim eligible shared caches through its installed safety policy.
+
+The lane also reclaimed only its own obsolete saccade/core build outputs under
+the lane Cargo lock (9.0 GiB); `own-cache-reclaim.json` records the operation.
+A subsequent shared recovery request used the supported 35 GB trigger with the
+unchanged 25 GB floor; the pass exited 0 and restored sufficient headroom,
+without meeting every shared filesystem free-space goal.
+
+Starting disk was below the floor (13 GiB); compilation paused while merge/wiring
+proceeded. Shared admission requested recovery with its supported 25 GB floor;
+the safe shared pass recovered enough space and the all-features bootstrap ran
+successfully. Initial formatting failure occurred while the newly written code
+was not yet formatted; `53904eb` contains the rustfmt correction. Bootstrap used
+clean `53904eb`; later gate receipts bind their exact clean source revisions.
+
+| Gate | Result | Receipt / scope |
+| --- | --- | --- |
+| Wave9 complete script, after main merge | PASS | `release-recovered-receipts.json`, all 8 subgates |
+| Held-out spatial / required effects | PASS | 89/89 labels; 2/2 effect checks; hashes checked before/after |
+| CI workspace Clippy / tests | PASS | `post-main-receipts.json` / `post-main-recovered-receipts.json` |
+| CI feature matrix core-minimal / CLI-default / CLI-all | PASS | `ci-receipts.json`; minimal Clippy corrected in `minimal-corrective-receipts.json` |
+| Rust 1.89 MSRV check / quality reference | PASS | `ci-receipts.json`; exact unchanged reference tolerances |
+| Package inventory / all-feature archive verification | PASS | `ci-receipts.json`; three retained `.crate` archives |
+| Python Clippy / Cargo package light fixtures | PASS | `post-main-recovered-receipts.json`; unchanged 3 fixtures |
+| Maturin wheel / installed Python light fixtures + tile forwarding | PASS | local x86_64 `manylinux_2_39` abi3; `wheel-receipt.json` |
+| Minimal CLI capability availability | PASS | `release-recovered-receipts.json` |
+| All-feature debug/release docs + media/schema proof | PASS | `docs-media-corrective-receipts.json`, `artifacts/*-receipt.json`, `media-proof/receipt.json` |
+| Full local release-check | PASS | `release-complete-retry-receipts.json`: all subgates PASS, 805.846s wall receipt, including admission |
+| Genericity, actual external denylist | PASS | `genericity.log`; repeated for final report as `final-report-verification.log` (staged/worktree content) |
+
+Initial Wave9 schema/invalid-core-feature failures and minimal-core Clippy failure
+are retained with their corrective commits and PASS reruns. Post-merge workspace and first release-check
+reruns were interrupted at the live disk floor; later gates were refused without
+execution, then rerun after recovery. No interruption is treated as PASS. The full release script passed on its
+unchanged retry after a second owner-only debug reclamation (9.5 GiB; release
+artifacts preserved, `own-debug-cache-reclaim.json`).
+The first retained-binary docs proof also failed: changing the executable basename
+changed Clap Usage lines. The entire diff was basename-only; the scratch artifact
+layout now preserves `saccade`, and the corrected invocation passed without
+editing generated docs or weakening their check.
+
+### Remaining qualification and cleanup
+
+All final executable checks bind clean source `e95889f` (report-only final commit
+will be newer). Feature-matrix/MSRV receipts also name earlier tested ancestors;
+main's only executable delta is the PyO3 feature fix, covered by the affected
+workspace and Python reruns. Retained all-feature artifacts, doctor/capability
+JSON, wheel/native hashes, crate archives and showcase outputs remain outside
+the prescribed disposable target.
+
+Native macOS/Windows CI, aarch64 and manylinux_2_28 wheels, tagged distribution,
+clean-machine installation, browser relocation, live providers/models, GPU,
+renderer/performance acceptance and inherited Wave8 model-contract deferrals
+remain unqualified by this CPU-only lane. No tests, thresholds or frozen spatial
+policy were weakened; no README edits, push or publication occurred.
+
+Cleanup completed at 2026-10-06 00:41 UTC: canonical, non-symlink target
+`/mnt/linux-extra/moss-cargo-targets/codex-saccade-integ-w9` deleted under exclusive
+owner Cargo and profile locks; absence verified in `cleanup.json`. Free space
+rose from 23.751 to 37.221 GiB. Builds were refused or interrupted at the floor; reclamation/cleanup
+continued while compilation was paused. A briefly held lock refused the first
+cleanup attempt without deleting anything; the retry acquired all locks.
+`showcase-receipt.json` retains 427 output hashes and verifies the showcase binary
+matches the retained release SHA. `heldout-final-identity.json` verifies unchanged
+policy, image hashes and all numeric pair results (only output locations differ).
