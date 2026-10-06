@@ -52,6 +52,9 @@ pub(crate) enum BatchOperation {
 }
 #[derive(Args)]
 pub(crate) struct BatchCommon {
+    /// Explicitly acknowledge a plan allowance above the default 25 USD ceiling.
+    #[arg(long)]
+    pub allow_spend_above_25_usd: bool,
     /// Source-bound saccade-assist-batch-plan.v1 artifact.
     #[arg(long)]
     pub plan: PathBuf,
@@ -307,6 +310,9 @@ pub(crate) fn execute(
         args.plan.clone()
     };
     let frozen: FrozenPlan = assist::decode(&assist::read_bytes(&plan_path, 32 * 1024 * 1024)?)?;
+    if frozen.plan.max_spend_nano_usd > 25_000_000_000 && !args.allow_spend_above_25_usd {
+        return Err(CliError::usage("spend_cap_above_25_requires_explicit_flag"));
+    }
     let sources = verify_sources(&frozen, roots, user_file)?;
     let job_path = if let Some(roots) = roots {
         roots.write(&args.job)?

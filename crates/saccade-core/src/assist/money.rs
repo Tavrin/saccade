@@ -41,6 +41,10 @@ pub(super) struct MoneyState {
     #[serde(default)]
     stopped: bool,
     receipts: Vec<MoneyReceipt>,
+    #[serde(default)]
+    openrouter: Option<UsageValue>,
+    #[serde(default)]
+    ceiling_events: Vec<UsageValue>,
 }
 #[cfg(feature = "assist")]
 impl Ledger {
@@ -87,6 +91,15 @@ impl Ledger {
         self.campaign().transaction(|state| {
             if state.money.stopped {
                 return Err("campaign_spending_stopped".into());
+            }
+            if let Some(verified) = &state.money.openrouter
+                && scopes
+                    .iter()
+                    .map(|s| s.cap_nano_usd)
+                    .min()
+                    .is_none_or(|cap| cap > verified["allowance"].as_u64().unwrap_or(0))
+            {
+                return Err("openrouter_allowance_changed".into());
             }
             if scopes.is_empty()
                 || receipt.id.is_empty()
@@ -155,6 +168,7 @@ impl Ledger {
             if receipt.outcome != "reserved" {
                 return Err("money receipt already final".into());
             }
+            let dispatched = receipt.usage["openrouter_dispatched"] == true;
             let charged = actual.unwrap_or(receipt.reserved_nano_usd);
             for scope in &receipt.scopes {
                 let counter = state
@@ -172,6 +186,9 @@ impl Ledger {
             }
             receipt.actual_nano_usd = actual;
             receipt.usage = usage;
+            if dispatched {
+                receipt.usage["openrouter_dispatched"] = serde_json::json!(true);
+            }
             receipt.outcome = if receipt.usage["bound_breach"] == true {
                 "usage_limit_exceeded"
             } else if charged > receipt.reserved_nano_usd {
@@ -182,6 +199,126 @@ impl Ledger {
                 "incomplete"
             }
             .into();
+            Ok(())
+        })
+    }
+    /// Bind the allowance and baseline to the campaign before any reservation.
+    pub fn openrouter_preflight(
+        &self,
+        allowance: u64,
+        fetch: impl FnOnce() -> Result<crate::assist::openrouter::Ceiling, String>,
+    ) -> Result<(), String> {
+        self.campaign().transaction(|state| {
+            if state.money.stopped { return Ok(Err("campaign_spending_stopped".into())); }
+            if state.money.openrouter.is_some() { return Ok(Ok(())); }
+            let result = fetch().and_then(|snapshot| {
+                state.money.ceiling_events.push(serde_json::json!({"phase":"preflight","allowance":allowance,"snapshot":snapshot}));
+                if allowance == 0 || allowance > snapshot.remaining { return Err("openrouter_allowance_exceeds_ceiling".into()); }
+                if !state.money.receipts.is_empty() { return Err("openrouter_campaign_not_fresh".into()); }
+                state.money.openrouter = Some(serde_json::json!({"allowance":allowance,"baseline":snapshot}));
+                Ok(())
+            });
+            state.money.ceiling_events.push(serde_json::json!({"phase":"preflight","allowance":allowance,"refusal":result.as_ref().err()}));
+            Ok(result)
+        })?
+    }
+    /// Check under the campaign lock after pacing, including the current reservation.
+    pub(crate) fn openrouter_dispatch_check(
+        &self,
+        hash: crate::evidence::canonical::Digest,
+        fetch: impl FnOnce() -> Result<crate::assist::openrouter::Ceiling, String>,
+    ) -> Result<crate::assist::openrouter::DispatchPermit, String> {
+        self.campaign().transaction(|state| {
+            let result = (|| {
+                if state.money.stopped {
+                    return Err("campaign_spending_stopped".into());
+                }
+                let verified = state
+                    .money
+                    .openrouter
+                    .as_ref()
+                    .ok_or("openrouter_preflight_required")?;
+                let baseline: crate::assist::openrouter::Ceiling =
+                    serde_json::from_value(verified["baseline"].clone())
+                        .map_err(|_| "openrouter_baseline_invalid")?;
+                let snapshot = fetch()?;
+                state
+                    .money
+                    .ceiling_events
+                    .push(serde_json::json!({"phase":"dispatch","snapshot":snapshot}));
+                let mut outstanding = 0u64;
+                let mut settled = 0u64;
+                for r in &state.money.receipts {
+                    if r.outcome == "reserved" || r.actual_nano_usd.is_none() {
+                        outstanding = outstanding
+                            .checked_add(r.reserved_nano_usd)
+                            .ok_or("openrouter_accounting_overflow")?;
+                    } else if r.usage["openrouter_dispatched"] == true {
+                        settled = settled
+                            .checked_add(r.actual_nano_usd.unwrap_or(0))
+                            .ok_or("openrouter_accounting_overflow")?;
+                    }
+                }
+                if outstanding > snapshot.remaining {
+                    return Err("openrouter_remaining_exhausted".into());
+                }
+                for (old, new) in [
+                    (baseline.key_usage, snapshot.key_usage),
+                    (baseline.account_usage, snapshot.account_usage),
+                ] {
+                    if let Some(old) = old {
+                        let new = new.ok_or("openrouter_usage_unavailable")?;
+                        if new < old
+                            || new - old
+                                > settled
+                                    .saturating_add(crate::assist::openrouter::CONSUMER_TOLERANCE)
+                        {
+                            return Err("openrouter_concurrent_consumer".into());
+                        }
+                    }
+                }
+                let receipt = state
+                    .money
+                    .receipts
+                    .iter_mut()
+                    .find(|r| {
+                        r.request_hash == hash
+                            && r.outcome == "reserved"
+                            && r.usage["openrouter_dispatched"] != true
+                    })
+                    .ok_or("openrouter_reservation_required")?;
+                receipt.usage = serde_json::json!({"openrouter_dispatched":true});
+                Ok(crate::assist::openrouter::DispatchPermit::new(hash))
+            })();
+            if let Err(reason) = &result {
+                state.money.stopped = true;
+                state
+                    .money
+                    .ceiling_events
+                    .push(serde_json::json!({"phase":"dispatch","refusal":reason}));
+            }
+            Ok(result)
+        })?
+    }
+    /// Attach authoritative generation reconciliation to the original money receipt.
+    pub fn record_openrouter_reconciliation(
+        &self,
+        id: &str,
+        generation: Option<(u64, crate::evidence::canonical::Digest)>,
+        matches: bool,
+    ) -> Result<(), String> {
+        self.campaign().transaction(|state| {
+            let receipt = state
+                .money
+                .receipts
+                .iter_mut()
+                .find(|r| r.id == id)
+                .ok_or("unknown money reservation")?;
+            receipt.usage["reconciliation"] =
+                serde_json::json!({"generation":generation,"matches":matches});
+            if !matches {
+                state.money.stopped = true;
+            }
             Ok(())
         })
     }
@@ -204,6 +341,8 @@ mod tests {
         let ledger = Ledger::new(temp.path(), false);
         let expected = MoneyState {
             stopped: false,
+            openrouter: None,
+            ceiling_events: Vec::new(),
             counters: BTreeMap::from([("epoch/frozen".into(), (100, 60))]),
             receipts: vec![MoneyReceipt {
                 id: "reserved-before-feature-change".into(),

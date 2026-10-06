@@ -92,7 +92,7 @@ prechecks = []
 # Derives `schemars::JsonSchema` on the report, decisions and explain types.
 schema = ["dep:schemars"]
 
-assist = ["ai"]
+assist = ["ai", "serde_json/raw_value"]
 # wave7
 local-models = ["dep:ort", "dep:ureq", "dep:fs2", "dep:tokenizers", "dep:flate2", "dep:tar"]
 local-vlm = ["dep:ureq", "dep:base64"]
@@ -153,3 +153,7 @@ libc = "0.2"
 [[example]]
 name = "ocr_accents"
 required-features = ["ocr"]
+
+[[example]]
+name = "assist_openrouter_smoke"
+required-features = ["assist"]

@@ -67,7 +67,8 @@ settings, transforms, catalog/condition identities and returned revisions are
 checked. Replay records are attributed cached evidence, never independent samples.
 `--bypass-cache` disables reuse; an explicit offline fixture is still a replay.
 
-Live dispatch requires `--run`, source-root export permission and a separate
+The Gemini/Jev interactive live network path remains refused. Its authorization
+controls require `--run`, source-root export permission and a separate
 output root in the existing `~/.config/saccade/user.toml` policy. Keys come only
 from `~/.config/saccade/{gemini,jev}.env`, with `SACCADE_GEMINI_API_KEY` and
 `JEV_API_KEY`. Ambient keys and alternative credential directories are ignored.
@@ -142,7 +143,9 @@ Without `--run`, submit only validates/plans and status only reads local state.
 Live status and collect perform one poll and return immediately. No interactive
 workflow waits for Batch. `--budget-calls` is bounded to 128 for Batch and never
 increases MCP startup authority; `--deadline-secs` is at most 300. The frozen
-plan carries the dollar ceiling, at most $250; there is no automatic top-up.
+plan carries the dollar allowance. Caps above $25 require the separately named
+`--allow-spend-above-25-usd` CLI flag; MCP refuses them. The existing $30
+campaign parent still applies; there is no automatic top-up.
 MCP mirrors these as `saccade_review` operations `batch-submit`, `batch-status`,
 `batch-collect`, using `artifact` for the plan and `out` for the durable job file.
 
@@ -154,3 +157,62 @@ from a crash without another HTTP poll. Partial, failed or unknown-cost collecti
 retain the full charge. A recorded `collect --response FILE` is for offline
 fixtures only and cannot settle a live monetary reservation. Qualification and
 heavy gate commands are in [constructed qualification](assist-qualification.md).
+
+
+## OpenRouter provider ceiling
+
+The `assist_openrouter_smoke` example enables only OpenRouter chat-completions,
+using the existing executor, source-root egress policy, attempt reservations and
+campaign money ledger. It accepts a reviewed JSON request file, one request per
+independent root (1–10 roots), and a new output directory. This is a transport
+smoke, not constructed-corpus qualification. The legacy paid qualification runner
+and Gemini-direct network dispatch remain refused.
+
+Only `~/.config/saccade/openrouter.env` with `OPENROUTER_API_KEY` is accepted;
+ambient keys, alternate key directories and redirects are refused. Provider
+responses are checked for literal, escaped and nested credential reflections
+with the actual dispatch key before artifacts are created. Accounting response
+bodies are retained only as SHA-256 hashes and parsed monetary metadata.
+
+Preflight reads OpenRouter's `/api/v1/key` and `/api/v1/credits`. The ceiling is the
+minimum available key remaining limit and credit balance; a null key limit uses
+credits alone. Neither parseable means `openrouter_ceiling_unavailable`.
+The allowance must fit the ceiling. Before every dispatch, after pacing, another
+fresh read checks the outstanding reservations (including this request) and both
+usage deltas against our settled spend plus a fixed $0.000001 tolerance. A missing
+check, insufficient remaining balance, regressing usage or another consumer stops
+the campaign, recording the reason. The ledger lock serializes these checks;
+crashed and unknown-cost reservations remain nonzero. USD decimals are parsed
+without floating-point rounding at the accounting boundaries.
+
+Every request includes `usage: {"include": true}`. Returned USD cost settles the
+original money receipt even when the answer fails validation. End-of-campaign
+`/api/v1/generation?id=` reads attach total cost and response hash to each receipt;
+unknown/missing generations or cost differences above one nanodollar are recorded
+failures and stop spending. Failed calls and artifact-write failures also reach
+reconciliation. Process crashes retain durable reservations for operator review.
+The external remaining ceiling is distinct from the local campaign allowance;
+local token-price estimates alone do not prove a provider invoice bound.
+
+The request file is a JSON array of objects with exactly `root`, `model`,
+`revision` (expected returned fingerprint), and `payload` (the existing adapter's
+closed chat-completions shape). Ten distinct roots are required for `--roots 10`.
+Every payload requires a namespaced model, messages, temperature zero, bounded
+`max_tokens`, JSON-object output, disabled routing fallbacks, required parameters
+and included usage accounting. This runner does not consume oracle answers,
+generate corpora, score outputs or confer immutable model identity.
+
+```sh
+cargo run --locked -p saccade-core --features assist --example assist_openrouter_smoke -- \
+  --requests /path/to/reviewed-openrouter-requests.json --roots 10 \
+  --max-spend-usd 1 --user-policy ~/.config/saccade/user.toml \
+  --out /path/to/new-openrouter-smoke
+```
+
+Every CLI rejects allowances above $25 by default. The smoke's separately named
+`--allow-spend-above-25-usd` flag allows up to the existing $30 campaign parent;
+it never bypasses provider checks. No verified `:batch` model/compatible shape was
+supplied, so batch arms are omitted and `:batch` requests are refused. No separate
+batch API is invented. All lane evidence is synthetic/in-memory; endpoint
+compatibility, current model availability and actual provider enforcement require
+the coordinator's reviewed live smoke.

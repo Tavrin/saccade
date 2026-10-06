@@ -116,8 +116,9 @@ accuracy on arbitrary pages or grant baseline/exclusion authority.
 
 ## G12 pre-spend correction (2026-10-06)
 
-The earlier paid-run instructions above are superseded. **Live provider network
-adapters and the old paid runner now refuse dispatch.** No verified provider-side
+The earlier paid-run instructions above are superseded. **Gemini-direct live network
+adapters and the old paid runner refuse dispatch.** The bounded OpenRouter-only
+smoke described below has a separate provider-verified admission boundary. No verified provider-side
 invoice limit or authoritative token/billing ceiling was supplied. Local prices
 prove reservation arithmetic only; they cannot establish an unconditional invoice
 ceiling. There is no environment switch to bypass this refusal. Re-enabling live
@@ -168,8 +169,8 @@ OpenRouter has an explicit chat-completions adapter (`assist::openrouter`) and a
 `two_openrouter` recorded arm. The historical `openai_compatible` adapter now uses
 the fixed OpenRouter endpoint without a project `base_url`. It accepts namespaced
 JSON model IDs, bounded output, explicit routing, usage and execution identity.
-`OPENROUTER_API_KEY` comes from the environment or
-`~/.config/saccade/openrouter.env`; keys are never printed. Responses are checked
+`OPENROUTER_API_KEY` comes only from
+`~/.config/saccade/openrouter.env`; ambient keys are refused and keys are never printed. Responses are checked
 for literal, Unicode-escaped and nested reflections with the actual dispatch key.
 OpenRouter is the billing source and passes provider prices through without markup.
 Price fixtures are versioned and explicitly **not live-verified**; returned
@@ -186,3 +187,26 @@ request count, qualifying class support, conservative local reservation estimate
 and $30 campaign-fit decision. It never grants authorization; missing billing,
 API payload or reviewed execution inputs are explicit plan blockers. Full support
 and budgets are required before a future paid campaign can be considered.
+
+
+## OpenRouter ceiling stage
+
+Use the bounded request-file invocation in [assist.md](assist.md#openrouter-provider-ceiling)
+for the coordinator's 10-root, $1 smoke. It uses existing accounting and egress,
+provider-key and credit preflight, a fresh check after pacing on every dispatch,
+returned-cost settlement and generation reconciliation. Campaign receipts record
+allowance, ceiling snapshots, raw-response hashes, generation costs and stable
+refusal classifications. No live request was run or API compatibility verified
+in the fixture lane. Passing fixture/gate tests establishes implementation
+behavior only; all model/corpus qualification decisions remain unchanged.
+
+Decisions: reuse the existing executor and ledger, including the $30 parent;
+reject a second accounting path or an unverified bypass. Reversal would require
+an accounting migration and a new provider-limit design. Use a separate bounded
+smoke over reviewed requests; reject relabelling it as the old full qualification
+campaign. Reversal requires a complete reviewed execution schedule and unchanged
+qualification gates. Omit batch because no supported model variant/shape was
+supplied; adding it requires provider evidence and fixtures, not a guessed API.
+Keep Gemini-direct refused; changing that requires a provider-side hard cap.
+Use exact monetary decimal parsing and fixed tolerances; changing tolerances or
+limits requires reviewed policy and renewed fixtures.

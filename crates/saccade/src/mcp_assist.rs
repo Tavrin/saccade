@@ -263,6 +263,7 @@ impl Server {
         let (value, _exit) = crate::assist_batch_cmd::execute(
             operation,
             crate::assist_batch_cmd::BatchCommon {
+                allow_spend_above_25_usd: false,
                 plan,
                 job: self.resolve("out", &require_str(args, "out")?)?,
                 experimental: arg_bool(args, "experimental")?.unwrap_or(false),

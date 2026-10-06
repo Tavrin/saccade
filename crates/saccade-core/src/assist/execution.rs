@@ -26,8 +26,8 @@ pub const PRICE_EXPIRES_MS: u64 = 1_798_761_600_000;
 /// Conservative USD conversion, rejecting infinity, negative and absent caps.
 pub fn nano_usd(value: f64) -> Result<u64> {
     require(
-        value.is_finite() && value > 0. && value <= 250.,
-        "spend cap must be finite, positive and at most 250 USD",
+        value.is_finite() && value > 0. && value <= 25.,
+        "spend cap must be finite, positive and at most 25 USD",
     )?;
     Ok((value * 1e9).floor() as u64)
 }
@@ -92,6 +92,13 @@ pub fn cost_nano(provider: &str, usage: &Usage, at: u64, batch: bool) -> Option<
         .checked_mul(if batch { 375 } else { 750 })?
         .checked_add(output.checked_mul(if batch { 1875 } else { 3750 })?)
 }
+fn generation_id(body: &[u8]) -> Option<String> {
+    let value: Value = decode(body).ok()?;
+    value["id"]
+        .as_str()
+        .filter(|id| !id.is_empty() && id.len() <= 256)
+        .map(str::to_owned)
+}
 fn openrouter_cost(body: &[u8]) -> Option<u64> {
     let value: Value = decode(body).ok()?;
     let u = usage(body);
@@ -110,25 +117,14 @@ fn openrouter_cost(body: &[u8]) -> Option<u64> {
     {
         return None;
     }
-    Some((cost * 1e9).ceil() as u64)
+    super::openrouter::body_amount(body, &["usage", "cost"], true)
 }
 fn openrouter_settlement(body: &[u8], bounds: super::price::Bounds) -> (Option<u64>, bool) {
     let u = usage(body);
     let breach = u.input_tokens.is_some_and(|n| n > bounds.input)
         || u.candidate_tokens.is_some_and(|n| n > bounds.output);
     let billed = openrouter_cost(body);
-    let conservative = if breach {
-        u.input_tokens
-            .zip(u.candidate_tokens)
-            .and_then(|(input, output)| {
-                input
-                    .checked_mul(750)?
-                    .checked_add(output.checked_mul(3750)?)
-            })
-    } else {
-        None
-    };
-    (billed.into_iter().chain(conservative).max(), breach)
+    (billed, breach)
 }
 /// Frozen exact cache identity includes API configuration and observed immutable revision.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -383,7 +379,10 @@ impl Executor<'_> {
     ) -> Result<Completed> {
         key.validate()?;
         policy.validate()?;
-        let byte_limit = if key.provider == "gemini" {
+        if key.provider == "openrouter" {
+            super::openrouter::validate_request(payload, &key.model)?;
+        }
+        let byte_limit = if ["gemini", "openrouter"].contains(&key.provider.as_str()) {
             32 * 1024 * 1024
         } else {
             // Text-only scoring leaves half the token ceiling for fixed API framing.
@@ -463,7 +462,7 @@ impl Executor<'_> {
                         .is_some_and(|n| n > 0 && n <= OUTPUT_LIMIT),
                 "OpenRouter output ceiling",
             )?;
-            // Offline conservative fixture rate only. Network refuses live use.
+            // Local reservation only; the provider ceiling is authoritative.
             INPUT_LIMIT * 750 + OUTPUT_LIMIT * 3750
         } else {
             cost_nano(
@@ -480,6 +479,34 @@ impl Executor<'_> {
             )
             .ok_or(Error::Policy("unknown reservation price"))?
         };
+        if key.provider == "openrouter" {
+            let request: Value = decode(payload)?;
+            require(
+                request["usage"]["include"] == true,
+                "OpenRouter usage accounting required",
+            )?;
+            let secret = self
+                .transport
+                .keys
+                .openrouter()
+                .map_err(|_| Error::Policy("fixed OpenRouter credentials unavailable"))?;
+            let allowance = self
+                .money_scopes
+                .iter()
+                .map(|s| s.cap_nano_usd)
+                .min()
+                .ok_or(Error::Policy("campaign allowance required"))?;
+            self.ledger
+                .openrouter_preflight(allowance, || {
+                    super::openrouter::ceiling(self.transport.http, &secret, timeout)
+                })
+                .map_err(|_| Error::Policy("openrouter_preflight_refused"))?;
+            timeout = self
+                .deadline
+                .saturating_duration_since(Instant::now())
+                .min(Duration::from_secs(60));
+            require(!timeout.is_zero(), "deadline after ceiling preflight")?;
+        }
         let id = crate::local::random_token();
         self.ledger
             .reserve_money(
@@ -543,7 +570,7 @@ impl Executor<'_> {
                     .finish_money(
                         &id,
                         actual,
-                        json!({"usage":usage(&rejection.body),"input_bound":bounds.input,"output_bound":bounds.output,"bound_breach":breach,"not_dispatched":rejection.reservation.is_none()}),
+                        json!({"usage":usage(&rejection.body),"input_bound":bounds.input,"output_bound":bounds.output,"bound_breach":breach,"not_dispatched":rejection.reservation.is_none(),"generation_id":generation_id(&rejection.body)}),
                         false,
                     )
                     .map_err(|_| Error::Storage)?;
@@ -568,7 +595,7 @@ impl Executor<'_> {
             .finish_money(
                 &id,
                 cost,
-                json!({"usage":u,"input_bound":bounds.input,"output_bound":bounds.output,"bound_breach":breach,"price_policy":policy.id}),
+                json!({"usage":u,"input_bound":bounds.input,"output_bound":bounds.output,"bound_breach":breach,"price_policy":policy.id,"generation_id":generation_id(&response)}),
                 true,
             )
             .map_err(|_| Error::Storage)?;
