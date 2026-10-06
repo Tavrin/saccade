@@ -46,6 +46,14 @@
             "null"
           ]
         },
+        "image_classes": {
+          "default": [],
+          "description": "Evidence-quality image classes from the baseline comparison.",
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
         "image_effect": {
           "$ref": "#/$defs/ImageEffect",
           "default": "unknown"
@@ -124,6 +132,27 @@
         },
         "report_html": {
           "type": "string"
+        },
+        "timing": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Summary"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "Timing distribution from every accepted repeat, never the representative alone."
+        },
+        "timing_rank": {
+          "default": null,
+          "description": "Timing rank among validated arms; unavailable for rejected evidence.",
+          "format": "uint",
+          "minimum": 0,
+          "type": [
+            "integer",
+            "null"
+          ]
         },
         "top_deltas": {
           "items": {
@@ -381,7 +410,7 @@
         },
         "noise_threshold": {
           "default": null,
-          "description": "Effective threshold: max(k × range, ticks × quantum, absolute/relative minimum).",
+          "description": "Effective threshold: max(k \u00d7 range, ticks \u00d7 quantum, absolute/relative minimum).",
           "format": "double",
           "type": [
             "number",
@@ -445,7 +474,7 @@
         },
         "noise_threshold": {
           "default": null,
-          "description": "Effective threshold: max(k × range, ticks × quantum, absolute/relative minimum).",
+          "description": "Effective threshold: max(k \u00d7 range, ticks \u00d7 quantum, absolute/relative minimum).",
           "format": "double",
           "type": [
             "number",
@@ -485,7 +514,7 @@
           "type": "number"
         },
         "delta_pct": {
-          "description": "100×(exp(HL(log(after)-log(before)))-1).",
+          "description": "100\u00d7(exp(HL(log(after)-log(before)))-1).",
           "format": "double",
           "type": "number"
         },
@@ -940,7 +969,7 @@
         },
         "minimum_delta_ms": {
           "default": 0.0,
-          "description": "max(min_delta_ms, baseline frame × min_delta_pct / 100).",
+          "description": "max(min_delta_ms, baseline frame \u00d7 min_delta_pct / 100).",
           "format": "double",
           "type": "number"
         },
@@ -1391,6 +1420,59 @@
       ],
       "type": "object"
     },
+    "Summary": {
+      "description": "Per-arm repeat evidence. Unpaired intervals never imply matched acquisition.",
+      "properties": {
+        "hl_delta_ms": {
+          "description": "Independent-sample Hodges\u2013Lehmann shift against baseline.",
+          "format": "double",
+          "type": "number"
+        },
+        "interval_ms": {
+          "description": "Seeded independent-arm bootstrap CI, unavailable without two repeats per arm.",
+          "items": {
+            "format": "double",
+            "type": "number"
+          },
+          "maxItems": 2,
+          "minItems": 2,
+          "type": [
+            "array",
+            "null"
+          ]
+        },
+        "iqr_ms": {
+          "description": "Interquartile range.",
+          "format": "double",
+          "type": "number"
+        },
+        "median_ms": {
+          "description": "Median timing.",
+          "format": "double",
+          "type": "number"
+        },
+        "method": {
+          "description": "Explicit method and independence limitation.",
+          "type": "string"
+        },
+        "samples_ms": {
+          "description": "All accepted repeat timings in milliseconds.",
+          "items": {
+            "format": "double",
+            "type": "number"
+          },
+          "type": "array"
+        }
+      },
+      "required": [
+        "samples_ms",
+        "median_ms",
+        "iqr_ms",
+        "hl_delta_ms",
+        "method"
+      ],
+      "type": "object"
+    },
     "TermDiff": {
       "properties": {
         "after": {
@@ -1484,7 +1566,7 @@
         },
         "noise_threshold": {
           "default": null,
-          "description": "Effective threshold: max(k × range, ticks × quantum, absolute/relative minimum).",
+          "description": "Effective threshold: max(k \u00d7 range, ticks \u00d7 quantum, absolute/relative minimum).",
           "format": "double",
           "type": [
             "number",
@@ -1579,6 +1661,17 @@
           "type": "null"
         }
       ]
+    },
+    "base_timing": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/Summary"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "description": "Distribution over all accepted baseline repeats."
     },
     "derived_noise": {
       "anyOf": [

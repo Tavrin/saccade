@@ -179,3 +179,6 @@ pub mod timing;
 
 /// Wave 11 settling implementation.
 pub mod settling;
+
+/// Wave 11 ablation timing implementation.
+pub mod ablation_timing;

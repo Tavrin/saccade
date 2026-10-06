@@ -56,6 +56,15 @@ pub struct Arm {
     #[serde(default)]
     pub frame_change: crate::perf::FrameChange,
     pub frame_delta: Option<f64>,
+    /// Timing distribution from every accepted repeat, never the representative alone.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub timing: Option<crate::ablation_timing::Summary>,
+    /// Evidence-quality image classes from the baseline comparison.
+    #[serde(default)]
+    pub image_classes: Vec<String>,
+    /// Timing rank among validated arms; unavailable for rejected evidence.
+    #[serde(default)]
+    pub timing_rank: Option<usize>,
     pub top_deltas: Vec<TermDiff>,
     pub config_differs: Vec<String>,
     pub no_effect: bool,
@@ -135,6 +144,13 @@ impl Arm {
                 .flat_map(|e| e.intended_variables.clone())
                 .collect(),
             intended_keys: report.config.meta.intended.clone(),
+            timing: None,
+            timing_rank: None,
+            image_classes: report
+                .entries
+                .iter()
+                .filter_map(|e| e.field_evidence.as_ref().map(|f| f.class.clone()))
+                .collect(),
             label,
             path,
             report_html,
@@ -182,6 +198,9 @@ impl Arm {
 pub struct Ablation {
     pub schema: String,
     pub base: String,
+    /// Distribution over all accepted baseline repeats.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub base_timing: Option<crate::ablation_timing::Summary>,
     pub arms: Vec<Arm>,
     #[serde(default)]
     pub base_repeats: Vec<String>,
@@ -219,6 +238,21 @@ impl Ablation {
         let mut out = String::from(
             "# Saccade ablation\n\n| Arm | Flag | Image | Repeat validity |\n|---|---|---|---|\n",
         );
+        out.push_str("\n| Arm | Rank | Median ms | IQR ms | HL delta ms | 95% CI ms |\n|---|---|---|---|---|---|\n");
+        for arm in &self.arms {
+            if let Some(t) = &arm.timing {
+                out.push_str(&format!(
+                    "| {} | {:?} | {:.6} | {:.6} | {:+.6} | {:?} |\n",
+                    crate::perf::clean(&arm.label).replace('|', "\\|"),
+                    arm.timing_rank,
+                    t.median_ms,
+                    t.iqr_ms,
+                    t.hl_delta_ms,
+                    t.interval_ms
+                ));
+            }
+        }
+        out.push_str("\n| Arm | Flag | Image | Repeat validity |\n|---|---|---|---|\n");
         for arm in &self.arms {
             let clean = |s: &str| crate::perf::clean(s).replace('|', "\\|");
             out.push_str(&format!(
@@ -372,8 +406,17 @@ impl Ablation {
         let data = serde_json::to_string(self)?
             .replace("</", "<\\/")
             .replace("<!--", "<\\u0021--");
+        let mut timing_html = String::from(
+            "<table><tr><th>Arm</th><th>Rank</th><th>Median ms</th><th>IQR ms</th><th>HL delta ms</th><th>95% CI ms</th></tr>",
+        );
+        for a in &self.arms {
+            if let Some(t) = &a.timing {
+                timing_html.push_str(&format!("<tr><td>{}</td><td>{:?}</td><td>{:.6}</td><td>{:.6}</td><td>{:+.6}</td><td>{:?}</td></tr>",a.label.replace('&',"&amp;").replace('<',"&lt;").replace('>',"&gt;"),a.timing_rank,t.median_ms,t.iqr_ms,t.hl_delta_ms,t.interval_ms));
+            }
+        }
+        timing_html.push_str("</table>");
         Ok(format!(
-            "<!doctype html><html lang=\"en\"><head><meta charset=\"utf-8\"><meta name=\"viewport\" content=\"width=device-width,initial-scale=1\"><title>saccade ablation</title><style>{}</style></head><body><main class=\"perf-page\"><h1>saccade ablation</h1><p><a href=\"{ABLATE_FILE}\">JSON evidence</a></p><div id=\"ablation\"></div></main><script type=\"application/json\" id=\"ablation-data\">{data}</script><script>{}\nwindow.saccadePerf.ablation(document.getElementById('ablation'), JSON.parse(document.getElementById('ablation-data').textContent));</script></body></html>",
+            "<!doctype html><html lang=\"en\"><head><meta charset=\"utf-8\"><meta name=\"viewport\" content=\"width=device-width,initial-scale=1\"><title>saccade ablation</title><style>{}</style></head><body><main class=\"perf-page\"><h1>saccade ablation</h1><p><a href=\"{ABLATE_FILE}\">JSON evidence</a></p>{timing_html}<div id=\"ablation\"></div></main><script type=\"application/json\" id=\"ablation-data\">{data}</script><script>{}\nwindow.saccadePerf.ablation(document.getElementById('ablation'), JSON.parse(document.getElementById('ablation-data').textContent));</script></body></html>",
             crate::render::shared::page_css(&[]),
             crate::render::shared::page_js(&[])
         ))
@@ -528,6 +571,11 @@ pub fn run_repeats(
         effective.perf.noise_override,
     );
     effective.perf.noise = None;
+    let base_times = crate::ablation_timing::collect(&bases, &cfg.perf.name)?;
+    let base_timing = base_times
+        .as_ref()
+        .map(|v| crate::ablation_timing::summarize(v, v))
+        .transpose()?;
     let mut rows = Vec::new();
     for (i, ((declared, paths, excluded), (arm, fallback))) in
         accepted.iter().zip(arms.iter().zip(labels)).enumerate()
@@ -587,9 +635,29 @@ pub fn run_repeats(
                 );
             }
         }
+        if let (Some(base), Some(times)) = (
+            &base_times,
+            crate::ablation_timing::collect(paths, &cfg.perf.name)?,
+        ) {
+            row.timing = Some(crate::ablation_timing::summarize(base, &times)?);
+        }
         rows.push(row);
     }
+    let mut ranked = rows
+        .iter()
+        .enumerate()
+        .filter(|(_, r)| {
+            r.validity_findings.is_empty() && r.errors.is_empty() && r.timing.is_some()
+        })
+        .map(|(i, r)| (i, r.timing.as_ref().map_or(0., |t| t.hl_delta_ms)))
+        .collect::<Vec<_>>();
+    ranked.sort_by(|a, b| a.1.total_cmp(&b.1));
+    for (rank, (i, _)) in ranked.into_iter().enumerate() {
+        rows[i].timing_rank = Some(rank + 1);
+    }
+    rows.sort_by_key(|r| r.timing_rank.unwrap_or(usize::MAX));
     let model = Ablation {
+        base_timing,
         schema: "saccade-ablate.v1".into(),
         base: crate::paths::record(base, out, cfg.record_absolute_paths),
         arms: rows,
@@ -611,8 +679,7 @@ pub fn run_repeats(
         ("ablation.txt", model.text()),
         ("ablation.md", model.markdown()),
     ] {
-        std::fs::write(out.join(name), text)
-            .map_err(crate::run::io_err(format!("writing {name}")))?;
+        std::fs::write(out.join(name), text).map_err(crate::run::io_err("writing ablation output".into()))?;
     }
     std::fs::remove_file(out.join(crate::run::RUN_SENTINEL))
         .map_err(crate::run::io_err("removing ablation marker".into()))?;
