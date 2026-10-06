@@ -4,7 +4,7 @@
   "review_status": "generated, coordinator-reviewed (2026-10-06)",
   "coordinator_review_date": "2026-10-06",
   "coordinator_review": "OCR-CONTRACT-REVIEW-2026-10-06.md",
-  "negative_control_policy": "truth-derived; unchanged accent-stripping controls FAIL (numeric text contains no accented letters)",
+  "negative_control_policy": "truth-derived; unchanged accent-stripping controls N/A (no accents); applicable controls must be rejected in both scoring views",
   "fixtures": [
     {
       "group": "fr",
@@ -2292,5 +2292,19 @@
         "license_sha256": "f32df582a2aab128c07b2f7e36e7b928dc5f6bd82657b905c04f91459f9e5cf9"
       }
     }
-  ]
+  ],
+  "typographic_equivalence": {
+    "declaration": "post-hoc contract-design correction, coordinator 2026-10-06 after dbfea24",
+    "folds": {
+      "’": "'",
+      "‘": "'",
+      " ": " ",
+      " ": " ",
+      " ": " ",
+      "–": "-",
+      "—": "-"
+    },
+    "thresholds": "same per-case CER/WER and required exact strings, after folding both sides",
+    "omissions": "remain errors; no character deletion or whitespace collapsing"
+  }
 }

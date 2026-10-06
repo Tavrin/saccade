@@ -5,6 +5,24 @@ use saccade_core::{
 };
 use serde_json::{Value, json};
 use std::path::Path;
+// Post-hoc coordinator scoring view; never delete or collapse characters.
+fn fold_typography(text: &str) -> String {
+    text.chars()
+        .map(|c| match c {
+            '’' | '‘' => '\'',
+            '\u{202f}' | '\u{00a0}' | '\u{2009}' => ' ',
+            '–' | '—' => '-',
+            _ => c,
+        })
+        .collect()
+}
+fn folded_source(source: &ui_review::Source) -> ui_review::Source {
+    let mut folded = source.clone();
+    for node in &mut folded.nodes {
+        node.text = fold_typography(&node.text);
+    }
+    folded
+}
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     let args: Vec<_> = std::env::args().collect();
     if args.len() != 4 {
@@ -36,10 +54,14 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             Ok(observed) => observed,
             Err(error) => {
                 failed += 1;
-                println!("{} OCR=FAIL error={error}", c["image"]);
+                println!(
+                    "{} strict=FAIL CER=N/A WER=N/A folded=FAIL CER=N/A WER=N/A error={error}",
+                    c["image"]
+                );
                 results.push(json!({"group":c["group"],"variant":c["variant"],"image":c["image"],
                     "font":c["font"],"expected_text":c["expected_text"],"pass":false,"gate_pass":false,
-                    "accent_stripping_rejected":false,"error":error.to_string()}));
+                    "typographic_equivalence":{"pass":false,"rates":null,"expected":null},
+                    "accent_stripping_status":"UNRUN","accent_stripping_rejected":null,"error":error.to_string()}));
                 continue;
             }
         };
@@ -73,6 +95,17 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         let pass = comparison.rates.cer.is_some_and(|v| v <= max_cer)
             && comparison.rates.wer.is_some_and(|v| v <= max_wer)
             && comparison.expected.iter().all(|e| e.present);
+        let folded_required: Vec<_> = required.iter().map(|s| fold_typography(s)).collect();
+        let folded = text::compare(
+            &folded_source(&truth),
+            &folded_source(&observed),
+            &folded_required,
+            0.,
+            3.,
+        )?;
+        let folded_pass = folded.rates.cer.is_some_and(|v| v <= max_cer)
+            && folded.rates.wer.is_some_and(|v| v <= max_wer)
+            && folded.expected.iter().all(|e| e.present);
         let mut controls = Vec::new();
         for control in c["negative_controls"]
             .as_array()
@@ -83,34 +116,62 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             let mut stripped = truth.clone();
             stripped.nodes[0].text = control_text.into();
             let comparison = text::compare(&truth, &stripped, &required, 0., 3.)?;
-            // Preserve the original accent-control bar; no-op controls cannot pass.
+            // Preserve the rejection bar; accent-stripping no-ops are inapplicable.
             let rejected = changed
                 && comparison.expected.iter().any(|e| !e.present)
                 && comparison.rates.cer.is_some_and(|v| v > max_cer);
+            let applicable = control["kind"] != "accent-stripping" || changed;
+            let folded_control = text::compare(
+                &folded_source(&truth),
+                &folded_source(&stripped),
+                &folded_required,
+                0.,
+                3.,
+            )?;
+            let folded_rejected = changed
+                && folded_control.expected.iter().any(|e| !e.present)
+                && folded_control.rates.cer.is_some_and(|v| v > max_cer);
             controls.push(
                 json!({"kind":control["kind"],"text":control_text,"changed":changed,
-                "rejected":rejected,"rates":comparison.rates,"expected":comparison.expected}),
+                "applicable":applicable,
+                "status":if !applicable { "N/A" } else if rejected { "PASS" } else { "FAIL" },
+                "rejected":if applicable { Some(rejected) } else { None },
+                "folded_rejected":if applicable { Some(folded_rejected) } else { None },
+                "rates":comparison.rates,"expected":comparison.expected}),
             );
         }
-        let rejected = !controls.is_empty() && controls.iter().all(|v| v["rejected"] == true);
-        let accent_rejected = controls
-            .iter()
-            .any(|v| v["kind"] == "accent-stripping" && v["rejected"] == true);
-        if !pass || !rejected {
+        let rejected = !controls.is_empty()
+            && controls.iter().all(|v| {
+                v["applicable"] == false || (v["rejected"] == true && v["folded_rejected"] == true)
+            });
+        let accent_control = controls.iter().find(|v| v["kind"] == "accent-stripping");
+        let accent_rejected = accent_control.map(|v| v["rejected"].clone());
+        let accent_status = accent_control
+            .and_then(|v| v["status"].as_str())
+            .unwrap_or("N/A");
+        if !pass || !folded_pass || !rejected {
             failed += 1;
         }
         println!(
-            "{} OCR={} controls={}",
+            "{} strict={} CER={:.5} WER={:.5} folded={} CER={:.5} WER={:.5} accent-control={} controls={}",
             c["image"].as_str().ok_or("image missing")?,
             if pass { "PASS" } else { "FAIL" },
+            comparison.rates.cer.unwrap_or(f64::NAN),
+            comparison.rates.wer.unwrap_or(f64::NAN),
+            if folded_pass { "PASS" } else { "FAIL" },
+            folded.rates.cer.unwrap_or(f64::NAN),
+            folded.rates.wer.unwrap_or(f64::NAN),
+            accent_status,
             if rejected { "PASS" } else { "FAIL" }
         );
         results.push(json!({"group":c["group"],"variant":c["variant"],"image":c["image"],
-            "font":c["font"],"expected_text":expected,"pass":pass,"gate_pass":pass && rejected,
+            "font":c["font"],"expected_text":expected,"pass":pass,"gate_pass":pass && folded_pass && rejected,
+            "typographic_equivalence":{"pass":folded_pass,"rates":folded.rates,"expected":folded.expected},
+            "accent_stripping_status":accent_status,
             "accent_stripping_rejected":accent_rejected,"negative_controls":controls,
             "rates":comparison.rates,"expected":comparison.expected,"observed":observed.nodes,"producer":observed.producer}));
     }
-    let receipt = json!({"schema":"saccade-ocr-accent-results.v1","review_status":contracts["review_status"],"coordinator_review_date":contracts["coordinator_review_date"],"contract_sha256":saccade_core::localized::digest(&input::bytes(&root.join("contracts.json"),2*1024*1024)?),"total":results.len(),"failed":failed,"results":results});
+    let receipt = json!({"schema":"saccade-ocr-accent-results.v1","typographic_equivalence":contracts["typographic_equivalence"],"review_status":contracts["review_status"],"coordinator_review_date":contracts["coordinator_review_date"],"contract_sha256":saccade_core::localized::digest(&input::bytes(&root.join("contracts.json"),2*1024*1024)?),"total":results.len(),"failed":failed,"results":results});
     std::fs::write(&args[3], serde_json::to_vec_pretty(&receipt)?)?;
     println!("accent contracts: {} total, {failed} failed", results.len());
     if failed > 0 {

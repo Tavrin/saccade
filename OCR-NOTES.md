@@ -174,3 +174,26 @@ identities, complete JSON results, resource pauses and gate exit receipt are in
 and its referenced evidence files. Generated fixtures establish neither general
 accuracy nor source/export/OpenCV parity. Coordinator review is complete;
 integration and live Mistral wire/billing facts remain coordinator-owned.
+
+## Coordinator post-run scoring disposition — after dbfea24
+
+The post-hoc contract-design correction supersedes the numeric no-op FAIL
+classification above: 18 accent-stripping controls without accents are N/A.
+Strict scoring and all expected texts, thresholds and fixture identities stay
+unchanged. A second declared typographic-equivalence view folds ’/‘ to ASCII
+apostrophe, U+202F/U+00A0/U+2009 to space, and en/em dash to hyphen, on both
+observations and expectations (including required strings). Omitted characters
+remain errors; no trimming or whitespace collapsing is added.
+Applicable negative controls must remain rejected in both views.
+
+Known limitations remain: œ misread in serif at large sizes (DejaVu Serif/48
+cœur→cæur), dash omission with some sans fonts (Liberation Sans), and omitted
+spaces before € in some thin-space fixtures. See the updated
+`docs/ocr-contract-results-2026-10-06.md` for the new run and both per-case scores.
+
+The requested gate rerun exited 1 solely for accents: strict **46/72**, folded
+**61/72**. Every strict rate, observation, required-string result and verdict
+matches the previous run. Folded failures comprise the serif ligature case,
+six Liberation Sans dash-omission cases and four DejaVu missing-space cases.
+All other gate stages passed; 54/54 applicable accent controls and 18/18 format
+controls were rejected in both views, with 18 accent controls N/A.

@@ -44,21 +44,27 @@ DejaVu Serif, DejaVu Sans and Liberation Sans at 32/40/48 px are marked
 original French/German/Spanish phrases and add uppercase French, rarer lowercase,
 ligatures and French numbers (quoted and narrow no-break-space variants). Before
 inference they declare CER ≤ .02, WER ≤ .10 and exact accented-word presence;
-accent-stripped output must fail. Numeric phrases have no accents, so their
-unchanged accent-stripping controls remain failing; additional format-stripping
-controls are recorded separately. See `scripts/gates-ocr.sh` and `OCR-NOTES.md` for
-actual results. These fixtures do not establish general accuracy or source/export parity.
+accent-stripped output must fail when applicable. Numeric phrases have no accents:
+their 18 unchanged accent-stripping controls are **N/A**, not failures. Additional
+format-stripping controls remain applicable.
 
-Known limitations from the 2026-10-06 revalidation: **46/72 OCR cases pass; the
-accent gate remains FAIL**. Original French DejaVu Serif/48 still reads `cœur`
-as `cæur` (CER 1/39, WER 1/8). The separate ligature phrase passes 9/9 and does
-not clear that context-dependent failure. Rarer lowercase passes only 2/9:
-curly apostrophes in `aujourd’hui` and sometimes `l’été` become ASCII apostrophes.
-French numeric formats pass 0/18: en dashes become hyphens, disappear or become
-an em dash; U+202F narrow no-break spaces are replaced/omitted. All 18 numeric
-accent controls are unchanged and remain FAIL; the separate format controls
-are rejected 18/18. Expectations and thresholds remain unchanged. See
-[every case and its measured rates](ocr-contract-results-2026-10-06.md).
+The coordinator's post-run disposition adds a declared **typographic-equivalence**
+view alongside unchanged strict scoring: ’ and ‘ → ASCII apostrophe,
+U+202F/U+00A0/U+2009 → ordinary space, and en/em dash → hyphen. Both sides and
+required strings are folded; CER ≤ .02, WER ≤ .10 and exact-string requirements
+remain unchanged. No characters are deleted or whitespace collapsed: omitted
+spaces and dashes still count as errors. This is a post-hoc contract-design
+correction, not a claim that folding was declared before the original run.
+
+Known limitations: **œ can be misread in serif at large sizes** (original
+DejaVu Serif/48 `cœur` → `cæur`, CER 1/39, WER 1/8), and **some sans fonts
+omit dashes** (Liberation Sans in this corpus). Some thin-space cases also omit
+the space before `€`. All remain errors in both views. Apostrophe, space and
+dash substitutions covered by the declaration remain strict errors but are
+equivalent in the folded view. The separate ligature phrase does not clear
+the original serif failure. See [every case and both measured scores](ocr-contract-results-2026-10-06.md)
+and `scripts/gates-ocr.sh`. Generated fixtures establish neither general accuracy
+nor source/export parity.
 
 `saccade-text.v1` retains changed/missing/added/moved observations, boxes, provenance,
 CER/WER and literal expected strings. PP-OCRv5 units are detected lines; word boxes

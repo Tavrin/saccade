@@ -78,7 +78,8 @@ for font_path, lic_path, lic in fonts:
     'review_status': REVIEW_STATUS,
     'coordinator_review_date': '2026-10-06',
     'coordinator_review': REVIEW,
-    'negative_control_policy': 'truth-derived; unchanged accent-stripping controls FAIL (numeric text contains no accented letters)',
+    'negative_control_policy': 'truth-derived; unchanged accent-stripping controls N/A (no accents); applicable controls must be rejected in both scoring views',
     'fixtures': contracts,
+    'typographic_equivalence': {'declaration': 'post-hoc contract-design correction, coordinator 2026-10-06 after dbfea24', 'folds': {'’': "'", '‘': "'", '\u202f': ' ', '\xa0': ' ', '\u2009': ' ', '–': '-', '—': '-'}, 'thresholds': 'same per-case CER/WER and required exact strings, after folding both sides', 'omissions': 'remain errors; no character deletion or whitespace collapsing'},
 }, ensure_ascii=False, indent=2) + '\n')
 print(f'Generated {len(contracts)} frozen contracts')
