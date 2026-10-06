@@ -1,34 +1,26 @@
 #!/usr/bin/env bash
-# Coordinator only: invoke through the shared CPU-heavy queue after integration.
+# Explicit feature qualification gates; see docs/releasing.md.
 # Every command has a <=15-minute limit; no live hosted providers or publication.
 set -u
 cd "$(dirname "$0")/.." || exit 1
-export CARGO_TARGET_DIR="${CARGO_TARGET_DIR:-/mnt/linux-extra/moss-cargo-targets/codex-saccade-w8}"
+source scripts/gate-env.sh
 export CARGO_BUILD_JOBS=4 CARGO_INCREMENTAL=0 CARGO_PROFILE_DEV_DEBUG=0 CARGO_PROFILE_TEST_DEBUG=0
-export SACCADE_W8_EVIDENCE="${SACCADE_W8_EVIDENCE:-/mnt/linux-extra/moss-scratch/saccade-wave8/heavy}"
+export SACCADE_W8_EVIDENCE="${SACCADE_W8_EVIDENCE:-$CARGO_TARGET_DIR/wave8-evidence}"
 failed=0
 features=local-models,embeddings,ocr,vision-providers,media-http,workbench,mcp,schema
 gate() {
     local name=$1
     shift
     local -a command=(timeout 900 "$@")
-    if test -n "${SACCADE_W8_ADMISSION_GB:-}"; then
-        local gb=$SACCADE_W8_ADMISSION_GB
-        case "$name" in
-            fmt|docs|runtime-pull|face-model-pull|manylinux-artifacts|docker-smoke) gb=1 ;;
-            clippy|python-clippy|python-light|python-model-build|python-models) gb=4 ;;
-            docker-build|wheel-release) gb=8 ;;
-        esac
-        command=(/mnt/linux-extra/moss-coord/bin/moss-heavy.sh "$gb" "${command[@]}")
-    fi
-    if "${command[@]}"; then printf 'GATE %s PASS\n' "$name"; else printf 'GATE %s FAIL\n' "$name"; failed=1; fi
+    if saccade_run "${command[@]}"; then printf 'GATE %s PASS\n' "$name"; else printf 'GATE %s FAIL\n' "$name"; failed=1; fi
 }
 cargo_gate() {
     local name=$1
     shift
-    gate "$name" python3 scripts/wave8-dev-cargo.py cargo "$@"
+    saccade_headroom || { failed=1; return 1; }
+    gate "$name" nice -n 19 cargo "$@"
 }
-# The complete coordinator-owned gates are written here, not run in development.
+# These gates require installed runtime/model inputs for model qualification.
 gate fmt cargo fmt --all -- --check
 gate docs python3 scripts/wave8/check-docs.py
 cargo_gate clippy clippy -j 4 -p saccade -p saccade-core --features "$features" --all-targets -- -D warnings
@@ -37,7 +29,7 @@ cargo_gate core-tests test --no-fail-fast -j 4 -p saccade-core --features "${fea
 cargo_gate cli-tests test --no-fail-fast -j 4 -p saccade --features "$features"
 cargo_gate minimal-tests test -j 4 -p saccade-core --no-default-features
 # No model downloads unless this explicit gate provisions immutable wave 7 assets.
-export SACCADE_W8_MODEL_DIR="${SACCADE_W8_MODEL_DIR:-/mnt/linux-extra/saccade-models}"
+export SACCADE_W8_MODEL_DIR="${SACCADE_W8_MODEL_DIR:-$SACCADE_MODEL_CACHE}"
 : "${SACCADE_W8_PYTHON:=python3}"
 export SACCADE_W8_PYTHON
 cargo_gate runtime-cli-build test -j 4 -p saccade --features "$features" --test wave8_contract --no-run
@@ -54,7 +46,7 @@ cargo_gate ffmpeg test -j 4 -p saccade-core --features "${features//,mcp/}" --li
 cargo_gate python-light test -j 4 -p saccade-py --features python-tests --test python_package -- --nocapture
 if "$SACCADE_W8_PYTHON" -c 'import maturin' >/dev/null 2>&1; then
 # Release/manylinux wheel construction is deliberately heavy and artifact-only.
-gate wheel-release python3 scripts/wave8-dev-cargo.py "$SACCADE_W8_PYTHON" -m maturin build --release --locked -j 4 --manifest-path crates/saccade-py/Cargo.toml --features models,http --out "$SACCADE_W8_EVIDENCE/wheels"
+gate wheel-release nice -n 19 "$SACCADE_W8_PYTHON" -m maturin build --release --locked -j 4 --manifest-path crates/saccade-py/Cargo.toml --features models,http --out "$SACCADE_W8_EVIDENCE/wheels"
 gate wheel-install "$SACCADE_W8_PYTHON" -m pip install --force-reinstall "$SACCADE_W8_EVIDENCE"/wheels/*.whl
 gate python-models "$SACCADE_W8_PYTHON" -m pytest -q crates/saccade-py/tests/test_models.py
 else
@@ -74,7 +66,7 @@ else
     printf 'GATE manylinux-artifacts CI-ONLY (both architecture archives require CI)\n'
 fi
 if command -v docker >/dev/null 2>&1; then
-gate docker-build python3 scripts/wave8-dev-cargo.py docker build -f Dockerfile.wave8 -t saccade-wave8-gate:local .
+gate docker-build docker build -f Dockerfile.wave8 -t saccade-wave8-gate:local .
 gate docker-smoke python3 scripts/wave8/docker-smoke.py
 else
     printf 'GATE docker-build CI-ONLY (Docker unavailable locally)\n'

@@ -673,7 +673,7 @@ and authorized immutable artifact identity; no new weight licence is inferred.
 Official facebook/dinov2-small checkpoint revision
 `ed25f3a31f01632728cabb09d1542f84ab7b0056` declares Apache-2.0 in its pinned official
 model card. Checkpoint and local ONNX export hashes are retained in
-`/mnt/linux-extra/saccade-models/r2/upstream-pins.json` and `export-receipt.json`.
+`upstream-pins.json` and `export-receipt.json` in the user-selected export directory.
 Transformers 4.46.3 and ONNX tooling run only in the isolated CPU venv, not the default
 Rust dependency graph. Procedural geometry/glyph images use MIT OR Apache-2.0.
 Tesseract 5.3.4 and official French traineddata 4.1.0 were extracted from version-pinned

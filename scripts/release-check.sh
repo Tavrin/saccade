@@ -4,21 +4,22 @@ set -uo pipefail
 root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "$root" || exit 2
 export CARGO_BUILD_RUSTC_WRAPPER='' RUSTC_WRAPPER=''
+source scripts/gate-env.sh
 failed=0
 run() {
   local name="$1"
   shift
   local -a command=("$@")
-  if [[ -n "${SACCADE_RELEASE_ADMISSION_GB:-}" ]]; then
-    if ! python3 -c 'import os; s=os.statvfs("/mnt/linux-extra"); raise SystemExit(s.f_bavail*s.f_frsize < 25*1024**3)'; then
-      echo "FAIL $name (less than 25 GiB free; not executed)"
-      failed=1
-      return 75
-    fi
-    command=(/mnt/linux-extra/moss-coord/bin/moss-heavy.sh "$SACCADE_RELEASE_ADMISSION_GB" timeout 900 "${command[@]}")
+  if ! saccade_headroom; then
+    echo "FAIL $name (less than 25 GiB free; not executed)"
+    failed=1
+    return 75
   fi
-  if "${command[@]}"; then echo "PASS $name"; return 0; else echo "FAIL $name"; failed=1; return 1; fi
+  if saccade_run timeout 900 "${command[@]}"; then echo "PASS $name"; return 0; else echo "FAIL $name"; failed=1; return 1; fi
 }
+run public-hygiene scripts/check-public-hygiene.sh
+run public-hygiene-tests python3 scripts/test-public-hygiene.py
+run genericity scripts/check-genericity.sh
 run renderdoc-worker-boundaries python3 scripts/test-renderdoc-worker.py
 run formatting cargo fmt --check
 run clippy cargo clippy --workspace --all-targets --locked -- -D warnings
@@ -50,7 +51,7 @@ else
   echo 'FAIL actionlint (install actionlint v1.7.7)'
   failed=1
 fi
-run shellcheck shellcheck scripts/release-check.sh scripts/run-showcases.sh
+run shellcheck shellcheck scripts/gate-env.sh scripts/release-check.sh scripts/run-showcases.sh
 run showcase-binary cargo build --release -p saccade --all-features --locked
 target_dir="$(cargo metadata --locked --no-deps --format-version 1 | python3 -c 'import json,sys; print(json.load(sys.stdin)["target_directory"])')"
 binary="$target_dir/release/saccade"
@@ -64,6 +65,6 @@ printf '%s\n' \
   'CI-ONLY fork PR and trusted baseline-update PR demonstration: example-usage.yml, example-update-baselines.yml' \
   'CI-ONLY tagged archive hash and build identity: release.yml, qualify.yml' \
   'MANUAL narrow/wide dark/light browser and offline relocation: release checklist' \
-  'MANUAL current Moss consumer and preserved integration evidence: upstream Moss qualification' \
+  'MANUAL downstream consumer integration: consumer qualification' \
   'MANUAL live pilot publication: separately authorized evaluation, never ordinary CI'
 exit "$failed"

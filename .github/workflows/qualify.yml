@@ -23,7 +23,7 @@ on:
         required: true
         type: string
       tag:
-        description: Version label checked by that run (for example v0.2.0)
+        description: Version label checked by that run (for example v0.2.1)
         required: true
         type: string
 
@@ -64,7 +64,7 @@ jobs:
         with:
           python-version: '3.12'
       - name: Install showcase validators
-        run: python3 -m pip install Pillow==10.2.0 numpy==2.2.6 jsonschema==4.10.3
+        run: python3 -m pip install Pillow==10.2.1 numpy==2.2.6 jsonschema==4.10.3
       - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
         with:
           name: release-dist

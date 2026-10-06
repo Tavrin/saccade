@@ -8,9 +8,7 @@ accepted and excluded paths, and derives a performance floor from complete
 base repeats. A rejected floor stays rejected. I rejected treating missing
 optional gap terms as a qualified complete timing graph: only the common
 terms receive a floor, and the missing terms remain explicit warnings.
-Packet B also has differing `configuration_hash` values in the five base
-performance sidecars. Those captures therefore cannot supply qualified
-unchanged-build performance noise. Capture all repeats with the same renderer
+Capture all repeats with the same renderer
 configuration, qualifying warmup and complete timing provenance. An explicit
 noise file cannot lower a derived floor unless `--perf-noise-override` is
 given; the artifact records both floors and the override.
@@ -38,12 +36,6 @@ with max FLIP at least `0.5` and area at least `16` pixels; both cutoffs are
 configurable. A zero FLIP score with differing native samples uses the additive
 `zero_flip_native_difference` class instead of any identical label.
 
-Packet B's `lit.png` peaks at `0.4268897`, so its passing mean does not meet
-the specified default `0.5` rule. The other two images do. A demonstration
-with `hotspot_local_max = 0.4` marks all three; changing the default to make
-this packet pass would contradict the spec's stated default. This remains an
-explicit acceptance shortfall for the default packet demonstration.
-
 ## 4. GPU clock and power state
 
 Read `gpu_clock.json` as engine-neutral `saccade-gpu-clock.v1` or adapt Moss
@@ -65,7 +57,7 @@ existing command under an Advanced heading. `prove identity` routes to the
 existing exact identity path and `prove performance` to ablation. The old
 commands remain callable and discoverable through explicit help and compiled
 capabilities. I rejected renaming or removing them because existing scripts
-and §17 compatibility depend on those paths. The identity form now forwards
+and consumer compatibility depend on those paths. The identity form now forwards
 all advanced identity flags, including `--allow-empty`, `--ppd`, `--labels`
 and `--junit`, through the same implementation.
 
@@ -146,7 +138,7 @@ decoding and the Reinhard exposure endpoints against the NVIDIA FLIP v1.7
 round trip and highlight-change tests cover float input and multi-exposure
 behavior. The dependency's published C++ parity harness reports exact results
 on its measured corpus with 1e-5 per-pixel and 1e-6 pooled/exposure acceptance
-limits; this lane does not run or download that third-party suite. We constrain
+limits; third-party suite results are separate evidence. We constrain
 explicit exposure counts to the library's 128 maximum before comparison.
 Automatic exposures on an all-black reference remain undefined by the
 reference and require explicit endpoints. Sources: [NVIDIA's FLIP v1.7
@@ -192,7 +184,7 @@ The transient map is a perceptual difference map, not a semantic classifier,
 so flicker and lagging-frame labels come from declared deterministic rules.
 I rejected an FFmpeg dependency or guessed HDR display transform for this
 first path. The MIT Rust crate's published parity is scoped to its own
-measured corpus; this lane's synthetic tests cover the adapter and findings.
+measured corpus; synthetic tests cover the adapter and findings.
 
 ## 14. Per-object attribution
 

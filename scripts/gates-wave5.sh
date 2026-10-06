@@ -1,22 +1,16 @@
 #!/usr/bin/env bash
-# Coordinator-only: run after integration through the machine's heavy queue.
+# Explicit feature qualification gates; see docs/releasing.md.
 set -u
 cd "$(dirname "$0")/.." || exit 2
-export CARGO_TARGET_DIR="${CARGO_TARGET_DIR:-/mnt/linux-extra/moss-cargo-targets/codex-saccade-w5}"
+source scripts/gate-env.sh
 export SYSTEM_DEPS_DAV1D_BUILD_INTERNAL=never
 failed=0
 run_gate() {
   local name="$1"; shift
-  if "$@"; then printf 'GATE %s PASS\n' "$name"; else printf 'GATE %s FAIL\n' "$name"; failed=1; fi
+  if saccade_run "$@"; then printf 'GATE %s PASS\n' "$name"; else printf 'GATE %s FAIL\n' "$name"; failed=1; fi
 }
-space() {
-  local available
-  available=$(df -BG --output=avail /mnt/linux-extra | tail -n 1 | tr -dc '0-9')
-  if [[ -z "$available" || "$available" -lt 25 ]]; then
-    printf 'wave5: build admission refused: need 25 GB free\n' >&2; return 1
-  fi
-}
-cargo_gate() { space && nice -n 19 cargo "$@"; }
+space() { saccade_headroom; }
+cargo_gate() { space && saccade_run nice -n 19 cargo "$@"; }
 avif_prerequisite() {
   command -v pkg-config >/dev/null && pkg-config --atleast-version=1.3.0 dav1d
 }
@@ -24,7 +18,7 @@ avif_cargo() { avif_prerequisite && cargo_gate "$@"; }
 js_browser() {
   [[ -x "$CARGO_TARGET_DIR/debug/saccade" ]] || return 1
   export SACCADE_BIN="$CARGO_TARGET_DIR/debug/saccade"
-  (cd integrations/playwright && npx --no-install playwright test --config test/playwright.config.cjs)
+  (cd integrations/playwright && saccade_run npx --no-install playwright test --config test/playwright.config.cjs)
 }
 run_gate fmt cargo fmt --all -- --check
 run_gate genericity scripts/check-genericity.sh

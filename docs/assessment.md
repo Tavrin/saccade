@@ -34,4 +34,4 @@ be at least 3x3. HDR uses the existing paired HDR-FLIP pipeline.
 JSON stdout is a bounded artifact receipt. MCP `saccade_general` / `assess`
 mirrors `image`, optional `compare_to`, and `out`, with local root containment.
 Generated blur, noise, quantised ramp and clipping tests are focused unit tests;
-CLI paired delta/schema tests are coordinator-gated.
+CLI paired delta/schema tests are opt-in.

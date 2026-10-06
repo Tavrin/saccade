@@ -40,7 +40,7 @@ numerical roundoff outside [0,1]; emitted confidence remains bounded to 0..100.
 Accents, including é è ê à ç ô ù ü ñ ß œ, remain exact Unicode scalars; combining
 sequences are not normalized. Generated French, German and Spanish contracts in
 DejaVu Serif, DejaVu Sans and Liberation Sans at 32/40/48 px are marked
-**generated, coordinator-reviewed (2026-10-06)**. The 72 frozen cases retain the
+**generated, reviewed (2026-10-06)**. The 72 frozen cases retain the
 original French/German/Spanish phrases and add uppercase French, rarer lowercase,
 ligatures and French numbers (quoted and narrow no-break-space variants). Before
 inference they declare CER ≤ .02, WER ≤ .10 and exact accented-word presence;
@@ -48,7 +48,7 @@ accent-stripped output must fail when applicable. Numeric phrases have no accent
 their 18 unchanged accent-stripping controls are **N/A**, not failures. Additional
 format-stripping controls remain applicable.
 
-The coordinator's post-run disposition adds a declared **typographic-equivalence**
+The recorded post-run disposition adds a declared **typographic-equivalence**
 view alongside unchanged strict scoring: ’ and ‘ → ASCII apostrophe,
 U+202F/U+00A0/U+2009 → ordinary space, and en/em dash → hyphen. Both sides and
 required strings are folded; CER ≤ .02, WER ≤ .10 and exact-string requirements
@@ -95,7 +95,7 @@ Fixtures use `saccade-document-ocr-fixture.v1`, an exact canonical request diges
 (`sha256:…`) and `response` containing `model`, `pages` (each `index`, `markdown`,
 optional `dimensions`) and `usage_info`. They do not load credentials or use sockets.
 The dated model in this example and protocol details are constructed fixture inputs;
-current API compatibility, returned revisions and billing need coordinator confirmation.
+current API compatibility, returned revisions and billing need integrator confirmation.
 
 Live use additionally requires `--ocr-run`, `--ocr-max-spend-usd`, a user-confirmed
 `--ocr-price-per-page-usd` ceiling and `--ocr-price-policy` revision. It exports the

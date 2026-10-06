@@ -1,9 +1,6 @@
 # Wave 3 decisions
 
-The lane follows SPEC-wave3.md and ALGORITHM-RESEARCH-2026-10-05.md §§12–15,
-with workflows A/B/C from the roadmap and the localized/geometry/motion inputs
-from IDEAS-FLESHED. Schemas and public report fields are additive; raw evidence
-retains its authority. Synthetic fixtures qualify bounded behaviours only.
+Schemas and public report fields are additive; raw evidence retains its authority. Synthetic fixtures qualify bounded behaviours only.
 
 ## Item 1: one brand review
 

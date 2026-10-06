@@ -1,6 +1,6 @@
 {
   "date": "2026-10-05",
-  "source": "SPEC-wave7c.md",
+  "source": "scripts/wave7/artifacts.json",
   "working_rust": [
     "grounding-dino-tiny",
     "owlv2-base",

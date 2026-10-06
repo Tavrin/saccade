@@ -10,18 +10,22 @@ Keep availability separate from accuracy. An unavailable provider response is
 not abstention. Synthetic controls test mechanics and denominators; they do not
 count as real support or model-quality evidence.
 
-The pilot uses private authorized cases and one labeler with self re-labeling
-for test–retest. Record split, exposure and labeling limitations. Do not infer
-whether pixels are needed from Gemini changing an answer: a human identifies a
-necessary visual fact missing from the exact structured packet.
-Qualification requires sufficient independent support for each question.
-Incomplete or unlabeled runs remain unqualified. Release does not wait on a
-fixed labeling count.
+## Corpus and qualification method
 
-Publish permitted aggregate metrics and hashes. Image publication needs separate
-human rights clearance; allowed provider egress is not publication permission.
-Third-party assets in private evaluation corpora stay private by default.
-These docs make no model-quality claim: the pilot is below the qualification
-sample size, so no question is qualified yet.
-[Historical notes](../examples/evaluation/HISTORICAL.md) record earlier
-observations; they are not current instructions.
+Freeze independent cases, splits, input and label hashes, rubrics, model identities,
+request encodings and spend limits before dispatch. Keep related scenes, crops,
+repeats and reversed presentation orders in one split; count independent cases.
+Fit calibration only on the calibration split. Compare advisory providers with a
+deterministic baseline, record abstentions separately from unavailable responses,
+and retain failed qualification gates. Human labels require recorded reviewer
+exposure and labeling limitations. Generated controls test mechanics, not general
+model accuracy or publication rights.
+
+The private renderer corpus, its captures, labels, manifests and run results are
+not distributed. No question is qualified by that private evaluation. Public
+constructed fixtures and a reproducible freeze/score workflow live in
+[`scripts/assist/`](../scripts/assist/) and are described in
+[constructed assist qualification](assist-qualification.md).
+
+Publish only permitted artifacts. Provider egress permission does not authorize
+image publication; private third-party inputs stay outside the repository.

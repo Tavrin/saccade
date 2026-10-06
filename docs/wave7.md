@@ -44,7 +44,7 @@ DINO/OWLv2 detection and EfficientSAM segmentation execute native pinned CPU
 graphs. Source/export parity is not supplied; SAM2 remains deferred with evidence.
 Missing models are unavailable, never interpreted as no objects.
 The library's `Detector`, `Segmenter`, `locate`, `Mask` and `Rect` interfaces are
-ready for the coordinator's check-ui/mask audit/crop adapters. Detector and
+ready for the integrator's check-ui/mask audit/crop adapters. Detector and
 segmenter provenance is separate; a box is not a segmentation mask.
 
 ## Small local VLM (`local-vlm`)
@@ -89,7 +89,7 @@ qualified export, not be guessed from its name. One finite scalar is required.
 The report carries independently named metrics, model id/version and original
 resolution handling. Distances are lower-is-better; technical quality is
 higher-is-better. These numbers are not fused into FLIP/SSIMULACRA2 and do not
-change their verdict. The coordinator attaches `QualityReport.named_metrics`
+change their verdict. The integrator attaches `QualityReport.named_metrics`
 to paired compare reports and MUSIQ to wave 6 assess; this lane's standalone
 command accepts paired files and emits its own comparison report. No calibrated
 UI-quality thresholds or native published exports are claimed.
@@ -114,7 +114,7 @@ this lane tests its own generated marker and makes no universal compatibility
 claim. Crop/resize/flat content can prevent detection. Payloads do not authenticate
 signers or generators. No detection never establishes human origin.
 
-The coordinator combines `watermark::inspect` with wave 6's C2PA indicators;
+The integrator combines `watermark::inspect` with wave 6's C2PA indicators;
 watermarks remain separate from cryptographically signed provenance.
 
 ## Faces and crop safety
@@ -162,7 +162,7 @@ input; cache creation is separately captured. GPT cached/reasoning counters are
 subsets of input/output totals. Missing usage/cost remains null.
 
 The local `ObservationProvider` trait is implemented by `RecordedProvider`;
-coordinator maps it to wave 4's catalog, immutable identities, egress authority,
+integrator maps it to wave 4's catalog, immutable identities, egress authority,
 budgets and attempt ledger. `load_credential` only reads
 `~/.config/saccade/anthropic.env` (`ANTHROPIC_API_KEY`) or `openai.env`
 (`OPENAI_API_KEY`) and never reads ambient key variables. Credential has no
@@ -183,16 +183,16 @@ the native known-message decoder. Every image/receipt is resolved through
 No ambient HOME/config/cache access, provider HTTP call or model download can be
 introduced by tool arguments. `models_pull` explicitly returns unavailable;
 use the human-operated CLI to authorize downloads. Native model inference stays
-on the CLI until the coordinator wires startup-approved runtime/model inputs.
+on the CLI until the integrator wires startup-approved runtime/model inputs.
 
 Results use the standalone versioned schemas. Replay is explicit and source
 parity is false. Tools never emit PNG bytes by default; files are the requested
-output artifacts. The coordinator adds bounded paging when wiring these into
+output artifacts. The integrator adds bounded paging when wiring these into
 wave 4's evidence catalog; large masks should be handled as artifact files.
 
-## Coordinator gates and qualification limits
+## Feature gates and qualification limits
 
-Run `scripts/gates-wave7.sh` only in the coordinator's heavy queue. It checks disk
+Run `scripts/gates-wave7.sh` with the optional admission wrapper. It checks disk
 headroom before each build, fmt, strict Clippy, full touched-crate tests,
 no-default core tests, schema drift, docs and every ignored model/network group.
 The implementation agent does not run it. No live hosted provider gate exists.
@@ -228,7 +228,7 @@ smoke test; it establishes contract/availability, not domain accuracy.
 When no user registry exists, the standalone CLI uses the bundled exact manifest
 in `crates/saccade-core/assets/wave7-models.json`. An explicit `--registry` still
 selects only that registry. `scripts/wave7/pull.py` pulls or verifies the frozen
-artifact catalog in `/mnt/linux-extra/saccade-models`; graph and auxiliary hashes
+artifact catalog in the user-selected model cache; graph and auxiliary hashes
 are checked before use. Locally computed tokenizer/config digests are dated and
 kept distinct from host-reported graph hashes. Weights are never stored in Git.
 
@@ -254,7 +254,7 @@ UltraFace uses RGB 320×240 and `(pixel−127)/128`. Both apply the recorded sco
 faces. LPIPS/DISTS remain deferred on independent backbone-weight grants;
 MUSIQ's official checkpoint lies outside allowed downloads without a complete pin.
 TrustMark Q's pinned neural graph works; complete watermark decoding remains
-unavailable until ECC/resize/sample qualification. No raw-bit presence claim. LPIPS/DISTS compare attachment remains coordinator work after exports
+unavailable until ECC/resize/sample qualification. No raw-bit presence claim. LPIPS/DISTS compare attachment remains integrator work after exports
 exist. The reason for each missing model is in `scripts/wave7/disposition.json`.
 
 `gates-wave7.sh` prepares MIT-licensed generated bottle/portrait/blank fixtures,

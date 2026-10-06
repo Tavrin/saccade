@@ -1,23 +1,15 @@
 #!/usr/bin/env bash
-# Coordinator-only heavy gates. Development agents must not run this script.
+# Explicit feature qualification gates; see docs/releasing.md.
 set -u -o pipefail
-cd "$(dirname "$0")/.."
-export CARGO_TARGET_DIR="${CARGO_TARGET_DIR:-/mnt/linux-extra/moss-cargo-targets/codex-saccade-w4}"
+cd "$(dirname "$0")/.." || exit 2
+source scripts/gate-env.sh
 failed=0
 gate() {
     local name="$1"; shift
-    if "$@"; then printf 'GATE %s PASS\n' "$name"; else printf 'GATE %s FAIL\n' "$name"; failed=1; fi
+    if saccade_run "$@"; then printf 'GATE %s PASS\n' "$name"; else printf 'GATE %s FAIL\n' "$name"; failed=1; fi
 }
-preflight() {
-    df -BG /mnt/linux-extra
-    local available
-    available=$(df -BG --output=avail /mnt/linux-extra | tail -n 1 | tr -dc '0-9')
-    if [[ -z "$available" || "$available" -lt 25 ]]; then
-        printf '%s\n' 'Below 25 GB free: build gate refused.' >&2
-        return 1
-    fi
-}
-cargo_gate() { preflight && nice -n 19 cargo "$@"; }
+preflight() { saccade_headroom; }
+cargo_gate() { preflight && saccade_run nice -n 19 cargo "$@"; }
 gate fmt cargo fmt --all -- --check
 gate check cargo_gate check -j 4 --workspace --all-targets --features assist,schema
 gate clippy cargo_gate clippy -j 4 --workspace --all-targets --features assist,schema -- -D warnings

@@ -1,19 +1,20 @@
 #!/usr/bin/env bash
-# Focused CPU lane receipts; no providers or broad GPU/workspace gates.
+# Focused CPU OCR gates; no providers or broad GPU/workspace gates.
 set -uo pipefail
-export CARGO_TARGET_DIR=/mnt/linux-extra/moss-cargo-targets/codex-saccade-ocr
+cd "$(dirname "$0")/.." || exit 2
+source scripts/gate-env.sh
 export CARGO_PROFILE_DEV_DEBUG=0 CARGO_PROFILE_TEST_DEBUG=0 CARGO_INCREMENTAL=0
-scratch=${SACCADE_OCR_SCRATCH:-/mnt/linux-extra/moss-scratch/saccade-ocr}
-cache=${SACCADE_OCR_CACHE:-/mnt/linux-extra/saccade-models}
+scratch=${SACCADE_OCR_SCRATCH:-$CARGO_TARGET_DIR/ocr-evidence}
+cache=${SACCADE_OCR_CACHE:-$SACCADE_MODEL_CACHE}
 mkdir -p "$scratch"
 fail=0
-gate() { local name=$1; shift; if "$@"; then echo "GATE $name PASS"; else echo "GATE $name FAIL"; fail=1; return 1; fi; }
+gate() { local name=$1; shift; if saccade_run "$@"; then echo "GATE $name PASS"; else echo "GATE $name FAIL"; fail=1; return 1; fi; }
 cargo_gate() {
-  while ! python3 -c 'import shutil; assert shutil.disk_usage("/mnt/linux-extra").free >= 25_000_000_000, "less than 25 GB free"'; do
+  while ! saccade_headroom; do
     echo "OCR build admission PAUSED: waiting for 25 GB free"
     sleep 30
   done
-  nice -n 19 cargo "$1" -j 4 "${@:2}"
+  saccade_run nice -n 19 cargo "$1" -j 4 "${@:2}"
 }
 gate fmt cargo fmt --all -- --check
 gate minimal cargo_gate check -p saccade --no-default-features

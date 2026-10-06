@@ -5,7 +5,7 @@ includes the Saccade skill, the `saccade` and `check-visual-change` commands,
 and a local stdio MCP server. Install the binary first:
 
 ```sh
-cargo install saccade --version 0.2.0 --locked
+cargo install saccade --version 0.2.1 --locked
 ```
 
 In Claude Code, after the plugin commit is available on the public repository:

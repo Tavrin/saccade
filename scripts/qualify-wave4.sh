@@ -32,13 +32,12 @@ from score import verify_gate_receipt
 verify_gate_receipt(Path(sys.argv[1]))
 PYRECEIPT
 [[ ! -e "$output" ]] || { printf '%s\n' 'Qualification output must be new; never silently retry a frozen epoch.' >&2; exit 4; }
-available=$(df -BG --output=avail /mnt/linux-extra | tail -n 1 | tr -dc '0-9')
-[[ -n "$available" && "$available" -ge 25 ]] || { printf '%s\n' 'Below 25 GB free: provider runner build refused.' >&2; exit 4; }
-export CARGO_TARGET_DIR="${CARGO_TARGET_DIR:-/mnt/linux-extra/moss-cargo-targets/codex-saccade-w4}"
+source scripts/gate-env.sh
+saccade_headroom || exit 4
 mkdir -p "$output"
 # All payloads use the existing authorization, egress, attempt and monetary ledgers.
 # No Python HTTP, ambient credentials, cache reuse, fallback models or retries.
-nice -n 19 cargo run -j 4 -p saccade-core --features assist --example assist_qualify -- \
+saccade_run nice -n 19 cargo run -j 4 -p saccade-core --features assist --example assist_qualify -- \
     --manifest "$corpus/manifest.json" --out "$output/results.jsonl" \
     --max-spend-usd "$max_spend" --run true
 python3 scripts/assist/score.py --corpus "$corpus" --results "$output/results.jsonl" --gate-receipt "$receipt" --out "$output/saccade-constructed-truth.v1.json"

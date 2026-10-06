@@ -4,9 +4,7 @@ on:
   workflow_dispatch:
   push:
     branches: [main]
-    paths-ignore: ["**.md", "docs/**", "LICENSE-*", ".github/workflows/example-usage.yml"]
   pull_request:
-    paths-ignore: ["**.md", "docs/**", "LICENSE-*", ".github/workflows/example-usage.yml"]
 
 permissions:
   contents: read
@@ -17,6 +15,14 @@ env:
   RUSTC_WRAPPER: ''
 
 jobs:
+  public-hygiene:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - run: scripts/check-public-hygiene.sh
+      - run: python3 scripts/test-public-hygiene.py
+      - run: scripts/check-genericity.sh
+
   fmt:
     runs-on: ubuntu-latest
     steps:

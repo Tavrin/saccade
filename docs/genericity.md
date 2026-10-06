@@ -11,3 +11,6 @@ the repository is refused, including resolved symlink aliases. Both index and
 worktree contents are checked so an unstaged edit cannot conceal staged material.
 Readable terms in binary files are checked too. The guard never modifies git.
 Generated temporary-repository tests: `python3 scripts/test-genericity.py`.
+
+The always-on public hygiene guard is independent of this optional client denylist;
+see [release gate configuration](releasing.md#portable-gate-configuration).

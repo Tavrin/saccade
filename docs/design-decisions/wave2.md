@@ -1,9 +1,5 @@
 # Wave 2 decisions
 
-Current requirements (integration round 3, 2026-10-05): Rust 1.89 and
-Butteraugli 0.9.3. Rust 1.88 / Butteraugli 0.4.0 statements below retain the
-original lane decisions and test history; see [integration report](../../INTEGRATION-REPORT.md).
-
 ## 1. Snapshot variation and drift
 
 Extend the local history index additively. A producer-assigned run ID and an explicit frozen environment identity distinguish independent trials from artifact copies. Identical pixels across declared runs count as independent observations. Legacy rows remain readable and retain their provisional artifact-variation advice. They cannot establish independent normal variation.
@@ -46,7 +42,10 @@ Residual: semantic/OCR verification and independently labeled human support/cove
 
 ## 6. Regions described in words: qualified fallback
 
-Implement the explicitly allowed mask-import fallback and optional model plumbing. On this host Python `torch`, `onnx` and `onnxruntime` are absent, no ONNX Runtime library is registered, and the official SAM exporter `convert_to_onnx.py --help` fails at `import torch` with `ModuleNotFoundError`. The lane has no checkpoint-specific ONNX export, pinned preprocessing/tokenizer or source-parity witness. Source-to-ONNX qualification could not be completed here; text-to-mask remains unavailable rather than returning unverified detections.
+The mask-import fallback preserves frozen region evidence without requiring an
+inference runtime. Text-to-mask requires checkpoint-specific exports, pinned
+preprocessing/tokenizer inputs and source-parity witnesses. Missing qualification
+leaves inference unavailable rather than returning unverified detections.
 
 The shipped model manifest pins Grounding DINO Tiny and SAM 2.1 Hiera Tiny checkpoints by exact Hugging Face revision, upstream LFS SHA-256, byte count and Apache-2.0 model-card license. These are checkpoint provenance, not ONNX/export qualification. Weights are never committed. Explicit `regions cache` downloads declared artifacts at runtime into a content-addressed cache, checks size/hash before atomic persistence, and rechecks cached files. Ordinary import/comparison never downloads. A manifest may later carry self-contained detector, SAM encoder/decoder, tokenizer and parity artifacts.
 
@@ -64,7 +63,7 @@ Implement a version-pinned optional Python replay worker using RenderDoc's offic
 
 Rust checks raw payload paths, lengths and hashes before alignment. Unique marker/action signatures align through an LCS with inserted/deleted actions retained; repeated/unmarked ancestry and duplicate keys abstain. Matching resource roles retain incompatible formats and missing resources as unknown. Capture-local event/resource IDs are evidence only. Scan all aligned resource observations rather than binary-searching a non-monotonic predicate; a later clear may restore equality. The first observed divergence is a candidate localization. Root cause and final-output relevance remain unproven; bound input IDs are follow-up evidence, not asserted causes. Incomplete coverage exits 2; complete divergent evidence exits 1.
 
-Host evidence: `renderdoc` cannot be imported by Python, `renderdoccmd` is absent from PATH and no RenderDoc library is registered. The worker's actual unavailable-capability probe exits 2 without creating output. Python syntax and Rust synthetic-capture-shaped alignment/payload fixtures are validated. No live replay was run and no GPU capture was produced.
+The worker reports unavailable capability with exit 2 without creating output when RenderDoc bindings or runtime are absent. Synthetic alignment/payload fixtures do not establish live replay or GPU capture qualification.
 
 Sources: pinned official [replay API](https://github.com/baldurk/renderdoc/blob/v1.34/renderdoc/api/replay/renderdoc_replay.h), [pipeline-state API](https://github.com/baldurk/renderdoc/blob/v1.34/renderdoc/api/replay/pipestate.h), [descriptor types](https://github.com/baldurk/renderdoc/blob/v1.34/renderdoc/api/replay/common_pipestate.h). No capture parser or proprietary graphics dependency is embedded.
 

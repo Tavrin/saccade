@@ -4,9 +4,9 @@ set -euo pipefail
 cd "$(dirname "$0")/../.."
 export CUDA_VISIBLE_DEVICES=""
 export OMP_NUM_THREADS=1 MKL_NUM_THREADS=1 OPENBLAS_NUM_THREADS=1
-cache=/mnt/linux-extra/saccade-models
-free=$(df -BG --output=avail /mnt/linux-extra | tail -n1 | tr -cd '0-9')
-test "${free:-0}" -ge 25 || { echo 'DEFERRED: less than 25 GB free'; exit 2; }
+source scripts/gate-env.sh
+cache=$SACCADE_MODEL_CACHE
+saccade_headroom || { echo 'DEFERRED: less than 25 GiB free'; exit 2; }
 python3 scripts/models/sam2_export.py --prepare
 python3 -m venv "$cache/venv"
 # Do not fetch from PyPI or PyTorch: these hosts are outside this lane's allowed URL set.

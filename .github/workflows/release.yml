@@ -14,7 +14,7 @@ on:
   workflow_dispatch:
     inputs:
       tag:
-        description: Version label to validate (for example v0.2.0); dispatch never creates a release
+        description: Version label to validate (for example v0.2.1); dispatch never creates a release
         required: true
         type: string
 
@@ -84,7 +84,7 @@ jobs:
         shell: bash
         env:
           TARGET: ${{ matrix.target }}
-          RELEASE_TAG: ${{ github.event_name == 'push' && github.ref_name || inputs.tag || 'v0.2.0' }}
+          RELEASE_TAG: ${{ github.event_name == 'push' && github.ref_name || inputs.tag || 'v0.2.1' }}
           RELEASE_COMMIT: ${{ github.event.pull_request.head.sha || github.sha }}
         run: |
           set -euo pipefail
@@ -159,7 +159,7 @@ jobs:
     with:
       run_id: ${{ github.run_id }}
       commit: ${{ github.event.pull_request.head.sha || github.sha }}
-      tag: ${{ github.event_name == 'push' && github.ref_name || inputs.tag || 'v0.2.0' }}
+      tag: ${{ github.event_name == 'push' && github.ref_name || inputs.tag || 'v0.2.1' }}
 
   draft:
     needs: [assemble, qualify]

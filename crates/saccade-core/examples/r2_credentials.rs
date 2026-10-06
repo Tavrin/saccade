@@ -1,7 +1,9 @@
 //! Generate a local test-identity C2PA fixture and pinned tampered variants.
 use std::{io::Cursor, path::PathBuf};
 fn main() -> Result<(), Box<dyn std::error::Error>> {
-    let root = PathBuf::from("/mnt/linux-extra/saccade-models/r2/c2pa");
+    let root = PathBuf::from(std::env::var_os("SACCADE_C2PA_FIXTURE_DIR").ok_or(
+        "set SACCADE_C2PA_FIXTURE_DIR to a directory containing certificate.pem and private-key.pem",
+    )?);
     let cert = std::fs::read(root.join("certificate.pem"))?;
     let key = std::fs::read(root.join("private-key.pem"))?;
     let signer = c2pa::create_signer::from_keys(&cert, &key, c2pa::SigningAlg::Es256, None)?;

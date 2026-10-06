@@ -1,4 +1,4 @@
-//! Coordinator-only tests; fixture roots and cached reviewed models must be explicit.
+//! Opt-in model tests; fixture roots and cached reviewed models must be explicit.
 #![allow(clippy::unwrap_used, clippy::expect_used)]
 use super::{
     faces::{self, FaceReport},
@@ -162,7 +162,7 @@ fn local_vlm_endpoint_smoke_with_explicit_model_identity() {
 fn model_cache() -> PathBuf {
     std::env::var_os("WAVE7_MODEL_CACHE")
         .map(PathBuf::from)
-        .unwrap_or_else(|| PathBuf::from("/mnt/linux-extra/saccade-models"))
+        .expect("set WAVE7_MODEL_CACHE to the reviewed model fixture cache")
 }
 fn pinned_registry() -> Registry {
     std::env::var_os("WAVE7_MODEL_REGISTRY")
