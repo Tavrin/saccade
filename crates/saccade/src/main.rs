@@ -125,9 +125,9 @@ struct Cli {
     /// External capture URI/key (repeatable); recorded in generated reports.
     #[arg(long, global = true)]
     source_ref: Vec<String>,
-    /// Shared report index destination (default reports/index.jsonl in the working directory).
-    #[arg(long, global = true, default_value = "reports/index.jsonl")]
-    report_index: PathBuf,
+    /// Shared report index destination (default reports/index.jsonl next to each report, inside --out).
+    #[arg(long, global = true)]
+    report_index: Option<PathBuf>,
     /// Silence warnings when --out is next to capture metadata.
     #[arg(long, global = true, help_heading = "Global options")]
     allow_out_near_captures: bool,
@@ -1029,7 +1029,7 @@ fn cli_main() -> ExitCode {
         }
     };
     let json_errors = args_want_json(&args);
-    if let Err(e) = saccade_core::report_links::context(cli.source_ref, Some(cli.report_index)) {
+    if let Err(e) = saccade_core::report_links::context(cli.source_ref, cli.report_index) {
         emit_json_error(&e.into());
         return ExitCode::from(2);
     }

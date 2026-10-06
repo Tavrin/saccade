@@ -60,7 +60,7 @@ Commands:
 
 Options:
       --source-ref <SOURCE_REF>      External capture URI/key (repeatable); recorded in generated reports
-      --report-index <REPORT_INDEX>  Shared report index destination (default reports/index.jsonl in the working directory) [default: reports/index.jsonl]
+      --report-index <REPORT_INDEX>  Shared report index destination (default reports/index.jsonl next to each report, inside --out)
   -h, --help                         Print help
   -V, --version                      Print version
 
@@ -92,7 +92,7 @@ Commands:
 
 Options:
       --source-ref <SOURCE_REF>      External capture URI/key (repeatable); recorded in generated reports
-      --report-index <REPORT_INDEX>  Shared report index destination (default reports/index.jsonl in the working directory) [default: reports/index.jsonl]
+      --report-index <REPORT_INDEX>  Shared report index destination (default reports/index.jsonl next to each report, inside --out)
   -h, --help                         Print help
 
 Global options:
@@ -114,7 +114,7 @@ Options:
       --format <FORMAT>              session or csv; referenced runs support hyperfine, perf and JSON paths [default: session]
       --source-ref <SOURCE_REF>      External capture URI/key (repeatable); recorded in generated reports
       --out <OUT>                    [default: timing-ab]
-      --report-index <REPORT_INDEX>  Shared report index destination (default reports/index.jsonl in the working directory) [default: reports/index.jsonl]
+      --report-index <REPORT_INDEX>  Shared report index destination (default reports/index.jsonl next to each report, inside --out)
       --json
       --band-pct <BAND_PCT>          Override practical band for CSV imports (manifest policies otherwise retained)
   -h, --help                         Print help
@@ -143,7 +143,7 @@ Options:
       --config <CONFIG>
 
       --report-index <REPORT_INDEX>
-          Shared report index destination (default reports/index.jsonl in the working directory) [default: reports/index.jsonl]
+          Shared report index destination (default reports/index.jsonl next to each report, inside --out)
       --json
 
       --allow-unreached <ALLOW_UNREACHED>
@@ -194,7 +194,7 @@ Commands:
 
 Options:
       --source-ref <SOURCE_REF>      External capture URI/key (repeatable); recorded in generated reports
-      --report-index <REPORT_INDEX>  Shared report index destination (default reports/index.jsonl in the working directory) [default: reports/index.jsonl]
+      --report-index <REPORT_INDEX>  Shared report index destination (default reports/index.jsonl next to each report, inside --out)
   -h, --help                         Print help
 
 Global options:
@@ -212,7 +212,7 @@ Usage: saccade schema list [OPTIONS]
 Options:
       --json
       --source-ref <SOURCE_REF>      External capture URI/key (repeatable); recorded in generated reports
-      --report-index <REPORT_INDEX>  Shared report index destination (default reports/index.jsonl in the working directory) [default: reports/index.jsonl]
+      --report-index <REPORT_INDEX>  Shared report index destination (default reports/index.jsonl next to each report, inside --out)
   -h, --help                         Print help
 
 Global options:
@@ -234,7 +234,7 @@ Options:
       --out <OUT>
       --source-ref <SOURCE_REF>      External capture URI/key (repeatable); recorded in generated reports
       --json
-      --report-index <REPORT_INDEX>  Shared report index destination (default reports/index.jsonl in the working directory) [default: reports/index.jsonl]
+      --report-index <REPORT_INDEX>  Shared report index destination (default reports/index.jsonl next to each report, inside --out)
   -h, --help                         Print help
 
 Global options:
@@ -255,7 +255,7 @@ Arguments:
 Options:
       --json
       --source-ref <SOURCE_REF>      External capture URI/key (repeatable); recorded in generated reports
-      --report-index <REPORT_INDEX>  Shared report index destination (default reports/index.jsonl in the working directory) [default: reports/index.jsonl]
+      --report-index <REPORT_INDEX>  Shared report index destination (default reports/index.jsonl next to each report, inside --out)
   -h, --help                         Print help
 
 Global options:
@@ -275,7 +275,7 @@ Commands:
 
 Options:
       --source-ref <SOURCE_REF>      External capture URI/key (repeatable); recorded in generated reports
-      --report-index <REPORT_INDEX>  Shared report index destination (default reports/index.jsonl in the working directory) [default: reports/index.jsonl]
+      --report-index <REPORT_INDEX>  Shared report index destination (default reports/index.jsonl next to each report, inside --out)
   -h, --help                         Print help
 
 Global options:
@@ -296,7 +296,7 @@ Arguments:
 Options:
       --json
       --source-ref <SOURCE_REF>      External capture URI/key (repeatable); recorded in generated reports
-      --report-index <REPORT_INDEX>  Shared report index destination (default reports/index.jsonl in the working directory) [default: reports/index.jsonl]
+      --report-index <REPORT_INDEX>  Shared report index destination (default reports/index.jsonl next to each report, inside --out)
   -h, --help                         Print help
 
 Global options:
@@ -316,7 +316,7 @@ Commands:
 
 Options:
       --source-ref <SOURCE_REF>      External capture URI/key (repeatable); recorded in generated reports
-      --report-index <REPORT_INDEX>  Shared report index destination (default reports/index.jsonl in the working directory) [default: reports/index.jsonl]
+      --report-index <REPORT_INDEX>  Shared report index destination (default reports/index.jsonl next to each report, inside --out)
   -h, --help                         Print help
 
 Global options:
@@ -343,7 +343,7 @@ Options:
       --allow-unreached <ALLOW_UNREACHED>
           Permit intentionally unreached captures with exactly matching observations
       --report-index <REPORT_INDEX>
-          Shared report index destination (default reports/index.jsonl in the working directory) [default: reports/index.jsonl]
+          Shared report index destination (default reports/index.jsonl next to each report, inside --out)
       --ignore <IGNORE>
           Explicit exception matching destination or mapped source, echoed even if unmatched; repeat or comma-separate
       --fingerprint-map <FINGERPRINT_MAP>
@@ -379,7 +379,7 @@ Commands:
 
 Options:
       --source-ref <SOURCE_REF>      External capture URI/key (repeatable); recorded in generated reports
-      --report-index <REPORT_INDEX>  Shared report index destination (default reports/index.jsonl in the working directory) [default: reports/index.jsonl]
+      --report-index <REPORT_INDEX>  Shared report index destination (default reports/index.jsonl next to each report, inside --out)
   -h, --help                         Print help
 
 Global options:
@@ -397,7 +397,7 @@ Usage: saccade sweep plan [OPTIONS] --before-origin <BEFORE_ORIGIN> --after-orig
 Options:
       --source-ref <SOURCE_REF>        External capture URI/key (repeatable); recorded in generated reports
       --urls <URLS>
-      --report-index <REPORT_INDEX>    Shared report index destination (default reports/index.jsonl in the working directory) [default: reports/index.jsonl]
+      --report-index <REPORT_INDEX>    Shared report index destination (default reports/index.jsonl next to each report, inside --out)
       --sitemap <SITEMAP>
       --before-origin <BEFORE_ORIGIN>
       --after-origin <AFTER_ORIGIN>
@@ -427,7 +427,7 @@ Options:
       --captures <CAPTURES>
       --source-ref <SOURCE_REF>        External capture URI/key (repeatable); recorded in generated reports
       --out <OUT>
-      --report-index <REPORT_INDEX>    Shared report index destination (default reports/index.jsonl in the working directory) [default: reports/index.jsonl]
+      --report-index <REPORT_INDEX>    Shared report index destination (default reports/index.jsonl next to each report, inside --out)
       --config <CONFIG>
       --baseline <BASELINE>            [possible values: last-good]
       --history-store <HISTORY_STORE>
@@ -454,7 +454,7 @@ Commands:
 
 Options:
       --source-ref <SOURCE_REF>      External capture URI/key (repeatable); recorded in generated reports
-      --report-index <REPORT_INDEX>  Shared report index destination (default reports/index.jsonl in the working directory) [default: reports/index.jsonl]
+      --report-index <REPORT_INDEX>  Shared report index destination (default reports/index.jsonl next to each report, inside --out)
   -h, --help                         Print help
 
 Global options:
@@ -473,7 +473,7 @@ Options:
       --source-ref <SOURCE_REF>      External capture URI/key (repeatable); recorded in generated reports
       --urls <URLS>
       --accept <ACCEPT>
-      --report-index <REPORT_INDEX>  Shared report index destination (default reports/index.jsonl in the working directory) [default: reports/index.jsonl]
+      --report-index <REPORT_INDEX>  Shared report index destination (default reports/index.jsonl next to each report, inside --out)
       --out <OUT>
       --json
   -h, --help                         Print help
@@ -497,7 +497,7 @@ Options:
       --out <OUT>
       --source-ref <SOURCE_REF>      External capture URI/key (repeatable); recorded in generated reports
       --json
-      --report-index <REPORT_INDEX>  Shared report index destination (default reports/index.jsonl in the working directory) [default: reports/index.jsonl]
+      --report-index <REPORT_INDEX>  Shared report index destination (default reports/index.jsonl next to each report, inside --out)
   -h, --help                         Print help
 
 Global options:
@@ -518,7 +518,7 @@ Commands:
 
 Options:
       --source-ref <SOURCE_REF>      External capture URI/key (repeatable); recorded in generated reports
-      --report-index <REPORT_INDEX>  Shared report index destination (default reports/index.jsonl in the working directory) [default: reports/index.jsonl]
+      --report-index <REPORT_INDEX>  Shared report index destination (default reports/index.jsonl next to each report, inside --out)
   -h, --help                         Print help
 
 Global options:
@@ -540,7 +540,7 @@ Options:
       --out <OUT>
       --source-ref <SOURCE_REF>      External capture URI/key (repeatable); recorded in generated reports
       --cache <CACHE>
-      --report-index <REPORT_INDEX>  Shared report index destination (default reports/index.jsonl in the working directory) [default: reports/index.jsonl]
+      --report-index <REPORT_INDEX>  Shared report index destination (default reports/index.jsonl next to each report, inside --out)
       --fixture-dir <FIXTURE_DIR>
       --scale <SCALE>                [default: 1]
       --json
@@ -565,7 +565,7 @@ Options:
       --pull <PULL>
       --source-ref <SOURCE_REF>      External capture URI/key (repeatable); recorded in generated reports
       --captures <CAPTURES>
-      --report-index <REPORT_INDEX>  Shared report index destination (default reports/index.jsonl in the working directory) [default: reports/index.jsonl]
+      --report-index <REPORT_INDEX>  Shared report index destination (default reports/index.jsonl next to each report, inside --out)
       --out <OUT>
       --config <CONFIG>
       --align <ALIGN>                [default: translation] [possible values: none, translation]
@@ -590,7 +590,7 @@ Arguments:
 Options:
       --source-ref <SOURCE_REF>      External capture URI/key (repeatable); recorded in generated reports
       --template <TEMPLATE>          [default: generic] [possible values: generic, slack, teams]
-      --report-index <REPORT_INDEX>  Shared report index destination (default reports/index.jsonl in the working directory) [default: reports/index.jsonl]
+      --report-index <REPORT_INDEX>  Shared report index destination (default reports/index.jsonl next to each report, inside --out)
       --report-link <REPORT_LINK>    Display link; defaults to the report path. Never used as the webhook endpoint
       --json
   -h, --help                         Print help
@@ -610,7 +610,7 @@ Usage: saccade capabilities [OPTIONS]
 Options:
       --json
       --source-ref <SOURCE_REF>      External capture URI/key (repeatable); recorded in generated reports
-      --report-index <REPORT_INDEX>  Shared report index destination (default reports/index.jsonl in the working directory) [default: reports/index.jsonl]
+      --report-index <REPORT_INDEX>  Shared report index destination (default reports/index.jsonl next to each report, inside --out)
   -h, --help                         Print help
 
 Global options:
@@ -636,7 +636,7 @@ Options:
       --face-observations <FACE_OBSERVATIONS>
           Image-bound face receipt; explicitly labelled replay
       --report-index <REPORT_INDEX>
-          Shared report index destination (default reports/index.jsonl in the working directory) [default: reports/index.jsonl]
+          Shared report index destination (default reports/index.jsonl next to each report, inside --out)
       --model-registry <MODEL_REGISTRY>
           Shared model registry (vision, embedding and OCR pins)
       --model-cache <MODEL_CACHE>
@@ -693,7 +693,7 @@ Options:
       --face-observations <FACE_OBSERVATIONS>
           Image-bound face receipt; explicitly labelled replay
       --report-index <REPORT_INDEX>
-          Shared report index destination (default reports/index.jsonl in the working directory) [default: reports/index.jsonl]
+          Shared report index destination (default reports/index.jsonl next to each report, inside --out)
       --model-registry <MODEL_REGISTRY>
           Shared model registry (vision, embedding and OCR pins)
       --model-cache <MODEL_CACHE>
@@ -739,7 +739,7 @@ Options:
       --ocr-model <OCR_MODEL>
           Explicit dated OCR model (aliases refused)
       --report-index <REPORT_INDEX>
-          Shared report index destination (default reports/index.jsonl in the working directory) [default: reports/index.jsonl]
+          Shared report index destination (default reports/index.jsonl next to each report, inside --out)
       --ocr-pages <OCR_PAGES>
           Zero-based pages selected explicitly; images accept only 0 [default: 0]
       --ocr-responses <OCR_RESPONSES> <OCR_RESPONSES>
@@ -795,7 +795,7 @@ Options:
       --model <MODEL>                Supplied saccade-embedding-model.v1 contract; includes export SHA-256 and preprocessing. Default: SACCADE_MODELS_EMBEDDING_CONTRACT or [models].embedding_contract
       --source-ref <SOURCE_REF>      External capture URI/key (repeatable); recorded in generated reports
       --cache <CACHE>                Deprecated: set SACCADE_MODELS_DIR or [models].dir. Content-addressed model cache
-      --report-index <REPORT_INDEX>  Shared report index destination (default reports/index.jsonl in the working directory) [default: reports/index.jsonl]
+      --report-index <REPORT_INDEX>  Shared report index destination (default reports/index.jsonl next to each report, inside --out)
       --library <LIBRARY>            Deprecated: set SACCADE_MODELS_RUNTIME_LIBRARY or [models].runtime_library. Explicit ONNX Runtime 1.22 dynamic library, CPU execution only
       --download-model               Deprecated: provision with `saccade models pull embedding`. Still downloads the pinned export to the cache
       --out <OUT>                    [default: similar-report]
@@ -823,7 +823,7 @@ Commands:
 
 Options:
       --source-ref <SOURCE_REF>      External capture URI/key (repeatable); recorded in generated reports
-      --report-index <REPORT_INDEX>  Shared report index destination (default reports/index.jsonl in the working directory) [default: reports/index.jsonl]
+      --report-index <REPORT_INDEX>  Shared report index destination (default reports/index.jsonl next to each report, inside --out)
   -h, --help                         Print help
 
 Global options:
@@ -842,7 +842,7 @@ Options:
       --index <INDEX>                [default: reports/index.jsonl]
       --source-ref <SOURCE_REF>      External capture URI/key (repeatable); recorded in generated reports
       --format <FORMAT>              [default: jsonl]
-      --report-index <REPORT_INDEX>  Shared report index destination (default reports/index.jsonl in the working directory) [default: reports/index.jsonl]
+      --report-index <REPORT_INDEX>  Shared report index destination (default reports/index.jsonl next to each report, inside --out)
       --out <OUT>
       --json
   -h, --help                         Print help
@@ -866,7 +866,7 @@ Options:
       --model <MODEL>
       --source-ref <SOURCE_REF>      External capture URI/key (repeatable); recorded in generated reports
       --out <OUT>
-      --report-index <REPORT_INDEX>  Shared report index destination (default reports/index.jsonl in the working directory) [default: reports/index.jsonl]
+      --report-index <REPORT_INDEX>  Shared report index destination (default reports/index.jsonl next to each report, inside --out)
       --json
   -h, --help                         Print help
 
@@ -889,7 +889,7 @@ Options:
       --model <MODEL>                Supplied saccade-embedding-model.v1 contract; includes export SHA-256 and preprocessing. Default: SACCADE_MODELS_EMBEDDING_CONTRACT or [models].embedding_contract
       --source-ref <SOURCE_REF>      External capture URI/key (repeatable); recorded in generated reports
       --cache <CACHE>                Deprecated: set SACCADE_MODELS_DIR or [models].dir. Content-addressed model cache
-      --report-index <REPORT_INDEX>  Shared report index destination (default reports/index.jsonl in the working directory) [default: reports/index.jsonl]
+      --report-index <REPORT_INDEX>  Shared report index destination (default reports/index.jsonl next to each report, inside --out)
       --library <LIBRARY>            Deprecated: set SACCADE_MODELS_RUNTIME_LIBRARY or [models].runtime_library. Explicit ONNX Runtime 1.22 dynamic library, CPU execution only
       --download-model               Deprecated: provision with `saccade models pull embedding`. Still downloads the pinned export to the cache
       --out <OUT>
@@ -915,7 +915,7 @@ Options:
       --model <MODEL>                Supplied saccade-embedding-model.v1 contract; includes export SHA-256 and preprocessing. Default: SACCADE_MODELS_EMBEDDING_CONTRACT or [models].embedding_contract
       --source-ref <SOURCE_REF>      External capture URI/key (repeatable); recorded in generated reports
       --cache <CACHE>                Deprecated: set SACCADE_MODELS_DIR or [models].dir. Content-addressed model cache
-      --report-index <REPORT_INDEX>  Shared report index destination (default reports/index.jsonl in the working directory) [default: reports/index.jsonl]
+      --report-index <REPORT_INDEX>  Shared report index destination (default reports/index.jsonl next to each report, inside --out)
       --library <LIBRARY>            Deprecated: set SACCADE_MODELS_RUNTIME_LIBRARY or [models].runtime_library. Explicit ONNX Runtime 1.22 dynamic library, CPU execution only
       --download-model               Deprecated: provision with `saccade models pull embedding`. Still downloads the pinned export to the cache
       --out <OUT>
@@ -942,7 +942,7 @@ Options:
       --source-ref <SOURCE_REF>      External capture URI/key (repeatable); recorded in generated reports
       --text <TEXT>                  Text query requires a pinned SigLIP 2 joint text/image model
       --model <MODEL>                Supplied saccade-embedding-model.v1 contract; includes export SHA-256 and preprocessing. Default: SACCADE_MODELS_EMBEDDING_CONTRACT or [models].embedding_contract
-      --report-index <REPORT_INDEX>  Shared report index destination (default reports/index.jsonl in the working directory) [default: reports/index.jsonl]
+      --report-index <REPORT_INDEX>  Shared report index destination (default reports/index.jsonl next to each report, inside --out)
       --cache <CACHE>                Deprecated: set SACCADE_MODELS_DIR or [models].dir. Content-addressed model cache
       --library <LIBRARY>            Deprecated: set SACCADE_MODELS_RUNTIME_LIBRARY or [models].runtime_library. Explicit ONNX Runtime 1.22 dynamic library, CPU execution only
       --download-model               Deprecated: provision with `saccade models pull embedding`. Still downloads the pinned export to the cache
@@ -970,7 +970,7 @@ Options:
       --out <OUT>                    New or empty output directory [default: hash-report]
       --source-ref <SOURCE_REF>      External capture URI/key (repeatable); recorded in generated reports
       --json                         Emit a bounded JSON artifact receipt
-      --report-index <REPORT_INDEX>  Shared report index destination (default reports/index.jsonl in the working directory) [default: reports/index.jsonl]
+      --report-index <REPORT_INDEX>  Shared report index destination (default reports/index.jsonl next to each report, inside --out)
   -h, --help                         Print help
 
 Global options:
@@ -991,7 +991,7 @@ Arguments:
 Options:
       --algorithm <ALGORITHM>        Algorithm for the Hamming index [default: phash] [possible values: ahash, dhash, phash]
       --source-ref <SOURCE_REF>      External capture URI/key (repeatable); recorded in generated reports
-      --report-index <REPORT_INDEX>  Shared report index destination (default reports/index.jsonl in the working directory) [default: reports/index.jsonl]
+      --report-index <REPORT_INDEX>  Shared report index destination (default reports/index.jsonl next to each report, inside --out)
       --threshold <THRESHOLD>        Inclusive Hamming radius in 0..64; clusters use transitive connectivity [default: 6]
       --out <OUT>                    New or empty output directory [default: dedupe-report]
       --json                         Emit a bounded JSON artifact receipt
@@ -1016,7 +1016,7 @@ Options:
       --profile <PROFILE>            [default: cpu-lite] [possible values: cpu-lite, cpu-full, gpu]
       --source-ref <SOURCE_REF>      External capture URI/key (repeatable); recorded in generated reports
       --model-dir <MODEL_DIR>        Deprecated: set SACCADE_MODELS_DIR or [models].dir (see `saccade models config`)
-      --report-index <REPORT_INDEX>  Shared report index destination (default reports/index.jsonl in the working directory) [default: reports/index.jsonl]
+      --report-index <REPORT_INDEX>  Shared report index destination (default reports/index.jsonl next to each report, inside --out)
       --registry <REGISTRY>          Deprecated: set SACCADE_MODELS_REGISTRY or [models].registry
       --options <OPTIONS>            Per-section options JSON file
       --strict
@@ -1042,7 +1042,7 @@ Arguments:
 Options:
       --out <OUT>
       --source-ref <SOURCE_REF>      External capture URI/key (repeatable); recorded in generated reports
-      --report-index <REPORT_INDEX>  Shared report index destination (default reports/index.jsonl in the working directory) [default: reports/index.jsonl]
+      --report-index <REPORT_INDEX>  Shared report index destination (default reports/index.jsonl next to each report, inside --out)
       --sample-fps <SAMPLE_FPS>      [default: 1]
       --shot-penalty <SHOT_PENALTY>  [default: 0.15]
       --json
@@ -1067,7 +1067,7 @@ Arguments:
 Options:
       --json
       --source-ref <SOURCE_REF>      External capture URI/key (repeatable); recorded in generated reports
-      --report-index <REPORT_INDEX>  Shared report index destination (default reports/index.jsonl in the working directory) [default: reports/index.jsonl]
+      --report-index <REPORT_INDEX>  Shared report index destination (default reports/index.jsonl next to each report, inside --out)
   -h, --help                         Print help
 
 Global options:
@@ -1089,7 +1089,7 @@ Commands:
 
 Options:
       --source-ref <SOURCE_REF>      External capture URI/key (repeatable); recorded in generated reports
-      --report-index <REPORT_INDEX>  Shared report index destination (default reports/index.jsonl in the working directory) [default: reports/index.jsonl]
+      --report-index <REPORT_INDEX>  Shared report index destination (default reports/index.jsonl next to each report, inside --out)
   -h, --help                         Print help
 
 Global options:
@@ -1108,7 +1108,7 @@ Options:
       --registry <REGISTRY>          Deprecated: set SACCADE_MODELS_REGISTRY or [models].registry
       --source-ref <SOURCE_REF>      External capture URI/key (repeatable); recorded in generated reports
       --cache <CACHE>                Deprecated: set SACCADE_MODELS_DIR or [models].dir
-      --report-index <REPORT_INDEX>  Shared report index destination (default reports/index.jsonl in the working directory) [default: reports/index.jsonl]
+      --report-index <REPORT_INDEX>  Shared report index destination (default reports/index.jsonl next to each report, inside --out)
       --json
   -h, --help                         Print help
 
@@ -1127,7 +1127,7 @@ Usage: saccade models config [OPTIONS]
 Options:
       --json
       --source-ref <SOURCE_REF>      External capture URI/key (repeatable); recorded in generated reports
-      --report-index <REPORT_INDEX>  Shared report index destination (default reports/index.jsonl in the working directory) [default: reports/index.jsonl]
+      --report-index <REPORT_INDEX>  Shared report index destination (default reports/index.jsonl next to each report, inside --out)
   -h, --help                         Print help
 
 Global options:
@@ -1159,9 +1159,7 @@ Options:
           Deprecated: set SACCADE_MODELS_REGISTRY or [models].registry
 
       --report-index <REPORT_INDEX>
-          Shared report index destination (default reports/index.jsonl in the working directory)
-
-          [default: reports/index.jsonl]
+          Shared report index destination (default reports/index.jsonl next to each report, inside --out)
 
       --cache <CACHE>
           Deprecated: set SACCADE_MODELS_DIR or [models].dir
@@ -1199,7 +1197,7 @@ Options:
       --detector <DETECTOR>
           [default: grounding-dino-tiny]
       --report-index <REPORT_INDEX>
-          Shared report index destination (default reports/index.jsonl in the working directory) [default: reports/index.jsonl]
+          Shared report index destination (default reports/index.jsonl next to each report, inside --out)
       --segmenter <SEGMENTER>
           [default: sam-2.1-tiny]
       --observations <OBSERVATIONS>
@@ -1242,7 +1240,7 @@ Options:
       --metric <METRIC>
           [default: musiq]
       --report-index <REPORT_INDEX>
-          Shared report index destination (default reports/index.jsonl in the working directory) [default: reports/index.jsonl]
+          Shared report index destination (default reports/index.jsonl next to each report, inside --out)
       --observations <OBSERVATIONS>
           Explicit stand-in/frozen measurement receipt, always labelled replay
       --registry <REGISTRY>
@@ -1281,7 +1279,7 @@ Options:
       --quantization-step <QUANTIZATION_STEP>
           [default: 36]
       --report-index <REPORT_INDEX>
-          Shared report index destination (default reports/index.jsonl in the working directory) [default: reports/index.jsonl]
+          Shared report index destination (default reports/index.jsonl next to each report, inside --out)
       --minimum-agreement <MINIMUM_AGREEMENT>
           [default: 0.9]
       --observations <OBSERVATIONS>
@@ -1324,7 +1322,7 @@ Options:
       --observations <OBSERVATIONS>
 
       --report-index <REPORT_INDEX>
-          Shared report index destination (default reports/index.jsonl in the working directory) [default: reports/index.jsonl]
+          Shared report index destination (default reports/index.jsonl next to each report, inside --out)
       --blur-faces <BLUR_FACES>
           Write a new strongly redacted PNG; never overwrite an original
       --registry <REGISTRY>
@@ -1363,7 +1361,7 @@ Options:
       --observations <OBSERVATIONS>
 
       --report-index <REPORT_INDEX>
-          Shared report index destination (default reports/index.jsonl in the working directory) [default: reports/index.jsonl]
+          Shared report index destination (default reports/index.jsonl next to each report, inside --out)
       --blur-faces <BLUR_FACES>
           Write a new strongly redacted PNG; never overwrite an original
       --registry <REGISTRY>
@@ -1404,7 +1402,7 @@ Options:
       --source-ref <SOURCE_REF>
           External capture URI/key (repeatable); recorded in generated reports
       --report-index <REPORT_INDEX>
-          Shared report index destination (default reports/index.jsonl in the working directory) [default: reports/index.jsonl]
+          Shared report index destination (default reports/index.jsonl next to each report, inside --out)
       --runtime-revision <RUNTIME_REVISION>
 
       --response <RESPONSE>
@@ -1437,7 +1435,7 @@ Options:
       --endpoint-profile <ENDPOINT_PROFILE>
           Startup env-file mapping for generic OpenAI-compatible or Azure deployment endpoints [possible values: openai-compatible, azure-openai]
       --report-index <REPORT_INDEX>
-          Shared report index destination (default reports/index.jsonl in the working directory) [default: reports/index.jsonl]
+          Shared report index destination (default reports/index.jsonl next to each report, inside --out)
       --response <RESPONSE>
           Explicit recorded response; omit to show request mapping only (no credentials)
       --coordinates <COORDINATES>
@@ -1467,7 +1465,7 @@ Options:
       --out <OUT>                    New JSON localization report
       --source-ref <SOURCE_REF>      External capture URI/key (repeatable); recorded in generated reports
       --json
-      --report-index <REPORT_INDEX>  Shared report index destination (default reports/index.jsonl in the working directory) [default: reports/index.jsonl]
+      --report-index <REPORT_INDEX>  Shared report index destination (default reports/index.jsonl next to each report, inside --out)
   -h, --help                         Print help
 
 Global options:
@@ -1490,7 +1488,7 @@ Commands:
 
 Options:
       --source-ref <SOURCE_REF>      External capture URI/key (repeatable); recorded in generated reports
-      --report-index <REPORT_INDEX>  Shared report index destination (default reports/index.jsonl in the working directory) [default: reports/index.jsonl]
+      --report-index <REPORT_INDEX>  Shared report index destination (default reports/index.jsonl next to each report, inside --out)
   -h, --help                         Print help
 
 Global options:
@@ -1509,7 +1507,7 @@ Options:
       --reference <REFERENCE>
       --source-ref <SOURCE_REF>      External capture URI/key (repeatable); recorded in generated reports
       --mask <MASK>
-      --report-index <REPORT_INDEX>  Shared report index destination (default reports/index.jsonl in the working directory) [default: reports/index.jsonl]
+      --report-index <REPORT_INDEX>  Shared report index destination (default reports/index.jsonl next to each report, inside --out)
       --phrase <PHRASE>
       --out <OUT>                    New frozen-region JSON file; use it with localized-check --region
   -h, --help                         Print help
@@ -1528,7 +1526,7 @@ Usage: saccade regions status [OPTIONS]
 
 Options:
       --source-ref <SOURCE_REF>      External capture URI/key (repeatable); recorded in generated reports
-      --report-index <REPORT_INDEX>  Shared report index destination (default reports/index.jsonl in the working directory) [default: reports/index.jsonl]
+      --report-index <REPORT_INDEX>  Shared report index destination (default reports/index.jsonl next to each report, inside --out)
   -h, --help                         Print help
 
 Global options:
@@ -1547,7 +1545,7 @@ Options:
       --manifest <MANIFEST>
       --source-ref <SOURCE_REF>      External capture URI/key (repeatable); recorded in generated reports
       --cache <CACHE>
-      --report-index <REPORT_INDEX>  Shared report index destination (default reports/index.jsonl in the working directory) [default: reports/index.jsonl]
+      --report-index <REPORT_INDEX>  Shared report index destination (default reports/index.jsonl next to each report, inside --out)
   -h, --help                         Print help
 
 Global options:
@@ -1566,7 +1564,7 @@ Options:
       --manifest <MANIFEST>
       --source-ref <SOURCE_REF>      External capture URI/key (repeatable); recorded in generated reports
       --cache <CACHE>
-      --report-index <REPORT_INDEX>  Shared report index destination (default reports/index.jsonl in the working directory) [default: reports/index.jsonl]
+      --report-index <REPORT_INDEX>  Shared report index destination (default reports/index.jsonl next to each report, inside --out)
       --library <LIBRARY>
   -h, --help                         Print help
 
@@ -1586,7 +1584,7 @@ Options:
       --report <REPORT>              Immutable comparison or localized measurement JSON
       --source-ref <SOURCE_REF>      External capture URI/key (repeatable); recorded in generated reports
       --proposals <PROPOSALS>        Optional JSON array of atomic proposals; no provider calls are made
-      --report-index <REPORT_INDEX>  Shared report index destination (default reports/index.jsonl in the working directory) [default: reports/index.jsonl]
+      --report-index <REPORT_INDEX>  Shared report index destination (default reports/index.jsonl next to each report, inside --out)
       --out <OUT>                    New explanation JSON file
       --json
   -h, --help                         Print help
@@ -1613,7 +1611,7 @@ Options:
       --source-ref <SOURCE_REF>
           External capture URI/key (repeatable); recorded in generated reports
       --report-index <REPORT_INDEX>
-          Shared report index destination (default reports/index.jsonl in the working directory) [default: reports/index.jsonl]
+          Shared report index destination (default reports/index.jsonl next to each report, inside --out)
       --require-valid-arms
           Refuse verdicts for incomplete or mismatched producer identity
       --fingerprint-map <FINGERPRINT_MAP>
@@ -1665,7 +1663,7 @@ Options:
       --manifest <MANIFEST>          Expected suite and supplied capture attempts, with stable case IDs
       --source-ref <SOURCE_REF>      External capture URI/key (repeatable); recorded in generated reports
       --report <REPORT>              Existing comparison report
-      --report-index <REPORT_INDEX>  Shared report index destination (default reports/index.jsonl in the working directory) [default: reports/index.jsonl]
+      --report-index <REPORT_INDEX>  Shared report index destination (default reports/index.jsonl next to each report, inside --out)
       --out <OUT>                    New inventory JSON file
       --json
   -h, --help                         Print help
@@ -1689,7 +1687,7 @@ Options:
       --out <OUT>                    New JSON report file; existing files are preserved
       --source-ref <SOURCE_REF>      External capture URI/key (repeatable); recorded in generated reports
       --json
-      --report-index <REPORT_INDEX>  Shared report index destination (default reports/index.jsonl in the working directory) [default: reports/index.jsonl]
+      --report-index <REPORT_INDEX>  Shared report index destination (default reports/index.jsonl next to each report, inside --out)
   -h, --help                         Print help
 
 Global options:
@@ -1711,7 +1709,7 @@ Commands:
 
 Options:
       --source-ref <SOURCE_REF>      External capture URI/key (repeatable); recorded in generated reports
-      --report-index <REPORT_INDEX>  Shared report index destination (default reports/index.jsonl in the working directory) [default: reports/index.jsonl]
+      --report-index <REPORT_INDEX>  Shared report index destination (default reports/index.jsonl next to each report, inside --out)
   -h, --help                         Print help
 
 Global options:
@@ -1730,7 +1728,7 @@ Options:
       --source-ref <SOURCE_REF>      External capture URI/key (repeatable); recorded in generated reports
       --store <STORE>
       --limit <LIMIT>                Most recent distinct observations per partition; exact DP is bounded to 120 [default: 60]
-      --report-index <REPORT_INDEX>  Shared report index destination (default reports/index.jsonl in the working directory) [default: reports/index.jsonl]
+      --report-index <REPORT_INDEX>  Shared report index destination (default reports/index.jsonl next to each report, inside --out)
       --json
   -h, --help                         Print help
 
@@ -1757,7 +1755,7 @@ Options:
       --environment-id <ENVIRONMENT_ID>
           Frozen browser/device, fonts, viewport, warmup and temporal protocol identity
       --report-index <REPORT_INDEX>
-          Shared report index destination (default reports/index.jsonl in the working directory) [default: reports/index.jsonl]
+          Shared report index destination (default reports/index.jsonl next to each report, inside --out)
       --unchanged-build
           Declare an unchanged-build repeat eligible for normal-variation advice
       --store <STORE>
@@ -1783,7 +1781,7 @@ Options:
       --source-ref <SOURCE_REF>      External capture URI/key (repeatable); recorded in generated reports
       --store <STORE>
       --entry <ENTRY>
-      --report-index <REPORT_INDEX>  Shared report index destination (default reports/index.jsonl in the working directory) [default: reports/index.jsonl]
+      --report-index <REPORT_INDEX>  Shared report index destination (default reports/index.jsonl next to each report, inside --out)
       --drift                        Diagnose sustained anchor-relative drift in recorded run order
       --out <OUT>                    New file containing the complete witness for the selected groups
       --limit <LIMIT>                [default: 10]
@@ -1806,7 +1804,7 @@ Options:
       --good <GOOD>                  Known good revision in the current repository
       --source-ref <SOURCE_REF>      External capture URI/key (repeatable); recorded in generated reports
       --bad <BAD>                    Known bad revision descended from --good
-      --report-index <REPORT_INDEX>  Shared report index destination (default reports/index.jsonl in the working directory) [default: reports/index.jsonl]
+      --report-index <REPORT_INDEX>  Shared report index destination (default reports/index.jsonl next to each report, inside --out)
       --capture <CAPTURE>            Shell capture command; write images to SACCADE_CAPTURE_DIR (sh on Unix, cmd on Windows)
       --baseline <BASELINE>          Stable baseline directory, copied before Git changes revisions
       --perf                         Require qualified performance evidence and count a slower frame as bad
@@ -1835,7 +1833,7 @@ Commands:
 
 Options:
       --source-ref <SOURCE_REF>      External capture URI/key (repeatable); recorded in generated reports
-      --report-index <REPORT_INDEX>  Shared report index destination (default reports/index.jsonl in the working directory) [default: reports/index.jsonl]
+      --report-index <REPORT_INDEX>  Shared report index destination (default reports/index.jsonl next to each report, inside --out)
   -h, --help                         Print help
 
 Global options:
@@ -1857,7 +1855,7 @@ Options:
       --out <OUT>
       --source-ref <SOURCE_REF>      External capture URI/key (repeatable); recorded in generated reports
       --json
-      --report-index <REPORT_INDEX>  Shared report index destination (default reports/index.jsonl in the working directory) [default: reports/index.jsonl]
+      --report-index <REPORT_INDEX>  Shared report index destination (default reports/index.jsonl next to each report, inside --out)
   -h, --help                         Print help
 
 Global options:
@@ -1880,7 +1878,7 @@ Options:
       --out <OUT>
       --source-ref <SOURCE_REF>      External capture URI/key (repeatable); recorded in generated reports
       --json
-      --report-index <REPORT_INDEX>  Shared report index destination (default reports/index.jsonl in the working directory) [default: reports/index.jsonl]
+      --report-index <REPORT_INDEX>  Shared report index destination (default reports/index.jsonl next to each report, inside --out)
   -h, --help                         Print help
 
 Global options:
@@ -1902,7 +1900,7 @@ Options:
       --out <OUT>
       --source-ref <SOURCE_REF>      External capture URI/key (repeatable); recorded in generated reports
       --json
-      --report-index <REPORT_INDEX>  Shared report index destination (default reports/index.jsonl in the working directory) [default: reports/index.jsonl]
+      --report-index <REPORT_INDEX>  Shared report index destination (default reports/index.jsonl next to each report, inside --out)
   -h, --help                         Print help
 
 Global options:
@@ -1924,7 +1922,7 @@ Options:
       --out <OUT>
       --source-ref <SOURCE_REF>      External capture URI/key (repeatable); recorded in generated reports
       --json
-      --report-index <REPORT_INDEX>  Shared report index destination (default reports/index.jsonl in the working directory) [default: reports/index.jsonl]
+      --report-index <REPORT_INDEX>  Shared report index destination (default reports/index.jsonl next to each report, inside --out)
   -h, --help                         Print help
 
 Global options:
@@ -1946,7 +1944,7 @@ Options:
       --out <OUT>                    New directory for paired inputs and the comparison report
       --source-ref <SOURCE_REF>      External capture URI/key (repeatable); recorded in generated reports
       --json                         Print the bounded comparison result
-      --report-index <REPORT_INDEX>  Shared report index destination (default reports/index.jsonl in the working directory) [default: reports/index.jsonl]
+      --report-index <REPORT_INDEX>  Shared report index destination (default reports/index.jsonl next to each report, inside --out)
       --threshold <THRESHOLD>        FLIP threshold for the comparison
   -h, --help                         Print help
 
@@ -1965,7 +1963,7 @@ Usage: saccade doctor [OPTIONS]
 Options:
       --json                         Print machine-readable JSON
       --source-ref <SOURCE_REF>      External capture URI/key (repeatable); recorded in generated reports
-      --report-index <REPORT_INDEX>  Shared report index destination (default reports/index.jsonl in the working directory) [default: reports/index.jsonl]
+      --report-index <REPORT_INDEX>  Shared report index destination (default reports/index.jsonl next to each report, inside --out)
   -h, --help                         Print help
 
 Global options:
@@ -1984,7 +1982,7 @@ Options:
       --source-ref <SOURCE_REF>      External capture URI/key (repeatable); recorded in generated reports
       --template <TEMPLATE>          [default: renderer] [possible values: renderer, ui, identity, ml, ci, nightly, lookdev]
       --dir <DIR>                    [default: .]
-      --report-index <REPORT_INDEX>  Shared report index destination (default reports/index.jsonl in the working directory) [default: reports/index.jsonl]
+      --report-index <REPORT_INDEX>  Shared report index destination (default reports/index.jsonl next to each report, inside --out)
       --force
   -h, --help                         Print help
 
@@ -2011,7 +2009,7 @@ The demo exits 1 on purpose: it contains a regression and a missing capture.
 Options:
       --out <OUT>                    Directory for the demo images and reports (default: a new temporary directory)
       --source-ref <SOURCE_REF>      External capture URI/key (repeatable); recorded in generated reports
-      --report-index <REPORT_INDEX>  Shared report index destination (default reports/index.jsonl in the working directory) [default: reports/index.jsonl]
+      --report-index <REPORT_INDEX>  Shared report index destination (default reports/index.jsonl next to each report, inside --out)
   -h, --help                         Print help
 
 Global options:
@@ -2052,7 +2050,7 @@ Options:
       --question <QUESTION>
           Explicit comparison question; no automatic model fallback [possible values: same-render, same-content, same-text, near-duplicate, quality]
       --report-index <REPORT_INDEX>
-          Shared report index destination (default reports/index.jsonl in the working directory) [default: reports/index.jsonl]
+          Shared report index destination (default reports/index.jsonl next to each report, inside --out)
       --model <MODEL>
           Supplied embedding export contract for same-content
       --cache <CACHE>
@@ -2180,7 +2178,7 @@ Arguments:
 
 Options:
       --source-ref <SOURCE_REF>      External capture URI/key (repeatable); recorded in generated reports
-      --report-index <REPORT_INDEX>  Shared report index destination (default reports/index.jsonl in the working directory) [default: reports/index.jsonl]
+      --report-index <REPORT_INDEX>  Shared report index destination (default reports/index.jsonl next to each report, inside --out)
   -h, --help                         Print help
 
 Output:
@@ -2253,7 +2251,7 @@ Commands:
 
 Options:
       --source-ref <SOURCE_REF>      External capture URI/key (repeatable); recorded in generated reports
-      --report-index <REPORT_INDEX>  Shared report index destination (default reports/index.jsonl in the working directory) [default: reports/index.jsonl]
+      --report-index <REPORT_INDEX>  Shared report index destination (default reports/index.jsonl next to each report, inside --out)
   -h, --help                         Print help
 
 Global options:
@@ -2276,7 +2274,7 @@ Options:
       --source-ref <SOURCE_REF>      External capture URI/key (repeatable); recorded in generated reports
       --unit <UNIT>                  Declared common coordinate unit; no conversion or registration is performed
       --json
-      --report-index <REPORT_INDEX>  Shared report index destination (default reports/index.jsonl in the working directory) [default: reports/index.jsonl]
+      --report-index <REPORT_INDEX>  Shared report index destination (default reports/index.jsonl next to each report, inside --out)
   -h, --help                         Print help
 
 Global options:
@@ -2299,7 +2297,7 @@ Options:
       --out <OUT>                    [default: report]
       --source-ref <SOURCE_REF>      External capture URI/key (repeatable); recorded in generated reports
       --config <CONFIG>
-      --report-index <REPORT_INDEX>  Shared report index destination (default reports/index.jsonl in the working directory) [default: reports/index.jsonl]
+      --report-index <REPORT_INDEX>  Shared report index destination (default reports/index.jsonl next to each report, inside --out)
       --json
       --allow-empty
       --ppd <PPD>
@@ -2367,7 +2365,7 @@ Options:
       --source-ref <SOURCE_REF>
           External capture URI/key (repeatable); recorded in generated reports
       --report-index <REPORT_INDEX>
-          Shared report index destination (default reports/index.jsonl in the working directory) [default: reports/index.jsonl]
+          Shared report index destination (default reports/index.jsonl next to each report, inside --out)
       --require-valid-arms
           Refuse verdicts for incomplete or mismatched producer identity
       --fingerprint-map <FINGERPRINT_MAP>
@@ -2424,7 +2422,7 @@ Commands:
 Options:
       --source-ref <SOURCE_REF>      External capture URI/key (repeatable); recorded in generated reports
       --kind <KIND>                  Image calibration (default) or qualified performance noise in ms [default: image] [possible values: image, performance]
-      --report-index <REPORT_INDEX>  Shared report index destination (default reports/index.jsonl in the working directory) [default: reports/index.jsonl]
+      --report-index <REPORT_INDEX>  Shared report index destination (default reports/index.jsonl next to each report, inside --out)
   -h, --help                         Print help
 
 Performance:
@@ -2466,7 +2464,7 @@ Options:
       --source-ref <SOURCE_REF>
           External capture URI/key (repeatable); recorded in generated reports
       --report-index <REPORT_INDEX>
-          Shared report index destination (default reports/index.jsonl in the working directory) [default: reports/index.jsonl]
+          Shared report index destination (default reports/index.jsonl next to each report, inside --out)
       --tile-size <TILE_SIZE>
           [default: 32]
       --json
@@ -2507,7 +2505,7 @@ Arguments:
 
 Options:
       --source-ref <SOURCE_REF>      External capture URI/key (repeatable); recorded in generated reports
-      --report-index <REPORT_INDEX>  Shared report index destination (default reports/index.jsonl in the working directory) [default: reports/index.jsonl]
+      --report-index <REPORT_INDEX>  Shared report index destination (default reports/index.jsonl next to each report, inside --out)
   -h, --help                         Print help
 
 Blind judging:
@@ -2580,7 +2578,7 @@ Options:
       --report <REPORT>              Derive the input directories from this report
       --source-ref <SOURCE_REF>      External capture URI/key (repeatable); recorded in generated reports
       --entry <NAME>                 Select a report entry without positional directories; repeatable
-      --report-index <REPORT_INDEX>  Shared report index destination (default reports/index.jsonl in the working directory) [default: reports/index.jsonl]
+      --report-index <REPORT_INDEX>  Shared report index destination (default reports/index.jsonl next to each report, inside --out)
       --all-failing [<REPORT_JSON>]  Also approve every fail and new entry of this report JSON
       --decisions <DECISIONS_JSON>   Explicit canonical CLI decision bound to this report, inputs and scope
       --include-errors               With --all-failing: also approve `error` entries (for example a size change) whose capture exists and decodes
@@ -2622,7 +2620,7 @@ Options:
       --api-max-bytes <API_MAX_BYTES>
           [default: 16777216]
       --report-index <REPORT_INDEX>
-          Shared report index destination (default reports/index.jsonl in the working directory) [default: reports/index.jsonl]
+          Shared report index destination (default reports/index.jsonl next to each report, inside --out)
       --api-bind <API_BIND>
           [default: 127.0.0.1]
       --api-token-file <API_TOKEN_FILE>
@@ -2700,7 +2698,7 @@ Options:
       --root <ROOTS>                  Read-only roots (repeatable)
       --source-ref <SOURCE_REF>       External capture URI/key (repeatable); recorded in generated reports
       --out-root <OUT_ROOT>           Generated artifacts require this separate root
-      --report-index <REPORT_INDEX>   Shared report index destination (default reports/index.jsonl in the working directory) [default: reports/index.jsonl]
+      --report-index <REPORT_INDEX>   Shared report index destination (default reports/index.jsonl next to each report, inside --out)
       --follow-symlinks-within-roots  Let a symlink that resolves inside any of the roots be read
       --symlink-target <DIR>          Allow symlinks reached below a root to resolve into DIR (repeatable)
       --allow-provider-calls          Explicitly authorize provider calls for this MCP server lifetime
@@ -2736,7 +2734,7 @@ Options:
       --source-ref <SOURCE_REF>
           External capture URI/key (repeatable); recorded in generated reports
       --report-index <REPORT_INDEX>
-          Shared report index destination (default reports/index.jsonl in the working directory) [default: reports/index.jsonl]
+          Shared report index destination (default reports/index.jsonl next to each report, inside --out)
       --entry <ENTRY>
 
       --validity-reasons
@@ -2772,7 +2770,7 @@ Arguments:
 Options:
       --json
       --source-ref <SOURCE_REF>      External capture URI/key (repeatable); recorded in generated reports
-      --report-index <REPORT_INDEX>  Shared report index destination (default reports/index.jsonl in the working directory) [default: reports/index.jsonl]
+      --report-index <REPORT_INDEX>  Shared report index destination (default reports/index.jsonl next to each report, inside --out)
   -h, --help                         Print help
 
 Global options:
@@ -2794,7 +2792,7 @@ Options:
       --out <OUT>
       --source-ref <SOURCE_REF>      External capture URI/key (repeatable); recorded in generated reports
       --entry <ENTRIES>
-      --report-index <REPORT_INDEX>  Shared report index destination (default reports/index.jsonl in the working directory) [default: reports/index.jsonl]
+      --report-index <REPORT_INDEX>  Shared report index destination (default reports/index.jsonl next to each report, inside --out)
       --top <TOP>                    [default: 5]
       --stretch
       --blind
@@ -2822,7 +2820,7 @@ Options:
       --format <FORMAT>              [possible values: json, markdown, junit, png, labels]
       --source-ref <SOURCE_REF>      External capture URI/key (repeatable); recorded in generated reports
       --out <OUT>
-      --report-index <REPORT_INDEX>  Shared report index destination (default reports/index.jsonl in the working directory) [default: reports/index.jsonl]
+      --report-index <REPORT_INDEX>  Shared report index destination (default reports/index.jsonl next to each report, inside --out)
       --entry <ENTRY>
       --state <STATE>
       --width <WIDTH>                [default: 1024]
@@ -2846,7 +2844,7 @@ Options:
       --config <CONFIG>
       --source-ref <SOURCE_REF>      External capture URI/key (repeatable); recorded in generated reports
       --entry <PATH_OR_NAME>
-      --report-index <REPORT_INDEX>  Shared report index destination (default reports/index.jsonl in the working directory) [default: reports/index.jsonl]
+      --report-index <REPORT_INDEX>  Shared report index destination (default reports/index.jsonl next to each report, inside --out)
       --json
   -h, --help                         Print help
 
@@ -2865,7 +2863,7 @@ Usage: saccade inspect capabilities [OPTIONS]
 Options:
       --json
       --source-ref <SOURCE_REF>      External capture URI/key (repeatable); recorded in generated reports
-      --report-index <REPORT_INDEX>  Shared report index destination (default reports/index.jsonl in the working directory) [default: reports/index.jsonl]
+      --report-index <REPORT_INDEX>  Shared report index destination (default reports/index.jsonl next to each report, inside --out)
   -h, --help                         Print help
 
 Global options:
@@ -2899,7 +2897,7 @@ Arguments:
 
 Options:
       --source-ref <SOURCE_REF>      External capture URI/key (repeatable); recorded in generated reports
-      --report-index <REPORT_INDEX>  Shared report index destination (default reports/index.jsonl in the working directory) [default: reports/index.jsonl]
+      --report-index <REPORT_INDEX>  Shared report index destination (default reports/index.jsonl next to each report, inside --out)
       --run
       --budget-calls <BUDGET_CALLS>
       --out <OUT>
@@ -2929,7 +2927,7 @@ Commands:
 
 Options:
       --source-ref <SOURCE_REF>      External capture URI/key (repeatable); recorded in generated reports
-      --report-index <REPORT_INDEX>  Shared report index destination (default reports/index.jsonl in the working directory) [default: reports/index.jsonl]
+      --report-index <REPORT_INDEX>  Shared report index destination (default reports/index.jsonl next to each report, inside --out)
       --user-config <USER_CONFIG>
       --json
   -h, --help                         Print help
@@ -2952,7 +2950,7 @@ Arguments:
 Options:
       --out <OUT>
       --source-ref <SOURCE_REF>      External capture URI/key (repeatable); recorded in generated reports
-      --report-index <REPORT_INDEX>  Shared report index destination (default reports/index.jsonl in the working directory) [default: reports/index.jsonl]
+      --report-index <REPORT_INDEX>  Shared report index destination (default reports/index.jsonl next to each report, inside --out)
       --user-config <USER_CONFIG>
       --json
   -h, --help                         Print help
@@ -2975,7 +2973,7 @@ Arguments:
 Options:
       --out <OUT>
       --source-ref <SOURCE_REF>      External capture URI/key (repeatable); recorded in generated reports
-      --report-index <REPORT_INDEX>  Shared report index destination (default reports/index.jsonl in the working directory) [default: reports/index.jsonl]
+      --report-index <REPORT_INDEX>  Shared report index destination (default reports/index.jsonl next to each report, inside --out)
       --user-config <USER_CONFIG>
       --json
   -h, --help                         Print help
@@ -2998,7 +2996,7 @@ Arguments:
 Options:
       --out <OUT>
       --source-ref <SOURCE_REF>      External capture URI/key (repeatable); recorded in generated reports
-      --report-index <REPORT_INDEX>  Shared report index destination (default reports/index.jsonl in the working directory) [default: reports/index.jsonl]
+      --report-index <REPORT_INDEX>  Shared report index destination (default reports/index.jsonl next to each report, inside --out)
       --voter <VOTER>
       --item <ITEM>
       --answer <ANSWER>
@@ -3025,7 +3023,7 @@ Arguments:
 Options:
       --out <OUT>
       --source-ref <SOURCE_REF>      External capture URI/key (repeatable); recorded in generated reports
-      --report-index <REPORT_INDEX>  Shared report index destination (default reports/index.jsonl in the working directory) [default: reports/index.jsonl]
+      --report-index <REPORT_INDEX>  Shared report index destination (default reports/index.jsonl next to each report, inside --out)
       --voter <VOTER>
       --user-config <USER_CONFIG>
       --json
@@ -3048,7 +3046,7 @@ Commands:
 
 Options:
       --source-ref <SOURCE_REF>      External capture URI/key (repeatable); recorded in generated reports
-      --report-index <REPORT_INDEX>  Shared report index destination (default reports/index.jsonl in the working directory) [default: reports/index.jsonl]
+      --report-index <REPORT_INDEX>  Shared report index destination (default reports/index.jsonl next to each report, inside --out)
       --user-config <USER_CONFIG>
       --json
   -h, --help                         Print help
@@ -3072,7 +3070,7 @@ Commands:
 
 Options:
       --source-ref <SOURCE_REF>      External capture URI/key (repeatable); recorded in generated reports
-      --report-index <REPORT_INDEX>  Shared report index destination (default reports/index.jsonl in the working directory) [default: reports/index.jsonl]
+      --report-index <REPORT_INDEX>  Shared report index destination (default reports/index.jsonl next to each report, inside --out)
       --user-config <USER_CONFIG>
       --json
   -h, --help                         Print help
@@ -3093,7 +3091,7 @@ Options:
       --plan <PLAN>                    Source-bound saccade-assist-batch-plan.v1 artifact
       --source-ref <SOURCE_REF>        External capture URI/key (repeatable); recorded in generated reports
       --job <JOB>                      Durable receipt under the output root
-      --report-index <REPORT_INDEX>    Shared report index destination (default reports/index.jsonl in the working directory) [default: reports/index.jsonl]
+      --report-index <REPORT_INDEX>    Shared report index destination (default reports/index.jsonl next to each report, inside --out)
       --experimental
       --run                            Authorize one live submission or one poll; default local only
       --response <RESPONSE>            Recorded collection fixture; cannot settle a live reservation
@@ -3119,7 +3117,7 @@ Options:
       --plan <PLAN>                    Source-bound saccade-assist-batch-plan.v1 artifact
       --source-ref <SOURCE_REF>        External capture URI/key (repeatable); recorded in generated reports
       --job <JOB>                      Durable receipt under the output root
-      --report-index <REPORT_INDEX>    Shared report index destination (default reports/index.jsonl in the working directory) [default: reports/index.jsonl]
+      --report-index <REPORT_INDEX>    Shared report index destination (default reports/index.jsonl next to each report, inside --out)
       --experimental
       --run                            Authorize one live submission or one poll; default local only
       --response <RESPONSE>            Recorded collection fixture; cannot settle a live reservation
@@ -3145,7 +3143,7 @@ Options:
       --plan <PLAN>                    Source-bound saccade-assist-batch-plan.v1 artifact
       --source-ref <SOURCE_REF>        External capture URI/key (repeatable); recorded in generated reports
       --job <JOB>                      Durable receipt under the output root
-      --report-index <REPORT_INDEX>    Shared report index destination (default reports/index.jsonl in the working directory) [default: reports/index.jsonl]
+      --report-index <REPORT_INDEX>    Shared report index destination (default reports/index.jsonl next to each report, inside --out)
       --experimental
       --run                            Authorize one live submission or one poll; default local only
       --response <RESPONSE>            Recorded collection fixture; cannot settle a live reservation
@@ -3175,7 +3173,7 @@ Options:
       --entry <ENTRY>
           Select exactly one report entry; required when the report contains several
       --report-index <REPORT_INDEX>
-          Shared report index destination (default reports/index.jsonl in the working directory) [default: reports/index.jsonl]
+          Shared report index destination (default reports/index.jsonl next to each report, inside --out)
       --mask-manifest <MASK_MANIFEST>
           Optional original individual-mask declarations, bound to exact report bytes
       --vision-provider <VISION_PROVIDER>
@@ -3241,7 +3239,7 @@ Options:
       --entry <ENTRY>
           Select exactly one report entry; required when the report contains several
       --report-index <REPORT_INDEX>
-          Shared report index destination (default reports/index.jsonl in the working directory) [default: reports/index.jsonl]
+          Shared report index destination (default reports/index.jsonl next to each report, inside --out)
       --mask-manifest <MASK_MANIFEST>
           Optional original individual-mask declarations, bound to exact report bytes
       --vision-provider <VISION_PROVIDER>
@@ -3310,7 +3308,7 @@ Options:
       --box <BOX>
           Original image pixels: X,Y,W,H
       --report-index <REPORT_INDEX>
-          Shared report index destination (default reports/index.jsonl in the working directory) [default: reports/index.jsonl]
+          Shared report index destination (default reports/index.jsonl next to each report, inside --out)
       --kind <KIND>
           Closed screenshot-only condition category [default: label-visible] [possible values: label-visible, banner-absent, not-clipped, non-overlap]
       --target <TARGET>
@@ -3389,7 +3387,7 @@ Options:
       --config <CONFIG>              Project swatches, profiles and CVD tolerances [default: saccade.toml]
       --source-ref <SOURCE_REF>      External capture URI/key (repeatable); recorded in generated reports
       --out <OUT>                    New review packet JSON file
-      --report-index <REPORT_INDEX>  Shared report index destination (default reports/index.jsonl in the working directory) [default: reports/index.jsonl]
+      --report-index <REPORT_INDEX>  Shared report index destination (default reports/index.jsonl next to each report, inside --out)
       --user-config <USER_CONFIG>
       --json
   -h, --help                         Print help
@@ -3418,7 +3416,7 @@ Options:
       --candidate-source <CANDIDATE_SOURCE>
 
       --report-index <REPORT_INDEX>
-          Shared report index destination (default reports/index.jsonl in the working directory) [default: reports/index.jsonl]
+          Shared report index destination (default reports/index.jsonl next to each report, inside --out)
       --region <REGION>
           Frozen reference inclusion region; protected complement is exact by default
       --box <BBOX>
@@ -3462,7 +3460,7 @@ Options:
       --vectors <VECTORS>
           Row-major saccade-vector-buffer.v1 JSON (requires --sidecar)
       --report-index <REPORT_INDEX>
-          Shared report index destination (default reports/index.jsonl in the working directory) [default: reports/index.jsonl]
+          Shared report index destination (default reports/index.jsonl next to each report, inside --out)
       --sidecar <SIDECAR>
           Pinned units, direction, origin and jitter contract (requires --vectors)
       --ppd <PPD>
@@ -3497,7 +3495,7 @@ Options:
       --question <QUESTION>
       --source-ref <SOURCE_REF>      External capture URI/key (repeatable); recorded in generated reports
       --out <OUT>
-      --report-index <REPORT_INDEX>  Shared report index destination (default reports/index.jsonl in the working directory) [default: reports/index.jsonl]
+      --report-index <REPORT_INDEX>  Shared report index destination (default reports/index.jsonl next to each report, inside --out)
       --user-config <USER_CONFIG>
       --json
   -h, --help                         Print help
@@ -3521,7 +3519,7 @@ Options:
       --answers <ANSWERS>
       --source-ref <SOURCE_REF>      External capture URI/key (repeatable); recorded in generated reports
       --out <OUT>
-      --report-index <REPORT_INDEX>  Shared report index destination (default reports/index.jsonl in the working directory) [default: reports/index.jsonl]
+      --report-index <REPORT_INDEX>  Shared report index destination (default reports/index.jsonl next to each report, inside --out)
       --user-config <USER_CONFIG>
       --json
   -h, --help                         Print help
@@ -3544,7 +3542,7 @@ Arguments:
 Options:
       --out <OUT>
       --source-ref <SOURCE_REF>      External capture URI/key (repeatable); recorded in generated reports
-      --report-index <REPORT_INDEX>  Shared report index destination (default reports/index.jsonl in the working directory) [default: reports/index.jsonl]
+      --report-index <REPORT_INDEX>  Shared report index destination (default reports/index.jsonl next to each report, inside --out)
       --user-config <USER_CONFIG>
       --json
   -h, --help                         Print help
@@ -3564,7 +3562,7 @@ Usage: saccade review eval [OPTIONS] --manifest <MANIFEST>
 Options:
       --manifest <MANIFEST>
       --source-ref <SOURCE_REF>      External capture URI/key (repeatable); recorded in generated reports
-      --report-index <REPORT_INDEX>  Shared report index destination (default reports/index.jsonl in the working directory) [default: reports/index.jsonl]
+      --report-index <REPORT_INDEX>  Shared report index destination (default reports/index.jsonl next to each report, inside --out)
       --run
       --user-config <USER_CONFIG>
       --json
@@ -3596,7 +3594,7 @@ Commands:
 
 Options:
       --source-ref <SOURCE_REF>      External capture URI/key (repeatable); recorded in generated reports
-      --report-index <REPORT_INDEX>  Shared report index destination (default reports/index.jsonl in the working directory) [default: reports/index.jsonl]
+      --report-index <REPORT_INDEX>  Shared report index destination (default reports/index.jsonl next to each report, inside --out)
   -h, --help                         Print help
 
 Global options:
@@ -3618,7 +3616,7 @@ Options:
       --change-frame <CHANGE_FRAME>
       --source-ref <SOURCE_REF>      External capture URI/key (repeatable); recorded in generated reports
       --event <EVENT>                Bounded JSON event marker containing change_frame
-      --report-index <REPORT_INDEX>  Shared report index destination (default reports/index.jsonl in the working directory) [default: reports/index.jsonl]
+      --report-index <REPORT_INDEX>  Shared report index destination (default reports/index.jsonl next to each report, inside --out)
       --reference <REFERENCE>
       --fps <FPS>                    [default: 30]
       --tile-size <TILE_SIZE>        [default: 32]
@@ -3651,7 +3649,7 @@ Options:
       --source-ref <SOURCE_REF>
           External capture URI/key (repeatable); recorded in generated reports
       --report-index <REPORT_INDEX>
-          Shared report index destination (default reports/index.jsonl in the working directory) [default: reports/index.jsonl]
+          Shared report index destination (default reports/index.jsonl next to each report, inside --out)
       --require-valid-arms
           Refuse verdicts for incomplete or mismatched producer identity
       --fingerprint-map <FINGERPRINT_MAP>
@@ -3696,7 +3694,7 @@ Arguments:
 Options:
       --source-ref <SOURCE_REF>      External capture URI/key (repeatable); recorded in generated reports
       --unit <UNIT>                  Declared common coordinate unit; no conversion or registration is performed
-      --report-index <REPORT_INDEX>  Shared report index destination (default reports/index.jsonl in the working directory) [default: reports/index.jsonl]
+      --report-index <REPORT_INDEX>  Shared report index destination (default reports/index.jsonl next to each report, inside --out)
       --samples <SAMPLES>            Approximate area samples per direction, plus mandatory triangle/edge/vertex coverage [default: 4096]
       --views <VIEWS>                Supplied finite-camera render manifest, bound to these exact mesh inputs
       --out <OUT>                    Write the combined geometry and optional multi-view packet
@@ -3725,7 +3723,7 @@ Options:
       --source-ref <SOURCE_REF>
           External capture URI/key (repeatable); recorded in generated reports
       --report-index <REPORT_INDEX>
-          Shared report index destination (default reports/index.jsonl in the working directory) [default: reports/index.jsonl]
+          Shared report index destination (default reports/index.jsonl next to each report, inside --out)
       --require-valid-arms
           Refuse verdicts for incomplete or mismatched producer identity
       --fingerprint-map <FINGERPRINT_MAP>
@@ -3785,7 +3783,7 @@ Options:
       --source-ref <SOURCE_REF>
           External capture URI/key (repeatable); recorded in generated reports
       --report-index <REPORT_INDEX>
-          Shared report index destination (default reports/index.jsonl in the working directory) [default: reports/index.jsonl]
+          Shared report index destination (default reports/index.jsonl next to each report, inside --out)
       --require-valid-arms
           Refuse verdicts for incomplete or mismatched producer identity
       --fingerprint-map <FINGERPRINT_MAP>
@@ -3831,7 +3829,7 @@ Options:
       --fixed-camera                 Declare a fixed camera and measure per-tile flicker with motion qualification
       --source-ref <SOURCE_REF>      External capture URI/key (repeatable); recorded in generated reports
       --pattern <PATTERN>            Relative-name glob; frames must end in an integer before the extension [default: *]
-      --report-index <REPORT_INDEX>  Shared report index destination (default reports/index.jsonl in the working directory) [default: reports/index.jsonl]
+      --report-index <REPORT_INDEX>  Shared report index destination (default reports/index.jsonl next to each report, inside --out)
       --out <OUT>                    [default: sequence-report]
       --threshold <THRESHOLD>
       --metric <METRIC>              [possible values: mean, p95, p99, max]
@@ -3888,7 +3886,7 @@ Options:
       --labels <LABELS>              One unique, safe directory label per candidate, comma separated
       --source-ref <SOURCE_REF>      External capture URI/key (repeatable); recorded in generated reports
       --metric <METRIC>              [default: mean] [possible values: mean, p95, p99, max]
-      --report-index <REPORT_INDEX>  Shared report index destination (default reports/index.jsonl in the working directory) [default: reports/index.jsonl]
+      --report-index <REPORT_INDEX>  Shared report index destination (default reports/index.jsonl next to each report, inside --out)
       --out <OUT>                    [default: rank-report]
       --config <CONFIG>
       --threshold <THRESHOLD>
@@ -3938,7 +3936,7 @@ Usage: saccade experiment bisect [OPTIONS]
 Options:
       --runs <RUNS>...               Ordered run directories, oldest first (repeatable)
       --source-ref <SOURCE_REF>      External capture URI/key (repeatable); recorded in generated reports
-      --report-index <REPORT_INDEX>  Shared report index destination (default reports/index.jsonl in the working directory) [default: reports/index.jsonl]
+      --report-index <REPORT_INDEX>  Shared report index destination (default reports/index.jsonl next to each report, inside --out)
       --runs-from <RUNS_FROM>        One ordered run path per line
       --good <GOOD>                  Reference for existing runs (default: first run)
       --threshold <THRESHOLD>        Explicit FLIP threshold relaxes native sample identity
@@ -3967,7 +3965,7 @@ Options:
       --fps <FPS>                    Frame rate override; otherwise metadata, or 60 for frame directories
       --source-ref <SOURCE_REF>      External capture URI/key (repeatable); recorded in generated reports
       --display <DISPLAY>            WxH@diagonal_inches,distance_metres (default 1920x1080@55,4)
-      --report-index <REPORT_INDEX>  Shared report index destination (default reports/index.jsonl in the working directory) [default: reports/index.jsonl]
+      --report-index <REPORT_INDEX>  Shared report index destination (default reports/index.jsonl next to each report, inside --out)
       --standard <STANDARD>          itu-bt1702 or wcag. PRE-CHECK only, never certification [default: itu-bt1702]
       --json                         Print full saccade-safety.v1 JSON
       --out <OUT>                    Output directory for JSON, text, HTML, static frames and risk heatmaps [default: safety-report]
@@ -3993,7 +3991,7 @@ Options:
       --config <CONFIG>              Explicit saccade.toml with [[region]] kind="text" or "ui"
       --source-ref <SOURCE_REF>      External capture URI/key (repeatable); recorded in generated reports
       --json                         Print full saccade-a11y.v1 JSON
-      --report-index <REPORT_INDEX>  Shared report index destination (default reports/index.jsonl in the working directory) [default: reports/index.jsonl]
+      --report-index <REPORT_INDEX>  Shared report index destination (default reports/index.jsonl next to each report, inside --out)
       --out <OUT>                    Output directory for JSON, text, HTML and simulation/heatmap artifacts [default: a11y-report]
       --junit <JUNIT>                Optional JUnit XML destination
       --suggest-regions              Explicitly upload 16 crops/image to Gemini for unconfirmed region proposals

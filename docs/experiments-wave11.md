@@ -173,9 +173,8 @@ separate. Compact CLI/MCP envelopes retain the referenced measurement's ID. Hist
 reports without links remain readable. Acquisition plans, capture/policy inputs and human
 approval/evidence documents retain their separate immutable identity contracts.
 
-CLI reports append locked JSONL rows to `reports/index.jsonl` in the working directory;
-`--report-index FILE` selects another destination. Core library writers default to a
-`reports/index.jsonl` beside the report. Each `saccade-report-index-row.v1` row records report ID, source refs, verdict
+CLI reports append locked JSONL rows to `reports/index.jsonl` beside each report (inside `--out`);
+`--report-index FILE` selects another destination. Core library writers use the same default. Each `saccade-report-index-row.v1` row records report ID, source refs, verdict
 class, Unix insertion timestamp, report schema and report path. Multiple rows for the same ID
 are allowed; hubs may deduplicate by `(report_id, source_refs, report_path)`.
 
