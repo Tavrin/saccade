@@ -75,3 +75,9 @@ confidence/failures, no rights proof. [Python](../docs/python.md), [API](../docs
 Text index queries need pinned joint SigLIP 2; DINO is image-only.
 
 Local gates grant no broad model/provider/platform/rendering/release qualification.
+
+OCR lane: build `ocr` for default PP-OCRv5 local `text`, `--expect-text`, media text,
+and `inspect-image --ocr`; see [text contracts](../docs/text.md). Explicit downloads
+only, exact accents and source hashes, observed CTC confidence. `ocr-provider` adds
+`text --ocr-provider mistral` for image/PDF Markdown, with request-bound fixtures or
+explicit live authorization, root egress and spend caps. It is never auto-selected.

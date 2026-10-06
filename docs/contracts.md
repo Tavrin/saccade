@@ -252,6 +252,9 @@ The last three names appear only when the corresponding feature is compiled in.
 - [saccade-visual-trial-plan.v1.schema.json](../crates/saccade-core/schemas/saccade-visual-trial-plan.v1.schema.json) — Plan
 - [saccade-visual-trial-receipt.v1.schema.json](../crates/saccade-core/schemas/saccade-visual-trial-receipt.v1.schema.json) — Receipt
 - [saccade-watermark.v1.schema.json](../crates/saccade-core/schemas/saccade-watermark.v1.schema.json) — WatermarkReport
+- [saccade-paddle-ocr.v1.schema.json](../crates/saccade-core/schemas/saccade-paddle-ocr.v1.schema.json) — OCR lane contract
+- [saccade-document-ocr.v1.schema.json](../crates/saccade-core/schemas/saccade-document-ocr.v1.schema.json) — OCR lane contract
+- [saccade-document-text.v1.schema.json](../crates/saccade-core/schemas/saccade-document-text.v1.schema.json) — OCR lane contract
 <!-- schema-index:end -->
 
 Historical validators and fixtures do not imply that retired writers or commands

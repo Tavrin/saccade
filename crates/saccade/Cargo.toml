@@ -30,6 +30,7 @@ globset = "0.4"
 fs2 = "0.4.3"
 
 [features]
+ocr-provider = ["assist", "saccade-core/ocr-provider"]
 media-http = ["saccade-core/media-http"]
 products = ["dep:ureq", "dep:url", "dep:roxmltree", "compression", "image/webp"]
 imgtune-avif = ["products", "image/avif", "image/avif-native"]

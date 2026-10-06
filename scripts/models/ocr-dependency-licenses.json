@@ -1,0 +1,94 @@
+[
+  {
+    "package": "imageproc-0.25.0",
+    "license": "MIT",
+    "cargo_toml_sha256": "7db70c9d5e0b91dd08ab1e1927aed362ed23ea704a26bcd12bfd1e73b2e9a62a",
+    "license_files": {
+      "LICENSE": "5bffc7c9c5b2b2d31391f9022d5b744c17eedb8ef983aac5a5b72c0d9aeca6b5"
+    }
+  },
+  {
+    "package": "serde_yaml-0.9.34+deprecated",
+    "license": "MIT OR Apache-2.0",
+    "cargo_toml_sha256": "2aff50a39422e68805e272871afd09f3a1fed4bb09ba817822f0807122a4dab7",
+    "license_files": {
+      "LICENSE-APACHE": "62c7a1e35f56406896d7aa7ca52d0cc0d272ac022b5d2796e7d6905db8a3636a",
+      "LICENSE-MIT": "23f18e03dc49df91622fe2a76176497404e46ced8a715d9d2b67a7446571cca3"
+    }
+  },
+  {
+    "package": "unsafe-libyaml-0.2.11",
+    "license": "MIT",
+    "cargo_toml_sha256": "39d7eb7914105623a7baa0e953d82d8c4bb31e40f613e7e413e22c85f652bc69",
+    "license_files": {
+      "LICENSE-MIT": "23f18e03dc49df91622fe2a76176497404e46ced8a715d9d2b67a7446571cca3"
+    }
+  },
+  {
+    "package": "ab_glyph-0.2.32",
+    "license": "Apache-2.0",
+    "cargo_toml_sha256": "57c5cd0f50fb3a5db53511c26a2c47b35597a059643057929430b12994e9f8d0",
+    "license_files": {
+      "LICENSE": "a6cba85bc92e0cff7a450b1d873c0eaa2e9fc96bf472df0247a26bec77bf3ff9"
+    }
+  },
+  {
+    "package": "ab_glyph_rasterizer-0.1.10",
+    "license": "Apache-2.0",
+    "cargo_toml_sha256": "054c566cef83c7c0611c8b5ef89ccde66e37455ea160a0c6a633c8a62ecf7ea5",
+    "license_files": {
+      "LICENSE": "a6cba85bc92e0cff7a450b1d873c0eaa2e9fc96bf472df0247a26bec77bf3ff9"
+    }
+  },
+  {
+    "package": "owned_ttf_parser-0.25.1",
+    "license": "Apache-2.0",
+    "cargo_toml_sha256": "8a71904f2a8c2508188c496a687d9cbf08e1fa9c84a95ef0114d1512eacf8a0d",
+    "license_files": {
+      "LICENSE": "a6cba85bc92e0cff7a450b1d873c0eaa2e9fc96bf472df0247a26bec77bf3ff9"
+    }
+  },
+  {
+    "package": "ttf-parser-0.25.1",
+    "license": "MIT OR Apache-2.0",
+    "cargo_toml_sha256": "6f2984ea56c0ccc30a5432cce5189d4e4a615a9c1527f82c66d517a5e56c25df",
+    "license_files": {
+      "LICENSE-APACHE": "a60eea817514531668d7e00765731449fe14d059d3249e0bc93b36de45f759f2",
+      "LICENSE-MIT": "f3c9fe731c701ed77fd5fbaac573872af04dc5869385eb9bd5e3c73c42713814"
+    }
+  },
+  {
+    "package": "itertools-0.12.1",
+    "license": "MIT OR Apache-2.0",
+    "cargo_toml_sha256": "6195067552cb7d75ec49dda3f650be1d977a5ab17b7e6c316d5d8f39240c23c8",
+    "license_files": {
+      "LICENSE-APACHE": "a60eea817514531668d7e00765731449fe14d059d3249e0bc93b36de45f759f2",
+      "LICENSE-MIT": "7576269ea71f767b99297934c0b2367532690f8c4badc695edf8e04ab6a1e545"
+    }
+  },
+  {
+    "package": "nalgebra-0.32.6",
+    "license": "BSD-3-Clause",
+    "cargo_toml_sha256": "4325f039dc332ebe690bb31114ff763989ab56866deca1487b4d7ecc7962710f",
+    "license_files": {
+      "LICENSE": "86ae51c591e742d80ce56823d35e2e176b53e38a99bd8499c85dae31ef4fe1f7"
+    }
+  },
+  {
+    "package": "simba-0.8.1",
+    "license": "Apache-2.0",
+    "cargo_toml_sha256": "0977e5b2e11d5225238a11954714160218a2f474eacd1a62eee99d8c3a0d1f25",
+    "license_files": {
+      "LICENSE": "ceacfa4d7fa67df64ab09a56fe248c50a3bfc9bc00374d69bd74ad763b14b89c"
+    }
+  },
+  {
+    "package": "rand_distr-0.4.3",
+    "license": "MIT OR Apache-2.0",
+    "cargo_toml_sha256": "de7ba89ed55ad8ff0256372e909588449ce8bb1f131b615c3e978792ead79e1b",
+    "license_files": {
+      "LICENSE-APACHE": "6df43f6f4b5d4587f3d8d71e45532c688fd168afa5fe89d571cb32fa09c4ef51",
+      "LICENSE-MIT": "a771e4354f6b3ad4c92da1a5c9a239b6c291527db869632ecea4f20e24ca1135"
+    }
+  }
+]

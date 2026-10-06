@@ -1491,6 +1491,48 @@ impl Server {
             return Ok(ToolOutput{structured:json!({"schema":saccade_core::general::RESULT_SCHEMA,"mode":operation,"verdict":value["verdict"],"data":{"schema":value["schema"],"counts":value["counts"]},"artifacts":[{"path":saccade_core::paths::record(&file,&self.root,false)}],"next_actions":[]}),text:"Content-dependent quality indicators and optional paired deltas; no heuristic quality verdict.".into(),images:Vec::new()});
         }
         // Imported text observations are data; MCP never executes a supplied program.
+        // OCR lane: request-bound provider fixtures only; no live egress authority in tool input.
+        if operation == "document_text" {
+            reject_unknown(
+                args,
+                &[
+                    "operation",
+                    "a",
+                    "b",
+                    "response_a",
+                    "response_b",
+                    "model",
+                    "pages",
+                    "expect_text",
+                    "out",
+                ],
+            )?;
+            let a = self.existing_file("a", &require_str(args, "a")?)?;
+            let b = self.existing_file("b", &require_str(args, "b")?)?;
+            let ra = self.existing_file("response_a", &require_str(args, "response_a")?)?;
+            let rb = self.existing_file("response_b", &require_str(args, "response_b")?)?;
+            let out = self.checked_out_dir(&require_str(args, "out")?, &[&a, &b, &ra, &rb])?;
+            let pages = if let Some(p) = args.get("pages") {
+                serde_json::from_value::<Vec<u32>>(p.clone())?
+            } else {
+                vec![0]
+            };
+            let value = crate::document_ocr_cmd::imported(
+                [a, b],
+                [ra, rb],
+                require_str(args, "model")?,
+                pages,
+                arg_strings(args, "expect_text")?,
+                &out,
+            )?;
+            let file = crate::general_cmd::persist_document(&value, &out)?;
+            return Ok(ToolOutput {
+                structured: json!({"schema":saccade_core::general::RESULT_SCHEMA,"mode":operation,"verdict":value["verdict"],"data":{"schema":value["schema"],"counts":value["counts"]},"artifacts":[{"path":saccade_core::paths::record(&file,&self.root,false)}],"next_actions":[]}),
+                text: "Page-structured OCR fixtures compared; no live calls or readability proof."
+                    .into(),
+                images: Vec::new(),
+            });
+        }
         if operation == "text" {
             reject_unknown(
                 args,

@@ -50,8 +50,8 @@ roxmltree = "=0.21.1"
 resvg = { version = "=0.48.1", default-features = false, features = ["text", "raster-images"], optional = true }
 hayro = { version = "=0.3.0", default-features = false, optional = true }
 c2pa = { version = "=0.90.22", default-features = false, features = ["rust_native_crypto"], optional = true }
-ocrs = { version = "=0.10.4", optional = true }
-rten = { version = "=0.21.0", default-features = false, optional = true }
+imageproc = { version = "=0.25.0", default-features = false, optional = true }
+serde_yaml = { version = "=0.9.34", optional = true }
 # wave7b: pinned BERT/CLIP tokenizers, no network/pretrained loader feature.
 tokenizers = { version = "=0.22.2", default-features = false, features = ["fancy-regex"], optional = true }
 
@@ -60,9 +60,10 @@ flate2 = { version = "=1.1.10", optional = true }
 tar = { version = "=0.4.46", default-features = false, optional = true }
 
 [features]
+ocr-provider = ["assist", "dep:base64"]
 documents = ["dep:resvg", "dep:hayro"]
 credentials = ["dep:c2pa"]
-ocr = ["dep:ocrs", "dep:rten", "dep:ureq", "dep:fs2"]
+ocr = ["local-models", "dep:imageproc", "dep:serde_yaml"]
 # Dynamic CPU ONNX embeddings, no default dependency change
 embeddings = ["semantic-regions", "dep:base64", "dep:tokenizers"]
 default = ["parallel"]
@@ -152,3 +153,7 @@ required-features = ["credentials"]
 # wave8: safe OpenOptions flags reject special-file reads without blocking on Unix.
 [target.'cfg(unix)'.dependencies]
 libc = "0.2"
+
+[[example]]
+name = "ocr_accents"
+required-features = ["ocr"]

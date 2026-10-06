@@ -394,6 +394,7 @@ pub(crate) fn tool_schema() -> Value {
     variants.extend(crate::hash_cmd::schemas());
     variants.extend(crate::embedding_cmd::schemas());
     variants.extend(crate::text_cmd::schemas());
+    variants.push(crate::document_ocr_cmd::schema());
     variants.extend(crate::assess_cmd::schemas());
     variants.extend(crate::inspect_image_cmd::schemas());
     variants.extend(crate::capability_cmd::schemas());

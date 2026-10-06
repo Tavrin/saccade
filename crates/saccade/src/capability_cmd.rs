@@ -129,7 +129,7 @@ pub(crate) fn catalogue() -> Value {
     );
     add(
         "text",
-        "text --a-source --b-source; optional --ocr-contract",
+        "text; PP-OCRv5 default with ocr, or --a-source --b-source",
         "images plus image-bound observations",
         vec![],
         "available_imports",
@@ -362,6 +362,9 @@ pub(crate) fn catalogue() -> Value {
         .collect();
     if cfg!(feature = "ocr") {
         features.push("ocr".into());
+    }
+    if cfg!(feature = "ocr-provider") {
+        features.push("ocr-provider".into());
     }
     if cfg!(feature = "mcp") {
         features.push("mcp".into());

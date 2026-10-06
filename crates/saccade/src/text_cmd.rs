@@ -8,6 +8,8 @@ use serde_json::{Value, json};
 use std::path::{Path, PathBuf};
 #[derive(clap::Args)]
 pub(crate) struct Args {
+    #[command(flatten)]
+    provider: crate::document_ocr_cmd::Options,
     a: PathBuf,
     b: PathBuf,
     /// Image-bound imported saccade-ui-source.v1 observations for the reference.
@@ -16,11 +18,11 @@ pub(crate) struct Args {
     /// Image-bound imported observations for the candidate.
     #[arg(long)]
     b_source: Option<PathBuf>,
-    /// Existing pinned external Tesseract contract; requires ocr feature.
+    /// Override the default pinned PP-OCRv5 contract (or select external Tesseract).
     #[arg(long)]
     ocr_contract: Option<PathBuf>,
     /// Explicitly fetch SHA-pinned Rust OCR models into the contract cache.
-    #[arg(long, requires = "ocr_contract")]
+    #[arg(long)]
     download_model: bool,
     /// Literal Unicode strings expected in the candidate (repeatable); always inert data.
     #[arg(long)]
@@ -36,7 +38,7 @@ pub(crate) struct Args {
     #[arg(long)]
     json: bool,
 }
-fn source(
+pub(crate) fn source(
     path: Option<&Path>,
     contract: Option<&Path>,
     bytes: &[u8],
@@ -49,9 +51,25 @@ fn source(
         source.validate(&saccade_core::localized::digest(bytes), size)?;
         return Ok(source);
     }
-    let contract = contract.ok_or_else(|| {
-        CliError::usage("text requires imported sources or an explicit pinned OCR contract")
-    })?;
+    if contract.is_none() {
+        #[cfg(feature = "ocr")]
+        {
+            return Ok(saccade_core::general::ocr::recognize(
+                &saccade_core::general::ocr::default_contract()?,
+                &saccade_core::media::default_model_dir(),
+                bytes,
+                download,
+            )?);
+        }
+        #[cfg(not(feature = "ocr"))]
+        {
+            return Err(CliError::new(
+                "feature_unavailable",
+                "default PP-OCRv5 OCR requires ocr; imported sources remain available",
+            ));
+        }
+    }
+    let contract = contract.ok_or_else(|| CliError::usage("OCR contract unavailable"))?;
     let contract_bytes = input::bytes(contract, 2 * 1024 * 1024)?;
     let raw: Value = serde_json::from_slice(&contract_bytes)?;
     let value = if raw["schema"] == saccade_core::wave7::models::REGISTRY_SCHEMA {
@@ -103,6 +121,24 @@ pub(crate) fn run(args: Args) -> Result<u8, CliError> {
     general_cmd::emit_document(value, Some(&args.out), args.json)
 }
 fn measure(args: &Args) -> Result<Value, CliError> {
+    if args.provider.ocr_provider.is_some() {
+        if args.a_source.is_some()
+            || args.b_source.is_some()
+            || args.ocr_contract.is_some()
+            || args.download_model
+        {
+            return Err(CliError::usage(
+                "document OCR provider conflicts with imported/local OCR options",
+            ));
+        }
+        let value = crate::document_ocr_cmd::measure(
+            &args.provider,
+            [&args.a, &args.b],
+            &args.expect_text,
+        )?;
+        general_cmd::prepare_out(&args.out, &[&args.a, &args.b])?;
+        return Ok(value);
+    }
     let aa = input::bytes(&args.a, input::MAX_BYTES)?;
     let bb = input::bytes(&args.b, input::MAX_BYTES)?;
     let ai = input::decode(&aa)?;
@@ -162,6 +198,7 @@ pub(crate) fn imported(
     let [a_source, b_source] = sources;
     let [confidence, moved] = policy;
     measure(&Args {
+        provider: Default::default(),
         a,
         b,
         a_source: Some(a_source),
@@ -185,6 +222,7 @@ pub(crate) fn routed(
     out: &Path,
 ) -> Result<Value, CliError> {
     measure(&Args {
+        provider: Default::default(),
         a: a.into(),
         b: b.into(),
         a_source: sa.map(Path::to_path_buf),

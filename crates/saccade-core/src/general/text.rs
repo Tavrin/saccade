@@ -269,6 +269,26 @@ fn changes(a: &[Unit], b: &[Unit], asize: [u32; 2], bsize: [u32; 2], moved_px: f
     }
     out
 }
+/// Exact Unicode CER/WER for plain text or page-structured document observations.
+pub fn rates(aa: &str, bb: &str) -> Result<Rates> {
+    if aa.chars().count() > 16384 || bb.chars().count() > 16384 {
+        return Err(Error::Config("text rate scalar bound".into()));
+    }
+    let ac: Vec<_> = aa.chars().collect();
+    let bc: Vec<_> = bb.chars().collect();
+    let at: Vec<_> = aa.split_whitespace().collect();
+    let bt: Vec<_> = bb.split_whitespace().collect();
+    let ce = edit(&ac, &bc)?;
+    let we = edit(&at, &bt)?;
+    Ok(Rates {
+        character_edits: ce,
+        reference_characters: ac.len(),
+        cer: (!ac.is_empty()).then(|| ce as f64 / ac.len() as f64),
+        word_edits: we,
+        reference_words: at.len(),
+        wer: (!at.is_empty()).then(|| we as f64 / at.len() as f64),
+    })
+}
 /// Compares image-bound source/OCR observations with literal Unicode matching.
 /// No extracted content is used as an instruction. Geometric reading order is heuristic.
 pub fn compare(
@@ -303,20 +323,7 @@ pub fn compare(
         .map(|u| u.text.as_str())
         .collect::<Vec<_>>()
         .join("\n");
-    let ac: Vec<_> = aa.chars().collect();
-    let bc: Vec<_> = bb.chars().collect();
-    let at: Vec<_> = aa.split_whitespace().collect();
-    let bt: Vec<_> = bb.split_whitespace().collect();
-    let ce = edit(&ac, &bc)?;
-    let we = edit(&at, &bt)?;
-    let rates = Rates {
-        character_edits: ce,
-        reference_characters: ac.len(),
-        cer: (!ac.is_empty()).then(|| ce as f64 / ac.len() as f64),
-        word_edits: we,
-        reference_words: at.len(),
-        wer: (!at.is_empty()).then(|| we as f64 / at.len() as f64),
-    };
+    let rates = rates(&aa, &bb)?;
     let expectations = expected
         .iter()
         .map(|text| {

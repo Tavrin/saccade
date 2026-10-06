@@ -23,6 +23,12 @@ pub(crate) struct Args {
     /// Optional image-bound source/OCR observations for legibility evidence.
     #[arg(long)]
     text_source: Option<PathBuf>,
+    /// Extract legibility observations with the default PP-OCRv5 engine.
+    #[arg(long)]
+    ocr: bool,
+    /// Explicit pinned OCR contract override.
+    #[arg(long)]
+    ocr_contract: Option<PathBuf>,
     #[arg(long, default_value = "image-inspection")]
     out: PathBuf,
     #[arg(long)]
@@ -142,10 +148,14 @@ fn measure(args: &Args) -> Result<Value, CliError> {
         .as_deref()
         .map(|p| archive(p, hash.phash))
         .transpose()?;
-    let text = if let Some(path) = &args.text_source {
-        let source: saccade_core::ui_review::Source =
-            serde_json::from_slice(&input::bytes(path, 16 * 1024 * 1024)?)?;
-        source.validate(&saccade_core::localized::digest(&bytes), dimensions)?;
+    let text = if args.text_source.is_some() || args.ocr || args.ocr_contract.is_some() {
+        let source = crate::text_cmd::source(
+            args.text_source.as_deref(),
+            args.ocr_contract.as_deref(),
+            &bytes,
+            dimensions,
+            false,
+        )?;
         if source.nodes.len() > 2048 {
             return Err(CliError::usage("legibility supports <=2048 observations"));
         }
@@ -237,6 +247,8 @@ pub(crate) fn imported(
         include_gps,
         hash_index,
         text_source,
+        ocr: false,
+        ocr_contract: None,
         output_size: outputs,
         crop,
         json: true,

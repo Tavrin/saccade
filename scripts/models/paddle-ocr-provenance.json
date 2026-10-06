@@ -1,0 +1,97 @@
+{
+  "models": [
+    {
+      "role": "detection-README.md",
+      "version": "e6f4fa85f00e168c862bc462aebca69eef9b3d3d",
+      "format": "checkpoint",
+      "url": "https://huggingface.co/PaddlePaddle/PP-OCRv5_mobile_det_onnx/resolve/e6f4fa85f00e168c862bc462aebca69eef9b3d3d/README.md",
+      "bytes": 1828,
+      "sha256": "951c155673ac6c15feb85857c9024a62266e5956d15319ce578a8f508f399d66",
+      "license": "Apache-2.0"
+    },
+    {
+      "role": "detection-inference.yml",
+      "version": "e6f4fa85f00e168c862bc462aebca69eef9b3d3d",
+      "format": "checkpoint",
+      "url": "https://huggingface.co/PaddlePaddle/PP-OCRv5_mobile_det_onnx/resolve/e6f4fa85f00e168c862bc462aebca69eef9b3d3d/inference.yml",
+      "bytes": 903,
+      "sha256": "98069072e1b6b37d727fd9d9f11725faa46d6ea0de012f2ed26caea011c37699",
+      "license": "Apache-2.0"
+    },
+    {
+      "role": "detection",
+      "version": "e6f4fa85f00e168c862bc462aebca69eef9b3d3d",
+      "format": "onnx",
+      "url": "https://huggingface.co/PaddlePaddle/PP-OCRv5_mobile_det_onnx/resolve/e6f4fa85f00e168c862bc462aebca69eef9b3d3d/inference.onnx",
+      "bytes": 4826518,
+      "sha256": "a431985659dc921974177a95adcfbb90fd9e51989a5e04d70d0b75f597b6e61d",
+      "license": "Apache-2.0"
+    },
+    {
+      "role": "recognition-README.md",
+      "version": "89d3a50e2c27e2e7cceeab0e944c25c807d5db4f",
+      "format": "checkpoint",
+      "url": "https://huggingface.co/PaddlePaddle/latin_PP-OCRv5_mobile_rec_onnx/resolve/89d3a50e2c27e2e7cceeab0e944c25c807d5db4f/README.md",
+      "bytes": 28,
+      "sha256": "98b45ea81164d1e1a1dd82255207053b15cd6c69d922a1c5cf3387ce604d4b74",
+      "license": "Apache-2.0"
+    },
+    {
+      "role": "recognition-inference.yml",
+      "version": "89d3a50e2c27e2e7cceeab0e944c25c807d5db4f",
+      "format": "checkpoint",
+      "url": "https://huggingface.co/PaddlePaddle/latin_PP-OCRv5_mobile_rec_onnx/resolve/89d3a50e2c27e2e7cceeab0e944c25c807d5db4f/inference.yml",
+      "bytes": 6817,
+      "sha256": "0bbe984570f597af3638e50bdf2e8276f3ab26a61966096538b3b0d1849f5c84",
+      "license": "Apache-2.0"
+    },
+    {
+      "role": "recognition",
+      "version": "89d3a50e2c27e2e7cceeab0e944c25c807d5db4f",
+      "format": "onnx",
+      "url": "https://huggingface.co/PaddlePaddle/latin_PP-OCRv5_mobile_rec_onnx/resolve/89d3a50e2c27e2e7cceeab0e944c25c807d5db4f/inference.onnx",
+      "bytes": 8042023,
+      "sha256": "7888113072263cb471b93f66dd5e2ad70548dc526fa1ace760d0d973dd121498",
+      "license": "Apache-2.0"
+    }
+  ],
+  "source": [
+    {
+      "url": "https://raw.githubusercontent.com/PaddlePaddle/PaddleOCR/c2b0390d9a89ee76148be5c9d758a028527214d4/LICENSE",
+      "revision": "c2b0390d9a89ee76148be5c9d758a028527214d4",
+      "bytes": 11376,
+      "sha256": "3840c5c0c61c294264d2dd77b8777be6ddd90121ef4e0e64abcd22edea581d6e"
+    },
+    {
+      "url": "https://raw.githubusercontent.com/PaddlePaddle/PaddleOCR/c2b0390d9a89ee76148be5c9d758a028527214d4/ppocr/postprocess/db_postprocess.py",
+      "revision": "c2b0390d9a89ee76148be5c9d758a028527214d4",
+      "bytes": 9852,
+      "sha256": "a7123cfab47c9f326f9442f4e3ec963694c53a12556fc13eb541169a8e66b67f"
+    },
+    {
+      "url": "https://raw.githubusercontent.com/PaddlePaddle/PaddleOCR/c2b0390d9a89ee76148be5c9d758a028527214d4/ppocr/postprocess/rec_postprocess.py",
+      "revision": "c2b0390d9a89ee76148be5c9d758a028527214d4",
+      "bytes": 58232,
+      "sha256": "c378e02c4b0fafefcc6285444e8166926beda0a3fe9c16457ce1ab01df642de2"
+    },
+    {
+      "url": "https://raw.githubusercontent.com/PaddlePaddle/PaddleOCR/c2b0390d9a89ee76148be5c9d758a028527214d4/ppocr/data/imaug/operators.py",
+      "revision": "c2b0390d9a89ee76148be5c9d758a028527214d4",
+      "bytes": 17445,
+      "sha256": "6106136383ccc2089bd73d9626c33baff343a63ce8edc63eb32f5719979123de"
+    },
+    {
+      "url": "https://raw.githubusercontent.com/PaddlePaddle/PaddleOCR/c2b0390d9a89ee76148be5c9d758a028527214d4/ppocr/data/imaug/rec_img_aug.py",
+      "revision": "c2b0390d9a89ee76148be5c9d758a028527214d4",
+      "bytes": 28313,
+      "sha256": "4607e1f0665c1b70405b04e8c231772af3dbd341b31653bc9fa59ed47e4796e4"
+    },
+    {
+      "url": "https://raw.githubusercontent.com/PaddlePaddle/PaddleOCR/c2b0390d9a89ee76148be5c9d758a028527214d4/tools/infer/utility.py",
+      "revision": "c2b0390d9a89ee76148be5c9d758a028527214d4",
+      "bytes": 38108,
+      "sha256": "04d11f548453ed390ab5f3d23c2caad41f6194d089d41e97b216d98cc71c6a48"
+    }
+  ],
+  "dictionary": "Ordered character_dict in recognition inference.yml (836 entries), blank prepended, space appended. Older latin_dict.txt is incompatible and rejected."
+}

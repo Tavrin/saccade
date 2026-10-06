@@ -1,0 +1,41 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/Tavrin/saccade/crates/saccade-core/schemas/saccade-paddle-ocr.v1.schema.json",
+  "type": "object",
+  "properties": {
+    "schema": {
+      "const": "saccade-paddle-ocr.v1"
+    },
+    "cache": {
+      "type": "string"
+    },
+    "detection": {
+      "type": "object"
+    },
+    "recognition": {
+      "type": "object"
+    },
+    "license_evidence": {
+      "type": "string",
+      "minLength": 1
+    },
+    "review_status": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "dictionary": {
+      "type": "object"
+    }
+  },
+  "required": [
+    "schema",
+    "cache",
+    "detection",
+    "recognition",
+    "dictionary",
+    "license_evidence"
+  ],
+  "additionalProperties": false
+}

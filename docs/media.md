@@ -77,3 +77,9 @@ The crop is a source-space bounding rectangle of target coverage (an approximati
 rotation/projective edges). Confidence is an uncalibrated consensus score, not probability.
 Exact encoded equality is separately labelled. Insufficient texture is `no_match` with an
 explicit consensus reason, never a guessed transform. Matching does not establish rights.
+
+With `ocr`, the default media text section uses pinned PP-OCRv5 mobile detection
+and Latin recognition via CPU ONNX Runtime 1.22. The shared registry carries
+all three graph/dictionary pins. The model cache and download opt-in remain
+explicit. Text units are detected lines, confidence is mean selected CTC score
+(uncalibrated), and source coverage stays incomplete. See [OCR contracts](text.md).
