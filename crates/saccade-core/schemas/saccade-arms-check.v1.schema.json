@@ -21,6 +21,21 @@
       ],
       "type": "object"
     },
+    "CompareMode": {
+      "description": "Field selection for arm validity checks.",
+      "oneOf": [
+        {
+          "const": "all",
+          "description": "Compare every effective metadata field (the compatibility default).",
+          "type": "string"
+        },
+        {
+          "const": "mapped_only",
+          "description": "Compare only mapped destinations, readiness and declared derived fields.",
+          "type": "string"
+        }
+      ]
+    },
     "ComparisonResult": {
       "description": "Identity validity, independent of any pixel verdict.",
       "oneOf": [
@@ -69,6 +84,34 @@
         "reason"
       ],
       "type": "object"
+    },
+    "KeySummary": {
+      "description": "Bounded, sorted union of excluded effective keys from both arms.",
+      "properties": {
+        "count": {
+          "description": "Total distinct keys, including keys omitted from the list.",
+          "format": "uint",
+          "minimum": 0,
+          "type": "integer"
+        },
+        "keys": {
+          "description": "At most 64 keys, sorted lexicographically.",
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "truncated": {
+          "description": "Whether the key list omits any keys.",
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "count",
+        "keys",
+        "truncated"
+      ],
+      "type": "object"
     }
   },
   "$id": "https://github.com/Tavrin/saccade/crates/saccade-core/schemas/saccade-arms-check.v1.schema.json",
@@ -82,6 +125,11 @@
         "$ref": "#/$defs/AllowedUnreached"
       },
       "type": "array"
+    },
+    "compare": {
+      "$ref": "#/$defs/CompareMode",
+      "default": "all",
+      "description": "Effective map comparison mode, including any CLI override."
     },
     "covered_by_derivation": {
       "default": [],
@@ -127,6 +175,15 @@
       },
       "type": "array"
     },
+    "outcomes": {
+      "$ref": "#/$defs/KeySummary",
+      "default": {
+        "count": 0,
+        "keys": [],
+        "truncated": false
+      },
+      "description": "Fields explicitly excluded by the map's outcome globs in either mode."
+    },
     "result": {
       "$ref": "#/$defs/ComparisonResult",
       "description": "valid_comparison or invalid_comparison."
@@ -135,6 +192,15 @@
       "const": "saccade-arms-check.v1",
       "description": "Result contract version.",
       "type": "string"
+    },
+    "unmapped": {
+      "$ref": "#/$defs/KeySummary",
+      "default": {
+        "count": 0,
+        "keys": [],
+        "truncated": false
+      },
+      "description": "Unmapped fields; excluded in mapped_only and compared in all mode."
     },
     "vary": {
       "description": "Declared variable tokens.",

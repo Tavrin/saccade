@@ -275,6 +275,8 @@ Options:
           Explicit exception, echoed even when no keys match it
       --fingerprint-map <FINGERPRINT_MAP>
 
+      --compare <COMPARE>
+          Override the map's field selection (mapped-only requires a map) [possible values: mapped-only, all]
       --config <CONFIG>
 
       --meta-name <META_NAME>

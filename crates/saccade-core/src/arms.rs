@@ -126,8 +126,54 @@ pub struct Check {
     /// Record discovery diagnostics, including exact searched filenames.
     #[serde(default)]
     pub diagnostics: Vec<String>,
+    /// Effective map comparison mode, including any CLI override.
+    #[serde(default)]
+    pub compare: CompareMode,
+    /// Unmapped fields; excluded in mapped_only and compared in all mode.
+    #[serde(default)]
+    pub unmapped: KeySummary,
+    /// Fields explicitly excluded by the map's outcome globs in either mode.
+    #[serde(default)]
+    pub outcomes: KeySummary,
     /// Declared variable tokens.
     pub vary: Vec<String>,
+}
+/// Field selection for arm validity checks.
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
+#[derive(Debug, Default, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum CompareMode {
+    /// Compare every effective metadata field (the compatibility default).
+    #[default]
+    All,
+    /// Compare only mapped destinations, readiness and declared derived fields.
+    MappedOnly,
+}
+/// Bounded, sorted union of excluded effective keys from both arms.
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
+#[derive(Debug, Default, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct KeySummary {
+    /// Total distinct keys, including keys omitted from the list.
+    pub count: usize,
+    /// At most 64 keys, sorted lexicographically.
+    pub keys: Vec<String>,
+    /// Whether the key list omits any keys.
+    pub truncated: bool,
+}
+impl KeySummary {
+    fn finish(&mut self) {
+        self.keys.sort();
+        self.keys.dedup();
+        self.count = self.keys.len();
+        self.truncated = self.count > 64;
+        self.keys.truncate(64);
+    }
+}
+impl Check {
+    fn finish(&mut self) {
+        self.unmapped.finish();
+        self.outcomes.finish();
+    }
 }
 /// An explicit readiness exception; it never claims convergence.
 #[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
@@ -183,6 +229,12 @@ pub struct ReadinessMap {
 #[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct FingerprintMap {
+    /// Field selection; all preserves the historical comparison behaviour.
+    #[serde(default)]
+    pub compare: CompareMode,
+    /// Globs matching effective metadata keys that are never compared.
+    #[serde(default)]
+    pub outcomes: Vec<String>,
     /// Ordered arm-root JSON records merged before inherited/per-image sidecars.
     #[serde(default)]
     pub record_files: Vec<String>,
@@ -217,6 +269,15 @@ impl FingerprintMap {
             return Err(Error::Config(
                 "fingerprint map exceeds field, predicate or sibling limit".into(),
             ));
+        }
+        if map.outcomes.len() > 128 {
+            return Err(Error::Config("outcomes requires at most 128 globs".into()));
+        }
+        for pattern in &map.outcomes {
+            if pattern.trim().is_empty() {
+                return Err(Error::Config("outcome globs must be nonempty".into()));
+            }
+            crate::config::compile_glob(pattern)?;
         }
         for file in &map.record_files {
             safe_sibling(Path::new("."), file)?;
@@ -279,6 +340,36 @@ impl FingerprintMap {
         }
         Ok(map)
     }
+}
+impl FingerprintMap {
+    fn names(&self, key: &str) -> bool {
+        key == "fingerprint.schema"
+            || self.fields.iter().any(|(dest, source)| {
+                let dest = dest.trim_end_matches("[]");
+                key == dest
+                    || key.starts_with(&format!("{dest}."))
+                    || source
+                        .derives
+                        .iter()
+                        .any(|d| key == d || key.starts_with(&format!("{d}.")))
+            })
+            || (!self.readiness.is_empty() && key.starts_with("run.readiness."))
+    }
+    fn outcome_globs(&self) -> Vec<globset::GlobMatcher> {
+        self.outcomes
+            .iter()
+            .filter_map(|g| crate::config::compile_glob(g).ok())
+            .collect()
+    }
+    fn compares(&self, key: &str, outcomes: &[globset::GlobMatcher]) -> bool {
+        !outcomes.iter().any(|g| g.is_match(key))
+            && (self.compare == CompareMode::All || self.names(key))
+    }
+}
+/// Apply map selection to already canonicalized metadata for ordinary strict reports.
+pub(crate) fn select(meta: &mut crate::meta::Meta, map: &FingerprintMap) {
+    let outcomes = map.outcome_globs();
+    meta.retain(|key, _| map.compares(key, &outcomes));
 }
 /// Resolve explicit derivations from varied canonical fields; ignores never activate them.
 pub(crate) fn derived_keys(map: Option<&FingerprintMap>, vary: &[String]) -> BTreeSet<String> {
@@ -617,7 +708,9 @@ pub fn check(
     vary: &[String],
     ignore: &[String],
 ) -> Check {
-    check_mapped(a, b, vary, ignore, None, &[])
+    let mut checked = check_mapped(a, b, vary, ignore, None, &[]);
+    checked.finish();
+    checked
 }
 fn check_mapped(
     a: &crate::meta::Meta,
@@ -632,6 +725,26 @@ fn check_mapped(
     let (mut a, mut b) = (a.clone(), b.clone());
     null_objects(&mut a, &mut b);
     let mut bad = Vec::new();
+    let outcome_globs = map.map_or_else(Vec::new, FingerprintMap::outcome_globs);
+    let compares = |key: &str| map.is_none_or(|m| m.compares(key, &outcome_globs));
+    let mut unmapped = KeySummary::default();
+    let mut outcomes = KeySummary::default();
+    // Mapped-only requires every named destination even if absent on both arms.
+    // All retains the historical native identity and union-of-present-keys checks.
+    if let Some(map) = map
+        && map.compare == CompareMode::MappedOnly
+    {
+        for dest in map.fields.keys() {
+            let key = dest.trim_end_matches("[]");
+            let present = |meta: &crate::meta::Meta| {
+                meta.keys()
+                    .any(|k| k == key || k.starts_with(&format!("{key}.")))
+            };
+            if compares(key) && (!present(&a) || !present(&b)) {
+                bad.push(finding(key, &a, &b, "missing"));
+            }
+        }
+    }
     for key in [
         "fingerprint.schema",
         "producer.binary",
@@ -639,6 +752,9 @@ fn check_mapped(
         "run.mode",
         "run.session",
     ] {
+        if !compares(key) {
+            continue;
+        }
         if !known(a.get(key)) || !known(b.get(key)) {
             bad.push(finding(key, &a, &b, "missing"));
         } else if !a[key].is_string()
@@ -652,6 +768,15 @@ fn check_mapped(
         }
     }
     for group in ["producer.build", "run.env"] {
+        if !compares(group)
+            && !map.is_some_and(|m| {
+                m.fields
+                    .keys()
+                    .any(|k| k.starts_with(&format!("{group}.")) && compares(k))
+            })
+        {
+            continue;
+        }
         let present = |m: &crate::meta::Meta| {
             m.get(group).is_some_and(|v| {
                 v.is_object()
@@ -677,8 +802,12 @@ fn check_mapped(
     }
     readiness(&mut a);
     readiness(&mut b);
-    if !a.keys().any(|k| k.starts_with("run.readiness."))
-        || !b.keys().any(|k| k.starts_with("run.readiness."))
+    if (map.is_none_or(|m| {
+        m.compare == CompareMode::All
+            || !m.readiness.is_empty()
+            || m.fields.contains_key("run.readiness[]")
+    })) && (!a.keys().any(|k| k.starts_with("run.readiness."))
+        || !b.keys().any(|k| k.starts_with("run.readiness.")))
     {
         bad.push(finding("run.readiness", &a, &b, "missing"));
     }
@@ -741,6 +870,18 @@ fn check_mapped(
     let keys: BTreeSet<_> = a.keys().chain(b.keys()).collect();
     let mut ignored = Vec::new();
     for key in keys {
+        if let Some(map) = map {
+            if outcome_globs.iter().any(|g| g.is_match(key)) {
+                outcomes.keys.push(key.clone());
+                continue;
+            }
+            if !map.names(key) {
+                unmapped.keys.push(key.clone());
+                if map.compare == CompareMode::MappedOnly {
+                    continue;
+                }
+            }
+        }
         let av = a.get(key);
         let bv = b.get(key);
         let criterion_key = key
@@ -823,6 +964,9 @@ fn check_mapped(
         }
     }
     bad.retain(|f| {
+        if !compares(&f.key) {
+            return false;
+        }
         if (f.reason == "missing"
             || (f.reason == "difference"
                 && f.key != "fingerprint.schema"
@@ -857,6 +1001,9 @@ fn check_mapped(
             ComparisonResult::InvalidComparison
         },
         exit_code: code,
+        compare: map.map_or(CompareMode::All, |m| m.compare),
+        unmapped,
+        outcomes,
         offending: bad,
         ignore: ignore.to_vec(),
         ignored,
@@ -866,19 +1013,42 @@ fn check_mapped(
         vary: vary.to_vec(),
     }
 }
+fn apply_compare(map: &mut Option<FingerprintMap>, compare: Option<CompareMode>) -> Result<()> {
+    if let Some(mode) = compare {
+        if let Some(map) = map {
+            map.compare = mode;
+        } else if mode == CompareMode::MappedOnly {
+            return Err(Error::Config(
+                "mapped_only requires a fingerprint map".into(),
+            ));
+        }
+    }
+    Ok(())
+}
 /// Load and check two captures using effective metadata settings.
 pub fn check_paths(a: &Path, b: &Path, opts: &crate::meta::MetaOptions) -> Result<Check> {
-    let map = opts
+    let mut map = opts
         .fingerprint_map
         .as_deref()
         .map(FingerprintMap::read)
         .transpose()?;
+    apply_compare(&mut map, opts.compare)?;
+    let mut checked = check_loaded(a, b, opts, map.as_ref())?;
+    checked.finish();
+    Ok(checked)
+}
+fn check_loaded(
+    a: &Path,
+    b: &Path,
+    opts: &crate::meta::MetaOptions,
+    map: Option<&FingerprintMap>,
+) -> Result<Check> {
     Ok(check_mapped(
-        &load(a, &opts.name, map.as_ref())?,
-        &load(b, &opts.name, map.as_ref())?,
+        &load(a, &opts.name, map)?,
+        &load(b, &opts.name, map)?,
         &opts.intended,
         &opts.ignore,
-        map.as_ref(),
+        map,
         &opts.allow_unreached,
     ))
 }
@@ -895,12 +1065,13 @@ pub fn enforce(a: &Path, b: &Path, cfg: &crate::config::RunConfig) -> Result<()>
 }
 /// Validate every selected image pair, retaining all offending field names.
 pub fn validate_paths(a: &Path, b: &Path, cfg: &crate::config::RunConfig) -> Result<Check> {
-    let map = cfg
+    let mut map = cfg
         .meta
         .fingerprint_map
         .as_deref()
         .map(FingerprintMap::read)
         .transpose()?;
+    apply_compare(&mut map, cfg.meta.compare)?;
     let mut checks = Vec::new();
     let mut identity_found = [false; 2];
     let mut searched = BTreeSet::from([cfg.meta.name.clone()]);
@@ -962,13 +1133,15 @@ pub fn validate_paths(a: &Path, b: &Path, cfg: &crate::config::RunConfig) -> Res
             checks.push(c);
         }
         if checks.is_empty() {
-            checks.push(check_paths(a, b, &cfg.meta)?);
+            checks.push(check_loaded(a, b, &cfg.meta, map.as_ref())?);
         }
     } else {
-        checks.push(check_paths(a, b, &cfg.meta)?);
+        checks.push(check_loaded(a, b, &cfg.meta, map.as_ref())?);
     }
     let mut merged = checks.remove(0);
     for c in checks {
+        merged.unmapped.keys.extend(c.unmapped.keys);
+        merged.outcomes.keys.extend(c.outcomes.keys);
         merged.offending.extend(c.offending);
         merged.ignored.extend(c.ignored);
         merged.covered_by_derivation.extend(c.covered_by_derivation);
@@ -1019,6 +1192,7 @@ pub fn validate_paths(a: &Path, b: &Path, cfg: &crate::config::RunConfig) -> Res
             }
         }
     }
+    merged.finish();
     Ok(merged)
 }
 
@@ -1345,5 +1519,127 @@ mod field_feedback_tests {
         assert_eq!(loaded["inputs.report_hash"], "sha256:p");
         std::fs::remove_file(b.join("cost-card.json")).unwrap();
         assert_eq!(validate_paths(&a, &b, &cfg).unwrap().exit_code, 4);
+    }
+    fn selected_map(mode: CompareMode) -> FingerprintMap {
+        let mut map: FingerprintMap = serde_json::from_value(
+            json!({"fields":{"run.mode":{"path":"mode","derives":["cache_key"]}}}),
+        )
+        .unwrap();
+        map.compare = mode;
+        map
+    }
+    fn selected_pair(map: &FingerprintMap, a: Value, b: Value) -> Check {
+        check_mapped(
+            &mapped(Path::new("."), a, Some(map)).unwrap(),
+            &mapped(Path::new("."), b, Some(map)).unwrap(),
+            &[],
+            &[],
+            Some(map),
+            &[],
+        )
+    }
+    #[test]
+    fn mapped_only_ignores_differing_unmapped_outcomes_and_lists_union() {
+        let map = selected_map(CompareMode::MappedOnly);
+        let mut c = selected_pair(
+            &map,
+            json!({"mode":"fixed","timing":1,"only_a":true}),
+            json!({"mode":"fixed","timing":9,"only_b":true}),
+        );
+        c.finish();
+        assert_eq!(c.exit_code, 0);
+        assert_eq!(c.unmapped.keys, ["only_a", "only_b", "timing"]);
+        assert_eq!(c.unmapped.count, 3);
+        assert_eq!(serde_json::to_value(c).unwrap()["compare"], "mapped_only");
+    }
+    #[test]
+    fn mapped_only_refuses_undeclared_mapped_difference() {
+        let c = selected_pair(
+            &selected_map(CompareMode::MappedOnly),
+            json!({"mode":"fixed"}),
+            json!({"mode":"alternate"}),
+        );
+        assert_eq!(c.exit_code, 3);
+        assert_eq!(c.offending[0].key, "run.mode");
+    }
+    #[test]
+    fn mapped_only_missing_mapped_field_refuses_even_if_missing_on_both() {
+        let map = selected_map(CompareMode::MappedOnly);
+        for b in [json!({}), json!({"mode":"fixed"})] {
+            let c = selected_pair(&map, json!({}), b);
+            assert_eq!(c.exit_code, 4);
+            assert!(
+                c.offending
+                    .iter()
+                    .any(|f| f.key == "run.mode" && f.reason == "missing")
+            );
+        }
+    }
+    #[test]
+    fn all_mode_preserves_unmapped_difference_refusal() {
+        let mut a = arm();
+        let mut b = arm();
+        a.insert("timing".into(), json!(1));
+        b.insert("timing".into(), json!(2));
+        let c = check_mapped(&a, &b, &[], &[], Some(&selected_map(CompareMode::All)), &[]);
+        assert_eq!(c.exit_code, 3);
+        assert!(c.offending.iter().any(|f| f.key == "timing"));
+    }
+    #[test]
+    fn outcomes_globs_exclude_in_both_modes_including_missing_keys() {
+        for mode in [CompareMode::All, CompareMode::MappedOnly] {
+            let mut map = selected_map(mode);
+            map.outcomes = vec!["timing.*".into()];
+            let mut a = arm();
+            let mut b = arm();
+            a.insert("timing.gpu".into(), json!(1));
+            b.insert("timing.gpu".into(), json!(2));
+            b.insert("timing.cpu".into(), json!(3));
+            let mut c = check_mapped(&a, &b, &[], &[], Some(&map), &[]);
+            c.finish();
+            assert_eq!(c.exit_code, 0);
+            assert_eq!(c.outcomes.count, 2);
+            assert_eq!(c.outcomes.keys, ["timing.cpu", "timing.gpu"]);
+            assert!(!c.unmapped.keys.contains(&"timing.gpu".into()));
+        }
+    }
+    #[test]
+    fn mapped_only_derives_are_compared_and_vary_activates_coverage() {
+        let map = selected_map(CompareMode::MappedOnly);
+        let a = mapped(
+            Path::new("."),
+            json!({"mode":"fixed","cache_key":"a"}),
+            Some(&map),
+        )
+        .unwrap();
+        let b = mapped(
+            Path::new("."),
+            json!({"mode":"alternate","cache_key":"b"}),
+            Some(&map),
+        )
+        .unwrap();
+        let c = check_mapped(&a, &b, &[], &[], Some(&map), &[]);
+        assert_eq!(c.exit_code, 3);
+        assert!(c.offending.iter().any(|f| f.key == "cache_key"));
+        let c = check_mapped(&a, &b, &["mode".into()], &[], Some(&map), &[]);
+        assert_eq!(c.exit_code, 0);
+        assert_eq!(c.covered_by_derivation[0].key, "cache_key");
+        assert_eq!(
+            check_mapped(&a, &b, &[], &["mode".into()], Some(&map), &[]).exit_code,
+            3
+        );
+    }
+    #[test]
+    fn excluded_summary_caps_keys_but_keeps_total() {
+        let map = selected_map(CompareMode::MappedOnly);
+        let mut a = arm();
+        for i in 0..100 {
+            a.insert(format!("outcome_{i:03}"), json!(i));
+        }
+        let mut c = check_mapped(&a, &a, &[], &[], Some(&map), &[]);
+        c.finish();
+        assert!(c.unmapped.count >= 100);
+        assert_eq!(c.unmapped.keys.len(), 64);
+        assert!(c.unmapped.truncated);
     }
 }

@@ -1,3 +1,5 @@
+compare = "mapped_only"
+
 [fields."producer.binary"]
 path = "executable.sha256"
 [fields."producer.build.commit"]

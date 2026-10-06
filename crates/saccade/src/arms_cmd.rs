@@ -1,4 +1,17 @@
 //! Standalone arm checks and shared strict flags.
+#[derive(Clone, Copy, clap::ValueEnum)]
+pub(crate) enum Compare {
+    MappedOnly,
+    All,
+}
+impl From<Compare> for saccade_core::arms::CompareMode {
+    fn from(value: Compare) -> Self {
+        match value {
+            Compare::MappedOnly => Self::MappedOnly,
+            Compare::All => Self::All,
+        }
+    }
+}
 use crate::agent::CliError;
 use std::path::PathBuf;
 #[derive(clap::Args, Clone, Default)]
@@ -49,6 +62,9 @@ enum Operation {
         ignore: Vec<String>,
         #[arg(long)]
         fingerprint_map: Option<PathBuf>,
+        /// Override the map's field selection (mapped-only requires a map).
+        #[arg(long, value_enum)]
+        compare: Option<Compare>,
         #[arg(long)]
         config: Option<PathBuf>,
         #[arg(long)]
@@ -61,7 +77,24 @@ pub(crate) fn emit(check: &saccade_core::arms::Check, json: bool) -> Result<(), 
     let text = if json {
         serde_json::to_string(check)?
     } else {
-        serde_json::to_string_pretty(check)?
+        format!(
+            "{}\nUnmapped: {} keys ({} listed{}); outcomes: {} keys ({} listed{}).",
+            serde_json::to_string_pretty(check)?,
+            check.unmapped.count,
+            check.unmapped.keys.len(),
+            if check.unmapped.truncated {
+                ", truncated"
+            } else {
+                ""
+            },
+            check.outcomes.count,
+            check.outcomes.keys.len(),
+            if check.outcomes.truncated {
+                ", truncated"
+            } else {
+                ""
+            }
+        )
     };
     crate::emit(&format!("{text}\n"))
 }
@@ -74,11 +107,13 @@ pub(crate) fn run(args: Args) -> Result<u8, CliError> {
             allow_unreached,
             ignore,
             fingerprint_map,
+            compare,
             config,
             meta_name,
             json,
         } => {
             let mut cfg = crate::load_config(config.as_deref())?;
+            cfg.meta.compare = compare.map(Into::into);
             cfg.meta.intended.extend(vary);
             cfg.meta.allow_unreached.extend(allow_unreached);
             cfg.meta.ignore.extend(ignore);

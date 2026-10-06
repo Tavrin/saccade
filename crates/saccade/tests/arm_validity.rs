@@ -304,6 +304,11 @@ fn mcp_mirrors_standalone_and_compare_refusal() {
     let mut m = metadata();
     m["fingerprint"]["run"]["session"] = json!("two");
     write(&b.join("saccade-meta.json"), &m);
+    let map = a.join("map.json");
+    write(
+        &map,
+        &json!({"fields":{"run.mode":{"path":"fingerprint.run.mode"}}}),
+    );
     let out = tmp.path().join("out");
     std::fs::create_dir(&out).unwrap();
     let mut child = Command::new(env!("CARGO_BIN_EXE_saccade"))
@@ -327,6 +332,10 @@ fn mcp_mirrors_standalone_and_compare_refusal() {
             2,
             json!({"operation":"compare","baseline_dir":a,"capture_dir":b,"out_dir":out.join("report"),"require_valid_arms":true}),
         ),
+        (
+            3,
+            json!({"operation":"arms_check","a":a,"b":b,"fingerprint_map":map,"compare":"mapped_only"}),
+        ),
     ] {
         writeln!(stdin,"{}",json!({"jsonrpc":"2.0","id":id,"method":"tools/call","params":{"name":"saccade_measure","arguments":args}})).unwrap();
     }
@@ -338,9 +347,15 @@ fn mcp_mirrors_standalone_and_compare_refusal() {
         .lines()
         .map(|s| serde_json::from_str::<Value>(s).unwrap())
         .collect::<Vec<_>>();
-    assert_eq!(values.len(), 2);
+    assert_eq!(values.len(), 3);
     for v in values {
         let result = &v["result"]["structuredContent"];
+        if v["id"] == 3 {
+            assert_eq!(result["compare"], "mapped_only");
+            assert_eq!(result["exit_code"], 0);
+            assert_eq!(result["result"], "valid_comparison");
+            continue;
+        }
         assert_eq!(result["result"], "invalid_comparison", "{v}");
         assert_eq!(result["exit_code"], 3);
         assert!(result.get("verdict").is_none());
@@ -558,5 +573,183 @@ fn mapped_binary_derivation_is_visible_and_requires_a_declaration() {
         } else {
             assert!(!out.exists());
         }
+    }
+}
+
+#[test]
+fn mapped_selection_outcomes_override_and_json_contract() {
+    let tmp = tempfile::tempdir().unwrap();
+    let a = tmp.path().join("a.json");
+    let b = tmp.path().join("b.json");
+    let map = tmp.path().join("map.json");
+    // Native identity sources keep all-mode requirements independently satisfied.
+    let full_a = metadata();
+    let full_b = metadata();
+    let mut av = full_a;
+    av["timing"] = json!({"gpu":1});
+    let mut bv = full_b;
+    bv["timing"] = json!({"gpu":9});
+    write(&a, &av);
+    write(&b, &bv);
+    let mut policy =
+        json!({"compare":"mapped_only","fields":{"run.mode":{"path":"fingerprint.run.mode"}}});
+    write(&map, &policy);
+    let args = [
+        "arms",
+        "check",
+        path(&a),
+        path(&b),
+        "--fingerprint-map",
+        path(&map),
+        "--json",
+    ];
+    let v = run(&args, 0);
+    assert_eq!(v["compare"], "mapped_only");
+    assert!(
+        v["unmapped"]["keys"]
+            .as_array()
+            .unwrap()
+            .contains(&json!("timing.gpu"))
+    );
+    let schema: Value = serde_json::from_str(include_str!(
+        "../../saccade-core/schemas/saccade-arms-check.v1.schema.json"
+    ))
+    .unwrap();
+    assert!(jsonschema::validator_for(&schema).unwrap().is_valid(&v));
+    let mut all_args = args.to_vec();
+    all_args.extend(["--compare", "all"]);
+    let v = run(&all_args, 3);
+    assert_eq!(v["compare"], "all");
+    assert!(
+        v["offending"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .any(|f| f["key"] == "timing.gpu")
+    );
+    policy["compare"] = json!("all");
+    policy["outcomes"] = json!(["timing.*"]);
+    write(&map, &policy);
+    let v = run(&args, 0);
+    assert_eq!(v["outcomes"]["keys"], json!(["timing.gpu"]));
+    bv["fingerprint"]["run"]["mode"] = json!("alternate");
+    write(&b, &bv);
+    let mut selected = args.to_vec();
+    selected.extend(["--compare", "mapped-only"]);
+    let v = run(&selected, 3);
+    assert_eq!(v["offending"][0]["key"], "run.mode");
+    bv["fingerprint"]["run"]
+        .as_object_mut()
+        .unwrap()
+        .remove("mode");
+    write(&b, &bv);
+    let v = run(&selected, 4);
+    assert_eq!(v["offending"][0]["capture_state"], "missing");
+    let error = run(
+        &[
+            "arms",
+            "check",
+            path(&a),
+            path(&b),
+            "--compare",
+            "mapped-only",
+            "--json",
+        ],
+        2,
+    );
+    assert!(error.to_string().contains("requires a fingerprint map"));
+}
+
+#[test]
+fn excluded_keys_remain_bounded_across_directory_images() {
+    let tmp = tempfile::tempdir().unwrap();
+    let (a, b) = captures(tmp.path());
+    for root in [&a, &b] {
+        std::fs::copy(root.join("frame.png"), root.join("second.png")).unwrap();
+        let mut m = metadata();
+        for i in 0..100 {
+            m[format!("outcome_{i:03}")] = json!(i);
+        }
+        write(&root.join("saccade-meta.json"), &m);
+    }
+    let map = tmp.path().join("map.json");
+    write(
+        &map,
+        &json!({"compare":"mapped_only","fields":{"run.mode":{"path":"fingerprint.run.mode"}}}),
+    );
+    let v = run(
+        &[
+            "arms",
+            "check",
+            path(&a),
+            path(&b),
+            "--fingerprint-map",
+            path(&map),
+            "--json",
+        ],
+        0,
+    );
+    assert!(v["unmapped"]["count"].as_u64().unwrap() >= 100);
+    assert_eq!(v["unmapped"]["keys"].as_array().unwrap().len(), 64);
+    assert_eq!(v["unmapped"]["truncated"], true);
+    let c = saccade_core::arms::check_paths(
+        &a,
+        &b,
+        &saccade_core::meta::MetaOptions {
+            fingerprint_map: Some(map),
+            ..Default::default()
+        },
+    )
+    .unwrap();
+    assert_eq!(v["unmapped"]["count"], json!(c.unmapped.count));
+}
+
+#[test]
+fn strict_reports_use_the_same_mapped_and_outcome_selection() {
+    for (mode, outcomes) in [("mapped_only", json!([])), ("all", json!(["results.*"]))] {
+        let tmp = tempfile::tempdir().unwrap();
+        let (a, b) = captures(tmp.path());
+        let mut m = metadata();
+        m["results"] = json!({"score":99});
+        write(&b.join("saccade-meta.json"), &m);
+        let map = tmp.path().join("map.json");
+        write(
+            &map,
+            &json!({"compare":mode,"outcomes":outcomes,"fields":{"run.mode":{"path":"fingerprint.run.mode"}}}),
+        );
+        let out = tmp.path().join("report");
+        let v = run(
+            &[
+                "identity",
+                path(&a),
+                path(&b),
+                "--require-valid-arms",
+                "--fingerprint-map",
+                path(&map),
+                "--out",
+                path(&out),
+                "--json",
+            ],
+            0,
+        );
+        assert_eq!(v["verdict"], "pass");
+        let report: Value =
+            serde_json::from_slice(&std::fs::read(out.join("saccade-report.v1.json")).unwrap())
+                .unwrap();
+        let receipt = &report["config"]["meta"]["arm_validation"];
+        assert_eq!(receipt["exit_code"], 0);
+        assert_eq!(receipt["compare"], mode);
+        assert_eq!(v["data"]["arm_validation"]["compare"], mode);
+        let excluded = if mode == "all" {
+            &receipt["outcomes"]
+        } else {
+            &receipt["unmapped"]
+        };
+        assert!(
+            excluded["keys"]
+                .as_array()
+                .unwrap()
+                .contains(&json!("results.score"))
+        );
     }
 }

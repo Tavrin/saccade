@@ -108,6 +108,8 @@ pub struct DeclaredChange {
 /// Sidecar settings for a run or a view.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct MetaOptions {
+    /// Optional standalone arm-check override of the map comparison mode.
+    pub compare: Option<crate::arms::CompareMode>,
     /// Explicitly permit matched unreached observations for these exact criteria.
     pub allow_unreached: Vec<String>,
     /// Refuse verdicts without complete matching arm identity.
@@ -136,6 +138,7 @@ impl Default for MetaOptions {
             allow_unreached: Vec::new(),
             require_valid_arms: false,
             fingerprint_map: None,
+            compare: None,
             intended: Vec::new(),
             name: DEFAULT_META_NAME.to_owned(),
             required: false,
@@ -394,6 +397,7 @@ impl MetaChecker {
             return crate::arms::load_named(root, rel, &self.name, Some(&map))
                 .map(|mut m| {
                     crate::arms::readiness(&mut m);
+                    crate::arms::select(&mut m, &map);
                     Some(m)
                 })
                 .map_err(|e| e.to_string());

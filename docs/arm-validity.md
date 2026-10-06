@@ -113,8 +113,35 @@ Destinations are `producer.binary`, `producer.build` or `producer.build.*`,
 optional `[[readiness]]` form adapts independent producer flags to named
 criteria with fixed parameters and sourced reached/observed values. Several
 sibling files can contribute to one fingerprint. Mapped source keys become
-canonical keys; other primary metadata and sibling metadata remain comparable
-(the latter as `file:NAME.KEY`). Do not map volatile flags to content hashes.
+canonical keys. The map-level `compare` mode selects the remaining fields:
+
+- `compare = "all"` (default): compare every effective field, including unmapped
+  primary metadata and sibling metadata (the latter as `file:NAME.KEY`).
+- `compare = "mapped_only"`: compare mapped destinations, their `derives`, and
+  mapped readiness criteria. Other fields do not affect validity. This is the
+  recommended mode when producer records mix setup with outcomes.
+
+`mapped_only` requires all mapped fields on both arms, including explicitly
+mapped fields absent on both sides. Null remains a value; missing mapped fields give
+exit 4. In `mapped_only`, only named identity groups are required; choosing a
+smaller map makes a narrower validity claim. An unlisted native identity field
+is unmapped. In `all`, the complete native identity requirements remain.
+
+Optional map-level `outcomes = ["timing.*", "results.*"]` globs exclude matching
+effective keys in either mode, including mapped keys. Matching happens after
+source canonicalization; use canonical destinations for mapped outcomes and
+`file:NAME.KEY` for sibling keys. Outcomes take precedence over map selection.
+
+`arms check --compare mapped-only|all` overrides the map and echoes the effective
+mode as JSON `compare` (`mapped_only` or `all`). `mapped-only` requires a map.
+The `unmapped` and `outcomes` objects each contain a distinct-key `count`, sorted
+`keys` capped at 64, and `truncated`. Lists union both arms across selected
+images. Unmapped keys are compared in `all` and excluded in `mapped_only`;
+explicit outcomes are always excluded. Human output summarizes the same counts.
+
+Source lookup uses dotted object paths and exact flat keys; numeric components
+are object keys, not array indices. Select a whole array as a field or expose
+object-shaped setup fields in the producer record. Do not map volatile flags to content hashes.
 The mapping itself binds readiness parameters; use the same mapping for both
 arms and retain it with pipeline configuration.
 
@@ -156,7 +183,8 @@ represent synthetic identities, not external assets.
 The [result schema](../crates/saccade-core/schemas/saccade-arms-check.v1.schema.json)
 uses `schema: saccade-arms-check.v1`, `result: valid_comparison` or
 `invalid_comparison`, `exit_code`, `offending`, `vary`, `ignore`, `ignored`, and
-`covered_by_derivation`, `allowed_unreached`, and `diagnostics`.
+`covered_by_derivation`, `allowed_unreached`, `diagnostics`, `compare`,
+`unmapped`, and `outcomes`.
 Each finding contains its canonical key, baseline and capture JSON values
 (null for absence), `baseline_state`/`capture_state` (`missing`, `null`, or
 `value`), and a reason. Directory findings prefix keys with their
@@ -176,7 +204,8 @@ Successful strict compare results echo declarations and ignores in
 and `config.meta.arm_ignore`. Reference reports include `arm_validation`.
 
 MCP `saccade_measure` mirrors the standalone command with `operation: arms_check`,
-`a`, `b`, optional `vary`, `ignore`, `meta_name`, and `fingerprint_map`.
+`a`, `b`, optional `vary`, `ignore`, `meta_name`, `fingerprint_map`, and
+`compare` (`mapped_only` or `all`).
 Compare/identity/ablate and `reference_compare` accept `require_valid_arms`,
 `fingerprint_map`, `intended_variables`, and `arm_ignore` under the existing
 read-root policy. An invalid result is typed `invalid_comparison`, not a

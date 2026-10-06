@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.2.4
+
+- Add opt-in `compare = "mapped_only"` fingerprint maps for mixed setup and
+  outcome records, with `--compare mapped-only|all` and MCP overrides.
+- Add explicit outcome globs in either mode and bounded key summaries with
+  exact totals. The default `all` mode preserves existing comparisons.
+
 ## 0.2.3
 
 - Embed schema discovery and performance-sidecar validation for installed producers.
