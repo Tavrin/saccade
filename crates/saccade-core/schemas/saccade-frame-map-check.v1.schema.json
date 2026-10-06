@@ -1,0 +1,272 @@
+{
+  "$id": "https://github.com/Tavrin/saccade/crates/saccade-core/schemas/saccade-frame-map-check.v1.schema.json",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "description": "What an externally extracted frame sequence supports: gaps, constant or variable rate, file integrity and settling in the map's own timestamps.",
+  "properties": {
+    "contiguous": {
+      "type": "boolean"
+    },
+    "files": {
+      "additionalProperties": false,
+      "properties": {
+        "checked": {
+          "type": "boolean"
+        },
+        "hash_mismatch": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "hash_mismatch_count": {
+          "minimum": 0,
+          "type": "integer"
+        },
+        "missing": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "missing_count": {
+          "minimum": 0,
+          "type": "integer"
+        }
+      },
+      "required": [
+        "checked",
+        "hash_mismatch",
+        "hash_mismatch_count",
+        "missing",
+        "missing_count"
+      ],
+      "type": "object"
+    },
+    "first_index": {
+      "minimum": 0,
+      "type": "integer"
+    },
+    "frames": {
+      "minimum": 0,
+      "type": "integer"
+    },
+    "gaps": {
+      "items": {
+        "additionalProperties": false,
+        "properties": {
+          "after_index": {
+            "minimum": 0,
+            "type": "integer"
+          },
+          "missing": {
+            "minimum": 0,
+            "type": "integer"
+          }
+        },
+        "required": [
+          "after_index",
+          "missing"
+        ],
+        "type": "object"
+      },
+      "type": "array"
+    },
+    "last_index": {
+      "minimum": 0,
+      "type": "integer"
+    },
+    "missing_total": {
+      "minimum": 0,
+      "type": "integer"
+    },
+    "reasons": {
+      "items": {
+        "type": "string"
+      },
+      "type": "array"
+    },
+    "report_id": {
+      "pattern": "^sha256:[0-9a-f]{64}$",
+      "type": "string"
+    },
+    "schema": {
+      "const": "saccade-frame-map-check.v1"
+    },
+    "settle": {
+      "oneOf": [
+        {
+          "additionalProperties": false,
+          "properties": {
+            "change_position": {
+              "minimum": 0,
+              "type": "integer"
+            },
+            "change_timestamp_s": {
+              "type": [
+                "number",
+                "null"
+              ]
+            },
+            "elapsed_s": {
+              "type": [
+                "number",
+                "null"
+              ]
+            },
+            "fixed_rate_assumption_holds": {
+              "type": "boolean"
+            },
+            "report_elapsed_s": {
+              "type": [
+                "number",
+                "null"
+              ]
+            },
+            "settle_position": {
+              "type": [
+                "integer",
+                "null"
+              ]
+            },
+            "settle_timestamp_s": {
+              "type": [
+                "number",
+                "null"
+              ]
+            },
+            "state": {
+              "enum": [
+                "settled",
+                "never_settled",
+                "change_outside_sequence"
+              ]
+            }
+          },
+          "required": [
+            "change_position",
+            "change_timestamp_s",
+            "elapsed_s",
+            "fixed_rate_assumption_holds",
+            "report_elapsed_s",
+            "settle_position",
+            "settle_timestamp_s",
+            "state"
+          ],
+          "type": "object"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "source_refs": {
+      "items": {
+        "maxLength": 2048,
+        "type": "string"
+      },
+      "maxItems": 128,
+      "type": "array"
+    },
+    "state": {
+      "enum": [
+        "invalid_files",
+        "missing_frames",
+        "variable_frame_rate",
+        "single_frame",
+        "constant_frame_rate"
+      ]
+    },
+    "timing": {
+      "additionalProperties": false,
+      "properties": {
+        "effective_fps": {
+          "type": [
+            "number",
+            "null"
+          ]
+        },
+        "max_step_s": {
+          "type": [
+            "number",
+            "null"
+          ]
+        },
+        "median_step_s": {
+          "type": [
+            "number",
+            "null"
+          ]
+        },
+        "min_step_s": {
+          "type": [
+            "number",
+            "null"
+          ]
+        },
+        "nominal_agrees": {
+          "type": [
+            "boolean",
+            "null"
+          ]
+        },
+        "nominal_fps": {
+          "type": [
+            "number",
+            "null"
+          ]
+        },
+        "state": {
+          "enum": [
+            "constant",
+            "variable",
+            "single_frame"
+          ]
+        }
+      },
+      "required": [
+        "effective_fps",
+        "max_step_s",
+        "median_step_s",
+        "min_step_s",
+        "nominal_agrees",
+        "nominal_fps",
+        "state"
+      ],
+      "type": "object"
+    },
+    "usable_for": {
+      "additionalProperties": false,
+      "properties": {
+        "index_aligned": {
+          "type": "boolean"
+        },
+        "uniform_time": {
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "index_aligned",
+        "uniform_time"
+      ],
+      "type": "object"
+    }
+  },
+  "required": [
+    "contiguous",
+    "files",
+    "first_index",
+    "frames",
+    "gaps",
+    "last_index",
+    "missing_total",
+    "reasons",
+    "schema",
+    "settle",
+    "state",
+    "timing",
+    "usable_for"
+  ],
+  "title": "Frame map check",
+  "type": "object"
+}

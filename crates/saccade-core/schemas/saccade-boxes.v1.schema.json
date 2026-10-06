@@ -1,0 +1,118 @@
+{
+  "$id": "https://github.com/Tavrin/saccade/crates/saccade-core/schemas/saccade-boxes.v1.schema.json",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "description": "Boxes for one image in explicit pixel, top-left-origin, x/y/w/h coordinates.",
+  "properties": {
+    "boxes": {
+      "items": {
+        "additionalProperties": false,
+        "properties": {
+          "class": {
+            "type": "string"
+          },
+          "h": {
+            "exclusiveMinimum": 0,
+            "type": "number"
+          },
+          "score": {
+            "type": "number"
+          },
+          "w": {
+            "exclusiveMinimum": 0,
+            "type": "number"
+          },
+          "x": {
+            "type": "number"
+          },
+          "y": {
+            "type": "number"
+          }
+        },
+        "required": [
+          "class",
+          "h",
+          "w",
+          "x",
+          "y"
+        ],
+        "type": "object"
+      },
+      "type": "array"
+    },
+    "classes": {
+      "items": {
+        "minLength": 1,
+        "type": "string"
+      },
+      "type": "array",
+      "uniqueItems": true
+    },
+    "coordinates": {
+      "additionalProperties": false,
+      "properties": {
+        "form": {
+          "const": "xywh"
+        },
+        "origin": {
+          "const": "top_left"
+        },
+        "unit": {
+          "const": "pixel"
+        }
+      },
+      "required": [
+        "form",
+        "origin",
+        "unit"
+      ],
+      "type": "object"
+    },
+    "image": {
+      "additionalProperties": false,
+      "properties": {
+        "derivation": {
+          "type": "string"
+        },
+        "derived_from_sha256": {
+          "pattern": "^[0-9a-f]{64}$",
+          "type": "string"
+        },
+        "file": {
+          "minLength": 1,
+          "type": "string"
+        },
+        "height": {
+          "minimum": 1,
+          "type": "integer"
+        },
+        "sha256": {
+          "pattern": "^[0-9a-f]{64}$",
+          "type": "string"
+        },
+        "width": {
+          "minimum": 1,
+          "type": "integer"
+        }
+      },
+      "required": [
+        "file",
+        "height",
+        "width"
+      ],
+      "type": "object"
+    },
+    "schema": {
+      "const": "saccade-boxes.v1"
+    }
+  },
+  "required": [
+    "boxes",
+    "classes",
+    "coordinates",
+    "image",
+    "schema"
+  ],
+  "title": "Bounding-box annotations",
+  "type": "object"
+}

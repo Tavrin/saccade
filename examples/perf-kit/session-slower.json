@@ -1,0 +1,395 @@
+{
+  "band_pct": 3,
+  "confidence": 0.95,
+  "max_pairs": 12,
+  "pairs": [
+    {
+      "a": {
+        "file": "a.json",
+        "format": "hyperfine",
+        "index": 0
+      },
+      "aa": false,
+      "b": {
+        "file": "b-slower.json",
+        "format": "hyperfine",
+        "index": 0
+      },
+      "block": "ab-00",
+      "id": "ab-00",
+      "order": "ab"
+    },
+    {
+      "a": {
+        "file": "a.json",
+        "format": "hyperfine",
+        "index": 1
+      },
+      "aa": false,
+      "b": {
+        "file": "b-slower.json",
+        "format": "hyperfine",
+        "index": 1
+      },
+      "block": "ab-01",
+      "id": "ab-01",
+      "order": "ba"
+    },
+    {
+      "a": {
+        "file": "a.json",
+        "format": "hyperfine",
+        "index": 2
+      },
+      "aa": false,
+      "b": {
+        "file": "b-slower.json",
+        "format": "hyperfine",
+        "index": 2
+      },
+      "block": "ab-02",
+      "id": "ab-02",
+      "order": "ab"
+    },
+    {
+      "a": {
+        "file": "a.json",
+        "format": "hyperfine",
+        "index": 3
+      },
+      "aa": false,
+      "b": {
+        "file": "b-slower.json",
+        "format": "hyperfine",
+        "index": 3
+      },
+      "block": "ab-03",
+      "id": "ab-03",
+      "order": "ba"
+    },
+    {
+      "a": {
+        "file": "a.json",
+        "format": "hyperfine",
+        "index": 4
+      },
+      "aa": false,
+      "b": {
+        "file": "b-slower.json",
+        "format": "hyperfine",
+        "index": 4
+      },
+      "block": "ab-04",
+      "id": "ab-04",
+      "order": "ab"
+    },
+    {
+      "a": {
+        "file": "a.json",
+        "format": "hyperfine",
+        "index": 5
+      },
+      "aa": false,
+      "b": {
+        "file": "b-slower.json",
+        "format": "hyperfine",
+        "index": 5
+      },
+      "block": "ab-05",
+      "id": "ab-05",
+      "order": "ba"
+    },
+    {
+      "a": {
+        "file": "a.json",
+        "format": "hyperfine",
+        "index": 6
+      },
+      "aa": false,
+      "b": {
+        "file": "b-slower.json",
+        "format": "hyperfine",
+        "index": 6
+      },
+      "block": "ab-06",
+      "id": "ab-06",
+      "order": "ab"
+    },
+    {
+      "a": {
+        "file": "a.json",
+        "format": "hyperfine",
+        "index": 7
+      },
+      "aa": false,
+      "b": {
+        "file": "b-slower.json",
+        "format": "hyperfine",
+        "index": 7
+      },
+      "block": "ab-07",
+      "id": "ab-07",
+      "order": "ba"
+    },
+    {
+      "a": {
+        "file": "a.json",
+        "format": "hyperfine",
+        "index": 8
+      },
+      "aa": false,
+      "b": {
+        "file": "b-slower.json",
+        "format": "hyperfine",
+        "index": 8
+      },
+      "block": "ab-08",
+      "id": "ab-08",
+      "order": "ab"
+    },
+    {
+      "a": {
+        "file": "a.json",
+        "format": "hyperfine",
+        "index": 9
+      },
+      "aa": false,
+      "b": {
+        "file": "b-slower.json",
+        "format": "hyperfine",
+        "index": 9
+      },
+      "block": "ab-09",
+      "id": "ab-09",
+      "order": "ba"
+    },
+    {
+      "a": {
+        "file": "a.json",
+        "format": "hyperfine",
+        "index": 10
+      },
+      "aa": false,
+      "b": {
+        "file": "b-slower.json",
+        "format": "hyperfine",
+        "index": 10
+      },
+      "block": "ab-10",
+      "id": "ab-10",
+      "order": "ab"
+    },
+    {
+      "a": {
+        "file": "a.json",
+        "format": "hyperfine",
+        "index": 11
+      },
+      "aa": false,
+      "b": {
+        "file": "b-slower.json",
+        "format": "hyperfine",
+        "index": 11
+      },
+      "block": "ab-11",
+      "id": "ab-11",
+      "order": "ba"
+    },
+    {
+      "a": {
+        "file": "a.json",
+        "format": "hyperfine",
+        "index": 0
+      },
+      "aa": true,
+      "b": {
+        "file": "a-control.json",
+        "format": "hyperfine",
+        "index": 0
+      },
+      "block": "aa-00",
+      "id": "aa-00",
+      "order": "ab"
+    },
+    {
+      "a": {
+        "file": "a.json",
+        "format": "hyperfine",
+        "index": 1
+      },
+      "aa": true,
+      "b": {
+        "file": "a-control.json",
+        "format": "hyperfine",
+        "index": 1
+      },
+      "block": "aa-01",
+      "id": "aa-01",
+      "order": "ba"
+    },
+    {
+      "a": {
+        "file": "a.json",
+        "format": "hyperfine",
+        "index": 2
+      },
+      "aa": true,
+      "b": {
+        "file": "a-control.json",
+        "format": "hyperfine",
+        "index": 2
+      },
+      "block": "aa-02",
+      "id": "aa-02",
+      "order": "ab"
+    },
+    {
+      "a": {
+        "file": "a.json",
+        "format": "hyperfine",
+        "index": 3
+      },
+      "aa": true,
+      "b": {
+        "file": "a-control.json",
+        "format": "hyperfine",
+        "index": 3
+      },
+      "block": "aa-03",
+      "id": "aa-03",
+      "order": "ba"
+    },
+    {
+      "a": {
+        "file": "a.json",
+        "format": "hyperfine",
+        "index": 4
+      },
+      "aa": true,
+      "b": {
+        "file": "a-control.json",
+        "format": "hyperfine",
+        "index": 4
+      },
+      "block": "aa-04",
+      "id": "aa-04",
+      "order": "ab"
+    },
+    {
+      "a": {
+        "file": "a.json",
+        "format": "hyperfine",
+        "index": 5
+      },
+      "aa": true,
+      "b": {
+        "file": "a-control.json",
+        "format": "hyperfine",
+        "index": 5
+      },
+      "block": "aa-05",
+      "id": "aa-05",
+      "order": "ba"
+    },
+    {
+      "a": {
+        "file": "a.json",
+        "format": "hyperfine",
+        "index": 6
+      },
+      "aa": true,
+      "b": {
+        "file": "a-control.json",
+        "format": "hyperfine",
+        "index": 6
+      },
+      "block": "aa-06",
+      "id": "aa-06",
+      "order": "ab"
+    },
+    {
+      "a": {
+        "file": "a.json",
+        "format": "hyperfine",
+        "index": 7
+      },
+      "aa": true,
+      "b": {
+        "file": "a-control.json",
+        "format": "hyperfine",
+        "index": 7
+      },
+      "block": "aa-07",
+      "id": "aa-07",
+      "order": "ba"
+    },
+    {
+      "a": {
+        "file": "a.json",
+        "format": "hyperfine",
+        "index": 8
+      },
+      "aa": true,
+      "b": {
+        "file": "a-control.json",
+        "format": "hyperfine",
+        "index": 8
+      },
+      "block": "aa-08",
+      "id": "aa-08",
+      "order": "ab"
+    },
+    {
+      "a": {
+        "file": "a.json",
+        "format": "hyperfine",
+        "index": 9
+      },
+      "aa": true,
+      "b": {
+        "file": "a-control.json",
+        "format": "hyperfine",
+        "index": 9
+      },
+      "block": "aa-09",
+      "id": "aa-09",
+      "order": "ba"
+    },
+    {
+      "a": {
+        "file": "a.json",
+        "format": "hyperfine",
+        "index": 10
+      },
+      "aa": true,
+      "b": {
+        "file": "a-control.json",
+        "format": "hyperfine",
+        "index": 10
+      },
+      "block": "aa-10",
+      "id": "aa-10",
+      "order": "ab"
+    },
+    {
+      "a": {
+        "file": "a.json",
+        "format": "hyperfine",
+        "index": 11
+      },
+      "aa": true,
+      "b": {
+        "file": "a-control.json",
+        "format": "hyperfine",
+        "index": 11
+      },
+      "block": "aa-11",
+      "id": "aa-11",
+      "order": "ba"
+    }
+  ],
+  "resamples": 2048,
+  "schema": "saccade-timing-session.v1",
+  "seed": 7,
+  "session": "kit-slower"
+}

@@ -124,6 +124,186 @@ Global options:
       --record-absolute-paths    Opt in to absolute local paths in reports and machine-readable output
 ```
 
+## saccade mask-metrics
+
+```text
+Overlap and boundary metrics between two integer label images
+
+Usage: saccade mask-metrics [OPTIONS] <PREDICTED> <REFERENCE>
+
+Arguments:
+  <PREDICTED>  Predicted label image (single-channel native labels, packed RGB or integer EXR)
+  <REFERENCE>  Reference label image of the same size
+
+Options:
+      --class <CLASSES>              Class as NAME=PREDICATE (id=, range=, above=, mask); repeatable. Default: one `foreground` class, label not zero
+      --source-ref <SOURCE_REF>      External capture URI/key (repeatable); recorded in generated reports
+      --each-label                   Score every distinct non-void label as its own class (at most 256)
+      --report-index <REPORT_INDEX>  Shared report index destination (default reports/index.jsonl next to each report, inside --out)
+      --void <VOID>                  Reference labels to exclude everywhere, as NAME=PREDICATE
+      --boundary-px <BOUNDARY_PX>    Boundary match tolerance in pixels (0-64, Euclidean, inclusive) [default: 2]
+      --out <OUT>                    Write saccade-mask-metrics.v1.json into this new or empty directory
+      --json
+  -h, --help                         Print help
+
+Global options:
+      --allow-out-near-captures  Silence warnings when --out is next to capture metadata
+      --record-absolute-paths    Opt in to absolute local paths in reports and machine-readable output
+```
+
+## saccade boxes
+
+```text
+Export, import and transform bounding boxes as COCO or YOLO
+
+Usage: saccade boxes [OPTIONS] <COMMAND>
+
+Commands:
+  export     Export a saccade-boxes.v1 document as COCO JSON or YOLO text
+  import     Import COCO JSON or YOLO text into a saccade-boxes.v1 document
+  transform  Re-express boxes for a cropped or resized copy of the image
+
+Options:
+      --source-ref <SOURCE_REF>      External capture URI/key (repeatable); recorded in generated reports
+      --report-index <REPORT_INDEX>  Shared report index destination (default reports/index.jsonl next to each report, inside --out)
+  -h, --help                         Print help
+
+Global options:
+      --allow-out-near-captures  Silence warnings when --out is next to capture metadata
+      --record-absolute-paths    Opt in to absolute local paths in reports and machine-readable output
+```
+
+## saccade boxes export
+
+```text
+Export a saccade-boxes.v1 document as COCO JSON or YOLO text
+
+Usage: saccade boxes export [OPTIONS] --format <FORMAT> --out <OUT> <DOC>
+
+Arguments:
+  <DOC>  saccade-boxes.v1 document
+
+Options:
+      --format <FORMAT>              [possible values: coco, yolo]
+      --source-ref <SOURCE_REF>      External capture URI/key (repeatable); recorded in generated reports
+      --out <OUT>                    New or empty output directory
+      --report-index <REPORT_INDEX>  Shared report index destination (default reports/index.jsonl next to each report, inside --out)
+      --clip                         Clip boxes that leave the image (counted) instead of refusing them
+      --json
+  -h, --help                         Print help
+
+Global options:
+      --allow-out-near-captures  Silence warnings when --out is next to capture metadata
+      --record-absolute-paths    Opt in to absolute local paths in reports and machine-readable output
+```
+
+## saccade boxes import
+
+```text
+Import COCO JSON or YOLO text into a saccade-boxes.v1 document
+
+Usage: saccade boxes import [OPTIONS] --format <FORMAT> --out <OUT> <INPUT>
+
+Arguments:
+  <INPUT>
+
+Options:
+      --format <FORMAT>              [possible values: coco, yolo]
+      --source-ref <SOURCE_REF>      External capture URI/key (repeatable); recorded in generated reports
+      --out <OUT>
+      --report-index <REPORT_INDEX>  Shared report index destination (default reports/index.jsonl next to each report, inside --out)
+      --width <WIDTH>                YOLO only: image width in pixels
+      --height <HEIGHT>              YOLO only: image height in pixels
+      --image-file <IMAGE_FILE>      YOLO only: image file name to record
+      --classes <CLASSES>            YOLO only: classes.txt, one name per line
+      --json
+  -h, --help                         Print help
+
+Global options:
+      --allow-out-near-captures  Silence warnings when --out is next to capture metadata
+      --record-absolute-paths    Opt in to absolute local paths in reports and machine-readable output
+```
+
+## saccade boxes transform
+
+```text
+Re-express boxes for a cropped or resized copy of the image
+
+Usage: saccade boxes transform [OPTIONS] --out <OUT> <DOC>
+
+Arguments:
+  <DOC>
+
+Options:
+      --crop <CROP>                  Crop window X,Y,W,H in source pixels
+      --source-ref <SOURCE_REF>      External capture URI/key (repeatable); recorded in generated reports
+      --report-index <REPORT_INDEX>  Shared report index destination (default reports/index.jsonl next to each report, inside --out)
+      --resize <RESIZE>              Resized image size W,H (each axis scaled independently)
+      --image-file <IMAGE_FILE>      File name of the derived image to record
+      --out <OUT>
+      --json
+  -h, --help                         Print help
+
+Global options:
+      --allow-out-near-captures  Silence warnings when --out is next to capture metadata
+      --record-absolute-paths    Opt in to absolute local paths in reports and machine-readable output
+```
+
+## saccade frame-map
+
+```text
+Check the index, timestamp and file map of externally extracted frames
+
+Usage: saccade frame-map [OPTIONS] <COMMAND>
+
+Commands:
+  check  Report gaps, constant or variable rate, file integrity and settling in the map's own timestamps
+
+Options:
+      --source-ref <SOURCE_REF>      External capture URI/key (repeatable); recorded in generated reports
+      --report-index <REPORT_INDEX>  Shared report index destination (default reports/index.jsonl next to each report, inside --out)
+  -h, --help                         Print help
+
+Global options:
+      --allow-out-near-captures  Silence warnings when --out is next to capture metadata
+      --record-absolute-paths    Opt in to absolute local paths in reports and machine-readable output
+```
+
+## saccade frame-map check
+
+```text
+Report gaps, constant or variable rate, file integrity and settling in the map's own timestamps
+
+Usage: saccade frame-map check [OPTIONS] <MAP>
+
+Arguments:
+  <MAP>  saccade-frame-map.v1 document
+
+Options:
+      --root <ROOT>
+          Directory the map's relative paths resolve against (default: the map's directory)
+      --source-ref <SOURCE_REF>
+          External capture URI/key (repeatable); recorded in generated reports
+      --report-index <REPORT_INDEX>
+          Shared report index destination (default reports/index.jsonl next to each report, inside --out)
+      --skip-files
+          Do not look at frame files; check the index and timestamps only
+      --rate-tolerance-pct <RATE_TOLERANCE_PCT>
+          Relative spread of the per-frame step, in percent, still called constant [default: 1]
+      --settling <SETTLING>
+          saccade-settling.v1 report for the same frames, to restate settling in map time
+      --out <OUT>
+          Write saccade-frame-map-check.v1.json into this new or empty directory
+      --json
+
+  -h, --help
+          Print help
+
+Global options:
+      --allow-out-near-captures  Silence warnings when --out is next to capture metadata
+      --record-absolute-paths    Opt in to absolute local paths in reports and machine-readable output
+```
+
 ## saccade render-evidence
 
 ```text

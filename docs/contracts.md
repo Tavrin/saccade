@@ -162,6 +162,8 @@ The last three names appear only when the corresponding feature is compiled in.
 - [saccade-assist.v2.schema.json](../crates/saccade-core/schemas/saccade-assist.v2.schema.json) — Envelope
 - [saccade-bisect.v1.schema.json](../crates/saccade-core/schemas/saccade-bisect.v1.schema.json) — BisectResult
 - [saccade-blind-key.v1.schema.json](../crates/saccade-core/schemas/saccade-blind-key.v1.schema.json) — BlindKey
+- [saccade-boxes-result.v1.schema.json](../crates/saccade-core/schemas/saccade-boxes-result.v1.schema.json) — Box interchange result
+- [saccade-boxes.v1.schema.json](../crates/saccade-core/schemas/saccade-boxes.v1.schema.json) — Bounding-box annotations
 - [saccade-brand-review.v1.schema.json](../crates/saccade-core/schemas/saccade-brand-review.v1.schema.json) — Report
 - [saccade-brand-source.v1.schema.json](../crates/saccade-core/schemas/saccade-brand-source.v1.schema.json) — Evidence
 - [saccade-calibration.v1.schema.json](../crates/saccade-core/schemas/saccade-calibration.v1.schema.json) — Historical reader contract
@@ -216,6 +218,8 @@ The last three names appear only when the corresponding feature is compiled in.
 - [saccade-explain.v1.schema.json](../crates/saccade-core/schemas/saccade-explain.v1.schema.json) — ExplainPack
 - [saccade-faces.v1.schema.json](../crates/saccade-core/schemas/saccade-faces.v1.schema.json) — FaceReport
 - [saccade-faces.v2.schema.json](../crates/saccade-core/schemas/saccade-faces.v2.schema.json) — FaceReport
+- [saccade-frame-map-check.v1.schema.json](../crates/saccade-core/schemas/saccade-frame-map-check.v1.schema.json) — Frame map check
+- [saccade-frame-map.v1.schema.json](../crates/saccade-core/schemas/saccade-frame-map.v1.schema.json) — Frame map
 - [saccade-frozen-region.v1.schema.json](../crates/saccade-core/schemas/saccade-frozen-region.v1.schema.json) — FrozenRegion
 - [saccade-general-result.v1.schema.json](../crates/saccade-core/schemas/saccade-general-result.v1.schema.json) — saccade-general-result.v1
 - [saccade-general-result.v2.schema.json](../crates/saccade-core/schemas/saccade-general-result.v2.schema.json) — saccade-general-result.v1
@@ -255,6 +259,7 @@ The last three names appear only when the corresponding feature is compiled in.
 - [saccade-localized.v2.schema.json](../crates/saccade-core/schemas/saccade-localized.v2.schema.json) — Measurement
 - [saccade-locate.v1.schema.json](../crates/saccade-core/schemas/saccade-locate.v1.schema.json) — LocateReport
 - [saccade-locate.v2.schema.json](../crates/saccade-core/schemas/saccade-locate.v2.schema.json) — LocateReport
+- [saccade-mask-metrics.v1.schema.json](../crates/saccade-core/schemas/saccade-mask-metrics.v1.schema.json) — Mask metrics
 - [saccade-media-compare.v1.schema.json](../crates/saccade-core/schemas/saccade-media-compare.v1.schema.json) — Historical reader contract
 - [saccade-media-compare.v2.schema.json](../crates/saccade-core/schemas/saccade-media-compare.v2.schema.json) — Historical reader contract
 - [saccade-media-error.v1.schema.json](../crates/saccade-core/schemas/saccade-media-error.v1.schema.json) — Historical reader contract

@@ -1,0 +1,277 @@
+{
+  "$id": "https://github.com/Tavrin/saccade/crates/saccade-core/schemas/saccade-mask-metrics.v1.schema.json",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "description": "Overlap and boundary scores between two integer label images, with void, empty and missing-class handling stated explicitly.",
+  "properties": {
+    "classes": {
+      "items": {
+        "additionalProperties": false,
+        "properties": {
+          "boundary": {
+            "oneOf": [
+              {
+                "additionalProperties": false,
+                "properties": {
+                  "f_score": {
+                    "type": [
+                      "number",
+                      "null"
+                    ]
+                  },
+                  "precision": {
+                    "type": [
+                      "number",
+                      "null"
+                    ]
+                  },
+                  "predicted_pixels": {
+                    "minimum": 0,
+                    "type": "integer"
+                  },
+                  "recall": {
+                    "type": [
+                      "number",
+                      "null"
+                    ]
+                  },
+                  "reference_pixels": {
+                    "minimum": 0,
+                    "type": "integer"
+                  }
+                },
+                "required": [
+                  "f_score",
+                  "precision",
+                  "predicted_pixels",
+                  "recall",
+                  "reference_pixels"
+                ],
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "dice": {
+            "type": [
+              "number",
+              "null"
+            ]
+          },
+          "intersection": {
+            "minimum": 0,
+            "type": "integer"
+          },
+          "iou": {
+            "type": [
+              "number",
+              "null"
+            ]
+          },
+          "name": {
+            "type": "string"
+          },
+          "precision": {
+            "type": [
+              "number",
+              "null"
+            ]
+          },
+          "predicted_pixels": {
+            "minimum": 0,
+            "type": "integer"
+          },
+          "recall": {
+            "type": [
+              "number",
+              "null"
+            ]
+          },
+          "reference_pixels": {
+            "minimum": 0,
+            "type": "integer"
+          },
+          "status": {
+            "enum": [
+              "scored",
+              "missed",
+              "spurious",
+              "absent_in_both"
+            ]
+          },
+          "union": {
+            "minimum": 0,
+            "type": "integer"
+          }
+        },
+        "required": [
+          "boundary",
+          "dice",
+          "intersection",
+          "iou",
+          "name",
+          "precision",
+          "predicted_pixels",
+          "recall",
+          "reference_pixels",
+          "status",
+          "union"
+        ],
+        "type": "object"
+      },
+      "type": "array"
+    },
+    "evaluated_pixels": {
+      "minimum": 0,
+      "type": "integer"
+    },
+    "height": {
+      "minimum": 1,
+      "type": "integer"
+    },
+    "policy": {
+      "additionalProperties": false,
+      "properties": {
+        "boundary_tolerance_px": {
+          "maximum": 64,
+          "minimum": 0,
+          "type": "number"
+        },
+        "classes": {
+          "enum": [
+            "foreground",
+            "each_label",
+            "named"
+          ]
+        },
+        "void": {
+          "type": [
+            "string",
+            "null"
+          ]
+        }
+      },
+      "required": [
+        "boundary_tolerance_px",
+        "classes",
+        "void"
+      ],
+      "type": "object"
+    },
+    "report_id": {
+      "pattern": "^sha256:[0-9a-f]{64}$",
+      "type": "string"
+    },
+    "schema": {
+      "const": "saccade-mask-metrics.v1"
+    },
+    "source_refs": {
+      "items": {
+        "maxLength": 2048,
+        "type": "string"
+      },
+      "maxItems": 128,
+      "type": "array"
+    },
+    "summary": {
+      "additionalProperties": false,
+      "properties": {
+        "absent_classes": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "label_agreement": {
+          "type": [
+            "number",
+            "null"
+          ]
+        },
+        "macro_boundary_f": {
+          "type": [
+            "number",
+            "null"
+          ]
+        },
+        "macro_dice": {
+          "type": [
+            "number",
+            "null"
+          ]
+        },
+        "macro_iou": {
+          "type": [
+            "number",
+            "null"
+          ]
+        },
+        "micro_iou": {
+          "type": [
+            "number",
+            "null"
+          ]
+        },
+        "min_iou": {
+          "type": [
+            "number",
+            "null"
+          ]
+        },
+        "missed_classes": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "spurious_classes": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "state": {
+          "enum": [
+            "scored",
+            "empty_empty"
+          ]
+        }
+      },
+      "required": [
+        "absent_classes",
+        "label_agreement",
+        "macro_boundary_f",
+        "macro_dice",
+        "macro_iou",
+        "micro_iou",
+        "min_iou",
+        "missed_classes",
+        "spurious_classes",
+        "state"
+      ],
+      "type": "object"
+    },
+    "void_pixels": {
+      "minimum": 0,
+      "type": "integer"
+    },
+    "width": {
+      "minimum": 1,
+      "type": "integer"
+    }
+  },
+  "required": [
+    "classes",
+    "evaluated_pixels",
+    "height",
+    "policy",
+    "schema",
+    "summary",
+    "void_pixels",
+    "width"
+  ],
+  "title": "Mask metrics",
+  "type": "object"
+}
