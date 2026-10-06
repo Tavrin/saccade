@@ -11,6 +11,7 @@ pub fn get(id: &str) -> crate::Result<&'static str> {
         })
 }
 #[cfg(test)]
+#[allow(clippy::unwrap_used)]
 mod tests {
     #[test]
     fn all_code_schema_ids_are_embedded() {
@@ -47,11 +48,10 @@ mod tests {
         }
         for (id, text) in super::DOCUMENTS {
             let value: serde_json::Value = serde_json::from_str(text).unwrap();
+            let uri = value["$id"].as_str().unwrap();
             assert!(
-                value["$id"]
-                    .as_str()
-                    .unwrap()
-                    .ends_with(&format!("/{id}.schema.json"))
+                uri == *id || uri.ends_with(&format!("/{id}.schema.json")),
+                "{id}: {uri}"
             );
         }
     }

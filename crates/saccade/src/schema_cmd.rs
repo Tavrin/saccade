@@ -29,7 +29,7 @@ enum Operation {
         json: bool,
     },
 }
-fn installed(id: &str) -> Option<PathBuf> {
+pub(crate) fn installed(id: &str) -> Option<PathBuf> {
     // Search install locations, never the compile-time source checkout.
     let exe = std::env::current_exe().ok()?;
     let prefix = exe.parent()?.parent()?;
@@ -89,7 +89,7 @@ pub(crate) fn run(args: Args) -> Result<u8, CliError> {
     }
     Ok(0)
 }
-fn write_new(path: &Path, bytes: &[u8]) -> Result<(), CliError> {
+pub(crate) fn write_new(path: &Path, bytes: &[u8]) -> Result<(), CliError> {
     use std::io::Write;
     let mut file = std::fs::OpenOptions::new()
         .write(true)
@@ -162,7 +162,17 @@ mod tests {
             let schema: serde_json::Value =
                 serde_json::from_slice(&std::fs::read(path).unwrap()).unwrap();
             let file_validator = jsonschema::validator_for(&schema).unwrap();
+            let mut valid = serde_json::json!({"schema":id,"unit":"ms","frame":{"value":1.0,"samples":8,"stat":"mean"},"terms":[],"counters":{}});
+            if id.ends_with("v2") {
+                valid["kind"] = serde_json::json!("measurement");
+            }
+            assert!(
+                file_validator.is_valid(&valid),
+                "valid producer fixture: {id}"
+            );
+            assert!(super::validate(&valid).unwrap().is_empty());
             let values = [
+                valid,
                 serde_json::json!({"schema":id}),
                 serde_json::json!({"schema":id,"frames":[{"gpu_ms":-1}]}),
                 serde_json::json!({"schema":id,"frames":[]}),
