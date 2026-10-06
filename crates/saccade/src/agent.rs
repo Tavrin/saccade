@@ -20,6 +20,8 @@ pub struct CliError {
     pub message: String,
     /// The actionable repair, printed under the message on stderr.
     pub hint: String,
+    /// Complete typed arm refusal when applicable.
+    pub arm_check: Option<Box<saccade_core::arms::Check>>,
 }
 
 impl CliError {
@@ -31,6 +33,9 @@ impl CliError {
             "--out is inside an input dir: choose a sibling dir like ./saccade-report"
         } else {
             match code {
+                "invalid_comparison" => {
+                    "recapture with complete matching identity, or declare the intended experiment variables"
+                }
                 "feature_unavailable" => {
                     "rebuild with the required feature; inspect enabled modules with `saccade inspect capabilities`"
                 }
@@ -57,6 +62,7 @@ impl CliError {
         };
         Self {
             code,
+            arm_check: None,
             hint: fix.to_owned(),
             message,
         }
@@ -74,6 +80,9 @@ impl CliError {
 
     /// The shared result envelope carrying an execution error.
     pub fn value(&self) -> Value {
+        if let Some(check) = &self.arm_check {
+            return serde_json::json!(check);
+        }
         {
             let mut value = crate::local_cmd::base_result("error");
             value["execution"] = json!("error");
@@ -113,6 +122,14 @@ impl From<serde_json::Error> for CliError {
 impl From<saccade_core::Error> for CliError {
     fn from(e: saccade_core::Error) -> Self {
         use saccade_core::Error;
+        if let Error::InvalidComparison(check) = e {
+            let mut error = Self::new(
+                "invalid_comparison",
+                "arm identity validation refused a verdict",
+            );
+            error.arm_check = Some(check);
+            return error;
+        }
         let code = match e {
             Error::TrialPlanChanged => "trial_plan_changed",
             Error::Config(_) => "config",
@@ -295,6 +312,12 @@ pub fn result_value(
         .collect::<Vec<_>>();
     if !local_changes.is_empty() {
         value["data"] = json!({"pass_with_local_change":local_changes.len(),"local_changes":local_changes.iter().take(3).map(|e|json!({"entry":e.name,"note":e.local_hotspot_note()})).collect::<Vec<_>>()});
+    }
+    if report.config.meta.require_valid_arms {
+        if !value["data"].is_object() {
+            value["data"] = json!({});
+        }
+        value["data"]["arm_validation"] = json!({"result":"valid_comparison","ignore":report.config.meta.arm_ignore,"vary":report.config.meta.intended});
     }
     let failing = failing_entries(report);
     let summaries=failing.iter().take(top.min(5)).map(|e|json!({"entry_id":e.name,"measurement":if e.status==Status::Fail{"regression"}else{"unknown"},"error":e.error.as_ref().map(|s|crate::local_cmd::short(s,256))})).collect::<Vec<_>>();

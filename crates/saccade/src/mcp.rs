@@ -65,6 +65,9 @@ fn measurement_schemas() -> Value {
             "require_matching_meta":{"type":"boolean","default":false},
             "declare":{"type":"array","items":{"type":"string"}},
             "intended_variables":{"type":"array","items":{"type":"string"}},
+            "require_valid_arms":{"type":"boolean"},
+            "fingerprint_map":{"type":"string"},
+            "arm_ignore":{"type":"array","items":{"type":"string"}},
             "fixed_camera":{"type":"boolean"},
             "fail_on_new":{"type":"boolean","default":true},
             "allow_empty":{"type":"boolean","default":false},
@@ -142,6 +145,9 @@ fn measurement_schemas() -> Value {
                 "base_dir":dir("Base capture directory"),
                 "arm_dirs":{"type":"array","items":{"type":"string","minLength":1},"minItems":1},
                 "out_dir":dir("Output directory"), "config":{"type":"string"},
+                "require_valid_arms":{"type":"boolean"}, "fingerprint_map":{"type":"string"},
+                "intended_variables":{"type":"array","items":{"type":"string"}},
+                "arm_ignore":{"type":"array","items":{"type":"string"}},
                 "top":{"type":"integer","minimum":0,"default":5},
                 "perf_name":{"type":"string"}, "perf_noise":{"type":"string"},
                 "perf_noise_k":{"type":"number","exclusiveMinimum":0,"default":3},
@@ -294,6 +300,9 @@ const RUN_ARGS: &[&str] = &[
     "require_matching_meta",
     "declare",
     "intended_variables",
+    "require_valid_arms",
+    "fingerprint_map",
+    "arm_ignore",
     "fixed_camera",
     "fail_on_new",
     "allow_empty",
@@ -360,6 +369,11 @@ fn apply_run_args(args: &Map<String, Value>, cfg: &mut RunConfig) -> Result<(), 
     cfg.meta
         .intended
         .extend(arg_strings(args, "intended_variables")?);
+    cfg.meta.require_valid_arms |= arg_bool(args, "require_valid_arms")?.unwrap_or(false);
+    if let Some(map) = arg_str(args, "fingerprint_map")? {
+        cfg.meta.fingerprint_map = Some(map.into());
+    }
+    cfg.meta.ignore.extend(arg_strings(args, "arm_ignore")?);
     cfg.meta.required |= required;
     cfg.meta.declared.extend(declared);
     cfg.entries = arg_strings(args, "entries")?;
@@ -591,6 +605,9 @@ impl Server {
                 .read(path)
                 .map_err(|e| CliError::new("unsafe_path", e.to_string()))?;
         }
+        if let Some(path) = &cfg.meta.fingerprint_map {
+            self.policy.read(path)?;
+        }
         cfg.meta.checker()?;
         Ok(())
     }
@@ -689,6 +706,9 @@ impl Server {
         self.validate_config(cfg)?;
         self.input_tree(baseline)?;
         self.input_tree(capture)?;
+        if let Some(path) = &cfg.meta.fingerprint_map {
+            crate::arms_mcp::validate_map(&self.policy, path, &[baseline, capture])?;
+        }
         let mut report: Report = saccade_core::run::run(baseline, capture, out, cfg)?;
         // Retain the authorized alias route in references so downstream reads
         // do not turn a registered target into an independently browsable root.
@@ -794,6 +814,10 @@ impl Server {
                 "perf_min_delta_ms",
                 "perf_min_delta_pct",
                 "record_absolute_paths",
+                "require_valid_arms",
+                "fingerprint_map",
+                "intended_variables",
+                "arm_ignore",
             ],
         )?;
         let base = self.existing_dir("base_dir", &require_str(args, "base_dir")?)?;
@@ -806,6 +830,10 @@ impl Server {
             Some(p) => RunConfig::from_toml_file(&self.existing_file("config", &p)?)?,
             None => RunConfig::default(),
         };
+        apply_run_args(args, &mut cfg)?;
+        if let Some(map) = cfg.meta.fingerprint_map.as_mut() {
+            *map = self.policy.read(map)?;
+        }
         cfg.record_absolute_paths = arg_bool(args, "record_absolute_paths")?.unwrap_or(false);
         self.apply_perf_args(args, &mut cfg.perf)?;
         let top = match args.get("top") {
@@ -816,9 +844,17 @@ impl Server {
             None => 5,
         };
         self.validate_config(&cfg)?;
+        if let Some(map) = &cfg.meta.fingerprint_map {
+            let inputs = std::iter::once(base.as_path())
+                .chain(arms.iter().map(|p| p.as_path()))
+                .collect::<Vec<_>>();
+            crate::arms_mcp::validate_map(&self.policy, map, &inputs)?;
+        }
         let model = saccade_core::ablate::run(&base, &arms, &out, &cfg, top)?;
+        let mut structured = serde_json::to_value(&model)?;
+        crate::arms_cmd::annotate(&mut structured, &cfg.meta);
         Ok(ToolOutput {
-            structured: serde_json::to_value(&model)?,
+            structured,
             text: model.text(),
             images: Vec::new(),
         })
@@ -845,6 +881,9 @@ impl Server {
             }
         };
         apply_run_args(args, &mut cfg)?;
+        if let Some(map) = cfg.meta.fingerprint_map.as_mut() {
+            *map = self.policy.read(map)?;
+        }
         self.apply_perf_args(args, &mut cfg.perf)?;
         let images = arg_bool(args, "include_images")?.unwrap_or(false);
         self.run_and_explain((&baseline, &capture, &out), &cfg, images)
@@ -866,6 +905,9 @@ impl Server {
         let mut run_args = args.clone();
         run_args.remove("labels");
         apply_run_args(&run_args, &mut cfg)?;
+        if let Some(map) = cfg.meta.fingerprint_map.as_mut() {
+            *map = self.policy.read(map)?;
+        }
         if let Some(t) = arg_str(args, "hdr_tonemapper")? {
             cfg.hdr.tonemapper = saccade_core::hdr::Tonemapper::parse(&t)?;
         }
@@ -987,6 +1029,9 @@ impl Server {
             ..RunConfig::default()
         };
         apply_run_args(args, &mut cfg)?;
+        if let Some(map) = cfg.meta.fingerprint_map.as_mut() {
+            *map = self.policy.read(map)?;
+        }
         self.apply_perf_args(args, &mut cfg.perf)?;
         let images = arg_bool(args, "include_images")?.unwrap_or(false);
         self.run_and_explain((&parent, &candidate, &out), &cfg, images)
@@ -1092,6 +1137,19 @@ impl Server {
         #[cfg(feature = "ai")]
         if name == "saccade_review" {
             return Some(self.provider_review(args));
+        }
+        if name == "saccade_measure"
+            && args.get("operation").and_then(Value::as_str) == Some("arms_check")
+        {
+            return Some(
+                crate::arms_mcp::call(&self.policy, Value::Object(args.clone())).map(
+                    |structured| ToolOutput {
+                        structured,
+                        text: "Arm identity validation; no pixel verdict.".into(),
+                        images: vec![],
+                    },
+                ),
+            );
         }
         // wave9
         if args
@@ -2362,6 +2420,7 @@ fn tool_schemas() -> Value {
     // wave7
     measures.extend(crate::wave7_mcp::measure_schemas());
     // wave9
+    measures.push(crate::arms_mcp::schema());
     measures.extend(crate::wave9_mcp::schemas());
     // wave8
     measures.push(crate::media_cmd::mcp_schema());

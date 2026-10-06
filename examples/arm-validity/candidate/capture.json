@@ -1,0 +1,14 @@
+{
+  "executable": {
+    "sha256": "sha256:synthetic-binary"
+  },
+  "session": "synthetic-pair-001",
+  "settings": {
+    "mode": "alternate"
+  },
+  "source": {
+    "commit": "synthetic-revision",
+    "diff_hash": "sha256:synthetic-clean",
+    "dirty": false
+  }
+}

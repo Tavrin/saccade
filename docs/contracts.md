@@ -62,6 +62,13 @@ field. Agents should read these first:
 carries `request_bytes`, `estimated_input_tokens`, `estimated_output_tokens`,
 `estimated_cost_usd` and `cost_reason`. See [agents](agents.md) for examples.
 
+## Arm comparison validity
+
+Strict comparisons and standalone checks use `saccade-arms-check.v1`. An
+`invalid_comparison` has no pixel verdict: exit 3 names undeclared differences or
+readiness violations; exit 4 names missing identity. Successful strict reports
+record explicit exceptions in metadata settings. See [arm validation](arm-validity.md).
+
 ## Identity and bundles
 
 Semantic identity uses sorted canonical object keys and round-trip numbers.
@@ -122,6 +129,8 @@ The last three names appear only when the corresponding feature is compiled in.
 - [saccade-api-health.v1.schema.json](../crates/saccade-core/schemas/saccade-api-health.v1.schema.json) — Historical reader contract
 - [saccade-api-search.v1.schema.json](../crates/saccade-core/schemas/saccade-api-search.v1.schema.json) — Historical reader contract
 - [saccade-approve.v1.schema.json](../crates/saccade-core/schemas/saccade-approve.v1.schema.json) — saccade-approve.v1
+- [saccade-arm-fingerprint.v1.schema.json](../crates/saccade-core/schemas/saccade-arm-fingerprint.v1.schema.json) — Fingerprint
+- [saccade-arms-check.v1.schema.json](../crates/saccade-core/schemas/saccade-arms-check.v1.schema.json) — Check
 - [saccade-ask-result.v1.schema.json](../crates/saccade-core/schemas/saccade-ask-result.v1.schema.json) — AskResult
 - [saccade-assess.v1.schema.json](../crates/saccade-core/schemas/saccade-assess.v1.schema.json) — Historical reader contract
 - [saccade-asset-view-report.v1.schema.json](../crates/saccade-core/schemas/saccade-asset-view-report.v1.schema.json) — Report

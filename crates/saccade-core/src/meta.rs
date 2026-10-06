@@ -108,6 +108,10 @@ pub struct DeclaredChange {
 /// Sidecar settings for a run or a view.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct MetaOptions {
+    /// Refuse verdicts without complete matching arm identity.
+    pub require_valid_arms: bool,
+    /// Generic producer field mapping file.
+    pub fingerprint_map: Option<std::path::PathBuf>,
     /// Intended experiment variables, exact keys or globs, kept separately.
     pub intended: Vec<String>,
     /// Sidecar file name; the per-image sidecar is `<stem>.<name>`.
@@ -127,6 +131,8 @@ pub struct MetaOptions {
 impl Default for MetaOptions {
     fn default() -> Self {
         Self {
+            require_valid_arms: false,
+            fingerprint_map: None,
             intended: Vec::new(),
             name: DEFAULT_META_NAME.to_owned(),
             required: false,
@@ -156,12 +162,16 @@ pub fn capture_evidence(root: &Path, rel: &str, name: &str) -> BTreeMap<String, 
             for (key, value) in meta {
                 let normalized = key.to_ascii_lowercase().replace(['.', '-', ' '], "_");
                 let field = match normalized.as_str() {
-                    "binary_sha" | "binary_sha256" | "binary_hash" | "build_binary_sha256" => {
-                        "binary_sha256"
-                    }
-                    "source_head" | "git_head" | "source_git_head" | "build_commit" => {
-                        "source_head"
-                    }
+                    "binary_sha"
+                    | "binary_sha256"
+                    | "binary_hash"
+                    | "build_binary_sha256"
+                    | "producer_binary" => "binary_sha256",
+                    "source_head"
+                    | "git_head"
+                    | "source_git_head"
+                    | "build_commit"
+                    | "producer_build_commit" => "source_head",
                     "capture_timestamp" => "timestamp",
                     "capture_id" | "capture_uuid" => "capture_id",
                     "content_hash" | "capture_hash" | "capture_sha256" => "content_hash",
@@ -198,12 +208,14 @@ pub fn same_capture(a: &BTreeMap<String, String>, b: &BTreeMap<String, String>) 
 
 /// [`MetaOptions`] with its globs compiled.
 pub struct MetaChecker {
+    fingerprint_map: Option<std::path::PathBuf>,
     intended_globs: Vec<GlobMatcher>,
     name: String,
     required: bool,
     declared: Vec<String>,
     declared_globs: Vec<GlobMatcher>,
     ignore: Vec<GlobMatcher>,
+    explicit_ignore: Vec<GlobMatcher>,
     settings: MetaSettings,
     required_keys: Vec<String>,
     changes: Vec<DeclaredChange>,
@@ -254,11 +266,17 @@ impl MetaOptions {
                 ));
             }
         }
-        let ignored: Vec<String> = (if proof { PROOF_IGNORE } else { DEFAULT_IGNORE })
-            .iter()
-            .map(|g| (*g).to_owned())
-            .chain(self.ignore.iter().cloned())
-            .collect();
+        let ignored: Vec<String> = (if self.require_valid_arms {
+            &[][..]
+        } else if proof {
+            PROOF_IGNORE
+        } else {
+            DEFAULT_IGNORE
+        })
+        .iter()
+        .map(|g| (*g).to_owned())
+        .chain(self.ignore.iter().cloned())
+        .collect();
         let ignore = ignored
             .iter()
             .map(|g| compile_glob(g))
@@ -269,22 +287,30 @@ impl MetaOptions {
             .map(|g| compile_glob(g))
             .collect::<Result<Vec<_>>>()?;
         Ok(MetaChecker {
+            fingerprint_map: self.fingerprint_map.clone(),
             intended_globs: self
                 .intended
                 .iter()
                 .map(|g| compile_glob(g))
                 .collect::<Result<Vec<_>>>()?,
             name: self.name.clone(),
-            required: self.required || proof,
+            required: self.required || proof || self.require_valid_arms,
             declared: self.declared.clone(),
             declared_globs,
             ignore,
+            explicit_ignore: self
+                .ignore
+                .iter()
+                .map(|g| compile_glob(g))
+                .collect::<Result<_>>()?,
             required_keys: self.required_keys.clone(),
             changes: self.changes.clone(),
             settings: MetaSettings {
+                require_valid_arms: self.require_valid_arms,
+                arm_ignore: self.ignore.clone(),
                 intended: self.intended.clone(),
                 name: self.name.clone(),
-                required: self.required || proof,
+                required: self.required || proof || self.require_valid_arms,
                 declared: self.declared.clone(),
                 ignored,
                 required_keys: self.required_keys.clone(),
@@ -328,6 +354,14 @@ fn read_one(path: &Path) -> std::result::Result<Option<Meta>, String> {
     };
     let mut out = Meta::new();
     for (key, v) in map {
+        if matches!(key.as_str(), "fingerprint" | "producer" | "inputs" | "run")
+            || key.starts_with("producer.")
+            || key.starts_with("inputs.")
+            || key.starts_with("run.")
+        {
+            crate::arms::flatten(&key, &v, &mut out);
+            continue;
+        }
         if matches!(v, Value::Array(_) | Value::Object(_)) {
             return Err(format!(
                 "{}: key {key:?} has a nested value (sidecars are flat: string, number, bool or null)",
@@ -349,6 +383,15 @@ impl MetaChecker {
     /// (nearer wins), then the per-image sidecar on top. `Ok(None)` when no
     /// sidecar applies; `Err` names the unreadable file or the nested key.
     pub fn load(&self, root: &Path, rel: &str) -> std::result::Result<Option<Meta>, String> {
+        if let Some(path) = &self.fingerprint_map {
+            let map = crate::arms::FingerprintMap::read(path).map_err(|e| e.to_string())?;
+            return crate::arms::load_named(root, rel, &self.name, Some(&map))
+                .map(|mut m| {
+                    crate::arms::readiness(&mut m);
+                    Some(m)
+                })
+                .map_err(|e| e.to_string());
+        }
         let parts: Vec<&str> = rel.split('/').collect();
         let Some((file, dirs)) = parts.split_last() else {
             return Ok(None);
@@ -371,16 +414,42 @@ impl MetaChecker {
                 found.get_or_insert_with(Meta::new).extend(layer);
             }
         }
+        if let Some(meta) = &mut found {
+            crate::arms::readiness(meta);
+        }
         Ok(found)
     }
 
     fn is_ignored(&self, key: &str) -> bool {
-        !key.to_ascii_lowercase().starts_with("qualification.")
-            && self.ignore.iter().any(|g| g.is_match(key))
+        (self.settings.require_valid_arms
+            && self
+                .settings
+                .arm_ignore
+                .iter()
+                .any(|t| crate::arms::matches(t, key)))
+            || self.explicit_ignore.iter().any(|g| g.is_match(key))
+            || (![
+                "qualification.",
+                "producer.",
+                "inputs.",
+                "run.mode",
+                "run.env",
+                "run.readiness",
+                "run.session",
+                "fingerprint.",
+            ]
+            .iter()
+            .any(|p| key.to_ascii_lowercase().starts_with(p))
+                && self.ignore.iter().any(|g| g.is_match(key)))
     }
 
     fn is_intended(&self, key: &str) -> bool {
         self.intended_globs.iter().any(|g| g.is_match(key))
+            || self
+                .settings
+                .intended
+                .iter()
+                .any(|t| crate::arms::matches(t, key))
     }
 
     fn is_declared(&self, key: &str) -> bool {
@@ -589,6 +658,26 @@ impl MetaChecker {
 #[allow(clippy::unwrap_used)]
 mod wave9_tests {
     use super::*;
+    #[test]
+    fn default_ignores_stay_compatible_but_fingerprint_fields_are_first_class() {
+        let a = Meta::from([
+            ("run.id".into(), serde_json::json!("a")),
+            ("run.env.capture_ms".into(), serde_json::json!(1)),
+        ]);
+        let b = Meta::from([
+            ("run.id".into(), serde_json::json!("b")),
+            ("run.env.capture_ms".into(), serde_json::json!(2)),
+        ]);
+        let checker = MetaOptions::default().checker().unwrap();
+        let (kept, ignored) = checker.diff_split(Some(&a), Some(&b));
+        assert_eq!(kept[0].key, "run.env.capture_ms");
+        assert_eq!(ignored[0].key, "run.id");
+        let opts = MetaOptions {
+            require_valid_arms: true,
+            ..Default::default()
+        };
+        assert_eq!(opts.checker().unwrap().diff(Some(&a), Some(&b)).len(), 2);
+    }
     #[test]
     fn intended_globs_are_separate_and_unexplained_keys_still_fail() {
         let tmp = tempfile::tempdir().unwrap();

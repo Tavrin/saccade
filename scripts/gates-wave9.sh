@@ -24,6 +24,7 @@ gate minimal-tests env -u WAVE9_READONLY_INVENTORY -u WAVE9_EFFECT_INVENTORY nic
 gate cli nice -n 19 cargo test -j 4 -p saccade --test wave9_evidence --features "$features" -- --ignored
 gate schemas nice -n 19 cargo test -j 4 -p saccade-core --test schemas --features "$core_features"
 gate docs python3 scripts/check-wave9-docs.py
+gate arm-validity bash scripts/gates-arm-validity.sh
 # Held-out project images never become repository fixtures; lane records contain the receipts.
 if test -n "${WAVE9_READONLY_INVENTORY:-}" || test -n "${WAVE9_EFFECT_INVENTORY:-}"; then
     gate realworld nice -n 19 cargo test -j 4 -p saccade-core --lib evidence_quality::realworld --features "$core_features"

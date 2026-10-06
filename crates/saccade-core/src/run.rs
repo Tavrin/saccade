@@ -390,6 +390,7 @@ pub fn run(
     config: &RunConfig,
 ) -> Result<Report> {
     config.validate()?;
+    crate::arms::enforce(baseline_dir, capture_dir, config)?;
     let ignore: Vec<_> = config
         .ignore
         .iter()
@@ -461,7 +462,10 @@ pub fn run(
     // Timing keys are performance data, not capture configuration: they are
     // read for the perf pairing and never fail `--require-matching-meta`.
     let mut meta_options = config.meta.clone();
-    if config.diagnostics.enabled && config.meta.required_keys.is_empty() {
+    if config.diagnostics.enabled
+        && config.meta.required_keys.is_empty()
+        && !config.meta.require_valid_arms
+    {
         for k in &config.diagnostics.perf_keys {
             if !meta_options.ignore.contains(k)
                 && !crate::meta::DEFAULT_IGNORE.contains(&k.as_str())

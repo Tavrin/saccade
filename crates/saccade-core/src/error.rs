@@ -5,6 +5,9 @@ use std::path::PathBuf;
 /// Errors returned by `saccade-core`.
 #[derive(Debug, thiserror::Error)]
 pub enum Error {
+    /// Arm identity is incomplete or violates declared experiment variables.
+    #[error("invalid_comparison: arm identity validation refused a verdict")]
+    InvalidComparison(Box<crate::arms::Check>),
     /// A preregistered trial or displayed evidence changed after registration.
     #[error("trial_plan_changed: preregistered plan or evidence differs")]
     TrialPlanChanged,

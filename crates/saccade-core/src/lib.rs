@@ -3,6 +3,8 @@
 #[cfg(feature = "prechecks")]
 pub mod a11y;
 pub mod ablate;
+/// Versioned producer fingerprints and strict arm validation.
+pub mod arms;
 pub mod asset_views;
 #[cfg(feature = "assist")]
 pub mod assist;

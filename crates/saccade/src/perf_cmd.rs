@@ -158,6 +158,8 @@ impl PerfArgs {
 #[derive(Args)]
 #[cfg(feature = "graphics")]
 pub(crate) struct AblateArgs {
+    #[command(flatten)]
+    strict_arms: crate::arms_cmd::StrictArgs,
     /// Intended metadata variable for every arm.
     #[arg(long = "intended-variable", value_delimiter = ',')]
     intended_variables: Vec<String>,
@@ -187,6 +189,7 @@ pub(crate) struct AblateArgs {
 #[cfg(feature = "graphics")]
 pub(crate) fn ablate(args: AblateArgs, absolute: bool) -> Result<u8, CliError> {
     let mut cfg = crate::load_config(args.config.as_deref())?;
+    args.strict_arms.apply(&mut cfg.meta);
     cfg.meta.intended.extend(args.intended_variables);
     for spec in args.arm_variables {
         let (label, key) = spec
@@ -244,6 +247,7 @@ pub(crate) fn ablate(args: AblateArgs, absolute: bool) -> Result<u8, CliError> {
         let mut value =
             crate::local_cmd::analysis_result(&serde_json::to_value(&model)?, &args.out)?;
         value["data"] = serde_json::json!({"base_repeat_count":model.base_repeats.len(),"excluded_base_repeats":model.excluded_base_repeats,"base_stable":model.base_stability.as_ref().map(|s|s.stable),"repeat_qualification":model.repeat_qualification,"repeat_reasons":model.repeat_reasons,"arms":model.arms.iter().map(|arm| serde_json::json!({"label":arm.label,"intended_keys":arm.intended_keys,"intended_variables":arm.intended_variables,"flag":arm.flag,"repeat_count":arm.repeats.len(),"stable":arm.repeat_stability.as_ref().map(|s|s.stable),"max_flip_by_image":arm.repeat_stability.as_ref().map(|s|&s.max_flip_by_image),"validity_findings":arm.validity_findings,"next_actions":arm.next_actions,"excluded_repeats":arm.excluded_repeats,"reasons":arm.perf_diff.as_ref().map(|d|d.qualification_reasons.clone()).unwrap_or_default(),"reason_codes":arm.perf_diff.as_ref().map(|d|&d.qualification_reason_codes),"warmup_before":arm.perf_diff.as_ref().and_then(|d|d.warmup_before.as_ref()),"warmup_after":arm.perf_diff.as_ref().and_then(|d|d.warmup_after.as_ref()),"comparability":arm.perf_diff.as_ref().map(|d|d.comparability),"noise_comparability":arm.perf_diff.as_ref().map(|d|d.noise_comparability)})).collect::<Vec<_>>()});
+        crate::arms_cmd::annotate(&mut value, &cfg.meta);
         if model.arms.iter().any(|a| !a.validity_findings.is_empty()) {
             value["validity"] = serde_json::json!("invalid");
             value["validity_reasons"] =
@@ -252,6 +256,7 @@ pub(crate) fn ablate(args: AblateArgs, absolute: bool) -> Result<u8, CliError> {
         }
         crate::local_cmd::print(&value, true)?;
     } else {
+        crate::arms_cmd::success_text(&cfg.meta)?;
         crate::emit(&model.text())?;
         crate::emit(&format!(
             "wrote {}\n",

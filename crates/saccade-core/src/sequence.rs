@@ -302,6 +302,7 @@ pub fn run_sequence(
     cfg: &RunConfig,
 ) -> Result<SequenceReport> {
     cfg.validate()?;
+    crate::arms::enforce(baseline, capture, cfg)?;
     let mut excluded = std::collections::BTreeSet::new();
     let (base, cap) = (
         collect(baseline, pattern, cfg, &mut excluded)?,

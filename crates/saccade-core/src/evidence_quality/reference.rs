@@ -90,6 +90,9 @@ pub struct Tile {
 #[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct Report {
+    /// Optional transport-validated arm identity and explicit exceptions.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub arm_validation: Option<crate::arms::Check>,
     /// Versioned discriminator.
     pub schema: String,
     /// Raw source identities filled by file transports.
@@ -387,7 +390,7 @@ pub fn compare(
     } else {
         "within_noise_floor"
     };
-    Ok(Report {schema:SCHEMA.into(),input_sha256:Default::default(),policy:policy.clone(),alignment:Alignment {exposure_scale:gain,exposure_stops:gain.log2(),tonemap:policy.tonemap.clone(),method:if policy.fit_exposure {"linear_rgb_global_least_squares"} else {"declared_unity"}.into()},noise_method:method.into(),reference_seeds:seeds.len(),verdict:verdict.into(),tiles,mean_flip,limits:vec!["Exposure alignment can hide a global gain error; fitted parameters remain explicit and fit_exposure=false measures it directly.".into(),"Provided variance is the variance of the reference estimator in linear luminance squared; nonlinear mapping uses a symmetric local propagation approximation.".into(),"Independent-seed variance is divided by seed count for the averaged reference. Single-frame high-frequency estimates contain scene detail; tile bias limits assume independent pixels and are diagnostic under correlation.".into(),"FLIP is a secondary clipped display diagnostic; the deciding noise floors use unquantized linear or declared mapped luminance.".into()]})
+    Ok(Report {arm_validation:None,schema:SCHEMA.into(),input_sha256:Default::default(),policy:policy.clone(),alignment:Alignment {exposure_scale:gain,exposure_stops:gain.log2(),tonemap:policy.tonemap.clone(),method:if policy.fit_exposure {"linear_rgb_global_least_squares"} else {"declared_unity"}.into()},noise_method:method.into(),reference_seeds:seeds.len(),verdict:verdict.into(),tiles,mean_flip,limits:vec!["Exposure alignment can hide a global gain error; fitted parameters remain explicit and fit_exposure=false measures it directly.".into(),"Provided variance is the variance of the reference estimator in linear luminance squared; nonlinear mapping uses a symmetric local propagation approximation.".into(),"Independent-seed variance is divided by seed count for the averaged reference. Single-frame high-frequency estimates contain scene detail; tile bias limits assume independent pixels and are diagnostic under correlation.".into(),"FLIP is a secondary clipped display diagnostic; the deciding noise floors use unquantized linear or declared mapped luminance.".into()]})
 }
 #[cfg(test)]
 mod tests {
