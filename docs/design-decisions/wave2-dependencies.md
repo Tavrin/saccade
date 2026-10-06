@@ -1,9 +1,5 @@
 # Wave 2 dependency review
 
-Current requirements (integration round 3, 2026-10-05): Rust 1.89 and
-Butteraugli 0.9.3. Rust 1.88 / Butteraugli 0.4.0 statements below retain the
-original lane decisions and test history; see [integration report](../../INTEGRATION-REPORT.md).
-
 Published Cargo package manifests and included license files were inspected. All additions use permissive licenses. The runtime library and model weights remain separate runtime inputs. Native gates used Rust 1.98.1; a Rust 1.88 build was not run.
 
 | Package | Version | License | Declared Rust minimum |

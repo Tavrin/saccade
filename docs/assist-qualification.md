@@ -45,7 +45,7 @@ and changed/unchanged appearance. Other atomic facts are counted as unsupported
 until an independent oracle for them is added in a new epoch. This conservative
 qualification scope cannot establish general natural-language explanation accuracy.
 
-The coordinator runs `scripts/gates-wave4.sh` through the heavy queue. It checks
+Run `scripts/gates-wave4.sh` with your optional admission wrapper. It checks
 formatting, default/relevant-feature compilation, strict clippy (including examples
 and tests), full touched-crate tests, ignored Wave 4 CLI/MCP end-to-end tests,
 CPU corpus/scoring tests, docs/schema references and shell syntax. It emits one

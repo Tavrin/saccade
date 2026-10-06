@@ -1,23 +1,22 @@
 #!/usr/bin/env bash
-# Coordinator-only heavy queue entry point. Do not run during lane development.
+# Explicit feature qualification gates; see docs/releasing.md.
 set -uo pipefail
-cd "$(dirname "$0")/.."
-export CARGO_TARGET_DIR="${CARGO_TARGET_DIR:-/mnt/linux-extra/moss-cargo-targets/codex-saccade-w6}"
+cd "$(dirname "$0")/.." || exit 2
+source scripts/gate-env.sh
 failed=0
 gate() {
   local name=$1; shift
-  if "$@"; then echo "GATE $name PASS"; else echo "GATE $name FAIL"; failed=1; fi
+  if saccade_run "$@"; then echo "GATE $name PASS"; else echo "GATE $name FAIL"; failed=1; fi
 }
 # Cargo options precede rustc/test arguments.
 clippy_gate() { cargo_gate clippy -p saccade -p saccade-core --all-targets --features schema,embeddings,ocr,documents,credentials -- -D warnings; }
 # Keep options before -- rather than appending -j to test-harness arguments.
 cargo_gate() {
-  local free_gb command=$1; shift
-  free_gb=$(df -BG --output=avail /mnt/linux-extra | tail -1 | tr -dc '0-9')
-  if [[ ! "$free_gb" =~ ^[0-9]+$ ]] || (( free_gb < 25 )); then echo 'disk admission: less than 25 GB free'; return 1; fi
+  local command=$1; shift
+  saccade_headroom || return 1
   local toolchain=()
   if [[ -n "${SACCADE_W6_TOOLCHAIN:-}" ]]; then toolchain=("+$SACCADE_W6_TOOLCHAIN"); fi
-  nice -n 19 cargo "${toolchain[@]}" "$command" -j 4 "$@"
+  saccade_run nice -n 19 cargo "${toolchain[@]}" "$command" -j 4 "$@"
 }
 gate fmt cargo fmt --all -- --check
 gate check-minimal cargo_gate check -p saccade --no-default-features

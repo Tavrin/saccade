@@ -146,7 +146,7 @@ See [paired statistics](docs/paired-performance.md),
 Install with Rust 1.89 or newer:
 
 ```sh
-cargo install saccade --version 0.2.0 --locked
+cargo install saccade --version 0.2.1 --locked
 saccade doctor --json
 ```
 
@@ -209,7 +209,7 @@ mask audit, visible-condition checks, blind orders, Jev support, deterministic
 cascade routing and optional Jev evidence routing all remain **unqualified**.
 Assist commands still require `--experimental`; Jev routing stays off by default.
 See [assist workflows](docs/assist.md), [qualification policy](docs/assist-qualification.md)
-and the [release record](docs/release-020.md).
+and the [release guide](docs/releasing.md).
 
 ## Known limitations
 
@@ -232,7 +232,7 @@ and the [release record](docs/release-020.md).
 - [MCP server and plugins](docs/plugins.md), [agent guide](docs/agents.md),
   [Python package](docs/python.md) (CI wheels; not on PyPI),
   [HTTP API](docs/api.md) and [CI](docs/ci.md).
-- [CHANGELOG](CHANGELOG.md), [release record](docs/release-020.md)
+- [CHANGELOG](CHANGELOG.md), [release guide](docs/releasing.md)
   and [contributing](CONTRIBUTING.md).
 
 <!-- showcase-count:start -->

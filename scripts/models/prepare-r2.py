@@ -4,7 +4,7 @@ CPU only; downloads are confined to an immutable official HF revision.
 """
 import hashlib,json,os,urllib.request
 from pathlib import Path
-ROOT=Path('/mnt/linux-extra/saccade-models/r2')
+ROOT=Path(os.environ.get("SACCADE_MODEL_CACHE", Path(os.environ.get("XDG_CACHE_HOME", Path.home() / ".cache")) / "saccade/models")) / "r2"
 REV='ed25f3a31f01632728cabb09d1542f84ab7b0056'
 def sha(b): return hashlib.sha256(b).hexdigest()
 def save(p,v): p.write_text(json.dumps(v,indent=2,ensure_ascii=False)+'\n')

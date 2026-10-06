@@ -11,7 +11,7 @@ Rust smokes and exact deferral evidence, and equals the bundled disposition asse
   explicit; Microsoft's default SAM2.0 CLI is not used. README at the SAM2 tag
   explicitly covers checkpoints with Apache-2.0; exporter headers are MIT.
   `sam2-source-pins.json` records all fetched file identities. Tool installation
-  uses `/mnt/linux-extra/saccade-models/venv`, offline wheels from `wheelhouse`,
+  uses `$SACCADE_MODEL_CACHE/venv`, offline wheels from `wheelhouse`,
   and `--no-index`. No GPU, automatic package-index fallback or CUDA extension.
   Actual export is **deferred**: no offline torch 2.5.1 wheel was available.
   Export calls, output signatures/parity and a Rust SAM2 adapter remain unrun;
@@ -44,7 +44,7 @@ are behavioral evidence, not source/export parity or cross-platform qualificatio
 ## PP-OCRv5 local OCR
 
 `fetch-paddle-ocr.py` verifies and provisions only immutable official ONNX and
-licence/configuration pins into `/mnt/linux-extra/saccade-models/` by default.
+licence/configuration pins into the user-selected `SACCADE_MODEL_CACHE` (default: `$XDG_CACHE_HOME/saccade/models` or `~/.cache/saccade/models`) by default.
 The ordered Latin dictionary is taken from recognition `inference.yml`; the
 older upstream `latin_dict.txt` differs and must not be substituted.
 `paddle-ocr-provenance.json` records revisions, bytes and SHA-256 for the graphs,

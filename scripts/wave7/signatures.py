@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 """Read ONNX protobuf declarations without loading/executing untrusted graph code."""
+import os
 import json, mmap, pathlib, hashlib
 DTYPES={1:'float32',2:'uint8',6:'int32',7:'int64',9:'bool',10:'float16',11:'float64'}
 def varint(b,i):
@@ -39,7 +40,7 @@ def signature(path):
         result['inputs']=[x for x in result['inputs'] if x['name'] not in initializers]
         return result
 if __name__=='__main__':
-    cache=pathlib.Path('/mnt/linux-extra/saccade-models'); out={}
+    cache=pathlib.Path(os.environ.get("SACCADE_MODEL_CACHE", pathlib.Path(os.environ.get("XDG_CACHE_HOME", pathlib.Path.home() / ".cache")) / "saccade/models")); out={}
     for e in json.loads((pathlib.Path(__file__).resolve().parent/'receipt.json').read_text()):
         if e['role'] in ['graph','encoder','decoder']:
             path=cache/e['sha256']

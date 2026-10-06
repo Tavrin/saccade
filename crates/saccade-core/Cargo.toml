@@ -113,10 +113,6 @@ name = "pilot_offline"
 required-features = ["evaluation", "graphics"]
 
 [[example]]
-name = "corpus_transport"
-required-features = ["evaluation"]
-
-[[example]]
 name = "corpus_batch"
 required-features = ["evaluation"]
 

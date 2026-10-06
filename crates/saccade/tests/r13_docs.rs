@@ -275,7 +275,8 @@ fn maintained_instructions_do_not_invoke_removed_commands() {
             "removed JSON switch in {source}"
         );
         assert!(
-            !content.contains("/home/") && !content.contains("/mnt/"),
+            !content.contains(&["/", "home/"].concat())
+                && !content.contains(&["/", "mnt/"].concat()),
             "local path in {source}"
         );
     }

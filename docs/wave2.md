@@ -26,7 +26,7 @@ Use the same environment identity only for the same capture protocol. Omit `--un
   "candidates": [{
     "id": "jpeg-q85",
     "stages": [{
-      "id": "drupal", "encoder": "GD VERSION; fixed settings", "quality": 85,
+      "id": "resize", "encoder": "GD VERSION; fixed settings", "quality": 85,
       "subsampling": "4:4:4", "pixel_policy": "normalized_srgb_opaque",
       "dimensions": [640, 480],
       "output": {"path": "q85.jpg", "sha256": "LOWERCASE_FILE_HASH"}

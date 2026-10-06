@@ -3,7 +3,7 @@
 The `saccade` package supports Python 3.10+ through PyO3 abi3 wheels. Install a locally
 built wheel: `python -m pip install path/to/saccade-*.whl`. Release wheel construction
 and aarch64 qualification belong to `scripts/gates-wave8.sh`. CI uploads wheels as
-artifacts only. The development lane uses the targeted `python_package` Cargo test
+artifacts only. Contributors can use the targeted `python_package` Cargo test
 with feature `python-tests` to import the compiled abi3 extension and run light pytest;
 that check does not qualify a release wheel archive.
 
@@ -17,14 +17,6 @@ including the existing `python-wheels.yml` manifest-path invocation, while
 `abi3-py310` remains enabled for both build paths. A `build.rs` extension-linker
 workaround is unnecessary: this crate needs separate Cargo test and extension
 build modes, and maturin already supplies the extension linker arguments.
-
-Local verification for this fix: `cargo check -p saccade-py --locked -j 4`
-passed on Linux using `CARGO_TARGET_DIR=/mnt/linux-extra/moss-cargo-targets/codex-saccade-pyfix`
-after the free-space check reported 38 GB. The workspace feature graph excludes
-`extension-module`; selecting the maturin feature enables it. PyO3 emitted
-`rustc-link-lib=python3.12` for the ordinary build. Maturin was unavailable, so no
-wheel was built locally. This single check does not establish workspace test or
-macOS linker acceptance; those remain CI checks. The temporary target was removed.
 
 ```python
 import saccade

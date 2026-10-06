@@ -29,23 +29,3 @@ mapping (0 good, 1 bad, 125 skip, 128 abort) remain unchanged. Git directly
 invokes the saccade executable; there is no generated script, executable bit
 or shebang to repair. Document cmd environment syntax and a PowerShell 7.3+
 example, where native argument passing preserves embedded quotes.
-
-## Local verification
-
-All Cargo commands set `CARGO_BUILD_RUSTC_WRAPPER` and `RUSTC_WRAPPER` empty and use
-`CARGO_TARGET_DIR=/mnt/linux-extra/moss-cargo-targets/codex-saccade-bisect`.
-
-| Gate | Result |
-| --- | --- |
-| `cargo test -p saccade --test git_bisect` | Passed on Linux, 1 test |
-| `cargo clippy --workspace --all-targets -- -D warnings` | Passed |
-| `cargo clippy --workspace --all-targets --target x86_64-pc-windows-gnu -- -D warnings` | Blocked in `ring`: missing `x86_64-w64-mingw32-gcc` |
-| `cargo fmt --check` | Passed |
-| `cargo check --workspace --all-targets --target x86_64-pc-windows-gnu --no-default-features` | Passed with the existing unused-variable warnings below |
-
-A supplementary Windows Clippy run with `--no-default-features` reached
-saccade but failed on existing unused `out`, `absolute` and `user_config`
-parameters in `local_cmd::preview`. These unrelated warnings are outside this
-fix. Native Windows runtime acceptance remains pending CI; cross compilation
-does not establish runtime behavior. The named target directory is removed
-after verification.

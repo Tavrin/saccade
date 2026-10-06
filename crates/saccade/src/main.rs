@@ -1065,7 +1065,7 @@ fn emit_run(
             agent::DEFAULT_TOP_FAILING,
             false,
         );
-        // SPEC-r5 explicitly freezes the identity discriminator parsed by Moss.
+        // Preserve the identity discriminator used by existing consumer integrations.
         // The payload is the bounded shared envelope; no old-format mode exists.
         if report.config.mode == Mode::Identity {
             value["schema"] = serde_json::json!("saccade-result.v1");

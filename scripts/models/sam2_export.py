@@ -5,8 +5,9 @@ The upstream Microsoft CLI defaults to SAM2.0 configs. We explicitly build SAM2.
 with its matching Tiny config and call the tagged encoder/decoder wrappers directly.
 No community archive is silently substituted and no unexported model is registered.
 """
+import os
 import argparse, hashlib, json, pathlib, shutil, sys, urllib.request
-CACHE = pathlib.Path('/mnt/linux-extra/saccade-models')
+CACHE = pathlib.Path(os.environ.get("SACCADE_MODEL_CACHE", pathlib.Path(os.environ.get("XDG_CACHE_HOME", pathlib.Path.home() / ".cache")) / "saccade/models"))
 SOURCE = CACHE / 'sam2-source'
 SAM_TAG = 'sam2.1'
 ORT_TAG = 'v1.22.0'

@@ -35,7 +35,7 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--download-only', action='store_true')
     args = parser.parse_args()
-    root = Path('/mnt/linux-extra/saccade-models')
+    root = Path(os.environ.get("SACCADE_MODEL_CACHE", Path(os.environ.get("XDG_CACHE_HOME", Path.home() / ".cache")) / "saccade/models"))
     out = root / 'siglip2-base'; src = out / REV; src.mkdir(parents=True, exist_ok=True)
     for name, expected in PINS.items():
         path = src / name

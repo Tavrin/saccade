@@ -73,7 +73,7 @@ from `~/.config/saccade/{gemini,jev}.env`, with `SACCADE_GEMINI_API_KEY` and
 `JEV_API_KEY`. Ambient keys and alternative credential directories are ignored.
 Requested models are fixed to `gemini-3.8-flash` and `jev-1.13.0`.
 `--gemini-revision` is required; `--jev-revision` defaults to the pinned Jev ID.
-The coordinator must establish actual revision selectors with provider receipts.
+The integrator must establish actual revision selectors with provider receipts.
 Drift is refused rather than substituted. Provider errors are retained as bounded
 local classifications, never echoed as instructions or raw secret-bearing text.
 

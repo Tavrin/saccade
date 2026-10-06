@@ -297,8 +297,7 @@ are supplied by hash in the cache; their `example.invalid/local-exports` URLs ex
 have no remote distribution endpoint. Official checkpoint URLs, licences and revisions
 are in the export receipt. These local exports must be reproduced rather than downloaded.
 
-The generated qualification registry (its host location is recorded in
-`INTEGRATION-REPORT.md`) combines
+A user-supplied generated qualification registry combines
 vision, embedding and OCR pins under the same registry schema. Legacy test inputs are
 checked projections of it. Host-specific OCR paths stay in this supplied registry, not
 in the distributed default catalogue. Runtime flags select that single supplied registry.

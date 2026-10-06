@@ -43,10 +43,8 @@ def fetch(entry, cache):
         temporary.unlink(missing_ok=True)
 
 def main():
-    a=argparse.ArgumentParser(); a.add_argument('--cache',default='/mnt/linux-extra/saccade-models'); a.add_argument('--model', action='append'); args=a.parse_args()
+    a=argparse.ArgumentParser(); a.add_argument('--cache',default=os.environ.get("WAVE7_MODEL_CACHE", str(pathlib.Path(os.environ.get("SACCADE_MODEL_CACHE", pathlib.Path(os.environ.get("XDG_CACHE_HOME", pathlib.Path.home() / ".cache")) / "saccade/models"))))); a.add_argument('--model', action='append'); args=a.parse_args()
     cache=pathlib.Path(args.cache)
-    if cache.resolve()!=pathlib.Path('/mnt/linux-extra/saccade-models'):
-        raise RuntimeError('lane downloads are authorized only into /mnt/linux-extra/saccade-models')
     cache.mkdir(parents=True,exist_ok=True)
     lock=(cache/'pull.lock').open('a+b'); fcntl.flock(lock,fcntl.LOCK_EX)
     if sum(p.stat().st_size for p in cache.rglob('*') if p.is_file()) > LIMIT:

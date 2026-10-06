@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Execute an already compiled Rust test binary: one image/model, CPU, <=55 seconds."""
 import hashlib, json, os, pathlib, subprocess, sys, time
-CACHE=pathlib.Path(os.environ.get('WAVE7_MODEL_CACHE','/mnt/linux-extra/saccade-models'))
+CACHE=pathlib.Path(os.environ.get("WAVE7_MODEL_CACHE", pathlib.Path(os.environ.get("SACCADE_MODEL_CACHE", pathlib.Path(os.environ.get("XDG_CACHE_HOME", pathlib.Path.home() / ".cache")) / "saccade/models"))))
 MODELS=['grounding-dino-tiny','owlv2-base','efficientsam-ti','yunet-2026may','ultraface-rfb','trustmark']
 def main():
     binary=pathlib.Path(os.environ['WAVE7_SMOKE_BIN'])

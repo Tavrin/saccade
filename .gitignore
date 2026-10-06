@@ -7,3 +7,7 @@ __pycache__/
 /examples/evaluation/.local
 /integrations/playwright/node_modules/
 /integrations/playwright/test-results/
+
+/*-NOTES.md
+/*-PROGRESS.md
+/INTEGRATION-REPORT*.md

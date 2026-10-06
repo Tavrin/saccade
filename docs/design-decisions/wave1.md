@@ -1,14 +1,6 @@
 # Wave 1 decisions
 
-Current requirements (integration round 3, 2026-10-05): Rust 1.89 and
-Butteraugli 0.9.3. Rust 1.88 / Butteraugli 0.4.0 statements below retain the
-original lane decisions and test history; see [integration report](../../INTEGRATION-REPORT.md).
-
 ## Item 0: shared evidence contracts
-
-Read FEATURE-RESEARCH-2026-10-05 sections 2, 5, 6 and build order, and
-ASTRA-VISION-2026-10-05 candidate 22 before implementation. This lane follows
-the lane's explicit order: contracts, exclusion audit, onset, geometry, motion.
 
 Add `evidence::analysis` alongside existing evidence contracts. Availability has
 explicit available, unknown, unsupported, excluded and rejected states. Historical
@@ -17,7 +9,7 @@ revision, package version, code licence, resource identities and execution setti
 Missing resource hashes and licences remain null. No model or runtime download is
 introduced. Existing schema identifiers and exit authorities remain unchanged;
 new report fields will be optional. Unknown fields remain reader errors, preserving
-the existing version-skew handling required by DESIGN-1.0 section 17.
+the existing version-skew handling.
 
 No new dependencies. These records provide provenance, not reproducibility proof
 across arbitrary hardware, nor capture validity or approval authority.
@@ -105,10 +97,9 @@ is GPL-3.0 and is excluded. The bounded search found Rust Lucas-Kanade and
 Farneback implementations, not a suitable pure-Rust DIS implementation.
 [OpenCV's DIS](https://github.com/opencv/opencv/blob/4.x/modules/video/src/dis_flow.cpp)
 and its [Rust binding](https://github.com/twistedfall/opencv-rust/blob/master/INSTALL.md)
-require a native OpenCV build. `pkg-config --modversion opencv4` exits 1 here
-(package not found), and the repository release workflows contain no OpenCV
-installation/packaging path. A clean supported-platform build was not established.
-Therefore ship phase correlation and record DIS as a residual under the lane's
+require a native OpenCV build. The release workflows do not establish an OpenCV
+installation/packaging path for supported platforms.
+Therefore ship phase correlation and record DIS as a residual under the declared
 explicit fallback; do not import GPL code or silently add an unqualified native
 build dependency. RustFFT 6.4.1 (MIT OR Apache-2.0) was already present. No new
 motion dependencies or model weights.

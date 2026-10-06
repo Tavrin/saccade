@@ -1,10 +1,5 @@
 # UX polish before open-source release
 
-Binding brief: SPEC-ux-polish.md and DESIGN-1.0.md §10 (first result and report
-experience). No machine contract changed: JSON schemas, `--json` output, exit
-codes, MCP tools, `identity --json`, the `doctor` capability names and the
-stderr provenance/repeat warnings are untouched.
-
 ## CLI
 
 1. Help follows one layout: purpose line, usage, then a short explanation and
@@ -74,19 +69,3 @@ stderr provenance/repeat warnings are untouched.
 15. Workbench: run rows in the narrow rail let actions wrap below the name
     instead of squeezing the path to one character per line; card rows keep
     their natural height; "1 images" became "1 image".
-
-## Evidence
-
-Before/after screenshots (390 and 1440 px, light and dark) of the regression
-report, the opened viewer, the identity report, a perf report, a no-failure
-report and the workbench are produced by `target/ux/capture.sh before|after`
-into `target/ux/before/` and `target/ux/after/` (not committed). The script
-records horizontal overflow per shot; every shot reports 0 px.
-
-## Not done
-
-- `docs/showcase/index.html` and `docs/images/report.png` are generated
-  snapshots of older output; regenerate them with `docs/showcase/build.py`
-  when the gallery is next published.
-- The five-minute first-run claim is not measured with users here; §10 keeps
-  that as a post-release study.

@@ -49,7 +49,7 @@ No canonical ONNX export URL/SHA, export parity receipt or calibrated corpus was
 provided. Wave 6b adds the export/parity/holdout jobs below. A preselected canonical
 model and actual calibration qualification remain deferred. CLIP/text-to-image retrieval
 is deferred until a reviewed model licence and pinned export are available.
-Model-dependent tests are ignored under `heavy: embeddings`; the coordinator
+Model-dependent tests are ignored under `heavy: embeddings`; the integrator
 supplies `SACCADE_W6_EMBEDDING_MODEL`, `SACCADE_W6_MODEL_CACHE`, and
 `SACCADE_W6_ORT_LIBRARY` before running them. No model tests ran in this lane.
 

@@ -1,11 +1,11 @@
 # OCR contract results — 2026-10-06
 
-Coordinator-reviewed generated contracts; CPU Rust PP-OCRv5 mobile/Latin, ONNX Runtime 1.22.
+Reviewed generated contracts; CPU Rust PP-OCRv5 mobile/Latin, ONNX Runtime 1.22.
 All 72 fixture records, expected texts, thresholds, PNG/font/licence hashes and
 truth-derived control texts are unchanged from dbfea24. CER ≤ 0.02, WER ≤ 0.10
 and exact required strings still apply.
 
-The coordinator's post-run disposition is a **post-hoc contract-design correction**.
+The recorded post-run disposition is a **post-hoc contract-design correction**.
 Strict scoring is unchanged. The additional declared **typographic-equivalence**
 view folds ’/‘ → ASCII apostrophe, U+202F/U+00A0/U+2009 → normal space, and
 en/em dash → hyphen, on observations, expected text and required strings.
@@ -44,20 +44,12 @@ controls: 18/18 rejected in both views. Controls derive from truth.
 - Curly-apostrophe substitutions and declared space/dash substitutions remain
   strict failures, while their folded scores show equivalence.
 
-## Validation and evidence
+## Reproduction and limits
 
-Only the requested `SACCADE_OCR_PYTHON=/mnt/linux-extra/saccade-models/venv/bin/python scripts/gates-ocr.sh`
-was run. Fmt, minimal check, strict OCR/provider/MCP clippy, targeted core tests,
-CLI fixtures, generation, frozen-contract byte match, local inference,
-docs/schema and genericity PASS. No GPU or live provider calls.
-The run used the designated target with `-j 4`, monitored the 25 GB disk floor,
-and initially paused before admission. The target was removed after completion.
-Generated-case results establish neither general OCR accuracy nor OpenCV/export parity.
-
-Evidence outside the repository:
-- `/mnt/linux-extra/moss-scratch/saccade-ocr/gate-typographic-2026-10-06.log`
-- `/mnt/linux-extra/moss-scratch/saccade-ocr/gate-typographic-2026-10-06.json`
-- `/mnt/linux-extra/moss-scratch/saccade-ocr/accent-results.json`
+Run `scripts/gates-ocr.sh` with `SACCADE_OCR_PYTHON` selecting Python with Pillow,
+`SACCADE_OCR_CACHE` selecting installed pinned models, and `SACCADE_OCR_SCRATCH`
+selecting an output directory. Generated-case results establish neither general
+OCR accuracy nor OpenCV/export parity. The strict failures above remain failures.
 
 Contract SHA-256: `dc1d61420c30bca4636d7a277f889ffa4765491b73b9f948c59b8906d1f2c49f`.
 Result JSON SHA-256: `f1d5b8721bb8e9015cc0b0f23568e18c79c1f2b158defac541c71ea114e829c6`.
