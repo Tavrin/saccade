@@ -91,9 +91,11 @@ pub(crate) fn run(args: Args) -> Result<u8, CliError> {
     let file = std::fs::OpenOptions::new()
         .write(true)
         .create_new(true)
-        .open(args.out)
+        .open(&args.out)
         .map_err(|e| CliError::io(e.to_string()))?;
-    serde_json::to_writer_pretty(file, &explanation)?;
+    let linked = saccade_core::report_links::decorate(&serde_json::to_value(&explanation)?)?;
+    serde_json::to_writer_pretty(file, &linked)?;
+    saccade_core::report_links::index(&args.out, &linked)?;
     if args.json {
         crate::emit(&format!("{}\n", serde_json::to_string(&explanation)?))?;
     } else {

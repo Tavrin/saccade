@@ -268,8 +268,7 @@ pub(crate) fn run(args: TemporalArgs, absolute: bool) -> Result<u8, CliError> {
         "limits":["Flicker and ghosting kinds are deterministic heuristics, not classifier outputs from ColorVideoVDP.",
         "Hotspot boxes use four-connected raw-map pixels; diagonal-only pixels are separate components."]});
     crate::arms_cmd::annotate(&mut full, &cfg.meta);
-    std::fs::write(&artifact, serde_json::to_vec_pretty(&full)?)
-        .map_err(|e| CliError::io(format!("{}: {e}", artifact.display())))?;
+    saccade_core::report_links::write(&artifact, &full)?;
     let fail_jod = args.min_jod.is_some_and(|min| video.jod < min);
     let mut summary = json!({"schema":"saccade-temporal.v1","operation":"temporal",
         "video_jod":video.jod,"min_jod":args.min_jod,"display_model":args.display,

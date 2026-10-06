@@ -214,7 +214,7 @@ impl LocateReport {
     pub fn validate(&self, image: &VisionImage, phrase: &str, segment: bool) -> Result<()> {
         if phrase.trim().is_empty()
             || phrase.len() > 4096
-            || self.schema != LOCATE_SCHEMA
+            || crate::report_links::original_schema(&self.schema) != LOCATE_SCHEMA
             || self.image_sha256 != image.sha256
             || self.image_size != image.size()
             || self.phrase_sha256 != digest(phrase.as_bytes())
@@ -245,7 +245,8 @@ impl LocateReport {
     }
     /// Import an explicit bounded observation replay; never pretend it ran inference.
     pub fn replay(path: &Path, image: &VisionImage, phrase: &str, segment: bool) -> Result<Self> {
-        let mut r: Self = serde_json::from_slice(&read_bounded(path, 8 * 1024 * 1024)?)?;
+        let mut r: Self = crate::report_links::decode(&read_bounded(path, 8 * 1024 * 1024)?)
+            .map_err(|e| VisionError::Invalid(e.to_string()))?;
         r.validate(image, phrase, segment)?;
         r.detector.runtime = "replay".into();
         r.detector.source_parity = false;

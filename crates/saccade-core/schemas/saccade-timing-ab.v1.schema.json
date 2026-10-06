@@ -1,0 +1,271 @@
+{
+  "$defs": {
+    "Pair": {
+      "additionalProperties": false,
+      "description": "One independently acquired pair. Frames within a run are averaged before inference.",
+      "properties": {
+        "a": {
+          "description": "A run (1..3 frame samples, milliseconds).",
+          "items": {
+            "format": "double",
+            "type": "number"
+          },
+          "type": "array"
+        },
+        "aa": {
+          "default": false,
+          "description": "Same-session unchanged-arm control pair.",
+          "type": "boolean"
+        },
+        "b": {
+          "description": "B run (1..3 frame samples, milliseconds).",
+          "items": {
+            "format": "double",
+            "type": "number"
+          },
+          "type": "array"
+        },
+        "block": {
+          "description": "Contiguous resampling block identity; correlated pairs share a block.",
+          "type": "string"
+        },
+        "id": {
+          "description": "Unique pair identity.",
+          "type": "string"
+        },
+        "order": {
+          "description": "Actual acquisition order: ab or ba.",
+          "type": "string"
+        }
+      },
+      "required": [
+        "id",
+        "block",
+        "order",
+        "a",
+        "b"
+      ],
+      "type": "object"
+    },
+    "Session": {
+      "additionalProperties": false,
+      "description": "Frozen analysis policy and externally acquired evidence.",
+      "properties": {
+        "band_pct": {
+          "description": "Practical equivalence band, percent.",
+          "format": "double",
+          "type": "number"
+        },
+        "captures": {
+          "default": [],
+          "description": "Optional capture pairs for existing clock/readiness qualification.",
+          "items": {
+            "items": {
+              "type": "string"
+            },
+            "maxItems": 2,
+            "minItems": 2,
+            "type": "array"
+          },
+          "type": "array"
+        },
+        "confidence": {
+          "description": "Confidence chosen before acquisition.",
+          "format": "double",
+          "type": "number"
+        },
+        "diagnostic_reasons": {
+          "default": [],
+          "description": "Acquisition validation issues from external adapters.",
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "gpu_clocks_not_applicable": {
+          "default": false,
+          "description": "Explicit CPU timing declaration.",
+          "type": "boolean"
+        },
+        "looks": {
+          "default": [],
+          "description": "Predeclared look counts; empty means a single fixed maximum.",
+          "items": {
+            "format": "uint",
+            "minimum": 0,
+            "type": "integer"
+          },
+          "type": "array"
+        },
+        "max_pairs": {
+          "description": "Declared maximum A/B pairs before acquisition.",
+          "format": "uint",
+          "minimum": 0,
+          "type": "integer"
+        },
+        "pairs": {
+          "description": "All acquired A/B and A/A pairs, in acquisition order.",
+          "items": {
+            "$ref": "#/$defs/Pair"
+          },
+          "type": "array"
+        },
+        "resamples": {
+          "description": "Whole-block bootstrap draws.",
+          "format": "uint",
+          "minimum": 0,
+          "type": "integer"
+        },
+        "schema": {
+          "description": "Version discriminator.",
+          "type": "string"
+        },
+        "seed": {
+          "description": "Bootstrap seed chosen before acquisition.",
+          "format": "uint64",
+          "minimum": 0,
+          "type": "integer"
+        },
+        "session": {
+          "description": "External session identity, required to bind A/A to A/B.",
+          "type": "string"
+        }
+      },
+      "required": [
+        "schema",
+        "session",
+        "band_pct",
+        "max_pairs",
+        "confidence",
+        "seed",
+        "resamples",
+        "pairs"
+      ],
+      "type": "object"
+    }
+  },
+  "$id": "https://github.com/Tavrin/saccade/crates/saccade-core/schemas/saccade-timing-ab.v1.schema.json",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "description": "Full effect, policy, reasons and source identities.",
+  "properties": {
+    "band_pct": {
+      "description": "Exact practical equivalence band.",
+      "format": "double",
+      "type": "number"
+    },
+    "blocks": {
+      "description": "Independent blocks used for A/B inference.",
+      "format": "uint",
+      "minimum": 0,
+      "type": "integer"
+    },
+    "diagnostic_only": {
+      "description": "True when provenance/qualification is insufficient for acceptance.",
+      "type": "boolean"
+    },
+    "effect_pct": {
+      "description": "Paired log-ratio Hodges–Lehmann percent shift.",
+      "format": "double",
+      "type": [
+        "number",
+        "null"
+      ]
+    },
+    "interval_pct": {
+      "description": "Whole-block bootstrap interval.",
+      "items": {
+        "format": "double",
+        "type": "number"
+      },
+      "maxItems": 2,
+      "minItems": 2,
+      "type": [
+        "array",
+        "null"
+      ]
+    },
+    "look_confidence": {
+      "description": "Actual per-look confidence after Bonferroni spending.",
+      "format": "double",
+      "type": "number"
+    },
+    "noise_floor_pct": {
+      "description": "Conservative A/A bound (max absolute CI endpoint).",
+      "format": "double",
+      "type": [
+        "number",
+        "null"
+      ]
+    },
+    "pairs": {
+      "description": "A/B pairs at the recorded look.",
+      "format": "uint",
+      "minimum": 0,
+      "type": "integer"
+    },
+    "qualification": {
+      "description": "Existing qualification payloads, including typed readiness reasons.",
+      "items": true,
+      "type": "array"
+    },
+    "reasons": {
+      "description": "Typed acquisition/qualification reasons.",
+      "items": {
+        "type": "string"
+      },
+      "type": "array"
+    },
+    "report_id": {
+      "pattern": "^sha256:[0-9a-f]{64}$",
+      "type": "string"
+    },
+    "schema": {
+      "const": "saccade-timing-ab.v1",
+      "description": "Version discriminator.",
+      "type": "string"
+    },
+    "session": {
+      "$ref": "#/$defs/Session",
+      "description": "Immutable imported plan/evidence."
+    },
+    "source_refs": {
+      "items": {
+        "maxLength": 2048,
+        "type": "string"
+      },
+      "maxItems": 128,
+      "type": "array"
+    },
+    "sources": {
+      "additionalProperties": {
+        "type": "string"
+      },
+      "description": "Exact external input SHA-256 values.",
+      "type": "object"
+    },
+    "stopping_rule": {
+      "description": "Declared rule and multiplicity adjustment, retained for audit.",
+      "type": "string"
+    },
+    "verdict": {
+      "description": "faster, slower, equivalent or inconclusive.",
+      "type": "string"
+    }
+  },
+  "required": [
+    "schema",
+    "verdict",
+    "band_pct",
+    "blocks",
+    "pairs",
+    "diagnostic_only",
+    "reasons",
+    "qualification",
+    "stopping_rule",
+    "look_confidence",
+    "session",
+    "sources"
+  ],
+  "title": "Report",
+  "type": "object"
+}

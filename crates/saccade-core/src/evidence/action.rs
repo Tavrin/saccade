@@ -348,7 +348,13 @@ pub struct MeasurementIntegration {
 #[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 #[serde(deny_unknown_fields)]
 pub struct ResultEnvelope {
-    /// Always saccade-result.v2.
+    /// Content address shared with the persisted report.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub report_id: Option<String>,
+    /// External capture-index references.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub source_refs: Vec<String>,
+    /// Historical saccade-result.v2 or the linked saccade-result.v4 successor.
     #[cfg_attr(feature = "schema", schemars(extend("const" = "saccade-result.v2")))]
     pub schema: String,
     /// Named operation.
@@ -390,7 +396,8 @@ impl ResultEnvelope {
     /// Validates default bounds, preserving complete JSON and unresolved evidence.
     pub fn validate(&self) -> Result<()> {
         require(
-            self.schema == "saccade-result.v2" && !self.operation.is_empty(),
+            crate::report_links::original_schema(&self.schema) == "saccade-result.v2"
+                && !self.operation.is_empty(),
             "unsupported result envelope",
         )?;
         require(

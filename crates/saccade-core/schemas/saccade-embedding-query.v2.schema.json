@@ -1,0 +1,65 @@
+{
+  "$id": "https://github.com/Tavrin/saccade/crates/saccade-core/schemas/saccade-embedding-query.v2.schema.json",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "properties": {
+    "counts": {
+      "type": "object"
+    },
+    "index_metadata_sha256": {
+      "type": "string"
+    },
+    "limitations": {
+      "type": "array"
+    },
+    "model_contract_sha256": {
+      "type": "string"
+    },
+    "operation": {
+      "const": "index_query"
+    },
+    "query_sha256": {
+      "type": "string"
+    },
+    "report_id": {
+      "pattern": "^sha256:[0-9a-f]{64}$",
+      "type": "string"
+    },
+    "results": {
+      "type": "array"
+    },
+    "schema": {
+      "const": "saccade-embedding-query.v2"
+    },
+    "source_refs": {
+      "items": {
+        "maxLength": 2048,
+        "minLength": 1,
+        "type": "string"
+      },
+      "maxItems": 128,
+      "type": "array"
+    },
+    "verdict": {
+      "enum": [
+        "pass",
+        "regression",
+        "unknown"
+      ]
+    }
+  },
+  "required": [
+    "schema",
+    "operation",
+    "verdict",
+    "counts",
+    "query_sha256",
+    "index_metadata_sha256",
+    "model_contract_sha256",
+    "results",
+    "limitations",
+    "report_id",
+    "source_refs"
+  ],
+  "type": "object"
+}

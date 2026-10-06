@@ -524,8 +524,10 @@ pub(crate) fn quality(a: QualityArgs) -> Result<u8, CliError> {
         .transpose()
         .map_err(error)?;
     let r = if let Some(p) = &a.observations {
-        let mut r: QualityReport =
-            serde_json::from_slice(&models::read_bounded(p, 1024 * 1024).map_err(error)?)?;
+        let mut r: QualityReport = crate::parse_contract(
+            &models::read_bounded(p, 1024 * 1024).map_err(error)?,
+            saccade_core::wave7::quality::QUALITY_SCHEMA,
+        )?;
         r.validate(metric, &image, reference.as_ref())
             .map_err(error)?;
         for m in &mut r.named_metrics {
@@ -611,8 +613,10 @@ pub(crate) fn watermark(a: WatermarkArgs) -> Result<u8, CliError> {
     }
     let image = VisionImage::load(&a.image).map_err(error)?;
     let r = if let Some(p) = a.observations {
-        let mut r: WatermarkReport =
-            serde_json::from_slice(&models::read_bounded(&p, 1024 * 1024).map_err(error)?)?;
+        let mut r: WatermarkReport = crate::parse_contract(
+            &models::read_bounded(&p, 1024 * 1024).map_err(error)?,
+            saccade_core::wave7::watermark::WATERMARK_SCHEMA,
+        )?;
         r.validate(&image).map_err(error)?;
         for f in &mut r.findings {
             if let Some(p) = &mut f.provenance {
@@ -685,8 +689,10 @@ fn face_report(
 ) -> Result<saccade_core::wave7::faces::FaceReport, CliError> {
     use saccade_core::wave7::faces::{self, FaceReport};
     if let Some(p) = &a.observations {
-        let mut r: FaceReport =
-            serde_json::from_slice(&models::read_bounded(p, 1024 * 1024).map_err(error)?)?;
+        let mut r: FaceReport = crate::parse_contract(
+            &models::read_bounded(p, 1024 * 1024).map_err(error)?,
+            faces::FACES_SCHEMA,
+        )?;
         r.validate(image).map_err(error)?;
         r.provenance.runtime = "replay".into();
         r.provenance.source_parity = false;
@@ -1025,6 +1031,47 @@ mod tests {
             ]),
             0
         );
+        // Replay every migrated observation through the same CLI surfaces.
+        let wp = d.path().join("watermark.json");
+        for (command, path, report) in [
+            ("faces", &fp, serde_json::to_value(&face).unwrap()),
+            ("quality-score", &qp, serde_json::to_value(&q).unwrap()),
+            (
+                "watermark",
+                &wp,
+                serde_json::to_value(
+                    saccade_core::wave7::watermark::inspect(&i, None, None).unwrap(),
+                )
+                .unwrap(),
+            ),
+        ] {
+            let linked = saccade_core::report_links::decorate(&report).unwrap();
+            json(path, &linked);
+            assert_eq!(
+                run(vec![
+                    "saccade".into(),
+                    command.into(),
+                    p.display().to_string(),
+                    "--observations".into(),
+                    path.display().to_string(),
+                    "--json".into(),
+                ]),
+                0
+            );
+        }
+        let linked =
+            saccade_core::report_links::decorate(&serde_json::to_value(&loc).unwrap()).unwrap();
+        json(&lp, &linked);
+        let replay = LocateReport::replay(&lp, &i, "object", true).unwrap();
+        assert_eq!(replay.detector.runtime, "replay");
+        let mut newer = linked.clone();
+        newer["schema"] = serde_json::json!("saccade-locate.v3");
+        json(&lp, &newer);
+        assert!(LocateReport::replay(&lp, &i, "object", true).is_err());
+        let mut unknown = linked;
+        unknown["future_field"] = serde_json::json!(true);
+        json(&lp, &unknown);
+        assert!(LocateReport::replay(&lp, &i, "object", true).is_err());
     }
     #[test]
     fn output_never_overwrites_an_original() {

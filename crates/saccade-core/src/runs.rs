@@ -1263,10 +1263,8 @@ pub fn write_static(
         tm: opts.hdr.tonemapper,
     };
     let model = overview(reference, runs, opts, Some(cache), &assets)?;
-    let json = serde_json::to_string_pretty(&model)?;
     let marker = out.join(RUNS_MARKER_FILE);
-    std::fs::write(&marker, format!("{json}\n"))
-        .map_err(io_err(format!("writing {}", marker.display())))?;
+    crate::report_links::write(&marker, &model)?;
     let config = serde_json::json!({ "mode": "static", "model": model }).to_string();
     let index = out.join("index.html");
     std::fs::write(&index, render_page(&config))

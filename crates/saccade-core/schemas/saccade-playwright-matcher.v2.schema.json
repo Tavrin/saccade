@@ -1,0 +1,69 @@
+{
+  "$id": "https://github.com/Tavrin/saccade/crates/saccade-core/schemas/saccade-playwright-matcher.v2.schema.json",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "properties": {
+    "declared_exclusions": {
+      "items": {
+        "type": "object"
+      },
+      "type": "array"
+    },
+    "error": {
+      "type": "string"
+    },
+    "pass": {
+      "type": "boolean"
+    },
+    "proposed_masks": {
+      "items": {
+        "type": "object"
+      },
+      "type": "array"
+    },
+    "report_id": {
+      "pattern": "^sha256:[0-9a-f]{64}$",
+      "type": "string"
+    },
+    "result": {
+      "type": "object"
+    },
+    "schema": {
+      "const": "saccade-playwright-matcher.v2"
+    },
+    "source_refs": {
+      "items": {
+        "maxLength": 2048,
+        "minLength": 1,
+        "type": "string"
+      },
+      "maxItems": 128,
+      "type": "array"
+    },
+    "stable": {
+      "type": "boolean"
+    },
+    "status": {
+      "enum": [
+        "pass",
+        "fail",
+        "error",
+        "new"
+      ]
+    },
+    "updated": {
+      "type": "boolean"
+    }
+  },
+  "required": [
+    "schema",
+    "status",
+    "declared_exclusions",
+    "proposed_masks",
+    "pass",
+    "report_id",
+    "source_refs"
+  ],
+  "title": "saccade-playwright-matcher.v1",
+  "type": "object"
+}

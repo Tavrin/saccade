@@ -1,0 +1,648 @@
+{
+  "$defs": {
+    "CounterDiff": {
+      "properties": {
+        "after": {
+          "format": "double",
+          "type": [
+            "number",
+            "null"
+          ]
+        },
+        "before": {
+          "format": "double",
+          "type": [
+            "number",
+            "null"
+          ]
+        },
+        "beyond_noise": {
+          "type": [
+            "boolean",
+            "null"
+          ]
+        },
+        "delta": {
+          "format": "double",
+          "type": [
+            "number",
+            "null"
+          ]
+        },
+        "delta_pct": {
+          "format": "double",
+          "type": [
+            "number",
+            "null"
+          ]
+        },
+        "name": {
+          "type": "string"
+        },
+        "noise_floor": {
+          "description": "Raw repeat range in ms (threshold is k times this).",
+          "format": "double",
+          "type": [
+            "number",
+            "null"
+          ]
+        },
+        "status": {
+          "description": "paired, appeared, disappeared, or not_comparable.",
+          "type": "string"
+        }
+      },
+      "required": [
+        "name",
+        "status"
+      ],
+      "type": "object"
+    },
+    "Delta": {
+      "properties": {
+        "after": {
+          "format": "double",
+          "type": [
+            "number",
+            "null"
+          ]
+        },
+        "before": {
+          "format": "double",
+          "type": [
+            "number",
+            "null"
+          ]
+        },
+        "beyond_noise": {
+          "type": [
+            "boolean",
+            "null"
+          ]
+        },
+        "delta": {
+          "format": "double",
+          "type": [
+            "number",
+            "null"
+          ]
+        },
+        "delta_pct": {
+          "format": "double",
+          "type": [
+            "number",
+            "null"
+          ]
+        },
+        "noise_floor": {
+          "description": "Raw repeat range in ms (threshold is k times this).",
+          "format": "double",
+          "type": [
+            "number",
+            "null"
+          ]
+        },
+        "status": {
+          "description": "paired, appeared, disappeared, or not_comparable.",
+          "type": "string"
+        }
+      },
+      "required": [
+        "status"
+      ],
+      "type": "object"
+    },
+    "Kind": {
+      "enum": [
+        "pass",
+        "gap",
+        "scope"
+      ],
+      "type": "string"
+    },
+    "PerfDiff": {
+      "properties": {
+        "frame": {
+          "$ref": "#/$defs/Delta"
+        },
+        "noise_k": {
+          "format": "double",
+          "type": "number"
+        },
+        "schema": {
+          "type": "string"
+        },
+        "terms": {
+          "items": {
+            "$ref": "#/$defs/TermDiff"
+          },
+          "type": "array"
+        },
+        "unattributed_after": {
+          "format": "double",
+          "type": "number"
+        },
+        "unattributed_before": {
+          "format": "double",
+          "type": "number"
+        },
+        "unit": {
+          "type": "string"
+        },
+        "warnings": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        }
+      },
+      "required": [
+        "schema",
+        "unit",
+        "noise_k",
+        "frame",
+        "unattributed_before",
+        "unattributed_after",
+        "terms",
+        "warnings"
+      ],
+      "title": "PerfDiff",
+      "type": "object"
+    },
+    "PerfError": {
+      "properties": {
+        "message": {
+          "type": "string"
+        },
+        "path": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "path",
+        "message"
+      ],
+      "type": "object"
+    },
+    "TermDiff": {
+      "properties": {
+        "after": {
+          "format": "double",
+          "type": [
+            "number",
+            "null"
+          ]
+        },
+        "after_kind": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Kind"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "after_parent": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "before": {
+          "format": "double",
+          "type": [
+            "number",
+            "null"
+          ]
+        },
+        "before_kind": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Kind"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "before_parent": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "beyond_noise": {
+          "type": [
+            "boolean",
+            "null"
+          ]
+        },
+        "counters": {
+          "items": {
+            "$ref": "#/$defs/CounterDiff"
+          },
+          "type": "array"
+        },
+        "delta": {
+          "format": "double",
+          "type": [
+            "number",
+            "null"
+          ]
+        },
+        "delta_pct": {
+          "format": "double",
+          "type": [
+            "number",
+            "null"
+          ]
+        },
+        "id": {
+          "type": "string"
+        },
+        "kind": {
+          "$ref": "#/$defs/Kind"
+        },
+        "label": {
+          "type": "string"
+        },
+        "noise_floor": {
+          "description": "Raw repeat range in ms (threshold is k times this).",
+          "format": "double",
+          "type": [
+            "number",
+            "null"
+          ]
+        },
+        "parent": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "share_after": {
+          "format": "double",
+          "type": [
+            "number",
+            "null"
+          ]
+        },
+        "share_before": {
+          "format": "double",
+          "type": [
+            "number",
+            "null"
+          ]
+        },
+        "status": {
+          "description": "paired, appeared, disappeared, or not_comparable.",
+          "type": "string"
+        }
+      },
+      "required": [
+        "id",
+        "label",
+        "kind",
+        "status",
+        "counters"
+      ],
+      "type": "object"
+    }
+  },
+  "$id": "https://github.com/Tavrin/saccade/crates/saccade-core/schemas/saccade-result.v3.schema.json",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "description": "The lean result of `compare --json` / `identity --json` and of the MCP run tools. Floats carry 4 significant digits; paths are absolute. `--json=full` prints the whole saccade-report.v1 instead.",
+  "properties": {
+    "capture_validity": {
+      "additionalProperties": false,
+      "properties": {
+        "reasons": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "reasons_omitted": {
+          "minimum": 0,
+          "type": "integer"
+        },
+        "status": {
+          "enum": [
+            "valid",
+            "invalid",
+            "unknown"
+          ]
+        }
+      },
+      "required": [
+        "status",
+        "reasons"
+      ],
+      "type": "object"
+    },
+    "combined_verdict": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "explain_error": {
+      "description": "MCP only: why the explain pack could not be written.",
+      "type": "string"
+    },
+    "failing": {
+      "description": "Entries that fail the run, worst first.",
+      "items": {
+        "additionalProperties": false,
+        "properties": {
+          "buffer": {
+            "description": "Numerical buffer kind, encoding, units, deciding value, threshold and per-kind stats; FLIP did not run.",
+            "type": [
+              "object",
+              "null"
+            ]
+          },
+          "class": {
+            "description": "Kind of change found by the diagnostics engine (report entry diagnostics.class).",
+            "enum": [
+              "identical",
+              "noise",
+              "global_tone",
+              "local_structure",
+              "mixed",
+              "misaligned",
+              "broken_frame"
+            ]
+          },
+          "config_differs": {
+            "description": "Metadata-sidecar keys that differ.",
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "description": {
+            "description": "Deterministic plain-English description of the change; states only causes the measurements support.",
+            "type": "string"
+          },
+          "error": {
+            "type": "string"
+          },
+          "failing_regions": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "hotspots": {
+            "items": {
+              "additionalProperties": false,
+              "properties": {
+                "max_flip": {
+                  "type": "number"
+                },
+                "mean_flip": {
+                  "type": "number"
+                },
+                "position": {
+                  "type": "string"
+                },
+                "rect_px": {
+                  "items": {
+                    "minimum": 0,
+                    "type": "integer"
+                  },
+                  "maxItems": 4,
+                  "minItems": 4,
+                  "type": "array"
+                },
+                "share_of_total_error": {
+                  "type": "number"
+                }
+              },
+              "required": [
+                "rect_px",
+                "position",
+                "share_of_total_error",
+                "mean_flip",
+                "max_flip"
+              ],
+              "type": "object"
+            },
+            "maxItems": 3,
+            "type": "array"
+          },
+          "metric": {
+            "enum": [
+              "mean",
+              "p95",
+              "p99",
+              "max"
+            ]
+          },
+          "name": {
+            "type": "string"
+          },
+          "perf": {
+            "description": "Timing keys of both sidecars, for example `gpu_ms 4.85 -> 2.71 (-44%)`.",
+            "type": "string"
+          },
+          "status": {
+            "enum": [
+              "pass",
+              "fail",
+              "new",
+              "missing",
+              "error"
+            ]
+          },
+          "threshold": {
+            "type": "number"
+          },
+          "value": {
+            "type": [
+              "number",
+              "null"
+            ]
+          }
+        },
+        "required": [
+          "name",
+          "status",
+          "metric",
+          "value",
+          "threshold"
+        ],
+        "type": "object"
+      },
+      "type": "array"
+    },
+    "failing_omitted": {
+      "minimum": 0,
+      "type": "integer"
+    },
+    "mode": {
+      "enum": [
+        "regression",
+        "identity"
+      ]
+    },
+    "next_step": {
+      "type": "string"
+    },
+    "paths": {
+      "additionalProperties": false,
+      "properties": {
+        "explain_md": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "index_html": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "report_json": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "report_json",
+        "index_html",
+        "explain_md"
+      ],
+      "type": "object"
+    },
+    "perf_diff": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/PerfDiff"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "perf_errors": {
+      "items": {
+        "$ref": "#/$defs/PerfError"
+      },
+      "type": "array"
+    },
+    "report_id": {
+      "pattern": "^sha256:[0-9a-f]{64}$",
+      "type": "string"
+    },
+    "sample_equality": {
+      "type": [
+        "boolean",
+        "null"
+      ]
+    },
+    "schema": {
+      "const": "saccade-result.v3"
+    },
+    "scope": {
+      "additionalProperties": false,
+      "properties": {
+        "entries": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "ignore": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        }
+      },
+      "required": [
+        "entries",
+        "ignore"
+      ],
+      "type": "object"
+    },
+    "source_refs": {
+      "items": {
+        "maxLength": 2048,
+        "minLength": 1,
+        "type": "string"
+      },
+      "maxItems": 128,
+      "type": "array"
+    },
+    "totals": {
+      "additionalProperties": false,
+      "properties": {
+        "error": {
+          "minimum": 0,
+          "type": "integer"
+        },
+        "fail": {
+          "minimum": 0,
+          "type": "integer"
+        },
+        "missing": {
+          "minimum": 0,
+          "type": "integer"
+        },
+        "new": {
+          "minimum": 0,
+          "type": "integer"
+        },
+        "pass": {
+          "minimum": 0,
+          "type": "integer"
+        },
+        "total": {
+          "minimum": 0,
+          "type": "integer"
+        }
+      },
+      "required": [
+        "total",
+        "pass",
+        "fail",
+        "new",
+        "missing",
+        "error"
+      ],
+      "type": "object"
+    },
+    "verdict": {
+      "enum": [
+        "pass",
+        "regression"
+      ]
+    },
+    "warnings": {
+      "description": "Up to 5 report warnings (for example an all-black capture), as `name: text`.",
+      "items": {
+        "type": "string"
+      },
+      "maxItems": 5,
+      "type": "array"
+    }
+  },
+  "required": [
+    "schema",
+    "verdict",
+    "mode",
+    "totals",
+    "failing",
+    "failing_omitted",
+    "paths",
+    "next_step",
+    "report_id",
+    "source_refs"
+  ],
+  "title": "saccade-result.v1",
+  "type": "object"
+}

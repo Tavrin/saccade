@@ -1,0 +1,70 @@
+{
+  "$id": "https://github.com/Tavrin/saccade/crates/saccade-core/schemas/saccade-design-report.v2.schema.json",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "properties": {
+    "capture_failures": {
+      "items": {
+        "type": "object"
+      },
+      "type": "array"
+    },
+    "degradations": {
+      "items": {
+        "type": "string"
+      },
+      "type": "array"
+    },
+    "frames": {
+      "items": {
+        "type": "object"
+      },
+      "type": "array"
+    },
+    "layout_note": {
+      "type": "string"
+    },
+    "report": {
+      "type": "string"
+    },
+    "report_id": {
+      "pattern": "^sha256:[0-9a-f]{64}$",
+      "type": "string"
+    },
+    "schema": {
+      "const": "saccade-design-report.v2"
+    },
+    "source_refs": {
+      "items": {
+        "maxLength": 2048,
+        "minLength": 1,
+        "type": "string"
+      },
+      "maxItems": 128,
+      "type": "array"
+    },
+    "token_check": {
+      "type": "object"
+    },
+    "verdict": {
+      "enum": [
+        "pass",
+        "regression"
+      ]
+    }
+  },
+  "required": [
+    "schema",
+    "verdict",
+    "frames",
+    "capture_failures",
+    "token_check",
+    "degradations",
+    "report",
+    "layout_note",
+    "report_id",
+    "source_refs"
+  ],
+  "title": "saccade-design-report.v1",
+  "type": "object"
+}

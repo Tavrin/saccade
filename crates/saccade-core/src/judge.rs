@@ -586,6 +586,8 @@ pub struct EvidenceOptions {
 fn synthetic_report(entry: Entry, ppd: f32) -> Report {
     use crate::report::{Labels, MetaSettings, Mode, REPORT_SCHEMA, ReportConfig, Totals};
     Report {
+        report_id: None,
+        source_refs: Vec::new(),
         perf_diff: None,
         perf_errors: Vec::new(),
         combined_verdict: None,

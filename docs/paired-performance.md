@@ -36,8 +36,9 @@ indices for difference and log-ratio estimates. The recorded interval is a
 percentile interval with linearly interpolated empirical quantiles. Seed, draw
 count, confidence, plan/sample identities and raw observations are retained in
 the effect packet. Equal-valued bootstrap distributions are explicitly degenerate and
-cannot support a new frame performance verdict. There is no BCa, block bootstrap
-or sequential-confidence claim.
+cannot support a new frame performance verdict. This historical fixed-count
+sidecar method makes no BCa or sequential-confidence claim. The external-session
+timing method below additionally supports whole-block resampling and declared looks.
 
 When the sidecar exists, capture and repeat-noise qualification still apply.
 A faster/slower verdict requires the entire nondegenerate frame interval to lie
@@ -58,3 +59,39 @@ clock variation or run-order bias. No timing benchmarks were run in this lane.
 
 References: [NIST Hodges–Lehmann definition](https://itl.nist.gov/div898/software/dataplot/refman2/auxillar/hodglehm.htm)
 and [SciPy paired bootstrap](https://docs.scipy.org/doc/scipy/reference/generated/scipy.stats.bootstrap.html).
+
+## External timing sessions and sequential stopping
+
+`saccade timing ab` analyzes timings acquired by any tool; it executes no commands.
+The `saccade-timing-session.v1` plan declares the session, practical percent band,
+maximum A/B pair count, confidence, bootstrap seed and resample count before
+acquisition. Each run averages 1–3 samples. The effect is the paired
+Hodges–Lehmann estimator of `log(B) - log(A)`, converted back to percent.
+Each bootstrap draw samples whole contiguous blocks of pairs with replacement.
+Pairs within a block may be correlated; different blocks must be independent,
+representative of the same stationary acquisition process. Both `ab` and `ba`
+orders, at least six independent A/B blocks and six separate same-session A/A
+blocks are required. A look must end at a complete block boundary. A/A uses the
+maximum absolute endpoint of its bootstrap interval as the noise floor. A floor
+wider than the practical band makes the verdict inconclusive.
+
+An empty `looks` array allows one look at the declared maximum. Otherwise declare
+up to eight increasing pair counts ending at that maximum; freeze these counts
+before measuring. For L looks and total declared error budget alpha = 1-confidence,
+each look uses a two-sided percentile interval with confidence 1-alpha/L.
+At each declared look, stop when the entire interval lies below -band (`faster`),
+above +band (`slower`), or inside the band (`equivalent`). Otherwise continue to
+the next declared look; unresolved evidence at the maximum is `inconclusive`.
+Unlisted looks cannot produce a verdict. At least ten bootstrap draws must resolve
+each tail; insufficient resolution is inconclusive. Restarting with a new seed,
+changing the plan after a peek, or splitting correlated blocks invalidates this rule.
+
+Bonferroni spending controls the familywise directional error **if** the per-look
+intervals attain their nominal coverage. These finite-sample percentile bootstrap
+intervals are approximate, not an anytime-valid confidence sequence or a universal
+coverage guarantee. Prespecified synthetic null simulations test the rate of any
+false directional verdict across all looks; that acceptance proves only the stated
+generator and sample sizes. Independence, block boundaries, stationarity and an
+externally frozen plan are producer obligations. Capture readiness and clock
+qualification remain separate; absent provenance makes the timing diagnostic-only.
+See [session adapters and acquisition recipes](experiments-wave11.md).

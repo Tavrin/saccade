@@ -17,6 +17,9 @@ use saccade_core::view::{BlindKey, Decisions};
 const BASE: &str = "https://github.com/Tavrin/saccade/crates/saccade-core/schemas";
 
 fn generated<T: schemars::JsonSchema>(file: &str) -> String {
+    let id = file.trim_end_matches(".schema.json");
+    let target = saccade_core::report_links::linked_schema(id);
+    let target_file = format!("{target}.schema.json");
     let schema = schemars::schema_for!(T);
     let mut value = serde_json::to_value(&schema).expect("schema serializes");
 
@@ -43,11 +46,12 @@ fn generated<T: schemars::JsonSchema>(file: &str) -> String {
     if let Some(s) = obj.remove("$schema") {
         ordered.insert("$schema".into(), s);
     }
-    ordered.insert("$id".into(), format!("{BASE}/{file}").into());
+    ordered.insert("$id".into(), format!("{BASE}/{target_file}").into());
     ordered.extend(std::mem::take(obj));
     // Optional C2PA enables serde_json/preserve_order. Schema bytes must remain
     // independent of that feature while retaining every semantic field.
     let mut canonical = serde_json::Value::Object(ordered);
+    saccade_core::report_links::extend_schema(&mut canonical, target);
     canonical.sort_all_objects();
     let mut text = serde_json::to_string_pretty(&canonical).expect("schema serializes");
     text.push('\n');
@@ -268,7 +272,9 @@ fn committed_schemas_match_the_rust_types() {
         ),
     ];
     for (file, text) in all {
-        let path = dir.join(file);
+        let target =
+            saccade_core::report_links::linked_schema(file.trim_end_matches(".schema.json"));
+        let path = dir.join(format!("{target}.schema.json"));
         if update {
             std::fs::create_dir_all(&dir).expect("mkdir schemas");
             std::fs::write(&path, &text).expect("write schema");
@@ -323,5 +329,50 @@ fn committed_schemas_match_the_rust_types() {
             Some(format!("{BASE}/{file}").as_str()),
             "{file}: wrong $id"
         );
+    }
+}
+
+#[test]
+fn linked_contracts_have_distinct_versions_and_legacy_readers_remain_strict() {
+    let dir = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("schemas");
+    for (old, new) in saccade_core::report_links::SCHEMA_MIGRATIONS {
+        let legacy: serde_json::Value = serde_json::from_slice(
+            &std::fs::read(dir.join(format!("{old}.schema.json"))).expect("legacy schema"),
+        )
+        .expect("legacy JSON");
+        assert!(
+            legacy["properties"].get("report_id").is_none(),
+            "{old}: legacy strict contract changed"
+        );
+        if matches!(
+            *old,
+            "saccade-report.v1"
+                | "saccade-result.v2"
+                | "saccade-grounded.v1"
+                | "saccade-localized.v1"
+                | "saccade-onset.v1"
+                | "saccade-ui-review.v1"
+        ) {
+            continue;
+        }
+        let mut linked = legacy.clone();
+        linked["$id"] = format!("{BASE}/{new}.schema.json").into();
+        saccade_core::report_links::extend_schema(&mut linked, new);
+        linked.sort_all_objects();
+        let text = format!(
+            "{}\n",
+            serde_json::to_string_pretty(&linked).expect("linked JSON")
+        );
+        let path = dir.join(format!("{new}.schema.json"));
+        if std::env::var_os("UPDATE_SCHEMAS").is_some() {
+            std::fs::write(&path, &text).expect("linked schema");
+        }
+        assert_eq!(
+            std::fs::read_to_string(path).expect("committed linked schema"),
+            text,
+            "{new}"
+        );
+        assert_eq!(linked["properties"]["schema"]["const"], *new);
+        assert_ne!(old, new);
     }
 }

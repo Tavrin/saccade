@@ -155,7 +155,10 @@ fn approve_json_lists_copied_and_pruned_files() {
         .expect("spawn");
     assert!(out.status.success());
     let v: Value = serde_json::from_slice(&out.stdout).expect("json");
-    assert_eq!(v["schema"], "saccade-result.v2");
+    assert_eq!(
+        v["schema"],
+        saccade_core::report_links::linked_schema("saccade-result.v2")
+    );
     let v = &v["data"];
     assert_eq!(v["copied"].as_array().unwrap().len(), 1);
     assert_eq!(v["copied"][0]["name"], "scene.png");

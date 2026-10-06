@@ -1,0 +1,61 @@
+{
+  "$id": "https://github.com/Tavrin/saccade/crates/saccade-core/schemas/saccade-design-pull.v2.schema.json",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "properties": {
+    "degradations": {
+      "items": {
+        "type": "string"
+      },
+      "type": "array"
+    },
+    "frames": {
+      "items": {
+        "type": "object"
+      },
+      "type": "array"
+    },
+    "report_id": {
+      "pattern": "^sha256:[0-9a-f]{64}$",
+      "type": "string"
+    },
+    "scale": {
+      "maximum": 4,
+      "minimum": 0.01,
+      "type": "number"
+    },
+    "schema": {
+      "const": "saccade-design-pull.v2"
+    },
+    "source": {
+      "type": "string"
+    },
+    "source_refs": {
+      "items": {
+        "maxLength": 2048,
+        "minLength": 1,
+        "type": "string"
+      },
+      "maxItems": 128,
+      "type": "array"
+    },
+    "tokens": {
+      "items": {
+        "type": "object"
+      },
+      "type": "array"
+    }
+  },
+  "required": [
+    "schema",
+    "source",
+    "scale",
+    "frames",
+    "tokens",
+    "degradations",
+    "report_id",
+    "source_refs"
+  ],
+  "title": "saccade-design-pull.v1",
+  "type": "object"
+}

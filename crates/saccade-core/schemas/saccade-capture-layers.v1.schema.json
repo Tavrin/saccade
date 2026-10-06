@@ -114,6 +114,17 @@
       "description": "Final-image encoded SHA-256.",
       "type": "string"
     },
+    "labels": {
+      "additionalProperties": false,
+      "default": {},
+      "description": "Optional native ID-to-label dictionary for generic label selection.",
+      "patternProperties": {
+        "^\\d+$": {
+          "type": "string"
+        }
+      },
+      "type": "object"
+    },
     "layers": {
       "description": "Named ID/depth/mask/scalar/colour layers.",
       "items": {

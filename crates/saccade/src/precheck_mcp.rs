@@ -5,7 +5,7 @@ use serde_json::{Map, Value, json};
 use std::path::PathBuf;
 
 fn schema(id: &str) -> Value {
-    saccade_core::evidence::legacy::schema(id)
+    saccade_core::evidence::legacy::schema(saccade_core::report_links::linked_schema(id))
         .and_then(|source| serde_json::from_str(&source).ok())
         .unwrap_or_else(|| json!({"type":"object"}))
 }

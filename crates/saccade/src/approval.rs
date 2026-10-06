@@ -206,7 +206,9 @@ pub(crate) fn run(
     }
     let report_bytes = std::fs::read(paths::native(report_path)).map_err(io)?;
     let report: Report = canonical::decode(&report_bytes).map_err(contract)?;
-    if report.schema != saccade_core::report::REPORT_SCHEMA {
+    if saccade_core::report_links::original_schema(&report.schema)
+        != saccade_core::report::REPORT_SCHEMA
+    {
         return Err(mismatch("approval requires saccade-report.v1"));
     }
     for (what, recorded, given) in [

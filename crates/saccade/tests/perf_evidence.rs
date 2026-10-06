@@ -22,10 +22,13 @@ fn value(root: &Path, o: &Output) -> Value {
         String::from_utf8_lossy(&o.stderr)
     );
     let result: Value = serde_json::from_slice(&o.stdout).unwrap();
-    if result["schema"] == "saccade-result.v2" {
+    if saccade_core::report_links::original_schema(result["schema"].as_str().unwrap_or_default())
+        == "saccade-result.v2"
+    {
         schema("saccade-result.v2", &result);
     }
-    if result["schema"] == "saccade-result.v2"
+    if saccade_core::report_links::original_schema(result["schema"].as_str().unwrap_or_default())
+        == "saccade-result.v2"
         && result["artifact"].is_object()
         && result["operation"] != "compare"
         && result["operation"] != "identity"
@@ -72,6 +75,12 @@ fn fixture(root: &Path) {
     }
 }
 fn schema(name: &str, v: &Value) {
+    let successor = saccade_core::report_links::linked_schema(name);
+    let name = if v["schema"] == successor {
+        successor
+    } else {
+        name
+    };
     let p = Path::new(env!("CARGO_MANIFEST_DIR"))
         .join("../saccade-core/schemas")
         .join(format!("{name}.schema.json"));
@@ -252,11 +261,25 @@ fn noise_ablation_compare_identity_markdown_and_explain_share_evidence() {
         ),
     );
     schema("saccade-ablate.v1", &a);
-    assert_eq!(a["arms"][0]["flag"], "NO-EFFECT");
-    assert_eq!(a["arms"][1]["flag"], "PERF-ONLY");
-    assert_eq!(a["arms"][2]["flag"], "IMAGE-CHANGE");
-    assert_eq!(a["arms"][2]["config_differs"], json!(["quality"]));
-    assert!(!a["arms"][1]["top_deltas"].as_array().unwrap().is_empty());
+    // Wave 11 orders rows by timing rank, rather than positional arguments.
+    let arms = a["arms"].as_array().unwrap();
+    let by_label = |label| arms.iter().find(|arm| arm["label"] == label).unwrap();
+    assert_eq!(by_label("same")["flag"], "NO-EFFECT");
+    assert_eq!(by_label("fast")["flag"], "PERF-ONLY");
+    assert_eq!(by_label("image")["flag"], "IMAGE-CHANGE");
+    assert_eq!(by_label("image")["config_differs"], json!(["quality"]));
+    assert!(
+        !by_label("fast")["top_deltas"]
+            .as_array()
+            .unwrap()
+            .is_empty()
+    );
+    assert_eq!(
+        arms.iter()
+            .map(|arm| arm["label"].as_str().unwrap())
+            .collect::<Vec<_>>(),
+        ["fast", "image", "same"]
+    );
     let html = std::fs::read_to_string(root.join("ablation/index.html")).unwrap();
     assert!(html.contains("saccadePerf.ablation"));
     assert!(html.contains("--surface"));
@@ -280,7 +303,10 @@ fn noise_ablation_compare_identity_markdown_and_explain_share_evidence() {
         if command == "compare" {
             schema("saccade-result.v2", &lean);
         } else {
-            assert_eq!(lean["schema"], "saccade-result.v1");
+            assert_eq!(
+                lean["schema"],
+                saccade_core::report_links::linked_schema("saccade-result.v1")
+            );
         }
         let full: Value = serde_json::from_slice(
             &std::fs::read(root.join("pair/saccade-report.v1.json")).unwrap(),

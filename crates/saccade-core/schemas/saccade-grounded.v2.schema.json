@@ -1,0 +1,401 @@
+{
+  "$defs": {
+    "Catalog": {
+      "additionalProperties": false,
+      "description": "Facts frozen before any proposal is inspected.",
+      "properties": {
+        "facts": {
+          "description": "Finite numerical facts.",
+          "items": {
+            "$ref": "#/$defs/Fact"
+          },
+          "type": "array"
+        },
+        "regions": {
+          "description": "Catalog regions.",
+          "items": {
+            "$ref": "#/$defs/Region"
+          },
+          "type": "array"
+        },
+        "source_sha256": {
+          "description": "SHA-256 of exact source bytes.",
+          "type": "string"
+        }
+      },
+      "required": [
+        "source_sha256",
+        "regions",
+        "facts"
+      ],
+      "type": "object"
+    },
+    "Claim": {
+      "additionalProperties": false,
+      "description": "One verified observation; arbitrary semantic/cause wording never enters this type.",
+      "properties": {
+        "causal_claim": {
+          "description": "Always null. Measurements alone do not establish causation.",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "observation": {
+          "$ref": "#/$defs/Proposal",
+          "description": "Verified numerical proposal."
+        },
+        "text": {
+          "description": "Application-controlled numerical wording.",
+          "type": "string"
+        },
+        "verification": {
+          "description": "supported_measurement.",
+          "type": "string"
+        }
+      },
+      "required": [
+        "observation",
+        "verification",
+        "text"
+      ],
+      "type": "object"
+    },
+    "Fact": {
+      "additionalProperties": false,
+      "description": "One numerical measurement and its exact source JSON pointer.",
+      "properties": {
+        "id": {
+          "description": "Unique evidence ID.",
+          "type": "string"
+        },
+        "kind": {
+          "description": "Finite vocabulary: mean_flip, max_flip, thresholded_hotspot_pixels or changed_pixels.",
+          "type": "string"
+        },
+        "region_id": {
+          "description": "Region to which this fact applies.",
+          "type": "string"
+        },
+        "source_pointer": {
+          "description": "JSON pointer into the hash-bound source document.",
+          "type": "string"
+        },
+        "unit": {
+          "description": "Dimensionless FLIP error or pixel count.",
+          "type": "string"
+        },
+        "value": {
+          "description": "Exact observed value.",
+          "format": "double",
+          "type": "number"
+        }
+      },
+      "required": [
+        "id",
+        "region_id",
+        "kind",
+        "value",
+        "unit",
+        "source_pointer"
+      ],
+      "type": "object"
+    },
+    "PixelExclusions": {
+      "description": "Full-map evidence retained before masks are applied to the verdict.",
+      "properties": {
+        "dimensions": {
+          "description": "Image dimensions.",
+          "items": {
+            "format": "uint32",
+            "minimum": 0,
+            "type": "integer"
+          },
+          "maxItems": 2,
+          "minItems": 2,
+          "type": "array"
+        },
+        "error_max": {
+          "description": "Maximum FLIP on excluded pixels; absent for an empty mask.",
+          "format": "double",
+          "type": [
+            "number",
+            "null"
+          ]
+        },
+        "error_mean": {
+          "description": "Mean FLIP on excluded pixels; absent for an empty mask.",
+          "format": "double",
+          "type": [
+            "number",
+            "null"
+          ]
+        },
+        "error_sum": {
+          "description": "Summed FLIP error on excluded pixels.",
+          "format": "double",
+          "type": "number"
+        },
+        "full_frame_value": {
+          "description": "Entry metric on the complete unmasked error map.",
+          "format": "double",
+          "type": "number"
+        },
+        "mask_sha256": {
+          "description": "SHA-256 of the resolved row-major mask (one 0/1 byte per pixel).",
+          "type": "string"
+        },
+        "pixels": {
+          "description": "Number of excluded pixels.",
+          "format": "uint64",
+          "minimum": 0,
+          "type": "integer"
+        },
+        "runs": {
+          "description": "Excluded pixels as row-major [start, length] runs.",
+          "items": {
+            "items": {
+              "format": "uint64",
+              "minimum": 0,
+              "type": "integer"
+            },
+            "maxItems": 2,
+            "minItems": 2,
+            "type": "array"
+          },
+          "type": "array"
+        },
+        "without_masks": {
+          "$ref": "#/$defs/Status",
+          "description": "Diagnostic verdict with all masks removed, same regions and thresholds."
+        }
+      },
+      "required": [
+        "dimensions",
+        "runs",
+        "mask_sha256",
+        "pixels",
+        "error_sum",
+        "full_frame_value",
+        "without_masks"
+      ],
+      "type": "object"
+    },
+    "Proposal": {
+      "additionalProperties": false,
+      "description": "An atomic deterministic or externally generated proposal. Free prose is disallowed.",
+      "properties": {
+        "claim_kind": {
+          "description": "One finite supported claim kind.",
+          "type": "string"
+        },
+        "evidence_ids": {
+          "description": "Exactly one matching numerical fact.",
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "region_ids": {
+          "description": "Exactly one region.",
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "value": {
+          "description": "Quoted number must match the fact exactly; application inserts the final value.",
+          "format": "double",
+          "type": "number"
+        }
+      },
+      "required": [
+        "claim_kind",
+        "region_ids",
+        "evidence_ids",
+        "value"
+      ],
+      "type": "object"
+    },
+    "Region": {
+      "additionalProperties": false,
+      "description": "A region in an immutable source report.",
+      "properties": {
+        "entry": {
+          "description": "Source entry or scope.",
+          "type": "string"
+        },
+        "id": {
+          "description": "Catalog-local stable ID.",
+          "type": "string"
+        },
+        "measurement_scope": {
+          "description": "full_frame, included_pixels, scope_unknown or localized_scope.",
+          "type": "string"
+        },
+        "pixel_exclusions": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/PixelExclusions"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "Exact resolved exclusion evidence from the source entry."
+        },
+        "rect_px": {
+          "description": "Pixel rectangle when source evidence provides one.",
+          "items": {
+            "format": "uint32",
+            "minimum": 0,
+            "type": "integer"
+          },
+          "maxItems": 4,
+          "minItems": 4,
+          "type": [
+            "array",
+            "null"
+          ]
+        },
+        "sample_exclusions": {
+          "description": "Channel and sample interpretation exclusions from the source entry.",
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        }
+      },
+      "required": [
+        "id",
+        "entry",
+        "measurement_scope",
+        "sample_exclusions"
+      ],
+      "type": "object"
+    },
+    "Rejection": {
+      "additionalProperties": false,
+      "description": "Reason an unverified atomic proposal was discarded; its wording is not echoed.",
+      "properties": {
+        "index": {
+          "description": "Zero-based proposal position.",
+          "format": "uint",
+          "minimum": 0,
+          "type": "integer"
+        },
+        "reason": {
+          "description": "Mechanical verification failure.",
+          "type": "string"
+        }
+      },
+      "required": [
+        "index",
+        "reason"
+      ],
+      "type": "object"
+    },
+    "Status": {
+      "description": "Outcome of one image name.",
+      "oneOf": [
+        {
+          "const": "pass",
+          "description": "`value <= threshold`.",
+          "type": "string"
+        },
+        {
+          "const": "fail",
+          "description": "`value > threshold`.",
+          "type": "string"
+        },
+        {
+          "const": "new",
+          "description": "Capture present, baseline absent.",
+          "type": "string"
+        },
+        {
+          "const": "missing",
+          "description": "Baseline present, capture absent.",
+          "type": "string"
+        },
+        {
+          "const": "error",
+          "description": "Could not be compared; see [`Entry::error`].",
+          "type": "string"
+        }
+      ]
+    }
+  },
+  "$id": "https://github.com/Tavrin/saccade/crates/saccade-core/schemas/saccade-grounded.v2.schema.json",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "description": "Grounded observations and their evidence links, with explicit abstention coverage.",
+  "properties": {
+    "catalog": {
+      "$ref": "#/$defs/Catalog",
+      "description": "Immutable source catalog."
+    },
+    "catalog_sha256": {
+      "description": "SHA-256 of canonical ordered serialized catalog.",
+      "type": "string"
+    },
+    "claims": {
+      "description": "Verified observations only.",
+      "items": {
+        "$ref": "#/$defs/Claim"
+      },
+      "type": "array"
+    },
+    "dropped": {
+      "description": "Dropped proposal diagnostics.",
+      "items": {
+        "$ref": "#/$defs/Rejection"
+      },
+      "type": "array"
+    },
+    "limits": {
+      "description": "Semantic support/causality qualification limits.",
+      "items": {
+        "type": "string"
+      },
+      "type": "array"
+    },
+    "proposed": {
+      "description": "Supplied proposal count; expose abstention instead of hiding it in precision.",
+      "format": "uint",
+      "minimum": 0,
+      "type": "integer"
+    },
+    "report_id": {
+      "pattern": "^sha256:[0-9a-f]{64}$",
+      "type": "string"
+    },
+    "schema": {
+      "const": "saccade-grounded.v2",
+      "description": "saccade-grounded.v1.",
+      "type": "string"
+    },
+    "source_refs": {
+      "items": {
+        "maxLength": 2048,
+        "minLength": 1,
+        "type": "string"
+      },
+      "maxItems": 128,
+      "type": "array"
+    }
+  },
+  "required": [
+    "schema",
+    "catalog",
+    "catalog_sha256",
+    "claims",
+    "dropped",
+    "proposed",
+    "limits",
+    "report_id",
+    "source_refs"
+  ],
+  "title": "Explanation",
+  "type": "object"
+}

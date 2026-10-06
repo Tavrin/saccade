@@ -80,6 +80,18 @@ pub(crate) struct IndexArgs {
 }
 #[derive(clap::Subcommand)]
 enum Operation {
+    // wave11: external report index export needs no models.
+    /// Export external report cross-links.
+    Export {
+        #[arg(long, default_value = "reports/index.jsonl")]
+        index: PathBuf,
+        #[arg(long, default_value = "jsonl")]
+        format: String,
+        #[arg(long)]
+        out: Option<PathBuf>,
+        #[arg(long)]
+        json: bool,
+    },
     /// Write exact Rust-preprocessed tensors for independent checkpoint/export parity.
     ExportInputs {
         dir: PathBuf,
@@ -144,9 +156,23 @@ pub(crate) fn similar(args: SimilarArgs) -> Result<u8, CliError> {
     }
 }
 pub(crate) fn index(args: IndexArgs) -> Result<u8, CliError> {
+    if let Operation::Export {
+        index,
+        format,
+        out,
+        json,
+    } = &args.operation
+    {
+        return crate::wave11_cmd::export(
+            index,
+            if *json { "json" } else { format },
+            out.as_deref(),
+        );
+    }
     #[cfg(feature = "embeddings")]
     {
         match args.operation {
+            Operation::Export { .. } => Err(CliError::usage("export already dispatched")),
             Operation::ExportInputs {
                 dir,
                 model,
