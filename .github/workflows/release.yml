@@ -8,6 +8,8 @@ on:
       - '.github/workflows/release.yml'
       - '.github/workflows/qualify.yml'
       - 'scripts/release-check.sh'
+      - 'scripts/bundles.py'
+      - 'scripts/bundles.json'
       - 'scripts/generate-third-party-notices.py'
       - 'scripts/validate-showcase-schemas.py'
       - 'scripts/verify-sha256sums.py'
@@ -28,6 +30,36 @@ env:
   RUSTC_WRAPPER: ''
 
 jobs:
+  meta:
+    runs-on: ubuntu-latest
+    outputs:
+      tag: ${{ steps.tag.outputs.tag }}
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          persist-credentials: false
+      - name: Resolve the version label
+        id: tag
+        env:
+          EVENT: ${{ github.event_name }}
+          REF_NAME: ${{ github.ref_name }}
+          INPUT_TAG: ${{ inputs.tag }}
+        run: |
+          python3 - <<'PYTHON'
+          import os, pathlib, tomllib
+          if os.environ['EVENT'] == 'push':
+              tag = os.environ['REF_NAME']
+          elif os.environ['INPUT_TAG']:
+              tag = os.environ['INPUT_TAG']
+          else:
+              # Pull-request and manual dry runs validate the checked-out workspace version.
+              workspace = tomllib.loads(pathlib.Path('Cargo.toml').read_text())
+              tag = 'v' + workspace['workspace']['package']['version']
+          with open(os.environ['GITHUB_OUTPUT'], 'a') as output:
+              print(f'tag={tag}', file=output)
+          PYTHON
+
   package:
     runs-on: ubuntu-latest
     steps:
@@ -48,6 +80,7 @@ jobs:
 
   build:
     name: build (${{ matrix.target }})
+    needs: meta
     runs-on: ${{ matrix.os }}
     env:
       CARGO_TARGET_DIR: ${{ github.workspace }}/target
@@ -84,7 +117,7 @@ jobs:
         shell: bash
         env:
           TARGET: ${{ matrix.target }}
-          RELEASE_TAG: ${{ github.event_name == 'push' && github.ref_name || inputs.tag || 'v0.2.4' }}
+          RELEASE_TAG: ${{ needs.meta.outputs.tag }}
           RELEASE_COMMIT: ${{ github.event.pull_request.head.sha || github.sha }}
         run: |
           set -euo pipefail
@@ -119,6 +152,26 @@ jobs:
             tar -czf "dist/saccade-$TARGET.tar.gz" -C dist/package saccade LICENSE-MIT LICENSE-APACHE THIRD_PARTY_NOTICES.md
           fi
           python3 scripts/check-release-notices.py "dist/saccade-$TARGET.$EXT"
+      - name: Default bundle inventory and smoke test
+        shell: bash
+        env:
+          TARGET: ${{ matrix.target }}
+          EXT: ${{ matrix.ext }}
+          RELEASE_TAG: ${{ needs.meta.outputs.tag }}
+        run: |
+          set -euo pipefail
+          binary="$CARGO_TARGET_DIR/$TARGET/release/saccade"
+          if [ "$RUNNER_OS" = Windows ]; then binary="$binary.exe"; fi
+          stem="$(python3 scripts/bundles.py stem default "$TARGET")"
+          mkdir -p bundle-out
+          cp "dist/saccade-$TARGET.$EXT" "bundle-out/$stem.$EXT"
+          python3 scripts/bundles.py smoke default "$binary" "$TARGET" "bundle-out/$stem.smoke.json" "$RELEASE_TAG"
+          python3 scripts/bundles.py inventory default "$binary" "$TARGET" "bundle-out/$stem.$EXT" doctor.json "bundle-out/$stem.inventory.json"
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: bundle-default-${{ matrix.target }}
+          path: bundle-out/
+          if-no-files-found: error
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
           name: saccade-${{ matrix.target }}
@@ -153,16 +206,124 @@ jobs:
           path: dist/
           if-no-files-found: error
 
+  bundle:
+    name: bundle ${{ matrix.bundle }} (${{ matrix.target }})
+    needs: meta
+    runs-on: ${{ matrix.os }}
+    env:
+      CARGO_TARGET_DIR: ${{ github.workspace }}/target
+    strategy:
+      fail-fast: true
+      matrix:
+        include:
+          - {bundle: media, os: ubuntu-latest, target: x86_64-unknown-linux-gnu, ext: tar.gz}
+          - {bundle: media, os: ubuntu-24.04-arm, target: aarch64-unknown-linux-gnu, ext: tar.gz}
+          - {bundle: media, os: macos-latest, target: aarch64-apple-darwin, ext: tar.gz}
+          - {bundle: media, os: windows-latest, target: x86_64-pc-windows-msvc, ext: zip}
+          - {bundle: full, os: ubuntu-latest, target: x86_64-unknown-linux-gnu, ext: tar.gz}
+          - {bundle: full, os: ubuntu-24.04-arm, target: aarch64-unknown-linux-gnu, ext: tar.gz}
+          - {bundle: full, os: macos-latest, target: aarch64-apple-darwin, ext: tar.gz}
+          - {bundle: full, os: windows-latest, target: x86_64-pc-windows-msvc, ext: zip}
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          persist-credentials: false
+      - uses: dtolnay/rust-toolchain@7e38f4b43b4db5c8dd498af069a4f6196df1d067 # stable
+        with:
+          toolchain: stable
+          targets: ${{ matrix.target }}
+      - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5
+        with:
+          python-version: '3.12'
+      - name: Build, check identity, archive, inventory and smoke test
+        shell: bash
+        env:
+          BUNDLE: ${{ matrix.bundle }}
+          TARGET: ${{ matrix.target }}
+          EXT: ${{ matrix.ext }}
+          RELEASE_TAG: ${{ needs.meta.outputs.tag }}
+          RELEASE_COMMIT: ${{ github.event.pull_request.head.sha || github.sha }}
+        run: |
+          set -euo pipefail
+          features="$(python3 scripts/bundles.py features "$BUNDLE")"
+          cargo build --release --locked -p saccade --features "$features" --target "$TARGET"
+          binary="$CARGO_TARGET_DIR/$TARGET/release/saccade"
+          if [ "$RUNNER_OS" = Windows ]; then binary="$binary.exe"; fi
+          "$binary" doctor --json > doctor.json
+          python3 - <<'PY'
+          import json, os
+          d = json.load(open('doctor.json'))
+          tag = os.environ['RELEASE_TAG']
+          assert d['version'] == tag[1:], (tag, d['version'])
+          assert d['build']['git_commit'] == os.environ['RELEASE_COMMIT'], d['build']
+          assert d['build']['git_dirty'] is False, d['build']
+          PY
+          stem="$(python3 scripts/bundles.py stem "$BUNDLE" "$TARGET")"
+          mkdir -p dist/package bundle-out
+          python3 scripts/generate-third-party-notices.py dist/package/THIRD_PARTY_NOTICES.md
+          cp LICENSE-MIT LICENSE-APACHE dist/package/
+          if [ "$EXT" = zip ]; then
+            cp "$binary" dist/package/saccade.exe
+            (cd dist/package && 7z a -tzip "../../bundle-out/$stem.zip" saccade.exe LICENSE-MIT LICENSE-APACHE THIRD_PARTY_NOTICES.md)
+          else
+            cp "$binary" dist/package/saccade
+            tar -czf "bundle-out/$stem.tar.gz" -C dist/package saccade LICENSE-MIT LICENSE-APACHE THIRD_PARTY_NOTICES.md
+          fi
+          python3 scripts/check-release-notices.py "bundle-out/$stem.$EXT"
+          python3 scripts/bundles.py smoke "$BUNDLE" "$binary" "$TARGET" "bundle-out/$stem.smoke.json" "$RELEASE_TAG"
+          python3 scripts/bundles.py inventory "$BUNDLE" "$binary" "$TARGET" "bundle-out/$stem.$EXT" doctor.json "bundle-out/$stem.inventory.json"
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: bundle-${{ matrix.bundle }}-${{ matrix.target }}
+          path: bundle-out/
+          if-no-files-found: error
+
+  bundle-assemble:
+    needs: [build, bundle]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          persist-credentials: false
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
+        with:
+          pattern: bundle-*
+          path: bundle-dist
+          merge-multiple: true
+      - name: Check the bundle asset set, smoke results and write checksums
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd bundle-dist
+          python3 ../scripts/bundles.py expected | sort > ../expected.txt
+          find . -maxdepth 1 -type f -printf '%f\n' | sort > ../actual.txt
+          diff ../expected.txt ../actual.txt
+          python3 - <<'PY'
+          import glob, json
+          for path in glob.glob('*.smoke.json'):
+              result = json.load(open(path))
+              assert result['status'] == 'passed', path
+          PY
+          sha256sum saccade-*.tar.gz saccade-*.zip saccade-*.inventory.json saccade-*.smoke.json > SHA256SUMS-bundles
+          sha256sum -c SHA256SUMS-bundles
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: bundle-dist
+          path: bundle-dist/
+          if-no-files-found: error
+
   qualify:
-    needs: assemble
+    needs: [meta, assemble]
     uses: ./.github/workflows/qualify.yml
     with:
       run_id: ${{ github.run_id }}
       commit: ${{ github.event.pull_request.head.sha || github.sha }}
-      tag: ${{ github.event_name == 'push' && github.ref_name || inputs.tag || 'v0.2.4' }}
+      tag: ${{ needs.meta.outputs.tag }}
 
   release:
-    needs: [assemble, qualify]
+    needs: [assemble, qualify, bundle-assemble]
     if: github.event_name == 'push'
     runs-on: ubuntu-latest
     permissions:
@@ -173,6 +334,10 @@ jobs:
         with:
           name: release-dist
           path: dist
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
+        with:
+          name: bundle-dist
+          path: dist-bundles
       - name: Verify and publish release
         shell: bash
         env:
@@ -182,7 +347,12 @@ jobs:
         run: |
           set -euo pipefail
           (cd dist && sha256sum -c SHA256SUMS)
-          gh release create "$TAG" dist/saccade-*.tar.gz dist/saccade-*.zip dist/SHA256SUMS --repo "$REPO" --title "$TAG" --generate-notes
+          (cd dist-bundles && sha256sum -c SHA256SUMS-bundles)
+          # The legacy asset names and SHA256SUMS are unchanged; bundle assets sit beside them.
+          gh release create "$TAG" dist/saccade-*.tar.gz dist/saccade-*.zip dist/SHA256SUMS \
+            dist-bundles/saccade-*.tar.gz dist-bundles/saccade-*.zip dist-bundles/saccade-*.inventory.json \
+            dist-bundles/saccade-*.smoke.json dist-bundles/SHA256SUMS-bundles \
+            --repo "$REPO" --title "$TAG" --generate-notes
 
   crates:
     name: Publish crates.io

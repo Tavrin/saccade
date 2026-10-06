@@ -6,17 +6,61 @@ use std::path::PathBuf;
 #[derive(clap::Args)]
 pub(crate) struct RuntimeArgs {
     /// Supplied saccade-embedding-model.v1 contract; includes export SHA-256 and preprocessing.
+    /// Default: SACCADE_MODELS_EMBEDDING_CONTRACT or [models].embedding_contract.
     #[arg(long)]
-    model: PathBuf,
-    /// Content-addressed model cache; downloads require --download-model.
+    model: Option<PathBuf>,
+    /// Deprecated: set SACCADE_MODELS_DIR or [models].dir. Content-addressed model cache.
     #[arg(long)]
-    cache: PathBuf,
+    cache: Option<PathBuf>,
+    /// Deprecated: set SACCADE_MODELS_RUNTIME_LIBRARY or [models].runtime_library.
     /// Explicit ONNX Runtime 1.22 dynamic library, CPU execution only.
     #[arg(long)]
-    library: PathBuf,
-    /// Explicitly allow the pinned export to be downloaded to the cache.
+    library: Option<PathBuf>,
+    /// Deprecated: provision with `saccade models pull embedding`. Still downloads
+    /// the pinned export to the cache.
     #[arg(long)]
     download_model: bool,
+}
+/// Fully resolved runtime inputs.
+#[cfg_attr(not(feature = "embeddings"), allow(dead_code))]
+pub(crate) struct Runtime {
+    pub(crate) model: PathBuf,
+    pub(crate) cache: PathBuf,
+    pub(crate) library: PathBuf,
+    pub(crate) download_model: bool,
+}
+impl RuntimeArgs {
+    /// Flags (deprecated spellings) over the shared model configuration.
+    #[cfg_attr(not(feature = "embeddings"), allow(dead_code))]
+    fn resolve(&self) -> Result<Runtime, CliError> {
+        if self.download_model {
+            saccade_core::model_config::deprecated_download_flag("--download-model");
+        }
+        let cfg =
+            crate::wave7_cmd::config()?.with_overrides(saccade_core::model_config::Overrides {
+                dir: self.cache.as_deref(),
+                runtime_library: self.library.as_deref(),
+                embedding_contract: self.model.as_deref(),
+                ..Default::default()
+            });
+        let need = |v: Option<PathBuf>, what: &str, hint: &str| {
+            v.ok_or_else(|| CliError::usage(format!("{what} not configured; set {hint}")))
+        };
+        Ok(Runtime {
+            model: need(
+                cfg.embedding_contract.clone(),
+                "embedding contract",
+                "SACCADE_MODELS_EMBEDDING_CONTRACT, [models].embedding_contract or --model",
+            )?,
+            cache: cfg.dir.clone(),
+            library: need(
+                cfg.runtime_library.clone(),
+                "ONNX runtime library",
+                "SACCADE_MODELS_RUNTIME_LIBRARY, [models].runtime_library or --library",
+            )?,
+            download_model: self.download_model,
+        })
+    }
 }
 #[derive(clap::Args)]
 pub(crate) struct SimilarArgs {
@@ -99,7 +143,7 @@ enum Operation {
 pub(crate) fn similar(args: SimilarArgs) -> Result<u8, CliError> {
     #[cfg(feature = "embeddings")]
     {
-        let value = enabled::similar(&args.a, &args.b, &args.runtime, &args.out)?;
+        let value = enabled::similar(&args.a, &args.b, &args.runtime.resolve()?, &args.out)?;
         general_cmd::emit_document(value, Some(&args.out), args.json)
     }
     #[cfg(not(feature = "embeddings"))]
@@ -144,7 +188,7 @@ pub(crate) fn index(args: IndexArgs) -> Result<u8, CliError> {
                 out,
                 json,
             } => {
-                let value = enabled::calibrate(&corpus, &runtime, &out)?;
+                let value = enabled::calibrate(&corpus, &runtime.resolve()?, &out)?;
                 general_cmd::emit_document(value, Some(&out), json)
             }
             Operation::Build {
@@ -153,7 +197,7 @@ pub(crate) fn index(args: IndexArgs) -> Result<u8, CliError> {
                 out,
                 json,
             } => {
-                let value = enabled::build(&dir, &runtime, &out)?;
+                let value = enabled::build(&dir, &runtime.resolve()?, &out)?;
                 general_cmd::emit_document(value, Some(&out), json)
             }
             Operation::Query {
@@ -166,10 +210,10 @@ pub(crate) fn index(args: IndexArgs) -> Result<u8, CliError> {
                 json,
             } => {
                 let value = if let Some(text) = text {
-                    enabled::query_text(&index, &text, &runtime, top, &out)?
+                    enabled::query_text(&index, &text, &runtime.resolve()?, top, &out)?
                 } else {
                     let image = image.ok_or_else(|| CliError::usage("image or --text required"))?;
-                    enabled::query(&index, &image, &runtime, top, &out)?
+                    enabled::query(&index, &image, &runtime.resolve()?, top, &out)?
                 };
                 general_cmd::emit_document(value, Some(&out), json)
             }
@@ -194,7 +238,7 @@ mod enabled {
         path::Path,
     };
     const MAX_VECTOR_BYTES: u64 = 512 * 1024 * 1024;
-    fn engine(runtime: &RuntimeArgs) -> Result<(e::Engine, String), CliError> {
+    fn engine(runtime: &Runtime) -> Result<(e::Engine, String), CliError> {
         let bytes = input::bytes(&runtime.model, 2 * 1024 * 1024)?;
         let model: e::Model = e::parse_model(&bytes)?;
         let identity = saccade_core::localized::digest(&serde_json::to_vec(&model)?);
@@ -243,11 +287,7 @@ mod enabled {
             json!({"schema":saccade_core::general::embedding_qualification::EXPORT_INPUT_SCHEMA,"operation":"embedding_export_inputs","verdict":"unknown","counts":{"samples":samples.len()},"model_template":model,"samples":samples,"limits":["tensor preparation proves no graph/checkpoint parity; use independently executed checkpoint embeddings","model template artifact pin is replaced with the actual exported graph pin by the export job"]}),
         )
     }
-    pub(super) fn calibrate(
-        path: &Path,
-        runtime: &RuntimeArgs,
-        out: &Path,
-    ) -> Result<Value, CliError> {
+    pub(super) fn calibrate(path: &Path, runtime: &Runtime, out: &Path) -> Result<Value, CliError> {
         use saccade_core::general::embedding_qualification as q;
         let bytes = input::bytes(path, 16 * 1024 * 1024)?;
         let corpus: q::Corpus = serde_json::from_slice(&bytes)?;
@@ -270,7 +310,7 @@ mod enabled {
     pub(super) fn similar(
         a: &Path,
         b: &Path,
-        runtime: &RuntimeArgs,
+        runtime: &Runtime,
         out: &Path,
     ) -> Result<Value, CliError> {
         let (mut engine, model_id) = engine(runtime)?;
@@ -287,7 +327,7 @@ mod enabled {
             json!({"schema":e::SIMILAR_SCHEMA,"operation":"similar","verdict":"unknown","counts":{"images":2},"inputs":{"a_sha256":saccade_core::localized::digest(&aa),"b_sha256":saccade_core::localized::digest(&bb)},"model_contract_sha256":model_id,"model":engine.model(),"cosine":score,"band":e::band(engine.model(),score),"calibration_status":if engine.model().calibration.is_some(){"supplied_calibration_requires_external_qualification"}else{"uncalibrated"},"limitations":["semantic similarity is conditional on the pinned export and preprocessing","cosine and supplied bands do not establish exact text or image identity","canonical export parity and built-in calibration are unqualified"]}),
         )
     }
-    pub(super) fn build(dir: &Path, runtime: &RuntimeArgs, out: &Path) -> Result<Value, CliError> {
+    pub(super) fn build(dir: &Path, runtime: &Runtime, out: &Path) -> Result<Value, CliError> {
         let (mut engine, model_id) = engine(runtime)?;
         let files = input::files(dir, 100000)?;
         let max_rows =
@@ -344,7 +384,7 @@ mod enabled {
     pub(super) fn query_text(
         index: &Path,
         text: &str,
-        runtime: &RuntimeArgs,
+        runtime: &Runtime,
         top: usize,
         out: &Path,
     ) -> Result<Value, CliError> {
@@ -389,7 +429,7 @@ mod enabled {
     pub(super) fn query(
         index: &Path,
         image: &Path,
-        runtime: &RuntimeArgs,
+        runtime: &Runtime,
         top: usize,
         out: &Path,
     ) -> Result<Value, CliError> {
@@ -484,7 +524,7 @@ mod enabled {
         if op == "embedding_export_inputs" {
             return export_inputs(get("dir")?, get("model")?, out);
         }
-        let runtime = RuntimeArgs {
+        let runtime = Runtime {
             model: get("model")?.clone(),
             cache: get("cache")?.clone(),
             library: get("library")?.clone(),
@@ -568,7 +608,7 @@ pub(crate) fn routed(
         enabled::similar(
             a,
             b,
-            &RuntimeArgs {
+            &Runtime {
                 model: model.into(),
                 cache: cache.into(),
                 library: library.into(),

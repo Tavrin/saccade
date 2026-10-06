@@ -5,7 +5,7 @@ use saccade_core::{
     root_policy::RootPolicy,
     wave7::{
         faces::{self, CropSpec, FaceReport},
-        models::{self, Registry, VisionError},
+        models::{self, VisionError},
         quality::{LearnedMetric, QualityReport},
         vision::{LocateReport, VisionImage},
         watermark::{self, DwtConfig, WatermarkReport},
@@ -18,7 +18,14 @@ use std::path::PathBuf;
 #[serde(tag = "operation", deny_unknown_fields)]
 enum Operation {
     #[serde(rename = "models_list")]
-    Models { registry: PathBuf, cache: PathBuf },
+    Models {
+        /// May only restate the operator-configured registry.
+        #[serde(default)]
+        registry: Option<PathBuf>,
+        /// May only restate the operator-configured cache.
+        #[serde(default)]
+        cache: Option<PathBuf>,
+    },
     #[serde(rename = "models_pull")]
     Pull { id: String },
     #[serde(rename = "vision_locate")]
@@ -139,20 +146,21 @@ pub(crate) fn call(
     let operation: Operation = serde_json::from_value(Value::Object(args.clone()))?;
     match operation {
         Operation::Models { registry, cache } => {
-            let r = Registry::load(&input(policy, registry)?).map_err(error)?;
-            let c = policy.read(&cache)?;
-            if !c.is_dir() {
-                return Err(CliError::usage("cache must be a registered directory"));
+            // Operator configuration only: a request may restate, never choose, a location.
+            let cfg = crate::wave7_cmd::config()?;
+            let refuse = |e: saccade_core::Error| {
+                CliError::new("model_location_not_request_controlled", e.to_string())
+            };
+            if let Some(r) = registry {
+                cfg.check_request_location("registry", &policy.read(&r)?)
+                    .map_err(refuse)?;
             }
-            for m in &r.models {
-                for a in &m.artifacts {
-                    let path = models::artifact_path(&c, a).map_err(error)?;
-                    if path.exists() {
-                        policy.read(&path)?;
-                    }
-                }
+            if let Some(c) = cache {
+                cfg.check_request_location("cache", &policy.read(&c)?)
+                    .map_err(refuse)?;
             }
-            Ok(r.status(&c))
+            let r = crate::wave7_cmd::registry(None)?;
+            Ok(crate::wave7_cmd::status(&r, &cfg.dir))
         }
         Operation::Pull { id } => Err(error(VisionError::Unavailable(format!(
             "{id}: MCP cannot authorize model downloads; use explicit CLI models pull"
@@ -292,8 +300,8 @@ fn variant(op: &str, properties: Value, required: &[&str]) -> Value {
 pub(crate) fn inspect_schema() -> Value {
     variant(
         "models_list",
-        json!({"registry":{"type":"string"},"cache":{"type":"string"}}),
-        &["registry", "cache"],
+        json!({"registry":{"type":"string","description":"Optional; must equal the operator-configured registry"},"cache":{"type":"string","description":"Optional; must equal the operator-configured model cache"}}),
+        &[],
     )
 }
 pub(crate) fn measure_schemas() -> Vec<Value> {

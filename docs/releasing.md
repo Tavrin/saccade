@@ -110,3 +110,41 @@ optional model features. Test a downloaded wheel in a clean virtual environment
 with `python crates/saccade-py/tests/smoke_wheel.py`; it generates its image and
 uses `cpu-lite` with downloads disabled. The changelog describes the intended
 release; publication is complete only after the tag workflow succeeds on PyPI.
+
+## Bundles
+
+Every release publishes three task bundles beside the unchanged default archives
+(`saccade-<target>.tar.gz|zip` and `SHA256SUMS` keep their names and contents).
+`scripts/bundles.json` is the single source for each bundle's Cargo features,
+expected compiled-feature inventory and platforms; `scripts/bundles.py` builds the
+feature list, runs the smoke test and writes the inventory.
+
+| Asset | Content |
+|---|---|
+| `saccade-default-<target>` | Same binary as `saccade-<target>`, republished under its bundle name |
+| `saccade-media-<target>` | default + `credentials`, `documents`, `products`, `ocr` |
+| `saccade-full-<target>` | media + embeddings, geometry, dense motion, local models/VLM/providers, assist, media HTTP |
+
+Each archive ships with `<asset>.inventory.json` (features added to the defaults,
+compiled-feature list from `doctor --json`, archive SHA-256, exclusions),
+`<asset>.smoke.json` (the smoke test result for that exact binary) and a combined
+`SHA256SUMS-bundles`. The smoke test checks the compiled-feature inventory, a
+`compare` run, `models config`/`models list`, and, for media and full, `analyze-media`
+and `inspect-image`, and fails if any step downloaded a model. `bundle-assemble`
+refuses the release when any expected file or a passed smoke result is missing.
+`imgtune-avif` is built from source only (it links libdav1d dynamically). Users pick a
+bundle with the [install matrix](install-matrix.md). The new jobs run in the same
+dry run as the legacy ones (`gh workflow run release.yml --ref <branch> -f tag=v0.2.4`).
+
+## Playwright package (owner step)
+
+`integrations/playwright` is prepared for npm as `saccade-playwright` but stays
+`"private": true`, so an accidental `npm publish` fails. Publishing is a human step:
+
+1. Confirm the name is free and that you own it: `npm view saccade-playwright`.
+2. Review the tarball: `cd integrations/playwright && npm test && npm pack --dry-run`
+   (10 files: matcher, reporter, stabilize, sweep, design-capture, types, README, both licences).
+3. Remove `"private": true`, set the version, then `npm publish --access public`
+   (prefer a CI job with npm provenance over a laptop token).
+
+The package declares `@playwright/test` as a peer dependency; no browser runtime enters the Rust core.

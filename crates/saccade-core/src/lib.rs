@@ -179,3 +179,6 @@ pub mod timing;
 
 /// Stable shared mask-spec parser for CLI, MCP and downstream measurement APIs.
 pub mod mask_spec;
+
+/// One operator-owned model and runtime configuration shared by every surface.
+pub mod model_config;

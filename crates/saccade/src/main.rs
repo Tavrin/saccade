@@ -1797,7 +1797,7 @@ fn dispatch(command: Command, record_absolute_paths: bool) -> Result<u8, CliErro
                     api_max_bytes,
                     api_bind,
                     api_token_file,
-                    api_model_dir.unwrap_or_else(saccade_core::media::default_model_dir),
+                    api_model_dir,
                     api_registry,
                 );
             }
