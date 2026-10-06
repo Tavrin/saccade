@@ -1,11 +1,16 @@
 # Python
 
-The `saccade` package supports Python 3.10+ through PyO3 abi3 wheels. Install a locally
-built wheel: `python -m pip install path/to/saccade-*.whl`. Release wheel construction
-and aarch64 qualification belong to `scripts/gates-wave8.sh`. CI uploads wheels as
-artifacts only. Contributors can use the targeted `python_package` Cargo test
-with feature `python-tests` to import the compiled abi3 extension and run light pytest;
-that check does not qualify a release wheel archive.
+Install with `pip install saccade-vision`. The PyPI distribution is named
+`saccade-vision`; the import remains `import saccade`. Python 3.10+ is supported
+through abi3 wheels for Linux x86_64/aarch64, macOS arm64 and Windows x86_64.
+Standard wheels use the CPU-only feature set and never download models implicitly.
+An sdist is also available; building it requires the workspace's supported Rust toolchain.
+
+CI runs generated-image tests against installed wheels on every target and retains
+the artifacts. Only `v*` tag pushes can publish through the protected `pypi`
+environment; see [releasing](releasing.md). Contributors can also run the targeted
+`python_package` Cargo test with feature `python-tests`; that check does not qualify
+a release wheel archive.
 
 PyO3's `extension-module` feature is enabled only in `[tool.maturin]` in
 `crates/saccade-py/pyproject.toml`, following the

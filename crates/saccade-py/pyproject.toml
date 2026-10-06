@@ -3,12 +3,34 @@ requires = ["maturin>=1.8,<2"]
 build-backend = "maturin"
 
 [project]
-name = "saccade"
-version = "0.2.1"
+name = "saccade-vision"
+version = "0.2.2"
 requires-python = ">=3.10"
 description = "Local image and media analysis with explicit evidence provenance"
+readme = "README.md"
+keywords = ["image-analysis", "visual-regression", "image-comparison", "computer-vision"]
 license = "MIT OR Apache-2.0"
-classifiers = ["Programming Language :: Python :: 3", "Programming Language :: Rust"]
+license-files = ["LICENSE-MIT", "LICENSE-APACHE"]
+classifiers = [
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Programming Language :: Python :: 3.14",
+    "Programming Language :: Rust",
+    "Operating System :: POSIX :: Linux",
+    "Operating System :: MacOS :: MacOS X",
+    "Operating System :: Microsoft :: Windows",
+    "License :: OSI Approved :: MIT License",
+    "License :: OSI Approved :: Apache Software License",
+]
+
+[project.urls]
+Homepage = "https://github.com/Tavrin/saccade"
+Repository = "https://github.com/Tavrin/saccade"
+Documentation = "https://github.com/Tavrin/saccade/blob/main/docs/python.md"
+Changelog = "https://github.com/Tavrin/saccade/blob/main/CHANGELOG.md"
 
 [tool.maturin]
 # Keep extension linking out of ordinary Cargo builds and tests.

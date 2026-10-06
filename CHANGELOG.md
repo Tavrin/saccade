@@ -5,11 +5,12 @@ All notable changes to this project are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [Unreleased]
+## 0.2.2
 
 ### Added
 
-- Add producer arm fingerprints, `--require-valid-arms`, `saccade arms check`
+- Python package published on PyPI as `saccade-vision` (import name stays `saccade`); wheels for Linux, macOS and Windows.
+- Producer arm fingerprints, `--require-valid-arms`, `saccade arms check`
   and TOML/JSON fingerprint-map configuration. Per-field `derives` declarations
   cover keys computed from varied fields and report both values separately;
   undeclared differences still refuse comparison. See [arm validity](docs/arm-validity.md).

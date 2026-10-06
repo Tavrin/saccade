@@ -5,7 +5,7 @@ skills package in `integrations/codex`. Both require `saccade` on the client
 process's PATH and local access to the supplied captures. Install once:
 
 ```sh
-cargo install saccade --version 0.2.0 --locked
+cargo install saccade --version 0.2.2 --locked
 saccade --version
 ```
 
@@ -115,7 +115,7 @@ into each review form that requests an immutable source.
 | Repository URL / homepage | `https://github.com/Tavrin/saccade` |
 | Name / marketplace name | `saccade` |
 | Display name | `Saccade` |
-| Plugin version | `0.2.0` |
+| Plugin version | `0.2.2` |
 | Author / developer | `Tavrin` |
 | Author URL | `https://github.com/Tavrin` |
 | License | `MIT OR Apache-2.0` |
@@ -134,7 +134,7 @@ into each review form that requests an immutable source.
 - [ ] Open the [developer portal](https://claude.ai/directory/manage) with an
   eligible account and connect GitHub with push access to `Tavrin/saccade`.
 - [ ] Supply the repository URL, path `integrations/claude-code`, version
-  `0.2.0`, and the published review SHA. The manifest and README supply the
+  `0.2.2`, and the published review SHA. The manifest and README supply the
   remaining package metadata above.
 - [ ] Explain the installed CLI prerequisite, local capture access and report
   writes, and that provider execution is disabled by this MCP declaration.
@@ -165,7 +165,7 @@ separate routes; none is claimed by a local `saccade@saccade` install.
 - [ ] Test the portable package in Copilot CLI and VS Code.
 - [ ] Open the [external-plugin issue form](https://github.com/github/awesome-copilot/issues/new?template=external-plugin.yml).
   Paste Plugin name `saccade`, GitHub repository `Tavrin/saccade`, Plugin path
-  `integrations/codex`, Version `0.2.0`, License identifier `MIT OR Apache-2.0`,
+  `integrations/codex`, Version `0.2.2`, License identifier `MIT OR Apache-2.0`,
   Author name `Tavrin`, Author URL `https://github.com/Tavrin`, and the description
   and keywords from the table. Homepage may use the repository URL.
 - [ ] Paste the full published Commit SHA to review. Leave Ref to review empty
@@ -183,14 +183,14 @@ separate routes; none is claimed by a local `saccade@saccade` install.
 | Manifest | `server.json` |
 | Name / visible README token | `io.github.Tavrin/saccade` / `mcp-name: io.github.Tavrin/saccade` |
 | Title | `Saccade` |
-| Server version / Cargo package version | `0.2.0` / `0.2.0` |
+| Server version / Cargo package version | `0.2.2` / `0.2.2` |
 | Registry type / URL | `cargo` / `https://crates.io` |
 | Package identifier / transport | `saccade` / `stdio` |
 | Invocation after installation | `saccade mcp --root /absolute/captures --out-root /absolute/reports` |
 
 - [ ] Release a new crate version containing the visible marker in
   `README.md`, packaged by the `saccade` crate. The already-published 0.1.0
-  cannot acquire this source change. Publish and verify the 0.2.0 Cargo package
+  cannot acquire this source change. Publish and verify the 0.2.2 Cargo package
   before submitting this registry metadata.
 - [ ] Update both version fields in `server.json` to that actual published
   release and verify its rendered crates.io README contains the exact marker.
