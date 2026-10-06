@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.2.3
 
 - Embed schema discovery and performance-sidecar validation for installed producers.
 - Distinguish null fingerprint values from absent fields; record ignored states,

@@ -146,7 +146,7 @@ See [paired statistics](docs/paired-performance.md),
 Install with Rust 1.89 or newer:
 
 ```sh
-cargo install saccade --version 0.2.2 --locked
+cargo install saccade --version 0.2.3 --locked
 saccade doctor --json
 ```
 

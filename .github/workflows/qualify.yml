@@ -23,7 +23,7 @@ on:
         required: true
         type: string
       tag:
-        description: Version label checked by that run (for example v0.2.2)
+        description: Version label checked by that run (for example v0.2.3)
         required: true
         type: string
 
