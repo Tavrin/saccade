@@ -1,0 +1,12 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/Tavrin/saccade/crates/saccade-core/schemas/saccade-view.v1.schema.json",
+  "title": "saccade-view.v1",
+  "description": "Legacy extensible object contract. This schema checks the envelope; command-specific readers validate its fields.",
+  "type": "object",
+  "properties": {
+    "schema": {
+      "const": "saccade-view.v1"
+    }
+  }
+}

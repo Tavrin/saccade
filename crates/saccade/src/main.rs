@@ -73,10 +73,12 @@ mod text_cmd;
 mod mcp;
 mod outdirs;
 mod perf_cmd;
+// wave10
 #[cfg(feature = "prechecks")]
 mod precheck;
 #[cfg(all(feature = "prechecks", feature = "mcp"))]
 mod precheck_mcp;
+mod schema_cmd;
 #[cfg(feature = "graphics")]
 mod temporal_cmd;
 mod ui_review_cmd;
@@ -236,6 +238,11 @@ impl From<MetricArg> for Metric {
 
 #[derive(Subcommand)]
 enum Command {
+    // wave10
+    /// Discover JSON Schemas without a source checkout.
+    Schema(schema_cmd::Args),
+    /// Validate producer performance sidecars.
+    Perf(schema_cmd::PerfArgs),
     /// Validate producer identity before comparing pixels.
     Arms(arms_cmd::Args),
     /// Plan and compare deterministic page sweeps.
@@ -1123,6 +1130,8 @@ fn emit_run(
 
 fn dispatch(command: Command, record_absolute_paths: bool) -> Result<u8, CliError> {
     match command {
+        Command::Schema(args) => schema_cmd::run(args),
+        Command::Perf(args) => schema_cmd::perf(args),
         Command::Arms(args) => arms_cmd::run(args),
         Command::Capabilities(args) => capability_cmd::run(args),
         Command::InspectImage(args) => inspect_image_cmd::run(args),

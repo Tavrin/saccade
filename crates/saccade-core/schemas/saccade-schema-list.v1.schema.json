@@ -1,0 +1,21 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/Tavrin/saccade/crates/saccade-core/schemas/saccade-schema-list.v1.schema.json",
+  "type": "object",
+  "properties": {
+    "ids": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "schema": {
+      "const": "saccade-schema-list.v1"
+    }
+  },
+  "required": [
+    "schema",
+    "ids"
+  ],
+  "additionalProperties": false
+}

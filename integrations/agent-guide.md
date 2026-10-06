@@ -73,3 +73,8 @@ Local gates grant no broad model/provider/platform/rendering/release qualificati
 and treat CTC confidence as uncalibrated. Downloads are explicit. `ocr-provider`
 adds opt-in Mistral image/PDF text via bound fixtures or authorized live calls
 with root egress/spend caps; never auto-selected.
+
+<!-- wave10 -->
+Schema discovery: `saccade schema list --json`, `schema get ID --out FILE`,
+`schema path ID --json`. Validate perf producers with `saccade perf validate
+FILE --json`; exit 1 means schema violations, not performance qualification.

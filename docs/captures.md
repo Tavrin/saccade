@@ -126,3 +126,9 @@ the same percentages in its attribution table.
 Put reports outside capture inputs. `.saccade-run` and historical report/view
 markers keep report images out of archive discovery. Portable artifacts use
 relative paths and immutable hashes. Inspect names before publishing.
+
+For cost-card and performance-sidecar producers, discover installed contracts
+with `saccade schema list` / `saccade schema get <id> --out schema.json`, or
+validate timing sidecars directly with `saccade perf validate FILE --json`.
+These use embedded schemas and work without a source checkout. Do not hardcode
+source-tree schema paths. See [producer discovery](identity-and-performance.md#producer-schema-discovery).
