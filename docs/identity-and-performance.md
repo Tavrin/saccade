@@ -40,12 +40,13 @@ than 5% of its median. A concrete power state is required; `unknown` does not
 qualify. Pairing compares device, power state, named windows and median clocks
 exactly. Missing clock evidence rejects a qualified performance claim unless
 the user passes `--gpu-clocks-not-applicable`.
-Moss `moss.gpu-clock.v2` files are read directly: `sm_mhz.p50` becomes core
-median, the sample windows and throttle mask are retained, and
-`warm_to_boost.met` supplies stabilization. Moss does not record an explicit
-power state in this sidecar, so those captures are unqualified unless a
-producer supplies the generic sidecar with that fact. Clock reasons are
-separate from image thresholds and repeat noise.
+For custom telemetry, pass `--gpu-clock-map examples/gpu-clock/map.toml` to
+compare, identity, performance noise, or ablation. Config uses
+`gpu_clock_map = "clock-map.toml"`, relative to the config directory;
+CLI map paths are relative to the working directory. MCP uses `gpu_clock_map`.
+See [telemetry mapping](gpu-clock-mapping.md). Maps must preserve all measured
+facts, including a concrete power state when available. Missing power state
+remains unqualified. Clock reasons are separate from image thresholds and repeat noise.
 
 `NO-EFFECT` needs image identity, qualified timing, known noise, no changes beyond
 the effective frame/pass threshold and no material unresolved terms.

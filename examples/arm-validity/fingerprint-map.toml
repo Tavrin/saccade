@@ -19,7 +19,7 @@ path = "selected"
 [fields."run.session"]
 path = "session"
 [[readiness]]
-name = "receiver_ready"
+name = "pipeline_ready"
 parameters = { version = 1 }
 reached = { file = "readiness.json", path = "ready" }
 observed = { file = "readiness.json", path = "observed" }

@@ -124,9 +124,10 @@ has an `index` and a `reason` that names the image and the missing or
 mismatched evidence. Follow `page.next_cursor` with `--cursor`. It
 cannot be combined with `--entry` or `--status`.
 
-## Moss cost cards
+## Cost-card sidecars
 
-Captures produced by the Moss engine carry a `cost-card.json` sidecar. Pass
+`cost-card.json` is Saccade’s capture-provenance sidecar format. Producers
+can write it beside captures. Pass
 `--meta-name cost-card.json` to `compare` and `identity`. Saccade reads
 build provenance from these keys (case and `.`, `-`, space are ignored):
 

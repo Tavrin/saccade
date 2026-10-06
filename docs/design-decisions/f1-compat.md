@@ -15,7 +15,7 @@
   newer report schema and field errors as version skew. Malformed input keeps
   its ordinary parse error.
 - Image reports store declared binary, source, and capture identities per
-  side. Metadata precedence is configured sidecar over Moss's flat cost card.
+  side. Metadata precedence is configured sidecar over the flat cost card.
   A performance sidecar's capture hash supplies a fallback content hash.
   Missing binary/source identity remains unknown capture validity with an
   explicit reason and stderr warning. These are producer claims, not binary

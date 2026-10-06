@@ -717,7 +717,7 @@ fn apply_meta(
                     .insert(format!("{side}.{field}"), value.clone());
             } else {
                 let reason = format!(
-                    "{side} {field} provenance is absent; supply {field} in --meta-name {name} (Moss: cost-card.json with binary.sha and build.commit)",
+                    "{side} {field} provenance is absent; supply {field} in --meta-name {name} (cost-card.json with binary.sha and build.commit)",
                     name = meta.name()
                 );
                 entry.warnings.push(reason.clone());

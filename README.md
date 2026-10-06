@@ -146,7 +146,7 @@ See [paired statistics](docs/paired-performance.md),
 Install with Rust 1.89 or newer:
 
 ```sh
-cargo install saccade --version 0.2.4 --locked
+cargo install saccade --version 0.2.5 --locked
 saccade doctor --json
 ```
 
@@ -247,3 +247,5 @@ FLIP uses the BSD-3-Clause `flip-rs` port. See [third-party notices](THIRD_PARTY
 release archives also include generated dependency notices.
 
 MCP Registry ownership: `mcp-name: io.github.Tavrin/saccade`
+
+Saccade originated in the Moss engine’s visual testing tools.

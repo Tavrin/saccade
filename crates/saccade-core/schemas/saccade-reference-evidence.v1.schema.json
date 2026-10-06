@@ -56,6 +56,14 @@
     "Check": {
       "description": "Validity only; this result never contains a pixel pass/fail verdict.",
       "properties": {
+        "absent_fields": {
+          "default": [],
+          "description": "Mapped fields explicitly treating absence as a value, including equal absences.",
+          "items": {
+            "$ref": "#/$defs/Finding"
+          },
+          "type": "array"
+        },
         "allowed_unreached": {
           "default": [],
           "description": "Explicitly permitted matched unreached predicates with both observations.",
@@ -204,7 +212,7 @@
         },
         "baseline_state": {
           "default": "",
-          "description": "Baseline state: missing, null or value.",
+          "description": "Baseline state: missing, absent (when explicitly a value), null or value.",
           "type": "string"
         },
         "capture": {
@@ -212,7 +220,7 @@
         },
         "capture_state": {
           "default": "",
-          "description": "Candidate state: missing, null or value.",
+          "description": "Candidate state: missing, absent (when explicitly a value), null or value.",
           "type": "string"
         },
         "key": {

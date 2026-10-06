@@ -206,7 +206,7 @@ fn equal_nonfinite_samples_fail_validity_on_either_side_including_alpha() {
 }
 
 #[test]
-fn metadata_absence_mismatch_and_moss_override_preserve_equality() {
+fn metadata_absence_mismatch_and_sidecar_override_preserve_equality() {
     let tmp = tempfile::tempdir().expect("temp");
     let (b, c, out) = setup(tmp.path());
     let mut cfg = identity();

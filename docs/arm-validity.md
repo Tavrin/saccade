@@ -77,7 +77,7 @@ describes the optional declarations. Strict validation requires every group:
           "observed": 0.001
         },
         {
-          "criterion": {"name": "receiver_ready", "parameters": {}},
+          "criterion": {"name": "pipeline_ready", "parameters": {}},
           "reached": true,
           "observed": true
         }
@@ -287,3 +287,29 @@ path = "content.preparer"
 MCP `arms_check`, strict comparisons and `reference_compare` accept
 `allow_unreached` as a list of exact names. Strict full reports retain the
 validation receipt, including ignored states and allowed observations.
+
+## Optional fields and absence
+
+The map-level `absent` default is `"missing"`: a required mapped destination
+absent on either side in `mapped_only` mode refuses with exit 4, including two
+absences. A field can override this default with its own `absent` policy.
+
+Use `"value"` for an optional environment flag that the producer records only
+when set:
+
+```toml
+compare = "mapped_only"
+absent = "missing" # compatibility default; use "value" to opt in for all fields
+
+[fields."run.env.OPTIONAL_FEATURE"]
+path = "env.OPTIONAL_FEATURE"
+absent = "value"
+```
+
+With this policy, absent/absent is equal; absent/value is a difference (exit 3
+unless explicitly covered by a vary/ignore token). `absent_fields` records both
+states even for an equal field; differing fields also appear in `offending` or
+the applicable covered list. Present null is distinct from absence and keeps
+state `null`. Field overrides take precedence over the map-level default.
+Readiness flags and observations remain required and keep their existing
+convergence checks; absence policies apply to field mappings.

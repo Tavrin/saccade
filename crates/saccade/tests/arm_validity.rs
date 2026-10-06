@@ -479,7 +479,7 @@ fn predicate_order_and_declared_observations_match_the_measurement_path() {
     let (a, b) = captures(tmp.path());
     let mut ma = metadata();
     let mut second = ma["fingerprint"]["run"]["readiness"][0].clone();
-    second["criterion"]["name"] = json!("receiver_ready");
+    second["criterion"]["name"] = json!("pipeline_ready");
     ma["fingerprint"]["run"]["readiness"]
         .as_array_mut()
         .unwrap()
@@ -813,4 +813,59 @@ fn strict_reports_use_the_same_mapped_and_outcome_selection() {
                 .contains(&json!("results.score"))
         );
     }
+}
+
+#[test]
+fn mapped_optional_environment_absence_is_equal_or_a_difference_only_when_opted_in() {
+    let temp = tempfile::tempdir().unwrap();
+    let a = temp.path().join("a.json");
+    let b = temp.path().join("b.json");
+    let mapping = temp.path().join("map.json");
+    write(&a, &json!({"mode":"fixed","env":{}}));
+    write(&b, &json!({"mode":"fixed","env":{}}));
+    let mut map = json!({"compare":"mapped_only","fields":{"run.mode":{"path":"mode"},"run.env.OPTIONAL_FEATURE":{"path":"env.OPTIONAL_FEATURE"}}});
+    write(&mapping, &map);
+    run(
+        &[
+            "arms",
+            "check",
+            path(&a),
+            path(&b),
+            "--fingerprint-map",
+            path(&mapping),
+            "--json",
+        ],
+        4,
+    );
+    map["absent"] = json!("value");
+    write(&mapping, &map);
+    let equal = run(
+        &[
+            "arms",
+            "check",
+            path(&a),
+            path(&b),
+            "--fingerprint-map",
+            path(&mapping),
+            "--json",
+        ],
+        0,
+    );
+    assert_eq!(equal["absent_fields"][0]["baseline_state"], "absent");
+    assert_eq!(equal["absent_fields"][0]["capture_state"], "absent");
+    write(&b, &json!({"mode":"fixed","env":{"OPTIONAL_FEATURE":"on"}}));
+    let diff = run(
+        &[
+            "arms",
+            "check",
+            path(&a),
+            path(&b),
+            "--fingerprint-map",
+            path(&mapping),
+            "--json",
+        ],
+        3,
+    );
+    assert_eq!(diff["offending"][0]["baseline_state"], "absent");
+    assert_eq!(diff["offending"][0]["capture_state"], "value");
 }

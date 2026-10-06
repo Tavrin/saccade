@@ -6,7 +6,7 @@ request over supplied baseline and candidate captures. It requires a local
 shell with the Saccade CLI on PATH and access to those captures:
 
 ```sh
-cargo install saccade --version 0.2.4 --locked
+cargo install saccade --version 0.2.5 --locked
 ```
 
 After the plugin commit is public, register and install it with a Codex CLI

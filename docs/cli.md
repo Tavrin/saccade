@@ -1847,6 +1847,7 @@ Metadata sidecars:
 
 Performance:
       --perf-name <NAME>           Run performance sidecar file name (default saccade-perf.json)
+      --gpu-clock-map <FILE>       TOML/JSON map from producer telemetry to GPU clock evidence
       --gpu-clocks-not-applicable  Declare that GPU clocks do not apply to this performance measurement
       --perf-noise-override        Use an explicit --perf-noise floor even if complete base repeats derive a higher floor
       --perf-noise <FILE>          Noise JSON or TOML from unchanged-build repeats
@@ -1928,6 +1929,7 @@ Metadata sidecars:
 
 Performance:
       --perf-name <NAME>           Run performance sidecar file name (default saccade-perf.json)
+      --gpu-clock-map <FILE>       TOML/JSON map from producer telemetry to GPU clock evidence
       --gpu-clocks-not-applicable  Declare that GPU clocks do not apply to this performance measurement
       --perf-noise-override        Use an explicit --perf-noise floor even if complete base repeats derive a higher floor
       --perf-noise <FILE>          Noise JSON or TOML from unchanged-build repeats
@@ -2032,6 +2034,7 @@ Metadata sidecars:
 
 Performance:
       --perf-name <NAME>           Run performance sidecar file name (default saccade-perf.json)
+      --gpu-clock-map <FILE>       TOML/JSON map from producer telemetry to GPU clock evidence
       --gpu-clocks-not-applicable  Declare that GPU clocks do not apply to this performance measurement
       --perf-noise-override        Use an explicit --perf-noise floor even if complete base repeats derive a higher floor
       --perf-noise <FILE>          Noise JSON or TOML from unchanged-build repeats
@@ -2092,6 +2095,7 @@ Options:
 
 Performance:
       --perf-name <NAME>           Run performance sidecar file name (default saccade-perf.json)
+      --gpu-clock-map <FILE>       TOML/JSON map from producer telemetry to GPU clock evidence
       --gpu-clocks-not-applicable  Declare that GPU clocks do not apply to this performance measurement
       --perf-noise-override        Use an explicit --perf-noise floor even if complete base repeats derive a higher floor
       --perf-noise <FILE>          Noise JSON or TOML from unchanged-build repeats
@@ -2123,6 +2127,7 @@ Options:
 
 Performance:
       --perf-name <NAME>           Run performance sidecar file name (default saccade-perf.json)
+      --gpu-clock-map <FILE>       TOML/JSON map from producer telemetry to GPU clock evidence
       --gpu-clocks-not-applicable  Declare that GPU clocks do not apply to this performance measurement
       --perf-noise-override        Use an explicit --perf-noise floor even if complete base repeats derive a higher floor
       --perf-noise <FILE>          Noise JSON or TOML from unchanged-build repeats
@@ -2227,6 +2232,7 @@ Metadata sidecars:
 
 Performance:
       --perf-name <NAME>           Run performance sidecar file name (default saccade-perf.json)
+      --gpu-clock-map <FILE>       TOML/JSON map from producer telemetry to GPU clock evidence
       --gpu-clocks-not-applicable  Declare that GPU clocks do not apply to this performance measurement
       --perf-noise-override        Use an explicit --perf-noise floor even if complete base repeats derive a higher floor
       --perf-noise <FILE>          Noise JSON or TOML from unchanged-build repeats
@@ -2346,6 +2352,7 @@ Metadata sidecars:
 
 Performance:
       --perf-name <NAME>           Run performance sidecar file name (default saccade-perf.json)
+      --gpu-clock-map <FILE>       TOML/JSON map from producer telemetry to GPU clock evidence
       --gpu-clocks-not-applicable  Declare that GPU clocks do not apply to this performance measurement
       --perf-noise-override        Use an explicit --perf-noise floor even if complete base repeats derive a higher floor
       --perf-noise <FILE>          Noise JSON or TOML from unchanged-build repeats
@@ -3313,6 +3320,7 @@ Options:
 
 Performance:
       --perf-name <NAME>           Run performance sidecar file name (default saccade-perf.json)
+      --gpu-clock-map <FILE>       TOML/JSON map from producer telemetry to GPU clock evidence
       --gpu-clocks-not-applicable  Declare that GPU clocks do not apply to this performance measurement
       --perf-noise-override        Use an explicit --perf-noise floor even if complete base repeats derive a higher floor
       --perf-noise <FILE>          Noise JSON or TOML from unchanged-build repeats

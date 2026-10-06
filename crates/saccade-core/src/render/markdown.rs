@@ -132,7 +132,7 @@ fn region_rows(e: &Entry) -> String {
 }
 
 /// The identity-mode headline, for example `identity: ✅ 12/12 bit-identical`
-/// or `identity: ❌ 2 differ (max FLIP 0.031 on bistro/cam3.png)`. `None`
+/// or `identity: ❌ 2 differ (max FLIP 0.031 on interior/view3.png)`. `None`
 /// unless the report was produced in [`Mode::Identity`].
 pub fn identity_headline(report: &Report) -> Option<String> {
     if report.config.mode != Mode::Identity {

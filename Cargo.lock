@@ -4123,7 +4123,7 @@ checksum = "9774ba4a74de5f7b1c1451ed6cd5285a32eddb5cccb8cc655a4e50009e06477f"
 
 [[package]]
 name = "saccade"
-version = "0.2.4"
+version = "0.2.5"
 dependencies = [
  "clap",
  "colorvideovdp",
@@ -4145,7 +4145,7 @@ dependencies = [
 
 [[package]]
 name = "saccade-core"
-version = "0.2.4"
+version = "0.2.5"
 dependencies = [
  "base64 0.22.1",
  "butteraugli",
@@ -4189,7 +4189,7 @@ dependencies = [
 
 [[package]]
 name = "saccade-py"
-version = "0.2.4"
+version = "0.2.5"
 dependencies = [
  "pyo3",
  "saccade-core",

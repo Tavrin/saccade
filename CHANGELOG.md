@@ -1,5 +1,19 @@
 # Changelog
 
+## 0.2.5
+
+- Add map-level and per-field `absent = "missing"|"value"` policies for optional
+  fingerprint fields, retaining the strict default and reporting absent states.
+
+- Add TOML/JSON GPU telemetry maps via `--gpu-clock-map FILE`, config
+  `gpu_clock_map`, and MCP, sharing fingerprint-map dotted paths and array indices.
+- Deprecate automatic `moss.gpu-clock.v2` telemetry ingestion; it remains accepted
+  with a map migration warning through 0.2.x and will be removed in 0.3.0.
+- Keep result v2 `mode` as the measurement operation; its schema and values remain compatible.
+- Document `cost-card.json` as Saccade’s provenance sidecar and neutralize producer examples.
+- Guard against origin-project names and vocabulary with exact-line exceptions
+  for the acknowledgement and temporary protocol compatibility.
+
 ## 0.2.4
 
 - Match vary and ignore tokens against mapped destinations or source paths,
@@ -151,7 +165,7 @@ First public release.
 - `init` templates for `saccade.toml`: thresholds, metrics, regions, masks,
   capture requirements and declared changes.
 - HDR input (`.exr`, `.hdr`) with HDR-FLIP, numerical G-buffer rules, alpha
-  handling and capture metadata sidecars, including Moss engine
+  handling and capture metadata sidecars, including rendering-engine
   `cost-card.json` provenance keys.
 - Performance sidecars (`saccade-perf.v2`) with repeat-noise qualification. The
   `compare` and `identity` JSON results report `performance`, and a

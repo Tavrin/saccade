@@ -34,6 +34,8 @@ pub struct PerfOptions {
     pub name: String,
     /// Explicit declaration that GPU clocks do not apply to this measurement.
     pub gpu_clocks_not_applicable: bool,
+    /// TOML/JSON map from producer telemetry to GPU clock evidence.
+    pub gpu_clock_map: Option<PathBuf>,
     pub noise_override: bool,
     pub noise: Option<PathBuf>,
     pub floor: Option<PerfNoise>,
@@ -49,6 +51,7 @@ impl Default for PerfOptions {
         Self {
             name: DEFAULT_PERF_NAME.into(),
             gpu_clocks_not_applicable: false,
+            gpu_clock_map: None,
             noise_override: false,
             noise: None,
             floor: None,
@@ -1703,9 +1706,10 @@ pub fn pair(
                 diff.warnings
                     .push("GPU clocks explicitly declared not applicable".into());
             }
-            let (clocks, reasons) = crate::gpu_clock::compare_required(
+            let (clocks, reasons) = crate::gpu_clock::compare_mapped(
                 &[before, after],
                 !opts.gpu_clocks_not_applicable,
+                opts.gpu_clock_map.as_deref(),
             );
             if !reasons.is_empty() {
                 diff.comparability = Comparability::Rejected;
@@ -1758,9 +1762,10 @@ pub fn noise_with_options(
         .map(|d| CapturePerf::read(d, &opts.name).map_err(crate::Error::Perf))
         .collect::<crate::Result<_>>()?;
     let (mut floor, mut reasons) = noise_from_captures(&captures, opts)?;
-    let (_, clock_reasons) = crate::gpu_clock::compare_required(
+    let (_, clock_reasons) = crate::gpu_clock::compare_mapped(
         &dirs.iter().map(PathBuf::as_path).collect::<Vec<_>>(),
         !opts.gpu_clocks_not_applicable,
+        opts.gpu_clock_map.as_deref(),
     );
     if !clock_reasons.is_empty() {
         if let Some(floor) = &mut floor {
@@ -1896,9 +1901,10 @@ pub fn noise_record(dirs: &[PathBuf], opts: &PerfOptions) -> crate::Result<Perfo
     let mut floor = floor.ok_or_else(|| {
         crate::Error::Config("performance noise needs at least two captures".into())
     })?;
-    let (_, clock_reasons) = crate::gpu_clock::compare_required(
+    let (_, clock_reasons) = crate::gpu_clock::compare_mapped(
         &dirs.iter().map(PathBuf::as_path).collect::<Vec<_>>(),
         !opts.gpu_clocks_not_applicable,
+        opts.gpu_clock_map.as_deref(),
     );
     if !clock_reasons.is_empty() {
         floor.comparability = Comparability::Rejected;

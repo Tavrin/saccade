@@ -17,10 +17,10 @@ This example exits 1 on purpose. Missing and new entries fail by default, and
 an empty scope establishes nothing.
 
 Directory sidecars default to `saccade-meta.json`. Image-specific sidecars
-`<stem>.saccade-meta.json` override directory values. Captures from the Moss
+`<stem>.saccade-meta.json` override directory values. Captures from a rendering
 engine use `--meta-name cost-card.json`, with the same override precedence.
 Its `binary.sha` and `build.commit` keys supply the binary hash and source
-revision; see [agents](agents.md#moss-cost-cards) for every accepted key.
+revision; see [agents](agents.md#cost-card-sidecars) for every accepted key.
 `--require-matching-meta` refuses undeclared configuration differences.
 
 Predeclare interventions with `--changes-file`; each declaration has a key,

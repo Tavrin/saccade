@@ -77,7 +77,7 @@ fn measurement_schemas() -> Value {
             "include_images":{"type":"boolean","default":false},
             "entries":{"type":"array","items":{"type":"string"}},
             "record_absolute_paths":{"type":"boolean","default":false},
-            "perf_name":{"type":"string"},"perf_noise":{"type":"string"},
+            "gpu_clock_map":{"type":"string"},"perf_name":{"type":"string"},"perf_noise":{"type":"string"},
             "perf_noise_k":{"type":"number","exclusiveMinimum":0},
             "perf_resolution_ms":{"type":"number","exclusiveMinimum":0},
             "perf_resolution_ticks":{"type":"integer","minimum":1},
@@ -155,7 +155,7 @@ fn measurement_schemas() -> Value {
             "export_maps":{"type":"boolean"},"require_scope":{"type":"boolean"},"render_evidence":{"type":"boolean"},
             "noise_from":{"type":"array","minItems":2,"maxItems":32,"items":{"type":"string"}},"mask_dump":{"type":"string"},"id_top":{"type":"integer","minimum":0,"maximum":32},"id_threshold":{"type":"number","minimum":0},
                 "top":{"type":"integer","minimum":0,"default":5},
-                "perf_name":{"type":"string"}, "perf_noise":{"type":"string"},
+                "gpu_clock_map":{"type":"string"},"perf_name":{"type":"string"}, "perf_noise":{"type":"string"},
                 "perf_noise_k":{"type":"number","exclusiveMinimum":0,"default":3},
                 "perf_resolution_ms":{"type":"number","exclusiveMinimum":0},
                 "perf_resolution_ticks":{"type":"integer","minimum":1,"default":2},
@@ -291,6 +291,7 @@ fn reject_unknown(args: &Map<String, Value>, known: &[&str]) -> Result<(), CliEr
 /// The argument names the run tools share.
 const RUN_ARGS: &[&str] = &[
     "out_dir",
+    "gpu_clock_map",
     "perf_name",
     "perf_noise",
     "perf_noise_k",
@@ -646,6 +647,11 @@ impl Server {
                     .map_err(|e| CliError::new("unsafe_path", e.to_string()))?;
             }
         }
+        if let Some(path) = &cfg.perf.gpu_clock_map {
+            self.policy
+                .read(path)
+                .map_err(|e| CliError::new("unsafe_path", e.to_string()))?;
+        }
         if let Some(path) = &cfg.perf.noise {
             self.policy
                 .read(path)
@@ -813,6 +819,13 @@ impl Server {
         args: &Map<String, Value>,
         opts: &mut saccade_core::perf::PerfOptions,
     ) -> Result<(), CliError> {
+        if let Some(n) = arg_str(args, "gpu_clock_map")? {
+            opts.gpu_clock_map = Some(self.existing_file("gpu_clock_map", &n)?);
+        }
+        if let Some(n) = &opts.gpu_clock_map {
+            opts.gpu_clock_map =
+                Some(self.existing_file("gpu_clock_map", &saccade_core::paths::portable(n))?);
+        }
         if let Some(n) = arg_str(args, "perf_name")? {
             opts.name = n;
         }
@@ -858,6 +871,7 @@ impl Server {
                 "out_dir",
                 "config",
                 "top",
+                "gpu_clock_map",
                 "perf_name",
                 "perf_noise",
                 "perf_noise_k",
@@ -1949,6 +1963,7 @@ impl Server {
                         "kind",
                         "margin",
                         "metric",
+                        "gpu_clock_map",
                         "perf_name",
                         "perf_noise",
                         "perf_noise_k",
@@ -2487,7 +2502,7 @@ fn tool_schemas() -> Value {
             measures.push(schema);
         }
     }
-    measures.push(json!({"type":"object","properties":{"operation":{"const":"noise","type":"string"},"dirs":{"type":"array","items":{"type":"string"},"minItems":2},"out":{"type":"string"},"kind":{"type":"string","enum":if cfg!(feature="graphics"){vec!["image","performance"]}else{vec!["image"]}},"margin":{"type":"number","minimum":1},"metric":{"enum":["mean","p95","p99","max"]},"perf_name":{"type":"string"},"perf_noise":{"type":"string"},"perf_noise_k":{"type":"number","exclusiveMinimum":0},"perf_resolution_ms":{"type":"number","exclusiveMinimum":0},"perf_resolution_ticks":{"type":"integer","minimum":1},"perf_min_delta_ms":{"type":"number","minimum":0},"perf_min_delta_pct":{"type":"number","minimum":0}},"required":["operation","dirs","out"],"additionalProperties":false}));
+    measures.push(json!({"type":"object","properties":{"operation":{"const":"noise","type":"string"},"dirs":{"type":"array","items":{"type":"string"},"minItems":2},"out":{"type":"string"},"kind":{"type":"string","enum":if cfg!(feature="graphics"){vec!["image","performance"]}else{vec!["image"]}},"margin":{"type":"number","minimum":1},"metric":{"enum":["mean","p95","p99","max"]},"gpu_clock_map":{"type":"string"},"perf_name":{"type":"string"},"perf_noise":{"type":"string"},"perf_noise_k":{"type":"number","exclusiveMinimum":0},"perf_resolution_ms":{"type":"number","exclusiveMinimum":0},"perf_resolution_ticks":{"type":"integer","minimum":1},"perf_min_delta_ms":{"type":"number","minimum":0},"perf_min_delta_pct":{"type":"number","minimum":0}},"required":["operation","dirs","out"],"additionalProperties":false}));
     #[cfg(feature="graphics")]
     measures.push(json!({"type":"object","properties":{"operation":{"const":"bisect","type":"string"},"runs":{"type":"array","items":{"type":"string"},"minItems":2},"good":{"type":"string"},"out":{"type":"string"},"threshold":{"type":"number","minimum":0,"maximum":1},"metric":{"enum":["mean","p95","p99","max"]},"entry":{"type":"string"}},"required":["operation","runs","out"],"additionalProperties":false}));
     #[cfg(feature = "prechecks")]
