@@ -266,6 +266,9 @@ pub(crate) fn run(args: BisectArgs) -> Result<u8, CliError> {
         .current_dir(&work)
         .args(["bisect", "run"])
         .arg(exe)
+        // Reports belong beside the evidence, outside the disposable Git clone.
+        .arg("--report-index")
+        .arg(out.join("reports/index.jsonl"))
         .arg("bisect")
         .arg("--step")
         .arg("--capture")

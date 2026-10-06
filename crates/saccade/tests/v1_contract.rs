@@ -30,7 +30,12 @@ fn fixtures(root: &Path) -> (PathBuf, Vec<PathBuf>) {
 }
 
 fn validate(schema: &Value, v: &Value) {
-    let uri = schema["$id"].as_str().unwrap();
+    let Some(uri) = schema["$id"].as_str() else {
+        let check = jsonschema::validator_for(schema).unwrap();
+        let errors: Vec<_> = check.iter_errors(v).map(|e| e.to_string()).collect();
+        assert!(errors.is_empty(), "{errors:?}: {v}");
+        return;
+    };
     let expected = uri
         .rsplit('/')
         .next()

@@ -2205,7 +2205,11 @@ fn parse_contract<T: serde::de::DeserializeOwned>(
         )));
     }
     reject_newer_nested_schemas(&value)?;
-    fn strict<T: serde::de::DeserializeOwned>(bytes: &[u8]) -> Result<T, String> {
+    enum ParseFailure {
+        UnknownField(String),
+        Malformed(String),
+    }
+    fn strict<T: serde::de::DeserializeOwned>(bytes: &[u8]) -> Result<T, ParseFailure> {
         let mut parser = serde_json::Deserializer::from_slice(bytes);
         let mut ignored = None;
         let parsed = serde_ignored::deserialize(&mut parser, |path| {
@@ -2213,34 +2217,41 @@ fn parse_contract<T: serde::de::DeserializeOwned>(
                 ignored = Some(path.to_string());
             }
         })
-        .map_err(|e| e.to_string())?;
+        .map_err(|e| {
+            let message = e.to_string();
+            if message.starts_with("unknown field `") {
+                ParseFailure::UnknownField(message)
+            } else {
+                ParseFailure::Malformed(message)
+            }
+        })?;
         if let Some(path) = ignored {
-            return Err(format!("unknown field {path}"));
+            return Err(ParseFailure::UnknownField(format!("unknown field {path}")));
         }
         Ok(parsed)
     }
     match strict(bytes) {
         Ok(parsed) => Ok(parsed),
-        Err(first) => {
+        Err(mut first) => {
             let legacy = saccade_core::report_links::legacy_view(&value);
             if legacy != value {
                 // Only known linkage is projected away, and duplicate keys still
                 // reject. Original retained bytes remain the artifact-hash source.
                 let _: serde_json::Value = saccade_core::evidence::canonical::decode(bytes)?;
                 let projected = serde_json::to_vec(&legacy)?;
-                if let Ok(parsed) = strict(&projected) {
-                    return Ok(parsed);
+                match strict(&projected) {
+                    Ok(parsed) => return Ok(parsed),
+                    Err(error) => first = error,
                 }
             }
-            if first.contains("unknown field") {
-                Err(CliError::new(
+            match first {
+                ParseFailure::UnknownField(first) => Err(CliError::new(
                     "version_skew",
                     format!(
                         "written by a newer producer; installed saccade supports {schema}, upgrade: {first}"
                     ),
-                ))
-            } else {
-                Err(CliError::io(format!("JSON error: {first}")))
+                )),
+                ParseFailure::Malformed(first) => Err(CliError::io(format!("JSON error: {first}"))),
             }
         }
     }
@@ -2794,6 +2805,13 @@ mod wave3_schema_tests {
     #[test]
     fn w3_f08_all_nested_families() {
         for id in [
+            "saccade-model-status",
+            "saccade-locate",
+            "saccade-vision-observation",
+            "saccade-learned-quality",
+            "saccade-watermark",
+            "saccade-faces",
+            "saccade-crop-check",
             "saccade-brand-source",
             "saccade-brand-review",
             "saccade-ui-source",
@@ -2807,12 +2825,19 @@ mod wave3_schema_tests {
             "saccade-asset-views",
             "saccade-asset-view-report",
         ] {
-            let value = serde_json::json!({"outer":[{"schema":format!("{id}.v2")} ]});
+            let legacy = format!("{id}.v1");
+            let linked = saccade_core::report_links::linked_schema(&legacy);
+            // A linked successor is supported; the next unknown version is not.
+            for schema in [&legacy, linked] {
+                let value = serde_json::json!({"outer":[{"schema":schema}]});
+                super::reject_newer_nested_schemas(&value).expect("supported");
+            }
+            let version = linked.rsplit_once('v').expect("version").1;
+            let newer = version.parse::<u32>().expect("integer version") + 1;
+            let value = serde_json::json!({"outer":[{"schema":format!("{id}.v{newer}")}]});
             let error = super::reject_newer_nested_schemas(&value).expect_err("upgrade required");
             assert_eq!(error.code, "version_skew");
             assert!(error.message.contains("upgrade"));
-            let value = serde_json::json!({"outer":[{"schema":format!("{id}.v1")} ]});
-            super::reject_newer_nested_schemas(&value).expect("supported");
         }
     }
 }

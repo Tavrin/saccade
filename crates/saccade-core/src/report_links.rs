@@ -209,20 +209,43 @@ pub fn original_schema(id: &str) -> &str {
 }
 /// Data-only view for a strict legacy model of a known linked successor.
 /// This creates a copy; the authoritative artifact bytes and their hash stay intact.
-/// Unknown schema versions and non-report authority records pass through unchanged.
+/// Unknown discriminators and non-report authority fields are preserved.
 pub fn legacy_view(value: &Value) -> Value {
-    let mut value = value.clone();
-    if let Some(id) = value.get("schema").and_then(Value::as_str)
-        && original_schema(id) != id
-    {
-        let original = original_schema(id).to_owned();
-        if let Some(object) = value.as_object_mut() {
-            object.remove("report_id");
-            object.remove("source_refs");
-            object.insert("schema".into(), original.into());
+    fn project(value: &mut Value) {
+        match value {
+            Value::Object(fields) => {
+                for child in fields.values_mut() {
+                    project(child);
+                }
+            }
+            Value::Array(items) => {
+                for child in items {
+                    project(child);
+                }
+            }
+            _ => {}
+        }
+        if let Some(id) = value.get("schema").and_then(Value::as_str)
+            && original_schema(id) != id
+        {
+            let original = original_schema(id).to_owned();
+            if let Some(object) = value.as_object_mut() {
+                object.remove("report_id");
+                object.remove("source_refs");
+                object.insert("schema".into(), original.into());
+            }
         }
     }
+    let mut value = value.clone();
+    project(&mut value);
     value
+}
+/// Decode a report's data-only view; callers still validate its schema and bindings.
+/// Only declared migration fields are projected away; strict models reject other fields.
+pub fn decode<T: serde::de::DeserializeOwned>(bytes: &[u8]) -> Result<T> {
+    let value: Value =
+        crate::evidence::canonical::decode(bytes).map_err(|e| Error::Config(e.to_string()))?;
+    Ok(serde_json::from_value(legacy_view(&value))?)
 }
 /// Add optional linkage fields to the top-level report JSON Schema only.
 pub fn extend_schema(value: &mut Value, id: &str) {
@@ -431,6 +454,26 @@ pub fn export(path: &Path) -> Result<Vec<Value>> {
 #[allow(clippy::unwrap_used)]
 mod tests {
     use super::*;
+    #[test]
+    fn legacy_projection_handles_nested_reports_and_preserves_other_fields() {
+        let value = json!({"outer":[{
+            "schema":"saccade-crop-check.v2", "report_id":"sha256:crop", "source_refs":[],
+            "detection":{"schema":"saccade-faces.v2", "report_id":"sha256:face", "source_refs":[], "future_field":true},
+            "input":{"schema":"saccade-brand-source.v1", "report_id":"authority"},
+            "newer":{"schema":"saccade-faces.v99", "report_id":"newer"}
+        }]});
+        let projected = legacy_view(&value);
+        let crop = &projected["outer"][0];
+        assert_eq!(crop["schema"], "saccade-crop-check.v1");
+        assert!(crop.get("report_id").is_none());
+        assert!(crop.get("source_refs").is_none());
+        assert_eq!(crop["detection"]["schema"], "saccade-faces.v1");
+        assert!(crop["detection"].get("report_id").is_none());
+        assert_eq!(crop["detection"]["future_field"], true);
+        assert_eq!(crop["input"], value["outer"][0]["input"]);
+        assert_eq!(crop["newer"], value["outer"][0]["newer"]);
+        assert_eq!(value["outer"][0]["schema"], "saccade-crop-check.v2");
+    }
     #[test]
     #[cfg(unix)]
     fn implicit_index_refuses_an_escaped_directory_and_index_rows_keep_their_ids() {

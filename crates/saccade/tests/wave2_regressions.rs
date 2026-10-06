@@ -167,6 +167,30 @@ fn new_readers_diagnose_newer_producers_and_malformed_separately() {
             assert!(!text.contains("upgrade"), "{text}");
         }
     }
+    // Link projection must not disguise malformed values as unknown fields.
+    let mut linked = saccade_core::report_links::decorate(&localized()).unwrap();
+    linked["inside"]["pixels"] = json!("unknown field");
+    std::fs::write(t.path().join("report.json"), linked.to_string()).unwrap();
+    let p = cli(
+        t.path(),
+        &[
+            "explain-grounded",
+            "--report",
+            "report.json",
+            "--out",
+            "malformed-linked.json",
+            "--json",
+        ],
+    );
+    assert_eq!(p.status.code(), Some(2), "{p:?}");
+    let result: Value = serde_json::from_slice(&p.stdout).unwrap();
+    assert_eq!(result["errors"][0]["code"], "io");
+    assert!(
+        !result["errors"][0]["message"]
+            .as_str()
+            .unwrap()
+            .contains("upgrade")
+    );
     std::fs::write(
         t.path().join("sweep.json"),
         json!({"schema":"saccade-quality-sweep.v2"}).to_string(),

@@ -175,7 +175,10 @@ fn old_flags_keep_working_and_print_a_deprecation_notice() {
         .arg(&cache)
         .output()
         .unwrap();
-    assert_eq!(json_of(&out)["schema"], "saccade-model-status.v1");
+    assert_eq!(
+        json_of(&out)["schema"],
+        saccade_core::report_links::linked_schema("saccade-model-status.v1")
+    );
     let stderr = String::from_utf8_lossy(&out.stderr);
     assert!(
         stderr.contains("deprecated") && stderr.contains("SACCADE_MODELS_DIR"),

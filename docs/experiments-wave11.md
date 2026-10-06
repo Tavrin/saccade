@@ -228,6 +228,13 @@ colliding with the already existing result-v2 contract. All strict report succes
 include both versions. Permissive legacy report schemas accept optional links without
 needing a version bump. Acquisition inputs and approval authority records keep their contracts.
 
+In particular, `saccade-crop-check.v1` → `saccade-crop-check.v2`,
+`saccade-faces.v1` → `saccade-faces.v2`, and `saccade-ui-review.v1` →
+`saccade-ui-review.v2` are intentional strict-report migrations. Readers accept both
+versions, including nested reports, while rejecting unknown successors. Crop receipts
+can retain a legacy face receipt inside the linked crop report. Replay readers project
+only known linkage fields into the legacy data model; other unknown fields still fail.
+
 Upgrade strict consumers to the successor schema, selected by the payload's `schema`
 discriminator. New readers accept legacy and linked versions and still reject unknown newer
 versions. Existing report filenames remain stable (for example `saccade-report.v1.json` may
