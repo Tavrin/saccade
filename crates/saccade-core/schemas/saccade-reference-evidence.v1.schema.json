@@ -122,6 +122,14 @@
           },
           "type": "array"
         },
+        "mapped_keys": {
+          "default": [],
+          "description": "Every effective key covered by a mapping, including subtree leaves on either arm.",
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
         "offending": {
           "description": "Offending fields, sorted by key.",
           "items": {
@@ -471,10 +479,22 @@
       "minimum": 0,
       "type": "integer"
     },
+    "report_id": {
+      "pattern": "^sha256:[0-9a-f]{64}$",
+      "type": "string"
+    },
     "schema": {
       "const": "saccade-reference-evidence.v1",
       "description": "Versioned discriminator.",
       "type": "string"
+    },
+    "source_refs": {
+      "items": {
+        "maxLength": 2048,
+        "type": "string"
+      },
+      "maxItems": 128,
+      "type": "array"
     },
     "tiles": {
       "description": "Recorded tile differences and floors.",

@@ -842,6 +842,8 @@ mod tests {
             }
         }
         Report {
+            report_id: None,
+            source_refs: Vec::new(),
             perf_diff: None,
             perf_errors: Vec::new(),
             combined_verdict: None,

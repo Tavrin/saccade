@@ -172,11 +172,7 @@ pub fn compare_probe(
             Status::Error => report.totals.error += 1,
         }
     }
-    std::fs::write(
-        out.join(REPORT_FILE_NAME),
-        serde_json::to_vec_pretty(&report)?,
-    )
-    .map_err(io("writing filtered bisect report"))?;
+    crate::report_links::write(&out.join(REPORT_FILE_NAME), &report)?;
     crate::render::render_html(&report, out)?;
     probe.report_dir = Some(crate::paths::portable(&absolute(out)));
     if report.totals.error > 0 || report.entries.is_empty() {
@@ -325,11 +321,7 @@ pub fn write_result(out: &Path, result: &BisectResult) -> Result<()> {
     {
         return Err(Error::Config("bisect result must not be a symlink".into()));
     }
-    std::fs::write(
-        out.join("saccade-bisect.v1.json"),
-        serde_json::to_vec_pretty(result)?,
-    )
-    .map_err(io("writing bisect result"))
+    crate::report_links::write(&out.join("saccade-bisect.v1.json"), result).map(|_| ())
 }
 
 /// Resolve a report child without letting preexisting symlinks redirect writes.

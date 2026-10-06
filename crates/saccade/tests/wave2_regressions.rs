@@ -131,7 +131,7 @@ fn new_readers_diagnose_newer_producers_and_malformed_separately() {
         if i == 0 {
             r["inside"]["newer_field"] = json!(true);
         } else if i == 1 {
-            r["schema"] = "saccade-localized.v2".into();
+            r["schema"] = "saccade-localized.v99".into();
         } else if i == 2 {
             r["region"]["schema"] = "saccade-frozen-region.v2".into();
         } else {
@@ -158,7 +158,7 @@ fn new_readers_diagnose_newer_producers_and_malformed_separately() {
         if i < 3 {
             assert!(
                 text.contains("newer producer")
-                    || text.contains("written by saccade-localized.v2")
+                    || text.contains("written by saccade-localized.v99")
                     || text.contains("written by saccade-frozen-region.v2"),
                 "{text}"
             );

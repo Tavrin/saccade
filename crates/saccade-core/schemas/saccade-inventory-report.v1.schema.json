@@ -129,6 +129,10 @@
       "description": "Outcome counts; sum equals expected.",
       "type": "object"
     },
+    "report_id": {
+      "pattern": "^sha256:[0-9a-f]{64}$",
+      "type": "string"
+    },
     "report_sha256": {
       "description": "SHA-256 of exact report bytes, assigned by the caller.",
       "type": "string"
@@ -136,6 +140,14 @@
     "schema": {
       "description": "saccade-inventory-report.v1.",
       "type": "string"
+    },
+    "source_refs": {
+      "items": {
+        "maxLength": 2048,
+        "type": "string"
+      },
+      "maxItems": 128,
+      "type": "array"
     },
     "supplied": {
       "description": "Number of unique expected cases declaring a captured artifact.",

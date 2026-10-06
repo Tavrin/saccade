@@ -43,7 +43,7 @@ pub struct FaceReport {
 impl FaceReport {
     /// Reject malformed geometry/scores and stale input receipts.
     pub fn validate(&self, image: &VisionImage) -> Result<()> {
-        if self.schema != FACES_SCHEMA
+        if crate::report_links::original_schema(&self.schema) != FACES_SCHEMA
             || self.image_sha256 != image.sha256
             || self.image_size != image.size()
             || self.faces.len() > 256

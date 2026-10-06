@@ -62,7 +62,10 @@ fn wave4_cli_mcp_offline_scope_and_authority_agree() {
     let sidecar: Value =
         serde_json::from_slice(&std::fs::read(cli_out.join("saccade-assist.v1.json")).unwrap())
             .unwrap();
-    assert_eq!(sidecar["schema"], "saccade-assist.v1");
+    assert_eq!(
+        sidecar["schema"],
+        saccade_core::report_links::linked_schema("saccade-assist.v1")
+    );
     assert!(sidecar.get("approve").is_none());
     let escaped = std::fs::read_to_string(cli_out.join("index.html")).unwrap();
     assert!(escaped.contains("Experimental AI advice"));
@@ -179,7 +182,10 @@ fn wave4_report_workflows_preserve_verdict_and_mirror_mcp() {
         ] {
             let artifact: Value =
                 serde_json::from_slice(&std::fs::read(cli_out.join(file)).unwrap()).unwrap();
-            assert_eq!(artifact["schema"], schema);
+            assert_eq!(
+                artifact["schema"],
+                saccade_core::report_links::linked_schema(schema)
+            );
         }
         if operation == "audit-mask" {
             let audit: Value =

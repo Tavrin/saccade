@@ -67,7 +67,7 @@ class Api:
 def image_entries(report_path: Path, temp: Path) -> tuple[str, list[tuple[str, bytes, str]]]:
     report_bytes = report_path.read_bytes()
     report = json.loads(report_bytes)
-    if report.get("schema") != "saccade-report.v1" or not isinstance(report.get("entries"), list):
+    if report.get("schema") not in ("saccade-report.v1", "saccade-report.v2") or not isinstance(report.get("entries"), list):
         raise ValueError("unsupported or malformed saccade report")
     digest = hashlib.sha256(report_bytes).hexdigest()[:16]
     files = []

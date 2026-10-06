@@ -1,0 +1,80 @@
+{
+  "$id": "https://github.com/Tavrin/saccade/crates/saccade-core/schemas/saccade-documents.v2.schema.json",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "properties": {
+    "counts": {
+      "type": "object"
+    },
+    "inputs": {
+      "type": "object"
+    },
+    "limitations": {
+      "type": "array"
+    },
+    "operation": {
+      "const": "documents_compare"
+    },
+    "pages": {
+      "items": {
+        "properties": {
+          "page": {
+            "maximum": 500,
+            "minimum": 1,
+            "type": "integer"
+          },
+          "status": {
+            "enum": [
+              "pass",
+              "regression",
+              "new",
+              "missing",
+              "error"
+            ]
+          }
+        },
+        "type": "object"
+      },
+      "maxItems": 500,
+      "type": "array"
+    },
+    "rendering": {
+      "type": "object"
+    },
+    "report_id": {
+      "pattern": "^sha256:[0-9a-f]{64}$",
+      "type": "string"
+    },
+    "schema": {
+      "const": "saccade-documents.v2"
+    },
+    "source_refs": {
+      "items": {
+        "maxLength": 2048,
+        "minLength": 1,
+        "type": "string"
+      },
+      "maxItems": 128,
+      "type": "array"
+    },
+    "verdict": {
+      "enum": [
+        "pass",
+        "regression"
+      ]
+    }
+  },
+  "required": [
+    "schema",
+    "operation",
+    "verdict",
+    "counts",
+    "inputs",
+    "rendering",
+    "pages",
+    "limitations",
+    "report_id",
+    "source_refs"
+  ],
+  "type": "object"
+}

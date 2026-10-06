@@ -214,7 +214,7 @@ impl LocateReport {
     pub fn validate(&self, image: &VisionImage, phrase: &str, segment: bool) -> Result<()> {
         if phrase.trim().is_empty()
             || phrase.len() > 4096
-            || self.schema != LOCATE_SCHEMA
+            || crate::report_links::original_schema(&self.schema) != LOCATE_SCHEMA
             || self.image_sha256 != image.sha256
             || self.image_size != image.size()
             || self.phrase_sha256 != digest(phrase.as_bytes())

@@ -171,14 +171,11 @@ pub mod schema_catalog;
 
 pub mod optional;
 
-/// Wave 11 mask spec implementation.
-pub mod mask_spec;
-
-/// Wave 11 timing implementation.
+// wave11
+pub mod ablation_timing;
+pub mod report_links;
+pub mod settling;
 pub mod timing;
 
-/// Wave 11 settling implementation.
-pub mod settling;
-
-/// Wave 11 ablation timing implementation.
-pub mod ablation_timing;
+/// Stable shared mask-spec parser for CLI, MCP and downstream measurement APIs.
+pub mod mask_spec;

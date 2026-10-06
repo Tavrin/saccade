@@ -45,6 +45,13 @@ pub struct Scope {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct Measurement {
+    /// Content-addressed report identity, absent on historical records.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub report_id: Option<String>,
+    /// External capture URI/key backlinks.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub source_refs: Vec<String>,
+
     /// saccade-localized.v1.
     pub schema: String,
     /// Frozen region and its capture identity.
@@ -352,7 +359,7 @@ pub fn measure(
         "preserved"
     }
     .into();
-    Ok(Measurement{schema:"saccade-localized.v1".into(),region,candidate_sha256,pixels_per_degree:ppd,intended_change_detected:inside.changed_pixels>0,inside,outside,boundary,exact_outside,maximum_outside_flip,collateral,limits:vec!["Authoring provenance is a validated producer declaration, not independently authenticated. unverified_import explicitly denotes unavailable authoring evidence.".into(),"Spatial change does not establish success of the requested semantic edit.".into(),"Full-frame FLIP neighborhood support can cross the region boundary; exact sample differences are reported independently, including alpha.".into(),"SDR perceptual measurement converts 16-bit samples to 8-bit; exact collateral retains native precision. HDR/float inputs are rejected.".into()]})
+    Ok(Measurement{report_id:None,source_refs:Vec::new(),schema:"saccade-localized.v1".into(),region,candidate_sha256,pixels_per_degree:ppd,intended_change_detected:inside.changed_pixels>0,inside,outside,boundary,exact_outside,maximum_outside_flip,collateral,limits:vec!["Authoring provenance is a validated producer declaration, not independently authenticated. unverified_import explicitly denotes unavailable authoring evidence.".into(),"Spatial change does not establish success of the requested semantic edit.".into(),"Full-frame FLIP neighborhood support can cross the region boundary; exact sample differences are reported independently, including alpha.".into(),"SDR perceptual measurement converts 16-bit samples to 8-bit; exact collateral retains native precision. HDR/float inputs are rejected.".into()]})
 }
 
 #[cfg(test)]

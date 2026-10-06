@@ -313,3 +313,5 @@ the applicable covered list. Present null is distinct from absence and keeps
 state `null`. Field overrides take precedence over the map-level default.
 Readiness flags and observations remain required and keep their existing
 convergence checks; absence policies apply to field mappings.
+
+Whole-object `[subtrees."run.env"]` mappings discover newly recorded keys and support relative `exclude` globs. `mapped_keys` records the complete covered-key union. See [subtree maps](experiments-wave11.md#subtree-fingerprint-maps).

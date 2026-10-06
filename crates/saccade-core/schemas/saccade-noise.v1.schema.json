@@ -196,6 +196,10 @@
       ],
       "description": "Raw repeat ranges, timer quantum and minimum meaningful delta settings."
     },
+    "report_id": {
+      "pattern": "^sha256:[0-9a-f]{64}$",
+      "type": "string"
+    },
     "runs": {
       "description": "Capture directories, relative to the output configuration directory.",
       "items": {
@@ -206,6 +210,14 @@
     "schema": {
       "description": "Always `saccade-noise.v1`.",
       "type": "string"
+    },
+    "source_refs": {
+      "items": {
+        "maxLength": 2048,
+        "type": "string"
+      },
+      "maxItems": 128,
+      "type": "array"
     },
     "unit": {
       "default": "FLIP",

@@ -16,7 +16,14 @@ pub(crate) struct CompareArgs {
     pub noise_from: Vec<PathBuf>,
     /// Generic screen-space dump filename relative to each capture; used when no layer manifest exists.
     #[arg(long)]
+    #[arg(alias = "mask-from-dump")]
     pub mask_dump: Option<String>,
+    /// Named layer and native predicate, NAME=id=1,2 or NAME=label=pattern.
+    #[arg(long, allow_hyphen_values = true)]
+    pub mask_layer: Option<String>,
+    /// Required occupancy from NAME=predicate[:MIN_PIXELS] or mask:FILE[:MIN_PIXELS].
+    #[arg(long = "require-effect")]
+    pub require_effect: Vec<String>,
     /// Per-ID rows and diagnostic crops retained, at most 32.
     #[arg(long)]
     pub id_top: Option<usize>,
@@ -29,6 +36,8 @@ impl CompareArgs {
         self.export_maps
             || self.require_scope
             || !self.noise_from.is_empty()
+            || self.mask_layer.is_some()
+            || !self.require_effect.is_empty()
             || self.mask_dump.is_some()
             || self.id_top.is_some()
             || self.id_threshold.is_some()
@@ -55,6 +64,7 @@ impl CompareArgs {
             });
             cfg.mask_mode = saccade_core::compare::MaskMode::Neutralize;
         }
+        crate::wave11_cmd::apply_masks(cfg, self.mask_layer.as_deref(), &self.require_effect)?;
         if (cfg.field.export_maps || !cfg.field.noise_from.is_empty()) && cfg.buffers.is_empty() {
             cfg.spatial.get_or_insert_with(Default::default);
         }

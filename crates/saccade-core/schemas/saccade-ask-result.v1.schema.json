@@ -22,10 +22,22 @@
         "null"
       ]
     },
+    "report_id": {
+      "pattern": "^sha256:[0-9a-f]{64}$",
+      "type": "string"
+    },
     "schema": {
       "const": "saccade-ask-result.v1",
       "description": "Schema identifier.",
       "type": "string"
+    },
+    "source_refs": {
+      "items": {
+        "maxLength": 2048,
+        "type": "string"
+      },
+      "maxItems": 128,
+      "type": "array"
     },
     "status": {
       "description": "open or answered.",

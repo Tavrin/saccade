@@ -1,0 +1,120 @@
+{
+  "$id": "https://github.com/Tavrin/saccade/crates/saccade-core/schemas/saccade-capabilities.v2.schema.json",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "properties": {
+    "compiled_features": {
+      "items": {
+        "type": "string"
+      },
+      "type": "array"
+    },
+    "families": {
+      "items": {
+        "additionalProperties": false,
+        "properties": {
+          "command": {
+            "type": "string"
+          },
+          "family": {
+            "type": "string"
+          },
+          "features_required": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "inputs": {
+            "type": "string"
+          },
+          "limits": {
+            "type": "string"
+          },
+          "question": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "family",
+          "command",
+          "inputs",
+          "features_required",
+          "status",
+          "question",
+          "limits"
+        ],
+        "type": "object"
+      },
+      "minItems": 15,
+      "type": "array"
+    },
+    "limitations": {
+      "items": {
+        "type": "string"
+      },
+      "type": "array"
+    },
+    "operation": {
+      "const": "capabilities"
+    },
+    "report_id": {
+      "pattern": "^sha256:[0-9a-f]{64}$",
+      "type": "string"
+    },
+    "routing": {
+      "additionalProperties": false,
+      "properties": {
+        "near-duplicate": {
+          "type": "string"
+        },
+        "quality": {
+          "type": "string"
+        },
+        "same-content": {
+          "type": "string"
+        },
+        "same-render": {
+          "type": "string"
+        },
+        "same-text": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "same-render",
+        "same-content",
+        "same-text",
+        "near-duplicate",
+        "quality"
+      ],
+      "type": "object"
+    },
+    "schema": {
+      "const": "saccade-capabilities.v2"
+    },
+    "source_refs": {
+      "items": {
+        "maxLength": 2048,
+        "minLength": 1,
+        "type": "string"
+      },
+      "maxItems": 128,
+      "type": "array"
+    }
+  },
+  "required": [
+    "schema",
+    "operation",
+    "compiled_features",
+    "families",
+    "routing",
+    "limitations",
+    "report_id",
+    "source_refs"
+  ],
+  "type": "object"
+}

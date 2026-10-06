@@ -1,5 +1,17 @@
 # Changelog
 
+## Unreleased
+
+- Analyze external paired timings with same-session A/A controls, block-bootstrap HL
+  verdicts and declared sequential looks; add event-relative tile settling trajectories.
+- Show per-arm repeat timing distributions and ranked ablation tables; add native mask
+  shortcuts and automatic fingerprint subtree mappings with exclusions.
+- Link measurement reports to external capture indexes using the existing semantic
+  measurement identity, source refs and JSON/JSONL export. Strict linked reports use
+  versioned successor schemas; legacy schemas and authority bindings stay readable.
+- Expose stable public mask-spec parsers in `saccade-core`; document block-bootstrap
+  validity and declared sequential stopping with a repeated-peeking null acceptance gate.
+
 ## 0.2.5
 
 - Add map-level and per-field `absent = "missing"|"value"` policies for optional

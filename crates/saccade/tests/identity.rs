@@ -184,7 +184,10 @@ fn identity_json_retains_its_contract_and_separates_equality_from_validity() {
     );
     assert_eq!(o.status.code(), Some(1), "{o:?}");
     let v: serde_json::Value = serde_json::from_slice(&o.stdout).expect("json");
-    assert_eq!(v["schema"], "saccade-result.v1");
+    assert_eq!(
+        v["schema"],
+        saccade_core::report_links::linked_schema("saccade-result.v1")
+    );
     assert_eq!(v["mode"], "identity");
     assert_eq!(v["verdict"], "regression");
     for key in ["pass", "fail", "error", "missing", "new", "total"] {

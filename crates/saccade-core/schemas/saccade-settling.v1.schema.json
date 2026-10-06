@@ -177,6 +177,10 @@
       "description": "Reference source mode.",
       "type": "string"
     },
+    "report_id": {
+      "pattern": "^sha256:[0-9a-f]{64}$",
+      "type": "string"
+    },
     "schema": {
       "const": "saccade-settling.v1",
       "description": "Version discriminator.",
@@ -190,6 +194,14 @@
         "integer",
         "null"
       ]
+    },
+    "source_refs": {
+      "items": {
+        "maxLength": 2048,
+        "type": "string"
+      },
+      "maxItems": 128,
+      "type": "array"
     },
     "tiles": {
       "description": "Per-tile trajectories.",

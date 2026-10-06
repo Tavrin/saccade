@@ -618,10 +618,22 @@
       "description": "True only with complete coverage and no declared-threshold regression.",
       "type": "boolean"
     },
+    "report_id": {
+      "pattern": "^sha256:[0-9a-f]{64}$",
+      "type": "string"
+    },
     "schema": {
       "const": "saccade-asset-view-report.v1",
       "description": "Contract identity.",
       "type": "string"
+    },
+    "source_refs": {
+      "items": {
+        "maxLength": 2048,
+        "type": "string"
+      },
+      "maxItems": 128,
+      "type": "array"
     },
     "views": {
       "description": "All views, including failures.",

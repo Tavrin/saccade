@@ -1,0 +1,124 @@
+{
+  "$id": "https://github.com/Tavrin/saccade/crates/saccade-core/schemas/saccade-keyframes.v2.schema.json",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "properties": {
+    "duration_basis": {
+      "type": "string"
+    },
+    "duration_seconds": {
+      "minimum": 0,
+      "type": "number"
+    },
+    "keyframes": {
+      "items": {
+        "additionalProperties": false,
+        "properties": {
+          "path": {
+            "type": "string"
+          },
+          "sample": {
+            "minimum": 0,
+            "type": "integer"
+          },
+          "sha256": {
+            "pattern": "^[0-9a-f]{64}$",
+            "type": "string"
+          },
+          "timestamp_seconds": {
+            "minimum": 0,
+            "type": "number"
+          }
+        },
+        "required": [
+          "sample",
+          "timestamp_seconds",
+          "path",
+          "sha256"
+        ],
+        "type": "object"
+      },
+      "maxItems": 64,
+      "minItems": 1,
+      "type": "array"
+    },
+    "provenance": {
+      "type": "object"
+    },
+    "report_id": {
+      "pattern": "^sha256:[0-9a-f]{64}$",
+      "type": "string"
+    },
+    "sample_fps": {
+      "exclusiveMinimum": 0,
+      "type": "number"
+    },
+    "samples": {
+      "maximum": 300,
+      "minimum": 1,
+      "type": "integer"
+    },
+    "schema": {
+      "const": "saccade-keyframes.v2"
+    },
+    "shots": {
+      "items": {
+        "additionalProperties": false,
+        "properties": {
+          "end_sample": {
+            "minimum": 1,
+            "type": "integer"
+          },
+          "end_seconds": {
+            "minimum": 0,
+            "type": "number"
+          },
+          "keyframe": {
+            "minimum": 0,
+            "type": "integer"
+          },
+          "start_sample": {
+            "minimum": 0,
+            "type": "integer"
+          },
+          "start_seconds": {
+            "minimum": 0,
+            "type": "number"
+          }
+        },
+        "required": [
+          "start_sample",
+          "end_sample",
+          "start_seconds",
+          "end_seconds",
+          "keyframe"
+        ],
+        "type": "object"
+      },
+      "minItems": 1,
+      "type": "array"
+    },
+    "source_refs": {
+      "items": {
+        "maxLength": 2048,
+        "minLength": 1,
+        "type": "string"
+      },
+      "maxItems": 128,
+      "type": "array"
+    }
+  },
+  "required": [
+    "schema",
+    "duration_seconds",
+    "duration_basis",
+    "sample_fps",
+    "samples",
+    "shots",
+    "keyframes",
+    "provenance",
+    "report_id",
+    "source_refs"
+  ],
+  "type": "object"
+}

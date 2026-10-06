@@ -410,7 +410,7 @@
         },
         "noise_threshold": {
           "default": null,
-          "description": "Effective threshold: max(k \u00d7 range, ticks \u00d7 quantum, absolute/relative minimum).",
+          "description": "Effective threshold: max(k × range, ticks × quantum, absolute/relative minimum).",
           "format": "double",
           "type": [
             "number",
@@ -474,7 +474,7 @@
         },
         "noise_threshold": {
           "default": null,
-          "description": "Effective threshold: max(k \u00d7 range, ticks \u00d7 quantum, absolute/relative minimum).",
+          "description": "Effective threshold: max(k × range, ticks × quantum, absolute/relative minimum).",
           "format": "double",
           "type": [
             "number",
@@ -514,7 +514,7 @@
           "type": "number"
         },
         "delta_pct": {
-          "description": "100\u00d7(exp(HL(log(after)-log(before)))-1).",
+          "description": "100×(exp(HL(log(after)-log(before)))-1).",
           "format": "double",
           "type": "number"
         },
@@ -969,7 +969,7 @@
         },
         "minimum_delta_ms": {
           "default": 0.0,
-          "description": "max(min_delta_ms, baseline frame \u00d7 min_delta_pct / 100).",
+          "description": "max(min_delta_ms, baseline frame × min_delta_pct / 100).",
           "format": "double",
           "type": "number"
         },
@@ -1424,7 +1424,7 @@
       "description": "Per-arm repeat evidence. Unpaired intervals never imply matched acquisition.",
       "properties": {
         "hl_delta_ms": {
-          "description": "Independent-sample Hodges\u2013Lehmann shift against baseline.",
+          "description": "Independent-sample Hodges–Lehmann shift against baseline.",
           "format": "double",
           "type": "number"
         },
@@ -1566,7 +1566,7 @@
         },
         "noise_threshold": {
           "default": null,
-          "description": "Effective threshold: max(k \u00d7 range, ticks \u00d7 quantum, absolute/relative minimum).",
+          "description": "Effective threshold: max(k × range, ticks × quantum, absolute/relative minimum).",
           "format": "double",
           "type": [
             "number",
@@ -1715,8 +1715,20 @@
       },
       "type": "array"
     },
+    "report_id": {
+      "pattern": "^sha256:[0-9a-f]{64}$",
+      "type": "string"
+    },
     "schema": {
       "type": "string"
+    },
+    "source_refs": {
+      "items": {
+        "maxLength": 2048,
+        "type": "string"
+      },
+      "maxItems": 128,
+      "type": "array"
     }
   },
   "required": [

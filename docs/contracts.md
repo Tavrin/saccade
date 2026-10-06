@@ -289,6 +289,10 @@ The last three names appear only when the corresponding feature is compiled in.
 - [saccade-visual-trial-plan.v1.schema.json](../crates/saccade-core/schemas/saccade-visual-trial-plan.v1.schema.json) — Plan
 - [saccade-visual-trial-receipt.v1.schema.json](../crates/saccade-core/schemas/saccade-visual-trial-receipt.v1.schema.json) — Receipt
 - [saccade-watermark.v1.schema.json](../crates/saccade-core/schemas/saccade-watermark.v1.schema.json) — WatermarkReport
+- [saccade-timing-session.v1.schema.json](../crates/saccade-core/schemas/saccade-timing-session.v1.schema.json) — Imported timing session
+- [saccade-timing-ab.v1.schema.json](../crates/saccade-core/schemas/saccade-timing-ab.v1.schema.json) — Paired timing verdict
+- [saccade-settling.v1.schema.json](../crates/saccade-core/schemas/saccade-settling.v1.schema.json) — Event-relative visual trajectory
+- [saccade-report-index-row.v1.schema.json](../crates/saccade-core/schemas/saccade-report-index-row.v1.schema.json) — External report-index row
 <!-- schema-index:end -->
 
 Historical validators and fixtures do not imply that retired writers or commands
@@ -347,3 +351,9 @@ and `perf validate FILE`. `schema path ID` only reports a matching installed cop
 Legacy discriminators without a previous field schema have explicitly labelled
 envelope-only documents; retrieval does not claim validation of their payload
 fields. Performance v1/v2 use their full typed schemas.
+
+Measurement reports add `report_id` and external `source_refs`; strict historical readers accept the reserved fields while rejecting unknown measurement fields. See [wave11 experiments](experiments-wave11.md) for canonical identity, index export and diagnostic qualification.
+
+Linked report successors preserve strict legacy schemas; see the
+[Wave 11 migration](experiments-wave11.md#linked-report-contract-migration) and the shipped
+`report_links::SCHEMA_MIGRATIONS` table. Select schemas by the JSON discriminator.

@@ -70,9 +70,8 @@ pub(crate) fn finish<T: Serialize>(
     text: &str,
     title: &str,
 ) -> Result<()> {
-    let json = serde_json::to_string_pretty(report)?;
-    std::fs::write(out.join(marker), &json)
-        .map_err(crate::run::io_err("writing pre-check JSON".into()))?;
+    let linked = crate::report_links::write(&out.join(marker), report)?;
+    let json = serde_json::to_string_pretty(&linked)?;
     std::fs::write(out.join("report.txt"), text)
         .map_err(crate::run::io_err("writing pre-check text".into()))?;
     let safe = json

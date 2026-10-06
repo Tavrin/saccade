@@ -31,7 +31,9 @@ pub(crate) fn run(args: Args) -> Result<u8, CliError> {
         .create_new(true)
         .open(&args.out)
         .map_err(|e| CliError::io(e.to_string()))?;
-    serde_json::to_writer_pretty(file, &report)?;
+    let linked = saccade_core::report_links::decorate(&serde_json::to_value(&report)?)?;
+    serde_json::to_writer_pretty(file, &linked)?;
+    saccade_core::report_links::index(&args.out, &linked)?;
     if args.json {
         crate::emit(&format!("{}\n", serde_json::to_string(&report)?))?;
     } else {

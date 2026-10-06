@@ -1,0 +1,341 @@
+{
+  "$id": "https://github.com/Tavrin/saccade/crates/saccade-core/schemas/saccade-a11y.v2.schema.json",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "properties": {
+    "disclaimer": {
+      "type": "string"
+    },
+    "images": {
+      "items": {
+        "additionalProperties": false,
+        "properties": {
+          "contrast": {
+            "items": {
+              "additionalProperties": false,
+              "properties": {
+                "background": {
+                  "anyOf": [
+                    {
+                      "items": {
+                        "maximum": 255,
+                        "minimum": 0,
+                        "type": "integer"
+                      },
+                      "maxItems": 3,
+                      "minItems": 3,
+                      "type": "array"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                },
+                "foreground": {
+                  "anyOf": [
+                    {
+                      "items": {
+                        "maximum": 255,
+                        "minimum": 0,
+                        "type": "integer"
+                      },
+                      "maxItems": 3,
+                      "minItems": 3,
+                      "type": "array"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                },
+                "kind": {
+                  "enum": [
+                    "text",
+                    "ui"
+                  ]
+                },
+                "level": {
+                  "enum": [
+                    "AA",
+                    "AAA"
+                  ]
+                },
+                "name": {
+                  "type": "string"
+                },
+                "note": {
+                  "type": "string"
+                },
+                "ratio": {
+                  "anyOf": [
+                    {
+                      "maximum": 21,
+                      "minimum": 1,
+                      "type": "number"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                },
+                "rect": {
+                  "items": {
+                    "maximum": 1,
+                    "minimum": 0,
+                    "type": "number"
+                  },
+                  "maxItems": 4,
+                  "minItems": 4,
+                  "type": "array"
+                },
+                "threshold": {
+                  "minimum": 0,
+                  "type": "number"
+                },
+                "verdict": {
+                  "enum": [
+                    "PASS",
+                    "WARN",
+                    "FAIL"
+                  ]
+                }
+              },
+              "required": [
+                "name",
+                "kind",
+                "rect",
+                "verdict",
+                "foreground",
+                "background",
+                "ratio",
+                "threshold",
+                "level",
+                "note"
+              ],
+              "type": "object"
+            },
+            "type": "array"
+          },
+          "findings": {
+            "items": {
+              "additionalProperties": false,
+              "properties": {
+                "kind": {
+                  "const": "information_loss"
+                },
+                "message": {
+                  "type": "string"
+                },
+                "original_delta_e": {
+                  "minimum": 0,
+                  "type": "number"
+                },
+                "rect": {
+                  "items": {
+                    "maximum": 1,
+                    "minimum": 0,
+                    "type": "number"
+                  },
+                  "maxItems": 4,
+                  "minItems": 4,
+                  "type": "array"
+                },
+                "severity": {
+                  "const": "WARN"
+                },
+                "simulated_delta_e": {
+                  "minimum": 0,
+                  "type": "number"
+                },
+                "simulation": {
+                  "enum": [
+                    "protanopia",
+                    "deuteranopia",
+                    "tritanopia"
+                  ]
+                }
+              },
+              "required": [
+                "kind",
+                "severity",
+                "simulation",
+                "rect",
+                "original_delta_e",
+                "simulated_delta_e",
+                "message"
+              ],
+              "type": "object"
+            },
+            "type": "array"
+          },
+          "heatmaps": {
+            "additionalProperties": {
+              "type": "string"
+            },
+            "type": "object"
+          },
+          "name": {
+            "type": "string"
+          },
+          "original": {
+            "type": "string"
+          },
+          "proposals": {
+            "items": {
+              "additionalProperties": false,
+              "properties": {
+                "confirmed": {
+                  "const": false
+                },
+                "kind": {
+                  "enum": [
+                    "text",
+                    "ui"
+                  ]
+                },
+                "model": {
+                  "type": "string"
+                },
+                "probability": {
+                  "anyOf": [
+                    {
+                      "maximum": 1,
+                      "minimum": 0,
+                      "type": "number"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                },
+                "rect": {
+                  "items": {
+                    "maximum": 1,
+                    "minimum": 0,
+                    "type": "number"
+                  },
+                  "maxItems": 4,
+                  "minItems": 4,
+                  "type": "array"
+                }
+              },
+              "required": [
+                "kind",
+                "rect",
+                "confirmed",
+                "model",
+                "probability"
+              ],
+              "type": "object"
+            },
+            "type": "array"
+          },
+          "simulations": {
+            "additionalProperties": {
+              "type": "string"
+            },
+            "type": "object"
+          },
+          "verdict": {
+            "enum": [
+              "PASS",
+              "WARN",
+              "FAIL"
+            ]
+          }
+        },
+        "required": [
+          "name",
+          "verdict",
+          "original",
+          "simulations",
+          "heatmaps",
+          "findings",
+          "contrast",
+          "proposals"
+        ],
+        "type": "object"
+      },
+      "type": "array"
+    },
+    "model": {
+      "type": "string"
+    },
+    "report_id": {
+      "pattern": "^sha256:[0-9a-f]{64}$",
+      "type": "string"
+    },
+    "scale": {
+      "maximum": 128,
+      "minimum": 1,
+      "type": "integer"
+    },
+    "schema": {
+      "const": "saccade-a11y.v2"
+    },
+    "source_refs": {
+      "items": {
+        "maxLength": 2048,
+        "minLength": 1,
+        "type": "string"
+      },
+      "maxItems": 128,
+      "type": "array"
+    },
+    "thresholds": {
+      "items": {
+        "additionalProperties": false,
+        "properties": {
+          "citation": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "value": {
+            "minimum": 0,
+            "type": "number"
+          },
+          "verify": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "name",
+          "value",
+          "citation",
+          "verify"
+        ],
+        "type": "object"
+      },
+      "type": "array"
+    },
+    "verdict": {
+      "enum": [
+        "PASS",
+        "WARN",
+        "FAIL"
+      ]
+    },
+    "warnings": {
+      "items": {
+        "type": "string"
+      },
+      "type": "array"
+    }
+  },
+  "required": [
+    "schema",
+    "verdict",
+    "disclaimer",
+    "thresholds",
+    "warnings",
+    "model",
+    "scale",
+    "images",
+    "report_id",
+    "source_refs"
+  ],
+  "title": "a11y PRE-CHECK only; not certification or formal compliance",
+  "type": "object"
+}

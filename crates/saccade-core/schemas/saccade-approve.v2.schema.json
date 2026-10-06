@@ -1,0 +1,77 @@
+{
+  "$id": "https://github.com/Tavrin/saccade/crates/saccade-core/schemas/saccade-approve.v2.schema.json",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "description": "CLI approval summary; exact decisions and unattested receipts are canonical evidence artifacts. Paths are relative by default.",
+  "properties": {
+    "copied": {
+      "items": {
+        "additionalProperties": false,
+        "properties": {
+          "from": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "to": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "name",
+          "from",
+          "to"
+        ],
+        "type": "object"
+      },
+      "type": "array"
+    },
+    "decision": {
+      "type": "string"
+    },
+    "dry_run": {
+      "type": "boolean"
+    },
+    "manifest": {
+      "type": "string"
+    },
+    "pruned": {
+      "items": {
+        "type": "string"
+      },
+      "type": "array"
+    },
+    "receipt": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "report_id": {
+      "pattern": "^sha256:[0-9a-f]{64}$",
+      "type": "string"
+    },
+    "schema": {
+      "const": "saccade-approve.v2"
+    },
+    "source_refs": {
+      "items": {
+        "maxLength": 2048,
+        "minLength": 1,
+        "type": "string"
+      },
+      "maxItems": 128,
+      "type": "array"
+    }
+  },
+  "required": [
+    "schema",
+    "copied",
+    "pruned",
+    "report_id",
+    "source_refs"
+  ],
+  "title": "saccade-approve.v1",
+  "type": "object"
+}

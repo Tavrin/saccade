@@ -679,7 +679,7 @@ pub fn run_repeats(
         ("ablation.txt", model.text()),
         ("ablation.md", model.markdown()),
     ] {
-        std::fs::write(out.join(name), text).map_err(crate::run::io_err("writing ablation output".into()))?;
+        crate::report_links::write_bytes(out.join(name), text)?;
     }
     std::fs::remove_file(out.join(crate::run::RUN_SENTINEL))
         .map_err(crate::run::io_err("removing ablation marker".into()))?;

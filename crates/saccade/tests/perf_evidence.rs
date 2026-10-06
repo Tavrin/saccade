@@ -22,10 +22,13 @@ fn value(root: &Path, o: &Output) -> Value {
         String::from_utf8_lossy(&o.stderr)
     );
     let result: Value = serde_json::from_slice(&o.stdout).unwrap();
-    if result["schema"] == "saccade-result.v2" {
+    if saccade_core::report_links::original_schema(result["schema"].as_str().unwrap_or_default())
+        == "saccade-result.v2"
+    {
         schema("saccade-result.v2", &result);
     }
-    if result["schema"] == "saccade-result.v2"
+    if saccade_core::report_links::original_schema(result["schema"].as_str().unwrap_or_default())
+        == "saccade-result.v2"
         && result["artifact"].is_object()
         && result["operation"] != "compare"
         && result["operation"] != "identity"
@@ -72,6 +75,12 @@ fn fixture(root: &Path) {
     }
 }
 fn schema(name: &str, v: &Value) {
+    let successor = saccade_core::report_links::linked_schema(name);
+    let name = if v["schema"] == successor {
+        successor
+    } else {
+        name
+    };
     let p = Path::new(env!("CARGO_MANIFEST_DIR"))
         .join("../saccade-core/schemas")
         .join(format!("{name}.schema.json"));
@@ -280,7 +289,10 @@ fn noise_ablation_compare_identity_markdown_and_explain_share_evidence() {
         if command == "compare" {
             schema("saccade-result.v2", &lean);
         } else {
-            assert_eq!(lean["schema"], "saccade-result.v1");
+            assert_eq!(
+                lean["schema"],
+                saccade_core::report_links::linked_schema("saccade-result.v1")
+            );
         }
         let full: Value = serde_json::from_slice(
             &std::fs::read(root.join("pair/saccade-report.v1.json")).unwrap(),

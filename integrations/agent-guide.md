@@ -79,3 +79,5 @@ Producers: `schema list|get|path`, `perf validate FILE --json`.
 Field evidence: `render-evidence`, `noise build REPEATS...`, `compare --export-maps --noise-from REPEATS... --require-scope`.
 [Arm policies](../docs/arm-validity.md): null is a value; `--ignore` waives missing
 fields; `--allow-unreached` requires exact observations; maps select `record_files`.
+
+Wave11: `timing ab`, `experiment settle`, repeat ablation tables, mask shortcuts and `index export`: see `docs/experiments-wave11.md`. Source links use `--source-ref`.

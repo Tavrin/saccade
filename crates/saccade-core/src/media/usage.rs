@@ -39,7 +39,7 @@ impl Source {
             return Self::from_bytes(&bytes);
         }
         let record: Record = serde_json::from_slice(&bytes)?;
-        if record.schema != MEDIA_SCHEMA
+        if crate::report_links::original_schema(&record.schema) != MEDIA_SCHEMA
             || record.identity.status != Status::Ok
             || record.fingerprints.status != Status::Ok
             || record.fingerprints.data["keypoint_algorithm"] != "FAST-oriented-BRIEF/1"

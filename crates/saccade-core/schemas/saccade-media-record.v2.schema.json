@@ -1,0 +1,180 @@
+{
+  "$defs": {
+    "section": {
+      "additionalProperties": false,
+      "allOf": [
+        {
+          "if": {
+            "properties": {
+              "status": {
+                "const": "failed"
+              }
+            }
+          },
+          "then": {
+            "properties": {
+              "error_code": {
+                "type": "string"
+              },
+              "reason": {
+                "type": "string"
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "status": {
+                "const": "skipped"
+              }
+            }
+          },
+          "then": {
+            "properties": {
+              "data": {
+                "type": "null"
+              },
+              "reason": {
+                "type": "string"
+              }
+            }
+          }
+        }
+      ],
+      "properties": {
+        "data": {},
+        "error_code": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "provenance": {
+          "additionalProperties": false,
+          "properties": {
+            "id": {
+              "minLength": 1,
+              "type": "string"
+            },
+            "pins": {
+              "items": {
+                "type": "string"
+              },
+              "minItems": 1,
+              "type": "array"
+            },
+            "version": {
+              "minLength": 1,
+              "type": "string"
+            }
+          },
+          "required": [
+            "id",
+            "version",
+            "pins"
+          ],
+          "type": "object"
+        },
+        "reason": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "status": {
+          "enum": [
+            "ok",
+            "skipped",
+            "failed"
+          ]
+        },
+        "timing_ms": {
+          "minimum": 0,
+          "type": "number"
+        }
+      },
+      "required": [
+        "status",
+        "provenance",
+        "timing_ms",
+        "data",
+        "reason",
+        "error_code"
+      ],
+      "type": "object"
+    }
+  },
+  "$id": "https://github.com/Tavrin/saccade/crates/saccade-core/schemas/saccade-media-record.v2.schema.json",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "properties": {
+    "description": {
+      "$ref": "#/$defs/section"
+    },
+    "embeddings": {
+      "$ref": "#/$defs/section"
+    },
+    "fingerprints": {
+      "$ref": "#/$defs/section"
+    },
+    "focal": {
+      "$ref": "#/$defs/section"
+    },
+    "identity": {
+      "$ref": "#/$defs/section"
+    },
+    "metadata": {
+      "$ref": "#/$defs/section"
+    },
+    "profile": {
+      "enum": [
+        "cpu-lite",
+        "cpu-full",
+        "gpu"
+      ]
+    },
+    "quality": {
+      "$ref": "#/$defs/section"
+    },
+    "report_id": {
+      "pattern": "^sha256:[0-9a-f]{64}$",
+      "type": "string"
+    },
+    "schema": {
+      "const": "saccade-media-record.v2"
+    },
+    "source_refs": {
+      "items": {
+        "maxLength": 2048,
+        "minLength": 1,
+        "type": "string"
+      },
+      "maxItems": 128,
+      "type": "array"
+    },
+    "text": {
+      "$ref": "#/$defs/section"
+    },
+    "video": {
+      "$ref": "#/$defs/section"
+    }
+  },
+  "required": [
+    "schema",
+    "profile",
+    "identity",
+    "metadata",
+    "quality",
+    "focal",
+    "text",
+    "fingerprints",
+    "embeddings",
+    "description",
+    "video",
+    "report_id",
+    "source_refs"
+  ],
+  "title": "Versioned media record",
+  "type": "object"
+}

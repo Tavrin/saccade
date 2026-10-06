@@ -253,6 +253,10 @@
       },
       "description": "Fields explicitly excluded by the map's outcome globs in either mode."
     },
+    "report_id": {
+      "pattern": "^sha256:[0-9a-f]{64}$",
+      "type": "string"
+    },
     "result": {
       "$ref": "#/$defs/ComparisonResult",
       "description": "valid_comparison or invalid_comparison."
@@ -261,6 +265,14 @@
       "const": "saccade-arms-check.v1",
       "description": "Result contract version.",
       "type": "string"
+    },
+    "source_refs": {
+      "items": {
+        "maxLength": 2048,
+        "type": "string"
+      },
+      "maxItems": 128,
+      "type": "array"
     },
     "unmapped": {
       "$ref": "#/$defs/KeySummary",
