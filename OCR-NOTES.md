@@ -105,3 +105,5 @@ artifacts. Final corrected inference/tests are pending sufficient disk admission
 - README, CHANGELOG and generated docs/cli.md were intentionally preserved per
   shared-file protocol. Coordinator should add the local engine/accent replacement
   and optional document provider, then regenerate CLI help/reference after integration.
+
+Implementation commit: `9c6a63f`. Final owned target cleanup: `/mnt/linux-extra/moss-cargo-targets/codex-saccade-ocr` removed and verified absent. Model pins, generated fixtures and failed/diagnostic evidence retained. No push or integration. Final genericity PASS includes newly staged files.
