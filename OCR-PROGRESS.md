@@ -1,9 +1,11 @@
 # OCR lane progress
 
-Base `dd1bad0`, branch `feat/ocr-paddle`; implementation commit `9c6a63f` (parent of the final handoff commit).
+Base `dd1bad0`, branch `feat/ocr-paddle`; implementation `9c6a63f`, resumed from `00880c4`.
 
-- Local PP-OCRv5: implemented with official immutable ONNX/dictionary pins, runtime reuse and default CLI/media routing; final sampler/numeric changes await resource-admitted gates.
-- Accent qualification: BLOCKED, last completed corpus 26/27 pass (18/18 original two-font subset), 27/27 stripping controls rejected; Serif/48 œ→æ failure retained. Corrected processor not accepted until Rust rerun.
-- Mistral provider: implemented, optional/off by default, fixtures and mock spend/egress/fixed-key controls passed; no live calls/qualification. MCP fixtures honor file roots.
-- Docs/schema/genericity: updated; no-build checks pass. Reproducible narrow gates in scripts/gates-ocr.sh.
-- Resource: stop builds below 25 GB; final build target removed; model cache and evidence retained outside repository. No push/integration.
+- Local PP-OCRv5: implemented with immutable official graph/dictionary pins and default CLI/media/inspection routing. Final resize/numeric regressions PASS; real Rust CLI/media inference PASS. No source/export parity claim.
+- Contracts: coordinator-reviewed (2026-10-06); 72 cases frozen before inference with original 27 image/text/threshold/font identities preserved. Four required groups across three fonts and three sizes, plus nine numeric thin-space variants.
+- Accent qualification: FAIL, 46/72 OCR pass. French 8/9 (Serif/48 cœur→cæur persists), German 9/9, Spanish 9/9, uppercase 9/9, rarer lowercase 2/9, ligatures 9/9, numbers 0/18. All failures documented, retained, never retuned. See docs/ocr-contract-results-2026-10-06.md.
+- Controls: 54/72 pure accent/ligature controls rejected; 18 numeric no-ops remain FAIL. Additional numeric format controls rejected 18/18. Truth-derived controls do not borrow OCR errors.
+- Validation: full scripts/gates-ocr.sh ran, exit 1 solely for accents. Fmt/minimal/strict clippy/core (29 pass, four unrelated ignores)/CLI fixtures (three pass)/generation/frozen-contract match/local inference (one pass)/docs/genericity PASS.
+- Mistral provider: optional/off by default, fixtures and policy tests PASS; no live calls/qualification. Integration and live API/billing verification remain coordinator-owned.
+- Resource: serial -j 4 builds, paused below 25 GB and resumed after recovery. Owned target removed after validation; model cache and identity/result/log evidence retained outside repository. No push/integration.

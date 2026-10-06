@@ -107,3 +107,70 @@ artifacts. Final corrected inference/tests are pending sufficient disk admission
   and optional document provider, then regenerate CLI help/reference after integration.
 
 Implementation commit: `9c6a63f`. Final owned target cleanup: `/mnt/linux-extra/moss-cargo-targets/codex-saccade-ocr` removed and verified absent. Model pins, generated fixtures and failed/diagnostic evidence retained. No push or integration. Final genericity PASS includes newly staged files.
+
+## Coordinator review and frozen expansion — 2026-10-06
+
+Read `OCR-CONTRACT-REVIEW-2026-10-06.md`: approved with four additions.
+The contract file now records **generated, coordinator-reviewed (2026-10-06)**.
+Added uppercase French, rarer lowercase French, ligatures and French numeric
+formats across DejaVu Serif, DejaVu Sans and Liberation Sans at 32/40/48 px.
+The original 27 image hashes, expected text, thresholds and font receipts are
+unchanged. Every new case uses CER ≤ .02, WER ≤ .10 and exact required Unicode
+strings, frozen before any resumed inference. The numeric group includes the
+review's exact quoted phrase plus nine separate U+202F narrow no-break-space
+variants, because the quoted phrase has ASCII spaces but the review explicitly
+requests thin spaces. Rejected replacing the quoted expectation.
+
+Controls now derive from contract truth, rather than already erroneous OCR,
+so an inference failure cannot falsely prove that a no-op control is effective.
+NFD accent stripping plus explicit œ/Œ/æ/Æ/ß expansion covers uppercase and
+rarer lowercase letters as well as ligatures. Controls and exact strings are
+stored in the frozen contract. The unchanged accent-control bar requires both
+missing exact strings and CER above the same threshold.
+
+Numeric text has no accented letters: pure accent stripping is identically the
+truth and cannot honestly be a rejected negative control. Its control stays
+**FAIL** (changed=false), independently of numeric OCR accuracy. Also froze a
+separate format-stripping control (comma→dot, euro→EUR, en dash→hyphen,
+U+202F→ASCII space). This additional control cannot clear the ineffective accent
+control. Rejected adding an accented word to the coordinator's numeric phrase,
+calling symbol replacement accent stripping, or letting OCR errors manufacture
+control rejection. Reversal cost: a coordinator-approved separate accented
+numeric fixture/control would require a new pre-inference freeze and run;
+existing expectations and failures must remain.
+
+Gate hardening: generated contracts must byte-match the checked-in frozen file
+before inference; generation/freeze failures prevent stale-fixture runs.
+Inference errors are retained per case and processing continues. Builds remain
+serial at -j 4, with admission paused below 25 GB; the resumed run also monitors
+free space and suspends only its own process group below that floor.
+
+## Resumed final disposition — 2026-10-06
+
+This supersedes the earlier resource-blocked acceptance state. Full
+`scripts/gates-ocr.sh` ran on the resumed source and exited **1** solely for the
+accent gate. Final linear resize and numeric-roundoff regressions pass; core
+29 PASS / four unrelated heavy ignores, CLI fixtures three PASS, real default
+OCR/expect-text/inspect-image/media inference one PASS. Fmt, minimal check,
+strict OCR/provider/MCP clippy, generation, frozen-contract byte match,
+docs/schema and genericity PASS. No live API calls, GPU work or integration.
+
+All 72 cases are recorded in `docs/ocr-contract-results-2026-10-06.md`:
+**46 OCR PASS / 26 FAIL**. French 8/9, German 9/9, Spanish 9/9; uppercase 9/9,
+rarer lowercase 2/9, ligatures 9/9, numeric formats 0/18. Original Serif/48
+`cœur→cæur` persists with the repaired processor. Rarer lowercase fails on
+curly apostrophe substitutions; numeric formats fail on en dashes and, in
+thin-space variants, U+202F loss. These are documented known limitations in
+`docs/text.md` and CHANGELOG; no failing case was removed or reclassified.
+Accent/ligature controls reject 54/54; numeric accent controls are 18/18 no-op
+FAIL, extra format controls reject 18/18. The gate stays FAIL.
+
+Rejected another processor/lexicon change or a favorable repeat to force
+acceptance: the requested revalidation is complete and known failures remain.
+Contract SHA-256 is `99ca5ecfe32e9f884aed74aade131fbcf5ae0a8c206a98b592fe1cc6548b75e9`;
+its pre-inference frozen copy still matches exactly. Exact source/runtime/binary
+identities, complete JSON results, resource pauses and gate exit receipt are in
+`/mnt/linux-extra/moss-scratch/saccade-ocr/validation-resume-2026-10-06.json`
+and its referenced evidence files. Generated fixtures establish neither general
+accuracy nor source/export/OpenCV parity. Coordinator review is complete;
+integration and live Mistral wire/billing facts remain coordinator-owned.

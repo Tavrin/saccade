@@ -1,15 +1,37 @@
 {
   "schema": "saccade-ocr-accent-contracts.v1",
   "thresholds_declared_before_inference": true,
+  "review_status": "generated, coordinator-reviewed (2026-10-06)",
+  "coordinator_review_date": "2026-10-06",
+  "coordinator_review": "OCR-CONTRACT-REVIEW-2026-10-06.md",
+  "negative_control_policy": "truth-derived; unchanged accent-stripping controls FAIL (numeric text contains no accented letters)",
   "fixtures": [
     {
+      "group": "fr",
+      "variant": "quoted",
       "image": "fr-DejaVuSerif-32.png",
       "image_sha256": "c60e6bd884ec0b30cfaf631801598db6c78bb2360a8e0574801451fa5b903f45",
       "expected_text": "café très fête à garçon hôpital où cœur",
       "max_cer": 0.02,
       "max_wer": 0.1,
       "require_exact_accented_words": true,
-      "review_status": "generated, pending coordinator review",
+      "required_exact_strings": [
+        "café",
+        "très",
+        "fête",
+        "à",
+        "garçon",
+        "hôpital",
+        "où",
+        "cœur"
+      ],
+      "negative_controls": [
+        {
+          "kind": "accent-stripping",
+          "text": "cafe tres fete a garcon hopital ou coeur"
+        }
+      ],
+      "review_status": "generated, coordinator-reviewed (2026-10-06)",
       "font": {
         "name": "DejaVuSerif.ttf",
         "sha256": "8f2c103bfa3fd5de71f1b92b18f21906b5a26871fb7e19a9a4c9af539c3cc7ab",
@@ -19,13 +41,27 @@
       }
     },
     {
+      "group": "de",
+      "variant": "quoted",
       "image": "de-DejaVuSerif-32.png",
       "image_sha256": "dcd21facef7a73561becaccedd75d5743ef75bfe3f5067279e1a8c4fd3bbf784",
       "expected_text": "Grüße für schöne Straße",
       "max_cer": 0.02,
       "max_wer": 0.1,
       "require_exact_accented_words": true,
-      "review_status": "generated, pending coordinator review",
+      "required_exact_strings": [
+        "Grüße",
+        "für",
+        "schöne",
+        "Straße"
+      ],
+      "negative_controls": [
+        {
+          "kind": "accent-stripping",
+          "text": "Grusse fur schone Strasse"
+        }
+      ],
+      "review_status": "generated, coordinator-reviewed (2026-10-06)",
       "font": {
         "name": "DejaVuSerif.ttf",
         "sha256": "8f2c103bfa3fd5de71f1b92b18f21906b5a26871fb7e19a9a4c9af539c3cc7ab",
@@ -35,13 +71,28 @@
       }
     },
     {
+      "group": "es",
+      "variant": "quoted",
       "image": "es-DejaVuSerif-32.png",
       "image_sha256": "c5e9be0a5f25227fae80ac96c1bc742e8c9a93547ba5d939fb00c188ddbceaf4",
       "expected_text": "El señor tomó café y está aquí",
       "max_cer": 0.02,
       "max_wer": 0.1,
       "require_exact_accented_words": true,
-      "review_status": "generated, pending coordinator review",
+      "required_exact_strings": [
+        "señor",
+        "tomó",
+        "café",
+        "está",
+        "aquí"
+      ],
+      "negative_controls": [
+        {
+          "kind": "accent-stripping",
+          "text": "El senor tomo cafe y esta aqui"
+        }
+      ],
+      "review_status": "generated, coordinator-reviewed (2026-10-06)",
       "font": {
         "name": "DejaVuSerif.ttf",
         "sha256": "8f2c103bfa3fd5de71f1b92b18f21906b5a26871fb7e19a9a4c9af539c3cc7ab",
@@ -51,13 +102,190 @@
       }
     },
     {
+      "group": "fr-uppercase",
+      "variant": "quoted",
+      "image": "fr-uppercase-DejaVuSerif-32.png",
+      "image_sha256": "ff8b1028c156dcb2569cedfe352d2d5ee1950b08096fc94c8d098241b94b9974",
+      "expected_text": "ÉTÉ À PARIS : ÇA COÛTE CHER, ÎLE DE NOËL",
+      "max_cer": 0.02,
+      "max_wer": 0.1,
+      "require_exact_accented_words": true,
+      "required_exact_strings": [
+        "ÉTÉ",
+        "À",
+        "ÇA",
+        "COÛTE",
+        "ÎLE",
+        "NOËL"
+      ],
+      "negative_controls": [
+        {
+          "kind": "accent-stripping",
+          "text": "ETE A PARIS : CA COUTE CHER, ILE DE NOEL"
+        }
+      ],
+      "review_status": "generated, coordinator-reviewed (2026-10-06)",
+      "font": {
+        "name": "DejaVuSerif.ttf",
+        "sha256": "8f2c103bfa3fd5de71f1b92b18f21906b5a26871fb7e19a9a4c9af539c3cc7ab",
+        "size": 32,
+        "license": "Bitstream Vera; DejaVu changes public domain",
+        "license_sha256": "63d3ba759d12804c5b31a9d5940d855c1820d1f5999e6b0872eb1c7ff045fbc9"
+      }
+    },
+    {
+      "group": "fr-rare-lowercase",
+      "variant": "quoted",
+      "image": "fr-rare-lowercase-DejaVuSerif-32.png",
+      "image_sha256": "a1aad8bb817103112e599d8e5aab28c62eab4fa77775ab8128d774c8033ce075",
+      "expected_text": "maïs, naïve, âme, dîner, piqûre, Noël, «guillemets», l’été, aujourd’hui",
+      "max_cer": 0.02,
+      "max_wer": 0.1,
+      "require_exact_accented_words": true,
+      "required_exact_strings": [
+        "maïs,",
+        "naïve,",
+        "âme,",
+        "dîner,",
+        "piqûre,",
+        "Noël,",
+        "«guillemets»,",
+        "l’été,",
+        "aujourd’hui"
+      ],
+      "negative_controls": [
+        {
+          "kind": "accent-stripping",
+          "text": "mais, naive, ame, diner, piqure, Noel, «guillemets», l’ete, aujourd’hui"
+        }
+      ],
+      "review_status": "generated, coordinator-reviewed (2026-10-06)",
+      "font": {
+        "name": "DejaVuSerif.ttf",
+        "sha256": "8f2c103bfa3fd5de71f1b92b18f21906b5a26871fb7e19a9a4c9af539c3cc7ab",
+        "size": 32,
+        "license": "Bitstream Vera; DejaVu changes public domain",
+        "license_sha256": "63d3ba759d12804c5b31a9d5940d855c1820d1f5999e6b0872eb1c7ff045fbc9"
+      }
+    },
+    {
+      "group": "fr-ligatures",
+      "variant": "quoted",
+      "image": "fr-ligatures-DejaVuSerif-32.png",
+      "image_sha256": "a20ca3ff1063f86e7d6d9ab7f306069f418ffebe31b2a11afef73a1e6682f21e",
+      "expected_text": "cœur, œuvre, sœur, ex æquo",
+      "max_cer": 0.02,
+      "max_wer": 0.1,
+      "require_exact_accented_words": true,
+      "required_exact_strings": [
+        "cœur,",
+        "œuvre,",
+        "sœur,",
+        "æquo"
+      ],
+      "negative_controls": [
+        {
+          "kind": "accent-stripping",
+          "text": "coeur, oeuvre, soeur, ex aequo"
+        }
+      ],
+      "review_status": "generated, coordinator-reviewed (2026-10-06)",
+      "font": {
+        "name": "DejaVuSerif.ttf",
+        "sha256": "8f2c103bfa3fd5de71f1b92b18f21906b5a26871fb7e19a9a4c9af539c3cc7ab",
+        "size": 32,
+        "license": "Bitstream Vera; DejaVu changes public domain",
+        "license_sha256": "63d3ba759d12804c5b31a9d5940d855c1820d1f5999e6b0872eb1c7ff045fbc9"
+      }
+    },
+    {
+      "group": "fr-numbers",
+      "variant": "quoted",
+      "image": "fr-numbers-DejaVuSerif-32.png",
+      "image_sha256": "0d00b42f24c19cfc30475116bc4754d43f21d9ac3881be2c6372152b82c6ccee",
+      "expected_text": "1 234,56 € – 12 h 30 – 3e",
+      "max_cer": 0.02,
+      "max_wer": 0.1,
+      "require_exact_accented_words": true,
+      "required_exact_strings": [
+        "1 234,56 € – 12 h 30 – 3e"
+      ],
+      "negative_controls": [
+        {
+          "kind": "accent-stripping",
+          "text": "1 234,56 € – 12 h 30 – 3e"
+        },
+        {
+          "kind": "format-stripping",
+          "text": "1 234.56 EUR - 12 h 30 - 3e"
+        }
+      ],
+      "review_status": "generated, coordinator-reviewed (2026-10-06)",
+      "font": {
+        "name": "DejaVuSerif.ttf",
+        "sha256": "8f2c103bfa3fd5de71f1b92b18f21906b5a26871fb7e19a9a4c9af539c3cc7ab",
+        "size": 32,
+        "license": "Bitstream Vera; DejaVu changes public domain",
+        "license_sha256": "63d3ba759d12804c5b31a9d5940d855c1820d1f5999e6b0872eb1c7ff045fbc9"
+      }
+    },
+    {
+      "group": "fr-numbers",
+      "variant": "thin-space",
+      "image": "fr-numbers-thin-space-DejaVuSerif-32.png",
+      "image_sha256": "ac9e655bdcd2c031ad2b21216d6ffe780cb6c0b5deb812dcdc7e2bed6b2af059",
+      "expected_text": "1 234,56 € – 12 h 30 – 3e",
+      "max_cer": 0.02,
+      "max_wer": 0.1,
+      "require_exact_accented_words": true,
+      "required_exact_strings": [
+        "1 234,56 € – 12 h 30 – 3e"
+      ],
+      "negative_controls": [
+        {
+          "kind": "accent-stripping",
+          "text": "1 234,56 € – 12 h 30 – 3e"
+        },
+        {
+          "kind": "format-stripping",
+          "text": "1 234.56 EUR - 12 h 30 - 3e"
+        }
+      ],
+      "review_status": "generated, coordinator-reviewed (2026-10-06)",
+      "font": {
+        "name": "DejaVuSerif.ttf",
+        "sha256": "8f2c103bfa3fd5de71f1b92b18f21906b5a26871fb7e19a9a4c9af539c3cc7ab",
+        "size": 32,
+        "license": "Bitstream Vera; DejaVu changes public domain",
+        "license_sha256": "63d3ba759d12804c5b31a9d5940d855c1820d1f5999e6b0872eb1c7ff045fbc9"
+      }
+    },
+    {
+      "group": "fr",
+      "variant": "quoted",
       "image": "fr-DejaVuSerif-40.png",
       "image_sha256": "2d9b4c409c7dc83dc946c8e40dc1d51599a947bccf9baa0e2b3b8b35e896e8dc",
       "expected_text": "café très fête à garçon hôpital où cœur",
       "max_cer": 0.02,
       "max_wer": 0.1,
       "require_exact_accented_words": true,
-      "review_status": "generated, pending coordinator review",
+      "required_exact_strings": [
+        "café",
+        "très",
+        "fête",
+        "à",
+        "garçon",
+        "hôpital",
+        "où",
+        "cœur"
+      ],
+      "negative_controls": [
+        {
+          "kind": "accent-stripping",
+          "text": "cafe tres fete a garcon hopital ou coeur"
+        }
+      ],
+      "review_status": "generated, coordinator-reviewed (2026-10-06)",
       "font": {
         "name": "DejaVuSerif.ttf",
         "sha256": "8f2c103bfa3fd5de71f1b92b18f21906b5a26871fb7e19a9a4c9af539c3cc7ab",
@@ -67,13 +295,27 @@
       }
     },
     {
+      "group": "de",
+      "variant": "quoted",
       "image": "de-DejaVuSerif-40.png",
       "image_sha256": "9e050ef8ddaf3fa697444b7711b6de3d7df1b48011c0c41afc1a087df58e8d63",
       "expected_text": "Grüße für schöne Straße",
       "max_cer": 0.02,
       "max_wer": 0.1,
       "require_exact_accented_words": true,
-      "review_status": "generated, pending coordinator review",
+      "required_exact_strings": [
+        "Grüße",
+        "für",
+        "schöne",
+        "Straße"
+      ],
+      "negative_controls": [
+        {
+          "kind": "accent-stripping",
+          "text": "Grusse fur schone Strasse"
+        }
+      ],
+      "review_status": "generated, coordinator-reviewed (2026-10-06)",
       "font": {
         "name": "DejaVuSerif.ttf",
         "sha256": "8f2c103bfa3fd5de71f1b92b18f21906b5a26871fb7e19a9a4c9af539c3cc7ab",
@@ -83,13 +325,28 @@
       }
     },
     {
+      "group": "es",
+      "variant": "quoted",
       "image": "es-DejaVuSerif-40.png",
       "image_sha256": "16c67eda64991e4f6fb14ede3d1b777788a9810ee68d84ad7e55783d1c73f3d4",
       "expected_text": "El señor tomó café y está aquí",
       "max_cer": 0.02,
       "max_wer": 0.1,
       "require_exact_accented_words": true,
-      "review_status": "generated, pending coordinator review",
+      "required_exact_strings": [
+        "señor",
+        "tomó",
+        "café",
+        "está",
+        "aquí"
+      ],
+      "negative_controls": [
+        {
+          "kind": "accent-stripping",
+          "text": "El senor tomo cafe y esta aqui"
+        }
+      ],
+      "review_status": "generated, coordinator-reviewed (2026-10-06)",
       "font": {
         "name": "DejaVuSerif.ttf",
         "sha256": "8f2c103bfa3fd5de71f1b92b18f21906b5a26871fb7e19a9a4c9af539c3cc7ab",
@@ -99,13 +356,190 @@
       }
     },
     {
+      "group": "fr-uppercase",
+      "variant": "quoted",
+      "image": "fr-uppercase-DejaVuSerif-40.png",
+      "image_sha256": "14444295608dcdb47e0a97fc54a6b343dd1dd148b6291e3efa4fb24e32b3ffb1",
+      "expected_text": "ÉTÉ À PARIS : ÇA COÛTE CHER, ÎLE DE NOËL",
+      "max_cer": 0.02,
+      "max_wer": 0.1,
+      "require_exact_accented_words": true,
+      "required_exact_strings": [
+        "ÉTÉ",
+        "À",
+        "ÇA",
+        "COÛTE",
+        "ÎLE",
+        "NOËL"
+      ],
+      "negative_controls": [
+        {
+          "kind": "accent-stripping",
+          "text": "ETE A PARIS : CA COUTE CHER, ILE DE NOEL"
+        }
+      ],
+      "review_status": "generated, coordinator-reviewed (2026-10-06)",
+      "font": {
+        "name": "DejaVuSerif.ttf",
+        "sha256": "8f2c103bfa3fd5de71f1b92b18f21906b5a26871fb7e19a9a4c9af539c3cc7ab",
+        "size": 40,
+        "license": "Bitstream Vera; DejaVu changes public domain",
+        "license_sha256": "63d3ba759d12804c5b31a9d5940d855c1820d1f5999e6b0872eb1c7ff045fbc9"
+      }
+    },
+    {
+      "group": "fr-rare-lowercase",
+      "variant": "quoted",
+      "image": "fr-rare-lowercase-DejaVuSerif-40.png",
+      "image_sha256": "75b120468f0ad554d059576b19148c3536691b5e0af8869542cec4eeb05e8560",
+      "expected_text": "maïs, naïve, âme, dîner, piqûre, Noël, «guillemets», l’été, aujourd’hui",
+      "max_cer": 0.02,
+      "max_wer": 0.1,
+      "require_exact_accented_words": true,
+      "required_exact_strings": [
+        "maïs,",
+        "naïve,",
+        "âme,",
+        "dîner,",
+        "piqûre,",
+        "Noël,",
+        "«guillemets»,",
+        "l’été,",
+        "aujourd’hui"
+      ],
+      "negative_controls": [
+        {
+          "kind": "accent-stripping",
+          "text": "mais, naive, ame, diner, piqure, Noel, «guillemets», l’ete, aujourd’hui"
+        }
+      ],
+      "review_status": "generated, coordinator-reviewed (2026-10-06)",
+      "font": {
+        "name": "DejaVuSerif.ttf",
+        "sha256": "8f2c103bfa3fd5de71f1b92b18f21906b5a26871fb7e19a9a4c9af539c3cc7ab",
+        "size": 40,
+        "license": "Bitstream Vera; DejaVu changes public domain",
+        "license_sha256": "63d3ba759d12804c5b31a9d5940d855c1820d1f5999e6b0872eb1c7ff045fbc9"
+      }
+    },
+    {
+      "group": "fr-ligatures",
+      "variant": "quoted",
+      "image": "fr-ligatures-DejaVuSerif-40.png",
+      "image_sha256": "55cf5f7d4ecdbbfdc589abf868150218c978f34134e3268d606bcdb69771cfba",
+      "expected_text": "cœur, œuvre, sœur, ex æquo",
+      "max_cer": 0.02,
+      "max_wer": 0.1,
+      "require_exact_accented_words": true,
+      "required_exact_strings": [
+        "cœur,",
+        "œuvre,",
+        "sœur,",
+        "æquo"
+      ],
+      "negative_controls": [
+        {
+          "kind": "accent-stripping",
+          "text": "coeur, oeuvre, soeur, ex aequo"
+        }
+      ],
+      "review_status": "generated, coordinator-reviewed (2026-10-06)",
+      "font": {
+        "name": "DejaVuSerif.ttf",
+        "sha256": "8f2c103bfa3fd5de71f1b92b18f21906b5a26871fb7e19a9a4c9af539c3cc7ab",
+        "size": 40,
+        "license": "Bitstream Vera; DejaVu changes public domain",
+        "license_sha256": "63d3ba759d12804c5b31a9d5940d855c1820d1f5999e6b0872eb1c7ff045fbc9"
+      }
+    },
+    {
+      "group": "fr-numbers",
+      "variant": "quoted",
+      "image": "fr-numbers-DejaVuSerif-40.png",
+      "image_sha256": "37c10bce050514a7f88812095f0131865d57cf8db8fee3d3e242a73f9df4bebe",
+      "expected_text": "1 234,56 € – 12 h 30 – 3e",
+      "max_cer": 0.02,
+      "max_wer": 0.1,
+      "require_exact_accented_words": true,
+      "required_exact_strings": [
+        "1 234,56 € – 12 h 30 – 3e"
+      ],
+      "negative_controls": [
+        {
+          "kind": "accent-stripping",
+          "text": "1 234,56 € – 12 h 30 – 3e"
+        },
+        {
+          "kind": "format-stripping",
+          "text": "1 234.56 EUR - 12 h 30 - 3e"
+        }
+      ],
+      "review_status": "generated, coordinator-reviewed (2026-10-06)",
+      "font": {
+        "name": "DejaVuSerif.ttf",
+        "sha256": "8f2c103bfa3fd5de71f1b92b18f21906b5a26871fb7e19a9a4c9af539c3cc7ab",
+        "size": 40,
+        "license": "Bitstream Vera; DejaVu changes public domain",
+        "license_sha256": "63d3ba759d12804c5b31a9d5940d855c1820d1f5999e6b0872eb1c7ff045fbc9"
+      }
+    },
+    {
+      "group": "fr-numbers",
+      "variant": "thin-space",
+      "image": "fr-numbers-thin-space-DejaVuSerif-40.png",
+      "image_sha256": "d6023f0b7627981c43be5be39ce8844cc6fa90d3c13bc81d72a546f83d80b5eb",
+      "expected_text": "1 234,56 € – 12 h 30 – 3e",
+      "max_cer": 0.02,
+      "max_wer": 0.1,
+      "require_exact_accented_words": true,
+      "required_exact_strings": [
+        "1 234,56 € – 12 h 30 – 3e"
+      ],
+      "negative_controls": [
+        {
+          "kind": "accent-stripping",
+          "text": "1 234,56 € – 12 h 30 – 3e"
+        },
+        {
+          "kind": "format-stripping",
+          "text": "1 234.56 EUR - 12 h 30 - 3e"
+        }
+      ],
+      "review_status": "generated, coordinator-reviewed (2026-10-06)",
+      "font": {
+        "name": "DejaVuSerif.ttf",
+        "sha256": "8f2c103bfa3fd5de71f1b92b18f21906b5a26871fb7e19a9a4c9af539c3cc7ab",
+        "size": 40,
+        "license": "Bitstream Vera; DejaVu changes public domain",
+        "license_sha256": "63d3ba759d12804c5b31a9d5940d855c1820d1f5999e6b0872eb1c7ff045fbc9"
+      }
+    },
+    {
+      "group": "fr",
+      "variant": "quoted",
       "image": "fr-DejaVuSerif-48.png",
       "image_sha256": "f24e1394193f0834cb022cfdbd5e8b2d13b25c9327390d068f89d5ddaf2aa17e",
       "expected_text": "café très fête à garçon hôpital où cœur",
       "max_cer": 0.02,
       "max_wer": 0.1,
       "require_exact_accented_words": true,
-      "review_status": "generated, pending coordinator review",
+      "required_exact_strings": [
+        "café",
+        "très",
+        "fête",
+        "à",
+        "garçon",
+        "hôpital",
+        "où",
+        "cœur"
+      ],
+      "negative_controls": [
+        {
+          "kind": "accent-stripping",
+          "text": "cafe tres fete a garcon hopital ou coeur"
+        }
+      ],
+      "review_status": "generated, coordinator-reviewed (2026-10-06)",
       "font": {
         "name": "DejaVuSerif.ttf",
         "sha256": "8f2c103bfa3fd5de71f1b92b18f21906b5a26871fb7e19a9a4c9af539c3cc7ab",
@@ -115,13 +549,27 @@
       }
     },
     {
+      "group": "de",
+      "variant": "quoted",
       "image": "de-DejaVuSerif-48.png",
       "image_sha256": "b2b9ff8fd071e57ddee4873b9ddf2f5b02a6bb47a8f714ff99bb58b01d5f88b8",
       "expected_text": "Grüße für schöne Straße",
       "max_cer": 0.02,
       "max_wer": 0.1,
       "require_exact_accented_words": true,
-      "review_status": "generated, pending coordinator review",
+      "required_exact_strings": [
+        "Grüße",
+        "für",
+        "schöne",
+        "Straße"
+      ],
+      "negative_controls": [
+        {
+          "kind": "accent-stripping",
+          "text": "Grusse fur schone Strasse"
+        }
+      ],
+      "review_status": "generated, coordinator-reviewed (2026-10-06)",
       "font": {
         "name": "DejaVuSerif.ttf",
         "sha256": "8f2c103bfa3fd5de71f1b92b18f21906b5a26871fb7e19a9a4c9af539c3cc7ab",
@@ -131,13 +579,28 @@
       }
     },
     {
+      "group": "es",
+      "variant": "quoted",
       "image": "es-DejaVuSerif-48.png",
       "image_sha256": "807d9c756445c9bc61e5ed42ecc23eacaf24aea386f2a316ab7b8bab423683f1",
       "expected_text": "El señor tomó café y está aquí",
       "max_cer": 0.02,
       "max_wer": 0.1,
       "require_exact_accented_words": true,
-      "review_status": "generated, pending coordinator review",
+      "required_exact_strings": [
+        "señor",
+        "tomó",
+        "café",
+        "está",
+        "aquí"
+      ],
+      "negative_controls": [
+        {
+          "kind": "accent-stripping",
+          "text": "El senor tomo cafe y esta aqui"
+        }
+      ],
+      "review_status": "generated, coordinator-reviewed (2026-10-06)",
       "font": {
         "name": "DejaVuSerif.ttf",
         "sha256": "8f2c103bfa3fd5de71f1b92b18f21906b5a26871fb7e19a9a4c9af539c3cc7ab",
@@ -147,13 +610,190 @@
       }
     },
     {
+      "group": "fr-uppercase",
+      "variant": "quoted",
+      "image": "fr-uppercase-DejaVuSerif-48.png",
+      "image_sha256": "7455304d5386c85593342138078bcaa0c439b1a3012ac7a0284e04693ebb1c27",
+      "expected_text": "ÉTÉ À PARIS : ÇA COÛTE CHER, ÎLE DE NOËL",
+      "max_cer": 0.02,
+      "max_wer": 0.1,
+      "require_exact_accented_words": true,
+      "required_exact_strings": [
+        "ÉTÉ",
+        "À",
+        "ÇA",
+        "COÛTE",
+        "ÎLE",
+        "NOËL"
+      ],
+      "negative_controls": [
+        {
+          "kind": "accent-stripping",
+          "text": "ETE A PARIS : CA COUTE CHER, ILE DE NOEL"
+        }
+      ],
+      "review_status": "generated, coordinator-reviewed (2026-10-06)",
+      "font": {
+        "name": "DejaVuSerif.ttf",
+        "sha256": "8f2c103bfa3fd5de71f1b92b18f21906b5a26871fb7e19a9a4c9af539c3cc7ab",
+        "size": 48,
+        "license": "Bitstream Vera; DejaVu changes public domain",
+        "license_sha256": "63d3ba759d12804c5b31a9d5940d855c1820d1f5999e6b0872eb1c7ff045fbc9"
+      }
+    },
+    {
+      "group": "fr-rare-lowercase",
+      "variant": "quoted",
+      "image": "fr-rare-lowercase-DejaVuSerif-48.png",
+      "image_sha256": "f1fd99616879405c6ecc03f634378aa585ad9cb841734ed305a80ed2a946b490",
+      "expected_text": "maïs, naïve, âme, dîner, piqûre, Noël, «guillemets», l’été, aujourd’hui",
+      "max_cer": 0.02,
+      "max_wer": 0.1,
+      "require_exact_accented_words": true,
+      "required_exact_strings": [
+        "maïs,",
+        "naïve,",
+        "âme,",
+        "dîner,",
+        "piqûre,",
+        "Noël,",
+        "«guillemets»,",
+        "l’été,",
+        "aujourd’hui"
+      ],
+      "negative_controls": [
+        {
+          "kind": "accent-stripping",
+          "text": "mais, naive, ame, diner, piqure, Noel, «guillemets», l’ete, aujourd’hui"
+        }
+      ],
+      "review_status": "generated, coordinator-reviewed (2026-10-06)",
+      "font": {
+        "name": "DejaVuSerif.ttf",
+        "sha256": "8f2c103bfa3fd5de71f1b92b18f21906b5a26871fb7e19a9a4c9af539c3cc7ab",
+        "size": 48,
+        "license": "Bitstream Vera; DejaVu changes public domain",
+        "license_sha256": "63d3ba759d12804c5b31a9d5940d855c1820d1f5999e6b0872eb1c7ff045fbc9"
+      }
+    },
+    {
+      "group": "fr-ligatures",
+      "variant": "quoted",
+      "image": "fr-ligatures-DejaVuSerif-48.png",
+      "image_sha256": "8a8b671b8fe619f04e8da0caa737da308aff259d533bd732d72f1196ba166c51",
+      "expected_text": "cœur, œuvre, sœur, ex æquo",
+      "max_cer": 0.02,
+      "max_wer": 0.1,
+      "require_exact_accented_words": true,
+      "required_exact_strings": [
+        "cœur,",
+        "œuvre,",
+        "sœur,",
+        "æquo"
+      ],
+      "negative_controls": [
+        {
+          "kind": "accent-stripping",
+          "text": "coeur, oeuvre, soeur, ex aequo"
+        }
+      ],
+      "review_status": "generated, coordinator-reviewed (2026-10-06)",
+      "font": {
+        "name": "DejaVuSerif.ttf",
+        "sha256": "8f2c103bfa3fd5de71f1b92b18f21906b5a26871fb7e19a9a4c9af539c3cc7ab",
+        "size": 48,
+        "license": "Bitstream Vera; DejaVu changes public domain",
+        "license_sha256": "63d3ba759d12804c5b31a9d5940d855c1820d1f5999e6b0872eb1c7ff045fbc9"
+      }
+    },
+    {
+      "group": "fr-numbers",
+      "variant": "quoted",
+      "image": "fr-numbers-DejaVuSerif-48.png",
+      "image_sha256": "46cdb4bc7e3838bfc5c66582e5f3b426b878b7f36cab1490b5a324618963382d",
+      "expected_text": "1 234,56 € – 12 h 30 – 3e",
+      "max_cer": 0.02,
+      "max_wer": 0.1,
+      "require_exact_accented_words": true,
+      "required_exact_strings": [
+        "1 234,56 € – 12 h 30 – 3e"
+      ],
+      "negative_controls": [
+        {
+          "kind": "accent-stripping",
+          "text": "1 234,56 € – 12 h 30 – 3e"
+        },
+        {
+          "kind": "format-stripping",
+          "text": "1 234.56 EUR - 12 h 30 - 3e"
+        }
+      ],
+      "review_status": "generated, coordinator-reviewed (2026-10-06)",
+      "font": {
+        "name": "DejaVuSerif.ttf",
+        "sha256": "8f2c103bfa3fd5de71f1b92b18f21906b5a26871fb7e19a9a4c9af539c3cc7ab",
+        "size": 48,
+        "license": "Bitstream Vera; DejaVu changes public domain",
+        "license_sha256": "63d3ba759d12804c5b31a9d5940d855c1820d1f5999e6b0872eb1c7ff045fbc9"
+      }
+    },
+    {
+      "group": "fr-numbers",
+      "variant": "thin-space",
+      "image": "fr-numbers-thin-space-DejaVuSerif-48.png",
+      "image_sha256": "7595b0d3695b9c46cd7c635a027bce44ffb3808b977ae2b9034863058ec2d5bb",
+      "expected_text": "1 234,56 € – 12 h 30 – 3e",
+      "max_cer": 0.02,
+      "max_wer": 0.1,
+      "require_exact_accented_words": true,
+      "required_exact_strings": [
+        "1 234,56 € – 12 h 30 – 3e"
+      ],
+      "negative_controls": [
+        {
+          "kind": "accent-stripping",
+          "text": "1 234,56 € – 12 h 30 – 3e"
+        },
+        {
+          "kind": "format-stripping",
+          "text": "1 234.56 EUR - 12 h 30 - 3e"
+        }
+      ],
+      "review_status": "generated, coordinator-reviewed (2026-10-06)",
+      "font": {
+        "name": "DejaVuSerif.ttf",
+        "sha256": "8f2c103bfa3fd5de71f1b92b18f21906b5a26871fb7e19a9a4c9af539c3cc7ab",
+        "size": 48,
+        "license": "Bitstream Vera; DejaVu changes public domain",
+        "license_sha256": "63d3ba759d12804c5b31a9d5940d855c1820d1f5999e6b0872eb1c7ff045fbc9"
+      }
+    },
+    {
+      "group": "fr",
+      "variant": "quoted",
       "image": "fr-DejaVuSans-32.png",
       "image_sha256": "54bfb08740b75d007cfd28746d0d6b5d7462b545b9fe315b82906bb7321882c1",
       "expected_text": "café très fête à garçon hôpital où cœur",
       "max_cer": 0.02,
       "max_wer": 0.1,
       "require_exact_accented_words": true,
-      "review_status": "generated, pending coordinator review",
+      "required_exact_strings": [
+        "café",
+        "très",
+        "fête",
+        "à",
+        "garçon",
+        "hôpital",
+        "où",
+        "cœur"
+      ],
+      "negative_controls": [
+        {
+          "kind": "accent-stripping",
+          "text": "cafe tres fete a garcon hopital ou coeur"
+        }
+      ],
+      "review_status": "generated, coordinator-reviewed (2026-10-06)",
       "font": {
         "name": "DejaVuSans.ttf",
         "sha256": "ae7b7855e115a5966d8b1b3f80f254ccc117ec86f9965e202ee2940453837280",
@@ -163,13 +803,27 @@
       }
     },
     {
+      "group": "de",
+      "variant": "quoted",
       "image": "de-DejaVuSans-32.png",
       "image_sha256": "5312b0c549fb6c8e56adaad93ce25e81add0c005fd710175593a92effc88e63d",
       "expected_text": "Grüße für schöne Straße",
       "max_cer": 0.02,
       "max_wer": 0.1,
       "require_exact_accented_words": true,
-      "review_status": "generated, pending coordinator review",
+      "required_exact_strings": [
+        "Grüße",
+        "für",
+        "schöne",
+        "Straße"
+      ],
+      "negative_controls": [
+        {
+          "kind": "accent-stripping",
+          "text": "Grusse fur schone Strasse"
+        }
+      ],
+      "review_status": "generated, coordinator-reviewed (2026-10-06)",
       "font": {
         "name": "DejaVuSans.ttf",
         "sha256": "ae7b7855e115a5966d8b1b3f80f254ccc117ec86f9965e202ee2940453837280",
@@ -179,13 +833,28 @@
       }
     },
     {
+      "group": "es",
+      "variant": "quoted",
       "image": "es-DejaVuSans-32.png",
       "image_sha256": "6d1375d095959ec18e06712c80773d928b9116fc2a2537c582886d4632769976",
       "expected_text": "El señor tomó café y está aquí",
       "max_cer": 0.02,
       "max_wer": 0.1,
       "require_exact_accented_words": true,
-      "review_status": "generated, pending coordinator review",
+      "required_exact_strings": [
+        "señor",
+        "tomó",
+        "café",
+        "está",
+        "aquí"
+      ],
+      "negative_controls": [
+        {
+          "kind": "accent-stripping",
+          "text": "El senor tomo cafe y esta aqui"
+        }
+      ],
+      "review_status": "generated, coordinator-reviewed (2026-10-06)",
       "font": {
         "name": "DejaVuSans.ttf",
         "sha256": "ae7b7855e115a5966d8b1b3f80f254ccc117ec86f9965e202ee2940453837280",
@@ -195,13 +864,190 @@
       }
     },
     {
+      "group": "fr-uppercase",
+      "variant": "quoted",
+      "image": "fr-uppercase-DejaVuSans-32.png",
+      "image_sha256": "a68cf21ee29cff50e2c36781ff45e2069be287430b5a1a617cca25a5086f872e",
+      "expected_text": "ÉTÉ À PARIS : ÇA COÛTE CHER, ÎLE DE NOËL",
+      "max_cer": 0.02,
+      "max_wer": 0.1,
+      "require_exact_accented_words": true,
+      "required_exact_strings": [
+        "ÉTÉ",
+        "À",
+        "ÇA",
+        "COÛTE",
+        "ÎLE",
+        "NOËL"
+      ],
+      "negative_controls": [
+        {
+          "kind": "accent-stripping",
+          "text": "ETE A PARIS : CA COUTE CHER, ILE DE NOEL"
+        }
+      ],
+      "review_status": "generated, coordinator-reviewed (2026-10-06)",
+      "font": {
+        "name": "DejaVuSans.ttf",
+        "sha256": "ae7b7855e115a5966d8b1b3f80f254ccc117ec86f9965e202ee2940453837280",
+        "size": 32,
+        "license": "Bitstream Vera; DejaVu changes public domain",
+        "license_sha256": "63d3ba759d12804c5b31a9d5940d855c1820d1f5999e6b0872eb1c7ff045fbc9"
+      }
+    },
+    {
+      "group": "fr-rare-lowercase",
+      "variant": "quoted",
+      "image": "fr-rare-lowercase-DejaVuSans-32.png",
+      "image_sha256": "824074c118cd1510c9b2dad9458742f2eaef59f3c356c88f9976a35c92ae6c0f",
+      "expected_text": "maïs, naïve, âme, dîner, piqûre, Noël, «guillemets», l’été, aujourd’hui",
+      "max_cer": 0.02,
+      "max_wer": 0.1,
+      "require_exact_accented_words": true,
+      "required_exact_strings": [
+        "maïs,",
+        "naïve,",
+        "âme,",
+        "dîner,",
+        "piqûre,",
+        "Noël,",
+        "«guillemets»,",
+        "l’été,",
+        "aujourd’hui"
+      ],
+      "negative_controls": [
+        {
+          "kind": "accent-stripping",
+          "text": "mais, naive, ame, diner, piqure, Noel, «guillemets», l’ete, aujourd’hui"
+        }
+      ],
+      "review_status": "generated, coordinator-reviewed (2026-10-06)",
+      "font": {
+        "name": "DejaVuSans.ttf",
+        "sha256": "ae7b7855e115a5966d8b1b3f80f254ccc117ec86f9965e202ee2940453837280",
+        "size": 32,
+        "license": "Bitstream Vera; DejaVu changes public domain",
+        "license_sha256": "63d3ba759d12804c5b31a9d5940d855c1820d1f5999e6b0872eb1c7ff045fbc9"
+      }
+    },
+    {
+      "group": "fr-ligatures",
+      "variant": "quoted",
+      "image": "fr-ligatures-DejaVuSans-32.png",
+      "image_sha256": "79e949afee63435152b00dff83d134112cba9f4fff1e997e3818020d25a75aab",
+      "expected_text": "cœur, œuvre, sœur, ex æquo",
+      "max_cer": 0.02,
+      "max_wer": 0.1,
+      "require_exact_accented_words": true,
+      "required_exact_strings": [
+        "cœur,",
+        "œuvre,",
+        "sœur,",
+        "æquo"
+      ],
+      "negative_controls": [
+        {
+          "kind": "accent-stripping",
+          "text": "coeur, oeuvre, soeur, ex aequo"
+        }
+      ],
+      "review_status": "generated, coordinator-reviewed (2026-10-06)",
+      "font": {
+        "name": "DejaVuSans.ttf",
+        "sha256": "ae7b7855e115a5966d8b1b3f80f254ccc117ec86f9965e202ee2940453837280",
+        "size": 32,
+        "license": "Bitstream Vera; DejaVu changes public domain",
+        "license_sha256": "63d3ba759d12804c5b31a9d5940d855c1820d1f5999e6b0872eb1c7ff045fbc9"
+      }
+    },
+    {
+      "group": "fr-numbers",
+      "variant": "quoted",
+      "image": "fr-numbers-DejaVuSans-32.png",
+      "image_sha256": "7f8845e447bbb5d83e18c1b93bec660e17b6dee6a1245a9a38a5e8a086030b0b",
+      "expected_text": "1 234,56 € – 12 h 30 – 3e",
+      "max_cer": 0.02,
+      "max_wer": 0.1,
+      "require_exact_accented_words": true,
+      "required_exact_strings": [
+        "1 234,56 € – 12 h 30 – 3e"
+      ],
+      "negative_controls": [
+        {
+          "kind": "accent-stripping",
+          "text": "1 234,56 € – 12 h 30 – 3e"
+        },
+        {
+          "kind": "format-stripping",
+          "text": "1 234.56 EUR - 12 h 30 - 3e"
+        }
+      ],
+      "review_status": "generated, coordinator-reviewed (2026-10-06)",
+      "font": {
+        "name": "DejaVuSans.ttf",
+        "sha256": "ae7b7855e115a5966d8b1b3f80f254ccc117ec86f9965e202ee2940453837280",
+        "size": 32,
+        "license": "Bitstream Vera; DejaVu changes public domain",
+        "license_sha256": "63d3ba759d12804c5b31a9d5940d855c1820d1f5999e6b0872eb1c7ff045fbc9"
+      }
+    },
+    {
+      "group": "fr-numbers",
+      "variant": "thin-space",
+      "image": "fr-numbers-thin-space-DejaVuSans-32.png",
+      "image_sha256": "e00052c37eda01416e8249b009c14a305a244cf833dc8040fc4b46eac7daeaf3",
+      "expected_text": "1 234,56 € – 12 h 30 – 3e",
+      "max_cer": 0.02,
+      "max_wer": 0.1,
+      "require_exact_accented_words": true,
+      "required_exact_strings": [
+        "1 234,56 € – 12 h 30 – 3e"
+      ],
+      "negative_controls": [
+        {
+          "kind": "accent-stripping",
+          "text": "1 234,56 € – 12 h 30 – 3e"
+        },
+        {
+          "kind": "format-stripping",
+          "text": "1 234.56 EUR - 12 h 30 - 3e"
+        }
+      ],
+      "review_status": "generated, coordinator-reviewed (2026-10-06)",
+      "font": {
+        "name": "DejaVuSans.ttf",
+        "sha256": "ae7b7855e115a5966d8b1b3f80f254ccc117ec86f9965e202ee2940453837280",
+        "size": 32,
+        "license": "Bitstream Vera; DejaVu changes public domain",
+        "license_sha256": "63d3ba759d12804c5b31a9d5940d855c1820d1f5999e6b0872eb1c7ff045fbc9"
+      }
+    },
+    {
+      "group": "fr",
+      "variant": "quoted",
       "image": "fr-DejaVuSans-40.png",
       "image_sha256": "cb6c96452bfbede443525195088d7e45ff0bacd8cdaae766e0d72d1fdcb69de8",
       "expected_text": "café très fête à garçon hôpital où cœur",
       "max_cer": 0.02,
       "max_wer": 0.1,
       "require_exact_accented_words": true,
-      "review_status": "generated, pending coordinator review",
+      "required_exact_strings": [
+        "café",
+        "très",
+        "fête",
+        "à",
+        "garçon",
+        "hôpital",
+        "où",
+        "cœur"
+      ],
+      "negative_controls": [
+        {
+          "kind": "accent-stripping",
+          "text": "cafe tres fete a garcon hopital ou coeur"
+        }
+      ],
+      "review_status": "generated, coordinator-reviewed (2026-10-06)",
       "font": {
         "name": "DejaVuSans.ttf",
         "sha256": "ae7b7855e115a5966d8b1b3f80f254ccc117ec86f9965e202ee2940453837280",
@@ -211,13 +1057,27 @@
       }
     },
     {
+      "group": "de",
+      "variant": "quoted",
       "image": "de-DejaVuSans-40.png",
       "image_sha256": "fbe629b880eac98b6f17a5efe49cf5599f5f8cd6da5bd2eb9a23d65bae5a128d",
       "expected_text": "Grüße für schöne Straße",
       "max_cer": 0.02,
       "max_wer": 0.1,
       "require_exact_accented_words": true,
-      "review_status": "generated, pending coordinator review",
+      "required_exact_strings": [
+        "Grüße",
+        "für",
+        "schöne",
+        "Straße"
+      ],
+      "negative_controls": [
+        {
+          "kind": "accent-stripping",
+          "text": "Grusse fur schone Strasse"
+        }
+      ],
+      "review_status": "generated, coordinator-reviewed (2026-10-06)",
       "font": {
         "name": "DejaVuSans.ttf",
         "sha256": "ae7b7855e115a5966d8b1b3f80f254ccc117ec86f9965e202ee2940453837280",
@@ -227,13 +1087,28 @@
       }
     },
     {
+      "group": "es",
+      "variant": "quoted",
       "image": "es-DejaVuSans-40.png",
       "image_sha256": "405d49a2b34d1118c3a795a2c130e3bd2b48862885460e36e8862d5389c698d2",
       "expected_text": "El señor tomó café y está aquí",
       "max_cer": 0.02,
       "max_wer": 0.1,
       "require_exact_accented_words": true,
-      "review_status": "generated, pending coordinator review",
+      "required_exact_strings": [
+        "señor",
+        "tomó",
+        "café",
+        "está",
+        "aquí"
+      ],
+      "negative_controls": [
+        {
+          "kind": "accent-stripping",
+          "text": "El senor tomo cafe y esta aqui"
+        }
+      ],
+      "review_status": "generated, coordinator-reviewed (2026-10-06)",
       "font": {
         "name": "DejaVuSans.ttf",
         "sha256": "ae7b7855e115a5966d8b1b3f80f254ccc117ec86f9965e202ee2940453837280",
@@ -243,13 +1118,190 @@
       }
     },
     {
+      "group": "fr-uppercase",
+      "variant": "quoted",
+      "image": "fr-uppercase-DejaVuSans-40.png",
+      "image_sha256": "b45ace748a7bad8ea4cf77774e741a80252ddaab4acd48cc5f0574284ae61a8e",
+      "expected_text": "ÉTÉ À PARIS : ÇA COÛTE CHER, ÎLE DE NOËL",
+      "max_cer": 0.02,
+      "max_wer": 0.1,
+      "require_exact_accented_words": true,
+      "required_exact_strings": [
+        "ÉTÉ",
+        "À",
+        "ÇA",
+        "COÛTE",
+        "ÎLE",
+        "NOËL"
+      ],
+      "negative_controls": [
+        {
+          "kind": "accent-stripping",
+          "text": "ETE A PARIS : CA COUTE CHER, ILE DE NOEL"
+        }
+      ],
+      "review_status": "generated, coordinator-reviewed (2026-10-06)",
+      "font": {
+        "name": "DejaVuSans.ttf",
+        "sha256": "ae7b7855e115a5966d8b1b3f80f254ccc117ec86f9965e202ee2940453837280",
+        "size": 40,
+        "license": "Bitstream Vera; DejaVu changes public domain",
+        "license_sha256": "63d3ba759d12804c5b31a9d5940d855c1820d1f5999e6b0872eb1c7ff045fbc9"
+      }
+    },
+    {
+      "group": "fr-rare-lowercase",
+      "variant": "quoted",
+      "image": "fr-rare-lowercase-DejaVuSans-40.png",
+      "image_sha256": "bfcc8e49fd924dac2aa7275c4f468853e89bcc5054885696f854b40a9ebeb079",
+      "expected_text": "maïs, naïve, âme, dîner, piqûre, Noël, «guillemets», l’été, aujourd’hui",
+      "max_cer": 0.02,
+      "max_wer": 0.1,
+      "require_exact_accented_words": true,
+      "required_exact_strings": [
+        "maïs,",
+        "naïve,",
+        "âme,",
+        "dîner,",
+        "piqûre,",
+        "Noël,",
+        "«guillemets»,",
+        "l’été,",
+        "aujourd’hui"
+      ],
+      "negative_controls": [
+        {
+          "kind": "accent-stripping",
+          "text": "mais, naive, ame, diner, piqure, Noel, «guillemets», l’ete, aujourd’hui"
+        }
+      ],
+      "review_status": "generated, coordinator-reviewed (2026-10-06)",
+      "font": {
+        "name": "DejaVuSans.ttf",
+        "sha256": "ae7b7855e115a5966d8b1b3f80f254ccc117ec86f9965e202ee2940453837280",
+        "size": 40,
+        "license": "Bitstream Vera; DejaVu changes public domain",
+        "license_sha256": "63d3ba759d12804c5b31a9d5940d855c1820d1f5999e6b0872eb1c7ff045fbc9"
+      }
+    },
+    {
+      "group": "fr-ligatures",
+      "variant": "quoted",
+      "image": "fr-ligatures-DejaVuSans-40.png",
+      "image_sha256": "ad0a32adf3daf11189a05d58112ab1fe88ad7d02dae75cb6d3b622d5cadf87f8",
+      "expected_text": "cœur, œuvre, sœur, ex æquo",
+      "max_cer": 0.02,
+      "max_wer": 0.1,
+      "require_exact_accented_words": true,
+      "required_exact_strings": [
+        "cœur,",
+        "œuvre,",
+        "sœur,",
+        "æquo"
+      ],
+      "negative_controls": [
+        {
+          "kind": "accent-stripping",
+          "text": "coeur, oeuvre, soeur, ex aequo"
+        }
+      ],
+      "review_status": "generated, coordinator-reviewed (2026-10-06)",
+      "font": {
+        "name": "DejaVuSans.ttf",
+        "sha256": "ae7b7855e115a5966d8b1b3f80f254ccc117ec86f9965e202ee2940453837280",
+        "size": 40,
+        "license": "Bitstream Vera; DejaVu changes public domain",
+        "license_sha256": "63d3ba759d12804c5b31a9d5940d855c1820d1f5999e6b0872eb1c7ff045fbc9"
+      }
+    },
+    {
+      "group": "fr-numbers",
+      "variant": "quoted",
+      "image": "fr-numbers-DejaVuSans-40.png",
+      "image_sha256": "3a7540cc98455f3a6469deaa512f297d5256275204e1536fca66c589e8921034",
+      "expected_text": "1 234,56 € – 12 h 30 – 3e",
+      "max_cer": 0.02,
+      "max_wer": 0.1,
+      "require_exact_accented_words": true,
+      "required_exact_strings": [
+        "1 234,56 € – 12 h 30 – 3e"
+      ],
+      "negative_controls": [
+        {
+          "kind": "accent-stripping",
+          "text": "1 234,56 € – 12 h 30 – 3e"
+        },
+        {
+          "kind": "format-stripping",
+          "text": "1 234.56 EUR - 12 h 30 - 3e"
+        }
+      ],
+      "review_status": "generated, coordinator-reviewed (2026-10-06)",
+      "font": {
+        "name": "DejaVuSans.ttf",
+        "sha256": "ae7b7855e115a5966d8b1b3f80f254ccc117ec86f9965e202ee2940453837280",
+        "size": 40,
+        "license": "Bitstream Vera; DejaVu changes public domain",
+        "license_sha256": "63d3ba759d12804c5b31a9d5940d855c1820d1f5999e6b0872eb1c7ff045fbc9"
+      }
+    },
+    {
+      "group": "fr-numbers",
+      "variant": "thin-space",
+      "image": "fr-numbers-thin-space-DejaVuSans-40.png",
+      "image_sha256": "efa1e49968fb94f87f632965a1ede5c291d73cf9800a32abdbd93255219cd906",
+      "expected_text": "1 234,56 € – 12 h 30 – 3e",
+      "max_cer": 0.02,
+      "max_wer": 0.1,
+      "require_exact_accented_words": true,
+      "required_exact_strings": [
+        "1 234,56 € – 12 h 30 – 3e"
+      ],
+      "negative_controls": [
+        {
+          "kind": "accent-stripping",
+          "text": "1 234,56 € – 12 h 30 – 3e"
+        },
+        {
+          "kind": "format-stripping",
+          "text": "1 234.56 EUR - 12 h 30 - 3e"
+        }
+      ],
+      "review_status": "generated, coordinator-reviewed (2026-10-06)",
+      "font": {
+        "name": "DejaVuSans.ttf",
+        "sha256": "ae7b7855e115a5966d8b1b3f80f254ccc117ec86f9965e202ee2940453837280",
+        "size": 40,
+        "license": "Bitstream Vera; DejaVu changes public domain",
+        "license_sha256": "63d3ba759d12804c5b31a9d5940d855c1820d1f5999e6b0872eb1c7ff045fbc9"
+      }
+    },
+    {
+      "group": "fr",
+      "variant": "quoted",
       "image": "fr-DejaVuSans-48.png",
       "image_sha256": "6dcac529797cf77797458b344e84c9085ff09cd48eab9e0806585fd26b22b40c",
       "expected_text": "café très fête à garçon hôpital où cœur",
       "max_cer": 0.02,
       "max_wer": 0.1,
       "require_exact_accented_words": true,
-      "review_status": "generated, pending coordinator review",
+      "required_exact_strings": [
+        "café",
+        "très",
+        "fête",
+        "à",
+        "garçon",
+        "hôpital",
+        "où",
+        "cœur"
+      ],
+      "negative_controls": [
+        {
+          "kind": "accent-stripping",
+          "text": "cafe tres fete a garcon hopital ou coeur"
+        }
+      ],
+      "review_status": "generated, coordinator-reviewed (2026-10-06)",
       "font": {
         "name": "DejaVuSans.ttf",
         "sha256": "ae7b7855e115a5966d8b1b3f80f254ccc117ec86f9965e202ee2940453837280",
@@ -259,13 +1311,27 @@
       }
     },
     {
+      "group": "de",
+      "variant": "quoted",
       "image": "de-DejaVuSans-48.png",
       "image_sha256": "ec99eaa10a60dccb3cf1b95cee875b16894f87657b6c316543014e6dc2c0a841",
       "expected_text": "Grüße für schöne Straße",
       "max_cer": 0.02,
       "max_wer": 0.1,
       "require_exact_accented_words": true,
-      "review_status": "generated, pending coordinator review",
+      "required_exact_strings": [
+        "Grüße",
+        "für",
+        "schöne",
+        "Straße"
+      ],
+      "negative_controls": [
+        {
+          "kind": "accent-stripping",
+          "text": "Grusse fur schone Strasse"
+        }
+      ],
+      "review_status": "generated, coordinator-reviewed (2026-10-06)",
       "font": {
         "name": "DejaVuSans.ttf",
         "sha256": "ae7b7855e115a5966d8b1b3f80f254ccc117ec86f9965e202ee2940453837280",
@@ -275,13 +1341,28 @@
       }
     },
     {
+      "group": "es",
+      "variant": "quoted",
       "image": "es-DejaVuSans-48.png",
       "image_sha256": "bf7d28dccaef8ce245ff0d9c628e9528edf668170c4e9cbac34315508c07d280",
       "expected_text": "El señor tomó café y está aquí",
       "max_cer": 0.02,
       "max_wer": 0.1,
       "require_exact_accented_words": true,
-      "review_status": "generated, pending coordinator review",
+      "required_exact_strings": [
+        "señor",
+        "tomó",
+        "café",
+        "está",
+        "aquí"
+      ],
+      "negative_controls": [
+        {
+          "kind": "accent-stripping",
+          "text": "El senor tomo cafe y esta aqui"
+        }
+      ],
+      "review_status": "generated, coordinator-reviewed (2026-10-06)",
       "font": {
         "name": "DejaVuSans.ttf",
         "sha256": "ae7b7855e115a5966d8b1b3f80f254ccc117ec86f9965e202ee2940453837280",
@@ -291,13 +1372,190 @@
       }
     },
     {
+      "group": "fr-uppercase",
+      "variant": "quoted",
+      "image": "fr-uppercase-DejaVuSans-48.png",
+      "image_sha256": "25fbb84b265eec17354f47f0672a4219992bbef806910a3f1c2736f6a6b4c41e",
+      "expected_text": "ÉTÉ À PARIS : ÇA COÛTE CHER, ÎLE DE NOËL",
+      "max_cer": 0.02,
+      "max_wer": 0.1,
+      "require_exact_accented_words": true,
+      "required_exact_strings": [
+        "ÉTÉ",
+        "À",
+        "ÇA",
+        "COÛTE",
+        "ÎLE",
+        "NOËL"
+      ],
+      "negative_controls": [
+        {
+          "kind": "accent-stripping",
+          "text": "ETE A PARIS : CA COUTE CHER, ILE DE NOEL"
+        }
+      ],
+      "review_status": "generated, coordinator-reviewed (2026-10-06)",
+      "font": {
+        "name": "DejaVuSans.ttf",
+        "sha256": "ae7b7855e115a5966d8b1b3f80f254ccc117ec86f9965e202ee2940453837280",
+        "size": 48,
+        "license": "Bitstream Vera; DejaVu changes public domain",
+        "license_sha256": "63d3ba759d12804c5b31a9d5940d855c1820d1f5999e6b0872eb1c7ff045fbc9"
+      }
+    },
+    {
+      "group": "fr-rare-lowercase",
+      "variant": "quoted",
+      "image": "fr-rare-lowercase-DejaVuSans-48.png",
+      "image_sha256": "fd1c96177329799379716ac434b781a94d44ffff52198acfb3db8e26db49917e",
+      "expected_text": "maïs, naïve, âme, dîner, piqûre, Noël, «guillemets», l’été, aujourd’hui",
+      "max_cer": 0.02,
+      "max_wer": 0.1,
+      "require_exact_accented_words": true,
+      "required_exact_strings": [
+        "maïs,",
+        "naïve,",
+        "âme,",
+        "dîner,",
+        "piqûre,",
+        "Noël,",
+        "«guillemets»,",
+        "l’été,",
+        "aujourd’hui"
+      ],
+      "negative_controls": [
+        {
+          "kind": "accent-stripping",
+          "text": "mais, naive, ame, diner, piqure, Noel, «guillemets», l’ete, aujourd’hui"
+        }
+      ],
+      "review_status": "generated, coordinator-reviewed (2026-10-06)",
+      "font": {
+        "name": "DejaVuSans.ttf",
+        "sha256": "ae7b7855e115a5966d8b1b3f80f254ccc117ec86f9965e202ee2940453837280",
+        "size": 48,
+        "license": "Bitstream Vera; DejaVu changes public domain",
+        "license_sha256": "63d3ba759d12804c5b31a9d5940d855c1820d1f5999e6b0872eb1c7ff045fbc9"
+      }
+    },
+    {
+      "group": "fr-ligatures",
+      "variant": "quoted",
+      "image": "fr-ligatures-DejaVuSans-48.png",
+      "image_sha256": "09c06490037b921f8417b8d9b279907de8331672406830e01b50c2cdf13a2b9b",
+      "expected_text": "cœur, œuvre, sœur, ex æquo",
+      "max_cer": 0.02,
+      "max_wer": 0.1,
+      "require_exact_accented_words": true,
+      "required_exact_strings": [
+        "cœur,",
+        "œuvre,",
+        "sœur,",
+        "æquo"
+      ],
+      "negative_controls": [
+        {
+          "kind": "accent-stripping",
+          "text": "coeur, oeuvre, soeur, ex aequo"
+        }
+      ],
+      "review_status": "generated, coordinator-reviewed (2026-10-06)",
+      "font": {
+        "name": "DejaVuSans.ttf",
+        "sha256": "ae7b7855e115a5966d8b1b3f80f254ccc117ec86f9965e202ee2940453837280",
+        "size": 48,
+        "license": "Bitstream Vera; DejaVu changes public domain",
+        "license_sha256": "63d3ba759d12804c5b31a9d5940d855c1820d1f5999e6b0872eb1c7ff045fbc9"
+      }
+    },
+    {
+      "group": "fr-numbers",
+      "variant": "quoted",
+      "image": "fr-numbers-DejaVuSans-48.png",
+      "image_sha256": "b95e179906efcae7a709a9acfd2b98204ad0e8690afd6c1b3fd45da6c829dfe4",
+      "expected_text": "1 234,56 € – 12 h 30 – 3e",
+      "max_cer": 0.02,
+      "max_wer": 0.1,
+      "require_exact_accented_words": true,
+      "required_exact_strings": [
+        "1 234,56 € – 12 h 30 – 3e"
+      ],
+      "negative_controls": [
+        {
+          "kind": "accent-stripping",
+          "text": "1 234,56 € – 12 h 30 – 3e"
+        },
+        {
+          "kind": "format-stripping",
+          "text": "1 234.56 EUR - 12 h 30 - 3e"
+        }
+      ],
+      "review_status": "generated, coordinator-reviewed (2026-10-06)",
+      "font": {
+        "name": "DejaVuSans.ttf",
+        "sha256": "ae7b7855e115a5966d8b1b3f80f254ccc117ec86f9965e202ee2940453837280",
+        "size": 48,
+        "license": "Bitstream Vera; DejaVu changes public domain",
+        "license_sha256": "63d3ba759d12804c5b31a9d5940d855c1820d1f5999e6b0872eb1c7ff045fbc9"
+      }
+    },
+    {
+      "group": "fr-numbers",
+      "variant": "thin-space",
+      "image": "fr-numbers-thin-space-DejaVuSans-48.png",
+      "image_sha256": "66229f6c33a4afa8afc0d94c89cc16de279ed42c11cc5ec9c4b7791cce0c60a0",
+      "expected_text": "1 234,56 € – 12 h 30 – 3e",
+      "max_cer": 0.02,
+      "max_wer": 0.1,
+      "require_exact_accented_words": true,
+      "required_exact_strings": [
+        "1 234,56 € – 12 h 30 – 3e"
+      ],
+      "negative_controls": [
+        {
+          "kind": "accent-stripping",
+          "text": "1 234,56 € – 12 h 30 – 3e"
+        },
+        {
+          "kind": "format-stripping",
+          "text": "1 234.56 EUR - 12 h 30 - 3e"
+        }
+      ],
+      "review_status": "generated, coordinator-reviewed (2026-10-06)",
+      "font": {
+        "name": "DejaVuSans.ttf",
+        "sha256": "ae7b7855e115a5966d8b1b3f80f254ccc117ec86f9965e202ee2940453837280",
+        "size": 48,
+        "license": "Bitstream Vera; DejaVu changes public domain",
+        "license_sha256": "63d3ba759d12804c5b31a9d5940d855c1820d1f5999e6b0872eb1c7ff045fbc9"
+      }
+    },
+    {
+      "group": "fr",
+      "variant": "quoted",
       "image": "fr-LiberationSans-Regular-32.png",
       "image_sha256": "b1586960841cc52516e526e9c11b0fe078cb356684a9abdbd74e85ff62253c1f",
       "expected_text": "café très fête à garçon hôpital où cœur",
       "max_cer": 0.02,
       "max_wer": 0.1,
       "require_exact_accented_words": true,
-      "review_status": "generated, pending coordinator review",
+      "required_exact_strings": [
+        "café",
+        "très",
+        "fête",
+        "à",
+        "garçon",
+        "hôpital",
+        "où",
+        "cœur"
+      ],
+      "negative_controls": [
+        {
+          "kind": "accent-stripping",
+          "text": "cafe tres fete a garcon hopital ou coeur"
+        }
+      ],
+      "review_status": "generated, coordinator-reviewed (2026-10-06)",
       "font": {
         "name": "LiberationSans-Regular.ttf",
         "sha256": "4659bc0c58c5028dd488ec928d41d9265db43d9b669fc14ca8b0832daca7b144",
@@ -307,13 +1565,27 @@
       }
     },
     {
+      "group": "de",
+      "variant": "quoted",
       "image": "de-LiberationSans-Regular-32.png",
       "image_sha256": "d81c96df650154280c718c5de9270b61bb353c44341d225abccdbe1e8afd277f",
       "expected_text": "Grüße für schöne Straße",
       "max_cer": 0.02,
       "max_wer": 0.1,
       "require_exact_accented_words": true,
-      "review_status": "generated, pending coordinator review",
+      "required_exact_strings": [
+        "Grüße",
+        "für",
+        "schöne",
+        "Straße"
+      ],
+      "negative_controls": [
+        {
+          "kind": "accent-stripping",
+          "text": "Grusse fur schone Strasse"
+        }
+      ],
+      "review_status": "generated, coordinator-reviewed (2026-10-06)",
       "font": {
         "name": "LiberationSans-Regular.ttf",
         "sha256": "4659bc0c58c5028dd488ec928d41d9265db43d9b669fc14ca8b0832daca7b144",
@@ -323,13 +1595,28 @@
       }
     },
     {
+      "group": "es",
+      "variant": "quoted",
       "image": "es-LiberationSans-Regular-32.png",
       "image_sha256": "4ca3650be7b63a17185d600189260c588dde4df94b773e4719c70edd10dd7a34",
       "expected_text": "El señor tomó café y está aquí",
       "max_cer": 0.02,
       "max_wer": 0.1,
       "require_exact_accented_words": true,
-      "review_status": "generated, pending coordinator review",
+      "required_exact_strings": [
+        "señor",
+        "tomó",
+        "café",
+        "está",
+        "aquí"
+      ],
+      "negative_controls": [
+        {
+          "kind": "accent-stripping",
+          "text": "El senor tomo cafe y esta aqui"
+        }
+      ],
+      "review_status": "generated, coordinator-reviewed (2026-10-06)",
       "font": {
         "name": "LiberationSans-Regular.ttf",
         "sha256": "4659bc0c58c5028dd488ec928d41d9265db43d9b669fc14ca8b0832daca7b144",
@@ -339,13 +1626,190 @@
       }
     },
     {
+      "group": "fr-uppercase",
+      "variant": "quoted",
+      "image": "fr-uppercase-LiberationSans-Regular-32.png",
+      "image_sha256": "f111f59785c6075b795e9aa57f7fab0f9e37f17243f1dabe7f1b2a4093eae874",
+      "expected_text": "ÉTÉ À PARIS : ÇA COÛTE CHER, ÎLE DE NOËL",
+      "max_cer": 0.02,
+      "max_wer": 0.1,
+      "require_exact_accented_words": true,
+      "required_exact_strings": [
+        "ÉTÉ",
+        "À",
+        "ÇA",
+        "COÛTE",
+        "ÎLE",
+        "NOËL"
+      ],
+      "negative_controls": [
+        {
+          "kind": "accent-stripping",
+          "text": "ETE A PARIS : CA COUTE CHER, ILE DE NOEL"
+        }
+      ],
+      "review_status": "generated, coordinator-reviewed (2026-10-06)",
+      "font": {
+        "name": "LiberationSans-Regular.ttf",
+        "sha256": "4659bc0c58c5028dd488ec928d41d9265db43d9b669fc14ca8b0832daca7b144",
+        "size": 32,
+        "license": "SIL Open Font License 1.1",
+        "license_sha256": "f32df582a2aab128c07b2f7e36e7b928dc5f6bd82657b905c04f91459f9e5cf9"
+      }
+    },
+    {
+      "group": "fr-rare-lowercase",
+      "variant": "quoted",
+      "image": "fr-rare-lowercase-LiberationSans-Regular-32.png",
+      "image_sha256": "66fd3c9c93f367157b97fbbee493fac7b7ee69c3265e6fff21e153eddfb20aab",
+      "expected_text": "maïs, naïve, âme, dîner, piqûre, Noël, «guillemets», l’été, aujourd’hui",
+      "max_cer": 0.02,
+      "max_wer": 0.1,
+      "require_exact_accented_words": true,
+      "required_exact_strings": [
+        "maïs,",
+        "naïve,",
+        "âme,",
+        "dîner,",
+        "piqûre,",
+        "Noël,",
+        "«guillemets»,",
+        "l’été,",
+        "aujourd’hui"
+      ],
+      "negative_controls": [
+        {
+          "kind": "accent-stripping",
+          "text": "mais, naive, ame, diner, piqure, Noel, «guillemets», l’ete, aujourd’hui"
+        }
+      ],
+      "review_status": "generated, coordinator-reviewed (2026-10-06)",
+      "font": {
+        "name": "LiberationSans-Regular.ttf",
+        "sha256": "4659bc0c58c5028dd488ec928d41d9265db43d9b669fc14ca8b0832daca7b144",
+        "size": 32,
+        "license": "SIL Open Font License 1.1",
+        "license_sha256": "f32df582a2aab128c07b2f7e36e7b928dc5f6bd82657b905c04f91459f9e5cf9"
+      }
+    },
+    {
+      "group": "fr-ligatures",
+      "variant": "quoted",
+      "image": "fr-ligatures-LiberationSans-Regular-32.png",
+      "image_sha256": "dd1206dbd63d919fb3dd69dccad9f296b425f3134dc739ee406f4047512eb7aa",
+      "expected_text": "cœur, œuvre, sœur, ex æquo",
+      "max_cer": 0.02,
+      "max_wer": 0.1,
+      "require_exact_accented_words": true,
+      "required_exact_strings": [
+        "cœur,",
+        "œuvre,",
+        "sœur,",
+        "æquo"
+      ],
+      "negative_controls": [
+        {
+          "kind": "accent-stripping",
+          "text": "coeur, oeuvre, soeur, ex aequo"
+        }
+      ],
+      "review_status": "generated, coordinator-reviewed (2026-10-06)",
+      "font": {
+        "name": "LiberationSans-Regular.ttf",
+        "sha256": "4659bc0c58c5028dd488ec928d41d9265db43d9b669fc14ca8b0832daca7b144",
+        "size": 32,
+        "license": "SIL Open Font License 1.1",
+        "license_sha256": "f32df582a2aab128c07b2f7e36e7b928dc5f6bd82657b905c04f91459f9e5cf9"
+      }
+    },
+    {
+      "group": "fr-numbers",
+      "variant": "quoted",
+      "image": "fr-numbers-LiberationSans-Regular-32.png",
+      "image_sha256": "9949bb8227761f5fa0032a2322d3d413bc1b79880b5f436811b3ead86d605d55",
+      "expected_text": "1 234,56 € – 12 h 30 – 3e",
+      "max_cer": 0.02,
+      "max_wer": 0.1,
+      "require_exact_accented_words": true,
+      "required_exact_strings": [
+        "1 234,56 € – 12 h 30 – 3e"
+      ],
+      "negative_controls": [
+        {
+          "kind": "accent-stripping",
+          "text": "1 234,56 € – 12 h 30 – 3e"
+        },
+        {
+          "kind": "format-stripping",
+          "text": "1 234.56 EUR - 12 h 30 - 3e"
+        }
+      ],
+      "review_status": "generated, coordinator-reviewed (2026-10-06)",
+      "font": {
+        "name": "LiberationSans-Regular.ttf",
+        "sha256": "4659bc0c58c5028dd488ec928d41d9265db43d9b669fc14ca8b0832daca7b144",
+        "size": 32,
+        "license": "SIL Open Font License 1.1",
+        "license_sha256": "f32df582a2aab128c07b2f7e36e7b928dc5f6bd82657b905c04f91459f9e5cf9"
+      }
+    },
+    {
+      "group": "fr-numbers",
+      "variant": "thin-space",
+      "image": "fr-numbers-thin-space-LiberationSans-Regular-32.png",
+      "image_sha256": "c0e0f939e0fcdc783a05c49c72e3b80c93e7010487c659e820359af397cf34e6",
+      "expected_text": "1 234,56 € – 12 h 30 – 3e",
+      "max_cer": 0.02,
+      "max_wer": 0.1,
+      "require_exact_accented_words": true,
+      "required_exact_strings": [
+        "1 234,56 € – 12 h 30 – 3e"
+      ],
+      "negative_controls": [
+        {
+          "kind": "accent-stripping",
+          "text": "1 234,56 € – 12 h 30 – 3e"
+        },
+        {
+          "kind": "format-stripping",
+          "text": "1 234.56 EUR - 12 h 30 - 3e"
+        }
+      ],
+      "review_status": "generated, coordinator-reviewed (2026-10-06)",
+      "font": {
+        "name": "LiberationSans-Regular.ttf",
+        "sha256": "4659bc0c58c5028dd488ec928d41d9265db43d9b669fc14ca8b0832daca7b144",
+        "size": 32,
+        "license": "SIL Open Font License 1.1",
+        "license_sha256": "f32df582a2aab128c07b2f7e36e7b928dc5f6bd82657b905c04f91459f9e5cf9"
+      }
+    },
+    {
+      "group": "fr",
+      "variant": "quoted",
       "image": "fr-LiberationSans-Regular-40.png",
       "image_sha256": "5eb84965382459d8b945403593876b5c3c2e80a0f7a61e8c9d3e29001f47422c",
       "expected_text": "café très fête à garçon hôpital où cœur",
       "max_cer": 0.02,
       "max_wer": 0.1,
       "require_exact_accented_words": true,
-      "review_status": "generated, pending coordinator review",
+      "required_exact_strings": [
+        "café",
+        "très",
+        "fête",
+        "à",
+        "garçon",
+        "hôpital",
+        "où",
+        "cœur"
+      ],
+      "negative_controls": [
+        {
+          "kind": "accent-stripping",
+          "text": "cafe tres fete a garcon hopital ou coeur"
+        }
+      ],
+      "review_status": "generated, coordinator-reviewed (2026-10-06)",
       "font": {
         "name": "LiberationSans-Regular.ttf",
         "sha256": "4659bc0c58c5028dd488ec928d41d9265db43d9b669fc14ca8b0832daca7b144",
@@ -355,13 +1819,27 @@
       }
     },
     {
+      "group": "de",
+      "variant": "quoted",
       "image": "de-LiberationSans-Regular-40.png",
       "image_sha256": "7f9674403f98612f8865a704c1626efe1d57bf2965e126809980b13f6982cf55",
       "expected_text": "Grüße für schöne Straße",
       "max_cer": 0.02,
       "max_wer": 0.1,
       "require_exact_accented_words": true,
-      "review_status": "generated, pending coordinator review",
+      "required_exact_strings": [
+        "Grüße",
+        "für",
+        "schöne",
+        "Straße"
+      ],
+      "negative_controls": [
+        {
+          "kind": "accent-stripping",
+          "text": "Grusse fur schone Strasse"
+        }
+      ],
+      "review_status": "generated, coordinator-reviewed (2026-10-06)",
       "font": {
         "name": "LiberationSans-Regular.ttf",
         "sha256": "4659bc0c58c5028dd488ec928d41d9265db43d9b669fc14ca8b0832daca7b144",
@@ -371,13 +1849,28 @@
       }
     },
     {
+      "group": "es",
+      "variant": "quoted",
       "image": "es-LiberationSans-Regular-40.png",
       "image_sha256": "5a5289c913382742c96b3abd30ae951321a98f29198a7d4387413091e9739c61",
       "expected_text": "El señor tomó café y está aquí",
       "max_cer": 0.02,
       "max_wer": 0.1,
       "require_exact_accented_words": true,
-      "review_status": "generated, pending coordinator review",
+      "required_exact_strings": [
+        "señor",
+        "tomó",
+        "café",
+        "está",
+        "aquí"
+      ],
+      "negative_controls": [
+        {
+          "kind": "accent-stripping",
+          "text": "El senor tomo cafe y esta aqui"
+        }
+      ],
+      "review_status": "generated, coordinator-reviewed (2026-10-06)",
       "font": {
         "name": "LiberationSans-Regular.ttf",
         "sha256": "4659bc0c58c5028dd488ec928d41d9265db43d9b669fc14ca8b0832daca7b144",
@@ -387,13 +1880,190 @@
       }
     },
     {
+      "group": "fr-uppercase",
+      "variant": "quoted",
+      "image": "fr-uppercase-LiberationSans-Regular-40.png",
+      "image_sha256": "5697af7ec20e606ed9289a5c01d7f764c5d45c54214fabb8c276af4914c9f548",
+      "expected_text": "ÉTÉ À PARIS : ÇA COÛTE CHER, ÎLE DE NOËL",
+      "max_cer": 0.02,
+      "max_wer": 0.1,
+      "require_exact_accented_words": true,
+      "required_exact_strings": [
+        "ÉTÉ",
+        "À",
+        "ÇA",
+        "COÛTE",
+        "ÎLE",
+        "NOËL"
+      ],
+      "negative_controls": [
+        {
+          "kind": "accent-stripping",
+          "text": "ETE A PARIS : CA COUTE CHER, ILE DE NOEL"
+        }
+      ],
+      "review_status": "generated, coordinator-reviewed (2026-10-06)",
+      "font": {
+        "name": "LiberationSans-Regular.ttf",
+        "sha256": "4659bc0c58c5028dd488ec928d41d9265db43d9b669fc14ca8b0832daca7b144",
+        "size": 40,
+        "license": "SIL Open Font License 1.1",
+        "license_sha256": "f32df582a2aab128c07b2f7e36e7b928dc5f6bd82657b905c04f91459f9e5cf9"
+      }
+    },
+    {
+      "group": "fr-rare-lowercase",
+      "variant": "quoted",
+      "image": "fr-rare-lowercase-LiberationSans-Regular-40.png",
+      "image_sha256": "9fc10b8f09e55d7ce38a6c4acbc0e1192b4c2845a2d54165ebb885a3349bbca0",
+      "expected_text": "maïs, naïve, âme, dîner, piqûre, Noël, «guillemets», l’été, aujourd’hui",
+      "max_cer": 0.02,
+      "max_wer": 0.1,
+      "require_exact_accented_words": true,
+      "required_exact_strings": [
+        "maïs,",
+        "naïve,",
+        "âme,",
+        "dîner,",
+        "piqûre,",
+        "Noël,",
+        "«guillemets»,",
+        "l’été,",
+        "aujourd’hui"
+      ],
+      "negative_controls": [
+        {
+          "kind": "accent-stripping",
+          "text": "mais, naive, ame, diner, piqure, Noel, «guillemets», l’ete, aujourd’hui"
+        }
+      ],
+      "review_status": "generated, coordinator-reviewed (2026-10-06)",
+      "font": {
+        "name": "LiberationSans-Regular.ttf",
+        "sha256": "4659bc0c58c5028dd488ec928d41d9265db43d9b669fc14ca8b0832daca7b144",
+        "size": 40,
+        "license": "SIL Open Font License 1.1",
+        "license_sha256": "f32df582a2aab128c07b2f7e36e7b928dc5f6bd82657b905c04f91459f9e5cf9"
+      }
+    },
+    {
+      "group": "fr-ligatures",
+      "variant": "quoted",
+      "image": "fr-ligatures-LiberationSans-Regular-40.png",
+      "image_sha256": "9ead90565847ad6c007e6b3a969875990d355a730739bda14e08031af8912310",
+      "expected_text": "cœur, œuvre, sœur, ex æquo",
+      "max_cer": 0.02,
+      "max_wer": 0.1,
+      "require_exact_accented_words": true,
+      "required_exact_strings": [
+        "cœur,",
+        "œuvre,",
+        "sœur,",
+        "æquo"
+      ],
+      "negative_controls": [
+        {
+          "kind": "accent-stripping",
+          "text": "coeur, oeuvre, soeur, ex aequo"
+        }
+      ],
+      "review_status": "generated, coordinator-reviewed (2026-10-06)",
+      "font": {
+        "name": "LiberationSans-Regular.ttf",
+        "sha256": "4659bc0c58c5028dd488ec928d41d9265db43d9b669fc14ca8b0832daca7b144",
+        "size": 40,
+        "license": "SIL Open Font License 1.1",
+        "license_sha256": "f32df582a2aab128c07b2f7e36e7b928dc5f6bd82657b905c04f91459f9e5cf9"
+      }
+    },
+    {
+      "group": "fr-numbers",
+      "variant": "quoted",
+      "image": "fr-numbers-LiberationSans-Regular-40.png",
+      "image_sha256": "090ae7cfe590b14c28d605f0df4bf40c643fd7ee34051ef4b23a413035dc215f",
+      "expected_text": "1 234,56 € – 12 h 30 – 3e",
+      "max_cer": 0.02,
+      "max_wer": 0.1,
+      "require_exact_accented_words": true,
+      "required_exact_strings": [
+        "1 234,56 € – 12 h 30 – 3e"
+      ],
+      "negative_controls": [
+        {
+          "kind": "accent-stripping",
+          "text": "1 234,56 € – 12 h 30 – 3e"
+        },
+        {
+          "kind": "format-stripping",
+          "text": "1 234.56 EUR - 12 h 30 - 3e"
+        }
+      ],
+      "review_status": "generated, coordinator-reviewed (2026-10-06)",
+      "font": {
+        "name": "LiberationSans-Regular.ttf",
+        "sha256": "4659bc0c58c5028dd488ec928d41d9265db43d9b669fc14ca8b0832daca7b144",
+        "size": 40,
+        "license": "SIL Open Font License 1.1",
+        "license_sha256": "f32df582a2aab128c07b2f7e36e7b928dc5f6bd82657b905c04f91459f9e5cf9"
+      }
+    },
+    {
+      "group": "fr-numbers",
+      "variant": "thin-space",
+      "image": "fr-numbers-thin-space-LiberationSans-Regular-40.png",
+      "image_sha256": "431062c699589fbbdc81fd108fe81382a9c16932c4e06cb2e1b58c3542edfcde",
+      "expected_text": "1 234,56 € – 12 h 30 – 3e",
+      "max_cer": 0.02,
+      "max_wer": 0.1,
+      "require_exact_accented_words": true,
+      "required_exact_strings": [
+        "1 234,56 € – 12 h 30 – 3e"
+      ],
+      "negative_controls": [
+        {
+          "kind": "accent-stripping",
+          "text": "1 234,56 € – 12 h 30 – 3e"
+        },
+        {
+          "kind": "format-stripping",
+          "text": "1 234.56 EUR - 12 h 30 - 3e"
+        }
+      ],
+      "review_status": "generated, coordinator-reviewed (2026-10-06)",
+      "font": {
+        "name": "LiberationSans-Regular.ttf",
+        "sha256": "4659bc0c58c5028dd488ec928d41d9265db43d9b669fc14ca8b0832daca7b144",
+        "size": 40,
+        "license": "SIL Open Font License 1.1",
+        "license_sha256": "f32df582a2aab128c07b2f7e36e7b928dc5f6bd82657b905c04f91459f9e5cf9"
+      }
+    },
+    {
+      "group": "fr",
+      "variant": "quoted",
       "image": "fr-LiberationSans-Regular-48.png",
       "image_sha256": "94c99d67911fc6ecdd573a4c8cd4db6e67ce058b2e3f4940b6f8dcd37a239118",
       "expected_text": "café très fête à garçon hôpital où cœur",
       "max_cer": 0.02,
       "max_wer": 0.1,
       "require_exact_accented_words": true,
-      "review_status": "generated, pending coordinator review",
+      "required_exact_strings": [
+        "café",
+        "très",
+        "fête",
+        "à",
+        "garçon",
+        "hôpital",
+        "où",
+        "cœur"
+      ],
+      "negative_controls": [
+        {
+          "kind": "accent-stripping",
+          "text": "cafe tres fete a garcon hopital ou coeur"
+        }
+      ],
+      "review_status": "generated, coordinator-reviewed (2026-10-06)",
       "font": {
         "name": "LiberationSans-Regular.ttf",
         "sha256": "4659bc0c58c5028dd488ec928d41d9265db43d9b669fc14ca8b0832daca7b144",
@@ -403,13 +2073,27 @@
       }
     },
     {
+      "group": "de",
+      "variant": "quoted",
       "image": "de-LiberationSans-Regular-48.png",
       "image_sha256": "582991327f4aae12d240ea10f78d62c4fe5dfc9d2f8aa734441f38dde0aed1a1",
       "expected_text": "Grüße für schöne Straße",
       "max_cer": 0.02,
       "max_wer": 0.1,
       "require_exact_accented_words": true,
-      "review_status": "generated, pending coordinator review",
+      "required_exact_strings": [
+        "Grüße",
+        "für",
+        "schöne",
+        "Straße"
+      ],
+      "negative_controls": [
+        {
+          "kind": "accent-stripping",
+          "text": "Grusse fur schone Strasse"
+        }
+      ],
+      "review_status": "generated, coordinator-reviewed (2026-10-06)",
       "font": {
         "name": "LiberationSans-Regular.ttf",
         "sha256": "4659bc0c58c5028dd488ec928d41d9265db43d9b669fc14ca8b0832daca7b144",
@@ -419,13 +2103,187 @@
       }
     },
     {
+      "group": "es",
+      "variant": "quoted",
       "image": "es-LiberationSans-Regular-48.png",
       "image_sha256": "ad59b204ca895bd5d1a553fc0741fb04497b7863e83b8f2c7cd6b2ea2ed61e3f",
       "expected_text": "El señor tomó café y está aquí",
       "max_cer": 0.02,
       "max_wer": 0.1,
       "require_exact_accented_words": true,
-      "review_status": "generated, pending coordinator review",
+      "required_exact_strings": [
+        "señor",
+        "tomó",
+        "café",
+        "está",
+        "aquí"
+      ],
+      "negative_controls": [
+        {
+          "kind": "accent-stripping",
+          "text": "El senor tomo cafe y esta aqui"
+        }
+      ],
+      "review_status": "generated, coordinator-reviewed (2026-10-06)",
+      "font": {
+        "name": "LiberationSans-Regular.ttf",
+        "sha256": "4659bc0c58c5028dd488ec928d41d9265db43d9b669fc14ca8b0832daca7b144",
+        "size": 48,
+        "license": "SIL Open Font License 1.1",
+        "license_sha256": "f32df582a2aab128c07b2f7e36e7b928dc5f6bd82657b905c04f91459f9e5cf9"
+      }
+    },
+    {
+      "group": "fr-uppercase",
+      "variant": "quoted",
+      "image": "fr-uppercase-LiberationSans-Regular-48.png",
+      "image_sha256": "8fcba67482e5a07917eaf14b2d4ae4e3454824e779e73ee3291d3d29981fc43e",
+      "expected_text": "ÉTÉ À PARIS : ÇA COÛTE CHER, ÎLE DE NOËL",
+      "max_cer": 0.02,
+      "max_wer": 0.1,
+      "require_exact_accented_words": true,
+      "required_exact_strings": [
+        "ÉTÉ",
+        "À",
+        "ÇA",
+        "COÛTE",
+        "ÎLE",
+        "NOËL"
+      ],
+      "negative_controls": [
+        {
+          "kind": "accent-stripping",
+          "text": "ETE A PARIS : CA COUTE CHER, ILE DE NOEL"
+        }
+      ],
+      "review_status": "generated, coordinator-reviewed (2026-10-06)",
+      "font": {
+        "name": "LiberationSans-Regular.ttf",
+        "sha256": "4659bc0c58c5028dd488ec928d41d9265db43d9b669fc14ca8b0832daca7b144",
+        "size": 48,
+        "license": "SIL Open Font License 1.1",
+        "license_sha256": "f32df582a2aab128c07b2f7e36e7b928dc5f6bd82657b905c04f91459f9e5cf9"
+      }
+    },
+    {
+      "group": "fr-rare-lowercase",
+      "variant": "quoted",
+      "image": "fr-rare-lowercase-LiberationSans-Regular-48.png",
+      "image_sha256": "7fc363a05b419047b296af20415356aa38717e95642ce140b2e40e37ec542e69",
+      "expected_text": "maïs, naïve, âme, dîner, piqûre, Noël, «guillemets», l’été, aujourd’hui",
+      "max_cer": 0.02,
+      "max_wer": 0.1,
+      "require_exact_accented_words": true,
+      "required_exact_strings": [
+        "maïs,",
+        "naïve,",
+        "âme,",
+        "dîner,",
+        "piqûre,",
+        "Noël,",
+        "«guillemets»,",
+        "l’été,",
+        "aujourd’hui"
+      ],
+      "negative_controls": [
+        {
+          "kind": "accent-stripping",
+          "text": "mais, naive, ame, diner, piqure, Noel, «guillemets», l’ete, aujourd’hui"
+        }
+      ],
+      "review_status": "generated, coordinator-reviewed (2026-10-06)",
+      "font": {
+        "name": "LiberationSans-Regular.ttf",
+        "sha256": "4659bc0c58c5028dd488ec928d41d9265db43d9b669fc14ca8b0832daca7b144",
+        "size": 48,
+        "license": "SIL Open Font License 1.1",
+        "license_sha256": "f32df582a2aab128c07b2f7e36e7b928dc5f6bd82657b905c04f91459f9e5cf9"
+      }
+    },
+    {
+      "group": "fr-ligatures",
+      "variant": "quoted",
+      "image": "fr-ligatures-LiberationSans-Regular-48.png",
+      "image_sha256": "2bf10ce89649850d5c255988aa27ab88b0e2ca0da0e3766c943b7f9c18a9f2fa",
+      "expected_text": "cœur, œuvre, sœur, ex æquo",
+      "max_cer": 0.02,
+      "max_wer": 0.1,
+      "require_exact_accented_words": true,
+      "required_exact_strings": [
+        "cœur,",
+        "œuvre,",
+        "sœur,",
+        "æquo"
+      ],
+      "negative_controls": [
+        {
+          "kind": "accent-stripping",
+          "text": "coeur, oeuvre, soeur, ex aequo"
+        }
+      ],
+      "review_status": "generated, coordinator-reviewed (2026-10-06)",
+      "font": {
+        "name": "LiberationSans-Regular.ttf",
+        "sha256": "4659bc0c58c5028dd488ec928d41d9265db43d9b669fc14ca8b0832daca7b144",
+        "size": 48,
+        "license": "SIL Open Font License 1.1",
+        "license_sha256": "f32df582a2aab128c07b2f7e36e7b928dc5f6bd82657b905c04f91459f9e5cf9"
+      }
+    },
+    {
+      "group": "fr-numbers",
+      "variant": "quoted",
+      "image": "fr-numbers-LiberationSans-Regular-48.png",
+      "image_sha256": "3557a5ef110359cca73f4e4614b5519fb5f28edfcd17f8a5adb7b5b92b3daac6",
+      "expected_text": "1 234,56 € – 12 h 30 – 3e",
+      "max_cer": 0.02,
+      "max_wer": 0.1,
+      "require_exact_accented_words": true,
+      "required_exact_strings": [
+        "1 234,56 € – 12 h 30 – 3e"
+      ],
+      "negative_controls": [
+        {
+          "kind": "accent-stripping",
+          "text": "1 234,56 € – 12 h 30 – 3e"
+        },
+        {
+          "kind": "format-stripping",
+          "text": "1 234.56 EUR - 12 h 30 - 3e"
+        }
+      ],
+      "review_status": "generated, coordinator-reviewed (2026-10-06)",
+      "font": {
+        "name": "LiberationSans-Regular.ttf",
+        "sha256": "4659bc0c58c5028dd488ec928d41d9265db43d9b669fc14ca8b0832daca7b144",
+        "size": 48,
+        "license": "SIL Open Font License 1.1",
+        "license_sha256": "f32df582a2aab128c07b2f7e36e7b928dc5f6bd82657b905c04f91459f9e5cf9"
+      }
+    },
+    {
+      "group": "fr-numbers",
+      "variant": "thin-space",
+      "image": "fr-numbers-thin-space-LiberationSans-Regular-48.png",
+      "image_sha256": "259477a16727d27867cf9d258edd31e2a41c66d45c75ea31f91d494714a7110c",
+      "expected_text": "1 234,56 € – 12 h 30 – 3e",
+      "max_cer": 0.02,
+      "max_wer": 0.1,
+      "require_exact_accented_words": true,
+      "required_exact_strings": [
+        "1 234,56 € – 12 h 30 – 3e"
+      ],
+      "negative_controls": [
+        {
+          "kind": "accent-stripping",
+          "text": "1 234,56 € – 12 h 30 – 3e"
+        },
+        {
+          "kind": "format-stripping",
+          "text": "1 234.56 EUR - 12 h 30 - 3e"
+        }
+      ],
+      "review_status": "generated, coordinator-reviewed (2026-10-06)",
       "font": {
         "name": "LiberationSans-Regular.ttf",
         "sha256": "4659bc0c58c5028dd488ec928d41d9265db43d9b669fc14ca8b0832daca7b144",

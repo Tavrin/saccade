@@ -7,6 +7,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+- Replace the local ocRs adapter with pinned PP-OCRv5 Latin; add optional,
+  explicitly selected Mistral document OCR with fixture-tested spend/egress controls.
+  Coordinator-reviewed generated OCR contracts retain unchanged thresholds:
+  46/72 cases pass; the accent gate stays failing. Known limitations include
+  DejaVu Serif/48 `cœur` → `cæur`, curly-apostrophe substitutions (rarer lowercase
+  2/9), and en-dash/thin-space errors (French numbers 0/18). Numeric accent
+  stripping is a no-op: those 18 controls remain failing; separate format controls
+  are rejected. See [all case results](docs/ocr-contract-results-2026-10-06.md).
+  Live Mistral API/billing behavior remains unqualified.
+
 - Add opt-in rendering evidence: required effect occupancy, intended experiment
   variables, spatial and layer scope, automatic evidence regions, fixed-camera
   temporal tiles, noisy offline references, preregistered blind trials and warmup

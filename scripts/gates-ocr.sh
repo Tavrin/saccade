@@ -7,9 +7,12 @@ scratch=${SACCADE_OCR_SCRATCH:-/mnt/linux-extra/moss-scratch/saccade-ocr}
 cache=${SACCADE_OCR_CACHE:-/mnt/linux-extra/saccade-models}
 mkdir -p "$scratch"
 fail=0
-gate() { local name=$1; shift; if "$@"; then echo "GATE $name PASS"; else echo "GATE $name FAIL"; fail=1; fi; }
+gate() { local name=$1; shift; if "$@"; then echo "GATE $name PASS"; else echo "GATE $name FAIL"; fail=1; return 1; fi; }
 cargo_gate() {
-  python3 -c 'import shutil; assert shutil.disk_usage("/mnt/linux-extra").free >= 25_000_000_000, "less than 25 GB free"' || return 1
+  while ! python3 -c 'import shutil; assert shutil.disk_usage("/mnt/linux-extra").free >= 25_000_000_000, "less than 25 GB free"'; do
+    echo "OCR build admission PAUSED: waiting for 25 GB free"
+    sleep 30
+  done
   nice -n 19 cargo "$1" -j 4 "${@:2}"
 }
 gate fmt cargo fmt --all -- --check
@@ -18,10 +21,20 @@ gate clippy cargo_gate clippy -p saccade -p saccade-core --no-default-features -
 gate core cargo_gate test -p saccade-core --features ocr,ocr-provider --lib general::
 gate cli cargo_gate test -p saccade --no-default-features --features ocr,ocr-provider,mcp --test ocr_contract
 # Frozen generation precedes model inference; Python with Pillow must be provided explicitly.
-gate generate "${SACCADE_OCR_PYTHON:-python3}" scripts/models/generate-ocr-accents.py "$scratch/accents"
+fixtures_ready=0
+if gate generate "${SACCADE_OCR_PYTHON:-python3}" scripts/models/generate-ocr-accents.py "$scratch/accents" &&
+   gate frozen-contracts cmp scripts/models/ocr-accent-contracts.json "$scratch/accents/contracts.json"; then
+  fixtures_ready=1
+fi
 export SACCADE_OCR_ACCENTS="$scratch/accents" SACCADE_OCR_CACHE="$cache"
+if (( fixtures_ready )); then
 gate local-inference cargo_gate test -p saccade --no-default-features --features ocr,ocr-provider,mcp --test ocr_contract -- --ignored
 gate accents cargo_gate run -p saccade-core --features ocr --example ocr_accents -- "$scratch/accents" "$cache" "$scratch/accent-results.json"
+else
+  echo "GATE local-inference FAIL (fixtures not frozen)"
+  echo "GATE accents FAIL (fixtures not frozen)"
+  fail=1
+fi
 gate docs python3 scripts/check-wave6-docs.py
 gate genericity bash scripts/check-genericity.sh
 exit "$fail"
