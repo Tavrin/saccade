@@ -81,9 +81,9 @@ noise floor. Mark those rows `aa: true` and use separate resampling blocks.
 
 For a generic external hook, apply CPU pinning through `taskset -c CORES TOOL ...` on
 platforms supporting it; use the platform's affinity mechanism elsewhere. Existing
-`SACCADE_HEAVY_WRAPPER` wraps coordinator gate execution, not timing imports. CPU-only
-benchmarks use `MOSS_HEAVY_GPU=0` in environments with that resource protocol. Saccade
-has no scheduling helper; external tools retain their scheduling and command syntax.
+`SACCADE_HEAVY_WRAPPER` wraps coordinator gate execution, not timing imports. Declare
+CPU-only resource requirements through your external scheduler. Saccade has no
+scheduling helper; external tools retain their scheduling and command syntax.
 
 ## Event-relative visual settling
 

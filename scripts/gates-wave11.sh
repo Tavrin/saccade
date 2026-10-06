@@ -2,9 +2,8 @@
 # Coordinator-only complete gates; CPU analysis, generated fixtures, no downloads/GPU.
 set -u
 cd "$(dirname "$0")/.." || exit 1
-export CARGO_TARGET_DIR="${CARGO_TARGET_DIR:-/mnt/linux-extra/moss-cargo-targets/codex-saccade-w11}"
 source scripts/gate-env.sh
-export CARGO_INCREMENTAL=0 CARGO_PROFILE_DEV_DEBUG=0 CARGO_PROFILE_TEST_DEBUG=0 MOSS_HEAVY_GPU=0
+export CARGO_INCREMENTAL=0 CARGO_PROFILE_DEV_DEBUG=0 CARGO_PROFILE_TEST_DEBUG=0
 failed=0
 # Coordinator disk-emergency amendment requires 25 GiB free and a target below 5 GiB.
 headroom() {

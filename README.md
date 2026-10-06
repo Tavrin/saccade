@@ -69,7 +69,9 @@ saccade experiment sequence before-frames after-frames --fixed-camera --out temp
 ```
 
 See [rendering evidence](docs/render-evidence.md) and
-[engine capture ingestion](docs/engine-ingest.md).
+[engine capture ingestion](docs/engine-ingest.md),
+[temporal settling](docs/experiments-wave11.md#event-relative-visual-settling)
+and [one-flag masks](docs/experiments-wave11.md#one-flag-native-scopes-and-occupancy).
 
 ### Image delivery tuning
 
@@ -139,7 +141,10 @@ saccade history onset --store history --json
 ```
 
 See [paired statistics](docs/paired-performance.md),
-[change points](docs/wave1.md) and [identity/performance](docs/identity-and-performance.md).
+[change points](docs/wave1.md), [identity/performance](docs/identity-and-performance.md),
+[timing verdicts](docs/experiments-wave11.md#timing-ab),
+[ablation tables](docs/experiments-wave11.md#multi-arm-repeat-tables)
+and [report linking](docs/experiments-wave11.md#external-report-links-and-indexes).
 
 ## Install
 

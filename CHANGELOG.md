@@ -2,6 +2,9 @@
 
 ## Unreleased
 
+- Refresh command/schema references and agent packs; allow documentation generation
+  without the AVIF codec when dav1d is unavailable, recording the compiled features.
+
 - Fingerprint records accept 16 MiB by default, with map/CLI byte limits, a 64 MiB hard ceiling and file-specific oversize diagnostics.
 
 - Analyze external paired timings with same-session A/A controls, block-bootstrap HL
