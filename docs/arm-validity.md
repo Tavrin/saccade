@@ -31,7 +31,9 @@ reports, including under a field mapping.
 
 The standalone check accepts JSON capture records or sidecars, images with
 sidecars, or capture directories. It evaluates validity only, without decoding
-pixels. `--vary TOKEN` and `--ignore TOKEN` are repeatable. A token matches an
+pixels. `--vary TOKEN` and `--ignore TOKEN` accept repeated flags and comma-separated
+values, including a mixture of both (for example, `--vary binary,mode --vary run.env`
+or `--ignore timestamp,unused`). A token matches an
 exact key, a dotted prefix (`TOKEN.*`) or suffix (`*.TOKEN`); explicit globs
 also work. For example, `--vary mode` matches `run.mode`, and `--vary run.env`
 matches all selected environment fields. Use `--arm-ignore TOKEN` on verdict
@@ -39,6 +41,8 @@ commands. Ignores are echoed even when they match no keys; ignored differences
 remain visible. Ignores waive explicitly selected null and missing fields and ordinary differences.
 They cannot waive a session mismatch or an unreached/mismatched readiness predicate;
 use the specific readiness policy below for intentionally unconverged captures.
+With a fingerprint map, tokens match canonical destination keys; source-path
+names do not automatically become token aliases.
 
 ## Producer fingerprint schema
 
@@ -100,7 +104,7 @@ hash claims or infer prepared-input identity from pixel similarity.
 
 `--fingerprint-map FILE` accepts TOML or JSON. `fields` maps canonical
 fingerprint destinations to `{path, file?, derives?}` sources. `path` is a dotted object
-path, with exact flat keys taking precedence. An omitted `file` selects the
+or array path, with exact flat keys taking precedence. An omitted `file` selects the
 primary capture record/effective inherited sidecar. A `file` selects a sibling
 JSON file relative to the arm's capture root (or the JSON/image parent for
 standalone files). Mappings allow at most 128 fields, 32 predicates and 32 sibling files; each
@@ -139,9 +143,12 @@ The `unmapped` and `outcomes` objects each contain a distinct-key `count`, sorte
 images. Unmapped keys are compared in `all` and excluded in `mapped_only`;
 explicit outcomes are always excluded. Human output summarizes the same counts.
 
-Source lookup uses dotted object paths and exact flat keys; numeric components
-are object keys, not array indices. Select a whole array as a field or expose
-object-shaped setup fields in the producer record. Do not map volatile flags to content hashes.
+Source lookup uses dotted paths and exact flat keys. Numeric components select
+zero-based array indices, for example `captures.0.receiver.ready`; on objects
+they remain literal keys. Out-of-range indices or wrong container types remain
+missing. Source wildcards, including `captures.*.receiver.ready` and `captures.[*]`,
+are unsupported and rejected with a configuration error; select an explicit
+index or map a whole array. Do not map volatile flags to content hashes.
 The mapping itself binds readiness parameters; use the same mapping for both
 arms and retain it with pipeline configuration.
 

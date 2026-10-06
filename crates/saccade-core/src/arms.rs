@@ -202,7 +202,7 @@ pub enum UnreachedPolicy {
 pub struct Source {
     /// Optional sibling relative filename, otherwise the selected capture record.
     pub file: Option<String>,
-    /// Dotted object path (exact flat keys are also supported).
+    /// Dotted object/array path with zero-based numeric indices; exact flat keys take precedence.
     pub path: String,
     /// Effective metadata keys computed from this mapped field.
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
@@ -308,6 +308,12 @@ impl FingerprintMap {
         {
             if source.path.is_empty() {
                 return Err(Error::Config("mapping path must be nonempty".into()));
+            }
+            if source.path.contains(['*', '?', '[', '{']) {
+                return Err(Error::Config(format!(
+                    "mapping source path {:?}: wildcards are unsupported; use a dotted path with an explicit numeric array index",
+                    source.path
+                )));
             }
             if let Some(file) = &source.file {
                 safe_sibling(Path::new("."), file)?;
@@ -424,7 +430,13 @@ fn lookup(value: &Value, path: &str) -> Option<Value> {
     }
     let mut v = value;
     for part in path.split('.') {
-        v = v.get(part)?;
+        v = match v {
+            Value::Array(items) if !part.is_empty() && part.bytes().all(|b| b.is_ascii_digit()) => {
+                items.get(part.parse::<usize>().ok()?)?
+            }
+            Value::Object(object) => object.get(part)?,
+            _ => return None,
+        };
     }
     Some(v.clone())
 }
@@ -1384,6 +1396,43 @@ mod tests {
         std::fs::remove_file(tmp.path().join("ready.json")).unwrap();
         let b = load(&primary, "saccade-meta.json", Some(&map)).unwrap();
         assert_eq!(check(&a, &b, &[], &[]).exit_code, 4);
+    }
+    #[test]
+    fn mapped_array_index_paths_and_unsupported_wildcards() {
+        let tmp = tempfile::tempdir().unwrap();
+        let primary = tmp.path().join("capture.json");
+        let record = json!({"captures":[{"receiver":{"mode":"fixed","ready":true}}],"object":{"0":"numeric key"},"captures.0.receiver.mode":"flat override"});
+        std::fs::write(&primary, serde_json::to_vec(&record).unwrap()).unwrap();
+        let map_path = tmp.path().join("map.json");
+        let mut map = json!({"compare":"mapped_only","fields":{"run.mode":{"path":"captures.0.receiver.mode"}},"readiness":[{"name":"receiver_ready","reached":{"path":"captures.0.receiver.ready"},"observed":{"path":"captures.0.receiver.ready"}}]});
+        std::fs::write(&map_path, serde_json::to_vec(&map).unwrap()).unwrap();
+        let loaded = FingerprintMap::read(&map_path).unwrap();
+        let a = load(&primary, "saccade-meta.json", Some(&loaded)).unwrap();
+        assert_eq!(a["run.mode"], json!("flat override"));
+        assert_eq!(a["run.readiness"][0]["reached"], json!(true));
+        assert_eq!(a["run.readiness"][0]["observed"], json!(true));
+        assert_eq!(
+            check_mapped(&a, &a, &[], &[], Some(&loaded), &[]).exit_code,
+            0
+        );
+        assert_eq!(lookup(&record, "object.0"), Some(json!("numeric key")));
+        for path in [
+            "captures.1.receiver.ready",
+            "captures.-1.receiver.ready",
+            "captures.+0.receiver.ready",
+            "captures.999999999999999999999999999999.receiver.ready",
+        ] {
+            assert_eq!(lookup(&record, path), None, "{path}");
+        }
+        for path in ["captures.*.receiver.ready", "captures.[*].receiver.ready"] {
+            map["readiness"][0]["reached"]["path"] = json!(path);
+            std::fs::write(&map_path, serde_json::to_vec(&map).unwrap()).unwrap();
+            let error = FingerprintMap::read(&map_path).unwrap_err().to_string();
+            assert!(
+                error.contains(path) && error.contains("wildcards are unsupported"),
+                "{error}"
+            );
+        }
     }
 }
 

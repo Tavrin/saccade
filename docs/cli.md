@@ -268,11 +268,11 @@ Arguments:
 
 Options:
       --vary <VARY>
-          Allowed difference: exact key, dotted prefix, suffix or explicit glob
+          Allowed difference: exact key, dotted prefix, suffix or explicit glob; repeat or comma-separate
       --allow-unreached <ALLOW_UNREACHED>
           Permit intentionally unreached captures with exactly matching observations
       --ignore <IGNORE>
-          Explicit exception, echoed even when no keys match it
+          Explicit exception, echoed even when no keys match it; repeat or comma-separate
       --fingerprint-map <FINGERPRINT_MAP>
 
       --compare <COMPARE>

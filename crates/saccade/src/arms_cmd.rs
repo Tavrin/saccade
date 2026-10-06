@@ -51,14 +51,14 @@ enum Operation {
     Check {
         a: PathBuf,
         b: PathBuf,
-        /// Allowed difference: exact key, dotted prefix, suffix or explicit glob.
-        #[arg(long)]
+        /// Allowed difference: exact key, dotted prefix, suffix or explicit glob; repeat or comma-separate.
+        #[arg(long, value_delimiter = ',')]
         vary: Vec<String>,
         /// Permit intentionally unreached captures with exactly matching observations.
         #[arg(long = "allow-unreached")]
         allow_unreached: Vec<String>,
-        /// Explicit exception, echoed even when no keys match it.
-        #[arg(long)]
+        /// Explicit exception, echoed even when no keys match it; repeat or comma-separate.
+        #[arg(long, value_delimiter = ',')]
         ignore: Vec<String>,
         #[arg(long)]
         fingerprint_map: Option<PathBuf>,

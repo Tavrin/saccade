@@ -2,6 +2,8 @@
 
 ## 0.2.4
 
+- Support numeric array indices in dotted fingerprint source paths, with clear
+  rejection of source wildcards; accept comma-separated `arms check --vary` and `--ignore` values.
 - Add opt-in `compare = "mapped_only"` fingerprint maps for mixed setup and
   outcome records, with `--compare mapped-only|all` and MCP overrides.
 - Add explicit outcome globs in either mode and bounded key summaries with

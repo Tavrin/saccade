@@ -82,6 +82,67 @@ fn standalone_declared_variable_and_missing_identity_exit_contract() {
     );
 }
 #[test]
+fn standalone_comma_split_vary_and_ignore_match_repeated_flags() {
+    let tmp = tempfile::tempdir().unwrap();
+    let (a, b) = captures(tmp.path());
+    let mut ma = metadata();
+    ma["fingerprint"]["run"]["env"] = json!({"setting":"old"});
+    ma["timestamp"] = json!("before");
+    ma["note"] = json!("before");
+    write(&a.join("saccade-meta.json"), &ma);
+    let mut mb = ma;
+    mb["fingerprint"]["producer"]["binary"] = json!("sha256:other");
+    mb["fingerprint"]["run"]["mode"] = json!("alternate");
+    mb["fingerprint"]["run"]["env"] = json!({"setting":"new"});
+    mb["timestamp"] = json!("after");
+    mb["note"] = json!("after");
+    write(&b.join("saccade-meta.json"), &mb);
+    let repeated = run(
+        &[
+            "arms",
+            "check",
+            path(&a),
+            path(&b),
+            "--vary",
+            "binary",
+            "--vary",
+            "mode",
+            "--vary",
+            "run.env",
+            "--ignore",
+            "timestamp",
+            "--ignore",
+            "note",
+            "--ignore",
+            "unused",
+            "--json",
+        ],
+        0,
+    );
+    let comma = run(
+        &[
+            "arms",
+            "check",
+            path(&a),
+            path(&b),
+            "--vary",
+            "binary,mode",
+            "--vary",
+            "run.env",
+            "--ignore",
+            "timestamp,note",
+            "--ignore",
+            "unused",
+            "--json",
+        ],
+        0,
+    );
+    assert_eq!(comma, repeated);
+    assert_eq!(comma["vary"], json!(["binary", "mode", "run.env"]));
+    assert_eq!(comma["ignore"], json!(["timestamp", "note", "unused"]));
+    assert_eq!(comma["ignored"].as_array().unwrap().len(), 2);
+}
+#[test]
 fn compare_default_warns_and_strict_refuses_without_touching_previous_output() {
     let tmp = tempfile::tempdir().unwrap();
     let (a, b) = captures(tmp.path());
