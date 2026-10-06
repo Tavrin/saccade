@@ -16,7 +16,7 @@ Add these dependencies to an application:
 
 ```toml
 [dependencies]
-saccade-core = "0.2.3"
+saccade-core = "0.2.4"
 image = { version = "0.25", default-features = false }
 ```
 

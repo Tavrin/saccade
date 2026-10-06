@@ -1,5 +1,16 @@
 # Changelog
 
+## 0.2.4
+
+- Match vary and ignore tokens against mapped destinations or source paths,
+  reporting the token and matched name for each covered field.
+- Support numeric array indices in dotted fingerprint source paths, with clear
+  rejection of source wildcards; accept comma-separated `arms check --vary` and `--ignore` values.
+- Add opt-in `compare = "mapped_only"` fingerprint maps for mixed setup and
+  outcome records, with `--compare mapped-only|all` and MCP overrides.
+- Add explicit outcome globs in either mode and bounded key summaries with
+  exact totals. The default `all` mode preserves existing comparisons.
+
 ## 0.2.3
 
 - Embed schema discovery and performance-sidecar validation for installed producers.

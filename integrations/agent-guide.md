@@ -1,6 +1,6 @@
 # Saccade agent guide
 
-Measure supplied captures; keep outputs outside inputs:
+Measure captures; keep outputs outside inputs:
 
 ```sh
 saccade compare BASE CANDIDATE --out REPORT --json
@@ -12,8 +12,9 @@ saccade inspect evidence REPORT/saccade-report.v1.json --entry NAME --out EVIDEN
 Read validity/performance/limits, pagination, `data.pass_with_local_change` and next
 actions. Exit 1 is failure; 2 unavailable; `performance_rejected` may exit 0.
 `--require-valid-arms` refuses mismatches (3) or missing identity (4); declare
-variables; inspect ignores and covered derivations. [Arms](../docs/arm-validity.md).
-Identity binds supplied samples; threshold passing grants no approval/timing authority.
+variables; inspect exceptions. Mixed records: `compare = "mapped_only"`;
+inspect `unmapped`/`outcomes`. [Arms](../docs/arm-validity.md).
+Identity binds supplied samples; passing grants no approval/timing authority.
 
 `review` previews; `review request|ask|propose` binds input hashes.
 CLI attestation is null; workbench attestation is token-gated;
@@ -66,7 +67,7 @@ uncalibrated confidence/failures, never rights proof. [Media](../docs/media.md),
 [Python](../docs/python.md), [API](../docs/api.md).
 Text index queries need pinned joint SigLIP 2; DINO is image-only.
 
-Local gates grant no runtime/release qualification.
+Local gates do not qualify releases.
 
 [OCR](../docs/text.md): `ocr` enables local PP-OCRv5; preserve accents/source hashes
 and treats CTC confidence as uncalibrated. Explicit pulls. `ocr-provider`

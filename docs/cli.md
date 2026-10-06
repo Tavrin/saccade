@@ -268,13 +268,15 @@ Arguments:
 
 Options:
       --vary <VARY>
-          Allowed difference: exact key, dotted prefix, suffix or explicit glob
+          Allowed difference matching destination or mapped source: exact key, dotted prefix, suffix or glob; repeat or comma-separate
       --allow-unreached <ALLOW_UNREACHED>
           Permit intentionally unreached captures with exactly matching observations
       --ignore <IGNORE>
-          Explicit exception, echoed even when no keys match it
+          Explicit exception matching destination or mapped source, echoed even if unmatched; repeat or comma-separate
       --fingerprint-map <FINGERPRINT_MAP>
 
+      --compare <COMPARE>
+          Override the map's field selection (mapped-only requires a map) [possible values: mapped-only, all]
       --config <CONFIG>
 
       --meta-name <META_NAME>

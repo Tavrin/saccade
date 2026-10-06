@@ -31,7 +31,9 @@ reports, including under a field mapping.
 
 The standalone check accepts JSON capture records or sidecars, images with
 sidecars, or capture directories. It evaluates validity only, without decoding
-pixels. `--vary TOKEN` and `--ignore TOKEN` are repeatable. A token matches an
+pixels. `--vary TOKEN` and `--ignore TOKEN` accept repeated flags and comma-separated
+values, including a mixture of both (for example, `--vary binary,mode --vary run.env`
+or `--ignore timestamp,unused`). A token matches an
 exact key, a dotted prefix (`TOKEN.*`) or suffix (`*.TOKEN`); explicit globs
 also work. For example, `--vary mode` matches `run.mode`, and `--vary run.env`
 matches all selected environment fields. Use `--arm-ignore TOKEN` on verdict
@@ -39,6 +41,13 @@ commands. Ignores are echoed even when they match no keys; ignored differences
 remain visible. Ignores waive explicitly selected null and missing fields and ordinary differences.
 They cannot waive a session mismatch or an unreached/mismatched readiness predicate;
 use the specific readiness policy below for intentionally unconverged captures.
+With a fingerprint map, vary and ignore tokens match either canonical destination
+names or mapped source paths using the same rules. For example, when
+`inputs.identity` maps from `content.hash`, `--vary content` covers that field.
+For mapped objects, each destination member uses the corresponding source member
+path. Source names use `path`, without a sibling filename prefix. Derived keys
+have no source alias; varying their mapped parent by either name activates its
+explicit `derives` declarations. Ignores never activate derivations.
 
 ## Producer fingerprint schema
 
@@ -100,7 +109,7 @@ hash claims or infer prepared-input identity from pixel similarity.
 
 `--fingerprint-map FILE` accepts TOML or JSON. `fields` maps canonical
 fingerprint destinations to `{path, file?, derives?}` sources. `path` is a dotted object
-path, with exact flat keys taking precedence. An omitted `file` selects the
+or array path, with exact flat keys taking precedence. An omitted `file` selects the
 primary capture record/effective inherited sidecar. A `file` selects a sibling
 JSON file relative to the arm's capture root (or the JSON/image parent for
 standalone files). Mappings allow at most 128 fields, 32 predicates and 32 sibling files; each
@@ -113,8 +122,38 @@ Destinations are `producer.binary`, `producer.build` or `producer.build.*`,
 optional `[[readiness]]` form adapts independent producer flags to named
 criteria with fixed parameters and sourced reached/observed values. Several
 sibling files can contribute to one fingerprint. Mapped source keys become
-canonical keys; other primary metadata and sibling metadata remain comparable
-(the latter as `file:NAME.KEY`). Do not map volatile flags to content hashes.
+canonical keys. The map-level `compare` mode selects the remaining fields:
+
+- `compare = "all"` (default): compare every effective field, including unmapped
+  primary metadata and sibling metadata (the latter as `file:NAME.KEY`).
+- `compare = "mapped_only"`: compare mapped destinations, their `derives`, and
+  mapped readiness criteria. Other fields do not affect validity. This is the
+  recommended mode when producer records mix setup with outcomes.
+
+`mapped_only` requires all mapped fields on both arms, including explicitly
+mapped fields absent on both sides. Null remains a value; missing mapped fields give
+exit 4. In `mapped_only`, only named identity groups are required; choosing a
+smaller map makes a narrower validity claim. An unlisted native identity field
+is unmapped. In `all`, the complete native identity requirements remain.
+
+Optional map-level `outcomes = ["timing.*", "results.*"]` globs exclude matching
+effective keys in either mode, including mapped keys. Matching happens after
+source canonicalization; use canonical destinations for mapped outcomes and
+`file:NAME.KEY` for sibling keys. Outcomes take precedence over map selection.
+
+`arms check --compare mapped-only|all` overrides the map and echoes the effective
+mode as JSON `compare` (`mapped_only` or `all`). `mapped-only` requires a map.
+The `unmapped` and `outcomes` objects each contain a distinct-key `count`, sorted
+`keys` capped at 64, and `truncated`. Lists union both arms across selected
+images. Unmapped keys are compared in `all` and excluded in `mapped_only`;
+explicit outcomes are always excluded. Human output summarizes the same counts.
+
+Source lookup uses dotted paths and exact flat keys. Numeric components select
+zero-based array indices, for example `captures.0.receiver.ready`; on objects
+they remain literal keys. Out-of-range indices or wrong container types remain
+missing. Source wildcards, including `captures.*.receiver.ready` and `captures.[*]`,
+are unsupported and rejected with a configuration error; select an explicit
+index or map a whole array. Do not map volatile flags to content hashes.
 The mapping itself binds readiness parameters; use the same mapping for both
 arms and retain it with pipeline configuration.
 
@@ -156,12 +195,17 @@ represent synthetic identities, not external assets.
 The [result schema](../crates/saccade-core/schemas/saccade-arms-check.v1.schema.json)
 uses `schema: saccade-arms-check.v1`, `result: valid_comparison` or
 `invalid_comparison`, `exit_code`, `offending`, `vary`, `ignore`, `ignored`, and
-`covered_by_derivation`, `allowed_unreached`, and `diagnostics`.
+`covered_by_vary`, `covered_by_derivation`, `allowed_unreached`, `diagnostics`, `compare`,
+`unmapped`, and `outcomes`.
 Each finding contains its canonical key, baseline and capture JSON values
 (null for absence), `baseline_state`/`capture_state` (`missing`, `null`, or
 `value`), and a reason. Directory findings prefix keys with their
 image name. A refusal has no pass/fail verdict and produces no measurement
 report. Existing output artifacts are left untouched.
+`covered_by_vary` retains varied differences. Each token-covered finding in that
+list or `ignored` includes `token_matches`: the literal `token`, `via`
+(`destination` or `source`), and exact matched `name`. Both matches are retained
+when a token matches both names; image prefixes apply only to the finding key.
 
 | Exit | Meaning |
 | --- | --- |
@@ -176,7 +220,8 @@ Successful strict compare results echo declarations and ignores in
 and `config.meta.arm_ignore`. Reference reports include `arm_validation`.
 
 MCP `saccade_measure` mirrors the standalone command with `operation: arms_check`,
-`a`, `b`, optional `vary`, `ignore`, `meta_name`, and `fingerprint_map`.
+`a`, `b`, optional `vary`, `ignore`, `meta_name`, `fingerprint_map`, and
+`compare` (`mapped_only` or `all`).
 Compare/identity/ablate and `reference_compare` accept `require_valid_arms`,
 `fingerprint_map`, `intended_variables`, and `arm_ignore` under the existing
 read-root policy. An invalid result is typed `invalid_comparison`, not a

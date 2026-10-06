@@ -69,7 +69,10 @@ pub(crate) fn build_html(
     );
     let summary = if let Some(check) = &report.config.meta.arm_validation {
         format!(
-            "<p><strong>Allowed unreached (intentionally unconverged):</strong> {}</p>{summary}",
+            "<p><strong>Arm comparison mode:</strong> {}. Unmapped: {} keys; outcomes: {} keys.</p><p><strong>Allowed unreached (intentionally unconverged):</strong> {}</p>{summary}",
+            escape(&serde_json::to_string(&check.compare)?),
+            check.unmapped.count,
+            check.outcomes.count,
             escape(&serde_json::to_string(&check.allowed_unreached)?)
         )
     } else {
