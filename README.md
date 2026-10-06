@@ -151,7 +151,7 @@ and [report linking](docs/experiments-wave11.md#external-report-links-and-indexe
 Install with Rust 1.89 or newer:
 
 ```sh
-cargo install saccade --version 0.2.5 --locked
+cargo install saccade --version 0.2.6 --locked
 saccade doctor --json
 ```
 
