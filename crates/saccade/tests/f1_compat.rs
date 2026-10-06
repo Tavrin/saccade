@@ -141,7 +141,7 @@ fn provenance_is_recorded_and_missing_values_are_loud() {
 }
 
 #[test]
-fn moss_cost_card_aliases_supply_provenance() {
+fn cost_card_aliases_supply_provenance() {
     let temp = tempfile::tempdir().unwrap();
     capture(temp.path(), "a", "one", false);
     capture(temp.path(), "b", "two", false);

@@ -1,0 +1,40 @@
+# A rendering or scientific visualization producer's sampled telemetry.
+[fields.device_id]
+path = "device.uuid"
+transform = "first_string"
+fallback = ["device.name"]
+
+[windows]
+path = "sample_windows"
+
+[windows.fields.name]
+path = "name"
+[windows.fields."core_mhz.min"]
+path = "sm_mhz.min"
+[windows.fields."core_mhz.median"]
+path = "sm_mhz.p50"
+[windows.fields."core_mhz.max"]
+path = "sm_mhz.max"
+[windows.fields."memory_mhz.min"]
+path = "memory_mhz.min"
+[windows.fields."memory_mhz.median"]
+path = "memory_mhz.p50"
+[windows.fields."memory_mhz.max"]
+path = "memory_mhz.max"
+[windows.fields.sample_count]
+path = "sample_count"
+[windows.fields.expected_frames]
+path = "expected_frames"
+[windows.fields.observed_frames]
+path = "frames"
+transform = "count"
+[windows.fields.query_failures]
+path = "frames"
+transform = "sum"
+item_path = "query_failures"
+[windows.fields.throttle_reasons]
+path = "throttle_reasons"
+transform = "mask"
+[windows.fields.stabilized]
+path = "warm_to_boost.met"
+default = false

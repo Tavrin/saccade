@@ -54,7 +54,7 @@ def main():
         'publication_permission': 'Repository license grants redistribution of repository-owned code and generated assets.',
         'clearance_basis': 'Existing repository LICENSE-MIT and LICENSE-APACHE; no imported source imagery or private captures.',
         'rendering_example': 'Local CPU analytic sphere render: Lambert diffuse, Blinn-Phong highlight and analytic soft shadow.',
-        'limits': ['Procedural scene; not a Moss GPU capture or performance benchmark.',
+        'limits': ['Procedural scene; not a measured GPU capture or performance benchmark.',
                    'Review provider responses and human resolution are illustrative offline fixtures, not live observations or attestation.'],
         'sources': {name: 'sha256:' + hashlib.sha256((ROOT / name).read_bytes()).hexdigest() for name in sources},
         'assets': {p.relative_to(DEST).as_posix(): 'sha256:' + hashlib.sha256(p.read_bytes()).hexdigest()

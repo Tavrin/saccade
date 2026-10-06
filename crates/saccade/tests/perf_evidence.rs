@@ -785,3 +785,127 @@ fn typed_performance_noise_and_cross_kind_inputs_have_explicit_units_and_errors(
             .contains("--kind performance")
     );
 }
+
+#[test]
+fn gpu_maps_flow_through_cli_config_noise_and_confined_mcp() {
+    let tmp = tempfile::tempdir().unwrap();
+    let root = tmp.path();
+    fixture(root);
+    let map = json!({"fields":{"device_id":{"path":"job.device"},"power_state":{"path":"job.power"}},"windows":{"path":"job.windows","fields":{
+        "name":{"path":"name"},"core_mhz":{"path":"core_mhz"},"sample_count":{"path":"sample_count"},"expected_frames":{"path":"expected_frames"},"observed_frames":{"path":"observed_frames"},"query_failures":{"path":"query_failures"},"throttle_reasons":{"path":"throttle_reasons"},"stabilized":{"path":"stabilized"}
+    }}});
+    std::fs::create_dir(root.join("config")).unwrap();
+    std::fs::write(root.join("config/map.json"), map.to_string()).unwrap();
+    std::fs::write(
+        root.join("config/saccade.toml"),
+        "gpu_clock_map = \"map.json\"\n",
+    )
+    .unwrap();
+    for dir in ["base", "repeat", "same"] {
+        let path = root.join(dir).join("gpu_clock.json");
+        let clock: Value = serde_json::from_slice(&std::fs::read(&path).unwrap()).unwrap();
+        std::fs::write(path, json!({"schema":"pipeline-telemetry.v1","job":{"device":clock["device_id"],"power":clock["power_state"],"windows":clock["windows"]}}).to_string()).unwrap();
+    }
+    let direct = value(
+        root,
+        &run(
+            root,
+            &[
+                "compare",
+                "base",
+                "same",
+                "--gpu-clock-map",
+                "config/map.json",
+                "--out",
+                "mapped-cli",
+                "--json",
+            ],
+        ),
+    );
+    let configured = value(
+        root,
+        &run(
+            root,
+            &[
+                "compare",
+                "base",
+                "same",
+                "--config",
+                "config/saccade.toml",
+                "--out",
+                "mapped-config",
+                "--json",
+            ],
+        ),
+    );
+    assert_eq!(direct["performance"]["comparability"], "qualified");
+    assert_eq!(direct["performance"], configured["performance"]);
+    let output = run(
+        root,
+        &[
+            "noise",
+            "base",
+            "repeat",
+            "--kind",
+            "performance",
+            "--gpu-clock-map",
+            "config/map.json",
+            "--out",
+            "mapped-noise.json",
+            "--json",
+        ],
+    );
+    let noise = value(root, &output);
+    assert_eq!(noise["comparability"], "qualified", "{noise}");
+    let outputs = tempfile::tempdir().unwrap();
+    let mut child = Command::new(BIN)
+        .args(["mcp", "--root"])
+        .arg(root)
+        .arg("--out-root")
+        .arg(outputs.path())
+        .stdin(Stdio::piped())
+        .stdout(Stdio::piped())
+        .spawn()
+        .unwrap();
+    let mut input = child.stdin.take().unwrap();
+    for (id, args) in [
+        (
+            1,
+            json!({"operation":"compare","baseline_dir":"base","capture_dir":"same","out":"mapped","gpu_clock_map":"config/map.json"}),
+        ),
+        (
+            2,
+            json!({"operation":"compare","baseline_dir":"base","capture_dir":"same","out":"unsafe","gpu_clock_map":"../map.json"}),
+        ),
+        (
+            3,
+            json!({"operation":"compare","baseline_dir":"base","capture_dir":"same","out":"configured","config":"config/saccade.toml"}),
+        ),
+    ] {
+        writeln!(input,"{}",json!({"jsonrpc":"2.0","id":id,"method":"tools/call","params":{"name":"saccade_measure","arguments":args}})).unwrap();
+    }
+    drop(input);
+    let output = child.wait_with_output().unwrap();
+    assert!(output.status.success());
+    let replies = String::from_utf8(output.stdout)
+        .unwrap()
+        .lines()
+        .map(|line| serde_json::from_str::<Value>(line).unwrap())
+        .collect::<Vec<_>>();
+    for index in [0, 2] {
+        assert_eq!(
+            replies[index]["result"]["isError"], false,
+            "{}",
+            replies[index]
+        );
+        assert_eq!(
+            replies[index]["result"]["structuredContent"]["performance"]["comparability"],
+            "qualified"
+        );
+    }
+    assert_eq!(replies[1]["result"]["isError"], true);
+    assert_eq!(
+        replies[1]["result"]["structuredContent"]["errors"][0]["code"],
+        "unsafe_path"
+    );
+}

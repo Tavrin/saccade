@@ -77,7 +77,7 @@ describes the optional declarations. Strict validation requires every group:
           "observed": 0.001
         },
         {
-          "criterion": {"name": "receiver_ready", "parameters": {}},
+          "criterion": {"name": "pipeline_ready", "parameters": {}},
           "reached": true,
           "observed": true
         }

@@ -175,7 +175,7 @@ fn auto_loaded_config_overrides_do_not_relax_identity() {
 }
 
 #[test]
-fn moss_json_retains_its_contract_and_separates_equality_from_validity() {
+fn identity_json_retains_its_contract_and_separates_equality_from_validity() {
     let tmp = tempfile::tempdir().expect("temp");
     pair(tmp.path(), false);
     let o = identity(

@@ -540,7 +540,7 @@
       "description": "Measurement finding."
     },
     "mode": {
-      "description": "Measurement mode, retained for Moss.",
+      "description": "Measurement operation, such as compare, identity, or noise.",
       "type": [
         "string",
         "null"

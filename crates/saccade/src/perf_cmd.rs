@@ -74,6 +74,9 @@ pub(crate) struct PerfArgs {
     /// Run performance sidecar file name (default saccade-perf.json).
     #[arg(long, value_name = "NAME")]
     pub perf_name: Option<String>,
+    /// TOML/JSON map from producer telemetry to GPU clock evidence.
+    #[arg(long, value_name = "FILE")]
+    pub gpu_clock_map: Option<PathBuf>,
     /// Declare that GPU clocks do not apply to this performance measurement.
     #[arg(long)]
     pub gpu_clocks_not_applicable: bool,
@@ -102,7 +105,8 @@ pub(crate) struct PerfArgs {
 impl PerfArgs {
     pub fn apply(&self, opts: &mut saccade_core::perf::PerfOptions) -> Result<(), CliError> {
         #[cfg(not(feature = "graphics"))]
-        if self.perf_name.is_some()
+        if self.gpu_clock_map.is_some()
+            || self.perf_name.is_some()
             || self.perf_noise.is_some()
             || self.perf_noise_k.is_some()
             || self.perf_resolution.is_some()
@@ -117,6 +121,9 @@ impl PerfArgs {
         }
         if let Some(n) = &self.perf_name {
             opts.name.clone_from(n);
+        }
+        if let Some(map) = &self.gpu_clock_map {
+            opts.gpu_clock_map = Some(map.clone());
         }
         opts.gpu_clocks_not_applicable = self.gpu_clocks_not_applicable;
         if self.gpu_clocks_not_applicable {

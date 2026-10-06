@@ -14,3 +14,10 @@ Generated temporary-repository tests: `python3 scripts/test-genericity.py`.
 
 The always-on public hygiene guard is independent of this optional client denylist;
 see [release gate configuration](releasing.md#portable-gate-configuration).
+
+The built-in guard also rejects origin-project names, scene names, and example
+readiness vocabulary. `scripts/public-hygiene-allowlist.json` contains SHA-256
+hashes of exact whole lines, separately checked against index and worktree
+content. Only the single acknowledgement and temporary protocol compatibility
+lines are exempt; adjacent text remains checked. Remove protocol exceptions
+when automatic legacy telemetry ingestion is removed in 0.3.0.

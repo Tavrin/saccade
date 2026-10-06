@@ -299,7 +299,7 @@ pub struct Failure {
 #[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
 #[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub struct MeasurementIntegration {
-    /// Measurement mode, retained for Moss.
+    /// Measurement operation, such as compare, identity, or noise.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub mode: Option<String>,
     /// Gate verdict, independent of review authority.

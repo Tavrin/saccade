@@ -193,6 +193,7 @@ struct FileConfig {
     ppd: Option<f32>,
     meta_name: Option<String>,
     perf_name: Option<String>,
+    gpu_clock_map: Option<std::path::PathBuf>,
     perf_noise: Option<FilePerfNoise>,
     perf_noise_file: Option<std::path::PathBuf>,
     perf_noise_k: Option<f64>,
@@ -299,6 +300,11 @@ impl RunConfig {
         {
             *noise = dir.join(&*noise);
         }
+        if let (Some(dir), Some(map)) = (&cfg.config_dir, cfg.perf.gpu_clock_map.as_mut())
+            && map.is_relative()
+        {
+            *map = dir.join(&*map);
+        }
         if let (Some(dir), Some(map)) = (&cfg.config_dir, cfg.meta.fingerprint_map.as_mut())
             && map.is_relative()
         {
@@ -356,6 +362,7 @@ impl RunConfig {
             cfg.meta.required_keys = capture.required_keys;
         }
         cfg.meta.changes = file.changes;
+        cfg.perf.gpu_clock_map = file.gpu_clock_map;
         cfg.perf.name = file.perf_name.unwrap_or(cfg.perf.name);
         cfg.perf.noise = file.perf_noise_file;
         match file.perf_noise {
@@ -622,6 +629,7 @@ impl RunConfig {
                 "require_matching_meta": c.meta.required, "meta_name": c.meta.name,
                 "meta_ignore": c.meta.ignore, "declare": c.meta.declared,
                 "capture": {"required_keys": c.meta.required_keys}, "changes": c.meta.changes,
+                "gpu_clock_map": c.perf.gpu_clock_map.as_ref().map(|p| crate::paths::cwd(p,false)),
                 "perf_name": c.perf.name, "perf_noise_k": c.perf.k,
                 "perf_resolution_ms": c.perf.resolution_ms,
                 "perf_resolution_ticks": c.perf.resolution_ticks,

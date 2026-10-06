@@ -357,7 +357,7 @@ mod tests {
             .expect("EXR IDs");
         std::fs::write(
             dir.path().join("frame.material-id.json"),
-            r#"{"schema":"saccade-object-ids.v1","kind":"material","ids":{"3":"rock_moss"}}"#,
+            r#"{"schema":"saccade-object-ids.v1","kind":"material","ids":{"3":"rock_lichen"}}"#,
         )
         .expect("legend");
         let report = dir.path().join("report");
@@ -396,7 +396,7 @@ mod tests {
         assert_eq!((object[0].name.as_str(), object[0].pixels), ("tree", 12));
         assert!((object[0].error_share - 0.6).abs() < 1e-6);
         assert!((object[1].error_share - 0.4).abs() < 1e-6);
-        assert_eq!(result[1].hotspots[0].contributions[0].name, "rock_moss");
+        assert_eq!(result[1].hotspots[0].contributions[0].name, "rock_lichen");
         let exact = Hotspot {
             pixel_runs: vec![[0, 4]],
             ..hotspot.clone()

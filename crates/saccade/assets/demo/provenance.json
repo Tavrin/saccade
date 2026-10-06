@@ -5,13 +5,13 @@
   "clearance_basis": "Existing repository LICENSE-MIT and LICENSE-APACHE; no imported source imagery or private captures.",
   "rendering_example": "Local CPU analytic sphere render: Lambert diffuse, Blinn-Phong highlight and analytic soft shadow.",
   "limits": [
-    "Procedural scene; not a Moss GPU capture or performance benchmark.",
+    "Procedural scene; not a measured GPU capture or performance benchmark.",
     "Review provider responses and human resolution are illustrative offline fixtures, not live observations or attestation."
   ],
   "sources": {
     "scripts/gen-examples.py": "sha256:74e48d45b265fa04883cf75fbe90f830f5ea85d7ceb11d32ecc481f485d78fc7",
     "scripts/gen-showcases.py": "sha256:6c03f787074fff15ef2c99e63b16cb467ba53148b57ec4e3d1a51b16c3c0442e",
-    "scripts/gen-demo.py": "sha256:f0093cf005fcde82665cfcdae711ff034483724f2a96a38b4c085e491cf3bee8"
+    "scripts/gen-demo.py": "sha256:45adf1aaabd73d8ad76afdcd7493649dc57cc2ac3d3c085f504813f1ffefc751"
   },
   "assets": {
     "baseline/sphere_identical.png": "sha256:5fc7228d326fc3cedbee5554e0aa83a2a408ded1cfb3cc7ff411207dbf56ca5a",

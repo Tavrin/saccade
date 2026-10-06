@@ -479,7 +479,7 @@ fn predicate_order_and_declared_observations_match_the_measurement_path() {
     let (a, b) = captures(tmp.path());
     let mut ma = metadata();
     let mut second = ma["fingerprint"]["run"]["readiness"][0].clone();
-    second["criterion"]["name"] = json!("receiver_ready");
+    second["criterion"]["name"] = json!("pipeline_ready");
     ma["fingerprint"]["run"]["readiness"]
         .as_array_mut()
         .unwrap()

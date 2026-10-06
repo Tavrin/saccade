@@ -27,7 +27,7 @@ fn comparison_publishes_object_error_shares_in_json_and_html() {
         .expect("IDs");
     std::fs::write(
         cap.join("scene.object-id.json"),
-        r#"{"schema":"saccade-object-ids.v1","kind":"object","ids":{"1":"rock_moss"}}"#,
+        r#"{"schema":"saccade-object-ids.v1","kind":"object","ids":{"1":"rock_lichen"}}"#,
     )
     .expect("legend");
     let report = saccade_core::run::run(&base, &cap, &out, &RunConfig::default()).expect("compare");
@@ -35,7 +35,7 @@ fn comparison_publishes_object_error_shares_in_json_and_html() {
     assert_eq!(entry.status, Status::Fail);
     assert!(!entry.hotspots.is_empty());
     let attribution = &entry.object_attribution[0];
-    assert_eq!(attribution.hotspots[0].contributions[0].name, "rock_moss");
+    assert_eq!(attribution.hotspots[0].contributions[0].name, "rock_lichen");
     assert_eq!(attribution.hotspots[0].contributions[0].error_share, 1.0);
     assert!(out.join(&attribution.image_path).is_file());
     let saved: saccade_core::Report = serde_json::from_slice(
@@ -48,5 +48,5 @@ fn comparison_publishes_object_error_shares_in_json_and_html() {
     );
     let html = std::fs::read_to_string(out.join("index.html")).expect("HTML");
     assert!(html.contains("Object and material attribution"));
-    assert!(html.contains("rock_moss"));
+    assert!(html.contains("rock_lichen"));
 }

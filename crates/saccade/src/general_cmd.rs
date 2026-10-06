@@ -317,6 +317,7 @@ pub(crate) fn plain_options(
         && meta.meta_ignore.is_empty()
         && !require.require_matching_meta
         && require.declare.is_empty()
+        && perf.gpu_clock_map.is_none()
         && perf.perf_name.is_none()
         && !perf.gpu_clocks_not_applicable
         && !perf.perf_noise_override

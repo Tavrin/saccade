@@ -38,8 +38,8 @@ configurable. A zero FLIP score with differing native samples uses the additive
 
 ## 4. GPU clock and power state
 
-Read `gpu_clock.json` as engine-neutral `saccade-gpu-clock.v1` or adapt Moss
-`moss.gpu-clock.v2` sampled windows. A present sidecar with missing power state,
+Read `gpu_clock.json` as `saccade-gpu-clock.v1` or adapt producer
+sampled windows with a configured telemetry map. A present sidecar with missing power state,
 incomplete frames, failed queries, unestablished warm-to-boost stability,
 throttling, or a clock span above 5% of its median is unqualified. Different
 device, power state, window set, or median clocks between arms reject timing

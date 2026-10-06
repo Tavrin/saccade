@@ -211,7 +211,7 @@ pub fn round_floats(value: &mut Value) {
     }
 }
 
-/// Bounded v2 measurement envelope with the named Moss fields retained.
+/// Bounded v2 measurement envelope with stable operation fields.
 pub fn result_value(
     report: &Report,
     report_json: &Path,
@@ -290,7 +290,7 @@ pub fn result_value(
         })
         .collect::<std::collections::BTreeSet<_>>();
     if !missing.is_empty() {
-        value["validity_missing"] = json!({"keys":missing,"source":format!("--meta-name {} (Moss: --meta-name cost-card.json; binary.sha and build.commit)",report.config.meta.name)});
+        value["validity_missing"] = json!({"keys":missing,"source":format!("--meta-name {} (--meta-name cost-card.json; binary.sha and build.commit)",report.config.meta.name)});
     }
     let undeclared = report
         .entries

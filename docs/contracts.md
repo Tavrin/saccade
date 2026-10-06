@@ -3,8 +3,7 @@
 Measured pair reports remain `saccade-report.v1`. Canonical cases, requests,
 proposals, human decisions and receipts use `saccade-evidence.v1`.
 CLI and MCP use bounded `saccade-result.v2`. `identity --json` keeps the
-`saccade-result.v1` discriminator for existing integrations (the Moss game
-engine reads it); it retains `schema`,
+`saccade-result.v1` discriminator for existing integrations (capture pipelines read it); it retains `schema`,
 `mode`, `verdict`, `totals.{pass,fail,error,missing,new,total}` and
 `failing[].error`. Read the complete report to establish exact equality; a
 lean pass count alone is insufficient. See the [recorded decision](design-decisions/r5.md).
@@ -28,8 +27,8 @@ pair whose native decoded samples differ.
 
 `saccade-perf-diff.v1` additively records `gpu_clock_before` and
 `gpu_clock_after` when adjacent `gpu_clock.json` sidecars exist. The
-engine-neutral input schema is `saccade-gpu-clock.v1`; Moss
-`moss.gpu-clock.v2` is adapted on read. Clock qualification failures and
+input schema is `saccade-gpu-clock.v1`; custom producer telemetry is adapted
+with `--gpu-clock-map FILE` or `gpu_clock_map` in config. Clock qualification failures and
 missing clocks and cross-arm differences append named `qualification_reasons` and set
 `comparability: rejected`. The performance-noise path applies the same checks
 across repeats.

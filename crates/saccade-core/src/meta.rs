@@ -153,7 +153,7 @@ impl Default for MetaOptions {
 /// A parsed, validated sidecar: key to scalar JSON value.
 pub type Meta = BTreeMap<String, Value>;
 
-/// Capture identities advertised by either the selected sidecar or a Moss cost card.
+/// Capture identities advertised by either the selected sidecar or a cost-card sidecar.
 /// These are declarations by the producer, not hashes computed from image pixels.
 pub fn capture_evidence(root: &Path, rel: &str, name: &str) -> BTreeMap<String, String> {
     let mut evidence = BTreeMap::new();

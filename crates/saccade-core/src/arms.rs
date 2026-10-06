@@ -451,7 +451,7 @@ fn raw(path: &Path) -> Result<Option<Value>> {
     }
     Ok(Some(v))
 }
-fn lookup(value: &Value, path: &str) -> Option<Value> {
+pub(crate) fn lookup(value: &Value, path: &str) -> Option<Value> {
     if let Some(v) = value.get(path) {
         return Some(v.clone());
     }
@@ -1350,7 +1350,7 @@ mod tests {
     fn different_named_criteria_refuse() {
         let a = arm();
         let mut b = a.clone();
-        b.get_mut("run.readiness").unwrap()[0]["criterion"]["name"] = json!("receiver_ready");
+        b.get_mut("run.readiness").unwrap()[0]["criterion"]["name"] = json!("pipeline_ready");
         assert_eq!(
             check(&a, &b, &["run.*".into()], &["run.*".into()]).exit_code,
             3
@@ -1486,7 +1486,7 @@ mod tests {
         let record = json!({"captures":[{"receiver":{"mode":"fixed","ready":true}}],"object":{"0":"numeric key"},"captures.0.receiver.mode":"flat override"});
         std::fs::write(&primary, serde_json::to_vec(&record).unwrap()).unwrap();
         let map_path = tmp.path().join("map.json");
-        let mut map = json!({"compare":"mapped_only","fields":{"run.mode":{"path":"captures.0.receiver.mode"}},"readiness":[{"name":"receiver_ready","reached":{"path":"captures.0.receiver.ready"},"observed":{"path":"captures.0.receiver.ready"}}]});
+        let mut map = json!({"compare":"mapped_only","fields":{"run.mode":{"path":"captures.0.receiver.mode"}},"readiness":[{"name":"pipeline_ready","reached":{"path":"captures.0.receiver.ready"},"observed":{"path":"captures.0.receiver.ready"}}]});
         std::fs::write(&map_path, serde_json::to_vec(&map).unwrap()).unwrap();
         let loaded = FingerprintMap::read(&map_path).unwrap();
         let a = load(&primary, "saccade-meta.json", Some(&loaded)).unwrap();
