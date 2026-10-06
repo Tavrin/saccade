@@ -17,7 +17,7 @@
     "exit": 0
   },
   {
-    "document": "README.md",
+    "document": "docs/quickstart.md",
     "args": [
       "compare",
       "examples/baseline/sphere_shadow.png",
@@ -28,7 +28,7 @@
     "exit": 1
   },
   {
-    "document": "README.md",
+    "document": "docs/quickstart.md",
     "args": [
       "compare",
       "examples/baseline",
@@ -40,7 +40,7 @@
     "exit": 1
   },
   {
-    "document": "README.md",
+    "document": "docs/quickstart.md",
     "args": [
       "inspect",
       "directory-report/saccade-report.v1.json",
@@ -53,7 +53,7 @@
     "exit": 0
   },
   {
-    "document": "README.md",
+    "document": "docs/quickstart.md",
     "args": [
       "inspect",
       "evidence",
@@ -66,7 +66,7 @@
     "exit": 0
   },
   {
-    "document": "README.md",
+    "document": "docs/quickstart.md",
     "args": [
       "inspect",
       "export",
@@ -81,7 +81,7 @@
     "exit": 0
   },
   {
-    "document": "README.md",
+    "document": "docs/quickstart.md",
     "args": [
       "init",
       "--template",
@@ -92,7 +92,7 @@
     "exit": 0
   },
   {
-    "document": "README.md",
+    "document": "docs/quickstart.md",
     "args": [
       "inspect",
       "config",
@@ -105,7 +105,7 @@
     "exit": 0
   },
   {
-    "document": "README.md",
+    "document": "docs/quickstart.md",
     "args": [
       "identity",
       "saccade-demo/identity/baseline",
@@ -117,7 +117,7 @@
     "exit": 0
   },
   {
-    "document": "README.md",
+    "document": "docs/quickstart.md",
     "args": [
       "review",
       "directory-report/saccade-report.v1.json",
@@ -128,7 +128,7 @@
     "exit": 0
   },
   {
-    "document": "README.md",
+    "document": "docs/quickstart.md",
     "args": [
       "review",
       "request",
@@ -141,7 +141,7 @@
     "exit": 0
   },
   {
-    "document": "README.md",
+    "document": "docs/quickstart.md",
     "args": [
       "review",
       "ask",
@@ -152,7 +152,7 @@
     "exit": 0
   },
   {
-    "document": "README.md",
+    "document": "docs/quickstart.md",
     "args": [
       "mcp",
       "--root",

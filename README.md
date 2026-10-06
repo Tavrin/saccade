@@ -16,6 +16,18 @@ repeat evidence. Baseline approval stays with a human.
 
 ![Report with image differences and numbered hotspots](docs/images/report.png)
 
+## Quickstart
+
+```sh
+saccade demo --out saccade-demo
+saccade view saccade-demo
+```
+
+The demo deliberately exits 1 because it contains changed and missing captures.
+Open `saccade-demo/report/index.html` to inspect the result. Follow the
+[copyable walkthrough](docs/quickstart.md) for comparison, exact identity,
+configuration, evidence export and local review examples.
+
 ## Use cases
 
 ### Visual verification for coding agents
