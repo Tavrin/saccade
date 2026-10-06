@@ -229,6 +229,14 @@
       },
       "type": "array"
     },
+    "mapped_keys": {
+      "default": [],
+      "description": "Every effective key covered by a mapping, including subtree leaves on either arm.",
+      "items": {
+        "type": "string"
+      },
+      "type": "array"
+    },
     "offending": {
       "description": "Offending fields, sorted by key.",
       "items": {

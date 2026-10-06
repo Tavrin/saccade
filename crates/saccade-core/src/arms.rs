@@ -167,6 +167,9 @@ pub struct Check {
     pub absent_fields: Vec<Finding>,
     /// Declared variable tokens.
     pub vary: Vec<String>,
+    /// Every effective key covered by a mapping, including subtree leaves on either arm.
+    #[serde(default)]
+    pub mapped_keys: Vec<String>,
 }
 /// Field selection for arm validity checks.
 #[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
@@ -250,6 +253,12 @@ pub struct Source {
     /// Effective metadata keys computed from this mapped field.
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub derives: Vec<String>,
+    /// Relative leaf globs excluded from a subtree mapping.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub exclude: Vec<String>,
+    /// Require an object source for a subtree mapping.
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    pub subtree: bool,
 }
 /// Map a producer readiness flag to a named generic criterion.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -287,6 +296,9 @@ pub struct FingerprintMap {
     /// Canonical destination to producer source.
     #[serde(default)]
     pub fields: BTreeMap<String, Source>,
+    /// Whole source objects mapped to canonical destination prefixes.
+    #[serde(default)]
+    pub subtrees: BTreeMap<String, Source>,
     /// Optional independent readiness predicates from producer flags.
     #[serde(default)]
     pub readiness: Vec<ReadinessMap>,
@@ -295,12 +307,20 @@ impl FingerprintMap {
     /// Load and validate a mapping file without interpreting project names.
     pub fn read(path: &Path) -> Result<Self> {
         let bytes = crate::evidence_quality::read(path, 1 << 20)?;
-        let map: Self = if path.extension().is_some_and(|e| e == "json") {
+        let mut map: Self = if path.extension().is_some_and(|e| e == "json") {
             serde_json::from_slice(&bytes)?
         } else {
             toml::from_str(std::str::from_utf8(&bytes).map_err(|e| Error::Config(e.to_string()))?)
                 .map_err(|e| Error::Config(e.to_string()))?
         };
+        for (key, mut source) in std::mem::take(&mut map.subtrees) {
+            source.subtree = true;
+            if map.fields.insert(key.clone(), source).is_some() {
+                return Err(Error::Config(format!(
+                    "duplicate subtree destination {key:?}"
+                )));
+            }
+        }
         let siblings: BTreeSet<_> = map
             .fields
             .values()
@@ -366,6 +386,12 @@ impl FingerprintMap {
             }
         }
         for source in map.fields.values() {
+            if source.exclude.len() > 128 {
+                return Err(Error::Config("too many subtree exclusions".into()));
+            }
+            for pattern in &source.exclude {
+                crate::config::compile_glob(pattern)?;
+            }
             if source.derives.len() > 128
                 || source
                     .derives
@@ -615,6 +641,19 @@ pub fn load_named(
 fn mapped(root: &Path, primary: Value, map: Option<&FingerprintMap>) -> Result<crate::meta::Meta> {
     let mut meta = BTreeMap::new();
     flatten("", &primary, &mut meta);
+    let expanded = if let Some(map) = map.filter(|m| !m.subtrees.is_empty()) {
+        let mut expanded = map.clone();
+        for (key, mut source) in std::mem::take(&mut expanded.subtrees) {
+            source.subtree = true;
+            if expanded.fields.insert(key, source).is_some() {
+                return Err(Error::Config("duplicate subtree destination".into()));
+            }
+        }
+        Some(expanded)
+    } else {
+        None
+    };
+    let map = expanded.as_ref().or(map);
     if let Some(map) = map {
         let mut files = BTreeMap::new();
         for source in map
@@ -652,7 +691,23 @@ fn mapped(root: &Path, primary: Value, map: Option<&FingerprintMap>) -> Result<c
             } else {
                 Some(&primary)
             };
-            v.and_then(|v| lookup(v, &s.path))
+            v.and_then(|v| {
+                lookup(v, &s.path).or_else(|| {
+                    if !s.subtree {
+                        return None;
+                    }
+                    let prefix = format!("{}.", s.path);
+                    let children: serde_json::Map<_, _> = v
+                        .as_object()?
+                        .iter()
+                        .filter_map(|(key, value)| {
+                            key.strip_prefix(&prefix)
+                                .map(|suffix| (suffix.to_string(), value.clone()))
+                        })
+                        .collect();
+                    (!children.is_empty()).then_some(Value::Object(children))
+                })
+            })
         };
         meta.insert(
             "fingerprint.schema".into(),
@@ -663,7 +718,25 @@ fn mapped(root: &Path, primary: Value, map: Option<&FingerprintMap>) -> Result<c
             // A missing mapped source must not fall back to a stale native value.
             meta.retain(|k, _| k != key && !k.starts_with(&format!("{key}.")));
             if let Some(v) = get(source) {
-                flatten(key, &v, &mut meta);
+                if source.subtree && !v.is_object() {
+                    return Err(Error::Config(
+                        "subtree mapping source must be an object".into(),
+                    ));
+                }
+                let mut mapped = BTreeMap::new();
+                flatten(key, &v, &mut mapped);
+                let exclusions = source
+                    .exclude
+                    .iter()
+                    .map(|g| crate::config::compile_glob(g))
+                    .collect::<Result<Vec<_>>>()?;
+                mapped.retain(|k, v| {
+                    !(source.subtree && v.as_object().is_some_and(|o| o.is_empty()))
+                        && !exclusions
+                            .iter()
+                            .any(|g| g.is_match(k.strip_prefix(&format!("{key}.")).unwrap_or(k)))
+                });
+                meta.extend(mapped);
             }
         }
         if !map.readiness.is_empty() {
@@ -1216,6 +1289,14 @@ fn check_mapped(
         allowed_unreached,
         diagnostics: Vec::new(),
         vary: vary.to_vec(),
+        mapped_keys: a
+            .keys()
+            .chain(b.keys())
+            .filter(|k| map.is_some_and(|m| m.names(k)))
+            .cloned()
+            .collect::<BTreeSet<_>>()
+            .into_iter()
+            .collect(),
     }
 }
 fn apply_compare(map: &mut Option<FingerprintMap>, compare: Option<CompareMode>) -> Result<()> {
@@ -1862,6 +1943,8 @@ mod field_feedback_tests {
                     file: None,
                     path: "content.hash".into(),
                     absent: None,
+                    exclude: Vec::new(),
+                    subtree: false,
                     derives: vec!["cache_key".into()],
                 },
             );
@@ -1944,6 +2027,8 @@ mod field_feedback_tests {
                     file: Some("setup.json".into()),
                     path: "environment".into(),
                     absent: None,
+                    exclude: Vec::new(),
+                    subtree: false,
                     derives: vec![],
                 },
             );
@@ -1958,12 +2043,16 @@ mod field_feedback_tests {
                     file: None,
                     path: "receiver.ready".into(),
                     absent: None,
+                    exclude: Vec::new(),
+                    subtree: false,
                     derives: vec![],
                 },
                 observed: Source {
                     file: None,
                     path: "receiver.observed".into(),
                     absent: None,
+                    exclude: Vec::new(),
+                    subtree: false,
                     derives: vec![],
                 },
             });
@@ -2099,6 +2188,114 @@ mod absence_tests {
         assert_eq!(
             check(&map, json!({"mode":"fixed"}), json!({"mode":"fixed"})).exit_code,
             4
+        );
+    }
+}
+
+#[cfg(test)]
+#[allow(clippy::unwrap_used)]
+mod subtree_tests {
+    use super::*;
+    use serde_json::json;
+    #[test]
+    fn optional_lab_flag_is_discovered_and_exclusions_are_recorded() {
+        let tmp = tempfile::tempdir().unwrap();
+        let map_path = tmp.path().join("map.toml");
+        std::fs::write(&map_path,"compare='mapped_only'\nabsent='value'\n[fields.'run.mode']\npath='mode'\n[subtrees.'run.env']\npath='config.options'\nexclude=['output.*']\n").unwrap();
+        let map = FingerprintMap::read(&map_path).unwrap();
+        let a = mapped(
+            tmp.path(),
+            json!({"mode":"fixed","config":{"options":{"exposure":3,"output":{"uri":"a"}}}}),
+            Some(&map),
+        )
+        .unwrap();
+        let b=mapped(tmp.path(),json!({"mode":"fixed","config":{"options":{"exposure":3,"new_filter":true,"output":{"uri":"b"}}}}),Some(&map)).unwrap();
+        let flat_a = mapped(
+            tmp.path(),
+            json!({"mode":"fixed","config.options.exposure":3}),
+            Some(&map),
+        )
+        .unwrap();
+        let flat_b = mapped(
+            tmp.path(),
+            json!({"mode":"fixed","config.options.exposure":3,"config.options.new_filter":true}),
+            Some(&map),
+        )
+        .unwrap();
+        assert_eq!(
+            check_mapped(&flat_a, &flat_b, &[], &[], Some(&map), &[]).exit_code,
+            3
+        );
+        let empty = mapped(
+            tmp.path(),
+            json!({"mode":"fixed","config":{"options":{}}}),
+            Some(&map),
+        )
+        .unwrap();
+        let added = mapped(
+            tmp.path(),
+            json!({"mode":"fixed","config":{"options":{"new_filter":true}}}),
+            Some(&map),
+        )
+        .unwrap();
+        assert_eq!(
+            check_mapped(&empty, &added, &[], &[], Some(&map), &[]).exit_code,
+            3
+        );
+        assert_eq!(
+            check_mapped(
+                &empty,
+                &added,
+                &["run.env.new_filter".into()],
+                &[],
+                Some(&map),
+                &[]
+            )
+            .exit_code,
+            0
+        );
+        let parsed: FingerprintMap =
+            serde_json::from_value(json!({"subtrees":{"run.env":{"path":"config.options"}}}))
+                .unwrap();
+        assert!(
+            mapped(
+                tmp.path(),
+                json!({"config.options.new_filter":true}),
+                Some(&parsed)
+            )
+            .unwrap()
+            .contains_key("run.env.new_filter")
+        );
+        let c = check_mapped(&a, &b, &[], &[], Some(&map), &[]);
+        assert_eq!(c.exit_code, 3);
+        assert!(
+            c.offending
+                .iter()
+                .any(|f| f.key == "run.env.new_filter" && f.baseline_state == "absent")
+        );
+        assert!(c.mapped_keys.contains(&"run.env.new_filter".into()));
+        assert!(c.mapped_keys.iter().all(|k| !k.contains("output")));
+        assert_eq!(
+            check_mapped(&a, &b, &["run.env.new_filter".into()], &[], Some(&map), &[]).exit_code,
+            0
+        );
+        let equal = mapped(
+            tmp.path(),
+            json!({"mode":"fixed","config":{"options":{"exposure":3,"output":{"uri":"changed"}}}}),
+            Some(&map),
+        )
+        .unwrap();
+        assert_eq!(
+            check_mapped(&a, &equal, &[], &[], Some(&map), &[]).exit_code,
+            0
+        );
+        assert!(
+            mapped(
+                tmp.path(),
+                json!({"mode":"fixed","config":{"options":5}}),
+                Some(&map)
+            )
+            .is_err()
         );
     }
 }
