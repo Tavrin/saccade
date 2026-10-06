@@ -19,9 +19,12 @@ pub(crate) struct Args {
     #[arg(long)]
     b_source: Option<PathBuf>,
     /// Override the default pinned PP-OCRv5 contract (or select external Tesseract).
+    /// Deprecated for registries: a configured registry (SACCADE_MODELS_REGISTRY /
+    /// [models].registry) with one OCR contract is used automatically.
     #[arg(long)]
     ocr_contract: Option<PathBuf>,
-    /// Explicitly fetch SHA-pinned Rust OCR models into the contract cache.
+    /// Deprecated: provision with `saccade models pull ocr`. Still fetches the
+    /// SHA-pinned Rust OCR models into the contract cache.
     #[arg(long)]
     download_model: bool,
     /// Literal Unicode strings expected in the candidate (repeatable); always inert data.
@@ -178,7 +181,35 @@ pub(crate) fn run(args: Args) -> Result<u8, CliError> {
     let value = measure(&args)?;
     general_cmd::emit_document(value, Some(&args.out), args.json)
 }
+/// The OCR contract in force: the deprecated flag, else a configured shared registry
+/// that carries exactly one OCR contract, else none (the pinned default).
+fn effective_contract(args: &Args) -> Result<Option<PathBuf>, CliError> {
+    if let Some(p) = &args.ocr_contract {
+        saccade_core::model_config::deprecated(
+            "--ocr-contract with a shared registry",
+            "SACCADE_MODELS_REGISTRY or [models].registry",
+        );
+        return Ok(Some(p.clone()));
+    }
+    let Some(path) = crate::wave7_cmd::config()?.registry else {
+        return Ok(None);
+    };
+    let registry =
+        saccade_core::wave7::models::Registry::load(&path).map_err(crate::wave7_cmd::error)?;
+    let ocr = registry
+        .contracts
+        .values()
+        .filter(|v| {
+            v["schema"] == saccade_core::general::ocr::SCHEMA
+                || v["schema"] == "saccade-tesseract.v1"
+        })
+        .count();
+    Ok((ocr == 1).then_some(path))
+}
 fn measure(args: &Args) -> Result<Value, CliError> {
+    if args.download_model {
+        saccade_core::model_config::deprecated_download_flag("--download-model");
+    }
     if args.provider.ocr_provider.is_some() {
         if args.a_source.is_some()
             || args.b_source.is_some()
@@ -197,8 +228,13 @@ fn measure(args: &Args) -> Result<Value, CliError> {
         general_cmd::prepare_out(&args.out, &[&args.a, &args.b])?;
         return Ok(value);
     }
+    let contract = if args.a_source.is_none() || args.b_source.is_none() {
+        effective_contract(args)?
+    } else {
+        args.ocr_contract.clone()
+    };
     if args.a_source.is_none() || args.b_source.is_none() {
-        preflight(args.ocr_contract.as_deref(), args.download_model)?;
+        preflight(contract.as_deref(), args.download_model)?;
     }
     let aa = input::bytes(&args.a, input::MAX_BYTES)?;
     let bb = input::bytes(&args.b, input::MAX_BYTES)?;
@@ -206,14 +242,14 @@ fn measure(args: &Args) -> Result<Value, CliError> {
     let bi = input::decode(&bb)?;
     let a = source(
         args.a_source.as_deref(),
-        args.ocr_contract.as_deref(),
+        contract.as_deref(),
         &aa,
         [ai.width(), ai.height()],
         args.download_model,
     )?;
     let b = source(
         args.b_source.as_deref(),
-        args.ocr_contract.as_deref(),
+        contract.as_deref(),
         &bb,
         [bi.width(), bi.height()],
         args.download_model,

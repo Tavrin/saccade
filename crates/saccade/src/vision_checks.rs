@@ -14,8 +14,10 @@ pub(crate) struct Checks {
     /// Shared model registry (vision, embedding and OCR pins).
     #[arg(long)]
     model_registry: Option<PathBuf>,
+    /// Deprecated: set SACCADE_MODELS_DIR or [models].dir.
     #[arg(long)]
     model_cache: Option<PathBuf>,
+    /// Deprecated: set SACCADE_MODELS_RUNTIME_LIBRARY or [models].runtime_library.
     #[arg(long)]
     runtime_library: Option<PathBuf>,
     /// Inspect named watermark decoders; unavailable decoders stay explicit.
@@ -93,9 +95,11 @@ impl Checks {
     fn detect(&self, image: &VisionImage) -> Result<faces::FaceReport, CliError> {
         let registry = crate::wave7_cmd::registry(self.model_registry.as_deref())?;
         let cache = crate::wave7_cmd::cache(self.model_cache.as_deref())?;
-        let library =
-            saccade_core::wave7::runtime_install::resolve(self.runtime_library.as_deref(), &cache)
-                .map_err(crate::wave7_cmd::error)?;
+        let library = saccade_core::wave7::runtime_install::resolve(
+            crate::wave7_cmd::runtime_flag(self.runtime_library.as_deref())?.as_deref(),
+            &cache,
+        )
+        .map_err(crate::wave7_cmd::error)?;
         let mut runtime = saccade_core::wave7::runtime::OnnxModel::load(
             registry
                 .model("yunet-2026may")

@@ -170,3 +170,6 @@ pub mod media;
 pub mod schema_catalog;
 
 pub mod optional;
+
+/// One operator-owned model and runtime configuration shared by every surface.
+pub mod model_config;

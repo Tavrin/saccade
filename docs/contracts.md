@@ -223,6 +223,7 @@ The last three names appear only when the corresponding feature is compiled in.
 - [saccade-media-error.v1.schema.json](../crates/saccade-core/schemas/saccade-media-error.v1.schema.json) — Historical reader contract
 - [saccade-media-index-query.v1.schema.json](../crates/saccade-core/schemas/saccade-media-index-query.v1.schema.json) — Compact media index query
 - [saccade-media-record.v1.schema.json](../crates/saccade-core/schemas/saccade-media-record.v1.schema.json) — Versioned media record
+- [saccade-model-config.v1.schema.json](../crates/saccade-core/schemas/saccade-model-config.v1.schema.json) — saccade-model-config.v1
 - [saccade-model-registry.v1.schema.json](../crates/saccade-core/schemas/saccade-model-registry.v1.schema.json) — Registry
 - [saccade-model-status.v1.schema.json](../crates/saccade-core/schemas/saccade-model-status.v1.schema.json) — saccade-model-status.v1
 - [saccade-motion-review.v1.schema.json](../crates/saccade-core/schemas/saccade-motion-review.v1.schema.json) — Report

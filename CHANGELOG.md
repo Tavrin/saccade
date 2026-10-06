@@ -1,5 +1,35 @@
 # Changelog
 
+## Unreleased
+
+### Model configuration and distribution
+
+- One model and runtime configuration for the CLI, MCP server, Python and Rust library:
+  `SACCADE_MODELS_DIR`, `SACCADE_MODELS_REGISTRY`, `SACCADE_MODELS_RUNTIME_LIBRARY`,
+  `SACCADE_MODELS_EMBEDDING_CONTRACT`, or the `[models]` table of
+  `~/.config/saccade/config.toml`. `saccade models config --json` and Python
+  `saccade.model_config()` show each resolved value and its source
+  (`saccade-model-config.v1`). `SACCADE_MODEL_CACHE` is still read. See `docs/models.md`.
+- `saccade models pull` is the one provisioning verb: it also pulls `ocr` and
+  `embedding` contracts. MCP requests can no longer choose a cache, registry or runtime
+  path (a request may only restate the configured one; anything else is refused with
+  `model_location_not_request_controlled`) and never download.
+- Release bundles: `default` (unchanged legacy assets, also published as
+  `saccade-default-<target>`), `media` (C2PA, PDF/SVG, imgtune, OCR) and `full`, each with an
+  inventory, smoke-test result and `SHA256SUMS-bundles`. See `docs/install-matrix.md`.
+- The Playwright package is prepared for npm (`npm pack --dry-run`); publishing stays a
+  maintainer step (`docs/releasing.md`).
+
+### Deprecations and the 0.3.0 plan
+
+- Deprecated, still working, with a stderr notice (Python `DeprecationWarning`), not removed
+  before 0.4.0: `--cache`, `--model-cache`, `--model-dir`, `--api-model-dir`, `--registry`,
+  `--model-registry`, `--runtime-library`, `--library`, embedding `--model`, `--ocr-contract`
+  with a shared registry, `--download-model`, `--allow-download`, and Python `model_dir=`,
+  `registry=`, `allow_download=`. Use the configuration above and `saccade models pull`.
+- Removed in 0.3.0 (already announced in 0.2.5): automatic gpu-clock v2 telemetry
+  ingestion (the schema ID named in the 0.2.5 deprecation below); use `--gpu-clock-map FILE`.
+
 ## 0.2.5
 
 - Add map-level and per-field `absent = "missing"|"value"` policies for optional
