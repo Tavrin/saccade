@@ -85,6 +85,9 @@ mod schema_cmd;
 mod temporal_cmd;
 mod ui_review_cmd;
 mod wave10_cmd;
+// laneC
+mod manifest_cmd;
+mod region_export_cmd;
 // wave11
 #[cfg(feature = "mcp")]
 mod wave10_mcp;
@@ -253,6 +256,11 @@ impl From<MetricArg> for Metric {
 
 #[derive(Subcommand)]
 enum Command {
+    // laneC
+    /// Find, link and re-check the outputs of a report directory.
+    Manifest(manifest_cmd::Args),
+    /// Crop the worst regions of a report, with coordinates.
+    ExportRegions(region_export_cmd::Args),
     // wave11
     /// Verdicts over timings acquired by external tools.
     Timing(wave11_cmd::TimingArgs),
@@ -585,6 +593,9 @@ Examples:
         /// Print a JSON summary (`saccade-view-summary.v1`) instead of text.
         #[arg(long, help_heading = "Output")]
         json: bool,
+        /// Open the page in the default browser after writing or locating it.
+        #[arg(long, help_heading = "Output")]
+        open: bool,
         #[command(flatten)]
         hdr: HdrArgs,
         /// Include only matching names (repeatable; union of globs).
@@ -1177,6 +1188,9 @@ fn emit_run(
 
 fn dispatch(command: Command, record_absolute_paths: bool) -> Result<u8, CliError> {
     match command {
+        // laneC
+        Command::Manifest(args) => manifest_cmd::run(args),
+        Command::ExportRegions(args) => region_export_cmd::run(args),
         Command::Timing(args) => wave11_cmd::timing(args),
         #[cfg(feature = "graphics")]
         Command::Experiment {
@@ -1872,6 +1886,7 @@ fn dispatch(command: Command, record_absolute_paths: bool) -> Result<u8, CliErro
             ppd,
             config,
             json,
+            open,
             hdr,
             entries,
             meta,
@@ -1887,7 +1902,7 @@ fn dispatch(command: Command, record_absolute_paths: bool) -> Result<u8, CliErro
                 );
             }
             if dirs.len() == 1 {
-                return local_cmd::view_artifact(&dirs[0], &out, json);
+                return local_cmd::view_artifact(&dirs[0], &out, json, open);
             }
             if blind && key_out.is_none() {
                 return Err(CliError::usage(
@@ -1916,6 +1931,9 @@ fn dispatch(command: Command, record_absolute_paths: bool) -> Result<u8, CliErro
                 opts.pixels_per_degree = p;
             }
             let model = build_view(&dirs, &out, &opts)?;
+            if open {
+                open_page(&out.join("index.html"));
+            }
             let key = key_out.unwrap_or_else(|| saccade_core::view::private_key_path(&out));
             if json {
                 let mut value = local_cmd::base_result("view");
@@ -2150,6 +2168,15 @@ fn load_config(explicit: Option<&Path>) -> Result<RunConfig, CliError> {
 
 /// Opens `url` in the default browser; failures are ignored.
 #[cfg(feature = "workbench")]
+/// Open a local page in the default browser; best effort, never an error.
+fn open_page(path: &Path) {
+    let absolute = saccade_core::explain::absolute(path);
+    open_browser(&format!(
+        "file://{}",
+        saccade_core::paths::portable(&absolute).replace(' ', "%20")
+    ));
+}
+
 fn open_browser(url: &str) {
     let (program, args): (&str, Vec<&str>) = if cfg!(target_os = "macos") {
         ("open", vec![url])

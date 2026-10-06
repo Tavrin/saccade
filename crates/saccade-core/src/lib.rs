@@ -173,6 +173,7 @@ pub mod optional;
 
 // wave11
 pub mod ablation_timing;
+pub mod manifest;
 pub mod report_links;
 pub mod settling;
 pub mod timing;

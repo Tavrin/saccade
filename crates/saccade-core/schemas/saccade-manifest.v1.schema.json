@@ -1,0 +1,253 @@
+{
+  "$id": "https://github.com/Tavrin/saccade/crates/saccade-core/schemas/saccade-manifest.v1.schema.json",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "properties": {
+    "approval": {
+      "additionalProperties": false,
+      "properties": {
+        "approved_anchor": {
+          "oneOf": [
+            {
+              "additionalProperties": false,
+              "properties": {
+                "path": {
+                  "minLength": 1,
+                  "type": "string"
+                },
+                "sha256": {
+                  "pattern": "^[0-9a-f]{64}$",
+                  "type": "string"
+                }
+              },
+              "required": [
+                "path",
+                "sha256"
+              ],
+              "type": "object"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "last_good": {
+          "oneOf": [
+            {
+              "additionalProperties": false,
+              "properties": {
+                "path": {
+                  "minLength": 1,
+                  "type": "string"
+                },
+                "sha256": {
+                  "pattern": "^[0-9a-f]{64}$",
+                  "type": "string"
+                }
+              },
+              "required": [
+                "path",
+                "sha256"
+              ],
+              "type": "object"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "note": {
+          "type": "string"
+        },
+        "state": {
+          "enum": [
+            "none",
+            "anchor_declared"
+          ]
+        }
+      },
+      "required": [
+        "state",
+        "approved_anchor",
+        "last_good",
+        "note"
+      ],
+      "type": "object"
+    },
+    "artifacts": {
+      "items": {
+        "additionalProperties": false,
+        "properties": {
+          "also_at": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "bytes": {
+            "minimum": 0,
+            "type": "integer"
+          },
+          "media_type": {
+            "type": "string"
+          },
+          "path": {
+            "type": "string"
+          },
+          "report_id": {
+            "pattern": "^sha256:[0-9a-f]{64}$",
+            "type": "string"
+          },
+          "role": {
+            "enum": [
+              "report",
+              "document",
+              "page",
+              "image",
+              "index",
+              "other"
+            ]
+          },
+          "schema": {
+            "type": "string"
+          },
+          "sha256": {
+            "pattern": "^[0-9a-f]{64}$",
+            "type": "string"
+          }
+        },
+        "required": [
+          "path",
+          "sha256",
+          "bytes",
+          "role",
+          "media_type",
+          "also_at"
+        ],
+        "type": "object"
+      },
+      "type": "array"
+    },
+    "completion": {
+      "const": "recorded"
+    },
+    "counts": {
+      "additionalProperties": false,
+      "properties": {
+        "duplicate_files": {
+          "minimum": 0,
+          "type": "integer"
+        },
+        "duplicate_rows": {
+          "minimum": 0,
+          "type": "integer"
+        },
+        "files": {
+          "minimum": 0,
+          "type": "integer"
+        },
+        "indexed_rows": {
+          "minimum": 0,
+          "type": "integer"
+        },
+        "reports": {
+          "minimum": 0,
+          "type": "integer"
+        },
+        "skipped_symlinks": {
+          "minimum": 0,
+          "type": "integer"
+        },
+        "unique_artifacts": {
+          "minimum": 0,
+          "type": "integer"
+        }
+      },
+      "required": [
+        "files",
+        "unique_artifacts",
+        "duplicate_files",
+        "reports",
+        "indexed_rows",
+        "duplicate_rows",
+        "skipped_symlinks"
+      ],
+      "type": "object"
+    },
+    "kind": {
+      "const": "report_directory"
+    },
+    "reports": {
+      "items": {
+        "additionalProperties": false,
+        "properties": {
+          "also_at": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "indexed_rows": {
+            "minimum": 0,
+            "type": "integer"
+          },
+          "local": {
+            "type": "boolean"
+          },
+          "path": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "report_id": {
+            "type": "string"
+          },
+          "schema": {},
+          "sha256": {
+            "oneOf": [
+              {
+                "pattern": "^[0-9a-f]{64}$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "source_refs": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "verdict_class": {}
+        },
+        "required": [
+          "report_id",
+          "local",
+          "path",
+          "sha256",
+          "also_at",
+          "indexed_rows",
+          "source_refs"
+        ],
+        "type": "object"
+      },
+      "type": "array"
+    },
+    "schema": {
+      "const": "saccade-manifest.v1"
+    }
+  },
+  "required": [
+    "schema",
+    "kind",
+    "completion",
+    "approval",
+    "counts",
+    "artifacts",
+    "reports"
+  ],
+  "type": "object"
+}

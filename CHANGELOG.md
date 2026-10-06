@@ -2,6 +2,12 @@
 
 ## Unreleased
 
+- Add `saccade manifest build|verify|link|classify` and `saccade-manifest.v1` / `saccade-link.v1`:
+  one manifest per output directory built on `report_id` and `reports/index.jsonl`, duplicates listed
+  once, approval kept separate from last-good, and `link_missing` / `stale_link` failures for moved or
+  changed artifacts. Add `saccade export-regions` (worst hotspots as crops with coordinates,
+  `saccade-region-export.v1`), `saccade view --open`, and worst-first ordering plus a `w` shortcut in
+  the HTML report. See `docs/discovery.md`.
 - Harden experimental assist pre-spend accounting: shared campaign reservations,
   charged and quarantined usage overruns, request-bound recorded execution receipts,
   nonvacuous qualification, independent control and glyph-localization checks, and

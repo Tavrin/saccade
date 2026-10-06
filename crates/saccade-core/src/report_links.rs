@@ -67,6 +67,8 @@ pub fn is_report_schema(id: &str) -> bool {
         && !id.contains("-frozen-")
         && !id.contains("-blind-key.")
         && !id.contains("-manifest.")
+        && !id.contains("-link.")
+        && !id.contains("-region-export.")
         && !id.contains("-model.")
         && !id.contains("-export-inputs.")
         && !id.contains("-fingerprint.")
@@ -331,6 +333,43 @@ pub fn decorate(value: &Value) -> Result<Value> {
     }
     Ok(result)
 }
+/// Coarse outcome class of a report, as recorded in index rows and manifests. It
+/// describes the measurement, never approval.
+pub fn verdict_class(value: &Value) -> Value {
+    if let Some(v) = value
+        .get("verdict")
+        .or_else(|| value.get("result"))
+        .and_then(Value::as_str)
+    {
+        json!(v)
+    } else if original_schema(value["schema"].as_str().unwrap_or_default())
+        == crate::report::REPORT_SCHEMA
+    {
+        serde_json::from_value::<crate::Report>(value.clone())
+            .map(|r| {
+                json!(if r.is_regression() {
+                    "fail"
+                } else if r
+                    .perf_diff
+                    .as_ref()
+                    .is_some_and(|p| p.comparability != crate::perf::Comparability::Qualified)
+                {
+                    "diagnostic_performance"
+                } else {
+                    "pass"
+                })
+            })
+            .unwrap_or_else(|_| json!("recorded"))
+    } else if value.get("arms").is_some() {
+        json!("ablation_table")
+    } else {
+        value
+            .get("coverage")
+            .and_then(Value::as_str)
+            .map(|v| json!(v))
+            .unwrap_or_else(|| json!("recorded"))
+    }
+}
 /// Indexed row; timestamps describe index insertion, never statistical qualification.
 pub fn index(path: &Path, value: &Value) -> Result<()> {
     if value.get("report_id").is_none()
@@ -369,39 +408,7 @@ pub fn index(path: &Path, value: &Value) -> Result<()> {
         .duration_since(std::time::UNIX_EPOCH)
         .map_err(|e| Error::Config(e.to_string()))?
         .as_secs();
-    let verdict = if let Some(v) = value
-        .get("verdict")
-        .or_else(|| value.get("result"))
-        .and_then(Value::as_str)
-    {
-        json!(v)
-    } else if original_schema(value["schema"].as_str().unwrap_or_default())
-        == crate::report::REPORT_SCHEMA
-    {
-        serde_json::from_value::<crate::Report>(value.clone())
-            .map(|r| {
-                json!(if r.is_regression() {
-                    "fail"
-                } else if r
-                    .perf_diff
-                    .as_ref()
-                    .is_some_and(|p| p.comparability != crate::perf::Comparability::Qualified)
-                {
-                    "diagnostic_performance"
-                } else {
-                    "pass"
-                })
-            })
-            .unwrap_or_else(|_| json!("recorded"))
-    } else if value.get("arms").is_some() {
-        json!("ablation_table")
-    } else {
-        value
-            .get("coverage")
-            .and_then(Value::as_str)
-            .map(|v| json!(v))
-            .unwrap_or_else(|| json!("recorded"))
-    };
+    let verdict = verdict_class(value);
     let row = json!({"report_id":value["report_id"],"source_refs":value["source_refs"],"verdict_class":verdict,"timestamp_unix":timestamp,"report_path":crate::paths::portable(&crate::explain::absolute(path)),"schema":INDEX_SCHEMA,"report_schema":value["schema"]});
     let mut writer = &file;
     writer

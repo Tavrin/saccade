@@ -52,6 +52,9 @@ impl CliError {
                 "nothing_compared" => {
                     "check the input paths and --entry filters; bootstrap with `saccade approve --report REPORT_JSON --all-failing`"
                 }
+                "stale_link" | "link_missing" => {
+                    "rebuild the manifest with `saccade manifest build` and re-link, or restore the recorded file"
+                }
                 "io" => {
                     "check the named path exists, is readable or writable as needed, and images decode"
                 }

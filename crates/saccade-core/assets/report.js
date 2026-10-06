@@ -92,8 +92,19 @@
   };
   var timers = [];
 
+  // Worst first: failing and local-change entries ahead of the rest, then the
+  // strongest single-pixel error (a tiny severe defect outranks broad mild
+  // differences), then the deciding value. The export-regions command uses the same key.
+  function entryRank(e) { return e.status === "pass" && e.pass_with_local_change === true ? 0 : RANK[e.status]; }
+  function peakOf(e) {
+    var p = e.metrics && e.metrics.max !== null && e.metrics.max !== undefined ? e.metrics.max : 0;
+    (e.hotspots || []).forEach(function (hs) { if (hs.max_flip > p) p = hs.max_flip; });
+    return p;
+  }
   function cmpDefault(a, b) {
-    var d = RANK[a.status] - RANK[b.status];
+    var d = entryRank(a) - entryRank(b);
+    if (d) return d;
+    d = peakOf(b) - peakOf(a);
     if (d) return d;
     var av = a.value === null ? -1 : a.value, bv = b.value === null ? -1 : b.value;
     if (av !== bv) return bv - av;
@@ -935,6 +946,7 @@
     cmp("swipe.plain", "Swipe: plain layer", [], function (c) { c.layer("none"); });
     add("nav.prev", "Previous set", ["["], function () { agentStep(-1); }, "Navigate");
     add("nav.next", "Next set", ["]"], function () { agentStep(1); }, "Navigate");
+    add("nav.worst", "Jump to the worst entry", ["w"], function () { var list = shownEntries(); if (list.length) agentApply({ entry: list[0].name }); }, "Navigate");
     reg.dynamic(function () { return entries.map(function (e) { return { id: "go." + e.name, title: e.name, group: "Go to", run: function () { agent.set({ entry: e.name }); } }; }); });
     ["accept", "reject", "needs-work"].forEach(function (v) { add("decision." + v, "Decision: " + v, [], function () { var c = currentCmp(); if (c) setVerdict(c.entry, v); }, "Decision"); });
     ["y", "n"].forEach(function (key) { reg.add({ id: "proposal." + key, title: key === "y" ? "Confirm proposed decision" : "Override proposed decision", keys: [key], group: "Decision", enabled: function () { return !!proposalFor(V.entry); }, run: function () { var ap = proposalFor(V.entry); if (ap) setVerdict(V.entry, (key === "y") === (ap.answer === "accept") ? "accept" : "reject"); } }); });
@@ -1049,7 +1061,7 @@
   // ---- window.saccade and the URL hash --------------------------------------
 
   function shownEntries() {
-    var shown = entries.filter(function (e) { return state.filter === "all" || e.status !== "pass"; });
+    var shown = entries.filter(function (e) { return state.filter === "all" || isIssue(e); });
     return sorted(shown);
   }
   function activeCmpFor(name) {
