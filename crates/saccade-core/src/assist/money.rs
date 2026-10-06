@@ -38,18 +38,56 @@ pub type UsageValue = serde_json::Value;
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 pub(super) struct MoneyState {
     counters: BTreeMap<String, (u64, u64)>,
+    #[serde(default)]
+    stopped: bool,
     receipts: Vec<MoneyReceipt>,
 }
 #[cfg(feature = "assist")]
 impl Ledger {
+    fn campaign(&self) -> Self {
+        Self {
+            dir: self.dir.clone(),
+            namespace: "campaign".into(),
+        }
+    }
+    /// Durably stop all modes and epochs in this campaign after a demonstrated breach.
+    pub fn stop_spending(&self) -> Result<(), String> {
+        self.campaign().transaction(|state| {
+            state.money.stopped = true;
+            Ok(())
+        })
+    }
     /// Reserve every monetary scope under the same lock as request accounting.
     /// Money is reserved first; a later request refusal conservatively retains it.
     pub fn reserve_money(
         &self,
         scopes: &[MoneyScope],
-        receipt: MoneyReceipt,
+        mut receipt: MoneyReceipt,
     ) -> Result<(), String> {
-        self.transaction(|state| {
+        // Refuse silent allowance resets when upgrading an older namespace-local ledger.
+        for mode in ["production", "evaluation"] {
+            let path = self.dir.join(format!("{mode}.json"));
+            if std::fs::symlink_metadata(&path).is_ok_and(|m| m.file_type().is_symlink()) {
+                return Err("legacy ledger symlink".into());
+            }
+            match std::fs::read(&path) {
+                Ok(bytes) => {
+                    let legacy: super::State =
+                        serde_json::from_slice(&bytes).map_err(|_| "invalid legacy ledger")?;
+                    if !legacy.money.receipts.is_empty() {
+                        return Err(
+                            "legacy monetary receipts require reviewed campaign migration".into(),
+                        );
+                    }
+                }
+                Err(e) if e.kind() == std::io::ErrorKind::NotFound => {}
+                Err(_) => return Err("legacy ledger unavailable".into()),
+            }
+        }
+        self.campaign().transaction(|state| {
+            if state.money.stopped {
+                return Err("campaign_spending_stopped".into());
+            }
             if scopes.is_empty()
                 || receipt.id.is_empty()
                 || receipt.reserved_nano_usd == 0
@@ -58,8 +96,17 @@ impl Ledger {
             {
                 return Err("invalid monetary reservation".into());
             }
+            let mut scopes = scopes.to_vec();
+            if scopes.iter().any(|s| s.id == "campaign/assist") {
+                return Err("campaign parent is ledger-owned".into());
+            }
+            scopes.push(MoneyScope {
+                id: "campaign/assist".into(),
+                cap_nano_usd: 30_000_000_000,
+            });
+            receipt.scopes.push("campaign/assist".into());
             let mut ids = std::collections::BTreeSet::new();
-            for scope in scopes {
+            for scope in &scopes {
                 if scope.id.is_empty() || !ids.insert(&scope.id) {
                     return Err("invalid money scope".into());
                 }
@@ -76,7 +123,7 @@ impl Ledger {
                     return Err("money_budget_exhausted".into());
                 }
             }
-            for scope in scopes {
+            for scope in &scopes {
                 let counter = state
                     .money
                     .counters
@@ -98,7 +145,7 @@ impl Ledger {
         usage: UsageValue,
         complete: bool,
     ) -> Result<(), String> {
-        self.transaction(|state| {
+        self.campaign().transaction(|state| {
             let receipt = state
                 .money
                 .receipts
@@ -120,9 +167,14 @@ impl Ledger {
                     .saturating_sub(receipt.reserved_nano_usd)
                     .saturating_add(charged);
             }
+            if charged > receipt.reserved_nano_usd || usage["bound_breach"] == true {
+                state.money.stopped = true;
+            }
             receipt.actual_nano_usd = actual;
             receipt.usage = usage;
-            receipt.outcome = if charged > receipt.reserved_nano_usd {
+            receipt.outcome = if receipt.usage["bound_breach"] == true {
+                "usage_limit_exceeded"
+            } else if charged > receipt.reserved_nano_usd {
                 "cost_limit_exceeded"
             } else if complete {
                 "completed"
@@ -135,7 +187,8 @@ impl Ledger {
     }
     /// Return bounded metadata receipts for review and partial-failure handoff.
     pub fn money_receipts(&self) -> Result<Vec<MoneyReceipt>, String> {
-        self.transaction(|state| Ok(state.money.receipts.clone()))
+        self.campaign()
+            .transaction(|state| Ok(state.money.receipts.clone()))
     }
 }
 
@@ -150,6 +203,7 @@ mod tests {
         let temp = tempfile::tempdir().unwrap();
         let ledger = Ledger::new(temp.path(), false);
         let expected = MoneyState {
+            stopped: false,
             counters: BTreeMap::from([("epoch/frozen".into(), (100, 60))]),
             receipts: vec![MoneyReceipt {
                 id: "reserved-before-feature-change".into(),

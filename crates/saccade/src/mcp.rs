@@ -70,7 +70,7 @@ fn measurement_schemas() -> Value {
             "arm_ignore":{"type":"array","items":{"type":"string"}},
             "allow_unreached":{"type":"array","items":{"type":"string"}},
             "export_maps":{"type":"boolean"},"require_scope":{"type":"boolean"},"render_evidence":{"type":"boolean"},
-            "noise_from":{"type":"array","minItems":2,"maxItems":32,"items":{"type":"string"}},"mask_dump":{"type":"string"},"id_top":{"type":"integer","minimum":0,"maximum":32},"id_threshold":{"type":"number","minimum":0},
+            "noise_from":{"type":"array","minItems":2,"maxItems":32,"items":{"type":"string"}},"mask_dump":{"type":"string"},"mask_from_dump":{"type":"string"},"mask_layer":{"type":"string"},"require_effect":{"type":"array","items":{"type":"string"}},"id_top":{"type":"integer","minimum":0,"maximum":32},"id_threshold":{"type":"number","minimum":0},
             "fixed_camera":{"type":"boolean"},
             "fail_on_new":{"type":"boolean","default":true},
             "allow_empty":{"type":"boolean","default":false},
@@ -153,7 +153,7 @@ fn measurement_schemas() -> Value {
                 "arm_ignore":{"type":"array","items":{"type":"string"}},
             "allow_unreached":{"type":"array","items":{"type":"string"}},
             "export_maps":{"type":"boolean"},"require_scope":{"type":"boolean"},"render_evidence":{"type":"boolean"},
-            "noise_from":{"type":"array","minItems":2,"maxItems":32,"items":{"type":"string"}},"mask_dump":{"type":"string"},"id_top":{"type":"integer","minimum":0,"maximum":32},"id_threshold":{"type":"number","minimum":0},
+            "noise_from":{"type":"array","minItems":2,"maxItems":32,"items":{"type":"string"}},"mask_dump":{"type":"string"},"mask_from_dump":{"type":"string"},"mask_layer":{"type":"string"},"require_effect":{"type":"array","items":{"type":"string"}},"id_top":{"type":"integer","minimum":0,"maximum":32},"id_threshold":{"type":"number","minimum":0},
                 "top":{"type":"integer","minimum":0,"default":5},
                 "gpu_clock_map":{"type":"string"},"perf_name":{"type":"string"}, "perf_noise":{"type":"string"},
                 "perf_noise_k":{"type":"number","exclusiveMinimum":0,"default":3},
@@ -214,6 +214,16 @@ fn arg_str(args: &Map<String, Value>, key: &str) -> Result<Option<String>, CliEr
             "`{key}` must be a non-empty string"
         ))),
     }
+}
+
+/// Operator-resolved embedding inputs (see `operator_model`); the guard keeps a
+/// materialised registry contract alive for the duration of the call.
+#[derive(Default)]
+struct OperatorModel {
+    guard: Option<tempfile::TempDir>,
+    model: Option<PathBuf>,
+    cache: Option<PathBuf>,
+    library: Option<PathBuf>,
 }
 
 fn require_str(args: &Map<String, Value>, key: &str) -> Result<String, CliError> {
@@ -316,6 +326,9 @@ const RUN_ARGS: &[&str] = &[
     "render_evidence",
     "noise_from",
     "mask_dump",
+    "mask_from_dump",
+    "mask_layer",
+    "require_effect",
     "id_top",
     "id_threshold",
     "fixed_camera",
@@ -399,7 +412,9 @@ fn apply_run_args(args: &Map<String, Value>, cfg: &mut RunConfig) -> Result<(), 
             .into_iter()
             .map(PathBuf::from)
             .collect(),
-        mask_dump: arg_str(args, "mask_dump")?,
+        mask_dump: arg_str(args, "mask_dump")?.or(arg_str(args, "mask_from_dump")?),
+        mask_layer: arg_str(args, "mask_layer")?,
+        require_effect: arg_strings(args, "require_effect")?,
         id_top: args
             .get("id_top")
             .map(|v| {
@@ -524,7 +539,9 @@ impl Server {
     fn document_inputs(&self, path: &Path) -> Result<(), CliError> {
         let value = crate::local_cmd::read_value(path)?;
         self.check_references(&value, path.parent().unwrap_or(Path::new(".")), "")?;
-        if value["schema"] == saccade_core::report::REPORT_SCHEMA {
+        if saccade_core::report_links::original_schema(value["schema"].as_str().unwrap_or_default())
+            == saccade_core::report::REPORT_SCHEMA
+        {
             let report: Report = serde_json::from_value(value)?;
             for entry in &report.entries {
                 for (baseline, hash) in [
@@ -743,6 +760,69 @@ impl Server {
         }
     }
 
+    /// Embedding model, cache and runtime for a request, from operator configuration only.
+    /// `model` must be a contract id in the operator registry; a path is refused. `cache`
+    /// and `library` may only restate the configured location.
+    fn operator_model(
+        &self,
+        args: &Map<String, Value>,
+        want: bool,
+    ) -> Result<OperatorModel, CliError> {
+        let refuse = |m: String| CliError::new("model_location_not_request_controlled", m);
+        let cfg = crate::wave7_cmd::config()?;
+        let mut out = OperatorModel::default();
+        if !want
+            && !["model", "cache", "library"]
+                .iter()
+                .any(|k| args.contains_key(*k))
+        {
+            return Ok(out);
+        }
+        if let Some(id) = arg_str(args, "model")? {
+            let registry = crate::wave7_cmd::registry(None)?;
+            let contract = registry
+                .contracts
+                .get(&id)
+                .filter(|c| c["schema"] == saccade_core::general::embedding::MODEL_SCHEMA)
+                .ok_or_else(|| {
+                    refuse(
+                        "`model` must be an embedding contract id in the operator registry; a request cannot supply a path"
+                            .into(),
+                    )
+                })?;
+            let dir = tempfile::tempdir().map_err(|e| CliError::io(e.to_string()))?;
+            let file = dir.path().join("embedding-model.json");
+            std::fs::write(&file, serde_json::to_vec(contract)?)
+                .map_err(|e| CliError::io(e.to_string()))?;
+            out.model = Some(file);
+            out.guard = Some(dir);
+        } else {
+            out.model = cfg.embedding_contract.clone();
+        }
+        for (key, configured) in [
+            ("cache", Some(cfg.dir.clone())),
+            ("library", cfg.runtime_library.clone()),
+        ] {
+            if let Some(p) = arg_str(args, key)? {
+                let requested = self.resolve(key, &p)?;
+                cfg.check_request_location(key, &requested)
+                    .map_err(|e| refuse(e.to_string()))?;
+            }
+            match key {
+                "cache" => out.cache = configured,
+                _ => out.library = configured,
+            }
+        }
+        if let Some(c) = &out.cache
+            && !c.is_dir()
+        {
+            return Err(CliError::io(
+                "MCP embedding cache must already exist; downloads are explicit CLI-only (saccade models pull)",
+            ));
+        }
+        Ok(out)
+    }
+
     /// Resolves `out_dir` under the root. That it is not inside an input
     /// directory and not a foreign non-empty directory is checked by the run
     /// itself (`saccade_core::run::guard_output_dir`).
@@ -773,11 +853,13 @@ impl Server {
         let base = out;
         report.baseline_dir = Some(crate::local_cmd::lexical_record(baseline, base));
         report.capture_dir = Some(crate::local_cmd::lexical_record(capture, base));
-        std::fs::write(
-            out.join(saccade_core::report::REPORT_FILE_NAME),
-            serde_json::to_vec_pretty(&report)?,
-        )
-        .map_err(|e| CliError::io(e.to_string()))?;
+        report = serde_json::from_value(saccade_core::report_links::decorate(
+            &serde_json::to_value(&report)?,
+        )?)?;
+        saccade_core::report_links::write(
+            &out.join(saccade_core::report::REPORT_FILE_NAME),
+            &report,
+        )?;
         let report_json = out.join(saccade_core::report::REPORT_FILE_NAME);
         crate::local_cmd::persist_case(&report, &report_json, &crate::IntentArgs::default())?;
         let explain_dir = out.join("explain");
@@ -868,6 +950,8 @@ impl Server {
             &[
                 "base_dir",
                 "arm_dirs",
+                "base_repeats",
+                "arm_repeats",
                 "out_dir",
                 "config",
                 "top",
@@ -890,15 +974,59 @@ impl Server {
                 "render_evidence",
                 "noise_from",
                 "mask_dump",
+                "mask_from_dump",
+                "mask_layer",
+                "require_effect",
                 "id_top",
                 "id_threshold",
             ],
         )?;
-        let base = self.existing_dir("base_dir", &require_str(args, "base_dir")?)?;
+        let base_names = arg_strings(args, "base_repeats")?;
+        let bases = if base_names.is_empty() {
+            vec![self.existing_dir("base_dir", &require_str(args, "base_dir")?)?]
+        } else {
+            base_names
+                .iter()
+                .map(|p| self.existing_dir("base_repeats", p))
+                .collect::<Result<Vec<_>, _>>()?
+        };
+        let base = bases[0].clone();
         let arms = arg_strings(args, "arm_dirs")?
             .iter()
             .map(|p| self.existing_dir("arm_dirs", p))
             .collect::<Result<Vec<_>, _>>()?;
+        let mut groups = Vec::new();
+        if let Some(repeats) = args.get("arm_repeats") {
+            let specs = repeats
+                .as_array()
+                .filter(|s| !s.is_empty() && s.len() <= 128)
+                .ok_or_else(|| CliError::usage("arm_repeats needs 1..128 groups"))?;
+            let mut labels = std::collections::BTreeSet::new();
+            for spec in specs {
+                let spec = spec
+                    .as_object()
+                    .ok_or_else(|| CliError::usage("repeat group must be an object"))?;
+                reject_unknown(spec, &["label", "repeats"])?;
+                let label = require_str(spec, "label")?;
+                if label.is_empty() || !labels.insert(label.clone()) {
+                    return Err(CliError::usage("repeat labels must be nonempty and unique"));
+                }
+                let names = arg_strings(spec, "repeats")?;
+                if names.is_empty() || names.len() > 128 {
+                    return Err(CliError::usage("group needs 1..128 repeats"));
+                }
+                let paths = names
+                    .iter()
+                    .map(|p| self.existing_dir("repeats", p))
+                    .collect::<Result<Vec<_>, _>>()?;
+                groups.push((label, paths));
+            }
+        } else {
+            groups = arms
+                .iter()
+                .map(|p| (String::new(), vec![p.clone()]))
+                .collect();
+        }
         let out = self.resolve("out_dir", &require_str(args, "out_dir")?)?;
         let mut cfg = match arg_str(args, "config")? {
             Some(p) => RunConfig::from_toml_file(&self.existing_file("config", &p)?)?,
@@ -930,7 +1058,18 @@ impl Server {
                 .collect::<Vec<_>>();
             crate::arms_mcp::validate_map(&self.policy, map, &inputs)?;
         }
-        let model = saccade_core::ablate::run(&base, &arms, &out, &cfg, top)?;
+        for p in bases.iter().chain(groups.iter().flat_map(|(_, p)| p)) {
+            self.input_tree(p)?;
+        }
+        if let Some(map) = &cfg.meta.fingerprint_map {
+            let inputs = bases
+                .iter()
+                .chain(groups.iter().flat_map(|(_, p)| p))
+                .map(PathBuf::as_path)
+                .collect::<Vec<_>>();
+            crate::arms_mcp::validate_map(&self.policy, map, &inputs)?;
+        }
+        let model = saccade_core::ablate::run_repeats(&bases, &groups, &out, &cfg, top)?;
         let mut structured = serde_json::to_value(&model)?;
         crate::arms_cmd::annotate(&mut structured, &cfg.meta);
         Ok(ToolOutput {
@@ -1215,6 +1354,41 @@ impl Server {
     }
 
     fn call_tool(&self, name: &str, args: &Map<String, Value>) -> Option<ToolResult> {
+        // wave11: every request has an isolated, output-root-contained report index.
+        let refs = match arg_strings(args, "source_refs") {
+            Ok(r) => r,
+            Err(e) => return Some(Err(e)),
+        };
+        let _links = match saccade_core::report_links::scope(
+            refs,
+            self.policy
+                .output_root()
+                .map(|p| p.join("reports/index.jsonl")),
+        ) {
+            Ok(c) => c,
+            Err(e) => return Some(Err(e.into())),
+        };
+        let mut clean_args = args.clone();
+        if !args
+            .get("operation")
+            .and_then(Value::as_str)
+            .is_some_and(|op| matches!(op, "timing_ab" | "settle"))
+        {
+            clean_args.remove("source_refs");
+        }
+        self.call_tool_inner(name, &clean_args).map(|result| {
+            result.and_then(|mut output| {
+                if !output.structured["report_id"].is_string() {
+                    output.structured = saccade_core::report_links::decorate(&output.structured)?;
+                } else {
+                    output.structured =
+                        saccade_core::report_links::migrate_linked(&output.structured);
+                }
+                Ok(output)
+            })
+        })
+    }
+    fn call_tool_inner(&self, name: &str, args: &Map<String, Value>) -> Option<ToolResult> {
         #[cfg(feature = "products")]
         if name == "saccade_products" {
             return Some(self.product_tool(args));
@@ -1247,6 +1421,20 @@ impl Server {
                         images: vec![],
                     },
                 ),
+            );
+        }
+        // wave11
+        if args
+            .get("operation")
+            .and_then(Value::as_str)
+            .is_some_and(|op| crate::wave11_mcp::handles(name, op))
+        {
+            return Some(
+                crate::wave11_mcp::call(&self.policy, args).map(|structured| ToolOutput {
+                    structured,
+                    text: "External timing, settling or report links.".into(),
+                    images: vec![],
+                }),
             );
         }
         // wave10
@@ -1459,7 +1647,10 @@ impl Server {
             let mut paths = std::collections::BTreeMap::new();
             let dir = self.resolve("dir", &require_str(args, "dir")?)?;
             self.input_tree(&dir)?;
-            let model = self.existing_file("model", &require_str(args, "model")?)?;
+            let operator = self.operator_model(args, true)?;
+            let model = operator.model.clone().ok_or_else(|| {
+                CliError::usage("model contract id required (or configure an embedding contract)")
+            })?;
             let out = self.checked_out_dir(&require_str(args, "out")?, &[&dir, &model])?;
             paths.insert("dir".into(), dir);
             paths.insert("model".into(), model);
@@ -1491,15 +1682,7 @@ impl Server {
                 ],
             )?;
             let mut paths = std::collections::BTreeMap::new();
-            for key in [
-                "reference",
-                "capture",
-                "model",
-                "cache",
-                "library",
-                "reference_source",
-                "capture_source",
-            ] {
+            for key in ["reference", "capture", "reference_source", "capture_source"] {
                 if let Some(p) = arg_str(args, key)? {
                     let path = self.resolve(key, &p)?;
                     if path.is_dir() {
@@ -1508,6 +1691,17 @@ impl Server {
                         return Err(CliError::io("question input unavailable"));
                     }
                     paths.insert(key, path);
+                }
+            }
+            let same_content = arg_str(args, "question")?.as_deref() == Some("same-content");
+            let operator = self.operator_model(args, same_content)?;
+            for (key, value) in [
+                ("model", &operator.model),
+                ("cache", &operator.cache),
+                ("library", &operator.library),
+            ] {
+                if let Some(p) = value {
+                    paths.insert(key, p.clone());
                 }
             }
             let reference = paths
@@ -1753,11 +1947,23 @@ impl Server {
                 keys.push("top");
             }
             reject_unknown(args, &keys)?;
+            // Model, cache and runtime come from operator configuration; a request may only
+            // name a registry contract id or restate a configured location, never a path.
+            let operator = self.operator_model(args, true)?;
             let mut paths = std::collections::BTreeMap::new();
-            for key in ["model", "library"]
-                .into_iter()
-                .chain(extra.iter().copied())
-            {
+            for (key, value) in [
+                ("model", &operator.model),
+                ("library", &operator.library),
+                ("cache", &operator.cache),
+            ] {
+                paths.insert(
+                    key.to_owned(),
+                    value.clone().ok_or_else(|| {
+                        CliError::usage(format!("{key} is not configured by the operator"))
+                    })?,
+                );
+            }
+            for key in extra.iter().copied() {
                 let path = self.resolve(key, &require_str(args, key)?)?;
                 if path.is_dir() {
                     self.input_tree(&path)?;
@@ -1766,14 +1972,6 @@ impl Server {
                 }
                 paths.insert(key.to_owned(), path);
             }
-            let cache = self.resolve("cache", &require_str(args, "cache")?)?;
-            if !cache.is_dir() {
-                return Err(CliError::io(
-                    "MCP embedding cache must already exist; downloads are explicit CLI-only",
-                ));
-            }
-            self.input_tree(&cache)?;
-            paths.insert("cache".into(), cache);
             let out = self.checked_out_dir(
                 &require_str(args, "out")?,
                 &paths.values().map(PathBuf::as_path).collect::<Vec<_>>(),
@@ -2300,7 +2498,10 @@ impl Server {
             }
         };
         let mut result = result;
-        if result.structured["schema"] != "saccade-result.v2" {
+        if saccade_core::report_links::original_schema(
+            result.structured["schema"].as_str().unwrap_or_default(),
+        ) != "saccade-result.v2"
+        {
             let mut value = crate::local_cmd::base_result(&operation);
             if let Some(out) = args.get("out").and_then(Value::as_str) {
                 let out = self.resolve("out", out)?;
@@ -2472,6 +2673,13 @@ fn tool_schemas() -> Value {
             .and_then(|a| a.iter().find(|t| t["operation"] == name))
         {
             let mut schema = old["inputSchema"].clone();
+            if operation == "ablate" {
+                schema["properties"]["base_repeats"] =
+                    json!({"type":"array","minItems":1,"maxItems":128,"items":{"type":"string"}});
+                schema["properties"]["arm_repeats"] = json!({"type":"array","minItems":1,"maxItems":128,"items":{"type":"object","additionalProperties":false,"required":["label","repeats"],"properties":{"label":{"type":"string"},"repeats":{"type":"array","minItems":1,"maxItems":128,"items":{"type":"string"}}}}});
+                schema["required"] = json!(["out_dir"]);
+                schema["anyOf"] = json!([{"required":["base_dir","arm_dirs"]},{"required":["base_repeats","arm_repeats"]}]);
+            }
             if let Some(props) = schema["properties"].as_object_mut() {
                 props.insert(
                     "operation".into(),
@@ -2537,6 +2745,16 @@ fn tool_schemas() -> Value {
     measures.extend(crate::wave9_mcp::schemas());
     // wave10
     measures.extend(crate::wave10_mcp::schemas());
+    // wave11
+    measures.extend(crate::wave11_mcp::schemas());
+    for measure in &mut measures {
+        if let Some(props) = measure["properties"].as_object_mut() {
+            props.insert(
+                "source_refs".into(),
+                json!({"type":"array","maxItems":128,"items":{"type":"string"}}),
+            );
+        }
+    }
     // wave8
     measures.push(crate::media_cmd::mcp_schema());
     let common = json!({"artifact":{"oneOf":[{"type":"string"},{"type":"object","properties":{"path":{"type":"string"},"sha256":{"type":"string","pattern":"^sha256:[0-9a-f]{64}$"}},"required":["path","sha256"],"additionalProperties":false}]},"out":{"type":"string"},"entry":{"type":"string"},"include_images":{"type":"boolean","default":false},"expected_case_id":{"type":"string","pattern":"^sha256:[0-9a-f]{64}$"}});
@@ -2554,7 +2772,7 @@ fn tool_schemas() -> Value {
             let mut fields=vec!["operation"];fields.extend(required);
             json!({"type":"object","properties":properties,"required":fields,"additionalProperties":false})
         }).collect::<Vec<_>>();
-        json!({"name":name,"description":description,"inputSchema":{"type":"object","oneOf":variants},"outputSchema":{"type":"object","properties":{"schema":{"const":"saccade-result.v2"}},"required":["schema"]},"annotations":{"destructiveHint":false,"openWorldHint":false}})
+        json!({"name":name,"description":description,"inputSchema":{"type":"object","oneOf":variants},"outputSchema":{"type":"object","properties":{"schema":{"const":saccade_core::report_links::linked_schema("saccade-result.v2")}},"required":["schema"]},"annotations":{"destructiveHint":false,"openWorldHint":false}})
     };
     #[allow(unused_mut)]
     let mut schemas = json!([
@@ -2611,7 +2829,7 @@ fn tool_schemas() -> Value {
         if let Some(variants) = inspect["inputSchema"]["oneOf"].as_array_mut() {
             variants.push(crate::wave7_mcp::inspect_schema());
         }
-        inspect["outputSchema"] = json!({"type":"object","properties":{"schema":{"enum":["saccade-result.v2","saccade-model-status.v1"]}},"required":["schema"]});
+        inspect["outputSchema"] = json!({"type":"object","properties":{"schema":{"enum":[saccade_core::report_links::linked_schema("saccade-result.v2"),saccade_core::report_links::linked_schema("saccade-model-status.v1")]}},"required":["schema"]});
     }
     schemas
 }

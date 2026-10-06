@@ -82,6 +82,13 @@ pub struct Onset {
 #[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 #[serde(deny_unknown_fields)]
 pub struct Document {
+    /// Content-addressed report identity, absent on historical records.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub report_id: Option<String>,
+    /// External capture URI/key backlinks.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub source_refs: Vec<String>,
+
     /// Always `saccade-onset.v1`.
     pub schema: String,
     /// Always `onset`.

@@ -163,7 +163,9 @@ impl UserConfig {
         }
         if self.pacing.iter().any(|(key, p)| {
             key.is_empty()
-                || key.split('/').count() > 2
+                || key
+                    .split_once('/')
+                    .is_some_and(|(_, model)| model.is_empty())
                 || p.requests_per_minute == 0
                 || p.concurrency == 0
         }) {
@@ -172,7 +174,8 @@ impl UserConfig {
             );
         }
         if self.pricing.iter().any(|(key, p)| {
-            key.split('/').count() != 2
+            key.split_once('/')
+                .is_none_or(|(provider, model)| provider.is_empty() || model.is_empty())
                 || !p.input_per_million_usd.is_finite()
                 || p.input_per_million_usd < 0.0
                 || !p.output_per_million_usd.is_finite()
@@ -249,9 +252,10 @@ impl UserConfig {
         keys: &Keys,
     ) -> Result<(String, String, Secret), String> {
         if model.is_empty()
-            || !model
-                .bytes()
-                .all(|b| b.is_ascii_alphanumeric() || b"-_.:".contains(&b))
+            || !model.bytes().all(|b| {
+                b.is_ascii_alphanumeric()
+                    || (b"-_.:".contains(&b) || (provider != "gemini" && b == b'/'))
+            })
         {
             return Err("invalid provider model ID".into());
         }
@@ -260,6 +264,11 @@ impl UserConfig {
                 "https://api.typesafe.ai/v1/systemone".into(),
                 "Authorization".into(),
                 keys.load("jev.env", "JEV_API_KEY")?,
+            )),
+            "openrouter" => Ok((
+                "https://openrouter.ai/api/v1/chat/completions".into(),
+                "Authorization".into(),
+                keys.openrouter()?,
             )),
             "gemini" => Ok((
                 format!(
@@ -383,16 +392,6 @@ pub trait Http {
         timeout: Duration,
     ) -> Result<HttpReply, String>;
 }
-fn retry_after(value: &str) -> Option<u64> {
-    value.trim().parse().ok().or_else(|| {
-        httpdate::parse_http_date(value).ok().map(|at| {
-            at.duration_since(std::time::SystemTime::now())
-                .map_or(0, |d| {
-                    d.as_secs().saturating_add(u64::from(d.subsec_nanos() > 0))
-                })
-        })
-    })
-}
 /// Parse usage independently from answer text. Missing rates/cost stay unknown.
 pub fn usage(body: &[u8]) -> Option<Usage> {
     let value: Value = serde_json::from_slice(body).ok()?;
@@ -415,35 +414,8 @@ impl Http for Network {
         payload: &[u8],
         timeout: Duration,
     ) -> Result<HttpReply, String> {
-        let agent: ureq::Agent = ureq::Agent::config_builder()
-            .timeout_global(Some(timeout))
-            .max_redirects(0)
-            .http_status_as_error(false)
-            .build()
-            .into();
-        let mut response = agent
-            .post(url)
-            .header("Content-Type", "application/json")
-            .header(header.0, header.1)
-            .send(payload)
-            .map_err(|_| "transport unavailable or timed out".to_owned())?;
-        let status = response.status().as_u16();
-        let retry_after_secs = response
-            .headers()
-            .get("retry-after")
-            .and_then(|v| v.to_str().ok())
-            .and_then(retry_after);
-        let body = response
-            .body_mut()
-            .with_config()
-            .limit(256 * 1024)
-            .read_to_vec()
-            .map_err(|_| "provider response unavailable or too large".to_owned())?;
-        Ok(HttpReply {
-            status,
-            retry_after_secs,
-            body,
-        })
+        let _ = (url, header, payload, timeout);
+        Err("live provider dispatch disabled: verified billing ceiling unavailable".into())
     }
 }
 /// Authorized transport shared by canonical adapters and historical backends.
@@ -484,7 +456,7 @@ fn failure(class: RetryClass, message: &str, wait: Option<u64>) -> ProviderFailu
 pub const ERROR_BODY_LIMIT: usize = 4096;
 /// A failed dispatch with its HTTP status and bounded provider error body.
 /// The body is untrusted diagnostic data for private storage, never logged.
-#[derive(Debug, Clone)]
+#[derive(Clone)]
 pub struct Rejection {
     /// Classified failure, as returned by [`Transport::once`].
     pub failure: ProviderFailure,
@@ -492,9 +464,11 @@ pub struct Rejection {
     pub status: Option<u16>,
     /// First [`ERROR_BODY_LIMIT`] bytes of the provider error body.
     pub body: Vec<u8>,
+    /// Reservation, independent of printable diagnostics.
+    pub reservation: Option<String>,
 }
 /// One failed attempt observed by [`Transport::execute_observed`].
-#[derive(Debug, Clone)]
+#[derive(Clone)]
 pub struct FailedAttempt {
     /// Requested model of this attempt.
     pub model: String,
@@ -570,6 +544,7 @@ impl Transport<'_> {
             failure,
             status: None,
             body: Vec::new(),
+            reservation: None,
         };
         let config =
             |m: String| plain(failure(RetryClass::AuthenticationOrConfiguration, &m, None));
@@ -643,7 +618,16 @@ impl Transport<'_> {
         } else {
             secret.expose().into()
         };
-        let reply = self.http.post(&url, (&header, &auth), payload, timeout);
+        let reply = self
+            .http
+            .post(&url, (&header, &auth), payload, timeout)
+            .and_then(|r| {
+                if secret.reflected(&r.body) {
+                    Err("credential material in provider envelope".into())
+                } else {
+                    Ok(r)
+                }
+            });
         match reply {
             Ok(r) if (200..300).contains(&r.status) => Ok((r.body, id)),
             Ok(r) => {
@@ -665,13 +649,19 @@ impl Transport<'_> {
                     },
                     status: Some(r.status),
                     body,
+                    reservation: Some(id.clone()),
                 })
             }
-            Err(_) => Err(plain(failure(
-                RetryClass::Transient,
-                &format!("transport unavailable reservation={id}"),
-                None,
-            ))),
+            Err(_) => Err(Rejection {
+                failure: failure(
+                    RetryClass::Transient,
+                    &format!("transport unavailable reservation={id}"),
+                    None,
+                ),
+                status: None,
+                body: Vec::new(),
+                reservation: Some(id),
+            }),
         }
     }
     /// Production uses at most two retries, jittered backoff and a finite deadline.
@@ -939,4 +929,21 @@ pub fn vision(
     }
     std::fs::write(response_file, &exchange.body).map_err(|_| "cannot persist vision response")?;
     Ok(completed)
+}
+
+impl std::fmt::Debug for Rejection {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("Rejection")
+            .field("failure", &self.failure)
+            .field("status", &self.status)
+            .finish_non_exhaustive()
+    }
+}
+impl std::fmt::Debug for FailedAttempt {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("FailedAttempt")
+            .field("model", &self.model)
+            .field("status", &self.status)
+            .finish_non_exhaustive()
+    }
 }

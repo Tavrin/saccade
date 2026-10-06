@@ -864,13 +864,24 @@ fn enforce_strict(record: Record, strict: bool) -> Result<Record> {
         Ok(record)
     }
 }
-/// Portable consumer cache default. Lane gates always pass the prescribed cache explicitly.
+/// The operator's model cache, resolved by [`crate::model_config::ModelConfig`]
+/// (environment, then the `[models]` config table, then the portable default).
+/// An unreadable config file is reported on stderr and the built-in default is used;
+/// the CLI resolves the same configuration strictly and fails instead.
 pub fn default_model_dir() -> PathBuf {
-    std::env::var_os("XDG_CACHE_HOME")
-        .map(PathBuf::from)
-        .or_else(|| std::env::var_os("HOME").map(|h| PathBuf::from(h).join(".cache")))
-        .unwrap_or_else(|| PathBuf::from(".cache"))
-        .join("saccade/models")
+    crate::model_config::ModelConfig::resolve()
+        .map(|c| c.dir)
+        .unwrap_or_else(|e| {
+            eprintln!("saccade: ignoring model configuration: {e}");
+            crate::model_config::ModelConfig::resolve_with(&|k| {
+                if k == crate::model_config::ENV_CONFIG {
+                    None
+                } else {
+                    std::env::var_os(k)
+                }
+            })
+            .map_or_else(|_| PathBuf::from(".cache/saccade/models"), |c| c.dir)
+        })
 }
 /// Convenience single-call library entry point using a CPU-lite analyzer and no downloads.
 pub fn analyze_media(source: &str, options: &Options) -> Result<Record> {

@@ -133,6 +133,8 @@ pub struct Prepared {
     pub payload: Vec<u8>,
     /// Revision-separated cache key.
     pub key: CacheKey,
+    /// Locally bound condition; incidental observations cannot establish it.
+    pub condition: Option<Condition>,
     roles: Vec<Role>,
     references: Vec<(String, String, Role, [u32; 4])>,
 }
@@ -280,6 +282,7 @@ pub fn prepare(
         identity,
         payload,
         key,
+        condition: condition.cloned(),
         roles,
         references,
     })
@@ -436,6 +439,17 @@ pub fn decode_answer(
         });
     }
     observations.sort_by(|a, b| a.observation_id.cmp(&b.observation_id));
+    require(
+        answer.outcome == Outcome::Unverifiable
+            || relevant(
+                catalog,
+                prepared.identity.task,
+                prepared.condition.as_ref(),
+                answer.outcome,
+                &observations,
+            ),
+        "observations do not establish requested task",
+    )?;
     Ok((answer.outcome, observations))
 }
 /// Conservative two-order reconciliation; IDs and uncertainty cannot inflate agreement.
@@ -505,10 +519,11 @@ pub fn support_payload(
 pub fn support_answer(body: &[u8], revision: &str) -> Result<Support> {
     let value: Value = decode(body)?;
     require(
-        value["model"] == JEV && value["modelVersion"].as_str().unwrap_or(JEV) == revision,
+        value["model"] == JEV && value["modelVersion"].as_str() == Some(revision),
         "Jev identity drift",
     )?;
-    match value["answers"]["q"]["choice"].as_str() {
+    let choice = closed_choice(&value, &["supported", "unsupported", "insufficient"])?;
+    match Some(choice) {
         Some("supported") => Ok(Support::Supported),
         Some("unsupported") => Ok(Support::Unsupported),
         Some("insufficient") => Ok(Support::Insufficient),
@@ -537,4 +552,144 @@ pub fn html(envelope: &Envelope) -> Result<String> {
         ),
         escape(&data)
     ))
+}
+
+/// Validate a fixed choice and every supplied probability without accepting authority fields.
+pub(crate) fn closed_choice<'a>(value: &'a Value, choices: &[&str]) -> Result<&'a str> {
+    require(
+        value.as_object().is_some_and(|o| {
+            o.keys().all(|k| {
+                [
+                    "model",
+                    "modelVersion",
+                    "answers",
+                    "usage",
+                    "usageMetadata",
+                    "id",
+                ]
+                .contains(&k.as_str())
+            })
+        }) && value["answers"]
+            .as_object()
+            .is_some_and(|o| o.len() == 1 && o.contains_key("q")),
+        "unknown Jev envelope fields",
+    )?;
+    let answer = &value["answers"]["q"];
+    require(
+        answer.as_object().is_some_and(|o| {
+            o.keys()
+                .all(|k| ["choice", "probabilities"].contains(&k.as_str()))
+        }),
+        "unknown Jev answer fields",
+    )?;
+    let choice = answer["choice"]
+        .as_str()
+        .ok_or(Error::Invalid("missing Jev choice"))?;
+    require(choices.contains(&choice), "invalid Jev choice")?;
+    if let Some(probabilities) = answer.get("probabilities") {
+        let p = probabilities
+            .as_object()
+            .ok_or(Error::Invalid("Jev probabilities object"))?;
+        require(
+            p.len() == choices.len() && choices.iter().all(|k| p.contains_key(*k)),
+            "Jev probability keys",
+        )?;
+        let mut sum = 0.;
+        let mut selected = 0.;
+        for (key, value) in p {
+            let n = value
+                .as_f64()
+                .ok_or(Error::Invalid("Jev probability number"))?;
+            require(
+                n.is_finite() && (0.0..=1.0).contains(&n),
+                "Jev probability range",
+            )?;
+            sum += n;
+            if key == choice {
+                selected = n;
+            }
+        }
+        require(
+            (sum - 1.).abs() <= 1e-6
+                && p.values()
+                    .all(|v| v.as_f64().is_some_and(|n| n <= selected)),
+            "Jev probability distribution conflicts with choice",
+        )?;
+    }
+    Ok(choice)
+}
+
+/// Require task-specific evidence; this is structural support, never independent visual truth.
+pub fn relevant(
+    catalog: &Catalog,
+    task: Task,
+    condition: Option<&Condition>,
+    outcome: Outcome,
+    observations: &[Observation],
+) -> bool {
+    let cited = |o: &Observation, a: &str, b: &str| {
+        o.evidence_refs.iter().any(|s| s == a) && o.evidence_refs.iter().any(|s| s == b)
+    };
+    match task {
+        Task::Explain => observations.iter().any(|o| {
+            o.kind == Kind::Appearance
+                && ["appearance:changed", "appearance:unchanged"].contains(&o.statement.as_str())
+        }),
+        Task::CheckUi => match condition {
+            Some(Condition::LabelVisible { label }) => observations.iter().any(|o| {
+                o.image_role != Role::Before
+                    && if outcome == Outcome::Observed {
+                        o.kind == Kind::Text && o.statement == format!("text:{label}")
+                    } else {
+                        ["presence:absent", "clipping:clipped"].contains(&o.statement.as_str())
+                    }
+            }),
+            Some(Condition::BannerAbsent { label }) => observations.iter().any(|o| {
+                o.image_role != Role::Before
+                    && if outcome == Outcome::Observed {
+                        o.statement == "presence:absent"
+                    } else {
+                        o.kind == Kind::Text && o.statement == format!("text:{label}")
+                    }
+            }),
+            Some(Condition::NotClipped { target, panel }) => observations
+                .iter()
+                .any(|o| o.kind == Kind::Clipping && cited(o, target, panel)),
+            Some(Condition::NonOverlap { first, second }) => observations
+                .iter()
+                .any(|o| o.kind == Kind::Overlap && cited(o, first, second)),
+            None => false,
+        },
+        Task::AuditMask => {
+            !catalog.exclusions.is_empty()
+                && catalog.exclusions.iter().all(|m| {
+                    m.original_pixels
+                        && observations.iter().any(|o| {
+                            matches!(o.kind, Kind::Appearance | Kind::Clipping | Kind::Text)
+                                && m.runs.iter().any(|[start, length]| {
+                                    let width = u64::from(m.dimensions[0]);
+                                    // Membership runs can cross rows; inspect each bounded row segment.
+                                    let mut cursor = *start;
+                                    while cursor < start + length {
+                                        let count =
+                                            (width - cursor % width).min(start + length - cursor);
+                                        if intersects(
+                                            &o.geometry,
+                                            [
+                                                (cursor % width) as u32,
+                                                (cursor / width) as u32,
+                                                count as u32,
+                                                1,
+                                            ],
+                                        ) {
+                                            return true;
+                                        }
+                                        cursor += count;
+                                    }
+                                    false
+                                })
+                        })
+                })
+        }
+    }
 }

@@ -14,6 +14,7 @@ other-spellings column lists names that run the same code or enforce it, and kee
 | Did screenshots or renders change? | `saccade compare BASE CAPTURE --out DIR` | `watch` (deprecated, prints the replacement) | [visual CI](guides/visual-ci.md) |
 | Is a refactor pixel-identical? | `saccade prove identity PARENT CANDIDATE` | `saccade identity PARENT CANDIDATE` | [visual CI](guides/visual-ci.md) |
 | Did it get faster, accounting for noise? | `saccade prove performance --base ... --arm ...` | `saccade experiment ablate` | [controlled rendering](guides/controlled-rendering.md) |
+| Is a timing measured by another tool a real change? | `saccade timing ab SESSION.json --out DIR` | `saccade experiment settle` for event-relative settling | [paired performance](paired-performance.md) |
 | Are two capture setups comparable? | `saccade arms check A B` | standalone check; `compare --require-valid-arms` enforces it | [controlled rendering](guides/controlled-rendering.md) |
 | Did a document or page export change? | `saccade compare BEFORE AFTER` (PNG pages, or SVG/PDF with `documents`) | | [document export](guides/document-export.md) |
 | Which images are near-duplicates, which are unreadable? | `saccade dedupe DIR`, `saccade hash DIR` | | [media intake](guides/media-intake.md) |

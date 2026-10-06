@@ -1,0 +1,227 @@
+{
+  "$id": "https://github.com/Tavrin/saccade/crates/saccade-core/schemas/saccade-safety.v2.schema.json",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "properties": {
+    "area_threshold_percent": {
+      "maximum": 100,
+      "minimum": 0,
+      "type": "number"
+    },
+    "disclaimer": {
+      "type": "string"
+    },
+    "display": {
+      "additionalProperties": false,
+      "properties": {
+        "diagonal_inches": {
+          "exclusiveMinimum": 0,
+          "type": "number"
+        },
+        "distance_m": {
+          "exclusiveMinimum": 0,
+          "type": "number"
+        },
+        "height": {
+          "minimum": 1,
+          "type": "integer"
+        },
+        "width": {
+          "minimum": 1,
+          "type": "integer"
+        }
+      },
+      "required": [
+        "width",
+        "height",
+        "diagonal_inches",
+        "distance_m"
+      ],
+      "type": "object"
+    },
+    "fps": {
+      "exclusiveMinimum": 0,
+      "type": "number"
+    },
+    "frames": {
+      "items": {
+        "additionalProperties": false,
+        "properties": {
+          "image": {
+            "type": "string"
+          },
+          "index": {
+            "minimum": 0,
+            "type": "integer"
+          },
+          "name": {
+            "type": "string"
+          },
+          "number": {
+            "minimum": 0,
+            "type": "integer"
+          },
+          "timestamp": {
+            "minimum": 0,
+            "type": "number"
+          }
+        },
+        "required": [
+          "index",
+          "number",
+          "name",
+          "timestamp",
+          "image"
+        ],
+        "type": "object"
+      },
+      "type": "array"
+    },
+    "report_id": {
+      "pattern": "^sha256:[0-9a-f]{64}$",
+      "type": "string"
+    },
+    "schema": {
+      "const": "saccade-safety.v2"
+    },
+    "segments": {
+      "items": {
+        "additionalProperties": false,
+        "properties": {
+          "area_sr": {
+            "minimum": 0,
+            "type": "number"
+          },
+          "end_frame": {
+            "minimum": 0,
+            "type": "integer"
+          },
+          "end_seconds": {
+            "minimum": 0,
+            "type": "number"
+          },
+          "flashing_area_percent": {
+            "maximum": 100,
+            "minimum": 0,
+            "type": "number"
+          },
+          "heatmap": {
+            "type": "string"
+          },
+          "kind": {
+            "enum": [
+              "general_flash",
+              "red_flash",
+              "pattern"
+            ]
+          },
+          "peak_flash_rate": {
+            "minimum": 0,
+            "type": "number"
+          },
+          "start_frame": {
+            "minimum": 0,
+            "type": "integer"
+          },
+          "start_seconds": {
+            "minimum": 0,
+            "type": "number"
+          },
+          "verdict": {
+            "enum": [
+              "WARN",
+              "FAIL"
+            ]
+          }
+        },
+        "required": [
+          "kind",
+          "verdict",
+          "start_frame",
+          "end_frame",
+          "start_seconds",
+          "end_seconds",
+          "peak_flash_rate",
+          "flashing_area_percent",
+          "area_sr",
+          "heatmap"
+        ],
+        "type": "object"
+      },
+      "type": "array"
+    },
+    "source_refs": {
+      "items": {
+        "maxLength": 2048,
+        "minLength": 1,
+        "type": "string"
+      },
+      "maxItems": 128,
+      "type": "array"
+    },
+    "standard": {
+      "enum": [
+        "itu-bt1702",
+        "wcag"
+      ]
+    },
+    "thresholds": {
+      "items": {
+        "additionalProperties": false,
+        "properties": {
+          "citation": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "value": {
+            "minimum": 0,
+            "type": "number"
+          },
+          "verify": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "name",
+          "value",
+          "citation",
+          "verify"
+        ],
+        "type": "object"
+      },
+      "type": "array"
+    },
+    "verdict": {
+      "enum": [
+        "PASS",
+        "WARN",
+        "FAIL"
+      ]
+    },
+    "warnings": {
+      "items": {
+        "type": "string"
+      },
+      "type": "array"
+    }
+  },
+  "required": [
+    "schema",
+    "verdict",
+    "disclaimer",
+    "thresholds",
+    "warnings",
+    "standard",
+    "fps",
+    "display",
+    "area_threshold_percent",
+    "frames",
+    "segments",
+    "report_id",
+    "source_refs"
+  ],
+  "title": "safety PRE-CHECK only; not certification or formal compliance",
+  "type": "object"
+}

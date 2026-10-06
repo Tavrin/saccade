@@ -46,6 +46,13 @@ fn manifest(c: &Contract) -> semantic::ModelManifest {
         ],
     }
 }
+/// Download and verify every pinned OCR artifact of `c` into `cache`.
+/// This is the explicit provisioning step behind `saccade models pull ocr`.
+#[cfg(feature = "ocr")]
+pub fn provision(c: &Contract, cache: &Path) -> Result<Vec<std::path::PathBuf>> {
+    validate(c)?;
+    semantic::cache_models(&manifest(c), cache)
+}
 /// Validate roles, formats, immutable revisions and licences without IO.
 pub fn validate(c: &Contract) -> Result<()> {
     if c.schema != SCHEMA

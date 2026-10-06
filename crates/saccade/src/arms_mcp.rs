@@ -11,6 +11,7 @@ struct Args {
     a: PathBuf,
     b: PathBuf,
     fingerprint_map: Option<PathBuf>,
+    max_record_bytes: Option<u64>,
     compare: Option<saccade_core::arms::CompareMode>,
     #[serde(default)]
     vary: Vec<String>,
@@ -61,6 +62,7 @@ pub(crate) fn call(policy: &RootPolicy, value: Value) -> Result<Value, CliError>
     let a = policy.read(&args.a)?;
     let b = policy.read(&args.b)?;
     let opts = saccade_core::meta::MetaOptions {
+        max_record_bytes: args.max_record_bytes,
         compare: args.compare,
         intended: args.vary,
         allow_unreached: args.allow_unreached,
@@ -83,5 +85,5 @@ pub(crate) fn call(policy: &RootPolicy, value: Value) -> Result<Value, CliError>
     )?)?)
 }
 pub(crate) fn schema() -> Value {
-    json!({"type":"object","additionalProperties":false,"required":["operation","a","b"],"properties":{"operation":{"const":"arms_check"},"a":{"type":"string"},"b":{"type":"string"},"vary":{"type":"array","items":{"type":"string"}},"ignore":{"type":"array","items":{"type":"string"}},"compare":{"enum":["mapped_only","all"]},"fingerprint_map":{"type":"string"},"meta_name":{"type":"string"},"allow_unreached":{"type":"array","items":{"type":"string"}}}})
+    json!({"type":"object","additionalProperties":false,"required":["operation","a","b"],"properties":{"operation":{"const":"arms_check"},"a":{"type":"string"},"b":{"type":"string"},"vary":{"type":"array","items":{"type":"string"}},"ignore":{"type":"array","items":{"type":"string"}},"compare":{"enum":["mapped_only","all"]},"fingerprint_map":{"type":"string"},"max_record_bytes":{"type":"integer","minimum":1,"maximum":saccade_core::arms::HARD_MAX_RECORD_BYTES},"meta_name":{"type":"string"},"allow_unreached":{"type":"array","items":{"type":"string"}}}})
 }

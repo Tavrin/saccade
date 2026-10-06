@@ -7,8 +7,10 @@ pub(crate) struct AnalyzeArgs {
     source: String,
     #[arg(long,default_value="cpu-lite",value_parser=["cpu-lite","cpu-full","gpu"])]
     profile: String,
+    /// Deprecated: set SACCADE_MODELS_DIR or [models].dir (see `saccade models config`).
     #[arg(long)]
     model_dir: Option<PathBuf>,
+    /// Deprecated: set SACCADE_MODELS_REGISTRY or [models].registry.
     #[arg(long)]
     registry: Option<PathBuf>,
     /// Per-section options JSON file.
@@ -67,14 +69,10 @@ pub(crate) fn analyze(a: AnalyzeArgs) -> Result<u8, CliError> {
         "gpu" => Profile::Gpu,
         _ => Profile::CpuLite,
     };
-    let model_dir = a.model_dir.unwrap_or_else(media::default_model_dir);
-    let analyzer = if let Some(p) = a.registry {
-        Analyzer::with_registry(
-            profile,
-            model_dir,
-            false,
-            saccade_core::wave7::models::Registry::load(&p).map_err(crate::wave7_cmd::error)?,
-        )
+    let (model_dir, registry) =
+        crate::wave7_cmd::analyzer_inputs(a.model_dir.as_deref(), a.registry.as_deref())?;
+    let analyzer = if let Some(registry) = registry {
+        Analyzer::with_registry(profile, model_dir, false, registry)
     } else {
         Analyzer::new(profile, model_dir, false)
     }
@@ -135,8 +133,14 @@ pub(crate) fn mcp(
     let bytes =
         saccade_core::wave7::models::read_bounded(&path, saccade_core::general::input::MAX_BYTES)
             .map_err(crate::wave7_cmd::error)?;
-    let analyzer =
-        Analyzer::new(Profile::CpuLite, media::default_model_dir(), false).map_err(error)?;
+    // Operator configuration only: a request never selects a location or a download.
+    let (model_dir, registry) = crate::wave7_cmd::analyzer_inputs(None, None)?;
+    let analyzer = if let Some(registry) = registry {
+        Analyzer::with_registry(Profile::CpuLite, model_dir, false, registry)
+    } else {
+        Analyzer::new(Profile::CpuLite, model_dir, false)
+    }
+    .map_err(error)?;
     Ok(serde_json::to_value(
         analyzer.analyze_bytes(&bytes, &a.options).map_err(error)?,
     )?)
@@ -211,7 +215,7 @@ pub(crate) fn serve_api(
     max: usize,
     bind: std::net::IpAddr,
     token_file: Option<PathBuf>,
-    model_dir: PathBuf,
+    model_dir: Option<PathBuf>,
     registry: Option<PathBuf>,
 ) -> Result<u8, CliError> {
     if roots.is_empty() {
@@ -271,13 +275,10 @@ pub(crate) fn serve_api(
     } else {
         None
     };
-    let a = if let Some(path) = registry {
-        Analyzer::with_registry(
-            Profile::CpuLite,
-            model_dir,
-            false,
-            saccade_core::wave7::models::Registry::load(&path).map_err(crate::wave7_cmd::error)?,
-        )
+    let (model_dir, registry) =
+        crate::wave7_cmd::analyzer_inputs(model_dir.as_deref(), registry.as_deref())?;
+    let a = if let Some(registry) = registry {
+        Analyzer::with_registry(Profile::CpuLite, model_dir, false, registry)
     } else {
         Analyzer::new(Profile::CpuLite, model_dir, false)
     }

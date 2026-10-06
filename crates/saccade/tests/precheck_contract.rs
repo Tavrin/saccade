@@ -12,9 +12,16 @@ fn cli(args: &[&str]) -> std::process::Output {
         .unwrap()
 }
 fn schema(value: &Value, file: &str) {
+    let expected = file.trim_end_matches(".schema.json");
+    let successor = saccade_core::report_links::linked_schema(expected);
+    let file = if value["schema"] == successor {
+        format!("{successor}.schema.json")
+    } else {
+        file.into()
+    };
     let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
         .join("../saccade-core/schemas")
-        .join(file);
+        .join(&file);
     let doc: Value = serde_json::from_str(&std::fs::read_to_string(path).unwrap()).unwrap();
     jsonschema::validator_for(&doc)
         .unwrap()
@@ -93,7 +100,7 @@ fn cli_artifacts_schemas_junit_and_root_confined_mcp() {
     assert_eq!(bad.status.code(), Some(2));
     assert_eq!(
         serde_json::from_slice::<Value>(&bad.stdout).unwrap()["schema"],
-        "saccade-result.v2"
+        saccade_core::report_links::linked_schema("saccade-result.v2")
     );
     let outputs = tempfile::tempdir().unwrap();
     let mut child = Command::new(env!("CARGO_BIN_EXE_saccade"))

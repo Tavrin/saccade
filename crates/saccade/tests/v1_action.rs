@@ -366,6 +366,36 @@ chmod +x "$2/bin/saccade""#,
                 .contains("exit-code=1\nverdict=fail\nreport-written=true")
         );
         assert!(f.root.join("report/.saccade-run").exists());
+        // Both documented contracts work, and an unknown successor still fails.
+        let path = f.root.join("report/saccade-report.v1.json");
+        let mut report: serde_json::Value =
+            serde_json::from_slice(&std::fs::read(&path).unwrap()).unwrap();
+        for (schema, expected) in [
+            ("saccade-report.v1", "exit-code=1\nverdict=fail"),
+            ("saccade-report.v2", "exit-code=1\nverdict=fail"),
+            ("saccade-report.v99", "exit-code=2\nverdict=command-error"),
+        ] {
+            report["schema"] = serde_json::json!(schema);
+            std::fs::write(&path, serde_json::to_vec(&report).unwrap()).unwrap();
+            std::fs::write(f.temp.path().join("output"), "").unwrap();
+            code(
+                &f.run(
+                    "Compare images",
+                    &[
+                        ("UPDATE_BASELINES", "true"),
+                        ("EVENT_NAME", "workflow_dispatch"),
+                    ],
+                ),
+                0,
+            );
+            assert!(
+                std::fs::read_to_string(f.temp.path().join("output"))
+                    .unwrap()
+                    .contains(expected)
+            );
+        }
+        report["schema"] = serde_json::json!("saccade-report.v2");
+        std::fs::write(&path, serde_json::to_vec(&report).unwrap()).unwrap();
         let upload = step("Upload report");
         assert!(upload.contains("always() && steps.compare.outputs.report-written == 'true'"));
         assert!(

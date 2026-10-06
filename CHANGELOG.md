@@ -21,6 +21,59 @@
 - Correct stale documentation: LPIPS, DISTS and MUSIQ run through `quality-score`
   on an operator-supplied reviewed export (none ships), and SVG/PDF comparison
   needs the `documents` feature rather than being deferred.
+- Harden experimental assist pre-spend accounting: shared campaign reservations,
+  charged and quarantined usage overruns, request-bound recorded execution receipts,
+  nonvacuous qualification, independent control and glyph-localization checks, and
+  dispatch-key reflection suppression. Live provider dispatch is disabled until
+  verified billing ceilings are available. Add an OpenRouter chat-completions
+  adapter and a fixture-only `qualify-wave4.sh --dry-run` with frozen expected output.
+
+## 0.2.6 (2026-10-06)
+
+- The shared report index is written beside each report inside --out; commands no longer create reports/index.jsonl in the working directory.
+
+- Refresh command/schema references and agent packs; allow documentation generation
+  without the AVIF codec when dav1d is unavailable, recording the compiled features.
+
+- Fingerprint records accept 16 MiB by default, with map/CLI byte limits, a 64 MiB hard ceiling and file-specific oversize diagnostics.
+
+- Analyze external paired timings with same-session A/A controls, block-bootstrap HL
+  verdicts and declared sequential looks; add event-relative tile settling trajectories.
+- Show per-arm repeat timing distributions and ranked ablation tables; add native mask
+  shortcuts and automatic fingerprint subtree mappings with exclusions.
+- Link measurement reports to external capture indexes using the existing semantic
+  measurement identity, source refs and JSON/JSONL export. Strict linked reports use
+  versioned successor schemas; legacy schemas and authority bindings stay readable.
+- Expose stable public mask-spec parsers in `saccade-core`; document block-bootstrap
+  validity and declared sequential stopping with a repeated-peeking null acceptance gate.
+
+### Model configuration and distribution
+
+- One model and runtime configuration for the CLI, MCP server, Python and Rust library:
+  `SACCADE_MODELS_DIR`, `SACCADE_MODELS_REGISTRY`, `SACCADE_MODELS_RUNTIME_LIBRARY`,
+  `SACCADE_MODELS_EMBEDDING_CONTRACT`, or the `[models]` table of
+  `~/.config/saccade/config.toml`. `saccade models config --json` and Python
+  `saccade.model_config()` show each resolved value and its source
+  (`saccade-model-config.v1`). `SACCADE_MODEL_CACHE` is still read. See `docs/models.md`.
+- `saccade models pull` is the one provisioning verb: it also pulls `ocr` and
+  `embedding` contracts. MCP requests can no longer choose a cache, registry or runtime
+  path (a request may only restate the configured one; anything else is refused with
+  `model_location_not_request_controlled`) and never download.
+- Release bundles: `default` (unchanged legacy assets, also published as
+  `saccade-default-<target>`), `media` (C2PA, PDF/SVG, imgtune, OCR) and `full`, each with an
+  inventory, smoke-test result and `SHA256SUMS-bundles`. See `docs/install-matrix.md`.
+- The Playwright package is prepared for npm (`npm pack --dry-run`); publishing stays a
+  maintainer step (`docs/releasing.md`).
+
+### Deprecations and the 0.3.0 plan
+
+- Deprecated, still working, with a stderr notice (Python `DeprecationWarning`), not removed
+  before 0.4.0: `--cache`, `--model-cache`, `--model-dir`, `--api-model-dir`, `--registry`,
+  `--model-registry`, `--runtime-library`, `--library`, embedding `--model`, `--ocr-contract`
+  with a shared registry, `--download-model`, `--allow-download`, and Python `model_dir=`,
+  `registry=`, `allow_download=`. Use the configuration above and `saccade models pull`.
+- Removed in 0.3.0 (already announced in 0.2.5): automatic gpu-clock v2 telemetry
+  ingestion (the schema ID named in the 0.2.5 deprecation below); use `--gpu-clock-map FILE`.
 
 ## 0.2.5
 

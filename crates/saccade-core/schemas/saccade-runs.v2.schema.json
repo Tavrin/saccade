@@ -1,0 +1,793 @@
+{
+  "$defs": {
+    "CounterDiff": {
+      "properties": {
+        "after": {
+          "format": "double",
+          "type": [
+            "number",
+            "null"
+          ]
+        },
+        "before": {
+          "format": "double",
+          "type": [
+            "number",
+            "null"
+          ]
+        },
+        "beyond_noise": {
+          "type": [
+            "boolean",
+            "null"
+          ]
+        },
+        "delta": {
+          "format": "double",
+          "type": [
+            "number",
+            "null"
+          ]
+        },
+        "delta_pct": {
+          "format": "double",
+          "type": [
+            "number",
+            "null"
+          ]
+        },
+        "name": {
+          "type": "string"
+        },
+        "noise_floor": {
+          "description": "Raw repeat range in ms (threshold is k times this).",
+          "format": "double",
+          "type": [
+            "number",
+            "null"
+          ]
+        },
+        "status": {
+          "description": "paired, appeared, disappeared, or not_comparable.",
+          "type": "string"
+        }
+      },
+      "required": [
+        "name",
+        "status"
+      ],
+      "type": "object"
+    },
+    "Delta": {
+      "properties": {
+        "after": {
+          "format": "double",
+          "type": [
+            "number",
+            "null"
+          ]
+        },
+        "before": {
+          "format": "double",
+          "type": [
+            "number",
+            "null"
+          ]
+        },
+        "beyond_noise": {
+          "type": [
+            "boolean",
+            "null"
+          ]
+        },
+        "delta": {
+          "format": "double",
+          "type": [
+            "number",
+            "null"
+          ]
+        },
+        "delta_pct": {
+          "format": "double",
+          "type": [
+            "number",
+            "null"
+          ]
+        },
+        "noise_floor": {
+          "description": "Raw repeat range in ms (threshold is k times this).",
+          "format": "double",
+          "type": [
+            "number",
+            "null"
+          ]
+        },
+        "status": {
+          "description": "paired, appeared, disappeared, or not_comparable.",
+          "type": "string"
+        }
+      },
+      "required": [
+        "status"
+      ],
+      "type": "object"
+    },
+    "Kind": {
+      "enum": [
+        "pass",
+        "gap",
+        "scope"
+      ],
+      "type": "string"
+    },
+    "PerfDiff": {
+      "properties": {
+        "frame": {
+          "$ref": "#/$defs/Delta"
+        },
+        "noise_k": {
+          "format": "double",
+          "type": "number"
+        },
+        "schema": {
+          "type": "string"
+        },
+        "terms": {
+          "items": {
+            "$ref": "#/$defs/TermDiff"
+          },
+          "type": "array"
+        },
+        "unattributed_after": {
+          "format": "double",
+          "type": "number"
+        },
+        "unattributed_before": {
+          "format": "double",
+          "type": "number"
+        },
+        "unit": {
+          "type": "string"
+        },
+        "warnings": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        }
+      },
+      "required": [
+        "schema",
+        "unit",
+        "noise_k",
+        "frame",
+        "unattributed_before",
+        "unattributed_after",
+        "terms",
+        "warnings"
+      ],
+      "title": "PerfDiff",
+      "type": "object"
+    },
+    "PerfError": {
+      "properties": {
+        "message": {
+          "type": "string"
+        },
+        "path": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "path",
+        "message"
+      ],
+      "type": "object"
+    },
+    "TermDiff": {
+      "properties": {
+        "after": {
+          "format": "double",
+          "type": [
+            "number",
+            "null"
+          ]
+        },
+        "after_kind": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Kind"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "after_parent": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "before": {
+          "format": "double",
+          "type": [
+            "number",
+            "null"
+          ]
+        },
+        "before_kind": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Kind"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "before_parent": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "beyond_noise": {
+          "type": [
+            "boolean",
+            "null"
+          ]
+        },
+        "counters": {
+          "items": {
+            "$ref": "#/$defs/CounterDiff"
+          },
+          "type": "array"
+        },
+        "delta": {
+          "format": "double",
+          "type": [
+            "number",
+            "null"
+          ]
+        },
+        "delta_pct": {
+          "format": "double",
+          "type": [
+            "number",
+            "null"
+          ]
+        },
+        "id": {
+          "type": "string"
+        },
+        "kind": {
+          "$ref": "#/$defs/Kind"
+        },
+        "label": {
+          "type": "string"
+        },
+        "noise_floor": {
+          "description": "Raw repeat range in ms (threshold is k times this).",
+          "format": "double",
+          "type": [
+            "number",
+            "null"
+          ]
+        },
+        "parent": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "share_after": {
+          "format": "double",
+          "type": [
+            "number",
+            "null"
+          ]
+        },
+        "share_before": {
+          "format": "double",
+          "type": [
+            "number",
+            "null"
+          ]
+        },
+        "status": {
+          "description": "paired, appeared, disappeared, or not_comparable.",
+          "type": "string"
+        }
+      },
+      "required": [
+        "id",
+        "label",
+        "kind",
+        "status",
+        "counters"
+      ],
+      "type": "object"
+    },
+    "cell": {
+      "additionalProperties": false,
+      "properties": {
+        "error": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "heat": {
+          "description": "URL of the mini FLIP heatmap (served and static pages only).",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "metrics": {
+          "description": "FLIP statistics of a changed pair, all in [0, 1].",
+          "properties": {
+            "frac_above_0_1": {
+              "type": [
+                "number",
+                "null"
+              ]
+            },
+            "frac_above_0_5": {
+              "type": [
+                "number",
+                "null"
+              ]
+            },
+            "height": {
+              "type": "integer"
+            },
+            "max": {
+              "type": [
+                "number",
+                "null"
+              ]
+            },
+            "mean": {
+              "type": [
+                "number",
+                "null"
+              ]
+            },
+            "p50": {
+              "type": [
+                "number",
+                "null"
+              ]
+            },
+            "p95": {
+              "type": [
+                "number",
+                "null"
+              ]
+            },
+            "p99": {
+              "type": [
+                "number",
+                "null"
+              ]
+            },
+            "width": {
+              "type": "integer"
+            }
+          },
+          "required": [
+            "mean",
+            "max",
+            "p50",
+            "p95",
+            "p99",
+            "frac_above_0_1",
+            "frac_above_0_5",
+            "width",
+            "height"
+          ],
+          "type": [
+            "object",
+            "null"
+          ]
+        },
+        "preview": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "run_name": {
+          "description": "The run's image name when it is not the row's (position or manual pairing).",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "status": {
+          "enum": [
+            "identical",
+            "changed",
+            "error",
+            "pending",
+            "only_in_ref",
+            "only_in_run",
+            "absent"
+          ]
+        },
+        "thumb": {
+          "type": [
+            "string",
+            "null"
+          ]
+        }
+      },
+      "required": [
+        "status"
+      ],
+      "type": "object"
+    },
+    "image_ref": {
+      "additionalProperties": false,
+      "properties": {
+        "name": {
+          "type": "string"
+        },
+        "preview": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "thumb": {
+          "type": [
+            "string",
+            "null"
+          ]
+        }
+      },
+      "required": [
+        "name"
+      ],
+      "type": "object"
+    },
+    "run": {
+      "additionalProperties": false,
+      "properties": {
+        "changed": {
+          "minimum": 0,
+          "type": "integer"
+        },
+        "combined_verdict": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "config_differs": {
+          "description": "Run-level sidecar keys that differ from the reference's.",
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "config_error": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "errors": {
+          "description": "Pairs that could not be compared (size mismatch, undecodable image).",
+          "minimum": 0,
+          "type": "integer"
+        },
+        "flag": {
+          "enum": [
+            "NO-EFFECT",
+            "PERF-ONLY",
+            "IMAGE-CHANGE",
+            "INCONCLUSIVE"
+          ]
+        },
+        "frame_delta": {
+          "type": [
+            "number",
+            "null"
+          ]
+        },
+        "identical": {
+          "description": "Pairs whose decoded samples are bit-identical.",
+          "minimum": 0,
+          "type": "integer"
+        },
+        "image_classes": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "image_verdict": {
+          "type": "string"
+        },
+        "images": {
+          "description": "Number of images in the run.",
+          "minimum": 0,
+          "type": "integer"
+        },
+        "label": {
+          "type": "string"
+        },
+        "mismatch": {
+          "description": "Few or no file names match (fewer than half of the smaller run's): the run probably needs another pairing.",
+          "type": "boolean"
+        },
+        "name_matches": {
+          "description": "Reference file names the run also has, whatever the pairing.",
+          "minimum": 0,
+          "type": "integer"
+        },
+        "no_effect": {
+          "type": "boolean"
+        },
+        "no_visible_effect": {
+          "description": "Every image is bit-identical to the reference's and none is missing or extra: the run changed nothing.",
+          "type": "boolean"
+        },
+        "only_in_ref": {
+          "minimum": 0,
+          "type": "integer"
+        },
+        "only_in_run": {
+          "minimum": 0,
+          "type": "integer"
+        },
+        "pairing": {
+          "enum": [
+            "name",
+            "position",
+            "manual"
+          ]
+        },
+        "path": {
+          "type": "string"
+        },
+        "pending": {
+          "minimum": 0,
+          "type": "integer"
+        },
+        "perf_diff": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/PerfDiff"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "perf_errors": {
+          "items": {
+            "$ref": "#/$defs/PerfError"
+          },
+          "type": "array"
+        },
+        "perf_only": {
+          "type": "boolean"
+        },
+        "run_images": {
+          "description": "The run's own images, listed only when `mismatch` (for manual pairing).",
+          "items": {
+            "$ref": "#/$defs/image_ref"
+          },
+          "type": "array"
+        },
+        "summary": {
+          "description": "N identical · N changed (worst `name` mean) · N only-in-ref · N only-in-run · config differs: K keys",
+          "type": "string"
+        },
+        "top_deltas": {
+          "items": {
+            "$ref": "#/$defs/TermDiff"
+          },
+          "type": "array"
+        },
+        "worst": {
+          "properties": {
+            "mean": {
+              "type": "number"
+            },
+            "name": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "name",
+            "mean"
+          ],
+          "type": [
+            "object",
+            "null"
+          ]
+        }
+      },
+      "required": [
+        "label",
+        "path",
+        "pairing",
+        "images",
+        "identical",
+        "changed",
+        "errors",
+        "pending",
+        "only_in_ref",
+        "only_in_run",
+        "name_matches",
+        "mismatch",
+        "no_visible_effect",
+        "config_differs",
+        "summary"
+      ],
+      "type": "object"
+    }
+  },
+  "$id": "https://github.com/Tavrin/saccade/crates/saccade-core/schemas/saccade-runs.v2.schema.json",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "description": "The run overview: several runs (directories of images) compared with a reference run, image by image. Returned by `GET /api/runs` of `saccade serve`, written as saccade-runs.v1.json by `saccade runs`, printed by `saccade runs --json` and returned (without thumbnail or heatmap URLs, null fields left out) by the MCP tool `saccade_compare_runs`. While the server is still measuring, pending cells have status `pending` and `progress.complete` is false.",
+  "properties": {
+    "config_differences": {
+      "description": "Run-level sidecar keys that differ between the runs, shown once instead of per image.",
+      "items": {
+        "additionalProperties": false,
+        "properties": {
+          "key": {
+            "type": "string"
+          },
+          "values": {
+            "description": "One value per run, the reference first; the reference's value for a run that does not differ.",
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          }
+        },
+        "required": [
+          "key",
+          "values"
+        ],
+        "type": "object"
+      },
+      "type": "array"
+    },
+    "images": {
+      "description": "The matrix: one row per image name, sorted by name.",
+      "items": {
+        "additionalProperties": false,
+        "properties": {
+          "cells": {
+            "description": "One cell per run, in run order.",
+            "items": {
+              "$ref": "#/$defs/cell"
+            },
+            "type": "array"
+          },
+          "name": {
+            "type": "string"
+          },
+          "ref_image": {
+            "description": "Absent for an image only some run has.",
+            "oneOf": [
+              {
+                "$ref": "#/$defs/image_ref"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "worst": {
+            "description": "Largest mean FLIP of the row.",
+            "type": [
+              "number",
+              "null"
+            ]
+          }
+        },
+        "required": [
+          "name",
+          "cells"
+        ],
+        "type": "object"
+      },
+      "type": "array"
+    },
+    "progress": {
+      "additionalProperties": false,
+      "properties": {
+        "complete": {
+          "type": "boolean"
+        },
+        "done": {
+          "minimum": 0,
+          "type": "integer"
+        },
+        "total": {
+          "minimum": 0,
+          "type": "integer"
+        }
+      },
+      "required": [
+        "done",
+        "total",
+        "complete"
+      ],
+      "type": "object"
+    },
+    "ref": {
+      "additionalProperties": false,
+      "properties": {
+        "images": {
+          "description": "The reference's images, sorted by name; a manual pairing indexes into this list.",
+          "items": {
+            "$ref": "#/$defs/image_ref"
+          },
+          "type": "array"
+        },
+        "label": {
+          "type": "string"
+        },
+        "path": {
+          "description": "The shown path: relative to the archive root under `serve`, as given on the command line otherwise.",
+          "type": "string"
+        }
+      },
+      "required": [
+        "label",
+        "path",
+        "images"
+      ],
+      "type": "object"
+    },
+    "report_id": {
+      "pattern": "^sha256:[0-9a-f]{64}$",
+      "type": "string"
+    },
+    "runs": {
+      "items": {
+        "$ref": "#/$defs/run"
+      },
+      "type": "array"
+    },
+    "schema": {
+      "const": "saccade-runs.v2"
+    },
+    "source_refs": {
+      "items": {
+        "maxLength": 2048,
+        "minLength": 1,
+        "type": "string"
+      },
+      "maxItems": 128,
+      "type": "array"
+    },
+    "tool_version": {
+      "type": "string"
+    }
+  },
+  "required": [
+    "schema",
+    "tool_version",
+    "ref",
+    "runs",
+    "config_differences",
+    "images",
+    "progress",
+    "report_id",
+    "source_refs"
+  ],
+  "title": "saccade-runs.v1",
+  "type": "object"
+}

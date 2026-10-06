@@ -12,7 +12,7 @@ spec.loader.exec_module(gen_docs)
 
 
 class CompiledFeatures(unittest.TestCase):
-    def generate(self, features):
+    def generate(self, features, allow_missing_imgtune_avif=False):
         def run(argv, **kwargs):
             if argv[1:] == ['inspect', 'capabilities', '--json']:
                 # The legacy inventory can omit newer feature flags.
@@ -24,7 +24,7 @@ class CompiledFeatures(unittest.TestCase):
             return subprocess.CompletedProcess(argv, 0, stdout=json.dumps(value))
 
         with patch.object(gen_docs.subprocess, 'run', side_effect=run):
-            return gen_docs.generated('saccade')
+            return gen_docs.generated('saccade', allow_missing_imgtune_avif)
 
     def features(self):
         manifest = gen_docs.tomllib.loads((gen_docs.ROOT / 'crates/saccade/Cargo.toml').read_text())
@@ -39,6 +39,21 @@ class CompiledFeatures(unittest.TestCase):
         features = [f for f in self.features() if f != 'ocr-provider']
         with self.assertRaisesRegex(ValueError, 'missing: ocr-provider'):
             self.generate(features)
+
+    def test_avif_exception_records_actual_features(self):
+        features = [f for f in self.features() if f != 'imgtune-avif']
+        with self.assertRaisesRegex(ValueError, 'missing: imgtune-avif'):
+            self.generate(features)
+        cli = self.generate(features, True)['docs/cli.md']
+        inventory = next(line for line in cli.splitlines() if line.startswith('Compiled features:'))
+        self.assertNotIn('`imgtune-avif`', inventory)
+        self.assertIn('--allow-missing-imgtune-avif', cli)
+        self.assertIn('## saccade text\n', cli)
+
+    def test_avif_exception_rejects_other_missing_features(self):
+        features = [f for f in self.features() if f not in {'imgtune-avif', 'ocr-provider'}]
+        with self.assertRaisesRegex(ValueError, 'missing: ocr-provider'):
+            self.generate(features, True)
 
 
 if __name__ == '__main__':

@@ -109,7 +109,7 @@ fn wave4_public_batch_sources_status_collection_and_mcp_agree() {
     batch::begin_submit(&job, &frozen.plan).unwrap();
     batch::submitted(&job, &frozen.plan, "batches/fixture").unwrap();
     let response = inputs.join("response.json");
-    assist::write(&response,&json!({"name":"batches/fixture","state":"BATCH_STATE_SUCCEEDED","response":{"inlinedResponses":[{"metadata":frozen.plan.requests[0]["metadata"],"response":{"modelVersion":"r1","usageMetadata":{"promptTokenCount":100,"candidatesTokenCount":20,"thoughtsTokenCount":10,"totalTokenCount":130}}}]}})).unwrap();
+    assist::write(&response,&json!({"name":"batches/fixture","state":"BATCH_STATE_SUCCEEDED","response":{"inlinedResponses":[{"metadata":frozen.plan.requests[0]["metadata"],"response":{"modelVersion":"r1","candidates":[{"finishReason":"STOP","content":{"parts":[{"text":json!({"request_hash":serde_json::from_str::<Value>(frozen.plan.requests[0]["request"]["contents"][0]["parts"][0]["text"].as_str().unwrap()).unwrap()["request_hash"],"outcome":"unverifiable","observations":[]}).to_string()}]}}],"usageMetadata":{"promptTokenCount":100,"candidatesTokenCount":20,"thoughtsTokenCount":10,"totalTokenCount":130}}}]}})).unwrap();
     let (exit, collected) = cli(
         &["review", "assist", "batch", "collect", "--experimental"],
         &[
@@ -251,11 +251,13 @@ fn wave4_optional_routing_replay_abstains_and_mirrors_mcp_without_visual_calls()
         visual.api_config_hash,
     )
     .unwrap();
-    let response =
-        serde_json::to_vec(&json!({"model":JEV,"answers":{"q":{"choice":"insufficient"}}}))
-            .unwrap();
+    let response = serde_json::to_vec(
+        &json!({"model":JEV,"modelVersion":JEV,"answers":{"q":{"choice":"insufficient"}}}),
+    )
+    .unwrap();
     let record = Cached {
         provenance: Provenance {
+            execution_id: None,
             provider: "jev".into(),
             requested_model: JEV.into(),
             returned_model: JEV.into(),

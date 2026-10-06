@@ -113,3 +113,76 @@ qualified/unqualified decision and failed-gate list. Missing mechanical receipts
 insufficient corpus size, failed family assumptions or unknown cost preserve
 unqualified status. These are synthetic-domain results. They do not establish
 accuracy on arbitrary pages or grant baseline/exclusion authority.
+
+## G12 pre-spend correction (2026-10-06)
+
+The earlier paid-run instructions above are superseded. **Live provider network
+adapters and the old paid runner now refuse dispatch.** No verified provider-side
+invoice limit or authoritative token/billing ceiling was supplied. Local prices
+prove reservation arithmetic only; they cannot establish an unconditional invoice
+ceiling. There is no environment switch to bypass this refusal. Re-enabling live
+billing requires a separately reviewed limit capability and a complete campaign plan.
+The batch example now supports offline collection only; raw submission is crate-private.
+
+```sh
+scripts/qualify-wave4.sh --dry-run
+scripts/qualify-wave4.sh --dry-run --out /path/to/new-offline-run
+python3 scripts/assist/test_g12.py
+```
+
+The dry run freezes 20 roots per workload, executes fake providers, persists separate
+execution transcripts and monetary receipts, reconstructs requests while scoring,
+and checks `scripts/assist/fixtures/dry-run-expected.json`. It never reads provider
+credentials or opens sockets. Its small support and absent heavy-gate receipt keep
+all qualification decisions **unqualified**. Positive 1,000-root metric fixtures
+and failing mutations test the real qualification thresholds without lowering them.
+The normalized synthetic request dialect is `synthetic-offline/1`; its results
+cannot be relabelled as live model qualification or immutable-revision evidence.
+
+The new epoch is `wave4-constructed/3`, policy `constructed-assist/3`. Old freezes
+must be regenerated. Labels no longer encode seed/class suffixes. The independent
+oracle distinguishes absent, partial and complete text, checks glyph coverage in
+the actual observation box, and requires task-specific evidence for every mask.
+Semantic outcome correctness, control errors, unavailable commitments, complete
+cost accounting and at least 600 usable paired roots have separate gates. Single
+image tasks have no paired-order applicability. Assertion confidence uses one
+all-facts-correct event per root, retaining descendants within that event. Reports
+include class, mutation, visibility, label-strength and condition support strata.
+Colour, line count and pixel-only overlap still lack independently qualified truth
+and remain unsupported. Source-derived non-overlap remains a deterministic fact.
+
+Each recorded provider stage must have an execution ID, returned identity, usage,
+request/response hashes and a matching separately persisted campaign receipt.
+Receiptless provider arms, invented source-only claims, unmatched dispatches,
+unknown usage and altered outputs are refused. This is evidence within the local
+trusted artifact boundary, not cryptographic proof against an unrestricted shell
+that can replace every artifact. Unknown usage retains its reservation. Known
+bound breaches are charged even if the answer is invalid and permanently stop
+all campaign dispatch; monetary accounting shares one ledger across production,
+evaluation, batches, retries and epochs with a $30 parent ceiling. Older
+namespace-local monetary records require reviewed migration rather than a silent
+allowance reset. Legacy floating-point cap inputs now round down; exact decimal
+CLI parsing remains a recorded low-severity follow-up.
+
+OpenRouter has an explicit chat-completions adapter (`assist::openrouter`) and a
+`two_openrouter` recorded arm. The historical `openai_compatible` adapter now uses
+the fixed OpenRouter endpoint without a project `base_url`. It accepts namespaced
+JSON model IDs, bounded output, explicit routing, usage and execution identity.
+`OPENROUTER_API_KEY` comes from the environment or
+`~/.config/saccade/openrouter.env`; keys are never printed. Responses are checked
+for literal, Unicode-escaped and nested reflections with the actual dispatch key.
+OpenRouter is the billing source and passes provider prices through without markup.
+Price fixtures are versioned and explicitly **not live-verified**; returned
+fingerprints are treated as alias-bound and time-specific. API-shape recordings
+are sanitized synthetic fixtures, not claimed captures of live API traffic.
+
+Gate receipts now require positive matching test counts, source closure before and
+after the gates, toolchain/build configuration and the tested binary hash. The
+empty ignored core selection was removed; receipt-write failure fails the gate.
+No heavy or live-provider qualification is implied by focused lane tests.
+
+`qualify-wave4.sh --plan --corpus DIR` emits a read-only full arm/descendant
+request count, qualifying class support, conservative local reservation estimate
+and $30 campaign-fit decision. It never grants authorization; missing billing,
+API payload or reviewed execution inputs are explicit plan blockers. Full support
+and budgets are required before a future paid campaign can be considered.

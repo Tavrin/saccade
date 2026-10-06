@@ -89,7 +89,9 @@ pub(crate) fn write_new(path: &Path, value: &Value) -> Result<(), CliError> {
         .create_new(true)
         .open(path)
         .map_err(|e| CliError::io(format!("writing {}: {e}", path.display())))?;
-    serde_json::to_writer_pretty(file, value)?;
+    let linked = saccade_core::report_links::decorate(value)?;
+    serde_json::to_writer_pretty(file, &linked)?;
+    saccade_core::report_links::index(path, &linked)?;
     Ok(())
 }
 pub(crate) fn prepare_out(out: &Path, inputs: &[&Path]) -> Result<(), CliError> {
@@ -152,6 +154,14 @@ pub(crate) fn compare_document(
         return Err(CliError::usage(
             "registration FLIP threshold must be in [0,1]",
         ));
+    }
+    for (present, missing) in [(reference, capture), (capture, reference)] {
+        if present.is_file() && !missing.exists() {
+            return Err(CliError::usage(format!(
+                "input does not exist: {}",
+                missing.display()
+            )));
+        }
     }
     if reference.is_file() != capture.is_file() {
         return Err(CliError::usage(

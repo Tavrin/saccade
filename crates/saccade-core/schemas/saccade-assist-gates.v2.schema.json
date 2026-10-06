@@ -1,0 +1,79 @@
+{
+  "$id": "https://github.com/Tavrin/saccade/crates/saccade-core/schemas/saccade-assist-gates.v2.schema.json",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "properties": {
+    "execution": {
+      "additionalProperties": false,
+      "properties": {
+        "binary": {
+          "type": "string"
+        },
+        "binary_hash": {
+          "type": "string"
+        },
+        "build_env": {
+          "type": "object"
+        },
+        "features": {
+          "type": "string"
+        },
+        "source_before": {
+          "type": "string"
+        },
+        "test_counts": {
+          "type": "object"
+        },
+        "toolchain": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "source_before",
+        "test_counts",
+        "binary",
+        "binary_hash",
+        "toolchain",
+        "features",
+        "build_env"
+      ],
+      "type": "object"
+    },
+    "gates": {
+      "additionalProperties": {
+        "const": "PASS"
+      },
+      "type": "object"
+    },
+    "report_id": {
+      "pattern": "^sha256:[0-9a-f]{64}$",
+      "type": "string"
+    },
+    "schema": {
+      "const": "saccade-assist-gates.v2"
+    },
+    "source_hash": {
+      "pattern": "^sha256:[0-9a-f]{64}$",
+      "type": "string"
+    },
+    "source_refs": {
+      "items": {
+        "maxLength": 2048,
+        "minLength": 1,
+        "type": "string"
+      },
+      "maxItems": 128,
+      "type": "array"
+    }
+  },
+  "required": [
+    "schema",
+    "source_hash",
+    "gates",
+    "execution",
+    "report_id",
+    "source_refs"
+  ],
+  "title": "saccade-assist-gates.v1",
+  "type": "object"
+}

@@ -5,7 +5,7 @@ use saccade_core::{
     root_policy::RootPolicy,
     wave7::{
         faces::{self, CropSpec, FaceReport},
-        models::{self, Registry, VisionError},
+        models::{self, VisionError},
         quality::{LearnedMetric, QualityReport},
         vision::{LocateReport, VisionImage},
         watermark::{self, DwtConfig, WatermarkReport},
@@ -18,7 +18,14 @@ use std::path::PathBuf;
 #[serde(tag = "operation", deny_unknown_fields)]
 enum Operation {
     #[serde(rename = "models_list")]
-    Models { registry: PathBuf, cache: PathBuf },
+    Models {
+        /// May only restate the operator-configured registry.
+        #[serde(default)]
+        registry: Option<PathBuf>,
+        /// May only restate the operator-configured cache.
+        #[serde(default)]
+        cache: Option<PathBuf>,
+    },
     #[serde(rename = "models_pull")]
     Pull { id: String },
     #[serde(rename = "vision_locate")]
@@ -99,6 +106,7 @@ fn input(policy: &RootPolicy, p: PathBuf) -> Result<PathBuf, CliError> {
     }
     Ok(p)
 }
+#[cfg(any(feature = "local-vlm", feature = "vision-providers"))]
 fn read<T: serde::de::DeserializeOwned>(
     policy: &RootPolicy,
     p: PathBuf,
@@ -112,7 +120,10 @@ fn image(policy: &RootPolicy, p: PathBuf) -> Result<VisionImage, CliError> {
     VisionImage::load(&input(policy, p)?).map_err(error)
 }
 fn face(policy: &RootPolicy, p: PathBuf, image: &VisionImage) -> Result<FaceReport, CliError> {
-    let mut r: FaceReport = read(policy, p, 1024 * 1024)?;
+    let mut r: FaceReport = crate::parse_contract(
+        &models::read_bounded(&input(policy, p)?, 1024 * 1024).map_err(error)?,
+        faces::FACES_SCHEMA,
+    )?;
     r.validate(image).map_err(error)?;
     r.provenance.runtime = "replay".into();
     r.provenance.source_parity = false;
@@ -139,20 +150,21 @@ pub(crate) fn call(
     let operation: Operation = serde_json::from_value(Value::Object(args.clone()))?;
     match operation {
         Operation::Models { registry, cache } => {
-            let r = Registry::load(&input(policy, registry)?).map_err(error)?;
-            let c = policy.read(&cache)?;
-            if !c.is_dir() {
-                return Err(CliError::usage("cache must be a registered directory"));
+            // Operator configuration only: a request may restate, never choose, a location.
+            let cfg = crate::wave7_cmd::config()?;
+            let refuse = |e: saccade_core::Error| {
+                CliError::new("model_location_not_request_controlled", e.to_string())
+            };
+            if let Some(r) = registry {
+                cfg.check_request_location("registry", &policy.read(&r)?)
+                    .map_err(refuse)?;
             }
-            for m in &r.models {
-                for a in &m.artifacts {
-                    let path = models::artifact_path(&c, a).map_err(error)?;
-                    if path.exists() {
-                        policy.read(&path)?;
-                    }
-                }
+            if let Some(c) = cache {
+                cfg.check_request_location("cache", &policy.read(&c)?)
+                    .map_err(refuse)?;
             }
-            Ok(r.status(&c))
+            let r = crate::wave7_cmd::registry(None)?;
+            Ok(crate::wave7_cmd::status(&r, &cfg.dir))
         }
         Operation::Pull { id } => Err(error(VisionError::Unavailable(format!(
             "{id}: MCP cannot authorize model downloads; use explicit CLI models pull"
@@ -181,7 +193,10 @@ pub(crate) fn call(
         } => {
             let i = image(policy, p)?;
             let reference = reference.map(|p| image(policy, p)).transpose()?;
-            let mut r: QualityReport = read(policy, observations, 1024 * 1024)?;
+            let mut r: QualityReport = crate::parse_contract(
+                &models::read_bounded(&input(policy, observations)?, 1024 * 1024).map_err(error)?,
+                saccade_core::wave7::quality::QUALITY_SCHEMA,
+            )?;
             r.validate(metric, &i, reference.as_ref()).map_err(error)?;
             for m in &mut r.named_metrics {
                 m.provenance.runtime = "replay".into();
@@ -219,7 +234,10 @@ pub(crate) fn call(
         } => {
             let i = image(policy, p)?;
             let r = if let Some(p) = observations {
-                let mut r: WatermarkReport = read(policy, p, 1024 * 1024)?;
+                let mut r: WatermarkReport = crate::parse_contract(
+                    &models::read_bounded(&input(policy, p)?, 1024 * 1024).map_err(error)?,
+                    watermark::WATERMARK_SCHEMA,
+                )?;
                 r.validate(&i).map_err(error)?;
                 for f in &mut r.findings {
                     if let Some(p) = &mut f.provenance {
@@ -292,8 +310,8 @@ fn variant(op: &str, properties: Value, required: &[&str]) -> Value {
 pub(crate) fn inspect_schema() -> Value {
     variant(
         "models_list",
-        json!({"registry":{"type":"string"},"cache":{"type":"string"}}),
-        &["registry", "cache"],
+        json!({"registry":{"type":"string","description":"Optional; must equal the operator-configured registry"},"cache":{"type":"string","description":"Optional; must equal the operator-configured model cache"}}),
+        &[],
     )
 }
 pub(crate) fn measure_schemas() -> Vec<Value> {
@@ -370,11 +388,57 @@ mod tests {
         assert_eq!(response["result"]["isError"], false);
         assert_eq!(
             response["result"]["structuredContent"]["schema"],
-            faces::CROP_SCHEMA
+            saccade_core::report_links::linked_schema(faces::CROP_SCHEMA)
         );
         assert_eq!(
             response["result"]["structuredContent"]["detection"]["provenance"]["runtime"],
             "replay"
+        );
+        let crop = &response["result"]["structuredContent"];
+        assert!(crop["report_id"].as_str().unwrap().starts_with("sha256:"));
+        assert_eq!(crop["source_refs"], json!([]));
+        let parsed: faces::CropReport =
+            crate::parse_contract(&serde_json::to_vec(crop).unwrap(), faces::CROP_SCHEMA).unwrap();
+        parsed.detection.validate(&i).unwrap();
+
+        let linked =
+            saccade_core::report_links::decorate(&serde_json::to_value(&r).unwrap()).unwrap();
+        let observations = d.path().join("inputs/faces.json");
+        std::fs::write(&observations, serde_json::to_vec(&linked).unwrap()).unwrap();
+        let request = json!({"jsonrpc":"2.0","id":3,"method":"tools/call","params":{"name":"saccade_measure","arguments":{"operation":"vision_crop","image":"image.png","observations":"faces.json","crops":[{"kind":"ratio","width":1.,"height":1.}]}}});
+        let linked_response = server.handle_message(&request).unwrap();
+        assert_eq!(
+            linked_response["result"]["isError"], false,
+            "{linked_response}"
+        );
+        assert_eq!(linked_response["result"]["structuredContent"], *crop);
+
+        // Linked nested receipts also decode without relaxing the face model.
+        let mut nested = crop.clone();
+        nested["detection"] = linked.clone();
+        let parsed: faces::CropReport =
+            crate::parse_contract(&serde_json::to_vec(&nested).unwrap(), faces::CROP_SCHEMA)
+                .unwrap();
+        parsed.detection.validate(&i).unwrap();
+        for schema in ["saccade-faces.v3", "saccade-faces.v99"] {
+            let mut newer = linked.clone();
+            newer["schema"] = json!(schema);
+            std::fs::write(&observations, serde_json::to_vec(&newer).unwrap()).unwrap();
+            let reply = server.handle_message(&request).unwrap();
+            assert_eq!(reply["result"]["isError"], true, "{reply}");
+            assert_eq!(
+                reply["result"]["structuredContent"]["errors"][0]["code"],
+                "version_skew"
+            );
+        }
+        let mut unknown = linked;
+        unknown["future_field"] = json!(true);
+        assert!(
+            crate::parse_contract::<FaceReport>(
+                &serde_json::to_vec(&unknown).unwrap(),
+                faces::FACES_SCHEMA,
+            )
+            .is_err()
         );
         let tools = server
             .handle_message(&json!({"jsonrpc":"2.0","id":2,"method":"tools/list"}))

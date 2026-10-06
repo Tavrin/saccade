@@ -6,12 +6,31 @@ fn schema<T: schemars::JsonSchema>(id: &str) -> Value {
         format!("https://github.com/Tavrin/saccade/crates/saccade-core/schemas/{id}.schema.json")
             .into();
     v["properties"]["schema"]["const"] = id.into();
+    if id == crate::timing::SESSION_SCHEMA {
+        for arm in ["a", "b"] {
+            let frames = v["$defs"]["Pair"]["properties"][arm].clone();
+            v["$defs"]["Pair"]["properties"][arm] = serde_json::json!({"oneOf":[frames,{"type":"object","additionalProperties":false,"required":["file","format"],"properties":{"file":{"type":"string"},"format":{"enum":["perf","hyperfine","json"]},"path":{"type":"string"},"unit":{"enum":["s","ms","us","ns"]},"index":{"type":"integer","minimum":0,"maximum":127}}}]});
+        }
+    }
+    crate::report_links::extend_schema(&mut v, id);
     v.sort_all_objects();
     v
 }
 /// Standalone evidence and input schema documents with exact discriminators.
 pub fn documents() -> Vec<(&'static str, Value)> {
     vec![
+        (
+            crate::timing::REPORT_SCHEMA,
+            schema::<crate::timing::Report>(crate::timing::REPORT_SCHEMA),
+        ),
+        (
+            crate::timing::SESSION_SCHEMA,
+            schema::<crate::timing::Session>(crate::timing::SESSION_SCHEMA),
+        ),
+        (
+            crate::settling::SCHEMA,
+            schema::<crate::settling::Report>(crate::settling::SCHEMA),
+        ),
         (
             super::repeat_noise::SCHEMA,
             schema::<super::repeat_noise::Report>(super::repeat_noise::SCHEMA),
@@ -66,6 +85,8 @@ pub fn documents() -> Vec<(&'static str, Value)> {
 #[allow(clippy::expect_used, clippy::panic)]
 mod tests {
     fn inherited<T: schemars::JsonSchema>(file: &str) -> String {
+        let target = crate::report_links::linked_schema(file.trim_end_matches(".schema.json"));
+        let target_file = format!("{target}.schema.json");
         let mut v = schemars::schema_for!(T).to_value();
         if file == "saccade-perf.v2.schema.json" {
             v["$defs"]["CapturePerf"]["properties"]["schema"]["const"] = "saccade-perf.v2".into();
@@ -81,7 +102,9 @@ mod tests {
             v["$defs"]["PerformanceNoiseRecord"]["properties"]["unit"]["const"] = "ms".into();
         }
         v["$id"] =
-            format!("https://github.com/Tavrin/saccade/crates/saccade-core/schemas/{file}").into();
+            format!("https://github.com/Tavrin/saccade/crates/saccade-core/schemas/{target_file}")
+                .into();
+        crate::report_links::extend_schema(&mut v, target);
         v.sort_all_objects();
         format!("{}\n", serde_json::to_string_pretty(&v).expect("schema"))
     }
@@ -128,7 +151,8 @@ mod tests {
             ),
         ]);
         for (file, text) in docs {
-            let p = dir.join(&file);
+            let target = crate::report_links::linked_schema(file.trim_end_matches(".schema.json"));
+            let p = dir.join(format!("{target}.schema.json"));
             if std::env::var_os("UPDATE_WAVE9_SCHEMAS").is_some() {
                 std::fs::write(&p, &text).expect("write schema");
             }

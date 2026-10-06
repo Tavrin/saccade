@@ -20,6 +20,9 @@ pub enum Selection {
         /// Optional plain manifest filename; defaults to <filename>.layers.json.
         #[serde(default)]
         manifest: Option<String>,
+        /// Generic screen-space dump when no native manifest is supplied.
+        #[serde(default)]
+        dump: Option<String>,
     },
     /// White/nonzero image pixels; exact dimensions required.
     Mask {
@@ -198,9 +201,10 @@ pub fn select(
             name,
             predicate,
             manifest,
+            dump,
         } => {
             let policy = super::layers::Policy {
-                dump: None,
+                dump: dump.clone(),
                 manifest: manifest.clone(),
                 scope: None,
                 attribution: false,

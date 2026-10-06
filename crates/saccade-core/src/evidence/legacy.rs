@@ -156,6 +156,11 @@ pub fn schema(identifier: &str) -> Option<Cow<'static, str>> {
         .strip_prefix("flipdiff-")
         .map(|s| format!("saccade-{s}"));
     let normalized = name.as_deref().unwrap_or(identifier);
+    if crate::report_links::original_schema(normalized) != normalized {
+        return crate::schema_catalog::get(normalized)
+            .ok()
+            .map(Cow::Borrowed);
+    }
     let validator = HISTORICAL_SCHEMAS
         .iter()
         .find(|(id, _)| *id == normalized)
@@ -248,7 +253,7 @@ impl HistoricalArtifact {
         let normalized = identifier
             .strip_prefix("flipdiff-")
             .map_or_else(|| identifier.to_owned(), |s| format!("saccade-{s}"));
-        match normalized.as_str() {
+        match crate::report_links::original_schema(&normalized) {
             "saccade-report.v1" => {
                 serde_json::from_value::<crate::Report>(raw.clone())?;
             }

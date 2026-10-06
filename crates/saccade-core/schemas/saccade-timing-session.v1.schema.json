@@ -1,0 +1,229 @@
+{
+  "$defs": {
+    "Pair": {
+      "additionalProperties": false,
+      "description": "One independently acquired pair. Frames within a run are averaged before inference.",
+      "properties": {
+        "a": {
+          "oneOf": [
+            {
+              "description": "A run (1..3 frame samples, milliseconds).",
+              "items": {
+                "format": "double",
+                "type": "number"
+              },
+              "type": "array"
+            },
+            {
+              "additionalProperties": false,
+              "properties": {
+                "file": {
+                  "type": "string"
+                },
+                "format": {
+                  "enum": [
+                    "perf",
+                    "hyperfine",
+                    "json"
+                  ]
+                },
+                "index": {
+                  "maximum": 127,
+                  "minimum": 0,
+                  "type": "integer"
+                },
+                "path": {
+                  "type": "string"
+                },
+                "unit": {
+                  "enum": [
+                    "s",
+                    "ms",
+                    "us",
+                    "ns"
+                  ]
+                }
+              },
+              "required": [
+                "file",
+                "format"
+              ],
+              "type": "object"
+            }
+          ]
+        },
+        "aa": {
+          "default": false,
+          "description": "Same-session unchanged-arm control pair.",
+          "type": "boolean"
+        },
+        "b": {
+          "oneOf": [
+            {
+              "description": "B run (1..3 frame samples, milliseconds).",
+              "items": {
+                "format": "double",
+                "type": "number"
+              },
+              "type": "array"
+            },
+            {
+              "additionalProperties": false,
+              "properties": {
+                "file": {
+                  "type": "string"
+                },
+                "format": {
+                  "enum": [
+                    "perf",
+                    "hyperfine",
+                    "json"
+                  ]
+                },
+                "index": {
+                  "maximum": 127,
+                  "minimum": 0,
+                  "type": "integer"
+                },
+                "path": {
+                  "type": "string"
+                },
+                "unit": {
+                  "enum": [
+                    "s",
+                    "ms",
+                    "us",
+                    "ns"
+                  ]
+                }
+              },
+              "required": [
+                "file",
+                "format"
+              ],
+              "type": "object"
+            }
+          ]
+        },
+        "block": {
+          "description": "Contiguous resampling block identity; correlated pairs share a block.",
+          "type": "string"
+        },
+        "id": {
+          "description": "Unique pair identity.",
+          "type": "string"
+        },
+        "order": {
+          "description": "Actual acquisition order: ab or ba.",
+          "type": "string"
+        }
+      },
+      "required": [
+        "id",
+        "block",
+        "order",
+        "a",
+        "b"
+      ],
+      "type": "object"
+    }
+  },
+  "$id": "https://github.com/Tavrin/saccade/crates/saccade-core/schemas/saccade-timing-session.v1.schema.json",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "description": "Frozen analysis policy and externally acquired evidence.",
+  "properties": {
+    "band_pct": {
+      "description": "Practical equivalence band, percent.",
+      "format": "double",
+      "type": "number"
+    },
+    "captures": {
+      "default": [],
+      "description": "Optional capture pairs for existing clock/readiness qualification.",
+      "items": {
+        "items": {
+          "type": "string"
+        },
+        "maxItems": 2,
+        "minItems": 2,
+        "type": "array"
+      },
+      "type": "array"
+    },
+    "confidence": {
+      "description": "Confidence chosen before acquisition.",
+      "format": "double",
+      "type": "number"
+    },
+    "diagnostic_reasons": {
+      "default": [],
+      "description": "Acquisition validation issues from external adapters.",
+      "items": {
+        "type": "string"
+      },
+      "type": "array"
+    },
+    "gpu_clocks_not_applicable": {
+      "default": false,
+      "description": "Explicit CPU timing declaration.",
+      "type": "boolean"
+    },
+    "looks": {
+      "default": [],
+      "description": "Predeclared look counts; empty means a single fixed maximum.",
+      "items": {
+        "format": "uint",
+        "minimum": 0,
+        "type": "integer"
+      },
+      "type": "array"
+    },
+    "max_pairs": {
+      "description": "Declared maximum A/B pairs before acquisition.",
+      "format": "uint",
+      "minimum": 0,
+      "type": "integer"
+    },
+    "pairs": {
+      "description": "All acquired A/B and A/A pairs, in acquisition order.",
+      "items": {
+        "$ref": "#/$defs/Pair"
+      },
+      "type": "array"
+    },
+    "resamples": {
+      "description": "Whole-block bootstrap draws.",
+      "format": "uint",
+      "minimum": 0,
+      "type": "integer"
+    },
+    "schema": {
+      "const": "saccade-timing-session.v1",
+      "description": "Version discriminator.",
+      "type": "string"
+    },
+    "seed": {
+      "description": "Bootstrap seed chosen before acquisition.",
+      "format": "uint64",
+      "minimum": 0,
+      "type": "integer"
+    },
+    "session": {
+      "description": "External session identity, required to bind A/A to A/B.",
+      "type": "string"
+    }
+  },
+  "required": [
+    "schema",
+    "session",
+    "band_pct",
+    "max_pairs",
+    "confidence",
+    "seed",
+    "resamples",
+    "pairs"
+  ],
+  "title": "Session",
+  "type": "object"
+}

@@ -1,0 +1,47 @@
+{
+  "$id": "https://github.com/Tavrin/saccade/crates/saccade-core/schemas/saccade-perf-validation.v2.schema.json",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "properties": {
+    "errors": {
+      "items": {
+        "type": "string"
+      },
+      "type": "array"
+    },
+    "report_id": {
+      "pattern": "^sha256:[0-9a-f]{64}$",
+      "type": "string"
+    },
+    "schema": {
+      "const": "saccade-perf-validation.v2"
+    },
+    "sidecar_schema": {
+      "enum": [
+        "saccade-perf.v1",
+        "saccade-perf.v2"
+      ]
+    },
+    "source_refs": {
+      "items": {
+        "maxLength": 2048,
+        "minLength": 1,
+        "type": "string"
+      },
+      "maxItems": 128,
+      "type": "array"
+    },
+    "valid": {
+      "type": "boolean"
+    }
+  },
+  "required": [
+    "schema",
+    "valid",
+    "sidecar_schema",
+    "errors",
+    "report_id",
+    "source_refs"
+  ],
+  "type": "object"
+}

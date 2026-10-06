@@ -36,7 +36,10 @@ fn registration_report_has_schema_and_visible_geometry() {
         String::from_utf8_lossy(&result.stderr)
     );
     let summary: Value = serde_json::from_slice(&result.stdout).unwrap();
-    assert_eq!(summary["schema"], "saccade-general-result.v1");
+    assert_eq!(
+        summary["schema"],
+        saccade_core::report_links::linked_schema("saccade-general-result.v1")
+    );
     let report: Value =
         serde_json::from_slice(&std::fs::read(out.join("saccade-registration.v1.json")).unwrap())
             .unwrap();
@@ -44,6 +47,12 @@ fn registration_report_has_schema_and_visible_geometry() {
         ("saccade-general-result.v1", summary),
         ("saccade-registration.v1", report.clone()),
     ] {
+        let successor = saccade_core::report_links::linked_schema(name);
+        let name = if value["schema"] == successor {
+            successor
+        } else {
+            name
+        };
         let schema: Value = serde_json::from_slice(
             &std::fs::read(
                 std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
@@ -179,6 +188,12 @@ fn hash_dedupe_and_imported_accent_text_contracts() {
         ),
         ("saccade-text.v1", report),
     ] {
+        let successor = saccade_core::report_links::linked_schema(name);
+        let name = if value["schema"] == successor {
+            successor
+        } else {
+            name
+        };
         let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
             .join(format!("../saccade-core/schemas/{name}.schema.json"));
         let schema: Value = serde_json::from_slice(&std::fs::read(path).unwrap()).unwrap();
@@ -291,7 +306,7 @@ fn assessment_reports_paired_deltas_without_quality_verdict() {
     let schema: Value = serde_json::from_slice(
         &std::fs::read(
             std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
-                .join("../saccade-core/schemas/saccade-assess.v1.schema.json"),
+                .join("../saccade-core/schemas/saccade-assess.v2.schema.json"),
         )
         .unwrap(),
     )
@@ -425,7 +440,7 @@ fn inspection_never_infers_generation_and_has_weak_visual_layer() {
     let schema: Value = serde_json::from_slice(
         &std::fs::read(
             std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
-                .join("../saccade-core/schemas/saccade-inspect-image.v1.schema.json"),
+                .join("../saccade-core/schemas/saccade-inspect-image.v2.schema.json"),
         )
         .unwrap(),
     )
@@ -518,6 +533,12 @@ fn supplied_embedding_index_build_and_query_preserve_pins() {
 }
 
 fn validate_schema(name: &str, value: &Value) {
+    let successor = saccade_core::report_links::linked_schema(name);
+    let name = if value["schema"] == successor {
+        successor
+    } else {
+        name
+    };
     let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
         .join(format!("../saccade-core/schemas/{name}.schema.json"));
     let schema: Value = serde_json::from_slice(&std::fs::read(path).unwrap()).unwrap();
@@ -714,6 +735,8 @@ fn mcp_question_inputs_and_native_execution_keep_authority_boundaries() {
         .arg("--out-root")
         .arg(&out)
         .env("XDG_CONFIG_HOME", &config)
+        // The cache is operator configuration; the request below only restates it.
+        .env("SACCADE_MODELS_DIR", root.join("cache"))
         .stdin(Stdio::piped())
         .stdout(Stdio::piped())
         .stderr(Stdio::piped())
@@ -738,7 +761,7 @@ fn mcp_question_inputs_and_native_execution_keep_authority_boundaries() {
     assert!(
         values[2]
             .to_string()
-            .contains("execution_authorization_required")
+            .contains("model_location_not_request_controlled")
     );
     assert!(!out.join("native").join("saccade-similar.v1.json").exists());
 }

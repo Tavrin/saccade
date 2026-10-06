@@ -1,0 +1,74 @@
+{
+  "$id": "https://github.com/Tavrin/saccade/crates/saccade-core/schemas/saccade-error.v2.schema.json",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "description": "Printed on stdout, with the command's exit code, when a command run with --json (or --format json) fails.",
+  "properties": {
+    "code": {
+      "enum": [
+        "usage",
+        "io",
+        "config",
+        "unsafe_path",
+        "not_empty_out_dir",
+        "nothing_compared",
+        "approve_mismatch",
+        "invalid_media_input",
+        "invalid_media_options",
+        "request_too_large",
+        "media_section_failed",
+        "vision_unavailable",
+        "model_integrity",
+        "runtime_incompatible",
+        "embedding_unavailable",
+        "text_embedding_unavailable",
+        "video_decode_unavailable",
+        "video_decode_failed",
+        "invalid_video_input",
+        "index_mismatch",
+        "media_fetch_unavailable",
+        "media_fetch_failed",
+        "invalid_json",
+        "io_error",
+        "invalid_vision_input",
+        "gpu_unavailable",
+        "description_unavailable",
+        "analyzer_poisoned",
+        "media_error"
+      ]
+    },
+    "hint": {
+      "description": "Offending path or argument and how to repair it.",
+      "type": "string"
+    },
+    "message": {
+      "type": "string"
+    },
+    "report_id": {
+      "pattern": "^sha256:[0-9a-f]{64}$",
+      "type": "string"
+    },
+    "schema": {
+      "const": "saccade-error.v2"
+    },
+    "source_refs": {
+      "items": {
+        "maxLength": 2048,
+        "minLength": 1,
+        "type": "string"
+      },
+      "maxItems": 128,
+      "type": "array"
+    }
+  },
+  "required": [
+    "schema",
+    "code",
+    "message",
+    "hint",
+    "report_id",
+    "source_refs"
+  ],
+  "title": "saccade-error.v1",
+  "type": "object"
+}

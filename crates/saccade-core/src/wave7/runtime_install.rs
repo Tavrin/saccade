@@ -174,11 +174,19 @@ fn extract(archive: &Path, dir: &Path, p: &RuntimePin) -> Result<()> {
     }
     Ok(())
 }
-/// Select an explicit CLI path, ORT_DYLIB_PATH, or the verified provisioned runtime.
+/// Select an explicit path, the operator-configured runtime library
+/// (`SACCADE_MODELS_RUNTIME_LIBRARY` / `[models].runtime_library`), ORT_DYLIB_PATH,
+/// or the verified provisioned runtime.
 /// Never mutates the process environment and never downloads implicitly.
 pub fn resolve(explicit: Option<&Path>, cache: &Path) -> Result<PathBuf> {
     if let Some(path) = explicit {
         return Ok(path.to_owned());
+    }
+    if let Some(path) = crate::model_config::ModelConfig::resolve()
+        .ok()
+        .and_then(|c| c.runtime_library)
+    {
+        return Ok(path);
     }
     if let Some(path) = std::env::var_os("ORT_DYLIB_PATH") {
         return Ok(path.into());

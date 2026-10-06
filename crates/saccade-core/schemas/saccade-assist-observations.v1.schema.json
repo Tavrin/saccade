@@ -577,6 +577,14 @@
         "usage": {
           "$ref": "#/$defs/Usage",
           "description": "Separate token counts and provider totals."
+        },
+        "execution_id": {
+          "default": null,
+          "description": "Durable monetary execution receipt ID; absent only on historical replay records.",
+          "type": [
+            "string",
+            "null"
+          ]
         }
       },
       "required": [

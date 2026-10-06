@@ -13,7 +13,7 @@ class ConstructedTests(unittest.TestCase):
         self.assertIsNone(execution_cost([],False))
         self.assertIsNone(execution_cost([{"cost_usd":.01}],False))
         self.assertIsNone(execution_cost([{"cost_usd":None}],True))
-        self.assertEqual(execution_cost([],True),0)
+        self.assertIsNone(execution_cost([],True))
         self.assertEqual(execution_cost([{"cost_usd":.01}],True),.01)
 
     def test_template_families_have_distinct_rendered_layouts(self):

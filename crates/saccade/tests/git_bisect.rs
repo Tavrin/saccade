@@ -94,6 +94,8 @@ fn finds_first_bad_and_restores_original_head() {
     assert_eq!(git(&repo, &["branch", "--show-current"]), branch);
     assert_eq!(git(&repo, &["status", "--porcelain"]), "");
     assert!(out.join("saccade-git-bisect.v1.json").is_file());
+    assert!(out.join("reports/index.jsonl").is_file());
+    assert!(!repo.join("reports").exists());
     std::fs::write(repo.join("scratch"), "dirty").unwrap();
     let refused = Command::new(env!("CARGO_BIN_EXE_saccade"))
         .current_dir(&repo)

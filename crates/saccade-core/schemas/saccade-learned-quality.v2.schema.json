@@ -1,0 +1,164 @@
+{
+  "$defs": {
+    "LearnedMetric": {
+      "description": "Learned metric identity, never an implicit regression threshold.",
+      "oneOf": [
+        {
+          "const": "lpips_alex_v01",
+          "description": "LPIPS v0.1, AlexNet features/calibration.",
+          "type": "string"
+        },
+        {
+          "const": "dists",
+          "description": "DISTS full-reference fallback.",
+          "type": "string"
+        },
+        {
+          "const": "musiq_technical",
+          "description": "MUSIQ technical checkpoint, no-reference quality.",
+          "type": "string"
+        }
+      ]
+    },
+    "Provenance": {
+      "additionalProperties": false,
+      "description": "Explicit model/export attribution on every observation.",
+      "properties": {
+        "artifact_sha256": {
+          "description": "Exact consumed export/auxiliary hashes.",
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "input_resolution": {
+          "description": "Actual graph input size.",
+          "items": {
+            "format": "uint32",
+            "minimum": 0,
+            "type": "integer"
+          },
+          "maxItems": 2,
+          "minItems": 2,
+          "type": "array"
+        },
+        "model_id": {
+          "description": "Model id (or generated fixture id).",
+          "type": "string"
+        },
+        "resolution_handling": {
+          "description": "How original resolution was handled.",
+          "type": "string"
+        },
+        "runtime": {
+          "description": "onnx-cpu, replay, or external-http; replay is always marked unqualified.",
+          "type": "string"
+        },
+        "source_parity": {
+          "description": "Source-model/export parity, independent of successful graph loading.",
+          "type": "boolean"
+        },
+        "version": {
+          "description": "Exact model/checkpoint version.",
+          "type": "string"
+        }
+      },
+      "required": [
+        "model_id",
+        "version",
+        "artifact_sha256",
+        "runtime",
+        "input_resolution",
+        "resolution_handling",
+        "source_parity"
+      ],
+      "type": "object"
+    },
+    "QualityMeasurement": {
+      "additionalProperties": false,
+      "description": "A measurement kept independent of all existing metrics and verdicts.",
+      "properties": {
+        "direction": {
+          "description": "lower_is_better for distances; higher_is_better for MUSIQ.",
+          "type": "string"
+        },
+        "metric": {
+          "$ref": "#/$defs/LearnedMetric",
+          "description": "Name of metric/checkpoint family."
+        },
+        "provenance": {
+          "$ref": "#/$defs/Provenance",
+          "description": "Exact model/version/resolution handling/export identity."
+        },
+        "value": {
+          "description": "Finite scalar; scale is model/checkpoint specific.",
+          "format": "float",
+          "type": "number"
+        }
+      },
+      "required": [
+        "metric",
+        "value",
+        "direction",
+        "provenance"
+      ],
+      "type": "object"
+    }
+  },
+  "$id": "https://github.com/Tavrin/saccade/crates/saccade-core/schemas/saccade-learned-quality.v2.schema.json",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "description": "Standalone learned comparison report or single-image technical-quality report.",
+  "properties": {
+    "affects_compare_verdict": {
+      "description": "Always false: measurements here never decide existing compare verdicts.",
+      "type": "boolean"
+    },
+    "image_sha256": {
+      "description": "Exact encoded image digest.",
+      "type": "string"
+    },
+    "named_metrics": {
+      "description": "Separately named metrics, never a fused score.",
+      "items": {
+        "$ref": "#/$defs/QualityMeasurement"
+      },
+      "type": "array"
+    },
+    "reference_sha256": {
+      "description": "Exact reference digest when full-reference.",
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "report_id": {
+      "pattern": "^sha256:[0-9a-f]{64}$",
+      "type": "string"
+    },
+    "schema": {
+      "const": "saccade-learned-quality.v2",
+      "description": "QUALITY_SCHEMA.",
+      "type": "string"
+    },
+    "source_refs": {
+      "items": {
+        "maxLength": 2048,
+        "minLength": 1,
+        "type": "string"
+      },
+      "maxItems": 128,
+      "type": "array"
+    }
+  },
+  "required": [
+    "schema",
+    "image_sha256",
+    "named_metrics",
+    "affects_compare_verdict",
+    "report_id",
+    "source_refs"
+  ],
+  "title": "QualityReport",
+  "type": "object"
+}

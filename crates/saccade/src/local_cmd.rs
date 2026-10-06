@@ -358,8 +358,8 @@ pub(crate) fn write_value(path: &Path, value: &Value) -> Result<(), CliError> {
     if std::fs::symlink_metadata(path).is_ok_and(|m| m.file_type().is_symlink()) {
         return Err(CliError::new("unsafe_path", "refusing output symlink"));
     }
-    std::fs::write(path, format!("{}\n", serde_json::to_string_pretty(value)?))
-        .map_err(|e| CliError::io(e.to_string()))
+    saccade_core::report_links::write(path, value)?;
+    Ok(())
 }
 pub(crate) fn base_result(operation: &str) -> Value {
     json!({"schema":"saccade-result.v2", "operation":operation,"execution":"complete","measurement":"unknown","validity":"unknown","validity_reasons":[],"review":"pending","artifact":null,"counts":{},"entries":[],"next_actions":[],"limits":[],"errors":[],"page":{"omitted":0,"next_cursor":null}})
@@ -528,7 +528,7 @@ pub(crate) fn inspect_page(
     let budget = if limit <= 5 { 4096 } else { 8192 };
     result["artifact"] = reference(path)?;
     if let Some(schema) = doc["schema"].as_str()
-        && schema
+        && saccade_core::report_links::original_schema(schema)
             .strip_prefix("saccade-report.v")
             .and_then(|v| v.parse::<u32>().ok())
             .is_some_and(|v| v > 1)
@@ -540,7 +540,9 @@ pub(crate) fn inspect_page(
             ),
         ));
     }
-    if doc["schema"] != saccade_core::report::REPORT_SCHEMA {
+    if saccade_core::report_links::original_schema(doc["schema"].as_str().unwrap_or_default())
+        != saccade_core::report::REPORT_SCHEMA
+    {
         let document: Document = serde_json::from_value(doc.clone()).map_err(|_| {
             CliError::usage("inspect expects a measured report or canonical evidence artifact")
         })?;

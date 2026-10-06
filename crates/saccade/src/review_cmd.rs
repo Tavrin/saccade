@@ -66,7 +66,9 @@ fn case(file: &Path) -> Result<EvidenceCase, CliError> {
     let value = local_cmd::read_value(file)?;
     transport::reject_project_overrides(&value)
         .map_err(|e| CliError::new("invalid_project_policy", e))?;
-    if value["schema"] == saccade_core::report::REPORT_SCHEMA {
+    if saccade_core::report_links::original_schema(value["schema"].as_str().unwrap_or_default())
+        == saccade_core::report::REPORT_SCHEMA
+    {
         let report = crate::read_report(file)?;
         let mut c = local_cmd::case_for_result(&report, file)?;
         if c.requests.is_empty() {

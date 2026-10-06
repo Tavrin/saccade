@@ -137,9 +137,16 @@ fn mock(uncertain: bool, disagree: bool) -> Mock {
     }
 }
 fn schema(name: &str, v: &Value) {
+    let expected = format!("saccade-{name}.v1");
+    let successor = saccade_core::report_links::linked_schema(&expected);
+    let id = if v["schema"] == successor {
+        successor
+    } else {
+        &expected
+    };
     let path = Path::new(env!("CARGO_MANIFEST_DIR"))
         .join("../saccade-core/schemas")
-        .join(format!("saccade-{name}.v1.schema.json"));
+        .join(format!("{id}.schema.json"));
     let s: Value = serde_json::from_slice(&std::fs::read(path).unwrap()).unwrap();
     assert!(jsonschema::validator_for(&s).unwrap().is_valid(v), "{v}");
 }
@@ -428,7 +435,10 @@ fn never_final_and_local_preview_contracts_are_enforced() {
         .unwrap();
     assert!(output.status.success(), "{output:?}");
     let value: Value = serde_json::from_slice(&output.stdout).unwrap();
-    assert_eq!(value["schema"], "saccade-result.v2");
+    assert_eq!(
+        value["schema"],
+        saccade_core::report_links::linked_schema("saccade-result.v2")
+    );
     assert_eq!(value["counts"]["dispatched_calls"], 0);
 }
 

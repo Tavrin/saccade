@@ -2,10 +2,10 @@
 
 Generated from compiled capabilities and `--help`; do not edit by hand.
 
-Generation: `cargo build --release -p saccade --all-features`, then `python3 scripts/gen-docs.py --saccade target/release/saccade`.
-The all-features binary includes every supported operation.
+Generation: build with every Cargo feature except `imgtune-avif`, then run `python3 scripts/gen-docs.py --allow-missing-imgtune-avif --saccade "$CARGO_TARGET_DIR/debug/saccade"`.
+This reference omits the AVIF codec feature when system dav1d is unavailable; CI also tests `--all-features`. All CLI operations remain included.
 
-Compiled features: `ai`, `assist`, `compression`, `credentials`, `dense-motion`, `documents`, `embeddings`, `evaluation`, `geometry`, `graphics`, `imgtune-avif`, `local-models`, `local-vlm`, `mcp`, `media-http`, `ocr`, `ocr-provider`, `parallel`, `prechecks`, `products`, `schema`, `semantic-regions`, `vision-providers`, `workbench`.
+Compiled features: `ai`, `assist`, `compression`, `credentials`, `dense-motion`, `documents`, `embeddings`, `evaluation`, `geometry`, `graphics`, `local-models`, `local-vlm`, `mcp`, `media-http`, `ocr`, `ocr-provider`, `parallel`, `prechecks`, `products`, `schema`, `semantic-regions`, `vision-providers`, `workbench`.
 
 Exit 1 means a failed image measurement/evaluation gate or located divergence.
 Exit 0 for compare/identity means no image regression; inspect `performance` for qualification.
@@ -22,8 +22,9 @@ Usage: saccade [OPTIONS] <COMMAND>
 Commands:
   compare             Compare a directory of captures against a directory of baselines
   prove               Check whether image identity or performance evidence proves a claim
-  render-evidence     Compare structural rendering evidence with explicit scope and ID attribution
   review              Preview a review plan or handle a local closed decision request
+  timing              Verdicts over timings acquired by external tools
+  render-evidence     Compare structural rendering evidence with explicit scope and ID attribution
   schema              Discover JSON Schemas without a source checkout
   perf                Validate producer performance sidecars
   arms                Validate producer identity before comparing pixels
@@ -58,8 +59,10 @@ Commands:
   quality-sweep       Measure externally encoded quality candidates under a frozen score and byte budget
 
 Options:
-  -h, --help     Print help
-  -V, --version  Print version
+      --source-ref <SOURCE_REF>      External capture URI/key (repeatable); recorded in generated reports
+      --report-index <REPORT_INDEX>  Shared report index destination (default reports/index.jsonl next to each report, inside --out)
+  -h, --help                         Print help
+  -V, --version                      Print version
 
 Global options:
       --allow-out-near-captures  Silence warnings when --out is next to capture metadata
@@ -72,9 +75,69 @@ Start here:
   saccade prove performance --base 'base_r*' --arm 'candidate=candidate_r*'
   saccade review report/saccade-report.v1.json --out review
 
-Exit codes: 0 no image regression, 1 image regression found, 2 the command could not run.
-Advanced: demo, identity, noise, view, inspect, experiment, approve, init,
+Tasks (full map and guides: docs/quickstart.md, docs/guides/):
+  Did a render or screenshot change?      saccade compare
+  Is a refactor pixel-identical?          saccade prove identity
+  Did it get faster, accounting noise?    saccade prove performance
+  Is a timing from another tool real?     saccade timing
+  Are two capture setups comparable?      saccade arms check
+  Which images are near-duplicates?       saccade dedupe
+  What does a finished report say?        saccade inspect, saccade review
+Advanced: demo, identity, noise, view, inspect, experiment (incl. settle), timing, approve, init,
 serve, mcp, ingest, bisect, history, doctor. Existing commands keep working; use `saccade COMMAND --help`.
+`saccade doctor` lists what this build and machine can run.
+
+Exit codes (a command that cannot produce a measurement never exits 0):
+  0  success: no regression, claim proven, or the requested output was written
+  1  regression found, or the claim was not proven (differs, missing, new, unreadable)
+  2  the command could not run: usage, config, input or unavailable feature/model
+  3  strict producer check refused: an undeclared difference (--require-valid-arms)
+  4  strict producer check refused: a required key is missing (--require-valid-arms)
+Units: --threshold on FLIP scores is a 0-1 score (lower = more alike); hash thresholds count bits.
+```
+
+## saccade timing
+
+```text
+Verdicts over timings acquired by external tools
+
+Usage: saccade timing [OPTIONS] <COMMAND>
+
+Commands:
+  ab  Analyze external paired timings; no commands are executed
+
+Options:
+      --source-ref <SOURCE_REF>      External capture URI/key (repeatable); recorded in generated reports
+      --report-index <REPORT_INDEX>  Shared report index destination (default reports/index.jsonl next to each report, inside --out)
+  -h, --help                         Print help
+
+Global options:
+      --allow-out-near-captures  Silence warnings when --out is next to capture metadata
+      --record-absolute-paths    Opt in to absolute local paths in reports and machine-readable output
+```
+
+## saccade timing ab
+
+```text
+Analyze external paired timings; no commands are executed
+
+Usage: saccade timing ab [OPTIONS] <INPUT>
+
+Arguments:
+  <INPUT>  Session manifest or paired CSV
+
+Options:
+      --format <FORMAT>              session or csv; referenced runs support hyperfine, perf and JSON paths [default: session]
+      --source-ref <SOURCE_REF>      External capture URI/key (repeatable); recorded in generated reports
+      --out <OUT>                    [default: timing-ab]
+      --report-index <REPORT_INDEX>  Shared report index destination (default reports/index.jsonl next to each report, inside --out)
+      --json
+      --band-pct <BAND_PCT>          Override practical band for CSV imports (manifest policies otherwise retained)
+  -h, --help                         Print help
+
+Global options:
+      --allow-out-near-captures  Silence warnings when --out is next to capture metadata
+      --record-absolute-paths    Opt in to absolute local paths in reports and machine-readable output
 ```
 
 ## saccade render-evidence
@@ -91,8 +154,12 @@ Arguments:
 Options:
       --out <OUT>
           [default: render-evidence]
+      --source-ref <SOURCE_REF>
+          External capture URI/key (repeatable); recorded in generated reports
       --config <CONFIG>
 
+      --report-index <REPORT_INDEX>
+          Shared report index destination (default reports/index.jsonl next to each report, inside --out)
       --json
 
       --allow-unreached <ALLOW_UNREACHED>
@@ -113,6 +180,10 @@ Options:
           Same-arm repeat files or run directories (2..32); enables noise-aware deciding evidence
       --mask-dump <MASK_DUMP>
           Generic screen-space dump filename relative to each capture; used when no layer manifest exists
+      --mask-layer <MASK_LAYER>
+          Named layer and native predicate, NAME=id=1,2 or NAME=label=pattern
+      --require-effect <REQUIRE_EFFECT>
+          Required occupancy from NAME=predicate[:MIN_PIXELS] or mask:FILE[:MIN_PIXELS]
       --id-top <ID_TOP>
           Per-ID rows and diagnostic crops retained, at most 32
       --id-threshold <ID_THRESHOLD>
@@ -138,7 +209,9 @@ Commands:
   path  Locate an installed copy, if available; use get for portable discovery
 
 Options:
-  -h, --help  Print help
+      --source-ref <SOURCE_REF>      External capture URI/key (repeatable); recorded in generated reports
+      --report-index <REPORT_INDEX>  Shared report index destination (default reports/index.jsonl next to each report, inside --out)
+  -h, --help                         Print help
 
 Global options:
       --allow-out-near-captures  Silence warnings when --out is next to capture metadata
@@ -154,7 +227,9 @@ Usage: saccade schema list [OPTIONS]
 
 Options:
       --json
-  -h, --help  Print help
+      --source-ref <SOURCE_REF>      External capture URI/key (repeatable); recorded in generated reports
+      --report-index <REPORT_INDEX>  Shared report index destination (default reports/index.jsonl next to each report, inside --out)
+  -h, --help                         Print help
 
 Global options:
       --allow-out-near-captures  Silence warnings when --out is next to capture metadata
@@ -173,8 +248,10 @@ Arguments:
 
 Options:
       --out <OUT>
+      --source-ref <SOURCE_REF>      External capture URI/key (repeatable); recorded in generated reports
       --json
-  -h, --help       Print help
+      --report-index <REPORT_INDEX>  Shared report index destination (default reports/index.jsonl next to each report, inside --out)
+  -h, --help                         Print help
 
 Global options:
       --allow-out-near-captures  Silence warnings when --out is next to capture metadata
@@ -193,7 +270,9 @@ Arguments:
 
 Options:
       --json
-  -h, --help  Print help
+      --source-ref <SOURCE_REF>      External capture URI/key (repeatable); recorded in generated reports
+      --report-index <REPORT_INDEX>  Shared report index destination (default reports/index.jsonl next to each report, inside --out)
+  -h, --help                         Print help
 
 Global options:
       --allow-out-near-captures  Silence warnings when --out is next to capture metadata
@@ -211,7 +290,9 @@ Commands:
   validate  Validate a perf v1 or v2 sidecar against the exact embedded JSON Schema
 
 Options:
-  -h, --help  Print help
+      --source-ref <SOURCE_REF>      External capture URI/key (repeatable); recorded in generated reports
+      --report-index <REPORT_INDEX>  Shared report index destination (default reports/index.jsonl next to each report, inside --out)
+  -h, --help                         Print help
 
 Global options:
       --allow-out-near-captures  Silence warnings when --out is next to capture metadata
@@ -230,7 +311,9 @@ Arguments:
 
 Options:
       --json
-  -h, --help  Print help
+      --source-ref <SOURCE_REF>      External capture URI/key (repeatable); recorded in generated reports
+      --report-index <REPORT_INDEX>  Shared report index destination (default reports/index.jsonl next to each report, inside --out)
+  -h, --help                         Print help
 
 Global options:
       --allow-out-near-captures  Silence warnings when --out is next to capture metadata
@@ -248,7 +331,9 @@ Commands:
   check  Check two capture records, sidecars, images or capture directories
 
 Options:
-  -h, --help  Print help
+      --source-ref <SOURCE_REF>      External capture URI/key (repeatable); recorded in generated reports
+      --report-index <REPORT_INDEX>  Shared report index destination (default reports/index.jsonl next to each report, inside --out)
+  -h, --help                         Print help
 
 Global options:
       --allow-out-near-captures  Silence warnings when --out is next to capture metadata
@@ -267,14 +352,20 @@ Arguments:
   <B>
 
 Options:
+      --source-ref <SOURCE_REF>
+          External capture URI/key (repeatable); recorded in generated reports
       --vary <VARY>
           Allowed difference matching destination or mapped source: exact key, dotted prefix, suffix or glob; repeat or comma-separate
       --allow-unreached <ALLOW_UNREACHED>
           Permit intentionally unreached captures with exactly matching observations
+      --report-index <REPORT_INDEX>
+          Shared report index destination (default reports/index.jsonl next to each report, inside --out)
       --ignore <IGNORE>
           Explicit exception matching destination or mapped source, echoed even if unmatched; repeat or comma-separate
       --fingerprint-map <FINGERPRINT_MAP>
 
+      --max-record-bytes <MAX_RECORD_BYTES>
+          Fingerprint record limit in bytes (default 16 MiB; hard ceiling 64 MiB); overrides map
       --compare <COMPARE>
           Override the map's field selection (mapped-only requires a map) [possible values: mapped-only, all]
       --config <CONFIG>
@@ -303,7 +394,9 @@ Commands:
   compare  Compare every planned capture, including explicit failure receipts
 
 Options:
-  -h, --help  Print help
+      --source-ref <SOURCE_REF>      External capture URI/key (repeatable); recorded in generated reports
+      --report-index <REPORT_INDEX>  Shared report index destination (default reports/index.jsonl next to each report, inside --out)
+  -h, --help                         Print help
 
 Global options:
       --allow-out-near-captures  Silence warnings when --out is next to capture metadata
@@ -318,12 +411,14 @@ Sample a URL list or bounded sitemap tree into a driver-neutral manifest
 Usage: saccade sweep plan [OPTIONS] --before-origin <BEFORE_ORIGIN> --after-origin <AFTER_ORIGIN> --out <OUT>
 
 Options:
+      --source-ref <SOURCE_REF>        External capture URI/key (repeatable); recorded in generated reports
       --urls <URLS>
+      --report-index <REPORT_INDEX>    Shared report index destination (default reports/index.jsonl next to each report, inside --out)
       --sitemap <SITEMAP>
       --before-origin <BEFORE_ORIGIN>
       --after-origin <AFTER_ORIGIN>
-      --samples <SAMPLES>              [default: 3]
-      --seed <SEED>                    [default: 42]
+      --samples <SAMPLES>              Samples per candidate setting, 1-100 (default 3) [default: 3]
+      --seed <SEED>                    Integer seed for sample order (default 42) [default: 42]
       --viewport <VIEWPORT>            Repeat WIDTHxHEIGHT. Default: 1280x720
       --out <OUT>
       --json
@@ -346,7 +441,9 @@ Arguments:
 
 Options:
       --captures <CAPTURES>
+      --source-ref <SOURCE_REF>        External capture URI/key (repeatable); recorded in generated reports
       --out <OUT>
+      --report-index <REPORT_INDEX>    Shared report index destination (default reports/index.jsonl next to each report, inside --out)
       --config <CONFIG>
       --baseline <BASELINE>            [possible values: last-good]
       --history-store <HISTORY_STORE>
@@ -372,7 +469,9 @@ Commands:
   search  Search a finite quality/format grid, retaining source and delivery evidence
 
 Options:
-  -h, --help  Print help
+      --source-ref <SOURCE_REF>      External capture URI/key (repeatable); recorded in generated reports
+      --report-index <REPORT_INDEX>  Shared report index destination (default reports/index.jsonl next to each report, inside --out)
+  -h, --help                         Print help
 
 Global options:
       --allow-out-near-captures  Silence warnings when --out is next to capture metadata
@@ -387,11 +486,13 @@ Record actual HTTP content negotiation, bytes and decoded dimensions
 Usage: saccade imgtune audit [OPTIONS] --urls <URLS> --accept <ACCEPT> --out <OUT>
 
 Options:
+      --source-ref <SOURCE_REF>      External capture URI/key (repeatable); recorded in generated reports
       --urls <URLS>
       --accept <ACCEPT>
+      --report-index <REPORT_INDEX>  Shared report index destination (default reports/index.jsonl next to each report, inside --out)
       --out <OUT>
       --json
-  -h, --help             Print help
+  -h, --help                         Print help
 
 Global options:
       --allow-out-near-captures  Silence warnings when --out is next to capture metadata
@@ -410,8 +511,10 @@ Arguments:
 
 Options:
       --out <OUT>
+      --source-ref <SOURCE_REF>      External capture URI/key (repeatable); recorded in generated reports
       --json
-  -h, --help       Print help
+      --report-index <REPORT_INDEX>  Shared report index destination (default reports/index.jsonl next to each report, inside --out)
+  -h, --help                         Print help
 
 Global options:
       --allow-out-near-captures  Silence warnings when --out is next to capture metadata
@@ -430,7 +533,9 @@ Commands:
   compare  Compare mapped frames and implementation captures; retain expected layout differences
 
 Options:
-  -h, --help  Print help
+      --source-ref <SOURCE_REF>      External capture URI/key (repeatable); recorded in generated reports
+      --report-index <REPORT_INDEX>  Shared report index destination (default reports/index.jsonl next to each report, inside --out)
+  -h, --help                         Print help
 
 Global options:
       --allow-out-near-captures  Silence warnings when --out is next to capture metadata
@@ -449,11 +554,13 @@ Arguments:
 
 Options:
       --out <OUT>
+      --source-ref <SOURCE_REF>      External capture URI/key (repeatable); recorded in generated reports
       --cache <CACHE>
+      --report-index <REPORT_INDEX>  Shared report index destination (default reports/index.jsonl next to each report, inside --out)
       --fixture-dir <FIXTURE_DIR>
-      --scale <SCALE>              [default: 1]
+      --scale <SCALE>                Export scale factor, 0.01-4 (default 1; 2 = twice the pixel size) [default: 1]
       --json
-  -h, --help                       Print help
+  -h, --help                         Print help
 
 Global options:
       --allow-out-near-captures  Silence warnings when --out is next to capture metadata
@@ -472,12 +579,14 @@ Arguments:
 
 Options:
       --pull <PULL>
+      --source-ref <SOURCE_REF>      External capture URI/key (repeatable); recorded in generated reports
       --captures <CAPTURES>
+      --report-index <REPORT_INDEX>  Shared report index destination (default reports/index.jsonl next to each report, inside --out)
       --out <OUT>
       --config <CONFIG>
-      --align <ALIGN>        [default: translation] [possible values: none, translation]
+      --align <ALIGN>                [default: translation] [possible values: none, translation]
       --json
-  -h, --help                 Print help
+  -h, --help                         Print help
 
 Global options:
       --allow-out-near-captures  Silence warnings when --out is next to capture metadata
@@ -495,10 +604,12 @@ Arguments:
   <REPORT>  Full report, sweep report or design report, read locally
 
 Options:
-      --template <TEMPLATE>        [default: generic] [possible values: generic, slack, teams]
-      --report-link <REPORT_LINK>  Display link; defaults to the report path. Never used as the webhook endpoint
+      --source-ref <SOURCE_REF>      External capture URI/key (repeatable); recorded in generated reports
+      --template <TEMPLATE>          [default: generic] [possible values: generic, slack, teams]
+      --report-index <REPORT_INDEX>  Shared report index destination (default reports/index.jsonl next to each report, inside --out)
+      --report-link <REPORT_LINK>    Display link; defaults to the report path. Never used as the webhook endpoint
       --json
-  -h, --help                       Print help
+  -h, --help                         Print help
 
 Global options:
       --allow-out-near-captures  Silence warnings when --out is next to capture metadata
@@ -514,7 +625,9 @@ Usage: saccade capabilities [OPTIONS]
 
 Options:
       --json
-  -h, --help  Print help
+      --source-ref <SOURCE_REF>      External capture URI/key (repeatable); recorded in generated reports
+      --report-index <REPORT_INDEX>  Shared report index destination (default reports/index.jsonl next to each report, inside --out)
+  -h, --help                         Print help
 
 Global options:
       --allow-out-near-captures  Silence warnings when --out is next to capture metadata
@@ -534,14 +647,18 @@ Arguments:
 Options:
       --faces
           Run local face detection; never downloads models implicitly
+      --source-ref <SOURCE_REF>
+          External capture URI/key (repeatable); recorded in generated reports
       --face-observations <FACE_OBSERVATIONS>
           Image-bound face receipt; explicitly labelled replay
+      --report-index <REPORT_INDEX>
+          Shared report index destination (default reports/index.jsonl next to each report, inside --out)
       --model-registry <MODEL_REGISTRY>
           Shared model registry (vision, embedding and OCR pins)
       --model-cache <MODEL_CACHE>
-
+          Deprecated: set SACCADE_MODELS_DIR or [models].dir
       --runtime-library <RUNTIME_LIBRARY>
-
+          Deprecated: set SACCADE_MODELS_RUNTIME_LIBRARY or [models].runtime_library
       --watermark
           Inspect named watermark decoders; unavailable decoders stay explicit
       --watermark-payload <WATERMARK_PAYLOAD>
@@ -587,14 +704,18 @@ Arguments:
 Options:
       --faces
           Run local face detection; never downloads models implicitly
+      --source-ref <SOURCE_REF>
+          External capture URI/key (repeatable); recorded in generated reports
       --face-observations <FACE_OBSERVATIONS>
           Image-bound face receipt; explicitly labelled replay
+      --report-index <REPORT_INDEX>
+          Shared report index destination (default reports/index.jsonl next to each report, inside --out)
       --model-registry <MODEL_REGISTRY>
           Shared model registry (vision, embedding and OCR pins)
       --model-cache <MODEL_CACHE>
-
+          Deprecated: set SACCADE_MODELS_DIR or [models].dir
       --runtime-library <RUNTIME_LIBRARY>
-
+          Deprecated: set SACCADE_MODELS_RUNTIME_LIBRARY or [models].runtime_library
       --watermark
           Inspect named watermark decoders; unavailable decoders stay explicit
       --watermark-payload <WATERMARK_PAYLOAD>
@@ -629,8 +750,12 @@ Arguments:
 Options:
       --ocr-provider <OCR_PROVIDER>
           Optional document OCR provider; selecting it exports images/PDFs only with --ocr-run [possible values: mistral]
+      --source-ref <SOURCE_REF>
+          External capture URI/key (repeatable); recorded in generated reports
       --ocr-model <OCR_MODEL>
           Explicit dated OCR model (aliases refused)
+      --report-index <REPORT_INDEX>
+          Shared report index destination (default reports/index.jsonl next to each report, inside --out)
       --ocr-pages <OCR_PAGES>
           Zero-based pages selected explicitly; images accept only 0 [default: 0]
       --ocr-responses <OCR_RESPONSES> <OCR_RESPONSES>
@@ -650,9 +775,9 @@ Options:
       --b-source <B_SOURCE>
           Image-bound imported observations for the candidate
       --ocr-contract <OCR_CONTRACT>
-          Override the default pinned PP-OCRv5 contract (or select external Tesseract)
+          Override the default pinned PP-OCRv5 contract (or select external Tesseract). Deprecated for registries: a configured registry (SACCADE_MODELS_REGISTRY / [models].registry) with one OCR contract is used automatically
       --download-model
-          Explicitly fetch SHA-pinned Rust OCR models into the contract cache
+          Deprecated: provision with `saccade models pull ocr`. Still fetches the SHA-pinned Rust OCR models into the contract cache
       --expect-text <EXPECT_TEXT>
           Literal Unicode strings expected in the candidate (repeatable); always inert data
       --readable-confidence <READABLE_CONFIDENCE>
@@ -676,20 +801,22 @@ Global options:
 ```text
 Cosine similarity with an explicitly pinned optional ONNX export
 
-Usage: saccade similar [OPTIONS] --model <MODEL> --cache <CACHE> --library <LIBRARY> <A> <B>
+Usage: saccade similar [OPTIONS] <A> <B>
 
 Arguments:
   <A>
   <B>
 
 Options:
-      --model <MODEL>      Supplied saccade-embedding-model.v1 contract; includes export SHA-256 and preprocessing
-      --cache <CACHE>      Content-addressed model cache; downloads require --download-model
-      --library <LIBRARY>  Explicit ONNX Runtime 1.22 dynamic library, CPU execution only
-      --download-model     Explicitly allow the pinned export to be downloaded to the cache
-      --out <OUT>          [default: similar-report]
+      --model <MODEL>                Supplied saccade-embedding-model.v1 contract; includes export SHA-256 and preprocessing. Default: SACCADE_MODELS_EMBEDDING_CONTRACT or [models].embedding_contract
+      --source-ref <SOURCE_REF>      External capture URI/key (repeatable); recorded in generated reports
+      --cache <CACHE>                Deprecated: set SACCADE_MODELS_DIR or [models].dir. Content-addressed model cache
+      --report-index <REPORT_INDEX>  Shared report index destination (default reports/index.jsonl next to each report, inside --out)
+      --library <LIBRARY>            Deprecated: set SACCADE_MODELS_RUNTIME_LIBRARY or [models].runtime_library. Explicit ONNX Runtime 1.22 dynamic library, CPU execution only
+      --download-model               Deprecated: provision with `saccade models pull embedding`. Still downloads the pinned export to the cache
+      --out <OUT>                    [default: similar-report]
       --json
-  -h, --help               Print help
+  -h, --help                         Print help
 
 Global options:
       --allow-out-near-captures  Silence warnings when --out is next to capture metadata
@@ -704,13 +831,37 @@ Build or query a streaming exact flat embedding index
 Usage: saccade index [OPTIONS] <COMMAND>
 
 Commands:
+  export         Export external report cross-links
   export-inputs  Write exact Rust-preprocessed tensors for independent checkpoint/export parity
   calibrate      Run pinned export parity and fit/holdout calibration over a frozen corpus (heavy)
   build          Build a streaming exact flat index, up to 100000 images and 512 MiB vectors
   query          Search an existing index; model/preprocessing must exactly match the index
 
 Options:
-  -h, --help  Print help
+      --source-ref <SOURCE_REF>      External capture URI/key (repeatable); recorded in generated reports
+      --report-index <REPORT_INDEX>  Shared report index destination (default reports/index.jsonl next to each report, inside --out)
+  -h, --help                         Print help
+
+Global options:
+      --allow-out-near-captures  Silence warnings when --out is next to capture metadata
+      --record-absolute-paths    Opt in to absolute local paths in reports and machine-readable output
+```
+
+## saccade index export
+
+```text
+Export external report cross-links
+
+Usage: saccade index export [OPTIONS]
+
+Options:
+      --index <INDEX>                [default: reports/index.jsonl]
+      --source-ref <SOURCE_REF>      External capture URI/key (repeatable); recorded in generated reports
+      --format <FORMAT>              [default: jsonl]
+      --report-index <REPORT_INDEX>  Shared report index destination (default reports/index.jsonl next to each report, inside --out)
+      --out <OUT>
+      --json
+  -h, --help                         Print help
 
 Global options:
       --allow-out-near-captures  Silence warnings when --out is next to capture metadata
@@ -729,9 +880,11 @@ Arguments:
 
 Options:
       --model <MODEL>
+      --source-ref <SOURCE_REF>      External capture URI/key (repeatable); recorded in generated reports
       --out <OUT>
+      --report-index <REPORT_INDEX>  Shared report index destination (default reports/index.jsonl next to each report, inside --out)
       --json
-  -h, --help           Print help
+  -h, --help                         Print help
 
 Global options:
       --allow-out-near-captures  Silence warnings when --out is next to capture metadata
@@ -743,19 +896,21 @@ Global options:
 ```text
 Run pinned export parity and fit/holdout calibration over a frozen corpus (heavy)
 
-Usage: saccade index calibrate [OPTIONS] --model <MODEL> --cache <CACHE> --library <LIBRARY> --out <OUT> <CORPUS>
+Usage: saccade index calibrate [OPTIONS] --out <OUT> <CORPUS>
 
 Arguments:
   <CORPUS>
 
 Options:
-      --model <MODEL>      Supplied saccade-embedding-model.v1 contract; includes export SHA-256 and preprocessing
-      --cache <CACHE>      Content-addressed model cache; downloads require --download-model
-      --library <LIBRARY>  Explicit ONNX Runtime 1.22 dynamic library, CPU execution only
-      --download-model     Explicitly allow the pinned export to be downloaded to the cache
+      --model <MODEL>                Supplied saccade-embedding-model.v1 contract; includes export SHA-256 and preprocessing. Default: SACCADE_MODELS_EMBEDDING_CONTRACT or [models].embedding_contract
+      --source-ref <SOURCE_REF>      External capture URI/key (repeatable); recorded in generated reports
+      --cache <CACHE>                Deprecated: set SACCADE_MODELS_DIR or [models].dir. Content-addressed model cache
+      --report-index <REPORT_INDEX>  Shared report index destination (default reports/index.jsonl next to each report, inside --out)
+      --library <LIBRARY>            Deprecated: set SACCADE_MODELS_RUNTIME_LIBRARY or [models].runtime_library. Explicit ONNX Runtime 1.22 dynamic library, CPU execution only
+      --download-model               Deprecated: provision with `saccade models pull embedding`. Still downloads the pinned export to the cache
       --out <OUT>
       --json
-  -h, --help               Print help
+  -h, --help                         Print help
 
 Global options:
       --allow-out-near-captures  Silence warnings when --out is next to capture metadata
@@ -767,19 +922,21 @@ Global options:
 ```text
 Build a streaming exact flat index, up to 100000 images and 512 MiB vectors
 
-Usage: saccade index build [OPTIONS] --model <MODEL> --cache <CACHE> --library <LIBRARY> --out <OUT> <DIR>
+Usage: saccade index build [OPTIONS] --out <OUT> <DIR>
 
 Arguments:
   <DIR>
 
 Options:
-      --model <MODEL>      Supplied saccade-embedding-model.v1 contract; includes export SHA-256 and preprocessing
-      --cache <CACHE>      Content-addressed model cache; downloads require --download-model
-      --library <LIBRARY>  Explicit ONNX Runtime 1.22 dynamic library, CPU execution only
-      --download-model     Explicitly allow the pinned export to be downloaded to the cache
+      --model <MODEL>                Supplied saccade-embedding-model.v1 contract; includes export SHA-256 and preprocessing. Default: SACCADE_MODELS_EMBEDDING_CONTRACT or [models].embedding_contract
+      --source-ref <SOURCE_REF>      External capture URI/key (repeatable); recorded in generated reports
+      --cache <CACHE>                Deprecated: set SACCADE_MODELS_DIR or [models].dir. Content-addressed model cache
+      --report-index <REPORT_INDEX>  Shared report index destination (default reports/index.jsonl next to each report, inside --out)
+      --library <LIBRARY>            Deprecated: set SACCADE_MODELS_RUNTIME_LIBRARY or [models].runtime_library. Explicit ONNX Runtime 1.22 dynamic library, CPU execution only
+      --download-model               Deprecated: provision with `saccade models pull embedding`. Still downloads the pinned export to the cache
       --out <OUT>
       --json
-  -h, --help               Print help
+  -h, --help                         Print help
 
 Global options:
       --allow-out-near-captures  Silence warnings when --out is next to capture metadata
@@ -791,22 +948,24 @@ Global options:
 ```text
 Search an existing index; model/preprocessing must exactly match the index
 
-Usage: saccade index query [OPTIONS] --model <MODEL> --cache <CACHE> --library <LIBRARY> <INDEX> [IMAGE]
+Usage: saccade index query [OPTIONS] <INDEX> [IMAGE]
 
 Arguments:
   <INDEX>
   [IMAGE]
 
 Options:
-      --text <TEXT>        Text query requires a pinned SigLIP 2 joint text/image model
-      --model <MODEL>      Supplied saccade-embedding-model.v1 contract; includes export SHA-256 and preprocessing
-      --cache <CACHE>      Content-addressed model cache; downloads require --download-model
-      --library <LIBRARY>  Explicit ONNX Runtime 1.22 dynamic library, CPU execution only
-      --download-model     Explicitly allow the pinned export to be downloaded to the cache
-      --top <TOP>          [default: 10]
-      --out <OUT>          [default: query-report]
+      --source-ref <SOURCE_REF>      External capture URI/key (repeatable); recorded in generated reports
+      --text <TEXT>                  Text query requires a pinned SigLIP 2 joint text/image model
+      --model <MODEL>                Supplied saccade-embedding-model.v1 contract; includes export SHA-256 and preprocessing. Default: SACCADE_MODELS_EMBEDDING_CONTRACT or [models].embedding_contract
+      --report-index <REPORT_INDEX>  Shared report index destination (default reports/index.jsonl next to each report, inside --out)
+      --cache <CACHE>                Deprecated: set SACCADE_MODELS_DIR or [models].dir. Content-addressed model cache
+      --library <LIBRARY>            Deprecated: set SACCADE_MODELS_RUNTIME_LIBRARY or [models].runtime_library. Explicit ONNX Runtime 1.22 dynamic library, CPU execution only
+      --download-model               Deprecated: provision with `saccade models pull embedding`. Still downloads the pinned export to the cache
+      --top <TOP>                    Number of nearest matches to return (default 10) [default: 10]
+      --out <OUT>                    [default: query-report]
       --json
-  -h, --help               Print help
+  -h, --help                         Print help
 
 Global options:
       --allow-out-near-captures  Silence warnings when --out is next to capture metadata
@@ -824,9 +983,11 @@ Arguments:
   <FILES>...  Files or directories; each unique input is decoded once
 
 Options:
-      --out <OUT>  New or empty output directory [default: hash-report]
-      --json       Emit a bounded JSON artifact receipt
-  -h, --help       Print help
+      --out <OUT>                    New or empty output directory [default: hash-report]
+      --source-ref <SOURCE_REF>      External capture URI/key (repeatable); recorded in generated reports
+      --json                         Emit a bounded JSON artifact receipt
+      --report-index <REPORT_INDEX>  Shared report index destination (default reports/index.jsonl next to each report, inside --out)
+  -h, --help                         Print help
 
 Global options:
       --allow-out-near-captures  Silence warnings when --out is next to capture metadata
@@ -844,11 +1005,13 @@ Arguments:
   <DIR>  Directory of images; never deletes originals
 
 Options:
-      --algorithm <ALGORITHM>  Algorithm for the Hamming index [default: phash] [possible values: ahash, dhash, phash]
-      --threshold <THRESHOLD>  Inclusive Hamming radius in 0..64; clusters use transitive connectivity [default: 6]
-      --out <OUT>              New or empty output directory [default: dedupe-report]
-      --json                   Emit a bounded JSON artifact receipt
-  -h, --help                   Print help
+      --algorithm <ALGORITHM>        Algorithm for the Hamming index [default: phash] [possible values: ahash, dhash, phash]
+      --source-ref <SOURCE_REF>      External capture URI/key (repeatable); recorded in generated reports
+      --report-index <REPORT_INDEX>  Shared report index destination (default reports/index.jsonl next to each report, inside --out)
+      --threshold <THRESHOLD>        Largest perceptual-hash distance in bits, 0-64 (0 = identical hashes; larger = looser); clusters use transitive connectivity [default: 6]
+      --out <OUT>                    New or empty output directory [default: dedupe-report]
+      --json                         Emit a bounded JSON artifact receipt
+  -h, --help                         Print help
 
 Global options:
       --allow-out-near-captures  Silence warnings when --out is next to capture metadata
@@ -866,14 +1029,16 @@ Arguments:
   <SOURCE>
 
 Options:
-      --profile <PROFILE>          [default: cpu-lite] [possible values: cpu-lite, cpu-full, gpu]
-      --model-dir <MODEL_DIR>
-      --registry <REGISTRY>
-      --options <OPTIONS>          Per-section options JSON file
+      --profile <PROFILE>            [default: cpu-lite] [possible values: cpu-lite, cpu-full, gpu]
+      --source-ref <SOURCE_REF>      External capture URI/key (repeatable); recorded in generated reports
+      --model-dir <MODEL_DIR>        Deprecated: set SACCADE_MODELS_DIR or [models].dir (see `saccade models config`)
+      --report-index <REPORT_INDEX>  Shared report index destination (default reports/index.jsonl next to each report, inside --out)
+      --registry <REGISTRY>          Deprecated: set SACCADE_MODELS_REGISTRY or [models].registry
+      --options <OPTIONS>            Per-section options JSON file
       --strict
-      --output-size <OUTPUT_SIZE>  Repeat output size WxH
+      --output-size <OUTPUT_SIZE>    Repeat output size WxH
       --json
-  -h, --help                       Print help
+  -h, --help                         Print help
 
 Global options:
       --allow-out-near-captures  Silence warnings when --out is next to capture metadata
@@ -892,8 +1057,10 @@ Arguments:
 
 Options:
       --out <OUT>
-      --sample-fps <SAMPLE_FPS>      [default: 1]
-      --shot-penalty <SHOT_PENALTY>  [default: 0.15]
+      --source-ref <SOURCE_REF>      External capture URI/key (repeatable); recorded in generated reports
+      --report-index <REPORT_INDEX>  Shared report index destination (default reports/index.jsonl next to each report, inside --out)
+      --sample-fps <SAMPLE_FPS>      Requested samples per second, 0.1-10 (default 1; the decoder may lower it) [default: 1]
+      --shot-penalty <SHOT_PENALTY>  Change-point penalty, 0.001-10 (default 0.15; higher = fewer, longer shots; content-dependent) [default: 0.15]
       --json
   -h, --help                         Print help
 
@@ -915,7 +1082,9 @@ Arguments:
 
 Options:
       --json
-  -h, --help  Print help
+      --source-ref <SOURCE_REF>      External capture URI/key (repeatable); recorded in generated reports
+      --report-index <REPORT_INDEX>  Shared report index destination (default reports/index.jsonl next to each report, inside --out)
+  -h, --help                         Print help
 
 Global options:
       --allow-out-near-captures  Silence warnings when --out is next to capture metadata
@@ -930,11 +1099,14 @@ List or explicitly pull pinned local models
 Usage: saccade models [OPTIONS] <COMMAND>
 
 Commands:
-  list  Inspect selections, real pins, cache integrity and source-parity status
-  pull  Explicit opt-in to download only the named model's pinned artifacts
+  list    Inspect selections, real pins, cache integrity and source-parity status
+  config  Show the resolved model configuration and where each value came from
+  pull    The one provisioning verb: download and verify the named pinned artifacts
 
 Options:
-  -h, --help  Print help
+      --source-ref <SOURCE_REF>      External capture URI/key (repeatable); recorded in generated reports
+      --report-index <REPORT_INDEX>  Shared report index destination (default reports/index.jsonl next to each report, inside --out)
+  -h, --help                         Print help
 
 Global options:
       --allow-out-near-captures  Silence warnings when --out is next to capture metadata
@@ -949,10 +1121,30 @@ Inspect selections, real pins, cache integrity and source-parity status
 Usage: saccade models list [OPTIONS]
 
 Options:
-      --registry <REGISTRY>
-      --cache <CACHE>
+      --registry <REGISTRY>          Deprecated: set SACCADE_MODELS_REGISTRY or [models].registry
+      --source-ref <SOURCE_REF>      External capture URI/key (repeatable); recorded in generated reports
+      --cache <CACHE>                Deprecated: set SACCADE_MODELS_DIR or [models].dir
+      --report-index <REPORT_INDEX>  Shared report index destination (default reports/index.jsonl next to each report, inside --out)
       --json
-  -h, --help                 Print help
+  -h, --help                         Print help
+
+Global options:
+      --allow-out-near-captures  Silence warnings when --out is next to capture metadata
+      --record-absolute-paths    Opt in to absolute local paths in reports and machine-readable output
+```
+
+## saccade models config
+
+```text
+Show the resolved model configuration and where each value came from
+
+Usage: saccade models config [OPTIONS]
+
+Options:
+      --json
+      --source-ref <SOURCE_REF>      External capture URI/key (repeatable); recorded in generated reports
+      --report-index <REPORT_INDEX>  Shared report index destination (default reports/index.jsonl next to each report, inside --out)
+  -h, --help                         Print help
 
 Global options:
       --allow-out-near-captures  Silence warnings when --out is next to capture metadata
@@ -962,22 +1154,44 @@ Global options:
 ## saccade models pull
 
 ```text
-Explicit opt-in to download only the named model's pinned artifacts
+The one provisioning verb: download and verify the named pinned artifacts.
+
+ID is a registry model, `runtime` (ONNX Runtime), `ocr` (the pinned OCR contract, or --contract FILE) or `embedding` (--contract FILE or the configured embedding contract). Nothing else downloads on request.
 
 Usage: saccade models pull [OPTIONS] <ID>
 
 Arguments:
   <ID>
 
+
 Options:
+      --contract <CONTRACT>
+          Contract file for `ocr` / `embedding`
+
+      --source-ref <SOURCE_REF>
+          External capture URI/key (repeatable); recorded in generated reports
+
       --registry <REGISTRY>
+          Deprecated: set SACCADE_MODELS_REGISTRY or [models].registry
+
+      --report-index <REPORT_INDEX>
+          Shared report index destination (default reports/index.jsonl next to each report, inside --out)
+
       --cache <CACHE>
+          Deprecated: set SACCADE_MODELS_DIR or [models].dir
+
       --json
-  -h, --help                 Print help
+
+
+  -h, --help
+          Print help (see a summary with '-h')
 
 Global options:
-      --allow-out-near-captures  Silence warnings when --out is next to capture metadata
-      --record-absolute-paths    Opt in to absolute local paths in reports and machine-readable output
+      --allow-out-near-captures
+          Silence warnings when --out is next to capture metadata
+
+      --record-absolute-paths
+          Opt in to absolute local paths in reports and machine-readable output
 ```
 
 ## saccade locate
@@ -994,8 +1208,12 @@ Arguments:
 Options:
       --segment
 
+      --source-ref <SOURCE_REF>
+          External capture URI/key (repeatable); recorded in generated reports
       --detector <DETECTOR>
           [default: grounding-dino-tiny]
+      --report-index <REPORT_INDEX>
+          Shared report index destination (default reports/index.jsonl next to each report, inside --out)
       --segmenter <SEGMENTER>
           [default: sam-2.1-tiny]
       --observations <OBSERVATIONS>
@@ -1003,13 +1221,13 @@ Options:
       --overlay <OVERLAY>
           New overlay PNG; existing files are never overwritten
       --registry <REGISTRY>
-
+          Deprecated: set SACCADE_MODELS_REGISTRY or [models].registry
       --cache <CACHE>
-
+          Deprecated: set SACCADE_MODELS_DIR or [models].dir
       --runtime-library <RUNTIME_LIBRARY>
-          ONNX Runtime 1.22 library; otherwise ORT_DYLIB_PATH or verified model cache
+          Deprecated: set SACCADE_MODELS_RUNTIME_LIBRARY or [models].runtime_library. ONNX Runtime 1.22 library; otherwise ORT_DYLIB_PATH or verified model cache
       --allow-download
-
+          Deprecated: provision with `saccade models pull <id>` instead
       --json
 
   -h, --help
@@ -1033,18 +1251,22 @@ Arguments:
 Options:
       --reference <REFERENCE>
           Full-reference metric command needs an explicit reference
+      --source-ref <SOURCE_REF>
+          External capture URI/key (repeatable); recorded in generated reports
       --metric <METRIC>
           [default: musiq]
+      --report-index <REPORT_INDEX>
+          Shared report index destination (default reports/index.jsonl next to each report, inside --out)
       --observations <OBSERVATIONS>
           Explicit stand-in/frozen measurement receipt, always labelled replay
       --registry <REGISTRY>
-
+          Deprecated: set SACCADE_MODELS_REGISTRY or [models].registry
       --cache <CACHE>
-
+          Deprecated: set SACCADE_MODELS_DIR or [models].dir
       --runtime-library <RUNTIME_LIBRARY>
-          ONNX Runtime 1.22 library; otherwise ORT_DYLIB_PATH or verified model cache
+          Deprecated: set SACCADE_MODELS_RUNTIME_LIBRARY or [models].runtime_library. ONNX Runtime 1.22 library; otherwise ORT_DYLIB_PATH or verified model cache
       --allow-download
-
+          Deprecated: provision with `saccade models pull <id>` instead
       --json
 
   -h, --help
@@ -1068,22 +1290,26 @@ Arguments:
 Options:
       --expected-payload <EXPECTED_PAYLOAD>
           Known legacy message bytes in hex; arbitrary recovered bits are not detection
+      --source-ref <SOURCE_REF>
+          External capture URI/key (repeatable); recorded in generated reports
       --quantization-step <QUANTIZATION_STEP>
-          [default: 36]
+          Coefficient quantization step of the embedding workflow (default 36; must be above 0) [default: 36]
+      --report-index <REPORT_INDEX>
+          Shared report index destination (default reports/index.jsonl next to each report, inside --out)
       --minimum-agreement <MINIMUM_AGREEMENT>
-          [default: 0.9]
+          Required fraction of block votes supporting the expected bits, 0.75-1 (default 0.9) [default: 0.9]
       --observations <OBSERVATIONS>
           Explicit frozen/generated primary-decoder observation report
       --trustmark
           Run the pinned Q neural graph; ECC/resize qualification remains unavailable
       --registry <REGISTRY>
-
+          Deprecated: set SACCADE_MODELS_REGISTRY or [models].registry
       --cache <CACHE>
-
+          Deprecated: set SACCADE_MODELS_DIR or [models].dir
       --runtime-library <RUNTIME_LIBRARY>
-          ONNX Runtime 1.22 library; otherwise ORT_DYLIB_PATH or verified model cache
+          Deprecated: set SACCADE_MODELS_RUNTIME_LIBRARY or [models].runtime_library. ONNX Runtime 1.22 library; otherwise ORT_DYLIB_PATH or verified model cache
       --allow-download
-
+          Deprecated: provision with `saccade models pull <id>` instead
       --json
 
   -h, --help
@@ -1107,18 +1333,22 @@ Arguments:
 Options:
       --detector <DETECTOR>
           [default: yunet-2026may]
+      --source-ref <SOURCE_REF>
+          External capture URI/key (repeatable); recorded in generated reports
       --observations <OBSERVATIONS>
 
+      --report-index <REPORT_INDEX>
+          Shared report index destination (default reports/index.jsonl next to each report, inside --out)
       --blur-faces <BLUR_FACES>
           Write a new strongly redacted PNG; never overwrite an original
       --registry <REGISTRY>
-
+          Deprecated: set SACCADE_MODELS_REGISTRY or [models].registry
       --cache <CACHE>
-
+          Deprecated: set SACCADE_MODELS_DIR or [models].dir
       --runtime-library <RUNTIME_LIBRARY>
-          ONNX Runtime 1.22 library; otherwise ORT_DYLIB_PATH or verified model cache
+          Deprecated: set SACCADE_MODELS_RUNTIME_LIBRARY or [models].runtime_library. ONNX Runtime 1.22 library; otherwise ORT_DYLIB_PATH or verified model cache
       --allow-download
-
+          Deprecated: provision with `saccade models pull <id>` instead
       --json
 
   -h, --help
@@ -1142,18 +1372,22 @@ Arguments:
 Options:
       --detector <DETECTOR>
           [default: yunet-2026may]
+      --source-ref <SOURCE_REF>
+          External capture URI/key (repeatable); recorded in generated reports
       --observations <OBSERVATIONS>
 
+      --report-index <REPORT_INDEX>
+          Shared report index destination (default reports/index.jsonl next to each report, inside --out)
       --blur-faces <BLUR_FACES>
           Write a new strongly redacted PNG; never overwrite an original
       --registry <REGISTRY>
-
+          Deprecated: set SACCADE_MODELS_REGISTRY or [models].registry
       --cache <CACHE>
-
+          Deprecated: set SACCADE_MODELS_DIR or [models].dir
       --runtime-library <RUNTIME_LIBRARY>
-          ONNX Runtime 1.22 library; otherwise ORT_DYLIB_PATH or verified model cache
+          Deprecated: set SACCADE_MODELS_RUNTIME_LIBRARY or [models].runtime_library. ONNX Runtime 1.22 library; otherwise ORT_DYLIB_PATH or verified model cache
       --allow-download
-
+          Deprecated: provision with `saccade models pull <id>` instead
       --json
 
       --crop <CROP>
@@ -1181,6 +1415,10 @@ Arguments:
 Options:
       --endpoint <ENDPOINT>
 
+      --source-ref <SOURCE_REF>
+          External capture URI/key (repeatable); recorded in generated reports
+      --report-index <REPORT_INDEX>
+          Shared report index destination (default reports/index.jsonl next to each report, inside --out)
       --runtime-revision <RUNTIME_REVISION>
 
       --response <RESPONSE>
@@ -1208,8 +1446,12 @@ Arguments:
 Options:
       --provider <PROVIDER>
 
+      --source-ref <SOURCE_REF>
+          External capture URI/key (repeatable); recorded in generated reports
       --endpoint-profile <ENDPOINT_PROFILE>
           Startup env-file mapping for generic OpenAI-compatible or Azure deployment endpoints [possible values: openai-compatible, azure-openai]
+      --report-index <REPORT_INDEX>
+          Shared report index destination (default reports/index.jsonl next to each report, inside --out)
       --response <RESPONSE>
           Explicit recorded response; omit to show request mapping only (no credentials)
       --coordinates <COORDINATES>
@@ -1236,9 +1478,11 @@ Arguments:
   <CANDIDATE>
 
 Options:
-      --out <OUT>  New JSON localization report
+      --out <OUT>                    New JSON localization report
+      --source-ref <SOURCE_REF>      External capture URI/key (repeatable); recorded in generated reports
       --json
-  -h, --help       Print help
+      --report-index <REPORT_INDEX>  Shared report index destination (default reports/index.jsonl next to each report, inside --out)
+  -h, --help                         Print help
 
 Global options:
       --allow-out-near-captures  Silence warnings when --out is next to capture metadata
@@ -1259,7 +1503,9 @@ Commands:
   runtime-probe  Load self-contained ONNX graphs; graph loading does not qualify inference/parity
 
 Options:
-  -h, --help  Print help
+      --source-ref <SOURCE_REF>      External capture URI/key (repeatable); recorded in generated reports
+      --report-index <REPORT_INDEX>  Shared report index destination (default reports/index.jsonl next to each report, inside --out)
+  -h, --help                         Print help
 
 Global options:
       --allow-out-near-captures  Silence warnings when --out is next to capture metadata
@@ -1275,10 +1521,12 @@ Usage: saccade regions import [OPTIONS] --reference <REFERENCE> --mask <MASK> --
 
 Options:
       --reference <REFERENCE>
+      --source-ref <SOURCE_REF>      External capture URI/key (repeatable); recorded in generated reports
       --mask <MASK>
+      --report-index <REPORT_INDEX>  Shared report index destination (default reports/index.jsonl next to each report, inside --out)
       --phrase <PHRASE>
-      --out <OUT>              New frozen-region JSON file; use it with localized-check --region
-  -h, --help                   Print help
+      --out <OUT>                    New frozen-region JSON file; use it with localized-check --region
+  -h, --help                         Print help
 
 Global options:
       --allow-out-near-captures  Silence warnings when --out is next to capture metadata
@@ -1293,7 +1541,9 @@ Report honest text-to-mask and import capabilities without loading models
 Usage: saccade regions status [OPTIONS]
 
 Options:
-  -h, --help  Print help
+      --source-ref <SOURCE_REF>      External capture URI/key (repeatable); recorded in generated reports
+      --report-index <REPORT_INDEX>  Shared report index destination (default reports/index.jsonl next to each report, inside --out)
+  -h, --help                         Print help
 
 Global options:
       --allow-out-near-captures  Silence warnings when --out is next to capture metadata
@@ -1309,8 +1559,10 @@ Usage: saccade regions cache [OPTIONS] --manifest <MANIFEST> --cache <CACHE>
 
 Options:
       --manifest <MANIFEST>
+      --source-ref <SOURCE_REF>      External capture URI/key (repeatable); recorded in generated reports
       --cache <CACHE>
-  -h, --help                 Print help
+      --report-index <REPORT_INDEX>  Shared report index destination (default reports/index.jsonl next to each report, inside --out)
+  -h, --help                         Print help
 
 Global options:
       --allow-out-near-captures  Silence warnings when --out is next to capture metadata
@@ -1326,9 +1578,11 @@ Usage: saccade regions runtime-probe [OPTIONS] --manifest <MANIFEST> --cache <CA
 
 Options:
       --manifest <MANIFEST>
+      --source-ref <SOURCE_REF>      External capture URI/key (repeatable); recorded in generated reports
       --cache <CACHE>
+      --report-index <REPORT_INDEX>  Shared report index destination (default reports/index.jsonl next to each report, inside --out)
       --library <LIBRARY>
-  -h, --help                 Print help
+  -h, --help                         Print help
 
 Global options:
       --allow-out-near-captures  Silence warnings when --out is next to capture metadata
@@ -1343,11 +1597,13 @@ Render verified atomic numerical claims with region and evidence citations
 Usage: saccade explain-grounded [OPTIONS] --report <REPORT> --out <OUT>
 
 Options:
-      --report <REPORT>        Immutable comparison or localized measurement JSON
-      --proposals <PROPOSALS>  Optional JSON array of atomic proposals; no provider calls are made
-      --out <OUT>              New explanation JSON file
+      --report <REPORT>              Immutable comparison or localized measurement JSON
+      --source-ref <SOURCE_REF>      External capture URI/key (repeatable); recorded in generated reports
+      --proposals <PROPOSALS>        Optional JSON array of atomic proposals; no provider calls are made
+      --report-index <REPORT_INDEX>  Shared report index destination (default reports/index.jsonl next to each report, inside --out)
+      --out <OUT>                    New explanation JSON file
       --json
-  -h, --help                   Print help
+  -h, --help                         Print help
 
 Global options:
       --allow-out-near-captures  Silence warnings when --out is next to capture metadata
@@ -1368,6 +1624,10 @@ Arguments:
 Options:
       --allow-unreached <ALLOW_UNREACHED>
           Permit both unreached arms only under an identical criterion and observation
+      --source-ref <SOURCE_REF>
+          External capture URI/key (repeatable); recorded in generated reports
+      --report-index <REPORT_INDEX>
+          Shared report index destination (default reports/index.jsonl next to each report, inside --out)
       --require-valid-arms
           Refuse verdicts for incomplete or mismatched producer identity
       --fingerprint-map <FINGERPRINT_MAP>
@@ -1395,9 +1655,9 @@ Options:
       --perceptual-outside
           Use maximum full-frame complement FLIP instead of exact native preservation
       --maximum-outside-flip <MAXIMUM_OUTSIDE_FLIP>
-          [default: 0.01]
+          Largest FLIP score allowed outside the intended region, 0-1 (default 0.01; above it fails) [default: 0.01]
       --ppd <PPD>
-          [default: 67]
+          Viewing condition in pixels per degree of visual angle (default 67) [default: 67]
       --json
 
   -h, --help
@@ -1416,11 +1676,13 @@ Reconcile expected and supplied stable capture cases against a comparison report
 Usage: saccade inventory [OPTIONS] --manifest <MANIFEST> --report <REPORT> --out <OUT>
 
 Options:
-      --manifest <MANIFEST>  Expected suite and supplied capture attempts, with stable case IDs
-      --report <REPORT>      Existing comparison report
-      --out <OUT>            New inventory JSON file
+      --manifest <MANIFEST>          Expected suite and supplied capture attempts, with stable case IDs
+      --source-ref <SOURCE_REF>      External capture URI/key (repeatable); recorded in generated reports
+      --report <REPORT>              Existing comparison report
+      --report-index <REPORT_INDEX>  Shared report index destination (default reports/index.jsonl next to each report, inside --out)
+      --out <OUT>                    New inventory JSON file
       --json
-  -h, --help                 Print help
+  -h, --help                         Print help
 
 Global options:
       --allow-out-near-captures  Silence warnings when --out is next to capture metadata
@@ -1438,9 +1700,11 @@ Arguments:
   <MANIFEST>  Frozen sweep manifest. All artifacts must be beneath its directory
 
 Options:
-      --out <OUT>  New JSON report file; existing files are preserved
+      --out <OUT>                    New JSON report file; existing files are preserved
+      --source-ref <SOURCE_REF>      External capture URI/key (repeatable); recorded in generated reports
       --json
-  -h, --help       Print help
+      --report-index <REPORT_INDEX>  Shared report index destination (default reports/index.jsonl next to each report, inside --out)
+  -h, --help                         Print help
 
 Global options:
       --allow-out-near-captures  Silence warnings when --out is next to capture metadata
@@ -1460,7 +1724,9 @@ Commands:
   analyze  Show measured variation and threshold advice for comparable entries
 
 Options:
-  -h, --help  Print help
+      --source-ref <SOURCE_REF>      External capture URI/key (repeatable); recorded in generated reports
+      --report-index <REPORT_INDEX>  Shared report index destination (default reports/index.jsonl next to each report, inside --out)
+  -h, --help                         Print help
 
 Global options:
       --allow-out-near-captures  Silence warnings when --out is next to capture metadata
@@ -1475,10 +1741,12 @@ Find candidate performance onsets in qualified, comparable history observations
 Usage: saccade history onset [OPTIONS] --store <STORE>
 
 Options:
+      --source-ref <SOURCE_REF>      External capture URI/key (repeatable); recorded in generated reports
       --store <STORE>
-      --limit <LIMIT>  Most recent distinct observations per partition; exact DP is bounded to 120 [default: 60]
+      --limit <LIMIT>                Most recent distinct observations per partition; exact DP is bounded to 120 [default: 60]
+      --report-index <REPORT_INDEX>  Shared report index destination (default reports/index.jsonl next to each report, inside --out)
       --json
-  -h, --help           Print help
+  -h, --help                         Print help
 
 Global options:
       --allow-out-near-captures  Silence warnings when --out is next to capture metadata
@@ -1498,8 +1766,12 @@ Arguments:
 Options:
       --run-id <RUN_ID>
           Producer-assigned independent capture run, never an image or report hash
+      --source-ref <SOURCE_REF>
+          External capture URI/key (repeatable); recorded in generated reports
       --environment-id <ENVIRONMENT_ID>
           Frozen browser/device, fonts, viewport, warmup and temporal protocol identity
+      --report-index <REPORT_INDEX>
+          Shared report index destination (default reports/index.jsonl next to each report, inside --out)
       --unchanged-build
           Declare an unchanged-build repeat eligible for normal-variation advice
       --store <STORE>
@@ -1522,13 +1794,15 @@ Show measured variation and threshold advice for comparable entries
 Usage: saccade history analyze [OPTIONS] --store <STORE>
 
 Options:
+      --source-ref <SOURCE_REF>      External capture URI/key (repeatable); recorded in generated reports
       --store <STORE>
       --entry <ENTRY>
-      --drift          Diagnose sustained anchor-relative drift in recorded run order
-      --out <OUT>      New file containing the complete witness for the selected groups
-      --limit <LIMIT>  [default: 10]
+      --report-index <REPORT_INDEX>  Shared report index destination (default reports/index.jsonl next to each report, inside --out)
+      --drift                        Diagnose sustained anchor-relative drift in recorded run order
+      --out <OUT>                    New file containing the complete witness for the selected groups
+      --limit <LIMIT>                Maximum runs to list, 1-20 (default 10) [default: 10]
       --json
-  -h, --help           Print help
+  -h, --help                         Print help
 
 Global options:
       --allow-out-near-captures  Silence warnings when --out is next to capture metadata
@@ -1543,14 +1817,16 @@ Locate the first commit whose fresh capture fails its baseline
 Usage: saccade bisect [OPTIONS] --capture <CAPTURE> --baseline <BASELINE>
 
 Options:
-      --good <GOOD>          Known good revision in the current repository
-      --bad <BAD>            Known bad revision descended from --good
-      --capture <CAPTURE>    Shell capture command; write images to SACCADE_CAPTURE_DIR (sh on Unix, cmd on Windows)
-      --baseline <BASELINE>  Stable baseline directory, copied before Git changes revisions
-      --perf                 Require qualified performance evidence and count a slower frame as bad
-      --out <OUT>            Evidence directory outside the repository; defaults to a new sibling
-      --json                 Print bounded JSON
-  -h, --help                 Print help
+      --good <GOOD>                  Known good revision in the current repository
+      --source-ref <SOURCE_REF>      External capture URI/key (repeatable); recorded in generated reports
+      --bad <BAD>                    Known bad revision descended from --good
+      --report-index <REPORT_INDEX>  Shared report index destination (default reports/index.jsonl next to each report, inside --out)
+      --capture <CAPTURE>            Shell capture command; write images to SACCADE_CAPTURE_DIR (sh on Unix, cmd on Windows)
+      --baseline <BASELINE>          Stable baseline directory, copied before Git changes revisions
+      --perf                         Require qualified performance evidence and count a slower frame as bad
+      --out <OUT>                    Evidence directory outside the repository; defaults to a new sibling
+      --json                         Print bounded JSON
+  -h, --help                         Print help
 
 Global options:
       --allow-out-near-captures  Silence warnings when --out is next to capture metadata
@@ -1572,7 +1848,9 @@ Commands:
   playwright  Compare expected and actual Playwright screenshot attachments
 
 Options:
-  -h, --help  Print help
+      --source-ref <SOURCE_REF>      External capture URI/key (repeatable); recorded in generated reports
+      --report-index <REPORT_INDEX>  Shared report index destination (default reports/index.jsonl next to each report, inside --out)
+  -h, --help                         Print help
 
 Global options:
       --allow-out-near-captures  Silence warnings when --out is next to capture metadata
@@ -1591,8 +1869,10 @@ Arguments:
 
 Options:
       --out <OUT>
+      --source-ref <SOURCE_REF>      External capture URI/key (repeatable); recorded in generated reports
       --json
-  -h, --help       Print help
+      --report-index <REPORT_INDEX>  Shared report index destination (default reports/index.jsonl next to each report, inside --out)
+  -h, --help                         Print help
 
 Global options:
       --allow-out-near-captures  Silence warnings when --out is next to capture metadata
@@ -1612,8 +1892,10 @@ Arguments:
 
 Options:
       --out <OUT>
+      --source-ref <SOURCE_REF>      External capture URI/key (repeatable); recorded in generated reports
       --json
-  -h, --help       Print help
+      --report-index <REPORT_INDEX>  Shared report index destination (default reports/index.jsonl next to each report, inside --out)
+  -h, --help                         Print help
 
 Global options:
       --allow-out-near-captures  Silence warnings when --out is next to capture metadata
@@ -1632,8 +1914,10 @@ Arguments:
 
 Options:
       --out <OUT>
+      --source-ref <SOURCE_REF>      External capture URI/key (repeatable); recorded in generated reports
       --json
-  -h, --help       Print help
+      --report-index <REPORT_INDEX>  Shared report index destination (default reports/index.jsonl next to each report, inside --out)
+  -h, --help                         Print help
 
 Global options:
       --allow-out-near-captures  Silence warnings when --out is next to capture metadata
@@ -1652,8 +1936,10 @@ Arguments:
 
 Options:
       --out <OUT>
+      --source-ref <SOURCE_REF>      External capture URI/key (repeatable); recorded in generated reports
       --json
-  -h, --help       Print help
+      --report-index <REPORT_INDEX>  Shared report index destination (default reports/index.jsonl next to each report, inside --out)
+  -h, --help                         Print help
 
 Global options:
       --allow-out-near-captures  Silence warnings when --out is next to capture metadata
@@ -1671,10 +1957,12 @@ Arguments:
   <MANIFEST>  Manifest written by integrations/playwright/reporter.cjs
 
 Options:
-      --out <OUT>              New directory for paired inputs and the comparison report
-      --json                   Print the bounded comparison result
-      --threshold <THRESHOLD>  FLIP threshold for the comparison
-  -h, --help                   Print help
+      --out <OUT>                    New directory for paired inputs and the comparison report
+      --source-ref <SOURCE_REF>      External capture URI/key (repeatable); recorded in generated reports
+      --json                         Print the bounded comparison result
+      --report-index <REPORT_INDEX>  Shared report index destination (default reports/index.jsonl next to each report, inside --out)
+      --threshold <THRESHOLD>        FLIP threshold for the comparison
+  -h, --help                         Print help
 
 Global options:
       --allow-out-near-captures  Silence warnings when --out is next to capture metadata
@@ -1689,8 +1977,10 @@ Print installed version, features and supported evidence schemas
 Usage: saccade doctor [OPTIONS]
 
 Options:
-      --json  Print machine-readable JSON
-  -h, --help  Print help
+      --json                         Print machine-readable JSON
+      --source-ref <SOURCE_REF>      External capture URI/key (repeatable); recorded in generated reports
+      --report-index <REPORT_INDEX>  Shared report index destination (default reports/index.jsonl next to each report, inside --out)
+  -h, --help                         Print help
 
 Global options:
       --allow-out-near-captures  Silence warnings when --out is next to capture metadata
@@ -1705,10 +1995,12 @@ Bootstrap a commented configuration and print baseline adoption steps
 Usage: saccade init [OPTIONS]
 
 Options:
-      --template <TEMPLATE>  [default: renderer] [possible values: renderer, ui, identity, ml, ci, nightly, lookdev]
-      --dir <DIR>            [default: .]
+      --source-ref <SOURCE_REF>      External capture URI/key (repeatable); recorded in generated reports
+      --template <TEMPLATE>          [default: renderer] [possible values: renderer, ui, identity, ml, producer-strict, ci, nightly, lookdev]
+      --dir <DIR>                    [default: .]
+      --report-index <REPORT_INDEX>  Shared report index destination (default reports/index.jsonl next to each report, inside --out)
       --force
-  -h, --help                 Print help
+  -h, --help                         Print help
 
 Global options:
       --allow-out-near-captures  Silence warnings when --out is next to capture metadata
@@ -1731,8 +2023,10 @@ Example:
 The demo exits 1 on purpose: it contains a regression and a missing capture.
 
 Options:
-      --out <OUT>  Directory for the demo images and reports (default: a new temporary directory)
-  -h, --help       Print help
+      --out <OUT>                    Directory for the demo images and reports (default: a new temporary directory)
+      --source-ref <SOURCE_REF>      External capture URI/key (repeatable); recorded in generated reports
+      --report-index <REPORT_INDEX>  Shared report index destination (default reports/index.jsonl next to each report, inside --out)
+  -h, --help                         Print help
 
 Global options:
       --allow-out-near-captures  Silence warnings when --out is next to capture metadata
@@ -1767,8 +2061,12 @@ Arguments:
 Options:
       --dpi <DPI>
           Declared document raster density, 36..600 DPI (default 96)
+      --source-ref <SOURCE_REF>
+          External capture URI/key (repeatable); recorded in generated reports
       --question <QUESTION>
           Explicit comparison question; no automatic model fallback [possible values: same-render, same-content, same-text, near-duplicate, quality]
+      --report-index <REPORT_INDEX>
+          Shared report index destination (default reports/index.jsonl next to each report, inside --out)
       --model <MODEL>
           Supplied embedding export contract for same-content
       --cache <CACHE>
@@ -1793,6 +2091,10 @@ Options:
           Same-arm repeat files or run directories (2..32); enables noise-aware deciding evidence
       --mask-dump <MASK_DUMP>
           Generic screen-space dump filename relative to each capture; used when no layer manifest exists
+      --mask-layer <MASK_LAYER>
+          Named layer and native predicate, NAME=id=1,2 or NAME=label=pattern
+      --require-effect <REQUIRE_EFFECT>
+          Required occupancy from NAME=predicate[:MIN_PIXELS] or mask:FILE[:MIN_PIXELS]
       --id-top <ID_TOP>
           Per-ID rows and diagnostic crops retained, at most 32
       --id-threshold <ID_THRESHOLD>
@@ -1811,12 +2113,12 @@ Output:
       --junit <FILE.xml>  Write one JUnit testcase per entry
 
 Gate:
-      --threshold <THRESHOLD>  Default pass threshold (overrides the config file's top level)
+      --threshold <THRESHOLD>  FLIP score limit in 0-1 (0 = identical): a pair fails when its --metric value is above it. Overrides the config file
       --metric <METRIC>        Default deciding metric (overrides the config file's top level) [possible values: mean, p95, p99, max]
       --config <CONFIG>        Config file; defaults to ./saccade.toml when it exists
       --fail-on-new            Treat new images (no baseline) as a regression
       --allow-empty            Accept a run that compared no pair (for example the first run, with an empty baseline directory). Without it, nothing compared exits 1
-      --ppd <PPD>              FLIP pixels per degree
+      --ppd <PPD>              Viewing condition in pixels per degree of visual angle (default 67; larger = finer detail is visible)
 
 HDR images:
       --hdr-tonemapper <NAME>         Tone mapper for `.exr`/`.hdr` images: aces (default), hable or reinhard
@@ -1891,7 +2193,9 @@ Arguments:
   <CANDIDATE_DIR>  Directory of images from the candidate build
 
 Options:
-  -h, --help  Print help
+      --source-ref <SOURCE_REF>      External capture URI/key (repeatable); recorded in generated reports
+      --report-index <REPORT_INDEX>  Shared report index destination (default reports/index.jsonl next to each report, inside --out)
+  -h, --help                         Print help
 
 Output:
       --out <OUT>         Report output directory [default: report]
@@ -1902,7 +2206,7 @@ Output:
 Gate:
       --allow-empty      Accept a run that compared no pair. Without it, nothing compared exits 1
       --config <CONFIG>  Config file; defaults to ./saccade.toml when it exists
-      --ppd <PPD>        FLIP pixels per degree, used only to describe differences
+      --ppd <PPD>        Viewing condition in pixels per degree of visual angle (default 67), used only to describe differences
 
 Selection:
       --entry <GLOB>  Include only matching names (repeatable; union of globs)
@@ -1962,7 +2266,9 @@ Commands:
   performance    Evaluate performance claims from ablation arms and repeat noise
 
 Options:
-  -h, --help  Print help
+      --source-ref <SOURCE_REF>      External capture URI/key (repeatable); recorded in generated reports
+      --report-index <REPORT_INDEX>  Shared report index destination (default reports/index.jsonl next to each report, inside --out)
+  -h, --help                         Print help
 
 Global options:
       --allow-out-near-captures  Silence warnings when --out is next to capture metadata
@@ -1981,9 +2287,11 @@ Arguments:
   <CAPTURE>
 
 Options:
-      --unit <UNIT>  Declared common coordinate unit; no conversion or registration is performed
+      --source-ref <SOURCE_REF>      External capture URI/key (repeatable); recorded in generated reports
+      --unit <UNIT>                  Declared common coordinate unit; no conversion or registration is performed
       --json
-  -h, --help         Print help
+      --report-index <REPORT_INDEX>  Shared report index destination (default reports/index.jsonl next to each report, inside --out)
+  -h, --help                         Print help
 
 Global options:
       --allow-out-near-captures  Silence warnings when --out is next to capture metadata
@@ -2002,15 +2310,17 @@ Arguments:
   <CANDIDATE_DIR>
 
 Options:
-      --out <OUT>         [default: report]
+      --out <OUT>                    [default: report]
+      --source-ref <SOURCE_REF>      External capture URI/key (repeatable); recorded in generated reports
       --config <CONFIG>
+      --report-index <REPORT_INDEX>  Shared report index destination (default reports/index.jsonl next to each report, inside --out)
       --json
       --allow-empty
-      --ppd <PPD>
+      --ppd <PPD>                    Viewing condition in pixels per degree of visual angle (default 67)
       --labels <A,B>
       --junit <FILE.xml>
       --entry <GLOB>
-  -h, --help              Print help
+  -h, --help                         Print help
 
 Metadata sidecars:
       --meta-name <NAME>
@@ -2068,6 +2378,10 @@ Arguments:
 Options:
       --allow-unreached <ALLOW_UNREACHED>
           Permit both unreached arms only under an identical criterion and observation
+      --source-ref <SOURCE_REF>
+          External capture URI/key (repeatable); recorded in generated reports
+      --report-index <REPORT_INDEX>
+          Shared report index destination (default reports/index.jsonl next to each report, inside --out)
       --require-valid-arms
           Refuse verdicts for incomplete or mismatched producer identity
       --fingerprint-map <FINGERPRINT_MAP>
@@ -2122,8 +2436,10 @@ Commands:
   build  Build per-tile empirical noise envelopes from same-arm repeats
 
 Options:
-      --kind <KIND>  Image calibration (default) or qualified performance noise in ms [default: image] [possible values: image, performance]
-  -h, --help         Print help
+      --source-ref <SOURCE_REF>      External capture URI/key (repeatable); recorded in generated reports
+      --kind <KIND>                  Image calibration (default) or qualified performance noise in ms [default: image] [possible values: image, performance]
+      --report-index <REPORT_INDEX>  Shared report index destination (default reports/index.jsonl next to each report, inside --out)
+  -h, --help                         Print help
 
 Performance:
       --perf-name <NAME>           Run performance sidecar file name (default saccade-perf.json)
@@ -2137,7 +2453,7 @@ Performance:
       --perf-min-delta-ms <MS>     Minimum meaningful delta in ms (default 0.05)
       --perf-min-delta-pct <PCT>   Minimum meaningful delta as a percentage of the baseline frame (default 0.5)
       --config <CONFIG>
-      --margin <MARGIN>            [default: 1.5]
+      --margin <MARGIN>            Multiplier on the largest observed metric value when setting the noise floor (default 1.5) [default: 1.5]
       --metric <METRIC>            [default: p95] [possible values: mean, p95, p99, max]
       --out <OUT>                  [default: saccade.noise.toml]
       --json
@@ -2161,6 +2477,10 @@ Arguments:
 Options:
       --out <OUT>
           [default: repeat-noise.json]
+      --source-ref <SOURCE_REF>
+          External capture URI/key (repeatable); recorded in generated reports
+      --report-index <REPORT_INDEX>
+          Shared report index destination (default reports/index.jsonl next to each report, inside --out)
       --tile-size <TILE_SIZE>
           [default: 32]
       --json
@@ -2200,7 +2520,9 @@ Arguments:
   [DIRS]...  Directories to compare, paired by relative image path (2 to 6)
 
 Options:
-  -h, --help  Print help
+      --source-ref <SOURCE_REF>      External capture URI/key (repeatable); recorded in generated reports
+      --report-index <REPORT_INDEX>  Shared report index destination (default reports/index.jsonl next to each report, inside --out)
+  -h, --help                         Print help
 
 Blind judging:
       --unblind <UNBLIND>  Resolve recorded anonymous choices after review
@@ -2216,7 +2538,7 @@ Output:
 
 Comparison:
       --reference <REFERENCE>  FLIP reference: a label or one of the directories (default: the first)
-      --ppd <PPD>              FLIP pixels per degree
+      --ppd <PPD>              Viewing condition in pixels per degree of visual angle (default 67; larger = finer detail is visible)
       --config <CONFIG>        Config file whose `[[region]]` tables become preset ROIs (default: `./saccade.toml` when present)
 
 HDR images:
@@ -2270,7 +2592,9 @@ Arguments:
 
 Options:
       --report <REPORT>              Derive the input directories from this report
+      --source-ref <SOURCE_REF>      External capture URI/key (repeatable); recorded in generated reports
       --entry <NAME>                 Select a report entry without positional directories; repeatable
+      --report-index <REPORT_INDEX>  Shared report index destination (default reports/index.jsonl next to each report, inside --out)
       --all-failing [<REPORT_JSON>]  Also approve every fail and new entry of this report JSON
       --decisions <DECISIONS_JSON>   Explicit canonical CLI decision bound to this report, inputs and scope
       --include-errors               With --all-failing: also approve `error` entries (for example a size change) whose capture exists and decodes
@@ -2307,8 +2631,12 @@ Arguments:
 Options:
       --api
           Serve the local versioned media API instead of the archive viewer
+      --source-ref <SOURCE_REF>
+          External capture URI/key (repeatable); recorded in generated reports
       --api-max-bytes <API_MAX_BYTES>
-          [default: 16777216]
+          Largest accepted request body in bytes (default 16777216 = 16 MiB) [default: 16777216]
+      --report-index <REPORT_INDEX>
+          Shared report index destination (default reports/index.jsonl next to each report, inside --out)
       --api-bind <API_BIND>
           [default: 127.0.0.1]
       --api-token-file <API_TOKEN_FILE>
@@ -2326,7 +2654,7 @@ Options:
       --symlink-target <SYMLINK_TARGETS>
           Allow symlinks reached below a root to resolve into DIR (repeatable)
       --fs-timeout-ms <FS_TIMEOUT_MS>
-          Storage deadline in milliseconds (default: 3000)
+          Storage deadline in milliseconds, at least 1 (default: 3000)
       --port <PORT>
           Port on 127.0.0.1 (0 picks a free one) [default: 7878]
       --cache-dir <CACHE_DIR>
@@ -2336,7 +2664,7 @@ Options:
       --config <CONFIG>
           Config file for sidecar settings and preset regions (default: `./saccade.toml` when present)
       --ppd <PPD>
-          FLIP pixels per degree
+          Viewing condition in pixels per degree of visual angle (default 67; larger = finer detail is visible). Viewing condition in pixels per degree of visual angle (default 67)
       --open
           Open the page in the default browser
   -h, --help
@@ -2384,7 +2712,9 @@ Example:
 
 Options:
       --root <ROOTS>                  Read-only roots (repeatable)
+      --source-ref <SOURCE_REF>       External capture URI/key (repeatable); recorded in generated reports
       --out-root <OUT_ROOT>           Generated artifacts require this separate root
+      --report-index <REPORT_INDEX>   Shared report index destination (default reports/index.jsonl next to each report, inside --out)
       --follow-symlinks-within-roots  Let a symlink that resolves inside any of the roots be read
       --symlink-target <DIR>          Allow symlinks reached below a root to resolve into DIR (repeatable)
       --allow-provider-calls          Explicitly authorize provider calls for this MCP server lifetime
@@ -2417,14 +2747,26 @@ Arguments:
   [ARTIFACT]
 
 Options:
+      --source-ref <SOURCE_REF>
+          External capture URI/key (repeatable); recorded in generated reports
+      --report-index <REPORT_INDEX>
+          Shared report index destination (default reports/index.jsonl next to each report, inside --out)
       --entry <ENTRY>
-      --validity-reasons                     List every capture-validity reason, with pagination
+
+      --validity-reasons
+          List every capture-validity reason, with pagination
       --status <STATUS>
-      --limit <LIMIT>                        [default: 10]
+
+      --limit <LIMIT>
+          Maximum rows to show (default 10) [default: 10]
       --cursor <CURSOR>
+
       --expected-case-id <EXPECTED_CASE_ID>
+
       --json
-  -h, --help                                 Print help
+
+  -h, --help
+          Print help
 
 Global options:
       --allow-out-near-captures  Silence warnings when --out is next to capture metadata
@@ -2443,7 +2785,9 @@ Arguments:
 
 Options:
       --json
-  -h, --help  Print help
+      --source-ref <SOURCE_REF>      External capture URI/key (repeatable); recorded in generated reports
+      --report-index <REPORT_INDEX>  Shared report index destination (default reports/index.jsonl next to each report, inside --out)
+  -h, --help                         Print help
 
 Global options:
       --allow-out-near-captures  Silence warnings when --out is next to capture metadata
@@ -2462,14 +2806,16 @@ Arguments:
 
 Options:
       --out <OUT>
+      --source-ref <SOURCE_REF>      External capture URI/key (repeatable); recorded in generated reports
       --entry <ENTRIES>
-      --top <TOP>          [default: 5]
+      --report-index <REPORT_INDEX>  Shared report index destination (default reports/index.jsonl next to each report, inside --out)
+      --top <TOP>                    Number of entries to include in the evidence pack (default 5) [default: 5]
       --stretch
       --blind
       --key-out <KEY_OUT>
-      --seed <SEED>
+      --seed <SEED>                  Integer seed for the blind shuffle (default: random)
       --json
-  -h, --help               Print help
+  -h, --help                         Print help
 
 Global options:
       --allow-out-near-captures  Silence warnings when --out is next to capture metadata
@@ -2488,10 +2834,12 @@ Arguments:
 
 Options:
       --format <FORMAT>              [possible values: json, markdown, junit, png, labels]
+      --source-ref <SOURCE_REF>      External capture URI/key (repeatable); recorded in generated reports
       --out <OUT>
+      --report-index <REPORT_INDEX>  Shared report index destination (default reports/index.jsonl next to each report, inside --out)
       --entry <ENTRY>
       --state <STATE>
-      --width <WIDTH>                [default: 1024]
+      --width <WIDTH>                Exported image width in pixels (default 1024) [default: 1024]
       --artifact-url <ARTIFACT_URL>
       --comment-key <COMMENT_KEY>
   -h, --help                         Print help
@@ -2510,9 +2858,11 @@ Usage: saccade inspect config [OPTIONS]
 
 Options:
       --config <CONFIG>
+      --source-ref <SOURCE_REF>      External capture URI/key (repeatable); recorded in generated reports
       --entry <PATH_OR_NAME>
+      --report-index <REPORT_INDEX>  Shared report index destination (default reports/index.jsonl next to each report, inside --out)
       --json
-  -h, --help                  Print help
+  -h, --help                         Print help
 
 Global options:
       --allow-out-near-captures  Silence warnings when --out is next to capture metadata
@@ -2528,7 +2878,9 @@ Usage: saccade inspect capabilities [OPTIONS]
 
 Options:
       --json
-  -h, --help  Print help
+      --source-ref <SOURCE_REF>      External capture URI/key (repeatable); recorded in generated reports
+      --report-index <REPORT_INDEX>  Shared report index destination (default reports/index.jsonl next to each report, inside --out)
+  -h, --help                         Print help
 
 Global options:
       --allow-out-near-captures  Silence warnings when --out is next to capture metadata
@@ -2560,8 +2912,10 @@ Arguments:
   [REPORT]
 
 Options:
+      --source-ref <SOURCE_REF>      External capture URI/key (repeatable); recorded in generated reports
+      --report-index <REPORT_INDEX>  Shared report index destination (default reports/index.jsonl next to each report, inside --out)
       --run
-      --budget-calls <BUDGET_CALLS>
+      --budget-calls <BUDGET_CALLS>  Maximum provider calls, at least 1; counts calls, not money
       --out <OUT>
       --user-config <USER_CONFIG>
       --intent-file <INTENT_FILE>
@@ -2588,9 +2942,11 @@ Commands:
   import    Import the exported blind gallery judgments for an explicit voter
 
 Options:
+      --source-ref <SOURCE_REF>      External capture URI/key (repeatable); recorded in generated reports
+      --report-index <REPORT_INDEX>  Shared report index destination (default reports/index.jsonl next to each report, inside --out)
       --user-config <USER_CONFIG>
       --json
-  -h, --help                       Print help
+  -h, --help                         Print help
 
 Global options:
       --allow-out-near-captures  Silence warnings when --out is next to capture metadata
@@ -2609,9 +2965,11 @@ Arguments:
 
 Options:
       --out <OUT>
+      --source-ref <SOURCE_REF>      External capture URI/key (repeatable); recorded in generated reports
+      --report-index <REPORT_INDEX>  Shared report index destination (default reports/index.jsonl next to each report, inside --out)
       --user-config <USER_CONFIG>
       --json
-  -h, --help                       Print help
+  -h, --help                         Print help
 
 Global options:
       --allow-out-near-captures  Silence warnings when --out is next to capture metadata
@@ -2630,9 +2988,11 @@ Arguments:
 
 Options:
       --out <OUT>
+      --source-ref <SOURCE_REF>      External capture URI/key (repeatable); recorded in generated reports
+      --report-index <REPORT_INDEX>  Shared report index destination (default reports/index.jsonl next to each report, inside --out)
       --user-config <USER_CONFIG>
       --json
-  -h, --help                       Print help
+  -h, --help                         Print help
 
 Global options:
       --allow-out-near-captures  Silence warnings when --out is next to capture metadata
@@ -2651,12 +3011,14 @@ Arguments:
 
 Options:
       --out <OUT>
+      --source-ref <SOURCE_REF>      External capture URI/key (repeatable); recorded in generated reports
+      --report-index <REPORT_INDEX>  Shared report index destination (default reports/index.jsonl next to each report, inside --out)
       --voter <VOTER>
       --item <ITEM>
       --answer <ANSWER>
       --user-config <USER_CONFIG>
       --json
-  -h, --help                       Print help
+  -h, --help                         Print help
 
 Global options:
       --allow-out-near-captures  Silence warnings when --out is next to capture metadata
@@ -2676,10 +3038,12 @@ Arguments:
 
 Options:
       --out <OUT>
+      --source-ref <SOURCE_REF>      External capture URI/key (repeatable); recorded in generated reports
+      --report-index <REPORT_INDEX>  Shared report index destination (default reports/index.jsonl next to each report, inside --out)
       --voter <VOTER>
       --user-config <USER_CONFIG>
       --json
-  -h, --help                       Print help
+  -h, --help                         Print help
 
 Global options:
       --allow-out-near-captures  Silence warnings when --out is next to capture metadata
@@ -2697,9 +3061,11 @@ Commands:
   batch  Asynchronous frozen evaluation jobs; never used by interactive advice
 
 Options:
+      --source-ref <SOURCE_REF>      External capture URI/key (repeatable); recorded in generated reports
+      --report-index <REPORT_INDEX>  Shared report index destination (default reports/index.jsonl next to each report, inside --out)
       --user-config <USER_CONFIG>
       --json
-  -h, --help                       Print help
+  -h, --help                         Print help
 
 Global options:
       --allow-out-near-captures  Silence warnings when --out is next to capture metadata
@@ -2719,9 +3085,11 @@ Commands:
   collect  Collect once and settle terminal known usage; never wait
 
 Options:
+      --source-ref <SOURCE_REF>      External capture URI/key (repeatable); recorded in generated reports
+      --report-index <REPORT_INDEX>  Shared report index destination (default reports/index.jsonl next to each report, inside --out)
       --user-config <USER_CONFIG>
       --json
-  -h, --help                       Print help
+  -h, --help                         Print help
 
 Global options:
       --allow-out-near-captures  Silence warnings when --out is next to capture metadata
@@ -2737,12 +3105,14 @@ Usage: saccade review assist batch submit [OPTIONS] --plan <PLAN> --job <JOB>
 
 Options:
       --plan <PLAN>                    Source-bound saccade-assist-batch-plan.v1 artifact
+      --source-ref <SOURCE_REF>        External capture URI/key (repeatable); recorded in generated reports
       --job <JOB>                      Durable receipt under the output root
+      --report-index <REPORT_INDEX>    Shared report index destination (default reports/index.jsonl next to each report, inside --out)
       --experimental
       --run                            Authorize one live submission or one poll; default local only
       --response <RESPONSE>            Recorded collection fixture; cannot settle a live reservation
-      --budget-calls <BUDGET_CALLS>    [default: 8]
-      --deadline-secs <DEADLINE_SECS>  [default: 300]
+      --budget-calls <BUDGET_CALLS>    Maximum provider calls, 1-128 (default 8); the run stops when reached [default: 8]
+      --deadline-secs <DEADLINE_SECS>  Wall-clock limit in seconds, 1-300 (default 300) [default: 300]
       --user-config <USER_CONFIG>
       --json
   -h, --help                           Print help
@@ -2761,12 +3131,14 @@ Usage: saccade review assist batch status [OPTIONS] --plan <PLAN> --job <JOB>
 
 Options:
       --plan <PLAN>                    Source-bound saccade-assist-batch-plan.v1 artifact
+      --source-ref <SOURCE_REF>        External capture URI/key (repeatable); recorded in generated reports
       --job <JOB>                      Durable receipt under the output root
+      --report-index <REPORT_INDEX>    Shared report index destination (default reports/index.jsonl next to each report, inside --out)
       --experimental
       --run                            Authorize one live submission or one poll; default local only
       --response <RESPONSE>            Recorded collection fixture; cannot settle a live reservation
-      --budget-calls <BUDGET_CALLS>    [default: 8]
-      --deadline-secs <DEADLINE_SECS>  [default: 300]
+      --budget-calls <BUDGET_CALLS>    Maximum provider calls, 1-128 (default 8); the run stops when reached [default: 8]
+      --deadline-secs <DEADLINE_SECS>  Wall-clock limit in seconds, 1-300 (default 300) [default: 300]
       --user-config <USER_CONFIG>
       --json
   -h, --help                           Print help
@@ -2785,12 +3157,14 @@ Usage: saccade review assist batch collect [OPTIONS] --plan <PLAN> --job <JOB>
 
 Options:
       --plan <PLAN>                    Source-bound saccade-assist-batch-plan.v1 artifact
+      --source-ref <SOURCE_REF>        External capture URI/key (repeatable); recorded in generated reports
       --job <JOB>                      Durable receipt under the output root
+      --report-index <REPORT_INDEX>    Shared report index destination (default reports/index.jsonl next to each report, inside --out)
       --experimental
       --run                            Authorize one live submission or one poll; default local only
       --response <RESPONSE>            Recorded collection fixture; cannot settle a live reservation
-      --budget-calls <BUDGET_CALLS>    [default: 8]
-      --deadline-secs <DEADLINE_SECS>  [default: 300]
+      --budget-calls <BUDGET_CALLS>    Maximum provider calls, 1-128 (default 8); the run stops when reached [default: 8]
+      --deadline-secs <DEADLINE_SECS>  Wall-clock limit in seconds, 1-300 (default 300) [default: 300]
       --user-config <USER_CONFIG>
       --json
   -h, --help                           Print help
@@ -2810,8 +3184,12 @@ Usage: saccade review explain [OPTIONS] --report <REPORT> --out <OUT>
 Options:
       --report <REPORT>
 
+      --source-ref <SOURCE_REF>
+          External capture URI/key (repeatable); recorded in generated reports
       --entry <ENTRY>
           Select exactly one report entry; required when the report contains several
+      --report-index <REPORT_INDEX>
+          Shared report index destination (default reports/index.jsonl next to each report, inside --out)
       --mask-manifest <MASK_MANIFEST>
           Optional original individual-mask declarations, bound to exact report bytes
       --vision-provider <VISION_PROVIDER>
@@ -2872,8 +3250,12 @@ Usage: saccade review audit-mask [OPTIONS] --report <REPORT> --out <OUT>
 Options:
       --report <REPORT>
 
+      --source-ref <SOURCE_REF>
+          External capture URI/key (repeatable); recorded in generated reports
       --entry <ENTRY>
           Select exactly one report entry; required when the report contains several
+      --report-index <REPORT_INDEX>
+          Shared report index destination (default reports/index.jsonl next to each report, inside --out)
       --mask-manifest <MASK_MANIFEST>
           Optional original individual-mask declarations, bound to exact report bytes
       --vision-provider <VISION_PROVIDER>
@@ -2937,8 +3319,12 @@ Arguments:
 Options:
       --image <IMAGE>
 
+      --source-ref <SOURCE_REF>
+          External capture URI/key (repeatable); recorded in generated reports
       --box <BOX>
           Original image pixels: X,Y,W,H
+      --report-index <REPORT_INDEX>
+          Shared report index destination (default reports/index.jsonl next to each report, inside --out)
       --kind <KIND>
           Closed screenshot-only condition category [default: label-visible] [possible values: label-visible, banner-absent, not-clipped, non-overlap]
       --target <TARGET>
@@ -3014,11 +3400,13 @@ Arguments:
   <SOURCE>  Capture-bound source JSON, exported by the colour/DOM/layout producer
 
 Options:
-      --config <CONFIG>            Project swatches, profiles and CVD tolerances [default: saccade.toml]
-      --out <OUT>                  New review packet JSON file
+      --config <CONFIG>              Project swatches, profiles and CVD tolerances [default: saccade.toml]
+      --source-ref <SOURCE_REF>      External capture URI/key (repeatable); recorded in generated reports
+      --out <OUT>                    New review packet JSON file
+      --report-index <REPORT_INDEX>  Shared report index destination (default reports/index.jsonl next to each report, inside --out)
       --user-config <USER_CONFIG>
       --json
-  -h, --help                       Print help
+  -h, --help                         Print help
 
 Global options:
       --allow-out-near-captures  Silence warnings when --out is next to capture metadata
@@ -3039,8 +3427,12 @@ Arguments:
 Options:
       --reference-source <REFERENCE_SOURCE>
           Source JSON exported by the Playwright ingest, or a DOM/AX producer
+      --source-ref <SOURCE_REF>
+          External capture URI/key (repeatable); recorded in generated reports
       --candidate-source <CANDIDATE_SOURCE>
 
+      --report-index <REPORT_INDEX>
+          Shared report index destination (default reports/index.jsonl next to each report, inside --out)
       --region <REGION>
           Frozen reference inclusion region; protected complement is exact by default
       --box <BBOX>
@@ -3050,9 +3442,9 @@ Options:
       --perceptual-outside
 
       --maximum-outside-flip <MAXIMUM_OUTSIDE_FLIP>
-          [default: 0.01]
+          Largest FLIP score allowed outside the intended region, 0-1 (default 0.01; above it fails) [default: 0.01]
       --ppd <PPD>
-          [default: 67]
+          Viewing condition in pixels per degree of visual angle (default 67) [default: 67]
       --out <OUT>
 
       --user-config <USER_CONFIG>
@@ -3079,12 +3471,16 @@ Arguments:
   <CANDIDATE>
 
 Options:
+      --source-ref <SOURCE_REF>
+          External capture URI/key (repeatable); recorded in generated reports
       --vectors <VECTORS>
           Row-major saccade-vector-buffer.v1 JSON (requires --sidecar)
+      --report-index <REPORT_INDEX>
+          Shared report index destination (default reports/index.jsonl next to each report, inside --out)
       --sidecar <SIDECAR>
           Pinned units, direction, origin and jitter contract (requires --vectors)
       --ppd <PPD>
-          [default: 67]
+          Viewing condition in pixels per degree of visual angle (default 67) [default: 67]
       --maximum-raw-mean <MAXIMUM_RAW_MEAN>
           Raw full-frame mean FLIP threshold; motion cannot relax it [default: 0.01]
       --out <OUT>
@@ -3113,10 +3509,12 @@ Arguments:
 
 Options:
       --question <QUESTION>
+      --source-ref <SOURCE_REF>      External capture URI/key (repeatable); recorded in generated reports
       --out <OUT>
+      --report-index <REPORT_INDEX>  Shared report index destination (default reports/index.jsonl next to each report, inside --out)
       --user-config <USER_CONFIG>
       --json
-  -h, --help                       Print help
+  -h, --help                         Print help
 
 Global options:
       --allow-out-near-captures  Silence warnings when --out is next to capture metadata
@@ -3135,10 +3533,12 @@ Arguments:
 
 Options:
       --answers <ANSWERS>
+      --source-ref <SOURCE_REF>      External capture URI/key (repeatable); recorded in generated reports
       --out <OUT>
+      --report-index <REPORT_INDEX>  Shared report index destination (default reports/index.jsonl next to each report, inside --out)
       --user-config <USER_CONFIG>
       --json
-  -h, --help                       Print help
+  -h, --help                         Print help
 
 Global options:
       --allow-out-near-captures  Silence warnings when --out is next to capture metadata
@@ -3157,9 +3557,11 @@ Arguments:
 
 Options:
       --out <OUT>
+      --source-ref <SOURCE_REF>      External capture URI/key (repeatable); recorded in generated reports
+      --report-index <REPORT_INDEX>  Shared report index destination (default reports/index.jsonl next to each report, inside --out)
       --user-config <USER_CONFIG>
       --json
-  -h, --help                       Print help
+  -h, --help                         Print help
 
 Global options:
       --allow-out-near-captures  Silence warnings when --out is next to capture metadata
@@ -3175,10 +3577,12 @@ Usage: saccade review eval [OPTIONS] --manifest <MANIFEST>
 
 Options:
       --manifest <MANIFEST>
+      --source-ref <SOURCE_REF>      External capture URI/key (repeatable); recorded in generated reports
+      --report-index <REPORT_INDEX>  Shared report index destination (default reports/index.jsonl next to each report, inside --out)
       --run
       --user-config <USER_CONFIG>
       --json
-  -h, --help                       Print help
+  -h, --help                         Print help
 
 Global options:
       --allow-out-near-captures  Silence warnings when --out is next to capture metadata
@@ -3193,6 +3597,7 @@ Analyze existing graphics captures: ablation, sequences, ranking, bisection
 Usage: saccade experiment [OPTIONS] <COMMAND>
 
 Commands:
+  settle     Event-relative tile error, settling, lag and pre-change residual trajectories
   reference  Compare a render with a noisy offline reference and record alignment/noise floors
   geometry   Measure bidirectional triangle-surface distance and oriented normal deviation
   ablate     Compare ablation arms against a base with image and performance evidence
@@ -3204,7 +3609,39 @@ Commands:
   a11y       Accessibility PRE-CHECK only; not certification or formal compliance
 
 Options:
-  -h, --help  Print help
+      --source-ref <SOURCE_REF>      External capture URI/key (repeatable); recorded in generated reports
+      --report-index <REPORT_INDEX>  Shared report index destination (default reports/index.jsonl next to each report, inside --out)
+  -h, --help                         Print help
+
+Global options:
+      --allow-out-near-captures  Silence warnings when --out is next to capture metadata
+      --record-absolute-paths    Opt in to absolute local paths in reports and machine-readable output
+```
+
+## saccade experiment settle
+
+```text
+Event-relative tile error, settling, lag and pre-change residual trajectories
+
+Usage: saccade experiment settle [OPTIONS] <FRAMES>
+
+Arguments:
+  <FRAMES>  Directory of numbered image frames, sorted by numeric suffix
+
+Options:
+      --change-frame <CHANGE_FRAME>
+      --source-ref <SOURCE_REF>      External capture URI/key (repeatable); recorded in generated reports
+      --event <EVENT>                Bounded JSON event marker containing change_frame
+      --report-index <REPORT_INDEX>  Shared report index destination (default reports/index.jsonl next to each report, inside --out)
+      --reference <REFERENCE>
+      --fps <FPS>                    [default: 30]
+      --tile-size <TILE_SIZE>        [default: 32]
+      --threshold <THRESHOLD>        [default: 0.02]
+      --consecutive <CONSECUTIVE>    [default: 3]
+      --final-frames <FINAL_FRAMES>  [default: 3]
+      --out <OUT>                    [default: settling]
+      --json
+  -h, --help                         Print help
 
 Global options:
       --allow-out-near-captures  Silence warnings when --out is next to capture metadata
@@ -3225,6 +3662,10 @@ Arguments:
 Options:
       --allow-unreached <ALLOW_UNREACHED>
           Permit both unreached arms only under an identical criterion and observation
+      --source-ref <SOURCE_REF>
+          External capture URI/key (repeatable); recorded in generated reports
+      --report-index <REPORT_INDEX>
+          Shared report index destination (default reports/index.jsonl next to each report, inside --out)
       --require-valid-arms
           Refuse verdicts for incomplete or mismatched producer identity
       --fingerprint-map <FINGERPRINT_MAP>
@@ -3267,12 +3708,14 @@ Arguments:
   <CAPTURE>
 
 Options:
-      --unit <UNIT>        Declared common coordinate unit; no conversion or registration is performed
-      --samples <SAMPLES>  Approximate area samples per direction, plus mandatory triangle/edge/vertex coverage [default: 4096]
-      --views <VIEWS>      Supplied finite-camera render manifest, bound to these exact mesh inputs
-      --out <OUT>          Write the combined geometry and optional multi-view packet
+      --source-ref <SOURCE_REF>      External capture URI/key (repeatable); recorded in generated reports
+      --unit <UNIT>                  Declared common coordinate unit; no conversion or registration is performed
+      --report-index <REPORT_INDEX>  Shared report index destination (default reports/index.jsonl next to each report, inside --out)
+      --samples <SAMPLES>            Approximate area samples per direction, plus mandatory triangle/edge/vertex coverage [default: 4096]
+      --views <VIEWS>                Supplied finite-camera render manifest, bound to these exact mesh inputs
+      --out <OUT>                    Write the combined geometry and optional multi-view packet
       --json
-  -h, --help               Print help
+  -h, --help                         Print help
 
 Global options:
       --allow-out-near-captures  Silence warnings when --out is next to capture metadata
@@ -3293,6 +3736,10 @@ Arguments:
 Options:
       --allow-unreached <ALLOW_UNREACHED>
           Permit both unreached arms only under an identical criterion and observation
+      --source-ref <SOURCE_REF>
+          External capture URI/key (repeatable); recorded in generated reports
+      --report-index <REPORT_INDEX>
+          Shared report index destination (default reports/index.jsonl next to each report, inside --out)
       --require-valid-arms
           Refuse verdicts for incomplete or mismatched producer identity
       --fingerprint-map <FINGERPRINT_MAP>
@@ -3349,6 +3796,10 @@ Arguments:
 Options:
       --allow-unreached <ALLOW_UNREACHED>
           Permit both unreached arms only under an identical criterion and observation
+      --source-ref <SOURCE_REF>
+          External capture URI/key (repeatable); recorded in generated reports
+      --report-index <REPORT_INDEX>
+          Shared report index destination (default reports/index.jsonl next to each report, inside --out)
       --require-valid-arms
           Refuse verdicts for incomplete or mismatched producer identity
       --fingerprint-map <FINGERPRINT_MAP>
@@ -3391,18 +3842,20 @@ Arguments:
   <CAPTURE_DIR>
 
 Options:
-      --fixed-camera           Declare a fixed camera and measure per-tile flicker with motion qualification
-      --pattern <PATTERN>      Relative-name glob; frames must end in an integer before the extension [default: *]
-      --out <OUT>              [default: sequence-report]
-      --threshold <THRESHOLD>
-      --metric <METRIC>        [possible values: mean, p95, p99, max]
+      --fixed-camera                 Declare a fixed camera and measure per-tile flicker with motion qualification
+      --source-ref <SOURCE_REF>      External capture URI/key (repeatable); recorded in generated reports
+      --pattern <PATTERN>            Relative-name glob; frames must end in an integer before the extension [default: *]
+      --report-index <REPORT_INDEX>  Shared report index destination (default reports/index.jsonl next to each report, inside --out)
+      --out <OUT>                    [default: sequence-report]
+      --threshold <THRESHOLD>        FLIP score limit in 0-1 (0 = identical); above it fails
+      --metric <METRIC>              [possible values: mean, p95, p99, max]
       --config <CONFIG>
-      --ppd <PPD>
+      --ppd <PPD>                    Viewing condition in pixels per degree of visual angle (default 67)
       --fail-on-new
       --allow-empty
       --labels <LABELS>
       --json
-  -h, --help                   Print help
+  -h, --help                         Print help
 
 HDR images:
       --hdr-tonemapper <NAME>         Tone mapper for `.exr`/`.hdr` images: aces (default), hable or reinhard
@@ -3446,16 +3899,18 @@ Arguments:
   <CANDIDATE_DIRS>...
 
 Options:
-      --labels <LABELS>        One unique, safe directory label per candidate, comma separated
-      --metric <METRIC>        [default: mean] [possible values: mean, p95, p99, max]
-      --out <OUT>              [default: rank-report]
+      --labels <LABELS>              One unique, safe directory label per candidate, comma separated
+      --source-ref <SOURCE_REF>      External capture URI/key (repeatable); recorded in generated reports
+      --metric <METRIC>              [default: mean] [possible values: mean, p95, p99, max]
+      --report-index <REPORT_INDEX>  Shared report index destination (default reports/index.jsonl next to each report, inside --out)
+      --out <OUT>                    [default: rank-report]
       --config <CONFIG>
-      --threshold <THRESHOLD>
-      --ppd <PPD>
+      --threshold <THRESHOLD>        FLIP score limit in 0-1 (0 = identical); above it fails
+      --ppd <PPD>                    Viewing condition in pixels per degree of visual angle (default 67)
       --fail-on-new
       --allow-empty
       --json
-  -h, --help                   Print help
+  -h, --help                         Print help
 
 HDR images:
       --hdr-tonemapper <NAME>         Tone mapper for `.exr`/`.hdr` images: aces (default), hable or reinhard
@@ -3495,15 +3950,17 @@ Find the first diverging run or revision in an ordered series
 Usage: saccade experiment bisect [OPTIONS]
 
 Options:
-      --runs <RUNS>...         Ordered run directories, oldest first (repeatable)
-      --runs-from <RUNS_FROM>  One ordered run path per line
-      --good <GOOD>            Reference for existing runs (default: first run)
-      --threshold <THRESHOLD>  Explicit FLIP threshold relaxes native sample identity
-      --metric <METRIC>        mean, p95, p99 or max (default max)
-      --entries <ENTRIES>      Select image names by glob
-      --out <OUT>              Report directory, separate from inputs [default: bisect-report]
-      --json                   Print saccade-bisect.v1 JSON
-  -h, --help                   Print help
+      --runs <RUNS>...               Ordered run directories, oldest first (repeatable)
+      --source-ref <SOURCE_REF>      External capture URI/key (repeatable); recorded in generated reports
+      --report-index <REPORT_INDEX>  Shared report index destination (default reports/index.jsonl next to each report, inside --out)
+      --runs-from <RUNS_FROM>        One ordered run path per line
+      --good <GOOD>                  Reference for existing runs (default: first run)
+      --threshold <THRESHOLD>        Explicit FLIP threshold relaxes native sample identity
+      --metric <METRIC>              mean, p95, p99 or max (default max)
+      --entries <ENTRIES>            Select image names by glob
+      --out <OUT>                    Report directory, separate from inputs [default: bisect-report]
+      --json                         Print saccade-bisect.v1 JSON
+  -h, --help                         Print help
 
 Global options:
       --allow-out-near-captures  Silence warnings when --out is next to capture metadata
@@ -3521,13 +3978,15 @@ Arguments:
   <INPUT>  Numbered frames or mp4/mov/mkv (requires external ffmpeg)
 
 Options:
-      --fps <FPS>            Frame rate override; otherwise metadata, or 60 for frame directories
-      --display <DISPLAY>    WxH@diagonal_inches,distance_metres (default 1920x1080@55,4)
-      --standard <STANDARD>  itu-bt1702 or wcag. PRE-CHECK only, never certification [default: itu-bt1702]
-      --json                 Print full saccade-safety.v1 JSON
-      --out <OUT>            Output directory for JSON, text, HTML, static frames and risk heatmaps [default: safety-report]
-      --junit <JUNIT>        Optional JUnit XML destination
-  -h, --help                 Print help
+      --fps <FPS>                    Frame rate override; otherwise metadata, or 60 for frame directories
+      --source-ref <SOURCE_REF>      External capture URI/key (repeatable); recorded in generated reports
+      --display <DISPLAY>            WxH@diagonal_inches,distance_metres (default 1920x1080@55,4)
+      --report-index <REPORT_INDEX>  Shared report index destination (default reports/index.jsonl next to each report, inside --out)
+      --standard <STANDARD>          itu-bt1702 or wcag. PRE-CHECK only, never certification [default: itu-bt1702]
+      --json                         Print full saccade-safety.v1 JSON
+      --out <OUT>                    Output directory for JSON, text, HTML, static frames and risk heatmaps [default: safety-report]
+      --junit <JUNIT>                Optional JUnit XML destination
+  -h, --help                         Print help
 
 Global options:
       --allow-out-near-captures  Silence warnings when --out is next to capture metadata
@@ -3545,13 +4004,15 @@ Arguments:
   <INPUT>  Opaque sRGB image or image directory
 
 Options:
-      --config <CONFIG>      Explicit saccade.toml with [[region]] kind="text" or "ui"
-      --json                 Print full saccade-a11y.v1 JSON
-      --out <OUT>            Output directory for JSON, text, HTML and simulation/heatmap artifacts [default: a11y-report]
-      --junit <JUNIT>        Optional JUnit XML destination
-      --suggest-regions      Explicitly upload 16 crops/image to Gemini for unconfirmed region proposals
-      --keys-dir <KEYS_DIR>  Judge key policy: gemini.env/SACCADE_GEMINI_API_KEY, never ambient keys
-  -h, --help                 Print help
+      --config <CONFIG>              Explicit saccade.toml with [[region]] kind="text" or "ui"
+      --source-ref <SOURCE_REF>      External capture URI/key (repeatable); recorded in generated reports
+      --json                         Print full saccade-a11y.v1 JSON
+      --report-index <REPORT_INDEX>  Shared report index destination (default reports/index.jsonl next to each report, inside --out)
+      --out <OUT>                    Output directory for JSON, text, HTML and simulation/heatmap artifacts [default: a11y-report]
+      --junit <JUNIT>                Optional JUnit XML destination
+      --suggest-regions              Explicitly upload 16 crops/image to Gemini for unconfirmed region proposals
+      --keys-dir <KEYS_DIR>          Judge key policy: gemini.env/SACCADE_GEMINI_API_KEY, never ambient keys
+  -h, --help                         Print help
 
 Global options:
       --allow-out-near-captures  Silence warnings when --out is next to capture metadata

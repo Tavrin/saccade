@@ -10,7 +10,7 @@
           "const": "saccade-constructed-truth.v1"
         },
         "epoch": {
-          "const": "wave4-constructed/2"
+          "const": "wave4-constructed/3"
         },
         "manifest_hash": {
           "type": "string",
@@ -48,6 +48,9 @@
         },
         "exclusions": {
           "type": "array"
+        },
+        "campaign": {
+          "type": "string"
         }
       },
       "required": [
@@ -63,7 +66,8 @@
         "versions",
         "licence",
         "cases",
-        "exclusions"
+        "exclusions",
+        "campaign"
       ],
       "additionalProperties": false
     },
@@ -74,7 +78,7 @@
           "const": "saccade-constructed-truth.v1"
         },
         "epoch": {
-          "const": "wave4-constructed/2"
+          "const": "wave4-constructed/3"
         },
         "manifest_hash": {
           "type": "string",
@@ -127,6 +131,15 @@
             "string",
             "null"
           ]
+        },
+        "execution_dialect": {
+          "const": "synthetic-offline/1"
+        },
+        "live_model_qualification": {
+          "const": false
+        },
+        "revision_identity": {
+          "type": "string"
         }
       },
       "required": [
@@ -143,7 +156,10 @@
         "workloads",
         "feature_decisions",
         "limitations",
-        "mechanical_fixture_receipt"
+        "mechanical_fixture_receipt",
+        "execution_dialect",
+        "live_model_qualification",
+        "revision_identity"
       ],
       "additionalProperties": false
     }

@@ -1,0 +1,92 @@
+{
+  "$id": "https://github.com/Tavrin/saccade/crates/saccade-core/schemas/saccade-media-index-query.v2.schema.json",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "properties": {
+    "calibration": {
+      "const": "uncalibrated"
+    },
+    "hits": {
+      "items": {
+        "additionalProperties": false,
+        "properties": {
+          "band": {
+            "type": "null"
+          },
+          "cosine": {
+            "maximum": 1,
+            "minimum": -1,
+            "type": "number"
+          },
+          "row": {
+            "additionalProperties": false,
+            "properties": {
+              "encoded_sha256": {
+                "pattern": "^[0-9a-f]{64}$",
+                "type": "string"
+              },
+              "path": {
+                "maxLength": 4096,
+                "type": "string"
+              }
+            },
+            "required": [
+              "path",
+              "encoded_sha256"
+            ],
+            "type": "object"
+          },
+          "row_index": {
+            "maximum": 99999,
+            "minimum": 0,
+            "type": "integer"
+          }
+        },
+        "required": [
+          "row",
+          "row_index",
+          "cosine",
+          "band"
+        ],
+        "type": "object"
+      },
+      "maxItems": 100,
+      "minItems": 1,
+      "type": "array"
+    },
+    "model_contract_sha256": {
+      "pattern": "^[0-9a-f]{64}$",
+      "type": "string"
+    },
+    "query_kind": {
+      "type": "string"
+    },
+    "report_id": {
+      "pattern": "^sha256:[0-9a-f]{64}$",
+      "type": "string"
+    },
+    "schema": {
+      "const": "saccade-media-index-query.v2"
+    },
+    "source_refs": {
+      "items": {
+        "maxLength": 2048,
+        "minLength": 1,
+        "type": "string"
+      },
+      "maxItems": 128,
+      "type": "array"
+    }
+  },
+  "required": [
+    "schema",
+    "query_kind",
+    "model_contract_sha256",
+    "calibration",
+    "hits",
+    "report_id",
+    "source_refs"
+  ],
+  "title": "Compact media index query",
+  "type": "object"
+}

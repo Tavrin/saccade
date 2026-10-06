@@ -406,7 +406,11 @@ pub fn keyframes(source: &Path, out: &Path, opts: &VideoOptions) -> Result<Keyfr
         .create_new(true)
         .open(out.join(format!("{SCHEMA}.json")))
         .map_err(|e| MediaError::new("io_error", e.to_string()))?;
-    serde_json::to_writer_pretty(file, &report)?;
+    let linked = crate::report_links::decorate(&serde_json::to_value(&report)?)
+        .map_err(|e| MediaError::new("report_links", e.to_string()))?;
+    serde_json::to_writer_pretty(file, &linked)?;
+    crate::report_links::index(&out.join(format!("{SCHEMA}.json")), &linked)
+        .map_err(|e| MediaError::new("report_links", e.to_string()))?;
     Ok(report)
 }
 impl Analyzer {

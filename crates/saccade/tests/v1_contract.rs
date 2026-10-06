@@ -30,6 +30,27 @@ fn fixtures(root: &Path) -> (PathBuf, Vec<PathBuf>) {
 }
 
 fn validate(schema: &Value, v: &Value) {
+    let Some(uri) = schema["$id"].as_str() else {
+        let check = jsonschema::validator_for(schema).unwrap();
+        let errors: Vec<_> = check.iter_errors(v).map(|e| e.to_string()).collect();
+        assert!(errors.is_empty(), "{errors:?}: {v}");
+        return;
+    };
+    let expected = uri
+        .rsplit('/')
+        .next()
+        .unwrap()
+        .trim_end_matches(".schema.json");
+    let successor = saccade_core::report_links::linked_schema(expected);
+    let linked;
+    let schema = if v["schema"] == successor && successor != expected {
+        linked =
+            serde_json::from_str::<Value>(saccade_core::schema_catalog::get(successor).unwrap())
+                .unwrap();
+        &linked
+    } else {
+        schema
+    };
     let check = jsonschema::validator_for(schema).unwrap();
     let errors: Vec<_> = check.iter_errors(v).map(|e| e.to_string()).collect();
     assert!(errors.is_empty(), "{errors:?}: {v}");
@@ -72,7 +93,10 @@ fn cli_sequence_rank_and_buffer_outputs_validate_against_shipped_schemas() {
                 String::from_utf8_lossy(&result.stderr)
             );
             let v: Value = serde_json::from_slice(&result.stdout).unwrap();
-            assert_eq!(v["schema"], "saccade-result.v2");
+            assert_eq!(
+                v["schema"],
+                saccade_core::report_links::linked_schema("saccade-result.v2")
+            );
             serde_json::from_value::<saccade_core::evidence::action::ResultEnvelope>(v.clone())
                 .unwrap()
                 .validate()

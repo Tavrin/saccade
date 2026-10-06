@@ -19,7 +19,7 @@ def replace_section(text, name, content):
     return before + start + '\n' + content + '\n' + end + after
 
 
-def generated(binary=None):
+def generated(binary=None, allow_missing_imgtune_avif=False):
     guide = (ROOT / 'integrations/agent-guide.md').read_text(encoding="utf-8")
     packs = {
         'integrations/codex/AGENTS.saccade.md': PACK_HEADER + guide,
@@ -76,6 +76,8 @@ def generated(binary=None):
         features = json.loads(catalogue.stdout)['compiled_features']
         manifest = tomllib.loads((ROOT / 'crates/saccade/Cargo.toml').read_text(encoding="utf-8"))
         missing = set(manifest['features']) - {'default'} - set(features)
+        if allow_missing_imgtune_avif:
+            missing.discard('imgtune-avif')
         if missing:
             raise ValueError('CLI reference requires an --all-features binary; missing: ' + ', '.join(sorted(missing)))
         operations = data['operations']
@@ -87,6 +89,12 @@ def generated(binary=None):
             'Exit 0 for compare/identity means no image regression; inspect `performance` for qualification.',
             'Inspection, review, rank and ablation completion grant no acceptance authority.',
             'Exit 2 means the operation cannot run. Demo intentionally exits 1.', '']
+        if 'imgtune-avif' not in features:
+            lines[4:6] = [
+                'Generation: build with every Cargo feature except `imgtune-avif`, then run '
+                '`python3 scripts/gen-docs.py --allow-missing-imgtune-avif --saccade "$CARGO_TARGET_DIR/debug/saccade"`.',
+                'This reference omits the AVIF codec feature when system dav1d is unavailable; '
+                'CI also tests `--all-features`. All CLI operations remain included.']
         for op in [''] + operations:
             help_result = subprocess.run([binary] + op.split() + ['--help'], check=True, capture_output=True, text=True, encoding="utf-8")
             help_text = '\n'.join(line.rstrip() for line in help_result.stdout.rstrip().splitlines())
@@ -98,11 +106,13 @@ def generated(binary=None):
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--saccade', help='also generate the command reference from this binary')
+    parser.add_argument('--allow-missing-imgtune-avif', action='store_true',
+                        help='allow only the AVIF codec feature to be absent when system dav1d is unavailable')
     parser.add_argument('--skip-readme', action='store_true', help='preserve README during integration')
     parser.add_argument('--check', action='store_true', help='reject drift without rewriting files')
     args = parser.parse_args()
     stale = []
-    for name, body in generated(args.saccade).items():
+    for name, body in generated(args.saccade, args.allow_missing_imgtune_avif).items():
         if args.skip_readme and name == "README.md":
             continue
         dest = ROOT / name

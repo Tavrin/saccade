@@ -1,0 +1,69 @@
+{
+  "$id": "https://github.com/Tavrin/saccade/crates/saccade-core/schemas/saccade-embedding-export-receipt.v2.schema.json",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "properties": {
+    "checkpoint_sha256": {
+      "type": "string"
+    },
+    "export_sha256": {
+      "type": "string"
+    },
+    "inputs_sha256": {
+      "type": "string"
+    },
+    "numpy": {
+      "type": "string"
+    },
+    "onnx": {
+      "type": "string"
+    },
+    "pairs_sha256": {
+      "type": "string"
+    },
+    "qualification": {
+      "type": "string"
+    },
+    "report_id": {
+      "pattern": "^sha256:[0-9a-f]{64}$",
+      "type": "string"
+    },
+    "schema": {
+      "const": "saccade-embedding-export-receipt.v2"
+    },
+    "script_sha256": {
+      "type": "string"
+    },
+    "source_refs": {
+      "items": {
+        "maxLength": 2048,
+        "minLength": 1,
+        "type": "string"
+      },
+      "maxItems": 128,
+      "type": "array"
+    },
+    "source_revision": {
+      "type": "string"
+    },
+    "torch": {
+      "type": "string"
+    }
+  },
+  "required": [
+    "schema",
+    "checkpoint_sha256",
+    "source_revision",
+    "export_sha256",
+    "inputs_sha256",
+    "pairs_sha256",
+    "torch",
+    "numpy",
+    "onnx",
+    "script_sha256",
+    "qualification",
+    "report_id",
+    "source_refs"
+  ],
+  "type": "object"
+}

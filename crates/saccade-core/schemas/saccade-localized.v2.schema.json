@@ -1,0 +1,195 @@
+{
+  "$defs": {
+    "FrozenRegion": {
+      "additionalProperties": false,
+      "description": "Frozen inclusion mask; never recomputed from surviving candidate objects.",
+      "properties": {
+        "dimensions": {
+          "description": "Image dimensions.",
+          "items": {
+            "format": "uint32",
+            "minimum": 0,
+            "type": "integer"
+          },
+          "maxItems": 2,
+          "minItems": 2,
+          "type": "array"
+        },
+        "inclusion": {
+          "description": "Binary 0/1 values, row major.",
+          "items": {
+            "format": "uint8",
+            "maximum": 255,
+            "minimum": 0,
+            "type": "integer"
+          },
+          "type": "array"
+        },
+        "mask_sha256": {
+          "description": "SHA-256 of binary inclusion bytes.",
+          "type": "string"
+        },
+        "provenance": {
+          "additionalProperties": {
+            "type": "string"
+          },
+          "description": "Authoring method, selector/phrase and model/export provenance when applicable.",
+          "type": "object"
+        },
+        "reference_sha256": {
+          "description": "Original reference file hash, not a preview hash.",
+          "type": "string"
+        },
+        "region_id": {
+          "description": "Stable region name.",
+          "type": "string"
+        },
+        "schema": {
+          "description": "saccade-frozen-region.v1.",
+          "type": "string"
+        },
+        "semantics": {
+          "description": "include; black/zero is outside, one is inside.",
+          "type": "string"
+        }
+      },
+      "required": [
+        "schema",
+        "region_id",
+        "semantics",
+        "reference_sha256",
+        "dimensions",
+        "inclusion",
+        "mask_sha256",
+        "provenance"
+      ],
+      "type": "object"
+    },
+    "Scope": {
+      "additionalProperties": false,
+      "description": "Exact sample and full-frame FLIP statistics within a scope.",
+      "properties": {
+        "changed_pixels": {
+          "description": "Native samples differ at these pixels, including alpha and native bit depth.",
+          "format": "uint64",
+          "minimum": 0,
+          "type": "integer"
+        },
+        "max_flip": {
+          "description": "Maximum full-frame FLIP value in the scope.",
+          "format": "double",
+          "type": "number"
+        },
+        "mean_flip": {
+          "description": "Ordered mean of full-frame FLIP values in the scope.",
+          "format": "double",
+          "type": "number"
+        },
+        "pixels": {
+          "description": "Number of pixels in the scope.",
+          "format": "uint64",
+          "minimum": 0,
+          "type": "integer"
+        }
+      },
+      "required": [
+        "pixels",
+        "changed_pixels",
+        "mean_flip",
+        "max_flip"
+      ],
+      "type": "object"
+    }
+  },
+  "$id": "https://github.com/Tavrin/saccade/crates/saccade-core/schemas/saccade-localized.v2.schema.json",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "description": "Measurements do not establish success of the requested semantic edit.",
+  "properties": {
+    "boundary": {
+      "$ref": "#/$defs/Scope",
+      "description": "One-pixel four-neighbor boundary, including both sides of the mask."
+    },
+    "candidate_sha256": {
+      "description": "Candidate encoded file hash.",
+      "type": "string"
+    },
+    "collateral": {
+      "description": "preserved or collateral_change; never semantic approval.",
+      "type": "string"
+    },
+    "exact_outside": {
+      "description": "Whether exact outside preservation was requested.",
+      "type": "boolean"
+    },
+    "inside": {
+      "$ref": "#/$defs/Scope",
+      "description": "Intended-region measurements."
+    },
+    "intended_change_detected": {
+      "description": "Whether native sample change occurred inside.",
+      "type": "boolean"
+    },
+    "limits": {
+      "description": "Numerical/interpretation limits.",
+      "items": {
+        "type": "string"
+      },
+      "type": "array"
+    },
+    "maximum_outside_flip": {
+      "description": "Declared perceptual complement threshold when exact_outside is false.",
+      "format": "float",
+      "type": "number"
+    },
+    "outside": {
+      "$ref": "#/$defs/Scope",
+      "description": "Protected complement, with no configuration exclusions applied."
+    },
+    "pixels_per_degree": {
+      "description": "Full-frame viewing condition.",
+      "format": "float",
+      "type": "number"
+    },
+    "region": {
+      "$ref": "#/$defs/FrozenRegion",
+      "description": "Frozen region and its capture identity."
+    },
+    "report_id": {
+      "pattern": "^sha256:[0-9a-f]{64}$",
+      "type": "string"
+    },
+    "schema": {
+      "const": "saccade-localized.v2",
+      "description": "saccade-localized.v1.",
+      "type": "string"
+    },
+    "source_refs": {
+      "items": {
+        "maxLength": 2048,
+        "minLength": 1,
+        "type": "string"
+      },
+      "maxItems": 128,
+      "type": "array"
+    }
+  },
+  "required": [
+    "schema",
+    "region",
+    "candidate_sha256",
+    "pixels_per_degree",
+    "inside",
+    "outside",
+    "boundary",
+    "intended_change_detected",
+    "exact_outside",
+    "maximum_outside_flip",
+    "collateral",
+    "limits",
+    "report_id",
+    "source_refs"
+  ],
+  "title": "Measurement",
+  "type": "object"
+}

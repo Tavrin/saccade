@@ -20,7 +20,14 @@ pub const REPORT_FILE_NAME: &str = "saccade-report.v1.json";
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct Report {
-    /// Always [`REPORT_SCHEMA`].
+    /// Content-addressed report identity; absent in historical records.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub report_id: Option<String>,
+    /// External capture URI/key backlinks.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub source_refs: Vec<String>,
+
+    /// [`REPORT_SCHEMA`] for historical inputs; linked writers use saccade-report.v2.
     pub schema: String,
     /// Version of the tool that produced the report (`CARGO_PKG_VERSION`).
     pub tool_version: String,

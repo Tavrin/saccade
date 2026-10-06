@@ -377,11 +377,6 @@ pub fn collect(path: &Path, frozen: &Plan, response: &Value) -> Result<Job> {
         job.results.clear();
         job.failed_items = 0;
         for (id, body) in items {
-            let valid = body.get("batch_error_status").is_none()
-                && body["modelVersion"].as_str() == Some(&frozen.revision);
-            if !valid {
-                job.failed_items += 1;
-            }
             let bytes = serde_json::to_vec(&body).map_err(|_| Error::Invalid("batch item JSON"))?;
             let usage = super::execution::usage(&bytes);
             let request = frozen
@@ -389,21 +384,27 @@ pub fn collect(path: &Path, frozen: &Plan, response: &Value) -> Result<Job> {
                 .iter()
                 .find(|r| r["metadata"]["job_id"].as_str() == Some(&id))
                 .ok_or(Error::Invalid("batch item request absent"))?;
+            let valid = body.get("batch_error_status").is_none()
+                && body["modelVersion"].as_str() == Some(&frozen.revision)
+                && batch_answer_valid(&body, &request["request"]);
+            if !valid {
+                job.failed_items += 1;
+            }
+
             let bounds = super::price::gemini_bounds(
                 &serde_json::to_vec(&request["request"])
                     .map_err(|_| Error::Invalid("batch request bytes"))?,
             )?;
-            let cost = if valid && bounds.contains(&usage) {
+            let cost = {
                 super::execution::cost_nano(
                     "gemini",
                     &usage,
                     job.submitted_ms.unwrap_or(job.updated_ms),
                     true,
                 )
-            } else {
-                None
             };
-            job.results.push(serde_json::json!({"job_id":id,"ok":valid,"response_hash":Digest::of_bytes(&bytes),"usage":usage,"cost_nano_usd":cost,"response":if valid {body} else {Value::Null}}));
+            let breach = cost.is_some() && !bounds.contains(&usage);
+            job.results.push(serde_json::json!({"job_id":id,"ok":valid,"bound_breach":breach,"response_hash":Digest::of_bytes(&bytes),"usage":usage,"cost_nano_usd":cost,"response":if valid {body} else {Value::Null}}));
         }
         job.state = if job.failed_items == 0 {
             State::Completed
@@ -459,6 +460,11 @@ pub fn submit_authorized(
         now < super::execution::PRICE_EXPIRES_MS,
         "batch prices expired",
     )?;
+    executor
+        .transport
+        .keys
+        .load("gemini.env", "SACCADE_GEMINI_API_KEY")
+        .map_err(|_| Error::Policy("batch credentials unavailable before reservation"))?;
     let payload = adapter::submission(&frozen.model, "assist-evaluation", &frozen.requests)
         .map_err(|_| Error::Invalid("batch payload"))?;
     let reservation = frozen.requests.iter().try_fold(0u64, |sum, request| {
@@ -527,7 +533,15 @@ pub fn submit_authorized(
             false,
             Some(&pace),
         )
-        .map_err(|_| Error::Policy("batch request budget exhausted"))?;
+        .map_err(|_| {
+            let _ = executor.ledger.finish_money(
+                &id,
+                Some(0),
+                serde_json::json!({"not_dispatched":true}),
+                false,
+            );
+            Error::Policy("batch request budget exhausted")
+        })?;
     let payload = begin_submit(path, frozen)?;
     transaction(path, |job| {
         job.money_id = Some(id.clone());
@@ -676,16 +690,93 @@ pub fn settle(path: &Path, frozen: &Plan, ledger: &crate::budget_ledger::Ledger)
             .find(|r| &r.id == id)
             .ok_or(Error::Invalid("batch monetary receipt absent"))?;
         if monetary.outcome == "reserved" {
-            let actual =
-                if job.state == State::Completed && job.results.len() == frozen.requests.len() {
-                    job.results.iter().try_fold(0u64, |sum, item| {
-                        sum.checked_add(item["cost_nano_usd"].as_u64()?)
-                    })
-                } else {
-                    None
-                };
-            ledger.finish_money(id,actual,serde_json::json!({"items":job.results.iter().map(|r|serde_json::json!({"job_id":r["job_id"],"usage":r["usage"],"cost_nano_usd":r["cost_nano_usd"]})).collect::<Vec<_>>()}),job.state==State::Completed).map_err(|_|Error::Storage)?;
+            if job.results.iter().any(|r| r["bound_breach"] == true) {
+                ledger.stop_spending().map_err(|_| Error::Storage)?;
+            }
+            let actual = if job.results.len() == frozen.requests.len() {
+                job.results.iter().try_fold(0u64, |sum, item| {
+                    sum.checked_add(item["cost_nano_usd"].as_u64()?)
+                })
+            } else {
+                None
+            };
+            ledger.finish_money(id,actual,serde_json::json!({"bound_breach":job.results.iter().any(|r|r["bound_breach"]==true),"items":job.results.iter().map(|r|serde_json::json!({"job_id":r["job_id"],"usage":r["usage"],"cost_nano_usd":r["cost_nano_usd"]})).collect::<Vec<_>>()}),job.state==State::Completed).map_err(|_|Error::Storage)?;
         }
     }
     Ok(job)
+}
+
+fn batch_answer_valid(body: &Value, request: &Value) -> bool {
+    if body["candidates"].as_array().is_none_or(|c| c.len() != 1)
+        || body["candidates"][0]["finishReason"] != "STOP"
+    {
+        return false;
+    }
+    let Some(parts) = body["candidates"][0]["content"]["parts"].as_array() else {
+        return false;
+    };
+    let text: String = parts
+        .iter()
+        .filter(|p| p["thought"] != true)
+        .filter_map(|p| p["text"].as_str())
+        .collect();
+    let Some(binding) = request["contents"][0]["parts"][0]["text"]
+        .as_str()
+        .and_then(|s| decode::<Value>(s.as_bytes()).ok())
+    else {
+        return false;
+    };
+    let Ok(answer) = decode::<super::workflow::WireAnswer>(text.as_bytes()) else {
+        return false;
+    };
+    if binding["request_hash"].as_str() != Some(answer.request_hash.as_str())
+        || (answer.outcome != super::schema::Outcome::Unverifiable
+            && answer.observations.is_empty())
+    {
+        return false;
+    }
+    answer.observations.iter().all(|o| {
+        let view = binding["views"]
+            .as_array()
+            .and_then(|views| views.iter().find(|v| v["slot"] == o.slot));
+        let Some(view) = view else {
+            return false;
+        };
+        let Some(dimensions) = view["dimensions"].as_array().filter(|d| d.len() == 2) else {
+            return false;
+        };
+        let Some(width) = dimensions[0].as_u64().and_then(|n| u32::try_from(n).ok()) else {
+            return false;
+        };
+        let Some(height) = dimensions[1].as_u64().and_then(|n| u32::try_from(n).ok()) else {
+            return false;
+        };
+        let Ok(transform) =
+            serde_json::from_value::<super::geometry::Transform>(view["transform"].clone())
+        else {
+            return false;
+        };
+        let Ok(geometry) = transform.from_normalized(&o.geometry, [width, height]) else {
+            return false;
+        };
+        let Ok(capture) = serde_json::from_value::<[u32; 4]>(view["capture_scope"].clone()) else {
+            return false;
+        };
+        super::workflow::contains(&geometry, capture)
+            && o.statement.len() <= 1024
+            && super::workflow::validate_statement(o.kind, &o.statement).is_ok()
+            && o.uncertainty.is_finite()
+            && (0.0..=1.0).contains(&o.uncertainty)
+            && !o.evidence_refs.is_empty()
+            && o.evidence_refs.len() <= 16
+            && o.evidence_refs.iter().all(|reference| {
+                view["regions"].as_array().is_some_and(|regions| {
+                    regions.iter().any(|r| {
+                        r["id"] == *reference
+                            && serde_json::from_value::<[u32; 4]>(r["rect_px"].clone())
+                                .is_ok_and(|rect| super::workflow::intersects(&geometry, rect))
+                    })
+                })
+            })
+    })
 }

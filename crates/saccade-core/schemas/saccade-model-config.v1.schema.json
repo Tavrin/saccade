@@ -1,0 +1,35 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/Tavrin/saccade/crates/saccade-core/schemas/saccade-model-config.v1.schema.json",
+  "title": "saccade-model-config.v1",
+  "description": "The resolved operator model and runtime configuration shared by the CLI, MCP and Python, with the source of each value.",
+  "type": "object",
+  "required": ["schema", "dir", "registry", "runtime_library", "embedding_contract", "downloads"],
+  "properties": {
+    "schema": {"const": "saccade-model-config.v1"},
+    "config_file": {"type": ["string", "null"]},
+    "dir": {"$ref": "#/$defs/setting"},
+    "registry": {"$ref": "#/$defs/setting"},
+    "runtime_library": {"$ref": "#/$defs/setting"},
+    "embedding_contract": {"$ref": "#/$defs/setting"},
+    "downloads": {"type": "string"}
+  },
+  "$defs": {
+    "setting": {
+      "type": "object",
+      "required": ["value", "source"],
+      "properties": {
+        "value": {"type": ["string", "null"]},
+        "source": {
+          "type": "object",
+          "required": ["kind"],
+          "properties": {
+            "kind": {"enum": ["default", "config_file", "env", "deprecated_flag"]},
+            "path": {"type": "string"},
+            "name": {"type": "string"}
+          }
+        }
+      }
+    }
+  }
+}

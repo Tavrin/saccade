@@ -1,0 +1,10 @@
+{
+  "version": "openrouter-recorded-prices/2026-10-06-v1",
+  "billing_source": "OpenRouter",
+  "provider_price_passthrough": true,
+  "currency": "USD",
+  "live_verified": false,
+  "model": "openai/fixture-model",
+  "input_nano_usd_per_token": 750,
+  "output_nano_usd_per_token": 3750
+}

@@ -422,6 +422,8 @@ pub fn run_sequence(
         }
     }
     let mut report = Report {
+        report_id: None,
+        source_refs: Vec::new(),
         perf_diff: None,
         perf_errors: Vec::new(),
         combined_verdict: None,
@@ -629,7 +631,7 @@ pub fn run_sequence(
         (SEQUENCE_FILE, serde_json::to_string_pretty(&full)?),
     ] {
         let path = out.join(file);
-        std::fs::write(&path, json).map_err(io_err(format!("writing {}", path.display())))?;
+        crate::report_links::write_bytes(&path, json)?;
     }
     crate::render::render_sequence_html(&report, &full, out)?;
     std::fs::remove_file(&sentinel).map_err(io_err(format!("removing {}", sentinel.display())))?;

@@ -5,12 +5,54 @@
   "description": "Perceptual assertions and reproducible sweep capture for Saccade",
   "main": "matcher.cjs",
   "types": "matcher.d.ts",
+  "exports": {
+    ".": {
+      "types": "./matcher.d.ts",
+      "default": "./matcher.cjs"
+    },
+    "./*.cjs": "./*.cjs",
+    "./package.json": "./package.json"
+  },
+  "files": [
+    "matcher.cjs",
+    "matcher.d.ts",
+    "reporter.cjs",
+    "stabilize.cjs",
+    "sweep.cjs",
+    "design-capture.cjs",
+    "README.md",
+    "LICENSE-MIT",
+    "LICENSE-APACHE"
+  ],
+  "keywords": [
+    "playwright",
+    "visual-regression",
+    "perceptual",
+    "flip",
+    "saccade"
+  ],
   "license": "MIT OR Apache-2.0",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/Tavrin/saccade.git",
+    "directory": "integrations/playwright"
+  },
+  "homepage": "https://github.com/Tavrin/saccade/blob/main/docs/playwright-matcher.md",
+  "bugs": {
+    "url": "https://github.com/Tavrin/saccade/issues"
+  },
+  "engines": {
+    "node": ">=18"
+  },
+  "publishConfig": {
+    "access": "public"
+  },
   "peerDependencies": {
     "@playwright/test": ">=1.45"
   },
   "scripts": {
     "test": "node --test matcher.test.cjs reporter.test.cjs sweep.test.cjs design-capture.test.cjs",
-    "test:browser": "playwright test --config test/playwright.config.cjs"
+    "test:browser": "playwright test --config test/playwright.config.cjs",
+    "pack:dry-run": "npm pack --dry-run"
   }
 }

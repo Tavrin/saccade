@@ -1,0 +1,150 @@
+{
+  "$id": "https://github.com/Tavrin/saccade/crates/saccade-core/schemas/saccade-explain-result.v2.schema.json",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "description": "The structured result of the MCP explain tool; paths are absolute and floats carry 4 significant digits.",
+  "properties": {
+    "blind": {
+      "type": "boolean"
+    },
+    "entries": {
+      "items": {
+        "properties": {
+          "hotspots": {
+            "items": {
+              "properties": {
+                "index": {
+                  "type": "integer"
+                },
+                "panels": {
+                  "items": {
+                    "type": "string"
+                  },
+                  "type": "array"
+                },
+                "position": {
+                  "type": "string"
+                },
+                "rect_px": {
+                  "items": {
+                    "type": "integer"
+                  },
+                  "type": "array"
+                },
+                "share_of_total_error": {
+                  "type": "number"
+                },
+                "strip": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "index",
+                "strip",
+                "position",
+                "rect_px",
+                "share_of_total_error",
+                "panels"
+              ],
+              "type": "object"
+            },
+            "type": "array"
+          },
+          "name": {
+            "type": "string"
+          },
+          "note": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "status": {
+            "enum": [
+              "pass",
+              "fail",
+              "new",
+              "missing",
+              "error"
+            ]
+          },
+          "thumbnail": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "value": {
+            "type": [
+              "number",
+              "null"
+            ]
+          }
+        },
+        "required": [
+          "name",
+          "status",
+          "value",
+          "thumbnail",
+          "note",
+          "hotspots"
+        ],
+        "type": "object"
+      },
+      "type": "array"
+    },
+    "paths": {
+      "additionalProperties": false,
+      "properties": {
+        "blind_key": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "dir": {
+          "type": "string"
+        },
+        "explain_json": {
+          "type": "string"
+        },
+        "explain_md": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "dir",
+        "explain_json",
+        "explain_md",
+        "blind_key"
+      ],
+      "type": "object"
+    },
+    "report_id": {
+      "pattern": "^sha256:[0-9a-f]{64}$",
+      "type": "string"
+    },
+    "schema": {
+      "const": "saccade-explain-result.v2"
+    },
+    "source_refs": {
+      "items": {
+        "maxLength": 2048,
+        "minLength": 1,
+        "type": "string"
+      },
+      "maxItems": 128,
+      "type": "array"
+    }
+  },
+  "required": [
+    "schema",
+    "blind",
+    "paths",
+    "entries",
+    "report_id",
+    "source_refs"
+  ],
+  "title": "saccade-explain-result.v1",
+  "type": "object"
+}

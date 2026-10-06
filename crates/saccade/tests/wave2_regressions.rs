@@ -131,7 +131,7 @@ fn new_readers_diagnose_newer_producers_and_malformed_separately() {
         if i == 0 {
             r["inside"]["newer_field"] = json!(true);
         } else if i == 1 {
-            r["schema"] = "saccade-localized.v2".into();
+            r["schema"] = "saccade-localized.v99".into();
         } else if i == 2 {
             r["region"]["schema"] = "saccade-frozen-region.v2".into();
         } else {
@@ -158,7 +158,7 @@ fn new_readers_diagnose_newer_producers_and_malformed_separately() {
         if i < 3 {
             assert!(
                 text.contains("newer producer")
-                    || text.contains("written by saccade-localized.v2")
+                    || text.contains("written by saccade-localized.v99")
                     || text.contains("written by saccade-frozen-region.v2"),
                 "{text}"
             );
@@ -167,6 +167,30 @@ fn new_readers_diagnose_newer_producers_and_malformed_separately() {
             assert!(!text.contains("upgrade"), "{text}");
         }
     }
+    // Link projection must not disguise malformed values as unknown fields.
+    let mut linked = saccade_core::report_links::decorate(&localized()).unwrap();
+    linked["inside"]["pixels"] = json!("unknown field");
+    std::fs::write(t.path().join("report.json"), linked.to_string()).unwrap();
+    let p = cli(
+        t.path(),
+        &[
+            "explain-grounded",
+            "--report",
+            "report.json",
+            "--out",
+            "malformed-linked.json",
+            "--json",
+        ],
+    );
+    assert_eq!(p.status.code(), Some(2), "{p:?}");
+    let result: Value = serde_json::from_slice(&p.stdout).unwrap();
+    assert_eq!(result["errors"][0]["code"], "io");
+    assert!(
+        !result["errors"][0]["message"]
+            .as_str()
+            .unwrap()
+            .contains("upgrade")
+    );
     std::fs::write(
         t.path().join("sweep.json"),
         json!({"schema":"saccade-quality-sweep.v2"}).to_string(),

@@ -19,22 +19,73 @@ fn home() -> Result<PathBuf, CliError> {
         .map(PathBuf::from)
         .ok_or_else(|| CliError::usage("HOME unavailable; supply registry/cache paths"))
 }
-pub(crate) fn registry(path: Option<&Path>) -> Result<Registry, CliError> {
-    let p = match path {
-        Some(p) => p.to_path_buf(),
-        None => home()?.join(".config/saccade/models.json"),
+/// Explicit `--runtime-library` (deprecated) over the shared configuration.
+#[cfg(feature = "local-models")]
+pub(crate) fn runtime_flag(flag: Option<&Path>) -> Result<Option<PathBuf>, CliError> {
+    Ok(config()?
+        .with_overrides(saccade_core::model_config::Overrides {
+            runtime_library: flag,
+            ..Default::default()
+        })
+        .runtime_library)
+}
+/// Registry status plus runtime status: the one model-status report CLI and MCP both emit.
+pub(crate) fn status(registry: &Registry, cache: &Path) -> serde_json::Value {
+    let status = registry.status(cache);
+    #[cfg(feature = "local-models")]
+    let status = {
+        let mut status = status;
+        status["runtime"] = saccade_core::wave7::runtime_install::status(cache);
+        status
     };
-    if !p.exists() && path.is_none() {
-        Registry::pinned_wave7().map_err(error)
-    } else {
-        Registry::load(&p).map_err(error)
+    status
+}
+/// The operator's model configuration (environment, config file), shared with every surface.
+pub(crate) fn config() -> Result<saccade_core::model_config::ModelConfig, CliError> {
+    Ok(saccade_core::model_config::ModelConfig::resolve()?)
+}
+pub(crate) fn registry(path: Option<&Path>) -> Result<Registry, CliError> {
+    let cfg = config()?.with_overrides(saccade_core::model_config::Overrides {
+        registry: path,
+        ..Default::default()
+    });
+    match cfg.registry {
+        Some(p) => Registry::load(&p).map_err(error),
+        None => {
+            // Compatibility reader: the registry file location used before the shared config.
+            let legacy = home()?.join(".config").join("saccade").join("models.json");
+            if legacy.exists() {
+                Registry::load(&legacy).map_err(error)
+            } else {
+                Registry::pinned_wave7().map_err(error)
+            }
+        }
     }
 }
 pub(crate) fn cache(path: Option<&Path>) -> Result<PathBuf, CliError> {
-    match path {
-        Some(p) => Ok(p.to_path_buf()),
-        None => Ok(home()?.join(".cache/saccade/models")),
-    }
+    Ok(config()?
+        .with_overrides(saccade_core::model_config::Overrides {
+            dir: path,
+            ..Default::default()
+        })
+        .dir)
+}
+/// Cache and optional registry for the media analyzer, from the shared configuration.
+/// `None` registry means the analyzer's own pinned default.
+pub(crate) fn analyzer_inputs(
+    dir: Option<&Path>,
+    registry_flag: Option<&Path>,
+) -> Result<(PathBuf, Option<Registry>), CliError> {
+    let dir = cache(dir)?;
+    let cfg = config()?.with_overrides(saccade_core::model_config::Overrides {
+        registry: registry_flag,
+        ..Default::default()
+    });
+    let registry = cfg
+        .registry
+        .map(|p| Registry::load(&p).map_err(error))
+        .transpose()?;
+    Ok((dir, registry))
 }
 fn emit<T: serde::Serialize>(value: &T, json: bool) -> Result<u8, CliError> {
     let text = if json {
@@ -54,18 +105,34 @@ pub(crate) struct ModelsArgs {
 enum ModelsOperation {
     /// Inspect selections, real pins, cache integrity and source-parity status.
     List {
+        /// Deprecated: set SACCADE_MODELS_REGISTRY or [models].registry.
         #[arg(long)]
         registry: Option<PathBuf>,
+        /// Deprecated: set SACCADE_MODELS_DIR or [models].dir.
         #[arg(long)]
         cache: Option<PathBuf>,
         #[arg(long)]
         json: bool,
     },
-    /// Explicit opt-in to download only the named model's pinned artifacts.
+    /// Show the resolved model configuration and where each value came from.
+    Config {
+        #[arg(long)]
+        json: bool,
+    },
+    /// The one provisioning verb: download and verify the named pinned artifacts.
+    ///
+    /// ID is a registry model, `runtime` (ONNX Runtime), `ocr` (the pinned OCR
+    /// contract, or --contract FILE) or `embedding` (--contract FILE or the
+    /// configured embedding contract). Nothing else downloads on request.
     Pull {
         id: String,
+        /// Contract file for `ocr` / `embedding`.
+        #[arg(long)]
+        contract: Option<PathBuf>,
+        /// Deprecated: set SACCADE_MODELS_REGISTRY or [models].registry.
         #[arg(long)]
         registry: Option<PathBuf>,
+        /// Deprecated: set SACCADE_MODELS_DIR or [models].dir.
         #[arg(long)]
         cache: Option<PathBuf>,
         #[arg(long)]
@@ -80,17 +147,12 @@ pub(crate) fn models(args: ModelsArgs) -> Result<u8, CliError> {
             json,
         } => {
             let cache = cache(c.as_deref())?;
-            let status = registry(p.as_deref())?.status(&cache);
-            #[cfg(feature = "local-models")]
-            let status = {
-                let mut status = status;
-                status["runtime"] = saccade_core::wave7::runtime_install::status(&cache);
-                status
-            };
-            emit(&status, json)
+            emit(&status(&registry(p.as_deref())?, &cache), json)
         }
+        ModelsOperation::Config { json } => emit(&config()?.to_json(), json),
         ModelsOperation::Pull {
             id,
+            contract,
             registry: p,
             cache: c,
             json,
@@ -113,6 +175,9 @@ pub(crate) fn models(args: ModelsArgs) -> Result<u8, CliError> {
                     "compile local-models to provision the runtime".into(),
                 )));
             }
+            if id == "ocr" || id == "embedding" {
+                return pull_contract(&id, contract.as_deref(), c.as_deref(), json);
+            }
             let r = registry(p.as_deref())?;
             let m = r.model(&id).map_err(error)?;
             let paths = models::ensure(m, &cache(c.as_deref())?, true).map_err(error)?;
@@ -124,19 +189,99 @@ pub(crate) fn models(args: ModelsArgs) -> Result<u8, CliError> {
     }
 }
 
+/// `saccade models pull ocr|embedding`: provision a contract's pinned artifacts.
+fn pull_contract(
+    id: &str,
+    contract: Option<&Path>,
+    cache_flag: Option<&Path>,
+    json: bool,
+) -> Result<u8, CliError> {
+    let dir = cache(cache_flag)?;
+    #[cfg(any(feature = "ocr", feature = "embeddings"))]
+    {
+        let paths = if id == "ocr" {
+            #[cfg(feature = "ocr")]
+            {
+                let c = match contract {
+                    Some(p) => serde_json::from_slice(&saccade_core::general::input::bytes(
+                        p,
+                        2 * 1024 * 1024,
+                    )?)?,
+                    None => saccade_core::general::ocr::default_contract()?,
+                };
+                saccade_core::general::ocr::provision(&c, &dir)?
+            }
+            #[cfg(not(feature = "ocr"))]
+            return Err(CliError::new(
+                "feature_unavailable",
+                "this build has no OCR runtime; install the media or full bundle",
+            ));
+        } else {
+            #[cfg(feature = "embeddings")]
+            {
+                let path = match contract {
+                    Some(p) => p.to_path_buf(),
+                    None => config()?.embedding_contract.ok_or_else(|| {
+                        CliError::usage(
+                            "embedding needs --contract FILE or SACCADE_MODELS_EMBEDDING_CONTRACT / [models].embedding_contract",
+                        )
+                    })?,
+                };
+                let model = saccade_core::general::embedding::parse_model(
+                    &saccade_core::general::input::bytes(&path, 2 * 1024 * 1024)?,
+                )?;
+                saccade_core::general::embedding::provision(&model, &dir)?
+            }
+            #[cfg(not(feature = "embeddings"))]
+            return Err(CliError::new(
+                "feature_unavailable",
+                "this build has no embedding runtime; install the full bundle",
+            ));
+        };
+        emit(
+            &serde_json::json!({"schema":models::MODELS_SCHEMA,"pulled":id,"status":"cached_verified","artifact_count":paths.len(),"cache":dir}),
+            json,
+        )
+    }
+    #[cfg(not(any(feature = "ocr", feature = "embeddings")))]
+    {
+        let _ = (id, contract, dir, json);
+        Err(CliError::new(
+            "feature_unavailable",
+            "this build has no OCR or embedding runtime; install the media or full bundle",
+        ))
+    }
+}
+
 #[derive(clap::Args)]
 pub(crate) struct ModelOptions {
+    /// Deprecated: set SACCADE_MODELS_REGISTRY or [models].registry.
     #[arg(long)]
     registry: Option<PathBuf>,
+    /// Deprecated: set SACCADE_MODELS_DIR or [models].dir.
     #[arg(long)]
     cache: Option<PathBuf>,
+    /// Deprecated: set SACCADE_MODELS_RUNTIME_LIBRARY or [models].runtime_library.
     /// ONNX Runtime 1.22 library; otherwise ORT_DYLIB_PATH or verified model cache.
     #[arg(long)]
     runtime_library: Option<PathBuf>,
+    /// Deprecated: provision with `saccade models pull <id>` instead.
     #[arg(long)]
     allow_download: bool,
 }
 impl ModelOptions {
+    /// Deprecated `--allow-download`: still provisions, now with a notice.
+    fn download(&self) -> bool {
+        if self.allow_download {
+            saccade_core::model_config::deprecated_download_flag("--allow-download");
+        }
+        self.allow_download
+    }
+    /// ONNX runtime library: deprecated flag, else the shared configuration.
+    #[cfg(feature = "local-models")]
+    fn runtime(&self) -> Result<Option<PathBuf>, CliError> {
+        runtime_flag(self.runtime_library.as_deref())
+    }
     // Dependency resolution precedes pixel reads; observation replay bypasses inference.
     fn preflight(&self, requested: &[&str]) -> Result<(), CliError> {
         #[cfg(not(feature = "local-models"))]
@@ -148,11 +293,9 @@ impl ModelOptions {
         {
             let reg = registry(self.registry.as_deref())?;
             let cache = cache(self.cache.as_deref())?;
-            let library = saccade_core::wave7::runtime_install::resolve(
-                self.runtime_library.as_deref(),
-                &cache,
-            )
-            .map_err(error)?;
+            let library =
+                saccade_core::wave7::runtime_install::resolve(self.runtime()?.as_deref(), &cache)
+                    .map_err(error)?;
             saccade_core::optional::require_library(&library)?;
             for id in requested {
                 let fallback = match *id {
@@ -164,7 +307,7 @@ impl ModelOptions {
                     .model(id)
                     .or_else(|_| reg.model(fallback))
                     .map_err(error)?;
-                models::ensure(model, &cache, self.allow_download).map_err(|_|error(VisionError::Unavailable(format!("optional model {} missing or corrupt; fix: saccade models pull {} (use the same --registry and --cache); saccade models list --json",model.id,model.id))))?;
+                models::ensure(model, &cache, self.download()).map_err(|_|error(VisionError::Unavailable(format!("optional model {} missing or corrupt; fix: saccade models pull {} (use the same --registry and --cache); saccade models list --json",model.id,model.id))))?;
             }
             Ok(())
         }
@@ -221,7 +364,7 @@ fn locate_measure(a: LocateArgs) -> Result<saccade_core::wave7::vision::LocateRe
     }
     let image = VisionImage::load(&a.image).map_err(error)?;
     let r = if let Some(p) = &a.observations {
-        if a.model.allow_download {
+        if a.model.download() {
             return Err(CliError::usage(
                 "observation replay does not download models",
             ));
@@ -237,7 +380,7 @@ fn locate_measure(a: LocateArgs) -> Result<saccade_core::wave7::vision::LocateRe
             };
             let cache = cache(a.model.cache.as_deref())?;
             let library = saccade_core::wave7::runtime_install::resolve(
-                a.model.runtime_library.as_deref(),
+                a.model.runtime()?.as_deref(),
                 &cache,
             )
             .map_err(error)?;
@@ -251,7 +394,7 @@ fn locate_measure(a: LocateArgs) -> Result<saccade_core::wave7::vision::LocateRe
                 reg.model(detector_id).map_err(error)?,
                 &cache,
                 &library,
-                a.model.allow_download,
+                a.model.download(),
             )
             .map_err(error)?;
             let mut segmenter = if a.segment {
@@ -265,7 +408,7 @@ fn locate_measure(a: LocateArgs) -> Result<saccade_core::wave7::vision::LocateRe
                         reg.model(id).map_err(error)?,
                         &cache,
                         &library,
-                        a.model.allow_download,
+                        a.model.download(),
                     )
                     .map_err(error)?,
                 )
@@ -381,8 +524,10 @@ pub(crate) fn quality(a: QualityArgs) -> Result<u8, CliError> {
         .transpose()
         .map_err(error)?;
     let r = if let Some(p) = &a.observations {
-        let mut r: QualityReport =
-            serde_json::from_slice(&models::read_bounded(p, 1024 * 1024).map_err(error)?)?;
+        let mut r: QualityReport = crate::parse_contract(
+            &models::read_bounded(p, 1024 * 1024).map_err(error)?,
+            saccade_core::wave7::quality::QUALITY_SCHEMA,
+        )?;
         r.validate(metric, &image, reference.as_ref())
             .map_err(error)?;
         for m in &mut r.named_metrics {
@@ -397,7 +542,7 @@ pub(crate) fn quality(a: QualityArgs) -> Result<u8, CliError> {
         {
             let model_cache = cache(a.model.cache.as_deref())?;
             let library = saccade_core::wave7::runtime_install::resolve(
-                a.model.runtime_library.as_deref(),
+                a.model.runtime()?.as_deref(),
                 &model_cache,
             )
             .map_err(error)?;
@@ -405,7 +550,7 @@ pub(crate) fn quality(a: QualityArgs) -> Result<u8, CliError> {
                 m,
                 &cache(a.model.cache.as_deref())?,
                 &library,
-                a.model.allow_download,
+                a.model.download(),
             )
             .map_err(error)?;
             quality::measure(metric, &image, reference.as_ref(), &mut runtime).map_err(error)?
@@ -470,8 +615,10 @@ pub(crate) fn watermark(a: WatermarkArgs) -> Result<u8, CliError> {
     }
     let image = VisionImage::load(&a.image).map_err(error)?;
     let r = if let Some(p) = a.observations {
-        let mut r: WatermarkReport =
-            serde_json::from_slice(&models::read_bounded(&p, 1024 * 1024).map_err(error)?)?;
+        let mut r: WatermarkReport = crate::parse_contract(
+            &models::read_bounded(&p, 1024 * 1024).map_err(error)?,
+            saccade_core::wave7::watermark::WATERMARK_SCHEMA,
+        )?;
         r.validate(&image).map_err(error)?;
         for f in &mut r.findings {
             if let Some(p) = &mut f.provenance {
@@ -499,7 +646,7 @@ pub(crate) fn watermark(a: WatermarkArgs) -> Result<u8, CliError> {
                 let reg = registry(a.model.registry.as_deref())?;
                 let cache = cache(a.model.cache.as_deref())?;
                 let library = saccade_core::wave7::runtime_install::resolve(
-                    a.model.runtime_library.as_deref(),
+                    a.model.runtime()?.as_deref(),
                     &cache,
                 )
                 .map_err(error)?;
@@ -507,7 +654,7 @@ pub(crate) fn watermark(a: WatermarkArgs) -> Result<u8, CliError> {
                     reg.model("trustmark").map_err(error)?,
                     &cache,
                     &library,
-                    a.model.allow_download,
+                    a.model.download(),
                 )
                 .map_err(error)?;
                 watermark::inspect(&image, Some(&mut decoder), legacy.as_ref()).map_err(error)?
@@ -544,8 +691,10 @@ fn face_report(
 ) -> Result<saccade_core::wave7::faces::FaceReport, CliError> {
     use saccade_core::wave7::faces::{self, FaceReport};
     if let Some(p) = &a.observations {
-        let mut r: FaceReport =
-            serde_json::from_slice(&models::read_bounded(p, 1024 * 1024).map_err(error)?)?;
+        let mut r: FaceReport = crate::parse_contract(
+            &models::read_bounded(p, 1024 * 1024).map_err(error)?,
+            faces::FACES_SCHEMA,
+        )?;
         r.validate(image).map_err(error)?;
         r.provenance.runtime = "replay".into();
         r.provenance.source_parity = false;
@@ -557,7 +706,7 @@ fn face_report(
     {
         let model_cache = cache(a.model.cache.as_deref())?;
         let library = saccade_core::wave7::runtime_install::resolve(
-            a.model.runtime_library.as_deref(),
+            a.model.runtime()?.as_deref(),
             &model_cache,
         )
         .map_err(error)?;
@@ -565,7 +714,7 @@ fn face_report(
             m,
             &cache(a.model.cache.as_deref())?,
             &library,
-            a.model.allow_download,
+            a.model.download(),
         )
         .map_err(error)?;
         faces::detect(image, &mut runtime).map_err(error)
@@ -884,6 +1033,47 @@ mod tests {
             ]),
             0
         );
+        // Replay every migrated observation through the same CLI surfaces.
+        let wp = d.path().join("watermark.json");
+        for (command, path, report) in [
+            ("faces", &fp, serde_json::to_value(&face).unwrap()),
+            ("quality-score", &qp, serde_json::to_value(&q).unwrap()),
+            (
+                "watermark",
+                &wp,
+                serde_json::to_value(
+                    saccade_core::wave7::watermark::inspect(&i, None, None).unwrap(),
+                )
+                .unwrap(),
+            ),
+        ] {
+            let linked = saccade_core::report_links::decorate(&report).unwrap();
+            json(path, &linked);
+            assert_eq!(
+                run(vec![
+                    "saccade".into(),
+                    command.into(),
+                    p.display().to_string(),
+                    "--observations".into(),
+                    path.display().to_string(),
+                    "--json".into(),
+                ]),
+                0
+            );
+        }
+        let linked =
+            saccade_core::report_links::decorate(&serde_json::to_value(&loc).unwrap()).unwrap();
+        json(&lp, &linked);
+        let replay = LocateReport::replay(&lp, &i, "object", true).unwrap();
+        assert_eq!(replay.detector.runtime, "replay");
+        let mut newer = linked.clone();
+        newer["schema"] = serde_json::json!("saccade-locate.v3");
+        json(&lp, &newer);
+        assert!(LocateReport::replay(&lp, &i, "object", true).is_err());
+        let mut unknown = linked;
+        unknown["future_field"] = serde_json::json!(true);
+        json(&lp, &unknown);
+        assert!(LocateReport::replay(&lp, &i, "object", true).is_err());
     }
     #[test]
     fn output_never_overwrites_an_original() {

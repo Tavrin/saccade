@@ -1,0 +1,141 @@
+{
+  "$id": "https://github.com/Tavrin/saccade/crates/saccade-core/schemas/saccade-imgtune.v2.schema.json",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "properties": {
+    "adapter": {
+      "oneOf": [
+        {
+          "additionalProperties": false,
+          "properties": {
+            "kind": {
+              "const": "local"
+            }
+          },
+          "required": [
+            "kind"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "properties": {
+            "accept": {
+              "type": "string"
+            },
+            "kind": {
+              "const": "url_template"
+            },
+            "template": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "kind",
+            "template",
+            "accept"
+          ],
+          "type": "object"
+        }
+      ]
+    },
+    "butteraugli_ceiling": {
+      "minimum": 0,
+      "type": [
+        "number",
+        "null"
+      ]
+    },
+    "formats": {
+      "items": {
+        "enum": [
+          "jpeg",
+          "webp",
+          "avif",
+          "png"
+        ]
+      },
+      "maxItems": 8,
+      "minItems": 1,
+      "type": "array"
+    },
+    "images": {
+      "items": {
+        "additionalProperties": false,
+        "properties": {
+          "current": {
+            "type": "string"
+          },
+          "id": {
+            "type": "string"
+          },
+          "source": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "source",
+          "current"
+        ],
+        "type": "object"
+      },
+      "maxItems": 1000,
+      "minItems": 1,
+      "type": "array"
+    },
+    "qualities": {
+      "items": {
+        "maximum": 100,
+        "minimum": 1,
+        "type": "integer"
+      },
+      "minItems": 1,
+      "type": "array"
+    },
+    "report_id": {
+      "pattern": "^sha256:[0-9a-f]{64}$",
+      "type": "string"
+    },
+    "schema": {
+      "const": "saccade-imgtune.v2"
+    },
+    "source_refs": {
+      "items": {
+        "maxLength": 2048,
+        "minLength": 1,
+        "type": "string"
+      },
+      "maxItems": 128,
+      "type": "array"
+    },
+    "target_score": {
+      "maximum": 100,
+      "type": "number"
+    },
+    "widths": {
+      "items": {
+        "maximum": 16384,
+        "minimum": 8,
+        "type": "integer"
+      },
+      "maxItems": 16,
+      "minItems": 1,
+      "type": "array"
+    }
+  },
+  "required": [
+    "schema",
+    "images",
+    "widths",
+    "formats",
+    "qualities",
+    "target_score",
+    "butteraugli_ceiling",
+    "adapter",
+    "report_id",
+    "source_refs"
+  ],
+  "title": "saccade-imgtune.v1",
+  "type": "object"
+}

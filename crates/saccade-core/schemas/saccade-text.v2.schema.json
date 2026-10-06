@@ -1,0 +1,163 @@
+{
+  "$id": "https://github.com/Tavrin/saccade/crates/saccade-core/schemas/saccade-text.v2.schema.json",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "properties": {
+    "comparison": {
+      "additionalProperties": false,
+      "properties": {
+        "expected": {
+          "type": "array"
+        },
+        "lines": {
+          "type": "array"
+        },
+        "rates": {
+          "type": "object"
+        },
+        "words": {
+          "type": "array"
+        }
+      },
+      "required": [
+        "words",
+        "lines",
+        "rates",
+        "expected"
+      ],
+      "type": "object"
+    },
+    "counts": {
+      "type": "object"
+    },
+    "inputs": {
+      "type": "object"
+    },
+    "limitations": {
+      "items": {
+        "type": "string"
+      },
+      "type": "array"
+    },
+    "observations": {
+      "maxItems": 2,
+      "minItems": 2,
+      "type": "array"
+    },
+    "operation": {
+      "const": "text"
+    },
+    "pipeline_choice": {
+      "additionalProperties": false,
+      "properties": {
+        "command": {
+          "type": "string"
+        },
+        "fallback": {
+          "const": "none"
+        },
+        "family": {
+          "type": "string"
+        },
+        "measurement": {
+          "additionalProperties": false,
+          "properties": {
+            "path": {
+              "type": "string"
+            },
+            "schema": {
+              "const": "saccade-report.v1"
+            },
+            "sha256": {
+              "pattern": "^[a-f0-9]{64}$",
+              "type": "string"
+            },
+            "verdict": {
+              "enum": [
+                "pass",
+                "regression"
+              ]
+            }
+          },
+          "required": [
+            "schema",
+            "path",
+            "sha256",
+            "verdict"
+          ],
+          "type": "object"
+        },
+        "question": {
+          "enum": [
+            "same-render",
+            "same-content",
+            "same-text",
+            "near-duplicate",
+            "quality"
+          ]
+        },
+        "reason": {
+          "type": "string"
+        },
+        "schema": {
+          "const": "saccade-pipeline-choice.v1"
+        }
+      },
+      "required": [
+        "schema",
+        "question",
+        "family",
+        "command",
+        "reason",
+        "fallback"
+      ],
+      "type": "object"
+    },
+    "policy": {
+      "type": "object"
+    },
+    "producers": {
+      "maxItems": 2,
+      "minItems": 2,
+      "type": "array"
+    },
+    "report_id": {
+      "pattern": "^sha256:[0-9a-f]{64}$",
+      "type": "string"
+    },
+    "schema": {
+      "const": "saccade-text.v2"
+    },
+    "source_refs": {
+      "items": {
+        "maxLength": 2048,
+        "minLength": 1,
+        "type": "string"
+      },
+      "maxItems": 128,
+      "type": "array"
+    },
+    "verdict": {
+      "enum": [
+        "pass",
+        "regression",
+        "unknown"
+      ]
+    }
+  },
+  "required": [
+    "schema",
+    "operation",
+    "verdict",
+    "counts",
+    "inputs",
+    "producers",
+    "observations",
+    "comparison",
+    "policy",
+    "limitations",
+    "report_id",
+    "source_refs"
+  ],
+  "type": "object"
+}
