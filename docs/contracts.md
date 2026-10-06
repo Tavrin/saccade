@@ -99,6 +99,11 @@ time. They are `null` for a published crate tarball or when Git is unavailable.
 `saccade --version` adds `+g<short commit>` and, for a dirty checkout, `.dirty`
 to the package version. The suffix is absent without a Git identity.
 
+`optional_dependencies` reports optional binaries, ONNX Runtime, and model cache
+availability with fix commands. Missing optional components are informational:
+`doctor` exits 0 in both text and JSON modes. The top-level `version` and `build`
+fields remain available to release qualification scripts.
+
 Scripts should gate on capability names, rather than the package version or
 the presence of a CLI command. Names are append-only; an existing name will
 not be renamed or removed without a deprecation period.

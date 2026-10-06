@@ -508,7 +508,14 @@ fn mapped_binary_derivation_is_visible_and_requires_a_declaration() {
                 assert_eq!(v["ignored"], json!([]));
                 assert_eq!(
                     v["covered_by_derivation"],
-                    json!([{"key":"frame.png:cache_key","baseline":"cache-before","capture":"cache-after","reason":"covered_by_derivation"}])
+                    json!([{
+                        "key": "frame.png:cache_key",
+                        "baseline": "cache-before",
+                        "baseline_state": "value",
+                        "capture": "cache-after",
+                        "capture_state": "value",
+                        "reason": "covered_by_derivation"
+                    }])
                 );
             } else {
                 assert_eq!(v["offending"][0]["key"], "frame.png:cache_key");

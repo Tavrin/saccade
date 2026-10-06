@@ -1,4 +1,7 @@
 === identity (exit 1) ===
+scope: whole_frame_unmasked (view_0.png)
+scope: whole_frame_unmasked (view_1.png)
+scope: whole_frame_unmasked (view_2.png)
 identity: ❌ 1 differ (max FLIP 0.361 on `view_2.png`)
 
 STATUS  NAME        METRIC  VALUE    THRESHOLD

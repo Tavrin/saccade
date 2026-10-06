@@ -1,4 +1,10 @@
 === compare (exit 1) ===
+scope: whole_frame_unmasked (seed_100.png)
+scope: whole_frame_unmasked (seed_101.png)
+scope: whole_frame_unmasked (seed_102.png)
+scope: whole_frame_unmasked (seed_103.png)
+scope: whole_frame_unmasked (seed_104.png)
+scope: whole_frame_unmasked (seed_105.png)
 compare: ❌ regression: 3 fail of 6 images
 
 STATUS  NAME          METRIC  VALUE    THRESHOLD

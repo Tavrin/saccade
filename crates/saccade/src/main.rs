@@ -371,7 +371,7 @@ Exit codes: 0 no regression, 1 regression found, 2 the command could not run."
         #[command(flatten)]
         general: Box<general_cmd::CompareArgs>,
         #[command(flatten)]
-        field: wave10_cmd::CompareArgs,
+        field: Box<wave10_cmd::CompareArgs>,
         /// Directory of approved baseline images.
         #[arg(required_unless_present = "baseline", conflicts_with = "baseline")]
         baseline_dir: Option<PathBuf>,

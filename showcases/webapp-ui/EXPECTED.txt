@@ -1,4 +1,9 @@
 === compare (exit 1) ===
+scope: masked (button-shift.png)
+scope: masked (identical.png)
+scope: masked (label.png)
+scope: masked (timestamp-only.png)
+scope: masked (token.png)
 compare: ❌ regression: 3 fail of 5 images
 
 STATUS  NAME                METRIC  VALUE    THRESHOLD
