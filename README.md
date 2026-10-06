@@ -95,7 +95,7 @@ saccade keyframes video.mp4 --out frames --json
 ```
 
 See [media analysis](docs/media.md), [Python](docs/python.md) and [HTTP API](docs/api.md).
-Python wheels are built in CI and are not on PyPI yet.
+Install with `pip install saccade-vision` (Python 3.10+); the import stays `import saccade`.
 
 ### Single-image provenance and integrity
 
@@ -146,7 +146,7 @@ See [paired statistics](docs/paired-performance.md),
 Install with Rust 1.89 or newer:
 
 ```sh
-cargo install saccade --version 0.2.1 --locked
+cargo install saccade --version 0.2.2 --locked
 saccade doctor --json
 ```
 
@@ -230,7 +230,7 @@ and the [release guide](docs/releasing.md).
 - [Documentation](docs/choosing-a-comparison.md), [CLI reference](docs/cli.md)
   and [JSON contracts/schemas](docs/contracts.md).
 - [MCP server and plugins](docs/plugins.md), [agent guide](docs/agents.md),
-  [Python package](docs/python.md) (CI wheels; not on PyPI),
+  [Python package](docs/python.md) (PyPI: `saccade-vision`),
   [HTTP API](docs/api.md) and [CI](docs/ci.md).
 - [CHANGELOG](CHANGELOG.md), [release guide](docs/releasing.md)
   and [contributing](CONTRIBUTING.md).
