@@ -12,6 +12,7 @@ if [[ "${1:-}" == "--plan" ]]; then
 fi
 if [[ "${1:-}" == "--openrouter-stage2" ]]; then
     shift
+    # The binary enforces the development scorer proof before every paid run.
     exec cargo run --locked -p saccade-core --features assist --example assist_openrouter_smoke -- --stage2 "$@"
 fi
 printf '%s\n' 'Paid qualification refused: verified provider billing ceilings are unavailable. Use --dry-run for fixture-only pipeline verification.' >&2

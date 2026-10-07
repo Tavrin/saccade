@@ -86,8 +86,11 @@ def normalize(answer, case, order):
     return value
 
 
-def semantic(answers, case, truth, directory):
+def semantic(answers, case, truth, directory, task_evidence_policy=False):
     """One root event; all required orders/descendants must survive collection."""
+    assertion_fn, task_fn = assertion_correct, task_evidence
+    if task_evidence_policy:
+        from dev_policy import assertion_correct as assertion_fn, task_evidence as task_fn
     variants = {}
     for child in (False, True) if case.get('counterfactual') else (False,):
         orders = answers.get(child, [])
@@ -102,19 +105,19 @@ def semantic(answers, case, truth, directory):
     committed = primary['outcome'] != 'unverifiable' and bool(primary['observations'])
     obs = primary['observations'] if committed else []
     assertions = len(obs)
-    correct_assertions = sum(assertion_correct(o, truth, case, directory) for o in obs)
+    correct_assertions = sum(assertion_fn(o, truth, case, directory) for o in obs)
     correct = (committed and correct_assertions == assertions and
-               task_evidence(obs, case, truth, directory) and primary['outcome'] == truth['expected_outcome'])
+               task_fn(obs, case, truth, directory) and primary['outcome'] == truth['expected_outcome'])
     if True in variants:
         child = variants[True]
         c = dict(case, after=case['counterfactual']['path'])
         t = dict(truth, rendered_witness=truth['counterfactual_witness'])
         obs = child['observations'] if child['outcome'] != 'unverifiable' else []
-        count = sum(assertion_correct(o, t, c, directory) for o in obs)
+        count = sum(assertion_fn(o, t, c, directory) for o in obs)
         assertions += len(obs)
         correct_assertions += count
         correct = (correct and child['outcome'] == 'observed' and bool(obs) and count == len(obs) and
-                   task_evidence(obs, c, t, directory))
+                   task_fn(obs, c, t, directory))
     # Same primary-outcome definition as score.evaluate; unsupported assertions
     # also reduce precision/recall but do not manufacture a reassurance outcome.
     return dict(complete=True, committed=bool(committed), correct=bool(correct),
@@ -164,8 +167,11 @@ def summarize(items, calls):
                     over_hint=bounds(over, hints)))
 
 
-def evaluate(corpus, requests_file, result_dir, local_file, source_revision=None, split="heldout"):
+def evaluate(corpus, requests_file, result_dir, local_file, source_revision=None, split="heldout", task_evidence_policy=False):
     manifest, oracle, frozen_commit = verified_corpus(corpus, source_revision)
+    payload_fn, normalize_fn = payload, normalize
+    if task_evidence_policy:
+        from dev_policy import payload as payload_fn, normalize as normalize_fn
     requests = json.loads(requests_file.read_bytes())
     smoke_file = result_dir/'smoke.json'
     smoke = json.loads(smoke_file.read_bytes())
@@ -201,7 +207,7 @@ def evaluate(corpus, requests_file, result_dir, local_file, source_revision=None
         if (arm not in ARMS or variant not in ('root', 'counter') or
             (child, order) not in schedule(case, arm) or (root, arm, child, order) in indexed or
             outcome['index'] != index or outcome['root'] != row['root'] or
-            row['payload'] != payload(case, order, child, corpus)):
+            row['payload'] != payload_fn(case, order, child, corpus)):
             raise ValueError('pilot frozen request/root binding drift')
         indexed.add((root, arm, child, order))
         receipt = ledger.get(outcome.get('execution_id'))
@@ -242,7 +248,7 @@ def evaluate(corpus, requests_file, result_dir, local_file, source_revision=None
             expected = json.loads(row['payload']['messages'][1]['content'][0]['text'])['request_hash']
             if value['request_hash'] != expected:
                 raise ValueError('pilot answer request drift')
-            answer = normalize(value, case, order)
+            answer = normalize_fn(value, case, order)
             elapsed = provenance['elapsed_ms']
             if type(elapsed) is not int or elapsed < 0:
                 raise ValueError('pilot latency drift')
@@ -266,6 +272,7 @@ def evaluate(corpus, requests_file, result_dir, local_file, source_revision=None
     grouped = defaultdict(list)
     root_results = []
     for case in manifest['cases']:
+        if case['split'] != split: continue
         truth = oracle[case['case_id']]
         for arm in ARMS:
             key = (case['root_id'], arm)
@@ -278,7 +285,7 @@ def evaluate(corpus, requests_file, result_dir, local_file, source_revision=None
                     correct_assertions=int(correct), reassurance=bool(truth['important'] and committed and not correct),
                     abstention=r['outcome']=='unverifiable')
             else:
-                item = semantic(answers[key], case, truth, corpus)
+                item = semantic(answers[key], case, truth, corpus, task_evidence_policy)
             item.update(root=case['root_id'], arm=arm, split=case['split'], workload=case['workload'],
                         important=truth['important'], family=case['family'])
             grouped[(case['split'], case['workload'], arm)].append(item)
@@ -286,7 +293,7 @@ def evaluate(corpus, requests_file, result_dir, local_file, source_revision=None
     splits = {split: {w: {a: summarize(grouped[(split,w,a)], calls[(split,w,a)]) for a in ARMS}
                        for w in WORKLOADS} for split in ('development','calibration','heldout')}
     return dict(schema='saccade-g12-partial-score.v1', status='PARTIAL, UNQUALIFIED PILOT', qualified=False,
-        live_model_qualification=False, frozen_source_commit=frozen_commit,
+        live_model_qualification=False, task_evidence_policy='g12-pilot/3' if task_evidence_policy else 'g12-pilot/2', frozen_source_commit=frozen_commit,
         frozen_gate_source_hash=manifest['versions']['gate_source_hash'], manifest_hash=manifest['manifest_hash'], oracle_hash=manifest['oracle_hash'],
         scoring_source_sha256={name:digest((Path(__file__).parent/name).read_bytes()) for name in
             ('pilot_score.py','score.py','corpus.py','stage2.py','receipts.py','policy.py')},
@@ -356,8 +363,9 @@ if __name__ == '__main__':
     parser.add_argument('--out',type=Path,required=True)
     parser.add_argument('--source-revision',help='Verify the original frozen source snapshot; current scorer semantics must match.')
     parser.add_argument("--split",choices=("development","calibration","held-out"),default="held-out")
+    parser.add_argument("--task-evidence-policy", action="store_true", help="Score epoch-3 task-evidence requests; epoch-2 replay is refused.")
     args = parser.parse_args()
-    report = evaluate(args.corpus,args.requests,args.results,args.local_results,args.source_revision,args.split.replace("held-out","heldout"))
+    report = evaluate(args.corpus,args.requests,args.results,args.local_results,args.source_revision,args.split.replace("held-out","heldout"),args.task_evidence_policy)
     put(args.out.with_suffix('.json'),report)
     args.out.with_suffix('.md').write_text(markdown(report))
     print(json.dumps({k:report['campaign'][k] for k in ('completed_answers','invalid_answers','over_hint_requests','known_cost_usd','charged_with_unknown_reservations_usd')}))

@@ -30,13 +30,16 @@ def plan(directory, split):
         blockers=["verified model/operation billing ceilings and provider-side hard limit unavailable",
                   "live API payload/transcript/binary execution plan requires separate review"]+([] if support else ["insufficient qualifying corpus support"])+([] if conservative<=30_000_000_000 else ["conservative full schedule exceeds campaign allowance"]))
 if __name__=="__main__":
-    p=argparse.ArgumentParser();p.add_argument("--corpus",type=Path,required=True);p.add_argument("--stage2",action="store_true");p.add_argument("--budget-bounded",action="store_true");p.add_argument("--out",type=Path);p.add_argument("--split",choices=("development","calibration","held-out"),required=True);p.add_argument("--source-revision");p.add_argument("--allowance-nano-usd",type=int,default=5_000_000_000);args=p.parse_args();split=args.split.replace("held-out","heldout")
+    p=argparse.ArgumentParser();p.add_argument("--corpus",type=Path,required=True);p.add_argument("--stage2",action="store_true");p.add_argument("--budget-bounded",action="store_true");p.add_argument("--out",type=Path);p.add_argument("--split",choices=("development","calibration","held-out"),required=True);p.add_argument("--source-revision");p.add_argument("--allowance-nano-usd",type=int,default=5_000_000_000);p.add_argument("--task-evidence-policy",action="store_true");args=p.parse_args();split=args.split.replace("held-out","heldout")
     if args.stage2:
         from stage2 import report
         from pilot_score import verified_corpus
         manifest,_,_=verified_corpus(args.corpus,args.source_revision)
         if manifest["campaign"]!="g12-stage2/2": raise ValueError("stage2 requires its frozen profile")
         rows,result=report(manifest,args.corpus,args.budget_bounded,split,args.allowance_nano_usd)
+        if args.task_evidence_policy:
+            from dev_policy import adapt_plan
+            rows,result=adapt_plan(rows,manifest,args.corpus,result)
         if args.out:
             args.out.mkdir()
             from corpus import put
@@ -49,6 +52,7 @@ if __name__=="__main__":
             put(args.out/"plan.json",result)
         print(json.dumps(result,sort_keys=True))
     else:
+        if args.task_evidence_policy: raise ValueError("--task-evidence-policy requires --stage2")
         if args.budget_bounded: raise ValueError("--budget-bounded requires --stage2")
         if args.out: raise ValueError("--out requires --stage2")
         print(json.dumps(plan(args.corpus,split),sort_keys=True))

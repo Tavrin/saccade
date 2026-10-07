@@ -827,3 +827,111 @@ observation. The manifest/oracle hashes and never-observed status are recorded i
 the external pilot artifact directory as `fresh-heldout-status.json`.
 This fresh pilot-sized draw does not establish sufficient qualification support.
 No held-out request plan is generated. No provider calls or key reads occurred.
+
+## G12 development audit and mandatory scorer proof (epoch 3)
+
+Before any paid run, `scripts/assist/scorer_selftest.py --corpus
+DEVELOPMENT_CORPUS --source-revision FROZEN_REVISION` must pass. Both the
+qualification wrapper and the direct OpenRouter example enforce this gate before
+credentials or campaign creation; missing or empty `SACCADE_SCORER_DEV_CORPUS`
+or `SACCADE_SCORER_SOURCE_REVISION`, a failed proof, or an epoch-2 paid stage-2
+request refuses execution. Offline `--validate-only` and reconciliation retain
+their separate purposes. This audit made no provider calls and read no keys.
+
+The gate builds **synthetic oracle-injected** answers for every development root,
+workload and G12 arm, including unavailable roots and routing counterfactuals.
+It checks the closed answer shape, same-slot declared citations and request hash,
+then uses `dev_policy.normalize`, `pilot_score.semantic`, and the real atomic
+assertion/task scorer. All four arms are synthetic injections: this establishes
+scorer expressibility, not model, routing or runtime performance. Unavailable
+roots correctly abstain; precision excludes them while important recall retains
+every challenge root. Perfect answers must attain exactly 100% precision and
+important recall with zero false reassurance for **every workload/arm**.
+Missing answers, hallucinated facts, wrong literal text, wrong geometry and
+conflicting order answers must have zero correct roots and be flagged in every
+workload/arm. A gate test injects a broken task scorer and verifies failure.
+
+The 60-root development proof has 96 workload/arm/variant rows. The repaired
+policy passes all rows. Its legacy diagnostic shows perfect `explain` and
+`check_ui` at 100% precision/recall, perfect `audit_mask` at 0%/0%, and routing at
+75% precision with 100% important recall. These establish two protocol/oracle
+mapping defects, rather than a need to relax correctness:
+
+- The old mask scorer requires exclusion-ID citations, but the live protocol
+  permits only same-slot region citations. New public regions explicitly map
+  each exclusion to `P1:Rn` / `P2:Rn`. The epoch-3 normalizer preserves the region
+  reference and adds its declared exclusion ID for task scoring. Each exclusion
+  still needs an independently correct appearance assertion and full coverage;
+  `R0` alone, wrong-slot references, points and undersized boxes cannot satisfy it.
+- Routing controls ask for `non_overlap` while the old atomic oracle rejects
+  `overlap:separate`. The new mapping independently checks the verified capture
+  source bounds, requires both node citations and coverage of both nodes, and
+  scores their strict rectangle intersection. Text alone cannot prove non-overlap.
+  Unknown overlap statements without bound source evidence remain unsupported.
+
+The policy is `g12-pilot/3`, prompt `assist-openrouter-task-evidence/3`, scorer
+mapping `assist-region-exclusion-mapping/1`, implemented in `dev_policy.py`.
+`plan.py --stage2 --task-evidence-policy` emits this policy; `pilot_score.py
+--task-evidence-policy` checks its exact payload binding and refuses epoch-2
+requests as epoch 3. The prompt defines pairwise appearance independent of slot
+order, task-specific outcomes, required task evidence, and decorative changes
+outside the target. It explicitly requires conservative enclosing answer boxes
+when decimal rounding could trim a boundary. This is a model answer requirement,
+not scorer padding. Literal text, Unicode, case, whitespace, exact glyph/target
+coverage and exact normalized order agreement remain unchanged. Wider boxes
+must still support every assertion over their declared extent. No IoU threshold,
+rounding tolerance, fuzzy matching, dropped assertions or reduced quality gate
+was introduced. Expected appearance statements come from independent comparisons
+of oracle-bound rendered pixels, not from asking the scorer what it accepts. A
+mutation regression inverts the appearance scorer and requires the proof to fail.
+Focused tests use invented images, source packets and oracle
+fixtures, never development response fragments.
+
+Development inspection reviewed all 188 completed answers, including every
+`explain`/`audit_mask` disagreement and all completed `check_ui`/routing answers.
+There are 139 disagreeing completed responses: 75 primarily model error,
+63 task-definition problem and 1 scorer artefact. Causes overlap: 104 include
+model error, 63 task-definition problems and 1 the independently supported source
+mapping artefact. The mask incompatibility affects 48 responses; independent-view
+versus pairwise wording affects 7, missing pairwise evidence 8, and exact target
+coverage fails in 36 `explain` responses. These are response counts, not independent
+quality events. Only one observed scorer-artefact example exists; none were
+invented to meet an example quota. The private audit provides five model-error
+examples, five task-definition examples, that one scorer example, five order
+examples and every individual comparison. Twenty-nine root/arms disagree across
+orders: geometry in 23, statement in 21, role/citation in 20 each, observation
+kind in 17, observation count/uncertainty/visibility in 13 each, outcome in 3.
+These overlapping causes withhold roots; agreement requirements remain strict.
+
+Replaying old development answers with the fixed source mapping and preserving
+missing exclusion evidence gives the following precision / important recall:
+
+| Workload | Single Gemini | Two Gemini | Cascade |
+|---|---:|---:|---:|
+| explain | 0% / 0% | 0% / 0% | unavailable / 0% |
+| audit_mask | 0% / 0% | 0% / 0% | 0% / 0% |
+| check_ui | 50.00% / 33.33% | 25.00% / 0% | 58.33% / 44.44% |
+| routing | 18.18% / 11.11% | 9.09% / 11.11% | 45.45% / 22.22% |
+
+False reassurance is zero for these available committed roots; missing/disagreeing
+roots remain unavailable, not successes. Cascade `explain` has zero committed
+roots, so its precision is unavailable rather than zero. These small correlated
+development samples do not qualify any model. The old and replayed score reports
+retain counts, nominal bounds, provenance hashes and unchanged billing receipts.
+
+Decision **(b): a new development run is required first**. New prompt semantics
+and exclusion regions cannot be retroactively supplied to old answers. The
+216-request epoch-3 development schedule currently reserves **$5.14548975** at
+pinned worst-case prices, exceeding both the development allowance and the $5
+single-campaign ceiling. This is an offline reservation estimate, not billed or
+expected cost, and the plan remains unauthorized. A later operator must choose
+an admitted bounded schedule or separately authorized campaigns within the
+existing ceilings; this audit authorizes neither. Fresh held-out qualification
+must wait for the new development run and passing oracle proof.
+
+The audit runner verifies the pinned renderer/source and opaque oracle hash,
+lexically skips non-development oracle values without decoding them, and verifies
+only development images/truths. It refuses a fresh-heldout corpus or a request
+outside development before opening responses. Neither held-out responses nor
+held-out oracle entries were observed; `g12-fresh-heldout/1` remains unobserved.
+Private reports and request/proof artifacts stay outside the repository.
