@@ -1,0 +1,85 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/Tavrin/saccade/crates/saccade-core/schemas/saccade-embedding-index.v2.schema.json",
+  "title": "Segmented embedding index",
+  "type": "object",
+  "properties": {
+    "schema": {
+      "const": "saccade-embedding-index.v2"
+    },
+    "model": {
+      "type": "object"
+    },
+    "model_contract_sha256": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}$"
+    },
+    "dimensions": {
+      "type": "integer",
+      "minimum": 1,
+      "maximum": 4096
+    },
+    "vector_encoding": {
+      "const": "f32-little-endian-row-major-l2-normalized"
+    },
+    "rows": {
+      "type": "integer",
+      "minimum": 0,
+      "maximum": 1000000
+    },
+    "segments": {
+      "type": "array",
+      "maxItems": 4096,
+      "items": {
+        "type": "object",
+        "properties": {
+          "shard": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 255
+          },
+          "rows": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 4096
+          },
+          "metadata": {
+            "type": "string",
+            "maxLength": 255
+          },
+          "metadata_sha256": {
+            "type": "string",
+            "pattern": "^[0-9a-f]{64}$"
+          },
+          "vectors": {
+            "type": "string",
+            "maxLength": 255
+          },
+          "vectors_sha256": {
+            "type": "string",
+            "pattern": "^[0-9a-f]{64}$"
+          }
+        },
+        "required": [
+          "shard",
+          "rows",
+          "metadata",
+          "metadata_sha256",
+          "vectors",
+          "vectors_sha256"
+        ],
+        "additionalProperties": false
+      }
+    }
+  },
+  "required": [
+    "schema",
+    "model",
+    "model_contract_sha256",
+    "dimensions",
+    "vector_encoding",
+    "rows",
+    "segments"
+  ],
+  "additionalProperties": false
+}

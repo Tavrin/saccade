@@ -142,3 +142,118 @@ Float16 text weights retain float32 outputs; fixed normalized checkpoint parity
 must pass before the script writes a usable contract. That receipt covers three
 text prompts and one tensor, not broad retrieval accuracy. Bands stay uncalibrated.
 The shared `Analyzer` and Python/HTTP index use the same installed joint contract.
+
+## Incremental segmented archives
+
+`index build` retains the historical flat output. Opt in to v2 for a larger or
+changing archive (the same configured embedding model/runtime is required):
+
+```sh
+saccade index build images/ --segmented --model model.json --out archive --json
+saccade index update archive/ images/ --model model.json --out update-receipt --json
+saccade index update archive/ images/ --prune --model model.json --out prune-receipt --json
+```
+
+Update treats relative UTF-8 source paths as keys. It hashes encoded bytes and
+skips inference for unchanged entries; changed bytes replace the existing vector.
+Without `--prune`, absent paths stay indexed. With it, `images/` must be the complete
+archive: every missing path is removed. Traversal, decode, inference or contract
+failures abort the transaction. An empty segmented build exits 1; pruning the last
+entry is a successful update, but querying an empty archive is an error (exit 2).
+No model downloads occur unless explicitly enabled through existing provisioning.
+
+The `saccade-embedding-index.v2` manifest binds the full serialized model contract,
+including graph hashes, tokenizer, preprocessing and supplied calibration. The
+core `general::embedding_index::Update::upsert` also requires its contract digest
+for every supplied vector; caller-supplied vectors retain caller-owned inference
+provenance. Indexes from a different contract are refused even at equal dimensions.
+The public reader and existing CLI/MCP image/text queries accept both versions;
+Python/HTTP library queries stream v2 through the shared reader. Loaded v2 library
+snapshots are read-only; use the core transactional writer to modify them. Legacy
+relative normalized labels migrate on first update; other historical provenance
+labels remain readable but require relabeling before migration.
+
+V2 uses 256 SHA-256 path shards, sorted within each shard, split into immutable
+segments of at most 4096 rows. Only affected shards are rewritten; unchanged
+shards retain their files. Exact cosine search verifies each segment's metadata
+and vector hashes, then streams one vector at a time. Ties use lexical paths;
+v1 retains its historical row-order ties. Row numbers describe the current
+snapshot and may change after updates; source paths are the durable keys. A full
+segmented rebuild produces the same source ids, row numbers and scores as an
+incremental build of the same archive. Query does not rehash current source files.
+
+Explicit limits: 1,000,000 live rows, 16 GiB live vectors, 256 MiB total path text,
+4096 segments, 4096 dimensions, 32 MiB metadata per segment, 4 MiB manifest,
+64 MiB encoded bytes per input, and top-k 1..100. Query memory is bounded by the
+manifest, one segment's metadata, one vector and top-k hits; it does not grow with
+total vector bytes. Writers retain bounded path/row metadata and an on-disk vector
+spool (maximum 16 GiB), rather than loading all vectors. Disk planning must allow
+old generations plus staging and changed shards during publication.
+
+On local Unix filesystems, writers take an OS file lock, sync new immutable
+segments and their directory, sync a temporary manifest, atomically rename it,
+then sync the directory again. A process interruption before publication leaves
+the previous manifest readable; already-open readers retain their snapshot.
+A post-rename sync error may report an error after a complete new manifest has
+become visible. Power-loss durability depends on filesystem/device sync semantics;
+non-Unix directory durability has not been qualified. Failed or interrupted
+updates may leave unreferenced files. Offline cleanup requires excluding writers
+and readers, retaining files referenced by the current manifest, plus v1 files
+when legacy consumers still need them; there is no automatic online deletion.
+
+Build/update evidence uses `saccade-embedding-index-update.v1`; query evidence
+keeps the existing query contract. A v1 archive remains intact during migration;
+updated readers prefer v2 once published. Older binaries see the historical v1
+snapshot and must not be used to query an updated archive. MCP mutation mirroring
+is a follow-up; no vector server or approximate retrieval was added.
+
+The regression gate uses 10,000 generated PNG additions and a deterministic pixel
+embedding stand-in, comparing incremental and full segmented rebuild results.
+This verifies index mechanics independently of model availability, with no model
+execution or downloads. See the cost card below for synthetic scale measurements.
+
+### Synthetic scale cost card
+
+Reproduce with the standalone CPU-only example; prepare each archive before timing
+its query in a fresh process:
+
+```sh
+CARGO_INCREMENTAL=0 CARGO_PROFILE_DEV_DEBUG=0 cargo build -p saccade-core -p saccade --features embeddings --example embedding_index_cost
+"$CARGO_TARGET_DIR/debug/examples/embedding_index_cost" build /tmp/index-100k 100000
+/usr/bin/time -v "$CARGO_TARGET_DIR/debug/examples/embedding_index_cost" query /tmp/index-100k 100000
+"$CARGO_TARGET_DIR/debug/examples/embedding_index_cost" build /tmp/index-400k 400000
+/usr/bin/time -v "$CARGO_TARGET_DIR/debug/examples/embedding_index_cost" query /tmp/index-400k 400000
+```
+
+The example uses deterministic 384-dimensional vectors, asserts exact self
+retrieval at top-10, and performs real manifest/metadata/vector hash validation.
+The index mechanics test additionally compares top-100 against the flat exact
+reference for five generated queries. Neither test establishes real-model
+embedding accuracy. Timings include manifest load, hash verification and exact
+ranking; source image decoding and model inference are excluded. OS cache state
+is not controlled. Each recorded query is one run, with no repeat/noise claim.
+
+Recorded 2026-10-07 on Linux x86_64, AMD Ryzen 9 7945HX (16 cores,
+32 logical CPUs), 30.53 GiB visible RAM, Rust 1.98.1. Unoptimized Cargo dev
+profile, `CARGO_INCREMENTAL=0`, `CARGO_PROFILE_DEV_DEBUG=0`, one query thread,
+`nice -n 19`, shared host load; no GPU or model inference.
+
+| Rows | Live vectors (MiB) | Query (s) | Query peak RSS (KiB) | Build (s) | Build peak RSS (KiB) |
+| ---: | ---: | ---: | ---: | ---: | ---: |
+| 100,000 | 146.484 | 6.824 | 3,868 | 15.764 | 45,220 |
+| 400,000 | 585.938 | 33.976 | 3,604 | 63.550 | 175,376 |
+
+Both exact self-query assertions passed (exit 0). At 400k, the archive exceeds
+both historical caps while query RSS remains below 4 MiB in this sample. Writer
+metadata memory grows with rows; query does not retain total vectors. This is
+synthetic mechanics/scale evidence, not real-model retrieval qualification,
+interactive readiness, optimized-build latency or a repeat/noise study. The
+one-million-row/16-GiB ceiling is a defensive bound, not a measured performance
+claim for every permitted archive shape. Exact remains the reference; an
+approximate replacement needs a declared latency target, an optimized exact
+baseline and recall measurements. No approximate mode is justified by these
+unoptimized timings alone.
+
+Measurement executable SHA-256: `448c82d505a5faf2aacea736c3ec1b677daff1499ab6e80d7a974a3053440c46`.
+Source SHA-256: `embedding_index.rs` = `5b905c5d4374200ad6ec761fdbd43587020dc152fb92cdd8bedc80fd537405c5`;
+`embedding_index_cost.rs` = `bfca4438c3b3d87f3a44781e6f4a177b51e0ef19eb486849e3ef24ae11ab83de`.

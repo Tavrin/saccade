@@ -37,3 +37,6 @@ mod ocr_geometry;
 
 /// Optional page-structured hosted OCR mapping.
 pub mod document_ocr;
+
+/// Durable segmented exact retrieval and incremental embedding updates.
+pub mod embedding_index;

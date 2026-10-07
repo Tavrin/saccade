@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+- Add opt-in segmented exact embedding indexes, incremental changed-byte replacement
+  and pruning, atomic durable manifest updates, and bounded-memory v2 queries.
+  Preserve flat v1 readers and record synthetic scale costs.
+
 - Harden experimental assist pre-spend accounting: shared campaign reservations,
   charged and quarantined usage overruns, request-bound recorded execution receipts,
   nonvacuous qualification, independent control and glyph-localization checks, and

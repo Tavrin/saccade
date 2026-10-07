@@ -10,13 +10,14 @@ use std::{io::Write, path::Path};
 pub const SCHEMA: &str = embedding::INDEX_SCHEMA;
 /// Compact library/Python/HTTP query result; CLI evidence keeps embedding-query.v1.
 pub const QUERY_SCHEMA: &str = "saccade-media-index-query.v1";
-/// Exact flat index: at most 100000 rows and 512 MiB float32 storage.
+/// Flat in-memory builder or bounded-memory segmented disk snapshot.
 pub struct Index {
     model: Value,
     model_id: String,
     rows: Vec<Value>,
     vectors: Vec<Vec<f32>>,
     dimensions: usize,
+    segmented: Option<crate::general::embedding_index::Index>,
 }
 impl Index {
     /// Create an empty index for an explicitly pinned image/joint embedding contract.
@@ -29,6 +30,7 @@ impl Index {
             rows: vec![],
             vectors: vec![],
             dimensions: m.dimensions,
+            segmented: None,
         })
     }
     /// Build from images; a failed input fails the operation rather than silently dropping it.
@@ -47,6 +49,12 @@ impl Index {
     }
     /// Add a normalized vector produced by this index's model (caller owns inference provenance).
     pub fn add_vector(&mut self, label: &str, hash: &str, mut vector: Vec<f32>) -> Result<()> {
+        if self.segmented.is_some() {
+            return Err(MediaError::new(
+                "index_mismatch",
+                "segmented snapshots are read-only; use embedding_index::Update",
+            ));
+        }
         if self.rows.len() >= 100000
             || (self.rows.len() + 1)
                 .saturating_mul(self.dimensions)
@@ -88,6 +96,19 @@ impl Index {
     }
     /// Exact cosine ranking with stable tie order; bands remain uncalibrated.
     pub fn query_vector(&self, vector: &[f32], top: usize, kind: &str) -> Result<Value> {
+        if let Some(index) = &self.segmented {
+            let mut result = index.query(&self.model_id, vector, top)?;
+            result["schema"] = json!(QUERY_SCHEMA);
+            result["query_kind"] = json!(kind);
+            result["model_contract_sha256"] = json!(self.model_id);
+            result["calibration"] = json!("uncalibrated");
+            if let Some(hits) = result["hits"].as_array_mut() {
+                for hit in hits {
+                    hit["band"] = Value::Null;
+                }
+            }
+            return Ok(result);
+        }
         if !(1..=100).contains(&top) || vector.len() != self.dimensions || self.rows.is_empty() {
             return Err(MediaError::new(
                 "index_mismatch",
@@ -107,6 +128,12 @@ impl Index {
     /// Persist a new directory using the existing vectors.bin plus versioned metadata format.
     /// Existing index directories are never overwritten.
     pub fn save(&self, dir: &Path) -> Result<()> {
+        if self.segmented.is_some() {
+            return Err(MediaError::new(
+                "index_mismatch",
+                "segmented snapshots are read-only; use embedding_index::Update",
+            ));
+        }
         if self.rows.is_empty() {
             return Err(MediaError::new(
                 "index_mismatch",
@@ -146,8 +173,31 @@ impl Index {
         }
         result
     }
-    /// Load and validate legacy/current metadata and one hash-verified retained vector buffer.
+    /// Load flat v1 vectors or a v2 disk snapshot; v2 segments are verified during queries.
     pub fn load(dir: &Path) -> Result<Self> {
+        use crate::general::embedding_index;
+        if dir
+            .join(format!("{}.json", embedding_index::SCHEMA))
+            .try_exists()
+            .map_err(|e| MediaError::new("io_error", e.to_string()))?
+        {
+            let disk = embedding_index::Index::load(dir)?;
+            let bytes = input::bytes(
+                &dir.join(format!("{}.json", embedding_index::SCHEMA)),
+                4 * 1024 * 1024,
+            )?;
+            let meta: Value = serde_json::from_slice(&bytes)?;
+            let mut index = Self::new(meta["model"].clone())?;
+            if index.model_id != disk.model_id() {
+                return Err(MediaError::new(
+                    "index_mismatch",
+                    "manifest changed while opening snapshot",
+                ));
+            }
+            index.segmented = Some(disk);
+            return Ok(index);
+        }
+
         let meta: Value = serde_json::from_slice(&input::bytes(
             &dir.join(format!("{SCHEMA}.json")),
             128 * 1024 * 1024,

@@ -112,12 +112,29 @@ enum Operation {
         #[arg(long)]
         json: bool,
     },
-    /// Build a streaming exact flat index, up to 100000 images and 512 MiB vectors.
+    /// Build an exact index; --segmented supports larger archives and incremental updates.
     Build {
         dir: PathBuf,
+        /// Use durable v2 segments (up to 1000000 images and 16 GiB vectors).
+        #[arg(long)]
+        segmented: bool,
         #[command(flatten)]
         runtime: RuntimeArgs,
         #[arg(long)]
+        out: PathBuf,
+        #[arg(long)]
+        json: bool,
+    },
+    /// Add/replace changed sources in an existing index, optionally pruning missing paths.
+    Update {
+        index: PathBuf,
+        dir: PathBuf,
+        /// Treat dir as the complete archive and remove absent sources.
+        #[arg(long)]
+        prune: bool,
+        #[command(flatten)]
+        runtime: RuntimeArgs,
+        #[arg(long, default_value = "index-update-report")]
         out: PathBuf,
         #[arg(long)]
         json: bool,
@@ -193,11 +210,27 @@ pub(crate) fn index(args: IndexArgs) -> Result<u8, CliError> {
             }
             Operation::Build {
                 dir,
+                segmented,
                 runtime,
                 out,
                 json,
             } => {
-                let value = enabled::build(&dir, &runtime.resolve()?, &out)?;
+                let value = if segmented {
+                    enabled::build_segmented(&dir, &runtime.resolve()?, &out)?
+                } else {
+                    enabled::build(&dir, &runtime.resolve()?, &out)?
+                };
+                general_cmd::emit_document(value, Some(&out), json)
+            }
+            Operation::Update {
+                index,
+                dir,
+                prune,
+                runtime,
+                out,
+                json,
+            } => {
+                let value = enabled::update(&index, &dir, prune, &runtime.resolve()?, &out)?;
                 general_cmd::emit_document(value, Some(&out), json)
             }
             Operation::Query {
@@ -233,10 +266,7 @@ mod enabled {
     use super::*;
     use saccade_core::general::{embedding as e, input};
     use serde_json::{Value, json};
-    use std::{
-        io::{Read, Write},
-        path::Path,
-    };
+    use std::{io::Write, path::Path};
     const MAX_VECTOR_BYTES: u64 = 512 * 1024 * 1024;
     fn engine(runtime: &Runtime) -> Result<(e::Engine, String), CliError> {
         let bytes = input::bytes(&runtime.model, 2 * 1024 * 1024)?;
@@ -381,6 +411,64 @@ mod enabled {
             json!({"schema":e::INDEX_SCHEMA,"operation":"index_build","verdict":if errors.is_empty()&&!rows.is_empty(){"pass"}else{"regression"},"counts":{"images":rows.len(),"errors":errors.len()},"model_contract_sha256":model_id,"model":engine.model(),"vector_file":"vectors.bin","vector_encoding":"f32-little-endian-row-major-l2-normalized","vectors_sha256":input::sha256(&out.join("vectors.bin"),MAX_VECTOR_BYTES)?,"dimensions":engine.model().dimensions,"rows":rows,"errors":errors,"limitations":["exact flat cosine search, <=100000 rows and <=512 MiB vectors","index build pass means successful execution, not semantic qualification","failed images remain listed; they are unavailable to query","canonical model export and calibration are not bundled or qualified"]}),
         )
     }
+    fn update_rows(
+        index: &Path,
+        dir: &Path,
+        prune: bool,
+        engine: &mut e::Engine,
+    ) -> Result<Value, CliError> {
+        use saccade_core::general::embedding_index as storage;
+        let mut update = storage::Update::begin(index, engine.model().clone())?;
+        update.sync_directory(dir, prune, |bytes| engine.embed(&input::decode(bytes)?))?;
+        Ok(update.commit()?)
+    }
+    pub(super) fn build_segmented(
+        dir: &Path,
+        runtime: &Runtime,
+        out: &Path,
+    ) -> Result<Value, CliError> {
+        let (mut engine, _) = engine(runtime)?;
+        general_cmd::prepare_out(
+            out,
+            &[dir, &runtime.model, &runtime.library, &runtime.cache],
+        )?;
+        let mut receipt = update_rows(out, dir, false, &mut engine)?;
+        receipt["operation"] = json!("index_build");
+        if receipt["counts"]["images"] == 0 {
+            receipt["verdict"] = json!("regression");
+        }
+        Ok(receipt)
+    }
+    pub(super) fn update(
+        index: &Path,
+        dir: &Path,
+        prune: bool,
+        runtime: &Runtime,
+        out: &Path,
+    ) -> Result<Value, CliError> {
+        // Output safety is validated before opening the writer; no writes inside source archives.
+        saccade_core::run::guard_output_dir(
+            index,
+            &[dir, &runtime.model, &runtime.library, &runtime.cache],
+            &[
+                "saccade-embedding-index.v2.json",
+                "saccade-embedding-index.v1.json",
+            ],
+        )?;
+        let snapshot = saccade_core::general::embedding_index::Index::load(index)?;
+        let (mut engine, model_id) = engine(runtime)?;
+        if snapshot.model_id() != model_id {
+            return Err(CliError::new(
+                "index_mismatch",
+                "update model differs from index",
+            ));
+        }
+        general_cmd::prepare_out(
+            out,
+            &[index, dir, &runtime.model, &runtime.library, &runtime.cache],
+        )?;
+        update_rows(index, dir, prune, &mut engine)
+    }
     pub(super) fn query_text(
         index: &Path,
         text: &str,
@@ -395,36 +483,7 @@ mod enabled {
                 "image-only model cannot answer text queries",
             ));
         }
-        let index_value = saccade_core::media::search::Index::load(index)
-            .map_err(|err| CliError::new("index_mismatch", err.message))?;
-        let (mut engine, model_id) = engine(runtime)?;
-        let metadata_bytes = input::bytes(
-            &index.join(format!("{}.json", e::INDEX_SCHEMA)),
-            128 * 1024 * 1024,
-        )?;
-        let metadata: Value = serde_json::from_slice(&metadata_bytes)?;
-        if metadata["model_contract_sha256"] != model_id {
-            return Err(CliError::new(
-                "index_mismatch",
-                "text model differs from index",
-            ));
-        }
-        general_cmd::prepare_out(
-            out,
-            &[index, &runtime.model, &runtime.cache, &runtime.library],
-        )?;
-        let hit = index_value
-            .query_vector(&engine.embed_text(text)?, top, "text")
-            .map_err(|err| CliError::new("index_mismatch", err.message))?;
-        let results: Vec<Value> = hit["hits"]
-            .as_array()
-            .ok_or_else(|| CliError::usage("missing hits"))?
-            .iter()
-            .map(|h| json!({"row":h["row_index"],"source":h["row"],"cosine":h["cosine"],"band":null}))
-            .collect();
-        Ok(
-            json!({"schema":e::QUERY_SCHEMA,"operation":"index_query","verdict":"unknown", "counts":{"indexed":metadata["rows"].as_array().map_or(0,Vec::len),"returned":results.len(),"index_errors":metadata["errors"].as_array().map_or(0,Vec::len)},"query_sha256":saccade_core::localized::digest(text.as_bytes()),"index_metadata_sha256":saccade_core::localized::digest(&metadata_bytes),"model_contract_sha256":model_id,"results":results,"limitations":["text retrieval is conditional on the pinned joint export and tokenizer","cosine bands are uncalibrated; no semantic accuracy or acceptance verdict","indexed file names are provenance; current image bytes are not revalidated"]}),
-        )
+        query_common(index, None, Some(text), runtime, top, out)
     }
     pub(super) fn query(
         index: &Path,
@@ -433,80 +492,52 @@ mod enabled {
         top: usize,
         out: &Path,
     ) -> Result<Value, CliError> {
+        query_common(index, Some(image), None, runtime, top, out)
+    }
+    fn query_common(
+        index: &Path,
+        image: Option<&Path>,
+        text: Option<&str>,
+        runtime: &Runtime,
+        top: usize,
+        out: &Path,
+    ) -> Result<Value, CliError> {
         if !(1..=100).contains(&top) {
             return Err(CliError::usage("top must be 1..100"));
         }
-        let metadata = index.join(format!("{}.json", e::INDEX_SCHEMA));
-        let bytes = input::bytes(&metadata, 128 * 1024 * 1024)?;
-        let document: Value = serde_json::from_slice(&bytes)?;
+        let snapshot = saccade_core::general::embedding_index::Index::load(index)?;
         let (mut engine, model_id) = engine(runtime)?;
-        if document["schema"] != e::INDEX_SCHEMA
-            || document["model_contract_sha256"] != model_id
-            || document["dimensions"].as_u64() != Some(engine.model().dimensions as u64)
-            || document["vector_file"] != "vectors.bin"
-            || document["vector_encoding"] != "f32-little-endian-row-major-l2-normalized"
-        {
+        if snapshot.model_id() != model_id {
             return Err(CliError::new(
                 "index_mismatch",
-                "index/model identity or encoding mismatch",
+                "query model differs from index",
             ));
         }
-        let rows = document["rows"]
-            .as_array()
-            .ok_or_else(|| CliError::usage("index rows missing"))?;
-        let dims = engine.model().dimensions;
-        let expected = rows.len() as u64 * dims as u64 * 4;
-        if rows.is_empty() || rows.len() > 100000 || expected > MAX_VECTOR_BYTES {
-            return Err(CliError::usage("index size/count invalid"));
+        let mut inputs = vec![index, &runtime.model, &runtime.cache, &runtime.library];
+        if let Some(image) = image {
+            inputs.push(image);
         }
-        let vectors = index.join("vectors.bin");
-        let file = std::fs::File::open(&vectors).map_err(|e| CliError::io(e.to_string()))?;
-        if file
-            .metadata()
-            .map_err(|e| CliError::io(e.to_string()))?
-            .len()
-            != expected
-            || document["vectors_sha256"].as_str()
-                != Some(input::sha256(&vectors, MAX_VECTOR_BYTES)?.as_str())
-        {
-            return Err(CliError::new(
-                "index_mismatch",
-                "index vector size/hash mismatch",
-            ));
-        }
-        general_cmd::prepare_out(
-            out,
-            &[
-                index,
-                image,
-                &runtime.model,
-                &runtime.cache,
-                &runtime.library,
-            ],
-        )?;
-        let image_bytes = input::bytes(image, input::MAX_BYTES)?;
-        let query = engine.embed(&input::decode(&image_bytes)?)?;
-        let mut reader = std::io::BufReader::new(file);
-        let mut buffer = vec![0u8; dims * 4];
-        let mut hits: Vec<(usize, f64)> = Vec::new();
-        for id in 0..rows.len() {
-            reader
-                .read_exact(&mut buffer)
-                .map_err(|e| CliError::io(e.to_string()))?;
-            let vector: Vec<_> = buffer
-                .as_chunks::<4>()
-                .0
-                .iter()
-                .map(|b| f32::from_le_bytes([b[0], b[1], b[2], b[3]]))
-                .collect();
-            let cosine = e::cosine(&query, &vector)?;
-            hits.push((id, cosine));
-            hits.sort_by(|a, b| b.1.total_cmp(&a.1).then(a.0.cmp(&b.0)));
-            hits.truncate(top);
-        }
-        let results:Vec<_>=hits.into_iter().map(|(id,value)|json!({"row":id,"source":rows[id],"cosine":value,"band":e::band(engine.model(),value)})).collect();
+        general_cmd::prepare_out(out, &inputs)?;
+        let (vector, query_hash) = if let Some(text) = text {
+            (
+                engine.embed_text(text)?,
+                saccade_core::localized::digest(text.as_bytes()),
+            )
+        } else {
+            let bytes = input::bytes(
+                image.ok_or_else(|| CliError::usage("query image missing"))?,
+                input::MAX_BYTES,
+            )?;
+            (
+                engine.embed(&input::decode(&bytes)?)?,
+                saccade_core::localized::digest(&bytes),
+            )
+        };
+        let hits = snapshot.query(&model_id, &vector, top)?;
+        let results: Vec<_> = hits["hits"].as_array().ok_or_else(|| CliError::usage("query hits missing"))?.iter()
+            .map(|h| json!({"row":h["row_index"],"source":h["row"],"cosine":h["cosine"],"band":if text.is_some(){None}else{e::band(engine.model(), h["cosine"].as_f64().unwrap_or(0.))}})).collect();
         Ok(
-            json!({"schema":e::QUERY_SCHEMA,"operation":"index_query","verdict":"unknown","counts":{"indexed":rows.len(),"returned":results.len(),"index_errors":document["errors"].as_array().map_or(0,Vec::len)},"query_sha256":saccade_core::localized::digest(&image_bytes),"index_metadata_sha256":saccade_core::localized::digest(&bytes),"model_contract_sha256":model_id,"results":results,"limitations":["retrieval scores are conditional on supplied export/preprocessing/calibration","indexed file names are provenance; current source bytes are not revalidated by query","failed build entries are not searchable and remain in the index error list"]}),
+            json!({"schema":e::QUERY_SCHEMA,"operation":"index_query","verdict":"unknown","counts":{"indexed":snapshot.len(),"returned":results.len(),"index_errors":snapshot.error_count()},"query_sha256":query_hash,"index_metadata_sha256":snapshot.metadata_sha256(),"model_contract_sha256":model_id,"results":results,"limitations":["exact retrieval is conditional on the pinned model contract; no semantic accuracy qualification","source paths are provenance; query does not revalidate current source bytes"]}),
         )
     }
     #[cfg(feature = "mcp")]
