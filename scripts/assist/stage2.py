@@ -109,12 +109,12 @@ def reservation(request, dimensions):
     if tokens > 16000: raise ValueError('stage2 payload exceeds admission ceiling')
     return tokens*750 + 4096*3750
 
-def priced(cases, directory=None):
+def priced(cases, directory=None, split="heldout"):
     groups = []; table = []
     rng = random.Random(SCHEDULE_SEED)
     for arm in ARMS:
         for workload in WORKLOADS:
-            selected = [c for c in cases if c['split']=='heldout' and c['workload']==workload]
+            selected = [c for c in cases if c['split']==split and c['workload']==workload]
             rng.shuffle(selected)
             rows = []
             calls = 0; expected = 0; worst = 0
@@ -137,21 +137,25 @@ def priced(cases, directory=None):
     rows = [group[index] for index in range(max(map(len,groups),default=0)) for group in groups if index<len(group)]
     return rows, table
 
-def report(manifest, directory, budget_bounded=False):
-    rows, table = priced(manifest['cases'], directory)
+def report(manifest, directory, budget_bounded=False, split="heldout", allowance_nano=5_000_000_000):
+    if split not in ('development','calibration','heldout'): raise ValueError('invalid split')
+    if type(allowance_nano) is not int or not 0 < allowance_nano <= 5_000_000_000: raise ValueError('invalid allowance')
+    rows, table = priced(manifest['cases'], directory, split)
     expected = sum(t['expected_nano_usd'] for t in table); worst = sum(t['reservation_nano_usd'] for t in table)
     if not budget_bounded and (expected > 4_000_000_000 or worst > 5_000_000_000): raise ValueError('stage2 schedule exceeds envelope')
+    if not budget_bounded and worst > allowance_nano: raise ValueError('stage2 schedule exceeds allowance')
     if len(rows)>1000: raise ValueError('stage2 schedule exceeds 1000 request limit')
     return rows, dict(schema='saccade-g12-stage2-plan.v1', manifest_hash=manifest['manifest_hash'],
-        epoch=manifest['epoch'], policy=manifest['policy']['version'], request_policy=REQUEST_POLICY, prompt_policy=PROMPT_POLICY, prompt_epoch=PROMPT_EPOCH,
+        split=split, epoch=manifest['epoch'], policy=manifest['policy']['version'], request_policy=REQUEST_POLICY, prompt_policy=PROMPT_POLICY, prompt_epoch=PROMPT_EPOCH,
         prompt_hash=digest(INSTRUCTION.encode()),
         schema_projection=PROJECTION_POLICY, full_answer_schema_hash=digest(encoded(json.loads(ANSWER_SCHEMA_PATH.read_text()))),
         response_format_hash=digest(encoded(response_format())),
         reasoning_budgets=REASONING_BUDGETS, aggregate_output_limit=4096, per_arm_workload=table,
         answer_failure_policy=ANSWER_FAILURE_POLICY, truncated_output_class='campaign_failure',
+        roots=sum(c['split']==split for c in manifest['cases']), root_arm_evaluations=sum(c['split']==split for c in manifest['cases'])*len(ARMS),
         requests=len(rows), expected_nano_usd=expected, reservation_nano_usd=worst,
-        budget_bounded=budget_bounded, full_reservation_fits=worst<=5_000_000_000,
-        allowance_nano_usd=5_000_000_000, schedule_seed=SCHEDULE_SEED,
+        budget_bounded=budget_bounded, full_reservation_fits=worst<=allowance_nano,
+        allowance_nano_usd=allowance_nano, schedule_seed=SCHEDULE_SEED,
         schedule_order='Shuffled cases and arm/workload groups; round-robin requests across active groups',
         expected_method='single: supplied $0.0348585/10; two: single + mean prompt 1523 * $0.75/M; completion unchanged; workload transfer unverified',
         excluded={a:'No reviewed OpenRouter Jev model price/limit pin; no Jev dispatch' for a in ('oracle_jev','two_gemini_jev','cascade_jev_route')},

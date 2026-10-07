@@ -784,3 +784,46 @@ under a separately reviewed protocol; do not adapt from this held-out pilot.
 Identical payloads across distinct arm/order bindings share a hash. The union
 indexes by payload hash **and** canonical schedule binding, retaining these
 separate arm events instead of collapsing them or inflating independent support.
+
+## G12 development/calibration pilot and consumed held-out draw
+
+The first held-out draw (`wave4-constructed/4`, seed 4406, families 12–31)
+was consumed by an unqualified pilot and is excluded from qualification claims.
+It must not be reused as a prospective qualification holdout. No semantic scorer,
+prompt, payload, price, model or provider policy is changed by this scheduling fix.
+
+The planner now requires `--split development|calibration|held-out`, including
+stage-2 plans. Missing split selection refuses before reading the corpus. The
+scorer accepts the same split selection and verifies complete request and local
+result topology for that split. Other splits remain unobserved.
+
+The development and calibration plans each retain all 60 roots of the existing
+frozen pilot corpus and the same four arms: 240 root/arm evaluations and 216
+provider requests per split. Each full schedule has expected cost $0.890013600;
+worst-case reservations are $4.969337250 for development and $4.970257500 for
+calibration. These are full-schedule estimates, not a claim that all calls fit the
+cap. Two independent budget-bounded campaigns each receive $0.75, enforcing a
+combined $1.50 allowance. Admission verifies every request reservation offline;
+execution will stop before admitting a request that exceeds remaining allowance.
+Budget-stopped requests retain unavailable outcomes in the full denominator.
+The expected-cost transfer from the earlier aggregate remains unverified.
+
+Artifacts and exact run/reconcile/score commands are in
+the external pilot artifact directory as `operator-commands.sh`.
+The copied frozen binary has SHA-256
+`2429c019e63e8c4179fc1fe54ddd771ad77046101791119cdd4e41d1054e365f`.
+The original corpus is verified against source snapshot
+`ab305c00bc4536d4ff482b5a3645fe5b67f9a6d4`; the binary is the existing
+reasoning-hint pilot executor from the starting worktree revision. Frozen source
+verification checks unchanged scoring, receipt and policy files, renderer and
+payload functions and prompt/payload constants. Scheduling/freeze changes do not
+silently admit altered answer semantics.
+
+A new unscheduled draw, `g12-fresh-heldout/1`, uses seed 975031 and held-out
+families 32–51, disjoint from every original family, seed and root. Its 45 held-out
+roots have never received provider observations or individual human inspection;
+automated construction and oracle verification are recorded separately from
+observation. The manifest/oracle hashes and never-observed status are recorded in
+the external pilot artifact directory as `fresh-heldout-status.json`.
+This fresh pilot-sized draw does not establish sufficient qualification support.
+No held-out request plan is generated. No provider calls or key reads occurred.

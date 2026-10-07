@@ -28,9 +28,27 @@ def verified_corpus(directory, revision=None):
         with tarfile.open(fileobj=io.BytesIO(archive)) as tar:
             tar.extractall(frozen,filter='data')
         # This adapter may use only unchanged scoring/oracle/payload semantics.
-        for name in ('corpus.py','score.py','policy.py','receipts.py','stage2.py'):
+        for name in ('score.py','policy.py','receipts.py'):
             if (frozen/'scripts/assist'/name).read_bytes() != (root/'scripts/assist'/name).read_bytes():
                 raise ValueError('frozen pilot scoring implementation drift: '+name)
+        # Scheduling/freeze evolution must not change frozen rendering or payload semantics.
+        import ast
+        for name, functions in {'corpus.py': ('render',), 'stage2.py': ('schedule','payload','reservation','response_format','project_schema','collect')}.items():
+            def semantics(path):
+                tree=ast.parse(path.read_text())
+                return {node.name:ast.dump(node,include_attributes=False) for node in tree.body if isinstance(node,(ast.FunctionDef,ast.AsyncFunctionDef)) and node.name in functions}
+            if semantics(frozen/'scripts/assist'/name) != semantics(root/'scripts/assist'/name):
+                raise ValueError('frozen pilot scoring implementation drift: '+name)
+        def renderer_support(path):
+            tree=ast.parse(path.read_text())
+            tree.body=[n for n in tree.body if not (isinstance(n,ast.FunctionDef) and n.name in ('freeze','verify')) and not isinstance(n,ast.If)]
+            return ast.dump(tree,include_attributes=False)
+        if renderer_support(frozen/'scripts/assist/corpus.py') != renderer_support(root/'scripts/assist/corpus.py'):
+            raise ValueError('frozen renderer support drift')
+        # Constants bind prompt/reasoning/schema policies separately from functions.
+        old_stage = (frozen/'scripts/assist/stage2.py').read_text().split('def priced(')[0]
+        new_stage = (root/'scripts/assist/stage2.py').read_text().split('def priced(')[0]
+        if old_stage != new_stage: raise ValueError('frozen payload policy drift')
         program = "import json,sys;from pathlib import Path;from corpus import verify;print(json.dumps(verify(Path(sys.argv[1]))))"
         data = subprocess.check_output([sys.executable,'-c',program,str(directory.resolve())],cwd=frozen/'scripts/assist')
         manifest, oracle = json.loads(data)
@@ -146,7 +164,7 @@ def summarize(items, calls):
                     over_hint=bounds(over, hints)))
 
 
-def evaluate(corpus, requests_file, result_dir, local_file, source_revision=None):
+def evaluate(corpus, requests_file, result_dir, local_file, source_revision=None, split="heldout"):
     manifest, oracle, frozen_commit = verified_corpus(corpus, source_revision)
     requests = json.loads(requests_file.read_bytes())
     smoke_file = result_dir/'smoke.json'
@@ -234,13 +252,13 @@ def evaluate(corpus, requests_file, result_dir, local_file, source_revision=None
     if seen != set(ledger):
         raise ValueError('unbound pilot money receipts')
     # A changed/truncated schedule must not turn absent orders into available roots.
-    expected = {(c['root_id'], a, child, order) for c in manifest['cases'] if c['split']=='heldout'
+    expected = {(c['root_id'], a, child, order) for c in manifest['cases'] if c['split']==split
                 for a in ARMS for child, order in schedule(c, a)}
     if indexed != expected:
         raise ValueError('pilot schedule incomplete or changed')
     local = read(local_file)
     expected_local = [dict(root=c['root_id'], arm=a, outcome='observed' if source_fact(c) and c['complete'] else 'unverifiable',
-        source_only=source_fact(c) and c['complete']) for c in manifest['cases'] if c['split']=='heldout'
+        source_only=source_fact(c) and c['complete']) for c in manifest['cases'] if c['split']==split
         for a in ('rules','cascade') if a=='rules' or not c['complete'] or source_fact(c)]
     if local != expected_local:
         raise ValueError('pilot local result drift')
@@ -273,7 +291,7 @@ def evaluate(corpus, requests_file, result_dir, local_file, source_revision=None
         scoring_source_sha256={name:digest((Path(__file__).parent/name).read_bytes()) for name in
             ('pilot_score.py','score.py','corpus.py','stage2.py','receipts.py','policy.py')},
         inputs_sha256=inputs, splits=splits, root_results=root_results,
-        campaign=summarize([i for i in root_results if i['split']=='heldout'], [c for group in calls.values() for c in group]),
+        campaign=summarize([i for i in root_results if i['split']==split], [c for group in calls.values() for c in group]),
         mechanics=collect(requests,result_dir,manifest),
         methods=['Uses score.assertion_correct and score.task_evidence against the verified frozen corpus oracle.',
             'Precision is all-facts/task/outcome-correct roots divided by committed roots; assertion precision is separate.',
@@ -284,7 +302,7 @@ def evaluate(corpus, requests_file, result_dir, local_file, source_revision=None
             'Latency is completed cold-call receipt latency only; no latency inferred for missing/failed calls.',
             'One-sided 95% Clopper-Pearson bounds use independent root events for quality; request rates are descriptive and correlated.',
             'No changes to existing qualification gates or synthetic receipt acceptance.'],
-        limitations=['All provider observations are heldout; development/calibration have no executed observations.',
+        limitations=[f'Campaign schedules only {split}; other splits have no executed observations.',
             'This heldout corpus has already informed prompt development; it is not a fresh prospective holdout.',
             'Root/arm samples share template families and arms; binomial bounds are nominal, not cluster-adjusted qualification evidence.',
             'Finite assertion vocabulary; unsupported facts count as incorrect. Geometry is not padded to repair decimal rounding.',
@@ -321,7 +339,7 @@ def markdown(report):
         f"{m['completed_answers']} completed answers; {m['attempted_requests']} monetary attempts; {m['invalid_answers']} invalid answers; {m['over_hint_requests']}/{m['reasoning_observed_requests']} observed calls over hint.",
         f"Known billed cost ${m['known_cost_usd']:.8f}; {m['unknown_cost_receipts']} unknown-cost receipt(s); charge including full unknown reservations ${m['charged_with_unknown_reservations_usd']:.8f}.", '',
         'For n=0, confidence limits are unavailable. For n>0, best all-success lower = 0.05^(1/n); best zero-failure upper = 1 - 0.05^(1/n). JSON contains counts and full-precision bounds for every metric.', '',
-        'Development/calibration quality rates describe absence of execution, not measured model performance. No budget or quality qualification is implied.', '',
+        'Unscheduled splits describe absence of execution, not measured model performance. No budget or quality qualification is implied.', '',
         '## Method and limitations', '']
     lines += ['- '+s for s in report['methods']+report['limitations']]
     lines += ['', '## Input identity', '']
@@ -337,8 +355,9 @@ if __name__ == '__main__':
     parser.add_argument('--local-results',type=Path,required=True)
     parser.add_argument('--out',type=Path,required=True)
     parser.add_argument('--source-revision',help='Verify the original frozen source snapshot; current scorer semantics must match.')
+    parser.add_argument("--split",choices=("development","calibration","held-out"),default="held-out")
     args = parser.parse_args()
-    report = evaluate(args.corpus,args.requests,args.results,args.local_results,args.source_revision)
+    report = evaluate(args.corpus,args.requests,args.results,args.local_results,args.source_revision,args.split.replace("held-out","heldout"))
     put(args.out.with_suffix('.json'),report)
     args.out.with_suffix('.md').write_text(markdown(report))
     print(json.dumps({k:report['campaign'][k] for k in ('completed_answers','invalid_answers','over_hint_requests','known_cost_usd','charged_with_unknown_reservations_usd')}))
