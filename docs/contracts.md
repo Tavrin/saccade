@@ -219,6 +219,8 @@ The last three names appear only when the corresponding feature is compiled in.
 - [saccade-decisions.v1.schema.json](../crates/saccade-core/schemas/saccade-decisions.v1.schema.json) — Decisions
 - [saccade-dedupe.v1.schema.json](../crates/saccade-core/schemas/saccade-dedupe.v1.schema.json) — Historical reader contract
 - [saccade-dedupe.v2.schema.json](../crates/saccade-core/schemas/saccade-dedupe.v2.schema.json) — Historical reader contract
+- [saccade-derivative-sheet.v1.schema.json](../crates/saccade-core/schemas/saccade-derivative-sheet.v1.schema.json) — Derivative review sheet with linked JSON rows
+- [saccade-derivatives.v1.schema.json](../crates/saccade-core/schemas/saccade-derivatives.v1.schema.json) — Declared derivative crops, display sizes and source regions
 - [saccade-design-captures.v1.schema.json](../crates/saccade-core/schemas/saccade-design-captures.v1.schema.json) — saccade-design-captures.v1
 - [saccade-design-map.v1.schema.json](../crates/saccade-core/schemas/saccade-design-map.v1.schema.json) — saccade-design-map.v1
 - [saccade-design-pull.v1.schema.json](../crates/saccade-core/schemas/saccade-design-pull.v1.schema.json) — saccade-design-pull.v1

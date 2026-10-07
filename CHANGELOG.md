@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Add `derivative-sheet`: declared crop and rendition review at final display sizes, cached face evidence or protected subject boxes, pixel text checks, HTML/PNG sheets and manifest-bound JSON rows.
+
 - Add `sensitivity`: frozen defect catalogues, configured compare gates, per-class/magnitude miss rates, discrete detection minima and optional before/after policies; source images remain untouched.
 
 - Add independent motion statistics against timestamped references and seeded constructed-negative calibration with per-class scorer trust and exact ranking bounds.

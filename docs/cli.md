@@ -32,6 +32,7 @@ Commands:
   assist              Experimental advisory AI with an egress preview before dispatch
   replay              Record or re-execute an offline, content-bound evidence pack
   manifest            Find, link and re-check the outputs of a report directory
+  derivative-sheet    Review declared crops and renditions at their final display sizes
   export-regions      Crop the worst regions of a report, with coordinates
   print               ICC-managed CMYK raster comparison (first-party print extension)
   geo                 Native multichannel rasters, class metrics and tile-set coverage
@@ -872,6 +873,31 @@ Options:
           Shared report index destination (default reports/index.jsonl next to each report, inside --out)
   -h, --help
           Print help
+
+Global options:
+      --allow-out-near-captures  Silence warnings when --out is next to capture metadata
+      --record-absolute-paths    Opt in to absolute local paths in reports and machine-readable output
+```
+
+## saccade derivative-sheet
+
+```text
+Review declared crops and renditions at their final display sizes
+
+Usage: saccade derivative-sheet [OPTIONS] --out <OUT> <SOURCE> <DECLARATION>
+
+Arguments:
+  <SOURCE>       Source raster (opaque 8-bit SDR for face inference)
+  <DECLARATION>  saccade-derivatives.v1: source boxes, crops, display sizes and rendition paths
+
+Options:
+      --out <OUT>                    New empty directory outside inputs; writes HTML, PNG and manifest-bound JSON
+      --source-ref <SOURCE_REF>      External capture URI/key (repeatable); recorded in generated reports
+      --faces-report <FACES_REPORT>  Optional image-bound face receipt; explicitly labelled replay
+      --report-index <REPORT_INDEX>  Shared report index destination (default reports/index.jsonl next to each report, inside --out)
+      --detector <DETECTOR>          Cached face model ID; uses shared model config, never downloads [default: yunet-2026may]
+      --json
+  -h, --help                         Print help
 
 Global options:
       --allow-out-near-captures  Silence warnings when --out is next to capture metadata

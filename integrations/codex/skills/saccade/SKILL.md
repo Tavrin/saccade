@@ -91,3 +91,4 @@ G12 dry-run: fixture; live needs reviewed ceilings. [Qualification](../docs/assi
 [Replay](../docs/replay.md): `replay pack|verify`.
 [Optical codes](../docs/optical-code.md): independent decode/payload gates.
 [Sensitivity](../docs/sensitivity.md).
+[Derivatives](../docs/derivative-sheets.md).
