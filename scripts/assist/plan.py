@@ -34,7 +34,7 @@ if __name__=="__main__":
     if args.stage2:
         from stage2 import report
         manifest,_=verify(args.corpus)
-        if manifest["campaign"]!="g12-stage2/1": raise ValueError("stage2 requires its frozen profile")
+        if manifest["campaign"]!="g12-stage2/2": raise ValueError("stage2 requires its frozen profile")
         rows,result=report(manifest,args.corpus,args.budget_bounded)
         if args.out:
             args.out.mkdir()

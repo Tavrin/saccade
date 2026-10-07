@@ -372,6 +372,75 @@ impl Authorization {
         }
     }
 }
+/// Closed diagnostic class; never contains endpoint, key or provider error text.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "snake_case")]
+pub enum TransportFailure {
+    /// Deadline or socket timeout.
+    Timeout,
+    /// DNS or connection establishment failure.
+    Connect,
+    /// Broken or reset connection.
+    Reset,
+    /// TLS handshake or certificate failure.
+    Tls,
+    /// Other transport failure.
+    Other,
+}
+impl TransportFailure {
+    #[cfg(any(feature = "assist", test))]
+    fn io(error: &std::io::Error) -> Self {
+        use std::io::ErrorKind;
+        #[cfg(feature = "assist")]
+        if let Some(inner) = error
+            .get_ref()
+            .and_then(|e| e.downcast_ref::<ureq::Error>())
+        {
+            return Self::ureq(inner);
+        }
+        match error.kind() {
+            ErrorKind::TimedOut => Self::Timeout,
+            ErrorKind::ConnectionRefused
+            | ErrorKind::AddrNotAvailable
+            | ErrorKind::NotConnected => Self::Connect,
+            ErrorKind::ConnectionReset
+            | ErrorKind::ConnectionAborted
+            | ErrorKind::BrokenPipe
+            | ErrorKind::UnexpectedEof => Self::Reset,
+            _ => Self::Other,
+        }
+    }
+    #[cfg(feature = "assist")]
+    fn ureq(error: &ureq::Error) -> Self {
+        match error {
+            ureq::Error::Timeout(_) => Self::Timeout,
+            ureq::Error::ConnectionFailed | ureq::Error::HostNotFound => Self::Connect,
+            ureq::Error::Io(error) => Self::io(error),
+            ureq::Error::Tls(_) | ureq::Error::Rustls(_) | ureq::Error::Pem(_) => Self::Tls,
+            _ => Self::Other,
+        }
+    }
+    // Only the closed codes emitted by Network can cross the String-based fixture API.
+    #[cfg(any(feature = "assist", test))]
+    fn code(self) -> &'static str {
+        match self {
+            Self::Timeout => "transport_timeout",
+            Self::Connect => "transport_connect",
+            Self::Reset => "transport_reset",
+            Self::Tls => "transport_tls",
+            Self::Other => "transport_other",
+        }
+    }
+    fn from_code(code: &str) -> Self {
+        match code {
+            "transport_timeout" | "dispatch deadline" => Self::Timeout,
+            "transport_connect" => Self::Connect,
+            "transport_reset" => Self::Reset,
+            "transport_tls" => Self::Tls,
+            _ => Self::Other,
+        }
+    }
+}
 /// Exact response and deterministic HTTP metadata, usable by offline fixtures.
 pub struct HttpReply {
     /// HTTP status (redirects are never followed).
@@ -480,7 +549,7 @@ fn openrouter_http(
 ) -> Result<HttpReply, String> {
     use std::io::Read;
     if timeout.is_zero() {
-        return Err("OpenRouter deadline exhausted".into());
+        return Err(TransportFailure::Timeout.code().into());
     }
     let agent: ureq::Agent = ureq::Agent::config_builder()
         .timeout_global(Some(timeout))
@@ -497,7 +566,7 @@ fn openrouter_http(
             .header("Content-Type", "application/json")
             .send(payload.unwrap_or_default())
     }
-    .map_err(|_| "OpenRouter transport unavailable")?;
+    .map_err(|error| TransportFailure::ureq(&error).code())?;
     let status = response.status().as_u16();
     let mut body = Vec::new();
     response
@@ -505,7 +574,7 @@ fn openrouter_http(
         .into_reader()
         .take(256 * 1024 + 1)
         .read_to_end(&mut body)
-        .map_err(|_| "OpenRouter body unavailable")?;
+        .map_err(|error| TransportFailure::io(&error).code())?;
     if body.len() > 256 * 1024 {
         return Err("OpenRouter body limit".into());
     }
@@ -571,6 +640,8 @@ pub const ERROR_BODY_LIMIT: usize = 4096;
 /// The body is untrusted diagnostic data for private storage, never logged.
 #[derive(Clone)]
 pub struct Rejection {
+    /// Sanitized transport class when no HTTP response was received.
+    pub transport_failure: Option<TransportFailure>,
     /// Classified failure, as returned by [`Transport::once`].
     pub failure: ProviderFailure,
     /// HTTP status when the provider answered.
@@ -654,6 +725,7 @@ impl Transport<'_> {
         probe: bool,
     ) -> Result<(Vec<u8>, String), Rejection> {
         let plain = |failure: ProviderFailure| Rejection {
+            transport_failure: None,
             failure,
             status: None,
             body: Vec::new(),
@@ -789,6 +861,7 @@ impl Transport<'_> {
                 let wait = r.retry_after_secs.or_else(|| body_retry_delay(&body));
                 body.truncate(ERROR_BODY_LIMIT);
                 Err(Rejection {
+                    transport_failure: None,
                     failure: ProviderFailure {
                         class,
                         message: format!("HTTP {} reservation={id}", r.status),
@@ -799,7 +872,8 @@ impl Transport<'_> {
                     reservation: Some(id.clone()),
                 })
             }
-            Err(_) => Err(Rejection {
+            Err(error) => Err(Rejection {
+                transport_failure: Some(TransportFailure::from_code(&error)),
                 failure: failure(
                     RetryClass::Transient,
                     &format!("transport unavailable reservation={id}"),
@@ -1118,5 +1192,54 @@ impl std::fmt::Debug for FailedAttempt {
             .field("model", &self.model)
             .field("status", &self.status)
             .finish_non_exhaustive()
+    }
+}
+
+#[cfg(test)]
+#[allow(clippy::unwrap_used)]
+mod transport_class_tests {
+    use super::TransportFailure;
+    #[test]
+    fn g12_transport_classes_discard_untrusted_diagnostics() {
+        use std::io::{Error, ErrorKind};
+        for (kind, expected) in [
+            (ErrorKind::TimedOut, TransportFailure::Timeout),
+            (ErrorKind::ConnectionRefused, TransportFailure::Connect),
+            (ErrorKind::ConnectionReset, TransportFailure::Reset),
+            (ErrorKind::UnexpectedEof, TransportFailure::Reset),
+            (ErrorKind::Other, TransportFailure::Other),
+        ] {
+            let error = Error::new(kind, "fixture-secret and untrusted endpoint");
+            assert_eq!(TransportFailure::io(&error), expected);
+            assert_eq!(TransportFailure::from_code(expected.code()), expected);
+            assert!(
+                !serde_json::to_string(&expected)
+                    .unwrap()
+                    .contains("fixture-secret")
+            );
+        }
+        assert_eq!(
+            TransportFailure::from_code("timeout fixture-secret"),
+            TransportFailure::Other
+        );
+        #[cfg(feature = "assist")]
+        {
+            assert_eq!(
+                TransportFailure::ureq(&ureq::Error::Tls("fixture-secret")),
+                TransportFailure::Tls
+            );
+            assert_eq!(
+                TransportFailure::io(&ureq::Error::Timeout(ureq::Timeout::Global).into_io()),
+                TransportFailure::Timeout
+            );
+            assert_eq!(
+                TransportFailure::ureq(&ureq::Error::HostNotFound),
+                TransportFailure::Connect
+            );
+            assert_eq!(
+                TransportFailure::ureq(&ureq::Error::Timeout(ureq::Timeout::Global)),
+                TransportFailure::Timeout
+            );
+        }
     }
 }

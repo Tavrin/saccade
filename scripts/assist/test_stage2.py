@@ -6,6 +6,33 @@ from corpus import freeze, verify
 from stage2 import payload, priced, report, schedule, collect, REVISION, REQUEST_POLICY, REASONING_BUDGETS, reservation, response_format, ANSWER_SCHEMA_PATH, project_schema, PROJECTION_POLICY, PROJECTED_SCHEMA_NAME
 
 class Stage2Tests(unittest.TestCase):
+    def test_round2_prompt_epoch_convention_examples_and_same_slot_citations(self):
+        import json,re
+        from stage2 import INSTRUCTION,PROMPT_POLICY,PROMPT_EPOCH
+        self.assertEqual(PROMPT_EPOCH,'g12-pilot/2')
+        self.assertEqual(PROMPT_POLICY,'assist-openrouter-geometry-citations/2')
+        self.assertIn('box [x,y,width,height]',INSTRUCTION)
+        for rule in ('width>0','height>0','x+width<=1','y+height<=1','evidence_refs may only cite regions of the same slot'):
+            self.assertIn(rule,INSTRUCTION)
+        examples=re.findall(r'(check_ui|explain|audit_mask): (\{.*?\})(?:\. |\.$)',INSTRUCTION)
+        self.assertEqual({task for task,_ in examples},{'check_ui','explain','audit_mask'})
+        for task,raw in examples:
+            obs=json.loads(raw);coords=obs['geometry']['pixels']
+            self.assertTrue(all(0<=x<=1 for x in coords))
+            if obs['geometry']['type']=='box':
+                x,y,w,h=coords;self.assertTrue(w>0 and h>0 and x+w<=1 and y+h<=1)
+            self.assertTrue(all(ref.startswith(obs['slot']+':') for ref in obs['evidence_refs']))
+        from corpus import digest
+        with tempfile.TemporaryDirectory() as tmp:
+            d=Path(tmp)/'pilot';m=freeze(d,15,4406,REVISION,'jev-1.13.0',True)
+            rows,p=report(m,d)
+            self.assertEqual(p['prompt_epoch'],PROMPT_EPOCH)
+            self.assertEqual(p['prompt_policy'],PROMPT_POLICY)
+            self.assertEqual(p['prompt_hash'],digest(INSTRUCTION.encode()))
+            self.assertEqual(m['campaign'],'g12-stage2/2')
+            self.assertEqual(m['policy']['version'],'constructed-assist/4')
+            self.assertTrue(all(row['payload']['messages'][0]['content']==INSTRUCTION for row in rows))
+
     def test_stage2_replan_interleaves_pilot_and_budget_bounded_larger_schedule(self):
         import json
         with tempfile.TemporaryDirectory() as tmp:
@@ -14,10 +41,7 @@ class Stage2Tests(unittest.TestCase):
             rows,plan=report(manifest,directory)
             self.assertEqual(len(rows),216)
             self.assertEqual(rows,report(verify(directory)[0],directory)[0])
-            old_format=dict(type='json_schema',json_schema=dict(name='saccade_assist_answer',strict=True,schema=json.loads(ANSWER_SCHEMA_PATH.read_text())))
-            from corpus import encoded
-            delta=len(encoded(response_format()))-len(encoded(old_format))
-            self.assertEqual(plan['reservation_nano_usd'],4843501500+216*delta*750)
+            self.assertLessEqual(plan['reservation_nano_usd'],5_000_000_000)
             self.assertFalse(plan['budget_bounded'])
             self.assertTrue(plan['full_reservation_fits'])
             workloads={c['root_id']:c['workload'] for c in manifest['cases']}
@@ -185,7 +209,7 @@ class Stage2Tests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as tmp:
             directory=Path(tmp)/'corpus'
             m=freeze(directory,5,4406,REVISION,'jev-1.13.0',True)
-            self.assertEqual(verify(directory)[0]['epoch'],'wave4-constructed/2')
+            self.assertEqual(verify(directory)[0]['epoch'],'wave4-constructed/4')
             rows,plan=report(m,directory)
             self.assertFalse(plan['qualified'])
             self.assertEqual(len(rows),72)

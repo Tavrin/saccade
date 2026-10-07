@@ -1340,6 +1340,7 @@ fn g12_dispatch_secret_rejects_unicode_nested_reflections_and_debug_sinks() {
         retry_after_secs: None,
     };
     let r = Rejection {
+        transport_failure: None,
         failure,
         status: Some(400),
         body: b"fixture-key".to_vec(),

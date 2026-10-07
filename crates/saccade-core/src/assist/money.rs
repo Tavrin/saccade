@@ -40,6 +40,10 @@ pub(super) struct MoneyState {
     counters: BTreeMap<String, (u64, u64)>,
     #[serde(default)]
     stopped: bool,
+    #[serde(default)]
+    campaign_identity: Option<UsageValue>,
+    #[serde(default)]
+    campaign_root: Option<(usize, crate::evidence::canonical::Digest)>,
     receipts: Vec<MoneyReceipt>,
     #[serde(default)]
     openrouter: Option<UsageValue>,
@@ -53,6 +57,37 @@ impl Ledger {
             dir: self.dir.clone(),
             namespace: "campaign".into(),
         }
+    }
+    /// Freeze the complete runner identity under the monetary lock. Legacy ledgers
+    /// without this binding cannot be resumed or silently assigned a new policy.
+    pub fn bind_campaign(&self, identity: UsageValue, resume: bool) -> Result<(), String> {
+        self.campaign().transaction(|state| {
+            if state.money.stopped {
+                return Err("campaign_spending_stopped".into());
+            }
+            match &state.money.campaign_identity {
+                Some(old) if resume && *old == identity => Ok(()),
+                None if !resume && state.money.receipts.is_empty() => {
+                    state.money.campaign_identity = Some(identity);
+                    Ok(())
+                }
+                _ => Err("campaign_plan_or_policy_changed".into()),
+            }
+        })
+    }
+    /// Bind the next root before reserving so a crash cannot lose receipt-to-root identity.
+    pub fn begin_campaign_root(
+        &self,
+        index: usize,
+        hash: crate::evidence::canonical::Digest,
+    ) -> Result<(), String> {
+        self.campaign().transaction(|state| {
+            if state.money.campaign_identity.is_none() {
+                return Err("campaign_identity_required".into());
+            }
+            state.money.campaign_root = Some((index, hash));
+            Ok(())
+        })
     }
     /// Durably stop all modes and epochs in this campaign after a demonstrated breach.
     pub fn stop_spending(&self) -> Result<(), String> {
@@ -145,6 +180,12 @@ impl Ledger {
                 counter.0 = counter.0.min(scope.cap_nano_usd);
                 counter.1 += receipt.reserved_nano_usd;
             }
+            if let Some((index, hash)) = &state.money.campaign_root {
+                if receipt.request_hash != *hash {
+                    return Err("campaign_root_hash_changed".into());
+                }
+                receipt.usage["campaign_root_index"] = serde_json::json!(index);
+            }
             state.money.receipts.push(receipt);
             Ok(())
         })
@@ -171,6 +212,7 @@ impl Ledger {
             let dispatched = receipt.usage["openrouter_dispatched"] == true;
             let requested_identity = receipt.usage["requested_identity"].clone();
             let image_table = receipt.usage.get("image_table").cloned();
+            let root_index = receipt.usage.get("campaign_root_index").cloned();
             let zero_cost_refused = dispatched && actual == Some(0)
                 && usage["zero_cost_refused"] == true;
             let charged = actual.unwrap_or(receipt.reserved_nano_usd);
@@ -190,6 +232,7 @@ impl Ledger {
             }
             receipt.actual_nano_usd = actual;
             receipt.usage = usage;
+            if let Some(index) = root_index { receipt.usage["campaign_root_index"] = index; }
             if let Some(table) = image_table {
                 receipt.usage["image_table"] = table;
             }
@@ -342,8 +385,6 @@ impl Ledger {
             let receipt = state.money.receipts.iter_mut().find(|r| r.id == id)
                 .ok_or("unknown money reservation")?;
             if matches!(receipt.usage["reconciliation"]["state"].as_str(), Some("matched" | "mismatch" | "zero_cost_refused")) { return Ok(()); }
-            let cost_matches = generation.as_ref().is_ok_and(|g| receipt.actual_nano_usd
-                .is_some_and(|actual| actual.abs_diff(g.cost_nano_usd) <= crate::assist::openrouter::RECONCILIATION_TOLERANCE));
             let drifted = generation.as_ref().is_ok_and(|g| {
                 let model = receipt.usage["requested_identity"]["model"].as_str()
                     .or_else(|| receipt.usage["response_identity"]["returned_model"].as_str()).unwrap_or("");
@@ -351,6 +392,30 @@ impl Ledger {
                 (!model.is_empty() && g.model != model && !crate::assist::openrouter::dated_pin(model, &g.model))
                     || (crate::assist::openrouter::dated_pin(model, pin) && g.model != pin)
             });
+            // Only authoritative generation identity and cost can settle an unknown
+            // incomplete charge. Known charges are never rewritten. Breaches stop spend.
+            if receipt.actual_nano_usd.is_none() && receipt.outcome == "incomplete"
+                && receipt.usage["openrouter_dispatched"] == true && !drifted
+                && receipt.usage["requested_identity"]["model"].as_str().is_some_and(|s| !s.is_empty())
+                && receipt.usage["requested_identity"]["revision"].as_str().is_some_and(|s| !s.is_empty())
+                && let Ok(g) = &generation
+            {
+                let cost = g.cost_nano_usd;
+                for scope in &receipt.scopes {
+                    let counter = state.money.counters.get_mut(scope).ok_or("missing money counter")?;
+                    counter.1 = counter.1.checked_sub(receipt.reserved_nano_usd)
+                        .and_then(|n| n.checked_add(cost)).ok_or("openrouter_accounting_overflow")?;
+                }
+                receipt.usage["unknown_cost_settlement"] = serde_json::json!({"previous_actual_nano_usd":null,
+                    "previous_charge_nano_usd":receipt.reserved_nano_usd,"generation_response_hash":g.response_hash});
+                receipt.actual_nano_usd = Some(cost);
+                if cost > receipt.reserved_nano_usd {
+                    receipt.outcome = "cost_limit_exceeded".into();
+                    state.money.stopped = true;
+                }
+            }
+            let cost_matches = generation.as_ref().is_ok_and(|g| receipt.actual_nano_usd
+                .is_some_and(|actual| actual.abs_diff(g.cost_nano_usd) <= crate::assist::openrouter::RECONCILIATION_TOLERANCE));
             let reason = match &generation {
                 Err(reason) => Some(*reason),
                 Ok(_) if !cost_matches => Some("openrouter_generation_cost_mismatch"),
@@ -392,12 +457,125 @@ mod tests {
     use super::super::Ledger;
     use super::*;
 
+    #[cfg(feature = "assist")]
+    #[test]
+    fn g12_resume_identity_and_reconciliation_preserve_prior_spend() {
+        use crate::{assist::openrouter::Generation, evidence::canonical::Digest};
+        let temp = tempfile::tempdir().unwrap();
+        let ledger = Ledger::new(temp.path(), true);
+        let identity = serde_json::json!({"plan":"fixture","policy":"epoch-2","allowance":100});
+        assert!(ledger.bind_campaign(identity.clone(), true).is_err());
+        ledger.bind_campaign(identity.clone(), false).unwrap();
+        assert!(
+            ledger
+                .bind_campaign(serde_json::json!({"plan":"changed"}), true)
+                .is_err()
+        );
+        ledger
+            .begin_campaign_root(0, Digest::of_bytes(b"fixture"))
+            .unwrap();
+        let scopes = [MoneyScope {
+            id: "smoke".into(),
+            cap_nano_usd: 100,
+        }];
+        let make = |id: &str| MoneyReceipt {
+            id: id.into(),
+            request_hash: Digest::of_bytes(b"fixture"),
+            scopes: vec!["smoke".into()],
+            reserved_nano_usd: 60,
+            actual_nano_usd: None,
+            outcome: "reserved".into(),
+            usage: serde_json::json!({"openrouter_dispatched":true,
+                "requested_identity":{"model":"fixture-model","revision":"absent"}}),
+        };
+        ledger.reserve_money(&scopes, make("first")).unwrap();
+        ledger
+            .finish_money(
+                "first",
+                None,
+                serde_json::json!({"generation_id":"gen-fixture","transport_failure":"timeout"}),
+                false,
+            )
+            .unwrap();
+        assert!(ledger.reserve_money(&scopes, make("too-early")).is_err());
+        assert_eq!(
+            ledger.money_receipts().unwrap()[0].usage["campaign_root_index"],
+            0
+        );
+        let generation = Generation {
+            cost_nano_usd: 50,
+            response_hash: Digest::of_bytes(b"proof"),
+            model: "fixture-model".into(),
+            provider_name: "fixture-provider".into(),
+        };
+        ledger
+            .record_openrouter_reconciliation("first", Ok(generation.clone()), 1, 0, 1)
+            .unwrap();
+        let receipt = ledger.money_receipts().unwrap().remove(0);
+        assert_eq!(receipt.actual_nano_usd, Some(50));
+        assert_eq!(receipt.outcome, "incomplete");
+        assert_eq!(receipt.usage["reconciliation"]["state"], "matched");
+        assert_eq!(receipt.usage["transport_failure"], "timeout");
+        ledger.bind_campaign(identity, true).unwrap();
+        // Reopening did not reset 50 spent; another reservation of 60 is refused.
+        assert!(ledger.reserve_money(&scopes, make("retry")).is_err());
+        ledger
+            .record_openrouter_reconciliation("first", Ok(generation), 1, 0, 2)
+            .unwrap();
+        assert_eq!(
+            ledger.money_receipts().unwrap()[0].actual_nano_usd,
+            Some(50)
+        );
+    }
+    #[cfg(feature = "assist")]
+    #[test]
+    fn g12_unknown_settlement_requires_identity_and_stops_on_overrun() {
+        use crate::{assist::openrouter::Generation, evidence::canonical::Digest};
+        for (model, cost, actual, outcome) in [
+            ("wrong-model", 0, None, "incomplete"),
+            ("fixture-model", 0, Some(0), "incomplete"),
+            ("fixture-model", 101, Some(101), "cost_limit_exceeded"),
+        ] {
+            let temp = tempfile::tempdir().unwrap();
+            let ledger = Ledger::new(temp.path(), true);
+            ledger.reserve_money(&[MoneyScope{id:"smoke".into(),cap_nano_usd:200}],MoneyReceipt{
+                id:"fixture".into(),request_hash:Digest::of_bytes(b"fixture"),scopes:vec!["smoke".into()],
+                reserved_nano_usd:100,actual_nano_usd:None,outcome:"reserved".into(),
+                usage:serde_json::json!({"openrouter_dispatched":true,"requested_identity":{"model":"fixture-model","revision":"absent"}})
+            }).unwrap();
+            ledger
+                .finish_money("fixture", None, serde_json::json!({}), false)
+                .unwrap();
+            ledger
+                .record_openrouter_reconciliation(
+                    "fixture",
+                    Ok(Generation {
+                        cost_nano_usd: cost,
+                        response_hash: Digest::of_bytes(b"proof"),
+                        model: model.into(),
+                        provider_name: "fixture".into(),
+                    }),
+                    1,
+                    0,
+                    1,
+                )
+                .unwrap();
+            let r = ledger.money_receipts().unwrap().remove(0);
+            assert_eq!(r.actual_nano_usd, actual);
+            assert_eq!(r.outcome, outcome);
+            if model == "wrong-model" || cost > 100 {
+                assert!(ledger.bind_campaign(serde_json::json!({}), false).is_err());
+            }
+        }
+    }
     #[test]
     fn ordinary_ai_ledger_rewrites_preserve_assist_money_receipts() {
         let temp = tempfile::tempdir().unwrap();
         let ledger = Ledger::new(temp.path(), false);
         let expected = MoneyState {
             stopped: false,
+            campaign_identity: None,
+            campaign_root: None,
             openrouter: None,
             ceiling_events: Vec::new(),
             counters: BTreeMap::from([("epoch/frozen".into(), (100, 60))]),

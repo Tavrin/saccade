@@ -838,6 +838,10 @@ mod execution_tests {
     fn g12_recorded_http_400_classifies_and_settles_zero_without_generation_lookup() {
         scenarios(32..42);
     }
+    #[test]
+    fn g12_call_cap_120_and_transport_receipts_remain_unknown_cost() {
+        scenarios(42..47);
+    }
     fn scenarios(indices: std::ops::Range<usize>) {
         #[derive(Default)]
         struct Clock(Cell<Duration>);
@@ -934,9 +938,13 @@ mod execution_tests {
                 url: &str,
                 _: (&str, &str),
                 _: &[u8],
-                _: Duration,
+                timeout: Duration,
             ) -> std::result::Result<HttpReply, String> {
                 assert_eq!(url, ENDPOINT);
+                if self.scenario >= 42 {
+                    assert!(timeout > Duration::from_secs(60));
+                    assert!(timeout <= Duration::from_secs(120));
+                }
                 assert_eq!(
                     self.ledger
                         .money_receipts()
@@ -947,6 +955,16 @@ mod execution_tests {
                     "reserved"
                 );
                 self.calls.set(self.calls.get() + 1);
+                if self.scenario >= 42 {
+                    return Err([
+                        "transport_timeout",
+                        "transport_connect",
+                        "transport_reset",
+                        "transport_tls",
+                        "untrusted fixture-secret",
+                    ][self.scenario - 42]
+                        .into());
+                }
                 if self.scenario == 37 {
                     return Err("fixture network failure".into());
                 }
@@ -1118,7 +1136,7 @@ mod execution_tests {
                     cap_nano_usd: 100_000_000,
                 }],
                 sources: vec!["fixture".into()],
-                deadline: Instant::now() + Duration::from_secs(1),
+                deadline: Instant::now() + Duration::from_secs(if index >= 42 { 300 } else { 1 }),
             };
             let key = CacheKey {
                 evidence_hash: Digest::of_bytes(b"fixture-request"),
@@ -1148,6 +1166,14 @@ mod execution_tests {
                 assert_eq!(fake.calls.get(), 1);
                 assert_eq!(fake.generations.get(), 0);
                 let receipt = &receipts[0];
+                if index >= 42 {
+                    assert_eq!(
+                        receipt.usage["transport_failure"],
+                        ["timeout", "connect", "reset", "tls", "other"][index - 42]
+                    );
+                    assert!(receipt.usage["http_error"].is_null());
+                    assert!(!campaign.contains("untrusted fixture-secret"));
+                }
                 let refused = index == 32;
                 assert_eq!(
                     result.err().unwrap().code(),

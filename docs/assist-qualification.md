@@ -585,3 +585,95 @@ reports invalid rates and reason breakdown per arm/workload. Invalid orders and
 descendants count as root/arm model failures in the complete denominator, never
 as abstentions. Missing and disagreement counts remain separate. This is
 protocol measurement only. See the [decision and focused regressions](design-decisions/g12-answer-failures.md).
+
+## G12 pilot round 2: frozen geometry/citation prompt and resume
+
+The new prompt epoch is `g12-pilot/2`, prompt policy
+`assist-openrouter-geometry-citations/2`, corpus campaign `g12-stage2/2`,
+constructed epoch `wave4-constructed/4`, and policy `constructed-assist/4`.
+Encoder identity advances to `assist-encoder/4`. The provider schema projection,
+reasoning/output bounds, statement vocabulary and all answer validators stay fixed.
+Plans include the exact prompt hash and policy; request hashes include the prompt.
+
+The system instruction explicitly defines normalized boxes as
+`[x,y,width,height]`, with positive width/height, `x+width<=1` and `y+height<=1`;
+points are `[x,y]`. It supplies one minimal valid observation for each of
+`check_ui`, `explain` and `audit_mask`, and states that `evidence_refs` may only
+cite regions of the same slot. Examples are protocol shapes, not truth labels.
+
+The coordinator's epoch-1 pilot retains 60 dispatches: 44 completed, 15 invalid
+answers (8 geometry bounds, 4 citation identity, 3 closed schema), then one
+unknown-cost incomplete call; supplied known spend was $0.168273. A split-only
+inspection found all eight geometry failures belong to the frozen **held-out**
+split (indices 11, 13, 27, 28, 33, 51, 52, 58). Their response bodies and held-out
+oracle labels were not opened. There are no supplied development-split geometry
+responses with which to confirm corner-coordinate use. The spec's proposed cause
+therefore remains unconfirmed; these clarifications follow the already enforced
+protocol. No held-out tuning, validator relaxation or new live evidence is claimed.
+The old pilot is retained as epoch-1 evidence and cannot resume under this prompt.
+
+Executor calls now cap their remaining deadline at 120 seconds, while retaining
+the 300-second caller guard and existing campaign deadline. HTTP transport errors
+carry only a closed `transport_failure` class: `timeout`, `connect`, `reset`,
+`tls`, or `other`. Typed transport errors and exact fixture codes select the
+class; untrusted strings, endpoints, keys and error bodies never become diagnostic
+text. Receipts and root outcomes retain the class. Unknown-cost failures continue
+to stop dispatch and hold their full reservation.
+
+`--resume EXISTING_DIR` replaces `--out NEW_DIR`; repeat the original requests,
+roots, allowance, stage-2/budget mode and safety flags. The frozen campaign binding
+includes request-file bytes, cache/prompt/policy identities, user-policy identity,
+allowance and safety limits. Any change refuses resume. Legacy runs without this
+binding are refused. One exclusive runner lock covers dispatch and reconcile-only.
+The existing ledger and ceiling baseline remain authoritative; reopening never
+resets money, request counters, safety history or a permanent spending stop.
+Retries share the existing 1,000-attempt stage-2 limit (10 in small smoke mode).
+
+Completed/invalid answers and proved zero-cost refusals are not dispatched again.
+An incomplete dispatched root is retried only after authoritative generation
+reconciliation matches its identity and settles its cost. An unknown incomplete
+cost can now be settled from that proof, including a proved zero cost; only that
+previously unknown charge is updated, with the original reservation and proof hash
+retained. Known charges are never rewritten, discrepancies remain failures and
+an overrun stops spending. Missing generation IDs are not proof of zero billing;
+the old pilot's final receipt remains blocked by the existing missing-generation
+rule. There is no manual zero-cost override or inferred settlement from account
+balance changes.
+
+Each reservation carries its durable root index before dispatch. Atomic root
+checkpoints and separate `money-ID.json` exports retain all attempts, so a retry
+cannot shift following receipts onto another root. Missing settled outcome records
+or unknown/in-flight charges refuse resume conservatively; they are never replayed
+as new paid calls. Safety-valve history includes the prior valid/invalid answers.
+Reconciliation cannot make invalid answers qualification eligible.
+
+Fresh seed-4406 plans retain the original topology: 216 pilot requests and 864
+budget-bounded larger requests, each with a $5 allowance. The pilot reserves
+$4.9695375; the larger schedule cannot reserve its full schedule within $5 and
+continues to require `--budget-bounded`. Every Python reservation must match the
+Rust offline admission. These are transport/admission fixtures, not qualification.
+
+Operator command shapes (prepared only; no provider calls during implementation):
+
+```sh
+assist_openrouter_smoke --reconcile-only OLD_PILOT_DIR
+assist_openrouter_smoke --stage2 --requests EPOCH2_PLAN/requests.json \
+  --roots 216 --max-spend-usd 5 --user-policy USER_POLICY --out NEW_PILOT_DIR
+assist_openrouter_smoke --reconcile-only NEW_PILOT_DIR
+assist_openrouter_smoke --stage2 --requests EPOCH2_PLAN/requests.json \
+  --roots 216 --max-spend-usd 5 --user-policy USER_POLICY --resume NEW_PILOT_DIR
+```
+
+Focused offline regressions:
+
+- `test_round2_prompt_epoch_convention_examples_and_same_slot_citations`
+- `g12_call_cap_120_and_transport_receipts_remain_unknown_cost`
+- `g12_transport_classes_discard_untrusted_diagnostics`
+- `g12_resume_identity_and_reconciliation_preserve_prior_spend`
+- `g12_unknown_settlement_requires_identity_and_stops_on_overrun`
+- `g12_resume_skips_settled_roots_blocks_unknown_and_preserves_attempt_mapping`
+- `g12_resume_keeps_answer_safety_history_and_checkpoint_failures_stop`
+
+Rejected alternatives: accepting corner boxes, permitting cross-slot citations,
+inspecting held-out responses to tune examples, treating missing IDs as unbilled,
+resetting allowances/counters on resume, and relaxing mismatches or permanent stops.

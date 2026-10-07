@@ -83,7 +83,7 @@ enum CallOutcome {
     Completed,
     InvalidAnswer(&'static str),
 }
-#[derive(Clone, Copy, serde::Serialize)]
+#[derive(Clone, Copy, serde::Serialize, PartialEq)]
 struct AnswerLimits {
     max_consecutive: usize,
     max_percent: u8,
@@ -99,21 +99,53 @@ impl Default for AnswerLimits {
     }
 }
 // Clock injection keeps deadline and safety-valve fixtures free of real waits.
+#[cfg(test)]
 fn root_outcomes(
     rows: &[Row],
     campaign_deadline: Instant,
     budget_bounded: bool,
     limits: Option<AnswerLimits>,
+    now: impl FnMut() -> Instant,
+    call: impl FnMut(usize, Instant) -> assist::Result<CallOutcome>,
+) -> (Vec<Value>, bool) {
+    continue_roots(
+        rows,
+        campaign_deadline,
+        budget_bounded,
+        limits,
+        &[],
+        &BTreeSet::new(),
+        now,
+        call,
+        |_| Ok(()),
+    )
+}
+#[allow(clippy::too_many_arguments)]
+fn continue_roots(
+    rows: &[Row],
+    campaign_deadline: Instant,
+    budget_bounded: bool,
+    limits: Option<AnswerLimits>,
+    prior: &[Value],
+    settled: &BTreeSet<usize>,
     mut now: impl FnMut() -> Instant,
     mut call: impl FnMut(usize, Instant) -> assist::Result<CallOutcome>,
+    mut checkpoint: impl FnMut(&[Value]) -> assist::Result<()>,
 ) -> (Vec<Value>, bool) {
     let mut failed = false;
     let mut stop = None;
     let (mut samples, mut invalid, mut consecutive) = (0usize, 0usize, 0usize);
-    let outcomes = rows.iter().enumerate().map(|(index, row)| {
-        let mut reason = None;
-        let mut valve = None;
-        let code = if let Some(code) = stop { code } else {
+    let mut outcomes = Vec::new();
+    for (index, row) in rows.iter().enumerate() {
+        let old = settled.contains(&index).then(|| &prior[index]);
+        let mut reason = old.and_then(|o| o["answer_reason"].as_str());
+        let code = if let Some(old) = old {
+            old["code"]
+                .as_str()
+                .unwrap_or("assist_provider_execution_incomplete")
+        } else if let Some(code) = stop {
+            code
+        } else {
             let started = now();
             if started >= campaign_deadline {
                 stop = Some("not_run_deadline");
@@ -121,15 +153,8 @@ fn root_outcomes(
             } else {
                 let deadline = campaign_deadline.min(started + CALL_LIMIT);
                 match call(index, deadline) {
-                    Ok(CallOutcome::Completed) => {
-                        samples += 1;
-                        consecutive = 0;
-                        "completed"
-                    }
+                    Ok(CallOutcome::Completed) => "completed",
                     Ok(CallOutcome::InvalidAnswer(code)) => {
-                        samples += 1;
-                        invalid += 1;
-                        consecutive += 1;
                         reason = Some(code);
                         "invalid_answer"
                     }
@@ -139,32 +164,160 @@ fn root_outcomes(
                     }
                     Err(error) => {
                         failed = true;
-                        stop = Some(if now() >= campaign_deadline { "not_run_deadline" } else { "skipped_after_failure" });
+                        stop = Some(if now() >= campaign_deadline {
+                            "not_run_deadline"
+                        } else {
+                            "skipped_after_failure"
+                        });
                         error.code()
                     }
                 }
             }
         };
-        if matches!(code, "completed" | "invalid_answer") && let Some(limits) = limits {
+        let mut valve = None;
+        if matches!(code, "completed" | "invalid_answer") {
+            samples += 1;
+            if code == "invalid_answer" {
+                invalid += 1;
+                consecutive += 1;
+            } else {
+                consecutive = 0;
+            }
+            if let Some(limits) = limits {
                 valve = if consecutive > limits.max_consecutive {
                     Some("consecutive_invalid_answers")
-                } else if samples >= limits.min_sample && invalid * 100 > samples * usize::from(limits.max_percent) {
+                } else if samples >= limits.min_sample
+                    && invalid * 100 > samples * usize::from(limits.max_percent)
+                {
                     Some("invalid_answer_rate")
-                } else { None };
+                } else {
+                    None
+                };
                 if valve.is_some() {
                     failed = true;
                     stop = Some("not_run_answer_safety_valve");
                 }
+            }
         }
         let class = match code {
             "completed" => "valid_answer",
             "invalid_answer" => "answer_failure",
-            "not_run_deadline" | "not_run_budget" | "not_run_answer_safety_valve" | "skipped_after_failure" => "not_run",
+            "not_run_deadline"
+            | "not_run_budget"
+            | "not_run_answer_safety_valve"
+            | "skipped_after_failure" => "not_run",
             _ => "campaign_failure",
         };
-        json!({"index":index,"root":row.root,"code":code,"failure_class":class,"answer_reason":reason,"safety_valve":valve})
-    }).collect();
+        let mut outcome = old.cloned().unwrap_or_else(|| {
+            json!({"index":index,"root":row.root,"code":code,
+            "failure_class":class,"answer_reason":reason,"safety_valve":valve})
+        });
+        if valve.is_some() {
+            outcome["safety_valve"] = json!(valve);
+        }
+        outcomes.push(outcome);
+        if checkpoint(&outcomes).is_err() {
+            failed = true;
+            stop = Some("skipped_after_failure");
+            outcomes[index]["artifact_code"] = json!("assist_storage_unavailable");
+        }
+    }
     (outcomes, failed)
+}
+// Associate every attempt by its durable root marker, never by receipt ordinal.
+fn attach_receipts(out: &Path, ledger: &Ledger, smoke: &mut Value) -> assist::Result<()> {
+    let receipts = ledger
+        .money_receipts()
+        .map_err(|_| assist::Error::Storage)?;
+    for receipt in &receipts {
+        let index = receipt.usage["campaign_root_index"]
+            .as_u64()
+            .and_then(|n| usize::try_from(n).ok())
+            .ok_or(assist::Error::Storage)?;
+        let outcome = smoke["root_outcomes"]
+            .get_mut(index)
+            .ok_or(assist::Error::Storage)?;
+        outcome["execution_id"] = json!(receipt.id);
+        outcome["response_identity"] = receipt.usage["response_identity"].clone();
+        outcome["transport_failure"] = receipt.usage["transport_failure"].clone();
+        outcome["http_error"] = receipt.usage["http_error"].clone();
+        outcome["money_outcome"] = json!(receipt.outcome);
+        outcome["actual_nano_usd"] = json!(receipt.actual_nano_usd);
+        // Keep every monetary attempt, including reconciled incomplete dispatches.
+        assist::write(&out.join(format!("money-{}.json", receipt.id)), receipt)?;
+        let path = out.join(format!("receipt-{index}.json"));
+        if !matches!(
+            outcome["code"].as_str(),
+            Some("completed" | "invalid_answer")
+        ) {
+            assist::write(&path, receipt)?;
+        }
+    }
+    Ok(())
+}
+fn resume_roots(
+    rows: &[Row],
+    ledger: &Ledger,
+    smoke: &Value,
+) -> Result<BTreeSet<usize>, Box<dyn std::error::Error>> {
+    let outcomes = smoke["root_outcomes"]
+        .as_array()
+        .ok_or("invalid resume outcomes")?;
+    if outcomes.len() != rows.len()
+        || outcomes
+            .iter()
+            .zip(rows)
+            .enumerate()
+            .any(|(i, (o, r))| o["index"] != i || o["root"] != r.root)
+    {
+        return Err("resume topology changed".into());
+    }
+    let receipts = ledger.money_receipts()?;
+    let mut latest = BTreeMap::new();
+    for receipt in &receipts {
+        let index = receipt.usage["campaign_root_index"]
+            .as_u64()
+            .ok_or("resume receipt lacks root binding")? as usize;
+        let row = rows.get(index).ok_or("resume receipt root changed")?;
+        if receipt.request_hash != Digest::of_bytes(&serde_json::to_vec(&row.payload)?) {
+            return Err("resume receipt payload changed".into());
+        }
+        latest.insert(index, receipt);
+    }
+    let mut settled = BTreeSet::new();
+    for (index, outcome) in outcomes.iter().enumerate() {
+        if let Some(receipt) = latest.get(&index) {
+            if receipt.actual_nano_usd.is_none() || receipt.outcome == "reserved" {
+                return Err("resume requires reconciled incomplete cost".into());
+            }
+            if receipt.outcome == "zero_cost_refused"
+                || (receipt.outcome == "completed"
+                    && matches!(
+                        outcome["code"].as_str(),
+                        Some("completed" | "invalid_answer")
+                    ))
+            {
+                if outcome["execution_id"] != receipt.id {
+                    return Err("resume receipt identity changed".into());
+                }
+                settled.insert(index);
+            } else if receipt.outcome != "incomplete"
+                || receipt.usage["reconciliation"]["state"] != "matched"
+            {
+                return Err(
+                    "resume requires matched incomplete receipt or settled answer artifacts".into(),
+                );
+            }
+        } else if outcome["execution_id"].is_string()
+            || matches!(
+                outcome["code"].as_str(),
+                Some("completed" | "invalid_answer")
+            )
+        {
+            return Err("resume missing settled receipt".into());
+        }
+    }
+    Ok(settled)
 }
 // Refresh exported receipts from the authoritative ledger without replacing provenance.
 fn export_reconciliation(
@@ -184,6 +337,7 @@ fn export_reconciliation(
             .iter()
             .find(|r| r.id == id)
             .ok_or("missing campaign receipt")?;
+        outcome["transport_failure"] = receipt.usage["transport_failure"].clone();
         outcome["http_error"] = receipt.usage["http_error"].clone();
         outcome["money_outcome"] = json!(receipt.outcome);
         outcome["actual_nano_usd"] = json!(receipt.actual_nano_usd);
@@ -196,6 +350,13 @@ fn export_reconciliation(
         };
         let path = out.join(format!("receipt-{index}.json"));
         let mut exported: Value = assist::decode(&assist::read_bytes(&path, 32 * 1024 * 1024)?)?;
+        if exported.get("reserved_nano_usd").is_some() {
+            exported = serde_json::to_value(receipt)?;
+        }
+        if receipt.usage["campaign_root_index"].is_u64() {
+            assist::write(&out.join(format!("money-{}.json", receipt.id)), receipt)?;
+        }
+        exported["transport_failure"] = receipt.usage["transport_failure"].clone();
         exported["reconciliation"] = receipt.usage["reconciliation"].clone();
         exported["revision_identity"] = receipt.usage["revision_identity"].clone();
         exported["qualification_eligible"] = outcome["qualification_eligible"].clone();
@@ -208,11 +369,29 @@ fn export_reconciliation(
     assist::write(&out.join("smoke.json"), smoke)?;
     Ok(())
 }
+fn campaign_lock(out: &Path) -> Result<std::fs::File, Box<dyn std::error::Error>> {
+    if !out.is_dir() || std::fs::symlink_metadata(out)?.file_type().is_symlink() {
+        return Err("invalid campaign directory".into());
+    }
+    let lock_path = out.join("runner.lock");
+    if std::fs::symlink_metadata(&lock_path).is_ok_and(|m| m.file_type().is_symlink()) {
+        return Err("campaign lock symlink".into());
+    }
+    let run_lock = std::fs::OpenOptions::new()
+        .read(true)
+        .write(true)
+        .create(true)
+        .truncate(false)
+        .open(lock_path)?;
+    fs2::FileExt::try_lock_exclusive(&run_lock).map_err(|_| "campaign already running")?;
+    Ok(run_lock)
+}
 fn reconcile_only(
     out: &Path,
     http: &dyn saccade_core::judge_provider::transport::Http,
     keys: &Keys,
 ) -> Result<(), Box<dyn std::error::Error>> {
+    let _run_lock = campaign_lock(out)?;
     // Refuse a missing campaign before the ledger can create any state.
     assist::read_bytes(&out.join("ledger/campaign.json"), 32 * 1024 * 1024)?;
     let mut smoke: Value = assist::decode(&assist::read_bytes(
@@ -421,6 +600,7 @@ fn run_with(args: impl IntoIterator<Item = String>) -> Result<(), Box<dyn std::e
         }
         if ![
             "--reconcile-only",
+            "--resume",
             "--requests",
             "--roots",
             "--max-spend-usd",
@@ -490,7 +670,9 @@ fn run_with(args: impl IntoIterator<Item = String>) -> Result<(), Box<dyn std::e
         return Err("answer safety options require stage2".into());
     }
     let path = PathBuf::from(required("--requests")?);
-    let rows: Vec<Row> = assist::decode(&assist::read_bytes(&path, 32 * 1024 * 1024)?)?;
+    let request_bytes = assist::read_bytes(&path, 32 * 1024 * 1024)?;
+    let requests_hash = Digest::of_bytes(&request_bytes);
+    let rows: Vec<Row> = assist::decode(&request_bytes)?;
     validate_rows(&rows, count, cap, budget_bounded)?;
     if validate_only {
         let reservations: Vec<_> = rows
@@ -504,6 +686,15 @@ fn run_with(args: impl IntoIterator<Item = String>) -> Result<(), Box<dyn std::e
         println!("{}", serde_json::to_string(&reservations)?);
         return Ok(());
     }
+    if options.contains_key("--resume") && options.contains_key("--out") {
+        return Err("resume and out are exclusive".into());
+    }
+    let resume = options.contains_key("--resume");
+    let out = PathBuf::from(if resume {
+        required("--resume")?
+    } else {
+        required("--out")?
+    });
     let user = UserConfig::load(&PathBuf::from(required("--user-policy")?))?;
     let mut roots = RootPolicy::new(
         &user
@@ -522,7 +713,7 @@ fn run_with(args: impl IntoIterator<Item = String>) -> Result<(), Box<dyn std::e
     for row in &rows {
         let bytes = serde_json::to_vec(&row.payload)?;
         let key = CacheKey {
-            evidence_hash: Digest::of_bytes(&std::fs::read(&path)?),
+            evidence_hash: requests_hash.clone(),
             payload_hash: Digest::of_bytes(&bytes),
             prompt_hash: Digest::of_bytes(&bytes),
             encoder_version: ENCODER.into(),
@@ -537,16 +728,47 @@ fn run_with(args: impl IntoIterator<Item = String>) -> Result<(), Box<dyn std::e
         openrouter::validate_request(&bytes, &row.model)?;
         prepared.push((key, bytes));
     }
-    let out = PathBuf::from(required("--out")?);
-    std::fs::create_dir(&out)?;
+    if !resume {
+        std::fs::create_dir(&out)?;
+    }
+    if !out.is_dir() || std::fs::symlink_metadata(&out)?.file_type().is_symlink() {
+        return Err("invalid campaign directory".into());
+    }
+    let _run_lock = campaign_lock(&out)?;
     let ledger = Ledger::new(&out.join("ledger"), true);
+    let identity = json!({"schema":"saccade-g12-campaign/2","requests_hash":requests_hash.clone(),
+        "keys":prepared.iter().map(|(k,_)| assist::digest(k)).collect::<assist::Result<Vec<_>>>()?,"allowance_nano_usd":cap,
+        "stage2":stage2,"budget_bounded":budget_bounded,"answer_failure_policy":stage2.then_some(answer_limits),
+        "executor_call_cap_seconds":120,"prompt_epoch":stage2.then_some("g12-pilot/2"),
+        "prompt_policy":stage2.then_some("assist-openrouter-geometry-citations/2")});
+    ledger.bind_campaign(identity, resume)?;
+    let mut smoke = if resume {
+        assist::decode::<Value>(&assist::read_bytes(
+            &out.join("smoke.json"),
+            32 * 1024 * 1024,
+        )?)?
+    } else {
+        json!({"roots":count,"root_outcomes":rows.iter().enumerate().map(|(i,r)| json!({"index":i,"root":r.root,"code":"not_run"})).collect::<Vec<_>>(),
+            "allowance_nano_usd":cap,"budget_bounded":budget_bounded,"campaign_seconds":campaign_duration(stage2).as_secs(),
+            "dispatch_failed":false,"answer_failure_policy":stage2.then_some(answer_limits),"qualified":false})
+    };
+    let settled = if resume {
+        resume_roots(&rows, &ledger, &smoke)?
+    } else {
+        BTreeSet::new()
+    };
+    let prior = smoke["root_outcomes"]
+        .as_array()
+        .ok_or("invalid outcomes")?
+        .clone();
+    assist::write(&out.join("smoke.json"), &smoke)?;
     let auth = Authorization {
         enabled: true,
         scopes: vec![Scope {
             id: "smoke".into(),
             caps: Caps {
-                total: count as u64,
-                providers: BTreeMap::from([("openrouter".into(), count as u64)]),
+                total: if stage2 { 1000 } else { 10 },
+                providers: BTreeMap::from([("openrouter".into(), if stage2 { 1000 } else { 10 })]),
             },
         }],
     };
@@ -561,13 +783,18 @@ fn run_with(args: impl IntoIterator<Item = String>) -> Result<(), Box<dyn std::e
         http: &network,
     };
     let campaign_deadline = Instant::now() + campaign_duration(stage2);
-    let (mut outcomes, mut failed) = root_outcomes(
+    let (outcomes, failed) = continue_roots(
         &rows,
         campaign_deadline,
         budget_bounded,
         stage2.then_some(answer_limits),
+        &prior,
+        &settled,
         Instant::now,
         |index, deadline| {
+            ledger
+                .begin_campaign_root(index, prepared[index].0.payload_hash.clone())
+                .map_err(|_| assist::Error::Storage)?;
             let executor = Executor {
                 transport: &transport,
                 ledger: &ledger,
@@ -594,32 +821,17 @@ fn run_with(args: impl IntoIterator<Item = String>) -> Result<(), Box<dyn std::e
                 Err(error) => Err(error),
             }
         },
-    );
-    // Generation publication is delayed: dispatch ends pending with no lookup.
-    // OpenRouter has one money reservation per call, no auxiliary token counts
-    // or retries. A fresh output ledger and stop-on-error keep this root order.
-    let (receipts, receipt_code) = match ledger.money_receipts() {
-        Ok(receipts) => (receipts, None),
-        Err(_) => {
-            failed = true;
-            (Vec::new(), Some("assist_storage_unavailable"))
-        }
-    };
-    for (index, receipt) in receipts.iter().enumerate() {
-        outcomes[index]["execution_id"] = json!(receipt.id);
-        outcomes[index]["response_identity"] = receipt.usage["response_identity"].clone();
-        outcomes[index]["http_error"] = receipt.usage["http_error"].clone();
-        outcomes[index]["money_outcome"] = json!(receipt.outcome);
-        outcomes[index]["actual_nano_usd"] = json!(receipt.actual_nano_usd);
-        if outcomes[index]["code"] != "completed" && outcomes[index]["code"] != "invalid_answer" {
-            let bytes = serde_json::to_vec(receipt).map_err(|_| "smoke_receipt_encoding_failed")?;
-            if std::fs::write(out.join(format!("receipt-{index}.json")), bytes).is_err() {
-                outcomes[index]["artifact_code"] = json!("assist_storage_unavailable");
-                failed = true;
+        |prefix| {
+            for (i, outcome) in prefix.iter().enumerate() {
+                smoke["root_outcomes"][i] = outcome.clone();
             }
-        }
-    }
-    let mut smoke = json!({"roots":count,"root_outcomes":outcomes,"receipt_code":receipt_code,"allowance_nano_usd":cap,"budget_bounded":budget_bounded,"campaign_seconds":campaign_duration(stage2).as_secs(),"dispatch_failed":failed,"answer_failure_policy":stage2.then_some(answer_limits),"qualified":false});
+            attach_receipts(&out, &ledger, &mut smoke)?;
+            export_reconciliation(&out, &ledger, &mut smoke).map_err(|_| assist::Error::Storage)
+        },
+    );
+    smoke["root_outcomes"] = json!(outcomes);
+    smoke["dispatch_failed"] = json!(failed);
+    attach_receipts(&out, &ledger, &mut smoke)?;
     export_reconciliation(&out, &ledger, &mut smoke)?;
     if failed {
         return Err("OpenRouter smoke failed; inspect sanitized campaign receipts".into());
@@ -636,6 +848,173 @@ fn main() {
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[test]
+    fn g12_resume_skips_settled_roots_blocks_unknown_and_preserves_attempt_mapping() {
+        use saccade_core::budget_ledger::MoneyReceipt;
+        let temp = tempfile::tempdir().unwrap();
+        let out = temp.path();
+        let ledger = Ledger::new(&out.join("ledger"), true);
+        let rows: Vec<_> = (0..5)
+            .map(|i| Row {
+                root: format!("root-{i}"),
+                model: "fixture".into(),
+                revision: "absent".into(),
+                payload: json!({"index":i}),
+            })
+            .collect();
+        ledger
+            .bind_campaign(json!({"plan":"fixture","policy":"epoch-2"}), false)
+            .unwrap();
+        let scopes = [MoneyScope {
+            id: "smoke".into(),
+            cap_nano_usd: 1000,
+        }];
+        let reserve = |i: usize, id: &str| {
+            let hash = Digest::of_bytes(&serde_json::to_vec(&rows[i].payload).unwrap());
+            ledger.begin_campaign_root(i, hash.clone()).unwrap();
+            ledger.reserve_money(&scopes,MoneyReceipt{id:id.into(),request_hash:hash,scopes:vec!["smoke".into()],
+                reserved_nano_usd:100,actual_nano_usd:None,outcome:"reserved".into(),
+                usage:json!({"openrouter_dispatched":true,"requested_identity":{"model":"fixture","revision":"absent"}})}).unwrap();
+        };
+        for i in 0..4 {
+            let id = format!("attempt-{i}");
+            reserve(i, &id);
+            ledger.finish_money(&id,if i==3 {None} else {Some(if i==2 {0} else {10})},
+                json!({"zero_cost_refused":i==2,"transport_failure":if i==3 {Some("timeout")} else {None}}),i<2).unwrap();
+        }
+        let mut smoke = json!({"root_outcomes":rows.iter().enumerate().map(|(i,r)| json!({"index":i,"root":r.root,
+            "code":(["completed","invalid_answer","openrouter_http_zero_cost_refused","assist_provider_execution_incomplete","skipped_after_failure"][i]),
+            "answer_reason":if i==1 {Some("geometry_bounds")} else {None},"execution_id":if i<4 {Some(format!("attempt-{i}"))} else {None}})).collect::<Vec<_>>()});
+        assert!(resume_roots(&rows, &ledger, &smoke).is_err());
+        ledger
+            .record_openrouter_reconciliation(
+                "attempt-3",
+                Ok(openrouter::Generation {
+                    cost_nano_usd: 20,
+                    response_hash: Digest::of_bytes(b"proof"),
+                    model: "fixture".into(),
+                    provider_name: "fixture".into(),
+                }),
+                1,
+                0,
+                1,
+            )
+            .unwrap();
+        let settled = resume_roots(&rows, &ledger, &smoke).unwrap();
+        assert_eq!(settled, BTreeSet::from([0, 1, 2]));
+        let prior = smoke["root_outcomes"].as_array().unwrap().clone();
+        let mut called = Vec::new();
+        let mut checkpoints = 0;
+        let (outcomes, failed) = continue_roots(
+            &rows,
+            Instant::now() + Duration::from_secs(300),
+            false,
+            Some(AnswerLimits::default()),
+            &prior,
+            &settled,
+            Instant::now,
+            |i, _| {
+                called.push(i);
+                Ok(CallOutcome::Completed)
+            },
+            |_| {
+                checkpoints += 1;
+                Ok(())
+            },
+        );
+        assert!(!failed);
+        assert_eq!(called, vec![3, 4]);
+        assert_eq!(checkpoints, 5);
+        assert_eq!(outcomes[1]["answer_reason"], "geometry_bounds");
+        reserve(3, "retry-3");
+        ledger
+            .finish_money("retry-3", Some(30), json!({}), true)
+            .unwrap();
+        reserve(4, "attempt-4");
+        ledger
+            .finish_money("attempt-4", Some(40), json!({}), true)
+            .unwrap();
+        smoke["root_outcomes"] = json!(outcomes);
+        for i in [0, 1, 3, 4] {
+            assist::write(
+                &out.join(format!("receipt-{i}.json")),
+                &json!({"provenance":"preserved"}),
+            )
+            .unwrap();
+        }
+        attach_receipts(out, &ledger, &mut smoke).unwrap();
+        export_reconciliation(out, &ledger, &mut smoke).unwrap();
+        assert_eq!(smoke["root_outcomes"][3]["execution_id"], "retry-3");
+        assert_eq!(smoke["root_outcomes"][4]["execution_id"], "attempt-4");
+        assert_eq!(smoke["root_outcomes"][1]["qualification_eligible"], false);
+        assert!(out.join("money-attempt-3.json").exists());
+        assert!(out.join("money-retry-3.json").exists());
+        assert_eq!(
+            ledger
+                .money_receipts()
+                .unwrap()
+                .iter()
+                .map(|r| r.actual_nano_usd.unwrap())
+                .sum::<u64>(),
+            110
+        );
+        assert_eq!(resume_roots(&rows, &ledger, &smoke).unwrap().len(), 5);
+        let mut changed = smoke.clone();
+        changed["root_outcomes"][0]["root"] = json!("changed");
+        assert!(resume_roots(&rows, &ledger, &changed).is_err());
+        assert_eq!(
+            smoke["root_outcomes"][2]["money_outcome"],
+            "zero_cost_refused"
+        );
+    }
+    #[test]
+    fn g12_resume_keeps_answer_safety_history_and_checkpoint_failures_stop() {
+        let rows: Vec<_> = (0..8)
+            .map(|i| Row {
+                root: format!("root-{i}"),
+                model: "fixture".into(),
+                revision: "absent".into(),
+                payload: json!({}),
+            })
+            .collect();
+        let prior:Vec<_>=rows.iter().enumerate().map(|(i,r)|json!({"index":i,"root":r.root,"code":"invalid_answer","answer_reason":"geometry_bounds"})).collect();
+        let mut called = Vec::new();
+        let (outcomes, failed) = continue_roots(
+            &rows,
+            Instant::now() + Duration::from_secs(300),
+            false,
+            Some(AnswerLimits::default()),
+            &prior,
+            &BTreeSet::from([0, 1, 2, 3, 4, 5]),
+            Instant::now,
+            |i, _| {
+                called.push(i);
+                Ok(CallOutcome::Completed)
+            },
+            |_| Ok(()),
+        );
+        assert!(failed);
+        assert!(called.is_empty());
+        assert_eq!(outcomes[6]["code"], "not_run_answer_safety_valve");
+        let mut calls = 0;
+        let (outcomes, failed) = continue_roots(
+            &rows,
+            Instant::now() + Duration::from_secs(300),
+            false,
+            None,
+            &[],
+            &BTreeSet::new(),
+            Instant::now,
+            |_, _| {
+                calls += 1;
+                Ok(CallOutcome::Completed)
+            },
+            |_| Err(assist::Error::Storage),
+        );
+        assert!(failed);
+        assert_eq!(calls, 1);
+        assert_eq!(outcomes[1]["code"], "skipped_after_failure");
+    }
     #[test]
     fn g12_smoke_exports_http_refusal_classification_and_zero_cost_root_outcome() {
         use saccade_core::budget_ledger::MoneyReceipt;
