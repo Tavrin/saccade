@@ -44,6 +44,24 @@ class ScorerSelftestTests(unittest.TestCase):
                 self.assertEqual(inverted_result['status'],'FAIL')
                 self.assertTrue(any(w=='explain' and v=='perfect' for w,a,v in inverted_result['failures']))
 
+    def test_output_fit_gate_fails_for_an_insufficient_budget(self):
+        from dev_policy import output_fit
+        request=dict(max_tokens=4096,reasoning=dict(max_tokens=1024))
+        answer=dict(request_hash='bound', observations=['x'*2000])
+        self.assertFalse(output_fit(answer,request)['passed'])
+        with tempfile.TemporaryDirectory() as temp:
+            directory=Path(temp)
+            freeze(directory,5,4406,REVISION,'jev-1.13.0',True)
+            manifest,oracle=verify(directory)
+            manifest['cases']=[c for c in manifest['cases'] if c['split']=='development']
+            from dev_policy import payload as actual
+            def short(*args,**kwargs):
+                value=actual(*args,**kwargs);value['max_tokens']=100;return value
+            with patch('dev_policy.payload',side_effect=short):
+                result=proof(manifest,oracle,directory)
+            self.assertEqual(result['status'],'FAIL')
+            self.assertTrue(any(a=='output_budget' for w,a,v in result['failures']))
+
     def test_epoch4_names_candidate_and_keeps_per_image_examples(self):
         from dev_policy import INSTRUCTION, PROMPT_EPOCH, PROMPT_POLICY
         from scorer_selftest import perfect

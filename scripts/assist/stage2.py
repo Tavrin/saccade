@@ -16,7 +16,7 @@ REVISION = MODEL + '-20260902'
 SCHEDULE_SEED = 4406
 ANSWER_FAILURE_POLICY = dict(max_consecutive=5, max_percent=50, min_sample=20)
 ANSWER_REASONS = {'citation_identity', 'observation_slot', 'normalized_geometry', 'geometry_bounds',
-                  'uncertainty_range', 'unsupported_statement', 'closed_schema', 'request_bound_answer', 'answer_content'}
+                  'uncertainty_range', 'unsupported_statement', 'closed_schema', 'request_bound_answer', 'answer_content', 'truncated_output'}
 REQUEST_POLICY = 'assist-openrouter-provider-schema/1'
 PROMPT_POLICY = 'assist-openrouter-geometry-citations/2'
 PROMPT_EPOCH = 'g12-pilot/2'

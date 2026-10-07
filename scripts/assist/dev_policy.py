@@ -79,6 +79,14 @@ def payload(case, order, counterfactual, directory=None):
     return value
 
 
+def output_fit(answer, request):
+    size=len(encoded(answer))
+    hint=request['reasoning']['max_tokens']; budget=request['max_tokens']
+    return dict(request_hash=answer['request_hash'],answer_bytes=size,margin=2,
+        rule='utf8-bytes/1',reasoning_hint=hint,max_tokens=budget,
+        required_tokens=2*size+hint,passed=2*size+hint<=budget)
+
+
 def normalize(answer, case, order):
     from pilot_score import normalize as legacy_normalize
     value = legacy_normalize(answer, case, order)
@@ -123,16 +131,24 @@ def adapt_plan(rows, manifest, directory, plan):
     from stage2 import reservation
     cases={c['root_id']:c for c in manifest['cases']}
     value=copy.deepcopy(plan);planned=[];costs={}
+    import dev_audit
+    from scorer_selftest import perfect
+    oracle=dev_audit.development_oracle(directory/'oracle.json',manifest)['cases']
     for row in rows:
         root,arm,variant,order=row['root'].rsplit(':',3)
+        if cases[root]['split'] != 'development':
+            raise ValueError('output proof accepts development roots only')
         request=payload(cases[root],order,variant=='counter',directory)
-        planned.append(dict(row,payload=request))
+        fit=output_fit(perfect(cases[root],oracle[root],directory,order,variant=='counter'),request)
+        if not fit['passed']: raise ValueError('oracle-perfect output does not fit')
+        planned.append(dict(row,payload=request,output_fit=fit))
         key=(cases[root]['workload'],arm)
         costs[key]=costs.get(key,0)+reservation(request,cases[root]['dimensions'])
     value.update(prompt_epoch=PROMPT_EPOCH,prompt_policy=PROMPT_POLICY,scorer_policy=SCORER_POLICY,
         prompt_hash=digest(INSTRUCTION.encode()),reservation_nano_usd=sum(costs.values()),
         expected_nano_usd=None,expected_method='Epoch-4 expected spend unmeasured; full pre-dispatch reservation only.',
         full_reservation_fits=sum(costs.values())<=value['allowance_nano_usd'],authorized=False,
+        truncated_output_class='answer_failure_if_output_fit_else_campaign_failure',
         mandatory_gate='scorer_selftest.py --corpus DEVELOPMENT_CORPUS --source-revision FROZEN_REVISION')
     for r in value['per_arm_workload']:
         r['reservation_nano_usd']=costs.get((r['workload'],r['arm']),0)
