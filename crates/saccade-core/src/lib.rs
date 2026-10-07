@@ -217,3 +217,6 @@ pub mod batch;
 pub mod timed_text;
 // N22: offline categorical blind review.
 pub mod review_board;
+
+/// Objective clip diagnostics and constructed degradation calibration.
+pub mod motion_stats;

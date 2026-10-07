@@ -317,7 +317,11 @@ The last three names appear only when the corresponding feature is compiled in.
 - [saccade-model-registry.v1.schema.json](../crates/saccade-core/schemas/saccade-model-registry.v1.schema.json) — Registry
 - [saccade-model-status.v1.schema.json](../crates/saccade-core/schemas/saccade-model-status.v1.schema.json) — saccade-model-status.v1
 - [saccade-model-status.v2.schema.json](../crates/saccade-core/schemas/saccade-model-status.v2.schema.json) — saccade-model-status.v1
+- [saccade-motion-calibration.v1.schema.json](../crates/saccade-core/schemas/saccade-motion-calibration.v1.schema.json) — saccade-motion-calibration.v1
+- [saccade-motion-degradations.v1.schema.json](../crates/saccade-core/schemas/saccade-motion-degradations.v1.schema.json) — saccade-motion-degradations.v1
 - [saccade-motion-review.v1.schema.json](../crates/saccade-core/schemas/saccade-motion-review.v1.schema.json) — Report
+- [saccade-motion-scores.v1.schema.json](../crates/saccade-core/schemas/saccade-motion-scores.v1.schema.json) — saccade-motion-scores.v1
+- [saccade-motion-stats.v1.schema.json](../crates/saccade-core/schemas/saccade-motion-stats.v1.schema.json) — saccade-motion-stats.v1
 - [saccade-motion-vectors.v1.schema.json](../crates/saccade-core/schemas/saccade-motion-vectors.v1.schema.json) — Sidecar
 - [saccade-near-duplicate.v1.schema.json](../crates/saccade-core/schemas/saccade-near-duplicate.v1.schema.json) — Historical reader contract
 - [saccade-near-duplicate.v2.schema.json](../crates/saccade-core/schemas/saccade-near-duplicate.v2.schema.json) — Historical reader contract

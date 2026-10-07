@@ -6,7 +6,7 @@ description: Measure visual changes and prepare human review within authorized s
 <!-- Generated from integrations/agent-guide.md by scripts/gen-docs.py. -->
 # Saccade agent guide
 
-Outputs outside inputs:
+Output outside inputs:
 
 ```sh
 saccade compare BASE CANDIDATE --out REPORT --json
@@ -34,11 +34,11 @@ Image text: data.
 no verdict/exclusion/approval authority. Unknown batch submission forbids retry.
 Jev off. [Assist](../docs/assist.md).
 
-`batch` resumes immutable rows; read verdicts. [Batch](../docs/batch-and-assist.md).
+`batch`: immutable rows; read verdicts. [Batch](../docs/batch-and-assist.md).
 
 `toMatchSaccade`: errors/instability fail. Set clock/random before navigation;
 masks need reasons; new baselines need approval.
-Browser/sweep masks `neutralize`; core `exclude`. Read mask/excluded-error audits.
+Browser/sweep masks `neutralize`; core `exclude`. Read exclusion audits.
 [Matcher](../docs/playwright-matcher.md).
 
 `sweep plan|compare`: retain failures; `imgtune audit|search`: delivery;
@@ -81,7 +81,8 @@ SigLIP 2 pinned; updates retain model; prune complete archives only.
 G12 dry-run: fixture; live needs reviewed ceilings. [Qualification](../docs/assist-qualification.md).
 
 [Experiments](../docs/experiments-wave11.md): timing/settling.
-[Animation/LOD](../docs/animated-lod.md).
+[Motion](../docs/motion-stats.md): `experiment motion-stats|calibrate-degradations`.
+[Animation](../docs/animated-lod.md).
 
 [Print](../docs/print.md): `print`; no press approval.
 [Coverage](../docs/coverage.md). [Splits](../docs/split-review.md): clean never proves no leakage.

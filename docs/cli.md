@@ -12,6 +12,11 @@ Exit 0 for compare/identity means no image regression; inspect `performance` for
 Inspection, review, rank and ablation completion grant no acceptance authority.
 Exit 2 means the operation cannot run. Demo intentionally exits 1.
 
+Actual generation binary (reference header above describes all features):
+
+Generation: `python3 scripts/gen-docs.py --allow-missing-imgtune-avif --preserve-all-features-header`.
+Compiled features: `ai`, `assist`, `compression`, `credentials`, `dense-motion`, `documents`, `embeddings`, `evaluation`, `geo`, `geometry`, `graphics`, `local-models`, `local-vlm`, `mcp`, `media-http`, `ocr`, `ocr-provider`, `parallel`, `prechecks`, `print`, `products`, `schema`, `semantic-regions`, `text-quality`, `vision-providers`, `workbench`.
+
 ## saccade
 
 ```text
@@ -6308,18 +6313,20 @@ Analyze existing graphics captures: ablation, sequences, ranking, bisection
 Usage: saccade experiment [OPTIONS] <COMMAND>
 
 Commands:
-  transition  Measure popping, sampled convergence and steady level differences in captures
-  animation   Compare timestamp-matched animation captures with localized motion diagnostics
-  settle      Event-relative tile error, settling, lag and pre-change residual trajectories
-  reference   Compare a render with a noisy offline reference and record alignment/noise floors
-  geometry    Measure bidirectional triangle-surface distance and oriented normal deviation
-  ablate      Compare ablation arms against a base with image and performance evidence
-  temporal    Compare numbered SDR frames with the ColorVideoVDP temporal model
-  sequence    Compare numbered colour frames by sorted index and measure added flicker
-  rank        Rank candidate directories against one common FLIP reference
-  bisect      Find the first diverging run or revision in an ordered series
-  safety      Photosensitivity PRE-CHECK only; not certification or formal compliance
-  a11y        Accessibility PRE-CHECK only; not certification or formal compliance
+  motion-stats            Measure independent timestamped motion diagnostics versus a reference
+  calibrate-degradations  Construct known negatives and calibrate separate scorer trust by class
+  transition              Measure popping, sampled convergence and steady level differences in captures
+  animation               Compare timestamp-matched animation captures with localized motion diagnostics
+  settle                  Event-relative tile error, settling, lag and pre-change residual trajectories
+  reference               Compare a render with a noisy offline reference and record alignment/noise floors
+  geometry                Measure bidirectional triangle-surface distance and oriented normal deviation
+  ablate                  Compare ablation arms against a base with image and performance evidence
+  temporal                Compare numbered SDR frames with the ColorVideoVDP temporal model
+  sequence                Compare numbered colour frames by sorted index and measure added flicker
+  rank                    Rank candidate directories against one common FLIP reference
+  bisect                  Find the first diverging run or revision in an ordered series
+  safety                  Photosensitivity PRE-CHECK only; not certification or formal compliance
+  a11y                    Accessibility PRE-CHECK only; not certification or formal compliance
 
 Options:
       --require-signed-approval
@@ -6332,6 +6339,54 @@ Options:
           Shared report index destination (default reports/index.jsonl next to each report, inside --out)
   -h, --help
           Print help
+
+Global options:
+      --allow-out-near-captures  Silence warnings when --out is next to capture metadata
+      --record-absolute-paths    Opt in to absolute local paths in reports and machine-readable output
+```
+
+## saccade experiment motion-stats
+
+```text
+Measure independent timestamped motion diagnostics versus a reference
+
+Usage: saccade experiment motion-stats [OPTIONS] --out <OUT> <REFERENCE> <CANDIDATE>
+
+Arguments:
+  <REFERENCE>  Reference saccade-frame-map.v1; image paths relative to map directory
+  <CANDIDATE>  Candidate saccade-frame-map.v1
+
+Options:
+      --mask <MASK>                  Static binary inclusion region, shared mask:PATH grammar
+      --source-ref <SOURCE_REF>      External capture URI/key (repeatable); recorded in generated reports
+      --out <OUT>
+      --report-index <REPORT_INDEX>  Shared report index destination (default reports/index.jsonl next to each report, inside --out)
+      --json
+  -h, --help                         Print help
+
+Global options:
+      --allow-out-near-captures  Silence warnings when --out is next to capture metadata
+      --record-absolute-paths    Opt in to absolute local paths in reports and machine-readable output
+```
+
+## saccade experiment calibrate-degradations
+
+```text
+Construct known negatives and calibrate separate scorer trust by class
+
+Usage: saccade experiment calibrate-degradations [OPTIONS] --positive <POSITIVE> --out <OUT>
+
+Options:
+      --positive <POSITIVE>          Independent positive frame maps; repeat this flag for multiple sources
+      --source-ref <SOURCE_REF>      External capture URI/key (repeatable); recorded in generated reports
+      --report-index <REPORT_INDEX>  Shared report index destination (default reports/index.jsonl next to each report, inside --out)
+      --strengths <STRENGTHS>        Comma-separated strengths in (0,1] [default: 0.5,1]
+      --seed <SEED>                  [default: 42]
+      --threshold <THRESHOLD>        Required lower exact 95% strict-win bound [default: 0.8]
+      --scores <SCORES>              Optional higher-is-better external scores, bound to this generated manifest SHA256
+      --out <OUT>                    New output directory; refuses to overwrite generated evidence
+      --json
+  -h, --help                         Print help
 
 Global options:
       --allow-out-near-captures  Silence warnings when --out is next to capture metadata

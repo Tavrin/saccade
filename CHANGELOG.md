@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Add independent motion statistics against timestamped references and seeded constructed-negative calibration with per-class scorer trust and exact ranking bounds.
+
 - Add JSON report output to `arms check --out`.
 - Render plain ranks and confidence intervals in ablation tables.
 - Show ablation repeat counts and mark unavailable spread and intervals with a dash.
