@@ -955,7 +955,7 @@ oracle-injected evidence, not model qualification). Five synthetic regressions
 and 26 native executor tests pass. No provider calls, keys or held-out data were
 used.
 
-Artifacts: `/mnt/linux-extra/moss-scratch/saccade-g12-epoch4/`. `commands.sh`
+Artifacts: `${SACCADE_EVIDENCE_ROOT}/saccade-g12-epoch4/`. `commands.sh`
 contains exact proof, smoke, reconciliation and scoring commands, including
 `SACCADE_SCORER_DEV_CORPUS` and `SACCADE_SCORER_SOURCE_REVISION`. `show_smoke.py`
 prints request-bound assertion/task verdicts; its ten synthetic checks pass.
@@ -1068,7 +1068,7 @@ was shortened to retain the existing admission ceiling. Native validate-only
 reservations exactly match Python planning. The proxy remains the inherited
 epoch-2 estimate, not measured epoch-5 spend. Plans remain unauthorized.
 
-Artifacts are under `/mnt/linux-extra/moss-scratch/saccade-g12-epoch5/`:
+Artifacts are under `${SACCADE_EVIDENCE_ROOT}/saccade-g12-epoch5/`:
 `selftest-qualified.{json,md}`, `epoch4b-rescore.{json,md}`, `smoke/`, `targeted/`,
 validation/test logs and the preserved native executable. `commands.sh` contains
 exact offline proof, regeneration, retrospective replay and native admission
@@ -1076,10 +1076,10 @@ commands, plus commented prepared provider/scoring commands. The required proof
 inputs are:
 
 ```sh
-export SACCADE_SCORER_DEV_CORPUS=/mnt/linux-extra/moss-scratch/saccade-g12-dev-pilot/pilot-corpus
+export SACCADE_SCORER_DEV_CORPUS=${SACCADE_EVIDENCE_ROOT}/saccade-g12-dev-pilot/pilot-corpus
 export SACCADE_SCORER_SOURCE_REVISION=ab305c00bc4536d4ff482b5a3645fe5b67f9a6d4
-python3 scripts/assist/scorer_selftest.py --corpus "$SACCADE_SCORER_DEV_CORPUS" --source-revision "$SACCADE_SCORER_SOURCE_REVISION" --out /mnt/linux-extra/moss-scratch/saccade-g12-epoch5/operator-selftest
-python3 /mnt/linux-extra/moss-scratch/saccade-g12-epoch5/rescore.py
+python3 scripts/assist/scorer_selftest.py --corpus "$SACCADE_SCORER_DEV_CORPUS" --source-revision "$SACCADE_SCORER_SOURCE_REVISION" --out ${SACCADE_EVIDENCE_ROOT}/saccade-g12-epoch5/operator-selftest
+python3 ${SACCADE_EVIDENCE_ROOT}/saccade-g12-epoch5/rescore.py
 ```
 
 No provider calls, keys or real held-out truths were accessed. The dedicated

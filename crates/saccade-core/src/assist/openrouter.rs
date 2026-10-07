@@ -1914,6 +1914,11 @@ pub fn reconciliation_status(
     {
         if receipt.outcome == "settled_conservatively" {
             summary.settled_conservatively += 1;
+            if receipt.usage["reconciliation"]["state"] == "mismatch"
+                && !receipt.usage["generation_id"].is_null()
+            {
+                summary.mismatch += 1;
+            }
             continue;
         }
         if receipt.usage["openrouter_dispatched"] != true {
@@ -1992,7 +1997,7 @@ fn reconcile_pending_with_clock(
         .money_receipts()
         .map_err(|_| "openrouter_reconciliation_storage_unavailable")?
     {
-        if receipt.outcome == "settled_conservatively"
+        if (receipt.outcome == "settled_conservatively" && receipt.usage["generation_id"].is_null())
             || receipt.usage["openrouter_dispatched"] != true
             || matches!(
                 receipt.usage["reconciliation"]["state"].as_str(),

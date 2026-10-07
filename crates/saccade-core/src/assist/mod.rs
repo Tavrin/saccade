@@ -1,6 +1,7 @@
 //! Experimental advisory observations; no authority-bearing decision inputs.
 pub mod batch;
 pub mod catalog;
+pub mod continuation;
 pub mod execution;
 pub mod geometry;
 pub mod jev;

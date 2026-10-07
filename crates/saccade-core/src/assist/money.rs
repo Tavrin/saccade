@@ -131,6 +131,110 @@ impl Ledger {
             }
         })
     }
+    /// Read the frozen identity without changing the campaign.
+    pub fn campaign_identity(&self) -> Result<Option<UsageValue>, String> {
+        self.campaign()
+            .transaction(|state| Ok(state.money.campaign_identity.clone()))
+    }
+    /// Add durable root markers to a validated legacy Jev prefix, atomically.
+    /// Every receipt must be supplied exactly once and retain its request hash.
+    pub fn bind_legacy_jev_roots(
+        &self,
+        bindings: &[(String, usize, crate::evidence::canonical::Digest)],
+    ) -> Result<(), String> {
+        self.campaign().transaction(|state| {
+            if state
+                .money
+                .campaign_identity
+                .as_ref()
+                .is_none_or(|v| v["schema"] != "jev-local-campaign/1")
+                || bindings.len() != state.money.receipts.len()
+            {
+                return Err("legacy Jev bindings rejected".into());
+            }
+            for (receipt, (id, index, hash)) in state.money.receipts.iter().zip(bindings) {
+                if receipt.id != *id
+                    || receipt.request_hash != *hash
+                    || receipt.usage["campaign_root_index"]
+                        .as_u64()
+                        .is_some_and(|n| n != *index as u64)
+                {
+                    return Err("legacy Jev bindings rejected".into());
+                }
+            }
+            for (receipt, (_, index, _)) in state.money.receipts.iter_mut().zip(bindings) {
+                receipt.usage["campaign_root_index"] = serde_json::json!(index);
+            }
+            Ok(())
+        })
+    }
+    /// Settle one unavailable root at its full reservation, retaining the charge.
+    /// Proven pre-dispatch pacing failures also consume the full reservation in
+    /// continuation mode. Identity, accounting and authorization failures cannot continue.
+    pub fn settle_continuation_root(&self, index: usize) -> Result<bool, String> {
+        self.campaign().transaction(|state| {
+            if state.money.stopped {
+                return Err("campaign_spending_stopped".into());
+            }
+            let Some(receipt) = state
+                .money
+                .receipts
+                .iter_mut()
+                .rev()
+                .find(|r| r.usage["campaign_root_index"].as_u64() == Some(index as u64))
+            else {
+                return Ok(false);
+            };
+            if receipt.outcome == "settled_conservatively" {
+                return Ok(true);
+            }
+            let class = receipt.usage["transport_failure"].as_str();
+            let pacing = receipt.usage["not_dispatched"] == true
+                && receipt.actual_nano_usd == Some(0)
+                && (class == Some("client_deadline") || class.is_none());
+            if !matches!(receipt.outcome.as_str(), "incomplete" | "reserved")
+                || receipt.reserved_nano_usd == 0
+                || receipt.usage["bound_breach"] == true
+                || receipt.usage["continuation_eligible"] == false
+                || !receipt.usage["identity_error"].is_null()
+                || receipt.usage["reconciliation"]["state"] == "mismatch"
+                || !(pacing
+                    || (receipt.actual_nano_usd.is_none()
+                        && receipt.usage["not_dispatched"] != true))
+            {
+                return Ok(false);
+            }
+            let previous = receipt.actual_nano_usd;
+            let charge = previous.unwrap_or(receipt.reserved_nano_usd);
+            if charge > receipt.reserved_nano_usd {
+                return Err("invalid unknown cost settlement".into());
+            }
+            for scope in &receipt.scopes {
+                let counter = state
+                    .money
+                    .counters
+                    .get_mut(scope)
+                    .ok_or("missing money counter")?;
+                counter.1 = counter
+                    .1
+                    .checked_add(receipt.reserved_nano_usd - charge)
+                    .ok_or("money accounting overflow")?;
+            }
+            if receipt.usage["transport_failure"].is_null() {
+                receipt.usage["transport_failure"] = serde_json::json!("other");
+                receipt.usage["transport_error_kind"] = serde_json::json!("legacy_unclassified");
+            }
+            receipt.usage["unknown_cost_settlement"] = serde_json::json!({
+                "method":"operator_full_reservation", "conservative":true,"reconciled":false,
+                "previous_actual_nano_usd":previous,"previous_charge_nano_usd":charge,
+                "previous_outcome":receipt.outcome,"charge_nano_usd":receipt.reserved_nano_usd,
+                "settled_ms":crate::budget_ledger::now_ms()});
+            receipt.actual_nano_usd = Some(receipt.reserved_nano_usd);
+            receipt.outcome = "settled_conservatively".into();
+            receipt.usage["qualification_eligible"] = serde_json::json!(false);
+            Ok(true)
+        })
+    }
     /// Bind the next root before reserving so a crash cannot lose receipt-to-root identity.
     pub fn begin_campaign_root(
         &self,
@@ -320,6 +424,12 @@ impl Ledger {
                 "incomplete"
             }
             .into();
+            if receipt.outcome == "incomplete" && receipt.usage["transport_failure"].is_null() {
+                receipt.usage["transport_failure"] = serde_json::json!("other");
+            }
+            if receipt.usage["transport_failure"] == "other" && receipt.usage["transport_error_kind"].is_null() {
+                receipt.usage["transport_error_kind"] = serde_json::json!("unknown_kind");
+            }
             Ok(())
         })
     }
@@ -496,7 +606,7 @@ impl Ledger {
             let receipt = state.money.receipts.iter_mut().find(|r| r.id == id)
                 .ok_or("unknown money reservation")?;
             if matches!(receipt.usage["reconciliation"]["state"].as_str(), Some("matched" | "mismatch" | "zero_cost_refused"))
-                || receipt.outcome == "settled_conservatively" { return Ok(()); }
+                || (receipt.outcome == "settled_conservatively" && receipt.usage["generation_id"].is_null()) { return Ok(()); }
             let drifted = generation.as_ref().is_ok_and(|g| {
                 let model = receipt.usage["requested_identity"]["model"].as_str()
                     .or_else(|| receipt.usage["response_identity"]["returned_model"].as_str()).unwrap_or("");
@@ -526,8 +636,26 @@ impl Ledger {
                     state.money.stopped = true;
                 }
             }
+            // An authoritative generation may lower a conservative charge. It
+            // never turns an unavailable root into an answer or silently raises spend.
+            if receipt.outcome == "settled_conservatively" && !drifted
+                && receipt.usage["requested_identity"]["model"].as_str().is_some_and(|s| !s.is_empty())
+                && receipt.usage["requested_identity"]["revision"].as_str().is_some_and(|s| !s.is_empty())
+                && let Ok(g) = &generation
+                && let Some(previous) = receipt.actual_nano_usd
+                && g.cost_nano_usd <= previous
+            {
+                for scope in &receipt.scopes {
+                    let counter = state.money.counters.get_mut(scope).ok_or("missing money counter")?;
+                    counter.1 = counter.1.checked_sub(previous - g.cost_nano_usd)
+                        .ok_or("openrouter_accounting_overflow")?;
+                }
+                receipt.actual_nano_usd = Some(g.cost_nano_usd);
+                receipt.usage["unknown_cost_settlement"]["reconciled"] = serde_json::json!(true);
+                receipt.usage["unknown_cost_settlement"]["billed_nano_usd"] = serde_json::json!(g.cost_nano_usd);
+            }
             let cost_matches = generation.as_ref().is_ok_and(|g| receipt.actual_nano_usd
-                .is_some_and(|actual| actual.abs_diff(g.cost_nano_usd) <= crate::assist::openrouter::RECONCILIATION_TOLERANCE));
+                .is_some_and(|actual| if receipt.outcome == "settled_conservatively" {actual == g.cost_nano_usd} else {actual.abs_diff(g.cost_nano_usd) <= crate::assist::openrouter::RECONCILIATION_TOLERANCE}));
             let reason = match &generation {
                 Err(reason) => Some(*reason),
                 Ok(_) if !cost_matches => Some("openrouter_generation_cost_mismatch"),
@@ -569,6 +697,93 @@ mod tests {
     use super::super::Ledger;
     use super::*;
 
+    #[cfg(feature = "assist")]
+    #[test]
+    fn continuation_conservatively_charges_pacing_and_unknown_and_never_repeats() {
+        for (actual, class, dispatched) in
+            [(Some(0), "client_deadline", false), (None, "reset", true)]
+        {
+            let temp = tempfile::tempdir().unwrap();
+            let ledger = Ledger::new(temp.path(), true);
+            ledger
+                .bind_campaign(serde_json::json!({"fixture":true}), false)
+                .unwrap();
+            let hash = crate::evidence::canonical::Digest::of_bytes(b"fixture");
+            ledger.begin_campaign_root(0, hash.clone()).unwrap();
+            let scopes = vec![MoneyScope {
+                id: "fixture".into(),
+                cap_nano_usd: 100,
+            }];
+            let receipt = MoneyReceipt {
+                id: "first".into(),
+                request_hash: hash,
+                scopes: vec!["fixture".into()],
+                reserved_nano_usd: 100,
+                actual_nano_usd: None,
+                outcome: "reserved".into(),
+                usage: serde_json::json!({}),
+            };
+            ledger.reserve_money(&scopes, receipt.clone()).unwrap();
+            ledger
+                .finish_money(
+                    "first",
+                    actual,
+                    serde_json::json!({"transport_failure":class,"not_dispatched":!dispatched}),
+                    false,
+                )
+                .unwrap();
+            assert!(ledger.settle_continuation_root(0).unwrap());
+            assert!(ledger.settle_continuation_root(0).unwrap());
+            let reopened = Ledger::new(temp.path(), true);
+            let settled = &reopened.money_receipts().unwrap()[0];
+            assert_eq!(settled.outcome, "settled_conservatively");
+            assert_eq!(settled.actual_nano_usd, Some(100));
+            assert_eq!(settled.usage["qualification_eligible"], false);
+            let mut next = receipt;
+            next.id = "next".into();
+            assert_eq!(
+                reopened.reserve_money(&scopes, next).unwrap_err(),
+                "money_budget_exhausted"
+            );
+        }
+    }
+    #[cfg(feature = "assist")]
+    #[test]
+    fn conservative_reconciliation_lowers_only_and_keeps_root_unavailable() {
+        for cost in [60, 101] {
+            let temp = tempfile::tempdir().unwrap();
+            let ledger = Ledger::new(temp.path(), true);
+            ledger.campaign().transaction(|s| {
+                s.money.counters.insert("fixture".into(), (1000,100));
+                s.money.receipts.push(MoneyReceipt {id:"fixture".into(),request_hash:crate::evidence::canonical::Digest::of_bytes(b"fixture"),scopes:vec!["fixture".into()],reserved_nano_usd:100,actual_nano_usd:Some(100),outcome:"settled_conservatively".into(),usage:serde_json::json!({"generation_id":"gen-fixture","openrouter_dispatched":true,"requested_identity":{"model":"fixture","revision":"fixture"},"unknown_cost_settlement":{},"reconciliation":{"state":"pending"}})});
+                Ok(())
+            }).unwrap();
+            let generation = crate::assist::openrouter::Generation {
+                model: "fixture".into(),
+                provider_name: "fixture".into(),
+                cost_nano_usd: cost,
+                response_hash: crate::evidence::canonical::Digest::of_bytes(b"generation"),
+            };
+            ledger
+                .record_openrouter_reconciliation("fixture", Ok(generation), 1, 0, 1)
+                .unwrap();
+            let receipt = &ledger.money_receipts().unwrap()[0];
+            assert_eq!(receipt.outcome, "settled_conservatively");
+            assert_eq!(receipt.actual_nano_usd, Some(cost.min(100)));
+            assert_eq!(
+                receipt.usage["reconciliation"]["state"],
+                if cost <= 100 { "matched" } else { "mismatch" }
+            );
+            ledger
+                .campaign()
+                .transaction(|s| {
+                    assert_eq!(s.money.counters["fixture"].1, cost.min(100));
+                    assert_eq!(s.money.stopped, cost > 100);
+                    Ok(())
+                })
+                .unwrap();
+        }
+    }
     #[cfg(feature = "assist")]
     #[cfg(feature = "assist")]
     #[test]

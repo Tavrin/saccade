@@ -88,6 +88,7 @@ fn campaign_duration(stage2: bool) -> Duration {
 #[derive(Debug, PartialEq)]
 enum CallOutcome {
     Completed,
+    TransportUnavailable,
     InvalidAnswer(&'static str),
 }
 #[derive(Clone, Copy, serde::Serialize, PartialEq)]
@@ -143,6 +144,7 @@ fn continue_roots(
     let mut stop = None;
     let (mut samples, mut invalid, mut consecutive) = (0usize, 0usize, 0usize);
     let mut outcomes = Vec::new();
+    let mut transport_history = assist::continuation::History::default();
     for (index, row) in rows.iter().enumerate() {
         let old = settled.contains(&index).then(|| &prior[index]);
         let mut reason = old.and_then(|o| o["answer_reason"].as_str());
@@ -161,6 +163,7 @@ fn continue_roots(
                 let deadline = campaign_deadline.min(started + CALL_LIMIT);
                 match call(index, deadline) {
                     Ok(CallOutcome::Completed) => "completed",
+                    Ok(CallOutcome::TransportUnavailable) => "not_run_transport_failure",
                     Ok(CallOutcome::InvalidAnswer(code)) => {
                         reason = Some(code);
                         "invalid_answer"
@@ -206,11 +209,18 @@ fn continue_roots(
                 }
             }
         }
+        if let Some(transport_valve) = transport_history.observe(code) {
+            valve = Some(transport_valve);
+            failed = true;
+            stop = Some("not_run_transport_safety_valve");
+        }
         let class = match code {
             "completed" => "valid_answer",
             "invalid_answer" => "answer_failure",
             "not_run_deadline"
             | "not_run_budget"
+            | "not_run_transport_failure"
+            | "not_run_transport_safety_valve"
             | "not_run_answer_safety_valve"
             | "skipped_after_failure" => "not_run",
             _ => "campaign_failure",
@@ -684,7 +694,15 @@ fn run_with(args: impl IntoIterator<Item = String>) -> Result<(), Box<dyn std::e
     let mut validate_only = false;
     let mut preflight_only = false;
     let mut settle_unknown = false;
+    let mut continue_unknown = false;
     while let Some(arg) = args.next() {
+        if arg == "--continue-on-unknown-cost-at-reservation" {
+            if continue_unknown {
+                return Err("invalid smoke arguments".into());
+            }
+            continue_unknown = true;
+            continue;
+        }
         if arg == "--settle-unknown-at-reservation" {
             if settle_unknown {
                 return Err("duplicate settlement flag".into());
@@ -741,6 +759,7 @@ fn run_with(args: impl IntoIterator<Item = String>) -> Result<(), Box<dyn std::e
     }
     if let Some(out) = options.get("--reconcile-only") {
         if options.len() != 1
+            || continue_unknown
             || above_25
             || stage2
             || validate_only
@@ -889,7 +908,7 @@ fn run_with(args: impl IntoIterator<Item = String>) -> Result<(), Box<dyn std::e
         "stage2":stage2,"budget_bounded":budget_bounded,"answer_failure_policy":stage2.then_some(answer_limits),
         "executor_call_cap_seconds":120,"prompt_epoch":stage2.then_some("g12-pilot/5"),
         "prompt_policy":stage2.then_some("assist-openrouter-task-evidence/5")});
-    ledger.bind_campaign_with_settlement(identity, resume, settle_unknown)?;
+    ledger.bind_campaign_with_settlement(identity, resume, settle_unknown || continue_unknown)?;
     let mut smoke = if resume {
         assist::decode::<Value>(&assist::read_bytes(
             &out.join("smoke.json"),
@@ -905,8 +924,13 @@ fn run_with(args: impl IntoIterator<Item = String>) -> Result<(), Box<dyn std::e
         .ok_or("invalid smoke outcomes")?
         .remove("refusal");
     let settled = if resume {
-        if settle_unknown {
+        if settle_unknown || continue_unknown {
             settle_resume_unknown(&rows, &ledger, &smoke)?;
+        }
+        if continue_unknown {
+            for index in resume_bindings(&rows, &ledger, &smoke)?.keys() {
+                ledger.settle_continuation_root(*index)?;
+            }
         }
         let settled = resume_roots(&rows, &ledger, &smoke)?;
         attach_receipts(&out, &ledger, &mut smoke)?;
@@ -919,6 +943,8 @@ fn run_with(args: impl IntoIterator<Item = String>) -> Result<(), Box<dyn std::e
         .as_array()
         .ok_or("invalid outcomes")?
         .clone();
+    smoke["transport_failure_policy"] =
+        json!(continue_unknown.then(assist::continuation::History::policy));
     assist::write(&out.join("smoke.json"), &smoke)?;
     let auth = Authorization {
         enabled: true,
@@ -975,6 +1001,16 @@ fn run_with(args: impl IntoIterator<Item = String>) -> Result<(), Box<dyn std::e
                         index,
                         stage2,
                     )
+                }
+                Err(assist::Error::Provider) if continue_unknown => {
+                    if ledger
+                        .settle_continuation_root(index)
+                        .map_err(|_| assist::Error::Storage)?
+                    {
+                        Ok(CallOutcome::TransportUnavailable)
+                    } else {
+                        Err(assist::Error::Provider)
+                    }
                 }
                 Err(error) => Err(error),
             }
@@ -1209,6 +1245,116 @@ fn main() {
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[test]
+    #[ignore = "operator-supplied saved campaign; copies only, no provider or keys"]
+    fn offline_saved_resume_fixture() {
+        let requests = PathBuf::from(std::env::var_os("SACCADE_RESUME_REQUESTS").unwrap());
+        let out = PathBuf::from(std::env::var_os("SACCADE_RESUME_OUTPUT").unwrap());
+        let rows: Vec<Row> =
+            assist::decode(&assist::read_bytes(&requests, 8 * 1024 * 1024).unwrap()).unwrap();
+        let mut smoke: Value =
+            assist::decode(&assist::read_bytes(&out.join("smoke.json"), 32 * 1024 * 1024).unwrap())
+                .unwrap();
+        let temp = tempfile::tempdir().unwrap();
+        std::fs::copy(
+            out.join("ledger/campaign.json"),
+            temp.path().join("campaign.json"),
+        )
+        .unwrap();
+        let ledger = Ledger::new(temp.path(), true);
+        let bindings = resume_bindings(&rows, &ledger, &smoke).unwrap();
+        let saved: Value = assist::decode(
+            &assist::read_bytes(&temp.path().join("campaign.json"), 32 * 1024 * 1024).unwrap(),
+        )
+        .unwrap();
+        if saved["money"]["stopped"] == true {
+            let before = ledger.money_receipts().unwrap();
+            assert!(
+                ledger
+                    .bind_campaign_with_settlement(
+                        saved["money"]["campaign_identity"].clone(),
+                        true,
+                        true
+                    )
+                    .is_err()
+            );
+            assert!(ledger.settle_continuation_root(11).is_err());
+            assert_eq!(
+                serde_json::to_value(before).unwrap(),
+                serde_json::to_value(ledger.money_receipts().unwrap()).unwrap()
+            );
+            return;
+        }
+        for index in bindings.keys() {
+            ledger.settle_continuation_root(*index).unwrap();
+        }
+        let settled = resume_roots(&rows, &ledger, &smoke).unwrap();
+        assert_eq!(settled.len(), 12);
+        attach_receipts(temp.path(), &ledger, &mut smoke).unwrap();
+        export_reconciliation(temp.path(), &ledger, &mut smoke).unwrap();
+        assert_eq!(
+            smoke["root_outcomes"][11]["code"],
+            "not_run_transport_failure"
+        );
+        assert_eq!(
+            ledger
+                .money_receipts()
+                .unwrap()
+                .iter()
+                .filter(|r| r.outcome == "settled_conservatively")
+                .count(),
+            1
+        );
+    }
+    #[test]
+    fn transport_continuation_checkpoints_unavailable_roots_and_valve_stops_tail() {
+        let rows = (0..8)
+            .map(|i| Row {
+                root: format!("root-{i}"),
+                model: "fixture".into(),
+                revision: "fixture".into(),
+                payload: json!({}),
+                output_fit: None,
+            })
+            .collect::<Vec<_>>();
+        let start = Instant::now();
+        let mut called = Vec::new();
+        let (outcomes, failed) = root_outcomes(
+            &rows,
+            start + Duration::from_secs(10),
+            false,
+            None,
+            || start,
+            |i, _| {
+                called.push(i);
+                Ok(CallOutcome::TransportUnavailable)
+            },
+        );
+        assert!(failed);
+        assert_eq!(called, (0..6).collect::<Vec<_>>());
+        assert_eq!(
+            outcomes[5]["safety_valve"],
+            "consecutive_transport_failures"
+        );
+        assert_eq!(outcomes[6]["code"], "not_run_transport_safety_valve");
+        assert_eq!(outcomes[0]["failure_class"], "not_run");
+        let (continued, failed) = root_outcomes(
+            &rows,
+            start + Duration::from_secs(10),
+            false,
+            None,
+            || start,
+            |i, _| {
+                Ok(if i == 0 {
+                    CallOutcome::TransportUnavailable
+                } else {
+                    CallOutcome::Completed
+                })
+            },
+        );
+        assert!(!failed);
+        assert_eq!(continued[1]["code"], "completed");
+    }
     #[test]
     fn paid_scorer_gate_requires_both_proof_inputs_without_credentials() {
         assert!(scorer_proof_inputs(None, Some("fixture".into())).is_err());

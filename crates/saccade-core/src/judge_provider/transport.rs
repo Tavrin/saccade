@@ -390,7 +390,9 @@ pub enum TransportFailure {
     StreamTermination,
     /// HTTP framing/protocol failure. ureq exposes HTTP/1.1 only.
     HttpProtocol,
-    /// Other transport failure.
+    /// Client deadline expired while awaiting admission or dispatch.
+    ClientDeadline,
+    /// Other transport failure; the closed kind is unavailable.
     Other,
 }
 impl TransportFailure {
@@ -458,12 +460,14 @@ impl TransportFailure {
             Self::BodyReadDecode => "transport_body_read_decode",
             Self::StreamTermination => "transport_stream_termination",
             Self::HttpProtocol => "transport_http_protocol",
-            Self::Other => "transport_other",
+            Self::ClientDeadline => "transport_client_deadline",
+            Self::Other => "transport_other_unknown_kind",
         }
     }
     fn from_code(code: &str) -> Self {
         match code {
-            "transport_timeout" | "dispatch deadline" => Self::Timeout,
+            "transport_timeout" => Self::Timeout,
+            "transport_client_deadline" | "dispatch deadline" => Self::ClientDeadline,
             "transport_connect" => Self::Connect,
             "transport_reset" => Self::Reset,
             "transport_tls" => Self::Tls,
@@ -788,7 +792,11 @@ impl Transport<'_> {
         probe: bool,
     ) -> Result<(Vec<u8>, String), Rejection> {
         let plain = |failure: ProviderFailure| Rejection {
-            transport_failure: None,
+            transport_failure: Some(if failure.class == RetryClass::RateLimited {
+                TransportFailure::ClientDeadline
+            } else {
+                TransportFailure::Other
+            }),
             failure,
             status: None,
             body: Vec::new(),
@@ -938,7 +946,11 @@ impl Transport<'_> {
             Err(error) => Err(Rejection {
                 transport_failure: Some(TransportFailure::from_code(&error)),
                 failure: failure(
-                    RetryClass::Transient,
+                    if error == "credential material in provider envelope" {
+                        RetryClass::AuthenticationOrConfiguration
+                    } else {
+                        RetryClass::Transient
+                    },
                     &format!("transport unavailable reservation={id}"),
                     None,
                 ),
@@ -1312,6 +1324,10 @@ mod transport_class_tests {
     }
     #[test]
     fn g12_transport_classes_discard_untrusted_diagnostics() {
+        assert_eq!(
+            TransportFailure::from_code("dispatch deadline"),
+            TransportFailure::ClientDeadline
+        );
         use std::io::{Error, ErrorKind};
         for (kind, expected) in [
             (ErrorKind::TimedOut, TransportFailure::Timeout),
