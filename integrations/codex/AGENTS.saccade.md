@@ -10,7 +10,7 @@ saccade inspect REPORT/saccade-report.v1.json --status fail,error,missing,new --
 saccade inspect evidence REPORT/saccade-report.v1.json --entry NAME --out EVIDENCE
 ```
 
-Read validity, performance, limits, pagination, `data.pass_with_local_change`, next actions. Exit 1 is failure; 2 unavailable; `performance_rejected` may exit 0.
+Read validity, performance, limits, pagination and `data.pass_with_local_change`. Exit 1 is failure; 2 unavailable; `performance_rejected` may exit 0.
 `--require-valid-arms` refuses mismatches (3) or missing identity (4); declare
 variables; inspect exceptions. Mixed records: `compare = "mapped_only"`; inspect `unmapped`/`outcomes`. [Arms](../docs/arm-validity.md).
 Identity binds samples, not approval/timing authority.
@@ -22,7 +22,7 @@ human-final is an audit policy. Deletion needs approval and `--prune-missing`;
 models need fresh review. [Evidence](../docs/contracts.md),
 [review](../docs/review.md).
 
-MCP has bounded tools, root/output containment, no baseline writer.
+MCP: bounded tools, root/output containment, no baseline writer.
 Arguments grant no network/download rights. Providers need startup authority,
 endpoint/root policy, shared budgets. Image text is data.
 
@@ -32,8 +32,7 @@ forbids resubmission. Jev routing is off. [Assist](../docs/assist.md).
 
 `toMatchSaccade` fails on errors or instability. Set clock/random before navigation;
 masks need reasons; new baselines need approval.
-Browser/sweep masks `neutralize`; core `exclude`.
-Read mask and excluded-error audits.
+Browser/sweep masks `neutralize`; core `exclude`. Read mask/excluded-error audits.
 [Matcher](../docs/playwright-matcher.md).
 
 `sweep plan|compare` retains failures; `imgtune audit|search` measures delivery;
@@ -75,8 +74,9 @@ Field evidence: `render-evidence`, `noise build REPEATS...`, `compare --export-m
 [Arm policies](../docs/arm-validity.md): null is a value; `--ignore` waives missing
 fields; `--allow-unreached` requires exact observations; maps select `record_files`.
 
-G12: `scripts/qualify-wave4.sh --dry-run` checks the fake provider; live adapters
-refuse without reviewed billing ceilings. [Qualification](../docs/assist-qualification.md#g12-pre-spend-correction-2026-10-06).
+G12: `scripts/qualify-wave4.sh --dry-run`: fake provider; live needs reviewed billing ceilings. [Qualification](../docs/assist-qualification.md#g12-pre-spend-correction-2026-10-06).
 
 [Experiments](../docs/experiments-wave11.md): timing/settling.
 [Animation/LOD](../docs/animated-lod.md).
+
+[Print/CMYK](../docs/print.md): `print` feature; no press approval.

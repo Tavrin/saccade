@@ -64,6 +64,8 @@ mod localized_cmd;
 mod motion_cmd;
 #[cfg(feature = "products")]
 mod notifier_cmd;
+#[cfg(feature = "print")]
+mod print_cmd;
 #[cfg(feature = "products")]
 mod product_io;
 #[cfg(feature = "compression")]
@@ -285,6 +287,9 @@ enum Command {
     Manifest(manifest_cmd::Args),
     /// Crop the worst regions of a report, with coordinates.
     ExportRegions(region_export_cmd::Args),
+    /// ICC-managed CMYK raster comparison (first-party print extension).
+    #[cfg(feature = "print")]
+    Print(print_cmd::Args),
     // wave11
     /// Verdicts over timings acquired by external tools.
     Timing(wave11_cmd::TimingArgs),
@@ -1313,6 +1318,8 @@ fn dispatch(command: Command, record_absolute_paths: bool) -> Result<u8, CliErro
         Command::Prove {
             operation: ProveOperation::Performance(args),
         } => perf_cmd::ablate(*args, record_absolute_paths),
+        #[cfg(feature = "print")]
+        Command::Print(args) => print_cmd::run(args),
         Command::Doctor { json } => doctor(json),
         Command::Bisect(args) => git_bisect::run(args),
         Command::Ingest(args) => ingest::run(args, record_absolute_paths),
@@ -2054,6 +2061,9 @@ fn dispatch(command: Command, record_absolute_paths: bool) -> Result<u8, CliErro
 
 fn doctor(json: bool) -> Result<u8, CliError> {
     let mut features = saccade_core::COMPILED_FEATURES.to_vec();
+    if cfg!(feature = "print") {
+        features.push("print");
+    }
     if cfg!(feature = "ocr") {
         features.push("ocr");
     }
@@ -2954,6 +2964,9 @@ pub(crate) fn capabilities(json: bool) -> Result<u8, CliError> {
     let mut names = Vec::new();
     operations(&Cli::command(), "", &mut names);
     let mut features = saccade_core::COMPILED_FEATURES.to_vec();
+    if cfg!(feature = "print") {
+        features.push("print");
+    }
     if cfg!(feature = "ocr") {
         features.push("ocr");
     }

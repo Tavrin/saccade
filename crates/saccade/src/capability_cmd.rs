@@ -44,6 +44,19 @@ pub(crate) fn catalogue() -> Value {
         families.push(json!({"family":family,"command":command,"inputs":inputs,"features_required":features,"status":status,"question":question,"limits":limits}))
     };
     add(
+        "print",
+        "print",
+        "paired CMYK TIFF/JPEG/PDF rasters",
+        vec!["print"],
+        if cfg!(feature = "print") {
+            "available_bounded"
+        } else {
+            "feature_unavailable"
+        },
+        "How do colour, separations and ink coverage differ?",
+        "Requires CMYK ICC; bounded raster PDF subset; ICC gamut model and heuristic text-like marks; no press approval",
+    );
+    add(
         "pixel_perceptual",
         "compare; prove identity",
         "paired rasters or matching directories",
@@ -371,6 +384,9 @@ pub(crate) fn catalogue() -> Value {
     }
     if cfg!(feature = "products") {
         features.push("products".into());
+    }
+    if cfg!(feature = "print") {
+        features.push("print".into());
     }
     if cfg!(feature = "imgtune-avif") {
         features.push("imgtune-avif".into());

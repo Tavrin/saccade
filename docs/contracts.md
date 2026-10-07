@@ -402,6 +402,7 @@ The last three names appear only when the corresponding feature is compiled in.
 - [saccade-watermark.v2.schema.json](../crates/saccade-core/schemas/saccade-watermark.v2.schema.json) — WatermarkReport
 - [saccade-watermark.v3.schema.json](../crates/saccade-core/schemas/saccade-watermark.v3.schema.json) — WatermarkReport
 - [saccade-watermark.v4.schema.json](../crates/saccade-core/schemas/saccade-watermark.v4.schema.json) — WatermarkReport
+- [saccade-print.v1.schema.json](../crates/saccade-print/schemas/saccade-print.v1.schema.json) — ICC-managed print comparison
 <!-- schema-index:end -->
 
 Historical validators and fixtures do not imply that retired writers or commands

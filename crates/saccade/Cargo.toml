@@ -13,6 +13,7 @@ build = "build.rs"
 exclude = ["report/**"]
 
 [dependencies]
+saccade-print = { path = "../saccade-print", version = "0.2.6", optional = true }
 ureq = { version = "3", optional = true }
 url = { version = "2.5", optional = true }
 roxmltree = { version = "0.20", optional = true }
@@ -35,6 +36,7 @@ jsonschema = { version = "0.30", default-features = false }
 [features]
 # O12/O17: deterministic text pixel evidence, no added dependencies.
 text-quality = ["saccade-core/text-quality"]
+print = ["dep:saccade-print"]
 ocr-provider = ["assist", "saccade-core/ocr-provider"]
 media-http = ["saccade-core/media-http"]
 products = ["dep:ureq", "dep:url", "dep:roxmltree", "compression", "image/webp"]

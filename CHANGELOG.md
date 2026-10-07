@@ -16,6 +16,7 @@
   outcomes, pinned local models and reference-encoder tests. Watermark reports
   use versioned successor schemas; missing models remain explicitly unavailable
   and inspection never downloads.
+- Add optional `saccade-print` extension and `print` CLI/MCP comparison for ICC-managed CMYK rasters, ΔE2000, TAC, separations, target gamut diagnostics and small four-colour mark candidates.
 
 - Add a task map, exit-code table and threshold-unit notes to the quickstart, and
   five task guides under `docs/guides/` (visual CI, controlled rendering,

@@ -32,8 +32,13 @@ fn schema_discovery_and_perf_validator_use_exact_shipped_documents() {
     for id in listed["ids"].as_array().unwrap() {
         let id = id.as_str().unwrap();
         let got = call(&["schema", "get", id], 0);
+        let owner = if id == "saccade-print.v1" {
+            "saccade-print"
+        } else {
+            "saccade-core"
+        };
         let file = Path::new(env!("CARGO_MANIFEST_DIR"))
-            .join(format!("../saccade-core/schemas/{id}.schema.json"));
+            .join(format!("../{owner}/schemas/{id}.schema.json"));
         assert_eq!(
             got,
             serde_json::from_slice::<Value>(&std::fs::read(file).unwrap()).unwrap()
