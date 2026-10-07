@@ -1,6 +1,6 @@
 {
   "name": "saccade",
-  "version": "0.2.9",
+  "version": "0.2.10",
   "description": "Measure and review visual changes with the installed Saccade CLI.",
   "author": {
     "name": "Tavrin",
