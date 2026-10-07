@@ -13,9 +13,9 @@ use std::{
 pub const RECORD_SCHEMA: &str = "saccade-capture-record.v1";
 /// Conformance result contract, independent of pixel or performance acceptance.
 pub const RESULT_SCHEMA: &str = "saccade-capture-conformance.v1";
-const RECORD_LIMIT: u64 = 1024 * 1024;
-const IMAGE_LIMIT: u64 = 64 * 1024 * 1024;
-const ITEM_LIMIT: usize = 256;
+pub(super) const RECORD_LIMIT: u64 = 1024 * 1024;
+pub(super) const IMAGE_LIMIT: u64 = 64 * 1024 * 1024;
+pub(super) const ITEM_LIMIT: usize = 256;
 
 /// Generic adapter family, not an assertion that the producer was executed.
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -187,18 +187,30 @@ pub struct Report {
     pub acquired: usize,
     /// All failures in plan order; at most one of each code per slot.
     pub findings: Vec<Finding>,
+    /// Native receipt or explicitly adapted historical evidence.
+    pub provenance: String,
+    /// Mapping decisions for legacy fields; empty for native receipts.
+    pub fields: Vec<super::capture_legacy::FieldEvidence>,
+    /// Contract requirements historical evidence cannot establish.
+    pub unavailable: Vec<super::capture_legacy::Unavailable>,
+    /// Retained historical retry observations, without inventing successful attempts.
+    pub retry_records: Vec<Value>,
 }
 impl Report {
-    fn new() -> Self {
+    pub(super) fn new() -> Self {
         Self {
             schema: RESULT_SCHEMA.into(),
             conformant: true,
             expected: 0,
             acquired: 0,
             findings: Vec::new(),
+            provenance: "native".into(),
+            fields: Vec::new(),
+            unavailable: Vec::new(),
+            retry_records: Vec::new(),
         }
     }
-    fn fail(&mut self, code: Code, id: Option<&str>) {
+    pub(super) fn fail(&mut self, code: Code, id: Option<&str>) {
         if !self
             .findings
             .iter()
@@ -211,7 +223,8 @@ impl Report {
         }
         self.conformant = false;
     }
-    /// Process exit: 0 conformant, 1 rejected evidence, 2 unreadable/invalid contract.
+    /// Exit: 0 native pass, 1 rejected evidence, 2 invalid contract,
+    /// 3 adapted pass, 4 unavailable historical requirements.
     pub fn exit_code(&self) -> u8 {
         if self.findings.iter().any(|f| {
             matches!(
@@ -221,12 +234,67 @@ impl Report {
         }) {
             2
         } else {
-            u8::from(!self.conformant)
+            if !self.findings.is_empty() {
+                1
+            } else if !self.unavailable.is_empty() {
+                4
+            } else if self.provenance == "adapted_legacy" {
+                3
+            } else {
+                u8::from(!self.conformant)
+            }
         }
     }
 }
-fn bounded_read(path: &Path, limit: u64) -> std::io::Result<Vec<u8>> {
-    let metadata = std::fs::symlink_metadata(path)?;
+fn normalized_absolute(path: &Path) -> std::io::Result<std::path::PathBuf> {
+    let mut normalized = std::path::PathBuf::new();
+    for component in std::path::absolute(path)?.components() {
+        match component {
+            Component::ParentDir => {
+                normalized.pop();
+            }
+            Component::CurDir => {}
+            _ => normalized.push(component.as_os_str()),
+        }
+    }
+    Ok(normalized)
+}
+pub(super) fn safe_directory(path: &Path) -> std::io::Result<cap_std::fs::Dir> {
+    use cap_fs_ext::DirExt;
+    let absolute = normalized_absolute(path)?;
+    let mut dir = cap_std::fs::Dir::open_ambient_dir(
+        absolute.ancestors().last().unwrap_or(Path::new("/")),
+        cap_std::ambient_authority(),
+    )?;
+    for component in absolute.components() {
+        match component {
+            Component::Normal(name) => dir = dir.open_dir_nofollow(name)?,
+            Component::RootDir | Component::Prefix(_) => {}
+            _ => return Err(std::io::Error::other("unsafe path")),
+        }
+    }
+    Ok(dir)
+}
+pub(super) fn bounded_read(path: &Path, limit: u64) -> std::io::Result<Vec<u8>> {
+    use cap_fs_ext::{FollowSymlinks, OpenOptionsFollowExt};
+    let absolute = normalized_absolute(path)?;
+    let dir = safe_directory(
+        absolute
+            .parent()
+            .ok_or_else(|| std::io::Error::other("missing parent"))?,
+    )?;
+    let name = absolute
+        .file_name()
+        .ok_or_else(|| std::io::Error::other("missing filename"))?;
+    let mut options = cap_std::fs::OpenOptions::new();
+    options.read(true).follow(FollowSymlinks::No);
+    #[cfg(unix)]
+    {
+        use cap_std::fs::OpenOptionsExt;
+        options.custom_flags(libc::O_NONBLOCK);
+    }
+    let file = dir.open_with(name, &options)?;
+    let metadata = file.metadata()?;
     if !metadata.is_file() || metadata.len() > limit {
         return Err(std::io::Error::new(
             std::io::ErrorKind::InvalidData,
@@ -234,9 +302,7 @@ fn bounded_read(path: &Path, limit: u64) -> std::io::Result<Vec<u8>> {
         ));
     }
     let mut bytes = Vec::new();
-    std::fs::File::open(path)?
-        .take(limit + 1)
-        .read_to_end(&mut bytes)?;
+    file.take(limit + 1).read_to_end(&mut bytes)?;
     if bytes.len() as u64 > limit {
         return Err(std::io::Error::new(
             std::io::ErrorKind::InvalidData,
@@ -277,7 +343,7 @@ fn full_identity(value: &Value) -> bool {
             .iter()
             .all(|f| f.reason == "readiness_not_reached")
 }
-fn image_code(root: &Path, image: &Image) -> Option<Code> {
+pub(super) fn image_code(root: &Path, image: &Image) -> Option<Code> {
     let relative = Path::new(&image.path);
     if image.path.is_empty()
         || relative
@@ -417,7 +483,21 @@ pub fn conform(record: &Record, root: &Path) -> Report {
 /// Read at most 1 MiB of receipt JSON and validate images relative to its parent.
 pub fn conform_path(path: &Path) -> Report {
     let mut failed = Report::new();
-    let bytes = match bounded_read(path, RECORD_LIMIT) {
+    // Explicit native receipt roots may be reached through caller directory aliases.
+    // Pin the resolved root; descendant image components still refuse symlinks.
+    let parent = path
+        .parent()
+        .filter(|p| !p.as_os_str().is_empty())
+        .unwrap_or_else(|| Path::new("."));
+    let root = match parent.canonicalize() {
+        Ok(root) => root,
+        Err(_) => {
+            failed.fail(Code::RecordUnavailable, None);
+            return failed;
+        }
+    };
+    let resolved = root.join(path.file_name().unwrap_or_default());
+    let bytes = match bounded_read(&resolved, RECORD_LIMIT) {
         Ok(bytes) => bytes,
         Err(e) => {
             failed.fail(
@@ -447,7 +527,7 @@ pub fn conform_path(path: &Path) -> Report {
         return failed;
     }
     match serde_json::from_slice(&bytes) {
-        Ok(record) => conform(&record, path.parent().unwrap_or_else(|| Path::new("."))),
+        Ok(record) => conform(&record, &root),
         Err(_) => {
             failed.fail(Code::InvalidRecord, None);
             failed

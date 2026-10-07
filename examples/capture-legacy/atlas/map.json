@@ -1,0 +1,64 @@
+{
+  "absent": "unavailable",
+  "acquisitions": {
+    "fields": {
+      "clock": {
+        "path": "clock"
+      },
+      "fingerprint": {
+        "path": "fingerprint"
+      },
+      "id": {
+        "path": "id"
+      },
+      "image": {
+        "path": "image"
+      },
+      "settings": {
+        "path": "settings"
+      },
+      "status": {
+        "path": "status"
+      }
+    },
+    "source": {
+      "path": "attempted"
+    }
+  },
+  "expected": {
+    "fields": {
+      "clock_domain": {
+        "path": "clock_domain"
+      },
+      "fingerprint": {
+        "path": "fingerprint"
+      },
+      "id": {
+        "path": "id"
+      },
+      "settings": {
+        "path": "settings"
+      }
+    },
+    "source": {
+      "path": "planned"
+    }
+  },
+  "fields": {
+    "completion": {
+      "path": "completion"
+    },
+    "producer": {
+      "path": "producer"
+    },
+    "run_id": {
+      "path": "run_id"
+    }
+  },
+  "hash_policy": "recorded",
+  "record": "ledger.json",
+  "retry_records": {
+    "path": "retries"
+  },
+  "schema": "saccade-capture-legacy-map.v1"
+}

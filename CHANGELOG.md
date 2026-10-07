@@ -2,6 +2,11 @@
 
 ## Unreleased
 
+- Add mapping-driven `capture conform --legacy-map` checks for historical records,
+  with explicit adapted provenance, per-field decisions, unavailable requirements,
+  honest check-time hashing and bounded read-only archive rows. Ship generic TOML/JSON
+  mappings and two procedural fictional producer formats.
+
 ## 0.2.9 (2026-10-07)
 
 - Add offline `capture conform` validation with versioned capture records, exact

@@ -12,6 +12,11 @@ Exit 0 for compare/identity means no image regression; inspect `performance` for
 Inspection, review, rank and ablation completion grant no acceptance authority.
 Exit 2 means the operation cannot run. Demo intentionally exits 1.
 
+Actual generation binary (reference header above describes all features):
+
+Generation: `python3 scripts/gen-docs.py --allow-missing-imgtune-avif --preserve-all-features-header`.
+Compiled features: `ai`, `assist`, `compression`, `credentials`, `dense-motion`, `documents`, `embeddings`, `evaluation`, `geo`, `geometry`, `graphics`, `local-models`, `local-vlm`, `mcp`, `media-http`, `ocr`, `ocr-provider`, `optical-code`, `parallel`, `prechecks`, `print`, `products`, `schema`, `semantic-regions`, `text-quality`, `vision-providers`, `workbench`.
+
 ## saccade
 
 ```text
@@ -1740,12 +1745,16 @@ Arguments:
   <RECORD>
 
 Options:
-      --json
-          Emit the versioned conformance result, including stable failure codes
+      --legacy-map <LEGACY_MAP>
+          Explicit versioned mapping of retained historical fields (TOML or JSON)
       --require-signed-approval
           Require externally signed approvals and verify baseline approval consumers
       --approval-allowed-signers <APPROVAL_ALLOWED_SIGNERS>
           External OpenSSH allowed-signers file (cannot override a required policy)
+      --archive
+          Check an archive tree with bounded deterministic rows; requires --legacy-map
+      --json
+          Emit the versioned conformance result, including stable failure codes
       --source-ref <SOURCE_REF>
           External capture URI/key (repeatable); recorded in generated reports
       --report-index <REPORT_INDEX>

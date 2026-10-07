@@ -1,0 +1,5 @@
+{
+  "generator": "scripts/gen-capture-legacy-kit.py",
+  "license": "CC0-1.0",
+  "scope": "Fictional, procedural offline fixtures; synthetic declarations, no producer execution."
+}

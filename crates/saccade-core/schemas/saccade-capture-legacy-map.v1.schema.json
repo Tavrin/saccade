@@ -1,0 +1,116 @@
+{
+  "$defs": {
+    "Absent": {
+      "enum": [
+        "unavailable"
+      ],
+      "type": "string"
+    },
+    "HashPolicy": {
+      "enum": [
+        "recorded",
+        "compute_now",
+        "unavailable"
+      ],
+      "type": "string"
+    },
+    "Rows": {
+      "additionalProperties": false,
+      "properties": {
+        "fields": {
+          "additionalProperties": {
+            "$ref": "#/$defs/Source"
+          },
+          "type": "object"
+        },
+        "source": {
+          "$ref": "#/$defs/Source"
+        }
+      },
+      "required": [
+        "source",
+        "fields"
+      ],
+      "type": "object"
+    },
+    "Source": {
+      "additionalProperties": false,
+      "properties": {
+        "default": true,
+        "file": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "path": {
+          "type": "string"
+        },
+        "values": {
+          "additionalProperties": {
+            "type": "string"
+          },
+          "type": [
+            "object",
+            "null"
+          ]
+        }
+      },
+      "required": [
+        "path"
+      ],
+      "type": "object"
+    }
+  },
+  "$id": "https://github.com/Tavrin/saccade/crates/saccade-core/schemas/saccade-capture-legacy-map.v1.schema.json",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "properties": {
+    "absent": {
+      "$ref": "#/$defs/Absent"
+    },
+    "acquisitions": {
+      "$ref": "#/$defs/Rows"
+    },
+    "expected": {
+      "$ref": "#/$defs/Rows"
+    },
+    "fields": {
+      "additionalProperties": {
+        "$ref": "#/$defs/Source"
+      },
+      "type": "object"
+    },
+    "hash_policy": {
+      "$ref": "#/$defs/HashPolicy"
+    },
+    "record": {
+      "type": "string"
+    },
+    "retry_records": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/Source"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "schema": {
+      "const": "saccade-capture-legacy-map.v1",
+      "type": "string"
+    }
+  },
+  "required": [
+    "schema",
+    "record",
+    "hash_policy",
+    "absent",
+    "fields",
+    "expected",
+    "acquisitions"
+  ],
+  "title": "Mapping",
+  "type": "object"
+}

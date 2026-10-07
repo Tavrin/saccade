@@ -46,6 +46,10 @@ must not reverse. Equal timestamps support deliberately frozen browser clocks.
 This establishes declared clock consistency, not physical clock accuracy or GPU
 clock qualification; the existing [clock checks](gpu-clock-mapping.md) remain separate.
 
+Historical records can be checked with explicit [legacy mappings](capture-legacy.md).
+Adapted passes return 3 and carry `provenance: adapted_legacy`; missing historical
+requirements remain unavailable. Native checks without a map keep exit 0.
+
 ## Generic producer adapters
 
 `scripts/capture-record.py` writes either a renderer sidecar or a browser-capture
