@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+## 0.2.9 (2026-10-07)
+
 - Add offline `capture conform` validation with versioned capture records, exact
   image-byte bindings and stable codes for failed, partial or incompatible captures.
   Ship generated renderer/browser receipts and a capture conformance kit.
