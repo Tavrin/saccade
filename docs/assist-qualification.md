@@ -455,3 +455,41 @@ checks passed. This broader configuration is not converted into PASS: the
 quality/report linkage files remain untouched, and changing them is deferred
 outside the image-bound envelope. No live model or provider qualification is
 claimed by these offline tests.
+
+## G12 stage 2 priced pilot (no-spend preparation)
+
+`corpus.py --stage2` freezes the requested `wave4-constructed/2`,
+`constructed-assist/2` profile, with campaign `g12-stage2/1`. This is a separate
+profile retaining the current rendered oracle, safety checks and qualification
+thresholds; it does not restore historical /2 behavior or relabel /3 fixtures.
+It pins the supplied dated OpenRouter Gemini identity. No Jev identity or price
+is inferred for dispatch. Development/calibration cases remain offline.
+
+`scripts/qualify-wave4.sh --plan --stage2 --corpus DIR --out NEW_DIR` emits
+requests and a priced plan without credentials/network. It includes reverse
+orders and necessary-pixel counterfactuals, and excludes unpriced Jev arms.
+Cascade uses deterministic routing and mechanics without dependent Jev support.
+The single-image expectation uses the supplied ten-call aggregate; two-image
+expectation adds a mean 1,523 prompt tokens at the pinned prompt price. Completion
+usage is assumed unchanged; transfer to other workloads is not verified.
+Reservations are derived from complete payloads and the existing image table.
+The 95% bounds use independent challenge roots. The existing 99% qualification
+threshold remains unchanged; this small pilot cannot qualify a model/workflow.
+
+`scripts/qualify-wave4.sh --openrouter-stage2 --requests FILE --roots COUNT
+--max-spend-usd 5 --user-policy FILE --out NEW_DIR` collects the bounded schedule
+through the same smoke Executor, ceiling checks, monetary ledger, stop-on-error
+and reconciliation path. It supports up to 1,000 requests with a six-hour deadline;
+stage 2 cannot raise the $5 cap. `--validate-only` checks the entire reservation
+schedule and prints integer per-request reservations before policy/key access.
+It validates the closed response protocol, geometry and citations and retains
+answers beside responses/receipts. Independent-root scoring and semantic
+order comparison remain separate; these artifacts cannot be passed off as the
+synthetic offline scorer dialect or qualification evidence. Later use the smoke
+`--reconcile-only DIR` command; there are no paid retries or automatic pin adoption.
+
+The plan also records deterministic rules/unavailable/source-only outcomes in
+`local-results.json`. After dispatch, use `python3 scripts/assist/stage2.py
+--requests FILE --results-dir DIR --out NEW_FILE` for conservative normalized
+paired-order comparison. Missing answers and disagreement yield unverifiable;
+this report does not score semantic truth or grant qualification.

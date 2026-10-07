@@ -30,5 +30,23 @@ def plan(directory):
         blockers=["verified model/operation billing ceilings and provider-side hard limit unavailable",
                   "live API payload/transcript/binary execution plan requires separate review"]+([] if support else ["insufficient qualifying corpus support"])+([] if conservative<=30_000_000_000 else ["conservative full schedule exceeds campaign allowance"]))
 if __name__=="__main__":
-    p=argparse.ArgumentParser();p.add_argument("--corpus",type=Path,required=True);args=p.parse_args()
-    print(json.dumps(plan(args.corpus),sort_keys=True))
+    p=argparse.ArgumentParser();p.add_argument("--corpus",type=Path,required=True);p.add_argument("--stage2",action="store_true");p.add_argument("--out",type=Path);args=p.parse_args()
+    if args.stage2:
+        from stage2 import report
+        manifest,_=verify(args.corpus)
+        if manifest["campaign"]!="g12-stage2/1": raise ValueError("stage2 requires its frozen profile")
+        rows,result=report(manifest,args.corpus)
+        if args.out:
+            args.out.mkdir()
+            from corpus import put
+            put(args.out/"requests.json",rows)
+            from receipts import source_fact
+            local=[dict(root=c["root_id"],arm=a,outcome="observed" if source_fact(c) and c["complete"] else "unverifiable",source_only=source_fact(c) and c["complete"]) for c in manifest["cases"] if c["split"]=="heldout" for a in ("rules","cascade") if a=="rules" or not c["complete"] or source_fact(c)]
+            put(args.out/"local-results.json",local)
+            put(args.out/"plan.json",result)
+            result["request_file_hash"]=__import__("corpus").digest((args.out/"requests.json").read_bytes())
+            put(args.out/"plan.json",result)
+        print(json.dumps(result,sort_keys=True))
+    else:
+        if args.out: raise ValueError("--out requires --stage2")
+        print(json.dumps(plan(args.corpus),sort_keys=True))

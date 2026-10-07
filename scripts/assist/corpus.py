@@ -216,22 +216,25 @@ def render(seed, family, kind, workload):
                 label=label,exclusions=exclusions,wanted=wanted,witnesses=witnesses,
                 font_family=family%2,dpr=dpr,theme=theme)
 
-def freeze(out, target, seed, gemini_revision, jev_revision):
+def freeze(out, target, seed, gemini_revision, jev_revision, stage2=False):
     if target <= 0 or target > 1000 or target % 5:
         raise ValueError("target must be a positive multiple of five at most 1000")
+    if stage2 and gemini_revision!="google/gemini-3.8-flash-20260902":
+        raise ValueError("stage2 requires supplied dated revision")
     if not gemini_revision or not jev_revision:
         raise ValueError("freeze exact observed model revisions")
     # Distinct families, seeds and roots; descendants/orders/retries retain root/split.
     families = {"development":list(range(0,8)),"calibration":list(range(8,12)),"heldout":list(range(12,32))}
-    versions = dict(gate_source_hash=gate_source_hash(),generator_hash=digest(Path(__file__).read_bytes()),policy_hash=digest(encoded(POLICY)),
+    policy = dict(POLICY, version="constructed-assist/2") if stage2 else POLICY
+    versions = dict(gate_source_hash=gate_source_hash(),generator_hash=digest(Path(__file__).read_bytes()),policy_hash=digest(encoded(policy)),
                     pillow=PIL_VERSION,fonts=[digest(p.read_bytes()) for p in FONT_FILES],
                     font_license_hash=digest(FONT_LICENSE.read_bytes()),
                     workflow_hash=digest((ROOT/"crates/saccade-core/src/assist/workflow.rs").read_bytes()),
                     schema_hash=digest((ROOT/"crates/saccade-core/schemas/saccade-assist.v1.schema.json").read_bytes()))
-    metadata = dict(schema=SCHEMA,epoch="wave4-constructed/3",seed=seed,target_per_workload=target,
-                    families=families,policy=POLICY,versions=versions,
-                    campaign="offline-fixture-campaign/1",
-                    models={"openrouter":"openai/fixture-model","openrouter_revision":"fixture-fingerprint-r1","gemini":"gemini-3.8-flash","gemini_revision":gemini_revision,
+    metadata = dict(schema=SCHEMA,epoch="wave4-constructed/2" if stage2 else "wave4-constructed/3",seed=seed,target_per_workload=target,
+                    families=families,policy=policy,versions=versions,
+                    campaign="g12-stage2/1" if stage2 else "offline-fixture-campaign/1",
+                    models={"openrouter":"google/gemini-3.8-flash" if stage2 else "openai/fixture-model","openrouter_revision":gemini_revision if stage2 else "fixture-fingerprint-r1","gemini":"gemini-3.8-flash","gemini_revision":gemini_revision,
                             "jev":"jev-1.13.0","jev_revision":jev_revision},
                     licence="Generated pixels: MIT OR Apache-2.0; DejaVu rendered fonts: see font-license.txt")
     if out.exists() and any(out.iterdir()):
@@ -306,7 +309,9 @@ def verify(directory):
     if len(raw)>32*1024*1024: raise ValueError("manifest too large")
     manifest=json.loads(raw); claimed=manifest.pop("manifest_hash")
     if digest(encoded(manifest))!=claimed: raise ValueError("manifest drift")
-    if manifest["schema"]!=SCHEMA or manifest["policy"]!=POLICY: raise ValueError("epoch/policy drift")
+    stage2 = manifest.get("campaign")=="g12-stage2/1"
+    policy = dict(POLICY, version="constructed-assist/2") if stage2 else POLICY
+    if manifest["schema"]!=SCHEMA or manifest["policy"]!=policy: raise ValueError("epoch/policy drift")
     if manifest["versions"]["generator_hash"]!=digest(Path(__file__).read_bytes()): raise ValueError("generator drift")
     if manifest["versions"]["workflow_hash"]!=digest((ROOT/"crates/saccade-core/src/assist/workflow.rs").read_bytes()): raise ValueError("prompt/workflow drift")
     if manifest["versions"]["pillow"]!=PIL_VERSION or manifest["versions"]["fonts"]!=[digest(p.read_bytes()) for p in FONT_FILES]: raise ValueError("renderer/font drift")
@@ -316,10 +321,12 @@ def verify(directory):
     oracle=oracle_document["cases"]
     expected_families={"development":list(range(8)),"calibration":list(range(8,12)),"heldout":list(range(12,32))}
     target=manifest["target_per_workload"]
-    if manifest["epoch"]!="wave4-constructed/3" or manifest["families"]!=expected_families or not isinstance(target,int) or target<=0 or target>1000 or target%5:
+    if manifest["epoch"]!=("wave4-constructed/2" if stage2 else "wave4-constructed/3") or manifest["families"]!=expected_families or not isinstance(target,int) or target<=0 or target>1000 or target%5:
         raise ValueError("preregistered split/epoch drift")
     if manifest["models"]["gemini"]!="gemini-3.8-flash" or manifest["models"]["jev"]!="jev-1.13.0" or not all(manifest["models"][m+"_revision"] for m in ("gemini","jev")):
         raise ValueError("pinned model binding drift")
+    if stage2 and (manifest["models"]["openrouter"]!="google/gemini-3.8-flash" or manifest["models"]["openrouter_revision"]!="google/gemini-3.8-flash-20260902"):
+        raise ValueError("stage2 observed identity drift")
     scheduled=set()
     for split,family_ids in expected_families.items():
         count=target if split=="heldout" else min(target,20)
@@ -405,9 +412,10 @@ if __name__=="__main__":
     parser.add_argument("--gemini-revision")
     parser.add_argument("--jev-revision",default="jev-1.13.0")
     parser.add_argument("--verify",action="store_true")
+    parser.add_argument("--stage2",action="store_true")
     args=parser.parse_args()
     try:
-        data=verify(args.out)[0] if args.verify else freeze(args.out,args.target_per_workload,args.seed,args.gemini_revision,args.jev_revision)
+        data=verify(args.out)[0] if args.verify else freeze(args.out,args.target_per_workload,args.seed,args.gemini_revision,args.jev_revision,args.stage2)
         print(json.dumps({"schema":SCHEMA,"manifest_hash":data["manifest_hash"],"cases":len(data["cases"]),"excluded":len(data["exclusions"])}))
     except (ValueError,OSError) as error:
         print("constructed freeze refused: "+str(error),file=sys.stderr);sys.exit(4)

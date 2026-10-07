@@ -143,11 +143,93 @@ fn reconcile_only(
     result?;
     Ok(())
 }
+// Stage-2 transport collection validates the existing closed answer protocol.
+// Scoring/qualification remains a separate operation over independent roots.
+fn stage2_answer(row: &Row, response: &[u8]) -> assist::Result<Value> {
+    let text = row.payload["messages"][1]["content"][0]["text"]
+        .as_str()
+        .ok_or(assist::Error::Invalid("stage2 request data"))?;
+    let data: Value = assist::decode(text.as_bytes())?;
+    let hash: Digest = serde_json::from_value(data["request_hash"].clone())
+        .map_err(|_| assist::Error::Invalid("stage2 request hash"))?;
+    let (answer, _) = openrouter::reply(response, &row.model, &hash)?;
+    let value = serde_json::to_value(answer).map_err(|_| assist::Error::Storage)?;
+    for observation in value["observations"]
+        .as_array()
+        .ok_or(assist::Error::Invalid("stage2 observations"))?
+    {
+        let view = data["views"]
+            .as_array()
+            .and_then(|views| views.iter().find(|v| v["slot"] == observation["slot"]))
+            .ok_or(assist::Error::Invalid("stage2 observation slot"))?;
+        let geometry = &observation["geometry"];
+        let coords = geometry["pixels"]
+            .as_array()
+            .ok_or(assist::Error::Invalid("stage2 geometry"))?;
+        let expected = match geometry["type"].as_str() {
+            Some("box") => 4,
+            Some("point") => 2,
+            _ => 0,
+        };
+        if expected == 0
+            || coords.len() != expected
+            || coords.iter().any(|c| {
+                c.as_f64()
+                    .is_none_or(|n| !n.is_finite() || !(0.0..=1.0).contains(&n))
+            })
+        {
+            return Err(assist::Error::Invalid("stage2 normalized geometry"));
+        }
+        if expected == 4
+            && (coords[2].as_f64() == Some(0.0)
+                || coords[3].as_f64() == Some(0.0)
+                || coords[0]
+                    .as_f64()
+                    .zip(coords[2].as_f64())
+                    .is_none_or(|(x, w)| x + w > 1.0)
+                || coords[1]
+                    .as_f64()
+                    .zip(coords[3].as_f64())
+                    .is_none_or(|(y, h)| y + h > 1.0))
+        {
+            return Err(assist::Error::Invalid("stage2 box bounds"));
+        }
+        let refs = observation["evidence_refs"]
+            .as_array()
+            .ok_or(assist::Error::Invalid("stage2 citations"))?;
+        if refs.is_empty()
+            || refs.iter().any(|r| {
+                !view["regions"]
+                    .as_array()
+                    .is_some_and(|regions| regions.iter().any(|region| region["id"] == *r))
+            })
+        {
+            return Err(assist::Error::Invalid("stage2 citation identity"));
+        }
+        if observation["uncertainty"]
+            .as_f64()
+            .is_none_or(|n| !(0.0..=1.0).contains(&n))
+        {
+            return Err(assist::Error::Invalid("stage2 uncertainty"));
+        }
+    }
+    Ok(value)
+}
 fn run_with(args: impl IntoIterator<Item = String>) -> Result<(), Box<dyn std::error::Error>> {
     let mut args = args.into_iter();
     let mut options = BTreeMap::new();
     let mut above_25 = false;
+    let mut stage2 = false;
+    let mut validate_only = false;
     while let Some(arg) = args.next() {
+        if arg == "--stage2" {
+            stage2 = true;
+            continue;
+        }
+        if arg == "--validate-only" {
+            validate_only = true;
+            continue;
+        }
         if arg == "--allow-spend-above-25-usd" {
             above_25 = true;
             continue;
@@ -168,7 +250,7 @@ fn run_with(args: impl IntoIterator<Item = String>) -> Result<(), Box<dyn std::e
         options.insert(arg, args.next().ok_or("missing argument value")?);
     }
     if let Some(out) = options.get("--reconcile-only") {
-        if options.len() != 1 || above_25 {
+        if options.len() != 1 || above_25 || stage2 || validate_only {
             return Err("reconcile-only accepts only an existing output directory".into());
         }
         return reconcile_only(
@@ -180,12 +262,27 @@ fn run_with(args: impl IntoIterator<Item = String>) -> Result<(), Box<dyn std::e
     let required = |name: &str| options.get(name).ok_or("required smoke argument missing");
     let cap = allowance(required("--max-spend-usd")?, above_25)?;
     let count: usize = required("--roots")?.parse()?;
-    if count == 0 || count > 10 {
+    if stage2 && cap > 5_000_000_000 {
+        return Err("stage2 cap exceeds 5 USD".into());
+    }
+    if count == 0 || count > if stage2 { 1000 } else { 10 } {
         return Err("smoke requires 1 through 10 roots".into());
     }
     let path = PathBuf::from(required("--requests")?);
     let rows: Vec<Row> = assist::decode(&assist::read_bytes(&path, 32 * 1024 * 1024)?)?;
     validate_rows(&rows, count, cap)?;
+    if validate_only {
+        let reservations: Vec<_> = rows
+            .iter()
+            .map(|row| {
+                openrouter::admission(&serde_json::to_vec(&row.payload)?, &row.model)
+                    .map(|a| a.reservation)
+                    .map_err(|e| -> Box<dyn std::error::Error> { e.into() })
+            })
+            .collect::<Result<_, _>>()?;
+        println!("{}", serde_json::to_string(&reservations)?);
+        return Ok(());
+    }
     let user = UserConfig::load(&PathBuf::from(required("--user-policy")?))?;
     let mut roots = RootPolicy::new(
         &user
@@ -250,7 +347,7 @@ fn run_with(args: impl IntoIterator<Item = String>) -> Result<(), Box<dyn std::e
             cap_nano_usd: cap,
         }],
         sources: vec![source],
-        deadline: Instant::now() + Duration::from_secs(300),
+        deadline: Instant::now() + Duration::from_secs(if stage2 { 21600 } else { 300 }),
     };
     let (mut outcomes, mut failed) = root_outcomes(&rows, |index| {
         let (key, payload) = &prepared[index];
@@ -268,6 +365,10 @@ fn run_with(args: impl IntoIterator<Item = String>) -> Result<(), Box<dyn std::e
                         .map_err(|_| assist::Error::Storage)?,
                 )
                 .map_err(|_| assist::Error::Storage)?;
+                if stage2 {
+                    let answer = stage2_answer(&rows[index], &completed.response)?;
+                    assist::write(&out.join(format!("answer-{index}.json")), &answer)?;
+                }
                 Ok(())
             }
             Err(error) => Err(error),
@@ -493,6 +594,62 @@ mod tests {
         rows[0].payload["model"] = json!(model);
         rows[0].payload["messages"][1]["content"][0]["text"] = json!("x".repeat(16000));
         assert!(validate_rows(&rows, 1, u64::MAX).is_err());
+    }
+    #[test]
+    fn stage2_mechanics_refuse_unbound_citations_and_geometry() {
+        let hash = Digest::of_bytes(b"fixture");
+        let row = Row {
+            root: "fixture".into(),
+            model: "google/gemini-3.8-flash".into(),
+            revision: "absent".into(),
+            payload: json!({"messages":[{}, {"content":[{"text":json!({"request_hash":hash,"views":[{"slot":"P1","regions":[{"id":"P1:R0"}]}]}).to_string()}]}]}),
+        };
+        let answer = json!({"request_hash":hash,"outcome":"observed","observations":[{"slot":"P1","kind":"presence","statement":"presence:present","geometry":{"type":"box","pixels":[0.0,0.0,1.0,1.0]},"visibility":"visible","evidence_refs":["P1:R0"],"uncertainty":0.0}]});
+        let response = |a: &Value| {
+            serde_json::to_vec(&json!({"id":"gen-fixture","model":row.model,"provider":"fixture","choices":[{"finish_reason":"stop","message":{"content":a.to_string()}}],"usage":{"prompt_tokens":1,"completion_tokens":1,"total_tokens":2,"cost":0.001}})).unwrap()
+        };
+        assert!(stage2_answer(&row, &response(&answer)).is_ok());
+        let mut bad = answer.clone();
+        bad["observations"][0]["evidence_refs"] = json!(["invented"]);
+        assert!(stage2_answer(&row, &response(&bad)).is_err());
+        let mut bad = answer.clone();
+        bad["observations"][0]["geometry"]["pixels"] = json!([0.5, 0.0, 1.0, 1.0]);
+        assert!(stage2_answer(&row, &response(&bad)).is_err());
+        let mut bad = answer;
+        bad["request_hash"] = json!(Digest::of_bytes(b"other"));
+        assert!(stage2_answer(&row, &response(&bad)).is_err());
+    }
+    #[test]
+    fn stage2_schedule_validation_is_offline_and_keeps_five_dollar_cap() {
+        let temp = tempfile::tempdir().unwrap();
+        let source = json!({"systemInstruction":{"parts":[{"text":"fixture"}]},"contents":[{"parts":[{"text":"fixture"}]}]});
+        let payload: Value = assist::decode(
+            &openrouter::request(
+                &serde_json::to_vec(&source).unwrap(),
+                "google/gemini-3.8-flash",
+            )
+            .unwrap(),
+        )
+        .unwrap();
+        let rows: Vec<_> = (0..11).map(|i| json!({"root":format!("fixture-{i}"),"model":"google/gemini-3.8-flash","revision":"google/gemini-3.8-flash-20260902","payload":payload})).collect();
+        let path = temp.path().join("requests.json");
+        std::fs::write(&path, serde_json::to_vec(&rows).unwrap()).unwrap();
+        let args = vec![
+            "--stage2".into(),
+            "--validate-only".into(),
+            "--requests".into(),
+            path.to_string_lossy().into_owned(),
+            "--roots".into(),
+            "11".into(),
+            "--max-spend-usd".into(),
+            "5".into(),
+        ];
+        run_with(args.clone()).unwrap();
+        let mut over = args.clone();
+        *over.last_mut().unwrap() = "5.000000001".into();
+        assert!(run_with(over).is_err());
+        assert!(run_with(args.into_iter().filter(|a| a != "--stage2")).is_err());
+        assert!(!temp.path().join("ledger").exists());
     }
     #[test]
     fn caps_above_25_require_separate_flag_without_raising_campaign_parent() {
