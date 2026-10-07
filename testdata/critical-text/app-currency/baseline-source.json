@@ -1,0 +1,26 @@
+{
+  "schema": "saccade-ui-source.v1",
+  "capture_sha256": "7c0eb7ac4e722d6e02fe6b5aff76ee38ed88bf60fc40dd7c3335c3b7e72e5ac4",
+  "dimensions": [
+    900,
+    700
+  ],
+  "kind": "dom",
+  "producer": {
+    "generator": "scripts/critical-text/fixtures.py",
+    "scope": "declared critical region"
+  },
+  "complete": true,
+  "nodes": [
+    {
+      "id": "critical",
+      "text": "12.50 €",
+      "bounds": [
+        94,
+        544,
+        96,
+        42
+      ]
+    }
+  ]
+}

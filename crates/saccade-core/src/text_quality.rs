@@ -178,7 +178,5 @@ pub fn unavailable_ocr(reason: impl Into<String>) -> OcrEvidence {
         reason: reason.into(),
     }
 }
-#[cfg(feature = "text-quality")]
 mod pixels;
-#[cfg(feature = "text-quality")]
 pub use pixels::{legibility, tofu, validate_rect};

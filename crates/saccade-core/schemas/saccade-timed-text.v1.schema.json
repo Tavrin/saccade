@@ -1,0 +1,523 @@
+{
+  "$defs": {
+    "Cue": {
+      "additionalProperties": false,
+      "description": "One plain-text timed cue. Rich cue markup is deliberately rejected.",
+      "properties": {
+        "end_s": {
+          "description": "Exclusive presentation end, seconds.",
+          "format": "double",
+          "type": "number"
+        },
+        "id": {
+          "description": "Optional file identifier.",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "ordinal": {
+          "description": "File ordinal; identifiers do not need to be unique.",
+          "format": "uint",
+          "minimum": 0,
+          "type": "integer"
+        },
+        "start_s": {
+          "description": "Inclusive presentation start, seconds.",
+          "format": "double",
+          "type": "number"
+        },
+        "text": {
+          "description": "Expected Unicode text, inert data.",
+          "type": "string"
+        }
+      },
+      "required": [
+        "ordinal",
+        "start_s",
+        "end_s",
+        "text"
+      ],
+      "type": "object"
+    },
+    "CueResult": {
+      "additionalProperties": false,
+      "description": "Per-cue result in the supplied sample set, never a continuous-video assertion.",
+      "properties": {
+        "cue": {
+          "$ref": "#/$defs/Cue",
+          "description": "Original expected cue."
+        },
+        "findings": {
+          "description": "All findings: missing, text_mismatch, early, late, persists_after_end, interrupted, illegible.",
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "first_seen_s": {
+          "description": "First exact matching sample timestamp.",
+          "format": "double",
+          "type": [
+            "number",
+            "null"
+          ]
+        },
+        "last_seen_s": {
+          "description": "Last exact matching sample timestamp (not disappearance time).",
+          "format": "double",
+          "type": [
+            "number",
+            "null"
+          ]
+        },
+        "legibility_state": {
+          "description": "Per-cue pixel result: legible, illegible, or insufficient_evidence.",
+          "type": "string"
+        },
+        "matching_frames": {
+          "description": "Sample indices whose exact region text was assigned to this cue.",
+          "items": {
+            "format": "uint64",
+            "minimum": 0,
+            "type": "integer"
+          },
+          "type": "array"
+        },
+        "onset_offset_s": {
+          "description": "First matching sample minus expected onset; sampled estimate only.",
+          "format": "double",
+          "type": [
+            "number",
+            "null"
+          ]
+        },
+        "reasons": {
+          "description": "Explicit abstention explanations.",
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "state": {
+          "description": "aligned, failed, or insufficient_evidence.",
+          "type": "string"
+        },
+        "window_covered": {
+          "description": "Whether the expected window is covered by known OCR samples within the gap policy.",
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "cue",
+        "state",
+        "findings",
+        "matching_frames",
+        "window_covered",
+        "legibility_state",
+        "reasons"
+      ],
+      "type": "object"
+    },
+    "Extra": {
+      "additionalProperties": false,
+      "description": "Contiguous sampled run of unexpected nonempty region text.",
+      "properties": {
+        "first_seen_s": {
+          "description": "First sampled sighting, not inferred continuous onset.",
+          "format": "double",
+          "type": "number"
+        },
+        "frame_indices": {
+          "description": "Source indices of every unexpected text sample in the run.",
+          "items": {
+            "format": "uint64",
+            "minimum": 0,
+            "type": "integer"
+          },
+          "type": "array"
+        },
+        "last_seen_s": {
+          "description": "Last sampled sighting, not disappearance time.",
+          "format": "double",
+          "type": "number"
+        },
+        "observation": {
+          "description": "Index of the first report observation in this run.",
+          "format": "uint",
+          "minimum": 0,
+          "type": "integer"
+        },
+        "text": {
+          "description": "Exact inert observed text.",
+          "type": "string"
+        }
+      },
+      "required": [
+        "observation",
+        "frame_indices",
+        "first_seen_s",
+        "last_seen_s",
+        "text"
+      ],
+      "type": "object"
+    },
+    "Observation": {
+      "additionalProperties": false,
+      "description": "A timestamped OCR observation from one verified raster and declared region.",
+      "properties": {
+        "image_sha256": {
+          "description": "Exact encoded image identity.",
+          "type": "string"
+        },
+        "index": {
+          "description": "Source frame index.",
+          "format": "uint64",
+          "minimum": 0,
+          "type": "integer"
+        },
+        "legibility": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/RegionResult"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "Reused pixel measurements; absent when text-quality is not built."
+        },
+        "ocr_reason": {
+          "description": "Explicit OCR adapter/availability reason.",
+          "type": "string"
+        },
+        "source_sha256": {
+          "description": "Exact imported source identity, if supplied.",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "text": {
+          "description": "Confident region text; empty means a complete OCR producer observed no text.",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "timestamp_s": {
+          "description": "Presentation timestamp.",
+          "format": "double",
+          "type": "number"
+        }
+      },
+      "required": [
+        "index",
+        "timestamp_s",
+        "image_sha256",
+        "ocr_reason"
+      ],
+      "type": "object"
+    },
+    "OcrEvidence": {
+      "additionalProperties": false,
+      "description": "Optional OCR evidence, isolated from pixel measurements.",
+      "properties": {
+        "agrees_with_baseline": {
+          "description": "Exact baseline agreement, absent without comparable observations.",
+          "type": [
+            "boolean",
+            "null"
+          ]
+        },
+        "reason": {
+          "description": "Adapter identity or explicit missing-evidence reason.",
+          "type": "string"
+        },
+        "state": {
+          "$ref": "#/$defs/State",
+          "description": "unavailable, candidates, legible (agreement) or illegible (disagreement)."
+        },
+        "text": {
+          "description": "Exact observed Unicode scalars; inert data.",
+          "type": [
+            "string",
+            "null"
+          ]
+        }
+      },
+      "required": [
+        "state",
+        "reason"
+      ],
+      "type": "object"
+    },
+    "Policy": {
+      "additionalProperties": false,
+      "description": "Frozen sampling and matching policy.",
+      "properties": {
+        "legibility": {
+          "$ref": "#/$defs/Policy2",
+          "description": "Reused text-legibility pixel thresholds."
+        },
+        "maximum_gap_s": {
+          "description": "Maximum sample step and unsampled window edge allowed, seconds.",
+          "format": "double",
+          "type": "number"
+        },
+        "search_s": {
+          "description": "Search before/after each cue for exact text, seconds.",
+          "format": "double",
+          "type": "number"
+        },
+        "timing_tolerance_s": {
+          "description": "Maximum onset discrepancy tolerated in seconds.",
+          "format": "double",
+          "type": "number"
+        }
+      },
+      "required": [
+        "timing_tolerance_s",
+        "search_s",
+        "maximum_gap_s",
+        "legibility"
+      ],
+      "type": "object"
+    },
+    "Policy2": {
+      "additionalProperties": false,
+      "description": "Frozen thresholds in physical capture pixels.",
+      "properties": {
+        "minimum_contrast": {
+          "description": "WCAG-style relative luminance ratio (not compliance certification).",
+          "format": "double",
+          "type": "number"
+        },
+        "minimum_sharpness": {
+          "description": "Minimum normalized adjacent-pixel edge step.",
+          "format": "double",
+          "type": "number"
+        },
+        "minimum_stroke_px": {
+          "description": "Minimum stroke run width in pixels.",
+          "format": "double",
+          "type": "number"
+        },
+        "minimum_x_height_px": {
+          "description": "Minimum component body-height proxy in sampled pixels.",
+          "format": "double",
+          "type": "number"
+        }
+      },
+      "required": [
+        "minimum_contrast",
+        "minimum_x_height_px",
+        "minimum_sharpness",
+        "minimum_stroke_px"
+      ],
+      "type": "object"
+    },
+    "RegionResult": {
+      "additionalProperties": false,
+      "description": "Measurements for one declared text region.",
+      "properties": {
+        "contrast": {
+          "description": "Actual measured background/foreground luminance ratio.",
+          "format": "double",
+          "type": [
+            "number",
+            "null"
+          ]
+        },
+        "ocr": {
+          "$ref": "#/$defs/OcrEvidence",
+          "description": "Optional OCR agreement with baseline in this region."
+        },
+        "reasons": {
+          "description": "Threshold failures or abstention reasons.",
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "rect_px": {
+          "description": "Region in the current capture, after proportional mapping.",
+          "items": {
+            "format": "uint32",
+            "minimum": 0,
+            "type": "integer"
+          },
+          "maxItems": 4,
+          "minItems": 4,
+          "type": "array"
+        },
+        "region": {
+          "description": "Stable zero-based baseline region index.",
+          "format": "uint",
+          "minimum": 0,
+          "type": "integer"
+        },
+        "sharpness": {
+          "description": "Minimum per-component normalized maximum edge step.",
+          "format": "double",
+          "type": [
+            "number",
+            "null"
+          ]
+        },
+        "state": {
+          "$ref": "#/$defs/State",
+          "description": "Pixel/optional OCR verdict with unavailable evidence kept separate."
+        },
+        "stroke_px": {
+          "description": "Minimum component lower-quartile horizontal/vertical run width.",
+          "format": "double",
+          "type": [
+            "number",
+            "null"
+          ]
+        },
+        "x_height_px": {
+          "description": "Minimum measurable body-height proxy; not inferred typographic x-height.",
+          "format": "double",
+          "type": [
+            "number",
+            "null"
+          ]
+        }
+      },
+      "required": [
+        "region",
+        "rect_px",
+        "state",
+        "ocr",
+        "reasons"
+      ],
+      "type": "object"
+    },
+    "State": {
+      "description": "Evidence states; absence of a candidate never certifies complete glyph coverage.",
+      "oneOf": [
+        {
+          "const": "candidates",
+          "description": "At least one glyph-shaped candidate needs review.",
+          "type": "string"
+        },
+        {
+          "const": "legible",
+          "description": "Pixel thresholds are satisfied in a declared text region.",
+          "type": "string"
+        },
+        {
+          "const": "illegible",
+          "description": "At least one measured threshold fails.",
+          "type": "string"
+        },
+        {
+          "const": "insufficient_evidence",
+          "description": "Evidence cannot support a positive verdict.",
+          "type": "string"
+        },
+        {
+          "const": "unavailable",
+          "description": "Optional evidence is absent.",
+          "type": "string"
+        }
+      ]
+    }
+  },
+  "$id": "https://github.com/Tavrin/saccade/crates/saccade-core/schemas/saccade-timed-text.v1.schema.json",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "description": "Versioned timed-text evidence report.",
+  "properties": {
+    "cues": {
+      "description": "Every supplied cue, in file order.",
+      "items": {
+        "$ref": "#/$defs/CueResult"
+      },
+      "type": "array"
+    },
+    "extra": {
+      "description": "Unexpected observed text grouped into contiguous runs under the gap policy.",
+      "items": {
+        "$ref": "#/$defs/Extra"
+      },
+      "type": "array"
+    },
+    "frame_map_sha256": {
+      "description": "Exact frame-map input bytes.",
+      "type": "string"
+    },
+    "limitations": {
+      "description": "Interpretation limits.",
+      "items": {
+        "type": "string"
+      },
+      "type": "array"
+    },
+    "observations": {
+      "description": "Every sampled observation including unavailable OCR and pixel evidence.",
+      "items": {
+        "$ref": "#/$defs/Observation"
+      },
+      "type": "array"
+    },
+    "policy": {
+      "$ref": "#/$defs/Policy",
+      "description": "Frozen search, coverage and legibility thresholds."
+    },
+    "region_px": {
+      "description": "Declared region in every frame's capture pixels; layout/size changes need separate runs.",
+      "items": {
+        "format": "uint32",
+        "minimum": 0,
+        "type": "integer"
+      },
+      "maxItems": 4,
+      "minItems": 4,
+      "type": "array"
+    },
+    "report_id": {
+      "description": "Content-addressed identity, added at transport emission.",
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "schema": {
+      "const": "saccade-timed-text.v1",
+      "description": "Version discriminator.",
+      "type": "string"
+    },
+    "source_refs": {
+      "description": "Optional caller backlinks.",
+      "items": {
+        "type": "string"
+      },
+      "type": "array"
+    },
+    "state": {
+      "description": "aligned, failed, or insufficient_evidence; measured failures dominate abstentions.",
+      "type": "string"
+    },
+    "timed_text_sha256": {
+      "description": "Exact timed-text input bytes.",
+      "type": "string"
+    }
+  },
+  "required": [
+    "schema",
+    "state",
+    "timed_text_sha256",
+    "frame_map_sha256",
+    "policy",
+    "region_px",
+    "observations",
+    "cues",
+    "extra",
+    "limitations"
+  ],
+  "title": "Report",
+  "type": "object"
+}

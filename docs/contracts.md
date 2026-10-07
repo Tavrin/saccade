@@ -187,6 +187,10 @@ The last three names appear only when the corresponding feature is compiled in.
 - [saccade-assist-vision-provider.v2.schema.json](../crates/saccade-core/schemas/saccade-assist-vision-provider.v2.schema.json) — Historical reader contract
 - [saccade-assist.v1.schema.json](../crates/saccade-core/schemas/saccade-assist.v1.schema.json) — Envelope
 - [saccade-assist.v2.schema.json](../crates/saccade-core/schemas/saccade-assist.v2.schema.json) — Envelope
+- [saccade-batch-input.v1.schema.json](../crates/saccade-core/schemas/saccade-batch-input.v1.schema.json) — Batch intake list
+- [saccade-batch-result.v1.schema.json](../crates/saccade-core/schemas/saccade-batch-result.v1.schema.json) — Batch transport summary
+- [saccade-batch-row.v1.schema.json](../crates/saccade-core/schemas/saccade-batch-row.v1.schema.json) — Durable batch item receipt
+- [saccade-batch-run.v1.schema.json](../crates/saccade-core/schemas/saccade-batch-run.v1.schema.json) — Immutable batch resume configuration
 - [saccade-bisect.v1.schema.json](../crates/saccade-core/schemas/saccade-bisect.v1.schema.json) — BisectResult
 - [saccade-blind-key.v1.schema.json](../crates/saccade-core/schemas/saccade-blind-key.v1.schema.json) — BlindKey
 - [saccade-boxes-result.v1.schema.json](../crates/saccade-core/schemas/saccade-boxes-result.v1.schema.json) — Box interchange result
@@ -198,9 +202,13 @@ The last three names appear only when the corresponding feature is compiled in.
 - [saccade-capabilities.v2.schema.json](../crates/saccade-core/schemas/saccade-capabilities.v2.schema.json) — Historical reader contract
 - [saccade-capture-layers.v1.schema.json](../crates/saccade-core/schemas/saccade-capture-layers.v1.schema.json) — Manifest
 - [saccade-captured-sequence-plan.v1.schema.json](../crates/saccade-core/schemas/saccade-captured-sequence-plan.v1.schema.json) — Plan
+- [saccade-cases.v1.schema.json](../crates/saccade-core/schemas/saccade-cases.v1.schema.json) — Declaration
 - [saccade-config.v1.schema.json](../crates/saccade-core/schemas/saccade-config.v1.schema.json) — saccade-config.v1
 - [saccade-constructed-oracle.v1.schema.json](../crates/saccade-core/schemas/saccade-constructed-oracle.v1.schema.json) — saccade-constructed-oracle.v1
 - [saccade-constructed-truth.v1.schema.json](../crates/saccade-core/schemas/saccade-constructed-truth.v1.schema.json) — saccade-constructed-truth.v1
+- [saccade-coverage.v1.schema.json](../crates/saccade-core/schemas/saccade-coverage.v1.schema.json) — Report
+- [saccade-critical-text-policy.v1.schema.json](../crates/saccade-core/schemas/saccade-critical-text-policy.v1.schema.json) — Policy
+- [saccade-critical-text.v1.schema.json](../crates/saccade-core/schemas/saccade-critical-text.v1.schema.json) — Report
 - [saccade-crop-check.v1.schema.json](../crates/saccade-core/schemas/saccade-crop-check.v1.schema.json) — CropReport
 - [saccade-crop-check.v2.schema.json](../crates/saccade-core/schemas/saccade-crop-check.v2.schema.json) — CropReport
 - [saccade-decide-result.v1.schema.json](../crates/saccade-core/schemas/saccade-decide-result.v1.schema.json) — saccade-decide-result.v1
@@ -223,6 +231,7 @@ The last three names appear only when the corresponding feature is compiled in.
 - [saccade-documents.v1.schema.json](../crates/saccade-core/schemas/saccade-documents.v1.schema.json) — Historical reader contract
 - [saccade-documents.v2.schema.json](../crates/saccade-core/schemas/saccade-documents.v2.schema.json) — Historical reader contract
 - [saccade-dom-regions.v1.schema.json](../crates/saccade-core/schemas/saccade-dom-regions.v1.schema.json) — DomMetadata
+- [saccade-egress-preview.v1.schema.json](../crates/saccade-core/schemas/saccade-egress-preview.v1.schema.json) — Advisory provider egress preview
 - [saccade-embedding-corpus.v1.schema.json](../crates/saccade-core/schemas/saccade-embedding-corpus.v1.schema.json) — Historical reader contract
 - [saccade-embedding-export-inputs.v1.schema.json](../crates/saccade-core/schemas/saccade-embedding-export-inputs.v1.schema.json) — Historical reader contract
 - [saccade-embedding-export-receipt.v1.schema.json](../crates/saccade-core/schemas/saccade-embedding-export-receipt.v1.schema.json) — Historical reader contract
@@ -291,6 +300,7 @@ The last three names appear only when the corresponding feature is compiled in.
 - [saccade-locate.v1.schema.json](../crates/saccade-core/schemas/saccade-locate.v1.schema.json) — LocateReport
 - [saccade-locate.v2.schema.json](../crates/saccade-core/schemas/saccade-locate.v2.schema.json) — LocateReport
 - [saccade-manifest.v1.schema.json](../crates/saccade-core/schemas/saccade-manifest.v1.schema.json) — Historical reader contract
+- [saccade-manifest.v2.schema.json](../crates/saccade-core/schemas/saccade-manifest.v2.schema.json) — Declared-case output manifest (v2 successor)
 - [saccade-mask-metrics.v1.schema.json](../crates/saccade-core/schemas/saccade-mask-metrics.v1.schema.json) — Mask metrics
 - [saccade-media-compare.v1.schema.json](../crates/saccade-core/schemas/saccade-media-compare.v1.schema.json) — Historical reader contract
 - [saccade-media-compare.v2.schema.json](../crates/saccade-core/schemas/saccade-media-compare.v2.schema.json) — Historical reader contract
@@ -338,6 +348,8 @@ The last three names appear only when the corresponding feature is compiled in.
 - [saccade-question-report.v1.schema.json](../crates/saccade-core/schemas/saccade-question-report.v1.schema.json) — Historical reader contract
 - [saccade-question-report.v2.schema.json](../crates/saccade-core/schemas/saccade-question-report.v2.schema.json) — Historical reader contract
 - [saccade-rank.v1.schema.json](../crates/saccade-core/schemas/saccade-rank.v1.schema.json) — RankReport
+- [saccade-raster-mask.v1.schema.json](../crates/saccade-core/schemas/saccade-raster-mask.v1.schema.json) — Class raster overlap and boundaries
+- [saccade-raster.v1.schema.json](../crates/saccade-core/schemas/saccade-raster.v1.schema.json) — Native-unit raster comparison
 - [saccade-reference-evidence.v1.schema.json](../crates/saccade-core/schemas/saccade-reference-evidence.v1.schema.json) — Report
 - [saccade-region-export.v1.schema.json](../crates/saccade-core/schemas/saccade-region-export.v1.schema.json) — Historical reader contract
 - [saccade-region-models.v1.schema.json](../crates/saccade-core/schemas/saccade-region-models.v1.schema.json) — ModelManifest
@@ -370,6 +382,9 @@ The last three names appear only when the corresponding feature is compiled in.
 - [saccade-similar.v1.schema.json](../crates/saccade-core/schemas/saccade-similar.v1.schema.json) — Historical reader contract
 - [saccade-similar.v2.schema.json](../crates/saccade-core/schemas/saccade-similar.v2.schema.json) — Historical reader contract
 - [saccade-spatial-evidence.v1.schema.json](../crates/saccade-core/schemas/saccade-spatial-evidence.v1.schema.json) — SpatialReport
+- [saccade-split-manifest.v1.schema.json](../crates/saccade-core/schemas/saccade-split-manifest.v1.schema.json) — Declared split membership
+- [saccade-split-review.v1.schema.json](../crates/saccade-core/schemas/saccade-split-review.v1.schema.json) — Split-aware duplicate review
+- [saccade-split-review.v2.schema.json](../crates/saccade-core/schemas/saccade-split-review.v2.schema.json) — Split-aware duplicate review
 - [saccade-summary.v1.schema.json](../crates/saccade-core/schemas/saccade-summary.v1.schema.json) — saccade-summary.v1
 - [saccade-summary.v2.schema.json](../crates/saccade-core/schemas/saccade-summary.v2.schema.json) — saccade-summary.v1
 - [saccade-sweep-captures.v1.schema.json](../crates/saccade-core/schemas/saccade-sweep-captures.v1.schema.json) — saccade-sweep-captures.v1
@@ -382,6 +397,9 @@ The last three names appear only when the corresponding feature is compiled in.
 - [saccade-text.v1.schema.json](../crates/saccade-core/schemas/saccade-text.v1.schema.json) — Historical reader contract
 - [saccade-text.v2.schema.json](../crates/saccade-core/schemas/saccade-text.v2.schema.json) — Historical reader contract
 - [saccade-tile-temporal.v1.schema.json](../crates/saccade-core/schemas/saccade-tile-temporal.v1.schema.json) — Report
+- [saccade-tiles.v1.schema.json](../crates/saccade-core/schemas/saccade-tiles.v1.schema.json) — Tile coverage and perceptual measurements
+- [saccade-timed-text-source.v1.schema.json](../crates/saccade-core/schemas/saccade-timed-text-source.v1.schema.json) — Source
+- [saccade-timed-text.v1.schema.json](../crates/saccade-core/schemas/saccade-timed-text.v1.schema.json) — Report
 - [saccade-timing-ab.v1.schema.json](../crates/saccade-core/schemas/saccade-timing-ab.v1.schema.json) — Report
 - [saccade-timing-session.v1.schema.json](../crates/saccade-core/schemas/saccade-timing-session.v1.schema.json) — Session
 - [saccade-tofu.v1.schema.json](../crates/saccade-core/schemas/saccade-tofu.v1.schema.json) — TofuReport

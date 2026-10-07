@@ -208,3 +208,11 @@ MCP mirrors remain a follow-up.
 [Signed approvals](signed-approvals.md) require an external human-held signing key
 when policy is enabled. Agents may prepare review plans; possession of a draft
 never grants signing authority. MCP approval mirrors remain a follow-up.
+## Declared coverage and reference health
+
+Use `manifest build DIR --cases CASES --json`, then
+`manifest views DIR --group-by AXIS --out VIEW --json`. Read the full linked
+`coverage.json` to inspect missing/refused variants and separate approved-anchor
+drift from last-good continuity. Coverage completeness and passing never imply
+human approval or semantic theme correspondence. See [coverage](coverage.md).
+MCP mirrors remain a follow-up.

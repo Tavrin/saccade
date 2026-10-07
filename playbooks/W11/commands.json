@@ -1,0 +1,118 @@
+{
+  "schema": "saccade-playbook.v1",
+  "id": "W11",
+  "bundle": "default",
+  "features": [],
+  "dependencies": [
+    "ffmpeg",
+    "ffprobe"
+  ],
+  "generated_inputs": "@INPUT@",
+  "cwd": "@INPUT@",
+  "commands": [
+    {
+      "name": "sequence",
+      "argv": [
+        "@BIN@",
+        "experiment",
+        "sequence",
+        "frames-a",
+        "frames-b",
+        "--fixed-camera",
+        "--out",
+        "@OUTPUT@/sequence",
+        "--json"
+      ],
+      "exit": 1,
+      "checks": [
+        {
+          "name": "totals",
+          "source": "@OUTPUT@/sequence/saccade-sequence.v1.json",
+          "pointer": "/totals"
+        },
+        {
+          "name": "bad-frame",
+          "source": "@OUTPUT@/sequence/saccade-sequence.v1.json",
+          "pointer": "/frames_over_threshold",
+          "equals": 1
+        }
+      ],
+      "sha256": "b3a4f87739cb0571448cc59fd5ba336c49353a9474d9282c54ebe15a013b1eaf"
+    },
+    {
+      "name": "video",
+      "argv": [
+        "@PYTHON@",
+        "@RUNNER@",
+        "--helper",
+        "video",
+        "--bin",
+        "@BIN@",
+        "--inputs",
+        "@INPUT@/frames-a",
+        "--out",
+        "@OUTPUT@/video"
+      ],
+      "exit": 0,
+      "checks": [
+        {
+          "name": "frames",
+          "source": "stdout",
+          "pointer": "/frames",
+          "equals": 3
+        },
+        {
+          "name": "clip",
+          "source": "stdout",
+          "pointer": "/clip_created",
+          "equals": true
+        }
+      ],
+      "sha256": "590da2f380ff344fb56e521f24dd79d4057978f9dee400948aa1094cab45e9e2"
+    },
+    {
+      "name": "keyframes",
+      "argv": [
+        "@BIN@",
+        "keyframes",
+        "@OUTPUT@/video/clip.mp4",
+        "--out",
+        "@OUTPUT@/keyframes",
+        "--json"
+      ],
+      "exit": 0,
+      "checks": [
+        {
+          "name": "schema",
+          "source": "stdout",
+          "pointer": "/schema"
+        },
+        {
+          "name": "samples",
+          "source": "stdout",
+          "pointer": "/samples",
+          "equals": 3
+        },
+        {
+          "name": "duration",
+          "source": "stdout",
+          "pointer": "/duration_seconds",
+          "equals": 3.0
+        },
+        {
+          "name": "selected-sample",
+          "source": "stdout",
+          "pointer": "/keyframes/0/sample",
+          "equals": 1
+        },
+        {
+          "name": "timestamp",
+          "source": "stdout",
+          "pointer": "/keyframes/0/timestamp_seconds",
+          "equals": 1.0
+        }
+      ],
+      "sha256": "f21eea92befe60e89ed0834e09ef785fc927c6516952f4967e07b0d9581be893"
+    }
+  ]
+}

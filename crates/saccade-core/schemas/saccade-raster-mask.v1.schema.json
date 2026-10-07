@@ -1,0 +1,657 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "saccade-raster-mask.v1",
+  "title": "Class raster overlap and boundaries",
+  "type": "object",
+  "properties": {
+    "schema": {
+      "const": "saccade-raster-mask.v1"
+    },
+    "operation": {
+      "const": "raster_mask_metrics"
+    },
+    "report_id": {
+      "type": "string",
+      "pattern": "^sha256:[0-9a-f]{64}$"
+    },
+    "source_refs": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "verdict": {
+      "const": "measured"
+    },
+    "reference": {
+      "type": "object",
+      "properties": {
+        "grid": {
+          "type": "object",
+          "properties": {
+            "width": {
+              "type": "integer",
+              "minimum": 1
+            },
+            "height": {
+              "type": "integer",
+              "minimum": 1
+            },
+            "crs": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "geotransform": {
+              "anyOf": [
+                {
+                  "type": "array",
+                  "items": {
+                    "type": "number"
+                  },
+                  "minItems": 6,
+                  "maxItems": 6
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "geo_keys": {
+              "type": "array",
+              "items": {
+                "type": "integer",
+                "minimum": 0
+              }
+            },
+            "geo_doubles": {
+              "type": "array",
+              "items": {
+                "type": "number"
+              }
+            },
+            "geo_ascii": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "pixel_scale": {
+              "type": "array",
+              "items": {
+                "type": "number"
+              }
+            },
+            "tiepoints": {
+              "type": "array",
+              "items": {
+                "type": "number"
+              }
+            },
+            "transformation": {
+              "type": "array",
+              "items": {
+                "type": "number"
+              }
+            }
+          },
+          "required": [
+            "width",
+            "height",
+            "crs",
+            "geotransform",
+            "geo_keys",
+            "geo_doubles",
+            "geo_ascii",
+            "pixel_scale",
+            "tiepoints",
+            "transformation"
+          ],
+          "additionalProperties": false
+        },
+        "bands": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 1024
+        },
+        "sample_type": {
+          "enum": [
+            "uint8",
+            "uint16",
+            "uint32",
+            "int8",
+            "int16",
+            "int32",
+            "float32"
+          ]
+        },
+        "nodata": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "sha256": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$"
+        }
+      },
+      "required": [
+        "grid",
+        "bands",
+        "sample_type",
+        "nodata",
+        "sha256"
+      ],
+      "additionalProperties": false
+    },
+    "candidate": {
+      "type": "object",
+      "properties": {
+        "grid": {
+          "type": "object",
+          "properties": {
+            "width": {
+              "type": "integer",
+              "minimum": 1
+            },
+            "height": {
+              "type": "integer",
+              "minimum": 1
+            },
+            "crs": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "geotransform": {
+              "anyOf": [
+                {
+                  "type": "array",
+                  "items": {
+                    "type": "number"
+                  },
+                  "minItems": 6,
+                  "maxItems": 6
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "geo_keys": {
+              "type": "array",
+              "items": {
+                "type": "integer",
+                "minimum": 0
+              }
+            },
+            "geo_doubles": {
+              "type": "array",
+              "items": {
+                "type": "number"
+              }
+            },
+            "geo_ascii": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "pixel_scale": {
+              "type": "array",
+              "items": {
+                "type": "number"
+              }
+            },
+            "tiepoints": {
+              "type": "array",
+              "items": {
+                "type": "number"
+              }
+            },
+            "transformation": {
+              "type": "array",
+              "items": {
+                "type": "number"
+              }
+            }
+          },
+          "required": [
+            "width",
+            "height",
+            "crs",
+            "geotransform",
+            "geo_keys",
+            "geo_doubles",
+            "geo_ascii",
+            "pixel_scale",
+            "tiepoints",
+            "transformation"
+          ],
+          "additionalProperties": false
+        },
+        "bands": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 1024
+        },
+        "sample_type": {
+          "enum": [
+            "uint8",
+            "uint16",
+            "uint32",
+            "int8",
+            "int16",
+            "int32",
+            "float32"
+          ]
+        },
+        "nodata": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "sha256": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$"
+        }
+      },
+      "required": [
+        "grid",
+        "bands",
+        "sample_type",
+        "nodata",
+        "sha256"
+      ],
+      "additionalProperties": false
+    },
+    "declared_policy": {
+      "type": "object",
+      "properties": {
+        "classes": {
+          "enum": [
+            "foreground",
+            "each_label",
+            "named"
+          ]
+        },
+        "named": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "name": {
+                "type": "string"
+              },
+              "predicate": {
+                "type": "object"
+              }
+            },
+            "required": [
+              "name",
+              "predicate"
+            ],
+            "additionalProperties": false
+          }
+        },
+        "void": {
+          "anyOf": [
+            {
+              "type": "object",
+              "properties": {
+                "name": {
+                  "type": "string"
+                },
+                "predicate": {
+                  "type": "object"
+                }
+              },
+              "required": [
+                "name",
+                "predicate"
+              ],
+              "additionalProperties": false
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "boundary_tolerance_px": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 64
+        }
+      },
+      "required": [
+        "classes",
+        "named",
+        "void",
+        "boundary_tolerance_px"
+      ],
+      "additionalProperties": false
+    },
+    "excluded_pixels": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "exclusion": {
+      "type": "string"
+    },
+    "metrics": {
+      "additionalProperties": false,
+      "properties": {
+        "classes": {
+          "items": {
+            "additionalProperties": false,
+            "properties": {
+              "boundary": {
+                "oneOf": [
+                  {
+                    "additionalProperties": false,
+                    "properties": {
+                      "f_score": {
+                        "type": [
+                          "number",
+                          "null"
+                        ]
+                      },
+                      "precision": {
+                        "type": [
+                          "number",
+                          "null"
+                        ]
+                      },
+                      "predicted_pixels": {
+                        "minimum": 0,
+                        "type": "integer"
+                      },
+                      "recall": {
+                        "type": [
+                          "number",
+                          "null"
+                        ]
+                      },
+                      "reference_pixels": {
+                        "minimum": 0,
+                        "type": "integer"
+                      }
+                    },
+                    "required": [
+                      "f_score",
+                      "precision",
+                      "predicted_pixels",
+                      "recall",
+                      "reference_pixels"
+                    ],
+                    "type": "object"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "dice": {
+                "type": [
+                  "number",
+                  "null"
+                ]
+              },
+              "intersection": {
+                "minimum": 0,
+                "type": "integer"
+              },
+              "iou": {
+                "type": [
+                  "number",
+                  "null"
+                ]
+              },
+              "name": {
+                "type": "string"
+              },
+              "precision": {
+                "type": [
+                  "number",
+                  "null"
+                ]
+              },
+              "predicted_pixels": {
+                "minimum": 0,
+                "type": "integer"
+              },
+              "recall": {
+                "type": [
+                  "number",
+                  "null"
+                ]
+              },
+              "reference_pixels": {
+                "minimum": 0,
+                "type": "integer"
+              },
+              "status": {
+                "enum": [
+                  "scored",
+                  "missed",
+                  "spurious",
+                  "absent_in_both"
+                ]
+              },
+              "union": {
+                "minimum": 0,
+                "type": "integer"
+              }
+            },
+            "required": [
+              "boundary",
+              "dice",
+              "intersection",
+              "iou",
+              "name",
+              "precision",
+              "predicted_pixels",
+              "recall",
+              "reference_pixels",
+              "status",
+              "union"
+            ],
+            "type": "object"
+          },
+          "type": "array"
+        },
+        "evaluated_pixels": {
+          "minimum": 0,
+          "type": "integer"
+        },
+        "height": {
+          "minimum": 1,
+          "type": "integer"
+        },
+        "policy": {
+          "additionalProperties": false,
+          "properties": {
+            "boundary_tolerance_px": {
+              "maximum": 64,
+              "minimum": 0,
+              "type": "number"
+            },
+            "classes": {
+              "enum": [
+                "foreground",
+                "each_label",
+                "named"
+              ]
+            },
+            "void": {
+              "type": [
+                "string",
+                "null"
+              ]
+            }
+          },
+          "required": [
+            "boundary_tolerance_px",
+            "classes",
+            "void"
+          ],
+          "type": "object"
+        },
+        "report_id": {
+          "pattern": "^sha256:[0-9a-f]{64}$",
+          "type": "string"
+        },
+        "schema": {
+          "const": "saccade-mask-metrics.v1"
+        },
+        "source_refs": {
+          "items": {
+            "maxLength": 2048,
+            "type": "string"
+          },
+          "maxItems": 128,
+          "type": "array"
+        },
+        "summary": {
+          "additionalProperties": false,
+          "properties": {
+            "absent_classes": {
+              "items": {
+                "type": "string"
+              },
+              "type": "array"
+            },
+            "label_agreement": {
+              "type": [
+                "number",
+                "null"
+              ]
+            },
+            "macro_boundary_f": {
+              "type": [
+                "number",
+                "null"
+              ]
+            },
+            "macro_dice": {
+              "type": [
+                "number",
+                "null"
+              ]
+            },
+            "macro_iou": {
+              "type": [
+                "number",
+                "null"
+              ]
+            },
+            "micro_iou": {
+              "type": [
+                "number",
+                "null"
+              ]
+            },
+            "min_iou": {
+              "type": [
+                "number",
+                "null"
+              ]
+            },
+            "missed_classes": {
+              "items": {
+                "type": "string"
+              },
+              "type": "array"
+            },
+            "spurious_classes": {
+              "items": {
+                "type": "string"
+              },
+              "type": "array"
+            },
+            "state": {
+              "enum": [
+                "scored",
+                "empty_empty"
+              ]
+            }
+          },
+          "required": [
+            "absent_classes",
+            "label_agreement",
+            "macro_boundary_f",
+            "macro_dice",
+            "macro_iou",
+            "micro_iou",
+            "min_iou",
+            "missed_classes",
+            "spurious_classes",
+            "state"
+          ],
+          "type": "object"
+        },
+        "void_pixels": {
+          "minimum": 0,
+          "type": "integer"
+        },
+        "width": {
+          "minimum": 1,
+          "type": "integer"
+        }
+      },
+      "required": [
+        "classes",
+        "evaluated_pixels",
+        "height",
+        "policy",
+        "schema",
+        "summary",
+        "void_pixels",
+        "width"
+      ],
+      "type": "object"
+    }
+  },
+  "required": [
+    "schema",
+    "operation",
+    "report_id",
+    "source_refs",
+    "verdict",
+    "reference",
+    "candidate",
+    "declared_policy",
+    "excluded_pixels",
+    "exclusion",
+    "metrics"
+  ],
+  "additionalProperties": false
+}

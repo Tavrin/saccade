@@ -1,0 +1,740 @@
+{
+  "$id": "https://github.com/Tavrin/saccade/crates/saccade-core/schemas/saccade-split-review.v1.schema.json",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "properties": {
+    "counts": {
+      "additionalProperties": false,
+      "properties": {
+        "cross_split_candidates": {
+          "maximum": 8128,
+          "minimum": 0,
+          "type": "integer"
+        },
+        "images": {
+          "maximum": 128,
+          "minimum": 1,
+          "type": "integer"
+        },
+        "within_split_groups": {
+          "maximum": 64,
+          "minimum": 0,
+          "type": "integer"
+        }
+      },
+      "required": [
+        "images",
+        "cross_split_candidates",
+        "within_split_groups"
+      ],
+      "type": "object"
+    },
+    "cross_split_pairs": {
+      "items": {
+        "additionalProperties": false,
+        "properties": {
+          "a": {
+            "maxLength": 4096,
+            "minLength": 1,
+            "type": "string"
+          },
+          "a_split": {
+            "maxLength": 128,
+            "minLength": 1,
+            "type": "string"
+          },
+          "b": {
+            "maxLength": 4096,
+            "minLength": 1,
+            "type": "string"
+          },
+          "b_split": {
+            "maxLength": 128,
+            "minLength": 1,
+            "type": "string"
+          },
+          "evidence": {
+            "items": {
+              "oneOf": [
+                {
+                  "additionalProperties": false,
+                  "properties": {
+                    "basis": {
+                      "const": "encoded_sha256_equality"
+                    },
+                    "route": {
+                      "const": "hash"
+                    },
+                    "sha256": {
+                      "pattern": "^[0-9a-f]{64}$",
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "route",
+                    "basis",
+                    "sha256"
+                  ],
+                  "type": "object"
+                },
+                {
+                  "additionalProperties": false,
+                  "properties": {
+                    "basis": {
+                      "const": "phash_candidate"
+                    },
+                    "distance": {
+                      "maximum": 64,
+                      "minimum": 0,
+                      "type": "integer"
+                    },
+                    "route": {
+                      "const": "hash"
+                    },
+                    "threshold": {
+                      "maximum": 64,
+                      "minimum": 0,
+                      "type": "integer"
+                    }
+                  },
+                  "required": [
+                    "route",
+                    "basis",
+                    "distance",
+                    "threshold"
+                  ],
+                  "type": "object"
+                },
+                {
+                  "additionalProperties": false,
+                  "properties": {
+                    "basis": {
+                      "const": "FAST-oriented-BRIEF-RANSAC/1"
+                    },
+                    "calibration": {
+                      "maxLength": 4096,
+                      "minLength": 1,
+                      "type": "string"
+                    },
+                    "direction": {
+                      "const": "a_to_b"
+                    },
+                    "inliers": {
+                      "minimum": 0,
+                      "type": "integer"
+                    },
+                    "matches": {
+                      "minimum": 0,
+                      "type": "integer"
+                    },
+                    "matrix": {
+                      "items": {
+                        "type": "number"
+                      },
+                      "maxItems": 9,
+                      "minItems": 9,
+                      "type": "array"
+                    },
+                    "model": {
+                      "enum": [
+                        "translation",
+                        "similarity",
+                        "affine",
+                        "homography"
+                      ]
+                    },
+                    "residual_px": {
+                      "minimum": 0,
+                      "type": "number"
+                    },
+                    "route": {
+                      "const": "geometric"
+                    }
+                  },
+                  "required": [
+                    "route",
+                    "basis",
+                    "direction",
+                    "matrix",
+                    "model",
+                    "matches",
+                    "inliers",
+                    "residual_px",
+                    "calibration"
+                  ],
+                  "type": "object"
+                },
+                {
+                  "additionalProperties": false,
+                  "properties": {
+                    "basis": {
+                      "const": "cosine_candidate"
+                    },
+                    "calibration": {
+                      "maxLength": 4096,
+                      "minLength": 1,
+                      "type": "string"
+                    },
+                    "cosine": {
+                      "maximum": 1,
+                      "minimum": -1,
+                      "type": "number"
+                    },
+                    "model_id": {
+                      "pattern": "^[0-9a-f]{64}$",
+                      "type": "string"
+                    },
+                    "route": {
+                      "const": "embedding"
+                    },
+                    "threshold": {
+                      "maximum": 1,
+                      "minimum": -1,
+                      "type": "number"
+                    }
+                  },
+                  "required": [
+                    "route",
+                    "basis",
+                    "cosine",
+                    "threshold",
+                    "model_id",
+                    "calibration"
+                  ],
+                  "type": "object"
+                }
+              ]
+            },
+            "maxItems": 4,
+            "minItems": 1,
+            "type": "array"
+          }
+        },
+        "required": [
+          "a",
+          "b",
+          "a_split",
+          "b_split",
+          "evidence"
+        ],
+        "type": "object"
+      },
+      "maxItems": 8128,
+      "type": "array"
+    },
+    "entries": {
+      "items": {
+        "additionalProperties": false,
+        "properties": {
+          "dimensions": {
+            "items": {
+              "minimum": 1,
+              "type": "integer"
+            },
+            "maxItems": 2,
+            "minItems": 2,
+            "type": "array"
+          },
+          "encoded_sha256": {
+            "pattern": "^[0-9a-f]{64}$",
+            "type": "string"
+          },
+          "keypoints": {
+            "maximum": 1200,
+            "minimum": 0,
+            "type": "integer"
+          },
+          "path": {
+            "maxLength": 4096,
+            "minLength": 1,
+            "type": "string"
+          },
+          "phash": {
+            "pattern": "^[0-9a-f]{16}$",
+            "type": "string"
+          },
+          "split": {
+            "maxLength": 128,
+            "minLength": 1,
+            "type": "string"
+          }
+        },
+        "required": [
+          "path",
+          "split",
+          "encoded_sha256",
+          "dimensions",
+          "phash",
+          "keypoints"
+        ],
+        "type": "object"
+      },
+      "maxItems": 128,
+      "minItems": 1,
+      "type": "array"
+    },
+    "groups": {
+      "items": {
+        "additionalProperties": false,
+        "properties": {
+          "members": {
+            "items": {
+              "maxLength": 4096,
+              "minLength": 1,
+              "type": "string"
+            },
+            "maxItems": 128,
+            "minItems": 2,
+            "type": "array"
+          },
+          "split": {
+            "maxLength": 128,
+            "minLength": 1,
+            "type": "string"
+          }
+        },
+        "required": [
+          "split",
+          "members"
+        ],
+        "type": "object"
+      },
+      "maxItems": 64,
+      "type": "array"
+    },
+    "injected_recall": {
+      "additionalProperties": false,
+      "properties": {
+        "by_transform": {
+          "items": {
+            "additionalProperties": false,
+            "properties": {
+              "found": {
+                "minimum": 0,
+                "type": "integer"
+              },
+              "recall": {
+                "maximum": 1,
+                "minimum": 0,
+                "type": [
+                  "number",
+                  "null"
+                ]
+              },
+              "total": {
+                "minimum": 0,
+                "type": "integer"
+              },
+              "transform": {
+                "maxLength": 128,
+                "minLength": 1,
+                "type": "string"
+              }
+            },
+            "required": [
+              "transform",
+              "total",
+              "found",
+              "recall"
+            ],
+            "type": "object"
+          },
+          "maxItems": 8128,
+          "type": "array"
+        },
+        "found": {
+          "maximum": 8128,
+          "minimum": 0,
+          "type": "integer"
+        },
+        "missed_pairs": {
+          "items": {
+            "additionalProperties": false,
+            "properties": {
+              "a": {
+                "maxLength": 4096,
+                "minLength": 1,
+                "type": "string"
+              },
+              "b": {
+                "maxLength": 4096,
+                "minLength": 1,
+                "type": "string"
+              },
+              "transform": {
+                "maxLength": 128,
+                "minLength": 1,
+                "type": "string"
+              }
+            },
+            "required": [
+              "a",
+              "b",
+              "transform"
+            ],
+            "type": "object"
+          },
+          "maxItems": 8128,
+          "type": "array"
+        },
+        "recall": {
+          "maximum": 1,
+          "minimum": 0,
+          "type": [
+            "number",
+            "null"
+          ]
+        },
+        "total": {
+          "maximum": 8128,
+          "minimum": 0,
+          "type": "integer"
+        }
+      },
+      "required": [
+        "total",
+        "found",
+        "recall",
+        "by_transform",
+        "missed_pairs"
+      ],
+      "type": "object"
+    },
+    "limitations": {
+      "items": {
+        "maxLength": 4096,
+        "minLength": 1,
+        "type": "string"
+      },
+      "minItems": 1,
+      "type": "array"
+    },
+    "manifest_sha256": {
+      "pattern": "^[0-9a-f]{64}$",
+      "type": "string"
+    },
+    "operation": {
+      "const": "split-review"
+    },
+    "routes": {
+      "items": {
+        "oneOf": [
+          {
+            "additionalProperties": false,
+            "properties": {
+              "algorithm": {
+                "maxLength": 4096,
+                "minLength": 1,
+                "type": "string"
+              },
+              "route": {
+                "const": "hash"
+              },
+              "status": {
+                "const": "used"
+              },
+              "threshold": {
+                "maximum": 64,
+                "minimum": 0,
+                "type": "integer"
+              }
+            },
+            "required": [
+              "route",
+              "status",
+              "algorithm",
+              "threshold"
+            ],
+            "type": "object"
+          },
+          {
+            "additionalProperties": false,
+            "properties": {
+              "attempted_pairs": {
+                "minimum": 0,
+                "type": "integer"
+              },
+              "matched_pairs": {
+                "minimum": 0,
+                "type": "integer"
+              },
+              "route": {
+                "const": "geometric"
+              },
+              "status": {
+                "const": "used"
+              }
+            },
+            "required": [
+              "route",
+              "status",
+              "attempted_pairs",
+              "matched_pairs"
+            ],
+            "type": "object"
+          },
+          {
+            "additionalProperties": false,
+            "properties": {
+              "model_id": {
+                "pattern": "^[0-9a-f]{64}$",
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "route": {
+                "const": "embedding"
+              },
+              "status": {
+                "enum": [
+                  "used",
+                  "not_enabled"
+                ]
+              },
+              "threshold": {
+                "maximum": 1,
+                "minimum": -1,
+                "type": "number"
+              }
+            },
+            "required": [
+              "route",
+              "status",
+              "model_id",
+              "threshold"
+            ],
+            "type": "object"
+          }
+        ]
+      },
+      "maxItems": 3,
+      "minItems": 3,
+      "type": "array"
+    },
+    "schema": {
+      "const": "saccade-split-review.v1"
+    },
+    "summary": {
+      "maxLength": 4096,
+      "minLength": 1,
+      "type": "string"
+    },
+    "verdict": {
+      "enum": [
+        "no_candidates",
+        "review_required"
+      ]
+    },
+    "within_split_pairs": {
+      "items": {
+        "additionalProperties": false,
+        "properties": {
+          "a": {
+            "maxLength": 4096,
+            "minLength": 1,
+            "type": "string"
+          },
+          "a_split": {
+            "maxLength": 128,
+            "minLength": 1,
+            "type": "string"
+          },
+          "b": {
+            "maxLength": 4096,
+            "minLength": 1,
+            "type": "string"
+          },
+          "b_split": {
+            "maxLength": 128,
+            "minLength": 1,
+            "type": "string"
+          },
+          "evidence": {
+            "items": {
+              "oneOf": [
+                {
+                  "additionalProperties": false,
+                  "properties": {
+                    "basis": {
+                      "const": "encoded_sha256_equality"
+                    },
+                    "route": {
+                      "const": "hash"
+                    },
+                    "sha256": {
+                      "pattern": "^[0-9a-f]{64}$",
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "route",
+                    "basis",
+                    "sha256"
+                  ],
+                  "type": "object"
+                },
+                {
+                  "additionalProperties": false,
+                  "properties": {
+                    "basis": {
+                      "const": "phash_candidate"
+                    },
+                    "distance": {
+                      "maximum": 64,
+                      "minimum": 0,
+                      "type": "integer"
+                    },
+                    "route": {
+                      "const": "hash"
+                    },
+                    "threshold": {
+                      "maximum": 64,
+                      "minimum": 0,
+                      "type": "integer"
+                    }
+                  },
+                  "required": [
+                    "route",
+                    "basis",
+                    "distance",
+                    "threshold"
+                  ],
+                  "type": "object"
+                },
+                {
+                  "additionalProperties": false,
+                  "properties": {
+                    "basis": {
+                      "const": "FAST-oriented-BRIEF-RANSAC/1"
+                    },
+                    "calibration": {
+                      "maxLength": 4096,
+                      "minLength": 1,
+                      "type": "string"
+                    },
+                    "direction": {
+                      "const": "a_to_b"
+                    },
+                    "inliers": {
+                      "minimum": 0,
+                      "type": "integer"
+                    },
+                    "matches": {
+                      "minimum": 0,
+                      "type": "integer"
+                    },
+                    "matrix": {
+                      "items": {
+                        "type": "number"
+                      },
+                      "maxItems": 9,
+                      "minItems": 9,
+                      "type": "array"
+                    },
+                    "model": {
+                      "enum": [
+                        "translation",
+                        "similarity",
+                        "affine",
+                        "homography"
+                      ]
+                    },
+                    "residual_px": {
+                      "minimum": 0,
+                      "type": "number"
+                    },
+                    "route": {
+                      "const": "geometric"
+                    }
+                  },
+                  "required": [
+                    "route",
+                    "basis",
+                    "direction",
+                    "matrix",
+                    "model",
+                    "matches",
+                    "inliers",
+                    "residual_px",
+                    "calibration"
+                  ],
+                  "type": "object"
+                },
+                {
+                  "additionalProperties": false,
+                  "properties": {
+                    "basis": {
+                      "const": "cosine_candidate"
+                    },
+                    "calibration": {
+                      "maxLength": 4096,
+                      "minLength": 1,
+                      "type": "string"
+                    },
+                    "cosine": {
+                      "maximum": 1,
+                      "minimum": -1,
+                      "type": "number"
+                    },
+                    "model_id": {
+                      "pattern": "^[0-9a-f]{64}$",
+                      "type": "string"
+                    },
+                    "route": {
+                      "const": "embedding"
+                    },
+                    "threshold": {
+                      "maximum": 1,
+                      "minimum": -1,
+                      "type": "number"
+                    }
+                  },
+                  "required": [
+                    "route",
+                    "basis",
+                    "cosine",
+                    "threshold",
+                    "model_id",
+                    "calibration"
+                  ],
+                  "type": "object"
+                }
+              ]
+            },
+            "maxItems": 4,
+            "minItems": 1,
+            "type": "array"
+          }
+        },
+        "required": [
+          "a",
+          "b",
+          "a_split",
+          "b_split",
+          "evidence"
+        ],
+        "type": "object"
+      },
+      "maxItems": 8128,
+      "type": "array"
+    }
+  },
+  "required": [
+    "schema",
+    "operation",
+    "verdict",
+    "summary",
+    "manifest_sha256",
+    "routes",
+    "counts",
+    "entries",
+    "cross_split_pairs",
+    "within_split_pairs",
+    "groups",
+    "injected_recall",
+    "limitations"
+  ],
+  "title": "Split-aware duplicate review",
+  "type": "object"
+}

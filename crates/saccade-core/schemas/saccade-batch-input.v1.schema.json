@@ -1,0 +1,50 @@
+{
+  "$id": "https://github.com/Tavrin/saccade/crates/saccade-core/schemas/saccade-batch-input.v1.schema.json",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "properties": {
+    "inputs": {
+      "items": {
+        "additionalProperties": false,
+        "properties": {
+          "path": {
+            "type": "string"
+          },
+          "reference": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "skip": {
+            "type": "boolean"
+          },
+          "timeout_ms": {
+            "maximum": 300000,
+            "minimum": 1,
+            "type": [
+              "integer",
+              "null"
+            ]
+          }
+        },
+        "required": [
+          "path"
+        ],
+        "type": "object"
+      },
+      "maxItems": 1000,
+      "minItems": 1,
+      "type": "array"
+    },
+    "schema": {
+      "const": "saccade-batch-input.v1"
+    }
+  },
+  "required": [
+    "schema",
+    "inputs"
+  ],
+  "title": "Batch intake list",
+  "type": "object"
+}

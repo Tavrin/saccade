@@ -1,0 +1,133 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Playbook acceptance manifest v1",
+  "type": "object",
+  "required": [
+    "schema",
+    "id",
+    "bundle",
+    "features",
+    "dependencies",
+    "generated_inputs",
+    "cwd",
+    "commands"
+  ],
+  "properties": {
+    "schema": {
+      "const": "saccade-playbook.v1"
+    },
+    "id": {
+      "type": "string",
+      "pattern": "^W(0[1-9]|1[0-3])$"
+    },
+    "bundle": {
+      "type": "string",
+      "minLength": 1
+    },
+    "features": {
+      "type": "array",
+      "uniqueItems": true,
+      "items": {
+        "type": "string",
+        "minLength": 1
+      }
+    },
+    "dependencies": {
+      "type": "array",
+      "uniqueItems": true,
+      "items": {
+        "type": "string",
+        "minLength": 1
+      }
+    },
+    "generated_inputs": {
+      "type": "string",
+      "minLength": 1
+    },
+    "cwd": {
+      "type": "string",
+      "minLength": 1
+    },
+    "commands": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "required": [
+          "name",
+          "argv",
+          "exit",
+          "checks",
+          "sha256"
+        ],
+        "properties": {
+          "name": {
+            "type": "string",
+            "minLength": 1
+          },
+          "argv": {
+            "type": "array",
+            "minItems": 1,
+            "items": {
+              "type": "string",
+              "minLength": 1
+            }
+          },
+          "exit": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 255
+          },
+          "checks": {
+            "type": "array",
+            "minItems": 1,
+            "items": {
+              "type": "object",
+              "required": [
+                "name",
+                "source"
+              ],
+              "properties": {
+                "name": {
+                  "type": "string",
+                  "minLength": 1
+                },
+                "source": {
+                  "type": "string",
+                  "minLength": 1
+                },
+                "pointer": {
+                  "type": "string"
+                },
+                "contains": {
+                  "type": "string",
+                  "minLength": 1
+                },
+                "equals": {}
+              },
+              "oneOf": [
+                {
+                  "required": [
+                    "pointer"
+                  ]
+                },
+                {
+                  "required": [
+                    "contains"
+                  ]
+                }
+              ],
+              "additionalProperties": false
+            }
+          },
+          "sha256": {
+            "type": "string",
+            "pattern": "^[0-9a-f]{64}$"
+          }
+        },
+        "additionalProperties": false
+      }
+    }
+  },
+  "additionalProperties": false
+}
