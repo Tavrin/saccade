@@ -62,7 +62,7 @@ structure and preferences grant no timing authority.
 `keyframes` needs ffmpeg/ffprobe or sampled frames; `find-usage` keeps
 uncalibrated confidence/failures, never rights proof. [Media](../docs/media.md),
 [Python](../docs/python.md), [API](../docs/api.md).
-Text index queries need pinned joint SigLIP 2; DINO is image-only.
+Text: pinned SigLIP 2. Updates: same model; prune only complete archives.
 
 [OCR](../docs/text.md): `ocr` enables local PP-OCRv5; keep accents/source hashes;
 CTC confidence is uncalibrated. `ocr-provider`

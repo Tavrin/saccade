@@ -1229,7 +1229,8 @@ Commands:
   export         Export external report cross-links
   export-inputs  Write exact Rust-preprocessed tensors for independent checkpoint/export parity
   calibrate      Run pinned export parity and fit/holdout calibration over a frozen corpus (heavy)
-  build          Build a streaming exact flat index, up to 100000 images and 512 MiB vectors
+  build          Build an exact index; --segmented supports larger archives and incremental updates
+  update         Add/replace changed sources in an existing index, optionally pruning missing paths
   query          Search an existing index; model/preprocessing must exactly match the index
 
 Options:
@@ -1315,7 +1316,7 @@ Global options:
 ## saccade index build
 
 ```text
-Build a streaming exact flat index, up to 100000 images and 512 MiB vectors
+Build an exact index; --segmented supports larger archives and incremental updates
 
 Usage: saccade index build [OPTIONS] --out <OUT> <DIR>
 
@@ -1323,13 +1324,42 @@ Arguments:
   <DIR>
 
 Options:
-      --model <MODEL>                Supplied saccade-embedding-model.v1 contract; includes export SHA-256 and preprocessing. Default: SACCADE_MODELS_EMBEDDING_CONTRACT or [models].embedding_contract
+      --segmented                    Use durable v2 segments (up to 1000000 images and 16 GiB vectors)
       --source-ref <SOURCE_REF>      External capture URI/key (repeatable); recorded in generated reports
-      --cache <CACHE>                Deprecated: set SACCADE_MODELS_DIR or [models].dir. Content-addressed model cache
+      --model <MODEL>                Supplied saccade-embedding-model.v1 contract; includes export SHA-256 and preprocessing. Default: SACCADE_MODELS_EMBEDDING_CONTRACT or [models].embedding_contract
       --report-index <REPORT_INDEX>  Shared report index destination (default reports/index.jsonl next to each report, inside --out)
+      --cache <CACHE>                Deprecated: set SACCADE_MODELS_DIR or [models].dir. Content-addressed model cache
       --library <LIBRARY>            Deprecated: set SACCADE_MODELS_RUNTIME_LIBRARY or [models].runtime_library. Explicit ONNX Runtime 1.22 dynamic library, CPU execution only
       --download-model               Deprecated: provision with `saccade models pull embedding`. Still downloads the pinned export to the cache
       --out <OUT>
+      --json
+  -h, --help                         Print help
+
+Global options:
+      --allow-out-near-captures  Silence warnings when --out is next to capture metadata
+      --record-absolute-paths    Opt in to absolute local paths in reports and machine-readable output
+```
+
+## saccade index update
+
+```text
+Add/replace changed sources in an existing index, optionally pruning missing paths
+
+Usage: saccade index update [OPTIONS] <INDEX> <DIR>
+
+Arguments:
+  <INDEX>
+  <DIR>
+
+Options:
+      --prune                        Treat dir as the complete archive and remove absent sources
+      --source-ref <SOURCE_REF>      External capture URI/key (repeatable); recorded in generated reports
+      --model <MODEL>                Supplied saccade-embedding-model.v1 contract; includes export SHA-256 and preprocessing. Default: SACCADE_MODELS_EMBEDDING_CONTRACT or [models].embedding_contract
+      --report-index <REPORT_INDEX>  Shared report index destination (default reports/index.jsonl next to each report, inside --out)
+      --cache <CACHE>                Deprecated: set SACCADE_MODELS_DIR or [models].dir. Content-addressed model cache
+      --library <LIBRARY>            Deprecated: set SACCADE_MODELS_RUNTIME_LIBRARY or [models].runtime_library. Explicit ONNX Runtime 1.22 dynamic library, CPU execution only
+      --download-model               Deprecated: provision with `saccade models pull embedding`. Still downloads the pinned export to the cache
+      --out <OUT>                    [default: index-update-report]
       --json
   -h, --help                         Print help
 

@@ -45,6 +45,9 @@
 - Add feature-gated `tofu` missing-glyph shape triage and `text-legibility`
   per-region variant sampling evidence, with versioned schemas, explicit
   abstention, optional cached OCR and generated multi-script fixtures.
+- Add opt-in segmented exact embedding indexes, incremental changed-byte replacement
+  and pruning, atomic durable manifest updates, and bounded-memory v2 queries.
+  Preserve flat v1 readers and record synthetic scale costs.
 
 - Harden experimental assist pre-spend accounting: shared campaign reservations,
   charged and quarantined usage overruns, request-bound recorded execution receipts,

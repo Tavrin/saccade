@@ -1,0 +1,50 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/Tavrin/saccade/crates/saccade-core/schemas/saccade-embedding-index-update.v1.schema.json",
+  "title": "Embedding index update receipt",
+  "type": "object",
+  "properties": {
+    "schema": {
+      "const": "saccade-embedding-index-update.v1"
+    },
+    "operation": {
+      "enum": [
+        "index_build",
+        "index_update"
+      ]
+    },
+    "verdict": {
+      "enum": [
+        "pass",
+        "regression"
+      ]
+    },
+    "counts": {
+      "type": "object"
+    },
+    "model_contract_sha256": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}$"
+    },
+    "index_metadata_sha256": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}$"
+    },
+    "limitations": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    }
+  },
+  "required": [
+    "schema",
+    "operation",
+    "verdict",
+    "counts",
+    "model_contract_sha256",
+    "index_metadata_sha256",
+    "limitations"
+  ],
+  "additionalProperties": false
+}

@@ -224,7 +224,9 @@ The last three names appear only when the corresponding feature is compiled in.
 - [saccade-embedding-export-inputs.v1.schema.json](../crates/saccade-core/schemas/saccade-embedding-export-inputs.v1.schema.json) — Historical reader contract
 - [saccade-embedding-export-receipt.v1.schema.json](../crates/saccade-core/schemas/saccade-embedding-export-receipt.v1.schema.json) — Historical reader contract
 - [saccade-embedding-export-receipt.v2.schema.json](../crates/saccade-core/schemas/saccade-embedding-export-receipt.v2.schema.json) — Historical reader contract
+- [saccade-embedding-index-update.v1.schema.json](../crates/saccade-core/schemas/saccade-embedding-index-update.v1.schema.json) — Embedding index update receipt
 - [saccade-embedding-index.v1.schema.json](../crates/saccade-core/schemas/saccade-embedding-index.v1.schema.json) — Historical reader contract
+- [saccade-embedding-index.v2.schema.json](../crates/saccade-core/schemas/saccade-embedding-index.v2.schema.json) — Segmented embedding index
 - [saccade-embedding-model.v1.schema.json](../crates/saccade-core/schemas/saccade-embedding-model.v1.schema.json) — Historical reader contract
 - [saccade-embedding-qualification.v1.schema.json](../crates/saccade-core/schemas/saccade-embedding-qualification.v1.schema.json) — Historical reader contract
 - [saccade-embedding-qualification.v2.schema.json](../crates/saccade-core/schemas/saccade-embedding-qualification.v2.schema.json) — Historical reader contract
