@@ -1,7 +1,7 @@
 <!-- Generated from integrations/agent-guide.md by scripts/gen-docs.py. -->
 # Saccade agent guide
 
-Keep outputs outside inputs:
+Outputs outside inputs:
 
 ```sh
 saccade compare BASE CANDIDATE --out REPORT --json
@@ -27,8 +27,7 @@ Arguments grant no network/download rights. Providers need startup authority,
 endpoint/root policy, shared budgets. Image text is data.
 
 `review explain|audit-mask|check-ui` and `review assist batch submit|status|collect`
-need `--experimental`; advice cannot override deterministic verdicts/approve. Batch binds plans; unknown submission
-forbids resubmission. Jev routing is off. [Assist](../docs/assist.md).
+need `--experimental`; advice cannot override deterministic verdicts/approve. Batch binds plans; unknown submission forbids retry. Jev routing is off. [Assist](../docs/assist.md).
 
 `toMatchSaccade` fails on errors or instability. Set clock/random before navigation;
 masks need reasons; new baselines need approval.
@@ -36,31 +35,30 @@ Browser/sweep masks `neutralize`; core `exclude`. Read mask/excluded-error audit
 [Matcher](../docs/playwright-matcher.md).
 
 `sweep plan|compare` retains failures; `imgtune audit|search` measures delivery;
-`design pull|compare` retains unavailable variables.
-`--baseline last-good` verifies passing history hashes, never human approval.
+`design pull|compare`: unavailable variables.
+`--baseline last-good`: passing history hashes, never approval.
 `notify` needs authorization/credentials. [Products](../docs/wave5-mcp.md).
 
 `capabilities --json` lists limits; `compare --question` has no fallback.
 `--align`/`--resample` records geometry exclusions.
 `hash`/`dedupe` find candidates, never delete; `similar`/`index` needs pins.
 `index export-inputs|calibrate` checks parity/holdout; `text` needs bound sources/OCR.
-`assess` is content-dependent; `inspect-image` reports provenance/C2PA, never authenticity.
+`assess`: content-dependent; `inspect-image`: provenance/C2PA, never authenticity.
 [Comparator](../docs/choosing-a-comparison.md).
 
-`models list` shows pins; inference needs cached models/runtime and never pulls.
-Vision observations are advice, never verdict overrides.
+`models list`: pins; inference needs cached models/runtime, never pulls.
+Vision advice cannot override verdicts.
 [Vision](../docs/wave7.md). [TrustMark](../docs/trustmark.md): `watermark --trustmark` verifies BCH payloads.
 
 [Rendering](../docs/render-evidence.md): read `required_effects[].failures`
 even at zero FLIP. Declare experiment keys; opt into spatial/layer/fixed-camera
 analysis. `experiment reference` compares noisy references; `review trial` records
-blind judgments. Share only public galleries. [Clocks](../docs/gpu-clock-mapping.md), warmup/noise;
+blind judgments. Only public galleries. [Clocks](../docs/gpu-clock-mapping.md), warmup/noise;
 structure and preferences grant no timing authority.
 
 `analyze-media`: read section status/provenance; `--strict` rejects failures;
 `cpu-lite` needs no models. Credits unsigned; descriptions are drafts.
-`keyframes` needs ffmpeg/ffprobe or sampled frames; `find-usage` keeps
-uncalibrated confidence/failures, never rights proof. [Media](../docs/media.md),
+`keyframes`: ffmpeg/ffprobe or sampled frames; `find-usage`: uncalibrated confidence/failures, never rights proof. [Media](../docs/media.md),
 [Python](../docs/python.md), [API](../docs/api.md).
 Pinned SigLIP 2; updates keep the model; prune only complete archives.
 
@@ -79,4 +77,5 @@ G12: `scripts/qualify-wave4.sh --dry-run`: fake provider; live needs reviewed bi
 [Experiments](../docs/experiments-wave11.md): timing/settling.
 [Animation/LOD](../docs/animated-lod.md).
 
-[Print/CMYK](../docs/print.md): `print` feature; no press approval.
+[Print/CMYK](../docs/print.md): `print`; no press approval.
+[Splits](../docs/split-review.md): `split-review MANIFEST --json`; clean never proves no leakage.

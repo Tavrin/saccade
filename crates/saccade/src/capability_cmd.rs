@@ -128,6 +128,15 @@ pub(crate) fn catalogue() -> Value {
         "<=100000 images; hash collisions and transitive clusters require review",
     );
     add(
+        "split-review",
+        "split-review",
+        "declared split manifest; 1..128 8-bit SDR images",
+        vec![],
+        "available",
+        "Which reuse candidates cross splits, and which bursts stay within a split?",
+        "hash/geometric candidates; embeddings opt in with provisioned models; a clean list never proves no leakage",
+    );
+    add(
         "embeddings",
         "similar; index build|query",
         "8-bit SDR images, supplied ONNX contract/cache/runtime",

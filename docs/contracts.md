@@ -368,6 +368,9 @@ The last three names appear only when the corresponding feature is compiled in.
 - [saccade-similar.v1.schema.json](../crates/saccade-core/schemas/saccade-similar.v1.schema.json) — Historical reader contract
 - [saccade-similar.v2.schema.json](../crates/saccade-core/schemas/saccade-similar.v2.schema.json) — Historical reader contract
 - [saccade-spatial-evidence.v1.schema.json](../crates/saccade-core/schemas/saccade-spatial-evidence.v1.schema.json) — SpatialReport
+- [saccade-split-manifest.v1.schema.json](../crates/saccade-core/schemas/saccade-split-manifest.v1.schema.json) — Declared split membership
+- [saccade-split-review.v1.schema.json](../crates/saccade-core/schemas/saccade-split-review.v1.schema.json) — Split-aware duplicate review
+- [saccade-split-review.v2.schema.json](../crates/saccade-core/schemas/saccade-split-review.v2.schema.json) — Split-aware duplicate review
 - [saccade-summary.v1.schema.json](../crates/saccade-core/schemas/saccade-summary.v1.schema.json) — saccade-summary.v1
 - [saccade-summary.v2.schema.json](../crates/saccade-core/schemas/saccade-summary.v2.schema.json) — saccade-summary.v1
 - [saccade-sweep-captures.v1.schema.json](../crates/saccade-core/schemas/saccade-sweep-captures.v1.schema.json) — saccade-sweep-captures.v1
