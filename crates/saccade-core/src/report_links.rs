@@ -57,6 +57,7 @@ pub fn is_report_schema(id: &str) -> bool {
         "-decisions.",
         "-request.",
         "-captures.",
+        "-capture-record.",
         "-clock.",
         "-buffer.",
         "-models.",

@@ -1,0 +1,98 @@
+{
+  "acquisitions": [
+    {
+      "clock": {
+        "domain": "synthetic-monotonic",
+        "end_ns": 200,
+        "run_id": "generated-renderer-001",
+        "start_ns": 100
+      },
+      "details": {},
+      "error": null,
+      "fingerprint": {
+        "inputs": {
+          "identity": "sha256:285a800eb055f1f35e677e7a7cabe1340c739bff79b9ba94ee90a9938fd68795"
+        },
+        "producer": {
+          "binary": "sha256:9ba437aea4d02de46d951b16590fc2b142928c1c0ba314c1df42abef1a078878",
+          "build": {
+            "features": [],
+            "profile": "fixture"
+          }
+        },
+        "run": {
+          "env": {},
+          "mode": "fixed",
+          "readiness": [
+            {
+              "criterion": {
+                "name": "settled",
+                "parameters": {}
+              },
+              "observed": true,
+              "reached": true
+            }
+          ],
+          "session": "generated-renderer-001"
+        },
+        "schema": "saccade-arm-fingerprint.v1"
+      },
+      "id": "frame-001",
+      "image": {
+        "path": "../image.png",
+        "sha256": "8229e9c68c0a509b92a65369083e507c0ac4aafc5f7ccbae11aa77656222ea49"
+      },
+      "settings": {
+        "height": 8,
+        "quality": "fixed",
+        "seed": 7,
+        "width": 8
+      },
+      "status": "captured"
+    }
+  ],
+  "completion": "complete",
+  "expected": [
+    {
+      "clock_domain": "synthetic-monotonic",
+      "fingerprint": {
+        "inputs": {
+          "identity": "sha256:285a800eb055f1f35e677e7a7cabe1340c739bff79b9ba94ee90a9938fd68795"
+        },
+        "producer": {
+          "binary": "sha256:9ba437aea4d02de46d951b16590fc2b142928c1c0ba314c1df42abef1a078878",
+          "build": {
+            "features": [],
+            "profile": "fixture"
+          }
+        },
+        "run": {
+          "env": {},
+          "mode": "fixed",
+          "readiness": [
+            {
+              "criterion": {
+                "name": "settled",
+                "parameters": {}
+              },
+              "observed": true,
+              "reached": true
+            }
+          ],
+          "session": "generated-renderer-001"
+        },
+        "schema": "saccade-arm-fingerprint.v1"
+      },
+      "id": "frame-001",
+      "settings": {
+        "height": 8,
+        "quality": "fixed",
+        "seed": 7,
+        "width": 8
+      }
+    }
+  ],
+  "producer": "renderer",
+  "run_id": "generated-renderer-001",
+  "schema": "saccade-capture-record.v1"
+}

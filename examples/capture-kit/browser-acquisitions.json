@@ -1,0 +1,56 @@
+[
+  {
+    "clock": {
+      "domain": "synthetic-monotonic",
+      "end_ns": 200,
+      "run_id": "generated-browser-001",
+      "start_ns": 100
+    },
+    "details": {
+      "final_url": "https://example.org/",
+      "http_status": 200,
+      "test": "generated screenshot"
+    },
+    "error": null,
+    "fingerprint": {
+      "inputs": {
+        "identity": "sha256:285a800eb055f1f35e677e7a7cabe1340c739bff79b9ba94ee90a9938fd68795"
+      },
+      "producer": {
+        "binary": "sha256:3a5e26818dc7d35da42cbe85b2018304c048e930b2ef4896b4b4f65193df9a23",
+        "build": {
+          "features": [],
+          "profile": "fixture"
+        }
+      },
+      "run": {
+        "env": {},
+        "mode": "fixed",
+        "readiness": [
+          {
+            "criterion": {
+              "name": "settled",
+              "parameters": {}
+            },
+            "observed": true,
+            "reached": true
+          }
+        ],
+        "session": "generated-browser-001"
+      },
+      "schema": "saccade-arm-fingerprint.v1"
+    },
+    "id": "frame-001",
+    "image": "image.png",
+    "settings": {
+      "animations": "disabled",
+      "caret": "hide",
+      "fonts_ready": true,
+      "viewport": [
+        8,
+        8
+      ]
+    },
+    "status": "captured"
+  }
+]

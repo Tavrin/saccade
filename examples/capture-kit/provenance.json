@@ -1,0 +1,9 @@
+{
+  "browser": "Playwright-style observations; no browser executed",
+  "clocks": "synthetic, not performance qualification",
+  "generator": "scripts/gen-capture-kit.py",
+  "identities": "synthetic declarations, not acquired executable or prepared-input hashes",
+  "image_sha256": "8229e9c68c0a509b92a65369083e507c0ac4aafc5f7ccbae11aa77656222ea49",
+  "licence": "CC0-1.0",
+  "source": "procedural local generation; no third-party imagery"
+}

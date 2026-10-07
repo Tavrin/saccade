@@ -2,6 +2,9 @@
 
 ## Unreleased
 
+- Add offline `capture conform` validation with versioned capture records, exact
+  image-byte bindings and stable codes for failed, partial or incompatible captures.
+  Ship generated renderer/browser receipts and a capture conformance kit.
 - Close signed-approval consumer gaps with shared CLI/MCP measurement enforcement,
   verified byte snapshots, optional age limits and a trusted monotonic ledger.
   Fixed system policy, Unix trust-file checks and absolute verifier resolution

@@ -77,7 +77,7 @@ SigLIP 2 pins; updates keep the model; prune only complete archives.
 [OCR](../docs/text.md): PP-OCRv5 (`ocr`); keep accents/source hashes; CTC confidence uncalibrated.
 `ocr-provider`: bound Mistral image/PDF fixtures or authorized egress/spend-capped calls.
 
-`schema list|get|path`, `perf validate FILE --json`.
+`schema list|get|path`, `perf validate FILE --json`; [capture](../docs/capture-kit.md).
 Evidence: `render-evidence`, `noise build REPEATS...`, `compare --export-maps --noise-from REPEATS... --require-scope`.
 [Arm policies](../docs/arm-validity.md): null is a value; `--ignore` waives missing
 fields; `--allow-unreached` requires exact observations; maps select `record_files`.

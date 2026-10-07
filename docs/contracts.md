@@ -200,7 +200,9 @@ The last three names appear only when the corresponding feature is compiled in.
 - [saccade-calibration.v1.schema.json](../crates/saccade-core/schemas/saccade-calibration.v1.schema.json) — Historical reader contract
 - [saccade-capabilities.v1.schema.json](../crates/saccade-core/schemas/saccade-capabilities.v1.schema.json) — Historical reader contract
 - [saccade-capabilities.v2.schema.json](../crates/saccade-core/schemas/saccade-capabilities.v2.schema.json) — Historical reader contract
+- [saccade-capture-conformance.v1.schema.json](../crates/saccade-core/schemas/saccade-capture-conformance.v1.schema.json) — Report
 - [saccade-capture-layers.v1.schema.json](../crates/saccade-core/schemas/saccade-capture-layers.v1.schema.json) — Manifest
+- [saccade-capture-record.v1.schema.json](../crates/saccade-core/schemas/saccade-capture-record.v1.schema.json) — Record
 - [saccade-captured-sequence-plan.v1.schema.json](../crates/saccade-core/schemas/saccade-captured-sequence-plan.v1.schema.json) — Plan
 - [saccade-cases.v1.schema.json](../crates/saccade-core/schemas/saccade-cases.v1.schema.json) — Declaration
 - [saccade-config.v1.schema.json](../crates/saccade-core/schemas/saccade-config.v1.schema.json) — saccade-config.v1

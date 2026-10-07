@@ -115,6 +115,7 @@ fn help_lists_active_commands_and_watch_alias_stays_hidden() {
         "schema",
         "perf",
         "arms",
+        "capture",
         "analyze-media",
         "keyframes",
         "find-usage",
