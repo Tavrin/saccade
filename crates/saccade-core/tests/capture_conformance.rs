@@ -106,3 +106,71 @@ fn additional_fingerprint_fields_are_compared_instead_of_discarded() {
         Code::IdentityMismatch
     );
 }
+
+#[test]
+fn portable_image_paths_have_the_same_security_meaning_on_every_host() {
+    let temp = tempfile::tempdir().unwrap();
+    std::fs::create_dir(temp.path().join("nested")).unwrap();
+    std::fs::copy(
+        kit().join("image.png"),
+        temp.path().join("nested/image.png"),
+    )
+    .unwrap();
+    let mut record = record();
+    record.acquisitions[0].image.as_mut().unwrap().path = "nested/image.png".into();
+    assert!(capture::conform(&record, temp.path()).conformant);
+    for path in [
+        r"nested\image.png",
+        "C:/image.png",
+        "//server/share/image.png",
+        "//?/C:/image.png",
+        "image.png:stream",
+        "../image.png",
+        "nested/./image.png",
+        "nested//image.png",
+        "image\n.png",
+    ] {
+        record.acquisitions[0].image.as_mut().unwrap().path = path.into();
+        assert_eq!(
+            capture::conform(&record, temp.path()).findings[0].code,
+            Code::UnsafeImagePath,
+            "{path:?}"
+        );
+    }
+}
+
+#[cfg(windows)]
+#[test]
+fn drive_and_verbatim_roots_produce_identical_conformance() {
+    let temp = tempfile::tempdir().unwrap();
+    std::fs::copy(kit().join("image.png"), temp.path().join("image.png")).unwrap();
+    let verbatim = std::fs::canonicalize(temp.path()).unwrap();
+    let ordinary = saccade_core::paths::canonicalize(temp.path()).unwrap();
+    for root in [&ordinary, &verbatim] {
+        assert!(capture::conform(&record(), root).conformant, "{root:?}");
+        std::fs::write(root.join("image.png"), b"changed bytes").unwrap();
+        assert_eq!(
+            capture::conform(&record(), root).findings[0].code,
+            Code::StaleHash
+        );
+        std::fs::copy(kit().join("image.png"), root.join("image.png")).unwrap();
+    }
+}
+
+#[cfg(target_os = "macos")]
+#[test]
+fn system_temp_alias_and_physical_root_produce_identical_conformance() {
+    let temp = tempfile::tempdir_in("/var/tmp").unwrap();
+    std::fs::copy(kit().join("image.png"), temp.path().join("image.png")).unwrap();
+    let physical = saccade_core::paths::canonicalize(temp.path()).unwrap();
+    let alias = PathBuf::from("/").join(physical.strip_prefix("/private").unwrap());
+    for root in [&physical, &alias] {
+        assert!(capture::conform(&record(), root).conformant, "{root:?}");
+        std::fs::write(root.join("image.png"), b"changed bytes").unwrap();
+        assert_eq!(
+            capture::conform(&record(), root).findings[0].code,
+            Code::StaleHash
+        );
+        std::fs::copy(kit().join("image.png"), root.join("image.png")).unwrap();
+    }
+}

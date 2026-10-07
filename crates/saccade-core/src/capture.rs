@@ -246,38 +246,109 @@ impl Report {
         }
     }
 }
-fn normalized_absolute(path: &Path) -> std::io::Result<std::path::PathBuf> {
-    let mut normalized = std::path::PathBuf::new();
-    for component in std::path::absolute(path)?.components() {
-        match component {
-            Component::ParentDir => {
-                normalized.pop();
-            }
-            Component::CurDir => {}
-            _ => normalized.push(component.as_os_str()),
-        }
+// Preserve parent components until no-follow traversal has inspected the
+// preceding directory. Windows std::path::absolute would fold link/.. first.
+fn absolute_route(path: &Path) -> std::io::Result<std::path::PathBuf> {
+    let path = crate::paths::native(path);
+    if path.is_absolute() {
+        return Ok(path.into_owned());
     }
-    Ok(normalized)
+    #[cfg(windows)]
+    {
+        if let Some(Component::Prefix(prefix)) = path.components().next() {
+            let mut route = std::path::absolute(Path::new(prefix.as_os_str()))?.into_os_string();
+            for component in path.components().skip(1) {
+                route.push("\\");
+                route.push(component.as_os_str());
+            }
+            return Ok(route.into());
+        }
+        let cwd = std::env::current_dir()?;
+        let mut route = if path.has_root() {
+            // Root-relative paths inherit the current drive/UNC prefix.
+            cwd.components()
+                .next()
+                .ok_or_else(|| std::io::Error::other("missing prefix"))?
+                .as_os_str()
+                .to_os_string()
+        } else {
+            let mut route = cwd.into_os_string();
+            route.push("\\");
+            route
+        };
+        // PathBuf::push also folds parents for verbatim paths. Append raw native
+        // text instead so every directory preceding '..' is inspected.
+        route.push(path.as_os_str());
+        Ok(route.into())
+    }
+    #[cfg(not(windows))]
+    {
+        Ok(std::env::current_dir()?.join(path.as_ref()))
+    }
 }
 pub(super) fn safe_directory(path: &Path) -> std::io::Result<cap_std::fs::Dir> {
     use cap_fs_ext::DirExt;
-    let absolute = normalized_absolute(path)?;
-    let mut dir = cap_std::fs::Dir::open_ambient_dir(
-        absolute.ancestors().last().unwrap_or(Path::new("/")),
-        cap_std::ambient_authority(),
-    )?;
-    for component in absolute.components() {
+    let absolute = absolute_route(path)?;
+    let mut components = absolute.components().peekable();
+    // Keep the complete root, including Windows drive/UNC/verbatim prefixes.
+    // A bare drive prefix is drive-relative and must not be used as authority.
+    let mut root = std::path::PathBuf::new();
+    while components
+        .peek()
+        .is_some_and(|c| matches!(c, Component::Prefix(_) | Component::RootDir))
+    {
+        if let Some(component) = components.next() {
+            root.push(component.as_os_str());
+        }
+    }
+    // macOS supplies these aliases as OS-level roots (not user capture links).
+    // Accept only their documented physical target and still walk all capture
+    // components with no-follow handles. Do not canonicalize the whole path.
+    let components: Vec<_> = components.collect();
+    #[cfg(target_os = "macos")]
+    let components = {
+        let mut components = components;
+        if root == Path::new("/")
+            && let Some(Component::Normal(name)) = components.first().copied()
+            && ["var", "tmp", "etc"].iter().any(|alias| name == *alias)
+        {
+            let alias = root.join(name);
+            let physical = Path::new("/private").join(name);
+            if std::fs::symlink_metadata(&alias)?.file_type().is_symlink()
+                && crate::paths::canonicalize(&alias)? == physical
+            {
+                components.insert(0, Component::Normal(std::ffi::OsStr::new("private")));
+            }
+        }
+        components
+    };
+    let dir = cap_std::fs::Dir::open_ambient_dir(root, cap_std::ambient_authority())?;
+    let mut parents = vec![dir];
+    for component in components {
         match component {
-            Component::Normal(name) => dir = dir.open_dir_nofollow(name)?,
-            Component::RootDir | Component::Prefix(_) => {}
+            Component::Normal(name) => {
+                let child = parents
+                    .last()
+                    .ok_or_else(|| std::io::Error::other("missing root"))?
+                    .open_dir_nofollow(name)?;
+                parents.push(child);
+            }
+            Component::ParentDir => {
+                if parents.len() > 1 {
+                    parents.pop();
+                }
+            }
+            Component::CurDir => {}
             _ => return Err(std::io::Error::other("unsafe path")),
         }
     }
-    Ok(dir)
+    parents
+        .pop()
+        .ok_or_else(|| std::io::Error::other("missing directory"))
 }
 pub(super) fn bounded_read(path: &Path, limit: u64) -> std::io::Result<Vec<u8>> {
     use cap_fs_ext::{FollowSymlinks, OpenOptionsFollowExt};
-    let absolute = normalized_absolute(path)?;
+    let absolute = absolute_route(path)?;
     let dir = safe_directory(
         absolute
             .parent()
@@ -345,11 +416,7 @@ fn full_identity(value: &Value) -> bool {
 }
 pub(super) fn image_code(root: &Path, image: &Image) -> Option<Code> {
     let relative = Path::new(&image.path);
-    if image.path.is_empty()
-        || relative
-            .components()
-            .any(|c| !matches!(c, Component::Normal(_)))
-    {
+    if !crate::paths::safe_relative_name(&image.path) {
         return Some(Code::UnsafeImagePath);
     }
     let mut path = root.to_path_buf();
@@ -489,7 +556,7 @@ pub fn conform_path(path: &Path) -> Report {
         .parent()
         .filter(|p| !p.as_os_str().is_empty())
         .unwrap_or_else(|| Path::new("."));
-    let root = match parent.canonicalize() {
+    let root = match crate::paths::canonicalize(parent) {
         Ok(root) => root,
         Err(_) => {
             failed.fail(Code::RecordUnavailable, None);

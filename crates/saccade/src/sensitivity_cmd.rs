@@ -24,6 +24,13 @@ pub(crate) struct Args {
     #[arg(long)]
     json: bool,
 }
+fn baseline_name(path: &Path, root: &Path) -> Result<String, CliError> {
+    let relative = path
+        .strip_prefix(root)
+        .map_err(|_| CliError::new("config", "baseline name escaped root"))?;
+    saccade_core::paths::relative_name(relative)
+        .map_err(|e| CliError::new("config", format!("invalid baseline name: {e}")))
+}
 fn io(e: std::io::Error) -> CliError {
     CliError::io(e.to_string())
 }
@@ -142,17 +149,7 @@ pub(crate) fn run(args: Args) -> Result<u8, CliError> {
         ));
     }
     for path in &files {
-        let name = path
-            .strip_prefix(&args.baseline)
-            .map_err(|_| CliError::new("config", "baseline name escaped root"))?
-            .to_str()
-            .ok_or_else(|| CliError::new("config", "baseline names must be UTF-8"))?;
-        if name.contains('\\') || name.chars().any(char::is_control) {
-            return Err(CliError::new(
-                "config",
-                "baseline names must not contain backslashes or control characters",
-            ));
-        }
+        baseline_name(path, &args.baseline)?;
     }
     let strengths: usize = catalogue
         .injections
@@ -240,12 +237,7 @@ pub(crate) fn run(args: Args) -> Result<u8, CliError> {
     for (n, path) in files.iter().enumerate() {
         let bytes = input::bytes(path, input::MAX_BYTES)?;
         let source = input::decode(&bytes)?;
-        let name = path
-            .strip_prefix(&args.baseline)
-            .map_err(|_| CliError::new("config", "baseline name escaped root"))?
-            .to_str()
-            .ok_or_else(|| CliError::new("config", "baseline names must be UTF-8"))?
-            .replace('\\', "/");
+        let name = baseline_name(path, &args.baseline)?;
         let snapshot = args.out.join("sources").join(&name);
         std::fs::create_dir_all(
             snapshot

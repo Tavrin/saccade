@@ -40,6 +40,42 @@ pub fn native(path: &Path) -> Cow<'_, Path> {
     }
 }
 
+/// Converts a native relative filename into a portable name without treating
+/// platform separators as filename characters. Literal backslashes and control
+/// characters inside components remain invalid, including on Unix.
+pub fn relative_name(path: &Path) -> std::io::Result<String> {
+    let mut parts = Vec::new();
+    for component in path.components() {
+        let std::path::Component::Normal(part) = component else {
+            return Err(std::io::Error::other(
+                "name must be relative without traversal",
+            ));
+        };
+        let part = part
+            .to_str()
+            .ok_or_else(|| std::io::Error::other("name must be UTF-8"))?;
+        if part.contains('\\') || part.chars().any(char::is_control) {
+            return Err(std::io::Error::other(
+                "name contains backslashes or control characters",
+            ));
+        }
+        parts.push(part);
+    }
+    if parts.is_empty() {
+        return Err(std::io::Error::other("name must not be empty"));
+    }
+    Ok(parts.join("/"))
+}
+
+/// Portable untrusted capture names have identical meaning on every host.
+/// Reject drive prefixes, alternate streams, native separators and traversal.
+pub(crate) fn safe_relative_name(name: &str) -> bool {
+    !name.is_empty()
+        && !name.contains(['\\', ':'])
+        && !name.chars().any(char::is_control)
+        && name.split('/').all(|p| !matches!(p, "" | "." | ".."))
+}
+
 /// Records `path` relative to `base`, unless absolute provenance is requested.
 /// Different platform roots fall back to an absolute path.
 pub fn record(path: &Path, base: &Path, absolute: bool) -> String {
@@ -168,6 +204,44 @@ mod tests {
     #![allow(clippy::unwrap_used)]
 
     use super::*;
+
+    #[test]
+    fn native_relative_names_validate_components_before_joining() {
+        assert_eq!(
+            relative_name(&Path::new("nested").join("scene.png")).unwrap(),
+            "nested/scene.png"
+        );
+        for invalid in ["../scene.png", "", "scene\n.png"] {
+            assert!(relative_name(Path::new(invalid)).is_err(), "{invalid:?}");
+        }
+        #[cfg(unix)]
+        assert!(relative_name(Path::new(r"nested\scene.png")).is_err());
+        #[cfg(windows)]
+        assert_eq!(
+            relative_name(Path::new(r"nested\scene.png")).unwrap(),
+            "nested/scene.png"
+        );
+    }
+
+    #[test]
+    fn untrusted_capture_names_reject_nonportable_meanings() {
+        assert!(safe_relative_name("nested/scene.png"));
+        for invalid in [
+            r"nested\scene.png",
+            "C:/scene.png",
+            "//server/share/image.png",
+            "//?/C:/scene.png",
+            "image.png:stream",
+            "../image.png",
+            "a/./image.png",
+            "a//image.png",
+            "image\n.png",
+            "/image.png",
+            "",
+        ] {
+            assert!(!safe_relative_name(invalid), "{invalid:?}");
+        }
+    }
 
     #[test]
     fn windows_separators_are_portable_on_any_host() {

@@ -322,3 +322,21 @@ fn nested_subtree_gaps_and_row_byte_projection_limits_remain_explicit() {
     assert!(std::fs::metadata(&path).unwrap().len() < 1024 * 1024);
     assert_eq!(run(root, &map, false).0, 2);
 }
+
+#[cfg(unix)]
+#[test]
+fn directory_aliases_and_symlink_parent_traversal_cannot_bypass_refusal() {
+    use std::os::unix::fs::symlink;
+    let dir = fixture("atlas");
+    let parent = tempfile::tempdir().unwrap();
+    let alias = parent.path().join("alias");
+    symlink(dir.path(), &alias).unwrap();
+    assert_eq!(run(&alias, &dir.path().join("map.json"), false).0, 2);
+    std::fs::copy(dir.path().join("map.json"), parent.path().join("map.json")).unwrap();
+    // Even when lexical folding would erase the link, inspect it before '..'.
+    assert_eq!(run(dir.path(), &alias.join("../map.json"), false).0, 2);
+    let child = dir.path().join("child");
+    std::fs::create_dir(&child).unwrap();
+    let route = child.join("../map.json");
+    assert_eq!(run(dir.path(), &route, false).0, 3);
+}

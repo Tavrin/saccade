@@ -5,7 +5,7 @@ use serde_json::{Value, json};
 use sha2::{Digest, Sha256};
 use std::{
     collections::BTreeMap,
-    path::{Component, Path, PathBuf},
+    path::{Path, PathBuf},
 };
 
 /// One canonical field and the decision used to obtain it.
@@ -75,10 +75,7 @@ enum Absent {
     Unavailable,
 }
 fn relative(s: &str) -> bool {
-    !s.is_empty()
-        && Path::new(s)
-            .components()
-            .all(|c| matches!(c, Component::Normal(_)))
+    crate::paths::safe_relative_name(s)
 }
 fn tokens(s: &str) -> bool {
     !s.is_empty()
