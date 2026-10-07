@@ -3,20 +3,44 @@ use super::worker::{CAPS, error};
 use std::collections::BTreeMap;
 use std::io::Read;
 
+fn whitespace(byte: u8) -> bool {
+    matches!(byte, 0x00 | 0x09 | 0x0a | 0x0c | 0x0d | 0x20)
+}
+fn delimiter(byte: u8) -> bool {
+    b"()<>[]{}/%".contains(&byte)
+}
+
 fn value<'a>(tokens: &'a [String], key: &str) -> Option<&'a str> {
-    let mut depth = 0usize;
-    for (i, token) in tokens.iter().enumerate() {
-        match token.as_str() {
-            "<<" | "[" => depth += 1,
-            ">>" | "]" => depth = depth.saturating_sub(1),
-            _ => {}
-        }
-        if depth == 1 && token == key {
+    // Only keys own values. A name used as another key's value must not
+    // masquerade as /Filter (or hide the real filter later in the dictionary).
+    let mut i = 1;
+    while i + 1 < tokens.len() {
+        if tokens[i] == key {
             return tokens.get(i + 1).map(String::as_str);
+        }
+        i += 1;
+        match tokens.get(i)?.as_str() {
+            "<<" | "[" => {
+                let mut depth = 0usize;
+                loop {
+                    match tokens.get(i)?.as_str() {
+                        "<<" | "[" => depth += 1,
+                        ">>" | "]" => depth = depth.checked_sub(1)?,
+                        _ => {}
+                    }
+                    i += 1;
+                    if depth == 0 {
+                        break;
+                    }
+                }
+            }
+            _ if tokens.get(i + 2).is_some_and(|s| s == "R") => i += 3,
+            _ => i += 1,
         }
     }
     None
 }
+
 fn integer(tokens: &[String], key: &str) -> crate::Result<Option<u64>> {
     let Some(v) = value(tokens, key) else {
         return Ok(None);
@@ -32,31 +56,59 @@ fn integer(tokens: &[String], key: &str) -> crate::Result<Option<u64>> {
     v.parse().map(Some).map_err(|_| error("document_malformed"))
 }
 fn dictionary(tokens: &[String]) -> crate::Result<()> {
-    let mut depth = 0usize;
-    let mut keys = std::collections::BTreeSet::new();
-    let mut key_expected = true;
-    for token in tokens {
+    // Validate the complete grammar, not alternating name tokens. Arrays,
+    // references and nested dictionaries must not hide duplicate filter keys.
+    fn item(tokens: &[String], i: &mut usize) -> crate::Result<()> {
+        let token = tokens.get(*i).ok_or_else(|| error("document_malformed"))?;
+        *i += 1;
         match token.as_str() {
-            "<<" | "[" => {
-                if depth == 1 {
-                    key_expected = true;
+            "<<" => {
+                let mut keys = std::collections::BTreeSet::new();
+                while tokens.get(*i).is_some_and(|s| s != ">>") {
+                    let key = tokens.get(*i).ok_or_else(|| error("document_malformed"))?;
+                    if !key.starts_with('/') || !keys.insert(key) {
+                        return Err(error("document_malformed"));
+                    }
+                    if key.starts_with("/Filter") && key != "/Filter" {
+                        return Err(error("document_unsupported"));
+                    }
+                    *i += 1;
+                    item(tokens, i)?;
                 }
-                depth += 1;
-            }
-            ">>" | "]" => {
-                depth = depth.saturating_sub(1);
-            }
-            _ if depth == 1 && token.starts_with('/') => {
-                if key_expected && !keys.insert(token) {
+                if tokens.get(*i).is_none() {
                     return Err(error("document_malformed"));
                 }
-                key_expected = !key_expected;
+                *i += 1;
             }
-            _ if depth == 1 => {
-                key_expected = true;
+            "[" => {
+                while tokens.get(*i).is_some_and(|s| s != "]") {
+                    item(tokens, i)?;
+                }
+                if tokens.get(*i).is_none() {
+                    return Err(error("document_malformed"));
+                }
+                *i += 1;
             }
-            _ => {}
+            "string" | "true" | "false" | "null" => {}
+            name if name.starts_with('/') => {}
+            number if number.parse::<f64>().is_ok_and(f64::is_finite) => {
+                if tokens.get(*i + 1).is_some_and(|s| s == "R") {
+                    if number.parse::<u64>().is_err()
+                        || tokens.get(*i).is_none_or(|s| s.parse::<u64>().is_err())
+                    {
+                        return Err(error("document_malformed"));
+                    }
+                    *i += 2;
+                }
+            }
+            _ => return Err(error("document_unsupported")),
         }
+        Ok(())
+    }
+    let mut end = 0;
+    item(tokens, &mut end)?;
+    if end != tokens.len() {
+        return Err(error("document_malformed"));
     }
     if matches!(value(tokens, "/Type"), Some("/ObjStm" | "/XRef")) {
         return Err(error("document_unsupported"));
@@ -85,7 +137,7 @@ struct InlineGuard {
 impl InlineGuard {
     fn inspect(&mut self, bytes: &[u8]) -> crate::Result<()> {
         for &byte in bytes {
-            if byte.is_ascii_whitespace() || b"()<>[]{}/%".contains(&byte) {
+            if whitespace(byte) || b"()<>[]{}/%".contains(&byte) {
                 if self.length == 2 && self.token == *b"BI" {
                     return Err(error("document_unsupported"));
                 }
@@ -109,8 +161,8 @@ pub(super) fn pdf(data: &[u8]) -> crate::Result<()> {
         .ok_or_else(|| error("document_malformed"))?;
     let offset = std::str::from_utf8(&tail[marker + 9..])
         .map_err(|_| error("document_malformed"))?
-        .split_whitespace()
-        .next()
+        .split(|c: char| c.is_ascii() && whitespace(c as u8))
+        .find(|s| !s.is_empty())
         .and_then(|s| s.parse::<usize>().ok())
         .ok_or_else(|| error("document_malformed"))?;
     if data.get(offset..offset.saturating_add(4)) != Some(b"xref") {
@@ -126,7 +178,7 @@ pub(super) fn pdf(data: &[u8]) -> crate::Result<()> {
     let mut decoded = 0u64;
     let mut i = 0;
     while i < data.len() {
-        if data[i].is_ascii_whitespace() {
+        if whitespace(data[i]) {
             i += 1;
             continue;
         }
@@ -186,10 +238,7 @@ pub(super) fn pdf(data: &[u8]) -> crate::Result<()> {
             _ => {
                 let start = i;
                 i += 1;
-                while i < data.len()
-                    && !data[i].is_ascii_whitespace()
-                    && !b"()<>[]{}/%".contains(&data[i])
-                {
+                while i < data.len() && !whitespace(data[i]) && !delimiter(data[i]) {
                     i += 1;
                 }
                 if i - start > 1024 {
@@ -278,7 +327,7 @@ pub(super) fn pdf(data: &[u8]) -> crate::Result<()> {
                 return Err(error("document_decompressed_limit"));
             }
             i += length;
-            while data.get(i).is_some_and(u8::is_ascii_whitespace) {
+            while data.get(i).is_some_and(|b| whitespace(*b)) {
                 i += 1;
             }
             if data.get(i..i + 9) != Some(b"endstream") {

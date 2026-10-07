@@ -25,6 +25,10 @@ pub fn context(refs: Vec<String>, index: Option<PathBuf>) -> Result<()> {
     CONTEXT.with(|c| *c.borrow_mut() = (refs, index));
     Ok(())
 }
+/// Copy the current invocation context for a supervised document operation.
+pub fn current_context() -> (Vec<String>, Option<PathBuf>) {
+    CONTEXT.with(|c| c.borrow().clone())
+}
 /// Scoped context that restores prior references when an MCP request completes.
 pub struct ContextGuard((Vec<String>, Option<PathBuf>));
 impl Drop for ContextGuard {
@@ -417,9 +421,11 @@ pub fn index(path: &Path, value: &Value) -> Result<()> {
         .as_secs();
     let verdict = verdict_class(value);
     let row = json!({"report_id":value["report_id"],"source_refs":value["source_refs"],"verdict_class":verdict,"timestamp_unix":timestamp,"report_path":crate::paths::portable(&crate::explain::absolute(path)),"schema":INDEX_SCHEMA,"report_schema":value["schema"]});
+    let bytes = format!("{}\n", serde_json::to_string(&row)?);
+    crate::general::documents::worker::charge_output(bytes.len() as u64)?;
     let mut writer = &file;
     writer
-        .write_all(format!("{}\n", serde_json::to_string(&row)?).as_bytes())
+        .write_all(bytes.as_bytes())
         .map_err(crate::run::io_err("appending report index".into()))?;
     Ok(())
 }

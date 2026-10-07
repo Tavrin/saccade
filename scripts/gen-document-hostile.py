@@ -59,10 +59,39 @@ def generate(root):
     fixtures["malformed-xref.pdf"] = (malformed[:start] + b"startxref\n99999999\n%%EOF\n", "document_malformed")
     # Rebuild xref offsets after escaped names rather than relying on repair.
     fixtures["escaped-decompression-bomb.pdf"] = (pages(["1 0 0"], extra=[f"<< /Length {len(bomb)} /Filter /Flate#44ecode >>\nstream\n".encode() + bomb + b"\nendstream"]), "document_decompressed_limit")
+    # Parser whitespace includes NUL but excludes vertical tab. Use referenced
+    # content streams and rebuilt classic xrefs, so no repair or unused object
+    # semantics are needed for this differential.
+    for label, separator, expected in [
+        ("nul", b"\x00", "document_decompressed_limit"),
+        ("vt", b"\x0b", "document_unsupported"),
+    ]:
+        stream = f"<< /Length {len(bomb)} /Filter".encode() + separator + b"/FlateDecode >>\nstream\n" + bomb + b"\nendstream"
+        fixtures[f"{label}-filter-bomb.pdf"] = (pdf([
+            b"<< /Type /Catalog /Pages 2 0 R >>",
+            b"<< /Type /Pages /Count 1 /Kids [3 0 R] >>",
+            b"<< /Type /Page /Parent 2 0 R /MediaBox [0 0 72 72] /Contents 4 0 R >>",
+            stream,
+        ]), expected)
+    for label, filters, expected in [
+        ("unknown", b"/Filter /UnknownDecode", "document_unsupported"),
+        ("filter-as-value", b"/Foo /Filter /FlateDecode /Bar /Filter /LZWDecode", "document_unsupported"),
+        ("array", b"/Filter [/FlateDecode]", "document_unsupported"),
+        ("duplicate-array", b"/Filter [] /Filter /FlateDecode", "document_malformed"),
+    ]:
+        fixtures[f"{label}-filter.pdf"] = (pages(["1 0 0"], extra=[f"<< /Length {len(bomb)} ".encode() + filters + b" >>\nstream\n" + bomb + b"\nendstream"]), expected)
     parents = [f"<< /Parent {i+1} 0 R >>".encode() for i in range(5, 71)] + [b"null"]
     fixtures["deep-parent.pdf"] = (pages(["1 0 0"], extra=parents), "document_depth_limit")
     content = b"BI /W 100000 /H 100000 /F /FlateDecode ID x EI\n"
     fixtures["inline-image.pdf"] = (pages(["1 0 0"], extra=[f"<< /Length {len(content)} >>\nstream\n".encode() + content + b"endstream"]), "document_unsupported")
+    safe = zlib.compress(b"1 0 0 rg 0 0 8 8 re f\n")
+    safe_pdf = pdf([
+        b"<< /Type /Catalog /Pages 2 0 R >>",
+        b"<< /Type /Pages /Count 1 /Kids [3 0 R] >>",
+        b"<< /Type /Page /Parent 2 0 R /MediaBox [0 0 72 72] /Contents 4 0 R >>",
+        f"<< /Length {len(safe)} /Filter".encode() + b"\x00/FlateDecode >>\nstream\n" + safe + b"\x00endstream",
+    ]).replace(b"startxref\n", b"startxref\x00")
+    (root / "nul-filter-safe.pdf").write_bytes(safe_pdf)
     receipts = []
     for name, (data, code) in fixtures.items():
         (root / name).write_bytes(data)

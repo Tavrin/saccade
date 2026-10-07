@@ -825,3 +825,9 @@ package or system GDAL dependency is introduced. Test-only `tempfile` is
 MIT OR Apache-2.0 and `jsonschema 0.30.0` is MIT. Crate-source licence metadata
 and Cargo.lock are the evidence, not an external licensing assumption.
 All TIFF and tile fixtures are original procedural data, MIT OR Apache-2.0.
+
+N19 resource-boundary fixes use Linux-only `nix 0.30.1` (MIT) for the safe
+inherited-descriptor close sweep and supervised-operation process-group kill.
+Its new build dependency `cfg_aliases 0.2.2` is MIT. Exact versions are pinned in
+Cargo.lock; registry Cargo.toml and bundled licences were inspected. No linked
+native library, new document decoder or filesystem/syscall sandbox is added.

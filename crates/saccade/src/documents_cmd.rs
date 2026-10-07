@@ -19,8 +19,15 @@ pub(crate) fn compare(
     json_output: bool,
 ) -> Result<u8, CliError> {
     let value = measure(a, b, out, options, threshold, metric)?;
-    general_cmd::emit_document(value, Some(out), json_output)
+    general_cmd::emit_document_saved(
+        &value,
+        &out.join(format!("{}.json", documents::SCHEMA)),
+        json_output,
+    )
 }
+#[cfg(feature = "documents")]
+pub(crate) mod operation;
+
 pub(crate) fn measure(
     a: &Path,
     b: &Path,
@@ -28,6 +35,25 @@ pub(crate) fn measure(
     options: &general_cmd::CompareArgs,
     threshold: f64,
     metric: crate::MetricArg,
+) -> Result<Value, CliError> {
+    #[cfg(feature = "documents")]
+    {
+        operation::measure(a, b, out, options, threshold, metric)
+    }
+    #[cfg(not(feature = "documents"))]
+    {
+        measure_local(a, b, out, options, threshold, metric, out)
+    }
+}
+
+pub(super) fn measure_local(
+    a: &Path,
+    b: &Path,
+    out: &Path,
+    options: &general_cmd::CompareArgs,
+    threshold: f64,
+    metric: crate::MetricArg,
+    scratch: &Path,
 ) -> Result<Value, CliError> {
     if !cfg!(feature = "documents") {
         return Err(CliError::new(
@@ -75,7 +101,6 @@ pub(crate) fn measure(
         ));
     };
     general_cmd::prepare_out(out, &[a, b])?;
-    let scratch = tempfile::tempdir().map_err(|e| CliError::io(e.to_string()))?;
     let mut pages = Vec::new();
     let mut failures = 0;
     for (page, pair) in map.pairs.iter().enumerate() {
@@ -85,21 +110,19 @@ pub(crate) fn measure(
             continue;
         };
         let load = |bytes: &[u8], page: usize| -> Result<image::RgbaImage, CliError> {
-            Ok(if documents::format(bytes).is_some() {
+            let image = if documents::format(bytes).is_some() {
                 documents::page(bytes, dpi, page)?
             } else {
                 input::decode(bytes)?
-            })
+            };
+            documents::worker::charge_pixels(u64::from(image.width()) * u64::from(image.height()))?;
+            Ok(image)
         };
         let result = (|| -> Result<Value, CliError> {
-            let ap = scratch.path().join("a.png");
-            let bp = scratch.path().join("b.png");
-            load(&aa, reference - 1)?
-                .save(&ap)
-                .map_err(|e| CliError::io(e.to_string()))?;
-            load(&bb, candidate - 1)?
-                .save(&bp)
-                .map_err(|e| CliError::io(e.to_string()))?;
+            let ap = scratch.join("a.png");
+            let bp = scratch.join("b.png");
+            save(&load(&aa, reference - 1)?, &ap)?;
+            save(&load(&bb, candidate - 1)?, &bp)?;
             let page_options = general_cmd::CompareArgs {
                 align: Some(options.align.unwrap_or(general_cmd::Align::None)),
                 resample: options.resample,
@@ -120,6 +143,11 @@ pub(crate) fn measure(
                 pages.push(json!({"page":page+1,"reference_page":reference,"candidate_page":candidate,"status":status,"measurement":value,"artifact":format!("page-{:04}/saccade-registration.v1.json",page+1)}));
             }
             Err(error) => {
+                if error.code == "document_total_pixel_limit"
+                    || error.code == "document_output_byte_limit"
+                {
+                    return Err(error);
+                }
                 failures += 1;
                 pages.push(json!({"page":page+1,"reference_page":reference,"candidate_page":candidate,"status":"error","error":{"code":error.code,"message":error.message}}));
             }
@@ -134,4 +162,81 @@ pub(crate) fn schemas() -> Vec<Value> {
     vec![
         json!({"type":"object","properties":{"operation":{"const":"documents_compare","type":"string"},"reference":{"type":"string"},"capture":{"type":"string"},"out":{"type":"string"},"dpi":{"type":"number","minimum":36,"maximum":600},"threshold":{"type":"number","minimum":0,"maximum":1}},"required":["operation","reference","capture","out"],"additionalProperties":false}),
     ]
+}
+
+pub(crate) fn save(image: &impl PngSource, path: &Path) -> Result<(), CliError> {
+    if !documents::worker::operation_is_active() {
+        return image.save_unbounded(path);
+    }
+    let bytes = image.png()?;
+    documents::worker::charge_output(bytes.len() as u64)?;
+    std::fs::write(path, bytes).map_err(|e| CliError::io(e.to_string()))
+}
+pub(crate) trait PngSource {
+    fn save_unbounded(&self, path: &Path) -> Result<(), CliError>;
+    fn png(&self) -> Result<Vec<u8>, CliError>;
+}
+impl PngSource for image::RgbaImage {
+    fn save_unbounded(&self, path: &Path) -> Result<(), CliError> {
+        self.save(path).map_err(|e| CliError::io(e.to_string()))
+    }
+    fn png(&self) -> Result<Vec<u8>, CliError> {
+        use image::ImageEncoder;
+        let mut bytes = Vec::new();
+        image::codecs::png::PngEncoder::new(&mut bytes)
+            .write_image(
+                self.as_raw(),
+                self.width(),
+                self.height(),
+                image::ExtendedColorType::Rgba8,
+            )
+            .map_err(|e| CliError::io(e.to_string()))?;
+        Ok(bytes)
+    }
+}
+impl PngSource for image::DynamicImage {
+    fn save_unbounded(&self, path: &Path) -> Result<(), CliError> {
+        self.save(path).map_err(|e| CliError::io(e.to_string()))
+    }
+    fn png(&self) -> Result<Vec<u8>, CliError> {
+        let mut bytes = std::io::Cursor::new(Vec::new());
+        self.write_to(&mut bytes, image::ImageFormat::Png)
+            .map_err(|e| CliError::io(e.to_string()))?;
+        Ok(bytes.into_inner())
+    }
+}
+
+#[cfg(test)]
+#[allow(clippy::unwrap_used)]
+mod budget_tests {
+    use super::*;
+    #[test]
+    fn parent_output_quota_refuses_before_png_and_report_index_write() {
+        let dir = tempfile::tempdir().unwrap();
+        let _budget = documents::worker::operation_budget();
+        documents::worker::charge_output(documents::worker::CAPS.output_bytes - 1).unwrap();
+        let image = image::RgbaImage::new(8, 8);
+        let path = dir.path().join("refused.png");
+        assert_eq!(
+            save(&image, &path).unwrap_err().code,
+            "document_output_byte_limit"
+        );
+        assert!(!path.exists());
+        let report =
+            saccade_core::report_links::decorate(&json!({"schema":documents::SCHEMA})).unwrap();
+        let error = saccade_core::report_links::index(&dir.path().join("report.json"), &report)
+            .unwrap_err();
+        assert!(matches!(
+            error,
+            saccade_core::Error::Document {
+                code: "document_output_byte_limit"
+            }
+        ));
+        assert_eq!(
+            std::fs::metadata(dir.path().join("reports/index.jsonl"))
+                .unwrap()
+                .len(),
+            0
+        );
+    }
 }

@@ -1657,7 +1657,7 @@ impl Server {
                 images: Vec::new(),
             });
         }
-        // Document rendering has no native execution or network authority.
+        // Document rendering uses resource isolation; it is not a syscall/filesystem sandbox.
         if operation == "documents_compare" {
             reject_unknown(
                 args,
@@ -1686,7 +1686,7 @@ impl Server {
                 arg_f64(args, "threshold")?.unwrap_or(0.02),
                 crate::MetricArg::Mean,
             )?;
-            let file = crate::general_cmd::persist_document(&value, &out)?;
+            let file = out.join(format!("{}.json", saccade_core::general::documents::SCHEMA));
             return Ok(ToolOutput {structured:json!({"schema":saccade_core::general::RESULT_SCHEMA,"mode":operation,"verdict":value["verdict"],"data":{"schema":value["schema"],"counts":value["counts"]},"artifacts":[{"path":saccade_core::paths::record(&file,&self.root,false)}],"next_actions":[]}),text:"Rendered pages at declared density; page errors and missingness remain failures.".into(),images:Vec::new()});
         }
         if operation == "embedding_export_inputs" {

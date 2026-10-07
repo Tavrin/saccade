@@ -12,6 +12,18 @@ pub struct Caps {
     pub memory_bytes: u64,
     /// Parent-enforced wall time per operation, including startup.
     pub wall_time_ms: u64,
+    /// Wall time for a complete file-pair document comparison.
+    pub operation_wall_time_ms: u64,
+    /// Virtual address space for the comparison process.
+    pub operation_memory_bytes: u64,
+    /// CPU seconds for the comparison process.
+    pub operation_cpu_seconds: u64,
+    /// Total admitted input raster pixels across a comparison.
+    pub total_pixels: u64,
+    /// Maximum input raster area admitted to parent-side comparison.
+    pub comparison_pixels: u64,
+    /// Aggregate bytes written by a complete comparison, including scratch and indexes.
+    pub output_bytes: u64,
     /// OS-enforced CPU seconds per worker.
     pub cpu_seconds: u64,
     /// Pages per document.
@@ -33,6 +45,12 @@ pub const CAPS: Caps = Caps {
     memory_bytes: 512 * 1024 * 1024,
     wall_time_ms: 15_000,
     cpu_seconds: 10,
+    operation_wall_time_ms: 60_000,
+    operation_memory_bytes: 1024 * 1024 * 1024,
+    operation_cpu_seconds: 60,
+    total_pixels: 8 * 1024 * 1024,
+    comparison_pixels: 1024 * 1024,
+    output_bytes: 64 * 1024 * 1024,
     pages: 500,
     dimension: 16384,
     pixels: super::super::input::MAX_PIXELS,
@@ -79,20 +97,22 @@ mod process {
             return Err(error("document_isolation_unavailable"));
         }
         // Embedders supply a trusted documents-enabled CLI, never an input-supplied executable.
-        let exe = if let Some(path) = std::env::var_os("SACCADE_DOCUMENT_WORKER") {
-            path.into()
+        let configured = WORKER
+            .with(|worker| worker.borrow().clone())
+            .or_else(|| std::env::var_os("SACCADE_DOCUMENT_WORKER").map(std::path::PathBuf::from));
+        let current = std::env::current_exe().map_err(|_| error("document_worker_unavailable"))?;
+        let launcher = if current.file_stem().is_some_and(|n| n == "saccade") {
+            current
+        } else if let Some(exe) = &configured {
+            // Embedders provide a trusted CLI implementing both internal entry points.
+            exe.clone()
         } else {
-            let current =
-                std::env::current_exe().map_err(|_| error("document_worker_unavailable"))?;
-            if current.file_stem().is_some_and(|n| n == "saccade") {
-                current
-            } else {
-                current
-                    .parent()
-                    .ok_or_else(|| error("document_worker_unavailable"))?
-                    .join("saccade")
-            }
+            current
+                .parent()
+                .ok_or_else(|| error("document_worker_unavailable"))?
+                .join("saccade")
         };
+        let exe = configured.unwrap_or_else(|| launcher.clone());
         let mut source = tempfile::tempfile().map_err(|_| error("document_worker_io"))?;
         serde_json::to_writer(&mut source, &job).map_err(|_| error("document_worker_io"))?;
         source
@@ -111,8 +131,9 @@ mod process {
                 "--nofile=32".into(),
                 "--".into(),
             ])
+            .arg(launcher)
+            .arg("--document-launch")
             .arg(exe)
-            .arg("--document-worker")
             .env_clear()
             .env("RAYON_NUM_THREADS", "1")
             .stdin(Stdio::from(source))
@@ -221,6 +242,9 @@ mod process {
     }
     pub(super) fn serve() -> u8 {
         use std::io::BufRead;
+        if revoke_descriptors().is_err() {
+            return 2;
+        }
         // Refuse direct invocation unless exec was already admitted under every OS cap.
         let bounded = std::fs::read_to_string("/proc/self/limits")
             .ok()
@@ -376,4 +400,138 @@ pub(super) fn page(encoded: &[u8], dpi: f64, page: usize) -> crate::Result<image
 #[cfg(feature = "documents")]
 pub fn serve() -> u8 {
     process::serve()
+}
+
+thread_local! {
+    static WORKER: std::cell::RefCell<Option<std::path::PathBuf>> = const { std::cell::RefCell::new(None) };
+    static OPERATION: std::cell::RefCell<Option<(u64, u64)>> = const { std::cell::RefCell::new(None) };
+}
+/// Scoped cumulative budgets for the supervised document comparison thread.
+pub struct OperationBudget(Option<(u64, u64)>);
+impl Drop for OperationBudget {
+    fn drop(&mut self) {
+        OPERATION.with(|budget| *budget.borrow_mut() = self.0);
+    }
+}
+/// Start fixed operation-wide pixel and write budgets; nested use preserves the prior budget.
+pub fn operation_budget() -> OperationBudget {
+    OperationBudget(
+        OPERATION.with(|budget| budget.replace(Some((CAPS.total_pixels, CAPS.output_bytes)))),
+    )
+}
+/// Whether the current thread belongs to a supervised document comparison.
+pub fn operation_is_active() -> bool {
+    OPERATION.with(|budget| budget.borrow().is_some())
+}
+/// Admit raster area before parent-side encoding, registration or FLIP allocation.
+pub fn charge_pixels(pixels: u64) -> crate::Result<()> {
+    OPERATION.with(|budget| {
+        if let Some((remaining, _)) = budget.borrow_mut().as_mut() {
+            if pixels > CAPS.comparison_pixels || pixels > *remaining {
+                return Err(error("document_total_pixel_limit"));
+            }
+            *remaining -= pixels;
+        }
+        Ok(())
+    })
+}
+/// Charge every requested write before it reaches disk (including report-index rows).
+pub fn charge_output(bytes: u64) -> crate::Result<()> {
+    OPERATION.with(|budget| {
+        if let Some((_, remaining)) = budget.borrow_mut().as_mut() {
+            if bytes > *remaining {
+                return Err(error("document_output_byte_limit"));
+            }
+            *remaining -= bytes;
+        }
+        Ok(())
+    })
+}
+/// Revoke all inherited descriptors except standard input/output/error before rendering.
+/// Internal entry points call this only in a fresh, single-threaded process before opening owned IO.
+/// Linux procfs enumerates even descriptors above the newly installed NOFILE limit.
+/// Refuse on other platforms or if enumeration/closing is unavailable.
+pub fn revoke_descriptors() -> crate::Result<()> {
+    #[cfg(target_os = "linux")]
+    {
+        // Collect first: the directory iterator's own descriptor is gone before the sweep.
+        // EBADF is allowed only for that already-closed enumeration descriptor.
+        let descriptors = std::fs::read_dir("/proc/self/fd")
+            .map_err(|_| error("document_isolation_unavailable"))?
+            .map(|entry| {
+                entry
+                    .ok()
+                    .and_then(|e| e.file_name().to_str()?.parse::<i32>().ok())
+                    .ok_or_else(|| error("document_isolation_unavailable"))
+            })
+            .collect::<crate::Result<Vec<_>>>()?;
+        for fd in descriptors.into_iter().filter(|fd| *fd > 2) {
+            match nix::unistd::close(fd) {
+                Ok(()) | Err(nix::errno::Errno::EBADF) => {}
+                Err(_) => return Err(error("document_isolation_unavailable")),
+            }
+        }
+        Ok(())
+    }
+    #[cfg(not(target_os = "linux"))]
+    Err(error("document_isolation_unavailable"))
+}
+/// Internal trusted launcher: revoke descriptors before exec, including custom worker adapters.
+#[cfg(feature = "documents")]
+pub fn launch() -> u8 {
+    if revoke_descriptors().is_err() {
+        return 2;
+    }
+    #[cfg(target_os = "linux")]
+    {
+        use std::os::unix::process::CommandExt;
+        let Some(exe) = std::env::args_os().nth(2) else {
+            return 2;
+        };
+        let _ = std::process::Command::new(exe)
+            .arg("--document-worker")
+            .env_clear()
+            .env("RAYON_NUM_THREADS", "1")
+            .exec();
+    }
+    2
+}
+
+/// Invocation-scoped trusted worker configuration without changing the process environment.
+pub struct WorkerGuard(Option<std::path::PathBuf>);
+impl Drop for WorkerGuard {
+    fn drop(&mut self) {
+        WORKER.with(|worker| *worker.borrow_mut() = self.0.take());
+    }
+}
+/// Configure a trusted adapter for a supervised operation.
+pub fn worker_scope(path: Option<&std::path::Path>) -> WorkerGuard {
+    WorkerGuard(WORKER.with(|worker| worker.replace(path.map(std::path::Path::to_path_buf))))
+}
+
+#[cfg(test)]
+#[allow(clippy::unwrap_used)]
+mod operation_tests {
+    use super::*;
+    #[test]
+    fn operation_budget_is_cumulative_and_refuses_before_writes() {
+        let _scope = operation_budget();
+        for _ in 0..CAPS.total_pixels / CAPS.comparison_pixels {
+            charge_pixels(CAPS.comparison_pixels).unwrap();
+        }
+        assert!(matches!(
+            charge_pixels(1),
+            Err(crate::Error::Document {
+                code: "document_total_pixel_limit"
+            })
+        ));
+        charge_output(CAPS.output_bytes - 1).unwrap();
+        assert!(matches!(
+            charge_output(2),
+            Err(crate::Error::Document {
+                code: "document_output_byte_limit"
+            })
+        ));
+        charge_output(1).unwrap();
+    }
 }

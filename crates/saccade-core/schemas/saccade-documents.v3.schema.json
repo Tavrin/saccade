@@ -137,6 +137,24 @@
         },
         "decompressed_bytes": {
           "const": 67108864
+        },
+        "operation_wall_time_ms": {
+          "const": 60000
+        },
+        "operation_memory_bytes": {
+          "const": 1073741824
+        },
+        "operation_cpu_seconds": {
+          "const": 60
+        },
+        "total_pixels": {
+          "const": 8388608
+        },
+        "comparison_pixels": {
+          "const": 1048576
+        },
+        "output_bytes": {
+          "const": 67108864
         }
       },
       "required": [

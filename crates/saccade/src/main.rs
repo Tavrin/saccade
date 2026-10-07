@@ -266,7 +266,7 @@ impl MetaRequireArgs {
     }
 }
 
-#[derive(Clone, Copy, ValueEnum)]
+#[derive(Clone, Copy, ValueEnum, serde::Serialize, serde::Deserialize)]
 enum MetricArg {
     Mean,
     P95,
@@ -1036,6 +1036,20 @@ fn emit_json_error(err: &CliError) {
 }
 
 fn main() -> ExitCode {
+    #[cfg(feature = "documents")]
+    if std::env::args_os()
+        .nth(1)
+        .is_some_and(|a| a == "--document-launch")
+    {
+        return ExitCode::from(saccade_core::general::documents::worker::launch());
+    }
+    #[cfg(feature = "documents")]
+    if std::env::args_os()
+        .nth(1)
+        .is_some_and(|a| a == "--document-operation")
+    {
+        return ExitCode::from(documents_cmd::operation::serve());
+    }
     #[cfg(feature = "documents")]
     if std::env::args_os()
         .nth(1)
@@ -2377,8 +2391,6 @@ fn load_config(explicit: Option<&Path>) -> Result<RunConfig, CliError> {
     }
 }
 
-/// Opens `url` in the default browser; failures are ignored.
-#[cfg(feature = "workbench")]
 /// Open a local page in the default browser; best effort, never an error.
 fn open_page(path: &Path) {
     let absolute = saccade_core::explain::absolute(path);
@@ -2388,6 +2400,7 @@ fn open_page(path: &Path) {
     ));
 }
 
+/// Opens `url` in the default browser; failures are ignored.
 fn open_browser(url: &str) {
     let (program, args): (&str, Vec<&str>) = if cfg!(target_os = "macos") {
         ("open", vec![url])
