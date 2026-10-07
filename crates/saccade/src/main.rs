@@ -76,6 +76,7 @@ mod region_cmd;
 mod renderdoc_cmd;
 #[cfg(feature = "ai")]
 mod review_cmd;
+mod signed_approval;
 mod split_review_cmd;
 #[cfg(feature = "products")]
 mod sweep_cmd;
@@ -156,6 +157,12 @@ Exit codes (a command that cannot produce a measurement never exits 0):
 Units: --threshold on FLIP scores is a 0-1 score (lower = more alike); hash thresholds count bits."
 )]
 struct Cli {
+    /// Require externally signed approvals and verify baseline approval consumers.
+    #[arg(long, global = true)]
+    require_signed_approval: bool,
+    /// External OpenSSH allowed-signers file (cannot override a required policy).
+    #[arg(long, global = true)]
+    approval_allowed_signers: Option<PathBuf>,
     /// External capture URI/key (repeatable); recorded in generated reports.
     #[arg(long, global = true)]
     source_ref: Vec<String>,
@@ -457,6 +464,9 @@ Exit codes: 0 no regression, 1 regression found, 2 the command could not run."
         general: Box<general_cmd::CompareArgs>,
         #[command(flatten)]
         field: Box<wave10_cmd::CompareArgs>,
+        /// Require a verified signed baseline, even without a global approval policy.
+        #[arg(long)]
+        approved: bool,
         /// Directory of approved baseline images.
         #[arg(required_unless_present = "baseline", conflicts_with = "baseline")]
         baseline_dir: Option<PathBuf>,
@@ -682,6 +692,8 @@ Review the report, plan/manifest.json and plan/decision.json between the two ste
 The dry run writes no baseline; content hashes must still match when applying."
     )]
     Approve {
+        #[command(flatten)]
+        signing: signed_approval::SigningArgs,
         /// Directory of fresh captures.
         capture_dir: Option<PathBuf>,
         /// Baseline directory to update.
@@ -1120,7 +1132,8 @@ fn cli_main() -> ExitCode {
         emit_json_error(&e.into());
         return ExitCode::from(2);
     }
-    match outdirs::warn(&cli.command, cli.allow_out_near_captures)
+    match signed_approval::init(cli.require_signed_approval, cli.approval_allowed_signers)
+        .and_then(|()| outdirs::warn(&cli.command, cli.allow_out_near_captures))
         .and_then(|()| dispatch(cli.command, cli.record_absolute_paths))
     {
         Ok(code) => ExitCode::from(code),
@@ -1551,6 +1564,7 @@ fn dispatch(command: Command, record_absolute_paths: bool) -> Result<u8, CliErro
             )
         }
         Command::Compare {
+            approved,
             general,
             field,
             baseline_dir,
@@ -1586,6 +1600,11 @@ fn dispatch(command: Command, record_absolute_paths: bool) -> Result<u8, CliErro
                 .map(|dir| dir.path().to_path_buf())
                 .or(baseline_dir)
                 .ok_or_else(|| CliError::usage("baseline directory required"))?;
+            let verified = if approved || signed_approval::required() {
+                Some(signed_approval::check_baseline(&baseline_dir)?)
+            } else {
+                None
+            };
             let mut arm_cfg = load_config(config.as_deref())?;
             meta.apply(&mut arm_cfg.meta);
             require.apply(&mut arm_cfg.meta);
@@ -1598,6 +1617,18 @@ fn dispatch(command: Command, record_absolute_paths: bool) -> Result<u8, CliErro
                 && capture_dir.is_file()
                 && (documents_cmd::is_document(&baseline_dir)
                     || documents_cmd::is_document(&capture_dir));
+            if verified.is_some()
+                && (document_pair
+                    || general.align.is_some()
+                    || general
+                        .question
+                        .is_some_and(|q| q != capability_cmd::Question::SameRender))
+            {
+                return Err(CliError::new(
+                    "approval_consumer_unsupported",
+                    "signed approvals require stock directory measurement",
+                ));
+            }
             if document_pair
                 && general
                     .question
@@ -1716,7 +1747,8 @@ fn dispatch(command: Command, record_absolute_paths: bool) -> Result<u8, CliErro
             if let Some((declaration, source)) = &visual {
                 saccade_core::intent::apply_effects(declaration, source, &mut cfg)?;
             }
-            let report = saccade_core::run::run(&baseline_dir, &capture_dir, &out, &cfg)?;
+            let report =
+                signed_approval::run(&baseline_dir, &capture_dir, &out, &cfg, verified.as_ref())?;
             if let Some(path) = junit {
                 saccade_core::ergonomics::junit(&report, &path)?;
             }
@@ -1797,7 +1829,7 @@ fn dispatch(command: Command, record_absolute_paths: bool) -> Result<u8, CliErro
             if let Some((declaration, source)) = &visual {
                 saccade_core::intent::apply_effects(declaration, source, &mut cfg)?;
             }
-            let report = saccade_core::run::run(&parent_dir, &candidate_dir, &out, &cfg)?;
+            let report = signed_approval::run(&parent_dir, &candidate_dir, &out, &cfg, None)?;
             if let Some(path) = junit {
                 saccade_core::ergonomics::junit(&report, &path)?;
             }
@@ -1811,6 +1843,7 @@ fn dispatch(command: Command, record_absolute_paths: bool) -> Result<u8, CliErro
             Ok(u8::from(report.is_regression() || intent_mismatch))
         }
         Command::Approve {
+            signing,
             capture_dir,
             baseline_dir,
             mut names,
@@ -1869,6 +1902,7 @@ fn dispatch(command: Command, record_absolute_paths: bool) -> Result<u8, CliErro
                 &baseline,
                 decisions.as_deref(),
                 approval::Options {
+                    signing,
                     names,
                     all_failing: all_failing.is_some(),
                     include_errors,

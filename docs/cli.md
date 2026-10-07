@@ -12,6 +12,11 @@ Exit 0 for compare/identity means no image regression; inspect `performance` for
 Inspection, review, rank and ablation completion grant no acceptance authority.
 Exit 2 means the operation cannot run. Demo intentionally exits 1.
 
+Actual generation binary (reference header above describes all features):
+
+Generation: `python3 scripts/gen-docs.py --allow-missing-imgtune-avif --preserve-all-features-header`.
+Compiled features: `ai`, `assist`, `compression`, `credentials`, `dense-motion`, `documents`, `embeddings`, `evaluation`, `geo`, `geometry`, `graphics`, `local-models`, `local-vlm`, `mcp`, `media-http`, `ocr`, `ocr-provider`, `parallel`, `prechecks`, `print`, `products`, `schema`, `semantic-regions`, `text-quality`, `vision-providers`, `workbench`.
+
 ## saccade
 
 ```text
@@ -73,10 +78,18 @@ Commands:
   quality-sweep       Measure externally encoded quality candidates under a frozen score and byte budget
 
 Options:
-      --source-ref <SOURCE_REF>      External capture URI/key (repeatable); recorded in generated reports
-      --report-index <REPORT_INDEX>  Shared report index destination (default reports/index.jsonl next to each report, inside --out)
-  -h, --help                         Print help
-  -V, --version                      Print version
+      --require-signed-approval
+          Require externally signed approvals and verify baseline approval consumers
+      --approval-allowed-signers <APPROVAL_ALLOWED_SIGNERS>
+          External OpenSSH allowed-signers file (cannot override a required policy)
+      --source-ref <SOURCE_REF>
+          External capture URI/key (repeatable); recorded in generated reports
+      --report-index <REPORT_INDEX>
+          Shared report index destination (default reports/index.jsonl next to each report, inside --out)
+  -h, --help
+          Print help
+  -V, --version
+          Print version
 
 Global options:
       --allow-out-near-captures  Silence warnings when --out is next to capture metadata
@@ -121,16 +134,30 @@ Arguments:
   <SOURCE>  Folder or saccade-batch-input.v1 JSON manifest
 
 Options:
-      --out <OUT>                      Dedicated output directory; rerunning resumes immutable receipts
-      --source-ref <SOURCE_REF>        External capture URI/key (repeatable); recorded in generated reports
-      --report-index <REPORT_INDEX>    Shared report index destination (default reports/index.jsonl next to each report, inside --out)
-      --section <SECTION>              Existing commands to apply (repeatable); default analyze-media [possible values: analyze-media, inspect, compare, text-quality, tofu, watermark, mask-metrics]
-      --options <OPTIONS>              Options JSON: sections with command/args, concurrency and timeout_ms
-      --reference-dir <REFERENCE_DIR>  Match relative paths in this reference folder for pair commands
-      --concurrency <CONCURRENCY>      [default: 2]
-      --timeout-ms <TIMEOUT_MS>        Whole-item timeout, including input decoding, in milliseconds [default: 30000]
+      --out <OUT>
+          Dedicated output directory; rerunning resumes immutable receipts
+      --require-signed-approval
+          Require externally signed approvals and verify baseline approval consumers
+      --approval-allowed-signers <APPROVAL_ALLOWED_SIGNERS>
+          External OpenSSH allowed-signers file (cannot override a required policy)
+      --section <SECTION>
+          Existing commands to apply (repeatable); default analyze-media [possible values: analyze-media, inspect, compare, text-quality, tofu, watermark, mask-metrics]
+      --options <OPTIONS>
+          Options JSON: sections with command/args, concurrency and timeout_ms
+      --source-ref <SOURCE_REF>
+          External capture URI/key (repeatable); recorded in generated reports
+      --reference-dir <REFERENCE_DIR>
+          Match relative paths in this reference folder for pair commands
+      --report-index <REPORT_INDEX>
+          Shared report index destination (default reports/index.jsonl next to each report, inside --out)
+      --concurrency <CONCURRENCY>
+          [default: 2]
+      --timeout-ms <TIMEOUT_MS>
+          Whole-item timeout, including input decoding, in milliseconds [default: 30000]
       --json
-  -h, --help                           Print help
+
+  -h, --help
+          Print help
 
 Global options:
       --allow-out-near-captures  Silence warnings when --out is next to capture metadata
@@ -151,11 +178,20 @@ Commands:
   batch       Existing experimental frozen evaluation lifecycle
 
 Options:
-      --source-ref <SOURCE_REF>      External capture URI/key (repeatable); recorded in generated reports
-      --report-index <REPORT_INDEX>  Shared report index destination (default reports/index.jsonl next to each report, inside --out)
+      --require-signed-approval
+          Require externally signed approvals and verify baseline approval consumers
+      --approval-allowed-signers <APPROVAL_ALLOWED_SIGNERS>
+          External OpenSSH allowed-signers file (cannot override a required policy)
+      --source-ref <SOURCE_REF>
+          External capture URI/key (repeatable); recorded in generated reports
+      --report-index <REPORT_INDEX>
+          Shared report index destination (default reports/index.jsonl next to each report, inside --out)
       --json
+
       --user-config <USER_CONFIG>
-  -h, --help                         Print help
+
+  -h, --help
+          Print help
 
 Global options:
       --allow-out-near-captures  Silence warnings when --out is next to capture metadata
@@ -172,14 +208,18 @@ Usage: saccade assist explain [OPTIONS] --report <REPORT> --out <OUT>
 Options:
       --report <REPORT>
 
-      --source-ref <SOURCE_REF>
-          External capture URI/key (repeatable); recorded in generated reports
+      --require-signed-approval
+          Require externally signed approvals and verify baseline approval consumers
+      --approval-allowed-signers <APPROVAL_ALLOWED_SIGNERS>
+          External OpenSSH allowed-signers file (cannot override a required policy)
       --entry <ENTRY>
           Select exactly one report entry; required when the report contains several
-      --report-index <REPORT_INDEX>
-          Shared report index destination (default reports/index.jsonl next to each report, inside --out)
       --mask-manifest <MASK_MANIFEST>
           Optional original individual-mask declarations, bound to exact report bytes
+      --source-ref <SOURCE_REF>
+          External capture URI/key (repeatable); recorded in generated reports
+      --report-index <REPORT_INDEX>
+          Shared report index destination (default reports/index.jsonl next to each report, inside --out)
       --vision-provider <VISION_PROVIDER>
           Prepare Claude/GPT mappings in the assist layer; no live calls [possible values: claude, gpt]
       --json
@@ -238,14 +278,18 @@ Usage: saccade assist audit-mask [OPTIONS] --report <REPORT> --out <OUT>
 Options:
       --report <REPORT>
 
-      --source-ref <SOURCE_REF>
-          External capture URI/key (repeatable); recorded in generated reports
+      --require-signed-approval
+          Require externally signed approvals and verify baseline approval consumers
+      --approval-allowed-signers <APPROVAL_ALLOWED_SIGNERS>
+          External OpenSSH allowed-signers file (cannot override a required policy)
       --entry <ENTRY>
           Select exactly one report entry; required when the report contains several
-      --report-index <REPORT_INDEX>
-          Shared report index destination (default reports/index.jsonl next to each report, inside --out)
       --mask-manifest <MASK_MANIFEST>
           Optional original individual-mask declarations, bound to exact report bytes
+      --source-ref <SOURCE_REF>
+          External capture URI/key (repeatable); recorded in generated reports
+      --report-index <REPORT_INDEX>
+          Shared report index destination (default reports/index.jsonl next to each report, inside --out)
       --vision-provider <VISION_PROVIDER>
           Prepare Claude/GPT mappings in the assist layer; no live calls [possible values: claude, gpt]
       --json
@@ -307,14 +351,18 @@ Arguments:
 Options:
       --image <IMAGE>
 
-      --source-ref <SOURCE_REF>
-          External capture URI/key (repeatable); recorded in generated reports
+      --require-signed-approval
+          Require externally signed approvals and verify baseline approval consumers
+      --approval-allowed-signers <APPROVAL_ALLOWED_SIGNERS>
+          External OpenSSH allowed-signers file (cannot override a required policy)
       --box <BOX>
           Original image pixels: X,Y,W,H
-      --report-index <REPORT_INDEX>
-          Shared report index destination (default reports/index.jsonl next to each report, inside --out)
       --kind <KIND>
           Closed screenshot-only condition category [default: label-visible] [possible values: label-visible, banner-absent, not-clipped, non-overlap]
+      --source-ref <SOURCE_REF>
+          External capture URI/key (repeatable); recorded in generated reports
+      --report-index <REPORT_INDEX>
+          Shared report index destination (default reports/index.jsonl next to each report, inside --out)
       --target <TARGET>
           Stable source node ID for geometric conditions
       --json
@@ -390,11 +438,20 @@ Commands:
   collect  Collect once and settle terminal known usage; never wait
 
 Options:
-      --source-ref <SOURCE_REF>      External capture URI/key (repeatable); recorded in generated reports
-      --report-index <REPORT_INDEX>  Shared report index destination (default reports/index.jsonl next to each report, inside --out)
+      --require-signed-approval
+          Require externally signed approvals and verify baseline approval consumers
+      --approval-allowed-signers <APPROVAL_ALLOWED_SIGNERS>
+          External OpenSSH allowed-signers file (cannot override a required policy)
+      --source-ref <SOURCE_REF>
+          External capture URI/key (repeatable); recorded in generated reports
+      --report-index <REPORT_INDEX>
+          Shared report index destination (default reports/index.jsonl next to each report, inside --out)
       --json
+
       --user-config <USER_CONFIG>
-  -h, --help                         Print help
+
+  -h, --help
+          Print help
 
 Global options:
       --allow-out-near-captures  Silence warnings when --out is next to capture metadata
@@ -409,19 +466,36 @@ Verify and submit once; ambiguous submissions cannot repeat
 Usage: saccade assist batch submit [OPTIONS] --plan <PLAN> --job <JOB>
 
 Options:
-      --allow-spend-above-25-usd       Explicitly acknowledge a plan allowance above the default 25 USD ceiling
-      --source-ref <SOURCE_REF>        External capture URI/key (repeatable); recorded in generated reports
-      --plan <PLAN>                    Source-bound saccade-assist-batch-plan.v1 artifact
-      --report-index <REPORT_INDEX>    Shared report index destination (default reports/index.jsonl next to each report, inside --out)
-      --job <JOB>                      Durable receipt under the output root
+      --allow-spend-above-25-usd
+          Explicitly acknowledge a plan allowance above the default 25 USD ceiling
+      --require-signed-approval
+          Require externally signed approvals and verify baseline approval consumers
+      --approval-allowed-signers <APPROVAL_ALLOWED_SIGNERS>
+          External OpenSSH allowed-signers file (cannot override a required policy)
+      --plan <PLAN>
+          Source-bound saccade-assist-batch-plan.v1 artifact
+      --job <JOB>
+          Durable receipt under the output root
+      --source-ref <SOURCE_REF>
+          External capture URI/key (repeatable); recorded in generated reports
       --experimental
+
+      --report-index <REPORT_INDEX>
+          Shared report index destination (default reports/index.jsonl next to each report, inside --out)
       --json
-      --run                            Authorize one live submission or one poll; default local only
-      --response <RESPONSE>            Recorded collection fixture; cannot settle a live reservation
+
+      --run
+          Authorize one live submission or one poll; default local only
+      --response <RESPONSE>
+          Recorded collection fixture; cannot settle a live reservation
       --user-config <USER_CONFIG>
-      --budget-calls <BUDGET_CALLS>    Maximum provider calls, 1-128 (default 8); the run stops when reached [default: 8]
-      --deadline-secs <DEADLINE_SECS>  Wall-clock limit in seconds, 1-300 (default 300) [default: 300]
-  -h, --help                           Print help
+
+      --budget-calls <BUDGET_CALLS>
+          Maximum provider calls, 1-128 (default 8); the run stops when reached [default: 8]
+      --deadline-secs <DEADLINE_SECS>
+          Wall-clock limit in seconds, 1-300 (default 300) [default: 300]
+  -h, --help
+          Print help
 
 Global options:
       --allow-out-near-captures  Silence warnings when --out is next to capture metadata
@@ -436,19 +510,36 @@ Read local status, or poll once with --run
 Usage: saccade assist batch status [OPTIONS] --plan <PLAN> --job <JOB>
 
 Options:
-      --allow-spend-above-25-usd       Explicitly acknowledge a plan allowance above the default 25 USD ceiling
-      --source-ref <SOURCE_REF>        External capture URI/key (repeatable); recorded in generated reports
-      --plan <PLAN>                    Source-bound saccade-assist-batch-plan.v1 artifact
-      --report-index <REPORT_INDEX>    Shared report index destination (default reports/index.jsonl next to each report, inside --out)
-      --job <JOB>                      Durable receipt under the output root
+      --allow-spend-above-25-usd
+          Explicitly acknowledge a plan allowance above the default 25 USD ceiling
+      --require-signed-approval
+          Require externally signed approvals and verify baseline approval consumers
+      --approval-allowed-signers <APPROVAL_ALLOWED_SIGNERS>
+          External OpenSSH allowed-signers file (cannot override a required policy)
+      --plan <PLAN>
+          Source-bound saccade-assist-batch-plan.v1 artifact
+      --job <JOB>
+          Durable receipt under the output root
+      --source-ref <SOURCE_REF>
+          External capture URI/key (repeatable); recorded in generated reports
       --experimental
+
+      --report-index <REPORT_INDEX>
+          Shared report index destination (default reports/index.jsonl next to each report, inside --out)
       --json
-      --run                            Authorize one live submission or one poll; default local only
-      --response <RESPONSE>            Recorded collection fixture; cannot settle a live reservation
+
+      --run
+          Authorize one live submission or one poll; default local only
+      --response <RESPONSE>
+          Recorded collection fixture; cannot settle a live reservation
       --user-config <USER_CONFIG>
-      --budget-calls <BUDGET_CALLS>    Maximum provider calls, 1-128 (default 8); the run stops when reached [default: 8]
-      --deadline-secs <DEADLINE_SECS>  Wall-clock limit in seconds, 1-300 (default 300) [default: 300]
-  -h, --help                           Print help
+
+      --budget-calls <BUDGET_CALLS>
+          Maximum provider calls, 1-128 (default 8); the run stops when reached [default: 8]
+      --deadline-secs <DEADLINE_SECS>
+          Wall-clock limit in seconds, 1-300 (default 300) [default: 300]
+  -h, --help
+          Print help
 
 Global options:
       --allow-out-near-captures  Silence warnings when --out is next to capture metadata
@@ -463,19 +554,36 @@ Collect once and settle terminal known usage; never wait
 Usage: saccade assist batch collect [OPTIONS] --plan <PLAN> --job <JOB>
 
 Options:
-      --allow-spend-above-25-usd       Explicitly acknowledge a plan allowance above the default 25 USD ceiling
-      --source-ref <SOURCE_REF>        External capture URI/key (repeatable); recorded in generated reports
-      --plan <PLAN>                    Source-bound saccade-assist-batch-plan.v1 artifact
-      --report-index <REPORT_INDEX>    Shared report index destination (default reports/index.jsonl next to each report, inside --out)
-      --job <JOB>                      Durable receipt under the output root
+      --allow-spend-above-25-usd
+          Explicitly acknowledge a plan allowance above the default 25 USD ceiling
+      --require-signed-approval
+          Require externally signed approvals and verify baseline approval consumers
+      --approval-allowed-signers <APPROVAL_ALLOWED_SIGNERS>
+          External OpenSSH allowed-signers file (cannot override a required policy)
+      --plan <PLAN>
+          Source-bound saccade-assist-batch-plan.v1 artifact
+      --job <JOB>
+          Durable receipt under the output root
+      --source-ref <SOURCE_REF>
+          External capture URI/key (repeatable); recorded in generated reports
       --experimental
+
+      --report-index <REPORT_INDEX>
+          Shared report index destination (default reports/index.jsonl next to each report, inside --out)
       --json
-      --run                            Authorize one live submission or one poll; default local only
-      --response <RESPONSE>            Recorded collection fixture; cannot settle a live reservation
+
+      --run
+          Authorize one live submission or one poll; default local only
+      --response <RESPONSE>
+          Recorded collection fixture; cannot settle a live reservation
       --user-config <USER_CONFIG>
-      --budget-calls <BUDGET_CALLS>    Maximum provider calls, 1-128 (default 8); the run stops when reached [default: 8]
-      --deadline-secs <DEADLINE_SECS>  Wall-clock limit in seconds, 1-300 (default 300) [default: 300]
-  -h, --help                           Print help
+
+      --budget-calls <BUDGET_CALLS>
+          Maximum provider calls, 1-128 (default 8); the run stops when reached [default: 8]
+      --deadline-secs <DEADLINE_SECS>
+          Wall-clock limit in seconds, 1-300 (default 300) [default: 300]
+  -h, --help
+          Print help
 
 Global options:
       --allow-out-near-captures  Silence warnings when --out is next to capture metadata
@@ -497,9 +605,16 @@ Commands:
   classify  Say whether a path is a report directory, a JSON document or an API response
 
 Options:
-      --source-ref <SOURCE_REF>      External capture URI/key (repeatable); recorded in generated reports
-      --report-index <REPORT_INDEX>  Shared report index destination (default reports/index.jsonl next to each report, inside --out)
-  -h, --help                         Print help
+      --require-signed-approval
+          Require externally signed approvals and verify baseline approval consumers
+      --approval-allowed-signers <APPROVAL_ALLOWED_SIGNERS>
+          External OpenSSH allowed-signers file (cannot override a required policy)
+      --source-ref <SOURCE_REF>
+          External capture URI/key (repeatable); recorded in generated reports
+      --report-index <REPORT_INDEX>
+          Shared report index destination (default reports/index.jsonl next to each report, inside --out)
+  -h, --help
+          Print help
 
 Global options:
       --allow-out-near-captures  Silence warnings when --out is next to capture metadata
@@ -519,16 +634,20 @@ Arguments:
 Options:
       --approved-anchor <APPROVED_ANCHOR>
           Record a baseline a human approved (separate from last-good)
-      --source-ref <SOURCE_REF>
-          External capture URI/key (repeatable); recorded in generated reports
+      --require-signed-approval
+          Require externally signed approvals and verify baseline approval consumers
+      --approval-allowed-signers <APPROVAL_ALLOWED_SIGNERS>
+          External OpenSSH allowed-signers file (cannot override a required policy)
       --last-good <LAST_GOOD>
           Record the last passing run (a different role; not approval)
-      --report-index <REPORT_INDEX>
-          Shared report index destination (default reports/index.jsonl next to each report, inside --out)
       --cases <CASES>
           Explicit cases and axes (saccade-cases.v1); creates manifest v2
+      --source-ref <SOURCE_REF>
+          External capture URI/key (repeatable); recorded in generated reports
       --json
           Print a JSON result
+      --report-index <REPORT_INDEX>
+          Shared report index destination (default reports/index.jsonl next to each report, inside --out)
   -h, --help
           Print help
 
@@ -550,16 +669,20 @@ Arguments:
 Options:
       --out <OUT>
           Output directory for coverage.json and index.html
-      --source-ref <SOURCE_REF>
-          External capture URI/key (repeatable); recorded in generated reports
+      --require-signed-approval
+          Require externally signed approvals and verify baseline approval consumers
+      --approval-allowed-signers <APPROVAL_ALLOWED_SIGNERS>
+          External OpenSSH allowed-signers file (cannot override a required policy)
       --group-by <GROUP_BY>
           Declared axes to group by (default: all axes)
-      --report-index <REPORT_INDEX>
-          Shared report index destination (default reports/index.jsonl next to each report, inside --out)
       --now-unix <NOW_UNIX>
           Observation time for reproducible health findings (default: current time)
+      --source-ref <SOURCE_REF>
+          External capture URI/key (repeatable); recorded in generated reports
       --max-age-seconds <MAX_AGE_SECONDS>
           Age limit for recorded runs and known approval times [default: 2592000]
+      --report-index <REPORT_INDEX>
+          Shared report index destination (default reports/index.jsonl next to each report, inside --out)
       --json
           Print a bounded JSON result; full rows stay in coverage.json
   -h, --help
@@ -581,10 +704,18 @@ Arguments:
   <TARGET>  A report directory, a saccade-manifest.json or a saccade-link.json
 
 Options:
-      --json                         Print a JSON result
-      --source-ref <SOURCE_REF>      External capture URI/key (repeatable); recorded in generated reports
-      --report-index <REPORT_INDEX>  Shared report index destination (default reports/index.jsonl next to each report, inside --out)
-  -h, --help                         Print help
+      --json
+          Print a JSON result
+      --require-signed-approval
+          Require externally signed approvals and verify baseline approval consumers
+      --approval-allowed-signers <APPROVAL_ALLOWED_SIGNERS>
+          External OpenSSH allowed-signers file (cannot override a required policy)
+      --source-ref <SOURCE_REF>
+          External capture URI/key (repeatable); recorded in generated reports
+      --report-index <REPORT_INDEX>
+          Shared report index destination (default reports/index.jsonl next to each report, inside --out)
+  -h, --help
+          Print help
 
 Global options:
       --allow-out-near-captures  Silence warnings when --out is next to capture metadata
@@ -602,12 +733,22 @@ Arguments:
   <DIR>  A report directory that has a manifest
 
 Options:
-      --report-id <REPORT_ID>        The report_id to link (see `reports` in the manifest)
-      --source-ref <SOURCE_REF>      External capture URI/key (repeatable); recorded in generated reports
-      --out <OUT>                    Where to write the link document
-      --report-index <REPORT_INDEX>  Shared report index destination (default reports/index.jsonl next to each report, inside --out)
-      --json                         Print a JSON result
-  -h, --help                         Print help
+      --report-id <REPORT_ID>
+          The report_id to link (see `reports` in the manifest)
+      --require-signed-approval
+          Require externally signed approvals and verify baseline approval consumers
+      --approval-allowed-signers <APPROVAL_ALLOWED_SIGNERS>
+          External OpenSSH allowed-signers file (cannot override a required policy)
+      --out <OUT>
+          Where to write the link document
+      --json
+          Print a JSON result
+      --source-ref <SOURCE_REF>
+          External capture URI/key (repeatable); recorded in generated reports
+      --report-index <REPORT_INDEX>
+          Shared report index destination (default reports/index.jsonl next to each report, inside --out)
+  -h, --help
+          Print help
 
 Global options:
       --allow-out-near-captures  Silence warnings when --out is next to capture metadata
@@ -625,10 +766,18 @@ Arguments:
   <PATH>  Path to inspect
 
 Options:
-      --json                         Print JSON (the default output is already one line of JSON)
-      --source-ref <SOURCE_REF>      External capture URI/key (repeatable); recorded in generated reports
-      --report-index <REPORT_INDEX>  Shared report index destination (default reports/index.jsonl next to each report, inside --out)
-  -h, --help                         Print help
+      --json
+          Print JSON (the default output is already one line of JSON)
+      --require-signed-approval
+          Require externally signed approvals and verify baseline approval consumers
+      --approval-allowed-signers <APPROVAL_ALLOWED_SIGNERS>
+          External OpenSSH allowed-signers file (cannot override a required policy)
+      --source-ref <SOURCE_REF>
+          External capture URI/key (repeatable); recorded in generated reports
+      --report-index <REPORT_INDEX>
+          Shared report index destination (default reports/index.jsonl next to each report, inside --out)
+  -h, --help
+          Print help
 
 Global options:
       --allow-out-near-captures  Silence warnings when --out is next to capture metadata
@@ -646,13 +795,24 @@ Arguments:
   <REPORT>  A saccade report JSON (saccade-report.v1 or its linked successor)
 
 Options:
-      --out <OUT>                    Output directory for the crops and the coordinates document [default: regions-export]
-      --source-ref <SOURCE_REF>      External capture URI/key (repeatable); recorded in generated reports
-      --report-index <REPORT_INDEX>  Shared report index destination (default reports/index.jsonl next to each report, inside --out)
-      --top <TOP>                    How many regions to export, worst first (1 to 200) [default: 5]
-      --padding <PADDING>            Context pixels added around each hotspot box [default: 8]
-      --json                         Print a JSON result
-  -h, --help                         Print help
+      --out <OUT>
+          Output directory for the crops and the coordinates document [default: regions-export]
+      --require-signed-approval
+          Require externally signed approvals and verify baseline approval consumers
+      --approval-allowed-signers <APPROVAL_ALLOWED_SIGNERS>
+          External OpenSSH allowed-signers file (cannot override a required policy)
+      --top <TOP>
+          How many regions to export, worst first (1 to 200) [default: 5]
+      --padding <PADDING>
+          Context pixels added around each hotspot box [default: 8]
+      --source-ref <SOURCE_REF>
+          External capture URI/key (repeatable); recorded in generated reports
+      --json
+          Print a JSON result
+      --report-index <REPORT_INDEX>
+          Shared report index destination (default reports/index.jsonl next to each report, inside --out)
+  -h, --help
+          Print help
 
 Global options:
       --allow-out-near-captures  Silence warnings when --out is next to capture metadata
@@ -673,14 +833,18 @@ Arguments:
 Options:
       --out <OUT>
           Empty artifact output directory
-      --source-ref <SOURCE_REF>
-          External capture URI/key (repeatable); recorded in generated reports
+      --require-signed-approval
+          Require externally signed approvals and verify baseline approval consumers
+      --approval-allowed-signers <APPROVAL_ALLOWED_SIGNERS>
+          External OpenSSH allowed-signers file (cannot override a required policy)
       --input-profile <INPUT_PROFILE>
           Override both embedded input ICC profiles with this CMYK ICC
-      --report-index <REPORT_INDEX>
-          Shared report index destination (default reports/index.jsonl next to each report, inside --out)
       --output-profile <OUTPUT_PROFILE>
           Target CMYK output ICC for gamut diagnostics
+      --source-ref <SOURCE_REF>
+          External capture URI/key (repeatable); recorded in generated reports
+      --report-index <REPORT_INDEX>
+          Shared report index destination (default reports/index.jsonl next to each report, inside --out)
       --tac-limit <TAC_LIMIT>
           Declared total area coverage limit, percent (0..400)
       --dpi <DPI>
@@ -710,9 +874,16 @@ Commands:
   mask-metrics  Score single-band class TIFFs with overlap and boundary metrics
 
 Options:
-      --source-ref <SOURCE_REF>      External capture URI/key (repeatable); recorded in generated reports
-      --report-index <REPORT_INDEX>  Shared report index destination (default reports/index.jsonl next to each report, inside --out)
-  -h, --help                         Print help
+      --require-signed-approval
+          Require externally signed approvals and verify baseline approval consumers
+      --approval-allowed-signers <APPROVAL_ALLOWED_SIGNERS>
+          External OpenSSH allowed-signers file (cannot override a required policy)
+      --source-ref <SOURCE_REF>
+          External capture URI/key (repeatable); recorded in generated reports
+      --report-index <REPORT_INDEX>
+          Shared report index destination (default reports/index.jsonl next to each report, inside --out)
+  -h, --help
+          Print help
 
 Global options:
       --allow-out-near-captures  Silence warnings when --out is next to capture metadata
@@ -731,14 +902,26 @@ Arguments:
   <CANDIDATE>  Candidate input file or tile directory
 
 Options:
-      --out <OUT>                    Empty artifact output directory, outside inputs
-      --source-ref <SOURCE_REF>      External capture URI/key (repeatable); recorded in generated reports
-      --json                         Emit versioned measurement JSON
-      --report-index <REPORT_INDEX>  Shared report index destination (default reports/index.jsonl next to each report, inside --out)
-      --rgb-bands <RGB_BANDS>        Three one-based band indices for R,G,B. Requires declared ranges
-      --rgb-min <RGB_MIN>            Three native-unit lower bounds, shared by both rasters
-      --rgb-max <RGB_MAX>            Three native-unit upper bounds, shared by both rasters
-  -h, --help                         Print help
+      --out <OUT>
+          Empty artifact output directory, outside inputs
+      --require-signed-approval
+          Require externally signed approvals and verify baseline approval consumers
+      --approval-allowed-signers <APPROVAL_ALLOWED_SIGNERS>
+          External OpenSSH allowed-signers file (cannot override a required policy)
+      --json
+          Emit versioned measurement JSON
+      --rgb-bands <RGB_BANDS>
+          Three one-based band indices for R,G,B. Requires declared ranges
+      --source-ref <SOURCE_REF>
+          External capture URI/key (repeatable); recorded in generated reports
+      --report-index <REPORT_INDEX>
+          Shared report index destination (default reports/index.jsonl next to each report, inside --out)
+      --rgb-min <RGB_MIN>
+          Three native-unit lower bounds, shared by both rasters
+      --rgb-max <RGB_MAX>
+          Three native-unit upper bounds, shared by both rasters
+  -h, --help
+          Print help
 
 Global options:
       --allow-out-near-captures  Silence warnings when --out is next to capture metadata
@@ -757,11 +940,20 @@ Arguments:
   <CANDIDATE>  Candidate input file or tile directory
 
 Options:
-      --out <OUT>                    Empty artifact output directory, outside inputs
-      --source-ref <SOURCE_REF>      External capture URI/key (repeatable); recorded in generated reports
-      --json                         Emit versioned measurement JSON
-      --report-index <REPORT_INDEX>  Shared report index destination (default reports/index.jsonl next to each report, inside --out)
-  -h, --help                         Print help
+      --out <OUT>
+          Empty artifact output directory, outside inputs
+      --require-signed-approval
+          Require externally signed approvals and verify baseline approval consumers
+      --approval-allowed-signers <APPROVAL_ALLOWED_SIGNERS>
+          External OpenSSH allowed-signers file (cannot override a required policy)
+      --json
+          Emit versioned measurement JSON
+      --source-ref <SOURCE_REF>
+          External capture URI/key (repeatable); recorded in generated reports
+      --report-index <REPORT_INDEX>
+          Shared report index destination (default reports/index.jsonl next to each report, inside --out)
+  -h, --help
+          Print help
 
 Global options:
       --allow-out-near-captures  Silence warnings when --out is next to capture metadata
@@ -782,16 +974,20 @@ Arguments:
 Options:
       --out <OUT>
           Empty artifact output directory, outside inputs
-      --source-ref <SOURCE_REF>
-          External capture URI/key (repeatable); recorded in generated reports
+      --require-signed-approval
+          Require externally signed approvals and verify baseline approval consumers
+      --approval-allowed-signers <APPROVAL_ALLOWED_SIGNERS>
+          External OpenSSH allowed-signers file (cannot override a required policy)
       --json
           Emit versioned measurement JSON
-      --report-index <REPORT_INDEX>
-          Shared report index destination (default reports/index.jsonl next to each report, inside --out)
       --class <CLASSES>
           Class predicate NAME=id=1,2, NAME=range=1,5, NAME=above=0 or NAME=mask; repeatable
+      --source-ref <SOURCE_REF>
+          External capture URI/key (repeatable); recorded in generated reports
       --each-label
           Score each non-void native label independently
+      --report-index <REPORT_INDEX>
+          Shared report index destination (default reports/index.jsonl next to each report, inside --out)
       --void <VOID>
           Reference void predicate; nodata on either side is also excluded
       --boundary-tolerance-px <BOUNDARY_TOLERANCE_PX>
@@ -815,9 +1011,16 @@ Commands:
   ab  Analyze external paired timings; no commands are executed
 
 Options:
-      --source-ref <SOURCE_REF>      External capture URI/key (repeatable); recorded in generated reports
-      --report-index <REPORT_INDEX>  Shared report index destination (default reports/index.jsonl next to each report, inside --out)
-  -h, --help                         Print help
+      --require-signed-approval
+          Require externally signed approvals and verify baseline approval consumers
+      --approval-allowed-signers <APPROVAL_ALLOWED_SIGNERS>
+          External OpenSSH allowed-signers file (cannot override a required policy)
+      --source-ref <SOURCE_REF>
+          External capture URI/key (repeatable); recorded in generated reports
+      --report-index <REPORT_INDEX>
+          Shared report index destination (default reports/index.jsonl next to each report, inside --out)
+  -h, --help
+          Print help
 
 Global options:
       --allow-out-near-captures  Silence warnings when --out is next to capture metadata
@@ -835,13 +1038,24 @@ Arguments:
   <INPUT>  Session manifest or paired CSV
 
 Options:
-      --format <FORMAT>              session or csv; referenced runs support hyperfine, perf and JSON paths [default: session]
-      --source-ref <SOURCE_REF>      External capture URI/key (repeatable); recorded in generated reports
-      --out <OUT>                    [default: timing-ab]
-      --report-index <REPORT_INDEX>  Shared report index destination (default reports/index.jsonl next to each report, inside --out)
+      --format <FORMAT>
+          session or csv; referenced runs support hyperfine, perf and JSON paths [default: session]
+      --require-signed-approval
+          Require externally signed approvals and verify baseline approval consumers
+      --approval-allowed-signers <APPROVAL_ALLOWED_SIGNERS>
+          External OpenSSH allowed-signers file (cannot override a required policy)
+      --out <OUT>
+          [default: timing-ab]
       --json
-      --band-pct <BAND_PCT>          Override practical band for CSV imports (manifest policies otherwise retained)
-  -h, --help                         Print help
+
+      --source-ref <SOURCE_REF>
+          External capture URI/key (repeatable); recorded in generated reports
+      --band-pct <BAND_PCT>
+          Override practical band for CSV imports (manifest policies otherwise retained)
+      --report-index <REPORT_INDEX>
+          Shared report index destination (default reports/index.jsonl next to each report, inside --out)
+  -h, --help
+          Print help
 
 Global options:
       --allow-out-near-captures  Silence warnings when --out is next to capture metadata
@@ -860,15 +1074,28 @@ Arguments:
   <REFERENCE>  Reference label image of the same size
 
 Options:
-      --class <CLASSES>              Class as NAME=PREDICATE (id=, range=, above=, mask); repeatable. Default: one `foreground` class, label not zero
-      --source-ref <SOURCE_REF>      External capture URI/key (repeatable); recorded in generated reports
-      --each-label                   Score every distinct non-void label as its own class (at most 256)
-      --report-index <REPORT_INDEX>  Shared report index destination (default reports/index.jsonl next to each report, inside --out)
-      --void <VOID>                  Reference labels to exclude everywhere, as NAME=PREDICATE
-      --boundary-px <BOUNDARY_PX>    Boundary match tolerance in pixels (0-64, Euclidean, inclusive) [default: 2]
-      --out <OUT>                    Write saccade-mask-metrics.v1.json into this new or empty directory
+      --class <CLASSES>
+          Class as NAME=PREDICATE (id=, range=, above=, mask); repeatable. Default: one `foreground` class, label not zero
+      --require-signed-approval
+          Require externally signed approvals and verify baseline approval consumers
+      --approval-allowed-signers <APPROVAL_ALLOWED_SIGNERS>
+          External OpenSSH allowed-signers file (cannot override a required policy)
+      --each-label
+          Score every distinct non-void label as its own class (at most 256)
+      --source-ref <SOURCE_REF>
+          External capture URI/key (repeatable); recorded in generated reports
+      --void <VOID>
+          Reference labels to exclude everywhere, as NAME=PREDICATE
+      --boundary-px <BOUNDARY_PX>
+          Boundary match tolerance in pixels (0-64, Euclidean, inclusive) [default: 2]
+      --report-index <REPORT_INDEX>
+          Shared report index destination (default reports/index.jsonl next to each report, inside --out)
+      --out <OUT>
+          Write saccade-mask-metrics.v1.json into this new or empty directory
       --json
-  -h, --help                         Print help
+
+  -h, --help
+          Print help
 
 Global options:
       --allow-out-near-captures  Silence warnings when --out is next to capture metadata
@@ -888,9 +1115,16 @@ Commands:
   transform  Re-express boxes for a cropped or resized copy of the image
 
 Options:
-      --source-ref <SOURCE_REF>      External capture URI/key (repeatable); recorded in generated reports
-      --report-index <REPORT_INDEX>  Shared report index destination (default reports/index.jsonl next to each report, inside --out)
-  -h, --help                         Print help
+      --require-signed-approval
+          Require externally signed approvals and verify baseline approval consumers
+      --approval-allowed-signers <APPROVAL_ALLOWED_SIGNERS>
+          External OpenSSH allowed-signers file (cannot override a required policy)
+      --source-ref <SOURCE_REF>
+          External capture URI/key (repeatable); recorded in generated reports
+      --report-index <REPORT_INDEX>
+          Shared report index destination (default reports/index.jsonl next to each report, inside --out)
+  -h, --help
+          Print help
 
 Global options:
       --allow-out-near-captures  Silence warnings when --out is next to capture metadata
@@ -908,13 +1142,24 @@ Arguments:
   <DOC>  saccade-boxes.v1 document
 
 Options:
-      --format <FORMAT>              [possible values: coco, yolo]
-      --source-ref <SOURCE_REF>      External capture URI/key (repeatable); recorded in generated reports
-      --out <OUT>                    New or empty output directory
-      --report-index <REPORT_INDEX>  Shared report index destination (default reports/index.jsonl next to each report, inside --out)
-      --clip                         Clip boxes that leave the image (counted) instead of refusing them
+      --format <FORMAT>
+          [possible values: coco, yolo]
+      --require-signed-approval
+          Require externally signed approvals and verify baseline approval consumers
+      --approval-allowed-signers <APPROVAL_ALLOWED_SIGNERS>
+          External OpenSSH allowed-signers file (cannot override a required policy)
+      --out <OUT>
+          New or empty output directory
+      --clip
+          Clip boxes that leave the image (counted) instead of refusing them
+      --source-ref <SOURCE_REF>
+          External capture URI/key (repeatable); recorded in generated reports
       --json
-  -h, --help                         Print help
+
+      --report-index <REPORT_INDEX>
+          Shared report index destination (default reports/index.jsonl next to each report, inside --out)
+  -h, --help
+          Print help
 
 Global options:
       --allow-out-near-captures  Silence warnings when --out is next to capture metadata
@@ -932,16 +1177,30 @@ Arguments:
   <INPUT>
 
 Options:
-      --format <FORMAT>              [possible values: coco, yolo]
-      --source-ref <SOURCE_REF>      External capture URI/key (repeatable); recorded in generated reports
+      --format <FORMAT>
+          [possible values: coco, yolo]
+      --require-signed-approval
+          Require externally signed approvals and verify baseline approval consumers
+      --approval-allowed-signers <APPROVAL_ALLOWED_SIGNERS>
+          External OpenSSH allowed-signers file (cannot override a required policy)
       --out <OUT>
-      --report-index <REPORT_INDEX>  Shared report index destination (default reports/index.jsonl next to each report, inside --out)
-      --width <WIDTH>                YOLO only: image width in pixels
-      --height <HEIGHT>              YOLO only: image height in pixels
-      --image-file <IMAGE_FILE>      YOLO only: image file name to record
-      --classes <CLASSES>            YOLO only: classes.txt, one name per line
+
+      --source-ref <SOURCE_REF>
+          External capture URI/key (repeatable); recorded in generated reports
+      --width <WIDTH>
+          YOLO only: image width in pixels
+      --height <HEIGHT>
+          YOLO only: image height in pixels
+      --report-index <REPORT_INDEX>
+          Shared report index destination (default reports/index.jsonl next to each report, inside --out)
+      --image-file <IMAGE_FILE>
+          YOLO only: image file name to record
+      --classes <CLASSES>
+          YOLO only: classes.txt, one name per line
       --json
-  -h, --help                         Print help
+
+  -h, --help
+          Print help
 
 Global options:
       --allow-out-near-captures  Silence warnings when --out is next to capture metadata
@@ -959,14 +1218,26 @@ Arguments:
   <DOC>
 
 Options:
-      --crop <CROP>                  Crop window X,Y,W,H in source pixels
-      --source-ref <SOURCE_REF>      External capture URI/key (repeatable); recorded in generated reports
-      --report-index <REPORT_INDEX>  Shared report index destination (default reports/index.jsonl next to each report, inside --out)
-      --resize <RESIZE>              Resized image size W,H (each axis scaled independently)
-      --image-file <IMAGE_FILE>      File name of the derived image to record
+      --crop <CROP>
+          Crop window X,Y,W,H in source pixels
+      --require-signed-approval
+          Require externally signed approvals and verify baseline approval consumers
+      --approval-allowed-signers <APPROVAL_ALLOWED_SIGNERS>
+          External OpenSSH allowed-signers file (cannot override a required policy)
+      --resize <RESIZE>
+          Resized image size W,H (each axis scaled independently)
+      --image-file <IMAGE_FILE>
+          File name of the derived image to record
+      --source-ref <SOURCE_REF>
+          External capture URI/key (repeatable); recorded in generated reports
       --out <OUT>
+
+      --report-index <REPORT_INDEX>
+          Shared report index destination (default reports/index.jsonl next to each report, inside --out)
       --json
-  -h, --help                         Print help
+
+  -h, --help
+          Print help
 
 Global options:
       --allow-out-near-captures  Silence warnings when --out is next to capture metadata
@@ -984,9 +1255,16 @@ Commands:
   check  Report gaps, constant or variable rate, file integrity and settling in the map's own timestamps
 
 Options:
-      --source-ref <SOURCE_REF>      External capture URI/key (repeatable); recorded in generated reports
-      --report-index <REPORT_INDEX>  Shared report index destination (default reports/index.jsonl next to each report, inside --out)
-  -h, --help                         Print help
+      --require-signed-approval
+          Require externally signed approvals and verify baseline approval consumers
+      --approval-allowed-signers <APPROVAL_ALLOWED_SIGNERS>
+          External OpenSSH allowed-signers file (cannot override a required policy)
+      --source-ref <SOURCE_REF>
+          External capture URI/key (repeatable); recorded in generated reports
+      --report-index <REPORT_INDEX>
+          Shared report index destination (default reports/index.jsonl next to each report, inside --out)
+  -h, --help
+          Print help
 
 Global options:
       --allow-out-near-captures  Silence warnings when --out is next to capture metadata
@@ -1004,16 +1282,20 @@ Arguments:
   <MAP>  saccade-frame-map.v1 document
 
 Options:
+      --require-signed-approval
+          Require externally signed approvals and verify baseline approval consumers
       --root <ROOT>
           Directory the map's relative paths resolve against (default: the map's directory)
-      --source-ref <SOURCE_REF>
-          External capture URI/key (repeatable); recorded in generated reports
-      --report-index <REPORT_INDEX>
-          Shared report index destination (default reports/index.jsonl next to each report, inside --out)
+      --approval-allowed-signers <APPROVAL_ALLOWED_SIGNERS>
+          External OpenSSH allowed-signers file (cannot override a required policy)
       --skip-files
           Do not look at frame files; check the index and timestamps only
       --rate-tolerance-pct <RATE_TOLERANCE_PCT>
           Relative spread of the per-frame step, in percent, still called constant [default: 1]
+      --source-ref <SOURCE_REF>
+          External capture URI/key (repeatable); recorded in generated reports
+      --report-index <REPORT_INDEX>
+          Shared report index destination (default reports/index.jsonl next to each report, inside --out)
       --settling <SETTLING>
           saccade-settling.v1 report for the same frames, to restate settling in map time
       --out <OUT>
@@ -1042,16 +1324,20 @@ Arguments:
 Options:
       --out <OUT>
           [default: render-evidence]
-      --source-ref <SOURCE_REF>
-          External capture URI/key (repeatable); recorded in generated reports
+      --require-signed-approval
+          Require externally signed approvals and verify baseline approval consumers
+      --approval-allowed-signers <APPROVAL_ALLOWED_SIGNERS>
+          External OpenSSH allowed-signers file (cannot override a required policy)
       --config <CONFIG>
 
-      --report-index <REPORT_INDEX>
-          Shared report index destination (default reports/index.jsonl next to each report, inside --out)
       --json
 
+      --source-ref <SOURCE_REF>
+          External capture URI/key (repeatable); recorded in generated reports
       --allow-unreached <ALLOW_UNREACHED>
           Permit both unreached arms only under an identical criterion and observation
+      --report-index <REPORT_INDEX>
+          Shared report index destination (default reports/index.jsonl next to each report, inside --out)
       --require-valid-arms
           Refuse verdicts for incomplete or mismatched producer identity
       --fingerprint-map <FINGERPRINT_MAP>
@@ -1097,9 +1383,16 @@ Commands:
   path  Locate an installed copy, if available; use get for portable discovery
 
 Options:
-      --source-ref <SOURCE_REF>      External capture URI/key (repeatable); recorded in generated reports
-      --report-index <REPORT_INDEX>  Shared report index destination (default reports/index.jsonl next to each report, inside --out)
-  -h, --help                         Print help
+      --require-signed-approval
+          Require externally signed approvals and verify baseline approval consumers
+      --approval-allowed-signers <APPROVAL_ALLOWED_SIGNERS>
+          External OpenSSH allowed-signers file (cannot override a required policy)
+      --source-ref <SOURCE_REF>
+          External capture URI/key (repeatable); recorded in generated reports
+      --report-index <REPORT_INDEX>
+          Shared report index destination (default reports/index.jsonl next to each report, inside --out)
+  -h, --help
+          Print help
 
 Global options:
       --allow-out-near-captures  Silence warnings when --out is next to capture metadata
@@ -1115,9 +1408,17 @@ Usage: saccade schema list [OPTIONS]
 
 Options:
       --json
-      --source-ref <SOURCE_REF>      External capture URI/key (repeatable); recorded in generated reports
-      --report-index <REPORT_INDEX>  Shared report index destination (default reports/index.jsonl next to each report, inside --out)
-  -h, --help                         Print help
+
+      --require-signed-approval
+          Require externally signed approvals and verify baseline approval consumers
+      --approval-allowed-signers <APPROVAL_ALLOWED_SIGNERS>
+          External OpenSSH allowed-signers file (cannot override a required policy)
+      --source-ref <SOURCE_REF>
+          External capture URI/key (repeatable); recorded in generated reports
+      --report-index <REPORT_INDEX>
+          Shared report index destination (default reports/index.jsonl next to each report, inside --out)
+  -h, --help
+          Print help
 
 Global options:
       --allow-out-near-captures  Silence warnings when --out is next to capture metadata
@@ -1136,10 +1437,19 @@ Arguments:
 
 Options:
       --out <OUT>
-      --source-ref <SOURCE_REF>      External capture URI/key (repeatable); recorded in generated reports
+
+      --require-signed-approval
+          Require externally signed approvals and verify baseline approval consumers
+      --approval-allowed-signers <APPROVAL_ALLOWED_SIGNERS>
+          External OpenSSH allowed-signers file (cannot override a required policy)
       --json
-      --report-index <REPORT_INDEX>  Shared report index destination (default reports/index.jsonl next to each report, inside --out)
-  -h, --help                         Print help
+
+      --source-ref <SOURCE_REF>
+          External capture URI/key (repeatable); recorded in generated reports
+      --report-index <REPORT_INDEX>
+          Shared report index destination (default reports/index.jsonl next to each report, inside --out)
+  -h, --help
+          Print help
 
 Global options:
       --allow-out-near-captures  Silence warnings when --out is next to capture metadata
@@ -1158,9 +1468,17 @@ Arguments:
 
 Options:
       --json
-      --source-ref <SOURCE_REF>      External capture URI/key (repeatable); recorded in generated reports
-      --report-index <REPORT_INDEX>  Shared report index destination (default reports/index.jsonl next to each report, inside --out)
-  -h, --help                         Print help
+
+      --require-signed-approval
+          Require externally signed approvals and verify baseline approval consumers
+      --approval-allowed-signers <APPROVAL_ALLOWED_SIGNERS>
+          External OpenSSH allowed-signers file (cannot override a required policy)
+      --source-ref <SOURCE_REF>
+          External capture URI/key (repeatable); recorded in generated reports
+      --report-index <REPORT_INDEX>
+          Shared report index destination (default reports/index.jsonl next to each report, inside --out)
+  -h, --help
+          Print help
 
 Global options:
       --allow-out-near-captures  Silence warnings when --out is next to capture metadata
@@ -1178,9 +1496,16 @@ Commands:
   validate  Validate a perf v1 or v2 sidecar against the exact embedded JSON Schema
 
 Options:
-      --source-ref <SOURCE_REF>      External capture URI/key (repeatable); recorded in generated reports
-      --report-index <REPORT_INDEX>  Shared report index destination (default reports/index.jsonl next to each report, inside --out)
-  -h, --help                         Print help
+      --require-signed-approval
+          Require externally signed approvals and verify baseline approval consumers
+      --approval-allowed-signers <APPROVAL_ALLOWED_SIGNERS>
+          External OpenSSH allowed-signers file (cannot override a required policy)
+      --source-ref <SOURCE_REF>
+          External capture URI/key (repeatable); recorded in generated reports
+      --report-index <REPORT_INDEX>
+          Shared report index destination (default reports/index.jsonl next to each report, inside --out)
+  -h, --help
+          Print help
 
 Global options:
       --allow-out-near-captures  Silence warnings when --out is next to capture metadata
@@ -1199,9 +1524,17 @@ Arguments:
 
 Options:
       --json
-      --source-ref <SOURCE_REF>      External capture URI/key (repeatable); recorded in generated reports
-      --report-index <REPORT_INDEX>  Shared report index destination (default reports/index.jsonl next to each report, inside --out)
-  -h, --help                         Print help
+
+      --require-signed-approval
+          Require externally signed approvals and verify baseline approval consumers
+      --approval-allowed-signers <APPROVAL_ALLOWED_SIGNERS>
+          External OpenSSH allowed-signers file (cannot override a required policy)
+      --source-ref <SOURCE_REF>
+          External capture URI/key (repeatable); recorded in generated reports
+      --report-index <REPORT_INDEX>
+          Shared report index destination (default reports/index.jsonl next to each report, inside --out)
+  -h, --help
+          Print help
 
 Global options:
       --allow-out-near-captures  Silence warnings when --out is next to capture metadata
@@ -1219,9 +1552,16 @@ Commands:
   check  Check two capture records, sidecars, images or capture directories
 
 Options:
-      --source-ref <SOURCE_REF>      External capture URI/key (repeatable); recorded in generated reports
-      --report-index <REPORT_INDEX>  Shared report index destination (default reports/index.jsonl next to each report, inside --out)
-  -h, --help                         Print help
+      --require-signed-approval
+          Require externally signed approvals and verify baseline approval consumers
+      --approval-allowed-signers <APPROVAL_ALLOWED_SIGNERS>
+          External OpenSSH allowed-signers file (cannot override a required policy)
+      --source-ref <SOURCE_REF>
+          External capture URI/key (repeatable); recorded in generated reports
+      --report-index <REPORT_INDEX>
+          Shared report index destination (default reports/index.jsonl next to each report, inside --out)
+  -h, --help
+          Print help
 
 Global options:
       --allow-out-near-captures  Silence warnings when --out is next to capture metadata
@@ -1240,18 +1580,22 @@ Arguments:
   <B>
 
 Options:
-      --source-ref <SOURCE_REF>
-          External capture URI/key (repeatable); recorded in generated reports
+      --require-signed-approval
+          Require externally signed approvals and verify baseline approval consumers
       --vary <VARY>
           Allowed difference matching destination or mapped source: exact key, dotted prefix, suffix or glob; repeat or comma-separate
       --allow-unreached <ALLOW_UNREACHED>
           Permit intentionally unreached captures with exactly matching observations
-      --report-index <REPORT_INDEX>
-          Shared report index destination (default reports/index.jsonl next to each report, inside --out)
+      --approval-allowed-signers <APPROVAL_ALLOWED_SIGNERS>
+          External OpenSSH allowed-signers file (cannot override a required policy)
       --ignore <IGNORE>
           Explicit exception matching destination or mapped source, echoed even if unmatched; repeat or comma-separate
+      --source-ref <SOURCE_REF>
+          External capture URI/key (repeatable); recorded in generated reports
       --fingerprint-map <FINGERPRINT_MAP>
 
+      --report-index <REPORT_INDEX>
+          Shared report index destination (default reports/index.jsonl next to each report, inside --out)
       --max-record-bytes <MAX_RECORD_BYTES>
           Fingerprint record limit in bytes (default 16 MiB; hard ceiling 64 MiB); overrides map
       --compare <COMPARE>
@@ -1282,9 +1626,16 @@ Commands:
   compare  Compare every planned capture, including explicit failure receipts
 
 Options:
-      --source-ref <SOURCE_REF>      External capture URI/key (repeatable); recorded in generated reports
-      --report-index <REPORT_INDEX>  Shared report index destination (default reports/index.jsonl next to each report, inside --out)
-  -h, --help                         Print help
+      --require-signed-approval
+          Require externally signed approvals and verify baseline approval consumers
+      --approval-allowed-signers <APPROVAL_ALLOWED_SIGNERS>
+          External OpenSSH allowed-signers file (cannot override a required policy)
+      --source-ref <SOURCE_REF>
+          External capture URI/key (repeatable); recorded in generated reports
+      --report-index <REPORT_INDEX>
+          Shared report index destination (default reports/index.jsonl next to each report, inside --out)
+  -h, --help
+          Print help
 
 Global options:
       --allow-out-near-captures  Silence warnings when --out is next to capture metadata
@@ -1299,18 +1650,34 @@ Sample a URL list or bounded sitemap tree into a driver-neutral manifest
 Usage: saccade sweep plan [OPTIONS] --before-origin <BEFORE_ORIGIN> --after-origin <AFTER_ORIGIN> --out <OUT>
 
 Options:
-      --source-ref <SOURCE_REF>        External capture URI/key (repeatable); recorded in generated reports
+      --require-signed-approval
+          Require externally signed approvals and verify baseline approval consumers
       --urls <URLS>
-      --report-index <REPORT_INDEX>    Shared report index destination (default reports/index.jsonl next to each report, inside --out)
+
+      --approval-allowed-signers <APPROVAL_ALLOWED_SIGNERS>
+          External OpenSSH allowed-signers file (cannot override a required policy)
       --sitemap <SITEMAP>
+
       --before-origin <BEFORE_ORIGIN>
+
+      --source-ref <SOURCE_REF>
+          External capture URI/key (repeatable); recorded in generated reports
       --after-origin <AFTER_ORIGIN>
-      --samples <SAMPLES>              Samples per candidate setting, 1-100 (default 3) [default: 3]
-      --seed <SEED>                    Integer seed for sample order (default 42) [default: 42]
-      --viewport <VIEWPORT>            Repeat WIDTHxHEIGHT. Default: 1280x720
+
+      --report-index <REPORT_INDEX>
+          Shared report index destination (default reports/index.jsonl next to each report, inside --out)
+      --samples <SAMPLES>
+          Samples per candidate setting, 1-100 (default 3) [default: 3]
+      --seed <SEED>
+          Integer seed for sample order (default 42) [default: 42]
+      --viewport <VIEWPORT>
+          Repeat WIDTHxHEIGHT. Default: 1280x720
       --out <OUT>
+
       --json
-  -h, --help                           Print help
+
+  -h, --help
+          Print help
 
 Global options:
       --allow-out-near-captures  Silence warnings when --out is next to capture metadata
@@ -1329,16 +1696,31 @@ Arguments:
 
 Options:
       --captures <CAPTURES>
-      --source-ref <SOURCE_REF>        External capture URI/key (repeatable); recorded in generated reports
+
+      --require-signed-approval
+          Require externally signed approvals and verify baseline approval consumers
+      --approval-allowed-signers <APPROVAL_ALLOWED_SIGNERS>
+          External OpenSSH allowed-signers file (cannot override a required policy)
       --out <OUT>
-      --report-index <REPORT_INDEX>    Shared report index destination (default reports/index.jsonl next to each report, inside --out)
+
       --config <CONFIG>
-      --baseline <BASELINE>            [possible values: last-good]
+
+      --source-ref <SOURCE_REF>
+          External capture URI/key (repeatable); recorded in generated reports
+      --baseline <BASELINE>
+          [possible values: last-good]
+      --report-index <REPORT_INDEX>
+          Shared report index destination (default reports/index.jsonl next to each report, inside --out)
       --history-store <HISTORY_STORE>
-      --align <ALIGN>                  Explicit registration; incompatible with ordinary comparison config [possible values: none, translation, similarity, affine, homography, auto]
-      --resample <RESAMPLE>            [possible values: reference, common]
+
+      --align <ALIGN>
+          Explicit registration; incompatible with ordinary comparison config [possible values: none, translation, similarity, affine, homography, auto]
+      --resample <RESAMPLE>
+          [possible values: reference, common]
       --json
-  -h, --help                           Print help
+
+  -h, --help
+          Print help
 
 Global options:
       --allow-out-near-captures  Silence warnings when --out is next to capture metadata
@@ -1357,9 +1739,16 @@ Commands:
   search  Search a finite quality/format grid, retaining source and delivery evidence
 
 Options:
-      --source-ref <SOURCE_REF>      External capture URI/key (repeatable); recorded in generated reports
-      --report-index <REPORT_INDEX>  Shared report index destination (default reports/index.jsonl next to each report, inside --out)
-  -h, --help                         Print help
+      --require-signed-approval
+          Require externally signed approvals and verify baseline approval consumers
+      --approval-allowed-signers <APPROVAL_ALLOWED_SIGNERS>
+          External OpenSSH allowed-signers file (cannot override a required policy)
+      --source-ref <SOURCE_REF>
+          External capture URI/key (repeatable); recorded in generated reports
+      --report-index <REPORT_INDEX>
+          Shared report index destination (default reports/index.jsonl next to each report, inside --out)
+  -h, --help
+          Print help
 
 Global options:
       --allow-out-near-captures  Silence warnings when --out is next to capture metadata
@@ -1374,13 +1763,24 @@ Record actual HTTP content negotiation, bytes and decoded dimensions
 Usage: saccade imgtune audit [OPTIONS] --urls <URLS> --accept <ACCEPT> --out <OUT>
 
 Options:
-      --source-ref <SOURCE_REF>      External capture URI/key (repeatable); recorded in generated reports
+      --require-signed-approval
+          Require externally signed approvals and verify baseline approval consumers
       --urls <URLS>
+
       --accept <ACCEPT>
-      --report-index <REPORT_INDEX>  Shared report index destination (default reports/index.jsonl next to each report, inside --out)
+
+      --approval-allowed-signers <APPROVAL_ALLOWED_SIGNERS>
+          External OpenSSH allowed-signers file (cannot override a required policy)
       --out <OUT>
+
+      --source-ref <SOURCE_REF>
+          External capture URI/key (repeatable); recorded in generated reports
       --json
-  -h, --help                         Print help
+
+      --report-index <REPORT_INDEX>
+          Shared report index destination (default reports/index.jsonl next to each report, inside --out)
+  -h, --help
+          Print help
 
 Global options:
       --allow-out-near-captures  Silence warnings when --out is next to capture metadata
@@ -1399,10 +1799,19 @@ Arguments:
 
 Options:
       --out <OUT>
-      --source-ref <SOURCE_REF>      External capture URI/key (repeatable); recorded in generated reports
+
+      --require-signed-approval
+          Require externally signed approvals and verify baseline approval consumers
+      --approval-allowed-signers <APPROVAL_ALLOWED_SIGNERS>
+          External OpenSSH allowed-signers file (cannot override a required policy)
       --json
-      --report-index <REPORT_INDEX>  Shared report index destination (default reports/index.jsonl next to each report, inside --out)
-  -h, --help                         Print help
+
+      --source-ref <SOURCE_REF>
+          External capture URI/key (repeatable); recorded in generated reports
+      --report-index <REPORT_INDEX>
+          Shared report index destination (default reports/index.jsonl next to each report, inside --out)
+  -h, --help
+          Print help
 
 Global options:
       --allow-out-near-captures  Silence warnings when --out is next to capture metadata
@@ -1421,9 +1830,16 @@ Commands:
   compare  Compare mapped frames and implementation captures; retain expected layout differences
 
 Options:
-      --source-ref <SOURCE_REF>      External capture URI/key (repeatable); recorded in generated reports
-      --report-index <REPORT_INDEX>  Shared report index destination (default reports/index.jsonl next to each report, inside --out)
-  -h, --help                         Print help
+      --require-signed-approval
+          Require externally signed approvals and verify baseline approval consumers
+      --approval-allowed-signers <APPROVAL_ALLOWED_SIGNERS>
+          External OpenSSH allowed-signers file (cannot override a required policy)
+      --source-ref <SOURCE_REF>
+          External capture URI/key (repeatable); recorded in generated reports
+      --report-index <REPORT_INDEX>
+          Shared report index destination (default reports/index.jsonl next to each report, inside --out)
+  -h, --help
+          Print help
 
 Global options:
       --allow-out-near-captures  Silence warnings when --out is next to capture metadata
@@ -1442,13 +1858,25 @@ Arguments:
 
 Options:
       --out <OUT>
-      --source-ref <SOURCE_REF>      External capture URI/key (repeatable); recorded in generated reports
+
+      --require-signed-approval
+          Require externally signed approvals and verify baseline approval consumers
+      --approval-allowed-signers <APPROVAL_ALLOWED_SIGNERS>
+          External OpenSSH allowed-signers file (cannot override a required policy)
       --cache <CACHE>
-      --report-index <REPORT_INDEX>  Shared report index destination (default reports/index.jsonl next to each report, inside --out)
+
       --fixture-dir <FIXTURE_DIR>
-      --scale <SCALE>                Export scale factor, 0.01-4 (default 1; 2 = twice the pixel size) [default: 1]
+
+      --source-ref <SOURCE_REF>
+          External capture URI/key (repeatable); recorded in generated reports
+      --report-index <REPORT_INDEX>
+          Shared report index destination (default reports/index.jsonl next to each report, inside --out)
+      --scale <SCALE>
+          Export scale factor, 0.01-4 (default 1; 2 = twice the pixel size) [default: 1]
       --json
-  -h, --help                         Print help
+
+  -h, --help
+          Print help
 
 Global options:
       --allow-out-near-captures  Silence warnings when --out is next to capture metadata
@@ -1467,14 +1895,27 @@ Arguments:
 
 Options:
       --pull <PULL>
-      --source-ref <SOURCE_REF>      External capture URI/key (repeatable); recorded in generated reports
+
+      --require-signed-approval
+          Require externally signed approvals and verify baseline approval consumers
+      --approval-allowed-signers <APPROVAL_ALLOWED_SIGNERS>
+          External OpenSSH allowed-signers file (cannot override a required policy)
       --captures <CAPTURES>
-      --report-index <REPORT_INDEX>  Shared report index destination (default reports/index.jsonl next to each report, inside --out)
+
       --out <OUT>
+
+      --source-ref <SOURCE_REF>
+          External capture URI/key (repeatable); recorded in generated reports
       --config <CONFIG>
-      --align <ALIGN>                [default: translation] [possible values: none, translation]
+
+      --report-index <REPORT_INDEX>
+          Shared report index destination (default reports/index.jsonl next to each report, inside --out)
+      --align <ALIGN>
+          [default: translation] [possible values: none, translation]
       --json
-  -h, --help                         Print help
+
+  -h, --help
+          Print help
 
 Global options:
       --allow-out-near-captures  Silence warnings when --out is next to capture metadata
@@ -1492,12 +1933,22 @@ Arguments:
   <REPORT>  Full report, sweep report or design report, read locally
 
 Options:
-      --source-ref <SOURCE_REF>      External capture URI/key (repeatable); recorded in generated reports
-      --template <TEMPLATE>          [default: generic] [possible values: generic, slack, teams]
-      --report-index <REPORT_INDEX>  Shared report index destination (default reports/index.jsonl next to each report, inside --out)
-      --report-link <REPORT_LINK>    Display link; defaults to the report path. Never used as the webhook endpoint
+      --require-signed-approval
+          Require externally signed approvals and verify baseline approval consumers
+      --template <TEMPLATE>
+          [default: generic] [possible values: generic, slack, teams]
+      --approval-allowed-signers <APPROVAL_ALLOWED_SIGNERS>
+          External OpenSSH allowed-signers file (cannot override a required policy)
+      --report-link <REPORT_LINK>
+          Display link; defaults to the report path. Never used as the webhook endpoint
       --json
-  -h, --help                         Print help
+
+      --source-ref <SOURCE_REF>
+          External capture URI/key (repeatable); recorded in generated reports
+      --report-index <REPORT_INDEX>
+          Shared report index destination (default reports/index.jsonl next to each report, inside --out)
+  -h, --help
+          Print help
 
 Global options:
       --allow-out-near-captures  Silence warnings when --out is next to capture metadata
@@ -1513,9 +1964,17 @@ Usage: saccade capabilities [OPTIONS]
 
 Options:
       --json
-      --source-ref <SOURCE_REF>      External capture URI/key (repeatable); recorded in generated reports
-      --report-index <REPORT_INDEX>  Shared report index destination (default reports/index.jsonl next to each report, inside --out)
-  -h, --help                         Print help
+
+      --require-signed-approval
+          Require externally signed approvals and verify baseline approval consumers
+      --approval-allowed-signers <APPROVAL_ALLOWED_SIGNERS>
+          External OpenSSH allowed-signers file (cannot override a required policy)
+      --source-ref <SOURCE_REF>
+          External capture URI/key (repeatable); recorded in generated reports
+      --report-index <REPORT_INDEX>
+          Shared report index destination (default reports/index.jsonl next to each report, inside --out)
+  -h, --help
+          Print help
 
 Global options:
       --allow-out-near-captures  Silence warnings when --out is next to capture metadata
@@ -1535,16 +1994,20 @@ Arguments:
 Options:
       --faces
           Run local face detection; never downloads models implicitly
-      --source-ref <SOURCE_REF>
-          External capture URI/key (repeatable); recorded in generated reports
+      --require-signed-approval
+          Require externally signed approvals and verify baseline approval consumers
+      --approval-allowed-signers <APPROVAL_ALLOWED_SIGNERS>
+          External OpenSSH allowed-signers file (cannot override a required policy)
       --face-observations <FACE_OBSERVATIONS>
           Image-bound face receipt; explicitly labelled replay
-      --report-index <REPORT_INDEX>
-          Shared report index destination (default reports/index.jsonl next to each report, inside --out)
       --model-registry <MODEL_REGISTRY>
           Shared model registry (vision, embedding and OCR pins)
+      --source-ref <SOURCE_REF>
+          External capture URI/key (repeatable); recorded in generated reports
       --model-cache <MODEL_CACHE>
           Deprecated: set SACCADE_MODELS_DIR or [models].dir
+      --report-index <REPORT_INDEX>
+          Shared report index destination (default reports/index.jsonl next to each report, inside --out)
       --runtime-library <RUNTIME_LIBRARY>
           Deprecated: set SACCADE_MODELS_RUNTIME_LIBRARY or [models].runtime_library
       --watermark
@@ -1592,16 +2055,20 @@ Arguments:
 Options:
       --faces
           Run local face detection; never downloads models implicitly
-      --source-ref <SOURCE_REF>
-          External capture URI/key (repeatable); recorded in generated reports
+      --require-signed-approval
+          Require externally signed approvals and verify baseline approval consumers
+      --approval-allowed-signers <APPROVAL_ALLOWED_SIGNERS>
+          External OpenSSH allowed-signers file (cannot override a required policy)
       --face-observations <FACE_OBSERVATIONS>
           Image-bound face receipt; explicitly labelled replay
-      --report-index <REPORT_INDEX>
-          Shared report index destination (default reports/index.jsonl next to each report, inside --out)
       --model-registry <MODEL_REGISTRY>
           Shared model registry (vision, embedding and OCR pins)
+      --source-ref <SOURCE_REF>
+          External capture URI/key (repeatable); recorded in generated reports
       --model-cache <MODEL_CACHE>
           Deprecated: set SACCADE_MODELS_DIR or [models].dir
+      --report-index <REPORT_INDEX>
+          Shared report index destination (default reports/index.jsonl next to each report, inside --out)
       --runtime-library <RUNTIME_LIBRARY>
           Deprecated: set SACCADE_MODELS_RUNTIME_LIBRARY or [models].runtime_library
       --watermark
@@ -1638,16 +2105,20 @@ Arguments:
 Options:
       --ocr-provider <OCR_PROVIDER>
           Optional document OCR provider; selecting it exports images/PDFs only with --ocr-run [possible values: mistral]
-      --source-ref <SOURCE_REF>
-          External capture URI/key (repeatable); recorded in generated reports
+      --require-signed-approval
+          Require externally signed approvals and verify baseline approval consumers
+      --approval-allowed-signers <APPROVAL_ALLOWED_SIGNERS>
+          External OpenSSH allowed-signers file (cannot override a required policy)
       --ocr-model <OCR_MODEL>
           Explicit dated OCR model (aliases refused)
-      --report-index <REPORT_INDEX>
-          Shared report index destination (default reports/index.jsonl next to each report, inside --out)
       --ocr-pages <OCR_PAGES>
           Zero-based pages selected explicitly; images accept only 0 [default: 0]
+      --source-ref <SOURCE_REF>
+          External capture URI/key (repeatable); recorded in generated reports
       --ocr-responses <OCR_RESPONSES> <OCR_RESPONSES>
           Constructed/recorded request-bound fixture envelopes for both inputs; no network
+      --report-index <REPORT_INDEX>
+          Shared report index destination (default reports/index.jsonl next to each report, inside --out)
       --ocr-run
           Explicitly authorize live document export under existing root policy
       --ocr-max-spend-usd <OCR_MAX_SPEND_USD>
@@ -1695,15 +2166,28 @@ Arguments:
   <IMAGE>
 
 Options:
-      --mask <MASK>                    Binary text-region mask: nonzero red includes; dimensions must match
-      --source-ref <SOURCE_REF>        External capture URI/key (repeatable); recorded in generated reports
-      --expected-text <EXPECTED_TEXT>  Declared expected Unicode text, never interpreted as instructions
-      --report-index <REPORT_INDEX>    Shared report index destination (default reports/index.jsonl next to each report, inside --out)
-      --source <SOURCE>                Image-bound imported OCR observations (saccade-ui-source.v1)
-      --ocr                            Use cached default PaddleOCR; never downloads
-      --out <OUT>                      Optional report directory; --json always emits the full versioned report
+      --mask <MASK>
+          Binary text-region mask: nonzero red includes; dimensions must match
+      --require-signed-approval
+          Require externally signed approvals and verify baseline approval consumers
+      --approval-allowed-signers <APPROVAL_ALLOWED_SIGNERS>
+          External OpenSSH allowed-signers file (cannot override a required policy)
+      --expected-text <EXPECTED_TEXT>
+          Declared expected Unicode text, never interpreted as instructions
+      --source <SOURCE>
+          Image-bound imported OCR observations (saccade-ui-source.v1)
+      --source-ref <SOURCE_REF>
+          External capture URI/key (repeatable); recorded in generated reports
+      --ocr
+          Use cached default PaddleOCR; never downloads
+      --report-index <REPORT_INDEX>
+          Shared report index destination (default reports/index.jsonl next to each report, inside --out)
+      --out <OUT>
+          Optional report directory; --json always emits the full versioned report
       --json
-  -h, --help                           Print help
+
+  -h, --help
+          Print help
 
 Global options:
       --allow-out-near-captures  Silence warnings when --out is next to capture metadata
@@ -1724,16 +2208,20 @@ Arguments:
 Options:
       --region <REGION>
           Baseline capture-pixel rectangle x,y,width,height (repeatable, max 64)
-      --source-ref <SOURCE_REF>
-          External capture URI/key (repeatable); recorded in generated reports
+      --require-signed-approval
+          Require externally signed approvals and verify baseline approval consumers
+      --approval-allowed-signers <APPROVAL_ALLOWED_SIGNERS>
+          External OpenSSH allowed-signers file (cannot override a required policy)
       --minimum-contrast <MINIMUM_CONTRAST>
           [default: 4.5]
-      --report-index <REPORT_INDEX>
-          Shared report index destination (default reports/index.jsonl next to each report, inside --out)
       --minimum-x-height-px <MINIMUM_X_HEIGHT_PX>
           [default: 8]
+      --source-ref <SOURCE_REF>
+          External capture URI/key (repeatable); recorded in generated reports
       --minimum-sharpness <MINIMUM_SHARPNESS>
           [default: 0.35]
+      --report-index <REPORT_INDEX>
+          Shared report index destination (default reports/index.jsonl next to each report, inside --out)
       --minimum-stroke-px <MINIMUM_STROKE_PX>
           [default: 1]
       --ocr
@@ -1766,15 +2254,28 @@ Arguments:
   <CANDIDATE>
 
 Options:
-      --policy <POLICY>              Frozen saccade-critical-text-policy.v1 region/string thresholds
-      --source-ref <SOURCE_REF>      External capture URI/key (repeatable); recorded in generated reports
-      --a-source <A_SOURCE>          Image-bound baseline saccade-ui-source.v1 (works on stock builds)
-      --report-index <REPORT_INDEX>  Shared report index destination (default reports/index.jsonl next to each report, inside --out)
-      --b-source <B_SOURCE>          Image-bound candidate source; requires --a-source
-      --ocr                          Execute cached local OCR; never downloads (requires ocr feature/runtime/models)
-      --out <OUT>                    Optional report directory, must be empty and outside inputs
+      --policy <POLICY>
+          Frozen saccade-critical-text-policy.v1 region/string thresholds
+      --require-signed-approval
+          Require externally signed approvals and verify baseline approval consumers
+      --a-source <A_SOURCE>
+          Image-bound baseline saccade-ui-source.v1 (works on stock builds)
+      --approval-allowed-signers <APPROVAL_ALLOWED_SIGNERS>
+          External OpenSSH allowed-signers file (cannot override a required policy)
+      --b-source <B_SOURCE>
+          Image-bound candidate source; requires --a-source
+      --source-ref <SOURCE_REF>
+          External capture URI/key (repeatable); recorded in generated reports
+      --ocr
+          Execute cached local OCR; never downloads (requires ocr feature/runtime/models)
+      --report-index <REPORT_INDEX>
+          Shared report index destination (default reports/index.jsonl next to each report, inside --out)
+      --out <OUT>
+          Optional report directory, must be empty and outside inputs
       --json
-  -h, --help                         Print help
+
+  -h, --help
+          Print help
 
 Global options:
       --allow-out-near-captures  Silence warnings when --out is next to capture metadata
@@ -1795,14 +2296,18 @@ Arguments:
 Options:
       --region <REGION>
           Fixed text region x,y,width,height in every frame's capture pixels
-      --source-ref <SOURCE_REF>
-          External capture URI/key (repeatable); recorded in generated reports
-      --report-index <REPORT_INDEX>
-          Shared report index destination (default reports/index.jsonl next to each report, inside --out)
+      --require-signed-approval
+          Require externally signed approvals and verify baseline approval consumers
+      --approval-allowed-signers <APPROVAL_ALLOWED_SIGNERS>
+          External OpenSSH allowed-signers file (cannot override a required policy)
       --sources <SOURCES>
           Directory of image-bound UI OCR sources or timed-text source wrappers named INDEX.json
       --ocr
           Use cached PaddleOCR; absent model/runtime explicitly skips OCR, never downloads
+      --source-ref <SOURCE_REF>
+          External capture URI/key (repeatable); recorded in generated reports
+      --report-index <REPORT_INDEX>
+          Shared report index destination (default reports/index.jsonl next to each report, inside --out)
       --timing-tolerance-s <TIMING_TOLERANCE_S>
           [default: 0.3]
       --search-s <SEARCH_S>
@@ -1841,15 +2346,28 @@ Arguments:
   <B>
 
 Options:
-      --model <MODEL>                Supplied saccade-embedding-model.v1 contract; includes export SHA-256 and preprocessing. Default: SACCADE_MODELS_EMBEDDING_CONTRACT or [models].embedding_contract
-      --source-ref <SOURCE_REF>      External capture URI/key (repeatable); recorded in generated reports
-      --cache <CACHE>                Deprecated: set SACCADE_MODELS_DIR or [models].dir. Content-addressed model cache
-      --report-index <REPORT_INDEX>  Shared report index destination (default reports/index.jsonl next to each report, inside --out)
-      --library <LIBRARY>            Deprecated: set SACCADE_MODELS_RUNTIME_LIBRARY or [models].runtime_library. Explicit ONNX Runtime 1.22 dynamic library, CPU execution only
-      --download-model               Deprecated: provision with `saccade models pull embedding`. Still downloads the pinned export to the cache
-      --out <OUT>                    [default: similar-report]
+      --model <MODEL>
+          Supplied saccade-embedding-model.v1 contract; includes export SHA-256 and preprocessing. Default: SACCADE_MODELS_EMBEDDING_CONTRACT or [models].embedding_contract
+      --require-signed-approval
+          Require externally signed approvals and verify baseline approval consumers
+      --approval-allowed-signers <APPROVAL_ALLOWED_SIGNERS>
+          External OpenSSH allowed-signers file (cannot override a required policy)
+      --cache <CACHE>
+          Deprecated: set SACCADE_MODELS_DIR or [models].dir. Content-addressed model cache
+      --library <LIBRARY>
+          Deprecated: set SACCADE_MODELS_RUNTIME_LIBRARY or [models].runtime_library. Explicit ONNX Runtime 1.22 dynamic library, CPU execution only
+      --source-ref <SOURCE_REF>
+          External capture URI/key (repeatable); recorded in generated reports
+      --download-model
+          Deprecated: provision with `saccade models pull embedding`. Still downloads the pinned export to the cache
+      --report-index <REPORT_INDEX>
+          Shared report index destination (default reports/index.jsonl next to each report, inside --out)
+      --out <OUT>
+          [default: similar-report]
       --json
-  -h, --help                         Print help
+
+  -h, --help
+          Print help
 
 Global options:
       --allow-out-near-captures  Silence warnings when --out is next to capture metadata
@@ -1872,9 +2390,16 @@ Commands:
   query          Search an existing index; model/preprocessing must exactly match the index
 
 Options:
-      --source-ref <SOURCE_REF>      External capture URI/key (repeatable); recorded in generated reports
-      --report-index <REPORT_INDEX>  Shared report index destination (default reports/index.jsonl next to each report, inside --out)
-  -h, --help                         Print help
+      --require-signed-approval
+          Require externally signed approvals and verify baseline approval consumers
+      --approval-allowed-signers <APPROVAL_ALLOWED_SIGNERS>
+          External OpenSSH allowed-signers file (cannot override a required policy)
+      --source-ref <SOURCE_REF>
+          External capture URI/key (repeatable); recorded in generated reports
+      --report-index <REPORT_INDEX>
+          Shared report index destination (default reports/index.jsonl next to each report, inside --out)
+  -h, --help
+          Print help
 
 Global options:
       --allow-out-near-captures  Silence warnings when --out is next to capture metadata
@@ -1889,13 +2414,24 @@ Export external report cross-links
 Usage: saccade index export [OPTIONS]
 
 Options:
-      --index <INDEX>                [default: reports/index.jsonl]
-      --source-ref <SOURCE_REF>      External capture URI/key (repeatable); recorded in generated reports
-      --format <FORMAT>              [default: jsonl]
-      --report-index <REPORT_INDEX>  Shared report index destination (default reports/index.jsonl next to each report, inside --out)
+      --index <INDEX>
+          [default: reports/index.jsonl]
+      --require-signed-approval
+          Require externally signed approvals and verify baseline approval consumers
+      --approval-allowed-signers <APPROVAL_ALLOWED_SIGNERS>
+          External OpenSSH allowed-signers file (cannot override a required policy)
+      --format <FORMAT>
+          [default: jsonl]
       --out <OUT>
+
+      --source-ref <SOURCE_REF>
+          External capture URI/key (repeatable); recorded in generated reports
       --json
-  -h, --help                         Print help
+
+      --report-index <REPORT_INDEX>
+          Shared report index destination (default reports/index.jsonl next to each report, inside --out)
+  -h, --help
+          Print help
 
 Global options:
       --allow-out-near-captures  Silence warnings when --out is next to capture metadata
@@ -1914,11 +2450,21 @@ Arguments:
 
 Options:
       --model <MODEL>
-      --source-ref <SOURCE_REF>      External capture URI/key (repeatable); recorded in generated reports
+
+      --require-signed-approval
+          Require externally signed approvals and verify baseline approval consumers
+      --approval-allowed-signers <APPROVAL_ALLOWED_SIGNERS>
+          External OpenSSH allowed-signers file (cannot override a required policy)
       --out <OUT>
-      --report-index <REPORT_INDEX>  Shared report index destination (default reports/index.jsonl next to each report, inside --out)
+
       --json
-  -h, --help                         Print help
+
+      --source-ref <SOURCE_REF>
+          External capture URI/key (repeatable); recorded in generated reports
+      --report-index <REPORT_INDEX>
+          Shared report index destination (default reports/index.jsonl next to each report, inside --out)
+  -h, --help
+          Print help
 
 Global options:
       --allow-out-near-captures  Silence warnings when --out is next to capture metadata
@@ -1936,15 +2482,28 @@ Arguments:
   <CORPUS>
 
 Options:
-      --model <MODEL>                Supplied saccade-embedding-model.v1 contract; includes export SHA-256 and preprocessing. Default: SACCADE_MODELS_EMBEDDING_CONTRACT or [models].embedding_contract
-      --source-ref <SOURCE_REF>      External capture URI/key (repeatable); recorded in generated reports
-      --cache <CACHE>                Deprecated: set SACCADE_MODELS_DIR or [models].dir. Content-addressed model cache
-      --report-index <REPORT_INDEX>  Shared report index destination (default reports/index.jsonl next to each report, inside --out)
-      --library <LIBRARY>            Deprecated: set SACCADE_MODELS_RUNTIME_LIBRARY or [models].runtime_library. Explicit ONNX Runtime 1.22 dynamic library, CPU execution only
-      --download-model               Deprecated: provision with `saccade models pull embedding`. Still downloads the pinned export to the cache
+      --model <MODEL>
+          Supplied saccade-embedding-model.v1 contract; includes export SHA-256 and preprocessing. Default: SACCADE_MODELS_EMBEDDING_CONTRACT or [models].embedding_contract
+      --require-signed-approval
+          Require externally signed approvals and verify baseline approval consumers
+      --approval-allowed-signers <APPROVAL_ALLOWED_SIGNERS>
+          External OpenSSH allowed-signers file (cannot override a required policy)
+      --cache <CACHE>
+          Deprecated: set SACCADE_MODELS_DIR or [models].dir. Content-addressed model cache
+      --library <LIBRARY>
+          Deprecated: set SACCADE_MODELS_RUNTIME_LIBRARY or [models].runtime_library. Explicit ONNX Runtime 1.22 dynamic library, CPU execution only
+      --source-ref <SOURCE_REF>
+          External capture URI/key (repeatable); recorded in generated reports
+      --download-model
+          Deprecated: provision with `saccade models pull embedding`. Still downloads the pinned export to the cache
+      --report-index <REPORT_INDEX>
+          Shared report index destination (default reports/index.jsonl next to each report, inside --out)
       --out <OUT>
+
       --json
-  -h, --help                         Print help
+
+  -h, --help
+          Print help
 
 Global options:
       --allow-out-near-captures  Silence warnings when --out is next to capture metadata
@@ -1962,16 +2521,30 @@ Arguments:
   <DIR>
 
 Options:
-      --segmented                    Use durable v2 segments (up to 1000000 images and 16 GiB vectors)
-      --source-ref <SOURCE_REF>      External capture URI/key (repeatable); recorded in generated reports
-      --model <MODEL>                Supplied saccade-embedding-model.v1 contract; includes export SHA-256 and preprocessing. Default: SACCADE_MODELS_EMBEDDING_CONTRACT or [models].embedding_contract
-      --report-index <REPORT_INDEX>  Shared report index destination (default reports/index.jsonl next to each report, inside --out)
-      --cache <CACHE>                Deprecated: set SACCADE_MODELS_DIR or [models].dir. Content-addressed model cache
-      --library <LIBRARY>            Deprecated: set SACCADE_MODELS_RUNTIME_LIBRARY or [models].runtime_library. Explicit ONNX Runtime 1.22 dynamic library, CPU execution only
-      --download-model               Deprecated: provision with `saccade models pull embedding`. Still downloads the pinned export to the cache
+      --require-signed-approval
+          Require externally signed approvals and verify baseline approval consumers
+      --segmented
+          Use durable v2 segments (up to 1000000 images and 16 GiB vectors)
+      --approval-allowed-signers <APPROVAL_ALLOWED_SIGNERS>
+          External OpenSSH allowed-signers file (cannot override a required policy)
+      --model <MODEL>
+          Supplied saccade-embedding-model.v1 contract; includes export SHA-256 and preprocessing. Default: SACCADE_MODELS_EMBEDDING_CONTRACT or [models].embedding_contract
+      --cache <CACHE>
+          Deprecated: set SACCADE_MODELS_DIR or [models].dir. Content-addressed model cache
+      --source-ref <SOURCE_REF>
+          External capture URI/key (repeatable); recorded in generated reports
+      --library <LIBRARY>
+          Deprecated: set SACCADE_MODELS_RUNTIME_LIBRARY or [models].runtime_library. Explicit ONNX Runtime 1.22 dynamic library, CPU execution only
+      --report-index <REPORT_INDEX>
+          Shared report index destination (default reports/index.jsonl next to each report, inside --out)
+      --download-model
+          Deprecated: provision with `saccade models pull embedding`. Still downloads the pinned export to the cache
       --out <OUT>
+
       --json
-  -h, --help                         Print help
+
+  -h, --help
+          Print help
 
 Global options:
       --allow-out-near-captures  Silence warnings when --out is next to capture metadata
@@ -1990,16 +2563,30 @@ Arguments:
   <DIR>
 
 Options:
-      --prune                        Treat dir as the complete archive and remove absent sources
-      --source-ref <SOURCE_REF>      External capture URI/key (repeatable); recorded in generated reports
-      --model <MODEL>                Supplied saccade-embedding-model.v1 contract; includes export SHA-256 and preprocessing. Default: SACCADE_MODELS_EMBEDDING_CONTRACT or [models].embedding_contract
-      --report-index <REPORT_INDEX>  Shared report index destination (default reports/index.jsonl next to each report, inside --out)
-      --cache <CACHE>                Deprecated: set SACCADE_MODELS_DIR or [models].dir. Content-addressed model cache
-      --library <LIBRARY>            Deprecated: set SACCADE_MODELS_RUNTIME_LIBRARY or [models].runtime_library. Explicit ONNX Runtime 1.22 dynamic library, CPU execution only
-      --download-model               Deprecated: provision with `saccade models pull embedding`. Still downloads the pinned export to the cache
-      --out <OUT>                    [default: index-update-report]
+      --prune
+          Treat dir as the complete archive and remove absent sources
+      --require-signed-approval
+          Require externally signed approvals and verify baseline approval consumers
+      --approval-allowed-signers <APPROVAL_ALLOWED_SIGNERS>
+          External OpenSSH allowed-signers file (cannot override a required policy)
+      --model <MODEL>
+          Supplied saccade-embedding-model.v1 contract; includes export SHA-256 and preprocessing. Default: SACCADE_MODELS_EMBEDDING_CONTRACT or [models].embedding_contract
+      --cache <CACHE>
+          Deprecated: set SACCADE_MODELS_DIR or [models].dir. Content-addressed model cache
+      --source-ref <SOURCE_REF>
+          External capture URI/key (repeatable); recorded in generated reports
+      --library <LIBRARY>
+          Deprecated: set SACCADE_MODELS_RUNTIME_LIBRARY or [models].runtime_library. Explicit ONNX Runtime 1.22 dynamic library, CPU execution only
+      --report-index <REPORT_INDEX>
+          Shared report index destination (default reports/index.jsonl next to each report, inside --out)
+      --download-model
+          Deprecated: provision with `saccade models pull embedding`. Still downloads the pinned export to the cache
+      --out <OUT>
+          [default: index-update-report]
       --json
-  -h, --help                         Print help
+
+  -h, --help
+          Print help
 
 Global options:
       --allow-out-near-captures  Silence warnings when --out is next to capture metadata
@@ -2018,17 +2605,32 @@ Arguments:
   [IMAGE]
 
 Options:
-      --source-ref <SOURCE_REF>      External capture URI/key (repeatable); recorded in generated reports
-      --text <TEXT>                  Text query requires a pinned SigLIP 2 joint text/image model
-      --model <MODEL>                Supplied saccade-embedding-model.v1 contract; includes export SHA-256 and preprocessing. Default: SACCADE_MODELS_EMBEDDING_CONTRACT or [models].embedding_contract
-      --report-index <REPORT_INDEX>  Shared report index destination (default reports/index.jsonl next to each report, inside --out)
-      --cache <CACHE>                Deprecated: set SACCADE_MODELS_DIR or [models].dir. Content-addressed model cache
-      --library <LIBRARY>            Deprecated: set SACCADE_MODELS_RUNTIME_LIBRARY or [models].runtime_library. Explicit ONNX Runtime 1.22 dynamic library, CPU execution only
-      --download-model               Deprecated: provision with `saccade models pull embedding`. Still downloads the pinned export to the cache
-      --top <TOP>                    Number of nearest matches to return (default 10) [default: 10]
-      --out <OUT>                    [default: query-report]
+      --require-signed-approval
+          Require externally signed approvals and verify baseline approval consumers
+      --text <TEXT>
+          Text query requires a pinned SigLIP 2 joint text/image model
+      --approval-allowed-signers <APPROVAL_ALLOWED_SIGNERS>
+          External OpenSSH allowed-signers file (cannot override a required policy)
+      --model <MODEL>
+          Supplied saccade-embedding-model.v1 contract; includes export SHA-256 and preprocessing. Default: SACCADE_MODELS_EMBEDDING_CONTRACT or [models].embedding_contract
+      --cache <CACHE>
+          Deprecated: set SACCADE_MODELS_DIR or [models].dir. Content-addressed model cache
+      --source-ref <SOURCE_REF>
+          External capture URI/key (repeatable); recorded in generated reports
+      --library <LIBRARY>
+          Deprecated: set SACCADE_MODELS_RUNTIME_LIBRARY or [models].runtime_library. Explicit ONNX Runtime 1.22 dynamic library, CPU execution only
+      --report-index <REPORT_INDEX>
+          Shared report index destination (default reports/index.jsonl next to each report, inside --out)
+      --download-model
+          Deprecated: provision with `saccade models pull embedding`. Still downloads the pinned export to the cache
+      --top <TOP>
+          Number of nearest matches to return (default 10) [default: 10]
+      --out <OUT>
+          [default: query-report]
       --json
-  -h, --help                         Print help
+
+  -h, --help
+          Print help
 
 Global options:
       --allow-out-near-captures  Silence warnings when --out is next to capture metadata
@@ -2046,11 +2648,20 @@ Arguments:
   <FILES>...  Files or directories; each unique input is decoded once
 
 Options:
-      --out <OUT>                    New or empty output directory [default: hash-report]
-      --source-ref <SOURCE_REF>      External capture URI/key (repeatable); recorded in generated reports
-      --json                         Emit a bounded JSON artifact receipt
-      --report-index <REPORT_INDEX>  Shared report index destination (default reports/index.jsonl next to each report, inside --out)
-  -h, --help                         Print help
+      --out <OUT>
+          New or empty output directory [default: hash-report]
+      --require-signed-approval
+          Require externally signed approvals and verify baseline approval consumers
+      --approval-allowed-signers <APPROVAL_ALLOWED_SIGNERS>
+          External OpenSSH allowed-signers file (cannot override a required policy)
+      --json
+          Emit a bounded JSON artifact receipt
+      --source-ref <SOURCE_REF>
+          External capture URI/key (repeatable); recorded in generated reports
+      --report-index <REPORT_INDEX>
+          Shared report index destination (default reports/index.jsonl next to each report, inside --out)
+  -h, --help
+          Print help
 
 Global options:
       --allow-out-near-captures  Silence warnings when --out is next to capture metadata
@@ -2068,13 +2679,24 @@ Arguments:
   <DIR>  Directory of images; never deletes originals
 
 Options:
-      --algorithm <ALGORITHM>        Algorithm for the Hamming index [default: phash] [possible values: ahash, dhash, phash]
-      --source-ref <SOURCE_REF>      External capture URI/key (repeatable); recorded in generated reports
-      --report-index <REPORT_INDEX>  Shared report index destination (default reports/index.jsonl next to each report, inside --out)
-      --threshold <THRESHOLD>        Largest perceptual-hash distance in bits, 0-64 (0 = identical hashes; larger = looser); clusters use transitive connectivity [default: 6]
-      --out <OUT>                    New or empty output directory [default: dedupe-report]
-      --json                         Emit a bounded JSON artifact receipt
-  -h, --help                         Print help
+      --algorithm <ALGORITHM>
+          Algorithm for the Hamming index [default: phash] [possible values: ahash, dhash, phash]
+      --require-signed-approval
+          Require externally signed approvals and verify baseline approval consumers
+      --approval-allowed-signers <APPROVAL_ALLOWED_SIGNERS>
+          External OpenSSH allowed-signers file (cannot override a required policy)
+      --threshold <THRESHOLD>
+          Largest perceptual-hash distance in bits, 0-64 (0 = identical hashes; larger = looser); clusters use transitive connectivity [default: 6]
+      --out <OUT>
+          New or empty output directory [default: dedupe-report]
+      --source-ref <SOURCE_REF>
+          External capture URI/key (repeatable); recorded in generated reports
+      --json
+          Emit a bounded JSON artifact receipt
+      --report-index <REPORT_INDEX>
+          Shared report index destination (default reports/index.jsonl next to each report, inside --out)
+  -h, --help
+          Print help
 
 Global options:
       --allow-out-near-captures  Silence warnings when --out is next to capture metadata
@@ -2094,16 +2716,20 @@ Arguments:
 Options:
       --hash-threshold <HASH_THRESHOLD>
           Inclusive perceptual-hash distance, 0..64 [default: 6]
-      --source-ref <SOURCE_REF>
-          External capture URI/key (repeatable); recorded in generated reports
+      --require-signed-approval
+          Require externally signed approvals and verify baseline approval consumers
+      --approval-allowed-signers <APPROVAL_ALLOWED_SIGNERS>
+          External OpenSSH allowed-signers file (cannot override a required policy)
       --embeddings
           Explicitly enable a provisioned embedding route; never downloads
-      --report-index <REPORT_INDEX>
-          Shared report index destination (default reports/index.jsonl next to each report, inside --out)
       --cosine-threshold <COSINE_THRESHOLD>
           Inclusive raw cosine candidate threshold [default: 0.95]
+      --source-ref <SOURCE_REF>
+          External capture URI/key (repeatable); recorded in generated reports
       --out <OUT>
           New or empty output directory outside the dataset [default: split-review-report]
+      --report-index <REPORT_INDEX>
+          Shared report index destination (default reports/index.jsonl next to each report, inside --out)
       --json
           Emit the complete versioned review, including limitations
   -h, --help
@@ -2125,16 +2751,30 @@ Arguments:
   <SOURCE>
 
 Options:
-      --profile <PROFILE>            [default: cpu-lite] [possible values: cpu-lite, cpu-full, gpu]
-      --source-ref <SOURCE_REF>      External capture URI/key (repeatable); recorded in generated reports
-      --model-dir <MODEL_DIR>        Deprecated: set SACCADE_MODELS_DIR or [models].dir (see `saccade models config`)
-      --report-index <REPORT_INDEX>  Shared report index destination (default reports/index.jsonl next to each report, inside --out)
-      --registry <REGISTRY>          Deprecated: set SACCADE_MODELS_REGISTRY or [models].registry
-      --options <OPTIONS>            Per-section options JSON file
+      --profile <PROFILE>
+          [default: cpu-lite] [possible values: cpu-lite, cpu-full, gpu]
+      --require-signed-approval
+          Require externally signed approvals and verify baseline approval consumers
+      --approval-allowed-signers <APPROVAL_ALLOWED_SIGNERS>
+          External OpenSSH allowed-signers file (cannot override a required policy)
+      --model-dir <MODEL_DIR>
+          Deprecated: set SACCADE_MODELS_DIR or [models].dir (see `saccade models config`)
+      --registry <REGISTRY>
+          Deprecated: set SACCADE_MODELS_REGISTRY or [models].registry
+      --source-ref <SOURCE_REF>
+          External capture URI/key (repeatable); recorded in generated reports
+      --options <OPTIONS>
+          Per-section options JSON file
+      --report-index <REPORT_INDEX>
+          Shared report index destination (default reports/index.jsonl next to each report, inside --out)
       --strict
-      --output-size <OUTPUT_SIZE>    Repeat output size WxH
+
+      --output-size <OUTPUT_SIZE>
+          Repeat output size WxH
       --json
-  -h, --help                         Print help
+
+  -h, --help
+          Print help
 
 Global options:
       --allow-out-near-captures  Silence warnings when --out is next to capture metadata
@@ -2153,12 +2793,23 @@ Arguments:
 
 Options:
       --out <OUT>
-      --source-ref <SOURCE_REF>      External capture URI/key (repeatable); recorded in generated reports
-      --report-index <REPORT_INDEX>  Shared report index destination (default reports/index.jsonl next to each report, inside --out)
-      --sample-fps <SAMPLE_FPS>      Requested samples per second, 0.1-10 (default 1; the decoder may lower it) [default: 1]
-      --shot-penalty <SHOT_PENALTY>  Change-point penalty, 0.001-10 (default 0.15; higher = fewer, longer shots; content-dependent) [default: 0.15]
+
+      --require-signed-approval
+          Require externally signed approvals and verify baseline approval consumers
+      --approval-allowed-signers <APPROVAL_ALLOWED_SIGNERS>
+          External OpenSSH allowed-signers file (cannot override a required policy)
+      --sample-fps <SAMPLE_FPS>
+          Requested samples per second, 0.1-10 (default 1; the decoder may lower it) [default: 1]
+      --shot-penalty <SHOT_PENALTY>
+          Change-point penalty, 0.001-10 (default 0.15; higher = fewer, longer shots; content-dependent) [default: 0.15]
+      --source-ref <SOURCE_REF>
+          External capture URI/key (repeatable); recorded in generated reports
       --json
-  -h, --help                         Print help
+
+      --report-index <REPORT_INDEX>
+          Shared report index destination (default reports/index.jsonl next to each report, inside --out)
+  -h, --help
+          Print help
 
 Global options:
       --allow-out-near-captures  Silence warnings when --out is next to capture metadata
@@ -2178,9 +2829,17 @@ Arguments:
 
 Options:
       --json
-      --source-ref <SOURCE_REF>      External capture URI/key (repeatable); recorded in generated reports
-      --report-index <REPORT_INDEX>  Shared report index destination (default reports/index.jsonl next to each report, inside --out)
-  -h, --help                         Print help
+
+      --require-signed-approval
+          Require externally signed approvals and verify baseline approval consumers
+      --approval-allowed-signers <APPROVAL_ALLOWED_SIGNERS>
+          External OpenSSH allowed-signers file (cannot override a required policy)
+      --source-ref <SOURCE_REF>
+          External capture URI/key (repeatable); recorded in generated reports
+      --report-index <REPORT_INDEX>
+          Shared report index destination (default reports/index.jsonl next to each report, inside --out)
+  -h, --help
+          Print help
 
 Global options:
       --allow-out-near-captures  Silence warnings when --out is next to capture metadata
@@ -2200,9 +2859,16 @@ Commands:
   pull    The one provisioning verb: download and verify the named pinned artifacts
 
 Options:
-      --source-ref <SOURCE_REF>      External capture URI/key (repeatable); recorded in generated reports
-      --report-index <REPORT_INDEX>  Shared report index destination (default reports/index.jsonl next to each report, inside --out)
-  -h, --help                         Print help
+      --require-signed-approval
+          Require externally signed approvals and verify baseline approval consumers
+      --approval-allowed-signers <APPROVAL_ALLOWED_SIGNERS>
+          External OpenSSH allowed-signers file (cannot override a required policy)
+      --source-ref <SOURCE_REF>
+          External capture URI/key (repeatable); recorded in generated reports
+      --report-index <REPORT_INDEX>
+          Shared report index destination (default reports/index.jsonl next to each report, inside --out)
+  -h, --help
+          Print help
 
 Global options:
       --allow-out-near-captures  Silence warnings when --out is next to capture metadata
@@ -2217,12 +2883,22 @@ Inspect selections, real pins, cache integrity and source-parity status
 Usage: saccade models list [OPTIONS]
 
 Options:
-      --registry <REGISTRY>          Deprecated: set SACCADE_MODELS_REGISTRY or [models].registry
-      --source-ref <SOURCE_REF>      External capture URI/key (repeatable); recorded in generated reports
-      --cache <CACHE>                Deprecated: set SACCADE_MODELS_DIR or [models].dir
-      --report-index <REPORT_INDEX>  Shared report index destination (default reports/index.jsonl next to each report, inside --out)
+      --registry <REGISTRY>
+          Deprecated: set SACCADE_MODELS_REGISTRY or [models].registry
+      --require-signed-approval
+          Require externally signed approvals and verify baseline approval consumers
+      --approval-allowed-signers <APPROVAL_ALLOWED_SIGNERS>
+          External OpenSSH allowed-signers file (cannot override a required policy)
+      --cache <CACHE>
+          Deprecated: set SACCADE_MODELS_DIR or [models].dir
       --json
-  -h, --help                         Print help
+
+      --source-ref <SOURCE_REF>
+          External capture URI/key (repeatable); recorded in generated reports
+      --report-index <REPORT_INDEX>
+          Shared report index destination (default reports/index.jsonl next to each report, inside --out)
+  -h, --help
+          Print help
 
 Global options:
       --allow-out-near-captures  Silence warnings when --out is next to capture metadata
@@ -2238,9 +2914,17 @@ Usage: saccade models config [OPTIONS]
 
 Options:
       --json
-      --source-ref <SOURCE_REF>      External capture URI/key (repeatable); recorded in generated reports
-      --report-index <REPORT_INDEX>  Shared report index destination (default reports/index.jsonl next to each report, inside --out)
-  -h, --help                         Print help
+
+      --require-signed-approval
+          Require externally signed approvals and verify baseline approval consumers
+      --approval-allowed-signers <APPROVAL_ALLOWED_SIGNERS>
+          External OpenSSH allowed-signers file (cannot override a required policy)
+      --source-ref <SOURCE_REF>
+          External capture URI/key (repeatable); recorded in generated reports
+      --report-index <REPORT_INDEX>
+          Shared report index destination (default reports/index.jsonl next to each report, inside --out)
+  -h, --help
+          Print help
 
 Global options:
       --allow-out-near-captures  Silence warnings when --out is next to capture metadata
@@ -2264,20 +2948,26 @@ Options:
       --contract <CONTRACT>
           Contract file for `ocr` / `embedding`
 
-      --source-ref <SOURCE_REF>
-          External capture URI/key (repeatable); recorded in generated reports
+      --require-signed-approval
+          Require externally signed approvals and verify baseline approval consumers
+
+      --approval-allowed-signers <APPROVAL_ALLOWED_SIGNERS>
+          External OpenSSH allowed-signers file (cannot override a required policy)
 
       --registry <REGISTRY>
           Deprecated: set SACCADE_MODELS_REGISTRY or [models].registry
 
-      --report-index <REPORT_INDEX>
-          Shared report index destination (default reports/index.jsonl next to each report, inside --out)
-
       --cache <CACHE>
           Deprecated: set SACCADE_MODELS_DIR or [models].dir
 
+      --source-ref <SOURCE_REF>
+          External capture URI/key (repeatable); recorded in generated reports
+
       --json
 
+
+      --report-index <REPORT_INDEX>
+          Shared report index destination (default reports/index.jsonl next to each report, inside --out)
 
   -h, --help
           Print help (see a summary with '-h')
@@ -2302,18 +2992,22 @@ Arguments:
   <PHRASE>
 
 Options:
+      --require-signed-approval
+          Require externally signed approvals and verify baseline approval consumers
       --segment
 
-      --source-ref <SOURCE_REF>
-          External capture URI/key (repeatable); recorded in generated reports
+      --approval-allowed-signers <APPROVAL_ALLOWED_SIGNERS>
+          External OpenSSH allowed-signers file (cannot override a required policy)
       --detector <DETECTOR>
           [default: grounding-dino-tiny]
-      --report-index <REPORT_INDEX>
-          Shared report index destination (default reports/index.jsonl next to each report, inside --out)
       --segmenter <SEGMENTER>
           [default: sam-2.1-tiny]
+      --source-ref <SOURCE_REF>
+          External capture URI/key (repeatable); recorded in generated reports
       --observations <OBSERVATIONS>
           Explicit generated/frozen observation receipt; output is labelled replay
+      --report-index <REPORT_INDEX>
+          Shared report index destination (default reports/index.jsonl next to each report, inside --out)
       --overlay <OVERLAY>
           New overlay PNG; existing files are never overwritten
       --registry <REGISTRY>
@@ -2347,16 +3041,20 @@ Arguments:
 Options:
       --reference <REFERENCE>
           Full-reference metric command needs an explicit reference
-      --source-ref <SOURCE_REF>
-          External capture URI/key (repeatable); recorded in generated reports
+      --require-signed-approval
+          Require externally signed approvals and verify baseline approval consumers
+      --approval-allowed-signers <APPROVAL_ALLOWED_SIGNERS>
+          External OpenSSH allowed-signers file (cannot override a required policy)
       --metric <METRIC>
           [default: musiq]
-      --report-index <REPORT_INDEX>
-          Shared report index destination (default reports/index.jsonl next to each report, inside --out)
       --observations <OBSERVATIONS>
           Explicit stand-in/frozen measurement receipt, always labelled replay
+      --source-ref <SOURCE_REF>
+          External capture URI/key (repeatable); recorded in generated reports
       --registry <REGISTRY>
           Deprecated: set SACCADE_MODELS_REGISTRY or [models].registry
+      --report-index <REPORT_INDEX>
+          Shared report index destination (default reports/index.jsonl next to each report, inside --out)
       --cache <CACHE>
           Deprecated: set SACCADE_MODELS_DIR or [models].dir
       --runtime-library <RUNTIME_LIBRARY>
@@ -2386,16 +3084,20 @@ Arguments:
 Options:
       --expected-payload <EXPECTED_PAYLOAD>
           Known legacy message bytes in hex; arbitrary recovered bits are not detection
-      --source-ref <SOURCE_REF>
-          External capture URI/key (repeatable); recorded in generated reports
+      --require-signed-approval
+          Require externally signed approvals and verify baseline approval consumers
+      --approval-allowed-signers <APPROVAL_ALLOWED_SIGNERS>
+          External OpenSSH allowed-signers file (cannot override a required policy)
       --quantization-step <QUANTIZATION_STEP>
           Coefficient quantization step of the embedding workflow (default 36; must be above 0) [default: 36]
-      --report-index <REPORT_INDEX>
-          Shared report index destination (default reports/index.jsonl next to each report, inside --out)
       --minimum-agreement <MINIMUM_AGREEMENT>
           Required fraction of block votes supporting the expected bits, 0.75-1 (default 0.9) [default: 0.9]
+      --source-ref <SOURCE_REF>
+          External capture URI/key (repeatable); recorded in generated reports
       --observations <OBSERVATIONS>
           Explicit frozen/generated primary-decoder observation report
+      --report-index <REPORT_INDEX>
+          Shared report index destination (default reports/index.jsonl next to each report, inside --out)
       --trustmark
           Decode the pinned TrustMark Q model and its BCH payload/schema; never downloads
       --registry <REGISTRY>
@@ -2429,16 +3131,20 @@ Arguments:
 Options:
       --detector <DETECTOR>
           [default: yunet-2026may]
-      --source-ref <SOURCE_REF>
-          External capture URI/key (repeatable); recorded in generated reports
+      --require-signed-approval
+          Require externally signed approvals and verify baseline approval consumers
+      --approval-allowed-signers <APPROVAL_ALLOWED_SIGNERS>
+          External OpenSSH allowed-signers file (cannot override a required policy)
       --observations <OBSERVATIONS>
 
-      --report-index <REPORT_INDEX>
-          Shared report index destination (default reports/index.jsonl next to each report, inside --out)
       --blur-faces <BLUR_FACES>
           Write a new strongly redacted PNG; never overwrite an original
+      --source-ref <SOURCE_REF>
+          External capture URI/key (repeatable); recorded in generated reports
       --registry <REGISTRY>
           Deprecated: set SACCADE_MODELS_REGISTRY or [models].registry
+      --report-index <REPORT_INDEX>
+          Shared report index destination (default reports/index.jsonl next to each report, inside --out)
       --cache <CACHE>
           Deprecated: set SACCADE_MODELS_DIR or [models].dir
       --runtime-library <RUNTIME_LIBRARY>
@@ -2468,16 +3174,20 @@ Arguments:
 Options:
       --detector <DETECTOR>
           [default: yunet-2026may]
-      --source-ref <SOURCE_REF>
-          External capture URI/key (repeatable); recorded in generated reports
+      --require-signed-approval
+          Require externally signed approvals and verify baseline approval consumers
+      --approval-allowed-signers <APPROVAL_ALLOWED_SIGNERS>
+          External OpenSSH allowed-signers file (cannot override a required policy)
       --observations <OBSERVATIONS>
 
-      --report-index <REPORT_INDEX>
-          Shared report index destination (default reports/index.jsonl next to each report, inside --out)
       --blur-faces <BLUR_FACES>
           Write a new strongly redacted PNG; never overwrite an original
+      --source-ref <SOURCE_REF>
+          External capture URI/key (repeatable); recorded in generated reports
       --registry <REGISTRY>
           Deprecated: set SACCADE_MODELS_REGISTRY or [models].registry
+      --report-index <REPORT_INDEX>
+          Shared report index destination (default reports/index.jsonl next to each report, inside --out)
       --cache <CACHE>
           Deprecated: set SACCADE_MODELS_DIR or [models].dir
       --runtime-library <RUNTIME_LIBRARY>
@@ -2511,16 +3221,20 @@ Arguments:
 Options:
       --endpoint <ENDPOINT>
 
-      --source-ref <SOURCE_REF>
-          External capture URI/key (repeatable); recorded in generated reports
-      --report-index <REPORT_INDEX>
-          Shared report index destination (default reports/index.jsonl next to each report, inside --out)
+      --require-signed-approval
+          Require externally signed approvals and verify baseline approval consumers
+      --approval-allowed-signers <APPROVAL_ALLOWED_SIGNERS>
+          External OpenSSH allowed-signers file (cannot override a required policy)
       --runtime-revision <RUNTIME_REVISION>
 
       --response <RESPONSE>
           Decode an explicitly recorded response without making any HTTP request
+      --source-ref <SOURCE_REF>
+          External capture URI/key (repeatable); recorded in generated reports
       --json
 
+      --report-index <REPORT_INDEX>
+          Shared report index destination (default reports/index.jsonl next to each report, inside --out)
   -h, --help
           Print help
 
@@ -2542,16 +3256,20 @@ Arguments:
 Options:
       --provider <PROVIDER>
 
-      --source-ref <SOURCE_REF>
-          External capture URI/key (repeatable); recorded in generated reports
+      --require-signed-approval
+          Require externally signed approvals and verify baseline approval consumers
+      --approval-allowed-signers <APPROVAL_ALLOWED_SIGNERS>
+          External OpenSSH allowed-signers file (cannot override a required policy)
       --endpoint-profile <ENDPOINT_PROFILE>
           Startup env-file mapping for generic OpenAI-compatible or Azure deployment endpoints [possible values: openai-compatible, azure-openai]
-      --report-index <REPORT_INDEX>
-          Shared report index destination (default reports/index.jsonl next to each report, inside --out)
       --response <RESPONSE>
           Explicit recorded response; omit to show request mapping only (no credentials)
+      --source-ref <SOURCE_REF>
+          External capture URI/key (repeatable); recorded in generated reports
       --coordinates <COORDINATES>
           [default: pixels]
+      --report-index <REPORT_INDEX>
+          Shared report index destination (default reports/index.jsonl next to each report, inside --out)
       --json
 
   -h, --help
@@ -2574,11 +3292,20 @@ Arguments:
   <CANDIDATE>
 
 Options:
-      --out <OUT>                    New JSON localization report
-      --source-ref <SOURCE_REF>      External capture URI/key (repeatable); recorded in generated reports
+      --out <OUT>
+          New JSON localization report
+      --require-signed-approval
+          Require externally signed approvals and verify baseline approval consumers
+      --approval-allowed-signers <APPROVAL_ALLOWED_SIGNERS>
+          External OpenSSH allowed-signers file (cannot override a required policy)
       --json
-      --report-index <REPORT_INDEX>  Shared report index destination (default reports/index.jsonl next to each report, inside --out)
-  -h, --help                         Print help
+
+      --source-ref <SOURCE_REF>
+          External capture URI/key (repeatable); recorded in generated reports
+      --report-index <REPORT_INDEX>
+          Shared report index destination (default reports/index.jsonl next to each report, inside --out)
+  -h, --help
+          Print help
 
 Global options:
       --allow-out-near-captures  Silence warnings when --out is next to capture metadata
@@ -2599,9 +3326,16 @@ Commands:
   runtime-probe  Load self-contained ONNX graphs; graph loading does not qualify inference/parity
 
 Options:
-      --source-ref <SOURCE_REF>      External capture URI/key (repeatable); recorded in generated reports
-      --report-index <REPORT_INDEX>  Shared report index destination (default reports/index.jsonl next to each report, inside --out)
-  -h, --help                         Print help
+      --require-signed-approval
+          Require externally signed approvals and verify baseline approval consumers
+      --approval-allowed-signers <APPROVAL_ALLOWED_SIGNERS>
+          External OpenSSH allowed-signers file (cannot override a required policy)
+      --source-ref <SOURCE_REF>
+          External capture URI/key (repeatable); recorded in generated reports
+      --report-index <REPORT_INDEX>
+          Shared report index destination (default reports/index.jsonl next to each report, inside --out)
+  -h, --help
+          Print help
 
 Global options:
       --allow-out-near-captures  Silence warnings when --out is next to capture metadata
@@ -2617,12 +3351,23 @@ Usage: saccade regions import [OPTIONS] --reference <REFERENCE> --mask <MASK> --
 
 Options:
       --reference <REFERENCE>
-      --source-ref <SOURCE_REF>      External capture URI/key (repeatable); recorded in generated reports
+
+      --require-signed-approval
+          Require externally signed approvals and verify baseline approval consumers
+      --approval-allowed-signers <APPROVAL_ALLOWED_SIGNERS>
+          External OpenSSH allowed-signers file (cannot override a required policy)
       --mask <MASK>
-      --report-index <REPORT_INDEX>  Shared report index destination (default reports/index.jsonl next to each report, inside --out)
+
       --phrase <PHRASE>
-      --out <OUT>                    New frozen-region JSON file; use it with localized-check --region
-  -h, --help                         Print help
+
+      --source-ref <SOURCE_REF>
+          External capture URI/key (repeatable); recorded in generated reports
+      --out <OUT>
+          New frozen-region JSON file; use it with localized-check --region
+      --report-index <REPORT_INDEX>
+          Shared report index destination (default reports/index.jsonl next to each report, inside --out)
+  -h, --help
+          Print help
 
 Global options:
       --allow-out-near-captures  Silence warnings when --out is next to capture metadata
@@ -2637,9 +3382,16 @@ Report honest text-to-mask and import capabilities without loading models
 Usage: saccade regions status [OPTIONS]
 
 Options:
-      --source-ref <SOURCE_REF>      External capture URI/key (repeatable); recorded in generated reports
-      --report-index <REPORT_INDEX>  Shared report index destination (default reports/index.jsonl next to each report, inside --out)
-  -h, --help                         Print help
+      --require-signed-approval
+          Require externally signed approvals and verify baseline approval consumers
+      --approval-allowed-signers <APPROVAL_ALLOWED_SIGNERS>
+          External OpenSSH allowed-signers file (cannot override a required policy)
+      --source-ref <SOURCE_REF>
+          External capture URI/key (repeatable); recorded in generated reports
+      --report-index <REPORT_INDEX>
+          Shared report index destination (default reports/index.jsonl next to each report, inside --out)
+  -h, --help
+          Print help
 
 Global options:
       --allow-out-near-captures  Silence warnings when --out is next to capture metadata
@@ -2655,10 +3407,19 @@ Usage: saccade regions cache [OPTIONS] --manifest <MANIFEST> --cache <CACHE>
 
 Options:
       --manifest <MANIFEST>
-      --source-ref <SOURCE_REF>      External capture URI/key (repeatable); recorded in generated reports
+
+      --require-signed-approval
+          Require externally signed approvals and verify baseline approval consumers
+      --approval-allowed-signers <APPROVAL_ALLOWED_SIGNERS>
+          External OpenSSH allowed-signers file (cannot override a required policy)
       --cache <CACHE>
-      --report-index <REPORT_INDEX>  Shared report index destination (default reports/index.jsonl next to each report, inside --out)
-  -h, --help                         Print help
+
+      --source-ref <SOURCE_REF>
+          External capture URI/key (repeatable); recorded in generated reports
+      --report-index <REPORT_INDEX>
+          Shared report index destination (default reports/index.jsonl next to each report, inside --out)
+  -h, --help
+          Print help
 
 Global options:
       --allow-out-near-captures  Silence warnings when --out is next to capture metadata
@@ -2674,11 +3435,21 @@ Usage: saccade regions runtime-probe [OPTIONS] --manifest <MANIFEST> --cache <CA
 
 Options:
       --manifest <MANIFEST>
-      --source-ref <SOURCE_REF>      External capture URI/key (repeatable); recorded in generated reports
+
+      --require-signed-approval
+          Require externally signed approvals and verify baseline approval consumers
+      --approval-allowed-signers <APPROVAL_ALLOWED_SIGNERS>
+          External OpenSSH allowed-signers file (cannot override a required policy)
       --cache <CACHE>
-      --report-index <REPORT_INDEX>  Shared report index destination (default reports/index.jsonl next to each report, inside --out)
+
       --library <LIBRARY>
-  -h, --help                         Print help
+
+      --source-ref <SOURCE_REF>
+          External capture URI/key (repeatable); recorded in generated reports
+      --report-index <REPORT_INDEX>
+          Shared report index destination (default reports/index.jsonl next to each report, inside --out)
+  -h, --help
+          Print help
 
 Global options:
       --allow-out-near-captures  Silence warnings when --out is next to capture metadata
@@ -2693,13 +3464,24 @@ Render verified atomic numerical claims with region and evidence citations
 Usage: saccade explain-grounded [OPTIONS] --report <REPORT> --out <OUT>
 
 Options:
-      --report <REPORT>              Immutable comparison or localized measurement JSON
-      --source-ref <SOURCE_REF>      External capture URI/key (repeatable); recorded in generated reports
-      --proposals <PROPOSALS>        Optional JSON array of atomic proposals; no provider calls are made
-      --report-index <REPORT_INDEX>  Shared report index destination (default reports/index.jsonl next to each report, inside --out)
-      --out <OUT>                    New explanation JSON file
+      --report <REPORT>
+          Immutable comparison or localized measurement JSON
+      --require-signed-approval
+          Require externally signed approvals and verify baseline approval consumers
+      --approval-allowed-signers <APPROVAL_ALLOWED_SIGNERS>
+          External OpenSSH allowed-signers file (cannot override a required policy)
+      --proposals <PROPOSALS>
+          Optional JSON array of atomic proposals; no provider calls are made
+      --out <OUT>
+          New explanation JSON file
+      --source-ref <SOURCE_REF>
+          External capture URI/key (repeatable); recorded in generated reports
       --json
-  -h, --help                         Print help
+
+      --report-index <REPORT_INDEX>
+          Shared report index destination (default reports/index.jsonl next to each report, inside --out)
+  -h, --help
+          Print help
 
 Global options:
       --allow-out-near-captures  Silence warnings when --out is next to capture metadata
@@ -2720,16 +3502,20 @@ Arguments:
 Options:
       --allow-unreached <ALLOW_UNREACHED>
           Permit both unreached arms only under an identical criterion and observation
-      --source-ref <SOURCE_REF>
-          External capture URI/key (repeatable); recorded in generated reports
-      --report-index <REPORT_INDEX>
-          Shared report index destination (default reports/index.jsonl next to each report, inside --out)
+      --require-signed-approval
+          Require externally signed approvals and verify baseline approval consumers
+      --approval-allowed-signers <APPROVAL_ALLOWED_SIGNERS>
+          External OpenSSH allowed-signers file (cannot override a required policy)
       --require-valid-arms
           Refuse verdicts for incomplete or mismatched producer identity
       --fingerprint-map <FINGERPRINT_MAP>
           Generic TOML/JSON mapping from producer fields and sibling records
+      --source-ref <SOURCE_REF>
+          External capture URI/key (repeatable); recorded in generated reports
       --arm-ignore <ARM_IGNORE>
           Explicit ignored metadata tokens, echoed in arm validation output
+      --report-index <REPORT_INDEX>
+          Shared report index destination (default reports/index.jsonl next to each report, inside --out)
       --intended-variable <INTENDED_VARIABLES>
 
       --config <CONFIG>
@@ -2772,13 +3558,24 @@ Reconcile expected and supplied stable capture cases against a comparison report
 Usage: saccade inventory [OPTIONS] --manifest <MANIFEST> --report <REPORT> --out <OUT>
 
 Options:
-      --manifest <MANIFEST>          Expected suite and supplied capture attempts, with stable case IDs
-      --source-ref <SOURCE_REF>      External capture URI/key (repeatable); recorded in generated reports
-      --report <REPORT>              Existing comparison report
-      --report-index <REPORT_INDEX>  Shared report index destination (default reports/index.jsonl next to each report, inside --out)
-      --out <OUT>                    New inventory JSON file
+      --manifest <MANIFEST>
+          Expected suite and supplied capture attempts, with stable case IDs
+      --require-signed-approval
+          Require externally signed approvals and verify baseline approval consumers
+      --approval-allowed-signers <APPROVAL_ALLOWED_SIGNERS>
+          External OpenSSH allowed-signers file (cannot override a required policy)
+      --report <REPORT>
+          Existing comparison report
+      --out <OUT>
+          New inventory JSON file
+      --source-ref <SOURCE_REF>
+          External capture URI/key (repeatable); recorded in generated reports
       --json
-  -h, --help                         Print help
+
+      --report-index <REPORT_INDEX>
+          Shared report index destination (default reports/index.jsonl next to each report, inside --out)
+  -h, --help
+          Print help
 
 Global options:
       --allow-out-near-captures  Silence warnings when --out is next to capture metadata
@@ -2796,11 +3593,20 @@ Arguments:
   <MANIFEST>  Frozen sweep manifest. All artifacts must be beneath its directory
 
 Options:
-      --out <OUT>                    New JSON report file; existing files are preserved
-      --source-ref <SOURCE_REF>      External capture URI/key (repeatable); recorded in generated reports
+      --out <OUT>
+          New JSON report file; existing files are preserved
+      --require-signed-approval
+          Require externally signed approvals and verify baseline approval consumers
+      --approval-allowed-signers <APPROVAL_ALLOWED_SIGNERS>
+          External OpenSSH allowed-signers file (cannot override a required policy)
       --json
-      --report-index <REPORT_INDEX>  Shared report index destination (default reports/index.jsonl next to each report, inside --out)
-  -h, --help                         Print help
+
+      --source-ref <SOURCE_REF>
+          External capture URI/key (repeatable); recorded in generated reports
+      --report-index <REPORT_INDEX>
+          Shared report index destination (default reports/index.jsonl next to each report, inside --out)
+  -h, --help
+          Print help
 
 Global options:
       --allow-out-near-captures  Silence warnings when --out is next to capture metadata
@@ -2820,9 +3626,16 @@ Commands:
   analyze  Show measured variation and threshold advice for comparable entries
 
 Options:
-      --source-ref <SOURCE_REF>      External capture URI/key (repeatable); recorded in generated reports
-      --report-index <REPORT_INDEX>  Shared report index destination (default reports/index.jsonl next to each report, inside --out)
-  -h, --help                         Print help
+      --require-signed-approval
+          Require externally signed approvals and verify baseline approval consumers
+      --approval-allowed-signers <APPROVAL_ALLOWED_SIGNERS>
+          External OpenSSH allowed-signers file (cannot override a required policy)
+      --source-ref <SOURCE_REF>
+          External capture URI/key (repeatable); recorded in generated reports
+      --report-index <REPORT_INDEX>
+          Shared report index destination (default reports/index.jsonl next to each report, inside --out)
+  -h, --help
+          Print help
 
 Global options:
       --allow-out-near-captures  Silence warnings when --out is next to capture metadata
@@ -2837,12 +3650,22 @@ Find candidate performance onsets in qualified, comparable history observations
 Usage: saccade history onset [OPTIONS] --store <STORE>
 
 Options:
-      --source-ref <SOURCE_REF>      External capture URI/key (repeatable); recorded in generated reports
+      --require-signed-approval
+          Require externally signed approvals and verify baseline approval consumers
       --store <STORE>
-      --limit <LIMIT>                Most recent distinct observations per partition; exact DP is bounded to 120 [default: 60]
-      --report-index <REPORT_INDEX>  Shared report index destination (default reports/index.jsonl next to each report, inside --out)
+
+      --approval-allowed-signers <APPROVAL_ALLOWED_SIGNERS>
+          External OpenSSH allowed-signers file (cannot override a required policy)
+      --limit <LIMIT>
+          Most recent distinct observations per partition; exact DP is bounded to 120 [default: 60]
       --json
-  -h, --help                         Print help
+
+      --source-ref <SOURCE_REF>
+          External capture URI/key (repeatable); recorded in generated reports
+      --report-index <REPORT_INDEX>
+          Shared report index destination (default reports/index.jsonl next to each report, inside --out)
+  -h, --help
+          Print help
 
 Global options:
       --allow-out-near-captures  Silence warnings when --out is next to capture metadata
@@ -2860,16 +3683,20 @@ Arguments:
   <REPORT>
 
 Options:
+      --require-signed-approval
+          Require externally signed approvals and verify baseline approval consumers
       --run-id <RUN_ID>
           Producer-assigned independent capture run, never an image or report hash
-      --source-ref <SOURCE_REF>
-          External capture URI/key (repeatable); recorded in generated reports
+      --approval-allowed-signers <APPROVAL_ALLOWED_SIGNERS>
+          External OpenSSH allowed-signers file (cannot override a required policy)
       --environment-id <ENVIRONMENT_ID>
           Frozen browser/device, fonts, viewport, warmup and temporal protocol identity
-      --report-index <REPORT_INDEX>
-          Shared report index destination (default reports/index.jsonl next to each report, inside --out)
+      --source-ref <SOURCE_REF>
+          External capture URI/key (repeatable); recorded in generated reports
       --unchanged-build
           Declare an unchanged-build repeat eligible for normal-variation advice
+      --report-index <REPORT_INDEX>
+          Shared report index destination (default reports/index.jsonl next to each report, inside --out)
       --store <STORE>
 
       --json
@@ -2890,15 +3717,28 @@ Show measured variation and threshold advice for comparable entries
 Usage: saccade history analyze [OPTIONS] --store <STORE>
 
 Options:
-      --source-ref <SOURCE_REF>      External capture URI/key (repeatable); recorded in generated reports
+      --require-signed-approval
+          Require externally signed approvals and verify baseline approval consumers
       --store <STORE>
+
+      --approval-allowed-signers <APPROVAL_ALLOWED_SIGNERS>
+          External OpenSSH allowed-signers file (cannot override a required policy)
       --entry <ENTRY>
-      --report-index <REPORT_INDEX>  Shared report index destination (default reports/index.jsonl next to each report, inside --out)
-      --drift                        Diagnose sustained anchor-relative drift in recorded run order
-      --out <OUT>                    New file containing the complete witness for the selected groups
-      --limit <LIMIT>                Maximum runs to list, 1-20 (default 10) [default: 10]
+
+      --drift
+          Diagnose sustained anchor-relative drift in recorded run order
+      --source-ref <SOURCE_REF>
+          External capture URI/key (repeatable); recorded in generated reports
+      --out <OUT>
+          New file containing the complete witness for the selected groups
+      --report-index <REPORT_INDEX>
+          Shared report index destination (default reports/index.jsonl next to each report, inside --out)
+      --limit <LIMIT>
+          Maximum runs to list, 1-20 (default 10) [default: 10]
       --json
-  -h, --help                         Print help
+
+  -h, --help
+          Print help
 
 Global options:
       --allow-out-near-captures  Silence warnings when --out is next to capture metadata
@@ -2913,16 +3753,30 @@ Locate the first commit whose fresh capture fails its baseline
 Usage: saccade bisect [OPTIONS] --capture <CAPTURE> --baseline <BASELINE>
 
 Options:
-      --good <GOOD>                  Known good revision in the current repository
-      --source-ref <SOURCE_REF>      External capture URI/key (repeatable); recorded in generated reports
-      --bad <BAD>                    Known bad revision descended from --good
-      --report-index <REPORT_INDEX>  Shared report index destination (default reports/index.jsonl next to each report, inside --out)
-      --capture <CAPTURE>            Shell capture command; write images to SACCADE_CAPTURE_DIR (sh on Unix, cmd on Windows)
-      --baseline <BASELINE>          Stable baseline directory, copied before Git changes revisions
-      --perf                         Require qualified performance evidence and count a slower frame as bad
-      --out <OUT>                    Evidence directory outside the repository; defaults to a new sibling
-      --json                         Print bounded JSON
-  -h, --help                         Print help
+      --good <GOOD>
+          Known good revision in the current repository
+      --require-signed-approval
+          Require externally signed approvals and verify baseline approval consumers
+      --approval-allowed-signers <APPROVAL_ALLOWED_SIGNERS>
+          External OpenSSH allowed-signers file (cannot override a required policy)
+      --bad <BAD>
+          Known bad revision descended from --good
+      --capture <CAPTURE>
+          Shell capture command; write images to SACCADE_CAPTURE_DIR (sh on Unix, cmd on Windows)
+      --source-ref <SOURCE_REF>
+          External capture URI/key (repeatable); recorded in generated reports
+      --baseline <BASELINE>
+          Stable baseline directory, copied before Git changes revisions
+      --report-index <REPORT_INDEX>
+          Shared report index destination (default reports/index.jsonl next to each report, inside --out)
+      --perf
+          Require qualified performance evidence and count a slower frame as bad
+      --out <OUT>
+          Evidence directory outside the repository; defaults to a new sibling
+      --json
+          Print bounded JSON
+  -h, --help
+          Print help
 
 Global options:
       --allow-out-near-captures  Silence warnings when --out is next to capture metadata
@@ -2944,9 +3798,16 @@ Commands:
   playwright  Compare expected and actual Playwright screenshot attachments
 
 Options:
-      --source-ref <SOURCE_REF>      External capture URI/key (repeatable); recorded in generated reports
-      --report-index <REPORT_INDEX>  Shared report index destination (default reports/index.jsonl next to each report, inside --out)
-  -h, --help                         Print help
+      --require-signed-approval
+          Require externally signed approvals and verify baseline approval consumers
+      --approval-allowed-signers <APPROVAL_ALLOWED_SIGNERS>
+          External OpenSSH allowed-signers file (cannot override a required policy)
+      --source-ref <SOURCE_REF>
+          External capture URI/key (repeatable); recorded in generated reports
+      --report-index <REPORT_INDEX>
+          Shared report index destination (default reports/index.jsonl next to each report, inside --out)
+  -h, --help
+          Print help
 
 Global options:
       --allow-out-near-captures  Silence warnings when --out is next to capture metadata
@@ -2965,10 +3826,19 @@ Arguments:
 
 Options:
       --out <OUT>
-      --source-ref <SOURCE_REF>      External capture URI/key (repeatable); recorded in generated reports
+
+      --require-signed-approval
+          Require externally signed approvals and verify baseline approval consumers
+      --approval-allowed-signers <APPROVAL_ALLOWED_SIGNERS>
+          External OpenSSH allowed-signers file (cannot override a required policy)
       --json
-      --report-index <REPORT_INDEX>  Shared report index destination (default reports/index.jsonl next to each report, inside --out)
-  -h, --help                         Print help
+
+      --source-ref <SOURCE_REF>
+          External capture URI/key (repeatable); recorded in generated reports
+      --report-index <REPORT_INDEX>
+          Shared report index destination (default reports/index.jsonl next to each report, inside --out)
+  -h, --help
+          Print help
 
 Global options:
       --allow-out-near-captures  Silence warnings when --out is next to capture metadata
@@ -2988,10 +3858,19 @@ Arguments:
 
 Options:
       --out <OUT>
-      --source-ref <SOURCE_REF>      External capture URI/key (repeatable); recorded in generated reports
+
+      --require-signed-approval
+          Require externally signed approvals and verify baseline approval consumers
+      --approval-allowed-signers <APPROVAL_ALLOWED_SIGNERS>
+          External OpenSSH allowed-signers file (cannot override a required policy)
       --json
-      --report-index <REPORT_INDEX>  Shared report index destination (default reports/index.jsonl next to each report, inside --out)
-  -h, --help                         Print help
+
+      --source-ref <SOURCE_REF>
+          External capture URI/key (repeatable); recorded in generated reports
+      --report-index <REPORT_INDEX>
+          Shared report index destination (default reports/index.jsonl next to each report, inside --out)
+  -h, --help
+          Print help
 
 Global options:
       --allow-out-near-captures  Silence warnings when --out is next to capture metadata
@@ -3010,10 +3889,19 @@ Arguments:
 
 Options:
       --out <OUT>
-      --source-ref <SOURCE_REF>      External capture URI/key (repeatable); recorded in generated reports
+
+      --require-signed-approval
+          Require externally signed approvals and verify baseline approval consumers
+      --approval-allowed-signers <APPROVAL_ALLOWED_SIGNERS>
+          External OpenSSH allowed-signers file (cannot override a required policy)
       --json
-      --report-index <REPORT_INDEX>  Shared report index destination (default reports/index.jsonl next to each report, inside --out)
-  -h, --help                         Print help
+
+      --source-ref <SOURCE_REF>
+          External capture URI/key (repeatable); recorded in generated reports
+      --report-index <REPORT_INDEX>
+          Shared report index destination (default reports/index.jsonl next to each report, inside --out)
+  -h, --help
+          Print help
 
 Global options:
       --allow-out-near-captures  Silence warnings when --out is next to capture metadata
@@ -3032,10 +3920,19 @@ Arguments:
 
 Options:
       --out <OUT>
-      --source-ref <SOURCE_REF>      External capture URI/key (repeatable); recorded in generated reports
+
+      --require-signed-approval
+          Require externally signed approvals and verify baseline approval consumers
+      --approval-allowed-signers <APPROVAL_ALLOWED_SIGNERS>
+          External OpenSSH allowed-signers file (cannot override a required policy)
       --json
-      --report-index <REPORT_INDEX>  Shared report index destination (default reports/index.jsonl next to each report, inside --out)
-  -h, --help                         Print help
+
+      --source-ref <SOURCE_REF>
+          External capture URI/key (repeatable); recorded in generated reports
+      --report-index <REPORT_INDEX>
+          Shared report index destination (default reports/index.jsonl next to each report, inside --out)
+  -h, --help
+          Print help
 
 Global options:
       --allow-out-near-captures  Silence warnings when --out is next to capture metadata
@@ -3053,12 +3950,22 @@ Arguments:
   <MANIFEST>  Manifest written by integrations/playwright/reporter.cjs
 
 Options:
-      --out <OUT>                    New directory for paired inputs and the comparison report
-      --source-ref <SOURCE_REF>      External capture URI/key (repeatable); recorded in generated reports
-      --json                         Print the bounded comparison result
-      --report-index <REPORT_INDEX>  Shared report index destination (default reports/index.jsonl next to each report, inside --out)
-      --threshold <THRESHOLD>        FLIP threshold for the comparison
-  -h, --help                         Print help
+      --out <OUT>
+          New directory for paired inputs and the comparison report
+      --require-signed-approval
+          Require externally signed approvals and verify baseline approval consumers
+      --approval-allowed-signers <APPROVAL_ALLOWED_SIGNERS>
+          External OpenSSH allowed-signers file (cannot override a required policy)
+      --json
+          Print the bounded comparison result
+      --source-ref <SOURCE_REF>
+          External capture URI/key (repeatable); recorded in generated reports
+      --threshold <THRESHOLD>
+          FLIP threshold for the comparison
+      --report-index <REPORT_INDEX>
+          Shared report index destination (default reports/index.jsonl next to each report, inside --out)
+  -h, --help
+          Print help
 
 Global options:
       --allow-out-near-captures  Silence warnings when --out is next to capture metadata
@@ -3073,10 +3980,18 @@ Print installed version, features and supported evidence schemas
 Usage: saccade doctor [OPTIONS]
 
 Options:
-      --json                         Print machine-readable JSON
-      --source-ref <SOURCE_REF>      External capture URI/key (repeatable); recorded in generated reports
-      --report-index <REPORT_INDEX>  Shared report index destination (default reports/index.jsonl next to each report, inside --out)
-  -h, --help                         Print help
+      --json
+          Print machine-readable JSON
+      --require-signed-approval
+          Require externally signed approvals and verify baseline approval consumers
+      --approval-allowed-signers <APPROVAL_ALLOWED_SIGNERS>
+          External OpenSSH allowed-signers file (cannot override a required policy)
+      --source-ref <SOURCE_REF>
+          External capture URI/key (repeatable); recorded in generated reports
+      --report-index <REPORT_INDEX>
+          Shared report index destination (default reports/index.jsonl next to each report, inside --out)
+  -h, --help
+          Print help
 
 Global options:
       --allow-out-near-captures  Silence warnings when --out is next to capture metadata
@@ -3091,12 +4006,22 @@ Bootstrap a commented configuration and print baseline adoption steps
 Usage: saccade init [OPTIONS]
 
 Options:
-      --source-ref <SOURCE_REF>      External capture URI/key (repeatable); recorded in generated reports
-      --template <TEMPLATE>          [default: renderer] [possible values: renderer, ui, identity, ml, producer-strict, ci, nightly, lookdev]
-      --dir <DIR>                    [default: .]
-      --report-index <REPORT_INDEX>  Shared report index destination (default reports/index.jsonl next to each report, inside --out)
+      --require-signed-approval
+          Require externally signed approvals and verify baseline approval consumers
+      --template <TEMPLATE>
+          [default: renderer] [possible values: renderer, ui, identity, ml, producer-strict, ci, nightly, lookdev]
+      --approval-allowed-signers <APPROVAL_ALLOWED_SIGNERS>
+          External OpenSSH allowed-signers file (cannot override a required policy)
+      --dir <DIR>
+          [default: .]
       --force
-  -h, --help                         Print help
+
+      --source-ref <SOURCE_REF>
+          External capture URI/key (repeatable); recorded in generated reports
+      --report-index <REPORT_INDEX>
+          Shared report index destination (default reports/index.jsonl next to each report, inside --out)
+  -h, --help
+          Print help
 
 Global options:
       --allow-out-near-captures  Silence warnings when --out is next to capture metadata
@@ -3119,10 +4044,18 @@ Example:
 The demo exits 1 on purpose: it contains a regression and a missing capture.
 
 Options:
-      --out <OUT>                    Directory for the demo images and reports (default: a new temporary directory)
-      --source-ref <SOURCE_REF>      External capture URI/key (repeatable); recorded in generated reports
-      --report-index <REPORT_INDEX>  Shared report index destination (default reports/index.jsonl next to each report, inside --out)
-  -h, --help                         Print help
+      --out <OUT>
+          Directory for the demo images and reports (default: a new temporary directory)
+      --require-signed-approval
+          Require externally signed approvals and verify baseline approval consumers
+      --approval-allowed-signers <APPROVAL_ALLOWED_SIGNERS>
+          External OpenSSH allowed-signers file (cannot override a required policy)
+      --source-ref <SOURCE_REF>
+          External capture URI/key (repeatable); recorded in generated reports
+      --report-index <REPORT_INDEX>
+          Shared report index destination (default reports/index.jsonl next to each report, inside --out)
+  -h, --help
+          Print help
 
 Global options:
       --allow-out-near-captures  Silence warnings when --out is next to capture metadata
@@ -3157,16 +4090,20 @@ Arguments:
 Options:
       --dpi <DPI>
           Declared document raster density, 36..600 DPI (default 96)
-      --source-ref <SOURCE_REF>
-          External capture URI/key (repeatable); recorded in generated reports
+      --require-signed-approval
+          Require externally signed approvals and verify baseline approval consumers
+      --approval-allowed-signers <APPROVAL_ALLOWED_SIGNERS>
+          External OpenSSH allowed-signers file (cannot override a required policy)
       --question <QUESTION>
           Explicit comparison question; no automatic model fallback [possible values: same-render, same-content, same-text, near-duplicate, quality]
-      --report-index <REPORT_INDEX>
-          Shared report index destination (default reports/index.jsonl next to each report, inside --out)
       --model <MODEL>
           Supplied embedding export contract for same-content
+      --source-ref <SOURCE_REF>
+          External capture URI/key (repeatable); recorded in generated reports
       --cache <CACHE>
           Content-addressed model cache for same-content
+      --report-index <REPORT_INDEX>
+          Shared report index destination (default reports/index.jsonl next to each report, inside --out)
       --library <LIBRARY>
           Explicit ONNX Runtime library for same-content
       --reference-source <REFERENCE_SOURCE>
@@ -3195,6 +4132,8 @@ Options:
           Per-ID rows and diagnostic crops retained, at most 32
       --id-threshold <ID_THRESHOLD>
           Declared normalized luminance threshold for colour per-ID statistics
+      --approved
+          Require a verified signed baseline, even without a global approval policy
       --baseline <BASELINE>
           Resolve the latest complete passing history run as an immutable baseline [possible values: last-good]
       --history-store <HISTORY_STORE>
@@ -3289,9 +4228,16 @@ Arguments:
   <CANDIDATE_DIR>  Directory of images from the candidate build
 
 Options:
-      --source-ref <SOURCE_REF>      External capture URI/key (repeatable); recorded in generated reports
-      --report-index <REPORT_INDEX>  Shared report index destination (default reports/index.jsonl next to each report, inside --out)
-  -h, --help                         Print help
+      --require-signed-approval
+          Require externally signed approvals and verify baseline approval consumers
+      --approval-allowed-signers <APPROVAL_ALLOWED_SIGNERS>
+          External OpenSSH allowed-signers file (cannot override a required policy)
+      --source-ref <SOURCE_REF>
+          External capture URI/key (repeatable); recorded in generated reports
+      --report-index <REPORT_INDEX>
+          Shared report index destination (default reports/index.jsonl next to each report, inside --out)
+  -h, --help
+          Print help
 
 Output:
       --out <OUT>         Report output directory [default: report]
@@ -3362,9 +4308,16 @@ Commands:
   performance    Evaluate performance claims from ablation arms and repeat noise
 
 Options:
-      --source-ref <SOURCE_REF>      External capture URI/key (repeatable); recorded in generated reports
-      --report-index <REPORT_INDEX>  Shared report index destination (default reports/index.jsonl next to each report, inside --out)
-  -h, --help                         Print help
+      --require-signed-approval
+          Require externally signed approvals and verify baseline approval consumers
+      --approval-allowed-signers <APPROVAL_ALLOWED_SIGNERS>
+          External OpenSSH allowed-signers file (cannot override a required policy)
+      --source-ref <SOURCE_REF>
+          External capture URI/key (repeatable); recorded in generated reports
+      --report-index <REPORT_INDEX>
+          Shared report index destination (default reports/index.jsonl next to each report, inside --out)
+  -h, --help
+          Print help
 
 Global options:
       --allow-out-near-captures  Silence warnings when --out is next to capture metadata
@@ -3383,11 +4336,20 @@ Arguments:
   <CAPTURE>
 
 Options:
-      --source-ref <SOURCE_REF>      External capture URI/key (repeatable); recorded in generated reports
-      --unit <UNIT>                  Declared common coordinate unit; no conversion or registration is performed
+      --require-signed-approval
+          Require externally signed approvals and verify baseline approval consumers
+      --unit <UNIT>
+          Declared common coordinate unit; no conversion or registration is performed
+      --approval-allowed-signers <APPROVAL_ALLOWED_SIGNERS>
+          External OpenSSH allowed-signers file (cannot override a required policy)
       --json
-      --report-index <REPORT_INDEX>  Shared report index destination (default reports/index.jsonl next to each report, inside --out)
-  -h, --help                         Print help
+
+      --source-ref <SOURCE_REF>
+          External capture URI/key (repeatable); recorded in generated reports
+      --report-index <REPORT_INDEX>
+          Shared report index destination (default reports/index.jsonl next to each report, inside --out)
+  -h, --help
+          Print help
 
 Global options:
       --allow-out-near-captures  Silence warnings when --out is next to capture metadata
@@ -3406,17 +4368,32 @@ Arguments:
   <CANDIDATE_DIR>
 
 Options:
-      --out <OUT>                    [default: report]
-      --source-ref <SOURCE_REF>      External capture URI/key (repeatable); recorded in generated reports
+      --out <OUT>
+          [default: report]
+      --require-signed-approval
+          Require externally signed approvals and verify baseline approval consumers
+      --approval-allowed-signers <APPROVAL_ALLOWED_SIGNERS>
+          External OpenSSH allowed-signers file (cannot override a required policy)
       --config <CONFIG>
-      --report-index <REPORT_INDEX>  Shared report index destination (default reports/index.jsonl next to each report, inside --out)
+
       --json
+
+      --source-ref <SOURCE_REF>
+          External capture URI/key (repeatable); recorded in generated reports
       --allow-empty
-      --ppd <PPD>                    Viewing condition in pixels per degree of visual angle (default 67)
+
+      --report-index <REPORT_INDEX>
+          Shared report index destination (default reports/index.jsonl next to each report, inside --out)
+      --ppd <PPD>
+          Viewing condition in pixels per degree of visual angle (default 67)
       --labels <A,B>
+
       --junit <FILE.xml>
+
       --entry <GLOB>
-  -h, --help                         Print help
+
+  -h, --help
+          Print help
 
 Metadata sidecars:
       --meta-name <NAME>
@@ -3474,16 +4451,20 @@ Arguments:
 Options:
       --allow-unreached <ALLOW_UNREACHED>
           Permit both unreached arms only under an identical criterion and observation
-      --source-ref <SOURCE_REF>
-          External capture URI/key (repeatable); recorded in generated reports
-      --report-index <REPORT_INDEX>
-          Shared report index destination (default reports/index.jsonl next to each report, inside --out)
+      --require-signed-approval
+          Require externally signed approvals and verify baseline approval consumers
+      --approval-allowed-signers <APPROVAL_ALLOWED_SIGNERS>
+          External OpenSSH allowed-signers file (cannot override a required policy)
       --require-valid-arms
           Refuse verdicts for incomplete or mismatched producer identity
       --fingerprint-map <FINGERPRINT_MAP>
           Generic TOML/JSON mapping from producer fields and sibling records
+      --source-ref <SOURCE_REF>
+          External capture URI/key (repeatable); recorded in generated reports
       --arm-ignore <ARM_IGNORE>
           Explicit ignored metadata tokens, echoed in arm validation output
+      --report-index <REPORT_INDEX>
+          Shared report index destination (default reports/index.jsonl next to each report, inside --out)
       --intended-variable <INTENDED_VARIABLES>
           Intended metadata variable for every arm
       --arm-variable <ARM_VARIABLES>
@@ -3532,10 +4513,18 @@ Commands:
   build  Build per-tile empirical noise envelopes from same-arm repeats
 
 Options:
-      --source-ref <SOURCE_REF>      External capture URI/key (repeatable); recorded in generated reports
-      --kind <KIND>                  Image calibration (default) or qualified performance noise in ms [default: image] [possible values: image, performance]
-      --report-index <REPORT_INDEX>  Shared report index destination (default reports/index.jsonl next to each report, inside --out)
-  -h, --help                         Print help
+      --require-signed-approval
+          Require externally signed approvals and verify baseline approval consumers
+      --approval-allowed-signers <APPROVAL_ALLOWED_SIGNERS>
+          External OpenSSH allowed-signers file (cannot override a required policy)
+      --kind <KIND>
+          Image calibration (default) or qualified performance noise in ms [default: image] [possible values: image, performance]
+      --source-ref <SOURCE_REF>
+          External capture URI/key (repeatable); recorded in generated reports
+      --report-index <REPORT_INDEX>
+          Shared report index destination (default reports/index.jsonl next to each report, inside --out)
+  -h, --help
+          Print help
 
 Performance:
       --perf-name <NAME>           Run performance sidecar file name (default saccade-perf.json)
@@ -3573,16 +4562,20 @@ Arguments:
 Options:
       --out <OUT>
           [default: repeat-noise.json]
-      --source-ref <SOURCE_REF>
-          External capture URI/key (repeatable); recorded in generated reports
-      --report-index <REPORT_INDEX>
-          Shared report index destination (default reports/index.jsonl next to each report, inside --out)
+      --require-signed-approval
+          Require externally signed approvals and verify baseline approval consumers
+      --approval-allowed-signers <APPROVAL_ALLOWED_SIGNERS>
+          External OpenSSH allowed-signers file (cannot override a required policy)
       --tile-size <TILE_SIZE>
           [default: 32]
       --json
 
+      --source-ref <SOURCE_REF>
+          External capture URI/key (repeatable); recorded in generated reports
       --allow-unreached <ALLOW_UNREACHED>
           Permit both unreached arms only under an identical criterion and observation
+      --report-index <REPORT_INDEX>
+          Shared report index destination (default reports/index.jsonl next to each report, inside --out)
       --require-valid-arms
           Refuse verdicts for incomplete or mismatched producer identity
       --fingerprint-map <FINGERPRINT_MAP>
@@ -3616,9 +4609,16 @@ Arguments:
   [DIRS]...  Directories to compare, paired by relative image path (2 to 6)
 
 Options:
-      --source-ref <SOURCE_REF>      External capture URI/key (repeatable); recorded in generated reports
-      --report-index <REPORT_INDEX>  Shared report index destination (default reports/index.jsonl next to each report, inside --out)
-  -h, --help                         Print help
+      --require-signed-approval
+          Require externally signed approvals and verify baseline approval consumers
+      --approval-allowed-signers <APPROVAL_ALLOWED_SIGNERS>
+          External OpenSSH allowed-signers file (cannot override a required policy)
+      --source-ref <SOURCE_REF>
+          External capture URI/key (repeatable); recorded in generated reports
+      --report-index <REPORT_INDEX>
+          Shared report index destination (default reports/index.jsonl next to each report, inside --out)
+  -h, --help
+          Print help
 
 Blind judging:
       --unblind <UNBLIND>  Resolve recorded anonymous choices after review
@@ -3688,18 +4688,40 @@ Arguments:
   [NAMES]...      Image names (relative paths) to approve
 
 Options:
-      --report <REPORT>              Derive the input directories from this report
-      --source-ref <SOURCE_REF>      External capture URI/key (repeatable); recorded in generated reports
-      --entry <NAME>                 Select a report entry without positional directories; repeatable
-      --report-index <REPORT_INDEX>  Shared report index destination (default reports/index.jsonl next to each report, inside --out)
-      --all-failing [<REPORT_JSON>]  Also approve every fail and new entry of this report JSON
-      --decisions <DECISIONS_JSON>   Explicit canonical CLI decision bound to this report, inputs and scope
-      --include-errors               With --all-failing: also approve `error` entries (for example a size change) whose capture exists and decodes
-      --prune-missing                With --all-failing: delete the baselines of every `missing` entry of the report (capture absent). Only files inside the baseline directory are removed; each removal is printed
-      --json                         Print `{"schema":"saccade-approve.v1","copied":[...],"pruned":[...]}` instead of one line per file
-      --dry-run                      Prepare a selected update manifest and unattested CLI decision draft
-      --out <OUT>                    Empty directory for the plan, decision and applied receipt
-  -h, --help                         Print help
+      --approver <APPROVER>
+          Human principal listed in the external OpenSSH allowed-signers file (plan only)
+      --require-signed-approval
+          Require externally signed approvals and verify baseline approval consumers
+      --approval-allowed-signers <APPROVAL_ALLOWED_SIGNERS>
+          External OpenSSH allowed-signers file (cannot override a required policy)
+      --approval-record <APPROVAL_RECORD>
+          Exact approval.json from the reviewed dry run, signed externally
+      --approval-signature <APPROVAL_SIGNATURE>
+          Detached OpenSSH signature produced with namespace saccade-approval
+      --source-ref <SOURCE_REF>
+          External capture URI/key (repeatable); recorded in generated reports
+      --report <REPORT>
+          Derive the input directories from this report
+      --report-index <REPORT_INDEX>
+          Shared report index destination (default reports/index.jsonl next to each report, inside --out)
+      --entry <NAME>
+          Select a report entry without positional directories; repeatable
+      --all-failing [<REPORT_JSON>]
+          Also approve every fail and new entry of this report JSON
+      --decisions <DECISIONS_JSON>
+          Explicit canonical CLI decision bound to this report, inputs and scope
+      --include-errors
+          With --all-failing: also approve `error` entries (for example a size change) whose capture exists and decodes
+      --prune-missing
+          With --all-failing: delete the baselines of every `missing` entry of the report (capture absent). Only files inside the baseline directory are removed; each removal is printed
+      --json
+          Print `{"schema":"saccade-approve.v1","copied":[...],"pruned":[...]}` instead of one line per file
+      --dry-run
+          Prepare a selected update manifest and unattested CLI decision draft
+      --out <OUT>
+          Empty directory for the plan, decision and applied receipt
+  -h, --help
+          Print help
 
 Global options:
       --allow-out-near-captures  Silence warnings when --out is next to capture metadata
@@ -3728,16 +4750,20 @@ Arguments:
 Options:
       --api
           Serve the local versioned media API instead of the archive viewer
-      --source-ref <SOURCE_REF>
-          External capture URI/key (repeatable); recorded in generated reports
+      --require-signed-approval
+          Require externally signed approvals and verify baseline approval consumers
       --api-max-bytes <API_MAX_BYTES>
           Largest accepted request body in bytes (default 16777216 = 16 MiB) [default: 16777216]
-      --report-index <REPORT_INDEX>
-          Shared report index destination (default reports/index.jsonl next to each report, inside --out)
+      --approval-allowed-signers <APPROVAL_ALLOWED_SIGNERS>
+          External OpenSSH allowed-signers file (cannot override a required policy)
       --api-bind <API_BIND>
           [default: 127.0.0.1]
+      --source-ref <SOURCE_REF>
+          External capture URI/key (repeatable); recorded in generated reports
       --api-token-file <API_TOKEN_FILE>
           Optional bearer-token env file; default ~/.config/saccade/api.env if present
+      --report-index <REPORT_INDEX>
+          Shared report index destination (default reports/index.jsonl next to each report, inside --out)
       --api-model-dir <API_MODEL_DIR>
 
       --api-registry <API_REGISTRY>
@@ -3808,18 +4834,34 @@ Example:
   saccade mcp --root examples --out-root agent-reports
 
 Options:
-      --root <ROOTS>                  Read-only roots (repeatable)
-      --source-ref <SOURCE_REF>       External capture URI/key (repeatable); recorded in generated reports
-      --out-root <OUT_ROOT>           Generated artifacts require this separate root
-      --report-index <REPORT_INDEX>   Shared report index destination (default reports/index.jsonl next to each report, inside --out)
-      --follow-symlinks-within-roots  Let a symlink that resolves inside any of the roots be read
-      --symlink-target <DIR>          Allow symlinks reached below a root to resolve into DIR (repeatable)
-      --allow-provider-calls          Explicitly authorize provider calls for this MCP server lifetime
-      --budget-calls <BUDGET_CALLS>   Finite startup attempt cap; no implicit MCP allowance
-      --user-config <USER_CONFIG>     Human-owned endpoints, credential bindings and root egress policy
-      --allow-product-network         Authorize product HTTP operations from registered roots
-      --allow-webhook-notifications   Authorize explicit webhook tool calls using user configuration
-  -h, --help                          Print help
+      --require-signed-approval
+          Require externally signed approvals and verify baseline approval consumers
+      --root <ROOTS>
+          Read-only roots (repeatable)
+      --approval-allowed-signers <APPROVAL_ALLOWED_SIGNERS>
+          External OpenSSH allowed-signers file (cannot override a required policy)
+      --out-root <OUT_ROOT>
+          Generated artifacts require this separate root
+      --follow-symlinks-within-roots
+          Let a symlink that resolves inside any of the roots be read
+      --source-ref <SOURCE_REF>
+          External capture URI/key (repeatable); recorded in generated reports
+      --report-index <REPORT_INDEX>
+          Shared report index destination (default reports/index.jsonl next to each report, inside --out)
+      --symlink-target <DIR>
+          Allow symlinks reached below a root to resolve into DIR (repeatable)
+      --allow-provider-calls
+          Explicitly authorize provider calls for this MCP server lifetime
+      --budget-calls <BUDGET_CALLS>
+          Finite startup attempt cap; no implicit MCP allowance
+      --user-config <USER_CONFIG>
+          Human-owned endpoints, credential bindings and root egress policy
+      --allow-product-network
+          Authorize product HTTP operations from registered roots
+      --allow-webhook-notifications
+          Authorize explicit webhook tool calls using user configuration
+  -h, --help
+          Print help
 
 Global options:
       --allow-out-near-captures  Silence warnings when --out is next to capture metadata
@@ -3844,6 +4886,10 @@ Arguments:
   [ARTIFACT]
 
 Options:
+      --require-signed-approval
+          Require externally signed approvals and verify baseline approval consumers
+      --approval-allowed-signers <APPROVAL_ALLOWED_SIGNERS>
+          External OpenSSH allowed-signers file (cannot override a required policy)
       --source-ref <SOURCE_REF>
           External capture URI/key (repeatable); recorded in generated reports
       --report-index <REPORT_INDEX>
@@ -3882,9 +4928,17 @@ Arguments:
 
 Options:
       --json
-      --source-ref <SOURCE_REF>      External capture URI/key (repeatable); recorded in generated reports
-      --report-index <REPORT_INDEX>  Shared report index destination (default reports/index.jsonl next to each report, inside --out)
-  -h, --help                         Print help
+
+      --require-signed-approval
+          Require externally signed approvals and verify baseline approval consumers
+      --approval-allowed-signers <APPROVAL_ALLOWED_SIGNERS>
+          External OpenSSH allowed-signers file (cannot override a required policy)
+      --source-ref <SOURCE_REF>
+          External capture URI/key (repeatable); recorded in generated reports
+      --report-index <REPORT_INDEX>
+          Shared report index destination (default reports/index.jsonl next to each report, inside --out)
+  -h, --help
+          Print help
 
 Global options:
       --allow-out-near-captures  Silence warnings when --out is next to capture metadata
@@ -3903,16 +4957,31 @@ Arguments:
 
 Options:
       --out <OUT>
-      --source-ref <SOURCE_REF>      External capture URI/key (repeatable); recorded in generated reports
+
+      --require-signed-approval
+          Require externally signed approvals and verify baseline approval consumers
+      --approval-allowed-signers <APPROVAL_ALLOWED_SIGNERS>
+          External OpenSSH allowed-signers file (cannot override a required policy)
       --entry <ENTRIES>
-      --report-index <REPORT_INDEX>  Shared report index destination (default reports/index.jsonl next to each report, inside --out)
-      --top <TOP>                    Number of entries to include in the evidence pack (default 5) [default: 5]
+
+      --source-ref <SOURCE_REF>
+          External capture URI/key (repeatable); recorded in generated reports
+      --top <TOP>
+          Number of entries to include in the evidence pack (default 5) [default: 5]
+      --report-index <REPORT_INDEX>
+          Shared report index destination (default reports/index.jsonl next to each report, inside --out)
       --stretch
+
       --blind
+
       --key-out <KEY_OUT>
-      --seed <SEED>                  Integer seed for the blind shuffle (default: random)
+
+      --seed <SEED>
+          Integer seed for the blind shuffle (default: random)
       --json
-  -h, --help                         Print help
+
+  -h, --help
+          Print help
 
 Global options:
       --allow-out-near-captures  Silence warnings when --out is next to capture metadata
@@ -3930,16 +4999,30 @@ Arguments:
   <ARTIFACT>
 
 Options:
-      --format <FORMAT>              [possible values: json, markdown, junit, png, labels]
-      --source-ref <SOURCE_REF>      External capture URI/key (repeatable); recorded in generated reports
+      --format <FORMAT>
+          [possible values: json, markdown, junit, png, labels]
+      --require-signed-approval
+          Require externally signed approvals and verify baseline approval consumers
+      --approval-allowed-signers <APPROVAL_ALLOWED_SIGNERS>
+          External OpenSSH allowed-signers file (cannot override a required policy)
       --out <OUT>
-      --report-index <REPORT_INDEX>  Shared report index destination (default reports/index.jsonl next to each report, inside --out)
+
       --entry <ENTRY>
+
+      --source-ref <SOURCE_REF>
+          External capture URI/key (repeatable); recorded in generated reports
+      --report-index <REPORT_INDEX>
+          Shared report index destination (default reports/index.jsonl next to each report, inside --out)
       --state <STATE>
-      --width <WIDTH>                Exported image width in pixels (default 1024) [default: 1024]
+
+      --width <WIDTH>
+          Exported image width in pixels (default 1024) [default: 1024]
       --artifact-url <ARTIFACT_URL>
+
       --comment-key <COMMENT_KEY>
-  -h, --help                         Print help
+
+  -h, --help
+          Print help
 
 Global options:
       --allow-out-near-captures  Silence warnings when --out is next to capture metadata
@@ -3955,11 +5038,21 @@ Usage: saccade inspect config [OPTIONS]
 
 Options:
       --config <CONFIG>
-      --source-ref <SOURCE_REF>      External capture URI/key (repeatable); recorded in generated reports
+
+      --require-signed-approval
+          Require externally signed approvals and verify baseline approval consumers
+      --approval-allowed-signers <APPROVAL_ALLOWED_SIGNERS>
+          External OpenSSH allowed-signers file (cannot override a required policy)
       --entry <PATH_OR_NAME>
-      --report-index <REPORT_INDEX>  Shared report index destination (default reports/index.jsonl next to each report, inside --out)
+
       --json
-  -h, --help                         Print help
+
+      --source-ref <SOURCE_REF>
+          External capture URI/key (repeatable); recorded in generated reports
+      --report-index <REPORT_INDEX>
+          Shared report index destination (default reports/index.jsonl next to each report, inside --out)
+  -h, --help
+          Print help
 
 Global options:
       --allow-out-near-captures  Silence warnings when --out is next to capture metadata
@@ -3975,9 +5068,17 @@ Usage: saccade inspect capabilities [OPTIONS]
 
 Options:
       --json
-      --source-ref <SOURCE_REF>      External capture URI/key (repeatable); recorded in generated reports
-      --report-index <REPORT_INDEX>  Shared report index destination (default reports/index.jsonl next to each report, inside --out)
-  -h, --help                         Print help
+
+      --require-signed-approval
+          Require externally signed approvals and verify baseline approval consumers
+      --approval-allowed-signers <APPROVAL_ALLOWED_SIGNERS>
+          External OpenSSH allowed-signers file (cannot override a required policy)
+      --source-ref <SOURCE_REF>
+          External capture URI/key (repeatable); recorded in generated reports
+      --report-index <REPORT_INDEX>
+          Shared report index destination (default reports/index.jsonl next to each report, inside --out)
+  -h, --help
+          Print help
 
 Global options:
       --allow-out-near-captures  Silence warnings when --out is next to capture metadata
@@ -4009,16 +5110,30 @@ Arguments:
   [REPORT]
 
 Options:
-      --source-ref <SOURCE_REF>      External capture URI/key (repeatable); recorded in generated reports
-      --report-index <REPORT_INDEX>  Shared report index destination (default reports/index.jsonl next to each report, inside --out)
+      --require-signed-approval
+          Require externally signed approvals and verify baseline approval consumers
+      --approval-allowed-signers <APPROVAL_ALLOWED_SIGNERS>
+          External OpenSSH allowed-signers file (cannot override a required policy)
+      --source-ref <SOURCE_REF>
+          External capture URI/key (repeatable); recorded in generated reports
+      --report-index <REPORT_INDEX>
+          Shared report index destination (default reports/index.jsonl next to each report, inside --out)
       --run
-      --budget-calls <BUDGET_CALLS>  Maximum provider calls, at least 1; counts calls, not money
+
+      --budget-calls <BUDGET_CALLS>
+          Maximum provider calls, at least 1; counts calls, not money
       --out <OUT>
+
       --user-config <USER_CONFIG>
+
       --intent-file <INTENT_FILE>
+
       --intent <INTENT>
+
       --json
-  -h, --help                         Print help
+
+  -h, --help
+          Print help
 
 Global options:
       --allow-out-near-captures  Silence warnings when --out is next to capture metadata
@@ -4039,11 +5154,20 @@ Commands:
   import    Import the exported blind gallery judgments for an explicit voter
 
 Options:
-      --source-ref <SOURCE_REF>      External capture URI/key (repeatable); recorded in generated reports
-      --report-index <REPORT_INDEX>  Shared report index destination (default reports/index.jsonl next to each report, inside --out)
+      --require-signed-approval
+          Require externally signed approvals and verify baseline approval consumers
+      --approval-allowed-signers <APPROVAL_ALLOWED_SIGNERS>
+          External OpenSSH allowed-signers file (cannot override a required policy)
+      --source-ref <SOURCE_REF>
+          External capture URI/key (repeatable); recorded in generated reports
+      --report-index <REPORT_INDEX>
+          Shared report index destination (default reports/index.jsonl next to each report, inside --out)
       --user-config <USER_CONFIG>
+
       --json
-  -h, --help                         Print help
+
+  -h, --help
+          Print help
 
 Global options:
       --allow-out-near-captures  Silence warnings when --out is next to capture metadata
@@ -4062,11 +5186,21 @@ Arguments:
 
 Options:
       --out <OUT>
-      --source-ref <SOURCE_REF>      External capture URI/key (repeatable); recorded in generated reports
-      --report-index <REPORT_INDEX>  Shared report index destination (default reports/index.jsonl next to each report, inside --out)
+
+      --require-signed-approval
+          Require externally signed approvals and verify baseline approval consumers
+      --approval-allowed-signers <APPROVAL_ALLOWED_SIGNERS>
+          External OpenSSH allowed-signers file (cannot override a required policy)
+      --source-ref <SOURCE_REF>
+          External capture URI/key (repeatable); recorded in generated reports
+      --report-index <REPORT_INDEX>
+          Shared report index destination (default reports/index.jsonl next to each report, inside --out)
       --user-config <USER_CONFIG>
+
       --json
-  -h, --help                         Print help
+
+  -h, --help
+          Print help
 
 Global options:
       --allow-out-near-captures  Silence warnings when --out is next to capture metadata
@@ -4085,11 +5219,21 @@ Arguments:
 
 Options:
       --out <OUT>
-      --source-ref <SOURCE_REF>      External capture URI/key (repeatable); recorded in generated reports
-      --report-index <REPORT_INDEX>  Shared report index destination (default reports/index.jsonl next to each report, inside --out)
+
+      --require-signed-approval
+          Require externally signed approvals and verify baseline approval consumers
+      --approval-allowed-signers <APPROVAL_ALLOWED_SIGNERS>
+          External OpenSSH allowed-signers file (cannot override a required policy)
+      --source-ref <SOURCE_REF>
+          External capture URI/key (repeatable); recorded in generated reports
+      --report-index <REPORT_INDEX>
+          Shared report index destination (default reports/index.jsonl next to each report, inside --out)
       --user-config <USER_CONFIG>
+
       --json
-  -h, --help                         Print help
+
+  -h, --help
+          Print help
 
 Global options:
       --allow-out-near-captures  Silence warnings when --out is next to capture metadata
@@ -4108,14 +5252,27 @@ Arguments:
 
 Options:
       --out <OUT>
-      --source-ref <SOURCE_REF>      External capture URI/key (repeatable); recorded in generated reports
-      --report-index <REPORT_INDEX>  Shared report index destination (default reports/index.jsonl next to each report, inside --out)
+
+      --require-signed-approval
+          Require externally signed approvals and verify baseline approval consumers
+      --approval-allowed-signers <APPROVAL_ALLOWED_SIGNERS>
+          External OpenSSH allowed-signers file (cannot override a required policy)
       --voter <VOTER>
+
       --item <ITEM>
+
+      --source-ref <SOURCE_REF>
+          External capture URI/key (repeatable); recorded in generated reports
       --answer <ANSWER>
+
+      --report-index <REPORT_INDEX>
+          Shared report index destination (default reports/index.jsonl next to each report, inside --out)
       --user-config <USER_CONFIG>
+
       --json
-  -h, --help                         Print help
+
+  -h, --help
+          Print help
 
 Global options:
       --allow-out-near-captures  Silence warnings when --out is next to capture metadata
@@ -4135,12 +5292,23 @@ Arguments:
 
 Options:
       --out <OUT>
-      --source-ref <SOURCE_REF>      External capture URI/key (repeatable); recorded in generated reports
-      --report-index <REPORT_INDEX>  Shared report index destination (default reports/index.jsonl next to each report, inside --out)
+
+      --require-signed-approval
+          Require externally signed approvals and verify baseline approval consumers
+      --approval-allowed-signers <APPROVAL_ALLOWED_SIGNERS>
+          External OpenSSH allowed-signers file (cannot override a required policy)
       --voter <VOTER>
+
+      --source-ref <SOURCE_REF>
+          External capture URI/key (repeatable); recorded in generated reports
+      --report-index <REPORT_INDEX>
+          Shared report index destination (default reports/index.jsonl next to each report, inside --out)
       --user-config <USER_CONFIG>
+
       --json
-  -h, --help                         Print help
+
+  -h, --help
+          Print help
 
 Global options:
       --allow-out-near-captures  Silence warnings when --out is next to capture metadata
@@ -4158,11 +5326,20 @@ Commands:
   batch  Asynchronous frozen evaluation jobs; never used by interactive advice
 
 Options:
-      --source-ref <SOURCE_REF>      External capture URI/key (repeatable); recorded in generated reports
-      --report-index <REPORT_INDEX>  Shared report index destination (default reports/index.jsonl next to each report, inside --out)
+      --require-signed-approval
+          Require externally signed approvals and verify baseline approval consumers
+      --approval-allowed-signers <APPROVAL_ALLOWED_SIGNERS>
+          External OpenSSH allowed-signers file (cannot override a required policy)
+      --source-ref <SOURCE_REF>
+          External capture URI/key (repeatable); recorded in generated reports
+      --report-index <REPORT_INDEX>
+          Shared report index destination (default reports/index.jsonl next to each report, inside --out)
       --user-config <USER_CONFIG>
+
       --json
-  -h, --help                         Print help
+
+  -h, --help
+          Print help
 
 Global options:
       --allow-out-near-captures  Silence warnings when --out is next to capture metadata
@@ -4182,11 +5359,20 @@ Commands:
   collect  Collect once and settle terminal known usage; never wait
 
 Options:
-      --source-ref <SOURCE_REF>      External capture URI/key (repeatable); recorded in generated reports
-      --report-index <REPORT_INDEX>  Shared report index destination (default reports/index.jsonl next to each report, inside --out)
+      --require-signed-approval
+          Require externally signed approvals and verify baseline approval consumers
+      --approval-allowed-signers <APPROVAL_ALLOWED_SIGNERS>
+          External OpenSSH allowed-signers file (cannot override a required policy)
+      --source-ref <SOURCE_REF>
+          External capture URI/key (repeatable); recorded in generated reports
+      --report-index <REPORT_INDEX>
+          Shared report index destination (default reports/index.jsonl next to each report, inside --out)
       --user-config <USER_CONFIG>
+
       --json
-  -h, --help                         Print help
+
+  -h, --help
+          Print help
 
 Global options:
       --allow-out-near-captures  Silence warnings when --out is next to capture metadata
@@ -4201,19 +5387,36 @@ Verify and submit once; ambiguous submissions cannot repeat
 Usage: saccade review assist batch submit [OPTIONS] --plan <PLAN> --job <JOB>
 
 Options:
-      --allow-spend-above-25-usd       Explicitly acknowledge a plan allowance above the default 25 USD ceiling
-      --source-ref <SOURCE_REF>        External capture URI/key (repeatable); recorded in generated reports
-      --plan <PLAN>                    Source-bound saccade-assist-batch-plan.v1 artifact
-      --report-index <REPORT_INDEX>    Shared report index destination (default reports/index.jsonl next to each report, inside --out)
-      --job <JOB>                      Durable receipt under the output root
+      --allow-spend-above-25-usd
+          Explicitly acknowledge a plan allowance above the default 25 USD ceiling
+      --require-signed-approval
+          Require externally signed approvals and verify baseline approval consumers
+      --approval-allowed-signers <APPROVAL_ALLOWED_SIGNERS>
+          External OpenSSH allowed-signers file (cannot override a required policy)
+      --plan <PLAN>
+          Source-bound saccade-assist-batch-plan.v1 artifact
+      --job <JOB>
+          Durable receipt under the output root
+      --source-ref <SOURCE_REF>
+          External capture URI/key (repeatable); recorded in generated reports
       --experimental
-      --run                            Authorize one live submission or one poll; default local only
-      --response <RESPONSE>            Recorded collection fixture; cannot settle a live reservation
-      --budget-calls <BUDGET_CALLS>    Maximum provider calls, 1-128 (default 8); the run stops when reached [default: 8]
-      --deadline-secs <DEADLINE_SECS>  Wall-clock limit in seconds, 1-300 (default 300) [default: 300]
+
+      --report-index <REPORT_INDEX>
+          Shared report index destination (default reports/index.jsonl next to each report, inside --out)
+      --run
+          Authorize one live submission or one poll; default local only
+      --response <RESPONSE>
+          Recorded collection fixture; cannot settle a live reservation
+      --budget-calls <BUDGET_CALLS>
+          Maximum provider calls, 1-128 (default 8); the run stops when reached [default: 8]
+      --deadline-secs <DEADLINE_SECS>
+          Wall-clock limit in seconds, 1-300 (default 300) [default: 300]
       --user-config <USER_CONFIG>
+
       --json
-  -h, --help                           Print help
+
+  -h, --help
+          Print help
 
 Global options:
       --allow-out-near-captures  Silence warnings when --out is next to capture metadata
@@ -4228,19 +5431,36 @@ Read local status, or poll once with --run
 Usage: saccade review assist batch status [OPTIONS] --plan <PLAN> --job <JOB>
 
 Options:
-      --allow-spend-above-25-usd       Explicitly acknowledge a plan allowance above the default 25 USD ceiling
-      --source-ref <SOURCE_REF>        External capture URI/key (repeatable); recorded in generated reports
-      --plan <PLAN>                    Source-bound saccade-assist-batch-plan.v1 artifact
-      --report-index <REPORT_INDEX>    Shared report index destination (default reports/index.jsonl next to each report, inside --out)
-      --job <JOB>                      Durable receipt under the output root
+      --allow-spend-above-25-usd
+          Explicitly acknowledge a plan allowance above the default 25 USD ceiling
+      --require-signed-approval
+          Require externally signed approvals and verify baseline approval consumers
+      --approval-allowed-signers <APPROVAL_ALLOWED_SIGNERS>
+          External OpenSSH allowed-signers file (cannot override a required policy)
+      --plan <PLAN>
+          Source-bound saccade-assist-batch-plan.v1 artifact
+      --job <JOB>
+          Durable receipt under the output root
+      --source-ref <SOURCE_REF>
+          External capture URI/key (repeatable); recorded in generated reports
       --experimental
-      --run                            Authorize one live submission or one poll; default local only
-      --response <RESPONSE>            Recorded collection fixture; cannot settle a live reservation
-      --budget-calls <BUDGET_CALLS>    Maximum provider calls, 1-128 (default 8); the run stops when reached [default: 8]
-      --deadline-secs <DEADLINE_SECS>  Wall-clock limit in seconds, 1-300 (default 300) [default: 300]
+
+      --report-index <REPORT_INDEX>
+          Shared report index destination (default reports/index.jsonl next to each report, inside --out)
+      --run
+          Authorize one live submission or one poll; default local only
+      --response <RESPONSE>
+          Recorded collection fixture; cannot settle a live reservation
+      --budget-calls <BUDGET_CALLS>
+          Maximum provider calls, 1-128 (default 8); the run stops when reached [default: 8]
+      --deadline-secs <DEADLINE_SECS>
+          Wall-clock limit in seconds, 1-300 (default 300) [default: 300]
       --user-config <USER_CONFIG>
+
       --json
-  -h, --help                           Print help
+
+  -h, --help
+          Print help
 
 Global options:
       --allow-out-near-captures  Silence warnings when --out is next to capture metadata
@@ -4255,19 +5475,36 @@ Collect once and settle terminal known usage; never wait
 Usage: saccade review assist batch collect [OPTIONS] --plan <PLAN> --job <JOB>
 
 Options:
-      --allow-spend-above-25-usd       Explicitly acknowledge a plan allowance above the default 25 USD ceiling
-      --source-ref <SOURCE_REF>        External capture URI/key (repeatable); recorded in generated reports
-      --plan <PLAN>                    Source-bound saccade-assist-batch-plan.v1 artifact
-      --report-index <REPORT_INDEX>    Shared report index destination (default reports/index.jsonl next to each report, inside --out)
-      --job <JOB>                      Durable receipt under the output root
+      --allow-spend-above-25-usd
+          Explicitly acknowledge a plan allowance above the default 25 USD ceiling
+      --require-signed-approval
+          Require externally signed approvals and verify baseline approval consumers
+      --approval-allowed-signers <APPROVAL_ALLOWED_SIGNERS>
+          External OpenSSH allowed-signers file (cannot override a required policy)
+      --plan <PLAN>
+          Source-bound saccade-assist-batch-plan.v1 artifact
+      --job <JOB>
+          Durable receipt under the output root
+      --source-ref <SOURCE_REF>
+          External capture URI/key (repeatable); recorded in generated reports
       --experimental
-      --run                            Authorize one live submission or one poll; default local only
-      --response <RESPONSE>            Recorded collection fixture; cannot settle a live reservation
-      --budget-calls <BUDGET_CALLS>    Maximum provider calls, 1-128 (default 8); the run stops when reached [default: 8]
-      --deadline-secs <DEADLINE_SECS>  Wall-clock limit in seconds, 1-300 (default 300) [default: 300]
+
+      --report-index <REPORT_INDEX>
+          Shared report index destination (default reports/index.jsonl next to each report, inside --out)
+      --run
+          Authorize one live submission or one poll; default local only
+      --response <RESPONSE>
+          Recorded collection fixture; cannot settle a live reservation
+      --budget-calls <BUDGET_CALLS>
+          Maximum provider calls, 1-128 (default 8); the run stops when reached [default: 8]
+      --deadline-secs <DEADLINE_SECS>
+          Wall-clock limit in seconds, 1-300 (default 300) [default: 300]
       --user-config <USER_CONFIG>
+
       --json
-  -h, --help                           Print help
+
+  -h, --help
+          Print help
 
 Global options:
       --allow-out-near-captures  Silence warnings when --out is next to capture metadata
@@ -4284,14 +5521,18 @@ Usage: saccade review explain [OPTIONS] --report <REPORT> --out <OUT>
 Options:
       --report <REPORT>
 
-      --source-ref <SOURCE_REF>
-          External capture URI/key (repeatable); recorded in generated reports
+      --require-signed-approval
+          Require externally signed approvals and verify baseline approval consumers
+      --approval-allowed-signers <APPROVAL_ALLOWED_SIGNERS>
+          External OpenSSH allowed-signers file (cannot override a required policy)
       --entry <ENTRY>
           Select exactly one report entry; required when the report contains several
-      --report-index <REPORT_INDEX>
-          Shared report index destination (default reports/index.jsonl next to each report, inside --out)
       --mask-manifest <MASK_MANIFEST>
           Optional original individual-mask declarations, bound to exact report bytes
+      --source-ref <SOURCE_REF>
+          External capture URI/key (repeatable); recorded in generated reports
+      --report-index <REPORT_INDEX>
+          Shared report index destination (default reports/index.jsonl next to each report, inside --out)
       --vision-provider <VISION_PROVIDER>
           Prepare Claude/GPT mappings in the assist layer; no live calls [possible values: claude, gpt]
       --vision-response <VISION_RESPONSE>
@@ -4350,14 +5591,18 @@ Usage: saccade review audit-mask [OPTIONS] --report <REPORT> --out <OUT>
 Options:
       --report <REPORT>
 
-      --source-ref <SOURCE_REF>
-          External capture URI/key (repeatable); recorded in generated reports
+      --require-signed-approval
+          Require externally signed approvals and verify baseline approval consumers
+      --approval-allowed-signers <APPROVAL_ALLOWED_SIGNERS>
+          External OpenSSH allowed-signers file (cannot override a required policy)
       --entry <ENTRY>
           Select exactly one report entry; required when the report contains several
-      --report-index <REPORT_INDEX>
-          Shared report index destination (default reports/index.jsonl next to each report, inside --out)
       --mask-manifest <MASK_MANIFEST>
           Optional original individual-mask declarations, bound to exact report bytes
+      --source-ref <SOURCE_REF>
+          External capture URI/key (repeatable); recorded in generated reports
+      --report-index <REPORT_INDEX>
+          Shared report index destination (default reports/index.jsonl next to each report, inside --out)
       --vision-provider <VISION_PROVIDER>
           Prepare Claude/GPT mappings in the assist layer; no live calls [possible values: claude, gpt]
       --vision-response <VISION_RESPONSE>
@@ -4419,14 +5664,18 @@ Arguments:
 Options:
       --image <IMAGE>
 
-      --source-ref <SOURCE_REF>
-          External capture URI/key (repeatable); recorded in generated reports
+      --require-signed-approval
+          Require externally signed approvals and verify baseline approval consumers
+      --approval-allowed-signers <APPROVAL_ALLOWED_SIGNERS>
+          External OpenSSH allowed-signers file (cannot override a required policy)
       --box <BOX>
           Original image pixels: X,Y,W,H
-      --report-index <REPORT_INDEX>
-          Shared report index destination (default reports/index.jsonl next to each report, inside --out)
       --kind <KIND>
           Closed screenshot-only condition category [default: label-visible] [possible values: label-visible, banner-absent, not-clipped, non-overlap]
+      --source-ref <SOURCE_REF>
+          External capture URI/key (repeatable); recorded in generated reports
+      --report-index <REPORT_INDEX>
+          Shared report index destination (default reports/index.jsonl next to each report, inside --out)
       --target <TARGET>
           Stable source node ID for geometric conditions
       --second-target <SECOND_TARGET>
@@ -4500,13 +5749,24 @@ Arguments:
   <SOURCE>  Capture-bound source JSON, exported by the colour/DOM/layout producer
 
 Options:
-      --config <CONFIG>              Project swatches, profiles and CVD tolerances [default: saccade.toml]
-      --source-ref <SOURCE_REF>      External capture URI/key (repeatable); recorded in generated reports
-      --out <OUT>                    New review packet JSON file
-      --report-index <REPORT_INDEX>  Shared report index destination (default reports/index.jsonl next to each report, inside --out)
+      --config <CONFIG>
+          Project swatches, profiles and CVD tolerances [default: saccade.toml]
+      --require-signed-approval
+          Require externally signed approvals and verify baseline approval consumers
+      --approval-allowed-signers <APPROVAL_ALLOWED_SIGNERS>
+          External OpenSSH allowed-signers file (cannot override a required policy)
+      --out <OUT>
+          New review packet JSON file
+      --source-ref <SOURCE_REF>
+          External capture URI/key (repeatable); recorded in generated reports
+      --report-index <REPORT_INDEX>
+          Shared report index destination (default reports/index.jsonl next to each report, inside --out)
       --user-config <USER_CONFIG>
+
       --json
-  -h, --help                         Print help
+
+  -h, --help
+          Print help
 
 Global options:
       --allow-out-near-captures  Silence warnings when --out is next to capture metadata
@@ -4527,16 +5787,20 @@ Arguments:
 Options:
       --reference-source <REFERENCE_SOURCE>
           Source JSON exported by the Playwright ingest, or a DOM/AX producer
-      --source-ref <SOURCE_REF>
-          External capture URI/key (repeatable); recorded in generated reports
+      --require-signed-approval
+          Require externally signed approvals and verify baseline approval consumers
+      --approval-allowed-signers <APPROVAL_ALLOWED_SIGNERS>
+          External OpenSSH allowed-signers file (cannot override a required policy)
       --candidate-source <CANDIDATE_SOURCE>
 
-      --report-index <REPORT_INDEX>
-          Shared report index destination (default reports/index.jsonl next to each report, inside --out)
       --region <REGION>
           Frozen reference inclusion region; protected complement is exact by default
+      --source-ref <SOURCE_REF>
+          External capture URI/key (repeatable); recorded in generated reports
       --box <BBOX>
           Intended pixel box x,y,width,height
+      --report-index <REPORT_INDEX>
+          Shared report index destination (default reports/index.jsonl next to each report, inside --out)
       --ocr-contract <OCR_CONTRACT>
           Optional saccade-tesseract.v1 runtime/model contract; requires the ocr feature
       --perceptual-outside
@@ -4571,18 +5835,22 @@ Arguments:
   <CANDIDATE>
 
 Options:
-      --source-ref <SOURCE_REF>
-          External capture URI/key (repeatable); recorded in generated reports
+      --require-signed-approval
+          Require externally signed approvals and verify baseline approval consumers
       --vectors <VECTORS>
           Row-major saccade-vector-buffer.v1 JSON (requires --sidecar)
-      --report-index <REPORT_INDEX>
-          Shared report index destination (default reports/index.jsonl next to each report, inside --out)
+      --approval-allowed-signers <APPROVAL_ALLOWED_SIGNERS>
+          External OpenSSH allowed-signers file (cannot override a required policy)
       --sidecar <SIDECAR>
           Pinned units, direction, origin and jitter contract (requires --vectors)
       --ppd <PPD>
           Viewing condition in pixels per degree of visual angle (default 67) [default: 67]
+      --source-ref <SOURCE_REF>
+          External capture URI/key (repeatable); recorded in generated reports
       --maximum-raw-mean <MAXIMUM_RAW_MEAN>
           Raw full-frame mean FLIP threshold; motion cannot relax it [default: 0.01]
+      --report-index <REPORT_INDEX>
+          Shared report index destination (default reports/index.jsonl next to each report, inside --out)
       --out <OUT>
 
       --user-config <USER_CONFIG>
@@ -4609,12 +5877,23 @@ Arguments:
 
 Options:
       --question <QUESTION>
-      --source-ref <SOURCE_REF>      External capture URI/key (repeatable); recorded in generated reports
+
+      --require-signed-approval
+          Require externally signed approvals and verify baseline approval consumers
+      --approval-allowed-signers <APPROVAL_ALLOWED_SIGNERS>
+          External OpenSSH allowed-signers file (cannot override a required policy)
       --out <OUT>
-      --report-index <REPORT_INDEX>  Shared report index destination (default reports/index.jsonl next to each report, inside --out)
+
+      --source-ref <SOURCE_REF>
+          External capture URI/key (repeatable); recorded in generated reports
+      --report-index <REPORT_INDEX>
+          Shared report index destination (default reports/index.jsonl next to each report, inside --out)
       --user-config <USER_CONFIG>
+
       --json
-  -h, --help                         Print help
+
+  -h, --help
+          Print help
 
 Global options:
       --allow-out-near-captures  Silence warnings when --out is next to capture metadata
@@ -4633,12 +5912,23 @@ Arguments:
 
 Options:
       --answers <ANSWERS>
-      --source-ref <SOURCE_REF>      External capture URI/key (repeatable); recorded in generated reports
+
+      --require-signed-approval
+          Require externally signed approvals and verify baseline approval consumers
+      --approval-allowed-signers <APPROVAL_ALLOWED_SIGNERS>
+          External OpenSSH allowed-signers file (cannot override a required policy)
       --out <OUT>
-      --report-index <REPORT_INDEX>  Shared report index destination (default reports/index.jsonl next to each report, inside --out)
+
+      --source-ref <SOURCE_REF>
+          External capture URI/key (repeatable); recorded in generated reports
+      --report-index <REPORT_INDEX>
+          Shared report index destination (default reports/index.jsonl next to each report, inside --out)
       --user-config <USER_CONFIG>
+
       --json
-  -h, --help                         Print help
+
+  -h, --help
+          Print help
 
 Global options:
       --allow-out-near-captures  Silence warnings when --out is next to capture metadata
@@ -4657,11 +5947,21 @@ Arguments:
 
 Options:
       --out <OUT>
-      --source-ref <SOURCE_REF>      External capture URI/key (repeatable); recorded in generated reports
-      --report-index <REPORT_INDEX>  Shared report index destination (default reports/index.jsonl next to each report, inside --out)
+
+      --require-signed-approval
+          Require externally signed approvals and verify baseline approval consumers
+      --approval-allowed-signers <APPROVAL_ALLOWED_SIGNERS>
+          External OpenSSH allowed-signers file (cannot override a required policy)
+      --source-ref <SOURCE_REF>
+          External capture URI/key (repeatable); recorded in generated reports
+      --report-index <REPORT_INDEX>
+          Shared report index destination (default reports/index.jsonl next to each report, inside --out)
       --user-config <USER_CONFIG>
+
       --json
-  -h, --help                         Print help
+
+  -h, --help
+          Print help
 
 Global options:
       --allow-out-near-captures  Silence warnings when --out is next to capture metadata
@@ -4677,12 +5977,23 @@ Usage: saccade review eval [OPTIONS] --manifest <MANIFEST>
 
 Options:
       --manifest <MANIFEST>
-      --source-ref <SOURCE_REF>      External capture URI/key (repeatable); recorded in generated reports
-      --report-index <REPORT_INDEX>  Shared report index destination (default reports/index.jsonl next to each report, inside --out)
+
+      --require-signed-approval
+          Require externally signed approvals and verify baseline approval consumers
+      --approval-allowed-signers <APPROVAL_ALLOWED_SIGNERS>
+          External OpenSSH allowed-signers file (cannot override a required policy)
       --run
+
+      --source-ref <SOURCE_REF>
+          External capture URI/key (repeatable); recorded in generated reports
+      --report-index <REPORT_INDEX>
+          Shared report index destination (default reports/index.jsonl next to each report, inside --out)
       --user-config <USER_CONFIG>
+
       --json
-  -h, --help                         Print help
+
+  -h, --help
+          Print help
 
 Global options:
       --allow-out-near-captures  Silence warnings when --out is next to capture metadata
@@ -4711,9 +6022,16 @@ Commands:
   a11y        Accessibility PRE-CHECK only; not certification or formal compliance
 
 Options:
-      --source-ref <SOURCE_REF>      External capture URI/key (repeatable); recorded in generated reports
-      --report-index <REPORT_INDEX>  Shared report index destination (default reports/index.jsonl next to each report, inside --out)
-  -h, --help                         Print help
+      --require-signed-approval
+          Require externally signed approvals and verify baseline approval consumers
+      --approval-allowed-signers <APPROVAL_ALLOWED_SIGNERS>
+          External OpenSSH allowed-signers file (cannot override a required policy)
+      --source-ref <SOURCE_REF>
+          External capture URI/key (repeatable); recorded in generated reports
+      --report-index <REPORT_INDEX>
+          Shared report index destination (default reports/index.jsonl next to each report, inside --out)
+  -h, --help
+          Print help
 
 Global options:
       --allow-out-near-captures  Silence warnings when --out is next to capture metadata
@@ -4733,16 +6051,20 @@ Arguments:
 Options:
       --out <OUT>
 
+      --require-signed-approval
+          Require externally signed approvals and verify baseline approval consumers
+      --approval-allowed-signers <APPROVAL_ALLOWED_SIGNERS>
+          External OpenSSH allowed-signers file (cannot override a required policy)
+      --json
+
+      --change-frame <CHANGE_FRAME>
+          Zero-based switch request; omit for paired steady levels
       --source-ref <SOURCE_REF>
           External capture URI/key (repeatable); recorded in generated reports
-      --json
+      --maximum-pop <MAXIMUM_POP>
 
       --report-index <REPORT_INDEX>
           Shared report index destination (default reports/index.jsonl next to each report, inside --out)
-      --change-frame <CHANGE_FRAME>
-          Zero-based switch request; omit for paired steady levels
-      --maximum-pop <MAXIMUM_POP>
-
       --maximum-duration-ms <MAXIMUM_DURATION_MS>
 
       --maximum-steady-error <MAXIMUM_STEADY_ERROR>
@@ -4776,16 +6098,20 @@ Arguments:
 Options:
       --out <OUT>
 
+      --require-signed-approval
+          Require externally signed approvals and verify baseline approval consumers
+      --approval-allowed-signers <APPROVAL_ALLOWED_SIGNERS>
+          External OpenSSH allowed-signers file (cannot override a required policy)
+      --json
+
+      --maximum-frame-error <MAXIMUM_FRAME_ERROR>
+
       --source-ref <SOURCE_REF>
           External capture URI/key (repeatable); recorded in generated reports
-      --json
+      --maximum-local-error <MAXIMUM_LOCAL_ERROR>
 
       --report-index <REPORT_INDEX>
           Shared report index destination (default reports/index.jsonl next to each report, inside --out)
-      --maximum-frame-error <MAXIMUM_FRAME_ERROR>
-
-      --maximum-local-error <MAXIMUM_LOCAL_ERROR>
-
       --maximum-flicker <MAXIMUM_FLICKER>
 
       --tile-size <TILE_SIZE>
@@ -4810,18 +6136,35 @@ Arguments:
 
 Options:
       --change-frame <CHANGE_FRAME>
-      --source-ref <SOURCE_REF>      External capture URI/key (repeatable); recorded in generated reports
-      --event <EVENT>                Bounded JSON event marker containing change_frame
-      --report-index <REPORT_INDEX>  Shared report index destination (default reports/index.jsonl next to each report, inside --out)
+
+      --require-signed-approval
+          Require externally signed approvals and verify baseline approval consumers
+      --approval-allowed-signers <APPROVAL_ALLOWED_SIGNERS>
+          External OpenSSH allowed-signers file (cannot override a required policy)
+      --event <EVENT>
+          Bounded JSON event marker containing change_frame
       --reference <REFERENCE>
-      --fps <FPS>                    [default: 30]
-      --tile-size <TILE_SIZE>        [default: 32]
-      --threshold <THRESHOLD>        [default: 0.02]
-      --consecutive <CONSECUTIVE>    [default: 3]
-      --final-frames <FINAL_FRAMES>  [default: 3]
-      --out <OUT>                    [default: settling]
+
+      --source-ref <SOURCE_REF>
+          External capture URI/key (repeatable); recorded in generated reports
+      --fps <FPS>
+          [default: 30]
+      --report-index <REPORT_INDEX>
+          Shared report index destination (default reports/index.jsonl next to each report, inside --out)
+      --tile-size <TILE_SIZE>
+          [default: 32]
+      --threshold <THRESHOLD>
+          [default: 0.02]
+      --consecutive <CONSECUTIVE>
+          [default: 3]
+      --final-frames <FINAL_FRAMES>
+          [default: 3]
+      --out <OUT>
+          [default: settling]
       --json
-  -h, --help                         Print help
+
+  -h, --help
+          Print help
 
 Global options:
       --allow-out-near-captures  Silence warnings when --out is next to capture metadata
@@ -4842,16 +6185,20 @@ Arguments:
 Options:
       --allow-unreached <ALLOW_UNREACHED>
           Permit both unreached arms only under an identical criterion and observation
-      --source-ref <SOURCE_REF>
-          External capture URI/key (repeatable); recorded in generated reports
-      --report-index <REPORT_INDEX>
-          Shared report index destination (default reports/index.jsonl next to each report, inside --out)
+      --require-signed-approval
+          Require externally signed approvals and verify baseline approval consumers
+      --approval-allowed-signers <APPROVAL_ALLOWED_SIGNERS>
+          External OpenSSH allowed-signers file (cannot override a required policy)
       --require-valid-arms
           Refuse verdicts for incomplete or mismatched producer identity
       --fingerprint-map <FINGERPRINT_MAP>
           Generic TOML/JSON mapping from producer fields and sibling records
+      --source-ref <SOURCE_REF>
+          External capture URI/key (repeatable); recorded in generated reports
       --arm-ignore <ARM_IGNORE>
           Explicit ignored metadata tokens, echoed in arm validation output
+      --report-index <REPORT_INDEX>
+          Shared report index destination (default reports/index.jsonl next to each report, inside --out)
       --intended-variable <INTENDED_VARIABLES>
           Intended metadata variables, exact paths, prefixes or suffixes
       --config <CONFIG>
@@ -4888,14 +6235,26 @@ Arguments:
   <CAPTURE>
 
 Options:
-      --source-ref <SOURCE_REF>      External capture URI/key (repeatable); recorded in generated reports
-      --unit <UNIT>                  Declared common coordinate unit; no conversion or registration is performed
-      --report-index <REPORT_INDEX>  Shared report index destination (default reports/index.jsonl next to each report, inside --out)
-      --samples <SAMPLES>            Approximate area samples per direction, plus mandatory triangle/edge/vertex coverage [default: 4096]
-      --views <VIEWS>                Supplied finite-camera render manifest, bound to these exact mesh inputs
-      --out <OUT>                    Write the combined geometry and optional multi-view packet
+      --require-signed-approval
+          Require externally signed approvals and verify baseline approval consumers
+      --unit <UNIT>
+          Declared common coordinate unit; no conversion or registration is performed
+      --approval-allowed-signers <APPROVAL_ALLOWED_SIGNERS>
+          External OpenSSH allowed-signers file (cannot override a required policy)
+      --samples <SAMPLES>
+          Approximate area samples per direction, plus mandatory triangle/edge/vertex coverage [default: 4096]
+      --source-ref <SOURCE_REF>
+          External capture URI/key (repeatable); recorded in generated reports
+      --views <VIEWS>
+          Supplied finite-camera render manifest, bound to these exact mesh inputs
+      --out <OUT>
+          Write the combined geometry and optional multi-view packet
+      --report-index <REPORT_INDEX>
+          Shared report index destination (default reports/index.jsonl next to each report, inside --out)
       --json
-  -h, --help                         Print help
+
+  -h, --help
+          Print help
 
 Global options:
       --allow-out-near-captures  Silence warnings when --out is next to capture metadata
@@ -4916,16 +6275,20 @@ Arguments:
 Options:
       --allow-unreached <ALLOW_UNREACHED>
           Permit both unreached arms only under an identical criterion and observation
-      --source-ref <SOURCE_REF>
-          External capture URI/key (repeatable); recorded in generated reports
-      --report-index <REPORT_INDEX>
-          Shared report index destination (default reports/index.jsonl next to each report, inside --out)
+      --require-signed-approval
+          Require externally signed approvals and verify baseline approval consumers
+      --approval-allowed-signers <APPROVAL_ALLOWED_SIGNERS>
+          External OpenSSH allowed-signers file (cannot override a required policy)
       --require-valid-arms
           Refuse verdicts for incomplete or mismatched producer identity
       --fingerprint-map <FINGERPRINT_MAP>
           Generic TOML/JSON mapping from producer fields and sibling records
+      --source-ref <SOURCE_REF>
+          External capture URI/key (repeatable); recorded in generated reports
       --arm-ignore <ARM_IGNORE>
           Explicit ignored metadata tokens, echoed in arm validation output
+      --report-index <REPORT_INDEX>
+          Shared report index destination (default reports/index.jsonl next to each report, inside --out)
       --intended-variable <INTENDED_VARIABLES>
           Intended metadata variable for every arm
       --arm-variable <ARM_VARIABLES>
@@ -4976,16 +6339,20 @@ Arguments:
 Options:
       --allow-unreached <ALLOW_UNREACHED>
           Permit both unreached arms only under an identical criterion and observation
-      --source-ref <SOURCE_REF>
-          External capture URI/key (repeatable); recorded in generated reports
-      --report-index <REPORT_INDEX>
-          Shared report index destination (default reports/index.jsonl next to each report, inside --out)
+      --require-signed-approval
+          Require externally signed approvals and verify baseline approval consumers
+      --approval-allowed-signers <APPROVAL_ALLOWED_SIGNERS>
+          External OpenSSH allowed-signers file (cannot override a required policy)
       --require-valid-arms
           Refuse verdicts for incomplete or mismatched producer identity
       --fingerprint-map <FINGERPRINT_MAP>
           Generic TOML/JSON mapping from producer fields and sibling records
+      --source-ref <SOURCE_REF>
+          External capture URI/key (repeatable); recorded in generated reports
       --arm-ignore <ARM_IGNORE>
           Explicit ignored metadata tokens, echoed in arm validation output
+      --report-index <REPORT_INDEX>
+          Shared report index destination (default reports/index.jsonl next to each report, inside --out)
       --intended-variable <INTENDED_VARIABLES>
 
       --config <CONFIG>
@@ -5022,20 +6389,38 @@ Arguments:
   <CAPTURE_DIR>
 
 Options:
-      --fixed-camera                 Declare a fixed camera and measure per-tile flicker with motion qualification
-      --source-ref <SOURCE_REF>      External capture URI/key (repeatable); recorded in generated reports
-      --pattern <PATTERN>            Relative-name glob; frames must end in an integer before the extension [default: *]
-      --report-index <REPORT_INDEX>  Shared report index destination (default reports/index.jsonl next to each report, inside --out)
-      --out <OUT>                    [default: sequence-report]
-      --threshold <THRESHOLD>        FLIP score limit in 0-1 (0 = identical); above it fails
-      --metric <METRIC>              [possible values: mean, p95, p99, max]
+      --fixed-camera
+          Declare a fixed camera and measure per-tile flicker with motion qualification
+      --require-signed-approval
+          Require externally signed approvals and verify baseline approval consumers
+      --approval-allowed-signers <APPROVAL_ALLOWED_SIGNERS>
+          External OpenSSH allowed-signers file (cannot override a required policy)
+      --pattern <PATTERN>
+          Relative-name glob; frames must end in an integer before the extension [default: *]
+      --out <OUT>
+          [default: sequence-report]
+      --source-ref <SOURCE_REF>
+          External capture URI/key (repeatable); recorded in generated reports
+      --report-index <REPORT_INDEX>
+          Shared report index destination (default reports/index.jsonl next to each report, inside --out)
+      --threshold <THRESHOLD>
+          FLIP score limit in 0-1 (0 = identical); above it fails
+      --metric <METRIC>
+          [possible values: mean, p95, p99, max]
       --config <CONFIG>
-      --ppd <PPD>                    Viewing condition in pixels per degree of visual angle (default 67)
+
+      --ppd <PPD>
+          Viewing condition in pixels per degree of visual angle (default 67)
       --fail-on-new
+
       --allow-empty
+
       --labels <LABELS>
+
       --json
-  -h, --help                         Print help
+
+  -h, --help
+          Print help
 
 HDR images:
       --hdr-tonemapper <NAME>         Tone mapper for `.exr`/`.hdr` images: aces (default), hable or reinhard
@@ -5079,18 +6464,34 @@ Arguments:
   <CANDIDATE_DIRS>...
 
 Options:
-      --labels <LABELS>              One unique, safe directory label per candidate, comma separated
-      --source-ref <SOURCE_REF>      External capture URI/key (repeatable); recorded in generated reports
-      --metric <METRIC>              [default: mean] [possible values: mean, p95, p99, max]
-      --report-index <REPORT_INDEX>  Shared report index destination (default reports/index.jsonl next to each report, inside --out)
-      --out <OUT>                    [default: rank-report]
+      --labels <LABELS>
+          One unique, safe directory label per candidate, comma separated
+      --require-signed-approval
+          Require externally signed approvals and verify baseline approval consumers
+      --approval-allowed-signers <APPROVAL_ALLOWED_SIGNERS>
+          External OpenSSH allowed-signers file (cannot override a required policy)
+      --metric <METRIC>
+          [default: mean] [possible values: mean, p95, p99, max]
+      --out <OUT>
+          [default: rank-report]
+      --source-ref <SOURCE_REF>
+          External capture URI/key (repeatable); recorded in generated reports
       --config <CONFIG>
-      --threshold <THRESHOLD>        FLIP score limit in 0-1 (0 = identical); above it fails
-      --ppd <PPD>                    Viewing condition in pixels per degree of visual angle (default 67)
+
+      --report-index <REPORT_INDEX>
+          Shared report index destination (default reports/index.jsonl next to each report, inside --out)
+      --threshold <THRESHOLD>
+          FLIP score limit in 0-1 (0 = identical); above it fails
+      --ppd <PPD>
+          Viewing condition in pixels per degree of visual angle (default 67)
       --fail-on-new
+
       --allow-empty
+
       --json
-  -h, --help                         Print help
+
+  -h, --help
+          Print help
 
 HDR images:
       --hdr-tonemapper <NAME>         Tone mapper for `.exr`/`.hdr` images: aces (default), hable or reinhard
@@ -5130,17 +6531,32 @@ Find the first diverging run or revision in an ordered series
 Usage: saccade experiment bisect [OPTIONS]
 
 Options:
-      --runs <RUNS>...               Ordered run directories, oldest first (repeatable)
-      --source-ref <SOURCE_REF>      External capture URI/key (repeatable); recorded in generated reports
-      --report-index <REPORT_INDEX>  Shared report index destination (default reports/index.jsonl next to each report, inside --out)
-      --runs-from <RUNS_FROM>        One ordered run path per line
-      --good <GOOD>                  Reference for existing runs (default: first run)
-      --threshold <THRESHOLD>        Explicit FLIP threshold relaxes native sample identity
-      --metric <METRIC>              mean, p95, p99 or max (default max)
-      --entries <ENTRIES>            Select image names by glob
-      --out <OUT>                    Report directory, separate from inputs [default: bisect-report]
-      --json                         Print saccade-bisect.v1 JSON
-  -h, --help                         Print help
+      --require-signed-approval
+          Require externally signed approvals and verify baseline approval consumers
+      --runs <RUNS>...
+          Ordered run directories, oldest first (repeatable)
+      --approval-allowed-signers <APPROVAL_ALLOWED_SIGNERS>
+          External OpenSSH allowed-signers file (cannot override a required policy)
+      --runs-from <RUNS_FROM>
+          One ordered run path per line
+      --good <GOOD>
+          Reference for existing runs (default: first run)
+      --source-ref <SOURCE_REF>
+          External capture URI/key (repeatable); recorded in generated reports
+      --report-index <REPORT_INDEX>
+          Shared report index destination (default reports/index.jsonl next to each report, inside --out)
+      --threshold <THRESHOLD>
+          Explicit FLIP threshold relaxes native sample identity
+      --metric <METRIC>
+          mean, p95, p99 or max (default max)
+      --entries <ENTRIES>
+          Select image names by glob
+      --out <OUT>
+          Report directory, separate from inputs [default: bisect-report]
+      --json
+          Print saccade-bisect.v1 JSON
+  -h, --help
+          Print help
 
 Global options:
       --allow-out-near-captures  Silence warnings when --out is next to capture metadata
@@ -5158,15 +6574,28 @@ Arguments:
   <INPUT>  Numbered frames or mp4/mov/mkv (requires external ffmpeg)
 
 Options:
-      --fps <FPS>                    Frame rate override; otherwise metadata, or 60 for frame directories
-      --source-ref <SOURCE_REF>      External capture URI/key (repeatable); recorded in generated reports
-      --display <DISPLAY>            WxH@diagonal_inches,distance_metres (default 1920x1080@55,4)
-      --report-index <REPORT_INDEX>  Shared report index destination (default reports/index.jsonl next to each report, inside --out)
-      --standard <STANDARD>          itu-bt1702 or wcag. PRE-CHECK only, never certification [default: itu-bt1702]
-      --json                         Print full saccade-safety.v1 JSON
-      --out <OUT>                    Output directory for JSON, text, HTML, static frames and risk heatmaps [default: safety-report]
-      --junit <JUNIT>                Optional JUnit XML destination
-  -h, --help                         Print help
+      --fps <FPS>
+          Frame rate override; otherwise metadata, or 60 for frame directories
+      --require-signed-approval
+          Require externally signed approvals and verify baseline approval consumers
+      --approval-allowed-signers <APPROVAL_ALLOWED_SIGNERS>
+          External OpenSSH allowed-signers file (cannot override a required policy)
+      --display <DISPLAY>
+          WxH@diagonal_inches,distance_metres (default 1920x1080@55,4)
+      --source-ref <SOURCE_REF>
+          External capture URI/key (repeatable); recorded in generated reports
+      --standard <STANDARD>
+          itu-bt1702 or wcag. PRE-CHECK only, never certification [default: itu-bt1702]
+      --json
+          Print full saccade-safety.v1 JSON
+      --report-index <REPORT_INDEX>
+          Shared report index destination (default reports/index.jsonl next to each report, inside --out)
+      --out <OUT>
+          Output directory for JSON, text, HTML, static frames and risk heatmaps [default: safety-report]
+      --junit <JUNIT>
+          Optional JUnit XML destination
+  -h, --help
+          Print help
 
 Global options:
       --allow-out-near-captures  Silence warnings when --out is next to capture metadata
@@ -5184,15 +6613,28 @@ Arguments:
   <INPUT>  Opaque sRGB image or image directory
 
 Options:
-      --config <CONFIG>              Explicit saccade.toml with [[region]] kind="text" or "ui"
-      --source-ref <SOURCE_REF>      External capture URI/key (repeatable); recorded in generated reports
-      --json                         Print full saccade-a11y.v1 JSON
-      --report-index <REPORT_INDEX>  Shared report index destination (default reports/index.jsonl next to each report, inside --out)
-      --out <OUT>                    Output directory for JSON, text, HTML and simulation/heatmap artifacts [default: a11y-report]
-      --junit <JUNIT>                Optional JUnit XML destination
-      --suggest-regions              Explicitly upload 16 crops/image to Gemini for unconfirmed region proposals
-      --keys-dir <KEYS_DIR>          Judge key policy: gemini.env/SACCADE_GEMINI_API_KEY, never ambient keys
-  -h, --help                         Print help
+      --config <CONFIG>
+          Explicit saccade.toml with [[region]] kind="text" or "ui"
+      --require-signed-approval
+          Require externally signed approvals and verify baseline approval consumers
+      --approval-allowed-signers <APPROVAL_ALLOWED_SIGNERS>
+          External OpenSSH allowed-signers file (cannot override a required policy)
+      --json
+          Print full saccade-a11y.v1 JSON
+      --out <OUT>
+          Output directory for JSON, text, HTML and simulation/heatmap artifacts [default: a11y-report]
+      --source-ref <SOURCE_REF>
+          External capture URI/key (repeatable); recorded in generated reports
+      --junit <JUNIT>
+          Optional JUnit XML destination
+      --report-index <REPORT_INDEX>
+          Shared report index destination (default reports/index.jsonl next to each report, inside --out)
+      --suggest-regions
+          Explicitly upload 16 crops/image to Gemini for unconfirmed region proposals
+      --keys-dir <KEYS_DIR>
+          Judge key policy: gemini.env/SACCADE_GEMINI_API_KEY, never ambient keys
+  -h, --help
+          Print help
 
 Global options:
       --allow-out-near-captures  Silence warnings when --out is next to capture metadata

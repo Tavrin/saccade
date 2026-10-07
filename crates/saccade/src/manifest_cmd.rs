@@ -93,12 +93,23 @@ pub(crate) fn run(args: Args) -> Result<u8, CliError> {
             cases,
             json,
         } => {
+            if crate::signed_approval::required()
+                && let Some(anchor) = &approved_anchor
+            {
+                crate::signed_approval::check_anchor(anchor, None)?;
+            }
             let anchors = Anchors {
                 approved: approved_anchor.as_deref(),
                 last_good: last_good.as_deref(),
             };
             let (path, value) = if let Some(cases) = cases {
                 let declaration = saccade_core::coverage::read_declaration(&cases)?;
+                if crate::signed_approval::required() {
+                    crate::signed_approval::check_case_anchors(
+                        &dir.join(manifest::MANIFEST_FILE),
+                        &serde_json::to_value(&declaration.cases)?,
+                    )?;
+                }
                 saccade_core::coverage::write_manifest(&dir, anchors, &declaration)?
             } else {
                 manifest::write(&dir, anchors)?
@@ -141,6 +152,9 @@ pub(crate) fn run(args: Args) -> Result<u8, CliError> {
                     .map_err(|e| CliError::new("config", e.to_string()))?
                     .as_secs(),
             };
+            if crate::signed_approval::required() {
+                crate::signed_approval::check_manifest(&path)?;
+            }
             let report = saccade_core::coverage::analyze(&path, &group_by, now, max_age_seconds)?;
             saccade_core::run::guard_output_dir(&out, &[&path], &["coverage.json"])?;
             std::fs::create_dir_all(&out).map_err(|e| CliError::io(e.to_string()))?;
@@ -171,6 +185,9 @@ pub(crate) fn run(args: Args) -> Result<u8, CliError> {
             Ok(u8::from(report.coverage != "complete"))
         }
         Operation::Verify { target, json } => {
+            if crate::signed_approval::required() {
+                crate::signed_approval::check_manifest(&target)?;
+            }
             let findings = manifest::verify(&target)?;
             if !findings.is_empty() {
                 let code = if findings
@@ -211,6 +228,9 @@ pub(crate) fn run(args: Args) -> Result<u8, CliError> {
             out,
             json,
         } => {
+            if crate::signed_approval::required() {
+                crate::signed_approval::check_manifest(&dir)?;
+            }
             manifest::link(&dir, &report_id, &out)?;
             let mut result = base_result("manifest.link");
             result["artifact"] = reference(&out)?;
@@ -226,6 +246,13 @@ pub(crate) fn run(args: Args) -> Result<u8, CliError> {
         }
         Operation::Classify { path, json: _ } => {
             let value = manifest::classify(&path)?;
+            if crate::signed_approval::required()
+                && (value["manifest"] == true
+                    || value["kind"] == "manifest"
+                    || value["kind"] == "link")
+            {
+                crate::signed_approval::check_manifest(&path)?;
+            }
             crate::emit(&format!("{}\n", serde_json::to_string(&value)?))?;
             Ok(0)
         }

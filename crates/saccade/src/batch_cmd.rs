@@ -37,6 +37,13 @@ pub(crate) fn probe(a: ProbeArgs) -> Result<u8, CliError> {
     crate::media_cmd::emit(&batch::probe(&a.path, &a.thumbnail)?, a.json)
 }
 pub(crate) fn run(a: Args) -> Result<u8, CliError> {
+    if crate::signed_approval::required() {
+        return Err(CliError::new(
+            "approval_consumer_unsupported",
+            "signed policy refuses subprocess measurement workflows without policy propagation",
+        ));
+    }
+
     let options = if let Some(p) = a.options {
         serde_json::from_slice(&saccade_core::evidence_quality::read(&p, 65536)?)?
     } else {

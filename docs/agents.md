@@ -205,6 +205,9 @@ Read the full `--json` state and reasons: exit 4 means insufficient evidence;
 missing OCR is never agreement, and no tofu candidate never certifies glyph coverage.
 MCP mirrors remain a follow-up.
 
+[Signed approvals](signed-approvals.md) require an external human-held signing key
+when policy is enabled. Agents may prepare review plans; possession of a draft
+never grants signing authority. MCP approval mirrors remain a follow-up.
 ## Declared coverage and reference health
 
 Use `manifest build DIR --cases CASES --json`, then

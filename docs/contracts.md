@@ -162,6 +162,7 @@ The last three names appear only when the corresponding feature is compiled in.
 - [saccade-api-health.v1.schema.json](../crates/saccade-core/schemas/saccade-api-health.v1.schema.json) — Historical reader contract
 - [saccade-api-health.v2.schema.json](../crates/saccade-core/schemas/saccade-api-health.v2.schema.json) — Historical reader contract
 - [saccade-api-search.v1.schema.json](../crates/saccade-core/schemas/saccade-api-search.v1.schema.json) — Historical reader contract
+- [saccade-approval-record.v1.schema.json](../crates/saccade-core/schemas/saccade-approval-record.v1.schema.json) — saccade-approval-record.v1
 - [saccade-approve.v1.schema.json](../crates/saccade-core/schemas/saccade-approve.v1.schema.json) — saccade-approve.v1
 - [saccade-approve.v2.schema.json](../crates/saccade-core/schemas/saccade-approve.v2.schema.json) — saccade-approve.v1
 - [saccade-arm-fingerprint.v1.schema.json](../crates/saccade-core/schemas/saccade-arm-fingerprint.v1.schema.json) — Fingerprint
@@ -377,6 +378,7 @@ The last three names appear only when the corresponding feature is compiled in.
 - [saccade-schema-path.v2.schema.json](../crates/saccade-core/schemas/saccade-schema-path.v2.schema.json) — Historical reader contract
 - [saccade-sequence.v1.schema.json](../crates/saccade-core/schemas/saccade-sequence.v1.schema.json) — SequenceReport
 - [saccade-settling.v1.schema.json](../crates/saccade-core/schemas/saccade-settling.v1.schema.json) — Report
+- [saccade-signed-approval.v1.schema.json](../crates/saccade-core/schemas/saccade-signed-approval.v1.schema.json) — saccade-signed-approval.v1
 - [saccade-similar.v1.schema.json](../crates/saccade-core/schemas/saccade-similar.v1.schema.json) — Historical reader contract
 - [saccade-similar.v2.schema.json](../crates/saccade-core/schemas/saccade-similar.v2.schema.json) — Historical reader contract
 - [saccade-spatial-evidence.v1.schema.json](../crates/saccade-core/schemas/saccade-spatial-evidence.v1.schema.json) — SpatialReport

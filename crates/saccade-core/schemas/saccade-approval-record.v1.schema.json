@@ -1,0 +1,98 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "saccade-approval-record.v1",
+  "title": "saccade-approval-record.v1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema",
+    "report_id",
+    "report_sha256",
+    "decision_id",
+    "approver",
+    "timestamp_unix_ms",
+    "baseline",
+    "scope",
+    "baseline_files"
+  ],
+  "properties": {
+    "schema": {
+      "const": "saccade-approval-record.v1"
+    },
+    "report_id": {
+      "type": "string",
+      "pattern": "^sha256:[0-9a-f]{64}$"
+    },
+    "report_sha256": {
+      "type": "string",
+      "pattern": "^sha256:[0-9a-f]{64}$"
+    },
+    "decision_id": {
+      "type": "string",
+      "pattern": "^sha256:[0-9a-f]{64}$"
+    },
+    "approver": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 256
+    },
+    "timestamp_unix_ms": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "baseline": {
+      "type": "string"
+    },
+    "scope": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "entry_id",
+          "before",
+          "after"
+        ],
+        "properties": {
+          "entry_id": {
+            "type": "string"
+          },
+          "before": {
+            "anyOf": [
+              {
+                "type": "string",
+                "pattern": "^sha256:[0-9a-f]{64}$"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "after": {
+            "anyOf": [
+              {
+                "type": "string",
+                "pattern": "^sha256:[0-9a-f]{64}$"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        }
+      }
+    },
+    "baseline_files": {
+      "type": "object",
+      "additionalProperties": {
+        "type": "string",
+        "pattern": "^sha256:[0-9a-f]{64}$"
+      }
+    },
+    "sequence": {
+      "type": "integer",
+      "minimum": 1
+    }
+  }
+}

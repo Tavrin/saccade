@@ -14,13 +14,7 @@ import tempfile
 import zlib
 
 SCHEMA = "saccade-authority-boundary.v1"
-KNOWN_FINDINGS = {
-    "cli-uncredentialed-approval": (
-        "CLI decisions attest intent, not identity. A writable baseline can be "
-        "updated without a separate human credential. Authentication and "
-        "deployment permissions need an owner-defined contract; outside a local fix."
-    ),
-}
+
 
 
 def digest(path):
@@ -143,6 +137,35 @@ class Harness:
                              and value.get("counts", {}).get("dispatched_calls") == 0
                              and value.get("review") == "unresolved")
             self.record(case, "mcp", 0, expected, (0, value, receipt), invariant)
+
+    def signed_probes(self, report, baseline, before):
+        """Supply complete but forged proof; missing-argument refusal cannot pass."""
+        plan = self.outputs / "forged-plan"
+        result = self.cli(["approve", "--report", report, "--entry", "sample.png",
+                           "--approver", "reviewer", "--dry-run", "--out", plan, "--json"])
+        self.record("cli-positive-forged-plan", "cli", 0, None, result,
+                    (plan / "approval.json").is_file())
+        # Valid Ed25519 public key wire encoding, with no private key in the harness.
+        import base64
+        key = struct.pack(">I", 11) + b"ssh-ed25519" + struct.pack(">I", 32) + bytes(range(32))
+        signers = self.work / "config/allowed_signers"
+        signers.write_text("reviewer namespaces=\"saccade-approval\" ssh-ed25519 "
+                           + base64.b64encode(key).decode() + "\n")
+        signers.chmod(0o600)
+        signature = plan / "approval.json.sig"
+        signature.write_text("-----BEGIN SSH SIGNATURE-----\nZm9yZ2Vk\n-----END SSH SIGNATURE-----\n")
+        output = self.outputs / "forged-approval"
+        result = self.cli(["approve", "--report", report, "--decisions", plan / "decision.json",
+                           "--approval-record", plan / "approval.json", "--approval-signature", signature,
+                           "--require-signed-approval", "--approval-allowed-signers", signers,
+                           "--out", output, "--json"])
+        self.record("cli-forged-signature-policy-on", "cli", 2, "approval_signature_invalid", result,
+                    digest(baseline) == before and not output.exists())
+        self.mcp([("mcp-unsigned-compare-policy-on", "saccade_measure",
+                   {"operation": "compare", "baseline_dir": str(baseline.parent),
+                    "capture_dir": str(self.inputs / "candidate"), "out": "signed-mcp-denied"},
+                   "approval_signature_required")], ["--require-signed-approval",
+                                                     "--approval-allowed-signers", str(signers)])
 
     def run(self):
         for name, value in (("baseline", 20), ("candidate", 220)):
@@ -287,14 +310,18 @@ class Harness:
             finally:
                 baseline.parent.chmod(0o755)
                 baseline.chmod(0o644)
+        result = self.cli([*args, "--require-signed-approval", "--out",
+                           self.outputs / "signed-policy-denied"])
+        self.record("cli-uncredentialed-approval-policy-on", "cli", 2,
+                    "approval_signature_required", result, digest(baseline) == before)
+        self.signed_probes(report, baseline, before)
         result = self.cli([*args, "--out", self.outputs / "uncredentialed-approval"])
-        self.record("cli-uncredentialed-approval", "cli", 0, None, result,
+        self.record("cli-uncredentialed-approval-policy-off", "cli", 0, None, result,
                     digest(baseline) == digest(self.inputs / "candidate/sample.png")
                     and before != digest(baseline)
                     and result[1].get("data", {}).get("authority") == "cli"
                     and "human_attestation" in result[1].get("data", {})
-                    and result[1]["data"]["human_attestation"] is None,
-                    KNOWN_FINDINGS["cli-uncredentialed-approval"])
+                    and result[1]["data"]["human_attestation"] is None)
         # Denied calls must not create a dispatch ledger or escaped artifacts.
         self.record("no-denied-dispatch-or-output", "harness", 0, None, (0, {}, {}),
                     not (self.work / "config/attempts").exists()

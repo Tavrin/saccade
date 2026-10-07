@@ -847,7 +847,7 @@ impl Server {
         if let Some(path) = &cfg.meta.fingerprint_map {
             crate::arms_mcp::validate_map(&self.policy, path, &[baseline, capture])?;
         }
-        let mut report: Report = saccade_core::run::run(baseline, capture, out, cfg)?;
+        let mut report: Report = crate::signed_approval::run(baseline, capture, out, cfg, None)?;
         // Retain the authorized alias route in references so downstream reads
         // do not turn a registered target into an independently browsable root.
         let base = out;

@@ -128,6 +128,9 @@ impl From<serde_json::Error> for CliError {
 impl From<saccade_core::Error> for CliError {
     fn from(e: saccade_core::Error) -> Self {
         use saccade_core::Error;
+        if let Error::ApprovalRefused { code, message } = e {
+            return Self::new(code, message);
+        }
         if let Error::InvalidComparison(check) = e {
             let mut error = Self::new(
                 "invalid_comparison",
@@ -137,6 +140,7 @@ impl From<saccade_core::Error> for CliError {
             return error;
         }
         let code = match e {
+            Error::ApprovalContentMismatch => "approval_content_mismatch",
             Error::TrialPlanChanged => "trial_plan_changed",
             Error::Config(_) => "config",
             Error::VersionSkew { .. } => "version_skew",

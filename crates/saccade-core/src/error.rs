@@ -5,6 +5,17 @@ use std::path::PathBuf;
 /// Errors returned by `saccade-core`.
 #[derive(Debug, thiserror::Error)]
 pub enum Error {
+    /// A process-installed authentication guard refused this baseline.
+    #[error("{code}: {message}")]
+    ApprovalRefused {
+        /// Stable refusal code supplied by the guard.
+        code: &'static str,
+        /// Public refusal explanation, without verifier diagnostics.
+        message: String,
+    },
+    /// Baseline bytes at measurement differ from the authenticated inventory.
+    #[error("approval_content_mismatch: baseline changed before measurement")]
+    ApprovalContentMismatch,
     /// Arm identity is incomplete or violates declared experiment variables.
     #[error("invalid_comparison: arm identity validation refused a verdict")]
     InvalidComparison(Box<crate::arms::Check>),

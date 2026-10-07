@@ -166,6 +166,13 @@ fn step(args: &BisectArgs, repo: &Path, out: &Path) -> Result<u8, CliError> {
 }
 
 pub(crate) fn run(args: BisectArgs) -> Result<u8, CliError> {
+    if crate::signed_approval::required() {
+        return Err(CliError::new(
+            "approval_consumer_unsupported",
+            "signed policy refuses subprocess measurement workflows without policy propagation",
+        ));
+    }
+
     let repo = std::env::current_dir().map_err(|e| CliError::io(e.to_string()))?;
     if args.step {
         let out = args

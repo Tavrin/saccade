@@ -389,6 +389,43 @@ pub fn run(
     report_dir: &Path,
     config: &RunConfig,
 ) -> Result<Report> {
+    if let Some(guard) = APPROVAL_GUARD.get() {
+        let expected = guard(baseline_dir)?;
+        return run_approved(baseline_dir, capture_dir, report_dir, config, &expected);
+    }
+    run_inner(baseline_dir, capture_dir, report_dir, config, None)
+}
+
+/// Authentication callback installed by a trusted embedding process.
+/// The default library behavior is unauthenticated. Once installed, every stock
+/// measurement (including rank/ablation helpers) verifies and snapshots its baseline.
+pub type ApprovalGuard = fn(&Path) -> Result<BTreeMap<String, String>>;
+static APPROVAL_GUARD: std::sync::OnceLock<ApprovalGuard> = std::sync::OnceLock::new();
+
+/// Installs the process-wide approval guard once; it cannot be disabled or replaced.
+pub fn set_approval_guard(guard: ApprovalGuard) -> Result<()> {
+    APPROVAL_GUARD
+        .set(guard)
+        .map_err(|_| Error::Config("approval guard already installed".into()))
+}
+#[cfg(feature = "graphics")]
+pub(crate) fn guard_nonstock(baseline: &Path) -> Result<()> {
+    if let Some(guard) = APPROVAL_GUARD.get() {
+        guard(baseline)?;
+        return Err(Error::ApprovalRefused {
+            code: "approval_consumer_unsupported",
+            message: "signed policy requires a snapshot-aware measurement engine".into(),
+        });
+    }
+    Ok(())
+}
+fn run_inner(
+    baseline_dir: &Path,
+    capture_dir: &Path,
+    report_dir: &Path,
+    config: &RunConfig,
+    source_baseline: Option<&Path>,
+) -> Result<Report> {
     config.validate()?;
     for (present, missing) in [(baseline_dir, capture_dir), (capture_dir, baseline_dir)] {
         if present.is_file() && !missing.exists() {
@@ -593,7 +630,7 @@ pub fn run(
             .duration_since(UNIX_EPOCH)
             .map_or(0, |d| d.as_secs()),
         baseline_dir: Some(crate::paths::record(
-            baseline_dir,
+            source_baseline.unwrap_or(baseline_dir),
             report_dir,
             config.record_absolute_paths,
         )),
@@ -652,6 +689,111 @@ pub fn run(
     std::fs::write(&sentinel, b"complete saccade run\n")
         .map_err(io_err(format!("writing {}", sentinel.display())))?;
     Ok(report)
+}
+
+/// Measures a private snapshot whose exact copied bytes match an authenticated
+/// inventory. The caller verifies the signature and canonical destination first.
+/// Metadata and ignored files are bound too; no original baseline is read by the
+/// measurement after snapshot creation. Source references retain the real baseline.
+pub fn run_approved(
+    baseline: &Path,
+    capture: &Path,
+    out: &Path,
+    config: &RunConfig,
+    expected: &BTreeMap<String, String>,
+) -> Result<Report> {
+    use sha2::{Digest as _, Sha256};
+    use std::io::Write;
+    fn snapshot(
+        root: &Path,
+        dir: &Path,
+        target: &Path,
+        depth: usize,
+        files: &mut BTreeMap<String, String>,
+    ) -> Result<()> {
+        if depth > 64 {
+            return Err(Error::ApprovalContentMismatch);
+        }
+        for entry in std::fs::read_dir(dir).map_err(|_| Error::ApprovalContentMismatch)? {
+            let entry = entry.map_err(|_| Error::ApprovalContentMismatch)?;
+            let path = entry.path();
+            let kind = entry
+                .file_type()
+                .map_err(|_| Error::ApprovalContentMismatch)?;
+            let relative = path
+                .strip_prefix(root)
+                .map_err(|_| Error::ApprovalContentMismatch)?;
+            if kind.is_symlink() {
+                return Err(Error::ApprovalContentMismatch);
+            }
+            if relative == Path::new(".saccade-approval.json") && kind.is_file() {
+                continue;
+            }
+            let destination = target.join(relative);
+            if kind.is_dir() {
+                std::fs::create_dir(&destination).map_err(|_| Error::ApprovalContentMismatch)?;
+                snapshot(root, &path, target, depth + 1, files)?;
+            } else if kind.is_file() {
+                if files.len() >= 10000 {
+                    return Err(Error::ApprovalContentMismatch);
+                }
+                // Stream once into the snapshot and hash precisely the bytes written.
+                let mut options = std::fs::OpenOptions::new();
+                options.read(true);
+                #[cfg(unix)]
+                {
+                    use std::os::unix::fs::OpenOptionsExt;
+                    options.custom_flags(libc::O_NOFOLLOW | libc::O_NONBLOCK);
+                }
+                let mut source = options
+                    .open(&path)
+                    .map_err(|_| Error::ApprovalContentMismatch)?;
+                if !source
+                    .metadata()
+                    .map_err(|_| Error::ApprovalContentMismatch)?
+                    .is_file()
+                {
+                    return Err(Error::ApprovalContentMismatch);
+                }
+                let mut dest = std::fs::File::create(destination)
+                    .map_err(|_| Error::ApprovalContentMismatch)?;
+                let mut hash = Sha256::new();
+                let mut buffer = [0u8; 65536];
+                let mut size = 0u64;
+                loop {
+                    let n = std::io::Read::read(&mut source, &mut buffer)
+                        .map_err(|_| Error::ApprovalContentMismatch)?;
+                    if n == 0 {
+                        break;
+                    }
+                    size += n as u64;
+                    if size > 1024 * 1024 * 1024 {
+                        return Err(Error::ApprovalContentMismatch);
+                    }
+                    dest.write_all(&buffer[..n])
+                        .map_err(|_| Error::ApprovalContentMismatch)?;
+                    hash.update(&buffer[..n]);
+                }
+                let name = relative
+                    .components()
+                    .map(|c| c.as_os_str().to_str().ok_or(Error::ApprovalContentMismatch))
+                    .collect::<Result<Vec<_>>>()?
+                    .join("/");
+                files.insert(name, format!("sha256:{:x}", hash.finalize()));
+            } else {
+                return Err(Error::ApprovalContentMismatch);
+            }
+        }
+        Ok(())
+    }
+    guard_output_dir(out, &[baseline, capture], &[REPORT_FILE_NAME, RUN_SENTINEL])?;
+    let temp = tempfile::tempdir().map_err(io_err("creating verified baseline snapshot".into()))?;
+    let mut actual = BTreeMap::new();
+    snapshot(baseline, baseline, temp.path(), 0, &mut actual)?;
+    if &actual != expected {
+        return Err(Error::ApprovalContentMismatch);
+    }
+    run_inner(temp.path(), capture, out, config, Some(baseline))
 }
 
 /// Fills `entry.warnings` from the structural checks and applies

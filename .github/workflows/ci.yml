@@ -29,8 +29,8 @@ jobs:
       - run: cargo build --locked -p saccade
       - run: python3 scripts/authority-boundary/test-harness.py
       # Image/toolchain provisioning precedes the isolated, loopback-only run.
-      # Known findings stay XFAIL and acceptance=failed in the retained receipt.
-      - run: scripts/authority-boundary/run-container.sh target/debug/saccade "$RUNNER_TEMP/authority" --allow-known-findings
+      # Strict policy-on credential refusal and explicit policy-off compatibility.
+      - run: scripts/authority-boundary/run-container.sh target/debug/saccade "$RUNNER_TEMP/authority"
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         if: always()
         with:
