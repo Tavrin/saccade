@@ -47,7 +47,7 @@ See root0-diagnosis.json in the artifact directory for exact independent replay.
 
 ## Plans and commands
 
-Artifacts: /mnt/linux-extra/moss-scratch/saccade-g12-epoch4b/
+Artifacts: ${SACCADE_EVIDENCE_ROOT}/saccade-g12-epoch4b/
 
 Smoke: 10 development roots, 10 single_gemini calls; full reservation $0.252169500.
 Targeted: 10 development roots across four admitted arms, 20 calls; full

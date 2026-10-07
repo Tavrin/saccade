@@ -19,19 +19,21 @@ roots and 96 proof rows. Exact request digest:
 `sha256:71e7524be0eabcdd3b324f19e70adc944ea6293ab750f62d536071b2036f2c8f`.
 No provider calls or key reads were made. Cargo target peaked below 1 GB and is
 removed after verification. The updated binary is copied outside the target as
-`/mnt/linux-extra/moss-scratch/saccade-g12-epoch3/assist_openrouter_smoke-preflight-fixed`.
+`$CAMPAIGN_OUT/assist_openrouter_smoke-preflight-fixed`.
 
 ## Prepared smoke command (not executed)
 
-Use inline proof variables so direct invocation cannot lose exported shell state.
+Set `CHECKOUT`, `CAMPAIGN_OUT`, `DEV_CORPUS` and `USER_POLICY` to the operator-owned
+checkout, campaign artifacts, proof corpus and user policy. Use inline proof variables
+so direct invocation cannot lose exported shell state.
 Use a fresh campaign directory because the original `smoke-live` contains the
 refusal artifact and a new run uses exclusive directory creation.
 
 ```sh
-cd /home/etienne/dev/saccade-wt/g12live
-SACCADE_SCORER_DEV_CORPUS=/mnt/linux-extra/moss-scratch/saccade-g12-dev-pilot/pilot-corpus \
+cd "$CHECKOUT"
+SACCADE_SCORER_DEV_CORPUS="$DEV_CORPUS" \
 SACCADE_SCORER_SOURCE_REVISION=ab305c00bc4536d4ff482b5a3645fe5b67f9a6d4 \
-/mnt/linux-extra/moss-scratch/saccade-g12-epoch3/assist_openrouter_smoke-preflight-fixed --stage2 --budget-bounded --requests /mnt/linux-extra/moss-scratch/saccade-g12-epoch3/smoke/requests.json --roots 10 --max-spend-usd 0.252199500 --max-consecutive-invalid-answers 5 --max-invalid-answer-percent 50 --invalid-answer-min-sample 20 --user-policy /home/etienne/.config/saccade/user.toml --out /mnt/linux-extra/moss-scratch/saccade-g12-epoch3/smoke-live-preflight-fixed
+"$CAMPAIGN_OUT/assist_openrouter_smoke-preflight-fixed" --stage2 --budget-bounded --requests "$CAMPAIGN_OUT/smoke/requests.json" --roots 10 --max-spend-usd 0.252199500 --max-consecutive-invalid-answers 5 --max-invalid-answer-percent 50 --invalid-answer-min-sample 20 --user-policy "$USER_POLICY" --out "$CAMPAIGN_OUT/smoke-live-preflight-fixed"
 ```
 
 For offline verification only, add `--preflight-only` to this command.
