@@ -8,6 +8,35 @@
   failure; writable CLI baselines remain outside an authenticated human boundary.
 - Enforce declared user read/output roots during offline review previews, including
   referenced inputs and intent files, before reading or writing those paths.
+- Add bounded `batch` folder/manifest intake with immutable resumable rows, JSONL/CSV,
+  thumbnail indexes and Lane C manifests, plus a synchronous `saccade-vision` Python API.
+- Add the experimental `assist` advice aliases and provider egress previews before dispatch;
+  advice cannot create exclusions or approve baselines.
+
+- Add declared-case coverage, variant grouping and baseline-health views with manifest v2, explicit missing cases and separate approved-anchor/last-good evidence.
+
+- Add W01–W13 playbook acceptance manifests, a generated fixture pack and a runner
+  checking expected exits, effects and SHA-256 output projections. Missing bundles
+  skip explicitly; the all-features CI container requires all thirteen recipes.
+  See `docs/playbooks.md`.
+
+- Add a stock-build critical text region/string gate, versioned policy/report and
+  generated OFL glyph-edit pack with app, figure and document proofs.
+
+- Add `timed-text` for plain SRT/WebVTT against frame maps, with image-bound OCR,
+  sampled timing/missing/mismatch/extra findings and reused text-legibility
+  measurements in `saccade-timed-text.v1`. Missing OCR explicitly skips; video
+  extraction stays external. Include generated caption-video and cross-domain
+  acceptance fixtures. Preserve decimal timing/gap boundaries through floating-point
+  roundoff; zero timing tolerance stays strict and coarse clocks abstain.
+
+- Add `split-review` for declared dataset splits and photo bursts, with hash,
+  geometric and explicitly provisioned embedding evidence, CSV pairs, injected-pair
+  recall and explicit clean-list limits. See `docs/split-review.md`.
+
+- Add optional `geo` and the first-party `saccade-geo` crate: native multichannel
+  TIFF measurements with preserved grid/nodata metadata and exact grid refusals,
+  explicitly mapped RGB heatmaps, single-band class metrics and tile coverage.
 
 ## 0.2.7 (2026-10-07)
 

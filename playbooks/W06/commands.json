@@ -1,0 +1,52 @@
+{
+  "schema": "saccade-playbook.v1",
+  "id": "W06",
+  "bundle": "default",
+  "features": [],
+  "dependencies": [],
+  "generated_inputs": "@INPUT@",
+  "cwd": "@INPUT@",
+  "commands": [
+    {
+      "name": "batch",
+      "argv": [
+        "@PYTHON@",
+        "@RUNNER@",
+        "--helper",
+        "batch",
+        "--bin",
+        "@BIN@",
+        "--inputs",
+        "@INPUT@/intake",
+        "--out",
+        "@OUTPUT@/batch"
+      ],
+      "exit": 2,
+      "checks": [
+        {
+          "name": "selected",
+          "source": "stdout",
+          "pointer": "/selected",
+          "equals": 3
+        },
+        {
+          "name": "issues",
+          "source": "stdout",
+          "pointer": "/issues",
+          "equals": 1
+        },
+        {
+          "name": "states",
+          "source": "stdout",
+          "pointer": "/states",
+          "equals": [
+            "command_failed",
+            "completed_review_verdict_separately",
+            "completed_review_verdict_separately"
+          ]
+        }
+      ],
+      "sha256": "5a8a2e54d2ade663eefb1c721e3bb42d292072262d0cf788652bccf2b7132380"
+    }
+  ]
+}

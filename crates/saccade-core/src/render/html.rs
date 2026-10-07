@@ -176,7 +176,7 @@ fn header_metadata(report: &Report) -> String {
         .collect()
 }
 
-fn escape(text: &str) -> String {
+pub(super) fn escape(text: &str) -> String {
     text.replace('&', "&amp;")
         .replace('<', "&lt;")
         .replace('>', "&gt;")

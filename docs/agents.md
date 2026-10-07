@@ -204,3 +204,12 @@ Text-quality builds add [`tofu`](tofu.md) and [`text-legibility`](text-legibilit
 Read the full `--json` state and reasons: exit 4 means insufficient evidence;
 missing OCR is never agreement, and no tofu candidate never certifies glyph coverage.
 MCP mirrors remain a follow-up.
+
+## Declared coverage and reference health
+
+Use `manifest build DIR --cases CASES --json`, then
+`manifest views DIR --group-by AXIS --out VIEW --json`. Read the full linked
+`coverage.json` to inspect missing/refused variants and separate approved-anchor
+drift from last-good continuity. Coverage completeness and passing never imply
+human approval or semantic theme correspondence. See [coverage](coverage.md).
+MCP mirrors remain a follow-up.

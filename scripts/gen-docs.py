@@ -21,7 +21,7 @@ def replace_section(text, name, content):
     return before + start + '\n' + content + '\n' + end + after
 
 
-def generated(binary=None, allow_missing_imgtune_avif=False):
+def generated(binary=None, allow_missing_imgtune_avif=False, preserve_all_features_header=False):
     guide = (ROOT / 'integrations/agent-guide.md').read_text(encoding="utf-8")
     packs = {
         'integrations/codex/AGENTS.saccade.md': PACK_HEADER + guide,
@@ -91,11 +91,13 @@ def generated(binary=None, allow_missing_imgtune_avif=False):
             'Exit 0 for compare/identity means no image regression; inspect `performance` for qualification.',
             'Inspection, review, rank and ablation completion grant no acceptance authority.',
             'Exit 2 means the operation cannot run. Demo intentionally exits 1.', '']
-        if 'imgtune-avif' not in features and allow_missing_imgtune_avif:
-            # AVIF adds a codec, not CLI operations. Keep the canonical all-features
-            # reference header stable when regenerating on a host without dav1d.
-            reference_features = sorted(set(features) | {'imgtune-avif'})
-            lines[7] = 'Compiled features: ' + ', '.join(f'`{f}`' for f in reference_features) + '.'
+        if allow_missing_imgtune_avif and 'imgtune-avif' not in features:
+            lines[7] = 'Compiled features: ' + ', '.join(f'`{f}`' for f in sorted(set(features) | {'imgtune-avif'})) + '.'
+        if preserve_all_features_header:
+            actual = [
+                'Generation: `python3 scripts/gen-docs.py --allow-missing-imgtune-avif --preserve-all-features-header`.',
+                'Compiled features: ' + ', '.join(f'`{f}`' for f in features) + '.', '']
+            lines += ['Actual generation binary (reference header above describes all features):', '', *actual]
         for op in [''] + operations:
             help_result = subprocess.run([binary] + op.split() + ['--help'], check=True, capture_output=True, text=True, encoding="utf-8")
             help_text = '\n'.join(line.rstrip() for line in help_result.stdout.rstrip().splitlines())
@@ -109,11 +111,13 @@ def main():
     parser.add_argument('--saccade', help='also generate the command reference from this binary')
     parser.add_argument('--allow-missing-imgtune-avif', action='store_true',
                         help='allow only the AVIF codec feature to be absent when system dav1d is unavailable')
+    parser.add_argument('--preserve-all-features-header', action='store_true',
+                        help='keep the published all-features header and append the actual generation build inventory')
     parser.add_argument('--skip-readme', action='store_true', help='preserve README during integration')
     parser.add_argument('--check', action='store_true', help='reject drift without rewriting files')
     args = parser.parse_args()
     stale = []
-    for name, body in generated(args.saccade, args.allow_missing_imgtune_avif).items():
+    for name, body in generated(args.saccade, args.allow_missing_imgtune_avif, args.preserve_all_features_header).items():
         if args.skip_readme and name == "README.md":
             continue
         dest = ROOT / name

@@ -40,6 +40,10 @@ pub fn scope(refs: Vec<String>, index: Option<PathBuf>) -> Result<ContextGuard> 
 }
 /// Whether a schema describes a report rather than acquisition/policy/authority input.
 pub fn is_report_schema(id: &str) -> bool {
+    // New critical-text policies are inputs, not decorated measurement reports.
+    if id == crate::critical_text::POLICY_SCHEMA {
+        return false;
+    }
     ![
         "-source.",
         "-map.",
@@ -94,6 +98,7 @@ pub fn is_report_schema(id: &str) -> bool {
                 | "saccade-perf-pairs.v1"
                 | "saccade-labels.v1"
                 | "saccade-labels.v2"
+                | "saccade-cases.v1"
                 | "saccade-inventory.v1"
                 | "saccade-quality-sweep.v1"
                 | "saccade-asset-views.v1"
@@ -127,6 +132,7 @@ pub const SCHEMA_MIGRATIONS: &[(&str, &str)] = &[
     ("saccade-crop-check.v1", "saccade-crop-check.v2"),
     ("saccade-decide-result.v1", "saccade-decide-result.v2"),
     ("saccade-dedupe.v1", "saccade-dedupe.v2"),
+    ("saccade-split-review.v1", "saccade-split-review.v2"),
     ("saccade-design-pull.v1", "saccade-design-pull.v2"),
     ("saccade-design-report.v1", "saccade-design-report.v2"),
     ("saccade-document-ocr.v1", "saccade-document-ocr.v2"),

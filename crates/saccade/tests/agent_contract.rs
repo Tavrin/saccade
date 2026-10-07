@@ -85,16 +85,22 @@ fn help_lists_active_commands_and_watch_alias_stays_hidden() {
         .filter_map(Value::as_str)
         .filter(|s| !s.contains(' '))
         .collect::<Vec<_>>();
+    assert!(top.contains(&"split-review"));
     assert_eq!(
         top.len(),
-        51 + usize::from(cfg!(feature = "compression"))
+        55 + usize::from(cfg!(feature = "compression"))
+            + usize::from(cfg!(feature = "assist"))
             + usize::from(cfg!(feature = "print"))
+            + usize::from(cfg!(feature = "geo"))
             + 4 * usize::from(cfg!(feature = "products"))
             + usize::from(cfg!(feature = "local-vlm"))
             + usize::from(cfg!(feature = "vision-providers")),
         "{top:?}"
     );
+    assert!(!top.contains(&"batch-probe"));
+    assert_eq!(top.contains(&"assist"), cfg!(feature = "assist"));
     for name in [
+        "batch",
         "manifest",
         "export-regions",
         "mask-metrics",
@@ -102,6 +108,8 @@ fn help_lists_active_commands_and_watch_alias_stays_hidden() {
         "frame-map",
         "tofu",
         "text-legibility",
+        "critical-text",
+        "timed-text",
         "timing",
         "render-evidence",
         "schema",

@@ -467,10 +467,46 @@ fn compare_maps(
     }
     Ok(result.into_any().unbind())
 }
+/// Run bounded, resumable batch intake through an explicitly installed matching CLI.
+#[pyfunction]
+#[pyo3(signature=(source, out, executable="saccade", options_json=None, reference_dir=None))]
+fn batch(
+    py: Python<'_>,
+    source: PathBuf,
+    out: PathBuf,
+    executable: &str,
+    options_json: Option<&str>,
+    reference_dir: Option<PathBuf>,
+) -> PyResult<Py<PyAny>> {
+    let options = options_json
+        .map(serde_json::from_str::<saccade_core::batch::Options>)
+        .transpose()
+        .map_err(|e| error(py, MediaError::new("invalid_batch_options", e.to_string())))?
+        .unwrap_or_default();
+    let executable = PathBuf::from(executable);
+    let rows = py
+        .allow_threads(|| {
+            if source.is_dir()
+                && saccade_core::run::normalise_path(&out).starts_with(
+                    saccade_core::paths::canonicalize(&source)
+                        .map_err(|e| saccade_core::Error::Config(e.to_string()))?,
+                )
+            {
+                return Err(saccade_core::Error::Config(
+                    "batch output is inside an input directory".into(),
+                ));
+            }
+            let inputs = saccade_core::batch::intake(&source, reference_dir.as_deref())?;
+            saccade_core::batch::run(&executable, &inputs, &options, &out)
+        })
+        .map_err(|e| error(py, MediaError::new("batch_failed", e.to_string())))?;
+    json(py, Ok(serde_json::Value::Array(rows)))
+}
 #[pymodule]
 fn _native(py: Python<'_>, m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add("__version__", VERSION)?;
     m.add_function(wrap_pyfunction!(compare_maps, m)?)?;
+    m.add_function(wrap_pyfunction!(batch, m)?)?;
     m.add_class::<Analyzer>()?;
     m.add_class::<Index>()?;
     m.add("SaccadeError", py.get_type::<SaccadeError>())?;

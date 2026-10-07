@@ -1,0 +1,79 @@
+{
+  "schema": "saccade-playbook.v1",
+  "id": "W05",
+  "bundle": "default (source route)",
+  "features": [],
+  "dependencies": [],
+  "generated_inputs": "@INPUT@/text",
+  "cwd": "@INPUT@/text",
+  "commands": [
+    {
+      "name": "source",
+      "argv": [
+        "@BIN@",
+        "text",
+        "before.png",
+        "after.png",
+        "--a-source",
+        "before-source.json",
+        "--b-source",
+        "after-source.json",
+        "--expect-text=-1.0 EUR",
+        "--out",
+        "@OUTPUT@/source",
+        "--json"
+      ],
+      "exit": 1,
+      "checks": [
+        {
+          "name": "schema",
+          "source": "stdout",
+          "pointer": "/schema"
+        },
+        {
+          "name": "counts",
+          "source": "stdout",
+          "pointer": "/data/counts",
+          "equals": {
+            "word_changes": 1,
+            "line_changes": 1,
+            "failed_expectations": 1
+          }
+        },
+        {
+          "name": "missing-minus",
+          "source": "@OUTPUT@/source/saccade-text.v1.json",
+          "pointer": "/comparison/rates/character_edits",
+          "equals": 1
+        }
+      ],
+      "sha256": "56c2e0559e339090289d845ddd3fc773094a50ecf4c7b0ff4773472a7f376dfd"
+    },
+    {
+      "name": "stale",
+      "argv": [
+        "@BIN@",
+        "text",
+        "before.png",
+        "after.png",
+        "--a-source",
+        "before-source.json",
+        "--b-source",
+        "stale-source.json",
+        "--out",
+        "@OUTPUT@/stale",
+        "--json"
+      ],
+      "exit": 2,
+      "checks": [
+        {
+          "name": "rejected",
+          "source": "stdout",
+          "pointer": "/errors/0/message",
+          "equals": "invalid configuration: UI source schema, kind, dimensions or screenshot identity mismatch"
+        }
+      ],
+      "sha256": "38e2e7d745a1c7224d6f4bfb5c7d276e6f5cfcbe7ab1f07fe8aed312a08a563a"
+    }
+  ]
+}

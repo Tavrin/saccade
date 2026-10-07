@@ -1,0 +1,40 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Generated playbook input provenance v1",
+  "type": "object",
+  "required": [
+    "schema",
+    "licence",
+    "generator_sha256",
+    "files",
+    "limitations"
+  ],
+  "properties": {
+    "schema": {
+      "const": "saccade-playbook-inputs.v1"
+    },
+    "licence": {
+      "type": "string",
+      "minLength": 1
+    },
+    "generator_sha256": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}$"
+    },
+    "files": {
+      "type": "object",
+      "additionalProperties": {
+        "type": "string",
+        "pattern": "^[0-9a-f]{64}$"
+      }
+    },
+    "limitations": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "minLength": 1
+      }
+    }
+  },
+  "additionalProperties": false
+}

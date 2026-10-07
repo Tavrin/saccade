@@ -27,6 +27,7 @@ pub struct Change {
     pub basis: String,
 }
 /// Text error-rate measurement retains raw edit counts and denominators.
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct Rates {
     /// Unicode scalar edit count (Latin accents are retained).

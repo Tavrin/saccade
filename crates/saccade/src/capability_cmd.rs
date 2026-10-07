@@ -57,6 +57,19 @@ pub(crate) fn catalogue() -> Value {
         "Requires CMYK ICC; bounded raster PDF subset; ICC gamut model and heuristic text-like marks; no press approval",
     );
     add(
+        "native_rasters",
+        "geo compare; geo mask-metrics; geo tiles",
+        "paired native multichannel TIFFs, class rasters or z/x/y tile trees",
+        vec!["geo"],
+        if cfg!(feature = "geo") {
+            "available_bounded"
+        } else {
+            "feature_unavailable"
+        },
+        "What native band, class or tile-coverage changes are present?",
+        "Exact grid metadata required; nodata-aware; RGB ranges must be declared; no reprojection or map rendering",
+    );
+    add(
         "pixel_perceptual",
         "compare; prove identity",
         "paired rasters or matching directories",
@@ -82,6 +95,15 @@ pub(crate) fn catalogue() -> Value {
         "available",
         "How visible is the HDR difference under the declared exposure range?",
         "existing HDR-FLIP; native samples and nonfinite evidence stay separate",
+    );
+    add(
+        "timed_text",
+        "timed-text",
+        "plain SRT/WebVTT, frame map, declared text region and image-bound OCR",
+        vec![],
+        "available_bounded",
+        "Does expected timed text appear in the supplied samples, on time and legibly?",
+        "OCR absence explicitly skips; text-quality enables pixel evidence; external video extraction and sampling gaps remain unverified",
     );
     add(
         "video_temporal",
@@ -128,6 +150,15 @@ pub(crate) fn catalogue() -> Value {
         "<=100000 images; hash collisions and transitive clusters require review",
     );
     add(
+        "split-review",
+        "split-review",
+        "declared split manifest; 1..128 8-bit SDR images",
+        vec![],
+        "available",
+        "Which reuse candidates cross splits, and which bursts stay within a split?",
+        "hash/geometric candidates; embeddings opt in with provisioned models; a clean list never proves no leakage",
+    );
+    add(
         "embeddings",
         "similar; index build|query",
         "8-bit SDR images, supplied ONNX contract/cache/runtime",
@@ -139,6 +170,15 @@ pub(crate) fn catalogue() -> Value {
         },
         "How similar are the supplied model's visual embeddings?",
         "export-inputs/export script and calibrate provide frozen parity/holdout qualification; runtime evidence still required",
+    );
+    add(
+        "critical-text",
+        "critical-text --policy; --a-source --b-source or --ocr",
+        "equal-scale rasters, frozen critical-region/string policy and bound text observations",
+        vec![],
+        "available_imports",
+        "Do every declared critical string and pixel threshold survive?",
+        "source imports work on stock; cached OCR needs ocr/runtime/models; no human readability or semantic correctness guarantee",
     );
     add(
         "text",
@@ -220,8 +260,17 @@ pub(crate) fn catalogue() -> Value {
         "offline C2PA needs credentials; forensic specificity unqualified; no real/fake verdict",
     );
     add(
+        "batch_intake",
+        "batch INPUTS --out RESULTS",
+        "folder or versioned intake manifest; paired references optional",
+        vec![],
+        "available",
+        "Which inputs completed, failed or remain partial?",
+        "bounded concurrency/deadlines; immutable receipts; JSONL/CSV/thumbnail index; no approval",
+    );
+    add(
         "experimental_assist",
-        "review explain; review audit-mask; review check-ui; review assist batch submit|status|collect",
+        "assist explain|audit-mask|check-ui|batch; review explain|audit-mask|check-ui|assist",
         "measured reports, source-bound requests and immutable sidecars",
         vec!["assist"],
         if cfg!(feature = "assist") {
@@ -384,6 +433,9 @@ pub(crate) fn catalogue() -> Value {
     }
     if cfg!(feature = "products") {
         features.push("products".into());
+    }
+    if cfg!(feature = "geo") {
+        features.push("geo".into());
     }
     if cfg!(feature = "print") {
         features.push("print".into());
