@@ -1,0 +1,67 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "saccade-motion-degradations.v1",
+  "title": "saccade-motion-degradations.v1",
+  "type": "object",
+  "required": [
+    "schema",
+    "generator",
+    "seed",
+    "positive_sources",
+    "entries"
+  ],
+  "properties": {
+    "schema": {
+      "const": "saccade-motion-degradations.v1"
+    },
+    "generator": {
+      "type": "string"
+    },
+    "seed": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "positive_sources": {
+      "type": "array",
+      "items": {
+        "type": "object"
+      }
+    },
+    "entries": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": [
+          "id",
+          "positive_source",
+          "class",
+          "strength",
+          "seed",
+          "generated"
+        ],
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "positive_source": {
+            "type": "integer"
+          },
+          "class": {
+            "type": "string"
+          },
+          "strength": {
+            "type": "number"
+          },
+          "seed": {
+            "type": "integer"
+          },
+          "generated": {
+            "type": "object"
+          }
+        },
+        "additionalProperties": false
+      }
+    }
+  },
+  "additionalProperties": false
+}

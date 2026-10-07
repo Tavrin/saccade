@@ -210,3 +210,6 @@ pub mod text_quality;
 pub mod batch;
 /// Timed subtitle/caption evidence against presentation-timestamped frames.
 pub mod timed_text;
+
+/// Objective clip diagnostics and constructed degradation calibration.
+pub mod motion_stats;

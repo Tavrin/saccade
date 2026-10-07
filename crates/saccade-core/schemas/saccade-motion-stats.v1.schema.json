@@ -1,0 +1,155 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "saccade-motion-stats.v1",
+  "title": "saccade-motion-stats.v1",
+  "type": "object",
+  "required": [
+    "schema",
+    "reference",
+    "candidate",
+    "distances"
+  ],
+  "properties": {
+    "schema": {
+      "const": "saccade-motion-stats.v1"
+    },
+    "reference": {
+      "type": "object",
+      "required": [
+        "values",
+        "magnitude",
+        "direction",
+        "spectrum",
+        "limitations"
+      ],
+      "properties": {
+        "values": {
+          "type": "object",
+          "additionalProperties": {
+            "type": "number"
+          }
+        },
+        "magnitude": {
+          "type": [
+            "array",
+            "null"
+          ],
+          "items": {
+            "type": "number"
+          },
+          "minItems": 7,
+          "maxItems": 7
+        },
+        "direction": {
+          "type": [
+            "array",
+            "null"
+          ],
+          "items": {
+            "type": "number"
+          },
+          "minItems": 8,
+          "maxItems": 8
+        },
+        "spectrum": {
+          "type": [
+            "array",
+            "null"
+          ],
+          "items": {
+            "type": "number"
+          },
+          "minItems": 3,
+          "maxItems": 3
+        },
+        "limitations": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        }
+      },
+      "additionalProperties": false
+    },
+    "candidate": {
+      "type": "object",
+      "required": [
+        "values",
+        "magnitude",
+        "direction",
+        "spectrum",
+        "limitations"
+      ],
+      "properties": {
+        "values": {
+          "type": "object",
+          "additionalProperties": {
+            "type": "number"
+          }
+        },
+        "magnitude": {
+          "type": [
+            "array",
+            "null"
+          ],
+          "items": {
+            "type": "number"
+          },
+          "minItems": 7,
+          "maxItems": 7
+        },
+        "direction": {
+          "type": [
+            "array",
+            "null"
+          ],
+          "items": {
+            "type": "number"
+          },
+          "minItems": 8,
+          "maxItems": 8
+        },
+        "spectrum": {
+          "type": [
+            "array",
+            "null"
+          ],
+          "items": {
+            "type": "number"
+          },
+          "minItems": 3,
+          "maxItems": 3
+        },
+        "limitations": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        }
+      },
+      "additionalProperties": false
+    },
+    "distances": {
+      "type": "object",
+      "additionalProperties": {
+        "type": "number"
+      }
+    },
+    "sources": {
+      "type": "object"
+    },
+    "report_id": {
+      "type": "string",
+      "pattern": "^sha256:[0-9a-f]{64}$"
+    },
+    "source_refs": {
+      "type": "array",
+      "maxItems": 128,
+      "items": {
+        "type": "string",
+        "maxLength": 2048
+      }
+    }
+  },
+  "additionalProperties": false
+}

@@ -6,26 +6,125 @@
       "title": "Default",
       "asset": "saccade-{target}",
       "also_published_as": "saccade-default-{target}",
-      "features": ["prechecks"],
-      "expect_features": ["parallel", "graphics", "compression", "ai", "workbench", "evaluation", "mcp", "prechecks"],
-      "platforms": ["x86_64-unknown-linux-gnu", "aarch64-unknown-linux-gnu", "aarch64-apple-darwin", "x86_64-pc-windows-msvc"],
-      "summary": "Compare, prove, review, perf and arms evidence, MCP server, workbench. Nothing to provision."
+      "features": [
+        "prechecks",
+        "text-quality"
+      ],
+      "expect_features": [
+        "ai",
+        "compression",
+        "evaluation",
+        "graphics",
+        "mcp",
+        "parallel",
+        "prechecks",
+        "text-quality",
+        "workbench"
+      ],
+      "platforms": [
+        "x86_64-unknown-linux-gnu",
+        "aarch64-unknown-linux-gnu",
+        "aarch64-apple-darwin",
+        "x86_64-pc-windows-msvc"
+      ],
+      "summary": "Compare, prove, review, perf and arms evidence, text-quality pixels, MCP server, workbench. Nothing to provision."
     },
     "media": {
       "title": "Media",
       "asset": "saccade-media-{target}",
-      "features": ["prechecks", "credentials", "documents", "products", "ocr"],
-      "expect_features": ["prechecks", "credentials", "documents", "products", "ocr", "local-models", "mcp"],
-      "platforms": ["x86_64-unknown-linux-gnu", "aarch64-unknown-linux-gnu", "aarch64-apple-darwin", "x86_64-pc-windows-msvc"],
-      "summary": "Default plus C2PA credentials, PDF/SVG documents, imgtune/product tools and Rust OCR. OCR models and the ONNX runtime are provisioned with `saccade models pull`."
+      "features": [
+        "prechecks",
+        "credentials",
+        "documents",
+        "products",
+        "ocr",
+        "text-quality",
+        "print"
+      ],
+      "expect_features": [
+        "ai",
+        "compression",
+        "credentials",
+        "documents",
+        "evaluation",
+        "graphics",
+        "local-models",
+        "mcp",
+        "ocr",
+        "parallel",
+        "prechecks",
+        "print",
+        "products",
+        "text-quality",
+        "workbench"
+      ],
+      "platforms": [
+        "x86_64-unknown-linux-gnu",
+        "aarch64-unknown-linux-gnu",
+        "aarch64-apple-darwin",
+        "x86_64-pc-windows-msvc"
+      ],
+      "summary": "Default plus C2PA credentials, PDF/SVG documents, imgtune/product tools, ICC-managed print and Rust OCR. OCR models and the ONNX runtime are provisioned with `saccade models pull`."
     },
     "full": {
       "title": "Full",
       "asset": "saccade-full-{target}",
-      "features": ["prechecks", "credentials", "documents", "products", "ocr", "embeddings", "geometry", "dense-motion", "semantic-regions", "local-models", "local-vlm", "vision-providers", "assist", "ocr-provider", "media-http", "schema"],
-      "expect_features": ["prechecks", "credentials", "documents", "products", "ocr", "embeddings", "geometry", "dense-motion", "semantic-regions", "local-models", "local-vlm", "vision-providers", "assist", "media-http", "schema", "mcp"],
-      "platforms": ["x86_64-unknown-linux-gnu", "aarch64-unknown-linux-gnu", "aarch64-apple-darwin", "x86_64-pc-windows-msvc"],
-      "summary": "Media plus embeddings, geometry, dense motion, local models and providers, assist and media HTTP."
+      "features": [
+        "prechecks",
+        "credentials",
+        "documents",
+        "products",
+        "ocr",
+        "embeddings",
+        "geometry",
+        "dense-motion",
+        "semantic-regions",
+        "local-models",
+        "local-vlm",
+        "vision-providers",
+        "assist",
+        "ocr-provider",
+        "media-http",
+        "schema",
+        "text-quality",
+        "print",
+        "geo"
+      ],
+      "expect_features": [
+        "ai",
+        "assist",
+        "compression",
+        "credentials",
+        "dense-motion",
+        "documents",
+        "embeddings",
+        "evaluation",
+        "geo",
+        "geometry",
+        "graphics",
+        "local-models",
+        "local-vlm",
+        "mcp",
+        "media-http",
+        "ocr",
+        "ocr-provider",
+        "parallel",
+        "prechecks",
+        "print",
+        "products",
+        "schema",
+        "semantic-regions",
+        "text-quality",
+        "vision-providers",
+        "workbench"
+      ],
+      "platforms": [
+        "x86_64-unknown-linux-gnu",
+        "aarch64-unknown-linux-gnu",
+        "aarch64-apple-darwin",
+        "x86_64-pc-windows-msvc"
+      ],
+      "summary": "Media plus embeddings, geometry, geo TIFF measurements, dense motion, local models and providers, assist and media HTTP."
     }
   },
   "excluded_everywhere": {

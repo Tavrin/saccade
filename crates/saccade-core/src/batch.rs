@@ -1,4 +1,4 @@
-//! Bounded local batch intake over the installed CLI, with immutable item receipts.
+//! Bounded local batch intake with shared CLI/in-process workers and immutable receipts.
 use crate::{Error, Result};
 use serde::{Deserialize, Serialize};
 use serde_json::{Value, json};
@@ -360,7 +360,7 @@ fn has_failure(v: &Value) -> bool {
     }
 }
 fn item(
-    executable: &Path,
+    worker: &Worker,
     input: &Input,
     options: &Options,
     out: &Path,
@@ -428,8 +428,7 @@ fn item(
     let thumb = attempt.join("thumbnail.png");
     let mut row = json!({"schema":ROW_SCHEMA,"id":key,"occurrence":occurrence,"timeout_ms":timeout_ms,"path":path,"content_sha256":sha,"reference":input.reference,"reference_sha256":reference_sha,"duplicate_basename":duplicate,"status":"skipped","sections":[],"thumbnail":null});
     if !input.skip {
-        let probe = invoke(
-            executable,
+        let probe = worker.invoke(
             &[
                 "batch-probe".into(),
                 path_string(if snapshot.is_file() {
@@ -511,7 +510,7 @@ fn item(
                     ]);
                 }
                 argv.push("--json".into());
-                let mut section = invoke(executable, &argv, &attempt, deadline)?;
+                let mut section = worker.invoke(&argv, &attempt, deadline)?;
                 if s.command == "compare" {
                     let current = read(&input.path)
                         .ok()
@@ -568,7 +567,7 @@ fn replace(path: &Path, bytes: &[u8]) -> Result<()> {
 }
 /// Execute or resume a local batch. Completed receipts (including failures and
 /// removed/changed inputs) are retained. Returns all historical rows in stable order.
-/// The caller supplies an installed matching saccade executable, also used by Python.
+/// CLI workers are killable processes; Python uses [`run_in_process`] instead.
 pub fn run(
     executable: &Path,
     inputs: &[Input],
@@ -588,6 +587,118 @@ pub fn run(
         executable.to_owned()
     };
     let executable = &executable;
+    run_with_worker(&Worker::Cli(executable.to_owned()), inputs, options, out)
+}
+
+/// Execute or resume using Rust core analysis without spawning a CLI.
+/// `library` pins the actual loaded extension bytes for resume compatibility.
+/// Deadlines are cooperative: checked before and after each bounded operation;
+/// a running decode/analysis cannot be interrupted. Unsupported flags yield partial rows.
+pub fn run_in_process(
+    library: &Path,
+    inputs: &[Input],
+    options: &Options,
+    out: &Path,
+) -> Result<Vec<Value>> {
+    validate(options)?;
+    let config = crate::model_config::ModelConfig::resolve()?;
+    // Parse and pin the same bounded registry bytes used by this analyzer.
+    let registry_bytes = config
+        .registry
+        .as_deref()
+        .map(|p| crate::wave7::models::read_bounded(p, 2 * 1024 * 1024))
+        .transpose()
+        .map_err(|e| invalid(e.to_string()))?;
+    let analyzer = if let Some(bytes) = &registry_bytes {
+        let registry: crate::wave7::models::Registry = serde_json::from_slice(bytes)?;
+        registry.validate().map_err(|e| invalid(e.to_string()))?;
+        crate::media::Analyzer::with_registry(
+            crate::media::Profile::CpuLite,
+            config.dir.clone(),
+            false,
+            registry,
+        )
+    } else {
+        crate::media::Analyzer::new(crate::media::Profile::CpuLite, config.dir.clone(), false)
+    }
+    .map_err(|e| invalid(e.to_string()))?;
+    let identity = json!({
+        "backend":"in-process",
+        "library":crate::paths::canonicalize(library).map_err(io)?,
+        "library_sha256":executable_hash(library)?,
+        "model_config":config.to_json(),
+        "registry_sha256":registry_bytes.as_ref().map(|b| format!("{:x}", Sha256::digest(b))),
+        "deadline":"cooperative-before-and-after-operation",
+    });
+    run_with_worker(
+        &Worker::Native {
+            analyzer: Box::new(analyzer),
+            identity,
+        },
+        inputs,
+        options,
+        out,
+    )
+}
+
+mod native;
+
+enum Worker {
+    Cli(PathBuf),
+    Native {
+        analyzer: Box<crate::media::Analyzer>,
+        identity: Value,
+    },
+}
+impl Worker {
+    fn identity(&self) -> Result<Value> {
+        match self {
+            Self::Cli(executable) => Ok(
+                json!({"executable":crate::paths::canonicalize(executable).map_err(io)?,"executable_sha256":executable_hash(executable)?}),
+            ),
+            Self::Native { identity, .. } => Ok(identity.clone()),
+        }
+    }
+    fn invoke(&self, args: &[String], dir: &Path, deadline: Instant) -> Result<Value> {
+        match self {
+            Self::Cli(executable) => invoke(executable, args, dir, deadline),
+            Self::Native { analyzer, .. } => {
+                cooperative(deadline, || native::invoke(analyzer, args))
+            }
+        }
+    }
+}
+fn cooperative(
+    deadline: Instant,
+    operation: impl FnOnce() -> Result<(i32, Value)>,
+) -> Result<Value> {
+    if Instant::now() >= deadline {
+        return Ok(json!({"status":"timed-out"}));
+    }
+    let result = operation().and_then(|(exit_code, result)| {
+        if serde_json::to_vec(&result)?.len() as u64 > MAX_BYTES {
+            return Err(invalid("section output exceeds 64 MiB"));
+        }
+        Ok((exit_code, result))
+    });
+    // Never detach timed-out threads: active work completes before returning.
+    if Instant::now() >= deadline {
+        return Ok(json!({"status":"timed-out"}));
+    }
+    Ok(match result {
+        Ok((exit_code, result)) => {
+            json!({"status":if !matches!(exit_code, 0 | 1) || has_failure(&result) {"partial"} else {"ok"},"exit_code":exit_code,"result":result,"error":null})
+        }
+        Err(e) => json!({"status":"partial","exit_code":2,"result":null,"error":e.to_string()}),
+    })
+}
+
+fn run_with_worker(
+    worker: &Worker,
+    inputs: &[Input],
+    options: &Options,
+    out: &Path,
+) -> Result<Vec<Value>> {
     if inputs.is_empty() || inputs.len() > MAX_ITEMS {
         return Err(invalid("batch needs 1–1000 inputs"));
     }
@@ -630,7 +741,9 @@ pub fn run(
         .map_err(|_| invalid("batch output is already in use"))?;
     // A dedicated owned directory permits summary replacement, never unrelated files.
     let config_path = out.join("batch-run.json");
-    let config = json!({"schema":RUN_SCHEMA,"options":options,"executable":crate::paths::canonicalize(executable).map_err(io)?,"executable_sha256":executable_hash(executable)?});
+    let mut config = worker.identity()?;
+    config["schema"] = json!(RUN_SCHEMA);
+    config["options"] = json!(options);
     if config_path.exists() {
         if serde_json::from_slice::<Value>(&read(&config_path)?)? != config {
             return Err(invalid(
@@ -685,7 +798,7 @@ pub fn run(
                         break;
                     };
                     let result = item(
-                        executable,
+                        worker,
                         input,
                         options,
                         out,
@@ -767,6 +880,30 @@ pub fn run(
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[test]
+    fn cooperative_deadline_waits_for_active_work_and_blocks_later_work() -> Result<()> {
+        let called = std::sync::atomic::AtomicBool::new(false);
+        let row = cooperative(Instant::now(), || {
+            called.store(true, std::sync::atomic::Ordering::SeqCst);
+            Ok((0, json!({"status":"ok"})))
+        })?;
+        assert_eq!(row["status"], "timed-out");
+        assert!(!called.load(std::sync::atomic::Ordering::SeqCst));
+        let deadline = Instant::now() + Duration::from_millis(5);
+        let row = cooperative(deadline, || {
+            std::thread::sleep(Duration::from_millis(10));
+            called.store(true, std::sync::atomic::Ordering::SeqCst);
+            Ok((0, json!({"status":"ok"})))
+        })?;
+        assert!(called.load(std::sync::atomic::Ordering::SeqCst));
+        assert_eq!(row["status"], "timed-out");
+        assert!(row.get("result").is_none());
+        let unavailable = cooperative(Instant::now() + Duration::from_secs(1), || {
+            Ok((0, json!({"status":"unavailable"})))
+        })?;
+        assert_eq!(unavailable["status"], "partial");
+        Ok(())
+    }
     #[test]
     fn rejects_unrelated_outputs_and_unsafe_flags() -> Result<()> {
         let temp = tempfile::tempdir().map_err(io)?;

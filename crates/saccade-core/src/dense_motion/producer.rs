@@ -482,3 +482,11 @@ pub(super) fn review(
         method:serde_json::json!({"backend":"native_dis_inverse_search_v1","patch":PATCH,"stride":STRIDE,"maximum_pyramid_levels":4,"downscale":2,"inverse_iterations":ITERATIONS,"local_initialization_radius":2,"spatial_passes":2,"variational_refinement":false,"intensity":"encoded_srgb_bt709_luma_0_255","patch_mean_normalization":true,"fb_maximum_px":0.75,"appearance_maximum_intensity_error":20,"texture_minimum_eigenvalue":4,"patch_mse_maximum":64,"ambiguity_integer_radius_px":16,"ambiguity_includes_diagonals":true}),raw_regression:comparison.metrics.mean>f64::from(threshold),raw_flip:comparison.metrics,pixels_per_degree:ppd,maximum_raw_mean:threshold,fields,renderer,
         limitations:vec!["Unaligned raw FLIP and its declared threshold remain authoritative; no alignment changes acceptance.".into(),"Flow is apparent image correspondence, not geometric ground truth. Reflections, particles, shading, transparency and deformation need separate renderer evidence.".into(),"Forward/backward inconsistency means possible occlusion or mismatch, not confirmed visibility. Texture and residual checks are heuristic exclusions, not calibrated confidence. Integer displacement aliases are tested only within a 16-pixel neighborhood at each pyramid level; wider or subpixel aliases remain unqualified.".into(),"Native DIS inverse search and residual-weighted densification omit variational refinement. No benchmark parity, throughput or large-motion guarantee; opaque SDR, equal dimensions and bounded inputs only.".into(),"Jitter, validity, frame interval and producer identity are declarations; dynamic-resolution resampling and packed GPU vector formats are unsupported.".into()]})
 }
+
+pub(super) fn correspondence(a: &image::RgbaImage, b: &image::RgbaImage) -> Field {
+    let a = Plane::image(a);
+    let b = Plane::image(b);
+    let (f, ft) = solve(&a, &b);
+    let (r, rt) = solve(&b, &a);
+    qualify(&a, &b, f, &r, &ft, &rt, Direction::ReferenceToCandidate)
+}

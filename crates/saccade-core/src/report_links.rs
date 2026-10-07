@@ -61,6 +61,8 @@ pub fn is_report_schema(id: &str) -> bool {
         "-fixture.",
         "-constructed-",
         "-motion-vectors.",
+        "-motion-degradations.",
+        "-motion-scores.",
         "-frozen.",
         "-trial-",
         "-index.",

@@ -1,0 +1,48 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "saccade-motion-scores.v1",
+  "title": "saccade-motion-scores.v1",
+  "type": "object",
+  "required": [
+    "schema",
+    "manifest_sha256",
+    "scores"
+  ],
+  "properties": {
+    "schema": {
+      "const": "saccade-motion-scores.v1"
+    },
+    "manifest_sha256": {
+      "type": "string",
+      "pattern": "^[a-f0-9]{64}$"
+    },
+    "scores": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": [
+          "id",
+          "scorer",
+          "positive",
+          "negative"
+        ],
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "scorer": {
+            "type": "string"
+          },
+          "positive": {
+            "type": "number"
+          },
+          "negative": {
+            "type": "number"
+          }
+        },
+        "additionalProperties": false
+      }
+    }
+  },
+  "additionalProperties": false
+}

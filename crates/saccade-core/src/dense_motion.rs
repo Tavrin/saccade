@@ -271,3 +271,26 @@ pub fn review(
 }
 #[cfg(feature = "dense-motion")]
 mod producer;
+
+/// Measure bidirectional native correspondence without computing perceptual error.
+pub fn correspondence(a: &image::RgbaImage, b: &image::RgbaImage) -> Result<Field> {
+    if a.dimensions() != b.dimensions()
+        || !(16..=1024).contains(&a.width())
+        || !(16..=1024).contains(&a.height())
+        || a.pixels().chain(b.pixels()).any(|p| p[3] != 255)
+    {
+        return Err(invalid(
+            "correspondence requires equal opaque 16..1024 SDR dimensions",
+        ));
+    }
+    #[cfg(feature = "dense-motion")]
+    {
+        Ok(producer::correspondence(a, b))
+    }
+    #[cfg(not(feature = "dense-motion"))]
+    {
+        Err(Error::FeatureUnavailable {
+            feature: "dense-motion",
+        })
+    }
+}
