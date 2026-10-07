@@ -77,6 +77,12 @@
   Uses pure-Rust Apache-2.0 rxing; generated fixtures cover app/document renders,
   damage, small modules, wrong payloads, low contrast and Code 128.
 
+## 0.2.8 (2026-10-07)
+
+- Run Python batch media analysis in-process with resumable receipts and cooperative deadlines, without an installed CLI.
+- Include text-quality, print and geo in their release bundles and require exact compiled-feature inventories.
+- Correct Python installation instructions to use the saccade-vision distribution while keeping import saccade.
+
 ## 0.2.7 (2026-10-07)
 
 - Correct the quality-report and geometry v1 schemas to include the existing

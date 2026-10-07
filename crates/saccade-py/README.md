@@ -23,6 +23,9 @@ model-enabled build and explicitly provisioned models.
 See the [Python documentation](https://github.com/Tavrin/saccade/blob/main/docs/python.md)
 for the API, errors and optional model support.
 
-`batch(source, out, executable="saccade", options_json=None, reference_dir=None)` returns
-resumable per-input rows through the same core runner and an installed CLI. See
+`batch(source, out, options_json=None, reference_dir=None)` returns resumable
+per-input rows in-process through the same Rust core runner as the CLI. Installing
+only the wheel is sufficient; no executable or `SACCADE_BIN` is needed. Deadlines
+are cooperative: a running bounded operation finishes before a timed-out row returns.
+Unsupported section flags produce explicit partial rows. See
 [batch intake](../../docs/batch-and-assist.md) for resource limits and status semantics.

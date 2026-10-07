@@ -80,14 +80,44 @@ The `saccade-vision` Python package exports a synchronous API returning all rows
 
 ```python
 import saccade
-rows = saccade.batch("images", "intake-results", executable="saccade")
+rows = saccade.batch("images", "intake-results")
 failed = [row for row in rows if row["status"] in {"corrupt", "partial", "timed-out"}]
 ```
 
-It uses the same core intake/receipt implementation and an installed CLI available on
-PATH or supplied by explicit path. `options_json` accepts the options object above as a
-JSON string; `reference_dir` supports folder pairs. Compute releases the Python GIL.
-CLI and Python dependency/model configuration are still operator owned.
+The wheel calls the Rust core in-process and needs no CLI or `SACCADE_BIN`.
+It shares intake, input snapshots, concurrency admission, immutable receipts, row
+statuses, resume, JSONL/CSV/HTML summaries and manifests with the CLI. `options_json`
+accepts the options object above as a JSON string; `reference_dir` supports folder
+pairs. Compute releases the Python GIL. Resume pins the loaded extension bytes,
+resolved model configuration and registry digest; switching between CLI and Python
+workers requires a new output directory.
+
+Python deadlines are cooperative: checked before and after hashing/snapshot, probe
+and each section. An active bounded Rust decode/analysis finishes before the function
+returns, even if it crosses its deadline; that row is `timed-out` and no later section
+starts. There are no detached timed-out workers or subprocesses. Byte, decoding,
+item, section and concurrency limits still apply. Applications needing a hard wall
+clock limit must isolate their Python job in their own supervised process.
+
+The in-process sections use the existing Rust producers and preserve their report
+schemas. Supported flags are:
+
+| Section | In-process flags |
+|---|---|
+| `analyze-media` | `--profile`, `--options`, `--strict`, `--output-size`; shared operator model configuration |
+| `compare` | `--config` (shared TOML settings), `--threshold`, `--metric`, `--ppd`, `--allow-empty`, `--fail-on-new`, `--require-matching-meta`; full core report and artifacts |
+| `inspect` | `--include-gps`; headers, copy-move candidates, quality, credentials and error-level layer |
+| `mask-metrics` | `--class`, `--each-label`, `--void`, `--boundary-px` |
+| `watermark` | `--expected-payload`, `--quantization-step`, `--minimum-agreement`; primary decoder remains explicitly unavailable |
+| `tofu` | `--mask`, `--expected-text`; requires `text-quality` in the wheel build |
+| `text-quality` | `--region`, the four `--minimum-*` pixel thresholds; requires `text-quality` in the wheel build |
+
+Other CLI transport flags, including imported OCR/vision observations, archive
+lookup, explicit registration and TrustMark runtime selection, remain explicit
+`partial` section failures in Python. They never trigger a CLI fallback or get
+ignored. Missing optional evidence retains its unavailable state. Standard wheels
+provide CPU-lite media analysis; custom model/feature builds and provisioning remain
+operator owned.
 
 With the `assist` feature, `saccade assist explain`, `audit-mask`, `check-ui` and
 `batch submit|status|collect` are additive aliases for the existing `review` advice
