@@ -23,6 +23,12 @@ def main():
     for path in fonts.values():
         if not path.is_file():
             raise RuntimeError(f'required installed font missing: {path.name}')
+    packages = subprocess.run(
+        ['dpkg-query', '-W', '-f=${Package}\t${Version}\n',
+         'fonts-dejavu-core', 'fonts-noto-cjk'],
+        check=True, capture_output=True, text=True,
+    )
+    font_packages = dict(line.split('\t', 1) for line in packages.stdout.splitlines())
     font = ImageFont.truetype(str(fonts['latin']), 26)
     region = [12, 12, 396, 62]
     cases = []
@@ -122,7 +128,7 @@ def main():
     ImageDraw.Draw(empty).rectangle((0, 88, 419, 179), fill=(250, 250, 250))
     save('matrix-empty', empty)
     case('text-legibility', 'matrix', 'illegible', baseline='matrix-baseline', regions=[[12, 12, 396, 62], [12, 92, 396, 62]], variant_names=['matrix-good', 'matrix-bad', 'matrix-empty'], region_states=[['legible', 'legible'], ['legible', 'illegible'], ['legible', 'insufficient_evidence']])
-    provenance = dict(pillow=PIL_VERSION, fonts={k: dict(file=p.name, sha256=hashlib.sha256(p.read_bytes()).hexdigest(), license='Bitstream Vera font license; DejaVu changes public domain' if k != 'cjk' else 'SIL Open Font License 1.1') for k, p in fonts.items()}, seed=17, cases=cases)
+    provenance = dict(pillow=PIL_VERSION, font_packages=font_packages, fonts={k: dict(file=p.name, sha256=hashlib.sha256(p.read_bytes()).hexdigest(), license='Bitstream Vera font license; DejaVu changes public domain' if k != 'cjk' else 'SIL Open Font License 1.1') for k, p in fonts.items()}, seed=17, cases=cases)
     (args.out / 'fixtures.json').write_text(json.dumps(provenance, ensure_ascii=False, indent=2) + '\n')
     if not args.binary:
         return
