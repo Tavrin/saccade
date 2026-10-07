@@ -171,6 +171,16 @@ pub(crate) fn catalogue() -> Value {
         "How similar are the supplied model's visual embeddings?",
         "export-inputs/export script and calibrate provide frozen parity/holdout qualification; runtime evidence still required",
     );
+    // N18
+    add(
+        "derivative-sheet",
+        "derivative-sheet SOURCE DECLARATION --out DIR",
+        "8-bit SDR source; declared crops, display sizes and optional renditions",
+        vec![],
+        "available",
+        "Do known subjects and small text survive at declared derivative sizes?",
+        "cached faces or declared boxes; no detection is not established; pixel thresholds do not certify human readability; delivered subject content unverified",
+    );
     add(
         "critical-text",
         "critical-text --policy; --a-source --b-source or --ocr",

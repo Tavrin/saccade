@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Add `derivative-sheet`: declared crop and rendition review at final display sizes, cached face evidence or protected subject boxes, pixel text checks, HTML/PNG sheets and manifest-bound JSON rows.
+
 ## 0.2.8 (2026-10-07)
 
 - Run Python batch media analysis in-process with resumable receipts and cooperative deadlines, without an installed CLI.

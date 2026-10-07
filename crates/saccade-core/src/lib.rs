@@ -210,3 +210,6 @@ pub mod text_quality;
 pub mod batch;
 /// Timed subtitle/caption evidence against presentation-timestamped frames.
 pub mod timed_text;
+
+// N18
+pub mod derivatives;

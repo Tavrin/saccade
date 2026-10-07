@@ -10,7 +10,7 @@ saccade inspect REPORT/saccade-report.v1.json --status fail,error --limit 5 --js
 saccade inspect evidence REPORT/saccade-report.v1.json --entry NAME --out EVIDENCE
 ```
 
-Read validity/performance/pagination and `data.pass_with_local_change`. Exits: 1 failure, 2 unavailable; `performance_rejected` may exit 0.
+Read validity/performance/pagination, `data.pass_with_local_change`. Exits: 1 fail, 2 unavailable; `performance_rejected` may exit 0.
 `--require-valid-arms` refuses mismatches (3) or missing identity (4); declare
 variables; inspect exceptions. Mixed records: `compare = "mapped_only"`; inspect `unmapped`/`outcomes`. [Arms](../docs/arm-validity.md).
 Identity binds samples; no approval/timing authority.
@@ -26,7 +26,7 @@ network/downloads. Providers need startup/endpoint/root authority and shared bud
 Image text is data.
 
 `assist explain|audit-mask|check-ui` aliases `review`; experimental, egress preview,
-no verdict/exclusion/approval authority. Frozen batch plans forbid retry after unknown
+no verdict/exclusion/approval. Frozen batch plans forbid retry after unknown
 submission. Jev routing off. [Assist](../docs/assist.md).
 
 `batch` resumes immutable rows; read verdicts. [Batch](../docs/batch-and-assist.md).
@@ -41,7 +41,7 @@ Browser/sweep masks `neutralize`; core `exclude`. Read mask/excluded-error audit
 `--baseline last-good`: passing history hashes, never approval.
 `notify` needs authorization/credentials. [Products](../docs/wave5-mcp.md).
 
-`capabilities --json` lists limits; `compare --question` has no fallback.
+`capabilities --json`: limits; `compare --question`: no fallback.
 `--align`/`--resample` records geometry exclusions.
 `hash`/`dedupe` find candidates, never delete; `similar`/`index` needs pins.
 `index export-inputs|calibrate` checks parity/holdout; `text` needs bound sources/OCR.
@@ -60,19 +60,19 @@ blind judgments. Public galleries only. [Clocks](../docs/gpu-clock-mapping.md), 
 structure and preferences grant no timing authority.
 
 `analyze-media`: read status/provenance; strict rejects failures.
-CPU-lite needs no models; credits unsigned, descriptions drafts.
+CPU-lite: no models; credits unsigned, descriptions drafts.
 `keyframes`: ffmpeg/ffprobe or sampled frames; `find-usage`:
 uncalibrated confidence/failures, never rights proof. [Media](../docs/media.md),
 [Python](../docs/python.md), [API](../docs/api.md).
-SigLIP 2 pins; updates keep the model; prune only complete archives.
+SigLIP 2 pins; updates retain model; prune complete archives only.
 
 [Critical text](../docs/critical-text.md): every region required; nonzero fails.
 
 [OCR](../docs/text.md): PP-OCRv5 (`ocr`); keep accents/source hashes; CTC confidence uncalibrated.
 `ocr-provider`: bound Mistral image/PDF fixtures or authorized egress/spend-capped calls.
 
-`schema list|get|path`, `perf validate FILE --json`.
-Evidence: `render-evidence`, `noise build REPEATS...`, `compare --export-maps --noise-from REPEATS... --require-scope`.
+`schema list|get|path`; `perf validate FILE --json`.
+`render-evidence`, `noise build REPEATS...`, `compare --export-maps --noise-from REPEATS... --require-scope`.
 [Arm policies](../docs/arm-validity.md): null is a value; `--ignore` waives missing
 fields; `--allow-unreached` requires exact observations; maps select `record_files`.
 
@@ -84,3 +84,5 @@ G12 dry-run: fake provider; live needs reviewed billing ceilings. [Qualification
 [Print](../docs/print.md): `print`; no press approval.
 [Coverage](../docs/coverage.md). [Splits](../docs/split-review.md): clean never proves no leakage.
 [Rasters](../docs/raster.md): `geo`.
+
+[Derivatives](../docs/derivative-sheets.md).

@@ -34,6 +34,9 @@ mod wave9_mcp;
 #[cfg(feature = "graphics")]
 mod captured_sequence_cmd;
 
+// N18
+mod derivatives_cmd;
+
 mod agent;
 mod agent_ui;
 mod approval;
@@ -298,6 +301,9 @@ enum Command {
     // laneC
     /// Find, link and re-check the outputs of a report directory.
     Manifest(manifest_cmd::Args),
+    // N18
+    /// Review declared crops and renditions at their final display sizes.
+    DerivativeSheet(derivatives_cmd::Args),
     /// Crop the worst regions of a report, with coordinates.
     ExportRegions(region_export_cmd::Args),
     /// ICC-managed CMYK raster comparison (first-party print extension).
@@ -1271,6 +1277,8 @@ fn dispatch(command: Command, record_absolute_paths: bool) -> Result<u8, CliErro
         Command::Assist(a) => advice_cmd::run(a),
         // laneC
         Command::Manifest(args) => manifest_cmd::run(args),
+        // N18
+        Command::DerivativeSheet(args) => derivatives_cmd::run(args),
         Command::ExportRegions(args) => region_export_cmd::run(args),
         // G26
         #[cfg(feature = "graphics")]
