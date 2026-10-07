@@ -17,7 +17,7 @@ def fixture():
                 if order:clips.reverse()
                 data=dict(request_hash=root,packet=dict(schema='saccade-video-judge.v1',rubric=dict(anchors=list(range(10))),clips=clips))
                 import json
-                requests.append(dict(root=root,model=model,revision='absent',payload=dict(messages=[{},dict(content=[dict(text=json.dumps(data))])],response_format=dict(json_schema=dict(name='projection')))))
+                requests.append(dict(root=root,model=model,revision='absent',payload=dict(max_tokens=4096,reasoning=dict(max_tokens=1024),messages=[{},dict(content=[dict(text=json.dumps(data))])],response_format=dict(json_schema=dict(name='projection')))))
                 for c in clips:
                     scores.append(dict(root=root,model=model,revision='absent',provider='fixture-'+model,returned_model=model,returned_revision='absent',request_hash=root,**{k:c[k] for k in ('source','view_id','kind','sample_id')},
                                        order=order,outcome='scored',score=9 if c['source']=='a' else 2,preferred_source='a',replay=False,cues=[],criteria=[],forbidden=[]))
@@ -60,6 +60,17 @@ class Calibration(unittest.TestCase):
             data['packet']['rubric']['anchors']=['changed']*10
             request['payload']['messages'][1]['content'][0]['text']=json.dumps(data)
         self.assertNotEqual(original,adapt(manifest,schedule,rows)['bindings'])
+
+    def test_prompt_and_budget_epochs_have_distinct_calibration_bindings(self):
+        for change in ('prompt','output','reasoning'):
+            manifest,schedule,rows=fixture()
+            original=adapt(manifest,schedule,rows)['bindings']
+            for request in schedule['items'][0]['requests']:
+                payload=request['payload']
+                if change=='prompt':payload['messages'][0]=dict(role='system',content='epoch 2')
+                elif change=='output':payload['max_tokens']=3072
+                else:payload['reasoning']['max_tokens']=512
+            self.assertNotEqual(original,adapt(manifest,schedule,rows)['bindings'])
 
     def test_required_gate_cases_and_local_show_escaping(self):
         cases=judge_gate.selftest()

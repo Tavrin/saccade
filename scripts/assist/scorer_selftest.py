@@ -193,7 +193,7 @@ def markdown(result):
     for r in result['rows']:
         lines.append(f"| {r['workload']} | {r['arm']} | {r['variant']} | {pct(r['precision'])} | {pct(r['important_recall'])} | {r['false_reassurance']} | {r['flagged_roots']}/{r['roots']} | {r['passed']} |")
     lines += ['', '## Output fit', '', result['output_budget_rule'], '', '| Workload | Answer bytes/tokens | 2x answer + hint | Budget | Pass |', '|---|---:|---:|---:|---|']
-    for b in result['output_budget']:
+    for b in result['output_budget']+[{**b,'workload':'video-judge/'+b['case']} for b in result['judge_gate']['output_budget']]:
         lines.append(f"| {b['workload']} | {b['answer_bytes']} | {b['required_tokens']} | {b['max_tokens']} | {b['passed']} |")
     lines += ['', '## Legacy oracle-perfect diagnostic', '', '| Workload | Arm | Precision | Important recall | False reassurance |', '|---|---|---:|---:|---:|']
     for r in result['legacy_perfect']:
@@ -235,9 +235,8 @@ def main():
         # Only current scorer fixes/adapters execute; the pinned renderer/verifier
         # verifies original development truth without changing frozen source bytes.
         program='import sys,importlib.util;sys.path.insert(0,'+repr(str(frozen/'scripts/assist'))+');sys.path.append('+repr(str(root/'scripts/assist'))+');'
-        for name in ('video_scores','judge_gate','image_quality','dev_policy'):
+        for name in ('score','video_scores','judge_gate','image_quality','dev_policy'):
             program+='spec=importlib.util.spec_from_file_location('+repr(name)+','+repr(str(root/'scripts/assist'/f'{name}.py'))+');m=importlib.util.module_from_spec(spec);sys.modules['+repr(name)+']=m;spec.loader.exec_module(m);'
-        program+='spec=importlib.util.spec_from_file_location("score",'+repr(str(root/'scripts/assist/score.py'))+');m=importlib.util.module_from_spec(spec);sys.modules["score"]=m;spec.loader.exec_module(m);'
         program+='spec=importlib.util.spec_from_file_location("pilot_score",'+repr(str(root/'scripts/assist/pilot_score.py'))+');m=importlib.util.module_from_spec(spec);sys.modules["pilot_score"]=m;spec.loader.exec_module(m);spec=importlib.util.spec_from_file_location("scorer_selftest",'+repr(str(root/'scripts/assist/scorer_selftest.py'))+');m=importlib.util.module_from_spec(spec);sys.modules["scorer_selftest"]=m;spec.loader.exec_module(m);m.main()'
         cmd=[sys.executable,'-c',program,'--worker','--corpus',str(args.corpus.resolve()),'--source-revision',revision]
         if args.out:

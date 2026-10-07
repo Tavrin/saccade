@@ -42,8 +42,11 @@ Frame reservation uses `assist-image-ceilings/2`: 3,086 prompt tokens per rounde
 low-detail discount, plus one token per serialized non-media UTF-8 byte and 1,024
 framing tokens. Unknown resolutions retain the maximum bound. At most 32 frames
 and 128,000 prompt tokens are admitted for this new workload; image requests
-retain their 16,000-token cap. Output is capped at 1,024 aggregate tokens,
-including the 256-token reasoning hint. Oversized rubrics/long clips must be
+retain their 16,000-token cap. Epoch `video-judge/2` caps output at 4,096 aggregate tokens,
+including a 1,024-token reasoning hint. Each request must pass the conservative
+oracle fit gate: twice the largest serialized perfect/near-perfect answer
+(with every cue citing every sent timestamp) plus the hint fits the ceiling.
+The proof travels outside the provider payload and is recomputed by the runner. Oversized rubrics/long clips must be
 sampled more sparsely or split into independent clips; the plan never silently
 truncates frames to fit. Sparse sampling limits semantic evidence: abstain when
 it cannot support a score.
@@ -52,7 +55,7 @@ Pricing uses the `openrouter-price-allowlist/2026-10-07-v2` source pin
 ([models API](https://openrouter.ai/api/v1/models), supplied 2026-10-07): 750
 nanodollars per prompt/image token and 3,750 per completion token for the admitted
 Gemini arm. The independent GPT arm pins 4,500 per completion token. These are **frame-image prices**, not an invented native-video price.
-Each reservation is `input_bound × 750 + 1024 × arm_completion_price` integer nanodollars.
+Each reservation is `input_bound × 750 + 4096 × arm_completion_price` integer nanodollars.
 `plan.json` lists exact per-request and aggregate reservations; the whole
 schedule must fit a positive cap ≤ $2 before any output plan is written. This
 is an exact reservation estimate, not a prediction of billed usage.
@@ -60,13 +63,21 @@ is an exact reservation estimate, not a prediction of billed usage.
 The closed answer has `request_hash`, `outcome` (`scored` or `abstain`), per-slot
 `scores` (1..10, or null for abstention), all rubric cues in rubric order, and
 `preferred` (`A`, `B`, `tie`, `single`, `abstain`). Cue state is `present`, `absent`
-or `unknown`; present/absent timestamps must cite actual sent frames of that
+or `unknown`; present/absent timestamps must be nonempty numeric lists citing actual sent frames of that
 slot, strictly increasing; unknown cues have no timestamps. Absence means
 absence in those sampled frames, not proof about unsent intervals. Whole-request
 abstention retains every slot with null scores. Local validation preserves full
 array bounds; provider projection removes only `minItems`/`maxItems`, retaining
 closed objects, enums, required fields and numeric ranges. The strict wire name
 is `saccade_video_judge_drop_array_bounds_v1`.
+
+Prompt epoch `video-judge/2` makes the nonempty absent-cue timestamp rule,
+exact numeric timestamps, cue order and scalar 1..10 scale explicit. A prior
+development answer supplied empty lists for absent cues: it violated the local
+protocol, while the prompt left that requirement implicit. Validation stays
+unchanged. Calibration bindings now include the system prompt hash, aggregate
+output budget and reasoning hint, so old prompt/budget evidence cannot grant
+trust to this epoch.
 
 Live operator command (prepared only; implementation and acceptance are offline):
 
@@ -80,7 +91,9 @@ cargo run --locked -p saccade-core --features assist --example assist_openrouter
 plan row count for `--roots`. The existing Executor enforces provider-verified
 ceilings, monetary reservations/receipts, revision pins, post-call usage/cost
 breach stops, and reconciliation. Stage-2 retains billed malformed answers as
-`invalid_answer` and applies its existing safety valve. Native transport,
+`invalid_answer` and applies its existing safety valve. Proven-fit truncation is a billed answer failure and continues under the answer
+failure safety valve; missing or invalid fit proof remains campaign-stopping.
+Native transport,
 identity, accounting and storage failures remain campaign-stopping. Reconcile
 with `--reconcile-only video-results`; resume with the original command's exact
 plan/policy/cap/safety flags and `--resume video-results` instead of `--out`.

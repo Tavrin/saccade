@@ -21,7 +21,7 @@ use std::{
     time::{Duration, Instant},
 };
 
-#[derive(Deserialize)]
+#[derive(Clone, Deserialize)]
 #[serde(deny_unknown_fields)]
 struct Row {
     root: String,
@@ -610,6 +610,10 @@ fn output_fits(row: &Row) -> bool {
         .as_str()
         .and_then(|s| serde_json::from_str(s).ok())
         .unwrap_or(Value::Null);
+    if assist::video::is_request(&row.payload) {
+        return assist::video::output_fit(&row.payload)
+            .is_ok_and(|expected| expected == *fit && expected["passed"] == true);
+    }
     fit["rule"] == "utf8-bytes/1"
         && fit["margin"] == 2
         && fit["passed"] == true
@@ -636,6 +640,9 @@ fn stage2_outcome(
     // Local request/schema failures are campaign errors, even when their generic
     // schema diagnostic matches an answer diagnostic. Keep them outside the match.
     stage2_request(row)?;
+    if assist::video::is_request(&row.payload) {
+        assist::video::packet(&row.payload)?;
+    }
     // Check outer transport/accounting before inspecting model content. A bad
     // answer must never mask unknown money or incomplete execution.
     let v: Value = assist::decode(response)?;
@@ -2127,9 +2134,43 @@ mod tests {
             stage2_outcome(&row, &serde_json::to_vec(&response).unwrap(), out.path(), 2).unwrap(),
             CallOutcome::Completed
         );
-        response["usage"]["cost"] = Value::Null;
+        // Settled length failures continue only with exact, recomputed video fit proof.
+        response["choices"][0]["finish_reason"] = json!("length");
         assert!(
             stage2_outcome(&row, &serde_json::to_vec(&response).unwrap(), out.path(), 3).is_err()
+        );
+        let mut proven = row.clone();
+        proven.output_fit = Some(video::output_fit(&proven.payload).unwrap());
+        assert_eq!(
+            stage2_outcome(
+                &proven,
+                &serde_json::to_vec(&response).unwrap(),
+                out.path(),
+                3
+            )
+            .unwrap(),
+            CallOutcome::InvalidAnswer("truncated_output")
+        );
+        proven.output_fit.as_mut().unwrap()["answer_bytes"] = json!(1);
+        assert!(
+            stage2_outcome(
+                &proven,
+                &serde_json::to_vec(&response).unwrap(),
+                out.path(),
+                3
+            )
+            .is_err()
+        );
+        proven.output_fit = Some(video::output_fit(&proven.payload).unwrap());
+        response["usage"]["cost"] = Value::Null;
+        assert!(
+            stage2_outcome(
+                &proven,
+                &serde_json::to_vec(&response).unwrap(),
+                out.path(),
+                3
+            )
+            .is_err()
         );
     }
     #[test]

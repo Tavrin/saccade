@@ -89,7 +89,7 @@
           },
           "output_bound": {
             "type": "integer",
-            "const": 1024
+            "const": 4096
           },
           "reservation_nano_usd": {
             "type": "integer",

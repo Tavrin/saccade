@@ -60,7 +60,8 @@ def adapt(manifest, schedule, rows):
                     if c['sample_id'] not in evaluation['sample_ids']: evaluation['sample_ids'].append(c['sample_id'])
                     transform=dict(fps=c['fps'],max_edge=c['max_edge'],contact_sheet=c.get('sheet') is not None,
                                    selector='fps-then-uniform-eight/1' if c.get('sheet') else 'fps/1',protocol=packet['schema'],
-                                   schema_projection=r['payload']['response_format']['json_schema']['name'])
+                                   schema_projection=r['payload']['response_format']['json_schema']['name'],
+                                   prompt_sha256=digest(r['payload']['messages'][0]),output_budget=r['payload']['max_tokens'],reasoning_hint=r['payload']['reasoning']['max_tokens'])
                     pins.add(json.dumps(dict(**p,kind=c['kind'],rubric_sha256=digest(packet['rubric']),transform=transform),sort_keys=True))
             if len(pins)!=1: raise ValueError('mixed rubric, transform or kind')
             criteria=[dict(id=c['id'],minimum=c['minimum'],maximum=c['maximum'],threshold=c['minimum']) for c in packet['rubric'].get('criteria',[])]

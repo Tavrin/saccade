@@ -1068,7 +1068,7 @@ was shortened to retain the existing admission ceiling. Native validate-only
 reservations exactly match Python planning. The proxy remains the inherited
 epoch-2 estimate, not measured epoch-5 spend. Plans remain unauthorized.
 
-Artifacts are under `/mnt/linux-extra/moss-scratch/saccade-g12-epoch5/`:
+Private epoch-5 artifacts are under the operator-owned `$G12_EPOCH5` directory:
 `selftest-qualified.{json,md}`, `epoch4b-rescore.{json,md}`, `smoke/`, `targeted/`,
 validation/test logs and the preserved native executable. `commands.sh` contains
 exact offline proof, regeneration, retrospective replay and native admission
@@ -1076,10 +1076,10 @@ commands, plus commented prepared provider/scoring commands. The required proof
 inputs are:
 
 ```sh
-export SACCADE_SCORER_DEV_CORPUS=/mnt/linux-extra/moss-scratch/saccade-g12-dev-pilot/pilot-corpus
+export SACCADE_SCORER_DEV_CORPUS="$G12_DEVELOPMENT_CORPUS"
 export SACCADE_SCORER_SOURCE_REVISION=ab305c00bc4536d4ff482b5a3645fe5b67f9a6d4
-python3 scripts/assist/scorer_selftest.py --corpus "$SACCADE_SCORER_DEV_CORPUS" --source-revision "$SACCADE_SCORER_SOURCE_REVISION" --out /mnt/linux-extra/moss-scratch/saccade-g12-epoch5/operator-selftest
-python3 /mnt/linux-extra/moss-scratch/saccade-g12-epoch5/rescore.py
+python3 scripts/assist/scorer_selftest.py --corpus "$SACCADE_SCORER_DEV_CORPUS" --source-revision "$SACCADE_SCORER_SOURCE_REVISION" --out "$G12_EPOCH5/operator-selftest"
+python3 "$G12_EPOCH5/rescore.py"
 ```
 
 No provider calls, keys or real held-out truths were accessed. The dedicated

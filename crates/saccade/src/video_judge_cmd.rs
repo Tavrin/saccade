@@ -159,7 +159,7 @@ pub(crate) fn execute(a: Args) -> Result<serde_json::Value, CliError> {
                         .ok_or(assist::Error::Invalid("video reservation overflow"))?;
                     let root = format!("model-{arm}-repeat-{repeat}-order-{reverse}");
                     costs.push(json!({"root":root,"model":m,"order":reverse,"repeat":repeat,"image_table":assist::price::openrouter_image_table(m),"schema_projection":assist::structured_output::projection_policy(m),"input_bound":bound.bounds.input,"output_bound":bound.bounds.output,"reservation_nano_usd":bound.reservation,"request_hash":assist::digest(&packet)?}));
-                    rows.push(json!({"root":root,"model":m,"revision":revision,"payload":payload}));
+                    rows.push(json!({"root":root,"model":m,"revision":revision,"output_fit":video::output_fit(&payload)?,"payload":payload}));
                 }
             }
         }

@@ -106,7 +106,7 @@ def reduce(rows, config):
                 extra_evidence=extra,groups=groups,**{'pass':not extra and all(g['pass'] for g in groups)})
 
 
-def selftest():
+def selftest(output_budget=4096, reasoning_hint=1024):
     config=dict(providers=[dict(provider='fixture',model='model',revision='revision')],evaluations=[dict(source='source',view_id='view',kind='still',sample_ids=['sample-0'],order_count=2)],
         threshold=7,required_cues=['cue'],criteria=[dict(id='criterion',minimum=0,maximum=3,threshold=2)],forbidden=['condition'],scorecard=dict(floor=2,mean=2.3,conjunction=True))
     rows=[dict(provider='fixture',model='model',revision='revision',returned_model='model',returned_revision='revision',source='source',view_id='view',kind='still',sample_id='sample-0',order=i,
@@ -121,7 +121,19 @@ def selftest():
         cases['oracle-wrong-'+name]=not reduce(wrong,config)['pass']
     cases['oracle-wrong-missing']=not reduce(rows[:1],config)['pass']
     cases['oracle-wrong-extra']=not reduce(rows+rows[:1],config)['pass']
-    return dict(status='PASS' if all(cases.values()) else 'FAIL',provider_calls=0,cases=cases)
+    # Closed wire answers, not reducer rows: full A/B cue lists and all eight
+    # contact-sheet timestamps. Decimal near-perfect scores are serialized too.
+    budgets=[]
+    for name, scalar in [('perfect',10.0),('near-perfect',9.5)]:
+        answer=dict(request_hash='sha256:'+'0'*64,outcome='scored',preferred='tie',scores=[
+            dict(slot=slot,score=scalar,cues=[dict(cue=cue,state='present',timestamps_s=[0.0,.25,.5,.75,1.0,1.25,1.5,1.875])
+                for cue in ['continuous motion','abrupt displacement','shape continuity']]) for slot in ['A','B']])
+        size=len(json.dumps(answer,ensure_ascii=False,separators=(',',':'),allow_nan=False).encode())
+        required=2*size+reasoning_hint
+        budgets.append(dict(case=name,answer_bytes=size,reasoning_hint=reasoning_hint,required_tokens=required,max_tokens=output_budget,passed=required<=output_budget))
+    cases['oracle-output-fit']=all(b['passed'] for b in budgets)
+    cases['oracle-old-budget-rejected']=max(b['required_tokens'] for b in budgets)>1024
+    return dict(status='PASS' if all(cases.values()) else 'FAIL',provider_calls=0,cases=cases,output_budget=budgets,prompt_epoch='video-judge/2')
 
 
 def main():

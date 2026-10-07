@@ -28,6 +28,12 @@ def fixture():
 
 
 class JudgeGate(unittest.TestCase):
+    def test_video_output_budget_refuses_old_ceiling(self):
+        result=judge_gate.selftest(output_budget=1024)
+        self.assertEqual(result['status'],'FAIL')
+        self.assertFalse(result['cases']['oracle-output-fit'])
+        self.assertTrue(all(not b['passed'] for b in result['output_budget']))
+
     def test_oracle_perfect_wrong_gate_selftest(self):
         result=judge_gate.selftest()
         self.assertEqual(result['status'],'PASS',result)
