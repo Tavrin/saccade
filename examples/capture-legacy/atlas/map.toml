@@ -1,0 +1,52 @@
+schema = "saccade-capture-legacy-map.v1"
+record = "ledger.json"
+hash_policy = "recorded"
+absent = "unavailable"
+
+[fields.producer]
+path = "producer"
+
+[fields.run_id]
+path = "run_id"
+
+[fields.completion]
+path = "completion"
+
+[expected.source]
+path = "planned"
+
+[expected.fields."clock_domain"]
+path = "clock_domain"
+
+[expected.fields."fingerprint"]
+path = "fingerprint"
+
+[expected.fields."id"]
+path = "id"
+
+[expected.fields."settings"]
+path = "settings"
+
+[acquisitions.source]
+path = "attempted"
+
+[acquisitions.fields."clock"]
+path = "clock"
+
+[acquisitions.fields."fingerprint"]
+path = "fingerprint"
+
+[acquisitions.fields."id"]
+path = "id"
+
+[acquisitions.fields."image"]
+path = "image"
+
+[acquisitions.fields."settings"]
+path = "settings"
+
+[acquisitions.fields."status"]
+path = "status"
+
+[retry_records]
+path = "retries"

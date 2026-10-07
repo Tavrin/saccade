@@ -2,6 +2,11 @@
 
 ## Unreleased
 
+- Add mapping-driven `capture conform --legacy-map` checks for historical records,
+  with explicit adapted provenance, per-field decisions, unavailable requirements,
+  honest check-time hashing and bounded read-only archive rows. Ship generic TOML/JSON
+  mappings and two procedural fictional producer formats.
+
 - Add `derivative-sheet`: declared crop and rendition review at final display sizes, cached face evidence or protected subject boxes, pixel text checks, HTML/PNG sheets and manifest-bound JSON rows.
 
 - Add `sensitivity`: frozen defect catalogues, configured compare gates, per-class/magnitude miss rates, discrete detection minima and optional before/after policies; source images remain untouched.

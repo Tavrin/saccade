@@ -1,0 +1,72 @@
+{
+  "absent": "unavailable",
+  "acquisitions": {
+    "fields": {
+      "clock": {
+        "path": "observed.window"
+      },
+      "fingerprint": {
+        "path": "observed.identity"
+      },
+      "id": {
+        "path": "slot"
+      },
+      "image.path": {
+        "path": "artifact.name"
+      },
+      "image.sha256": {
+        "path": "artifact.digest"
+      },
+      "settings": {
+        "path": "observed.configuration"
+      },
+      "status": {
+        "path": "outcome",
+        "values": {
+          "error": "failed",
+          "omitted": "skipped",
+          "saved": "captured"
+        }
+      }
+    },
+    "source": {
+      "path": "results"
+    }
+  },
+  "expected": {
+    "fields": {
+      "clock_domain": {
+        "path": "timer"
+      },
+      "fingerprint": {
+        "path": "identity"
+      },
+      "id": {
+        "path": "slot"
+      },
+      "settings": {
+        "path": "configuration"
+      }
+    },
+    "source": {
+      "path": "requests"
+    }
+  },
+  "fields": {
+    "completion": {
+      "file": "session.json",
+      "path": "session.end"
+    },
+    "producer": {
+      "file": "session.json",
+      "path": "family"
+    },
+    "run_id": {
+      "file": "session.json",
+      "path": "session.key"
+    }
+  },
+  "hash_policy": "recorded",
+  "record": "journal.json",
+  "schema": "saccade-capture-legacy-map.v1"
+}

@@ -17,6 +17,8 @@ pub mod buffer;
 pub mod captured_sequence;
 // N21: offline capture-record conformance.
 pub mod capture;
+/// Explicit, bounded historical capture mappings.
+pub mod capture_legacy;
 #[path = "safety/color.rs"]
 pub mod color;
 pub mod compare;

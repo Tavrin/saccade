@@ -75,6 +75,38 @@
         }
       ]
     },
+    "FieldEvidence": {
+      "description": "One canonical field and the decision used to obtain it.",
+      "properties": {
+        "field": {
+          "description": "Canonical destination, including array index where applicable.",
+          "type": "string"
+        },
+        "sha256": {
+          "description": "Exact encoded-byte digest computed during this check, never acquisition time.",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "source": {
+          "description": "Source file and path, without producer data values.",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "state": {
+          "description": "mapped, defaulted, unavailable, or hashed_at_check_time.",
+          "type": "string"
+        }
+      },
+      "required": [
+        "field",
+        "state"
+      ],
+      "type": "object"
+    },
     "Finding": {
       "description": "One retained conformance failure.",
       "properties": {
@@ -92,6 +124,24 @@
       },
       "required": [
         "code"
+      ],
+      "type": "object"
+    },
+    "Unavailable": {
+      "description": "A missing historical contract requirement, distinct from contradictory evidence.",
+      "properties": {
+        "code": {
+          "description": "Stable requirement code.",
+          "type": "string"
+        },
+        "field": {
+          "description": "Canonical field that cannot be established.",
+          "type": "string"
+        }
+      },
+      "required": [
+        "code",
+        "field"
       ],
       "type": "object"
     }
@@ -116,6 +166,13 @@
       "minimum": 0,
       "type": "integer"
     },
+    "fields": {
+      "description": "Mapping decisions for legacy fields; empty for native receipts.",
+      "items": {
+        "$ref": "#/$defs/FieldEvidence"
+      },
+      "type": "array"
+    },
     "findings": {
       "description": "All failures in plan order; at most one of each code per slot.",
       "items": {
@@ -123,9 +180,18 @@
       },
       "type": "array"
     },
+    "provenance": {
+      "description": "Native receipt or explicitly adapted historical evidence.",
+      "type": "string"
+    },
     "report_id": {
       "pattern": "^sha256:[0-9a-f]{64}$",
       "type": "string"
+    },
+    "retry_records": {
+      "description": "Retained historical retry observations, without inventing successful attempts.",
+      "items": true,
+      "type": "array"
     },
     "schema": {
       "const": "saccade-capture-conformance.v1",
@@ -139,6 +205,13 @@
       },
       "maxItems": 128,
       "type": "array"
+    },
+    "unavailable": {
+      "description": "Contract requirements historical evidence cannot establish.",
+      "items": {
+        "$ref": "#/$defs/Unavailable"
+      },
+      "type": "array"
     }
   },
   "required": [
@@ -146,7 +219,11 @@
     "conformant",
     "expected",
     "acquired",
-    "findings"
+    "findings",
+    "provenance",
+    "fields",
+    "unavailable",
+    "retry_records"
   ],
   "title": "Report",
   "type": "object"

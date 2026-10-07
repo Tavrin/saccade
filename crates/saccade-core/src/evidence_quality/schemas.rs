@@ -20,6 +20,10 @@ fn schema<T: schemars::JsonSchema>(id: &str) -> Value {
 pub fn documents() -> Vec<(&'static str, Value)> {
     vec![
         (
+            "saccade-capture-legacy-map.v1",
+            schema::<crate::capture_legacy::Mapping>("saccade-capture-legacy-map.v1"),
+        ),
+        (
             crate::capture::RECORD_SCHEMA,
             schema::<crate::capture::Record>(crate::capture::RECORD_SCHEMA),
         ),
