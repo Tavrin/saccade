@@ -5,7 +5,9 @@ Generated from compiled capabilities and `--help`; do not edit by hand.
 Generation: `cargo build --release -p saccade --all-features`, then `python3 scripts/gen-docs.py --saccade target/release/saccade`.
 The all-features binary includes every supported operation.
 
-Compiled features: `ai`, `assist`, `compression`, `credentials`, `dense-motion`, `documents`, `embeddings`, `evaluation`, `geometry`, `graphics`, `imgtune-avif`, `local-models`, `local-vlm`, `mcp`, `media-http`, `ocr`, `ocr-provider`, `parallel`, `prechecks`, `print`, `products`, `schema`, `semantic-regions`, `text-quality`, `vision-providers`, `workbench`.
+Compiled features: `ai`, `assist`, `compression`, `credentials`, `dense-motion`, `documents`, `embeddings`, `evaluation`, `geometry`, `graphics`, `imgtune-avif`, `local-models`, `local-vlm`, `mcp`, `media-http`, `ocr`, `ocr-provider`, `optical-code`, `parallel`, `prechecks`, `print`, `products`, `schema`, `semantic-regions`, `text-quality`, `vision-providers`, `workbench`.
+
+Generated with `--allow-missing-imgtune-avif`; generation binary features: `ai`, `assist`, `compression`, `credentials`, `dense-motion`, `documents`, `embeddings`, `evaluation`, `geometry`, `graphics`, `local-models`, `local-vlm`, `mcp`, `media-http`, `ocr`, `ocr-provider`, `optical-code`, `parallel`, `prechecks`, `print`, `products`, `schema`, `semantic-regions`, `text-quality`, `vision-providers`, `workbench`.
 
 Exit 1 means a failed image measurement/evaluation gate or located divergence.
 Exit 0 for compare/identity means no image regression; inspect `performance` for qualification.
@@ -43,6 +45,7 @@ Commands:
   assess              Measure content-dependent no-reference quality indicators
   text                Compare image-bound OCR/text observations and literal expected strings
   tofu                Triage pixel shapes resembling missing glyphs (requires text-quality)
+  optical-code        Decode a final optical code and independently verify its payload and pixel margins
   text-legibility     Measure text legibility across supplied variants (requires text-quality)
   similar             Cosine similarity with an explicitly pinned optional ONNX export
   index               Build or query a streaming exact flat embedding index
@@ -1183,6 +1186,51 @@ Options:
       --out <OUT>                      Optional report directory; --json always emits the full versioned report
       --json
   -h, --help                           Print help
+
+Global options:
+      --allow-out-near-captures  Silence warnings when --out is next to capture metadata
+      --record-absolute-paths    Opt in to absolute local paths in reports and machine-readable output
+```
+
+## saccade optical-code
+
+```text
+Decode a final optical code and independently verify its payload and pixel margins
+
+Usage: saccade optical-code [OPTIONS] <IMAGE>
+
+Arguments:
+  <IMAGE>  Final 8-bit SDR image, or PDF/SVG with explicit --page and --dpi
+
+Options:
+      --source-ref <SOURCE_REF>
+          External capture URI/key (repeatable); recorded in generated reports
+      --symbology <SYMBOLOGY>
+          Select one symbology; use a region when multiple codes are present [default: qr] [possible values: qr, code128, code39, ean13, ean8, upca, upce, itf, data-matrix, aztec, pdf417]
+      --expect <EXPECT>
+          Exact decoded Unicode payload (no normalization)
+      --report-index <REPORT_INDEX>
+          Shared report index destination (default reports/index.jsonl next to each report, inside --out)
+      --expect-pattern <EXPECT_PATTERN>
+          Rust regex matched against the entire decoded payload (max 4096 bytes)
+      --region <REGION>
+          Capture-pixel rectangle x,y,width,height
+      --page <PAGE>
+          One-based document page; must be explicit for documents
+      --dpi <DPI>
+          Document render DPI in 36..600; must be explicit for documents
+      --minimum-module-px <MINIMUM_MODULE_PX>
+          Independent minimum QR module size in original pixels
+      --minimum-contrast <MINIMUM_CONTRAST>
+          Independent minimum normalized QR luma contrast (0..1)
+      --require-quiet-zone
+          Require four clear sampled QR modules on every side
+      --out <OUT>
+          Empty evidence directory; JSON also emits the complete versioned report
+      --json
+
+  -h, --help
+          Print help
 
 Global options:
       --allow-out-near-captures  Silence warnings when --out is next to capture metadata

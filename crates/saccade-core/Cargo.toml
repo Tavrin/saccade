@@ -59,7 +59,12 @@ tokenizers = { version = "=0.22.2", default-features = false, features = ["fancy
 flate2 = { version = "=1.1.10", optional = true }
 tar = { version = "=0.4.46", default-features = false, optional = true }
 
+# Pure Rust optical-code decoder; published Apache-2.0, no native/image adapters.
+rxing = { version = "=0.9.3", default-features = false, features = ["decoders", "qrcode", "oned", "datamatrix", "aztec", "pdf417", "encoding_rs"], optional = true }
+regex = { version = "1.13", default-features = false, features = ["std", "unicode", "perf"], optional = true }
+
 [features]
+optical-code = ["dep:rxing", "dep:regex"]
 # O12/O17: deterministic text pixel evidence, no added dependencies.
 text-quality = []
 ocr-provider = ["assist", "dep:base64"]
@@ -101,6 +106,7 @@ local-vlm = ["dep:ureq", "dep:base64"]
 vision-providers = ["dep:base64", "dep:url"]
 
 [dev-dependencies]
+rxing = { version = "=0.9.3", default-features = false, features = ["encoders", "qrcode", "oned", "datamatrix", "aztec", "pdf417", "encoding_rs"] }
 tempfile = "3"
 
 [lints]

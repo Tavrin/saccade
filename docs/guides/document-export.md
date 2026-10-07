@@ -56,3 +56,14 @@ For "did the words change", the text route compares strings and positions:
 `saccade text a.png b.png --a-source a.json --b-source b.json` imports text
 produced elsewhere and works on every build; running OCR needs the `ocr`
 feature and a pulled model (`saccade doctor`). See [text](../text.md).
+
+## Optical codes, independently of visual similarity
+
+With `optical-code` and `documents`, verify a destination on the final page:
+
+```sh
+saccade optical-code export.pdf --page 1 --dpi 144 --expect 'https://example.org/item/7' --minimum-module-px 3 --require-quiet-zone --json
+```
+
+A visually identical page can still contain an undecodable code. Read `state`,
+`payload_match`, `quality` and `failures`; see [optical-code verification](../optical-code.md).

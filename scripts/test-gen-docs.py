@@ -50,7 +50,10 @@ class CompiledFeatures(unittest.TestCase):
             self.generate(features)
         cli = self.generate(features, True)['docs/cli.md']
         inventory = next(line for line in cli.splitlines() if line.startswith('Compiled features:'))
-        self.assertNotIn('`imgtune-avif`', inventory)
+        self.assertIn('`imgtune-avif`', inventory)
+        actual = next(line for line in cli.splitlines() if 'generation binary features:' in line)
+        self.assertNotIn('`imgtune-avif`', actual)
+        self.assertIn('The all-features binary includes every supported operation.', cli)
         self.assertIn('--allow-missing-imgtune-avif', cli)
         self.assertIn('## saccade text\n', cli)
 

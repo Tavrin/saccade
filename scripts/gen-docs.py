@@ -92,11 +92,13 @@ def generated(binary=None, allow_missing_imgtune_avif=False):
             'Inspection, review, rank and ablation completion grant no acceptance authority.',
             'Exit 2 means the operation cannot run. Demo intentionally exits 1.', '']
         if 'imgtune-avif' not in features:
-            lines[4:6] = [
-                'Generation: build with every Cargo feature except `imgtune-avif`, then run '
-                '`python3 scripts/gen-docs.py --allow-missing-imgtune-avif --saccade "$CARGO_TARGET_DIR/debug/saccade"`.',
-                'This reference omits the AVIF codec feature when system dav1d is unavailable; '
-                'CI also tests `--all-features`. All CLI operations remain included.']
+            # Keep the established all-features reference header. The permitted
+            # generation exception records its actual build inventory separately.
+            all_features = sorted(set(manifest['features']) - {'default'})
+            lines[7] = 'Compiled features: ' + ', '.join(f'`{f}`' for f in all_features) + '.'
+            lines[9:9] = [
+                'Generated with `--allow-missing-imgtune-avif`; generation binary features: '
+                + ', '.join(f'`{f}`' for f in features) + '.', '']
         for op in [''] + operations:
             help_result = subprocess.run([binary] + op.split() + ['--help'], check=True, capture_output=True, text=True, encoding="utf-8")
             help_text = '\n'.join(line.rstrip() for line in help_result.stdout.rstrip().splitlines())

@@ -69,13 +69,14 @@ adds opt-in Mistral image/PDF text via bound fixtures or authorized,
 egress/spend-capped calls.
 
 Producers: `schema list|get|path`, `perf validate FILE --json`.
-Field evidence: `render-evidence`, `noise build REPEATS...`, `compare --export-maps --noise-from REPEATS... --require-scope`.
+Field: `render-evidence`, `noise build`, `compare --export-maps --noise-from --require-scope`.
 [Arm policies](../docs/arm-validity.md): null is a value; `--ignore` waives missing
 fields; `--allow-unreached` requires exact observations; maps select `record_files`.
 
-G12: `scripts/qualify-wave4.sh --dry-run`: fake provider; live needs reviewed billing ceilings. [Qualification](../docs/assist-qualification.md#g12-pre-spend-correction-2026-10-06).
+G12: fake-provider `scripts/qualify-wave4.sh --dry-run`; live needs reviewed ceilings. [Qualification](../docs/assist-qualification.md).
 
 [Experiments](../docs/experiments-wave11.md): timing/settling.
 [Animation/LOD](../docs/animated-lod.md).
 
-[Print/CMYK](../docs/print.md): `print` feature; no press approval.
+[Print](../docs/print.md): no press approval.
+[Optical codes](../docs/optical-code.md): independent decode/payload gates.

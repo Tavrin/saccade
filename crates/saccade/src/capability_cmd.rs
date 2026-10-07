@@ -44,6 +44,19 @@ pub(crate) fn catalogue() -> Value {
         families.push(json!({"family":family,"command":command,"inputs":inputs,"features_required":features,"status":status,"question":question,"limits":limits}))
     };
     add(
+        "optical_code",
+        "optical-code",
+        "final SDR raster or declared PDF/SVG page",
+        vec!["optical-code"],
+        if cfg!(feature = "optical-code") {
+            "available_bounded"
+        } else {
+            "feature_unavailable"
+        },
+        "Does the code decode to the expected payload?",
+        "one symbol per declared region; QR pixel indicators are heuristic; no print grade or visual-similarity inference",
+    );
+    add(
         "print",
         "print",
         "paired CMYK TIFF/JPEG/PDF rasters",

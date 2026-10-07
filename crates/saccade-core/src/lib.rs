@@ -90,6 +90,8 @@ pub use report::{Entry, EntryPaths, Metric, Metrics, Properties, Report, Status,
 /// Cargo features compiled into this library. Computational modules are optional;
 /// persisted report and decision types remain available without their producers.
 pub const COMPILED_FEATURES: &[&str] = &[
+    #[cfg(feature = "optical-code")]
+    "optical-code",
     // O12/O17
     #[cfg(feature = "text-quality")]
     "text-quality",

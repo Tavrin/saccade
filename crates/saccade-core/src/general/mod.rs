@@ -40,3 +40,6 @@ pub mod document_ocr;
 
 /// Durable segmented exact retrieval and incremental embedding updates.
 pub mod embedding_index;
+
+/// Optical-code payload verification independent of visual comparison.
+pub mod optical_code;

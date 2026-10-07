@@ -266,3 +266,6 @@ release archives also include generated dependency notices.
 MCP Registry ownership: `mcp-name: io.github.Tavrin/saccade`
 
 Saccade originated in the Moss engine’s visual testing tools.
+
+Verify final QR/barcode payloads independently of visual comparison with the optional
+[`optical-code` feature](docs/optical-code.md); PDF/SVG pages also require `documents`.

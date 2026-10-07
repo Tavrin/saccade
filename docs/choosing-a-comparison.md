@@ -24,6 +24,7 @@ saccade compare a.png b.png --question same-content --model model.json --cache m
 | same-text | Image-bound text sources, or CLI pinned OCR contract | Literal Unicode CER/WER, changed/missing/added/moved observations |
 | near-duplicate | Pairwise pHash Hamming distance | Integer threshold in bits, default 6; collision-prone candidate evidence |
 | quality | Paired no-reference measures | Content-dependent deltas; unknown quality verdict |
+| optical payload (standalone) | `optical-code --expect` or `--expect-pattern` | Decode/payload/QR pixel gates independent of similarity; requires `optical-code` |
 
 Near-duplicate and quality also pair directories by relative path, up to 100000
 pairs and 64 MiB path bytes. Missing/new and decode errors are retained as failures;
@@ -57,3 +58,5 @@ execute OCR programs. Native embedding execution additionally requires the
 AI advisory, performance statistics, accessibility prechecks, HDR and video remain
 under their existing commands and authority/qualification contracts. The catalogue
 states conditional and deferred availability; it does not imply qualification.
+
+Rendered labels and document codes are in scope through [optical-code verification](optical-code.md). Physical print grading and carrier compliance remain separate.
