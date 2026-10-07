@@ -861,3 +861,99 @@ inherited-descriptor close sweep and supervised-operation process-group kill.
 Its new build dependency `cfg_aliases 0.2.2` is MIT. Exact versions are pinned in
 Cargo.lock; registry Cargo.toml and bundled licences were inspected. No linked
 native library, new document decoder or filesystem/syscall sandbox is added.
+## Optical-code decoding and generated fixtures
+
+The optional `optical-code` feature uses pinned `rxing 0.9.3` and
+`rxing-one-d-proc-derive 0.9.1` (Apache-2.0). This is a pure-Rust ZXing port;
+no GPL decoder, native library, image adapter, client parser or model is enabled.
+QR, Code 128/39, EAN/UPC, ITF, Data Matrix, Aztec and PDF417 are selected
+explicitly. Test-only encoders produce procedural fixtures; fixture construction
+is covered by the project MIT OR Apache-2.0 licence. QR geometry reconstruction
+uses the decoder's finder/alignment grid convention; upstream source copyrights
+are retained in its Apache-2.0 package.
+
+New locked transitive crates: `codepage-437 0.1.0` (MIT), `csv 1.4.0` and
+`csv-core 0.1.13` (MIT selected from Unlicense/MIT). Existing `regex` and its
+syntax/automata dependencies are MIT OR Apache-2.0; num crates, encoding_rs,
+chrono and unicode-segmentation retain their existing permissive licence choices.
+Published registry manifests and licence files were inspected. Apache-2.0 text
+is supplied in LICENSE-APACHE; rxing's upstream source credits the ZXing authors
+(Copyright 2007–2008 and subsequent contributors).
+
+### codepage-437-0.1.0 MIT notice
+
+```text
+The MIT License (MIT)
+
+Copyright (c) 2018 nabijaczleweli
+
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in all
+copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+SOFTWARE.
+```
+
+### csv-1.4.0 MIT notice
+
+```text
+The MIT License (MIT)
+
+Copyright (c) 2015 Andrew Gallant
+
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in
+all copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
+THE SOFTWARE.
+```
+
+### csv-core-0.1.13 MIT notice
+
+```text
+The MIT License (MIT)
+
+Copyright (c) 2015 Andrew Gallant
+
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in
+all copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
+THE SOFTWARE.
+```

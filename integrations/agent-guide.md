@@ -88,3 +88,5 @@ G12 dry-run: fake provider; live needs reviewed billing ceilings. [Qualification
 [Rasters](../docs/raster.md): `geo`.
 
 [Replay](../docs/replay.md): `replay pack|verify`.
+[Print](../docs/print.md): no press approval.
+[Optical codes](../docs/optical-code.md): independent decode/payload gates.

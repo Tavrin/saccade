@@ -37,6 +37,7 @@ jsonschema = { version = "0.30", default-features = false }
 
 [features]
 geo = ["dep:saccade-geo"]
+optical-code = ["saccade-core/optical-code"]
 # O12/O17: deterministic text pixel evidence, no added dependencies.
 text-quality = ["saccade-core/text-quality"]
 print = ["dep:saccade-print"]
@@ -72,6 +73,7 @@ local-vlm = ["saccade-core/local-vlm"]
 vision-providers = ["saccade-core/vision-providers"]
 
 [dev-dependencies]
+rxing = { version = "=0.9.3", default-features = false, features = ["encoders", "qrcode", "oned", "datamatrix", "encoding_rs"] }
 tempfile = "3"
 # Validates real command output against the shipped schemas (MIT).
 

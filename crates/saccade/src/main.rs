@@ -68,6 +68,7 @@ mod localized_cmd;
 mod motion_cmd;
 #[cfg(feature = "products")]
 mod notifier_cmd;
+mod optical_code_cmd;
 #[cfg(feature = "print")]
 mod print_cmd;
 #[cfg(feature = "products")]
@@ -361,6 +362,8 @@ enum Command {
     Text(text_cmd::Args),
     /// Triage pixel shapes resembling missing glyphs (requires text-quality).
     Tofu(text_quality_cmd::TofuArgs),
+    /// Decode a final optical code and independently verify its payload and pixel margins.
+    OpticalCode(optical_code_cmd::Args),
     /// Measure text legibility across supplied variants (requires text-quality).
     TextLegibility(text_quality_cmd::LegibilityArgs),
     /// Gate exact critical strings and pixel legibility in declared regions.
@@ -1341,6 +1344,7 @@ fn dispatch(command: Command, record_absolute_paths: bool) -> Result<u8, CliErro
         Command::InspectImage(args) => inspect_image_cmd::run(args),
         Command::Assess(args) => assess_cmd::run(args),
         Command::Text(args) => text_cmd::run(args),
+        Command::OpticalCode(args) => optical_code_cmd::run(args),
         Command::Tofu(args) => text_quality_cmd::tofu(args),
         Command::TextLegibility(args) => text_quality_cmd::legibility(args),
         Command::CriticalText(args) => critical_text_cmd::run(args),
@@ -2340,7 +2344,7 @@ fn doctor(json: bool) -> Result<u8, CliError> {
 /// Which command groups this build can run, with the missing piece and its fix.
 /// Models and runtimes are provisioned separately: see `optional_dependencies`.
 fn command_availability() -> serde_json::Value {
-    let rows: [(&str, &str, bool, &str, &str); 8] = [
+    let rows: [(&str, &str, bool, &str, &str); 9] = [
         (
             "compare, prove identity, inspect, review (plan/request/ask), view, init, approve",
             "builtin",
@@ -2396,6 +2400,13 @@ fn command_availability() -> serde_json::Value {
             cfg!(feature = "assist"),
             "needs the assist feature",
             "advisory only, experimental: docs/assist.md",
+        ),
+        (
+            "optical-code",
+            "optical-code",
+            cfg!(feature = "optical-code"),
+            "needs the optical-code feature",
+            "QR and common barcodes; docs/optical-code.md",
         ),
     ];
     serde_json::Value::Array(

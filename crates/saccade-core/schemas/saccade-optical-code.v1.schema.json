@@ -1,0 +1,295 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/Tavrin/saccade/crates/saccade-core/schemas/saccade-optical-code.v1.schema.json",
+  "title": "Optical-code decode and payload verification",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema",
+    "state",
+    "found",
+    "symbology",
+    "payload",
+    "payload_match",
+    "bounding_box",
+    "bounding_box_kind",
+    "quality",
+    "verdict",
+    "failures",
+    "policy",
+    "dimensions",
+    "raster_sha256",
+    "input_sha256",
+    "page",
+    "dpi",
+    "limitations"
+  ],
+  "properties": {
+    "schema": {
+      "const": "saccade-optical-code.v1"
+    },
+    "state": {
+      "enum": [
+        "not_found",
+        "not_decodable",
+        "decoded"
+      ]
+    },
+    "found": {
+      "type": "boolean"
+    },
+    "symbology": {
+      "enum": [
+        "qr",
+        "code128",
+        "code39",
+        "ean13",
+        "ean8",
+        "upca",
+        "upce",
+        "itf",
+        "data_matrix",
+        "aztec",
+        "pdf417"
+      ]
+    },
+    "payload": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "payload_match": {
+      "type": [
+        "boolean",
+        "null"
+      ]
+    },
+    "bounding_box": {
+      "anyOf": [
+        {
+          "type": "array",
+          "items": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 4294967295
+          },
+          "minItems": 4,
+          "maxItems": 4
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "bounding_box_kind": {
+      "enum": [
+        null,
+        "qr_projected_grid",
+        "decoder_points"
+      ]
+    },
+    "quality": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "module_size_px",
+        "contrast",
+        "quiet_zone_modules",
+        "quiet_zone_clear",
+        "reasons"
+      ],
+      "properties": {
+        "module_size_px": {
+          "type": [
+            "number",
+            "null"
+          ]
+        },
+        "contrast": {
+          "type": [
+            "number",
+            "null"
+          ]
+        },
+        "quiet_zone_modules": {
+          "anyOf": [
+            {
+              "type": "array",
+              "items": {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 4294967295
+              },
+              "minItems": 4,
+              "maxItems": 4
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "quiet_zone_clear": {
+          "type": [
+            "boolean",
+            "null"
+          ]
+        },
+        "reasons": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        }
+      }
+    },
+    "verdict": {
+      "enum": [
+        "pass",
+        "fail"
+      ]
+    },
+    "failures": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "policy": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "symbology",
+        "region",
+        "expected",
+        "minimum_module_px",
+        "minimum_contrast",
+        "require_quiet_zone"
+      ],
+      "properties": {
+        "symbology": {
+          "enum": [
+            "qr",
+            "code128",
+            "code39",
+            "ean13",
+            "ean8",
+            "upca",
+            "upce",
+            "itf",
+            "data_matrix",
+            "aztec",
+            "pdf417"
+          ]
+        },
+        "region": {
+          "anyOf": [
+            {
+              "type": "array",
+              "items": {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 4294967295
+              },
+              "minItems": 4,
+              "maxItems": 4
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "expected": {
+          "anyOf": [
+            {
+              "type": "null"
+            },
+            {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "kind",
+                "value"
+              ],
+              "properties": {
+                "kind": {
+                  "enum": [
+                    "exact",
+                    "pattern"
+                  ]
+                },
+                "value": {
+                  "type": "string"
+                }
+              }
+            }
+          ]
+        },
+        "minimum_module_px": {
+          "type": [
+            "number",
+            "null"
+          ]
+        },
+        "minimum_contrast": {
+          "type": [
+            "number",
+            "null"
+          ]
+        },
+        "require_quiet_zone": {
+          "type": "boolean"
+        }
+      }
+    },
+    "dimensions": {
+      "type": "array",
+      "items": {
+        "type": "integer",
+        "minimum": 1
+      },
+      "minItems": 2,
+      "maxItems": 2
+    },
+    "raster_sha256": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}$"
+    },
+    "input_sha256": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "page": {
+      "type": [
+        "integer",
+        "null"
+      ]
+    },
+    "dpi": {
+      "type": [
+        "number",
+        "null"
+      ]
+    },
+    "limitations": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "report_id": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "source_refs": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    }
+  }
+}

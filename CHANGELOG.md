@@ -70,6 +70,12 @@
   identities, pinned local OCR models and runtime, full reports and manifests. Replay
   re-executes and compares the report identity; changed evidence and unavailable optional
   artifacts have distinct failures. See `docs/replay.md`.
+- Add optional `optical-code` verification of QR and common 1D/2D codes from
+  final rasters or explicitly selected PDF/SVG page renders. The standalone
+  `saccade-optical-code.v1` report keeps decode failure, payload mismatch and
+  QR module-size/contrast/quiet-zone policy failures separate from visual similarity.
+  Uses pure-Rust Apache-2.0 rxing; generated fixtures cover app/document renders,
+  damage, small modules, wrong payloads, low contrast and Code 128.
 
 ## 0.2.7 (2026-10-07)
 

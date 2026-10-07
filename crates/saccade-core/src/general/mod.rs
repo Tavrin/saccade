@@ -43,3 +43,5 @@ pub mod embedding_index;
 
 /// Declared split leakage candidates and within-partition burst groups.
 pub mod split_review;
+/// Optical-code payload verification independent of visual comparison.
+pub mod optical_code;

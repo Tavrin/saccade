@@ -52,6 +52,7 @@ Commands:
   assess              Measure content-dependent no-reference quality indicators
   text                Compare image-bound OCR/text observations and literal expected strings
   tofu                Triage pixel shapes resembling missing glyphs (requires text-quality)
+  optical-code        Decode a final optical code and independently verify its payload and pixel margins
   text-legibility     Measure text legibility across supplied variants (requires text-quality)
   critical-text       Gate exact critical strings and pixel legibility in declared regions
   timed-text          Check plain SRT/WebVTT captions against timestamped frames and OCR evidence
@@ -2226,6 +2227,51 @@ Options:
           Shared report index destination (default reports/index.jsonl next to each report, inside --out)
       --out <OUT>
           Optional report directory; --json always emits the full versioned report
+      --json
+
+  -h, --help
+          Print help
+
+Global options:
+      --allow-out-near-captures  Silence warnings when --out is next to capture metadata
+      --record-absolute-paths    Opt in to absolute local paths in reports and machine-readable output
+```
+
+## saccade optical-code
+
+```text
+Decode a final optical code and independently verify its payload and pixel margins
+
+Usage: saccade optical-code [OPTIONS] <IMAGE>
+
+Arguments:
+  <IMAGE>  Final 8-bit SDR image, or PDF/SVG with explicit --page and --dpi
+
+Options:
+      --source-ref <SOURCE_REF>
+          External capture URI/key (repeatable); recorded in generated reports
+      --symbology <SYMBOLOGY>
+          Select one symbology; use a region when multiple codes are present [default: qr] [possible values: qr, code128, code39, ean13, ean8, upca, upce, itf, data-matrix, aztec, pdf417]
+      --expect <EXPECT>
+          Exact decoded Unicode payload (no normalization)
+      --report-index <REPORT_INDEX>
+          Shared report index destination (default reports/index.jsonl next to each report, inside --out)
+      --expect-pattern <EXPECT_PATTERN>
+          Rust regex matched against the entire decoded payload (max 4096 bytes)
+      --region <REGION>
+          Capture-pixel rectangle x,y,width,height
+      --page <PAGE>
+          One-based document page; must be explicit for documents
+      --dpi <DPI>
+          Document render DPI in 36..600; must be explicit for documents
+      --minimum-module-px <MINIMUM_MODULE_PX>
+          Independent minimum QR module size in original pixels
+      --minimum-contrast <MINIMUM_CONTRAST>
+          Independent minimum normalized QR luma contrast (0..1)
+      --require-quiet-zone
+          Require four clear sampled QR modules on every side
+      --out <OUT>
+          Empty evidence directory; JSON also emits the complete versioned report
       --json
 
   -h, --help

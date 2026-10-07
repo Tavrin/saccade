@@ -332,6 +332,7 @@ The last three names appear only when the corresponding feature is compiled in.
 - [saccade-onnx-runtime-authority.v1.schema.json](../crates/saccade-core/schemas/saccade-onnx-runtime-authority.v1.schema.json) — Historical reader contract
 - [saccade-onset.v1.schema.json](../crates/saccade-core/schemas/saccade-onset.v1.schema.json) — Document
 - [saccade-onset.v2.schema.json](../crates/saccade-core/schemas/saccade-onset.v2.schema.json) — Document
+- [saccade-optical-code.v1.schema.json](../crates/saccade-core/schemas/saccade-optical-code.v1.schema.json) — Optical-code decode and payload verification
 - [saccade-paddle-ocr.v1.schema.json](../crates/saccade-core/schemas/saccade-paddle-ocr.v1.schema.json) — Historical reader contract
 - [saccade-page-map.v1.schema.json](../crates/saccade-core/schemas/saccade-page-map.v1.schema.json) — saccade-page-map.v1
 - [saccade-perf-diff.v1.schema.json](../crates/saccade-core/schemas/saccade-perf-diff.v1.schema.json) — PerfDiff
