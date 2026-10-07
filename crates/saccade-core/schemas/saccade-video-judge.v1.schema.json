@@ -43,6 +43,54 @@
           },
           "minItems": 1,
           "maxItems": 32
+        },
+        "forbidden": {
+          "type": "array",
+          "maxItems": 32,
+          "items": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 1024
+          }
+        },
+        "criteria": {
+          "type": "array",
+          "maxItems": 32,
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "id",
+              "minimum",
+              "maximum",
+              "anchors"
+            ],
+            "properties": {
+              "id": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 128
+              },
+              "minimum": {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 100
+              },
+              "maximum": {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 100
+              },
+              "anchors": {
+                "type": "array",
+                "items": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 1024
+                }
+              }
+            }
+          }
         }
       }
     },
@@ -110,11 +158,178 @@
             },
             "minItems": 1,
             "maxItems": 32
+          },
+          "kind": {
+            "enum": [
+              "still",
+              "motion"
+            ]
+          },
+          "view_id": {
+            "type": "string",
+            "maxLength": 128
+          },
+          "sample_id": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 128
+          },
+          "sheet": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "index",
+              "timestamp_s",
+              "sha256",
+              "dimensions"
+            ],
+            "properties": {
+              "index": {
+                "type": "integer",
+                "minimum": 0
+              },
+              "timestamp_s": {
+                "type": "number",
+                "minimum": 0
+              },
+              "sha256": {
+                "type": "string",
+                "pattern": "^sha256:[0-9a-f]{64}$"
+              },
+              "dimensions": {
+                "type": "array",
+                "items": {
+                  "type": "integer",
+                  "minimum": 1,
+                  "maximum": 2048
+                },
+                "minItems": 2,
+                "maxItems": 2
+              }
+            }
           }
         }
       },
       "minItems": 1,
       "maxItems": 2
+    },
+    "references": {
+      "type": "array",
+      "maxItems": 1,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "source",
+          "fps",
+          "max_edge",
+          "frames"
+        ],
+        "properties": {
+          "source": {
+            "type": "string",
+            "pattern": "^sha256:[0-9a-f]{64}$"
+          },
+          "fps": {
+            "type": "number",
+            "exclusiveMinimum": 0,
+            "maximum": 120
+          },
+          "max_edge": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 2048
+          },
+          "frames": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "index",
+                "timestamp_s",
+                "sha256",
+                "dimensions"
+              ],
+              "properties": {
+                "index": {
+                  "type": "integer",
+                  "minimum": 0
+                },
+                "timestamp_s": {
+                  "type": "number",
+                  "minimum": 0
+                },
+                "sha256": {
+                  "type": "string",
+                  "pattern": "^sha256:[0-9a-f]{64}$"
+                },
+                "dimensions": {
+                  "type": "array",
+                  "items": {
+                    "type": "integer",
+                    "minimum": 1,
+                    "maximum": 2048
+                  },
+                  "minItems": 2,
+                  "maxItems": 2
+                }
+              }
+            },
+            "minItems": 1,
+            "maxItems": 32
+          },
+          "kind": {
+            "enum": [
+              "still",
+              "motion"
+            ]
+          },
+          "view_id": {
+            "type": "string",
+            "maxLength": 128
+          },
+          "sample_id": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 128
+          },
+          "sheet": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "index",
+              "timestamp_s",
+              "sha256",
+              "dimensions"
+            ],
+            "properties": {
+              "index": {
+                "type": "integer",
+                "minimum": 0
+              },
+              "timestamp_s": {
+                "type": "number",
+                "minimum": 0
+              },
+              "sha256": {
+                "type": "string",
+                "pattern": "^sha256:[0-9a-f]{64}$"
+              },
+              "dimensions": {
+                "type": "array",
+                "items": {
+                  "type": "integer",
+                  "minimum": 1,
+                  "maximum": 2048
+                },
+                "minItems": 2,
+                "maxItems": 2
+              }
+            }
+          }
+        }
+      }
     }
   },
   "$schema": "https://json-schema.org/draft/2020-12/schema",

@@ -1569,8 +1569,8 @@ pub fn admission(payload: &[u8], model: &str) -> Result<super::price::OpenRouter
     let price = super::price::openrouter_price(model)?;
     let v: Value = decode(payload)?;
     let format = if super::video::is_request(&v) {
-        super::video::packet(&v)?;
-        super::video::response_format()
+        let packet = super::video::packet(&v)?;
+        super::video::response_format_for(&packet)
     } else {
         super::structured_output::openrouter_format()?
     };

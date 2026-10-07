@@ -145,10 +145,11 @@ Experimental advisory AI with an egress preview before dispatch
 Usage: saccade assist [OPTIONS] <COMMAND>
 
 Commands:
-  explain     Explain visible changes; cannot alter the measured verdict
-  audit-mask  Audit declared masks; cannot create or apply exclusions
-  check-ui    Check a bounded visible condition; cannot approve a baseline
-  batch       Existing experimental frozen evaluation lifecycle
+  video-judge  Prepare timestamped advisory video requests offline
+  explain      Explain visible changes; cannot alter the measured verdict
+  audit-mask   Audit declared masks; cannot create or apply exclusions
+  check-ui     Check a bounded visible condition; cannot approve a baseline
+  batch        Existing experimental frozen evaluation lifecycle
 
 Options:
       --source-ref <SOURCE_REF>      External capture URI/key (repeatable); recorded in generated reports
@@ -156,6 +157,58 @@ Options:
       --json
       --user-config <USER_CONFIG>
   -h, --help                         Print help
+
+Global options:
+      --allow-out-near-captures  Silence warnings when --out is next to capture metadata
+      --record-absolute-paths    Opt in to absolute local paths in reports and machine-readable output
+```
+
+## saccade assist video-judge
+
+```text
+Prepare timestamped advisory video requests offline
+
+Usage: saccade assist video-judge [OPTIONS] --rubric <RUBRIC> --model <MODEL> --revision <REVISION> --out <OUT>
+
+Options:
+      --rubric <RUBRIC>
+          Absolute user-owned rubric JSON
+      --source-ref <SOURCE_REF>
+          External capture URI/key (repeatable); recorded in generated reports
+      --frame-map <FRAME_MAP>...
+          Frame maps (one clip or A/B pair)
+      --report-index <REPORT_INDEX>
+          Shared report index destination (default reports/index.jsonl next to each report, inside --out)
+      --image <IMAGE>...
+          Direct PNG still candidates; may be combined with a motion frame map
+      --reference <REFERENCE>
+          Optional PNG reference, outside anonymous A/B candidate slots
+      --reference-frame-map <REFERENCE_FRAME_MAP>
+          Optional sampled-clip reference, exclusive with a still reference
+      --json
+
+      --view-id <VIEW_ID>
+          Stable view ids in frame-map then image order; default is content identity
+      --contact-sheet
+          Build a timestamped sheet from at most eight uniformly selected frames
+      --user-config <USER_CONFIG>
+
+      --model <MODEL>
+          One or more pinned model identities; unpriced identities are refused
+      --revision <REVISION>
+          Required provider-returned revision pin, one per model
+      --fps <FPS>
+          [default: 1]
+      --max-edge <MAX_EDGE>
+          [default: 256]
+      --max-spend-usd <MAX_SPEND_USD>
+          [default: 2]
+      --out <OUT>
+          Fresh output directory, containing reviewed requests and exact cost plan
+      --experimental
+
+  -h, --help
+          Print help
 
 Global options:
       --allow-out-near-captures  Silence warnings when --out is next to capture metadata
@@ -182,16 +235,16 @@ Options:
           Optional original individual-mask declarations, bound to exact report bytes
       --vision-provider <VISION_PROVIDER>
           Prepare Claude/GPT mappings in the assist layer; no live calls [possible values: claude, gpt]
-      --json
-
       --vision-response <VISION_RESPONSE>
           Explicit recorded response; bound to this catalog and request
       --experimental
           Required acknowledgement: this feature is unqualified experimental advice
-      --user-config <USER_CONFIG>
+      --json
 
       --out <OUT>
           New empty directory for immutable sidecars and the advice report
+      --user-config <USER_CONFIG>
+
       --offline
           Replay existing observations; never authorize providers
       --replay <REPLAY>
@@ -248,16 +301,16 @@ Options:
           Optional original individual-mask declarations, bound to exact report bytes
       --vision-provider <VISION_PROVIDER>
           Prepare Claude/GPT mappings in the assist layer; no live calls [possible values: claude, gpt]
-      --json
-
       --vision-response <VISION_RESPONSE>
           Explicit recorded response; bound to this catalog and request
       --experimental
           Required acknowledgement: this feature is unqualified experimental advice
-      --user-config <USER_CONFIG>
+      --json
 
       --out <OUT>
           New empty directory for immutable sidecars and the advice report
+      --user-config <USER_CONFIG>
+
       --offline
           Replay existing observations; never authorize providers
       --replay <REPLAY>
@@ -317,15 +370,15 @@ Options:
           Closed screenshot-only condition category [default: label-visible] [possible values: label-visible, banner-absent, not-clipped, non-overlap]
       --target <TARGET>
           Stable source node ID for geometric conditions
-      --json
-
       --second-target <SECOND_TARGET>
           Containing panel or second source node ID
+      --json
+
       --locate
           Attach advisory phrase localization to check-ui; never establish visibility by detection alone
-      --user-config <USER_CONFIG>
-
       --locate-observations <LOCATE_OBSERVATIONS>
+
+      --user-config <USER_CONFIG>
 
       --locate-registry <LOCATE_REGISTRY>
 
@@ -415,11 +468,11 @@ Options:
       --report-index <REPORT_INDEX>    Shared report index destination (default reports/index.jsonl next to each report, inside --out)
       --job <JOB>                      Durable receipt under the output root
       --experimental
-      --json
       --run                            Authorize one live submission or one poll; default local only
+      --json
       --response <RESPONSE>            Recorded collection fixture; cannot settle a live reservation
-      --user-config <USER_CONFIG>
       --budget-calls <BUDGET_CALLS>    Maximum provider calls, 1-128 (default 8); the run stops when reached [default: 8]
+      --user-config <USER_CONFIG>
       --deadline-secs <DEADLINE_SECS>  Wall-clock limit in seconds, 1-300 (default 300) [default: 300]
   -h, --help                           Print help
 
@@ -442,11 +495,11 @@ Options:
       --report-index <REPORT_INDEX>    Shared report index destination (default reports/index.jsonl next to each report, inside --out)
       --job <JOB>                      Durable receipt under the output root
       --experimental
-      --json
       --run                            Authorize one live submission or one poll; default local only
+      --json
       --response <RESPONSE>            Recorded collection fixture; cannot settle a live reservation
-      --user-config <USER_CONFIG>
       --budget-calls <BUDGET_CALLS>    Maximum provider calls, 1-128 (default 8); the run stops when reached [default: 8]
+      --user-config <USER_CONFIG>
       --deadline-secs <DEADLINE_SECS>  Wall-clock limit in seconds, 1-300 (default 300) [default: 300]
   -h, --help                           Print help
 
@@ -469,11 +522,11 @@ Options:
       --report-index <REPORT_INDEX>    Shared report index destination (default reports/index.jsonl next to each report, inside --out)
       --job <JOB>                      Durable receipt under the output root
       --experimental
-      --json
       --run                            Authorize one live submission or one poll; default local only
+      --json
       --response <RESPONSE>            Recorded collection fixture; cannot settle a live reservation
-      --user-config <USER_CONFIG>
       --budget-calls <BUDGET_CALLS>    Maximum provider calls, 1-128 (default 8); the run stops when reached [default: 8]
+      --user-config <USER_CONFIG>
       --deadline-secs <DEADLINE_SECS>  Wall-clock limit in seconds, 1-300 (default 300) [default: 300]
   -h, --help                           Print help
 

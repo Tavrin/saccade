@@ -1,0 +1,9 @@
+{
+  "providers": [{"provider": "REPLACE_WITH_RETURNED_PROVIDER", "model": "REPLACE_WITH_PINNED_MODEL", "revision": "REPLACE_WITH_RETURNED_REVISION"}],
+  "evaluations": [{"source": "REPLACE_WITH_SOURCE_HASH", "view_id": "REPLACE_WITH_VIEW_ID", "kind": "still", "sample_ids": ["sample-0"], "order_count": 2}],
+  "threshold": 7,
+  "required_cues": ["required-feature"],
+  "criteria": [{"id": "quality", "minimum": 0, "maximum": 3, "threshold": 2}],
+  "forbidden": ["disallowed-feature"],
+  "scorecard": {"floor": 2, "mean": 2.3, "conjunction": true}
+}

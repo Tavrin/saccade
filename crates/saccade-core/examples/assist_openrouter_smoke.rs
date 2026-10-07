@@ -473,6 +473,21 @@ fn stage2_request(row: &Row) -> assist::Result<(Value, Digest)> {
         .map_err(|_| assist::Error::Invalid("stage2 request hash"))?;
     Ok((data, hash))
 }
+fn require_stage2_policy(row: &Row) -> assist::Result<()> {
+    if assist::video::is_request(&row.payload) {
+        assist::video::packet(&row.payload)?;
+        return Ok(());
+    }
+    let (data, _) = stage2_request(row)?;
+    if data["prompt_epoch"] != "g12-pilot/3"
+        || data["prompt_policy"] != "assist-openrouter-task-evidence/3"
+    {
+        return Err(assist::Error::Invalid(
+            "stage2 requires task-evidence policy epoch 3",
+        ));
+    }
+    Ok(())
+}
 fn stage2_answer(row: &Row, response: &[u8]) -> assist::Result<Value> {
     if assist::video::is_request(&row.payload) {
         return assist::video::reply(&row.payload, response);
@@ -770,12 +785,7 @@ fn run_with(args: impl IntoIterator<Item = String>) -> Result<(), Box<dyn std::e
     require_scorer_selftest()?;
     if stage2 {
         for row in &rows {
-            let (data, _) = stage2_request(row)?;
-            if data["prompt_epoch"] != "g12-pilot/3"
-                || data["prompt_policy"] != "assist-openrouter-task-evidence/3"
-            {
-                return Err("paid stage2 run requires task-evidence policy epoch 3".into());
-            }
+            require_stage2_policy(row)?;
         }
     }
     if options.contains_key("--resume") && options.contains_key("--out") {
@@ -1894,8 +1904,13 @@ mod tests {
         let packet = Packet {
             schema: video::VERSION.into(),
             rubric,
+            references: vec![],
             clips: vec![Clip {
                 source: Digest::of_bytes(b"generated-map"),
+                kind: "motion".into(),
+                view_id: String::new(),
+                sample_id: "sample-0".into(),
+                sheet: None,
                 fps: 1.0,
                 max_edge: 8,
                 frames: vec![Frame {
@@ -1913,6 +1928,7 @@ mod tests {
             revision: "absent".into(),
             payload,
         };
+        require_stage2_policy(&row).unwrap();
         let mut response: Value =
             assist::decode(include_bytes!("../src/assist/video-response.fixture.json")).unwrap();
         let mut answer: Value = assist::decode(

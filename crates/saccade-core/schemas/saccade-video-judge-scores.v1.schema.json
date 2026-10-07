@@ -137,6 +137,78 @@
           "type": "null"
         }
       ]
+    },
+    "kind": {
+      "enum": [
+        "still",
+        "motion"
+      ]
+    },
+    "view_id": {
+      "type": "string"
+    },
+    "sample_id": {
+      "type": "string"
+    },
+    "order": {
+      "enum": [
+        0,
+        1
+      ]
+    },
+    "preferred_source": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "criteria": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "id",
+          "score"
+        ],
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "score": {
+            "type": [
+              "number",
+              "null"
+            ]
+          }
+        }
+      }
+    },
+    "forbidden": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "condition",
+          "state"
+        ],
+        "properties": {
+          "condition": {
+            "type": "string"
+          },
+          "state": {
+            "enum": [
+              "present",
+              "absent",
+              "unknown"
+            ]
+          }
+        }
+      }
+    },
+    "replay": {
+      "type": "boolean"
     }
   }
 }

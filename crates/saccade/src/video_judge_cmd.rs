@@ -10,8 +10,23 @@ pub(crate) struct Args {
     #[arg(long)]
     pub(crate) rubric: PathBuf,
     /// Frame maps (one clip or A/B pair).
-    #[arg(long, required = true, num_args = 1..=2)]
+    #[arg(long, num_args = 1..=2)]
     pub(crate) frame_map: Vec<PathBuf>,
+    /// Direct PNG still candidates; may be combined with a motion frame map.
+    #[arg(long, num_args = 1..=2)]
+    pub(crate) image: Vec<PathBuf>,
+    /// Optional PNG reference, outside anonymous A/B candidate slots.
+    #[arg(long)]
+    pub(crate) reference: Option<PathBuf>,
+    /// Optional sampled-clip reference, exclusive with a still reference.
+    #[arg(long, conflicts_with = "reference")]
+    pub(crate) reference_frame_map: Option<PathBuf>,
+    /// Stable view ids in frame-map then image order; default is content identity.
+    #[arg(long)]
+    pub(crate) view_id: Vec<String>,
+    /// Build a timestamped sheet from at most eight uniformly selected frames.
+    #[arg(long)]
+    pub(crate) contact_sheet: bool,
     /// One or more pinned model identities; unpriced identities are refused.
     #[arg(long, required = true)]
     pub(crate) model: Vec<String>,
@@ -47,7 +62,12 @@ pub(crate) fn execute(a: Args) -> Result<serde_json::Value, CliError> {
     let prepare = || -> assist::Result<serde_json::Value> {
         if a.model.is_empty()
             || a.model.len() > 16
-            || !(1..=2).contains(&a.frame_map.len())
+            || !(1..=2).contains(&(a.frame_map.len() + a.image.len()))
+            || a.view_id
+                .iter()
+                .any(|id| id.trim().is_empty() || id.len() > 128)
+            || (!a.view_id.is_empty() && a.view_id.len() != a.frame_map.len() + a.image.len())
+            || (a.reference.is_some() && a.reference_frame_map.is_some())
             || !a.experimental
             || a.model.len() != a.revision.len()
             || a.revision.iter().any(|r| r.is_empty() || r.len() > 128)
@@ -69,10 +89,31 @@ pub(crate) fn execute(a: Args) -> Result<serde_json::Value, CliError> {
         let mut clips = vec![];
         let mut media = vec![];
         for path in &a.frame_map {
-            let (clip, bytes) = video::frames(path, a.fps, a.max_edge)?;
+            let (clip, bytes) = video::load_frames(path, a.fps, a.max_edge, a.contact_sheet)?;
             clips.push(clip);
             media.push(bytes);
         }
+        for path in &a.image {
+            let (clip, bytes) = video::still(path, a.max_edge)?;
+            clips.push(clip);
+            media.push(bytes);
+        }
+        for (i, clip) in clips.iter_mut().enumerate() {
+            clip.view_id = a
+                .view_id
+                .get(i)
+                .cloned()
+                .unwrap_or_else(|| clip.source.as_str().to_string());
+        }
+        let (references, reference_media) = if let Some(path) = &a.reference {
+            let (clip, bytes) = video::still(path, a.max_edge)?;
+            (vec![clip], bytes)
+        } else if let Some(path) = &a.reference_frame_map {
+            let (clip, bytes) = video::load_frames(path, a.fps, a.max_edge, a.contact_sheet)?;
+            (vec![clip], bytes)
+        } else {
+            (vec![], vec![])
+        };
         let mut rows = vec![];
         let mut costs = vec![];
         let mut total = 0u64;
@@ -88,8 +129,13 @@ pub(crate) fn execute(a: Args) -> Result<serde_json::Value, CliError> {
                     schema: video::VERSION.into(),
                     rubric: rubric.clone(),
                     clips,
+                    references: references.clone(),
                 };
-                let media: Vec<_> = media.into_iter().flatten().collect();
+                let media: Vec<_> = media
+                    .into_iter()
+                    .flatten()
+                    .chain(reference_media.clone())
+                    .collect();
                 let payload = video::request(&packet, &media, m)?;
                 let bound = assist::openrouter::admission(
                     &serde_json::to_vec(&payload).map_err(|_| assist::Error::Storage)?,
@@ -168,6 +214,11 @@ mod tests {
         Args {
             rubric: dir.join("rubric.json"),
             frame_map: vec![dir.join("one.json"), dir.join("two.json")],
+            image: vec![],
+            reference: None,
+            reference_frame_map: None,
+            view_id: vec![],
+            contact_sheet: false,
             model: vec![assist::price::OPENROUTER_MODEL.into()],
             revision: vec!["absent".into()],
             fps: 1.0,
@@ -207,5 +258,32 @@ mod tests {
         input.max_spend_usd = "0.000000001".into();
         assert!(execute(input).is_err());
         assert!(!dir.path().join("refused").exists());
+    }
+    #[test]
+    fn judge_parity_cli_mixed_inputs_reference_and_stable_ids() {
+        let dir = tempfile::tempdir().unwrap();
+        let mut input = args(dir.path());
+        input.frame_map.truncate(1);
+        input.image = vec![dir.path().join("frame.png")];
+        input.reference = Some(dir.path().join("frame.png"));
+        input.view_id = vec!["sequence".into(), "image".into()];
+        execute(input).unwrap();
+        let rows: Vec<serde_json::Value> =
+            assist::decode(&std::fs::read(dir.path().join("plan/requests.json")).unwrap()).unwrap();
+        let first = video::packet(&rows[0]["payload"]).unwrap();
+        let reverse = video::packet(&rows[1]["payload"]).unwrap();
+        assert_eq!(first.clips[0].kind, "motion");
+        assert_eq!(first.clips[1].kind, "still");
+        assert_eq!(first.clips[0].view_id, reverse.clips[1].view_id);
+        assert_eq!(first.clips[0].sample_id, reverse.clips[1].sample_id);
+        assert_eq!(first.references[0].source, reverse.references[0].source);
+        let mut single = args(dir.path());
+        single.frame_map.clear();
+        single.image = vec![dir.path().join("frame.png")];
+        single.out = dir.path().join("single");
+        assert_eq!(
+            execute(single).unwrap()["rows"].as_array().unwrap().len(),
+            1
+        );
     }
 }

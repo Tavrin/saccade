@@ -9,6 +9,10 @@ import pathlib
 def read(path):
     if path.is_symlink() or not path.is_file() or path.stat().st_size > 32*1024*1024:
         raise ValueError('unbounded or nonordinary artifact')
+    return decode(path.read_bytes())
+
+
+def decode(data):
     def unique(pairs):
         result = {}
         for key, value in pairs:
@@ -16,7 +20,7 @@ def read(path):
                 raise ValueError('duplicate JSON key')
             result[key] = value
         return result
-    return json.loads(path.read_bytes(), object_pairs_hook=unique, parse_constant=lambda _: (_ for _ in ()).throw(ValueError('nonfinite JSON')))
+    return json.loads(data, object_pairs_hook=unique, parse_constant=lambda _: (_ for _ in ()).throw(ValueError('nonfinite JSON')))
 
 
 def export(requests, results):
@@ -51,9 +55,14 @@ def export(requests, results):
                 raise ValueError('slot identity mismatch')
             yield dict(schema='saccade-video-judge-scores.v1', root=row['root'],
                 model=row['model'], revision=row['revision'], request_hash=data['request_hash'],
-                source=clip['source'], slot='A' if slot == 0 else 'B',
+                source=clip['source'], kind=clip.get('kind','motion'), view_id=clip.get('view_id') or clip['source'],
+                sample_id=clip.get('sample_id','sample-0'), order=0 if len(packet['clips']) == 1 or packet['clips'][0]['source'] < packet['clips'][1]['source'] else 1,
+                preferred_source=(packet['clips'][0 if answer['preferred'] == 'A' else 1]['source'] if answer and answer['preferred'] in ('A','B') else clip['source'] if answer and answer['preferred'] == 'single' else answer['preferred'] if answer else None),
+                criteria=score.get('criteria',[]) if score else [], forbidden=score.get('forbidden',[]) if score else [],
+                slot='A' if slot == 0 else 'B',
                 outcome=answer['outcome'] if answer else outcome['code'],
                 score=score['score'] if score else None, cues=score['cues'] if score else [],
+                replay=receipt.get('cache_status') != 'miss' if answer else True,
                 returned_model=receipt['returned_model'] if answer else None,
                 returned_revision=receipt['returned_revision'] if answer else None,
                 provider=response['provider'] if answer else None,

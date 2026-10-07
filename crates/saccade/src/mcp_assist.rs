@@ -18,6 +18,11 @@ impl Server {
                 "operation",
                 "rubric",
                 "frame_map",
+                "image",
+                "reference",
+                "reference_frame_map",
+                "view_id",
+                "contact_sheet",
                 "model",
                 "revision",
                 "fps",
@@ -32,7 +37,14 @@ impl Server {
             .iter()
             .map(|p| self.existing_file("frame_map", p))
             .collect::<Result<Vec<_>, _>>()?;
-        if !(1..=2).contains(&maps.len()) {
+        let images = arg_strings(args, "image")?
+            .iter()
+            .map(|p| self.existing_file("image", p))
+            .collect::<Result<Vec<_>, _>>()?;
+        let reference = arg_str(args, "reference")?
+            .map(|p| self.existing_file("reference", &p))
+            .transpose()?;
+        if !(1..=2).contains(&(maps.len() + images.len())) {
             return Err(CliError::usage("video needs one or two frame maps"));
         }
         let edge = arg_f64(args, "max_edge")?.unwrap_or(256.0);
@@ -43,6 +55,13 @@ impl Server {
         let value = crate::video_judge_cmd::execute(crate::video_judge_cmd::Args {
             rubric,
             frame_map: maps,
+            image: images,
+            reference,
+            reference_frame_map: arg_str(args, "reference_frame_map")?
+                .map(|p| self.existing_file("reference_frame_map", &p))
+                .transpose()?,
+            view_id: arg_strings(args, "view_id")?,
+            contact_sheet: arg_bool(args, "contact_sheet")?.unwrap_or(false),
             model: arg_strings(args, "model")?,
             revision: arg_strings(args, "revision")?,
             fps: arg_f64(args, "fps")?.unwrap_or(1.0),
@@ -339,8 +358,13 @@ impl Server {
 }
 pub(super) fn schemas() -> Vec<Value> {
     let mut variants = vec![
-        json!({"type":"object","additionalProperties":false,"required":["operation","rubric","frame_map","model","revision","out","experimental"],"properties":{
-        "operation":{"const":"video-judge"},"rubric":{"type":"string"},"frame_map":{"type":"array","minItems":1,"maxItems":2,"items":{"type":"string"}},
+        json!({"type":"object","additionalProperties":false,"required":["operation","rubric","model","revision","out","experimental"],
+        "anyOf":[{"required":["frame_map"],"properties":{"frame_map":{"minItems":1}}},{"required":["image"],"properties":{"image":{"minItems":1}}}],
+        "not":{"required":["reference","reference_frame_map"]},"properties":{
+        "operation":{"const":"video-judge"},"rubric":{"type":"string"},"frame_map":{"type":"array","maxItems":2,"items":{"type":"string"}},
+        "image":{"type":"array","maxItems":2,"items":{"type":"string"}},
+        "reference":{"type":"string"},"reference_frame_map":{"type":"string"},
+        "view_id":{"type":"array","maxItems":2,"items":{"type":"string","minLength":1,"maxLength":128}},"contact_sheet":{"type":"boolean"},
         "model":{"type":"array","minItems":1,"items":{"type":"string"}},"revision":{"type":"array","minItems":1,"items":{"type":"string"}},
         "fps":{"type":"number","exclusiveMinimum":0,"maximum":120},"max_edge":{"type":"integer","minimum":1,"maximum":2048},
         "max_spend_usd":{"type":"string"},"out":{"type":"string"},"experimental":{"const":true}}}),
@@ -366,4 +390,27 @@ pub(super) fn schemas() -> Vec<Value> {
         variants.push(json!({"type":"object","properties":{"operation":{"const":op},"artifact":{"oneOf":[{"type":"string"},{"type":"object","properties":{"path":{"type":"string"},"sha256":{"type":"string","pattern":"^sha256:[0-9a-f]{64}$"}},"required":["path","sha256"],"additionalProperties":false}]},"out":{"type":"string"},"experimental":{"type":"boolean","const":true},"run":{"type":"boolean","default":false},"response":{"type":"string"},"budget_calls":{"type":"integer","minimum":1,"maximum":128},"deadline_secs":{"type":"integer","minimum":1,"maximum":300}},"required":["operation","artifact","out","experimental"],"additionalProperties":false}));
     }
     variants
+}
+
+#[cfg(test)]
+#[allow(clippy::unwrap_used)]
+mod tests {
+    use super::*;
+    #[test]
+    fn judge_parity_mcp_schema_accepts_still_reference_and_refuses_empty_or_ambiguous_inputs() {
+        let schema = schemas().remove(0);
+        let validator = jsonschema::validator_for(&schema).unwrap();
+        let mut args = json!({"operation":"video-judge","rubric":"rubric.json","image":["candidate.png"],
+            "model":["model"],"revision":["revision"],"out":"plan","experimental":true,
+            "reference":"reference.png","view_id":["view"],"contact_sheet":false});
+        assert!(validator.is_valid(&args));
+        args["frame_map"] = json!([]);
+        assert!(validator.is_valid(&args));
+        args["image"] = json!([]);
+        assert!(!validator.is_valid(&args));
+        args["frame_map"] = json!(["map.json"]);
+        assert!(validator.is_valid(&args));
+        args["reference_frame_map"] = json!("reference-map.json");
+        assert!(!validator.is_valid(&args));
+    }
 }

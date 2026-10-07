@@ -112,3 +112,108 @@ copied into public artifacts.
 MCP mirrors preparation as `saccade_review`, operation `video-judge`, with
 `rubric`, `frame_map`, `model`, `revision`, `fps`, `max_edge`, `max_spend_usd`
 (string), `out`, and `experimental: true`; normal filesystem roots apply.
+
+Unified media and local gates:
+
+- `--image PNG [PNG]` accepts direct still candidates, alongside `--frame-map`
+  motion candidates (one or two candidates total). `--view-id` values follow
+  frame-map then image order; omitted ids use source content identity. The kind
+  and `sample-0` identity follow the source through both presentation orders.
+- `--contact-sheet` first applies the fps filter, then selects up to eight eligible
+  frames at indices `floor(i*(n-1)/7)` when `n > 8`. The first and last eligible
+  frames are retained. A four-column, two-row PNG labels each cell with its
+  original timestamp, rounded to three decimals for display; the packet retains
+  exact times and source indices. It requires `--max-edge >= 128`, preserves
+  aspect ratios, and binds both selected-frame hashes and the sent sheet hash.
+- `--reference PNG` or `--reference-frame-map MAP` adds one reference after the
+  candidates, outside A/B slots. Reference frames count toward admission bounds
+  and never receive candidate scores. Both options are exclusive.
+
+Rubrics may additionally contain `criteria`, each with `id`, integer `minimum`
+and `maximum` (0..100), and one `anchors` string for each integer on that scale.
+They may contain a closed `forbidden` string list. The answer then requires
+criterion scores in configured order, numeric within that criterion's scale
+(or null on abstention), plus every forbidden condition with
+`present`/`absent`/`unknown` state. No scale conversion is inferred. Scalar scores
+remain independently anchored 1..10. The exporter retains both extra arrays,
+source-remapped `preferred_source`, kind, view/sample identity and replay status.
+
+```sh
+python3 scripts/assist/judge_gate.py --scores video-scores.jsonl \
+  --config judge-gate.json --out judge-report.json --markdown judge-report.md --strict
+python3 scripts/assist/judge_gate.py --self-test
+```
+
+The closed gate config contains `providers` (each with `provider`, `model`,
+`revision`), `evaluations` (each with `source`, `view_id`, `kind`, `sample_ids`,
+`order_count` of 1 or 2), `threshold`, `required_cues`, `criteria`, `forbidden`,
+and `scorecard`. Each gate criterion has `id`, `minimum`, `maximum`, `threshold`.
+`scorecard` has `floor`, `mean` (numeric or null) and `conjunction` (boolean).
+An example config is [judge-gate.json](../examples/rubrics/judge-gate.json);
+replace its explicit identity placeholders with the planned source and returned
+provider/model/revision identity. Use `revision: "absent"` only when that is the
+actual admitted, returned revision contract.
+
+The denominator is exactly the declared fresh sample ids for each required
+provider/model/revision, view and kind. Both orders form one sample: map the
+preference to source identity, require agreement, average its two numeric scores,
+then take the median across declared samples (even counts average the middle two).
+One-order evaluations use their sole score. Each group reports `consistent`,
+`inconsistent`, or `incomplete` samples. Missing, invalid, abstained, replayed,
+duplicate, additional, or identity-mismatched evidence prevents pass. All required
+provider/view/kind medians must meet the threshold AND every required cue must be
+present in every order/sample AND every forbidden condition must be absent.
+Criterion floor, mean and configured per-criterion conjunction apply to each
+order separately. Floor/mean require a common numeric scale; the reducer refuses
+implicit normalization across scales. `--strict` exits 1 on an advisory gate
+failure, 0 on pass. JSON and optional Markdown keep empty `trusted_for`.
+
+Generic deterministic image-quality measurements:
+
+```sh
+python3 scripts/assist/image_quality.py candidate.png --config quality.json \
+  --baseline baseline.png --mask candidate-mask.png --baseline-mask baseline-mask.png \
+  --out quality-report.json --strict
+```
+
+Pillow and numpy are required. Config keys are `absolute` and `relative` maps of
+metric name to `[">=", threshold]` or `["<=", threshold]`, optional `palette`
+(list of `#rrggbb`), `delta_e` (default 20), and `exposure_band` (`[lo,hi]`).
+An empty object uses the declared default gates; overrides replace thresholds,
+never silently remove missing configured measurements. Nonzero mask pixels
+exclude clipping only, with masks required to match image dimensions.
+
+Absolute metrics use a grid with steps `max(1,width//160)` and
+`max(1,height//90)`, floor-sized rows/columns; Rec.709 luma on 8-bit sRGB;
+sorted p5/p95 at floor indices; Shannon entropy and dominant share of 4-bit RGB
+buckets; and edge cells whose right/down maximum luma step exceeds 12.
+Clipping is measured over every pixel with any channel >=254, divided by the
+unmasked pixel count (at least one). Palette coverage uses every pixel with
+luma >10 within CIE76 distance of a configured palette entry, excluding black.
+Exposure gates the sampled median luma. Metrics retain the declared decimal
+rounding before absolute and relative predicates. Defaults: contrast >=60,
+entropy >=3, dominant share <=0.6, edges >=0.04, clipping <=0.02,
+palette coverage >=0.70 when configured.
+
+The eight relative predicates are edge ratio >=0.5, contrast ratio >=0.7,
+median luma ratio >=0.5 AND <=2, absolute entropy delta <=1.5,
+dominant-share delta <=0.10, clipping-share delta <=0.02, and mean-colour
+CIE76 distance <=10. Ratios use baseline denominators at least 1e-9 (edge and
+contrast) or 1 (median luma). Mean colour is Lab of the full-image mean sRGB
+triplet, rather than mean Lab. Relative comparisons precede display rounding.
+Reports list new absolute failures relative to the baseline, relative failures
+and `flagged`; pass requires absolute pass AND every relative predicate.
+These are image measurements, never model calibration or baseline approval.
+
+Independent priced model admission and fresh-repeat scheduling remain separate
+integration points: the planner still schedules one sample per arm/order, refuses
+unpriced models and never counts resume/replay as a new sample. Future schedulers
+must bind new sample ids into the packet and reserve the entire schedule.
+Independent calibration must bind returned provider/model/revision, rubric,
+transform/sheet selector and kind to constructed-negative evidence before
+assigning trust. The mandatory offline scorer proof now exercises this reducer
+and the deterministic quality gates with oracle-perfect and oracle-wrong cases;
+it is offline implementation proof, not empirical calibration.
+
+MCP preparation also accepts `image`, `reference`, `reference_frame_map`,
+`view_id` and `contact_sheet`, with the same filesystem authorization as frame maps.

@@ -142,7 +142,13 @@ def proof(manifest, oracle, directory):
         rows.append(dict(workload=workload,arm=arm,variant=variant,roots=m['roots'],precision=m['precision'],
             important_recall=m['important_change_recall'],false_reassurance=m['false_reassurance'],
             correct_roots=m['correct_roots'],flagged_roots=flagged,available_roots=m['available_roots'],passed=passed))
-    return dict(schema='saccade-scorer-selftest.v1',status='FAIL' if failed else 'PASS',
+    from judge_gate import selftest as judge_selftest
+    judge_proof=judge_selftest()
+    if judge_proof['status'] != 'PASS': failed.append(('judge','offline','gate'))
+    from image_quality import selftest as quality_selftest
+    quality_proof=quality_selftest()
+    if quality_proof['status'] != 'PASS': failed.append(('image-quality','offline','gate'))
+    return dict(judge_gate=judge_proof,image_quality=quality_proof,schema='saccade-scorer-selftest.v1',status='FAIL' if failed else 'PASS',
         development_roots=len(manifest['cases']),provider_calls=0,heldout_entries_decoded=0,
         evidence='Synthetic oracle-injected closed-protocol answers through dev_policy.normalize and pilot_score.semantic (score.assertion_correct/task_evidence). All arms are injections, not provider/routing performance.',
         unavailable='Unavailable roots correctly abstain, excluded from precision; important recall keeps all challenge roots. Negative cases must be wrong or unavailable, never accepted.',
@@ -159,6 +165,7 @@ def markdown(result):
     lines += ['', '## Legacy oracle-perfect diagnostic', '', '| Workload | Arm | Precision | Important recall | False reassurance |', '|---|---|---:|---:|---:|']
     for r in result['legacy_perfect']:
         lines.append(f"| {r['workload']} | {r['arm']} | {pct(r['precision'])} | {pct(r['important_change_recall'])} | {r['false_reassurance']} |")
+    lines += ['', 'Judge parity gate: '+result['judge_gate']['status'], 'Image quality gate: '+result['image_quality']['status'], '']
     lines += ['', 'Legacy region-only citation scorer cannot establish audit-mask success even with perfect answers; epoch-3 explicit region/exclusion mapping repairs that protocol mismatch. No tolerance or statement matching changes.','']
     return '\n'.join(lines)
 
@@ -177,7 +184,7 @@ def main():
         result['manifest_hash']=manifest['manifest_hash'];result['oracle_hash']=manifest['oracle_hash']
         result['source_revision']=args.source_revision
         current=Path(__file__).parent
-        result['scoring_source_sha256']={name:corpus.digest((current/name).read_bytes()) for name in ('scorer_selftest.py','dev_policy.py','pilot_score.py','score.py','dev_audit.py')}
+        result['scoring_source_sha256']={name:corpus.digest((current/name).read_bytes()) for name in ('scorer_selftest.py','dev_policy.py','pilot_score.py','score.py','dev_audit.py','judge_gate.py','video_scores.py','image_quality.py')}
         if args.out:
             corpus.put(args.out.with_suffix('.json'),result)
             args.out.with_suffix('.md').write_text(markdown(result))
@@ -195,8 +202,10 @@ def main():
         # Only current scorer fixes/adapters execute; the pinned renderer/verifier
         # verifies original development truth without changing frozen source bytes.
         program='import sys,importlib.util;sys.path.insert(0,'+repr(str(frozen/'scripts/assist'))+');sys.path.append('+repr(str(root/'scripts/assist'))+');'
+        for name in ('video_scores','judge_gate','image_quality'):
+            program+='spec=importlib.util.spec_from_file_location('+repr(name)+','+repr(str(root/'scripts/assist'/f'{name}.py'))+');m=importlib.util.module_from_spec(spec);sys.modules['+repr(name)+']=m;spec.loader.exec_module(m);'
         program+='spec=importlib.util.spec_from_file_location("score",'+repr(str(root/'scripts/assist/score.py'))+');m=importlib.util.module_from_spec(spec);sys.modules["score"]=m;spec.loader.exec_module(m);'
-        program+='spec=importlib.util.spec_from_file_location("pilot_score",'+repr(str(root/'scripts/assist/pilot_score.py'))+');m=importlib.util.module_from_spec(spec);sys.modules["pilot_score"]=m;spec.loader.exec_module(m);from scorer_selftest import main;main()'
+        program+='spec=importlib.util.spec_from_file_location("pilot_score",'+repr(str(root/'scripts/assist/pilot_score.py'))+');m=importlib.util.module_from_spec(spec);sys.modules["pilot_score"]=m;spec.loader.exec_module(m);spec=importlib.util.spec_from_file_location("scorer_selftest",'+repr(str(root/'scripts/assist/scorer_selftest.py'))+');m=importlib.util.module_from_spec(spec);sys.modules["scorer_selftest"]=m;spec.loader.exec_module(m);m.main()'
         cmd=[sys.executable,'-c',program,'--worker','--corpus',str(args.corpus.resolve()),'--source-revision',revision]
         if args.out:
             if args.out.with_suffix('.json').exists() or args.out.with_suffix('.md').exists():raise ValueError('refuse to overwrite proof')
