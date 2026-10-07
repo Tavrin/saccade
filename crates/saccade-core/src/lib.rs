@@ -69,6 +69,7 @@ pub mod rank;
 pub mod regions;
 pub mod render;
 pub mod renderdoc;
+pub mod replay;
 pub mod report;
 #[cfg(feature = "ai")]
 pub mod review;

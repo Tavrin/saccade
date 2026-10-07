@@ -12,7 +12,7 @@ saccade inspect evidence REPORT/saccade-report.v1.json --entry NAME --out EVIDEN
 Read validity, performance, pagination and `data.pass_with_local_change`. Exit 1 is failure; 2 unavailable; `performance_rejected` may exit 0.
 `--require-valid-arms` refuses mismatches (3) or missing identity (4); declare
 variables; inspect exceptions. Mixed records: `compare = "mapped_only"`; inspect `unmapped`/`outcomes`. [Arms](../docs/arm-validity.md).
-Identity binds samples, not approval/timing authority.
+Identity binds samples; no approval/timing authority.
 
 `review` previews; `review request|ask|propose` binds input hashes.
 CLI attestation is null; workbench is token-gated;
@@ -43,11 +43,11 @@ Browser/sweep masks `neutralize`; core `exclude`. Read mask/excluded-error audit
 `--align`/`--resample` records geometry exclusions.
 `hash`/`dedupe` find candidates, never delete; `similar`/`index` needs pins.
 `index export-inputs|calibrate` checks parity/holdout; `text` needs bound sources/OCR.
-`assess` is content-dependent; `inspect-image` reports provenance/C2PA, never authenticity.
+`assess`: content-dependent; `inspect-image`: provenance/C2PA, never authenticity.
 [Comparator](../docs/choosing-a-comparison.md).
 
-`models list` shows pins; inference needs cached models/runtime and never pulls.
-Vision observations are advice, never verdict overrides.
+`models list`: pins; inference needs cached models/runtime, never pulls.
+Vision advice never overrides verdicts.
 [Vision](../docs/wave7.md). [TrustMark](../docs/trustmark.md): `watermark --trustmark` verifies BCH payloads.
 
 [Rendering](../docs/render-evidence.md): read `required_effects[].failures`
@@ -78,4 +78,6 @@ G12: `scripts/qualify-wave4.sh --dry-run`: fake provider; live needs reviewed bi
 [Experiments](../docs/experiments-wave11.md): timing/settling.
 [Animation/LOD](../docs/animated-lod.md).
 
-[Print/CMYK](../docs/print.md): `print` feature; no press approval.
+[Print](../docs/print.md): `print`; no press approval.
+
+[Replay](../docs/replay.md): `replay pack|verify`.

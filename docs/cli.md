@@ -12,6 +12,8 @@ Exit 0 for compare/identity means no image regression; inspect `performance` for
 Inspection, review, rank and ablation completion grant no acceptance authority.
 Exit 2 means the operation cannot run. Demo intentionally exits 1.
 
+This generation used `--allow-missing-imgtune-avif`; the generator binary omits that codec feature. All CLI operations are included; CI also tests `--all-features`.
+
 ## saccade
 
 ```text
@@ -23,6 +25,7 @@ Commands:
   compare             Compare a directory of captures against a directory of baselines
   prove               Check whether image identity or performance evidence proves a claim
   review              Preview a review plan or handle a local closed decision request
+  replay              Record or re-execute an offline, content-bound evidence pack
   manifest            Find, link and re-check the outputs of a report directory
   export-regions      Crop the worst regions of a report, with coordinates
   print               ICC-managed CMYK raster comparison (first-party print extension)
@@ -102,6 +105,71 @@ Exit codes (a command that cannot produce a measurement never exits 0):
   3  strict producer check refused: an undeclared difference (--require-valid-arms)
   4  strict producer check refused: a required key is missing (--require-valid-arms)
 Units: --threshold on FLIP scores is a 0-1 score (lower = more alike); hash thresholds count bits.
+```
+
+## saccade replay
+
+```text
+Record or re-execute an offline, content-bound evidence pack
+
+Usage: saccade replay [OPTIONS] <COMMAND>
+
+Commands:
+  pack    Record a local compare/text recipe, exact inputs, models, binary and report
+  verify  Verify every identity, re-execute offline and compare the complete report identity
+
+Options:
+      --source-ref <SOURCE_REF>      External capture URI/key (repeatable); recorded in generated reports
+      --report-index <REPORT_INDEX>  Shared report index destination (default reports/index.jsonl next to each report, inside --out)
+  -h, --help                         Print help
+
+Global options:
+      --allow-out-near-captures  Silence warnings when --out is next to capture metadata
+      --record-absolute-paths    Opt in to absolute local paths in reports and machine-readable output
+```
+
+## saccade replay pack
+
+```text
+Record a local compare/text recipe, exact inputs, models, binary and report
+
+Usage: saccade replay pack [OPTIONS] --out <OUT> <RECIPE>
+
+Arguments:
+  <RECIPE>  saccade-replay-recipe.v1 JSON; paths resolve against its parent
+
+Options:
+      --out <OUT>                    New destination, outside every input (must not exist)
+      --source-ref <SOURCE_REF>      External capture URI/key (repeatable); recorded in generated reports
+      --report <REPORT>              Require a fresh execution to match an existing report before packing it
+      --report-index <REPORT_INDEX>  Shared report index destination (default reports/index.jsonl next to each report, inside --out)
+      --json
+  -h, --help                         Print help
+
+Global options:
+      --allow-out-near-captures  Silence warnings when --out is next to capture metadata
+      --record-absolute-paths    Opt in to absolute local paths in reports and machine-readable output
+```
+
+## saccade replay verify
+
+```text
+Verify every identity, re-execute offline and compare the complete report identity
+
+Usage: saccade replay verify [OPTIONS] <PACK>
+
+Arguments:
+  <PACK>  Pack directory containing pack.json and pack.sha256
+
+Options:
+      --json
+      --source-ref <SOURCE_REF>      External capture URI/key (repeatable); recorded in generated reports
+      --report-index <REPORT_INDEX>  Shared report index destination (default reports/index.jsonl next to each report, inside --out)
+  -h, --help                         Print help
+
+Global options:
+      --allow-out-near-captures  Silence warnings when --out is next to capture metadata
+      --record-absolute-paths    Opt in to absolute local paths in reports and machine-readable output
 ```
 
 ## saccade manifest

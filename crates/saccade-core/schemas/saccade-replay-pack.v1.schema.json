@@ -1,0 +1,190 @@
+{
+  "$defs": {
+    "File": {
+      "additionalProperties": false,
+      "description": "One regular pack file; external paths and symlinks are never followed.",
+      "properties": {
+        "bytes": {
+          "description": "Exact byte count.",
+          "format": "uint64",
+          "minimum": 0,
+          "type": "integer"
+        },
+        "path": {
+          "description": "Portable relative path within the pack.",
+          "type": "string"
+        },
+        "role": {
+          "$ref": "#/$defs/Role",
+          "description": "Integrity category."
+        },
+        "sha256": {
+          "description": "Lowercase SHA-256 of exact bytes.",
+          "type": "string"
+        }
+      },
+      "required": [
+        "path",
+        "bytes",
+        "sha256",
+        "role"
+      ],
+      "type": "object"
+    },
+    "Model": {
+      "additionalProperties": false,
+      "description": "Model ids and provenance, distinct from reproduction/quality acceptance.",
+      "properties": {
+        "contract_id": {
+          "description": "Stable shared-registry contract id.",
+          "type": "string"
+        },
+        "license": {
+          "description": "Upstream licence.",
+          "type": "string"
+        },
+        "revision": {
+          "description": "Immutable source revision.",
+          "type": "string"
+        },
+        "role": {
+          "description": "Artifact role within that contract.",
+          "type": "string"
+        },
+        "sha256": {
+          "description": "Exact artifact digest.",
+          "type": "string"
+        },
+        "source": {
+          "description": "Source URL, never fetched during replay.",
+          "type": "string"
+        }
+      },
+      "required": [
+        "contract_id",
+        "role",
+        "revision",
+        "sha256",
+        "license",
+        "source"
+      ],
+      "type": "object"
+    },
+    "Role": {
+      "description": "Integrity category; each has a distinct drift code.",
+      "oneOf": [
+        {
+          "const": "input",
+          "description": "Encoded inputs, sidecars and imported observations.",
+          "type": "string"
+        },
+        {
+          "const": "config",
+          "description": "Recipe and rewritten model registry.",
+          "type": "string"
+        },
+        {
+          "const": "model",
+          "description": "Model weights or dictionary.",
+          "type": "string"
+        },
+        {
+          "const": "runtime",
+          "description": "Optional native runtime.",
+          "type": "string"
+        },
+        {
+          "const": "tool",
+          "description": "Exact CLI binary and build identity.",
+          "type": "string"
+        },
+        {
+          "const": "schema",
+          "description": "Exact shipped schemas.",
+          "type": "string"
+        },
+        {
+          "const": "report",
+          "description": "Full report and report manifest/index.",
+          "type": "string"
+        }
+      ]
+    }
+  },
+  "$id": "https://github.com/Tavrin/saccade/crates/saccade-core/schemas/saccade-replay-pack.v1.schema.json",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "description": "Immutable evidence pack manifest, sealed separately by pack.sha256.",
+  "properties": {
+    "argv": {
+      "description": "Exact generated argument array; never shell syntax.",
+      "items": {
+        "type": "string"
+      },
+      "type": "array"
+    },
+    "comparison_id": {
+      "description": "Complete replay projection identity, excluding only documented provenance and diagnostic compute durations.",
+      "type": "string"
+    },
+    "files": {
+      "description": "All files consumed by replay and its recorded artifacts.",
+      "items": {
+        "$ref": "#/$defs/File"
+      },
+      "type": "array"
+    },
+    "measurement_exit": {
+      "description": "Recorded measurement exit code, 0 or 1; a regression can reproduce.",
+      "format": "uint8",
+      "maximum": 255,
+      "minimum": 0,
+      "type": "integer"
+    },
+    "models": {
+      "description": "Exact selected model identities; empty for model-independent operations.",
+      "items": {
+        "$ref": "#/$defs/Model"
+      },
+      "type": "array"
+    },
+    "platform": {
+      "description": "Operating system and architecture required by the binary/runtime.",
+      "type": "string"
+    },
+    "report": {
+      "description": "Full recorded report's path inside the pack.",
+      "type": "string"
+    },
+    "report_id": {
+      "description": "Existing relocatable report_id.",
+      "type": "string"
+    },
+    "schema": {
+      "const": "saccade-replay-pack.v1",
+      "description": "PACK_SCHEMA.",
+      "type": "string"
+    },
+    "source_refs": {
+      "items": {
+        "maxLength": 2048,
+        "type": "string"
+      },
+      "maxItems": 128,
+      "type": "array"
+    }
+  },
+  "required": [
+    "schema",
+    "files",
+    "models",
+    "argv",
+    "report",
+    "report_id",
+    "comparison_id",
+    "measurement_exit",
+    "platform"
+  ],
+  "title": "Pack",
+  "type": "object"
+}

@@ -97,6 +97,7 @@ mod wave10_cmd;
 // laneC
 mod manifest_cmd;
 mod region_export_cmd;
+mod replay_cmd;
 // wave11
 mod measure_cmd;
 #[cfg(feature = "mcp")]
@@ -282,6 +283,8 @@ impl From<MetricArg> for Metric {
 
 #[derive(Subcommand)]
 enum Command {
+    /// Record or re-execute an offline, content-bound evidence pack.
+    Replay(replay_cmd::Args),
     // laneC
     /// Find, link and re-check the outputs of a report directory.
     Manifest(manifest_cmd::Args),
@@ -1242,6 +1245,7 @@ fn emit_run(
 
 fn dispatch(command: Command, record_absolute_paths: bool) -> Result<u8, CliError> {
     match command {
+        Command::Replay(args) => replay_cmd::run(args),
         // laneC
         Command::Manifest(args) => manifest_cmd::run(args),
         Command::ExportRegions(args) => region_export_cmd::run(args),

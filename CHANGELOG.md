@@ -2,6 +2,11 @@
 
 ## Unreleased
 
+- Add offline `replay pack|verify` with versioned recipes, exact input/config/tool/schema
+  identities, pinned local OCR models and runtime, full reports and manifests. Replay
+  re-executes and compares the report identity; changed evidence and unavailable optional
+  artifacts have distinct failures. See `docs/replay.md`.
+
 ## 0.2.7 (2026-10-07)
 
 - Correct the quality-report and geometry v1 schemas to include the existing

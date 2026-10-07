@@ -346,6 +346,9 @@ The last three names appear only when the corresponding feature is compiled in.
 - [saccade-renderdoc-extract.v1.schema.json](../crates/saccade-core/schemas/saccade-renderdoc-extract.v1.schema.json) — Capture
 - [saccade-renderdoc-localization.v1.schema.json](../crates/saccade-core/schemas/saccade-renderdoc-localization.v1.schema.json) — Localization
 - [saccade-repeat-noise.v1.schema.json](../crates/saccade-core/schemas/saccade-repeat-noise.v1.schema.json) — Report
+- [saccade-replay-pack.v1.schema.json](../crates/saccade-core/schemas/saccade-replay-pack.v1.schema.json) — Pack
+- [saccade-replay-recipe.v1.schema.json](../crates/saccade-core/schemas/saccade-replay-recipe.v1.schema.json) — Recipe
+- [saccade-replay-result.v1.schema.json](../crates/saccade-core/schemas/saccade-replay-result.v1.schema.json) — Receipt
 - [saccade-report-index-row.v1.schema.json](../crates/saccade-core/schemas/saccade-report-index-row.v1.schema.json) — Historical reader contract
 - [saccade-report.v1.schema.json](../crates/saccade-core/schemas/saccade-report.v1.schema.json) — Report
 - [saccade-report.v2.schema.json](../crates/saccade-core/schemas/saccade-report.v2.schema.json) — Report
