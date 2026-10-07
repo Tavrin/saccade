@@ -1115,10 +1115,22 @@
     }
   ],
   "properties": {
+    "report_id": {
+      "pattern": "^sha256:[0-9a-f]{64}$",
+      "type": "string"
+    },
     "schema": {
       "const": "saccade-geometry.v1",
       "description": "Always saccade-geometry.v1.",
       "type": "string"
+    },
+    "source_refs": {
+      "items": {
+        "maxLength": 2048,
+        "type": "string"
+      },
+      "maxItems": 128,
+      "type": "array"
     },
     "views": {
       "anyOf": [

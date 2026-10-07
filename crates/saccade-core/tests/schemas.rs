@@ -333,6 +333,61 @@ fn committed_schemas_match_the_rust_types() {
 }
 
 #[test]
+#[cfg(feature = "compression")]
+fn quality_report_links_are_optional_and_both_shapes_remain_readable() {
+    let legacy = serde_json::json!({
+        "schema": "saccade-quality-report.v1",
+        "manifest": {
+            "schema": "saccade-quality-sweep.v1",
+            "original": {"path": "original.png", "sha256": "0".repeat(64)},
+            "reference": {"path": "reference.png", "sha256": "0".repeat(64)},
+            "minimum_score": 90.0,
+            "maximum_bytes": 1000,
+            "viewing_conditions": "synthetic compatibility fixture",
+            "candidates": []
+        },
+        "manifest_sha256": "0".repeat(64),
+        "original_bytes": 1000,
+        "metric": "fixture",
+        "candidates": [],
+        "selected_candidate": null,
+        "lowest_quality_candidate": null,
+        "coverage": "incomplete",
+        "human_visual_review": "pending"
+    });
+    let linked = saccade_core::report_links::decorate(&legacy).expect("decorate quality report");
+    assert!(
+        linked["report_id"]
+            .as_str()
+            .expect("report ID")
+            .starts_with("sha256:")
+    );
+    assert!(linked["source_refs"].is_array());
+    for value in [legacy.clone(), linked] {
+        let report: saccade_core::quality::Sweep =
+            serde_json::from_value(value).expect("read linked or unlinked report");
+        assert_eq!(
+            serde_json::to_value(report).expect("serialize report"),
+            legacy
+        );
+    }
+    let schema: serde_json::Value = serde_json::from_str(
+        &generated::<saccade_core::quality::Sweep>("saccade-quality-report.v1.schema.json"),
+    )
+    .expect("quality schema");
+    for field in ["report_id", "source_refs"] {
+        assert!(schema["properties"].get(field).is_some());
+        assert!(
+            !schema["required"]
+                .as_array()
+                .expect("required fields")
+                .iter()
+                .any(|v| v == field)
+        );
+    }
+}
+
+#[test]
 fn linked_contracts_have_distinct_versions_and_legacy_readers_remain_strict() {
     let dir = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("schemas");
     for (old, new) in saccade_core::report_links::SCHEMA_MIGRATIONS {

@@ -78,6 +78,28 @@ jobs:
       - run: cargo build --locked -p ${{ matrix.package }} ${{ matrix.flags }}
       - run: cargo test --locked -p ${{ matrix.package }} ${{ matrix.flags }}
 
+  quality-schema:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        flags:
+          - --no-default-features --features compression,schema
+          - --features compression,graphics,workbench,assist,schema,evaluation
+          - --all-features
+    env:
+      CARGO_INCREMENTAL: '0'
+      CARGO_PROFILE_DEV_DEBUG: '0'
+      CARGO_PROFILE_TEST_DEBUG: '0'
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - uses: dtolnay/rust-toolchain@7e38f4b43b4db5c8dd498af069a4f6196df1d067 # stable
+        with:
+          toolchain: stable
+      # Each build must generate exactly the same committed schema bytes.
+      # Core has no imgtune-avif feature or dav1d dependency.
+      - run: cargo test --locked -p saccade-core ${{ matrix.flags }} --test schemas
+
   msrv:
     runs-on: ubuntu-latest
     steps:
