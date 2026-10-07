@@ -100,10 +100,14 @@ pub fn is_report_schema(id: &str) -> bool {
                 | "saccade-sweep.v1"
                 | "saccade-assist-batch.v1"
                 | "saccade-report-index-row.v1"
+                | "saccade-review-board-trial.v1"
+                | "saccade-review-board-packet.v1"
+                | "saccade-review-board-ballot.v1"
         )
 }
 /// Legacy strict contracts and their linked successors. Legacy schemas remain frozen.
 pub const SCHEMA_MIGRATIONS: &[(&str, &str)] = &[
+    ("saccade-review-board.v1", "saccade-review-board.v2"),
     ("saccade-a11y.v1", "saccade-a11y.v2"),
     ("saccade-api-health.v1", "saccade-api-health.v2"),
     ("saccade-approve.v1", "saccade-approve.v2"),

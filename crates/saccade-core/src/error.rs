@@ -5,6 +5,14 @@ use std::path::PathBuf;
 /// Errors returned by `saccade-core`.
 #[derive(Debug, thiserror::Error)]
 pub enum Error {
+    /// Blind board input, binding or protocol violation.
+    #[error("{code}: {message}")]
+    ReviewBoard {
+        /// Stable transport error code.
+        code: &'static str,
+        /// Human-readable finding.
+        message: String,
+    },
     /// Arm identity is incomplete or violates declared experiment variables.
     #[error("invalid_comparison: arm identity validation refused a verdict")]
     InvalidComparison(Box<crate::arms::Check>),

@@ -1,0 +1,340 @@
+{
+  "$id": "https://github.com/Tavrin/saccade/crates/saccade-core/schemas/saccade-review-board.v1.schema.json",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "properties": {
+    "agreement": {
+      "additionalProperties": false,
+      "properties": {
+        "coincidence_votes": {
+          "minimum": 0,
+          "type": "integer"
+        },
+        "comparable_items": {
+          "minimum": 0,
+          "type": "integer"
+        },
+        "expected_disagreement": {
+          "maximum": 1,
+          "minimum": 0,
+          "type": [
+            "number",
+            "null"
+          ]
+        },
+        "method": {
+          "const": "krippendorff_alpha_nominal"
+        },
+        "observed_disagreement": {
+          "maximum": 1,
+          "minimum": 0,
+          "type": [
+            "number",
+            "null"
+          ]
+        },
+        "unavailable_reason": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "value": {
+          "maximum": 1,
+          "type": [
+            "number",
+            "null"
+          ]
+        }
+      },
+      "required": [
+        "method",
+        "value",
+        "unavailable_reason",
+        "comparable_items",
+        "coincidence_votes",
+        "observed_disagreement",
+        "expected_disagreement"
+      ],
+      "type": "object"
+    },
+    "agreement_by_group": {
+      "additionalProperties": {
+        "additionalProperties": false,
+        "properties": {
+          "coincidence_votes": {
+            "minimum": 0,
+            "type": "integer"
+          },
+          "comparable_items": {
+            "minimum": 0,
+            "type": "integer"
+          },
+          "expected_disagreement": {
+            "maximum": 1,
+            "minimum": 0,
+            "type": [
+              "number",
+              "null"
+            ]
+          },
+          "method": {
+            "const": "krippendorff_alpha_nominal"
+          },
+          "observed_disagreement": {
+            "maximum": 1,
+            "minimum": 0,
+            "type": [
+              "number",
+              "null"
+            ]
+          },
+          "unavailable_reason": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "value": {
+            "maximum": 1,
+            "type": [
+              "number",
+              "null"
+            ]
+          }
+        },
+        "required": [
+          "method",
+          "value",
+          "unavailable_reason",
+          "comparable_items",
+          "coincidence_votes",
+          "observed_disagreement",
+          "expected_disagreement"
+        ],
+        "type": "object"
+      },
+      "type": "object"
+    },
+    "approval_authority": {
+      "const": false
+    },
+    "categories": {
+      "const": [
+        "first",
+        "second",
+        "tie",
+        "unsure"
+      ]
+    },
+    "items": {
+      "items": {
+        "additionalProperties": false,
+        "properties": {
+          "agreement": {
+            "enum": [
+              "insufficient",
+              "unanimous",
+              "disagreement"
+            ]
+          },
+          "counts": {
+            "additionalProperties": false,
+            "properties": {
+              "first": {
+                "minimum": 0,
+                "type": "integer"
+              },
+              "second": {
+                "minimum": 0,
+                "type": "integer"
+              },
+              "tie": {
+                "minimum": 0,
+                "type": "integer"
+              },
+              "unsure": {
+                "minimum": 0,
+                "type": "integer"
+              }
+            },
+            "type": "object"
+          },
+          "group": {
+            "maxLength": 128,
+            "minLength": 1,
+            "type": "string"
+          },
+          "id": {
+            "maxLength": 128,
+            "minLength": 1,
+            "type": "string"
+          },
+          "missing": {
+            "minimum": 0,
+            "type": "integer"
+          },
+          "recorded": {
+            "minimum": 0,
+            "type": "integer"
+          },
+          "votes": {
+            "items": {
+              "additionalProperties": false,
+              "properties": {
+                "answer": {
+                  "enum": [
+                    "first",
+                    "second",
+                    "tie",
+                    "unsure",
+                    null
+                  ],
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                },
+                "note": {
+                  "type": "string"
+                },
+                "rater": {
+                  "maxLength": 128,
+                  "minLength": 1,
+                  "type": "string"
+                },
+                "status": {
+                  "enum": [
+                    "missing",
+                    "recorded"
+                  ]
+                }
+              },
+              "required": [
+                "rater",
+                "answer",
+                "note",
+                "status"
+              ],
+              "type": "object"
+            },
+            "maxItems": 32,
+            "minItems": 2,
+            "type": "array"
+          }
+        },
+        "required": [
+          "id",
+          "group",
+          "votes",
+          "counts",
+          "recorded",
+          "missing",
+          "agreement"
+        ],
+        "type": "object"
+      },
+      "maxItems": 256,
+      "minItems": 1,
+      "type": "array"
+    },
+    "limits": {
+      "items": {
+        "type": "string"
+      },
+      "type": "array"
+    },
+    "question": {
+      "type": "string"
+    },
+    "raters": {
+      "items": {
+        "additionalProperties": false,
+        "properties": {
+          "ballot_received": {
+            "type": "boolean"
+          },
+          "id": {
+            "maxLength": 128,
+            "minLength": 1,
+            "type": "string"
+          },
+          "kind": {
+            "enum": [
+              "human",
+              "tool"
+            ]
+          },
+          "missing": {
+            "minimum": 0,
+            "type": "integer"
+          },
+          "peer_agreement": {
+            "maximum": 1,
+            "minimum": 0,
+            "type": [
+              "number",
+              "null"
+            ]
+          },
+          "peer_comparisons": {
+            "minimum": 0,
+            "type": "integer"
+          },
+          "peer_disagreements": {
+            "minimum": 0,
+            "type": "integer"
+          },
+          "peer_matches": {
+            "minimum": 0,
+            "type": "integer"
+          },
+          "recorded": {
+            "minimum": 0,
+            "type": "integer"
+          }
+        },
+        "required": [
+          "id",
+          "kind",
+          "ballot_received",
+          "recorded",
+          "missing",
+          "peer_comparisons",
+          "peer_matches",
+          "peer_agreement",
+          "peer_disagreements"
+        ],
+        "type": "object"
+      },
+      "maxItems": 32,
+      "minItems": 2,
+      "type": "array"
+    },
+    "schema": {
+      "const": "saccade-review-board.v1"
+    },
+    "trial_id": {
+      "pattern": "^sha256:[0-9a-f]{64}$",
+      "type": "string"
+    },
+    "verdict": {
+      "const": "advisory"
+    }
+  },
+  "required": [
+    "schema",
+    "trial_id",
+    "verdict",
+    "approval_authority",
+    "question",
+    "categories",
+    "items",
+    "raters",
+    "agreement",
+    "agreement_by_group",
+    "limits"
+  ],
+  "title": "Review disagreement board",
+  "type": "object"
+}

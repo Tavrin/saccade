@@ -72,6 +72,7 @@ mod product_io;
 mod quality_cmd;
 mod region_cmd;
 mod renderdoc_cmd;
+mod review_board_cmd;
 #[cfg(feature = "ai")]
 mod review_cmd;
 #[cfg(feature = "products")]

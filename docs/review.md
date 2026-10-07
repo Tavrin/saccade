@@ -78,3 +78,5 @@ automatic fix.
 Dry-run does not write baselines. Current hashes must still match at application.
 Deletion requires explicit approval plus `--prune-missing`. Historical promoted
 records require fresh review; confidence and calibration cannot grant authority.
+
+For multiple independent raters, use the offline [review disagreement board](review-board.md).

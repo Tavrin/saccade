@@ -1,0 +1,132 @@
+{
+  "$id": "https://github.com/Tavrin/saccade/crates/saccade-core/schemas/saccade-review-board-trial.v1.schema.json",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "properties": {
+    "items": {
+      "items": {
+        "additionalProperties": false,
+        "properties": {
+          "first_hash": {
+            "pattern": "^sha256:[0-9a-f]{64}$",
+            "type": "string"
+          },
+          "pair": {
+            "additionalProperties": false,
+            "properties": {
+              "first": {
+                "type": "string"
+              },
+              "group": {
+                "maxLength": 128,
+                "minLength": 1,
+                "type": "string"
+              },
+              "id": {
+                "maxLength": 128,
+                "minLength": 1,
+                "type": "string"
+              },
+              "second": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "id",
+              "group",
+              "first",
+              "second"
+            ],
+            "type": "object"
+          },
+          "second_hash": {
+            "pattern": "^sha256:[0-9a-f]{64}$",
+            "type": "string"
+          }
+        },
+        "required": [
+          "pair",
+          "first_hash",
+          "second_hash"
+        ],
+        "type": "object"
+      },
+      "maxItems": 256,
+      "minItems": 1,
+      "type": "array"
+    },
+    "raters": {
+      "items": {
+        "additionalProperties": false,
+        "properties": {
+          "key": {
+            "pattern": "^sha256:[0-9a-f]{64}$",
+            "type": "string"
+          },
+          "packet": {
+            "type": "string"
+          },
+          "packet_hash": {
+            "pattern": "^sha256:[0-9a-f]{64}$",
+            "type": "string"
+          },
+          "rater": {
+            "additionalProperties": false,
+            "properties": {
+              "id": {
+                "maxLength": 128,
+                "minLength": 1,
+                "type": "string"
+              },
+              "kind": {
+                "enum": [
+                  "human",
+                  "tool"
+                ]
+              }
+            },
+            "required": [
+              "id",
+              "kind"
+            ],
+            "type": "object"
+          },
+          "reversed": {
+            "items": {
+              "type": "boolean"
+            },
+            "maxItems": 256,
+            "minItems": 1,
+            "type": "array"
+          }
+        },
+        "required": [
+          "rater",
+          "key",
+          "packet",
+          "packet_hash",
+          "reversed"
+        ],
+        "type": "object"
+      },
+      "maxItems": 32,
+      "minItems": 2,
+      "type": "array"
+    },
+    "schema": {
+      "const": "saccade-review-board-trial.v1"
+    },
+    "trial_id": {
+      "pattern": "^sha256:[0-9a-f]{64}$",
+      "type": "string"
+    }
+  },
+  "required": [
+    "schema",
+    "trial_id",
+    "items",
+    "raters"
+  ],
+  "title": "Registered blind board mapping (operator only)",
+  "type": "object"
+}

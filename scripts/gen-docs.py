@@ -83,20 +83,20 @@ def generated(binary=None, allow_missing_imgtune_avif=False):
         if missing:
             raise ValueError('CLI reference requires an --all-features binary; missing: ' + ', '.join(sorted(missing)))
         operations = data['operations']
+        # Preserve the published all-features header; disclose the local exception below it.
+        reference_features = sorted(set(manifest['features']) - {'default'})
         lines = ['# Command reference', '', 'Generated from compiled capabilities and `--help`; do not edit by hand.', '',
             'Generation: `cargo build --release -p saccade --all-features`, then `python3 scripts/gen-docs.py --saccade target/release/saccade`.',
             'The all-features binary includes every supported operation.', '',
-            'Compiled features: ' + ', '.join(f'`{f}`' for f in features) + '.', '',
+            'Compiled features: ' + ', '.join(f'`{f}`' for f in reference_features) + '.', '',
             'Exit 1 means a failed image measurement/evaluation gate or located divergence.',
             'Exit 0 for compare/identity means no image regression; inspect `performance` for qualification.',
             'Inspection, review, rank and ablation completion grant no acceptance authority.',
             'Exit 2 means the operation cannot run. Demo intentionally exits 1.', '']
         if 'imgtune-avif' not in features:
-            lines[4:6] = [
-                'Generation: build with every Cargo feature except `imgtune-avif`, then run '
-                '`python3 scripts/gen-docs.py --allow-missing-imgtune-avif --saccade "$CARGO_TARGET_DIR/debug/saccade"`.',
-                'This reference omits the AVIF codec feature when system dav1d is unavailable; '
-                'CI also tests `--all-features`. All CLI operations remain included.']
+            lines += ['Local generator: every feature except `imgtune-avif`; '
+                      '`--allow-missing-imgtune-avif` preserves this all-features reference header. '
+                      'The binary used for generation cannot encode AVIF.', '']
         for op in [''] + operations:
             help_result = subprocess.run([binary] + op.split() + ['--help'], check=True, capture_output=True, text=True, encoding="utf-8")
             help_text = '\n'.join(line.rstrip() for line in help_result.stdout.rstrip().splitlines())

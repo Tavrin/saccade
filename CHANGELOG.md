@@ -2,6 +2,11 @@
 
 ## Unreleased
 
+- Add offline `review board prepare|collect`: separately distributable blind human/tool
+  ballots, item/rater disagreement and notes, explicit missing votes, nominal
+  Krippendorff alpha and an advisory HTML board. Versioned contracts integrate
+  with manifests; votes never approve baselines. See `docs/review-board.md`.
+
 ## 0.2.7 (2026-10-07)
 
 - Correct the quality-report and geometry v1 schemas to include the existing

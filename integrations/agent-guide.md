@@ -14,12 +14,12 @@ Read validity, performance, pagination and `data.pass_with_local_change`. Exit 1
 variables; inspect exceptions. Mixed records: `compare = "mapped_only"`; inspect `unmapped`/`outcomes`. [Arms](../docs/arm-validity.md).
 Identity binds samples, not approval/timing authority.
 
-`review` previews; `review request|ask|propose` binds input hashes.
-CLI attestation is null; workbench is token-gated;
-`automated` cannot satisfy human-required checks. Shell agents can invoke approval;
-human-final is an audit policy. Deletion needs approval and `--prune-missing`;
-models need fresh review. [Evidence](../docs/contracts.md),
-[review](../docs/review.md).
+`review` plans; `request|ask|propose` binds hashes. CLI attestation: null;
+workbench token-gated; `automated` cannot attest humans.
+Shell agents can approve; human-final: audit. Deletions need
+`--prune-missing` and approval; models need fresh review. [Review](../docs/review.md).
+`review board prepare|collect`: blind, missing shown, no approval.
+[Board](../docs/review-board.md).
 
 MCP: bounded tools, root/output containment, no baseline writer.
 Arguments grant no network/download rights. Providers need startup authority,

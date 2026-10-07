@@ -137,6 +137,7 @@ impl From<saccade_core::Error> for CliError {
             return error;
         }
         let code = match e {
+            Error::ReviewBoard { code, .. } => code,
             Error::TrialPlanChanged => "trial_plan_changed",
             Error::Config(_) => "config",
             Error::VersionSkew { .. } => "version_skew",

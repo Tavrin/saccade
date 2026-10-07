@@ -200,3 +200,6 @@ pub mod model_config;
 
 // O12/O17
 pub mod text_quality;
+
+// N22: offline categorical blind review.
+pub mod review_board;

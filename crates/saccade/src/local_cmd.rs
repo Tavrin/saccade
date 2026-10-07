@@ -122,6 +122,8 @@ pub(crate) struct ReviewArgs {
 }
 #[derive(Subcommand)]
 pub(crate) enum ReviewOperation {
+    /// Collect blind categorical votes and inspect disagreement, without approval.
+    Board(crate::review_board_cmd::Args),
     // wave9
     /// Preregister and present offline blind visual trials.
     Trial(crate::wave9_cmd::TrialArgs),
@@ -866,6 +868,7 @@ fn export(
 pub(crate) fn review(args: ReviewArgs, absolute: bool) -> Result<u8, CliError> {
     let value = if let Some(operation) = args.operation {
         match operation {
+            ReviewOperation::Board(board) => return crate::review_board_cmd::run(board, args.json),
             #[cfg(feature = "assist")]
             ReviewOperation::Assist(a) => {
                 return crate::assist_batch_cmd::run(a, args.json, args.user_config.as_deref());
