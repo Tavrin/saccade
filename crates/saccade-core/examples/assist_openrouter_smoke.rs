@@ -639,6 +639,7 @@ fn run_with(args: impl IntoIterator<Item = String>) -> Result<(), Box<dyn std::e
     let mut stage2 = false;
     let mut budget_bounded = false;
     let mut validate_only = false;
+    let mut preflight_only = false;
     let mut settle_unknown = false;
     while let Some(arg) = args.next() {
         if arg == "--settle-unknown-at-reservation" {
@@ -650,6 +651,10 @@ fn run_with(args: impl IntoIterator<Item = String>) -> Result<(), Box<dyn std::e
         }
         if arg == "--stage2" {
             stage2 = true;
+            continue;
+        }
+        if arg == "--preflight-only" {
+            preflight_only = true;
             continue;
         }
         if arg == "--validate-only" {
@@ -686,12 +691,19 @@ fn run_with(args: impl IntoIterator<Item = String>) -> Result<(), Box<dyn std::e
     if settle_unknown
         && (!options.contains_key("--resume")
             || validate_only
+            || preflight_only
             || options.contains_key("--reconcile-only"))
     {
         return Err("settlement requires resume execution".into());
     }
     if let Some(out) = options.get("--reconcile-only") {
-        if options.len() != 1 || above_25 || stage2 || validate_only || budget_bounded {
+        if options.len() != 1
+            || above_25
+            || stage2
+            || validate_only
+            || preflight_only
+            || budget_bounded
+        {
             return Err("reconcile-only accepts only an existing output directory".into());
         }
         return reconcile_only(
@@ -811,6 +823,15 @@ fn run_with(args: impl IntoIterator<Item = String>) -> Result<(), Box<dyn std::e
         key.validate()?;
         openrouter::validate_request(&bytes, &row.model)?;
         prepared.push((key, bytes));
+    }
+    // This boundary precedes all campaign writes, credential reads and HTTP.
+    if preflight_only {
+        println!(
+            "{}",
+            json!({"code":"smoke_offline_preflight_passed", "requests":count,
+            "requests_hash":requests_hash, "qualified":false})
+        );
+        return Ok(());
     }
     if !resume {
         std::fs::create_dir(&out)?;
@@ -932,7 +953,7 @@ fn run_with(args: impl IntoIterator<Item = String>) -> Result<(), Box<dyn std::e
             outcomes.iter().rev().find_map(|o| {
                 let code = o["code"].as_str()?;
                 (o["failure_class"] == "campaign_failure")
-                    .then(|| code.replace([' ', '-', ';'], "_").to_ascii_lowercase())
+                    .then(|| code.replace([' ', '-', ';', ':'], "_").to_ascii_lowercase())
             })
         }) {
             // Codes originate from typed local execution errors, never provider text.
@@ -944,12 +965,60 @@ fn run_with(args: impl IntoIterator<Item = String>) -> Result<(), Box<dyn std::e
     Ok(())
 }
 fn refusal_code(error: &(dyn std::error::Error + 'static)) -> String {
+    if error.downcast_ref::<std::num::ParseIntError>().is_some() {
+        return "smoke_argument_integer_invalid".into();
+    }
+    if let Some(error) = error.downcast_ref::<std::io::Error>() {
+        return match error.kind() {
+            std::io::ErrorKind::NotFound => "smoke_local_file_missing",
+            std::io::ErrorKind::PermissionDenied => "smoke_local_permission_denied",
+            std::io::ErrorKind::AlreadyExists => "smoke_output_already_exists",
+            _ => "smoke_local_io_unavailable",
+        }
+        .into();
+    }
+    if error.downcast_ref::<serde_json::Error>().is_some() {
+        return "smoke_json_invalid".into();
+    }
+    if error.downcast_ref::<saccade_core::Error>().is_some() {
+        return "smoke_root_policy_invalid_or_unavailable".into();
+    }
     let reason = if let Some(error) = error.downcast_ref::<assist::Error>() {
         error.code()
     } else {
         let text = error.to_string();
+        if text.starts_with("budget ledger:") {
+            return "smoke_ledger_unavailable".into();
+        }
         return match text.as_str() {
-            "OpenRouter smoke failed; inspect sanitized campaign receipts"
+            "openrouter_credentials_unavailable"
+            | "openrouter_ceiling_unavailable"
+            | "openrouter_allowance_exceeds_ceiling"
+            | "openrouter_campaign_not_fresh"
+            | "openrouter_allowance_changed"
+            | "openrouter_reconciliation_storage_unavailable"
+            | "openrouter_reconciliation_failed"
+            | "openrouter_generation_not_ready"
+            | "openrouter_generation_unavailable"
+            | "openrouter_generation_invalid"
+            | "paid run requires development scorer proof corpus"
+            | "paid run requires frozen development scorer proof revision"
+            | "offline scorer proof failed; paid run refused"
+            | "paid stage2 run requires task-evidence policy epoch 3"
+            | "campaign already running"
+            | "cannot read user configuration"
+            | "invalid user configuration"
+            | "invalid user root policy"
+            | "custom providers require a distinct ID, HTTPS endpoint and dedicated credentials"
+            | "pacing requires provider or provider/model keys and positive limits"
+            | "pricing requires provider/model and nonnegative finite USD per million token rates"
+            | "egress_denied: incomplete source provenance"
+            | "egress_denied: unknown source root"
+            | "egress_denied: unavailable source root"
+            | "egress_denied: unavailable policy root"
+            | "egress_denied: source root denies export"
+            | "egress_denied: unclassified or denied root"
+            | "OpenRouter smoke failed; inspect sanitized campaign receipts"
             | "answer safety options require stage2"
             | "campaign lock symlink"
             | "campaign_plan_or_policy_changed"
@@ -989,17 +1058,27 @@ fn refusal_code(error: &(dyn std::error::Error + 'static)) -> String {
             | "spend_cap_above_25_requires_explicit_flag"
             | "stage2 requires 1 through 1000 roots"
             | "smoke requires 1 through 10 roots"
-            | "stage2 cap exceeds 5 USD" => text.replace([' ', '-', ';'], "_").to_ascii_lowercase(),
+            | "stage2 cap exceeds 5 USD" => {
+                text.replace([' ', '-', ';', ':'], "_").to_ascii_lowercase()
+            }
             _ => "smoke_preflight_invalid_or_unavailable".into(),
         };
     };
-    reason.replace([' ', '-', ';'], "_").to_ascii_lowercase()
+    reason
+        .replace([' ', '-', ';', ':'], "_")
+        .to_ascii_lowercase()
 }
 fn run_reported(args: Vec<String>) -> Result<(), Box<dyn std::error::Error>> {
     let result = run_with(args.clone());
     if let Err(error) = &result {
         let code = refusal_code(error.as_ref());
         eprintln!("OpenRouter smoke refusal: {code}");
+        if args
+            .iter()
+            .any(|a| a == "--preflight-only" || a == "--validate-only")
+        {
+            return result;
+        }
         if let Some(pair) = args.windows(2).find(|p| p[0] == "--out") {
             let out = Path::new(&pair[1]);
             if !out.exists() {
@@ -1154,6 +1233,43 @@ mod tests {
         }
     }
     #[test]
+    fn g12_preflight_known_failures_are_sanitized_and_offline_failures_write_nothing() {
+        for reason in [
+            "paid run requires development scorer proof corpus",
+            "paid run requires frozen development scorer proof revision",
+            "offline scorer proof failed; paid run refused",
+            "paid stage2 run requires task-evidence policy epoch 3",
+            "egress_denied: source root denies export",
+            "invalid user configuration",
+        ] {
+            let error: Box<dyn std::error::Error> = reason.into();
+            assert_ne!(
+                refusal_code(error.as_ref()),
+                "smoke_preflight_invalid_or_unavailable"
+            );
+        }
+        let error: Box<dyn std::error::Error> = "untrusted secret provider body".into();
+        assert_eq!(
+            refusal_code(error.as_ref()),
+            "smoke_preflight_invalid_or_unavailable"
+        );
+        let temp = tempfile::tempdir().unwrap();
+        let out = temp.path().join("untouched");
+        assert!(
+            run_reported(vec![
+                "--preflight-only".into(),
+                "--out".into(),
+                out.to_str().unwrap().into()
+            ])
+            .is_err()
+        );
+        assert!(!out.exists());
+        assert_eq!(
+            refusal_code(&"bad".parse::<usize>().unwrap_err()),
+            "smoke_argument_integer_invalid"
+        );
+    }
+    #[test]
     fn g12_resume_refusal_is_specific_persisted_and_sanitized() {
         let temp = tempfile::tempdir().unwrap();
         let path = temp.path().join("smoke.json");
@@ -1170,7 +1286,7 @@ mod tests {
         assert_eq!(smoke["marker"], "preserved");
         assert_eq!(
             refusal_code(&std::io::Error::other("secret provider body")),
-            "smoke_preflight_invalid_or_unavailable"
+            "smoke_local_io_unavailable"
         );
         assert_eq!(
             refusal_code(&assist::Error::Policy(
