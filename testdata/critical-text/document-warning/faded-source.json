@@ -1,0 +1,26 @@
+{
+  "schema": "saccade-ui-source.v1",
+  "capture_sha256": "86cff9ac5b84e2ce1929c81a99f79956f7bdc5a0c658ed9720b2f0ee8897e134",
+  "dimensions": [
+    900,
+    700
+  ],
+  "kind": "dom",
+  "producer": {
+    "generator": "scripts/critical-text/fixtures.py",
+    "scope": "declared critical region"
+  },
+  "complete": true,
+  "nodes": [
+    {
+      "id": "critical",
+      "text": "Warning: Do NOT mix",
+      "bounds": [
+        94,
+        544,
+        132,
+        30
+      ]
+    }
+  ]
+}

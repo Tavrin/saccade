@@ -1,6 +1,6 @@
 [workspace]
 resolver = "3"
-members = ["crates/saccade-core", "crates/saccade", "crates/saccade-py", "crates/saccade-print"]
+members = ["crates/saccade-core", "crates/saccade", "crates/saccade-py", "crates/saccade-print", "crates/saccade-geo"]
 default-members = ["crates/saccade-core", "crates/saccade"]
 
 [workspace.package]

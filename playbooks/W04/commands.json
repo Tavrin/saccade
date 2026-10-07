@@ -1,0 +1,82 @@
+{
+  "schema": "saccade-playbook.v1",
+  "id": "W04",
+  "bundle": "default",
+  "features": [],
+  "dependencies": [],
+  "generated_inputs": "@INPUT@/local",
+  "cwd": "@INPUT@/local",
+  "commands": [
+    {
+      "name": "inside",
+      "argv": [
+        "@BIN@",
+        "localized-check",
+        "reference.png",
+        "candidate.png",
+        "--box",
+        "120,108,64,20",
+        "--out",
+        "@OUTPUT@/inside",
+        "--json"
+      ],
+      "exit": 0,
+      "checks": [
+        {
+          "name": "changed",
+          "source": "stdout",
+          "pointer": "/intended_change_detected",
+          "equals": true
+        },
+        {
+          "name": "outside",
+          "source": "stdout",
+          "pointer": "/outside/changed_pixels",
+          "equals": 0
+        },
+        {
+          "name": "inside",
+          "source": "stdout",
+          "pointer": "/inside/changed_pixels",
+          "equals": 1280
+        },
+        {
+          "name": "collateral",
+          "source": "stdout",
+          "pointer": "/collateral",
+          "equals": "preserved"
+        }
+      ],
+      "sha256": "425a0514e3a202b64440343bf7bff9f499e72015407e4931ec092a5a0074fe4a"
+    },
+    {
+      "name": "collateral",
+      "argv": [
+        "@BIN@",
+        "localized-check",
+        "reference.png",
+        "collateral.png",
+        "--box",
+        "120,108,64,20",
+        "--out",
+        "@OUTPUT@/collateral",
+        "--json"
+      ],
+      "exit": 1,
+      "checks": [
+        {
+          "name": "outside",
+          "source": "stdout",
+          "pointer": "/outside/changed_pixels",
+          "equals": 64
+        },
+        {
+          "name": "collateral",
+          "source": "stdout",
+          "pointer": "/collateral"
+        }
+      ],
+      "sha256": "b38c444bd35cf199d80e534792679427ddfccb96b570213aa8f248a525250940"
+    }
+  ]
+}

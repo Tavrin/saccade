@@ -11,6 +11,7 @@ ROOT = Path(__file__).resolve().parents[1]
 READMES = {
     'saccade-core': ROOT / 'crates/saccade-core/README.md',
     'saccade': ROOT / 'README.md',
+    'saccade-geo': ROOT / 'crates/saccade-geo/README.md',
     'saccade-print': ROOT / 'crates/saccade-print/README.md',
 }
 ALLOWED = ('.cargo_vcs_info.json', 'Cargo.lock', 'Cargo.toml', 'Cargo.toml.orig', 'README.md',

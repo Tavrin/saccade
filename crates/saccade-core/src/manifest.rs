@@ -143,6 +143,7 @@ fn media_and_role(rel: &str) -> (&'static str, &'static str) {
             },
         ),
         "html" => ("text/html", "page"),
+        "csv" => ("text/csv", "table"),
         "png" => ("image/png", "image"),
         "jpg" | "jpeg" => ("image/jpeg", "image"),
         "webp" => ("image/webp", "image"),
@@ -176,7 +177,10 @@ fn scan(dir: &Path) -> Result<(Vec<File>, usize)> {
             continue;
         };
         let rel = crate::paths::portable(relative);
-        if rel == MANIFEST_FILE {
+        // The batch sentinel is coordination state, not an output artifact.
+        // Reading it through another handle while batch holds its exclusive
+        // byte-range lock fails on Windows. Never hash or reopen it here.
+        if rel == MANIFEST_FILE || rel == ".batch-lock" {
             continue;
         }
         if files.len() >= MAX_FILES {
@@ -186,7 +190,11 @@ fn scan(dir: &Path) -> Result<(Vec<File>, usize)> {
         }
         let (sha256, bytes) = hash_file(entry.path())?;
         let (media_type, mut role) = media_and_role(&rel);
-        let mut schema = None;
+        let mut schema = if rel == "rows.jsonl" && dir.join("batch-run.json").is_file() {
+            Some("saccade-batch-row.v1".to_owned())
+        } else {
+            None
+        };
         let mut report = None;
         if media_type == "application/json"
             && let Some(value) = read_json(entry.path())
@@ -452,7 +460,28 @@ pub fn verify(target: &Path) -> Result<Vec<Value>> {
     })?;
     let mut findings = Vec::new();
     match schema_of(&value) {
-        Some(MANIFEST_SCHEMA) => {
+        Some(MANIFEST_SCHEMA | crate::coverage::MANIFEST_SCHEMA) => {
+            if schema_of(&value) == Some(crate::coverage::MANIFEST_SCHEMA) {
+                let declaration = crate::coverage::Declaration {
+                    schema: crate::coverage::CASES_SCHEMA.into(),
+                    axes: serde_json::from_value(value["axes"].clone())?,
+                    cases: serde_json::from_value(value["cases"].clone())?,
+                };
+                declaration.validate()?;
+                for case in &declaration.cases {
+                    for reference in [
+                        &case.baseline,
+                        &case.capture,
+                        &case.approved_anchor,
+                        &case.last_good,
+                    ]
+                    .into_iter()
+                    .flatten()
+                    {
+                        check(&file, &reference.path, &reference.sha256, &mut findings);
+                    }
+                }
+            }
             for artifact in value["artifacts"].as_array().into_iter().flatten() {
                 let (Some(path), Some(sha)) =
                     (artifact["path"].as_str(), artifact["sha256"].as_str())
