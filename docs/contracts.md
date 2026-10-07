@@ -131,6 +131,7 @@ The last three names appear only when the corresponding feature is compiled in.
 - [saccade-a11y.v1.schema.json](../crates/saccade-core/schemas/saccade-a11y.v1.schema.json) — a11y PRE-CHECK only; not certification or formal compliance
 - [saccade-a11y.v2.schema.json](../crates/saccade-core/schemas/saccade-a11y.v2.schema.json) — a11y PRE-CHECK only; not certification or formal compliance
 - [saccade-ablate.v1.schema.json](../crates/saccade-core/schemas/saccade-ablate.v1.schema.json) — Ablation
+- [saccade-animation.v1.schema.json](../crates/saccade-core/schemas/saccade-animation.v1.schema.json) — AnimationReport
 - [saccade-api-analyze.v1.schema.json](../crates/saccade-core/schemas/saccade-api-analyze.v1.schema.json) — Historical reader contract
 - [saccade-api-compare.v1.schema.json](../crates/saccade-core/schemas/saccade-api-compare.v1.schema.json) — Historical reader contract
 - [saccade-api-health.v1.schema.json](../crates/saccade-core/schemas/saccade-api-health.v1.schema.json) — Historical reader contract
@@ -168,6 +169,7 @@ The last three names appear only when the corresponding feature is compiled in.
 - [saccade-capabilities.v1.schema.json](../crates/saccade-core/schemas/saccade-capabilities.v1.schema.json) — Historical reader contract
 - [saccade-capabilities.v2.schema.json](../crates/saccade-core/schemas/saccade-capabilities.v2.schema.json) — Historical reader contract
 - [saccade-capture-layers.v1.schema.json](../crates/saccade-core/schemas/saccade-capture-layers.v1.schema.json) — Manifest
+- [saccade-captured-sequence-plan.v1.schema.json](../crates/saccade-core/schemas/saccade-captured-sequence-plan.v1.schema.json) — Plan
 - [saccade-config.v1.schema.json](../crates/saccade-core/schemas/saccade-config.v1.schema.json) — saccade-config.v1
 - [saccade-constructed-oracle.v1.schema.json](../crates/saccade-core/schemas/saccade-constructed-oracle.v1.schema.json) — saccade-constructed-oracle.v1
 - [saccade-constructed-truth.v1.schema.json](../crates/saccade-core/schemas/saccade-constructed-truth.v1.schema.json) — saccade-constructed-truth.v1
@@ -343,6 +345,7 @@ The last three names appear only when the corresponding feature is compiled in.
 - [saccade-tile-temporal.v1.schema.json](../crates/saccade-core/schemas/saccade-tile-temporal.v1.schema.json) — Report
 - [saccade-timing-ab.v1.schema.json](../crates/saccade-core/schemas/saccade-timing-ab.v1.schema.json) — Report
 - [saccade-timing-session.v1.schema.json](../crates/saccade-core/schemas/saccade-timing-session.v1.schema.json) — Session
+- [saccade-transition.v1.schema.json](../crates/saccade-core/schemas/saccade-transition.v1.schema.json) — TransitionReport
 - [saccade-ui-review.v1.schema.json](../crates/saccade-core/schemas/saccade-ui-review.v1.schema.json) — Report
 - [saccade-ui-review.v2.schema.json](../crates/saccade-core/schemas/saccade-ui-review.v2.schema.json) — Report
 - [saccade-ui-source.v1.schema.json](../crates/saccade-core/schemas/saccade-ui-source.v1.schema.json) — Source

@@ -6,6 +6,7 @@ pub mod ablate;
 /// Versioned producer fingerprints and strict arm validation.
 pub mod arms;
 pub mod asset_views;
+// G26
 #[cfg(feature = "assist")]
 pub mod assist;
 pub mod bisect;
@@ -13,6 +14,7 @@ pub mod brand;
 #[cfg(feature = "ai")]
 pub mod budget_ledger;
 pub mod buffer;
+pub mod captured_sequence;
 #[path = "safety/color.rs"]
 pub mod color;
 pub mod compare;

@@ -78,4 +78,5 @@ fields; `--allow-unreached` requires exact observations; maps select `record_fil
 G12: `scripts/qualify-wave4.sh --dry-run` checks the fake provider; live adapters
 refuse without reviewed billing ceilings. [Qualification](../docs/assist-qualification.md#g12-pre-spend-correction-2026-10-06).
 
-[Experiments](../docs/experiments-wave11.md): `timing ab`, `experiment settle`, `--source-ref`.
+[Experiments](../docs/experiments-wave11.md): timing/settling.
+[Animation/LOD](../docs/animated-lod.md).

@@ -3581,21 +3581,101 @@ Analyze existing graphics captures: ablation, sequences, ranking, bisection
 Usage: saccade experiment [OPTIONS] <COMMAND>
 
 Commands:
-  settle     Event-relative tile error, settling, lag and pre-change residual trajectories
-  reference  Compare a render with a noisy offline reference and record alignment/noise floors
-  geometry   Measure bidirectional triangle-surface distance and oriented normal deviation
-  ablate     Compare ablation arms against a base with image and performance evidence
-  temporal   Compare numbered SDR frames with the ColorVideoVDP temporal model
-  sequence   Compare numbered colour frames by sorted index and measure added flicker
-  rank       Rank candidate directories against one common FLIP reference
-  bisect     Find the first diverging run or revision in an ordered series
-  safety     Photosensitivity PRE-CHECK only; not certification or formal compliance
-  a11y       Accessibility PRE-CHECK only; not certification or formal compliance
+  transition  Measure popping, sampled convergence and steady level differences in captures
+  animation   Compare timestamp-matched animation captures with localized motion diagnostics
+  settle      Event-relative tile error, settling, lag and pre-change residual trajectories
+  reference   Compare a render with a noisy offline reference and record alignment/noise floors
+  geometry    Measure bidirectional triangle-surface distance and oriented normal deviation
+  ablate      Compare ablation arms against a base with image and performance evidence
+  temporal    Compare numbered SDR frames with the ColorVideoVDP temporal model
+  sequence    Compare numbered colour frames by sorted index and measure added flicker
+  rank        Rank candidate directories against one common FLIP reference
+  bisect      Find the first diverging run or revision in an ordered series
+  safety      Photosensitivity PRE-CHECK only; not certification or formal compliance
+  a11y        Accessibility PRE-CHECK only; not certification or formal compliance
 
 Options:
       --source-ref <SOURCE_REF>      External capture URI/key (repeatable); recorded in generated reports
       --report-index <REPORT_INDEX>  Shared report index destination (default reports/index.jsonl next to each report, inside --out)
   -h, --help                         Print help
+
+Global options:
+      --allow-out-near-captures  Silence warnings when --out is next to capture metadata
+      --record-absolute-paths    Opt in to absolute local paths in reports and machine-readable output
+```
+
+## saccade experiment transition
+
+```text
+Measure popping, sampled convergence and steady level differences in captures
+
+Usage: saccade experiment transition [OPTIONS] --out <OUT> --maximum-pop <MAXIMUM_POP> --maximum-duration-ms <MAXIMUM_DURATION_MS> --maximum-steady-error <MAXIMUM_STEADY_ERROR> <PLAN>
+
+Arguments:
+  <PLAN>  saccade-captured-sequence-plan.v1 JSON, paths relative to its directory
+
+Options:
+      --out <OUT>
+
+      --source-ref <SOURCE_REF>
+          External capture URI/key (repeatable); recorded in generated reports
+      --json
+
+      --report-index <REPORT_INDEX>
+          Shared report index destination (default reports/index.jsonl next to each report, inside --out)
+      --change-frame <CHANGE_FRAME>
+          Zero-based switch request; omit for paired steady levels
+      --maximum-pop <MAXIMUM_POP>
+
+      --maximum-duration-ms <MAXIMUM_DURATION_MS>
+
+      --maximum-steady-error <MAXIMUM_STEADY_ERROR>
+
+      --settle-threshold <SETTLE_THRESHOLD>
+          [default: 0.02]
+      --consecutive <CONSECUTIVE>
+          [default: 2]
+      --window <WINDOW>
+          [default: 2]
+      --tile-size <TILE_SIZE>
+          [default: 16]
+  -h, --help
+          Print help
+
+Global options:
+      --allow-out-near-captures  Silence warnings when --out is next to capture metadata
+      --record-absolute-paths    Opt in to absolute local paths in reports and machine-readable output
+```
+
+## saccade experiment animation
+
+```text
+Compare timestamp-matched animation captures with localized motion diagnostics
+
+Usage: saccade experiment animation [OPTIONS] --out <OUT> --maximum-frame-error <MAXIMUM_FRAME_ERROR> --maximum-local-error <MAXIMUM_LOCAL_ERROR> --maximum-flicker <MAXIMUM_FLICKER> <PLAN>
+
+Arguments:
+  <PLAN>  saccade-captured-sequence-plan.v1 JSON, paths relative to its directory
+
+Options:
+      --out <OUT>
+
+      --source-ref <SOURCE_REF>
+          External capture URI/key (repeatable); recorded in generated reports
+      --json
+
+      --report-index <REPORT_INDEX>
+          Shared report index destination (default reports/index.jsonl next to each report, inside --out)
+      --maximum-frame-error <MAXIMUM_FRAME_ERROR>
+
+      --maximum-local-error <MAXIMUM_LOCAL_ERROR>
+
+      --maximum-flicker <MAXIMUM_FLICKER>
+
+      --tile-size <TILE_SIZE>
+          [default: 16]
+  -h, --help
+          Print help
 
 Global options:
       --allow-out-near-captures  Silence warnings when --out is next to capture metadata

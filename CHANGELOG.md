@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+- Add budgeted `experiment transition` and `experiment animation` over external
+  timestamped captures, with localized error trajectories, popping/convergence,
+  steady level differences and motion-aware diagnostics in versioned packets.
+
 - Harden experimental assist pre-spend accounting: shared campaign reservations,
   charged and quarantined usage overruns, request-bound recorded execution receipts,
   nonvacuous qualification, independent control and glyph-localization checks, and
