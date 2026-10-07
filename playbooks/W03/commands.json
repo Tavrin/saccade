@@ -1,0 +1,88 @@
+{
+  "schema": "saccade-playbook.v1",
+  "id": "W03",
+  "bundle": "default",
+  "features": [],
+  "dependencies": [],
+  "generated_inputs": "@INPUT@/arms",
+  "cwd": "@INPUT@/arms",
+  "commands": [
+    {
+      "name": "declared",
+      "argv": [
+        "@BIN@",
+        "arms",
+        "check",
+        "baseline/capture.json",
+        "candidate/capture.json",
+        "--fingerprint-map",
+        "fingerprint-map.toml",
+        "--vary",
+        "mode",
+        "--json"
+      ],
+      "exit": 0,
+      "checks": [
+        {
+          "name": "schema",
+          "source": "stdout",
+          "pointer": "/schema"
+        },
+        {
+          "name": "state",
+          "source": "stdout",
+          "pointer": "/result",
+          "equals": "valid_comparison"
+        }
+      ],
+      "sha256": "adf90e83c36b5509fa658f4113be1062bf5fddf7faa3cbe5ba94344080c3ddf2"
+    },
+    {
+      "name": "undeclared",
+      "argv": [
+        "@BIN@",
+        "arms",
+        "check",
+        "baseline/capture.json",
+        "candidate/capture.json",
+        "--fingerprint-map",
+        "fingerprint-map.toml",
+        "--json"
+      ],
+      "exit": 3,
+      "checks": [
+        {
+          "name": "state",
+          "source": "stdout",
+          "pointer": "/result",
+          "equals": "invalid_comparison"
+        }
+      ],
+      "sha256": "87314ba5b56ac1b6469af1b501d5c25c5cd2be5e199dd89a5c5b7ec59a357927"
+    },
+    {
+      "name": "strict",
+      "argv": [
+        "@BIN@",
+        "compare",
+        "baseline",
+        "candidate",
+        "--config",
+        "strict.toml",
+        "--out",
+        "@OUTPUT@/strict",
+        "--json"
+      ],
+      "exit": 0,
+      "checks": [
+        {
+          "name": "verdict",
+          "source": "stdout",
+          "pointer": "/verdict",
+          "equals": "pass"
+        }
+      ],
+      "sha256": "f5d6f98b22d346a32b0be68e2561b17913ff64e9b15a7c1e12f41b7c697ae1ac"
+    }
+  ]
+}

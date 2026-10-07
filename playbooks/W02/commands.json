@@ -1,0 +1,150 @@
+{
+  "schema": "saccade-playbook.v1",
+  "id": "W02",
+  "bundle": "media",
+  "features": [
+    "products"
+  ],
+  "dependencies": [
+    "node",
+    "browser"
+  ],
+  "generated_inputs": "@INPUT@/web",
+  "cwd": "@INPUT@/web",
+  "commands": [
+    {
+      "name": "plan",
+      "argv": [
+        "@BIN@",
+        "sweep",
+        "plan",
+        "--urls",
+        "urls.txt",
+        "--before-origin",
+        "@BEFORE@",
+        "--after-origin",
+        "@AFTER@",
+        "--samples",
+        "3",
+        "--seed",
+        "42",
+        "--viewport",
+        "64x48",
+        "--viewport",
+        "96x64",
+        "--out",
+        "sweep.json",
+        "--json"
+      ],
+      "exit": 0,
+      "checks": [
+        {
+          "name": "schema",
+          "source": "stdout",
+          "pointer": "/schema"
+        },
+        {
+          "name": "seed",
+          "source": "stdout",
+          "pointer": "/seed",
+          "equals": 42
+        },
+        {
+          "name": "first-group",
+          "source": "stdout",
+          "pointer": "/pages/0/group",
+          "equals": "/change"
+        },
+        {
+          "name": "last-group",
+          "source": "stdout",
+          "pointer": "/pages/5/group",
+          "equals": "/same"
+        },
+        {
+          "name": "viewport",
+          "source": "stdout",
+          "pointer": "/pages/5/viewport",
+          "equals": [
+            96,
+            64
+          ]
+        }
+      ],
+      "sha256": "4ec409416912538eb25611d16628a6856456925957bf1e5d70956b15dcb1a5cb"
+    },
+    {
+      "name": "capture",
+      "argv": [
+        "@PYTHON@",
+        "@RUNNER@",
+        "--helper",
+        "capture",
+        "--bin",
+        "@BIN@",
+        "--inputs",
+        "@INPUT@/web",
+        "--out",
+        "@OUTPUT@"
+      ],
+      "exit": 1,
+      "checks": [
+        {
+          "name": "captured",
+          "source": "stdout",
+          "pointer": "/captured",
+          "equals": 10
+        },
+        {
+          "name": "failed",
+          "source": "stdout",
+          "pointer": "/failed",
+          "equals": 2
+        }
+      ],
+      "sha256": "0b8194181b8061f0d820a405cb031e2ec9e74dac4c1c8a00f6a0f61115d335e9"
+    },
+    {
+      "name": "compare",
+      "argv": [
+        "@BIN@",
+        "sweep",
+        "compare",
+        "sweep.json",
+        "--captures",
+        "@OUTPUT@/captures/captures.json",
+        "--out",
+        "@OUTPUT@/compare",
+        "--json"
+      ],
+      "exit": 1,
+      "checks": [
+        {
+          "name": "schema",
+          "source": "stdout",
+          "pointer": "/schema"
+        },
+        {
+          "name": "totals",
+          "source": "stdout",
+          "pointer": "/totals",
+          "equals": {
+            "total": 6,
+            "pass": 2,
+            "fail": 2,
+            "missing": 2,
+            "new": 0,
+            "error": 0
+          }
+        },
+        {
+          "name": "failed-acquisition",
+          "source": "stdout",
+          "pointer": "/capture_failures/0/code",
+          "equals": "capture_failure"
+        }
+      ],
+      "sha256": "6ac4c777754a70f81e0e94958f7c2020c385c01686760ee645b44c5b9d0c35a8"
+    }
+  ]
+}

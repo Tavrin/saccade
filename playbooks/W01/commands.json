@@ -1,0 +1,140 @@
+{
+  "schema": "saccade-playbook.v1",
+  "id": "W01",
+  "bundle": "default",
+  "features": [],
+  "dependencies": [],
+  "generated_inputs": "@INPUT@",
+  "cwd": "@INPUT@",
+  "commands": [
+    {
+      "name": "demo",
+      "argv": [
+        "@BIN@",
+        "demo",
+        "--out",
+        "@OUTPUT@/demo"
+      ],
+      "exit": 1,
+      "checks": [
+        {
+          "name": "intentional",
+          "source": "stdout",
+          "contains": "saccade",
+          "equals": true
+        }
+      ],
+      "sha256": "2e8f38fcf9b9f8f757b0fb86c0bd6d1478c5751125a73b8642034165c41ebfad"
+    },
+    {
+      "name": "view",
+      "argv": [
+        "@BIN@",
+        "view",
+        "@OUTPUT@/demo"
+      ],
+      "exit": 0,
+      "checks": [
+        {
+          "name": "page",
+          "source": "stdout",
+          "contains": "index.html",
+          "equals": true
+        }
+      ],
+      "sha256": "4150714e7b8b3d40b973f015c811c63a2538bbddc086f77b3e136c3e93c9e6b1"
+    },
+    {
+      "name": "compare",
+      "argv": [
+        "@BIN@",
+        "compare",
+        "@OUTPUT@/demo/baseline",
+        "@OUTPUT@/demo/capture",
+        "--out",
+        "@OUTPUT@/compare",
+        "--json"
+      ],
+      "exit": 1,
+      "checks": [
+        {
+          "name": "verdict",
+          "source": "stdout",
+          "pointer": "/verdict",
+          "equals": "regression"
+        },
+        {
+          "name": "totals",
+          "source": "stdout",
+          "pointer": "/totals"
+        }
+      ],
+      "sha256": "3b37d0d8c33aa30b576aacb40fe67a9d3e589327e53d2645f28db996abd8f94a"
+    },
+    {
+      "name": "inspect",
+      "argv": [
+        "@BIN@",
+        "inspect",
+        "@OUTPUT@/compare/saccade-report.v1.json",
+        "--status",
+        "fail,error,missing,new",
+        "--limit",
+        "5",
+        "--json"
+      ],
+      "exit": 0,
+      "checks": [
+        {
+          "name": "schema",
+          "source": "stdout",
+          "pointer": "/schema"
+        },
+        {
+          "name": "counts",
+          "source": "stdout",
+          "pointer": "/counts",
+          "equals": {
+            "total": 3
+          }
+        },
+        {
+          "name": "changed",
+          "source": "stdout",
+          "pointer": "/entries/2/entry_id",
+          "equals": "sphere_shadow.png"
+        },
+        {
+          "name": "status",
+          "source": "stdout",
+          "pointer": "/entries/2/status",
+          "equals": "fail"
+        }
+      ],
+      "sha256": "0213b8ac0adf0bbe363a6fd984a065932f7de2fb9259bcb3c608636654f412e3"
+    },
+    {
+      "name": "evidence",
+      "argv": [
+        "@BIN@",
+        "inspect",
+        "evidence",
+        "@OUTPUT@/compare/saccade-report.v1.json",
+        "--entry",
+        "sphere_shadow.png",
+        "--out",
+        "@OUTPUT@/evidence"
+      ],
+      "exit": 0,
+      "checks": [
+        {
+          "name": "evidence",
+          "source": "stdout",
+          "contains": "evidence: complete",
+          "equals": true
+        }
+      ],
+      "sha256": "f34a6486a244f4c296b294aa21052480e0dd3422a16c874546d1b115d95204dc"
+    }
+  ]
+}

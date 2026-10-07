@@ -1,0 +1,344 @@
+{
+  "schema": "saccade-playbook.v1",
+  "id": "W09",
+  "bundle": "default",
+  "features": [
+    "graphics"
+  ],
+  "dependencies": [],
+  "generated_inputs": "@INPUT@/perf",
+  "cwd": "@INPUT@/perf",
+  "commands": [
+    {
+      "name": "schema",
+      "argv": [
+        "@BIN@",
+        "schema",
+        "get",
+        "saccade-perf.v2",
+        "--out",
+        "@OUTPUT@/perf.schema.json"
+      ],
+      "exit": 0,
+      "checks": [
+        {
+          "name": "contract",
+          "source": "@OUTPUT@/perf.schema.json",
+          "contains": "saccade-perf.v2",
+          "equals": true
+        }
+      ],
+      "sha256": "ef9a4f27d682246be4e2b0bd0ce0f499077b24758956e5d502a3a3e1c4370fb6"
+    },
+    {
+      "name": "base-0",
+      "argv": [
+        "@BIN@",
+        "perf",
+        "validate",
+        "base_r0/saccade-perf.json",
+        "--json"
+      ],
+      "exit": 0,
+      "checks": [
+        {
+          "name": "schema",
+          "source": "stdout",
+          "pointer": "/schema"
+        },
+        {
+          "name": "valid",
+          "source": "stdout",
+          "pointer": "/valid",
+          "equals": true
+        },
+        {
+          "name": "sidecar",
+          "source": "stdout",
+          "pointer": "/sidecar_schema",
+          "equals": "saccade-perf.v2"
+        },
+        {
+          "name": "errors",
+          "source": "stdout",
+          "pointer": "/errors",
+          "equals": []
+        }
+      ],
+      "sha256": "efe8e88973e645378681c026664e275445e3003bbee06486493a1cc0451058bb"
+    },
+    {
+      "name": "base-1",
+      "argv": [
+        "@BIN@",
+        "perf",
+        "validate",
+        "base_r1/saccade-perf.json",
+        "--json"
+      ],
+      "exit": 0,
+      "checks": [
+        {
+          "name": "schema",
+          "source": "stdout",
+          "pointer": "/schema"
+        },
+        {
+          "name": "valid",
+          "source": "stdout",
+          "pointer": "/valid",
+          "equals": true
+        },
+        {
+          "name": "sidecar",
+          "source": "stdout",
+          "pointer": "/sidecar_schema",
+          "equals": "saccade-perf.v2"
+        },
+        {
+          "name": "errors",
+          "source": "stdout",
+          "pointer": "/errors",
+          "equals": []
+        }
+      ],
+      "sha256": "efe8e88973e645378681c026664e275445e3003bbee06486493a1cc0451058bb"
+    },
+    {
+      "name": "base-2",
+      "argv": [
+        "@BIN@",
+        "perf",
+        "validate",
+        "base_r2/saccade-perf.json",
+        "--json"
+      ],
+      "exit": 0,
+      "checks": [
+        {
+          "name": "schema",
+          "source": "stdout",
+          "pointer": "/schema"
+        },
+        {
+          "name": "valid",
+          "source": "stdout",
+          "pointer": "/valid",
+          "equals": true
+        },
+        {
+          "name": "sidecar",
+          "source": "stdout",
+          "pointer": "/sidecar_schema",
+          "equals": "saccade-perf.v2"
+        },
+        {
+          "name": "errors",
+          "source": "stdout",
+          "pointer": "/errors",
+          "equals": []
+        }
+      ],
+      "sha256": "efe8e88973e645378681c026664e275445e3003bbee06486493a1cc0451058bb"
+    },
+    {
+      "name": "candidate-0",
+      "argv": [
+        "@BIN@",
+        "perf",
+        "validate",
+        "candidate_r0/saccade-perf.json",
+        "--json"
+      ],
+      "exit": 0,
+      "checks": [
+        {
+          "name": "schema",
+          "source": "stdout",
+          "pointer": "/schema"
+        },
+        {
+          "name": "valid",
+          "source": "stdout",
+          "pointer": "/valid",
+          "equals": true
+        },
+        {
+          "name": "sidecar",
+          "source": "stdout",
+          "pointer": "/sidecar_schema",
+          "equals": "saccade-perf.v2"
+        },
+        {
+          "name": "errors",
+          "source": "stdout",
+          "pointer": "/errors",
+          "equals": []
+        }
+      ],
+      "sha256": "efe8e88973e645378681c026664e275445e3003bbee06486493a1cc0451058bb"
+    },
+    {
+      "name": "candidate-1",
+      "argv": [
+        "@BIN@",
+        "perf",
+        "validate",
+        "candidate_r1/saccade-perf.json",
+        "--json"
+      ],
+      "exit": 0,
+      "checks": [
+        {
+          "name": "schema",
+          "source": "stdout",
+          "pointer": "/schema"
+        },
+        {
+          "name": "valid",
+          "source": "stdout",
+          "pointer": "/valid",
+          "equals": true
+        },
+        {
+          "name": "sidecar",
+          "source": "stdout",
+          "pointer": "/sidecar_schema",
+          "equals": "saccade-perf.v2"
+        },
+        {
+          "name": "errors",
+          "source": "stdout",
+          "pointer": "/errors",
+          "equals": []
+        }
+      ],
+      "sha256": "efe8e88973e645378681c026664e275445e3003bbee06486493a1cc0451058bb"
+    },
+    {
+      "name": "candidate-2",
+      "argv": [
+        "@BIN@",
+        "perf",
+        "validate",
+        "candidate_r2/saccade-perf.json",
+        "--json"
+      ],
+      "exit": 0,
+      "checks": [
+        {
+          "name": "schema",
+          "source": "stdout",
+          "pointer": "/schema"
+        },
+        {
+          "name": "valid",
+          "source": "stdout",
+          "pointer": "/valid",
+          "equals": true
+        },
+        {
+          "name": "sidecar",
+          "source": "stdout",
+          "pointer": "/sidecar_schema",
+          "equals": "saccade-perf.v2"
+        },
+        {
+          "name": "errors",
+          "source": "stdout",
+          "pointer": "/errors",
+          "equals": []
+        }
+      ],
+      "sha256": "efe8e88973e645378681c026664e275445e3003bbee06486493a1cc0451058bb"
+    },
+    {
+      "name": "identity",
+      "argv": [
+        "@BIN@",
+        "identity",
+        "base_r0",
+        "candidate_r0",
+        "--gpu-clocks-not-applicable",
+        "--out",
+        "@OUTPUT@/identity",
+        "--json"
+      ],
+      "exit": 0,
+      "checks": [
+        {
+          "name": "totals",
+          "source": "stdout",
+          "pointer": "/totals"
+        },
+        {
+          "name": "verdict",
+          "source": "stdout",
+          "pointer": "/verdict"
+        },
+        {
+          "name": "equal-samples",
+          "source": "stdout",
+          "pointer": "/sample_equality",
+          "equals": true
+        }
+      ],
+      "sha256": "576cb377e47d21d9f5ba31abcbfbc82686529a76a799b4cd10df24eece458ce4"
+    },
+    {
+      "name": "prove",
+      "argv": [
+        "@BIN@",
+        "prove",
+        "performance",
+        "--base",
+        "base_r*",
+        "--arm",
+        "candidate=candidate_r*",
+        "--gpu-clocks-not-applicable",
+        "--out",
+        "@OUTPUT@/prove",
+        "--json"
+      ],
+      "exit": 0,
+      "checks": [
+        {
+          "name": "schema",
+          "source": "stdout",
+          "pointer": "/schema"
+        },
+        {
+          "name": "base-repeats",
+          "source": "stdout",
+          "pointer": "/data/base_repeat_count",
+          "equals": 3
+        },
+        {
+          "name": "arm-repeats",
+          "source": "stdout",
+          "pointer": "/data/arms/0/repeat_count",
+          "equals": 3
+        },
+        {
+          "name": "noise",
+          "source": "stdout",
+          "pointer": "/data/repeat_qualification",
+          "equals": "unknown"
+        },
+        {
+          "name": "timing-limit",
+          "source": "stdout",
+          "pointer": "/data/arms/0/flag",
+          "equals": "INCONCLUSIVE"
+        },
+        {
+          "name": "frame-delta",
+          "source": "@OUTPUT@/prove/saccade-ablate.v1.json",
+          "pointer": "/arms/0/frame_delta",
+          "equals": -4.0
+        }
+      ],
+      "sha256": "076b8fc83e739c0bd63d2597fe1938af58b5a29ec6b23f6f721d5b3dfd36f5a3"
+    }
+  ]
+}

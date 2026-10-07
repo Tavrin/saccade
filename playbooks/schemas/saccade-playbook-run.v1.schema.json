@@ -1,0 +1,114 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Playbook run evidence v1",
+  "type": "object",
+  "required": [
+    "schema",
+    "binary_sha256",
+    "compiled_features",
+    "require_all",
+    "recorded_hashes",
+    "passed",
+    "playbooks"
+  ],
+  "properties": {
+    "schema": {
+      "const": "saccade-playbook-run.v1"
+    },
+    "binary_sha256": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}$"
+    },
+    "compiled_features": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "minLength": 1
+      }
+    },
+    "require_all": {
+      "type": "boolean"
+    },
+    "recorded_hashes": {
+      "type": "boolean"
+    },
+    "passed": {
+      "type": "boolean"
+    },
+    "playbooks": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": [
+          "id",
+          "bundle",
+          "status",
+          "reason",
+          "commands"
+        ],
+        "properties": {
+          "id": {
+            "type": "string",
+            "minLength": 1
+          },
+          "bundle": {
+            "type": "string",
+            "minLength": 1
+          },
+          "status": {
+            "enum": [
+              "pass",
+              "skip",
+              "fail"
+            ]
+          },
+          "reason": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "commands": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "required": [
+                "name",
+                "status"
+              ],
+              "properties": {
+                "name": {
+                  "type": "string",
+                  "minLength": 1
+                },
+                "status": {
+                  "enum": [
+                    "pass",
+                    "fail"
+                  ]
+                },
+                "reason": {
+                  "type": "string",
+                  "minLength": 1
+                },
+                "exit": {
+                  "type": "integer"
+                },
+                "sha256": {
+                  "type": "string",
+                  "pattern": "^[0-9a-f]{64}$"
+                },
+                "projection": {
+                  "type": "object"
+                }
+              },
+              "additionalProperties": false
+            }
+          }
+        },
+        "additionalProperties": false
+      }
+    }
+  },
+  "additionalProperties": false
+}

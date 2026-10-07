@@ -2,6 +2,11 @@
 
 ## Unreleased
 
+- Add W01–W13 playbook acceptance manifests, a generated fixture pack and a runner
+  checking expected exits, effects and SHA-256 output projections. Missing bundles
+  skip explicitly; the all-features CI container requires all thirteen recipes.
+  See `docs/playbooks.md`.
+
 ## 0.2.7 (2026-10-07)
 
 - Correct the quality-report and geometry v1 schemas to include the existing

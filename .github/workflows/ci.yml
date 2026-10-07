@@ -83,6 +83,18 @@ jobs:
           python3 -m pip install Pillow==10.2.0
       - run: cargo build --locked -p ${{ matrix.package }} ${{ matrix.flags }}
       - run: cargo test --locked -p ${{ matrix.package }} ${{ matrix.flags }}
+      - name: Playbook runner tests
+        if: matrix.package == 'saccade'
+        run: python3 scripts/test-playbooks.py
+      - name: Clean installed-binary playbooks (all features, no skips)
+        if: matrix.flags == '--all-features'
+        run: scripts/run-playbooks-container.sh target/debug/saccade "$RUNNER_TEMP/playbook-evidence"
+      - name: Retain playbook evidence
+        if: always() && matrix.flags == '--all-features'
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: playbook-evidence
+          path: ${{ runner.temp }}/playbook-evidence/run
 
   quality-schema:
     runs-on: ubuntu-latest
