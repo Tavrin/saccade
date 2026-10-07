@@ -322,3 +322,11 @@ supplied, so batch arms are omitted and `:batch` requests are refused. No separa
 batch API is invented. All lane evidence is synthetic/in-memory; endpoint
 compatibility, current model availability and actual provider enforcement require
 the coordinator's reviewed live smoke.
+
+OpenRouter requests pin an explicit reasoning subset under
+`assist-openrouter-reasoning/1`: 512 tokens for `check_ui`, 1024 for
+`explain`/`audit_mask`, within the 4096-token aggregate completion ceiling.
+Reported reasoning tokens are retained; missing counts stay unknown.
+`finish_reason: length` yields `truncated_output` and cannot qualify an answer.
+The [G12 reasoning decision](design-decisions/g12-reasoning-budget.md) records
+reservation semantics, conservative failure precedence, and offline fixtures.

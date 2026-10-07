@@ -659,6 +659,43 @@ mod tests {
         assert!(validate_rows(&rows, 1, u64::MAX, false).is_err());
     }
     #[test]
+    fn g12_recorded_length_response_is_truncated_in_root_outcomes() {
+        let response = include_bytes!("../tests/fixtures/assist-openrouter/truncated-pilot.json");
+        let row = Row {
+            root: "fixture".into(),
+            model: "google/gemini-3.8-flash".into(),
+            revision: "absent".into(),
+            payload: json!({"messages":[{}, {"content":[{"text":
+                json!({"request_hash":Digest::of_bytes(b"fixture")}).to_string()}]}]}),
+        };
+        let rows = [row];
+        let (outcomes, failed) = root_outcomes(
+            &rows,
+            Instant::now() + campaign_duration(true),
+            false,
+            Instant::now,
+            |_, _| stage2_answer(&rows[0], response).map(|_| ()),
+        );
+        assert!(failed);
+        assert_eq!(outcomes[0]["code"], "truncated_output");
+        let mut refusal: Value = serde_json::from_slice(response).unwrap();
+        refusal["choices"][0]["finish_reason"] = json!("stop");
+        refusal["choices"][0]["message"]["refusal"] = json!("fixture refusal");
+        assert_ne!(
+            stage2_answer(&rows[0], &serde_json::to_vec(&refusal).unwrap())
+                .unwrap_err()
+                .code(),
+            "truncated_output"
+        );
+        refusal["model"] = json!("other/model");
+        assert_ne!(
+            stage2_answer(&rows[0], &serde_json::to_vec(&refusal).unwrap())
+                .unwrap_err()
+                .code(),
+            "truncated_output"
+        );
+    }
+    #[test]
     fn stage2_mechanics_refuse_unbound_citations_and_geometry() {
         let hash = Digest::of_bytes(b"fixture");
         let row = Row {

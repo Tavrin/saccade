@@ -60,7 +60,7 @@ pub fn usage(body: &[u8]) -> Usage {
         input_tokens: n(&["promptTokenCount", "input_tokens", "prompt_tokens"]),
         candidate_tokens: n(&["candidatesTokenCount", "output_tokens", "completion_tokens"]),
         thinking_tokens: n(&["thoughtsTokenCount", "thinking_tokens"])
-            .or_else(|| (value["object"] == "chat.completion").then_some(0)),
+            .or_else(|| u["completion_tokens_details"]["reasoning_tokens"].as_u64()),
         cached_input_tokens: n(&["cachedContentTokenCount", "cached_input_tokens"]),
         total_tokens: n(&["totalTokenCount", "total_tokens"]),
         modality_details: json!({"input":details(u.get("promptTokensDetails")),"output":details(u.get("candidatesTokensDetails")),"cached":details(u.get("cacheTokensDetails"))}),
@@ -119,10 +119,18 @@ fn openrouter_cost(body: &[u8]) -> Option<u64> {
     }
     super::openrouter::body_amount(body, &["usage", "cost"], true)
 }
-fn openrouter_settlement(body: &[u8], bounds: super::price::Bounds) -> (Option<u64>, bool) {
+fn openrouter_settlement(
+    body: &[u8],
+    bounds: super::price::Bounds,
+    reasoning: u64,
+) -> (Option<u64>, bool) {
     let u = usage(body);
     let breach = u.input_tokens.is_some_and(|n| n > bounds.input)
-        || u.candidate_tokens.is_some_and(|n| n > bounds.output);
+        || u.candidate_tokens.is_some_and(|n| n > bounds.output)
+        || u.thinking_tokens.is_some_and(|n| n > reasoning)
+        || u.thinking_tokens
+            .zip(u.candidate_tokens)
+            .is_some_and(|(thinking, completion)| thinking > completion);
     let billed = openrouter_cost(body);
     (billed, breach)
 }
@@ -509,7 +517,7 @@ impl Executor<'_> {
                     actual_nano_usd: None,
                     outcome: "reserved".into(),
                     usage: if key.provider == "openrouter" {
-                        json!({"image_table":super::price::OPENROUTER_IMAGE_TABLE,"requested_identity":{"model":key.model,"revision":key.revision}})
+                        json!({"request_policy":super::openrouter::REQUEST_POLICY,"reasoning_bound":openrouter_admission.map(|a| a.reasoning),"image_table":super::price::OPENROUTER_IMAGE_TABLE,"requested_identity":{"model":key.model,"revision":key.revision}})
                     } else {
                         Value::Null
                     },
@@ -555,7 +563,11 @@ impl Executor<'_> {
                 let (actual, breach) = if rejection.reservation.is_none() {
                     (Some(0), false)
                 } else if key.provider == "openrouter" {
-                    openrouter_settlement(&rejection.body, bounds)
+                    openrouter_settlement(
+                        &rejection.body,
+                        bounds,
+                        openrouter_admission.map_or(0, |a| a.reasoning),
+                    )
                 } else {
                     let actual = cost_nano(&key.provider, &usage(&rejection.body), start, false);
                     (
@@ -572,7 +584,7 @@ impl Executor<'_> {
                     .finish_money(
                         &id,
                         actual,
-                        json!({"usage":usage(&rejection.body),"input_bound":bounds.input,"output_bound":bounds.output,"bound_breach":breach,"not_dispatched":rejection.reservation.is_none(),"generation_id":generation_id(&rejection.body)}),
+                        json!({"request_policy":(key.provider == "openrouter").then_some(super::openrouter::REQUEST_POLICY),"reasoning_bound":openrouter_admission.map(|a| a.reasoning),"usage":usage(&rejection.body),"input_bound":bounds.input,"output_bound":bounds.output,"bound_breach":breach,"not_dispatched":rejection.reservation.is_none(),"generation_id":generation_id(&rejection.body)}),
                         false,
                     )
                     .map_err(|_| Error::Storage)?;
@@ -582,7 +594,11 @@ impl Executor<'_> {
         let u = usage(&response);
         let finish = crate::budget_ledger::now_ms();
         let (cost, breach) = if key.provider == "openrouter" {
-            openrouter_settlement(&response, bounds)
+            openrouter_settlement(
+                &response,
+                bounds,
+                openrouter_admission.map_or(0, |a| a.reasoning),
+            )
         } else {
             let cost = cost_nano(&key.provider, &u, start, false);
             (
@@ -613,7 +629,7 @@ impl Executor<'_> {
             .finish_money(
                 &id,
                 cost,
-                json!({"usage":u,"input_bound":bounds.input,"output_bound":bounds.output,"bound_breach":breach,"price_policy":if key.provider == "openrouter" { super::price::OPENROUTER_PRICE_ID } else { policy.id },"generation_id":generation_id(&response),"response_identity":identity_metadata,"identity_error":identity_code}),
+                json!({"request_policy":(key.provider == "openrouter").then_some(super::openrouter::REQUEST_POLICY),"reasoning_bound":openrouter_admission.map(|a| a.reasoning),"usage":u,"input_bound":bounds.input,"output_bound":bounds.output,"bound_breach":breach,"price_policy":if key.provider == "openrouter" { super::price::OPENROUTER_PRICE_ID } else { policy.id },"generation_id":generation_id(&response),"response_identity":identity_metadata,"identity_error":identity_code}),
                 true,
             )
             .map_err(|_| Error::Storage)?;
@@ -658,6 +674,12 @@ impl Executor<'_> {
             !breach && cost.is_none_or(|c| c <= reservation),
             "provider usage exceeded reservation",
         )?;
+        if key.provider == "openrouter"
+            && value["choices"].as_array().is_some_and(|a| a.len() == 1)
+            && value["choices"][0]["finish_reason"] == "length"
+        {
+            return Err(Error::Invalid("truncated_output"));
+        }
         Ok(Completed {
             response: response.clone(),
             provenance: Provenance {
@@ -696,5 +718,65 @@ impl Executor<'_> {
                 elapsed_ms: clock.elapsed().as_millis() as u64,
             },
         })
+    }
+}
+
+#[cfg(test)]
+#[allow(clippy::unwrap_used)]
+mod reasoning_tests {
+    use super::*;
+    #[test]
+    fn g12_recorded_reasoning_usage_is_a_subset_and_unknown_stays_unknown() {
+        let body = include_bytes!("../../tests/fixtures/assist-openrouter/truncated-pilot.json");
+        let u = usage(body);
+        assert_eq!(u.candidate_tokens, Some(4089));
+        assert_eq!(u.thinking_tokens, Some(3928));
+        let bounds = super::super::price::Bounds {
+            input: 16000,
+            output: 4096,
+        };
+        // Completion already contains reasoning; never add its subset again.
+        assert_eq!(
+            openrouter_settlement(body, bounds, 4096),
+            (Some(17_222_250), false)
+        );
+        assert_eq!(
+            openrouter_settlement(body, bounds, 1024),
+            (Some(17_222_250), true)
+        );
+        let mut v: Value = decode(body).unwrap();
+        for details in [
+            Value::Null,
+            json!({}),
+            json!({"reasoning_tokens":null}),
+            json!({"reasoning_tokens":-1}),
+            json!({"reasoning_tokens":"3928"}),
+        ] {
+            v["usage"]["completion_tokens_details"] = details;
+            let bytes = serde_json::to_vec(&v).unwrap();
+            assert_eq!(usage(&bytes).thinking_tokens, None);
+            assert_eq!(
+                openrouter_settlement(&bytes, bounds, 1024).0,
+                Some(17_222_250)
+            );
+        }
+        v["usage"]
+            .as_object_mut()
+            .unwrap()
+            .remove("completion_tokens_details");
+        assert_eq!(
+            usage(&serde_json::to_vec(&v).unwrap()).thinking_tokens,
+            None
+        );
+        v["usage"]["completion_tokens_details"] = json!({"reasoning_tokens":0});
+        assert_eq!(
+            usage(&serde_json::to_vec(&v).unwrap()).thinking_tokens,
+            Some(0)
+        );
+        v["usage"]["completion_tokens"] = json!(4097);
+        assert!(openrouter_settlement(&serde_json::to_vec(&v).unwrap(), bounds, 1024).1);
+        v["usage"]["completion_tokens"] = json!(100);
+        v["usage"]["completion_tokens_details"] = json!({"reasoning_tokens":101});
+        assert!(openrouter_settlement(&serde_json::to_vec(&v).unwrap(), bounds, 1024).1);
     }
 }

@@ -1,0 +1,27 @@
+{
+  "id": "gen-fixture-truncated",
+  "object": "chat.completion",
+  "model": "google/gemini-3.8-flash",
+  "provider": "Google AI Studio",
+  "choices": [
+    {
+      "index": 0,
+      "finish_reason": "length",
+      "native_finish_reason": "MAX_TOKENS",
+      "message": {
+        "role": "assistant",
+        "content": "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+        "refusal": null
+      }
+    }
+  ],
+  "usage": {
+    "prompt_tokens": 2518,
+    "completion_tokens": 4089,
+    "total_tokens": 6607,
+    "cost": 0.01722225,
+    "completion_tokens_details": {
+      "reasoning_tokens": 3928
+    }
+  }
+}

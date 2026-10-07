@@ -13,6 +13,8 @@ ARMS = ('rules', 'single_gemini', 'two_gemini', 'cascade')
 MODEL = 'google/gemini-3.8-flash'
 REVISION = MODEL + '-20260902'
 SCHEDULE_SEED = 4406
+REQUEST_POLICY = 'assist-openrouter-reasoning/1'
+REASONING_BUDGETS = dict(check_ui=512, explain=1024, audit_mask=1024)
 # Supplied ten-call aggregate; two-image expectation adds one mean prompt at pinned price.
 SINGLE_EXPECTED_NANO = 3485850
 TWO_EXPECTED_NANO = SINGLE_EXPECTED_NANO + 1523 * 750
@@ -57,11 +59,15 @@ def payload(case, order, counterfactual, directory=None):
         image = base64.b64encode((directory/path).read_bytes()).decode() if directory else ''
         content.append(dict(type='image_url', image_url=dict(url='data:image/png;base64,'+image)))
     return dict(model=MODEL, messages=[dict(role='system', content=INSTRUCTION), dict(role='user', content=content)],
-                temperature=0, max_tokens=4096, response_format=dict(type='json_object'),
+                temperature=0, max_tokens=4096, reasoning=dict(max_tokens=REASONING_BUDGETS[case['task']]), response_format=dict(type='json_object'),
                 provider=dict(allow_fallbacks=False, require_parameters=True, max_price=dict(prompt=.75, completion=3.75)),
                 usage=dict(include=True))
 
 def reservation(request, dimensions):
+    import json
+    task=json.loads(request['messages'][1]['content'][0]['text'])['task']
+    if request.get('reasoning') != dict(max_tokens=REASONING_BUDGETS[task]) or request.get('max_tokens') != 4096:
+        raise ValueError('stage2 pinned reasoning policy')
     stripped = copy.deepcopy(request)
     images = 0
     for message in stripped['messages']:
@@ -109,7 +115,8 @@ def report(manifest, directory, budget_bounded=False):
     if not budget_bounded and (expected > 4_000_000_000 or worst > 5_000_000_000): raise ValueError('stage2 schedule exceeds envelope')
     if len(rows)>1000: raise ValueError('stage2 schedule exceeds 1000 request limit')
     return rows, dict(schema='saccade-g12-stage2-plan.v1', manifest_hash=manifest['manifest_hash'],
-        epoch=manifest['epoch'], policy=manifest['policy']['version'], per_arm_workload=table,
+        epoch=manifest['epoch'], policy=manifest['policy']['version'], request_policy=REQUEST_POLICY,
+        reasoning_budgets=REASONING_BUDGETS, aggregate_output_limit=4096, per_arm_workload=table,
         requests=len(rows), expected_nano_usd=expected, reservation_nano_usd=worst,
         budget_bounded=budget_bounded, full_reservation_fits=worst<=5_000_000_000,
         allowance_nano_usd=5_000_000_000, schedule_seed=SCHEDULE_SEED,

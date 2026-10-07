@@ -3,7 +3,7 @@ from pathlib import Path
 import tempfile
 import unittest
 from corpus import freeze, verify
-from stage2 import payload, priced, report, schedule, collect, REVISION
+from stage2 import payload, priced, report, schedule, collect, REVISION, REQUEST_POLICY, REASONING_BUDGETS, reservation
 
 class Stage2Tests(unittest.TestCase):
     def test_stage2_replan_interleaves_pilot_and_budget_bounded_larger_schedule(self):
@@ -14,7 +14,7 @@ class Stage2Tests(unittest.TestCase):
             rows,plan=report(manifest,directory)
             self.assertEqual(len(rows),216)
             self.assertEqual(rows,report(verify(directory)[0],directory)[0])
-            self.assertEqual(plan['reservation_nano_usd'],4616611500)
+            self.assertEqual(plan['reservation_nano_usd'],4621723500)
             self.assertFalse(plan['budget_bounded'])
             self.assertTrue(plan['full_reservation_fits'])
             workloads={c['root_id']:c['workload'] for c in manifest['cases']}
@@ -39,6 +39,28 @@ class Stage2Tests(unittest.TestCase):
             workloads={c['root_id']:c['workload'] for c in manifest['cases']}
             self.assertEqual({group(r) for r in rows[:12]},active)
 
+    def test_reasoning_policy_is_pinned_in_both_regenerated_plans(self):
+        import json
+        with tempfile.TemporaryDirectory() as tmp:
+            for target, count, bounded in [(15,216,False),(60,864,True)]:
+                directory=Path(tmp)/str(target)
+                manifest=freeze(directory,target,4406,REVISION,'jev-1.13.0',True)
+                rows,plan=report(manifest,directory,bounded)
+                self.assertEqual(plan['requests'],count)
+                self.assertEqual(plan['request_policy'],REQUEST_POLICY)
+                self.assertEqual(plan['reasoning_budgets'],REASONING_BUDGETS)
+                self.assertEqual(plan['aggregate_output_limit'],4096)
+                dimensions={c['root_id']:c['dimensions'] for c in manifest['cases']}
+                total=0
+                for row in rows:
+                    request=row['payload']
+                    task=json.loads(request['messages'][1]['content'][0]['text'])['task']
+                    self.assertEqual(request['reasoning'],dict(max_tokens=REASONING_BUDGETS[task]))
+                    self.assertLessEqual(request['reasoning']['max_tokens'],1024)
+                    total+=reservation(request,dimensions[row['root'].rsplit(':',3)[0]])
+                self.assertEqual(total,plan['reservation_nano_usd'])
+                self.assertFalse(plan['qualified'])
+
     def test_budget_and_deadline_stops_remain_unavailable_in_full_denominator(self):
         import json
         with tempfile.TemporaryDirectory() as tmp:
@@ -46,7 +68,7 @@ class Stage2Tests(unittest.TestCase):
             manifest=freeze(directory,5,4406,REVISION,'jev-1.13.0',True)
             rows,_=report(manifest,directory)
             out=Path(tmp)/'results';out.mkdir()
-            for code in ('not_run_budget','not_run_deadline'):
+            for code in ('not_run_budget','not_run_deadline','truncated_output'):
                 outcomes=[dict(index=i,root=r['root'],code=code) for i,r in enumerate(rows)]
                 (out/'smoke.json').write_text(json.dumps(dict(root_outcomes=outcomes)))
                 # A stale answer cannot turn an explicitly unrun root into success.

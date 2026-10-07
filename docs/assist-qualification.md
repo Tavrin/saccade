@@ -519,3 +519,14 @@ Focused fixtures: `g12_stage2_per_root_deadlines_survive_pacing_and_stop_campaig
 `test_budget_and_deadline_stops_remain_unavailable_in_full_denominator`. The fake
 provider executor fixture also verifies that a six-hour executor deadline is
 rejected before dispatch; the paced schedule uses a simulated clock, never sleeps.
+
+## G12 explicit reasoning policy
+
+Stage-2 plans now pin `assist-openrouter-reasoning/1`: `reasoning.max_tokens` is
+512 for `check_ui` (including routing) and 1024 for `explain`/`audit_mask`, inside
+the existing 4096 aggregate output limit. Offline admission refuses omitted or
+changed controls. OpenRouter's reported reasoning counter is a completion subset;
+missing thinking usage stays unknown. `truncated_output` is an unavailable,
+non-qualifying root outcome. Monetary breaches continue to stop the campaign and
+retain billed spend. See [the decision and focused fixtures](design-decisions/g12-reasoning-budget.md)
+for the exact request choice and offline evidence location.

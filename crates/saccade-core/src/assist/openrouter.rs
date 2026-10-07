@@ -5,6 +5,24 @@ use serde::{Deserialize, Serialize};
 use serde_json::{Value, json};
 /// Billing source: OpenRouter passes provider prices through without markup.
 pub const PRICE_VERSION: &str = "openrouter-recorded-prices/2026-10-06-v1";
+/// Pinned minimal unified reasoning shape; changing this policy changes request hashes.
+pub const REQUEST_POLICY: &str = "assist-openrouter-reasoning/1";
+/// Keep at least three quarters of the aggregate completion budget for visible output.
+/// Missing/unknown task data receives the bounded multi-view policy.
+pub fn reasoning_budget(task: Option<&str>, output: u64) -> u64 {
+    (if task == Some("check_ui") { 512 } else { 1024 }).min(output / 4)
+}
+fn request_task(v: &Value) -> Option<String> {
+    v["messages"]
+        .as_array()?
+        .iter()
+        .filter(|m| m["role"] == "user")
+        .filter_map(|m| m["content"].as_array())
+        .flatten()
+        .filter(|p| p["type"] == "text")
+        .filter_map(|p| serde_json::from_str::<Value>(p["text"].as_str()?).ok())
+        .find_map(|data| data["task"].as_str().map(str::to_owned))
+}
 /// Fixed API dialect; credentials can never be redirected by a project.
 pub const ENDPOINT: &str = "https://openrouter.ai/api/v1/chat/completions";
 /// Build chat messages from the same anonymous image extraction packet.
@@ -37,7 +55,10 @@ pub fn request(gemini: &[u8], model: &str) -> Result<Vec<u8>> {
             content.push(json!({"type":"image_url","image_url":{"url":format!("data:image/png;base64,{data}")}}));
         }
     }
-    crate::evidence::canonical::bytes(&json!({"model":model,"messages":[{"role":"system","content":source["systemInstruction"]["parts"][0]["text"]},{"role":"user","content":content}],"temperature":0,"max_tokens":4096,"response_format":{"type":"json_object"},"provider":{"allow_fallbacks":false,"require_parameters":true,"max_price":price.max_price()},"usage":{"include":true}})).map_err(|_|super::Error::Invalid("OpenRouter payload"))
+    let mut request = json!({"model":model,"messages":[{"role":"system","content":source["systemInstruction"]["parts"][0]["text"]},{"role":"user","content":content}],"temperature":0,"max_tokens":4096,"response_format":{"type":"json_object"},"provider":{"allow_fallbacks":false,"require_parameters":true,"max_price":price.max_price()},"usage":{"include":true}});
+    request["reasoning"] = json!({"max_tokens":reasoning_budget(request_task(&request).as_deref(), super::execution::OUTPUT_LIMIT)});
+    crate::evidence::canonical::bytes(&request)
+        .map_err(|_| super::Error::Invalid("OpenRouter payload"))
 }
 /// Recorded execution identity and routing, distinct from immutable model identity.
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -134,6 +155,11 @@ pub fn reply(body: &[u8], model: &str, request_hash: &Digest) -> Result<(WireAns
         .filter(|s| !s.is_empty())
         .ok_or(super::Error::Invalid("OpenRouter routing provider"))?;
     let identity = response_identity(&value)?;
+    if value["choices"].as_array().is_some_and(|a| a.len() == 1)
+        && value["choices"][0]["finish_reason"] == "length"
+    {
+        return Err(super::Error::Invalid("truncated_output"));
+    }
     require(
         value["model"] == model
             && value["choices"].as_array().is_some_and(|a| a.len() == 1)
@@ -237,6 +263,44 @@ mod tests {
         .unwrap();
         assert_eq!(prices["version"], PRICE_VERSION);
         assert_eq!(prices["live_verified"], false);
+    }
+    #[test]
+    fn g12_task_reasoning_policy_is_closed_and_reserved_inside_output_limit() {
+        let model = super::super::price::OPENROUTER_MODEL;
+        for (task, cap) in [("check_ui", 512), ("explain", 1024), ("audit_mask", 1024)] {
+            let source = json!({"systemInstruction":{"parts":[{"text":"fixture"}]},
+                "contents":[{"parts":[{"text":json!({"task":task}).to_string()}]}]});
+            let bytes = request(&serde_json::to_vec(&source).unwrap(), model).unwrap();
+            let payload: Value = decode(&bytes).unwrap();
+            let admitted = admission(&bytes, model).unwrap();
+            assert_eq!(payload["reasoning"], json!({"max_tokens":cap}));
+            assert_eq!(admitted.reasoning, cap);
+            assert_eq!(
+                admitted.bounds.output,
+                super::super::execution::OUTPUT_LIMIT
+            );
+            assert_eq!(
+                admitted.reservation,
+                admitted.bounds.input * 750 + 4096 * 3750
+            );
+            for invalid in [
+                Value::Null,
+                json!({}),
+                json!({"max_tokens":0}),
+                json!({"max_tokens":4096}),
+                json!({"max_tokens":cap+1}),
+                json!({"max_tokens":cap,"exclude":true}),
+                json!({"effort":"low"}),
+                json!({"max_tokens":cap.to_string()}),
+            ] {
+                let mut drift = payload.clone();
+                drift["reasoning"] = invalid;
+                assert!(admission(&serde_json::to_vec(&drift).unwrap(), model).is_err());
+            }
+            let mut absent = payload;
+            absent.as_object_mut().unwrap().remove("reasoning");
+            assert!(admission(&serde_json::to_vec(&absent).unwrap(), model).is_err());
+        }
     }
     #[test]
     fn g12_model_price_caps_and_payload_bounds_fail_closed() {
@@ -446,6 +510,10 @@ mod execution_tests {
                 )
                 .is_err()
         );
+    }
+    #[test]
+    fn g12_truncation_and_reasoning_breach_keep_billed_money_and_do_not_retry() {
+        scenarios(30..32);
     }
     #[test]
     fn g12_delayed_generation_retries_and_preserves_terminal_failure_reasons() {
@@ -710,6 +778,15 @@ mod execution_tests {
                 value.as_object_mut().unwrap().remove("system_fingerprint");
                 value["usage"] = json!({"prompt_tokens":1513,"completion_tokens":212,"total_tokens":1725,"cost":0.0023235});
             }
+            if index >= 30 {
+                value = decode(include_bytes!(
+                    "../../tests/fixtures/assist-openrouter/truncated-pilot.json"
+                ))
+                .unwrap();
+                if index == 30 {
+                    value["usage"]["completion_tokens_details"]["reasoning_tokens"] = json!(1024);
+                }
+            }
             if index == 1 {
                 value["usage"] = json!({"cost":0});
             }
@@ -729,6 +806,9 @@ mod execution_tests {
             };
             let mut source = json!({"systemInstruction":{"parts":[{"text":"system fixture"}]},
                 "contents":[{"parts":[{"text":if index >= 28 { "fixture".repeat(40) } else { "fixture".into() }}]}]});
+            if index >= 30 {
+                source["contents"][0]["parts"][0]["text"] = json!("fixture".repeat(400));
+            }
             if index == 2 {
                 source["contents"][0]["parts"]
                     .as_array_mut()
@@ -745,6 +825,7 @@ mod execution_tests {
             .unwrap();
             if index == 11 {
                 payload["max_tokens"] = json!(64);
+                payload["reasoning"] = json!({"max_tokens":16});
             }
             let payload = serde_json::to_vec(&payload).unwrap();
             if index == 2 {
@@ -800,6 +881,31 @@ mod execution_tests {
             let campaign =
                 std::fs::read_to_string(temp.path().join("ledger/campaign.json")).unwrap();
             assert!(!campaign.contains("fixture-openrouter-key"));
+            if index >= 30 {
+                assert_eq!(
+                    result.err().unwrap().code(),
+                    if index == 30 {
+                        "truncated_output"
+                    } else {
+                        "provider usage exceeded reservation"
+                    }
+                );
+                assert_eq!(receipts[0].actual_nano_usd, Some(17_222_250));
+                assert_eq!(
+                    receipts[0].usage["usage"]["thinking_tokens"],
+                    if index == 30 { 1024 } else { 3928 }
+                );
+                assert_eq!(receipts[0].usage["reasoning_bound"], 1024);
+                assert_eq!(receipts[0].usage["request_policy"], REQUEST_POLICY);
+                assert_eq!(receipts[0].usage["qualification_eligible"], false);
+                assert_eq!(receipts[0].usage["bound_breach"], index == 31);
+                if index == 31 {
+                    assert!(executor.call(&key, &payload).is_err());
+                }
+                assert_eq!(fake.calls.get(), 1);
+                assert_eq!(fake.generations.get(), 0);
+                continue;
+            }
             if index >= 28 {
                 let completed = result.unwrap();
                 assert_eq!(completed.provenance.returned_revision, "absent");
@@ -1070,6 +1176,7 @@ pub fn admission(payload: &[u8], model: &str) -> Result<super::price::OpenRouter
                     "messages",
                     "temperature",
                     "max_tokens",
+                    "reasoning",
                     "response_format",
                     "provider",
                     "usage",
@@ -1088,6 +1195,12 @@ pub fn admission(payload: &[u8], model: &str) -> Result<super::price::OpenRouter
                 .as_u64()
                 .is_some_and(|n| n > 0 && n <= super::execution::OUTPUT_LIMIT),
         "OpenRouter closed request shape",
+    )?;
+    let output = v["max_tokens"].as_u64().unwrap_or(0);
+    let reasoning = reasoning_budget(request_task(&v).as_deref(), output);
+    require(
+        reasoning > 0 && v["reasoning"] == json!({"max_tokens":reasoning}),
+        "OpenRouter pinned reasoning policy",
     )?;
     super::price::openrouter_bounds(payload, price)
 }

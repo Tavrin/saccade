@@ -160,7 +160,7 @@ pub struct Verification {
 pub struct Usage {
     /// Includes cached input when provider defines it so.
     pub input_tokens: Option<u64>,
-    /// Candidate output, excluding separately reported thinking.
+    /// Candidate output; OpenRouter completion includes its reported thinking subset.
     pub candidate_tokens: Option<u64>,
     /// Thinking count when exposed.
     pub thinking_tokens: Option<u64>,

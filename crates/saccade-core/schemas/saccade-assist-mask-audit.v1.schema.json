@@ -795,7 +795,7 @@
           ]
         },
         "candidate_tokens": {
-          "description": "Candidate output, excluding separately reported thinking.",
+          "description": "Candidate output; OpenRouter completion includes its reported thinking subset.",
           "format": "uint64",
           "minimum": 0,
           "type": [

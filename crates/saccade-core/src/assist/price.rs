@@ -320,6 +320,8 @@ pub fn openrouter_price(model: &str) -> Result<OpenRouterPrice> {
 pub struct OpenRouterAdmission {
     /// Aggregate prompt and explicit completion ceilings.
     pub bounds: Bounds,
+    /// Reasoning subset of aggregate completion; reserved once inside bounds.output.
+    pub reasoning: u64,
     /// Integer nanodollars; supplied rates are integral, so no rounding is lost.
     pub reservation: u64,
 }
@@ -429,6 +431,7 @@ pub(crate) fn openrouter_bounds_for_table(
         .ok_or(super::Error::Invalid("reservation price overflow"))?;
     Ok(OpenRouterAdmission {
         bounds: Bounds { input, output },
+        reasoning: request["reasoning"]["max_tokens"].as_u64().unwrap_or(0),
         reservation,
     })
 }
