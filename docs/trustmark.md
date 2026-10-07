@@ -57,3 +57,7 @@ payload never matched a target payload (**0/12**). The fixed generated negative
 set produced **0/128** target hits and **0/128** ECC-valid detections (observed
 false-positive rate **0%**). These numbers describe this constructed corpus,
 not a population rate or authenticity guarantee.
+
+The [qualification receipt](trustmark-qualification.json) records source, model,
+runtime and binary identities, gate exits, the additional global-schema failure,
+and the transient decimal target-budget breach and subsequent target deletion.

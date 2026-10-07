@@ -1,0 +1,146 @@
+{
+  "acceptance": {
+    "decoder_sha256": "ee3268f057c9dabef680e169302f5973d0589feea86189ed229a896cc3aa88df",
+    "false_positive_rate": 0.0,
+    "false_positives": 0,
+    "fixture_manifest_sha256": "130cc69fad20bbf217711dc3f22816fb93341a7e089a7b7ccf598a99cca4c845",
+    "negative_generator": "fixed seed 0x9e3779b9 xor index, 320x256, eight families: flat, ramps, noise, checker, radial, sinusoidal, modular texture, rectangle",
+    "negative_target_hits": 0,
+    "negative_total": 128,
+    "positive_exact": 24,
+    "positive_total": 24,
+    "wrong_payload_target_hits": 0,
+    "wrong_payload_total": 12
+  },
+  "additional_exit_codes": {
+    "cli_native_positive": 0,
+    "compiled_cli_gen_docs_check_before_header_restore": 0,
+    "docs_build": 0,
+    "gen_docs_check_after_header_restore": 0,
+    "mcp_native_positive": 0,
+    "native_positive_json_schema_validation": 0
+  },
+  "artifacts": {
+    "decoder_bytes": 47401222,
+    "decoder_sha256": "ee3268f057c9dabef680e169302f5973d0589feea86189ed229a896cc3aa88df",
+    "fixture_encoder_bytes": 17312208,
+    "fixture_encoder_sha256": "19b3d1b25836130ffd78775a8f61539f993375d1823ef0e59ba5b8dffb4f892d",
+    "runtime_library_sha256": "3da6146e14e7b8aaec625dde11d6114c7457c87a5f93d744897da8781e35c673",
+    "runtime_version": "1.22.0"
+  },
+  "binary_identity": {
+    "cli_and_mcp_sha256": "ee67b47651367aa5fcaa20e125dd08f0a8afd987a8c68a722e2530f651b15855",
+    "native_acceptance_test_name": "trustmark_decode-d1786cbc73145d70",
+    "native_acceptance_test_sha256": "8c44f5d5dd3e322265e7b3a60970547524ac6f72ab126290ec6914697c7aae12"
+  },
+  "build": {
+    "canonical_cli_header_lines_5_8_restored": true,
+    "dev_debug": 0,
+    "docs_avif_excluded": true,
+    "docs_features": [
+      "ocr-provider",
+      "media-http",
+      "products",
+      "documents",
+      "credentials",
+      "embeddings",
+      "semantic-regions",
+      "compression",
+      "parallel",
+      "dense-motion",
+      "geometry",
+      "graphics",
+      "ai",
+      "workbench",
+      "mcp",
+      "evaluation",
+      "prechecks",
+      "schema",
+      "ocr",
+      "assist",
+      "local-models",
+      "local-vlm",
+      "vision-providers"
+    ],
+    "incremental": false,
+    "jobs": 4,
+    "nice": 19
+  },
+  "compiler": "rustc 1.98.1 (48a229cea 2026-09-01)\nbinary: rustc\ncommit-hash: 48a229ceaefd4985c50990b14116b6d856af0985\ncommit-date: 2026-09-01\nhost: x86_64-unknown-linux-gnu\nrelease: 1.98.1\nLLVM version: 22.1.8",
+  "date": "2026-10-07",
+  "extra_global_schema_check": {
+    "contract": "saccade-quality-report.v1",
+    "enclosing_gate_attempt_exit_code": 1,
+    "reason": "Generic report-link generator adds fields absent from the untouched historical quality-report schema. Quality-report source and schema were not changed; this additional matrix is not counted as passed.",
+    "status": "failed",
+    "test": "committed_schemas_match_the_rust_types"
+  },
+  "format_version": 1,
+  "gate_exit_codes": {
+    "acceptance": 0,
+    "clippy-default": 0,
+    "clippy-local-models": 0,
+    "docs": 0,
+    "fmt": 0,
+    "plugin-manifests": 0,
+    "public-hygiene": 0,
+    "schemas": 0,
+    "tests-default": 0,
+    "tests-local-models": 0
+  },
+  "implementation_commit": "73c0746339d7e52de82c90b7edbec3c6b29adfa4",
+  "licence": {
+    "code": "MIT",
+    "official_model_files": "MIT",
+    "primary_sources": [
+      "https://github.com/adobe/trustmark/blob/59bde8b41c973d2fac3be7ef89e3ac0fea2254fa/LICENSE",
+      "https://github.com/adobe/trustmark/blob/59bde8b41c973d2fac3be7ef89e3ac0fea2254fa/README.md#license",
+      "https://github.com/adobe/trustmark/blob/59bde8b41c973d2fac3be7ef89e3ac0fea2254fa/python/LICENSE",
+      "https://github.com/adobe/trustmark/blob/59bde8b41c973d2fac3be7ef89e3ac0fea2254fa/rust/LICENSE"
+    ],
+    "status": "pass",
+    "upstream_commit": "59bde8b41c973d2fac3be7ef89e3ac0fea2254fa"
+  },
+  "not_verified": [
+    "checkpoint/export numerical parity",
+    "real-world accuracy or population false-positive rate",
+    "cross-platform execution",
+    "GPU execution",
+    "other TrustMark model variants",
+    "AVIF feature build"
+  ],
+  "required_gate_script_exit_code": 0,
+  "resources": {
+    "decimal_budget_met": false,
+    "interval_seconds": 3,
+    "limit_bytes": 8000000000,
+    "maximum_sampled_bytes": 8172613632,
+    "status": "transient_decimal_budget_exceeded",
+    "target_deleted": true
+  },
+  "source_sha256": {
+    "Cargo.lock": "3006d8e4fd5c6f351e4972cd02364b48585c1a6ef374d79ea7901454f8e74f6b",
+    "Cargo.toml": "c21c47f9ee25c714f4ed220f4ece4fa9a77050ec56840ca2c59d92415e557671",
+    "crates/saccade-core/Cargo.toml": "2cd30b9f8ea409621e1c714ba3e24fe508c4b6f28baa01e325b2785fe8b5c20a",
+    "crates/saccade-core/assets/wave7-models.json": "ffce81c938fbc89b425161bf0bedb575a71a9df24eda53dff23893dedbb7406f",
+    "crates/saccade-core/schemas/saccade-watermark.v3.schema.json": "0ffdcdcfcb40272ea0aacae9b3b7de0966ac8c4d1a27a695ac6920810bc76238",
+    "crates/saccade-core/schemas/saccade-watermark.v4.schema.json": "9add18a743268555d78c02ac273c25c7b73bba4cfdfe25ebaf3619a22614b049",
+    "crates/saccade-core/src/report_links.rs": "75cf597551350d87c6ec5d5e86d39cbc1956c5d79def060b974f55c2a029313f",
+    "crates/saccade-core/src/wave7/heavy_tests.rs": "ecc467641b1a7a4dff6c04a8a1cbecdebc1ac92e715dc279e9441db66c2229da",
+    "crates/saccade-core/src/wave7/mod.rs": "1d889779d83abe5cece14ec6d1f4061adc1787e6e508955c3e996f3d62d5126b",
+    "crates/saccade-core/src/wave7/models.rs": "113dca1c7cd2394998115e70acff209051c62715e3808dd877e463b9d2c20cdc",
+    "crates/saccade-core/src/wave7/trustmark.rs": "d337d8220c07705818b109478f2fd8d1cdf43c000cbee1fc9b5ce79d059bef7e",
+    "crates/saccade-core/src/wave7/trustmark_bch.rs": "6e613c6a26e1f88fa7d53da885469e9a027cd820b750633eebf87814f2d34df5",
+    "crates/saccade-core/src/wave7/watermark.rs": "64625599f80acaae1c56f36da6ed07930a1ca644a3f57c3c31a40fb4d6cc5d87",
+    "crates/saccade-core/tests/fixtures/trustmark/provenance.json": "130cc69fad20bbf217711dc3f22816fb93341a7e089a7b7ccf598a99cca4c845",
+    "crates/saccade-core/tests/trustmark_decode.rs": "2d2500399831c0055e0a908e5f21bb87544508f386722ea56ece592abce89845",
+    "crates/saccade/Cargo.toml": "41b001b3300ae4d39ad052ef0a9125d98e059aae0884c9af9b5d3cf63b51ea51",
+    "crates/saccade/src/main.rs": "2b3e7c993469fe76b71b4661d2af2d2b57b8ad5670c5c588b5a718d2e6fed4dd",
+    "crates/saccade/src/wave7_cmd.rs": "dd3d92ad6e84ab580995e93acde6e89a1948b3958840874565240bba401e02aa",
+    "crates/saccade/src/wave7_mcp.rs": "ddb82eebe2a415712ad337925d03f2a34af63f210d869f1e3c5513c4252adada",
+    "crates/saccade/tests/agent_contract.rs": "e1c0d7de204777de988002fd2bc2e62521e9f89b44a826b3b206ab4b92f9d827",
+    "crates/saccade/tests/trustmark_decode.rs": "7390e28cb7dd4bf7b9ec39e38d1b00e5ccc13f676181015585859aaf2f8c4ee3",
+    "scripts/fixtures/generate-trustmark.py": "5dbbe9d2e7beafa2eafdff6cb939167c54553bb8c1c3983c82f4dfefacbb84ba",
+    "scripts/gates-trustmark.sh": "6fb7475bfd827f940b822b2f8aac1d90a971d049bebeb04deeed474c07651903"
+  }
+}
