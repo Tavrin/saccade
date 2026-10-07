@@ -819,6 +819,12 @@ fixture are MIT OR Apache-2.0; no third-party ICC profile is redistributed.
 compound IJG licence is outside this lane's explicitly enumerated licences; it is
 not a dependency. Pillow was used only to generate the original constant JPEG.
 
+Document intake reuses the existing optional flate2 1.1.10 (MIT OR Apache-2.0)
+for bounded preflight of Flate streams. No new crate or native library is added.
+On Linux the worker uses the system util-linux `prlimit` executable as an OS
+resource-limit launcher; it is neither linked nor bundled. If it is unavailable,
+intake fails closed. Other platforms currently refuse isolated document intake.
+
 ## Native raster extension dependencies (G27)
 
 Optional `geo` reuses the exact locked pure Rust `tiff 0.11.3` (MIT),
@@ -849,3 +855,9 @@ model artifacts are added. Release notices retain upstream license texts.
 | `maybe-owned` | 0.3.4 | MIT OR Apache-2.0 |
 | `rustix-linux-procfs` | 0.1.1 | Apache-2.0 WITH LLVM-exception OR Apache-2.0 OR MIT |
 | `winx` | 0.36.4 | Apache-2.0 WITH LLVM-exception |
+
+N19 resource-boundary fixes use Linux-only `nix 0.30.1` (MIT) for the safe
+inherited-descriptor close sweep and supervised-operation process-group kill.
+Its new build dependency `cfg_aliases 0.2.2` is MIT. Exact versions are pinned in
+Cargo.lock; registry Cargo.toml and bundled licences were inspected. No linked
+native library, new document decoder or filesystem/syscall sandbox is added.

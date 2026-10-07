@@ -21,7 +21,7 @@ pub struct Request {
 /// Implementations must disable SVG external resources/scripts and enforce PDF raster limits.
 pub trait Renderer {
     /// Rasterizes one declared page without network or scripts; adapters must bound raster output.
-    /// Upstream parser/decompression work is not process-isolated; see adapter limitations.
+    /// Custom implementations own their isolation; the shipped adapter uses a capped worker.
     fn page(&mut self, encoded: &[u8], request: Request) -> crate::Result<image::RgbaImage>;
 }
 /// Validates the byte/DPI/page request and the renderer's output dimensions.
@@ -65,7 +65,13 @@ impl Renderer for Unavailable {
 /// Fixed default raster density for input adapters (CSS SVG pixels are 96/inch).
 pub const DEFAULT_DPI: f64 = 96.;
 /// Page-by-page comparison evidence schema.
-pub const SCHEMA: &str = "saccade-documents.v1";
+pub const SCHEMA: &str = "saccade-documents.v3";
+/// Complete, declared page correspondence.
+pub mod page_map;
+#[cfg(feature = "documents")]
+mod preflight;
+/// Resource-isolated renderer protocol and fixed caps.
+pub mod worker;
 /// Detects a document from bytes, independent of the supplied filename.
 pub fn format(encoded: &[u8]) -> Option<Format> {
     if encoded.starts_with(b"%PDF-") {
@@ -82,6 +88,20 @@ pub fn format(encoded: &[u8]) -> Option<Format> {
 #[cfg(feature = "documents")]
 pub struct Native;
 #[cfg(feature = "documents")]
+impl Renderer for Native {
+    fn page(&mut self, encoded: &[u8], request: Request) -> crate::Result<image::RgbaImage> {
+        if !matches!(
+            (format(encoded), request.format),
+            (Some(Format::Svg), Format::Svg) | (Some(Format::Pdf), Format::Pdf)
+        ) {
+            return Err(worker::error("document_invalid_request"));
+        }
+        worker::page(encoded, request.dpi, request.page)
+    }
+}
+#[cfg(feature = "documents")]
+struct Local;
+#[cfg(feature = "documents")]
 fn dimensions(w: f64, h: f64) -> crate::Result<(u32, u32)> {
     if !w.is_finite()
         || !h.is_finite()
@@ -91,14 +111,12 @@ fn dimensions(w: f64, h: f64) -> crate::Result<(u32, u32)> {
         || h > 16384.
         || w.ceil() * h.ceil() > super::input::MAX_PIXELS as f64
     {
-        return Err(crate::Error::Config(
-            "document dimensions exceed raster limits".into(),
-        ));
+        return Err(worker::error("document_dimensions_limit"));
     }
     Ok((w.ceil() as u32, h.ceil() as u32))
 }
 #[cfg(feature = "documents")]
-impl Renderer for Native {
+impl Renderer for Local {
     fn page(&mut self, encoded: &[u8], request: Request) -> crate::Result<image::RgbaImage> {
         std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| -> crate::Result<image::RgbaImage> {
             let (w, h, mut pixels) = match request.format {
@@ -155,45 +173,35 @@ impl Renderer for Native {
         })).map_err(|_| crate::Error::Config("document renderer failed".into()))?
     }
 }
-/// Counts pages, with the same byte and page bounds as rasterization.
+/// Counts pages in the capped worker; non-document images contain one page.
 pub fn page_count(encoded: &[u8]) -> crate::Result<usize> {
     if encoded.len() as u64 > super::input::MAX_BYTES {
-        return Err(crate::Error::Config("document byte limit".into()));
+        return Err(worker::error("document_encoded_limit"));
     }
-    match format(encoded) {
-        Some(Format::Pdf) => {
-            #[cfg(feature = "documents")]
-            {
-                let count = std::panic::catch_unwind(|| {
-                    hayro::Pdf::new(std::sync::Arc::new(encoded.to_vec())).map(|p| p.pages().len())
-                })
-                .map_err(|_| crate::Error::Config("PDF parser failed".into()))?
-                .map_err(|e| crate::Error::Config(format!("PDF parse: {e:?}")))?;
-                if count == 0 || count > 500 {
-                    return Err(crate::Error::Config("PDF page limit".into()));
-                }
-                Ok(count)
-            }
-            #[cfg(not(feature = "documents"))]
-            {
-                Err(crate::Error::FeatureUnavailable {
-                    feature: "documents",
-                })
-            }
-        }
-        _ => Ok(1),
+    if format(encoded).is_none() {
+        return Ok(1);
     }
-}
-/// Loads exactly one document page with explicitly declared density.
-pub fn page(encoded: &[u8], dpi: f64, page: usize) -> crate::Result<image::RgbaImage> {
-    let format =
-        format(encoded).ok_or_else(|| crate::Error::Config("not a supported document".into()))?;
     #[cfg(feature = "documents")]
     {
-        rasterize(&mut Native, encoded, Request { format, dpi, page })
+        worker::count(encoded)
     }
     #[cfg(not(feature = "documents"))]
     {
+        Err(crate::Error::FeatureUnavailable {
+            feature: "documents",
+        })
+    }
+}
+/// Loads one document page in the capped worker with declared density.
+pub fn page(encoded: &[u8], dpi: f64, page: usize) -> crate::Result<image::RgbaImage> {
+    #[cfg(feature = "documents")]
+    {
+        worker::page(encoded, dpi, page)
+    }
+    #[cfg(not(feature = "documents"))]
+    {
+        let format = format(encoded)
+            .ok_or_else(|| crate::Error::Config("not a supported document".into()))?;
         rasterize(&mut Unavailable, encoded, Request { format, dpi, page })
     }
 }
@@ -204,14 +212,31 @@ mod tests {
     #[test]
     fn svg_density_pixels_and_resource_refusal() {
         let svg = br#"<svg xmlns="http://www.w3.org/2000/svg" width="1in" height="1in"><rect width="96" height="96" fill="red"/></svg>"#;
-        let image = page(svg, 192., 0).expect("render");
+        let render = |data: &[u8], dpi, page| {
+            rasterize(
+                &mut Local,
+                data,
+                Request {
+                    format: Format::Svg,
+                    dpi,
+                    page,
+                },
+            )
+        };
+        assert!(matches!(
+            page_count(&vec![0; super::super::input::MAX_BYTES as usize + 1]),
+            Err(crate::Error::Document {
+                code: "document_encoded_limit"
+            })
+        ));
+        let image = render(svg, 192., 0).expect("render");
         assert_eq!(image.dimensions(), (192, 192));
         assert_eq!(image.get_pixel(96, 96).0, [255, 0, 0, 255]);
-        assert!(page(svg, f64::NAN, 0).is_err());
-        assert!(page(svg, 96., 1).is_err());
+        assert!(render(svg, f64::NAN, 0).is_err());
+        assert!(render(svg, 96., 1).is_err());
         let external = br#"<svg xmlns="http://www.w3.org/2000/svg" width="10" height="10"><image href="file:///tmp/private.png"/></svg>"#;
-        assert!(page(external, 96., 0).is_err());
+        assert!(render(external, 96., 0).is_err());
         let text = r#"<svg xmlns="http://www.w3.org/2000/svg" width="10" height="10"><text>café</text></svg>"#.as_bytes();
-        assert!(page(text, 96., 0).is_err());
+        assert!(render(text, 96., 0).is_err());
     }
 }

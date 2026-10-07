@@ -16,6 +16,13 @@ pub enum Error {
     /// Baseline bytes at measurement differ from the authenticated inventory.
     #[error("approval_content_mismatch: baseline changed before measurement")]
     ApprovalContentMismatch,
+
+    /// Stable document worker or cap failure.
+    #[error("{code}: document operation refused")]
+    Document {
+        /// Machine-readable refusal code.
+        code: &'static str,
+    },
     /// Arm identity is incomplete or violates declared experiment variables.
     #[error("invalid_comparison: arm identity validation refused a verdict")]
     InvalidComparison(Box<crate::arms::Check>),

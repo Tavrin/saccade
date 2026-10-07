@@ -37,19 +37,20 @@ Browser/sweep masks `neutralize`; core `exclude`. Read mask/excluded-error audit
 
 `sweep plan|compare` retains failures; `imgtune audit|search` measures delivery;
 `design pull|compare`: unavailable variables.
-`--baseline last-good`: passing history hashes, never approval.
+`--baseline last-good`: passing hashes, never approval.
 `notify` needs authorization/credentials. [Products](../docs/wave5-mcp.md).
 
-`capabilities --json`: limits; `compare --question` has no fallback.
-`--align`/`--resample` records geometry exclusions.
-`hash`/`dedupe` find candidates, never delete; `similar`/`index` needs pins.
-`index export-inputs|calibrate` checks parity/holdout; `text` needs bound sources/OCR.
+`capabilities --json`: caps; `compare --question`: no fallback.
+`--align`/`--resample`: geometry exclusions.
+`hash`/`dedupe`: candidates; never delete; `similar`/`index`: pins.
+`index export-inputs|calibrate`: parity/holdout; `text`: bound OCR/sources.
+[Pages](../docs/documents.md): multipage needs `--page-map`.
 [timed-text](../docs/timed-text.md).
-`assess`: content-dependent; `inspect-image`: provenance/C2PA, never authenticity.
-[Comparator](../docs/choosing-a-comparison.md).
+`assess`: content dependent; `inspect-image`: provenance/C2PA, never authenticity.
+[Compare](../docs/choosing-a-comparison.md).
 
-`models list`: pins; inference needs cached models/runtime, never pulls.
-Vision advice never overrides verdicts.
+`models list`: pins; inference: cached models/runtime; never pull.
+Vision advice cannot override verdicts.
 [Vision](../docs/wave7.md). [TrustMark](../docs/trustmark.md): `watermark --trustmark` verifies BCH payloads.
 
 [Rendering](../docs/render-evidence.md): read `required_effects[].failures`

@@ -347,25 +347,32 @@ fn generated_svg_pdf_inputs_require_real_rendering_and_page_summary() {
     );
     let pdf = temp.path().join("document.pdf");
     std::fs::write(&pdf, bytes).unwrap();
+    let map = temp.path().join("identity-map.json");
+    let pdf_hash = saccade_core::localized::digest(&std::fs::read(&pdf).unwrap());
+    std::fs::write(&map, serde_json::to_vec(&serde_json::json!({"schema":"saccade-page-map.v1","reference_sha256":pdf_hash,"candidate_sha256":pdf_hash,"pairs":[{"reference":1,"candidate":1},{"reference":2,"candidate":2}]})).unwrap()).unwrap();
     for file in [&svg, &pdf] {
         let out = temp.path().join(file.extension().unwrap());
-        let result = cli(&[
+        let mut args = vec![
             "compare",
             file.to_str().unwrap(),
             file.to_str().unwrap(),
             "--out",
             out.to_str().unwrap(),
             "--json",
-        ]);
+        ];
+        if file == &pdf {
+            args.extend(["--page-map", map.to_str().unwrap()]);
+        }
+        let result = cli(&args);
         assert!(
             result.status.success(),
             "real document rendering required: {}",
             String::from_utf8_lossy(&result.stderr)
         );
         let value: Value =
-            serde_json::from_slice(&std::fs::read(out.join("saccade-documents.v1.json")).unwrap())
+            serde_json::from_slice(&std::fs::read(out.join("saccade-documents.v3.json")).unwrap())
                 .unwrap();
-        validate_schema("saccade-documents.v1", &value);
+        validate_schema("saccade-documents.v3", &value);
         assert_eq!(value["counts"]["total"], if file == &pdf { 2 } else { 1 });
         assert_eq!(value["counts"]["failures"], 0);
         assert_eq!(value["rendering"]["dpi"], 96.);
@@ -377,6 +384,9 @@ fn generated_svg_pdf_inputs_require_real_rendering_and_page_summary() {
             [0, 0, 0, 255]
         );
     }
+    let missing_map = temp.path().join("missing-map.json");
+    let svg_hash = saccade_core::localized::digest(&std::fs::read(&svg).unwrap());
+    std::fs::write(&missing_map,serde_json::to_vec(&serde_json::json!({"schema":"saccade-page-map.v1","reference_sha256":pdf_hash,"candidate_sha256":svg_hash,"pairs":[{"reference":1,"candidate":1},{"reference":2,"candidate":null}]})).unwrap()).unwrap();
     let out = temp.path().join("missing-page");
     let result = cli(&[
         "compare",
@@ -385,10 +395,12 @@ fn generated_svg_pdf_inputs_require_real_rendering_and_page_summary() {
         "--out",
         out.to_str().unwrap(),
         "--json",
+        "--page-map",
+        missing_map.to_str().unwrap(),
     ]);
     assert_eq!(result.status.code(), Some(1));
     let value: Value =
-        serde_json::from_slice(&std::fs::read(out.join("saccade-documents.v1.json")).unwrap())
+        serde_json::from_slice(&std::fs::read(out.join("saccade-documents.v3.json")).unwrap())
             .unwrap();
     assert_eq!(value["pages"][1]["status"], "missing");
 }
@@ -850,10 +862,10 @@ fn mcp_documents_preserve_roots_and_page_summary() {
     assert_ne!(values[0]["result"]["isError"], true);
     assert_eq!(values[1]["result"]["isError"], true);
     let report: Value = serde_json::from_slice(
-        &std::fs::read(out.join("pages/saccade-documents.v1.json")).unwrap(),
+        &std::fs::read(out.join("pages/saccade-documents.v3.json")).unwrap(),
     )
     .unwrap();
-    validate_schema("saccade-documents.v1", &report);
+    validate_schema("saccade-documents.v3", &report);
     assert_eq!(report["verdict"], "pass");
-    assert!(!out.join("escaped/saccade-documents.v1.json").exists());
+    assert!(!out.join("escaped/saccade-documents.v3.json").exists());
 }

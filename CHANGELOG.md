@@ -19,6 +19,17 @@
   policy-off writable CLI baselines retain unattested authority.
 - Enforce declared user read/output roots during offline review previews, including
   referenced inputs and intent files, before reading or writing those paths.
+
+- Bound complete document comparisons with an operation deadline, cumulative
+  pixel and output-byte budgets; match PDF lexer whitespace and refuse ambiguous
+  filters; revoke inherited worker descriptors. Resource isolation does not claim
+  filesystem or syscall confinement.
+
+- Harden optional document intake with capped Linux workers, stable cap errors
+  and a generated hostile PDF corpus. Multipage export comparisons require a
+  complete, hash-bound page map; v3 reports retain inserted/removed pages.
+
+
 - Add bounded `batch` folder/manifest intake with immutable resumable rows, JSONL/CSV,
   thumbnail indexes and Lane C manifests, plus a synchronous `saccade-vision` Python API.
 - Add the experimental `assist` advice aliases and provider egress previews before dispatch;

@@ -131,6 +131,9 @@ impl From<saccade_core::Error> for CliError {
         if let Error::ApprovalRefused { code, message } = e {
             return Self::new(code, message);
         }
+        if let Error::Document { code } = &e {
+            return Self::new(code, e.to_string());
+        }
         if let Error::InvalidComparison(check) = e {
             let mut error = Self::new(
                 "invalid_comparison",

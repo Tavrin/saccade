@@ -65,7 +65,7 @@ tar = { version = "=0.4.46", default-features = false, optional = true }
 # O12/O17: deterministic text pixel evidence, no added dependencies.
 text-quality = []
 ocr-provider = ["assist", "dep:base64"]
-documents = ["dep:resvg", "dep:hayro"]
+documents = ["dep:resvg", "dep:hayro", "dep:flate2"]
 credentials = ["dep:c2pa"]
 ocr = ["local-models", "dep:imageproc", "dep:serde_yaml"]
 # Dynamic CPU ONNX embeddings, no default dependency change
@@ -165,3 +165,6 @@ required-features = ["assist"]
 # Local batch locking must not add a native dependency to portable core targets.
 [target.'cfg(any(unix, windows))'.dependencies]
 fs2 = "0.4.3"
+
+[target.'cfg(target_os = "linux")'.dependencies]
+nix = { version = "0.30", features = ["signal", "process"] }

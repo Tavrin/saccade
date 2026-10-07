@@ -230,6 +230,7 @@ The last three names appear only when the corresponding feature is compiled in.
 - [saccade-document-text.v2.schema.json](../crates/saccade-core/schemas/saccade-document-text.v2.schema.json) — Historical reader contract
 - [saccade-documents.v1.schema.json](../crates/saccade-core/schemas/saccade-documents.v1.schema.json) — Historical reader contract
 - [saccade-documents.v2.schema.json](../crates/saccade-core/schemas/saccade-documents.v2.schema.json) — Historical reader contract
+- [saccade-documents.v3.schema.json](../crates/saccade-core/schemas/saccade-documents.v3.schema.json) — saccade-documents.v3
 - [saccade-dom-regions.v1.schema.json](../crates/saccade-core/schemas/saccade-dom-regions.v1.schema.json) — DomMetadata
 - [saccade-egress-preview.v1.schema.json](../crates/saccade-core/schemas/saccade-egress-preview.v1.schema.json) — Advisory provider egress preview
 - [saccade-embedding-corpus.v1.schema.json](../crates/saccade-core/schemas/saccade-embedding-corpus.v1.schema.json) — Historical reader contract
@@ -330,6 +331,7 @@ The last three names appear only when the corresponding feature is compiled in.
 - [saccade-onset.v1.schema.json](../crates/saccade-core/schemas/saccade-onset.v1.schema.json) — Document
 - [saccade-onset.v2.schema.json](../crates/saccade-core/schemas/saccade-onset.v2.schema.json) — Document
 - [saccade-paddle-ocr.v1.schema.json](../crates/saccade-core/schemas/saccade-paddle-ocr.v1.schema.json) — Historical reader contract
+- [saccade-page-map.v1.schema.json](../crates/saccade-core/schemas/saccade-page-map.v1.schema.json) — saccade-page-map.v1
 - [saccade-perf-diff.v1.schema.json](../crates/saccade-core/schemas/saccade-perf-diff.v1.schema.json) — PerfDiff
 - [saccade-perf-pairs.v1.schema.json](../crates/saccade-core/schemas/saccade-perf-pairs.v1.schema.json) — Samples
 - [saccade-perf-plan.v1.schema.json](../crates/saccade-core/schemas/saccade-perf-plan.v1.schema.json) — Plan

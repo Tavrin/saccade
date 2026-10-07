@@ -4088,8 +4088,14 @@ Arguments:
   <CAPTURE_DIR>   Directory of fresh captures
 
 Options:
+      --page-map <PAGE_MAP>
+          Complete saccade-page-map.v1 correspondence for document exports
+      --source-ref <SOURCE_REF>
+          External capture URI/key (repeatable); recorded in generated reports
       --dpi <DPI>
           Declared document raster density, 36..600 DPI (default 96)
+      --report-index <REPORT_INDEX>
+          Shared report index destination (default reports/index.jsonl next to each report, inside --out)
       --require-signed-approval
           Require externally signed approvals and verify baseline approval consumers
       --approval-allowed-signers <APPROVAL_ALLOWED_SIGNERS>

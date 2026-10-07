@@ -133,3 +133,6 @@ required-features = ["compression"]
 [[test]]
 name = "wave10_field"
 required-features = ["graphics"]
+
+[target.'cfg(target_os = "linux")'.dependencies]
+nix = { version = "0.30", features = ["signal", "process"] }

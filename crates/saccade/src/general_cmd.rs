@@ -5,7 +5,7 @@ use saccade_core::general::{input, registration};
 use serde_json::{Value, json};
 use std::path::{Path, PathBuf};
 
-#[derive(Clone, Copy, Debug, ValueEnum)]
+#[derive(Clone, Copy, Debug, ValueEnum, serde::Serialize, serde::Deserialize)]
 pub(crate) enum Align {
     None,
     Translation,
@@ -26,7 +26,7 @@ impl From<Align> for registration::Model {
         }
     }
 }
-#[derive(Clone, Copy, Debug, ValueEnum, Default)]
+#[derive(Clone, Copy, Debug, ValueEnum, Default, serde::Serialize, serde::Deserialize)]
 pub(crate) enum Resample {
     #[default]
     Reference,
@@ -42,6 +42,9 @@ impl From<Resample> for registration::Scale {
 }
 #[derive(Args, Default)]
 pub(crate) struct CompareArgs {
+    /// Complete saccade-page-map.v1 correspondence for document exports.
+    #[arg(long)]
+    pub(crate) page_map: Option<PathBuf>,
     /// Declared document raster density, 36..600 DPI (default 96).
     #[arg(long)]
     pub(crate) dpi: Option<f64>,
@@ -84,13 +87,20 @@ fn registration_error(error: registration::RegistrationError) -> CliError {
 }
 
 pub(crate) fn write_new(path: &Path, value: &Value) -> Result<(), CliError> {
-    let file = std::fs::OpenOptions::new()
+    let mut file = std::fs::OpenOptions::new()
         .write(true)
         .create_new(true)
         .open(path)
         .map_err(|e| CliError::io(format!("writing {}: {e}", path.display())))?;
     let linked = saccade_core::report_links::decorate(value)?;
-    serde_json::to_writer_pretty(file, &linked)?;
+    if saccade_core::general::documents::worker::operation_is_active() {
+        let bytes = serde_json::to_vec_pretty(&linked)?;
+        saccade_core::general::documents::worker::charge_output(bytes.len() as u64)?;
+        std::io::Write::write_all(&mut file, &bytes).map_err(|e| CliError::io(e.to_string()))?;
+    } else {
+        serde_json::to_writer_pretty(&mut file, &linked)?;
+    }
+    drop(file);
     saccade_core::report_links::index(path, &linked)?;
     Ok(())
 }
@@ -118,17 +128,25 @@ pub(crate) fn emit_document(
 ) -> Result<u8, CliError> {
     if let Some(out) = out {
         let file = persist_document(&value, out)?;
-        if json_output {
-            let mut result = json!({"schema":saccade_core::general::RESULT_SCHEMA,"mode":value["operation"],"verdict":value["verdict"],"data":{"schema":value["schema"],"counts":value["counts"]},"artifacts":[{"path":file}],"next_actions":[]});
-            if let Some(commands) = value.get("related_commands") {
-                result["data"]["related_commands"] = commands.clone();
-            }
-            crate::emit(&format!("{}\n", result))?;
-        } else {
-            crate::emit(&format!("evidence: {}\n", file.display()))?;
-        }
+        return emit_document_saved(&value, &file, json_output);
     } else {
         crate::emit(&format!("{}\n", serde_json::to_string_pretty(&value)?))?;
+    }
+    Ok(u8::from(value["verdict"] == "regression"))
+}
+pub(crate) fn emit_document_saved(
+    value: &Value,
+    file: &Path,
+    json_output: bool,
+) -> Result<u8, CliError> {
+    if json_output {
+        let mut result = json!({"schema":saccade_core::general::RESULT_SCHEMA,"mode":value["operation"],"verdict":value["verdict"],"data":{"schema":value["schema"],"counts":value["counts"]},"artifacts":[{"path":file}],"next_actions":[]});
+        if let Some(commands) = value.get("related_commands") {
+            result["data"]["related_commands"] = commands.clone();
+        }
+        crate::emit(&format!("{}\n", result))?;
+    } else {
+        crate::emit(&format!("evidence: {}\n", file.display()))?;
     }
     Ok(u8::from(value["verdict"] == "regression"))
 }
@@ -139,7 +157,7 @@ fn html(text: &str) -> String {
         .replace('"', "&quot;")
 }
 fn save(image: &image::RgbaImage, path: &Path) -> Result<(), CliError> {
-    image.save(path).map_err(|e| CliError::io(e.to_string()))
+    crate::documents_cmd::save(image, path)
 }
 
 pub(crate) fn compare_document(
@@ -275,8 +293,10 @@ pub(crate) fn compare_document(
             };
             let mut heat = cmp.heatmap_rgb();
             saccade_core::compare::hatch_masked(&mut heat, &registered.excluded);
-            heat.save(dir.join("heatmap.png"))
-                .map_err(|e| CliError::io(e.to_string()))?;
+            crate::documents_cmd::save(
+                &image::DynamicImage::ImageRgb8(heat),
+                &dir.join("heatmap.png"),
+            )?;
             let mask = image::GrayImage::from_fn(w, h, |x, y| {
                 image::Luma([
                     if registered.excluded[y as usize * w as usize + x as usize] {
@@ -286,8 +306,10 @@ pub(crate) fn compare_document(
                     },
                 ])
             });
-            mask.save(dir.join("geometry-inclusion.png"))
-                .map_err(|e| CliError::io(e.to_string()))?;
+            crate::documents_cmd::save(
+                &image::DynamicImage::ImageLuma8(mask),
+                &dir.join("geometry-inclusion.png"),
+            )?;
             Ok(
                 json!({"name":name,"status":if deciding>threshold{"fail"}else{"pass"},"inputs":{"reference_sha256":saccade_core::localized::digest(&reference_bytes),"capture_sha256":saccade_core::localized::digest(&capture_bytes)},"registration":registered.evidence,"metrics":metrics,"value":deciding,"threshold":threshold,"metric":match metric{crate::MetricArg::Mean=>"mean",crate::MetricArg::Max=>"max",crate::MetricArg::P95=>"p95",crate::MetricArg::P99=>"p99"},"artifacts":{"reference":format!("pair-{i:06}/reference.png"),"capture":format!("pair-{i:06}/warped.png"),"heatmap":format!("pair-{i:06}/heatmap.png"),"geometry_inclusion":format!("pair-{i:06}/geometry-inclusion.png")}}),
             )
@@ -300,6 +322,9 @@ pub(crate) fn compare_document(
                 entries.push(v);
             }
             Err(e) => {
+                if e.code == "document_output_byte_limit" {
+                    return Err(e);
+                }
                 failures += 1;
                 errors += 1;
                 entries.push(json!({"name":name,"status":"error","error":{"code":e.code,"message":e.message}}));
@@ -392,6 +417,7 @@ pub(crate) fn persist_document(value: &Value, out: &Path) -> Result<PathBuf, Cli
         .create_new(true)
         .open(out.join("index.html"))
         .map_err(|e| CliError::io(e.to_string()))?;
+    saccade_core::general::documents::worker::charge_output(content.len() as u64)?;
     std::io::Write::write_all(&mut f, content.as_bytes())
         .map_err(|e| CliError::io(e.to_string()))?;
     Ok(file)
