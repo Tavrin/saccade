@@ -6,7 +6,7 @@ Base: `origin/main` at `7801bce`. Git operations and integration edits belong to
 this train worktree. No other worktree was modified. Commit identity is Tavrin;
 no AI trailers, force pushes, main pushes or GitHub PR merges.
 
-Merge order: #23 `feat/lane-C`, #22 `feat/lane-E`, #24 `feat/text-quality`,
+Merge order: #30 `fix/quality-schema-features` (`85a3dc0`), #23 `feat/lane-C`, #22 `feat/lane-E`, #24 `feat/text-quality`,
 #25 `feat/g23-incremental-index`, #27 `feat/g26-animated-lod`,
 #29 `feat/g25-trustmark-decode`, #28 `feat/saccade-print`,
 #26 `feat/g12-openrouter-live`. All merges use `--no-ff` and the prescribed
@@ -22,9 +22,10 @@ G26 keeps its explicit timestamp-list plan. Adapting Lane E's seconds-based
 frame map to G26's paired millisecond captures, scope masks and ID buffers would
 change the input contract; this is beyond a trivial additive integration.
 
-The quality-report schema feature drift remains owned by
-`fix/quality-schema-features`. No train correction modifies that schema or
-weakens its snapshot assertions.
+PR #30 is merged first, as required by the amended brief. Its quality-report and
+geometry schemas are retained byte for byte. All final gates must pass; there is
+no schema-drift exception in this train. The earlier unpublished history was
+archived before reconstructing the merge order; no remote history was rewritten.
 
 ## CI diagnosis and bounded fixes
 

@@ -263,15 +263,18 @@ fn bare_role_attachments_preserve_default_snapshot_identity() {
     let script = r#"
 const Reporter=require(process.argv[1]),path=require('node:path'),fs=require('node:fs');
 const root=process.argv[2],test={id:'test',annotations:[],parent:{project:()=>({name:'chromium',use:{}})}};
-// Distinct Windows IDs may alias as Numbers; emulate that on every CI platform.
-const stat=fs.statSync;fs.statSync=(file,options)=>{
+const stat=fs.statSync;
+for (const emulate of [false, true]) {
+// Distinct Windows IDs may alias as Numbers; also check real platform IDs.
+fs.statSync=emulate?(file,options)=>{
  const actual=stat(file,options),id=path.basename(file)==='expected.png'?9007199254740992n:9007199254740993n;
  return {...actual,dev:options?.bigint?1n:1,ino:options?.bigint?id:Number(id)};
-};
+}:stat;
 const r=new Reporter({outputFile:path.join(root,'manifest.json')});r.onBegin({}, {allTests:()=>[test]});
 r.onTestEnd(test,{status:'passed',attachments:['expected','actual'].map(role=>({name:role,contentType:'image/png',path:path.join(root,role+'.png')}))});r.onEnd();
 const m=JSON.parse(fs.readFileSync(path.join(root,'manifest.json')));
 if(m.inventory.supplied[0].state!=='captured'||m.inventory.supplied[0].case_id!=='chromium/test/snapshot-0')throw Error('bare-role snapshot regressed');
+}
 "#;
     let p = Command::new("node")
         .args(["-e", script])
