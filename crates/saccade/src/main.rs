@@ -3108,3 +3108,6 @@ mod document_ocr_cmd;
 #[cfg(feature = "assist")]
 mod advice_cmd;
 mod batch_cmd;
+
+#[cfg(feature = "assist")]
+mod video_judge_cmd;

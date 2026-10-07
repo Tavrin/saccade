@@ -368,3 +368,9 @@ scripts/assist/pilot_score.py --corpus CORPUS --requests REQUESTS --results RUN_
 --local-results LOCAL_RESULTS --source-revision ORIGINAL_COMMIT --out SCORE-partial.md`.
 The report and adjacent JSON separate development/calibration/heldout samples,
 retain unknown reservations, and remain explicitly partial and unqualified.
+
+## Timestamped video judging
+
+`assist video-judge --experimental` prepares frame-map/rubric requests offline;
+[video judge](video-judge.md) documents both-order comparison, bounded live collection,
+abstention and calibration JSONL. Native MP4 and unpriced models remain refused.

@@ -1568,6 +1568,12 @@ pub fn admission(payload: &[u8], model: &str) -> Result<super::price::OpenRouter
     require(payload.len() <= 32 * 1024 * 1024, "OpenRouter payload size")?;
     let price = super::price::openrouter_price(model)?;
     let v: Value = decode(payload)?;
+    let format = if super::video::is_request(&v) {
+        super::video::packet(&v)?;
+        super::video::response_format()
+    } else {
+        super::structured_output::openrouter_format()?
+    };
     require(
         v.as_object().is_some_and(|o| {
             o.keys().all(|k| {
@@ -1587,7 +1593,7 @@ pub fn admission(payload: &[u8], model: &str) -> Result<super::price::OpenRouter
             && !model.ends_with(":batch")
             && v["messages"].as_array().is_some_and(|a| !a.is_empty())
             && v["temperature"] == 0
-            && v["response_format"] == super::structured_output::openrouter_format()?
+            && v["response_format"] == format
             && v["provider"]
                 == json!({"allow_fallbacks":false,"require_parameters":true,"max_price":price.max_price()})
             && v["usage"] == json!({"include":true})

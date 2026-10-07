@@ -1,0 +1,123 @@
+{
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema",
+    "rubric",
+    "clips"
+  ],
+  "properties": {
+    "schema": {
+      "const": "saccade-video-judge.v1"
+    },
+    "rubric": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "question",
+        "anchors",
+        "cues"
+      ],
+      "properties": {
+        "question": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 1024
+        },
+        "anchors": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 1024
+          },
+          "minItems": 10,
+          "maxItems": 10
+        },
+        "cues": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 1024
+          },
+          "minItems": 1,
+          "maxItems": 32
+        }
+      }
+    },
+    "clips": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "source",
+          "fps",
+          "max_edge",
+          "frames"
+        ],
+        "properties": {
+          "source": {
+            "type": "string",
+            "pattern": "^sha256:[0-9a-f]{64}$"
+          },
+          "fps": {
+            "type": "number",
+            "exclusiveMinimum": 0,
+            "maximum": 120
+          },
+          "max_edge": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 2048
+          },
+          "frames": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "index",
+                "timestamp_s",
+                "sha256",
+                "dimensions"
+              ],
+              "properties": {
+                "index": {
+                  "type": "integer",
+                  "minimum": 0
+                },
+                "timestamp_s": {
+                  "type": "number",
+                  "minimum": 0
+                },
+                "sha256": {
+                  "type": "string",
+                  "pattern": "^sha256:[0-9a-f]{64}$"
+                },
+                "dimensions": {
+                  "type": "array",
+                  "items": {
+                    "type": "integer",
+                    "minimum": 1,
+                    "maximum": 2048
+                  },
+                  "minItems": 2,
+                  "maxItems": 2
+                }
+              }
+            },
+            "minItems": 1,
+            "maxItems": 32
+          }
+        }
+      },
+      "minItems": 1,
+      "maxItems": 2
+    }
+  },
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://tavrin.github.io/saccade/schemas/saccade-video-judge.v1.schema.json",
+  "title": "Frame video rubric and media packet"
+}

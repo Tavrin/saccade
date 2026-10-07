@@ -413,7 +413,15 @@ pub(crate) fn openrouter_bounds_for_table(
             }
         }
     }
-    require(image_count <= 2, "image count ceiling")?;
+    require(
+        image_count
+            <= if super::video::is_request(&request) {
+                super::video::MAX_FRAMES
+            } else {
+                2
+            },
+        "image count ceiling",
+    )?;
     let text = serde_json::to_vec(&request)
         .map_err(|_| super::Error::Invalid("request bytes"))?
         .len() as u64
@@ -422,7 +430,15 @@ pub(crate) fn openrouter_bounds_for_table(
     let input = text
         .checked_add(images)
         .ok_or(super::Error::Invalid("input ceiling overflow"))?;
-    require(input <= INPUT_LIMIT, "local input ceiling exceeded")?;
+    require(
+        input
+            <= if super::video::is_request(&request) {
+                super::video::INPUT_LIMIT
+            } else {
+                INPUT_LIMIT
+            },
+        "local input ceiling exceeded",
+    )?;
     let reservation = text
         .checked_mul(price.input)
         .and_then(|n| {

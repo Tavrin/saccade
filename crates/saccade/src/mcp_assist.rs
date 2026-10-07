@@ -11,7 +11,56 @@ use saccade_core::assist::schema::Task;
 use serde_json::{Map, Value, json};
 
 impl Server {
+    fn video_judge(&self, args: &Map<String, Value>) -> ToolResult {
+        reject_unknown(
+            args,
+            &[
+                "operation",
+                "rubric",
+                "frame_map",
+                "model",
+                "revision",
+                "fps",
+                "max_edge",
+                "max_spend_usd",
+                "out",
+                "experimental",
+            ],
+        )?;
+        let rubric = self.existing_file("rubric", &require_str(args, "rubric")?)?;
+        let maps = arg_strings(args, "frame_map")?
+            .iter()
+            .map(|p| self.existing_file("frame_map", p))
+            .collect::<Result<Vec<_>, _>>()?;
+        if !(1..=2).contains(&maps.len()) {
+            return Err(CliError::usage("video needs one or two frame maps"));
+        }
+        let edge = arg_f64(args, "max_edge")?.unwrap_or(256.0);
+        if !edge.is_finite() || edge.fract() != 0.0 || !(1.0..=2048.0).contains(&edge) {
+            return Err(CliError::usage("video max edge"));
+        }
+        let out = self.resolve("out", &require_str(args, "out")?)?;
+        let value = crate::video_judge_cmd::execute(crate::video_judge_cmd::Args {
+            rubric,
+            frame_map: maps,
+            model: arg_strings(args, "model")?,
+            revision: arg_strings(args, "revision")?,
+            fps: arg_f64(args, "fps")?.unwrap_or(1.0),
+            max_edge: edge as u32,
+            max_spend_usd: arg_str(args, "max_spend_usd")?.unwrap_or_else(|| "2".into()),
+            out,
+            experimental: arg_bool(args, "experimental")?.unwrap_or(false),
+        })?;
+        Ok(ToolOutput {
+            structured: value,
+            text: "Prepared advisory video requests offline; no provider dispatch.".into(),
+            images: Vec::new(),
+        })
+    }
     pub(super) fn assist_review(&self, args: &Map<String, Value>) -> ToolResult {
+        if arg_str(args, "operation")?.as_deref() == Some("video-judge") {
+            return self.video_judge(args);
+        }
         reject_unknown(
             args,
             &[
@@ -289,7 +338,13 @@ impl Server {
     }
 }
 pub(super) fn schemas() -> Vec<Value> {
-    let mut variants = Vec::new();
+    let mut variants = vec![
+        json!({"type":"object","additionalProperties":false,"required":["operation","rubric","frame_map","model","revision","out","experimental"],"properties":{
+        "operation":{"const":"video-judge"},"rubric":{"type":"string"},"frame_map":{"type":"array","minItems":1,"maxItems":2,"items":{"type":"string"}},
+        "model":{"type":"array","minItems":1,"items":{"type":"string"}},"revision":{"type":"array","minItems":1,"items":{"type":"string"}},
+        "fps":{"type":"number","exclusiveMinimum":0,"maximum":120},"max_edge":{"type":"integer","minimum":1,"maximum":2048},
+        "max_spend_usd":{"type":"string"},"out":{"type":"string"},"experimental":{"const":true}}}),
+    ];
     for op in ["explain", "audit-mask", "check-ui"] {
         let mut props = json!({"operation":{"const":op},"artifact":{"oneOf":[{"type":"string"},{"type":"object","properties":{"path":{"type":"string"},"sha256":{"type":"string","pattern":"^sha256:[0-9a-f]{64}$"}},"required":["path","sha256"],"additionalProperties":false}]},"out":{"type":"string"},"experimental":{"type":"boolean","const":true},"run":{"type":"boolean","default":false},"offline":{"type":"boolean","default":false},"replay":{"type":"string"},"route":{"enum":["rules","cascade","all-vision"]},"jev_routing":{"type":"boolean","default":false},"budget_calls":{"type":"integer","minimum":1,"maximum":8},"max_spend_usd":{"type":"number","exclusiveMinimum":0,"maximum":0.15},"deadline_secs":{"type":"integer","minimum":1,"maximum":300},"gemini_revision":{"type":"string"},"jev_revision":{"type":"string"},"bypass_cache":{"type":"boolean"},"source_evidence":{"type":"array","items":{"type":"string"},"maxItems":2},"incomplete_capture":{"type":"boolean"},"pre_masked":{"type":"boolean"}});
         let mut required = vec!["operation", "artifact", "out", "experimental"];

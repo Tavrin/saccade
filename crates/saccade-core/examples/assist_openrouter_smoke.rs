@@ -474,6 +474,9 @@ fn stage2_request(row: &Row) -> assist::Result<(Value, Digest)> {
     Ok((data, hash))
 }
 fn stage2_answer(row: &Row, response: &[u8]) -> assist::Result<Value> {
+    if assist::video::is_request(&row.payload) {
+        return assist::video::reply(&row.payload, response);
+    }
     let (data, hash) = stage2_request(row)?;
     let (answer, _) = openrouter::reply(response, &row.model, &hash)?;
     let value = serde_json::to_value(answer).map_err(|_| assist::Error::Storage)?;
@@ -625,6 +628,7 @@ fn stage2_outcome(
                 "closed schema or JSON violation" => "closed_schema",
                 "OpenRouter request-bound answer" => "request_bound_answer",
                 "OpenRouter content" => "answer_content",
+                _ if assist::video::is_request(&row.payload) => "video_answer_protocol",
                 _ => return Err(assist::Error::Invalid(reason)),
             };
             Ok(CallOutcome::InvalidAnswer(code))
@@ -746,6 +750,10 @@ fn run_with(args: impl IntoIterator<Item = String>) -> Result<(), Box<dyn std::e
     let request_bytes = assist::read_bytes(&path, 32 * 1024 * 1024)?;
     let requests_hash = Digest::of_bytes(&request_bytes);
     let rows: Vec<Row> = assist::decode(&request_bytes)?;
+    let video_run = rows.iter().any(|r| assist::video::is_request(&r.payload));
+    if video_run && (!stage2 || cap > 2_000_000_000) {
+        return Err("video judge requires stage2 and a cap at most 2 USD".into());
+    }
     validate_rows(&rows, count, cap, budget_bounded)?;
     if validate_only {
         let reservations: Vec<_> = rows
@@ -812,8 +820,8 @@ fn run_with(args: impl IntoIterator<Item = String>) -> Result<(), Box<dyn std::e
     let identity = json!({"schema":CAMPAIGN_SCHEMA,"requests_hash":requests_hash.clone(),
         "keys":prepared.iter().map(|(k,_)| assist::digest(k)).collect::<assist::Result<Vec<_>>>()?,"allowance_nano_usd":cap,
         "stage2":stage2,"budget_bounded":budget_bounded,"answer_failure_policy":stage2.then_some(answer_limits),
-        "executor_call_cap_seconds":120,"prompt_epoch":stage2.then_some("g12-pilot/2"),
-        "prompt_policy":stage2.then_some("assist-openrouter-geometry-citations/2")});
+        "executor_call_cap_seconds":120,"prompt_epoch":stage2.then_some(if video_run {"video-judge/1"} else {"g12-pilot/2"}),
+        "prompt_policy":stage2.then_some(if video_run {assist::video::VERSION} else {"assist-openrouter-geometry-citations/2"})});
     ledger.bind_campaign_with_settlement(identity, resume, settle_unknown)?;
     let mut smoke = if resume {
         assist::decode::<Value>(&assist::read_bytes(
@@ -1815,6 +1823,76 @@ mod tests {
                 .unwrap_err()
                 .code(),
             "truncated_output"
+        );
+    }
+    #[test]
+    fn video_judge_smoke_keeps_paid_invalid_answers_and_abstention() {
+        use assist::video::{self, Clip, Frame, Packet};
+        let rubric = assist::decode(include_bytes!(
+            "../../../examples/rubrics/motion-naturalness.json"
+        ))
+        .unwrap();
+        let mut png = std::io::Cursor::new(Vec::new());
+        image::DynamicImage::new_rgb8(8, 8)
+            .write_to(&mut png, image::ImageFormat::Png)
+            .unwrap();
+        let png = png.into_inner();
+        let packet = Packet {
+            schema: video::VERSION.into(),
+            rubric,
+            clips: vec![Clip {
+                source: Digest::of_bytes(b"generated-map"),
+                fps: 1.0,
+                max_edge: 8,
+                frames: vec![Frame {
+                    index: 0,
+                    timestamp_s: 0.0,
+                    sha256: Digest::of_bytes(&png),
+                    dimensions: [8, 8],
+                }],
+            }],
+        };
+        let payload = video::request(&packet, &[png], assist::price::OPENROUTER_MODEL).unwrap();
+        let row = Row {
+            root: "video-fixture".into(),
+            model: assist::price::OPENROUTER_MODEL.into(),
+            revision: "absent".into(),
+            payload,
+        };
+        let mut response: Value =
+            assist::decode(include_bytes!("../src/assist/video-response.fixture.json")).unwrap();
+        let mut answer: Value = assist::decode(
+            response["choices"][0]["message"]["content"]
+                .as_str()
+                .unwrap()
+                .as_bytes(),
+        )
+        .unwrap();
+        answer["request_hash"] = json!(assist::digest(&packet).unwrap());
+        let out = tempfile::tempdir().unwrap();
+        response["choices"][0]["message"]["content"] = json!(answer.to_string());
+        assert_eq!(
+            stage2_outcome(&row, &serde_json::to_vec(&response).unwrap(), out.path(), 0).unwrap(),
+            CallOutcome::Completed
+        );
+        answer["scores"][0]["score"] = json!(11);
+        response["choices"][0]["message"]["content"] = json!(answer.to_string());
+        assert_eq!(
+            stage2_outcome(&row, &serde_json::to_vec(&response).unwrap(), out.path(), 1).unwrap(),
+            CallOutcome::InvalidAnswer("closed_schema")
+        );
+        assert!(!out.path().join("answer-1.json").exists());
+        answer["outcome"] = json!("abstain");
+        answer["preferred"] = json!("abstain");
+        answer["scores"][0]["score"] = Value::Null;
+        response["choices"][0]["message"]["content"] = json!(answer.to_string());
+        assert_eq!(
+            stage2_outcome(&row, &serde_json::to_vec(&response).unwrap(), out.path(), 2).unwrap(),
+            CallOutcome::Completed
+        );
+        response["usage"]["cost"] = Value::Null;
+        assert!(
+            stage2_outcome(&row, &serde_json::to_vec(&response).unwrap(), out.path(), 3).is_err()
         );
     }
     #[test]

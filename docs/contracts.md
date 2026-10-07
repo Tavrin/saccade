@@ -408,6 +408,10 @@ The last three names appear only when the corresponding feature is compiled in.
 - [saccade-usage.v1.schema.json](../crates/saccade-core/schemas/saccade-usage.v1.schema.json) — Historical reader contract
 - [saccade-usage.v2.schema.json](../crates/saccade-core/schemas/saccade-usage.v2.schema.json) — Historical reader contract
 - [saccade-vector-buffer.v1.schema.json](../crates/saccade-core/schemas/saccade-vector-buffer.v1.schema.json) — Buffer
+- [saccade-video-judge-answer.v1.schema.json](../crates/saccade-core/schemas/saccade-video-judge-answer.v1.schema.json) — Advisory frame video answer
+- [saccade-video-judge-plan.v1.schema.json](../crates/saccade-core/schemas/saccade-video-judge-plan.v1.schema.json) — Offline video judge priced plan
+- [saccade-video-judge-scores.v1.schema.json](../crates/saccade-core/schemas/saccade-video-judge-scores.v1.schema.json) — Untrusted calibration video score row
+- [saccade-video-judge.v1.schema.json](../crates/saccade-core/schemas/saccade-video-judge.v1.schema.json) — Frame video rubric and media packet
 - [saccade-view-summary.v1.schema.json](../crates/saccade-core/schemas/saccade-view-summary.v1.schema.json) — saccade-view-summary.v1
 - [saccade-view-summary.v2.schema.json](../crates/saccade-core/schemas/saccade-view-summary.v2.schema.json) — saccade-view-summary.v1
 - [saccade-view.v1.schema.json](../crates/saccade-core/schemas/saccade-view.v1.schema.json) — saccade-view.v1

@@ -619,6 +619,7 @@ mod tests {
             );
         }
     }
+    #[cfg(feature = "assist")]
     #[test]
     fn g12_resume_identity_and_reconciliation_preserve_prior_spend() {
         use crate::{assist::openrouter::Generation, evidence::canonical::Digest};

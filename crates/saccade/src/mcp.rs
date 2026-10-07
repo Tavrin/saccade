@@ -1499,6 +1499,7 @@ impl Server {
             .and_then(Value::as_str)
             .is_some_and(|op| {
                 [
+                    "video-judge",
                     "explain",
                     "audit-mask",
                     "check-ui",

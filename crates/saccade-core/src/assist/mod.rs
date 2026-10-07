@@ -113,3 +113,6 @@ pub mod workflow;
 /// Fixture-only hosted vision mappings bound to immutable assist evidence.
 #[cfg(feature = "vision-providers")]
 pub mod vision_provider;
+
+/// Timestamped frame-sequence advisory judge.
+pub mod video;

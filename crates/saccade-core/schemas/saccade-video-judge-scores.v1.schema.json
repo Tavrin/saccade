@@ -1,0 +1,142 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://tavrin.github.io/saccade/schemas/saccade-video-judge-scores.v1.schema.json",
+  "title": "Untrusted calibration video score row",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema",
+    "root",
+    "model",
+    "revision",
+    "request_hash",
+    "source",
+    "slot",
+    "outcome",
+    "score",
+    "cues",
+    "trusted_for",
+    "authority",
+    "returned_model",
+    "returned_revision",
+    "provider"
+  ],
+  "properties": {
+    "schema": {
+      "const": "saccade-video-judge-scores.v1"
+    },
+    "root": {
+      "type": "string"
+    },
+    "model": {
+      "type": "string"
+    },
+    "revision": {
+      "type": "string"
+    },
+    "request_hash": {
+      "type": "string"
+    },
+    "source": {
+      "type": "string"
+    },
+    "slot": {
+      "type": "string",
+      "enum": [
+        "A",
+        "B"
+      ]
+    },
+    "outcome": {
+      "type": "string"
+    },
+    "score": {
+      "anyOf": [
+        {
+          "type": "number",
+          "minimum": 1,
+          "maximum": 10
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "cues": {
+      "type": "array",
+      "minItems": 0,
+      "maxItems": 32,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "cue",
+          "state",
+          "timestamps_s"
+        ],
+        "properties": {
+          "cue": {
+            "type": "string"
+          },
+          "state": {
+            "type": "string",
+            "enum": [
+              "present",
+              "absent",
+              "unknown"
+            ]
+          },
+          "timestamps_s": {
+            "type": "array",
+            "maxItems": 32,
+            "items": {
+              "type": "number",
+              "minimum": 0
+            }
+          }
+        }
+      }
+    },
+    "trusted_for": {
+      "type": "array",
+      "minItems": 0,
+      "maxItems": 0,
+      "items": {
+        "type": "string"
+      }
+    },
+    "authority": {
+      "type": "string"
+    },
+    "returned_model": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "returned_revision": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "provider": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    }
+  }
+}

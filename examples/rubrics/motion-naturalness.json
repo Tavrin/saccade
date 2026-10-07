@@ -1,0 +1,16 @@
+{
+  "question": "Rate how natural the motion of the material in the clip looks, using only the sampled visual evidence. Abstain when sampling cannot support the judgment.",
+  "anchors": [
+    "Entirely unnatural motion throughout the observed samples",
+    "Mostly unnatural, with very few plausible transitions",
+    "Strongly unnatural, with some plausible transitions",
+    "More unnatural than natural",
+    "Mixed natural and unnatural motion",
+    "More natural than unnatural",
+    "Mostly natural with several noticeable disruptions",
+    "Natural with a few noticeable disruptions",
+    "Very natural with only minor disruptions",
+    "Consistently natural across all observed samples"
+  ],
+  "cues": ["continuous motion", "abrupt displacement", "shape continuity"]
+}

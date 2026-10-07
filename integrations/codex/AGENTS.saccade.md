@@ -76,7 +76,7 @@ Evidence: `render-evidence`, `noise build REPEATS...`, `compare --export-maps --
 [Arm policies](../docs/arm-validity.md): null is a value; `--ignore` waives missing
 fields; `--allow-unreached` requires exact observations; maps select `record_files`.
 
-G12 dry-run: fake provider; live needs reviewed billing ceilings. [Qualification](../docs/assist-qualification.md).
+G12: fake dry-run; live needs ceilings. [Qualification](../docs/assist-qualification.md). [Video](../docs/video-judge.md).
 
 [Experiments](../docs/experiments-wave11.md): timing/settling.
 [Animation/LOD](../docs/animated-lod.md).

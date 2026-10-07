@@ -1,0 +1,21 @@
+{
+  "id": "gen-video-offline-fixture",
+  "model": "google/gemini-3.8-flash",
+  "provider": "FixtureProvider",
+  "choices": [
+    {
+      "finish_reason": "stop",
+      "message": {
+        "content": "{\"request_hash\":\"sha256:0000000000000000000000000000000000000000000000000000000000000000\",\"outcome\":\"scored\",\"preferred\":\"single\",\"scores\":[{\"slot\":\"A\",\"score\":8,\"cues\":[{\"cue\":\"continuous motion\",\"state\":\"unknown\",\"timestamps_s\":[]},{\"cue\":\"abrupt displacement\",\"state\":\"unknown\",\"timestamps_s\":[]},{\"cue\":\"shape continuity\",\"state\":\"unknown\",\"timestamps_s\":[]}]}]}",
+        "refusal": null
+      }
+    }
+  ],
+  "usage": {
+    "prompt_tokens": 7000,
+    "completion_tokens": 300,
+    "total_tokens": 7300,
+    "cost": 0.006375,
+    "currency": "USD"
+  }
+}

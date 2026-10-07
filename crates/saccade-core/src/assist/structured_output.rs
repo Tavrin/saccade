@@ -14,27 +14,32 @@ pub fn answer_schema() -> Result<Value> {
 
 /// Provider-compatible schema; local decoding keeps the full shared contract.
 pub fn openrouter_schema() -> Result<Value> {
-    fn project(value: &mut Value) {
-        match value {
-            Value::Object(map) => {
-                map.remove("minItems");
-                map.remove("maxItems");
-                for child in map.values_mut() {
-                    project(child);
-                }
-            }
-            Value::Array(array) => array.iter_mut().for_each(project),
-            _ => {}
-        }
-    }
     let mut schema = answer_schema()?;
     project(&mut schema);
     Ok(schema)
 }
 
+pub(crate) fn project(value: &mut Value) {
+    match value {
+        Value::Object(map) => {
+            map.remove("minItems");
+            map.remove("maxItems");
+            for child in map.values_mut() {
+                project(child);
+            }
+        }
+        Value::Array(array) => array.iter_mut().for_each(project),
+        _ => {}
+    }
+}
+
 /// Validate every wire answer against the full schema, including removed bounds.
 /// This closed evaluator supports exactly the keywords in our pinned schema.
 pub fn validate_answer(bytes: &[u8]) -> Result<()> {
+    validate_with_schema(bytes, &answer_schema()?)
+}
+
+pub(crate) fn validate_with_schema(bytes: &[u8], schema: &Value) -> Result<()> {
     fn matches(value: &Value, schema: &Value) -> bool {
         let Some(map) = schema.as_object() else {
             return false;
@@ -95,6 +100,7 @@ pub fn validate_answer(bytes: &[u8]) -> Result<()> {
                     && a.iter().all(|child| matches(child, &schema["items"]))
             }),
             Some("string") => value.is_string(),
+            Some("null") => value.is_null(),
             Some("number") => value.as_f64().is_some_and(|n| {
                 n.is_finite()
                     && schema
@@ -108,10 +114,7 @@ pub fn validate_answer(bytes: &[u8]) -> Result<()> {
         }
     }
     let value: Value = decode(bytes)?;
-    super::require(
-        matches(&value, &answer_schema()?),
-        "closed schema or JSON violation",
-    )
+    super::require(matches(&value, schema), "closed schema or JSON violation")
 }
 
 /// Exact strict OpenRouter format, pinned before authorization or accounting.

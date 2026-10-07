@@ -17,6 +17,8 @@ pub(crate) struct Args {
 }
 #[derive(clap::Subcommand)]
 enum Operation {
+    /// Prepare timestamped advisory video requests offline.
+    VideoJudge(crate::video_judge_cmd::Args),
     /// Explain visible changes; cannot alter the measured verdict.
     Explain(assist_cmd::ReportArgs),
     /// Audit declared masks; cannot create or apply exclusions.
@@ -28,6 +30,7 @@ enum Operation {
 }
 pub(crate) fn run(a: Args) -> Result<u8, CliError> {
     match a.operation {
+        Operation::VideoJudge(args) => crate::video_judge_cmd::run(args, a.json),
         Operation::Explain(args) => {
             assist_cmd::run_report(args, Task::Explain, a.json, a.user_config.as_deref())
         }
