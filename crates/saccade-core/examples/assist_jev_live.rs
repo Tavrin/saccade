@@ -226,6 +226,26 @@ fn execute() -> Result<(), Box<dyn std::error::Error>> {
             } else if receipt.outcome != "completed" || receipt.actual_nano_usd.is_none() {
                 return Err("resume requires settled unavailable roots".into());
             }
+            if receipt.outcome == "completed" {
+                let choices = rows[*index].payload["questions"]["q"]["criteria"]
+                    .as_object()
+                    .ok_or("criteria")?
+                    .keys()
+                    .map(String::as_str)
+                    .collect::<Vec<_>>();
+                prior[*index]["answer_valid"] =
+                    json!(jev::choice(&prior[*index]["response"], &choices).is_ok());
+                if prior[*index]["answer_valid"] != true
+                    && receipt.usage["billing_basis"] != "returned_usage_times_pinned_tariff"
+                {
+                    return Err("resume requires known answer cost".into());
+                }
+                prior[*index]["answer"] = json!(
+                    jev::normalised_answer(&prior[*index]["response"], &choices)
+                        .ok()
+                        .map(|(_, metadata)| metadata)
+                );
+            }
             prior[*index]["execution_id"] = json!(receipt.id);
             prior[*index]["transport_failure"] = receipt.usage["transport_failure"].clone();
             prior[*index]["actual_nano_usd"] = json!(receipt.actual_nano_usd);
@@ -235,7 +255,7 @@ fn execute() -> Result<(), Box<dyn std::error::Error>> {
         // Record the new binary separately; preserve the original frozen campaign.
         assist::write(
             &out.join("resume-preflight.json"),
-            &json!({"identity":identity,"transport_failure_policy":continue_unknown.then(assist::continuation::History::policy),"qualified":false}),
+            &json!({"identity":identity,"answer_failure_policy":{"max_consecutive":5,"max_percent":50,"min_sample":20},"transport_failure_policy":continue_unknown.then(assist::continuation::History::policy),"qualified":false}),
         )?;
     } else {
         ledger.bind_campaign(identity, false)?;
@@ -268,6 +288,7 @@ fn execute() -> Result<(), Box<dyn std::error::Error>> {
     let mut failed = false;
     let mut stop_code: Option<&'static str> = None;
     let mut history = assist::continuation::History::default();
+    let mut answers = AnswerHistory::default();
     for (index, (row, payload)) in rows.iter().zip(&prepared).enumerate() {
         if settled.contains(&index) {
             let code = if prior[index]["code"] == "not_run_transport_failure" {
@@ -278,14 +299,9 @@ fn execute() -> Result<(), Box<dyn std::error::Error>> {
                 "invalid_answer"
             };
             results.push(prior[index].clone());
-            if let Some(valve) = history.observe(code) {
+            if let Some(valve) = history.observe(code).or_else(|| answers.observe(code)) {
                 results[index]["safety_valve"] = json!(valve);
                 stop_code = Some(valve);
-                failed = true;
-                break;
-            }
-            if code == "invalid_answer" {
-                stop_code = Some("invalid_answer");
                 failed = true;
                 break;
             }
@@ -329,11 +345,11 @@ fn execute() -> Result<(), Box<dyn std::error::Error>> {
                     .map(String::as_str)
                     .collect();
                 let answer_valid = jev::choice(&response, &choices).is_ok();
-                if !answer_valid {
-                    stop_code = Some("invalid_answer");
+                if !answer_valid && response.get("usage").is_none() {
+                    stop_code = Some("unknown_answer_cost");
                     failed = true;
                 }
-                results.push(json!({"index":index,"root":row.root,"workload":row.workload,"arm":row.arm,"order":row.order,"payload":row.payload,"answer_valid":answer_valid,"response":response,"response_raw":String::from_utf8(done.response)?,"provenance":done.provenance,"ceiling":jev::CEILING}));
+                results.push(json!({"index":index,"root":row.root,"workload":row.workload,"arm":row.arm,"order":row.order,"payload":row.payload,"answer_valid":answer_valid,"code":if answer_valid {"completed"} else {"invalid_answer"},"answer":jev::normalised_answer(&response, &choices).ok().map(|(_, metadata)| metadata),"response":response,"response_raw":String::from_utf8(done.response)?,"provenance":done.provenance,"ceiling":jev::CEILING}));
             }
             Err(assist::Error::Provider)
                 if continue_unknown && ledger.settle_continuation_root(index)? =>
@@ -357,21 +373,23 @@ fn execute() -> Result<(), Box<dyn std::error::Error>> {
             results[index]["actual_nano_usd"] = json!(receipt.actual_nano_usd);
             results[index]["money_outcome"] = json!(receipt.outcome);
         }
-        let code = if results[index]["code"] == "not_run_transport_failure" {
+        let code = if failed {
+            "incomplete"
+        } else if results[index]["code"] == "not_run_transport_failure" {
             "not_run_transport_failure"
         } else if results[index]["answer_valid"] == true {
             "completed"
         } else {
             "invalid_answer"
         };
-        if let Some(valve) = history.observe(code) {
+        if let Some(valve) = history.observe(code).or_else(|| answers.observe(code)) {
             results[index]["safety_valve"] = json!(valve);
             stop_code = Some(valve);
             failed = true;
         }
         assist::write(
             &out.join("results.json"),
-            &json!({"ceiling":jev::CEILING,"rows":results,"money_receipts":ledger.money_receipts()?,"qualified":false,"incomplete":failed,"stop_code":stop_code,"transport_failure_policy":continue_unknown.then(assist::continuation::History::policy)}),
+            &json!({"ceiling":jev::CEILING,"rows":results,"money_receipts":ledger.money_receipts()?,"qualified":false,"incomplete":failed,"stop_code":stop_code,"answer_failure_policy":{"max_consecutive":5,"max_percent":50,"min_sample":20},"transport_failure_policy":continue_unknown.then(assist::continuation::History::policy)}),
         )?;
         if failed {
             break;
@@ -387,7 +405,7 @@ fn execute() -> Result<(), Box<dyn std::error::Error>> {
         }
         assist::write(
             &out.join("results.json"),
-            &json!({"ceiling":jev::CEILING,"rows":results,"money_receipts":ledger.money_receipts()?,"qualified":false,"incomplete":true,"stop_code":stop_code,"transport_failure_policy":continue_unknown.then(assist::continuation::History::policy)}),
+            &json!({"ceiling":jev::CEILING,"rows":results,"money_receipts":ledger.money_receipts()?,"qualified":false,"incomplete":true,"stop_code":stop_code,"answer_failure_policy":{"max_consecutive":5,"max_percent":50,"min_sample":20},"transport_failure_policy":continue_unknown.then(assist::continuation::History::policy)}),
         )?;
         return Err(assist::Error::Policy(
             stop_code.unwrap_or("jev_campaign_refused_or_incomplete"),
@@ -396,7 +414,7 @@ fn execute() -> Result<(), Box<dyn std::error::Error>> {
     }
     assist::write(
         &out.join("results.json"),
-        &json!({"ceiling":jev::CEILING,"rows":results,"money_receipts":ledger.money_receipts()?,"qualified":false,"incomplete":false,"stop_code":null,"transport_failure_policy":continue_unknown.then(assist::continuation::History::policy)}),
+        &json!({"ceiling":jev::CEILING,"rows":results,"money_receipts":ledger.money_receipts()?,"qualified":false,"incomplete":false,"stop_code":null,"answer_failure_policy":{"max_consecutive":5,"max_percent":50,"min_sample":20},"transport_failure_policy":continue_unknown.then(assist::continuation::History::policy)}),
     )?;
     println!(
         "{}",
@@ -405,8 +423,36 @@ fn execute() -> Result<(), Box<dyn std::error::Error>> {
     Ok(())
 }
 
-// Binary upgrades may alter only transport/accounting/runner sources. Frozen
-// scoring, schema, tariff, evidence and all campaign settings remain identical.
+#[derive(Default)]
+struct AnswerHistory {
+    samples: usize,
+    invalid: usize,
+    consecutive: usize,
+}
+impl AnswerHistory {
+    fn observe(&mut self, code: &str) -> Option<&'static str> {
+        if !["completed", "invalid_answer"].contains(&code) {
+            return None;
+        }
+        self.samples += 1;
+        if code == "invalid_answer" {
+            self.invalid += 1;
+            self.consecutive += 1;
+        } else {
+            self.consecutive = 0;
+        }
+        if self.consecutive > 5 {
+            Some("consecutive_invalid_answers")
+        } else if self.samples >= 20 && self.invalid * 100 > self.samples * 50 {
+            Some("invalid_answer_rate")
+        } else {
+            None
+        }
+    }
+}
+
+// This authorised continuation upgrade includes rounded-probability parser/scorer
+// sources. Schema, tariff, evidence and campaign settings remain identical.
 fn validate_resume_identity(
     old: &Value,
     new: &Value,
@@ -414,11 +460,14 @@ fn validate_resume_identity(
 ) -> Result<(), Box<dyn std::error::Error>> {
     let mut expected = new.clone();
     expected["binary_hash"] = old["binary_hash"].clone();
-    expected["selftest"]["source_hashes"] = old["selftest"]["source_hashes"].clone();
+    expected["selftest"] = old["selftest"].clone();
     if *old != expected || plan["source_hashes"] != old["selftest"]["source_hashes"] {
         return Err("resume campaign identity changed".into());
     }
     let allowed = [
+        "scripts/assist/jev_eval.py",
+        "scripts/assist/test_jev.py",
+        "crates/saccade-core/src/assist/jev.rs",
         "crates/saccade-core/examples/assist_jev_live.rs",
         "crates/saccade-core/src/assist/execution.rs",
         "crates/saccade-core/src/judge_provider/transport.rs",
@@ -482,15 +531,6 @@ fn validate_resume_rows(
                 || assist::decode::<Value>(raw.as_bytes())? != old["response"]
             {
                 return Err("resume response identity changed".into());
-            }
-            let choices = rows[index].payload["questions"]["q"]["criteria"]
-                .as_object()
-                .ok_or("criteria")?
-                .keys()
-                .map(String::as_str)
-                .collect::<Vec<_>>();
-            if old["answer_valid"] != jev::choice(&old["response"], &choices).is_ok() {
-                return Err("resume answer changed".into());
             }
         } else if !matches!(
             receipt.outcome.as_str(),
@@ -567,6 +607,42 @@ fn compiled_sources() -> [(&'static str, &'static [u8]); 12] {
 mod tests {
     use super::*;
     #[test]
+    fn answer_failures_continue_until_strict_g12_limits() {
+        let mut h = AnswerHistory::default();
+        for _ in 0..5 {
+            assert_eq!(h.observe("invalid_answer"), None);
+        }
+        assert_eq!(
+            h.observe("invalid_answer"),
+            Some("consecutive_invalid_answers")
+        );
+        let mut h = AnswerHistory::default();
+        for _ in 0..10 {
+            assert_eq!(h.observe("invalid_answer"), None);
+            assert_eq!(h.observe("completed"), None);
+        }
+        assert_eq!(h.observe("not_run"), None);
+        assert_eq!(h.observe("invalid_answer"), Some("invalid_answer_rate"));
+    }
+    #[test]
+    fn rounded_answers_revalidate_without_changing_raw_evidence() {
+        for sum in [0.97, 0.98, 0.99, 1.0, 1.01, 1.02, 1.03] {
+            let response = json!({"model":JEV,"answers":{"q":{"type":"choice","confidence":0.9,"choice":"vision","probabilities":{"vision":sum-0.1,"insufficient":0.1}}}});
+            let original = response.clone();
+            let valid = (0.98..=1.02).contains(&sum);
+            assert_eq!(
+                jev::choice(&response, &["vision", "insufficient"]).is_ok(),
+                valid
+            );
+            if valid {
+                let (_, metadata) =
+                    jev::normalised_answer(&response, &["vision", "insufficient"]).unwrap();
+                assert!((metadata["original_sum"].as_f64().unwrap() - sum).abs() < 1e-12);
+            }
+            assert_eq!(response, original);
+        }
+    }
+    #[test]
     fn stable_stop_diagnostics_do_not_echo_untrusted_errors() {
         for code in [
             "invalid_answer",
@@ -642,8 +718,25 @@ mod tests {
         assert!(after.iter().all(|r| r.actual_nano_usd.is_some()));
         assert_eq!(
             before.iter().filter(|r| r.outcome == "completed").count(),
-            100
+            prior["rows"]
+                .as_array()
+                .unwrap()
+                .iter()
+                .filter(|r| !r["response"].is_null())
+                .count()
         );
+        for (row, saved) in rows.iter().zip(prior["rows"].as_array().unwrap()) {
+            if saved["response"].is_null() {
+                continue;
+            }
+            let choices = row.payload["questions"]["q"]["criteria"]
+                .as_object()
+                .unwrap()
+                .keys()
+                .map(String::as_str)
+                .collect::<Vec<_>>();
+            assert!(jev::choice(&saved["response"], &choices).is_ok());
+        }
     }
     #[test]
     fn resume_identity_preserves_tariff_scorer_and_schedule_across_runner_upgrade() {

@@ -139,3 +139,37 @@ or mismatched identity, missing/malformed/negative usage, unknown answers, optio
 permutations, contradictions, hidden-cause collisions, unsupported claims, missing
 vision, reused receipts, changed hashes, unknown billing, timeouts, oversized payloads
 and exhausted allowance. It makes no provider call and establishes no provider quality.
+
+## Answer continuation upgrade
+
+Settled, known-cost protocol-invalid answers remain unavailable in scoring denominators
+and continue without retry. The answer safety valve stops after more than five
+consecutive invalid answers, or more than 50% invalid answers after 20 settled
+answers. Transport safety history remains separate and unchanged. Identity drift,
+malformed usage, bound breaches and unknown-cost invalid answers still stop.
+
+Choice distributions with complete, nonnegative probabilities and sums within
+0.02 of one are renormalised. Each result's `answer` records `original_sum`,
+`renormalised` and normalised `probabilities`; `response` and `response_raw` retain
+original provider evidence and hashes. Resume revalidates settled saved responses
+under this contract, preserves the frozen ledger identity and records the new
+parser/scorer/binary identity in `resume-preflight.json`. Saved answers are never
+redispatched. The authorised source upgrade includes the Jev parser and Python
+scorer/self-test; other frozen sources and campaign settings still must match.
+
+Prepared resume command for the stopped development campaign (not executed;
+`USER_POLICY` is the same operator-owned policy used for the original campaign):
+
+```sh
+CARGO_TARGET_DIR=/mnt/linux-extra/moss-cargo-targets/codex-saccade-jevlive \
+CARGO_INCREMENTAL=0 CARGO_PROFILE_DEV_DEBUG=0 \
+cargo run --offline -p saccade-core --features assist --example assist_jev_live -- \
+  --requests /mnt/linux-extra/moss-scratch/saccade-jev-live/development/requests.json \
+  --resume /mnt/linux-extra/moss-scratch/saccade-jev-live/development-live \
+  --user-policy "$USER_POLICY" --campaign jev-development --max-spend-usd 0.50 \
+  --run --jev-prepaid-no-refill-attested --continue-on-unknown-cost-at-reservation
+```
+
+The earlier diagnosis describes the pre-upgrade contract. Row 401's 0.99 sum now
+passes revalidation; the saved transport failure remains conservatively charged.
+No live continuation or provider quality is established by offline verification.

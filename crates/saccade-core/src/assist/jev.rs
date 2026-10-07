@@ -92,7 +92,49 @@ pub fn choice<'a>(value: &'a Value, choices: &[&str]) -> Result<&'a str> {
             && value["answers"]["q"]["probabilities"].is_object(),
         "Jev native choice fields",
     )?;
-    super::workflow::closed_choice(value, choices)
+    let (normalised, _) = normalised_answer(value, choices)?;
+    super::workflow::closed_choice(&normalised, choices)?;
+    value["answers"]["q"]["choice"]
+        .as_str()
+        .ok_or(super::Error::Invalid("Jev choice"))
+}
+/// Normalise rounded distributions without modifying the raw response evidence.
+/// Metadata retains the original sum and whether the answer was renormalised.
+pub fn normalised_answer(value: &Value, choices: &[&str]) -> Result<(Value, Value)> {
+    let p = value["answers"]["q"]["probabilities"]
+        .as_object()
+        .ok_or(super::Error::Invalid("Jev probabilities object"))?;
+    require(
+        p.len() == choices.len() && choices.iter().all(|k| p.contains_key(*k)),
+        "Jev probability keys",
+    )?;
+    let mut sum = 0.0;
+    for v in p.values() {
+        let n = v
+            .as_f64()
+            .ok_or(super::Error::Invalid("Jev probability number"))?;
+        require(
+            n.is_finite() && (0.0..=1.0).contains(&n),
+            "Jev probability range",
+        )?;
+        sum += n;
+    }
+    require((sum - 1.0).abs() <= 0.02 + 1e-12, "Jev probability sum")?;
+    let mut normalised = value.clone();
+    for v in normalised["answers"]["q"]["probabilities"]
+        .as_object_mut()
+        .ok_or(super::Error::Invalid("Jev probabilities object"))?
+        .values_mut()
+    {
+        *v = json!(
+            v.as_f64()
+                .ok_or(super::Error::Invalid("Jev probability number"))?
+                / sum
+        );
+    }
+    super::workflow::closed_choice(&normalised, choices)?;
+    let metadata = json!({"original_sum":sum,"renormalised":sum != 1.0,"probabilities":normalised["answers"]["q"]["probabilities"]});
+    Ok((normalised, metadata))
 }
 /// Strict numeric Noul answer; no truthy strings or synthetic booleans.
 pub fn noul(value: &Value) -> Result<f64> {
@@ -181,6 +223,14 @@ pub fn self_test() -> Result<Value> {
         .is_err(),
         "Jev self-test unknown choice",
     )?;
+    for sum in [0.97, 0.98, 0.99, 1.0, 1.01, 1.02, 1.03] {
+        let mut rounded = native.clone();
+        rounded["answers"]["q"]["probabilities"] = json!({"vision":sum-0.1,"insufficient":0.1});
+        require(
+            choice(&rounded, &["vision", "insufficient"]).is_ok() == (0.98..=1.02).contains(&sum),
+            "Jev self-test rounded probabilities",
+        )?;
+    }
     Ok(
         json!({"ceiling":CEILING,"native_parser":"pass","identity":"pass","negative_usage":"pass","unknown_choice":"pass","qualified":false}),
     )

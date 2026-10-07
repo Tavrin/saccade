@@ -43,14 +43,49 @@ class JevTests(unittest.TestCase):
         self.assertEqual(result['accounted_attempts'], 10)
         self.assertFalse(result['qualified'])
 
-    def test_rounded_probability_sum_stays_invalid(self):
+    def test_rounded_probability_sum_is_normalised(self):
         choices = j.WORKLOADS['cause']
         response = dict(model=j.MODEL, usage=dict(input_tokens=569, output_tokens=79),
             answers=dict(q=dict(type='choice', choice='global_tone', confidence=.63,
                 probabilities=dict(global_tone=.68, local_structure=.16, misaligned=.01,
                     noise=.02, config_mismatch=0., ambiguous=.03, unknown=.09))))
         self.assertAlmostEqual(sum(response['answers']['q']['probabilities'].values()), .99)
-        self.assertRaises(ValueError, j.parse_native, response, choices)
+        metadata = {}
+        self.assertEqual(j.parse_native(response, choices, metadata=metadata), 'global_tone')
+        self.assertAlmostEqual(metadata['original_sum'], .99)
+        self.assertTrue(metadata['renormalised'])
+        self.assertAlmostEqual(sum(metadata['probabilities'].values()), 1.)
+
+    def test_probability_boundaries_and_required_values(self):
+        base = dict(model=j.MODEL, answers=dict(q=dict(type='choice', choice='vision', confidence=.9,
+            probabilities={'vision': .9, 'insufficient': .1})))
+        for total in (.98, .99, 1., 1.01, 1.02, .97, 1.03):
+            v = copy.deepcopy(base)
+            v['answers']['q']['probabilities']['vision'] = total-.1
+            if total in (.97, 1.03):
+                self.assertRaises(ValueError, j.parse_native, v, j.WORKLOADS['routing'])
+            else:
+                metadata = {}
+                self.assertEqual(j.parse_native(v, j.WORKLOADS['routing'], metadata=metadata), 'vision')
+                self.assertAlmostEqual(sum(metadata['probabilities'].values()), 1.)
+        for probabilities in (None, {'vision': 1.}, {'vision': 1., 'insufficient': -.01}):
+            v = copy.deepcopy(base)
+            v['answers']['q']['probabilities'] = probabilities
+            self.assertRaises(ValueError, j.parse_native, v, j.WORKLOADS['routing'])
+
+    def test_invalid_settled_answer_remains_in_denominator(self):
+        cases, oracle = j.corpus()
+        p = j.payload(cases[0], 'routing')
+        response = dict(model=j.MODEL, usage=dict(input_tokens=20, output_tokens=3),
+            answers=dict(q=dict(type='choice', choice='vision', confidence=.9,
+                probabilities={'vision': .87, 'insufficient': .1})))
+        row = dict(root=cases[0]['root'], workload='routing', payload=p, response=response)
+        report = j.score([row], oracle, [j.receipt(p, response, 'invalid')])
+        metrics = report['task_arm_table'][0]
+        self.assertEqual(metrics['valid_answers'], 0)
+        self.assertEqual(metrics['variant_availability'], 0)
+        self.assertEqual(report['accounted_attempts'], 1)
+        self.assertEqual(report['charged_nano_usd'], 840)
 
     def test_no_oracle_in_candidate_payload(self):
         cases, oracle = j.corpus()

@@ -142,7 +142,7 @@ def reservation(request):
     return (size + 4096) * 42
 
 
-def parse_native(body, choices, answer_type='choice'):
+def parse_native(body, choices, answer_type='choice', metadata=None):
     if body.get('model') != MODEL: raise ValueError('missing or mismatched model')
     if 'modelVersion' in body and body['modelVersion'] != MODEL: raise ValueError('revision drift')
     if set(body) - {'model', 'modelVersion', 'answers', 'usage', 'id'}: raise ValueError('unknown envelope')
@@ -164,7 +164,11 @@ def parse_native(body, choices, answer_type='choice'):
     if probs is not None:
         if not isinstance(probs, dict) or set(probs) != set(choices) or any(type(p) not in (int, float) or not math.isfinite(p) or not 0 <= p <= 1 for p in probs.values()):
             raise ValueError('probability distribution')
-        if abs(sum(probs.values())-1) > 1e-6 or probs[a['choice']] < max(probs.values()): raise ValueError('conflicting probabilities')
+        total = sum(probs.values())
+        if abs(total-1) > .02 + 1e-12 or probs[a['choice']] < max(probs.values()): raise ValueError('conflicting probabilities')
+        if metadata is not None:
+            metadata.update(original_sum=total, renormalised=total != 1.,
+                            probabilities={k: v/total for k, v in probs.items()})
     return a['choice']
 
 
@@ -345,6 +349,16 @@ def self_test():
                        ('bad_distribution', lambda v: v['answers']['q'].update(probabilities={'vision':.1,'insufficient':.2})),
                        ('conflicting_distribution', lambda v: v['answers']['q'].update(probabilities={'vision':0,'insufficient':1}))]:
         v = copy.deepcopy(base); edit(v); rejects(name, lambda: parse_native(v, WORKLOADS['routing']))
+    for total in (.98, .99, 1., 1.01, 1.02, .97, 1.03):
+        v = copy.deepcopy(base)
+        v['answers']['q']['probabilities'] = {'vision': total-.1, 'insufficient': .1}
+        if total in (.97, 1.03):
+            rejects('probability_sum_'+str(total), lambda: parse_native(v, WORKLOADS['routing']))
+        else:
+            metadata = {}
+            assert parse_native(v, WORKLOADS['routing'], metadata=metadata) == 'vision'
+            assert abs(sum(metadata['probabilities'].values())-1) < 1e-12
+            checks['probability_sum_'+str(total)] = 'pass'
     v = copy.deepcopy(base); v.pop('usage'); assert parse_native(v, WORKLOADS['routing']) == 'vision'
     assert receipt(rows[0]['payload'], v, 'missing')['tariff_nano_usd'] is None
     checks['missing_usage_conservative_estimate'] = 'pass'
