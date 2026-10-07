@@ -5,7 +5,7 @@ Generated from compiled capabilities and `--help`; do not edit by hand.
 Generation: `cargo build --release -p saccade --all-features`, then `python3 scripts/gen-docs.py --saccade target/release/saccade`.
 The all-features binary includes every supported operation.
 
-Compiled features: `ai`, `assist`, `compression`, `credentials`, `dense-motion`, `documents`, `embeddings`, `evaluation`, `geometry`, `graphics`, `imgtune-avif`, `local-models`, `local-vlm`, `mcp`, `media-http`, `ocr`, `ocr-provider`, `parallel`, `prechecks`, `products`, `schema`, `semantic-regions`, `text-quality`, `vision-providers`, `workbench`.
+Compiled features: `ai`, `assist`, `compression`, `credentials`, `dense-motion`, `documents`, `embeddings`, `evaluation`, `geometry`, `graphics`, `imgtune-avif`, `local-models`, `local-vlm`, `mcp`, `media-http`, `ocr`, `ocr-provider`, `parallel`, `prechecks`, `print`, `products`, `schema`, `semantic-regions`, `text-quality`, `vision-providers`, `workbench`.
 
 Exit 1 means a failed image measurement/evaluation gate or located divergence.
 Exit 0 for compare/identity means no image regression; inspect `performance` for qualification.
@@ -17,7 +17,7 @@ Exit 2 means the operation cannot run. Demo intentionally exits 1.
 ```text
 Tell when visual or performance evidence is not good enough to support a claim
 
-Usage: saccade [OPTIONS] <COMMAND>
+Usage: saccade-docs [OPTIONS] <COMMAND>
 
 Commands:
   compare             Compare a directory of captures against a directory of baselines
@@ -25,7 +25,11 @@ Commands:
   review              Preview a review plan or handle a local closed decision request
   manifest            Find, link and re-check the outputs of a report directory
   export-regions      Crop the worst regions of a report, with coordinates
+  print               ICC-managed CMYK raster comparison (first-party print extension)
   timing              Verdicts over timings acquired by external tools
+  mask-metrics        Overlap and boundary metrics between two integer label images
+  boxes               Export, import and transform bounding boxes as COCO or YOLO
+  frame-map           Check the index, timestamp and file map of externally extracted frames
   render-evidence     Compare structural rendering evidence with explicit scope and ID attribution
   schema              Discover JSON Schemas without a source checkout
   perf                Validate producer performance sidecars
@@ -105,7 +109,7 @@ Units: --threshold on FLIP scores is a 0-1 score (lower = more alike); hash thre
 ```text
 Find, link and re-check the outputs of a report directory
 
-Usage: saccade manifest [OPTIONS] <COMMAND>
+Usage: saccade-docs manifest [OPTIONS] <COMMAND>
 
 Commands:
   build     Write saccade-manifest.json for a report directory: artifacts by hash, reports by report_id, duplicates listed once. Passing is never recorded as approval
@@ -128,7 +132,7 @@ Global options:
 ```text
 Write saccade-manifest.json for a report directory: artifacts by hash, reports by report_id, duplicates listed once. Passing is never recorded as approval
 
-Usage: saccade manifest build [OPTIONS] <DIR>
+Usage: saccade-docs manifest build [OPTIONS] <DIR>
 
 Arguments:
   <DIR>  The output directory to describe
@@ -157,7 +161,7 @@ Global options:
 ```text
 Re-hash everything a manifest or link names; fails with `link_missing` or `stale_link` when a recorded file moved or changed
 
-Usage: saccade manifest verify [OPTIONS] <TARGET>
+Usage: saccade-docs manifest verify [OPTIONS] <TARGET>
 
 Arguments:
   <TARGET>  A report directory, a saccade-manifest.json or a saccade-link.json
@@ -178,7 +182,7 @@ Global options:
 ```text
 Write a stable link to one report of a directory, by report_id
 
-Usage: saccade manifest link [OPTIONS] --report-id <REPORT_ID> --out <OUT> <DIR>
+Usage: saccade-docs manifest link [OPTIONS] --report-id <REPORT_ID> --out <OUT> <DIR>
 
 Arguments:
   <DIR>  A report directory that has a manifest
@@ -201,7 +205,7 @@ Global options:
 ```text
 Say whether a path is a report directory, a JSON document or an API response
 
-Usage: saccade manifest classify [OPTIONS] <PATH>
+Usage: saccade-docs manifest classify [OPTIONS] <PATH>
 
 Arguments:
   <PATH>  Path to inspect
@@ -222,7 +226,7 @@ Global options:
 ```text
 Crop the worst regions of a report, with coordinates
 
-Usage: saccade export-regions [OPTIONS] <REPORT>
+Usage: saccade-docs export-regions [OPTIONS] <REPORT>
 
 Arguments:
   <REPORT>  A saccade report JSON (saccade-report.v1 or its linked successor)
@@ -241,12 +245,50 @@ Global options:
       --record-absolute-paths    Opt in to absolute local paths in reports and machine-readable output
 ```
 
+## saccade print
+
+```text
+ICC-managed CMYK raster comparison (first-party print extension)
+
+Usage: saccade-docs print [OPTIONS] --out <OUT> --tac-limit <TAC_LIMIT> --dpi <DPI> <REFERENCE> <CANDIDATE>
+
+Arguments:
+  <REFERENCE>  Reference CMYK TIFF/JPEG or supported single-image PDF raster
+  <CANDIDATE>  Candidate CMYK TIFF/JPEG or supported single-image PDF raster
+
+Options:
+      --out <OUT>
+          Empty artifact output directory
+      --source-ref <SOURCE_REF>
+          External capture URI/key (repeatable); recorded in generated reports
+      --input-profile <INPUT_PROFILE>
+          Override both embedded input ICC profiles with this CMYK ICC
+      --report-index <REPORT_INDEX>
+          Shared report index destination (default reports/index.jsonl next to each report, inside --out)
+      --output-profile <OUTPUT_PROFILE>
+          Target CMYK output ICC for gamut diagnostics
+      --tac-limit <TAC_LIMIT>
+          Declared total area coverage limit, percent (0..400)
+      --dpi <DPI>
+          Declared physical raster density for small-mark detection
+      --small-text-points <SMALL_TEXT_POINTS>
+          Maximum text-like component height, points [default: 12]
+      --json
+          Emit the versioned, linked measurement as JSON
+  -h, --help
+          Print help
+
+Global options:
+      --allow-out-near-captures  Silence warnings when --out is next to capture metadata
+      --record-absolute-paths    Opt in to absolute local paths in reports and machine-readable output
+```
+
 ## saccade timing
 
 ```text
 Verdicts over timings acquired by external tools
 
-Usage: saccade timing [OPTIONS] <COMMAND>
+Usage: saccade-docs timing [OPTIONS] <COMMAND>
 
 Commands:
   ab  Analyze external paired timings; no commands are executed
@@ -266,7 +308,7 @@ Global options:
 ```text
 Analyze external paired timings; no commands are executed
 
-Usage: saccade timing ab [OPTIONS] <INPUT>
+Usage: saccade-docs timing ab [OPTIONS] <INPUT>
 
 Arguments:
   <INPUT>  Session manifest or paired CSV
@@ -290,7 +332,7 @@ Global options:
 ```text
 Overlap and boundary metrics between two integer label images
 
-Usage: saccade mask-metrics [OPTIONS] <PREDICTED> <REFERENCE>
+Usage: saccade-docs mask-metrics [OPTIONS] <PREDICTED> <REFERENCE>
 
 Arguments:
   <PREDICTED>  Predicted label image (single-channel native labels, packed RGB or integer EXR)
@@ -317,7 +359,7 @@ Global options:
 ```text
 Export, import and transform bounding boxes as COCO or YOLO
 
-Usage: saccade boxes [OPTIONS] <COMMAND>
+Usage: saccade-docs boxes [OPTIONS] <COMMAND>
 
 Commands:
   export     Export a saccade-boxes.v1 document as COCO JSON or YOLO text
@@ -339,7 +381,7 @@ Global options:
 ```text
 Export a saccade-boxes.v1 document as COCO JSON or YOLO text
 
-Usage: saccade boxes export [OPTIONS] --format <FORMAT> --out <OUT> <DOC>
+Usage: saccade-docs boxes export [OPTIONS] --format <FORMAT> --out <OUT> <DOC>
 
 Arguments:
   <DOC>  saccade-boxes.v1 document
@@ -363,7 +405,7 @@ Global options:
 ```text
 Import COCO JSON or YOLO text into a saccade-boxes.v1 document
 
-Usage: saccade boxes import [OPTIONS] --format <FORMAT> --out <OUT> <INPUT>
+Usage: saccade-docs boxes import [OPTIONS] --format <FORMAT> --out <OUT> <INPUT>
 
 Arguments:
   <INPUT>
@@ -390,7 +432,7 @@ Global options:
 ```text
 Re-express boxes for a cropped or resized copy of the image
 
-Usage: saccade boxes transform [OPTIONS] --out <OUT> <DOC>
+Usage: saccade-docs boxes transform [OPTIONS] --out <OUT> <DOC>
 
 Arguments:
   <DOC>
@@ -415,7 +457,7 @@ Global options:
 ```text
 Check the index, timestamp and file map of externally extracted frames
 
-Usage: saccade frame-map [OPTIONS] <COMMAND>
+Usage: saccade-docs frame-map [OPTIONS] <COMMAND>
 
 Commands:
   check  Report gaps, constant or variable rate, file integrity and settling in the map's own timestamps
@@ -435,7 +477,7 @@ Global options:
 ```text
 Report gaps, constant or variable rate, file integrity and settling in the map's own timestamps
 
-Usage: saccade frame-map check [OPTIONS] <MAP>
+Usage: saccade-docs frame-map check [OPTIONS] <MAP>
 
 Arguments:
   <MAP>  saccade-frame-map.v1 document
@@ -470,7 +512,7 @@ Global options:
 ```text
 Compare structural rendering evidence with explicit scope and ID attribution
 
-Usage: saccade render-evidence [OPTIONS] <BASELINE> <CANDIDATE>
+Usage: saccade-docs render-evidence [OPTIONS] <BASELINE> <CANDIDATE>
 
 Arguments:
   <BASELINE>
@@ -526,7 +568,7 @@ Global options:
 ```text
 Discover JSON Schemas without a source checkout
 
-Usage: saccade schema [OPTIONS] <COMMAND>
+Usage: saccade-docs schema [OPTIONS] <COMMAND>
 
 Commands:
   list  List all schema IDs shipped in this binary
@@ -548,7 +590,7 @@ Global options:
 ```text
 List all schema IDs shipped in this binary
 
-Usage: saccade schema list [OPTIONS]
+Usage: saccade-docs schema list [OPTIONS]
 
 Options:
       --json
@@ -566,7 +608,7 @@ Global options:
 ```text
 Print the exact embedded JSON Schema (or create a new file)
 
-Usage: saccade schema get [OPTIONS] <ID>
+Usage: saccade-docs schema get [OPTIONS] <ID>
 
 Arguments:
   <ID>
@@ -588,7 +630,7 @@ Global options:
 ```text
 Locate an installed copy, if available; use get for portable discovery
 
-Usage: saccade schema path [OPTIONS] <ID>
+Usage: saccade-docs schema path [OPTIONS] <ID>
 
 Arguments:
   <ID>
@@ -609,7 +651,7 @@ Global options:
 ```text
 Validate producer performance sidecars
 
-Usage: saccade perf [OPTIONS] <COMMAND>
+Usage: saccade-docs perf [OPTIONS] <COMMAND>
 
 Commands:
   validate  Validate a perf v1 or v2 sidecar against the exact embedded JSON Schema
@@ -629,7 +671,7 @@ Global options:
 ```text
 Validate a perf v1 or v2 sidecar against the exact embedded JSON Schema
 
-Usage: saccade perf validate [OPTIONS] <SIDECAR>
+Usage: saccade-docs perf validate [OPTIONS] <SIDECAR>
 
 Arguments:
   <SIDECAR>
@@ -650,7 +692,7 @@ Global options:
 ```text
 Validate producer identity before comparing pixels
 
-Usage: saccade arms [OPTIONS] <COMMAND>
+Usage: saccade-docs arms [OPTIONS] <COMMAND>
 
 Commands:
   check  Check two capture records, sidecars, images or capture directories
@@ -670,7 +712,7 @@ Global options:
 ```text
 Check two capture records, sidecars, images or capture directories
 
-Usage: saccade arms check [OPTIONS] <A> <B>
+Usage: saccade-docs arms check [OPTIONS] <A> <B>
 
 Arguments:
   <A>
@@ -712,7 +754,7 @@ Global options:
 ```text
 Plan and compare deterministic page sweeps
 
-Usage: saccade sweep [OPTIONS] <COMMAND>
+Usage: saccade-docs sweep [OPTIONS] <COMMAND>
 
 Commands:
   plan     Sample a URL list or bounded sitemap tree into a driver-neutral manifest
@@ -733,7 +775,7 @@ Global options:
 ```text
 Sample a URL list or bounded sitemap tree into a driver-neutral manifest
 
-Usage: saccade sweep plan [OPTIONS] --before-origin <BEFORE_ORIGIN> --after-origin <AFTER_ORIGIN> --out <OUT>
+Usage: saccade-docs sweep plan [OPTIONS] --before-origin <BEFORE_ORIGIN> --after-origin <AFTER_ORIGIN> --out <OUT>
 
 Options:
       --source-ref <SOURCE_REF>        External capture URI/key (repeatable); recorded in generated reports
@@ -759,7 +801,7 @@ Global options:
 ```text
 Compare every planned capture, including explicit failure receipts
 
-Usage: saccade sweep compare [OPTIONS] --captures <CAPTURES> --out <OUT> <MANIFEST>
+Usage: saccade-docs sweep compare [OPTIONS] --captures <CAPTURES> --out <OUT> <MANIFEST>
 
 Arguments:
   <MANIFEST>
@@ -787,7 +829,7 @@ Global options:
 ```text
 Audit delivery formats and search perceptual-target encodings
 
-Usage: saccade imgtune [OPTIONS] <COMMAND>
+Usage: saccade-docs imgtune [OPTIONS] <COMMAND>
 
 Commands:
   audit   Record actual HTTP content negotiation, bytes and decoded dimensions
@@ -808,7 +850,7 @@ Global options:
 ```text
 Record actual HTTP content negotiation, bytes and decoded dimensions
 
-Usage: saccade imgtune audit [OPTIONS] --urls <URLS> --accept <ACCEPT> --out <OUT>
+Usage: saccade-docs imgtune audit [OPTIONS] --urls <URLS> --accept <ACCEPT> --out <OUT>
 
 Options:
       --source-ref <SOURCE_REF>      External capture URI/key (repeatable); recorded in generated reports
@@ -829,7 +871,7 @@ Global options:
 ```text
 Search a finite quality/format grid, retaining source and delivery evidence
 
-Usage: saccade imgtune search [OPTIONS] --out <OUT> <MANIFEST>
+Usage: saccade-docs imgtune search [OPTIONS] --out <OUT> <MANIFEST>
 
 Arguments:
   <MANIFEST>
@@ -851,7 +893,7 @@ Global options:
 ```text
 Pull design-source frames and compare implementation captures
 
-Usage: saccade design [OPTIONS] <COMMAND>
+Usage: saccade-docs design [OPTIONS] <COMMAND>
 
 Commands:
   pull     Export mapped design frames and tokens, cached by file version
@@ -872,7 +914,7 @@ Global options:
 ```text
 Export mapped design frames and tokens, cached by file version
 
-Usage: saccade design pull [OPTIONS] --out <OUT> <MAPPING>
+Usage: saccade-docs design pull [OPTIONS] --out <OUT> <MAPPING>
 
 Arguments:
   <MAPPING>
@@ -897,7 +939,7 @@ Global options:
 ```text
 Compare mapped frames and implementation captures; retain expected layout differences
 
-Usage: saccade design compare [OPTIONS] --pull <PULL> --captures <CAPTURES> --out <OUT> <MAPPING>
+Usage: saccade-docs design compare [OPTIONS] --pull <PULL> --captures <CAPTURES> --out <OUT> <MAPPING>
 
 Arguments:
   <MAPPING>
@@ -923,7 +965,7 @@ Global options:
 ```text
 Send a generic report summary to a user-configured webhook
 
-Usage: saccade notify [OPTIONS] <REPORT>
+Usage: saccade-docs notify [OPTIONS] <REPORT>
 
 Arguments:
   <REPORT>  Full report, sweep report or design report, read locally
@@ -946,7 +988,7 @@ Global options:
 ```text
 List comparison questions, inputs, features and honest availability
 
-Usage: saccade capabilities [OPTIONS]
+Usage: saccade-docs capabilities [OPTIONS]
 
 Options:
       --json
@@ -964,7 +1006,7 @@ Global options:
 ```text
 Inspect provenance/integrity indicators without a real/fake verdict
 
-Usage: saccade inspect-image [OPTIONS] <IMAGE>
+Usage: saccade-docs inspect-image [OPTIONS] <IMAGE>
 
 Arguments:
   <IMAGE>
@@ -1021,7 +1063,7 @@ Global options:
 ```text
 Measure content-dependent no-reference quality indicators
 
-Usage: saccade assess [OPTIONS] <IMAGE>
+Usage: saccade-docs assess [OPTIONS] <IMAGE>
 
 Arguments:
   <IMAGE>
@@ -1066,7 +1108,7 @@ Global options:
 ```text
 Compare image-bound OCR/text observations and literal expected strings
 
-Usage: saccade text [OPTIONS] <A> <B>
+Usage: saccade-docs text [OPTIONS] <A> <B>
 
 Arguments:
   <A>
@@ -1126,7 +1168,7 @@ Global options:
 ```text
 Triage pixel shapes resembling missing glyphs (requires text-quality)
 
-Usage: saccade tofu [OPTIONS] <IMAGE>
+Usage: saccade-docs tofu [OPTIONS] <IMAGE>
 
 Arguments:
   <IMAGE>
@@ -1152,7 +1194,7 @@ Global options:
 ```text
 Measure text legibility across supplied variants (requires text-quality)
 
-Usage: saccade text-legibility [OPTIONS] --region <REGION> <BASELINE> <VARIANTS>...
+Usage: saccade-docs text-legibility [OPTIONS] --region <REGION> <BASELINE> <VARIANTS>...
 
 Arguments:
   <BASELINE>
@@ -1196,7 +1238,7 @@ Global options:
 ```text
 Cosine similarity with an explicitly pinned optional ONNX export
 
-Usage: saccade similar [OPTIONS] <A> <B>
+Usage: saccade-docs similar [OPTIONS] <A> <B>
 
 Arguments:
   <A>
@@ -1223,7 +1265,7 @@ Global options:
 ```text
 Build or query a streaming exact flat embedding index
 
-Usage: saccade index [OPTIONS] <COMMAND>
+Usage: saccade-docs index [OPTIONS] <COMMAND>
 
 Commands:
   export         Export external report cross-links
@@ -1248,7 +1290,7 @@ Global options:
 ```text
 Export external report cross-links
 
-Usage: saccade index export [OPTIONS]
+Usage: saccade-docs index export [OPTIONS]
 
 Options:
       --index <INDEX>                [default: reports/index.jsonl]
@@ -1269,7 +1311,7 @@ Global options:
 ```text
 Write exact Rust-preprocessed tensors for independent checkpoint/export parity
 
-Usage: saccade index export-inputs [OPTIONS] --model <MODEL> --out <OUT> <DIR>
+Usage: saccade-docs index export-inputs [OPTIONS] --model <MODEL> --out <OUT> <DIR>
 
 Arguments:
   <DIR>
@@ -1292,7 +1334,7 @@ Global options:
 ```text
 Run pinned export parity and fit/holdout calibration over a frozen corpus (heavy)
 
-Usage: saccade index calibrate [OPTIONS] --out <OUT> <CORPUS>
+Usage: saccade-docs index calibrate [OPTIONS] --out <OUT> <CORPUS>
 
 Arguments:
   <CORPUS>
@@ -1318,7 +1360,7 @@ Global options:
 ```text
 Build an exact index; --segmented supports larger archives and incremental updates
 
-Usage: saccade index build [OPTIONS] --out <OUT> <DIR>
+Usage: saccade-docs index build [OPTIONS] --out <OUT> <DIR>
 
 Arguments:
   <DIR>
@@ -1345,7 +1387,7 @@ Global options:
 ```text
 Add/replace changed sources in an existing index, optionally pruning missing paths
 
-Usage: saccade index update [OPTIONS] <INDEX> <DIR>
+Usage: saccade-docs index update [OPTIONS] <INDEX> <DIR>
 
 Arguments:
   <INDEX>
@@ -1373,7 +1415,7 @@ Global options:
 ```text
 Search an existing index; model/preprocessing must exactly match the index
 
-Usage: saccade index query [OPTIONS] <INDEX> [IMAGE]
+Usage: saccade-docs index query [OPTIONS] <INDEX> [IMAGE]
 
 Arguments:
   <INDEX>
@@ -1402,7 +1444,7 @@ Global options:
 ```text
 Compute perceptual hashes without changing originals
 
-Usage: saccade hash [OPTIONS] <FILES>...
+Usage: saccade-docs hash [OPTIONS] <FILES>...
 
 Arguments:
   <FILES>...  Files or directories; each unique input is decoded once
@@ -1424,7 +1466,7 @@ Global options:
 ```text
 Cluster near-duplicates with bounded Hamming search; never delete images
 
-Usage: saccade dedupe [OPTIONS] <DIR>
+Usage: saccade-docs dedupe [OPTIONS] <DIR>
 
 Arguments:
   <DIR>  Directory of images; never deletes originals
@@ -1448,7 +1490,7 @@ Global options:
 ```text
 Analyze an image into a versioned media record (no model downloads by default)
 
-Usage: saccade analyze-media [OPTIONS] <SOURCE>
+Usage: saccade-docs analyze-media [OPTIONS] <SOURCE>
 
 Arguments:
   <SOURCE>
@@ -1475,7 +1517,7 @@ Global options:
 ```text
 Extract shot representatives with timestamps, without linking a video decoder
 
-Usage: saccade keyframes [OPTIONS] --out <OUT> <SOURCE>
+Usage: saccade-docs keyframes [OPTIONS] --out <OUT> <SOURCE>
 
 Arguments:
   <SOURCE>
@@ -1499,7 +1541,7 @@ Global options:
 ```text
 Match an image or media record against generic target images
 
-Usage: saccade find-usage [OPTIONS] <SOURCE> <TARGETS>...
+Usage: saccade-docs find-usage [OPTIONS] <SOURCE> <TARGETS>...
 
 Arguments:
   <SOURCE>
@@ -1521,7 +1563,7 @@ Global options:
 ```text
 List or explicitly pull pinned local models
 
-Usage: saccade models [OPTIONS] <COMMAND>
+Usage: saccade-docs models [OPTIONS] <COMMAND>
 
 Commands:
   list    Inspect selections, real pins, cache integrity and source-parity status
@@ -1543,7 +1585,7 @@ Global options:
 ```text
 Inspect selections, real pins, cache integrity and source-parity status
 
-Usage: saccade models list [OPTIONS]
+Usage: saccade-docs models list [OPTIONS]
 
 Options:
       --registry <REGISTRY>          Deprecated: set SACCADE_MODELS_REGISTRY or [models].registry
@@ -1563,7 +1605,7 @@ Global options:
 ```text
 Show the resolved model configuration and where each value came from
 
-Usage: saccade models config [OPTIONS]
+Usage: saccade-docs models config [OPTIONS]
 
 Options:
       --json
@@ -1583,7 +1625,7 @@ The one provisioning verb: download and verify the named pinned artifacts.
 
 ID is a registry model, `runtime` (ONNX Runtime), `ocr` (the pinned OCR contract, or --contract FILE) or `embedding` (--contract FILE or the configured embedding contract). Nothing else downloads on request.
 
-Usage: saccade models pull [OPTIONS] <ID>
+Usage: saccade-docs models pull [OPTIONS] <ID>
 
 Arguments:
   <ID>
@@ -1624,7 +1666,7 @@ Global options:
 ```text
 Locate a phrase with boxes, optional masks, and an overlay PNG
 
-Usage: saccade locate [OPTIONS] <IMAGE> <PHRASE>
+Usage: saccade-docs locate [OPTIONS] <IMAGE> <PHRASE>
 
 Arguments:
   <IMAGE>
@@ -1668,7 +1710,7 @@ Global options:
 ```text
 Measure a separately named learned quality score
 
-Usage: saccade quality-score [OPTIONS] <IMAGE>
+Usage: saccade-docs quality-score [OPTIONS] <IMAGE>
 
 Arguments:
   <IMAGE>
@@ -1707,7 +1749,7 @@ Global options:
 ```text
 Decode explicitly compatible watermark schemes without an origin verdict
 
-Usage: saccade watermark [OPTIONS] <IMAGE>
+Usage: saccade-docs watermark [OPTIONS] <IMAGE>
 
 Arguments:
   <IMAGE>
@@ -1750,7 +1792,7 @@ Global options:
 ```text
 Detect faces and optionally create a privacy-redacted PNG
 
-Usage: saccade faces [OPTIONS] <IMAGE>
+Usage: saccade-docs faces [OPTIONS] <IMAGE>
 
 Arguments:
   <IMAGE>
@@ -1789,7 +1831,7 @@ Global options:
 ```text
 Assess declared crops against detected faces, without identity recognition
 
-Usage: saccade crop-check [OPTIONS] --crop <CROP> <IMAGE>
+Usage: saccade-docs crop-check [OPTIONS] --crop <CROP> <IMAGE>
 
 Arguments:
   <IMAGE>
@@ -1832,7 +1874,7 @@ Global options:
 ```text
 Bounded advisory observations from an explicitly configured local VLM
 
-Usage: saccade observe-local [OPTIONS] --endpoint <ENDPOINT> --runtime-revision <RUNTIME_REVISION> <REQUEST>
+Usage: saccade-docs observe-local [OPTIONS] --endpoint <ENDPOINT> --runtime-revision <RUNTIME_REVISION> <REQUEST>
 
 Arguments:
   <REQUEST>  Bounded saccade observation request JSON with exact encoded images/transforms
@@ -1863,7 +1905,7 @@ Global options:
 ```text
 Map provider requests or decode recorded vision responses; no live calls
 
-Usage: saccade provider-map [OPTIONS] --provider <PROVIDER> <REQUEST>
+Usage: saccade-docs provider-map [OPTIONS] --provider <PROVIDER> <REQUEST>
 
 Arguments:
   <REQUEST>
@@ -1896,7 +1938,7 @@ Global options:
 ```text
 Align optional Vulkan replay evidence and locate native-resource divergence
 
-Usage: saccade renderdoc-localize [OPTIONS] --out <OUT> <BASELINE> <CANDIDATE>
+Usage: saccade-docs renderdoc-localize [OPTIONS] --out <OUT> <BASELINE> <CANDIDATE>
 
 Arguments:
   <BASELINE>   Baseline worker extraction.json; raw payloads must stay beneath its directory
@@ -1919,7 +1961,7 @@ Global options:
 ```text
 Import and freeze phrase regions, or inspect optional model plumbing
 
-Usage: saccade regions [OPTIONS] <COMMAND>
+Usage: saccade-docs regions [OPTIONS] <COMMAND>
 
 Commands:
   import         Freeze a manually accepted phrase region from an imported inclusion mask
@@ -1942,7 +1984,7 @@ Global options:
 ```text
 Freeze a manually accepted phrase region from an imported inclusion mask
 
-Usage: saccade regions import [OPTIONS] --reference <REFERENCE> --mask <MASK> --phrase <PHRASE> --out <OUT>
+Usage: saccade-docs regions import [OPTIONS] --reference <REFERENCE> --mask <MASK> --phrase <PHRASE> --out <OUT>
 
 Options:
       --reference <REFERENCE>
@@ -1963,7 +2005,7 @@ Global options:
 ```text
 Report honest text-to-mask and import capabilities without loading models
 
-Usage: saccade regions status [OPTIONS]
+Usage: saccade-docs regions status [OPTIONS]
 
 Options:
       --source-ref <SOURCE_REF>      External capture URI/key (repeatable); recorded in generated reports
@@ -1980,7 +2022,7 @@ Global options:
 ```text
 Explicitly download hash-pinned model artifacts into a local cache
 
-Usage: saccade regions cache [OPTIONS] --manifest <MANIFEST> --cache <CACHE>
+Usage: saccade-docs regions cache [OPTIONS] --manifest <MANIFEST> --cache <CACHE>
 
 Options:
       --manifest <MANIFEST>
@@ -1999,7 +2041,7 @@ Global options:
 ```text
 Load self-contained ONNX graphs; graph loading does not qualify inference/parity
 
-Usage: saccade regions runtime-probe [OPTIONS] --manifest <MANIFEST> --cache <CACHE> --library <LIBRARY>
+Usage: saccade-docs regions runtime-probe [OPTIONS] --manifest <MANIFEST> --cache <CACHE> --library <LIBRARY>
 
 Options:
       --manifest <MANIFEST>
@@ -2019,7 +2061,7 @@ Global options:
 ```text
 Render verified atomic numerical claims with region and evidence citations
 
-Usage: saccade explain-grounded [OPTIONS] --report <REPORT> --out <OUT>
+Usage: saccade-docs explain-grounded [OPTIONS] --report <REPORT> --out <OUT>
 
 Options:
       --report <REPORT>              Immutable comparison or localized measurement JSON
@@ -2040,7 +2082,7 @@ Global options:
 ```text
 Measure intended-region, boundary and protected-complement changes independently
 
-Usage: saccade localized-check [OPTIONS] --out <OUT> <--box <BBOX>|--mask <MASK>|--selector <SELECTOR>|--region <REGION>|--required-effect <REQUIRED_EFFECT>> <REFERENCE> <CANDIDATE>
+Usage: saccade-docs localized-check [OPTIONS] --out <OUT> <--box <BBOX>|--mask <MASK>|--selector <SELECTOR>|--region <REGION>|--required-effect <REQUIRED_EFFECT>> <REFERENCE> <CANDIDATE>
 
 Arguments:
   <REFERENCE>  Reference screenshot, retaining the intended region if candidate content disappears
@@ -2098,7 +2140,7 @@ Global options:
 ```text
 Reconcile expected and supplied stable capture cases against a comparison report
 
-Usage: saccade inventory [OPTIONS] --manifest <MANIFEST> --report <REPORT> --out <OUT>
+Usage: saccade-docs inventory [OPTIONS] --manifest <MANIFEST> --report <REPORT> --out <OUT>
 
 Options:
       --manifest <MANIFEST>          Expected suite and supplied capture attempts, with stable case IDs
@@ -2119,7 +2161,7 @@ Global options:
 ```text
 Measure externally encoded quality candidates under a frozen score and byte budget
 
-Usage: saccade quality-sweep [OPTIONS] --out <OUT> <MANIFEST>
+Usage: saccade-docs quality-sweep [OPTIONS] --out <OUT> <MANIFEST>
 
 Arguments:
   <MANIFEST>  Frozen sweep manifest. All artifacts must be beneath its directory
@@ -2141,7 +2183,7 @@ Global options:
 ```text
 Record and inspect local visual-test variation across runs
 
-Usage: saccade history [OPTIONS] <COMMAND>
+Usage: saccade-docs history [OPTIONS] <COMMAND>
 
 Commands:
   onset    Find candidate performance onsets in qualified, comparable history observations
@@ -2163,7 +2205,7 @@ Global options:
 ```text
 Find candidate performance onsets in qualified, comparable history observations
 
-Usage: saccade history onset [OPTIONS] --store <STORE>
+Usage: saccade-docs history onset [OPTIONS] --store <STORE>
 
 Options:
       --source-ref <SOURCE_REF>      External capture URI/key (repeatable); recorded in generated reports
@@ -2183,7 +2225,7 @@ Global options:
 ```text
 Add one existing comparison report to the local history store
 
-Usage: saccade history record [OPTIONS] --store <STORE> <REPORT>
+Usage: saccade-docs history record [OPTIONS] --store <STORE> <REPORT>
 
 Arguments:
   <REPORT>
@@ -2216,7 +2258,7 @@ Global options:
 ```text
 Show measured variation and threshold advice for comparable entries
 
-Usage: saccade history analyze [OPTIONS] --store <STORE>
+Usage: saccade-docs history analyze [OPTIONS] --store <STORE>
 
 Options:
       --source-ref <SOURCE_REF>      External capture URI/key (repeatable); recorded in generated reports
@@ -2239,7 +2281,7 @@ Global options:
 ```text
 Locate the first commit whose fresh capture fails its baseline
 
-Usage: saccade bisect [OPTIONS] --capture <CAPTURE> --baseline <BASELINE>
+Usage: saccade-docs bisect [OPTIONS] --capture <CAPTURE> --baseline <BASELINE>
 
 Options:
       --good <GOOD>                  Known good revision in the current repository
@@ -2263,7 +2305,7 @@ Global options:
 ```text
 Convert a test runner's screenshot artifacts into compared image pairs
 
-Usage: saccade ingest [OPTIONS] <COMMAND>
+Usage: saccade-docs ingest [OPTIONS] <COMMAND>
 
 Commands:
   blender     Pair Blender render report category/ref images with category renders
@@ -2287,7 +2329,7 @@ Global options:
 ```text
 Pair Blender render report category/ref images with category renders
 
-Usage: saccade ingest blender [OPTIONS] --out <OUT> <ROOT>
+Usage: saccade-docs ingest blender [OPTIONS] --out <OUT> <ROOT>
 
 Arguments:
   <ROOT>
@@ -2309,7 +2351,7 @@ Global options:
 ```text
 Pair Bevy screenshot-N.png files from two runs
 
-Usage: saccade ingest bevy [OPTIONS] --out <OUT> <REFERENCE> <CAPTURE>
+Usage: saccade-docs ingest bevy [OPTIONS] --out <OUT> <REFERENCE> <CAPTURE>
 
 Arguments:
   <REFERENCE>
@@ -2332,7 +2374,7 @@ Global options:
 ```text
 Pair Unity Graphics Test Framework ReferenceImages and ActualImages
 
-Usage: saccade ingest unity [OPTIONS] --out <OUT> <ASSETS>
+Usage: saccade-docs ingest unity [OPTIONS] --out <OUT> <ASSETS>
 
 Arguments:
   <ASSETS>
@@ -2354,7 +2396,7 @@ Global options:
 ```text
 Read Unreal screenshot comparison result paths from JSON
 
-Usage: saccade ingest unreal [OPTIONS] --out <OUT> <RESULTS>
+Usage: saccade-docs ingest unreal [OPTIONS] --out <OUT> <RESULTS>
 
 Arguments:
   <RESULTS>
@@ -2376,7 +2418,7 @@ Global options:
 ```text
 Compare expected and actual Playwright screenshot attachments
 
-Usage: saccade ingest playwright [OPTIONS] --out <OUT> <MANIFEST>
+Usage: saccade-docs ingest playwright [OPTIONS] --out <OUT> <MANIFEST>
 
 Arguments:
   <MANIFEST>  Manifest written by integrations/playwright/reporter.cjs
@@ -2399,7 +2441,7 @@ Global options:
 ```text
 Print installed version, features and supported evidence schemas
 
-Usage: saccade doctor [OPTIONS]
+Usage: saccade-docs doctor [OPTIONS]
 
 Options:
       --json                         Print machine-readable JSON
@@ -2417,7 +2459,7 @@ Global options:
 ```text
 Bootstrap a commented configuration and print baseline adoption steps
 
-Usage: saccade init [OPTIONS]
+Usage: saccade-docs init [OPTIONS]
 
 Options:
       --source-ref <SOURCE_REF>      External capture URI/key (repeatable); recorded in generated reports
@@ -2437,7 +2479,7 @@ Global options:
 ```text
 Run the bundled example and explain its expected regression
 
-Usage: saccade demo [OPTIONS]
+Usage: saccade-docs demo [OPTIONS]
 
 
 
@@ -2463,7 +2505,7 @@ Global options:
 ```text
 Compare a directory of captures against a directory of baselines
 
-Usage: saccade compare [OPTIONS] [BASELINE_DIR] <CAPTURE_DIR>
+Usage: saccade-docs compare [OPTIONS] [BASELINE_DIR] <CAPTURE_DIR>
 
 
 
@@ -2599,7 +2641,7 @@ Global options:
 ```text
 Establish exact native decoded-sample equality in the selected scope
 
-Usage: saccade identity [OPTIONS] <PARENT_DIR> <CANDIDATE_DIR>
+Usage: saccade-docs identity [OPTIONS] <PARENT_DIR> <CANDIDATE_DIR>
 
 
 
@@ -2683,7 +2725,7 @@ Global options:
 ```text
 Check whether image identity or performance evidence proves a claim
 
-Usage: saccade prove [OPTIONS] <COMMAND>
+Usage: saccade-docs prove [OPTIONS] <COMMAND>
 
 Commands:
   mesh-identity  Prove exact ordered static mesh geometry identity (appearance excluded)
@@ -2705,7 +2747,7 @@ Global options:
 ```text
 Prove exact ordered static mesh geometry identity (appearance excluded)
 
-Usage: saccade prove mesh-identity [OPTIONS] --unit <UNIT> <BASELINE> <CAPTURE>
+Usage: saccade-docs prove mesh-identity [OPTIONS] --unit <UNIT> <BASELINE> <CAPTURE>
 
 Arguments:
   <BASELINE>
@@ -2728,7 +2770,7 @@ Global options:
 ```text
 Prove exact native decoded-sample equality over the selected images
 
-Usage: saccade prove identity [OPTIONS] <PARENT_DIR> <CANDIDATE_DIR>
+Usage: saccade-docs prove identity [OPTIONS] <PARENT_DIR> <CANDIDATE_DIR>
 
 Arguments:
   <PARENT_DIR>
@@ -2794,7 +2836,7 @@ Global options:
 ```text
 Evaluate performance claims from ablation arms and repeat noise
 
-Usage: saccade prove performance [OPTIONS] [BASE] [ARMS]...
+Usage: saccade-docs prove performance [OPTIONS] [BASE] [ARMS]...
 
 Arguments:
   [BASE]
@@ -2854,8 +2896,8 @@ Global options:
 ```text
 Calibrate thresholds from repeated captures of an unchanged build
 
-Usage: saccade noise [OPTIONS] <DIRS> <DIRS>...
-       saccade noise [OPTIONS] [DIRS] [DIRS]... <COMMAND>
+Usage: saccade-docs noise [OPTIONS] <DIRS> <DIRS>...
+       saccade-docs noise [OPTIONS] [DIRS] [DIRS]... <COMMAND>
 
 Commands:
   build  Build per-tile empirical noise envelopes from same-arm repeats
@@ -2894,7 +2936,7 @@ Global options:
 ```text
 Build per-tile empirical noise envelopes from same-arm repeats
 
-Usage: saccade noise build [OPTIONS] <REPEATS> <REPEATS>...
+Usage: saccade-docs noise build [OPTIONS] <REPEATS> <REPEATS>...
 
 Arguments:
   <REPEATS> <REPEATS>...  2..32 repeats from the same arm, files or run directories
@@ -2931,7 +2973,7 @@ Global options:
 ```text
 Write a self-contained review viewer for 2 to 6 image directories
 
-Usage: saccade view [OPTIONS] [DIRS]...
+Usage: saccade-docs view [OPTIONS] [DIRS]...
 
 
 
@@ -3000,7 +3042,7 @@ Global options:
 ```text
 Copy reviewed captures over baselines
 
-Usage: saccade approve [OPTIONS] [CAPTURE_DIR] [BASELINE_DIR] [NAMES]...
+Usage: saccade-docs approve [OPTIONS] [CAPTURE_DIR] [BASELINE_DIR] [NAMES]...
 
 
 
@@ -3040,7 +3082,7 @@ Global options:
 ```text
 Browse report and image archives in a local web workbench
 
-Usage: saccade serve [OPTIONS] [ROOTS]...
+Usage: saccade-docs serve [OPTIONS] [ROOTS]...
 
 
 
@@ -3126,7 +3168,7 @@ Global options:
 ```text
 Serve the agent tools over MCP on stdio, confined to the given roots
 
-Usage: saccade mcp [OPTIONS] --root <ROOTS>
+Usage: saccade-docs mcp [OPTIONS] --root <ROOTS>
 
 
 
@@ -3160,7 +3202,7 @@ Global options:
 ```text
 Read, explain, prepare or export existing evidence
 
-Usage: saccade inspect [OPTIONS] [ARTIFACT] [COMMAND]
+Usage: saccade-docs inspect [OPTIONS] [ARTIFACT] [COMMAND]
 
 Commands:
   exclusions    Show what a comparison excluded and the remaining threshold headroom
@@ -3204,7 +3246,7 @@ Global options:
 ```text
 Show what a comparison excluded and the remaining threshold headroom
 
-Usage: saccade inspect exclusions [OPTIONS] <REPORT>
+Usage: saccade-docs inspect exclusions [OPTIONS] <REPORT>
 
 Arguments:
   <REPORT>
@@ -3225,7 +3267,7 @@ Global options:
 ```text
 Prepare context, crops, facts and references without a provider
 
-Usage: saccade inspect evidence [OPTIONS] --out <OUT> <REPORT>
+Usage: saccade-docs inspect evidence [OPTIONS] --out <OUT> <REPORT>
 
 Arguments:
   <REPORT>
@@ -3253,7 +3295,7 @@ Global options:
 ```text
 Export an existing artifact or selected entry
 
-Usage: saccade inspect export [OPTIONS] --format <FORMAT> --out <OUT> <ARTIFACT>
+Usage: saccade-docs inspect export [OPTIONS] --format <FORMAT> --out <OUT> <ARTIFACT>
 
 Arguments:
   <ARTIFACT>
@@ -3280,7 +3322,7 @@ Global options:
 ```text
 Explain effective measurement settings and their sources
 
-Usage: saccade inspect config [OPTIONS]
+Usage: saccade-docs inspect config [OPTIONS]
 
 Options:
       --config <CONFIG>
@@ -3300,7 +3342,7 @@ Global options:
 ```text
 List compiled modules, operations and contracts
 
-Usage: saccade inspect capabilities [OPTIONS]
+Usage: saccade-docs inspect capabilities [OPTIONS]
 
 Options:
       --json
@@ -3318,7 +3360,7 @@ Global options:
 ```text
 Preview a review plan or handle a local closed decision request
 
-Usage: saccade review [OPTIONS] [REPORT] [COMMAND]
+Usage: saccade-docs review [OPTIONS] [REPORT] [COMMAND]
 
 Commands:
   trial       Preregister and present offline blind visual trials
@@ -3359,7 +3401,7 @@ Global options:
 ```text
 Preregister and present offline blind visual trials
 
-Usage: saccade review trial [OPTIONS] <COMMAND>
+Usage: saccade-docs review trial [OPTIONS] <COMMAND>
 
 Commands:
   register  Hash a plan and all inputs before decoding or showing images
@@ -3384,7 +3426,7 @@ Global options:
 ```text
 Hash a plan and all inputs before decoding or showing images
 
-Usage: saccade review trial register [OPTIONS] --out <OUT> <PLAN>
+Usage: saccade-docs review trial register [OPTIONS] --out <OUT> <PLAN>
 
 Arguments:
   <PLAN>
@@ -3407,7 +3449,7 @@ Global options:
 ```text
 Lock inspection state and write the blind HTML gallery
 
-Usage: saccade review trial start [OPTIONS] --out <OUT> <PLAN>
+Usage: saccade-docs review trial start [OPTIONS] --out <OUT> <PLAN>
 
 Arguments:
   <PLAN>
@@ -3430,7 +3472,7 @@ Global options:
 ```text
 Persist one explicit judgment through the core vote store
 
-Usage: saccade review trial vote [OPTIONS] --out <OUT> --voter <VOTER> --item <ITEM> --answer <ANSWER> <PLAN>
+Usage: saccade-docs review trial vote [OPTIONS] --out <OUT> --voter <VOTER> --item <ITEM> --answer <ANSWER> <PLAN>
 
 Arguments:
   <PLAN>
@@ -3456,7 +3498,7 @@ Global options:
 ```text
 Import the exported blind gallery judgments for an explicit voter
 
-Usage: saccade review trial import [OPTIONS] --out <OUT> --voter <VOTER> <PLAN> <JUDGMENTS>
+Usage: saccade-docs review trial import [OPTIONS] --out <OUT> --voter <VOTER> <PLAN> <JUDGMENTS>
 
 Arguments:
   <PLAN>
@@ -3481,7 +3523,7 @@ Global options:
 ```text
 Experimental assist lifecycle operations
 
-Usage: saccade review assist [OPTIONS] <COMMAND>
+Usage: saccade-docs review assist [OPTIONS] <COMMAND>
 
 Commands:
   batch  Asynchronous frozen evaluation jobs; never used by interactive advice
@@ -3503,7 +3545,7 @@ Global options:
 ```text
 Asynchronous frozen evaluation jobs; never used by interactive advice
 
-Usage: saccade review assist batch [OPTIONS] <COMMAND>
+Usage: saccade-docs review assist batch [OPTIONS] <COMMAND>
 
 Commands:
   submit   Verify and submit once; ambiguous submissions cannot repeat
@@ -3527,13 +3569,14 @@ Global options:
 ```text
 Verify and submit once; ambiguous submissions cannot repeat
 
-Usage: saccade review assist batch submit [OPTIONS] --plan <PLAN> --job <JOB>
+Usage: saccade-docs review assist batch submit [OPTIONS] --plan <PLAN> --job <JOB>
 
 Options:
-      --plan <PLAN>                    Source-bound saccade-assist-batch-plan.v1 artifact
+      --allow-spend-above-25-usd       Explicitly acknowledge a plan allowance above the default 25 USD ceiling
       --source-ref <SOURCE_REF>        External capture URI/key (repeatable); recorded in generated reports
-      --job <JOB>                      Durable receipt under the output root
+      --plan <PLAN>                    Source-bound saccade-assist-batch-plan.v1 artifact
       --report-index <REPORT_INDEX>    Shared report index destination (default reports/index.jsonl next to each report, inside --out)
+      --job <JOB>                      Durable receipt under the output root
       --experimental
       --run                            Authorize one live submission or one poll; default local only
       --response <RESPONSE>            Recorded collection fixture; cannot settle a live reservation
@@ -3553,13 +3596,14 @@ Global options:
 ```text
 Read local status, or poll once with --run
 
-Usage: saccade review assist batch status [OPTIONS] --plan <PLAN> --job <JOB>
+Usage: saccade-docs review assist batch status [OPTIONS] --plan <PLAN> --job <JOB>
 
 Options:
-      --plan <PLAN>                    Source-bound saccade-assist-batch-plan.v1 artifact
+      --allow-spend-above-25-usd       Explicitly acknowledge a plan allowance above the default 25 USD ceiling
       --source-ref <SOURCE_REF>        External capture URI/key (repeatable); recorded in generated reports
-      --job <JOB>                      Durable receipt under the output root
+      --plan <PLAN>                    Source-bound saccade-assist-batch-plan.v1 artifact
       --report-index <REPORT_INDEX>    Shared report index destination (default reports/index.jsonl next to each report, inside --out)
+      --job <JOB>                      Durable receipt under the output root
       --experimental
       --run                            Authorize one live submission or one poll; default local only
       --response <RESPONSE>            Recorded collection fixture; cannot settle a live reservation
@@ -3579,13 +3623,14 @@ Global options:
 ```text
 Collect once and settle terminal known usage; never wait
 
-Usage: saccade review assist batch collect [OPTIONS] --plan <PLAN> --job <JOB>
+Usage: saccade-docs review assist batch collect [OPTIONS] --plan <PLAN> --job <JOB>
 
 Options:
-      --plan <PLAN>                    Source-bound saccade-assist-batch-plan.v1 artifact
+      --allow-spend-above-25-usd       Explicitly acknowledge a plan allowance above the default 25 USD ceiling
       --source-ref <SOURCE_REF>        External capture URI/key (repeatable); recorded in generated reports
-      --job <JOB>                      Durable receipt under the output root
+      --plan <PLAN>                    Source-bound saccade-assist-batch-plan.v1 artifact
       --report-index <REPORT_INDEX>    Shared report index destination (default reports/index.jsonl next to each report, inside --out)
+      --job <JOB>                      Durable receipt under the output root
       --experimental
       --run                            Authorize one live submission or one poll; default local only
       --response <RESPONSE>            Recorded collection fixture; cannot settle a live reservation
@@ -3605,7 +3650,7 @@ Global options:
 ```text
 Experimental localized visible explanations, advisory only
 
-Usage: saccade review explain [OPTIONS] --report <REPORT> --out <OUT>
+Usage: saccade-docs review explain [OPTIONS] --report <REPORT> --out <OUT>
 
 Options:
       --report <REPORT>
@@ -3671,7 +3716,7 @@ Global options:
 ```text
 Experimental individual-mask audit, advisory only
 
-Usage: saccade review audit-mask [OPTIONS] --report <REPORT> --out <OUT>
+Usage: saccade-docs review audit-mask [OPTIONS] --report <REPORT> --out <OUT>
 
 Options:
       --report <REPORT>
@@ -3737,7 +3782,7 @@ Global options:
 ```text
 Experimental bounded visible condition, never behavioral success
 
-Usage: saccade review check-ui [OPTIONS] --image <IMAGE> --box <BOX> --out <OUT> <CONDITION>
+Usage: saccade-docs review check-ui [OPTIONS] --image <IMAGE> --box <BOX> --out <OUT> <CONDITION>
 
 Arguments:
   <CONDITION>  Literal visible label, never an acting agent's success claim
@@ -3820,7 +3865,7 @@ Global options:
 ```text
 Review brand colours, theme contrast, CVD and source typography together
 
-Usage: saccade review brand [OPTIONS] --out <OUT> <SOURCE>
+Usage: saccade-docs review brand [OPTIONS] --out <OUT> <SOURCE>
 
 Arguments:
   <SOURCE>  Capture-bound source JSON, exported by the colour/DOM/layout producer
@@ -3844,7 +3889,7 @@ Global options:
 ```text
 Review source text/layout and localized UI changes in one packet
 
-Usage: saccade review ui [OPTIONS] --out <OUT> <REFERENCE> <CANDIDATE>
+Usage: saccade-docs review ui [OPTIONS] --out <OUT> <REFERENCE> <CANDIDATE>
 
 Arguments:
   <REFERENCE>
@@ -3890,7 +3935,7 @@ Global options:
 ```text
 Diagnose dense correspondence and validate supplied renderer vectors
 
-Usage: saccade review motion [OPTIONS] --out <OUT> <REFERENCE> <CANDIDATE>
+Usage: saccade-docs review motion [OPTIONS] --out <OUT> <REFERENCE> <CANDIDATE>
 
 Arguments:
   <REFERENCE>
@@ -3928,7 +3973,7 @@ Global options:
 ```text
 Prepare a closed request from an existing canonical case, locally
 
-Usage: saccade review request [OPTIONS] --question <QUESTION> --out <OUT> <REPORT>
+Usage: saccade-docs review request [OPTIONS] --question <QUESTION> --out <OUT> <REPORT>
 
 Arguments:
   <REPORT>
@@ -3952,7 +3997,7 @@ Global options:
 ```text
 Validate and record proposed answers against the exact request
 
-Usage: saccade review propose [OPTIONS] --answers <ANSWERS> <REQUEST>
+Usage: saccade-docs review propose [OPTIONS] --answers <ANSWERS> <REQUEST>
 
 Arguments:
   <REQUEST>
@@ -3976,7 +4021,7 @@ Global options:
 ```text
 Create or retrieve a local human review item for an unresolved request
 
-Usage: saccade review ask [OPTIONS] <REQUEST>
+Usage: saccade-docs review ask [OPTIONS] <REQUEST>
 
 Arguments:
   <REQUEST>
@@ -3999,7 +4044,7 @@ Global options:
 ```text
 Plan or run a resumable evaluation manifest
 
-Usage: saccade review eval [OPTIONS] --manifest <MANIFEST>
+Usage: saccade-docs review eval [OPTIONS] --manifest <MANIFEST>
 
 Options:
       --manifest <MANIFEST>
@@ -4020,7 +4065,7 @@ Global options:
 ```text
 Analyze existing graphics captures: ablation, sequences, ranking, bisection
 
-Usage: saccade experiment [OPTIONS] <COMMAND>
+Usage: saccade-docs experiment [OPTIONS] <COMMAND>
 
 Commands:
   transition  Measure popping, sampled convergence and steady level differences in captures
@@ -4051,7 +4096,7 @@ Global options:
 ```text
 Measure popping, sampled convergence and steady level differences in captures
 
-Usage: saccade experiment transition [OPTIONS] --out <OUT> --maximum-pop <MAXIMUM_POP> --maximum-duration-ms <MAXIMUM_DURATION_MS> --maximum-steady-error <MAXIMUM_STEADY_ERROR> <PLAN>
+Usage: saccade-docs experiment transition [OPTIONS] --out <OUT> --maximum-pop <MAXIMUM_POP> --maximum-duration-ms <MAXIMUM_DURATION_MS> --maximum-steady-error <MAXIMUM_STEADY_ERROR> <PLAN>
 
 Arguments:
   <PLAN>  saccade-captured-sequence-plan.v1 JSON, paths relative to its directory
@@ -4094,7 +4139,7 @@ Global options:
 ```text
 Compare timestamp-matched animation captures with localized motion diagnostics
 
-Usage: saccade experiment animation [OPTIONS] --out <OUT> --maximum-frame-error <MAXIMUM_FRAME_ERROR> --maximum-local-error <MAXIMUM_LOCAL_ERROR> --maximum-flicker <MAXIMUM_FLICKER> <PLAN>
+Usage: saccade-docs experiment animation [OPTIONS] --out <OUT> --maximum-frame-error <MAXIMUM_FRAME_ERROR> --maximum-local-error <MAXIMUM_LOCAL_ERROR> --maximum-flicker <MAXIMUM_FLICKER> <PLAN>
 
 Arguments:
   <PLAN>  saccade-captured-sequence-plan.v1 JSON, paths relative to its directory
@@ -4129,7 +4174,7 @@ Global options:
 ```text
 Event-relative tile error, settling, lag and pre-change residual trajectories
 
-Usage: saccade experiment settle [OPTIONS] <FRAMES>
+Usage: saccade-docs experiment settle [OPTIONS] <FRAMES>
 
 Arguments:
   <FRAMES>  Directory of numbered image frames, sorted by numeric suffix
@@ -4159,7 +4204,7 @@ Global options:
 ```text
 Compare a render with a noisy offline reference and record alignment/noise floors
 
-Usage: saccade experiment reference [OPTIONS] <RENDER> <REFERENCE>
+Usage: saccade-docs experiment reference [OPTIONS] <RENDER> <REFERENCE>
 
 Arguments:
   <RENDER>
@@ -4207,7 +4252,7 @@ Global options:
 ```text
 Measure bidirectional triangle-surface distance and oriented normal deviation
 
-Usage: saccade experiment geometry [OPTIONS] --unit <UNIT> <BASELINE> <CAPTURE>
+Usage: saccade-docs experiment geometry [OPTIONS] --unit <UNIT> <BASELINE> <CAPTURE>
 
 Arguments:
   <BASELINE>
@@ -4233,7 +4278,7 @@ Global options:
 ```text
 Compare ablation arms against a base with image and performance evidence
 
-Usage: saccade experiment ablate [OPTIONS] [BASE] [ARMS]...
+Usage: saccade-docs experiment ablate [OPTIONS] [BASE] [ARMS]...
 
 Arguments:
   [BASE]
@@ -4293,7 +4338,7 @@ Global options:
 ```text
 Compare numbered SDR frames with the ColorVideoVDP temporal model
 
-Usage: saccade experiment temporal [OPTIONS] --fps <FPS> <BASELINE_DIR> <CAPTURE_DIR>
+Usage: saccade-docs experiment temporal [OPTIONS] --fps <FPS> <BASELINE_DIR> <CAPTURE_DIR>
 
 Arguments:
   <BASELINE_DIR>  Directory of numbered baseline PNG/JPEG frames
@@ -4341,7 +4386,7 @@ Global options:
 ```text
 Compare numbered colour frames by sorted index and measure added flicker
 
-Usage: saccade experiment sequence [OPTIONS] <BASELINE_DIR> <CAPTURE_DIR>
+Usage: saccade-docs experiment sequence [OPTIONS] <BASELINE_DIR> <CAPTURE_DIR>
 
 Arguments:
   <BASELINE_DIR>
@@ -4398,7 +4443,7 @@ Global options:
 ```text
 Rank candidate directories against one common FLIP reference
 
-Usage: saccade experiment rank [OPTIONS] <REFERENCE_DIR> <CANDIDATE_DIRS>...
+Usage: saccade-docs experiment rank [OPTIONS] <REFERENCE_DIR> <CANDIDATE_DIRS>...
 
 Arguments:
   <REFERENCE_DIR>
@@ -4453,7 +4498,7 @@ Global options:
 ```text
 Find the first diverging run or revision in an ordered series
 
-Usage: saccade experiment bisect [OPTIONS]
+Usage: saccade-docs experiment bisect [OPTIONS]
 
 Options:
       --runs <RUNS>...               Ordered run directories, oldest first (repeatable)
@@ -4478,7 +4523,7 @@ Global options:
 ```text
 Photosensitivity PRE-CHECK only; not certification or formal compliance
 
-Usage: saccade experiment safety [OPTIONS] <INPUT>
+Usage: saccade-docs experiment safety [OPTIONS] <INPUT>
 
 Arguments:
   <INPUT>  Numbered frames or mp4/mov/mkv (requires external ffmpeg)
@@ -4504,7 +4549,7 @@ Global options:
 ```text
 Accessibility PRE-CHECK only; not certification or formal compliance
 
-Usage: saccade experiment a11y [OPTIONS] <INPUT>
+Usage: saccade-docs experiment a11y [OPTIONS] <INPUT>
 
 Arguments:
   <INPUT>  Opaque sRGB image or image directory

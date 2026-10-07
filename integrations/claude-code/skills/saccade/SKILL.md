@@ -15,13 +15,13 @@ saccade inspect REPORT/saccade-report.v1.json --status fail,error,missing,new --
 saccade inspect evidence REPORT/saccade-report.v1.json --entry NAME --out EVIDENCE
 ```
 
-Read validity, performance, limits, pagination and `data.pass_with_local_change`. Exit 1 is failure; 2 unavailable; `performance_rejected` may exit 0.
+Read validity, performance, pagination and `data.pass_with_local_change`. Exit 1 is failure; 2 unavailable; `performance_rejected` may exit 0.
 `--require-valid-arms` refuses mismatches (3) or missing identity (4); declare
 variables; inspect exceptions. Mixed records: `compare = "mapped_only"`; inspect `unmapped`/`outcomes`. [Arms](../docs/arm-validity.md).
 Identity binds samples, not approval/timing authority.
 
 `review` previews; `review request|ask|propose` binds input hashes.
-CLI attestation is null; the workbench is token-gated;
+CLI attestation is null; workbench is token-gated;
 `automated` cannot satisfy human-required checks. Shell agents can invoke approval;
 human-final is an audit policy. Deletion needs approval and `--prune-missing`;
 models need fresh review. [Evidence](../docs/contracts.md),
@@ -53,7 +53,7 @@ Browser/sweep masks `neutralize`; core `exclude`. Read mask/excluded-error audit
 [Comparator](../docs/choosing-a-comparison.md).
 
 `models list` shows pins; inference needs cached models/runtime and never pulls.
-Vision commands/observations are advice, never verdict overrides.
+Vision observations are advice, never verdict overrides.
 [Vision](../docs/wave7.md). [TrustMark](../docs/trustmark.md): `watermark --trustmark` verifies BCH payloads.
 
 [Rendering](../docs/render-evidence.md): read `required_effects[].failures`
@@ -67,7 +67,7 @@ structure and preferences grant no timing authority.
 `keyframes` needs ffmpeg/ffprobe or sampled frames; `find-usage` keeps
 uncalibrated confidence/failures, never rights proof. [Media](../docs/media.md),
 [Python](../docs/python.md), [API](../docs/api.md).
-Text: pinned SigLIP 2. Updates: same model; prune only complete archives.
+Pinned SigLIP 2; updates keep the model; prune only complete archives.
 
 [OCR](../docs/text.md): `ocr` enables local PP-OCRv5; keep accents/source hashes;
 CTC confidence is uncalibrated. `ocr-provider`

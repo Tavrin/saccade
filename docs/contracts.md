@@ -330,6 +330,7 @@ The last three names appear only when the corresponding feature is compiled in.
 - [saccade-pipeline-choice.v2.schema.json](../crates/saccade-core/schemas/saccade-pipeline-choice.v2.schema.json) — Historical reader contract
 - [saccade-playwright-matcher.v1.schema.json](../crates/saccade-core/schemas/saccade-playwright-matcher.v1.schema.json) — saccade-playwright-matcher.v1
 - [saccade-playwright-matcher.v2.schema.json](../crates/saccade-core/schemas/saccade-playwright-matcher.v2.schema.json) — saccade-playwright-matcher.v1
+- [saccade-print.v1.schema.json](../crates/saccade-core/schemas/saccade-print.v1.schema.json) — ICC-managed print comparison
 - [saccade-provider-mapping.v1.schema.json](../crates/saccade-core/schemas/saccade-provider-mapping.v1.schema.json) — saccade-provider-mapping.v1
 - [saccade-quality-report.v1.schema.json](../crates/saccade-core/schemas/saccade-quality-report.v1.schema.json) — Sweep
 - [saccade-quality-sweep.v1.schema.json](../crates/saccade-core/schemas/saccade-quality-sweep.v1.schema.json) — Manifest
@@ -402,7 +403,6 @@ The last three names appear only when the corresponding feature is compiled in.
 - [saccade-watermark.v2.schema.json](../crates/saccade-core/schemas/saccade-watermark.v2.schema.json) — WatermarkReport
 - [saccade-watermark.v3.schema.json](../crates/saccade-core/schemas/saccade-watermark.v3.schema.json) — WatermarkReport
 - [saccade-watermark.v4.schema.json](../crates/saccade-core/schemas/saccade-watermark.v4.schema.json) — WatermarkReport
-- [saccade-print.v1.schema.json](../crates/saccade-print/schemas/saccade-print.v1.schema.json) — ICC-managed print comparison
 <!-- schema-index:end -->
 
 Historical validators and fixtures do not imply that retired writers or commands
