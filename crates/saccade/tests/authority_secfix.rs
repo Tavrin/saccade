@@ -2,10 +2,11 @@
 #![cfg(all(feature = "ai", feature = "mcp"))]
 #![allow(clippy::unwrap_used, missing_docs)]
 use serde_json::{Value, json};
+#[cfg(unix)]
+use std::{io::Write, process::Stdio};
 use std::{
-    io::Write,
     path::{Path, PathBuf},
-    process::{Command, Stdio},
+    process::Command,
 };
 const BIN: &str = env!("CARGO_BIN_EXE_saccade");
 struct Fixture {
@@ -89,6 +90,7 @@ impl Fixture {
             .env("RAYON_NUM_THREADS", "2");
         c
     }
+    #[cfg(unix)]
     fn mcp(&self, args: Value) -> Value {
         let mut child = self
             .command()

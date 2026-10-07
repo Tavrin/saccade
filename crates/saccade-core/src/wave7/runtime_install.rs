@@ -40,9 +40,7 @@ pub struct RuntimeFile {
 }
 /// The currently supported official release archive.
 pub fn pin() -> Result<RuntimePin> {
-    Ok(serde_json::from_str(include_str!(
-        "../../assets/wave7-runtime.json"
-    ))?)
+    Ok(serde_json::from_str(models::RUNTIME_PIN_JSON)?)
 }
 fn supported() -> Result<()> {
     if !cfg!(all(target_os = "linux", target_arch = "x86_64")) {

@@ -41,7 +41,7 @@ pub mod document_ocr;
 /// Durable segmented exact retrieval and incremental embedding updates.
 pub mod embedding_index;
 
-/// Declared split leakage candidates and within-partition burst groups.
-pub mod split_review;
 /// Optical-code payload verification independent of visual comparison.
 pub mod optical_code;
+/// Declared split leakage candidates and within-partition burst groups.
+pub mod split_review;

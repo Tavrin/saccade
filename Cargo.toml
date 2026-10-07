@@ -27,3 +27,7 @@ missing_docs = "warn"
 [workspace.lints.clippy]
 unwrap_used = "warn"
 expect_used = "warn"
+
+# Keep contributor/CI executables within the bounded replay-pack inventory.
+[profile.dev]
+debug = 0

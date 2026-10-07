@@ -261,9 +261,7 @@ fn stage_ocr(
         .parent()
         .and_then(Path::parent)
         .ok_or_else(|| CliError::usage("runtime library needs its release directory"))?;
-    let pin: serde_json::Value = serde_json::from_slice(include_bytes!(
-        "../../saccade-core/assets/wave7-runtime.json"
-    ))?;
+    let pin: serde_json::Value = serde_json::from_str(models::RUNTIME_PIN_JSON)?;
     let files = pin["files"]
         .as_array()
         .ok_or_else(|| CliError::usage("invalid shipped runtime pin"))?;
@@ -438,9 +436,7 @@ fn validate_snapshot(root: &Path, recipe: &Recipe) -> Result<(), CliError> {
                     "frozen model cache must be inside the pack",
                 ));
             }
-            let pin: serde_json::Value = serde_json::from_slice(include_bytes!(
-                "../../saccade-core/assets/wave7-runtime.json"
-            ))?;
+            let pin: serde_json::Value = serde_json::from_str(models::RUNTIME_PIN_JSON)?;
             let files = pin["files"]
                 .as_array()
                 .ok_or_else(|| CliError::usage("invalid shipped runtime pin"))?;

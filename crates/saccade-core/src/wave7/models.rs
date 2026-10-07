@@ -7,6 +7,8 @@ use std::{
     path::{Path, PathBuf},
 };
 
+/// Exact shipped runtime manifest, accessible to independently packaged consumers.
+pub const RUNTIME_PIN_JSON: &str = include_str!("../../assets/wave7-runtime.json");
 /// Registry contract identifier.
 pub const REGISTRY_SCHEMA: &str = "saccade-model-registry.v1";
 /// List/status contract identifier.
