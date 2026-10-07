@@ -39,6 +39,69 @@ fn check_schema(id: &str, value: &Value) {
         .expect("valid contract");
 }
 #[test]
+fn lock_sentinel_is_not_an_artifact_and_released_locks_are_reusable() {
+    let t = tempfile::tempdir().expect("temp");
+    let input = t.path().join("inputs");
+    std::fs::create_dir(&input).expect("input directory");
+    image(&input.join("input.png"), 32);
+    let out = t.path().join("out");
+    std::fs::create_dir(&out).expect("output directory");
+    let sentinel = out.join(".batch-lock");
+    // Retained contents must neither become an artifact nor imply a live owner.
+    std::fs::write(&sentinel, b"stale sentinel").expect("sentinel");
+    let lock = std::fs::OpenOptions::new()
+        .read(true)
+        .write(true)
+        .open(&sentinel)
+        .expect("lock handle");
+    fs2::FileExt::try_lock_exclusive(&lock).expect("exclusive lock");
+    let (_, manifest) = saccade_core::manifest::write(&out, Default::default())
+        .expect("manifest while sentinel is locked");
+    assert_eq!(manifest["counts"]["files"], 0);
+    assert_eq!(manifest["artifacts"], json!([]));
+    assert!(
+        saccade_core::manifest::verify(&out)
+            .expect("verify")
+            .is_empty()
+    );
+    // The manifest above is only a probe; batch still requires an empty output.
+    std::fs::remove_file(out.join("saccade-manifest.json")).expect("remove probe manifest");
+    let args = [
+        "batch",
+        input.to_str().expect("path"),
+        "--out",
+        out.to_str().expect("path"),
+        "--json",
+    ];
+    let blocked = invoke(&args);
+    assert!(!blocked.status.success());
+    assert!(
+        String::from_utf8_lossy(&blocked.stdout).contains("batch output is already in use"),
+        "{}",
+        String::from_utf8_lossy(&blocked.stdout)
+    );
+    assert!(!out.join("batch-run.json").exists());
+    drop(lock);
+    for _ in 0..2 {
+        let result = invoke(&args);
+        assert!(
+            result.status.success(),
+            "{}",
+            String::from_utf8_lossy(&result.stdout)
+        );
+        assert_eq!(rows(&out).len(), 1);
+        assert!(
+            saccade_core::manifest::verify(&out)
+                .expect("verify")
+                .is_empty()
+        );
+    }
+    assert_eq!(
+        std::fs::read(&sentinel).expect("retained sentinel"),
+        b"stale sentinel"
+    );
+}
+#[test]
 fn mixed_rows_snapshots_manifests_and_resume() {
     let t = tempfile::tempdir().expect("temp");
     let input = t.path().join("inputs");
