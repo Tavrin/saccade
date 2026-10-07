@@ -44,7 +44,7 @@ Browser/sweep masks `neutralize`; core `exclude`. Read mask/excluded-error audit
 `hash`/`dedupe` find candidates, never delete; `similar`/`index` needs pins.
 `index export-inputs|calibrate` checks parity/holdout; `text` needs bound sources/OCR.
 `assess` is content-dependent; `inspect-image` reports provenance/C2PA, never authenticity.
-[Comparator](../docs/choosing-a-comparison.md).
+[Pages](../docs/documents.md): multipage `--page-map`.
 
 `models list` shows pins; inference needs cached models/runtime and never pulls.
 Vision observations are advice, never verdict overrides.

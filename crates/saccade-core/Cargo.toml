@@ -63,7 +63,7 @@ tar = { version = "=0.4.46", default-features = false, optional = true }
 # O12/O17: deterministic text pixel evidence, no added dependencies.
 text-quality = []
 ocr-provider = ["assist", "dep:base64"]
-documents = ["dep:resvg", "dep:hayro"]
+documents = ["dep:resvg", "dep:hayro", "dep:flate2"]
 credentials = ["dep:c2pa"]
 ocr = ["local-models", "dep:imageproc", "dep:serde_yaml"]
 # Dynamic CPU ONNX embeddings, no default dependency change

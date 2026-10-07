@@ -47,8 +47,11 @@ saccade compare samples/doc/v1.svg samples/doc/v2.svg --dpi 96 --threshold 0.000
 
 On a build with `documents` this compares each page at the given density
 (`--dpi`, dots per inch, 36 to 600, default 96) and writes
-`saccade-documents.v1.json`. See [documents](../documents.md) for limits: static
-SVG paths only, no external resources, not a hostile-document sandbox.
+`saccade-documents.v3.json`. See [documents](../documents.md) for limits: static
+SVG paths only, no external resources, Linux workers with fixed resource caps.
+Multipage PDF exports require an input-bound `--page-map FILE`; inserted pages
+remain visible failures. The map may declare reordered pairs. See the document
+contract for the conservative PDF intake profile.
 
 ## Text, not pixels
 

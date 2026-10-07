@@ -42,6 +42,9 @@ impl From<Resample> for registration::Scale {
 }
 #[derive(Args, Default)]
 pub(crate) struct CompareArgs {
+    /// Complete saccade-page-map.v1 correspondence for document exports.
+    #[arg(long)]
+    pub(crate) page_map: Option<PathBuf>,
     /// Declared document raster density, 36..600 DPI (default 96).
     #[arg(long)]
     pub(crate) dpi: Option<f64>,

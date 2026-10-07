@@ -2526,14 +2526,16 @@ Arguments:
   <CAPTURE_DIR>   Directory of fresh captures
 
 Options:
-      --dpi <DPI>
-          Declared document raster density, 36..600 DPI (default 96)
+      --page-map <PAGE_MAP>
+          Complete saccade-page-map.v1 correspondence for document exports
       --source-ref <SOURCE_REF>
           External capture URI/key (repeatable); recorded in generated reports
-      --question <QUESTION>
-          Explicit comparison question; no automatic model fallback [possible values: same-render, same-content, same-text, near-duplicate, quality]
+      --dpi <DPI>
+          Declared document raster density, 36..600 DPI (default 96)
       --report-index <REPORT_INDEX>
           Shared report index destination (default reports/index.jsonl next to each report, inside --out)
+      --question <QUESTION>
+          Explicit comparison question; no automatic model fallback [possible values: same-render, same-content, same-text, near-duplicate, quality]
       --model <MODEL>
           Supplied embedding export contract for same-content
       --cache <CACHE>

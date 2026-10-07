@@ -128,6 +128,9 @@ impl From<serde_json::Error> for CliError {
 impl From<saccade_core::Error> for CliError {
     fn from(e: saccade_core::Error) -> Self {
         use saccade_core::Error;
+        if let Error::Document { code } = &e {
+            return Self::new(code, e.to_string());
+        }
         if let Error::InvalidComparison(check) = e {
             let mut error = Self::new(
                 "invalid_comparison",

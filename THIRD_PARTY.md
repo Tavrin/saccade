@@ -807,3 +807,9 @@ fixture are MIT OR Apache-2.0; no third-party ICC profile is redistributed.
 `jpeg-encoder` was considered for fixture generation and rejected because its
 compound IJG licence is outside this lane's explicitly enumerated licences; it is
 not a dependency. Pillow was used only to generate the original constant JPEG.
+
+Document intake reuses the existing optional flate2 1.1.10 (MIT OR Apache-2.0)
+for bounded preflight of Flate streams. No new crate or native library is added.
+On Linux the worker uses the system util-linux `prlimit` executable as an OS
+resource-limit launcher; it is neither linked nor bundled. If it is unavailable,
+intake fails closed. Other platforms currently refuse isolated document intake.

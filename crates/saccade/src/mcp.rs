@@ -1674,6 +1674,7 @@ impl Server {
             let b = self.existing_file("capture", &require_str(args, "capture")?)?;
             let out = self.checked_out_dir(&require_str(args, "out")?, &[&a, &b])?;
             let options = crate::general_cmd::CompareArgs {
+                page_map: None,
                 dpi: arg_f64(args, "dpi")?,
                 ..Default::default()
             };
@@ -1764,6 +1765,7 @@ impl Server {
                 crate::capability_cmd::Question::from_str(&require_str(args, "question")?, false)
                     .map_err(CliError::usage)?;
             let options = crate::general_cmd::CompareArgs {
+                page_map: None,
                 dpi: None,
                 question: Some(question),
                 align: arg_str(args, "align")?

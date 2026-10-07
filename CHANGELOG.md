@@ -2,6 +2,11 @@
 
 ## Unreleased
 
+- Harden optional document intake with capped Linux workers, stable cap errors
+  and a generated hostile PDF corpus. Multipage export comparisons require a
+  complete, hash-bound page map; v3 reports retain inserted/removed pages.
+
+
 ## 0.2.7 (2026-10-07)
 
 - Correct the quality-report and geometry v1 schemas to include the existing

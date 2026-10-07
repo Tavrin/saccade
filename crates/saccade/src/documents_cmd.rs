@@ -46,17 +46,45 @@ pub(crate) fn measure(
     if !dpi.is_finite() || !(36. ..=600.).contains(&dpi) {
         return Err(CliError::usage("document DPI must be 36..600"));
     }
+    let a_hash = saccade_core::localized::digest(&aa);
+    let b_hash = saccade_core::localized::digest(&bb);
+    let (map, map_source) = if let Some(path) = &options.page_map {
+        let map: documents::page_map::Map =
+            serde_json::from_slice(&input::bytes(path, 256 * 1024)?).map_err(|_| {
+                CliError::new("document_page_map_invalid", "invalid declared page map")
+            })?;
+        map.validate(ac, bc, &a_hash, &b_hash)?;
+        (map, "declared")
+    } else if ac == 1 && bc == 1 {
+        (
+            documents::page_map::Map {
+                schema: documents::page_map::SCHEMA.into(),
+                reference_sha256: a_hash.clone(),
+                candidate_sha256: b_hash.clone(),
+                pairs: vec![documents::page_map::Pair {
+                    reference: Some(1),
+                    candidate: Some(1),
+                }],
+            },
+            "single_page",
+        )
+    } else {
+        return Err(CliError::new(
+            "document_page_map_required",
+            "multipage comparison requires --page-map with complete, input-bound correspondence",
+        ));
+    };
     general_cmd::prepare_out(out, &[a, b])?;
     let scratch = tempfile::tempdir().map_err(|e| CliError::io(e.to_string()))?;
     let mut pages = Vec::new();
     let mut failures = 0;
-    for page in 0..ac.max(bc) {
-        if page >= ac || page >= bc {
+    for (page, pair) in map.pairs.iter().enumerate() {
+        let (Some(reference), Some(candidate)) = (pair.reference, pair.candidate) else {
             failures += 1;
-            pages.push(json!({"page":page+1,"status":if page>=ac{"new"}else{"missing"},"measurement":null}));
+            pages.push(json!({"page":page+1,"reference_page":pair.reference,"candidate_page":pair.candidate,"status":if pair.reference.is_none(){"new"}else{"missing"},"measurement":null}));
             continue;
-        }
-        let load = |bytes: &[u8]| -> Result<image::RgbaImage, CliError> {
+        };
+        let load = |bytes: &[u8], page: usize| -> Result<image::RgbaImage, CliError> {
             Ok(if documents::format(bytes).is_some() {
                 documents::page(bytes, dpi, page)?
             } else {
@@ -66,10 +94,10 @@ pub(crate) fn measure(
         let result = (|| -> Result<Value, CliError> {
             let ap = scratch.path().join("a.png");
             let bp = scratch.path().join("b.png");
-            load(&aa)?
+            load(&aa, reference - 1)?
                 .save(&ap)
                 .map_err(|e| CliError::io(e.to_string()))?;
-            load(&bb)?
+            load(&bb, candidate - 1)?
                 .save(&bp)
                 .map_err(|e| CliError::io(e.to_string()))?;
             let page_options = general_cmd::CompareArgs {
@@ -89,15 +117,15 @@ pub(crate) fn measure(
                 if status != "pass" {
                     failures += 1;
                 }
-                pages.push(json!({"page":page+1,"status":status,"measurement":value,"artifact":format!("page-{:04}/saccade-registration.v1.json",page+1)}));
+                pages.push(json!({"page":page+1,"reference_page":reference,"candidate_page":candidate,"status":status,"measurement":value,"artifact":format!("page-{:04}/saccade-registration.v1.json",page+1)}));
             }
             Err(error) => {
                 failures += 1;
-                pages.push(json!({"page":page+1,"status":"error","error":{"code":error.code,"message":error.message}}));
+                pages.push(json!({"page":page+1,"reference_page":reference,"candidate_page":candidate,"status":"error","error":{"code":error.code,"message":error.message}}));
             }
         }
     }
-    let value = json!({"schema":documents::SCHEMA,"operation":"documents_compare","verdict":if failures==0{"pass"}else{"regression"},"counts":{"total":pages.len(),"failures":failures,"reference_pages":ac,"candidate_pages":bc},"inputs":{"a_sha256":saccade_core::localized::digest(&aa),"b_sha256":saccade_core::localized::digest(&bb)},"rendering":{"dpi":dpi,"svg":"resvg/usvg 0.48.1; CSS dimensions at 96 DPI","pdf":"hayro 0.3.0; PDF points at 72 DPI","alpha":"straight RGBA; white comparison background","resources":"offline; SVG text/images/active content refused; PDF interpreter warnings fail page"},"pages":pages,"limitations":["page index is correspondence; inserted pages are not semantically aligned","PDF renderer does not implement every PDF feature; errors remain visible","raster equality establishes equality only at the declared density; originals are bound by encoded SHA-256"]});
+    let value = json!({"schema":documents::SCHEMA,"operation":"documents_compare","verdict":if failures==0{"pass"}else{"regression"},"counts":{"total":pages.len(),"failures":failures,"reference_pages":ac,"candidate_pages":bc},"inputs":{"a_sha256":a_hash,"b_sha256":b_hash},"page_map":{"source":map_source,"map":map},"caps":documents::worker::CAPS,"rendering":{"dpi":dpi,"svg":"resvg/usvg 0.48.1; CSS dimensions at 96 DPI","pdf":"hayro 0.3.0; PDF points at 72 DPI","alpha":"straight RGBA; white comparison background","resources":"offline; SVG text/images/active content refused; PDF interpreter warnings fail page"},"pages":pages,"limitations":["declared correspondence is user-supplied evidence, not semantic matching","PDF renderer does not implement every PDF feature; errors remain visible","raster equality establishes equality only at the declared density; originals are bound by encoded SHA-256"]});
     Ok(value)
 }
 

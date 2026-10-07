@@ -1014,6 +1014,13 @@ fn emit_json_error(err: &CliError) {
 }
 
 fn main() -> ExitCode {
+    #[cfg(feature = "documents")]
+    if std::env::args_os()
+        .nth(1)
+        .is_some_and(|a| a == "--document-worker")
+    {
+        return ExitCode::from(saccade_core::general::documents::worker::serve());
+    }
     // The debug clap command builder alone uses almost 1 MiB of stack. Windows
     // gives the process's main thread 1 MiB, so parse and execute on an explicit
     // stack on every platform, independent of linker defaults or RUST_MIN_STACK.
@@ -1595,9 +1602,9 @@ fn dispatch(command: Command, record_absolute_paths: bool) -> Result<u8, CliErro
                     json,
                 );
             }
-            if general.dpi.is_some() {
+            if general.dpi.is_some() || general.page_map.is_some() {
                 return Err(CliError::usage(
-                    "--dpi requires a document file pair with same-render comparison",
+                    "--dpi/--page-map require a document file pair with same-render comparison",
                 ));
             }
 
