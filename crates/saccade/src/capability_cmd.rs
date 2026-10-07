@@ -220,8 +220,17 @@ pub(crate) fn catalogue() -> Value {
         "offline C2PA needs credentials; forensic specificity unqualified; no real/fake verdict",
     );
     add(
+        "batch_intake",
+        "batch INPUTS --out RESULTS",
+        "folder or versioned intake manifest; paired references optional",
+        vec![],
+        "available",
+        "Which inputs completed, failed or remain partial?",
+        "bounded concurrency/deadlines; immutable receipts; JSONL/CSV/thumbnail index; no approval",
+    );
+    add(
         "experimental_assist",
-        "review explain; review audit-mask; review check-ui; review assist batch submit|status|collect",
+        "assist explain|audit-mask|check-ui|batch; review explain|audit-mask|check-ui|assist",
         "measured reports, source-bound requests and immutable sidecars",
         vec!["assist"],
         if cfg!(feature = "assist") {

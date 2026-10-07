@@ -186,6 +186,10 @@ The last three names appear only when the corresponding feature is compiled in.
 - [saccade-assist-vision-provider.v2.schema.json](../crates/saccade-core/schemas/saccade-assist-vision-provider.v2.schema.json) — Historical reader contract
 - [saccade-assist.v1.schema.json](../crates/saccade-core/schemas/saccade-assist.v1.schema.json) — Envelope
 - [saccade-assist.v2.schema.json](../crates/saccade-core/schemas/saccade-assist.v2.schema.json) — Envelope
+- [saccade-batch-input.v1.schema.json](../crates/saccade-core/schemas/saccade-batch-input.v1.schema.json) — Batch intake list
+- [saccade-batch-result.v1.schema.json](../crates/saccade-core/schemas/saccade-batch-result.v1.schema.json) — Batch transport summary
+- [saccade-batch-row.v1.schema.json](../crates/saccade-core/schemas/saccade-batch-row.v1.schema.json) — Durable batch item receipt
+- [saccade-batch-run.v1.schema.json](../crates/saccade-core/schemas/saccade-batch-run.v1.schema.json) — Immutable batch resume configuration
 - [saccade-bisect.v1.schema.json](../crates/saccade-core/schemas/saccade-bisect.v1.schema.json) — BisectResult
 - [saccade-blind-key.v1.schema.json](../crates/saccade-core/schemas/saccade-blind-key.v1.schema.json) — BlindKey
 - [saccade-boxes-result.v1.schema.json](../crates/saccade-core/schemas/saccade-boxes-result.v1.schema.json) — Box interchange result
@@ -222,6 +226,7 @@ The last three names appear only when the corresponding feature is compiled in.
 - [saccade-documents.v1.schema.json](../crates/saccade-core/schemas/saccade-documents.v1.schema.json) — Historical reader contract
 - [saccade-documents.v2.schema.json](../crates/saccade-core/schemas/saccade-documents.v2.schema.json) — Historical reader contract
 - [saccade-dom-regions.v1.schema.json](../crates/saccade-core/schemas/saccade-dom-regions.v1.schema.json) — DomMetadata
+- [saccade-egress-preview.v1.schema.json](../crates/saccade-core/schemas/saccade-egress-preview.v1.schema.json) — Advisory provider egress preview
 - [saccade-embedding-corpus.v1.schema.json](../crates/saccade-core/schemas/saccade-embedding-corpus.v1.schema.json) — Historical reader contract
 - [saccade-embedding-export-inputs.v1.schema.json](../crates/saccade-core/schemas/saccade-embedding-export-inputs.v1.schema.json) — Historical reader contract
 - [saccade-embedding-export-receipt.v1.schema.json](../crates/saccade-core/schemas/saccade-embedding-export-receipt.v1.schema.json) — Historical reader contract

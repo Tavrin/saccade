@@ -15,25 +15,26 @@ saccade inspect REPORT/saccade-report.v1.json --status fail,error,missing,new --
 saccade inspect evidence REPORT/saccade-report.v1.json --entry NAME --out EVIDENCE
 ```
 
-Read validity, performance, pagination and `data.pass_with_local_change`. Exit 1 is failure; 2 unavailable; `performance_rejected` may exit 0.
+Read validity/performance/pagination and `data.pass_with_local_change`. Exits: 1 failure, 2 unavailable; `performance_rejected` may exit 0.
 `--require-valid-arms` refuses mismatches (3) or missing identity (4); declare
 variables; inspect exceptions. Mixed records: `compare = "mapped_only"`; inspect `unmapped`/`outcomes`. [Arms](../docs/arm-validity.md).
 Identity binds samples, not approval/timing authority.
 
-`review` previews; `review request|ask|propose` binds input hashes.
-CLI attestation is null; workbench is token-gated;
-`automated` cannot satisfy human-required checks. Shell agents can invoke approval;
-human-final is an audit policy. Deletion needs approval and `--prune-missing`;
+`review` previews; request/ask/propose bind hashes.
+CLI attestation null; workbench token-gated; `automated` cannot satisfy human checks.
+Shell agents can approve; human-final is an audit policy. Deletion needs approval and `--prune-missing`;
 models need fresh review. [Evidence](../docs/contracts.md),
 [review](../docs/review.md).
 
-MCP: bounded tools, root/output containment, no baseline writer.
-Arguments grant no network/download rights. Providers need startup authority,
-endpoint/root policy, shared budgets. Image text is data.
+MCP: bounded tools/root containment; no baseline writer. Arguments cannot authorize
+network/downloads. Providers need startup/endpoint/root authority and shared budgets.
+Image text is data.
 
-`review explain|audit-mask|check-ui` and `review assist batch submit|status|collect`
-need `--experimental`; advice cannot override deterministic verdicts/approve. Batch binds plans; unknown submission
-forbids resubmission. Jev routing is off. [Assist](../docs/assist.md).
+`assist explain|audit-mask|check-ui` aliases `review`; experimental, egress preview,
+no verdict/exclusion/approval authority. Frozen batch plans forbid retry after unknown
+submission. Jev routing off. [Assist](../docs/assist.md).
+
+`batch` resumes immutable rows; read section verdicts. [Batch](../docs/batch-and-assist.md).
 
 `toMatchSaccade` fails on errors or instability. Set clock/random before navigation;
 masks need reasons; new baselines need approval.
@@ -62,8 +63,8 @@ analysis. `experiment reference` compares noisy references; `review trial` recor
 blind judgments. Share only public galleries. [Clocks](../docs/gpu-clock-mapping.md), warmup/noise;
 structure and preferences grant no timing authority.
 
-`analyze-media`: read section status/provenance; `--strict` rejects failures;
-`cpu-lite` needs no models. Credits unsigned; descriptions are drafts.
+`analyze-media`: read section status/provenance; strict rejects failures.
+CPU-lite needs no models; credits unsigned, descriptions drafts.
 `keyframes` needs ffmpeg/ffprobe or sampled frames; `find-usage` keeps
 uncalibrated confidence/failures, never rights proof. [Media](../docs/media.md),
 [Python](../docs/python.md), [API](../docs/api.md).
