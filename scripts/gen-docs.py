@@ -1,6 +1,8 @@
 #!/usr/bin/env python3
 """Generate agent packs, CLI help, schema links and showcase counts offline."""
 import argparse
+import difflib
+import itertools
 import json
 import re
 import shutil
@@ -117,8 +119,17 @@ def main():
             continue
         dest = ROOT / name
         if args.check:
-            if not dest.is_file() or dest.read_text(encoding="utf-8") != body:
+            existing = dest.read_text(encoding="utf-8") if dest.is_file() else ''
+            if not dest.is_file() or existing != body:
                 stale.append(name)
+                diff = difflib.unified_diff(
+                    existing.splitlines(keepends=True), body.splitlines(keepends=True),
+                    fromfile=name, tofile=name + ' (generated)')
+                # Bound each file's diagnostics without materializing a large diff.
+                for line in itertools.islice(diff, 200):
+                    print(line, end='' if line.endswith('\n') else '\n')
+                if next(diff, None) is not None:
+                    print(f'... diff truncated after 200 lines: {name}')
         else:
             dest.parent.mkdir(parents=True, exist_ok=True)
             dest.write_text(body, encoding="utf-8", newline="\n")

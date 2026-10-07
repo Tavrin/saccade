@@ -406,19 +406,26 @@ fn custom_url_receives_only_dedicated_credentials_and_redirects_stop() {
         },
     );
     let m = mock(&[302]);
-    assert!(
-        f.transport(&m)
-            .execute(
-                "custom",
-                &["model".into()],
-                |_| Ok(b"{}".to_vec()),
-                &["capture".into()],
-                1,
-                Duration::from_secs(1),
-                false
-            )
-            .is_err()
+    // This checks credentials and redirect refusal, not filesystem latency.
+    // Windows ledger/policy IO can consume the old one-second dispatch deadline.
+    // Keep ample headroom for that IO; the mock replies immediately without sockets.
+    let error = f
+        .transport(&m)
+        .execute(
+            "custom",
+            &["model".into()],
+            |_| Ok(b"{}".to_vec()),
+            &["capture".into()],
+            1,
+            Duration::from_secs(60),
+            false,
+        )
+        .unwrap_err();
+    assert_eq!(
+        error.class,
+        saccade_core::decision_provider::RetryClass::AuthenticationOrConfiguration
     );
+    assert!(error.message.starts_with("HTTP 302 reservation="));
     assert_eq!(
         *m.sent.borrow(),
         vec![(
