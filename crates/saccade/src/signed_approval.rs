@@ -108,11 +108,46 @@ fn read(path: &Path) -> Result<Vec<u8>, CliError> {
     Ok(data)
 }
 
-// Fixed system policy is read before HOME. No environment/CLI override exists.
-#[cfg(not(windows))]
-const SYSTEM_POLICY: &str = "/etc/saccade/approval-policy.json";
-#[cfg(windows)]
-const SYSTEM_POLICY: &str = r"C:\ProgramData\saccadepproval-policy.json";
+// System policy is read before HOME. Unix locations cannot be overridden.
+fn system_policy_path() -> Result<PathBuf, CliError> {
+    #[cfg(target_os = "macos")]
+    {
+        // /etc is a system symlink on macOS; use its real directory.
+        Ok(PathBuf::from("/private/etc/saccade/approval-policy.json"))
+    }
+    #[cfg(all(not(windows), not(target_os = "macos")))]
+    {
+        Ok(PathBuf::from("/etc/saccade/approval-policy.json"))
+    }
+    #[cfg(windows)]
+    {
+        // Discovery only: no ACL trust boundary is implemented on Windows.
+        let directory = std::env::var_os("ProgramData")
+            .map(PathBuf::from)
+            .unwrap_or_else(|| PathBuf::from(r"C:\ProgramData"));
+        if !directory.is_absolute() {
+            return Err(error(
+                "approval_policy_invalid",
+                "ProgramData must be absolute",
+            ));
+        }
+        Ok(directory.join("saccade").join("approval-policy.json"))
+    }
+}
+
+// Compare directory aliases without following a final signer-file symlink.
+// Keep the original paths for O_NOFOLLOW validation at verification time.
+fn same_signers(left: &Path, right: &Path) -> bool {
+    left == right
+        || (left.file_name().is_some()
+            && left.file_name() == right.file_name()
+            && left
+                .parent()
+                .and_then(|p| p.canonicalize().ok())
+                .is_some_and(|parent| {
+                    right.parent().and_then(|p| p.canonicalize().ok()).as_ref() == Some(&parent)
+                }))
+}
 
 fn trust_error() -> CliError {
     error(
@@ -180,7 +215,7 @@ fn load_policy(system: &Path, home: Option<&Path>) -> Result<Policy, CliError> {
 }
 pub(crate) fn init(required: bool, signers: Option<PathBuf>) -> Result<(), CliError> {
     let home = std::env::var_os("HOME").map(PathBuf::from);
-    let mut policy = load_policy(Path::new(SYSTEM_POLICY), home.as_deref())?;
+    let mut policy = load_policy(&system_policy_path()?, home.as_deref())?;
     if policy
         .allowed_signers
         .as_ref()
@@ -201,15 +236,27 @@ pub(crate) fn init(required: bool, signers: Option<PathBuf>) -> Result<(), CliEr
                 .map_err(|_| trust_error())?
                 .join(signers)
         };
-        if policy.require_signed_approval && policy.allowed_signers.as_ref() != Some(&signers) {
+        if policy.require_signed_approval
+            && !policy
+                .allowed_signers
+                .as_deref()
+                .is_some_and(|p| same_signers(p, &signers))
+        {
             return Err(error(
                 "approval_policy_invalid",
                 "CLI cannot replace required policy signers",
             ));
         }
-        policy.allowed_signers = Some(signers);
+        if !policy.require_signed_approval {
+            policy.allowed_signers = Some(signers);
+        }
     }
     policy.require_signed_approval |= required;
+    #[cfg(not(unix))]
+    if policy.require_signed_approval || policy.allowed_signers.is_some() {
+        // Refuse enablement at startup, before any command can claim enforcement.
+        return Err(trust_error());
+    }
     POLICY.set(policy).map_err(|_| {
         error(
             "approval_policy_invalid",
@@ -708,6 +755,62 @@ pub(crate) fn check_case_anchors(file: &Path, cases: &serde_json::Value) -> Resu
 mod tests {
     use super::*;
     #[test]
+    fn absent_policy_defaults_off() {
+        let temp = tempfile::tempdir().expect("fixture");
+        let policy = load_policy(&temp.path().join("absent/system.json"), Some(temp.path()))
+            .expect("no policy");
+        assert!(!policy.require_signed_approval);
+        assert!(policy.allowed_signers.is_none());
+    }
+
+    #[test]
+    #[cfg(unix)]
+    fn directory_aliases_match_but_final_symlinks_stay_unsafe() {
+        use std::os::unix::fs::symlink;
+        let temp = tempfile::tempdir().expect("fixture");
+        let real = temp.path().join("real");
+        let alias = temp.path().join("alias");
+        std::fs::create_dir(&real).expect("directory");
+        symlink(&real, &alias).expect("directory alias");
+        std::fs::write(real.join("signers"), b"signers").expect("trust file");
+        assert!(same_signers(&real.join("signers"), &alias.join("signers")));
+        assert!(!same_signers(&real.join("signers"), &alias.join("other")));
+        symlink(real.join("signers"), real.join("link")).expect("file alias");
+        assert!(!same_signers(&real.join("signers"), &real.join("link")));
+        assert!(matches!(trusted_open(&alias.join("link"), false, false),
+            Err(e) if e.code == "approval_trust_unsafe"));
+    }
+
+    #[test]
+    #[cfg(unix)]
+    fn configured_user_policy_fails_closed() {
+        use std::os::unix::fs::{PermissionsExt, symlink};
+        let temp = tempfile::tempdir().expect("fixture");
+        let system = temp.path().join("absent/system.json");
+        let directory = temp.path().join(".config/saccade");
+        std::fs::create_dir_all(&directory).expect("config");
+        let policy = directory.join("approval-policy.json");
+        std::fs::write(&policy, b"{}").expect("policy");
+        for mode in [0o666, 0o000] {
+            std::fs::set_permissions(&policy, std::fs::Permissions::from_mode(mode)).expect("mode");
+            // A root process can still read mode 000; exercise unreadability as a user.
+            if mode != 0 || rustix::process::geteuid().as_raw() != 0 {
+                assert!(matches!(load_policy(&system, Some(temp.path())),
+                    Err(e) if e.code == "approval_trust_unsafe"));
+            }
+        }
+        std::fs::remove_file(&policy).expect("remove");
+        symlink(directory.join("missing"), &policy).expect("dangling policy");
+        assert!(matches!(load_policy(&system, Some(temp.path())),
+            Err(e) if e.code == "approval_trust_unsafe"));
+        std::fs::remove_file(&policy).expect("remove");
+        std::fs::write(&policy, b"invalid json").expect("policy");
+        std::fs::set_permissions(&policy, std::fs::Permissions::from_mode(0o600)).expect("mode");
+        assert!(matches!(load_policy(&system, Some(temp.path())),
+            Err(e) if e.code == "approval_policy_invalid"));
+    }
+
+    #[test]
     #[cfg(unix)]
     fn system_policy_cannot_be_hidden_by_home() {
         use std::os::unix::fs::PermissionsExt;
@@ -729,7 +832,13 @@ mod tests {
     #[cfg(windows)]
     fn windows_policy_off_defaults_use_absolute_paths() {
         assert!(default_verifier().is_absolute());
-        assert!(Path::new(SYSTEM_POLICY).is_absolute());
+        let path = system_policy_path().expect("system location");
+        assert!(path.is_absolute());
+        assert_eq!(
+            path.file_name(),
+            Some(std::ffi::OsStr::new("approval-policy.json"))
+        );
+        assert!(!path.to_string_lossy().chars().any(char::is_control));
         assert!(!Policy::default().require_signed_approval);
     }
     #[test]

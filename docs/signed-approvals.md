@@ -36,15 +36,25 @@ Signers and policy are reread for each process; signers are rechecked on each
 verification. The verifier executable and its loader/libraries must remain
 protected throughout execution; an open-file check is not executable isolation.
 
-Linux and macOS use these Unix checks and the same fixed system-policy path.
-On macOS provision the policy under `/etc/saccade` (normally `/private/etc`)
-and an absolute OpenSSH verifier. Native macOS execution is not qualified by
-the Linux tests. Windows uses the fixed discovery path `C:\ProgramData\saccade\approval-policy.json`
-and an absolute `C:\Windows\System32\OpenSSH\ssh-keygen.exe` default verifier path.
-Windows lacks the implemented Unix ownership/mode boundary:
-signed verification and trust-policy loading refuse with `approval_trust_unsafe`;
-policy-off operation without a policy file remains unauthenticated. An ACL-aware
-Windows implementation is deferred; there is no permissive fallback.
+Linux discovers `/etc/saccade/approval-policy.json`. macOS discovers
+`/private/etc/saccade/approval-policy.json`, the real directory behind `/etc`.
+Both use the Unix file checks above; root:wheel is accepted because root
+ownership is checked by UID, with no required group ID. Missing policy files
+leave signed approval OFF unless the user policy or CLI enables it. An
+inaccessible location is an error, not evidence of absence. Equivalent signer
+paths through directory aliases (such as macOS `/var` and `/private/var`) do
+not count as a CLI override; final signer-file symlinks remain forbidden.
+
+Windows discovers `%ProgramData%\saccade\approval-policy.json`, falling back
+to `C:\ProgramData` only when ProgramData is unset. ProgramData must be absolute.
+This location is for discovery only: system-policy enforcement, user-policy
+loading and signed verification are **unsupported on Windows** until an
+ACL-aware trust boundary is implemented. Any discovered policy file refuses
+with `approval_trust_unsafe`, including a policy declaring signatures OFF.
+`--require-signed-approval` and `--approval-allowed-signers` also refuse at
+startup. Policy-absent operation without those options remains unauthenticated.
+There is no permissive trust fallback. Native platform execution is proved by
+the corresponding CI jobs, not Linux tests or cross-compilation.
 
 Protect the policy, trust files, executable and consumer account from agent
 writes. An unrestricted shell can run another binary or edit baselines directly;
