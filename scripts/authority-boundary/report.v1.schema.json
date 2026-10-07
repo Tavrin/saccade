@@ -1,0 +1,136 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Authority-boundary harness v1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema",
+    "acceptance",
+    "regression_gate",
+    "binary_sha256",
+    "baseline_protection",
+    "fixture_provenance",
+    "limitations",
+    "cases"
+  ],
+  "properties": {
+    "schema": {
+      "const": "saccade-authority-boundary.v1"
+    },
+    "acceptance": {
+      "enum": [
+        "passed",
+        "failed"
+      ]
+    },
+    "regression_gate": {
+      "enum": [
+        "passed",
+        "failed"
+      ]
+    },
+    "binary_sha256": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}$"
+    },
+    "baseline_protection": {
+      "enum": ["read_only_mount", "unix_modes_only"]
+    },
+    "build": {
+      "type": [
+        "object",
+        "null"
+      ]
+    },
+    "harness_error": {
+      "type": "string"
+    },
+    "fixture_provenance": {
+      "type": "object",
+      "required": [
+        "generator",
+        "license",
+        "source"
+      ],
+      "properties": {
+        "license": {
+          "const": "CC0-1.0"
+        }
+      }
+    },
+    "limitations": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "cases": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "id",
+          "transport",
+          "status",
+          "expected_exit",
+          "expected_code",
+          "observed_exit",
+          "observed_code",
+          "invariant",
+          "reason",
+          "receipt"
+        ],
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "transport": {
+            "enum": [
+              "cli",
+              "mcp",
+              "harness"
+            ]
+          },
+          "status": {
+            "enum": [
+              "PASS",
+              "FAIL",
+              "XFAIL"
+            ]
+          },
+          "expected_exit": {
+            "type": "integer"
+          },
+          "observed_exit": {
+            "type": "integer"
+          },
+          "expected_code": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "observed_code": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "invariant": {
+            "type": "boolean"
+          },
+          "reason": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "receipt": {
+            "type": "object"
+          }
+        }
+      }
+    }
+  }
+}

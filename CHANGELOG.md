@@ -2,6 +2,12 @@
 
 ## Unreleased
 
+- Add an offline CLI/MCP authority-boundary harness, unprivileged container recipe,
+  versioned receipts and a CI regression job with external networking disabled.
+  Record the missing separate baseline-write credential as an explicit expected
+  failure; writable CLI baselines remain outside an authenticated human boundary.
+- Enforce declared user read/output roots during offline review previews, including
+  referenced inputs and intent files, before reading or writing those paths.
 - Add bounded `batch` folder/manifest intake with immutable resumable rows, JSONL/CSV,
   thumbnail indexes and Lane C manifests, plus a synchronous `saccade-vision` Python API.
 - Add the experimental `assist` advice aliases and provider egress previews before dispatch;

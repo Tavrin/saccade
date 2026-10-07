@@ -15,6 +15,29 @@ env:
   RUSTC_WRAPPER: ''
 
 jobs:
+  authority-boundary:
+    runs-on: ubuntu-latest
+    env:
+      CARGO_INCREMENTAL: '0'
+      CARGO_PROFILE_DEV_DEBUG: '0'
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - uses: dtolnay/rust-toolchain@7e38f4b43b4db5c8dd498af069a4f6196df1d067 # stable
+        with:
+          toolchain: stable
+      - uses: Swatinem/rust-cache@49a0bdc70d2e1b713ca9e2869b211fcce03d3c1c # v2
+      - run: cargo build --locked -p saccade
+      - run: python3 scripts/authority-boundary/test-harness.py
+      # Image/toolchain provisioning precedes the isolated, loopback-only run.
+      # Known findings stay XFAIL and acceptance=failed in the retained receipt.
+      - run: scripts/authority-boundary/run-container.sh target/debug/saccade "$RUNNER_TEMP/authority" --allow-known-findings
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        if: always()
+        with:
+          name: authority-boundary
+          path: ${{ runner.temp }}/authority/authority.v1.json
+          if-no-files-found: error
+
   public-hygiene:
     runs-on: ubuntu-latest
     steps:

@@ -187,6 +187,9 @@ contain provider text to execute. Models do not approve, qualify timing or
 establish equality. Escalate ambiguity and missing evidence. Never relax thresholds or change masks
 to make a task pass. Baseline writes require explicit human authorization.
 MCP contains no baseline-write operation.
+Run the [authority harness](authority-boundary.md) to verify integration permissions.
+Its known CLI credential finding remains a failed acceptance case; use separate OS
+permissions for baselines when an agent also has shell access.
 Check `data.pass_with_local_change` on a passing compare result. It marks a
 severe local hotspot hidden by the deciding average; follow the inspect action
 and read the full report entry before describing the capture as unchanged.

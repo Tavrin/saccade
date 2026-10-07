@@ -349,12 +349,10 @@ pub(crate) fn deprecated_alias(args: &mut Vec<std::ffi::OsString>) -> Option<&'s
 }
 pub(crate) fn read_value(path: &Path) -> Result<Value, CliError> {
     Ok(canonical::decode(
-        &std::fs::read(path).map_err(|e| CliError::io(e.to_string()))?,
+        &saccade_core::root_policy::io::read(path).map_err(|e| CliError::io(e.to_string()))?,
     )?)
 }
 pub(crate) fn write_value(path: &Path, value: &Value) -> Result<(), CliError> {
-    let parent = path.parent().unwrap_or(Path::new("."));
-    std::fs::create_dir_all(parent).map_err(|e| CliError::io(e.to_string()))?;
     if std::fs::symlink_metadata(path).is_ok_and(|m| m.file_type().is_symlink()) {
         return Err(CliError::new("unsafe_path", "refusing output symlink"));
     }
@@ -940,7 +938,7 @@ pub(crate) fn review(args: ReviewArgs, absolute: bool) -> Result<u8, CliError> {
         let report = args
             .report
             .ok_or_else(|| CliError::usage("review requires REPORT or a named operation"))?;
-        let mut value = preview(
+        let value = preview(
             &report,
             args.budget_calls,
             args.intent.as_deref(),
@@ -949,6 +947,9 @@ pub(crate) fn review(args: ReviewArgs, absolute: bool) -> Result<u8, CliError> {
             absolute,
             args.user_config.as_deref(),
         )?;
+        #[cfg(not(feature = "ai"))]
+        let mut value = value;
+        #[cfg(not(feature = "ai"))]
         if let Some(out) = args.out.as_deref() {
             let summary = out.join("preview.json");
             value["paths"] = json!({"summary":saccade_core::paths::cwd(&summary,absolute),"requests":saccade_core::paths::cwd(&out.join("requests.json"),absolute)});
@@ -970,10 +971,27 @@ pub(crate) fn preview(
 ) -> Result<Value, CliError> {
     #[cfg(feature = "ai")]
     {
-        if let Some(p) = intent_file {
-            read_value(p)?;
-        }
-        let intent = crate::review_cmd::read_intent(intent, intent_file, report)?;
+        let user = crate::review_cmd::load_user(&crate::review_cmd::user_file(user_config))?;
+        let policy = crate::review_cmd::preview_policy(&user)?;
+        let resolved_report = policy.as_ref().map(|p| p.read(report)).transpose()?;
+        let resolved_out = out
+            .map(|out| {
+                policy
+                    .as_ref()
+                    .map_or_else(|| Ok(out.to_owned()), |p| p.write(out))
+            })
+            .transpose()?;
+        let resolved_intent = intent_file
+            .map(|file| {
+                policy
+                    .as_ref()
+                    .map_or_else(|| Ok(file.to_owned()), |p| p.read(file))
+            })
+            .transpose()?;
+        let report = resolved_report.as_deref().unwrap_or(report);
+        let out = resolved_out.as_deref();
+        let _scope = policy.as_ref().map(saccade_core::root_policy::io::scope);
+        let intent = crate::review_cmd::read_intent(intent, resolved_intent.as_deref(), report)?;
         crate::review_cmd::preview_local(
             report,
             budget.unwrap_or(24),
@@ -1235,7 +1253,8 @@ pub(crate) fn case_from_report(
                                 document.parent().unwrap_or(Path::new(".")),
                             ),
                             sha256: Digest::of_bytes(
-                                &std::fs::read(&file).map_err(|e| CliError::io(e.to_string()))?,
+                                &saccade_core::root_policy::io::read(&file)
+                                    .map_err(|e| CliError::io(e.to_string()))?,
                             ),
                         });
                     }
@@ -1250,7 +1269,8 @@ pub(crate) fn case_from_report(
                                 document.parent().unwrap_or(Path::new(".")),
                             ),
                             sha256: Digest::of_bytes(
-                                &std::fs::read(&file).map_err(|e| CliError::io(e.to_string()))?,
+                                &saccade_core::root_policy::io::read(&file)
+                                    .map_err(|e| CliError::io(e.to_string()))?,
                             ),
                         });
                     }
@@ -1414,8 +1434,11 @@ pub(crate) fn persist_case(
             input.content = copy.content.clone();
             for (sidecar_index, sidecar) in input.sidecars.iter_mut().enumerate() {
                 sidecar.verify(&source)?;
-                let bytes = std::fs::read(saccade_core::paths::resolve(&sidecar.path, &source))
-                    .map_err(|e| CliError::io(e.to_string()))?;
+                let bytes = saccade_core::root_policy::io::read(saccade_core::paths::resolve(
+                    &sidecar.path,
+                    &source,
+                ))
+                .map_err(|e| CliError::io(e.to_string()))?;
                 let target = dir.join(format!("assets/input-{index}-sidecar-{sidecar_index}.json"));
                 std::fs::write(&target, bytes).map_err(|e| CliError::io(e.to_string()))?;
                 *sidecar = ArtifactRef::from_file(&target, &source, false)?;

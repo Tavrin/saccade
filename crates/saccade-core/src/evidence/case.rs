@@ -70,15 +70,17 @@ impl ArtifactRef {
         let base = document.parent().map_or(Path::new("."), |p| p);
         Ok(Self {
             path: crate::paths::record(&resolved, base, absolute),
-            sha256: Digest::of_bytes(&std::fs::read(crate::paths::native(&resolved))?),
+            sha256: Digest::of_bytes(&crate::root_policy::io::read(path)?),
         })
     }
     /// Resolves provenance and verifies bytes before consumption.
     pub fn verify(&self, document: &Path) -> Result<()> {
         self.validate()?;
-        let resolved = crate::paths::canonicalize(crate::paths::resolve(&self.path, document))?;
+        let resolved = crate::paths::resolve(&self.path, document);
         require(
-            Digest::of_bytes(&std::fs::read(crate::paths::native(&resolved))?) == self.sha256,
+            Digest::of_bytes(&crate::root_policy::io::read(crate::paths::native(
+                &resolved,
+            ))?) == self.sha256,
             "stale artifact content",
         )
     }
@@ -180,7 +182,7 @@ impl Measurement {
         config_version: String,
     ) -> Result<Self> {
         let resolved = crate::paths::canonicalize(path)?;
-        let raw = std::fs::read(crate::paths::native(&resolved))?;
+        let raw = crate::root_policy::io::read(path)?;
         let report: crate::Report = canonical::decode(&raw)?;
         require(
             crate::report_links::original_schema(&report.schema) == crate::report::REPORT_SCHEMA,

@@ -181,7 +181,7 @@ pub fn sha256_file(path: &Path) -> Result<String> {
     use sha2::{Digest, Sha256};
     use std::io::Read;
     let ctx = || format!("hashing {}", path.display());
-    let mut file = std::fs::File::open(path).map_err(io_err(ctx()))?;
+    let mut file = crate::root_policy::io::open_file(path).map_err(io_err(ctx()))?;
     let mut hasher = Sha256::new();
     let mut buf = vec![0u8; 1 << 16];
     loop {
