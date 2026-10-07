@@ -1,0 +1,37 @@
+{
+  "id": "gen-fixture-cross-citation",
+  "model": "google/gemini-3.8-flash",
+  "provider": "Google AI Studio",
+  "system_fingerprint": null,
+  "choices": [
+    {
+      "finish_reason": "stop",
+      "message": {
+        "content": "{\"observations\":[{\"evidence_refs\":[\"P1:R0\"],\"geometry\":{\"pixels\":[0.030948,0.24375,0.402321,0.58125],\"type\":\"box\"},\"kind\":\"text\",\"slot\":\"P1\",\"statement\":\"text:Vérifier les éléments\\nsélectionnés\",\"uncertainty\":0,\"visibility\":\"visible\"},{\"evidence_refs\":[\"P2:R0\"],\"geometry\":{\"pixels\":[0.030948,0.24375,0.402321,0.58125],\"type\":\"box\"},\"kind\":\"text\",\"slot\":\"P2\",\"statement\":\"text:Vérifier les éléments\\nsélectionnés\",\"uncertainty\":0,\"visibility\":\"visible\"},{\"evidence_refs\":[\"P1:R0\",\"P2:R0\"],\"geometry\":{\"pixels\":[0.030948,0.24375,0.402321,0.58125],\"type\":\"box\"},\"kind\":\"appearance\",\"slot\":\"P2\",\"statement\":\"appearance:unchanged\",\"uncertainty\":0,\"visibility\":\"visible\"}],\"outcome\":\"not_observed\",\"request_hash\":\"sha256:752179b2327daedbe5ed07aa3bf09389b7cb4b729c9cc3296fd56dcbdf7fe664\"}"
+      }
+    }
+  ],
+  "usage": {
+    "prompt_tokens": 2518,
+    "completion_tokens": 452,
+    "total_tokens": 2970,
+    "cost": 0.0035835,
+    "is_byok": false,
+    "prompt_tokens_details": {
+      "cached_tokens": 0,
+      "cache_write_tokens": 0,
+      "audio_tokens": 0,
+      "video_tokens": 0
+    },
+    "cost_details": {
+      "upstream_inference_cost": 0.0035835,
+      "upstream_inference_prompt_cost": 0.0018885,
+      "upstream_inference_completions_cost": 0.001695
+    },
+    "completion_tokens_details": {
+      "reasoning_tokens": 125,
+      "image_tokens": 0,
+      "audio_tokens": 0
+    }
+  }
+}

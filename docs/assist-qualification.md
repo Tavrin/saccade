@@ -485,8 +485,9 @@ threshold remains unchanged; this small pilot cannot qualify a model/workflow.
 
 `scripts/qualify-wave4.sh --openrouter-stage2 --requests FILE --roots COUNT
 --max-spend-usd 5 --user-policy FILE --out NEW_DIR` collects the bounded schedule
-through the same smoke Executor, ceiling checks, monetary ledger, stop-on-error
-and reconciliation path. It supports up to 1,000 requests with a six-hour campaign
+through the same smoke Executor, ceiling checks, monetary ledger
+and reconciliation path. Infrastructure errors stop collection. It supports up to
+1,000 requests with a six-hour campaign
 deadline and a fresh executor deadline per root, bounded by both 300 seconds and
 the remaining campaign time. The executor's 300-second guard remains enforced.
 Campaign expiry stops new dispatch and records every remaining request as
@@ -507,7 +508,7 @@ synthetic offline scorer dialect or qualification evidence. Later use the smoke
 
 The plan also records deterministic rules/unavailable/source-only outcomes in
 `local-results.json`. After dispatch, use `python3 scripts/assist/stage2.py
---requests FILE --results-dir DIR --out NEW_FILE` for conservative normalized
+--corpus CORPUS --requests FILE --results-dir DIR --out NEW_FILE` for conservative normalized
 paired-order comparison. Missing answers and disagreement yield unverifiable;
 the full scheduled root/arm denominator and unavailable request codes are reported,
 including budget/deadline stops. Explicit unrun outcomes cannot be overridden by
@@ -564,3 +565,23 @@ cost handling, including charging the reservation when cost is unknown.
 Regenerating and admitting both plans remains offline evidence only. The
 coordinator supplied the compatibility probes; this change makes no provider
 calls and establishes no fresh provider/model qualification.
+
+## G12 answer-level protocol failures
+
+Stage-2 collection now records settled successful responses with protocol errors
+as `invalid_answer`, retaining the response, provenance and stable reason code
+while dispatching the next request. These answers stay refused and cannot become
+qualification eligible through reconciliation. Infrastructure, spend, identity
+and storage errors still stop the campaign; truncation remains campaign-stopping.
+
+The safety defaults stop above five consecutive invalid answers or above 50%
+after 20 settled answers. Configure `--max-consecutive-invalid-answers`,
+`--max-invalid-answer-percent`, and `--invalid-answer-min-sample`; the runner
+records the effective policy. A valve stop retains every scheduled root and
+marks the undispatched tail `not_run_answer_safety_valve`.
+
+`stage2.py --corpus CORPUS --requests FILE --results-dir DIR --out NEW_FILE`
+reports invalid rates and reason breakdown per arm/workload. Invalid orders and
+descendants count as root/arm model failures in the complete denominator, never
+as abstentions. Missing and disagreement counts remain separate. This is
+protocol measurement only. See the [decision and focused regressions](design-decisions/g12-answer-failures.md).

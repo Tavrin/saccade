@@ -77,54 +77,93 @@ const CALL_LIMIT: Duration = Duration::from_secs(300);
 fn campaign_duration(stage2: bool) -> Duration {
     Duration::from_secs(if stage2 { 21600 } else { 300 })
 }
-// The clock is injectable for fixture pacing. Production uses Instant::now.
-// Preserve stop-on-first-failure and retain the entire scheduled denominator.
+// Only the post-settlement answer validator can produce InvalidAnswer.
+#[derive(Debug, PartialEq)]
+enum CallOutcome {
+    Completed,
+    InvalidAnswer(&'static str),
+}
+#[derive(Clone, Copy, serde::Serialize)]
+struct AnswerLimits {
+    max_consecutive: usize,
+    max_percent: u8,
+    min_sample: usize,
+}
+impl Default for AnswerLimits {
+    fn default() -> Self {
+        Self {
+            max_consecutive: 5,
+            max_percent: 50,
+            min_sample: 20,
+        }
+    }
+}
+// Clock injection keeps deadline and safety-valve fixtures free of real waits.
 fn root_outcomes(
     rows: &[Row],
     campaign_deadline: Instant,
     budget_bounded: bool,
+    limits: Option<AnswerLimits>,
     mut now: impl FnMut() -> Instant,
-    mut call: impl FnMut(usize, Instant) -> assist::Result<()>,
+    mut call: impl FnMut(usize, Instant) -> assist::Result<CallOutcome>,
 ) -> (Vec<Value>, bool) {
     let mut failed = false;
     let mut stop = None;
-    let outcomes = rows
-        .iter()
-        .enumerate()
-        .map(|(index, row)| {
-            let code = if let Some(code) = stop {
-                code
+    let (mut samples, mut invalid, mut consecutive) = (0usize, 0usize, 0usize);
+    let outcomes = rows.iter().enumerate().map(|(index, row)| {
+        let mut reason = None;
+        let mut valve = None;
+        let code = if let Some(code) = stop { code } else {
+            let started = now();
+            if started >= campaign_deadline {
+                stop = Some("not_run_deadline");
+                "not_run_deadline"
             } else {
-                let started = now();
-                if started >= campaign_deadline {
-                    stop = Some("not_run_deadline");
-                    "not_run_deadline"
-                } else {
-                    // Refresh for each root, including after simulated/real pacing.
-                    let deadline = campaign_deadline.min(started + CALL_LIMIT);
-                    match call(index, deadline) {
-                        Ok(()) => "completed",
-                        Err(assist::Error::Policy("money budget exhausted")) if budget_bounded => {
-                            stop = Some("not_run_budget");
-                            "not_run_budget"
-                        }
-                        Err(error) => {
-                            failed = true;
-                            // Keep the failing root's diagnostic/charge, while
-                            // recording campaign expiry for the undispatched tail.
-                            stop = Some(if now() >= campaign_deadline {
-                                "not_run_deadline"
-                            } else {
-                                "skipped_after_failure"
-                            });
-                            error.code()
-                        }
+                let deadline = campaign_deadline.min(started + CALL_LIMIT);
+                match call(index, deadline) {
+                    Ok(CallOutcome::Completed) => {
+                        samples += 1;
+                        consecutive = 0;
+                        "completed"
+                    }
+                    Ok(CallOutcome::InvalidAnswer(code)) => {
+                        samples += 1;
+                        invalid += 1;
+                        consecutive += 1;
+                        reason = Some(code);
+                        "invalid_answer"
+                    }
+                    Err(assist::Error::Policy("money budget exhausted")) if budget_bounded => {
+                        stop = Some("not_run_budget");
+                        "not_run_budget"
+                    }
+                    Err(error) => {
+                        failed = true;
+                        stop = Some(if now() >= campaign_deadline { "not_run_deadline" } else { "skipped_after_failure" });
+                        error.code()
                     }
                 }
-            };
-            json!({"index":index,"root":row.root,"code":code})
-        })
-        .collect();
+            }
+        };
+        if matches!(code, "completed" | "invalid_answer") && let Some(limits) = limits {
+                valve = if consecutive > limits.max_consecutive {
+                    Some("consecutive_invalid_answers")
+                } else if samples >= limits.min_sample && invalid * 100 > samples * usize::from(limits.max_percent) {
+                    Some("invalid_answer_rate")
+                } else { None };
+                if valve.is_some() {
+                    failed = true;
+                    stop = Some("not_run_answer_safety_valve");
+                }
+        }
+        let class = match code {
+            "completed" => "valid_answer",
+            "invalid_answer" => "answer_failure",
+            "not_run_deadline" | "not_run_budget" | "not_run_answer_safety_valve" | "skipped_after_failure" => "not_run",
+            _ => "campaign_failure",
+        };
+        json!({"index":index,"root":row.root,"code":code,"failure_class":class,"answer_reason":reason,"safety_valve":valve})
+    }).collect();
     (outcomes, failed)
 }
 // Refresh exported receipts from the authoritative ledger without replacing provenance.
@@ -150,12 +189,18 @@ fn export_reconciliation(
         outcome["actual_nano_usd"] = json!(receipt.actual_nano_usd);
         outcome["reconciliation"] = receipt.usage["reconciliation"].clone();
         outcome["revision_identity"] = receipt.usage["revision_identity"].clone();
-        outcome["qualification_eligible"] = receipt.usage["qualification_eligible"].clone();
+        outcome["qualification_eligible"] = if outcome["code"] == "invalid_answer" {
+            json!(false)
+        } else {
+            receipt.usage["qualification_eligible"].clone()
+        };
         let path = out.join(format!("receipt-{index}.json"));
         let mut exported: Value = assist::decode(&assist::read_bytes(&path, 32 * 1024 * 1024)?)?;
         exported["reconciliation"] = receipt.usage["reconciliation"].clone();
         exported["revision_identity"] = receipt.usage["revision_identity"].clone();
-        exported["qualification_eligible"] = receipt.usage["qualification_eligible"].clone();
+        exported["qualification_eligible"] = outcome["qualification_eligible"].clone();
+        exported["failure_class"] = outcome["failure_class"].clone();
+        exported["answer_reason"] = outcome["answer_reason"].clone();
         assist::write(&path, &exported)?;
     }
     smoke["reconciliation"] = json!(openrouter::reconciliation_status(ledger)?);
@@ -182,13 +227,17 @@ fn reconcile_only(
 }
 // Stage-2 transport collection validates the existing closed answer protocol.
 // Scoring/qualification remains a separate operation over independent roots.
-fn stage2_answer(row: &Row, response: &[u8]) -> assist::Result<Value> {
+fn stage2_request(row: &Row) -> assist::Result<(Value, Digest)> {
     let text = row.payload["messages"][1]["content"][0]["text"]
         .as_str()
         .ok_or(assist::Error::Invalid("stage2 request data"))?;
     let data: Value = assist::decode(text.as_bytes())?;
     let hash: Digest = serde_json::from_value(data["request_hash"].clone())
         .map_err(|_| assist::Error::Invalid("stage2 request hash"))?;
+    Ok((data, hash))
+}
+fn stage2_answer(row: &Row, response: &[u8]) -> assist::Result<Value> {
+    let (data, hash) = stage2_request(row)?;
     let (answer, _) = openrouter::reply(response, &row.model, &hash)?;
     let value = serde_json::to_value(answer).map_err(|_| assist::Error::Storage)?;
     for observation in value["observations"]
@@ -243,6 +292,22 @@ fn stage2_answer(row: &Row, response: &[u8]) -> assist::Result<Value> {
         {
             return Err(assist::Error::Invalid("stage2 citation identity"));
         }
+        let statement = observation["statement"].as_str().unwrap_or("");
+        let supported = match observation["kind"].as_str() {
+            Some("text") => statement
+                .strip_prefix("text:")
+                .is_some_and(|text| !text.is_empty()),
+            Some("presence") => matches!(statement, "presence:present" | "presence:absent"),
+            Some("clipping") => matches!(statement, "clipping:clipped" | "clipping:contained"),
+            Some("overlap") => matches!(statement, "overlap:overlap" | "overlap:separate"),
+            Some("appearance") => {
+                matches!(statement, "appearance:changed" | "appearance:unchanged")
+            }
+            _ => false,
+        };
+        if !supported {
+            return Err(assist::Error::Invalid("stage2 unsupported statement"));
+        }
         if observation["uncertainty"]
             .as_f64()
             .is_none_or(|n| !(0.0..=1.0).contains(&n))
@@ -251,6 +316,84 @@ fn stage2_answer(row: &Row, response: &[u8]) -> assist::Result<Value> {
         }
     }
     Ok(value)
+}
+fn record_response(
+    row: &Row,
+    response: &[u8],
+    receipt: &impl serde::Serialize,
+    out: &Path,
+    index: usize,
+    stage2: bool,
+) -> assist::Result<CallOutcome> {
+    std::fs::write(out.join(format!("response-{index}.json")), response)
+        .map_err(|_| assist::Error::Storage)?;
+    assist::write(&out.join(format!("receipt-{index}.json")), receipt)?;
+    if stage2 {
+        stage2_outcome(row, response, out, index)
+    } else {
+        Ok(CallOutcome::Completed)
+    }
+}
+fn stage2_outcome(
+    row: &Row,
+    response: &[u8],
+    out: &Path,
+    index: usize,
+) -> assist::Result<CallOutcome> {
+    // Local request/schema failures are campaign errors, even when their generic
+    // schema diagnostic matches an answer diagnostic. Keep them outside the match.
+    stage2_request(row)?;
+    // Check outer transport/accounting before inspecting model content. A bad
+    // answer must never mask unknown money or incomplete execution.
+    let v: Value = assist::decode(response)?;
+    if v["choices"][0]["finish_reason"] == "length" {
+        return Err(assist::Error::Invalid("truncated_output"));
+    }
+    if v["model"] != row.model
+        || v["choices"].as_array().is_none_or(|a| a.len() != 1)
+        || v["choices"][0]["finish_reason"] != "stop"
+        || !v["choices"][0]["message"]["refusal"].is_null()
+        || v["id"].as_str().is_none_or(str::is_empty)
+        || v["provider"].as_str().is_none_or(str::is_empty)
+    {
+        return Err(assist::Error::Invalid(
+            "OpenRouter incomplete, refused or misrouted answer",
+        ));
+    }
+    let u = &v["usage"];
+    if u["prompt_tokens"]
+        .as_u64()
+        .zip(u["completion_tokens"].as_u64())
+        .is_none_or(|(a, b)| a.checked_add(b) != u["total_tokens"].as_u64())
+        || openrouter::body_amount(response, &["usage", "cost"], true).is_none()
+        || u.get("currency").is_some_and(|c| c != "USD")
+    {
+        return Err(assist::Error::Invalid(
+            "OpenRouter inconsistent or unknown billed usage",
+        ));
+    }
+    match stage2_answer(row, response) {
+        Ok(answer) => {
+            assist::write(&out.join(format!("answer-{index}.json")), &answer)?;
+            Ok(CallOutcome::Completed)
+        }
+        Err(assist::Error::Invalid(reason)) => {
+            let code = match reason {
+                "stage2 citation identity" => "citation_identity",
+                "stage2 observation slot" => "observation_slot",
+                "stage2 normalized geometry" | "stage2 geometry" => "normalized_geometry",
+                "stage2 box bounds" => "geometry_bounds",
+                "stage2 uncertainty" => "uncertainty_range",
+                "stage2 unsupported statement" => "unsupported_statement",
+                "closed schema or JSON violation" => "closed_schema",
+                "OpenRouter request-bound answer" => "request_bound_answer",
+                "OpenRouter content" => "answer_content",
+                _ => return Err(assist::Error::Invalid(reason)),
+            };
+            Ok(CallOutcome::InvalidAnswer(code))
+        }
+        Err(error) => Err(error),
+    }
 }
 fn run_with(args: impl IntoIterator<Item = String>) -> Result<(), Box<dyn std::error::Error>> {
     let mut args = args.into_iter();
@@ -283,6 +426,9 @@ fn run_with(args: impl IntoIterator<Item = String>) -> Result<(), Box<dyn std::e
             "--max-spend-usd",
             "--out",
             "--user-policy",
+            "--max-consecutive-invalid-answers",
+            "--max-invalid-answer-percent",
+            "--invalid-answer-min-sample",
         ]
         .contains(&arg.as_str())
             || options.contains_key(&arg)
@@ -314,6 +460,34 @@ fn run_with(args: impl IntoIterator<Item = String>) -> Result<(), Box<dyn std::e
             "smoke requires 1 through 10 roots"
         }
         .into());
+    }
+    let mut answer_limits = AnswerLimits::default();
+    for (name, value) in [
+        (
+            "--max-consecutive-invalid-answers",
+            &mut answer_limits.max_consecutive,
+        ),
+        ("--invalid-answer-min-sample", &mut answer_limits.min_sample),
+    ] {
+        if let Some(text) = options.get(name) {
+            *value = text.parse()?;
+        }
+        if *value == 0 || *value > 1000 {
+            return Err("invalid answer safety sample limit".into());
+        }
+    }
+    if let Some(text) = options.get("--max-invalid-answer-percent") {
+        answer_limits.max_percent = text.parse()?;
+    }
+    if answer_limits.max_percent == 0 || answer_limits.max_percent > 100 {
+        return Err("invalid answer safety percent".into());
+    }
+    if !stage2
+        && options
+            .keys()
+            .any(|k| k.contains("invalid-answer") || k.contains("invalid-answers"))
+    {
+        return Err("answer safety options require stage2".into());
     }
     let path = PathBuf::from(required("--requests")?);
     let rows: Vec<Row> = assist::decode(&assist::read_bytes(&path, 32 * 1024 * 1024)?)?;
@@ -391,6 +565,7 @@ fn run_with(args: impl IntoIterator<Item = String>) -> Result<(), Box<dyn std::e
         &rows,
         campaign_deadline,
         budget_bounded,
+        stage2.then_some(answer_limits),
         Instant::now,
         |index, deadline| {
             let executor = Executor {
@@ -406,23 +581,15 @@ fn run_with(args: impl IntoIterator<Item = String>) -> Result<(), Box<dyn std::e
             let (key, payload) = &prepared[index];
             match executor.call(key, payload) {
                 Ok(completed) => {
-                    // Response has passed dispatch-secret reflection checks. No model qualification implied.
-                    std::fs::write(
-                        out.join(format!("response-{index}.json")),
+                    // Executor has settled money, checked identity and secret reflections.
+                    record_response(
+                        &rows[index],
                         &completed.response,
+                        &completed.provenance,
+                        &out,
+                        index,
+                        stage2,
                     )
-                    .map_err(|_| assist::Error::Storage)?;
-                    std::fs::write(
-                        out.join(format!("receipt-{index}.json")),
-                        serde_json::to_vec(&completed.provenance)
-                            .map_err(|_| assist::Error::Storage)?,
-                    )
-                    .map_err(|_| assist::Error::Storage)?;
-                    if stage2 {
-                        let answer = stage2_answer(&rows[index], &completed.response)?;
-                        assist::write(&out.join(format!("answer-{index}.json")), &answer)?;
-                    }
-                    Ok(())
                 }
                 Err(error) => Err(error),
             }
@@ -444,7 +611,7 @@ fn run_with(args: impl IntoIterator<Item = String>) -> Result<(), Box<dyn std::e
         outcomes[index]["http_error"] = receipt.usage["http_error"].clone();
         outcomes[index]["money_outcome"] = json!(receipt.outcome);
         outcomes[index]["actual_nano_usd"] = json!(receipt.actual_nano_usd);
-        if outcomes[index]["code"] != "completed" {
+        if outcomes[index]["code"] != "completed" && outcomes[index]["code"] != "invalid_answer" {
             let bytes = serde_json::to_vec(receipt).map_err(|_| "smoke_receipt_encoding_failed")?;
             if std::fs::write(out.join(format!("receipt-{index}.json")), bytes).is_err() {
                 outcomes[index]["artifact_code"] = json!("assist_storage_unavailable");
@@ -452,7 +619,7 @@ fn run_with(args: impl IntoIterator<Item = String>) -> Result<(), Box<dyn std::e
             }
         }
     }
-    let mut smoke = json!({"roots":count,"root_outcomes":outcomes,"receipt_code":receipt_code,"allowance_nano_usd":cap,"budget_bounded":budget_bounded,"campaign_seconds":campaign_duration(stage2).as_secs(),"dispatch_failed":failed,"qualified":false});
+    let mut smoke = json!({"roots":count,"root_outcomes":outcomes,"receipt_code":receipt_code,"allowance_nano_usd":cap,"budget_bounded":budget_bounded,"campaign_seconds":campaign_duration(stage2).as_secs(),"dispatch_failed":failed,"answer_failure_policy":stage2.then_some(answer_limits),"qualified":false});
     export_reconciliation(&out, &ledger, &mut smoke)?;
     if failed {
         return Err("OpenRouter smoke failed; inspect sanitized campaign receipts".into());
@@ -638,6 +805,9 @@ mod tests {
             assist::Error::Policy("deadline limit"),
             assist::Error::Storage,
             assist::Error::Provider,
+            assist::Error::Policy("openrouter_preflight_refused"),
+            assist::Error::Invalid("OpenRouter inconsistent or unknown billed usage"),
+            assist::Error::Invalid("openrouter_http_zero_cost_refused"),
         ] {
             let expected = error.code();
             let mut error = Some(error);
@@ -646,11 +816,12 @@ mod tests {
                 &rows,
                 Instant::now() + campaign_duration(false),
                 false,
+                Some(AnswerLimits::default()),
                 Instant::now,
                 |index, _| {
                     calls += 1;
                     if index == 0 {
-                        Ok(())
+                        Ok(CallOutcome::Completed)
                     } else {
                         Err(error.take().unwrap())
                     }
@@ -669,8 +840,9 @@ mod tests {
             &rows,
             Instant::now() + campaign_duration(false),
             false,
+            None,
             Instant::now,
-            |_, _| Ok(()),
+            |_, _| Ok(CallOutcome::Completed),
         );
         assert!(!failed);
         assert!(outcomes.iter().all(|o| o["code"] == "completed"));
@@ -752,8 +924,9 @@ mod tests {
             &rows,
             Instant::now() + campaign_duration(true),
             false,
+            None,
             Instant::now,
-            |_, _| stage2_answer(&rows[0], response).map(|_| ()),
+            |_, _| stage2_answer(&rows[0], response).map(|_| CallOutcome::Completed),
         );
         assert!(failed);
         assert_eq!(outcomes[0]["code"], "truncated_output");
@@ -856,6 +1029,7 @@ mod tests {
             &rows,
             campaign_deadline,
             false,
+            None,
             || clock.get(),
             |_, deadline| {
                 // Fixture executor enforces the unchanged 300s admission guard.
@@ -868,7 +1042,7 @@ mod tests {
                 calls += 1;
                 // Simulated transport/pacing, with no sockets or real sleeps.
                 clock.set(clock.get() + Duration::from_secs(90));
-                Ok(())
+                Ok(CallOutcome::Completed)
             },
         );
         assert!(!failed);
@@ -887,6 +1061,7 @@ mod tests {
             &rows,
             started,
             false,
+            None,
             || started,
             |_, _| panic!("expired campaign dispatched"),
         );
@@ -899,6 +1074,7 @@ mod tests {
             &rows,
             campaign_deadline,
             false,
+            None,
             || clock.get(),
             |_, _| {
                 clock.set(campaign_deadline);
@@ -951,6 +1127,7 @@ mod tests {
             &rows,
             Instant::now() + campaign_duration(true),
             true,
+            None,
             Instant::now,
             |index, _| {
                 let id = format!("budget-{index}");
@@ -975,7 +1152,7 @@ mod tests {
                 ledger
                     .finish_money(&id, Some(actual), json!({"fixture":true}), true)
                     .unwrap();
-                Ok(())
+                Ok(CallOutcome::Completed)
             },
         );
         assert!(!failed);
@@ -1004,6 +1181,7 @@ mod tests {
                 &rows,
                 Instant::now() + campaign_duration(true),
                 true,
+                Some(AnswerLimits::default()),
                 Instant::now,
                 |_, _| Err(error.take().unwrap()),
             );
@@ -1019,12 +1197,333 @@ mod tests {
             &rows,
             Instant::now() + campaign_duration(true),
             false,
+            None,
             Instant::now,
             |_, _| Err(assist::Error::Policy("money budget exhausted")),
         );
         assert!(failed);
         assert_eq!(outcomes[0]["code"], "money budget exhausted");
         assert_eq!(outcomes[1]["code"], "skipped_after_failure");
+    }
+    fn cross_citation_row(root: &str) -> Row {
+        Row {
+            root: root.into(),
+            model: "google/gemini-3.8-flash".into(),
+            revision: "absent".into(),
+            payload: json!({"messages":[{}, {"content":[{"text":json!({
+                "request_hash":"sha256:752179b2327daedbe5ed07aa3bf09389b7cb4b729c9cc3296fd56dcbdf7fe664",
+                "views":[{"slot":"P1","regions":[{"id":"P1:R0"}]},{"slot":"P2","regions":[{"id":"P2:R0"}]}]
+            }).to_string()}]}]}),
+        }
+    }
+    #[test]
+    fn g12_recorded_cross_citation_is_invalid_and_next_root_dispatches() {
+        let temp = tempfile::tempdir().unwrap();
+        let response =
+            include_bytes!("../tests/fixtures/assist-openrouter/cross-citation-pilot.json");
+        let rows = [cross_citation_row("first"), cross_citation_row("next")];
+        assert_eq!(
+            stage2_answer(&rows[0], response).unwrap_err().code(),
+            "stage2 citation identity"
+        );
+        let mut dispatches = 0;
+        let (outcomes, failed) = root_outcomes(
+            &rows,
+            Instant::now() + CALL_LIMIT,
+            false,
+            Some(AnswerLimits::default()),
+            Instant::now,
+            |index, _| {
+                dispatches += 1;
+                // A settled fixture receipt is retained beside the rejected response.
+                record_response(
+                    &rows[index],
+                    response,
+                    &json!({"execution_id":format!("fixture-{index}"),"actual_nano_usd":3583500}),
+                    temp.path(),
+                    index,
+                    true,
+                )
+            },
+        );
+        assert!(!failed);
+        assert_eq!(dispatches, 2);
+        for (index, outcome) in outcomes.iter().enumerate() {
+            assert_eq!(outcome["code"], "invalid_answer");
+            assert_eq!(outcome["failure_class"], "answer_failure");
+            assert_eq!(outcome["answer_reason"], "citation_identity");
+            assert_eq!(
+                std::fs::read(temp.path().join(format!("response-{index}.json"))).unwrap(),
+                response
+            );
+            let receipt: Value = assist::decode(
+                &std::fs::read(temp.path().join(format!("receipt-{index}.json"))).unwrap(),
+            )
+            .unwrap();
+            assert_eq!(receipt["actual_nano_usd"], 3583500);
+            assert!(!temp.path().join(format!("answer-{index}.json")).exists());
+        }
+        // Storage and unknown money remain campaign errors even with this bad answer.
+        assert!(matches!(
+            record_response(
+                &rows[0],
+                response,
+                &json!({}),
+                &temp.path().join("absent"),
+                0,
+                true
+            ),
+            Err(assist::Error::Storage)
+        ));
+        let mut unknown: Value = assist::decode(response).unwrap();
+        let mut local = cross_citation_row("malformed-request");
+        local.payload["messages"][1]["content"][0]["text"] = json!("malformed local JSON");
+        assert!(matches!(
+            stage2_outcome(&local, response, temp.path(), 0),
+            Err(assist::Error::Invalid("closed schema or JSON violation"))
+        ));
+        unknown["usage"]["cost"] = Value::Null;
+        assert_eq!(
+            stage2_outcome(
+                &rows[0],
+                &serde_json::to_vec(&unknown).unwrap(),
+                temp.path(),
+                0
+            )
+            .unwrap_err()
+            .code(),
+            "OpenRouter inconsistent or unknown billed usage"
+        );
+    }
+    #[test]
+    fn g12_answer_safety_valves_trip_strictly_above_limits_and_reset_streaks() {
+        let rows: Vec<_> = (0..30)
+            .map(|i| cross_citation_row(&format!("valve-{i}")))
+            .collect();
+        let (outcomes, failed) = root_outcomes(
+            &rows,
+            Instant::now() + CALL_LIMIT,
+            false,
+            Some(AnswerLimits::default()),
+            Instant::now,
+            |_, _| Ok(CallOutcome::InvalidAnswer("citation_identity")),
+        );
+        assert!(failed);
+        assert_eq!(outcomes[4]["safety_valve"], Value::Null);
+        assert_eq!(outcomes[5]["code"], "invalid_answer");
+        assert_eq!(outcomes[5]["safety_valve"], "consecutive_invalid_answers");
+        assert!(
+            outcomes[6..]
+                .iter()
+                .all(|o| o["code"] == "not_run_answer_safety_valve")
+        );
+        let limits = AnswerLimits {
+            max_consecutive: 30,
+            max_percent: 50,
+            min_sample: 20,
+        };
+        let (outcomes, failed) = root_outcomes(
+            &rows,
+            Instant::now() + CALL_LIMIT,
+            false,
+            Some(limits),
+            Instant::now,
+            |i, _| {
+                Ok(if i % 2 == 0 || i == 20 {
+                    CallOutcome::InvalidAnswer("citation_identity")
+                } else {
+                    CallOutcome::Completed
+                })
+            },
+        );
+        assert!(failed);
+        assert_eq!(outcomes[19]["safety_valve"], Value::Null); // exactly 50%
+        assert_eq!(outcomes[20]["safety_valve"], "invalid_answer_rate");
+        assert_eq!(outcomes[21]["code"], "not_run_answer_safety_valve");
+        let (outcomes, failed) = root_outcomes(
+            &rows,
+            Instant::now() + CALL_LIMIT,
+            false,
+            Some(AnswerLimits::default()),
+            Instant::now,
+            |i, _| {
+                Ok(if i % 2 == 1 {
+                    CallOutcome::InvalidAnswer("citation_identity")
+                } else {
+                    CallOutcome::Completed
+                })
+            },
+        );
+        assert!(!failed); // streaks reset; every prefix is at most 50%
+        assert!(outcomes.iter().all(|o| o["safety_valve"].is_null()));
+        // Reaching the minimum on a valid answer still checks the accumulated rate.
+        let (outcomes, failed) = root_outcomes(
+            &rows,
+            Instant::now() + CALL_LIMIT,
+            false,
+            Some(limits),
+            Instant::now,
+            |i, _| {
+                Ok(if i == 19 {
+                    CallOutcome::Completed
+                } else {
+                    CallOutcome::InvalidAnswer("citation_identity")
+                })
+            },
+        );
+        assert!(failed);
+        assert_eq!(outcomes[18]["safety_valve"], Value::Null);
+        assert_eq!(outcomes[19]["code"], "completed");
+        assert_eq!(outcomes[19]["safety_valve"], "invalid_answer_rate");
+        assert_eq!(outcomes[20]["code"], "not_run_answer_safety_valve");
+    }
+    #[test]
+    fn g12_invalid_answer_reconciliation_preserves_failure_and_provenance() {
+        use saccade_core::budget_ledger::MoneyReceipt;
+        let temp = tempfile::tempdir().unwrap();
+        let ledger = Ledger::new(&temp.path().join("ledger"), true);
+        ledger.reserve_money(&[MoneyScope { id: "fixture".into(), cap_nano_usd: 5_000_000 }], MoneyReceipt {
+            id: "fixture".into(), request_hash: Digest::of_bytes(b"fixture"), scopes: vec!["fixture".into()],
+            reserved_nano_usd: 5_000_000, actual_nano_usd: None, outcome: "reserved".into(),
+            usage: json!({"openrouter_dispatched":true,"requested_identity":{"model":"google/gemini-3.8-flash","revision":"absent"}}),
+        }).unwrap();
+        ledger
+            .finish_money(
+                "fixture",
+                Some(3_583_500),
+                json!({"generation_id":"gen-fixture"}),
+                true,
+            )
+            .unwrap();
+        assist::write(
+            &temp.path().join("receipt-0.json"),
+            &json!({"execution_id":"fixture","response_hash":"preserved"}),
+        )
+        .unwrap();
+        let mut smoke = json!({"root_outcomes":[{"execution_id":"fixture","code":"invalid_answer","failure_class":"answer_failure","answer_reason":"citation_identity"}]});
+        export_reconciliation(temp.path(), &ledger, &mut smoke).unwrap();
+        ledger
+            .record_openrouter_reconciliation(
+                "fixture",
+                Ok(openrouter::Generation {
+                    cost_nano_usd: 3_583_500,
+                    response_hash: Digest::of_bytes(b"generation"),
+                    model: "google/gemini-3.8-flash-20260902".into(),
+                    provider_name: "Google AI Studio".into(),
+                }),
+                1,
+                0,
+                1000,
+            )
+            .unwrap();
+        export_reconciliation(temp.path(), &ledger, &mut smoke).unwrap();
+        assert_eq!(smoke["root_outcomes"][0]["code"], "invalid_answer");
+        assert_eq!(smoke["root_outcomes"][0]["qualification_eligible"], false);
+        assert_eq!(smoke["root_outcomes"][0]["actual_nano_usd"], 3_583_500);
+        assert_eq!(
+            smoke["root_outcomes"][0]["reconciliation"]["state"],
+            "matched"
+        );
+        let exported: Value =
+            assist::decode(&std::fs::read(temp.path().join("receipt-0.json")).unwrap()).unwrap();
+        assert_eq!(exported["response_hash"], "preserved");
+        assert_eq!(exported["answer_reason"], "citation_identity");
+        assert_eq!(exported["qualification_eligible"], false);
+    }
+    #[test]
+    fn g12_answer_safety_options_validate_offline() {
+        let temp = tempfile::tempdir().unwrap();
+        let args = vec![
+            "--stage2".into(),
+            "--validate-only".into(),
+            "--roots".into(),
+            "1".into(),
+            "--max-spend-usd".into(),
+            "5".into(),
+            "--requests".into(),
+            temp.path().join("absent").to_string_lossy().into_owned(),
+        ];
+        for (name, value) in [
+            ("--max-consecutive-invalid-answers", "0"),
+            ("--max-consecutive-invalid-answers", "1001"),
+            ("--max-invalid-answer-percent", "101"),
+            ("--max-invalid-answer-percent", "0"),
+            ("--invalid-answer-min-sample", "0"),
+        ] {
+            let mut invalid = args.clone();
+            invalid.extend([name.into(), value.into()]);
+            assert!(
+                run_with(invalid)
+                    .unwrap_err()
+                    .to_string()
+                    .starts_with("invalid answer safety")
+            );
+        }
+        let mut invalid: Vec<_> = args.into_iter().filter(|a| a != "--stage2").collect();
+        invalid.extend(["--max-invalid-answer-percent".into(), "50".into()]);
+        assert_eq!(
+            run_with(invalid).unwrap_err().to_string(),
+            "answer safety options require stage2"
+        );
+        assert!(!temp.path().join("ledger").exists());
+    }
+    #[test]
+    fn g12_post_settlement_protocol_reasons_stay_refused() {
+        let temp = tempfile::tempdir().unwrap();
+        let row = cross_citation_row("protocol");
+        let response: Value = assist::decode(include_bytes!(
+            "../tests/fixtures/assist-openrouter/cross-citation-pilot.json"
+        ))
+        .unwrap();
+        let mut answer: Value = assist::decode(
+            response["choices"][0]["message"]["content"]
+                .as_str()
+                .unwrap()
+                .as_bytes(),
+        )
+        .unwrap();
+        answer["observations"].as_array_mut().unwrap().pop();
+        for (pointer, value, expected) in [
+            ("/observations/0/slot", json!("P2"), "citation_identity"),
+            (
+                "/observations/0/geometry/pixels",
+                json!([0.5, 0.0, 1.0, 1.0]),
+                "geometry_bounds",
+            ),
+            (
+                "/observations/0/geometry/pixels",
+                json!([2.0, 0.0, 0.1, 0.1]),
+                "closed_schema",
+            ),
+            ("/observations/0/uncertainty", json!(2.0), "closed_schema"),
+            ("/observations/0/slot", json!("P3"), "closed_schema"),
+            (
+                "/observations/0/statement",
+                json!("caused by a broken engine"),
+                "unsupported_statement",
+            ),
+            (
+                "/request_hash",
+                json!(Digest::of_bytes(b"other")),
+                "request_bound_answer",
+            ),
+        ] {
+            let mut bad = answer.clone();
+            *bad.pointer_mut(pointer).unwrap() = value;
+            let mut envelope = response.clone();
+            envelope["choices"][0]["message"]["content"] = json!(bad.to_string());
+            assert_eq!(
+                stage2_outcome(
+                    &row,
+                    &serde_json::to_vec(&envelope).unwrap(),
+                    temp.path(),
+                    0
+                )
+                .unwrap(),
+                CallOutcome::InvalidAnswer(expected)
+            );
+            assert!(!temp.path().join("answer-0.json").exists());
+        }
     }
     #[test]
     fn caps_above_25_require_separate_flag_without_raising_campaign_parent() {

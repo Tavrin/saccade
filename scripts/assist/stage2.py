@@ -14,6 +14,9 @@ ARMS = ('rules', 'single_gemini', 'two_gemini', 'cascade')
 MODEL = 'google/gemini-3.8-flash'
 REVISION = MODEL + '-20260902'
 SCHEDULE_SEED = 4406
+ANSWER_FAILURE_POLICY = dict(max_consecutive=5, max_percent=50, min_sample=20)
+ANSWER_REASONS = {'citation_identity', 'observation_slot', 'normalized_geometry', 'geometry_bounds',
+                  'uncertainty_range', 'unsupported_statement', 'closed_schema', 'request_bound_answer', 'answer_content'}
 REQUEST_POLICY = 'assist-openrouter-provider-schema/1'
 PROJECTION_POLICY = 'assist-openrouter-drop-array-bounds/1'
 PROJECTED_SCHEMA_NAME = 'saccade_assist_answer_drop_array_bounds_v1'
@@ -136,6 +139,7 @@ def report(manifest, directory, budget_bounded=False):
         schema_projection=PROJECTION_POLICY, full_answer_schema_hash=digest(encoded(json.loads(ANSWER_SCHEMA_PATH.read_text()))),
         response_format_hash=digest(encoded(response_format())),
         reasoning_budgets=REASONING_BUDGETS, aggregate_output_limit=4096, per_arm_workload=table,
+        answer_failure_policy=ANSWER_FAILURE_POLICY, truncated_output_class='campaign_failure',
         requests=len(rows), expected_nano_usd=expected, reservation_nano_usd=worst,
         budget_bounded=budget_bounded, full_reservation_fits=worst<=5_000_000_000,
         allowance_nano_usd=5_000_000_000, schedule_seed=SCHEDULE_SEED,
@@ -150,10 +154,15 @@ def report(manifest, directory, budget_bounded=False):
         authorized=False, qualified=False)
 
 
-def collect(requests, result_dir):
+def collect(requests, result_dir, manifest=None):
     """Conservative mechanical paired-order comparison; no synthetic scoring."""
     import json
     groups = {}
+    workloads = {c['root_id']: c['workload'] for c in manifest['cases']} if manifest else {}
+    metrics = {}
+    def metric(arm, workload):
+        return metrics.setdefault((arm,workload),dict(arm=arm,workload=workload,scheduled_requests=0,
+            settled_answers=0,invalid_answers=0,reason_breakdown=Counter(),roots=set(),invalid_roots=set()))
     # Retain explicit campaign stops even if stale answer files are present.
     smoke_path=result_dir/'smoke.json'
     outcomes=None
@@ -165,12 +174,27 @@ def collect(requests, result_dir):
     for index,row in enumerate(requests):
         root,arm,variant,order=row['root'].rsplit(':',3)
         group=groups.setdefault((root,arm,variant),[])
+        workload=workloads.get(root,'unmapped')
+        if manifest and root not in workloads: raise ValueError('collected root workload drift')
+        m=metric(arm,workload)
+        m['scheduled_requests']+=1
+        m['roots'].add(root)
         path=result_dir/f'answer-{index}.json'
         code=outcomes[index]['code'] if outcomes is not None else None
+        if code=='invalid_answer':
+            reason=outcomes[index].get('answer_reason')
+            if reason not in ANSWER_REASONS: raise ValueError('invalid answer reason code')
+            m['settled_answers']+=1
+            m['invalid_answers']+=1
+            m['reason_breakdown'][reason]+=1
+            m['invalid_roots'].add(root)
+            group.append(dict(invalid_answer=True,answer_reason=reason))
+            continue
         if (code is not None and code!='completed') or not path.exists():
             unavailable_codes[code if code and code!='completed' else 'missing_answer']+=1
             group.append(None)
             continue
+        m['settled_answers']+=1
         answer=json.loads(path.read_text())
         expected=json.loads(row['payload']['messages'][1]['content'][0]['text'])['request_hash']
         if answer['request_hash']!=expected: raise ValueError('collected answer binding drift')
@@ -185,13 +209,28 @@ def collect(requests, result_dir):
     results=[]
     for (root,arm,variant),answers in groups.items():
         missing=any(a is None for a in answers)
-        disagreement=not missing and any(a!=answers[0] for a in answers[1:])
+        reasons=Counter(a['answer_reason'] for a in answers if a and a.get('invalid_answer'))
+        invalid=bool(reasons)
+        disagreement=not missing and not invalid and any(a!=answers[0] for a in answers[1:])
         results.append(dict(root=root,arm=arm,variant=variant,missing=missing,order_disagreement=disagreement,
-            outcome='unverifiable' if missing or disagreement else answers[0]['outcome']))
+            invalid_answer=invalid,answer_reason_breakdown=dict(reasons),
+            outcome='invalid_answer' if invalid else 'unverifiable' if missing or disagreement else answers[0]['outcome']))
     denominator={(r['root'],r['arm']) for r in results}
     unavailable={(r['root'],r['arm']) for r in results if r['missing'] or r['order_disagreement']}
+    rates=[]
+    for m in metrics.values():
+        scheduled_roots=len(m.pop('roots')); invalid_roots=len(m.pop('invalid_roots'))
+        m['reason_breakdown']=dict(m['reason_breakdown'])
+        m.update(scheduled_root_arm_denominator=scheduled_roots,invalid_root_arms=invalid_roots,
+            invalid_answer_rate=m['invalid_answers']/m['settled_answers'] if m['settled_answers'] else None,
+            invalid_answer_scheduled_rate=m['invalid_answers']/m['scheduled_requests'],
+            invalid_root_arm_rate=invalid_roots/scheduled_roots)
+        rates.append(m)
+    invalid_roots={(r['root'],r['arm']) for r in results if r['invalid_answer']}
     return dict(schema='saccade-g12-stage2-mechanics.v1',qualified=False,root_arm_results=results,
         scheduled_requests=len(requests), unavailable_request_codes=dict(unavailable_codes),
+        invalid_answers=sum(m['invalid_answers'] for m in rates), invalid_root_arms=len(invalid_roots),
+        invalid_answer_rates_per_arm_workload=rates,
         scheduled_root_arm_denominator=len(denominator), unavailable_root_arms=len(unavailable),
         limitation='Conservative exact normalized statement comparison; no truth scoring or qualification. Descendants retain roots.')
 
@@ -199,9 +238,12 @@ if __name__=='__main__':
     import argparse,json
     from corpus import put
     parser=argparse.ArgumentParser()
+    parser.add_argument('--corpus',type=Path,required=True)
     parser.add_argument('--requests',type=Path,required=True)
     parser.add_argument('--results-dir',type=Path,required=True)
     parser.add_argument('--out',type=Path,required=True)
     args=parser.parse_args()
     if args.out.exists(): raise ValueError('never overwrite collected mechanics')
-    put(args.out,collect(json.loads(args.requests.read_text()),args.results_dir))
+    from corpus import verify
+    manifest,_=verify(args.corpus)
+    put(args.out,collect(json.loads(args.requests.read_text()),args.results_dir,manifest))

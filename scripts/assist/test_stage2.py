@@ -137,6 +137,50 @@ class Stage2Tests(unittest.TestCase):
             (out/'smoke.json').write_text(json.dumps(dict(root_outcomes=outcomes)))
             self.assertRaises(ValueError,collect,rows,out)
 
+    def test_invalid_answers_count_in_arm_workload_and_root_denominators(self):
+        import json
+        with tempfile.TemporaryDirectory() as tmp:
+            directory=Path(tmp)/'corpus'
+            manifest=freeze(directory,5,4406,REVISION,'jev-1.13.0',True)
+            rows,_=report(manifest,directory)
+            out=Path(tmp)/'results';out.mkdir()
+            outcomes=[]
+            for i,row in enumerate(rows):
+                outcomes.append(dict(index=i,root=row['root'],code='invalid_answer',answer_reason='citation_identity'))
+                # Even a stale valid-looking answer cannot override invalid status.
+                h=json.loads(row['payload']['messages'][1]['content'][0]['text'])['request_hash']
+                (out/f'answer-{i}.json').write_text(json.dumps(dict(request_hash=h,outcome='unverifiable',observations=[])))
+            (out/'smoke.json').write_text(json.dumps(dict(root_outcomes=outcomes)))
+            result=collect(rows,out,manifest)
+            denominator=len({tuple(r['root'].rsplit(':',3)[:2]) for r in rows})
+            self.assertEqual(result['scheduled_root_arm_denominator'],denominator)
+            self.assertEqual(result['invalid_root_arms'],denominator)
+            self.assertEqual(result['invalid_answers'],len(rows))
+            self.assertEqual(result['unavailable_root_arms'],0)
+            self.assertTrue(all(r['outcome']=='invalid_answer' and not r['missing'] for r in result['root_arm_results']))
+            self.assertEqual(len(result['invalid_answer_rates_per_arm_workload']),12)
+            for rate in result['invalid_answer_rates_per_arm_workload']:
+                self.assertEqual(rate['invalid_answer_rate'],1)
+                self.assertEqual(rate['invalid_root_arm_rate'],1)
+                self.assertEqual(rate['reason_breakdown'],{'citation_identity':rate['scheduled_requests']})
+            # Preserve the full denominator after a valve or infrastructure stop.
+            outcomes[0]['answer_reason']='geometry_bounds'
+            for o in outcomes[1:]:
+                o['code']='not_run_answer_safety_valve';o.pop('answer_reason')
+            (out/'smoke.json').write_text(json.dumps(dict(root_outcomes=outcomes)))
+            result=collect(rows,out,manifest)
+            self.assertEqual(result['scheduled_root_arm_denominator'],denominator)
+            self.assertEqual(result['invalid_root_arms'],1)
+            self.assertEqual(result['invalid_answers'],1)
+            self.assertEqual(sum(m['scheduled_root_arm_denominator'] for m in result['invalid_answer_rates_per_arm_workload']),denominator)
+            rate=next(m for m in result['invalid_answer_rates_per_arm_workload'] if m['invalid_answers'])
+            self.assertEqual(rate['reason_breakdown'],{'geometry_bounds':1})
+            self.assertEqual(rate['invalid_answer_scheduled_rate'],1/rate['scheduled_requests'])
+            self.assertFalse(result['qualified'])
+            outcomes[0]['answer_reason']='invented'
+            (out/'smoke.json').write_text(json.dumps(dict(root_outcomes=outcomes)))
+            self.assertRaisesRegex(ValueError,'reason code',collect,rows,out,manifest)
+
     def test_frozen_schedule_binding_and_closed_budget(self):
         with tempfile.TemporaryDirectory() as tmp:
             directory=Path(tmp)/'corpus'
