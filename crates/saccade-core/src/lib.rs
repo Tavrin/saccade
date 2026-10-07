@@ -208,3 +208,5 @@ pub mod text_quality;
 // laneD
 #[cfg(any(unix, windows))]
 pub mod batch;
+/// Timed subtitle/caption evidence against presentation-timestamped frames.
+pub mod timed_text;

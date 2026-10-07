@@ -44,6 +44,7 @@ Browser/sweep masks `neutralize`; core `exclude`. Read mask/excluded-error audit
 `--align`/`--resample` records geometry exclusions.
 `hash`/`dedupe` find candidates, never delete; `similar`/`index` needs pins.
 `index export-inputs|calibrate` checks parity/holdout; `text` needs bound sources/OCR.
+[timed-text](../docs/timed-text.md).
 `assess` is content-dependent; `inspect-image` reports provenance/C2PA, never authenticity.
 [Comparator](../docs/choosing-a-comparison.md).
 

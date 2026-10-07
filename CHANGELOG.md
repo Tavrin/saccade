@@ -80,6 +80,12 @@
 
 - Add a stock-build critical text region/string gate, versioned policy/report and
   generated OFL glyph-edit pack with app, figure and document proofs.
+- Add `timed-text` for plain SRT/WebVTT against frame maps, with image-bound OCR,
+  sampled timing/missing/mismatch/extra findings and reused text-legibility
+  measurements in `saccade-timed-text.v1`. Missing OCR explicitly skips; video
+  extraction stays external. Include generated caption-video and cross-domain
+  acceptance fixtures. Preserve decimal timing/gap boundaries through floating-point
+  roundoff; zero timing tolerance stays strict and coarse clocks abstain.
 
 ## 0.2.7 (2026-10-07)
 
