@@ -13,8 +13,8 @@ build = "build.rs"
 exclude = ["report/**"]
 
 [dependencies]
-saccade-geo = { path = "../saccade-geo", version = "0.2.8", optional = true }
-saccade-print = { path = "../saccade-print", version = "0.2.8", optional = true }
+saccade-geo = { path = "../saccade-geo", version = "0.2.9", optional = true }
+saccade-print = { path = "../saccade-print", version = "0.2.9", optional = true }
 ureq = { version = "3", optional = true }
 url = { version = "2.5", optional = true }
 roxmltree = { version = "0.20", optional = true }
