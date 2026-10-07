@@ -200,3 +200,7 @@ pub mod model_config;
 
 // O12/O17
 pub mod text_quality;
+
+// laneD
+#[cfg(any(unix, windows))]
+pub mod batch;

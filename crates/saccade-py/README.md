@@ -22,3 +22,7 @@ The standard wheels provide CPU-only analysis; model operations require a custom
 model-enabled build and explicitly provisioned models.
 See the [Python documentation](https://github.com/Tavrin/saccade/blob/main/docs/python.md)
 for the API, errors and optional model support.
+
+`batch(source, out, executable="saccade", options_json=None, reference_dir=None)` returns
+resumable per-input rows through the same core runner and an installed CLI. See
+[batch intake](../../docs/batch-and-assist.md) for resource limits and status semantics.

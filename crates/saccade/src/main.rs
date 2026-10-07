@@ -282,6 +282,14 @@ impl From<MetricArg> for Metric {
 
 #[derive(Subcommand)]
 enum Command {
+    // laneD
+    /// Bounded folder or manifest intake with resumable rows and review summaries.
+    Batch(batch_cmd::Args),
+    #[command(hide = true)]
+    BatchProbe(batch_cmd::ProbeArgs),
+    /// Experimental advisory AI with an egress preview before dispatch.
+    #[cfg(feature = "assist")]
+    Assist(advice_cmd::Args),
     // laneC
     /// Find, link and re-check the outputs of a report directory.
     Manifest(manifest_cmd::Args),
@@ -1242,6 +1250,11 @@ fn emit_run(
 
 fn dispatch(command: Command, record_absolute_paths: bool) -> Result<u8, CliError> {
     match command {
+        // laneD
+        Command::Batch(a) => batch_cmd::run(a),
+        Command::BatchProbe(a) => batch_cmd::probe(a),
+        #[cfg(feature = "assist")]
+        Command::Assist(a) => advice_cmd::run(a),
         // laneC
         Command::Manifest(args) => manifest_cmd::run(args),
         Command::ExportRegions(args) => region_export_cmd::run(args),
@@ -2142,6 +2155,7 @@ fn doctor(json: bool) -> Result<u8, CliError> {
     }
     // wave8
     capabilities.push("media-record-v1");
+    capabilities.push("batch-intake-v1");
     // wave11
     capabilities.extend([
         "timing-ab-v1",
@@ -2894,6 +2908,7 @@ fn required_feature(operation: &str) -> Option<&'static str> {
         "ablate" | "bisect" | "sequence" | "temporal" | "rank" | "saccade_ablate"
         | "saccade_bisect" | "saccade_sequence" | "saccade_rank" => Some("graphics"),
         "saccade_review" => Some("ai"),
+        "assist" => Some("assist"),
         "calibrate"
         | "selftest"
         | "bench"
@@ -2952,6 +2967,9 @@ pub(crate) fn capabilities(json: bool) -> Result<u8, CliError> {
     use clap::CommandFactory;
     fn operations(command: &clap::Command, prefix: &str, out: &mut Vec<String>) {
         for child in command.get_subcommands() {
+            if child.get_name() == "batch-probe" {
+                continue;
+            }
             let name = if prefix.is_empty() {
                 child.get_name().to_owned()
             } else {
@@ -3057,3 +3075,8 @@ mod assist_cmd;
 
 // OCR lane: optional document provider transport.
 mod document_ocr_cmd;
+
+// laneD
+#[cfg(feature = "assist")]
+mod advice_cmd;
+mod batch_cmd;

@@ -23,6 +23,8 @@ Commands:
   compare             Compare a directory of captures against a directory of baselines
   prove               Check whether image identity or performance evidence proves a claim
   review              Preview a review plan or handle a local closed decision request
+  batch               Bounded folder or manifest intake with resumable rows and review summaries
+  assist              Experimental advisory AI with an egress preview before dispatch
   manifest            Find, link and re-check the outputs of a report directory
   export-regions      Crop the worst regions of a report, with coordinates
   print               ICC-managed CMYK raster comparison (first-party print extension)
@@ -102,6 +104,378 @@ Exit codes (a command that cannot produce a measurement never exits 0):
   3  strict producer check refused: an undeclared difference (--require-valid-arms)
   4  strict producer check refused: a required key is missing (--require-valid-arms)
 Units: --threshold on FLIP scores is a 0-1 score (lower = more alike); hash thresholds count bits.
+```
+
+## saccade batch
+
+```text
+Bounded folder or manifest intake with resumable rows and review summaries
+
+Usage: saccade batch [OPTIONS] --out <OUT> <SOURCE>
+
+Arguments:
+  <SOURCE>  Folder or saccade-batch-input.v1 JSON manifest
+
+Options:
+      --out <OUT>                      Dedicated output directory; rerunning resumes immutable receipts
+      --source-ref <SOURCE_REF>        External capture URI/key (repeatable); recorded in generated reports
+      --report-index <REPORT_INDEX>    Shared report index destination (default reports/index.jsonl next to each report, inside --out)
+      --section <SECTION>              Existing commands to apply (repeatable); default analyze-media [possible values: analyze-media, inspect, compare, text-quality, tofu, watermark, mask-metrics]
+      --options <OPTIONS>              Options JSON: sections with command/args, concurrency and timeout_ms
+      --reference-dir <REFERENCE_DIR>  Match relative paths in this reference folder for pair commands
+      --concurrency <CONCURRENCY>      [default: 2]
+      --timeout-ms <TIMEOUT_MS>        Whole-item timeout, including input decoding, in milliseconds [default: 30000]
+      --json
+  -h, --help                           Print help
+
+Global options:
+      --allow-out-near-captures  Silence warnings when --out is next to capture metadata
+      --record-absolute-paths    Opt in to absolute local paths in reports and machine-readable output
+```
+
+## saccade assist
+
+```text
+Experimental advisory AI with an egress preview before dispatch
+
+Usage: saccade assist [OPTIONS] <COMMAND>
+
+Commands:
+  explain     Explain visible changes; cannot alter the measured verdict
+  audit-mask  Audit declared masks; cannot create or apply exclusions
+  check-ui    Check a bounded visible condition; cannot approve a baseline
+  batch       Existing experimental frozen evaluation lifecycle
+
+Options:
+      --source-ref <SOURCE_REF>      External capture URI/key (repeatable); recorded in generated reports
+      --report-index <REPORT_INDEX>  Shared report index destination (default reports/index.jsonl next to each report, inside --out)
+      --json
+      --user-config <USER_CONFIG>
+  -h, --help                         Print help
+
+Global options:
+      --allow-out-near-captures  Silence warnings when --out is next to capture metadata
+      --record-absolute-paths    Opt in to absolute local paths in reports and machine-readable output
+```
+
+## saccade assist explain
+
+```text
+Explain visible changes; cannot alter the measured verdict
+
+Usage: saccade assist explain [OPTIONS] --report <REPORT> --out <OUT>
+
+Options:
+      --report <REPORT>
+
+      --source-ref <SOURCE_REF>
+          External capture URI/key (repeatable); recorded in generated reports
+      --entry <ENTRY>
+          Select exactly one report entry; required when the report contains several
+      --report-index <REPORT_INDEX>
+          Shared report index destination (default reports/index.jsonl next to each report, inside --out)
+      --mask-manifest <MASK_MANIFEST>
+          Optional original individual-mask declarations, bound to exact report bytes
+      --vision-provider <VISION_PROVIDER>
+          Prepare Claude/GPT mappings in the assist layer; no live calls [possible values: claude, gpt]
+      --json
+
+      --vision-response <VISION_RESPONSE>
+          Explicit recorded response; bound to this catalog and request
+      --experimental
+          Required acknowledgement: this feature is unqualified experimental advice
+      --user-config <USER_CONFIG>
+
+      --out <OUT>
+          New empty directory for immutable sidecars and the advice report
+      --offline
+          Replay existing observations; never authorize providers
+      --replay <REPLAY>
+          Recorded exact cache entries for offline fixture replay
+      --run
+          Explicitly authorize evidence export under fixed user root policy
+      --route <ROUTE>
+          Deterministic rules, routed cascade or the full visual path [default: cascade] [possible values: rules, cascade, all-vision]
+      --jev-routing
+          Optional separately measured Jev evidence-need routing; disabled by default
+      --budget-calls <BUDGET_CALLS>
+          Real provider request cap; no retries or automatic top-up [default: 4]
+      --max-spend-usd <MAX_SPEND_USD>
+          Finite per-entry USD ceiling, at most 0.15 [default: 0.15]
+      --deadline-secs <DEADLINE_SECS>
+          Overall deadline, including both orders and support [default: 300]
+      --gemini-revision <GEMINI_REVISION>
+          Required immutable returned revision for dispatch/replay
+      --jev-revision <JEV_REVISION>
+          Required Jev returned revision; the pinned model ID is the initial binding [default: jev-1.13.0]
+      --bypass-cache
+          Do not reuse cache; required for independent qualification samples
+      --source-evidence <SOURCE_EVIDENCE>
+          Hash/dimension-bound Wave 3 source packets (at most one per image)
+      --incomplete-capture
+          Producer states some requested capture scope was not captured
+      --pre-masked
+          Original pixels were blacked out before capture and are unavailable
+  -h, --help
+          Print help
+
+Global options:
+      --allow-out-near-captures  Silence warnings when --out is next to capture metadata
+      --record-absolute-paths    Opt in to absolute local paths in reports and machine-readable output
+```
+
+## saccade assist audit-mask
+
+```text
+Audit declared masks; cannot create or apply exclusions
+
+Usage: saccade assist audit-mask [OPTIONS] --report <REPORT> --out <OUT>
+
+Options:
+      --report <REPORT>
+
+      --source-ref <SOURCE_REF>
+          External capture URI/key (repeatable); recorded in generated reports
+      --entry <ENTRY>
+          Select exactly one report entry; required when the report contains several
+      --report-index <REPORT_INDEX>
+          Shared report index destination (default reports/index.jsonl next to each report, inside --out)
+      --mask-manifest <MASK_MANIFEST>
+          Optional original individual-mask declarations, bound to exact report bytes
+      --vision-provider <VISION_PROVIDER>
+          Prepare Claude/GPT mappings in the assist layer; no live calls [possible values: claude, gpt]
+      --json
+
+      --vision-response <VISION_RESPONSE>
+          Explicit recorded response; bound to this catalog and request
+      --experimental
+          Required acknowledgement: this feature is unqualified experimental advice
+      --user-config <USER_CONFIG>
+
+      --out <OUT>
+          New empty directory for immutable sidecars and the advice report
+      --offline
+          Replay existing observations; never authorize providers
+      --replay <REPLAY>
+          Recorded exact cache entries for offline fixture replay
+      --run
+          Explicitly authorize evidence export under fixed user root policy
+      --route <ROUTE>
+          Deterministic rules, routed cascade or the full visual path [default: cascade] [possible values: rules, cascade, all-vision]
+      --jev-routing
+          Optional separately measured Jev evidence-need routing; disabled by default
+      --budget-calls <BUDGET_CALLS>
+          Real provider request cap; no retries or automatic top-up [default: 4]
+      --max-spend-usd <MAX_SPEND_USD>
+          Finite per-entry USD ceiling, at most 0.15 [default: 0.15]
+      --deadline-secs <DEADLINE_SECS>
+          Overall deadline, including both orders and support [default: 300]
+      --gemini-revision <GEMINI_REVISION>
+          Required immutable returned revision for dispatch/replay
+      --jev-revision <JEV_REVISION>
+          Required Jev returned revision; the pinned model ID is the initial binding [default: jev-1.13.0]
+      --bypass-cache
+          Do not reuse cache; required for independent qualification samples
+      --source-evidence <SOURCE_EVIDENCE>
+          Hash/dimension-bound Wave 3 source packets (at most one per image)
+      --incomplete-capture
+          Producer states some requested capture scope was not captured
+      --pre-masked
+          Original pixels were blacked out before capture and are unavailable
+  -h, --help
+          Print help
+
+Global options:
+      --allow-out-near-captures  Silence warnings when --out is next to capture metadata
+      --record-absolute-paths    Opt in to absolute local paths in reports and machine-readable output
+```
+
+## saccade assist check-ui
+
+```text
+Check a bounded visible condition; cannot approve a baseline
+
+Usage: saccade assist check-ui [OPTIONS] --image <IMAGE> --box <BOX> --out <OUT> <CONDITION>
+
+Arguments:
+  <CONDITION>  Literal visible label, never an acting agent's success claim
+
+Options:
+      --image <IMAGE>
+
+      --source-ref <SOURCE_REF>
+          External capture URI/key (repeatable); recorded in generated reports
+      --box <BOX>
+          Original image pixels: X,Y,W,H
+      --report-index <REPORT_INDEX>
+          Shared report index destination (default reports/index.jsonl next to each report, inside --out)
+      --kind <KIND>
+          Closed screenshot-only condition category [default: label-visible] [possible values: label-visible, banner-absent, not-clipped, non-overlap]
+      --target <TARGET>
+          Stable source node ID for geometric conditions
+      --json
+
+      --second-target <SECOND_TARGET>
+          Containing panel or second source node ID
+      --locate
+          Attach advisory phrase localization to check-ui; never establish visibility by detection alone
+      --user-config <USER_CONFIG>
+
+      --locate-observations <LOCATE_OBSERVATIONS>
+
+      --locate-registry <LOCATE_REGISTRY>
+
+      --locate-cache <LOCATE_CACHE>
+
+      --locate-runtime-library <LOCATE_RUNTIME_LIBRARY>
+
+      --vision-provider <VISION_PROVIDER>
+          Prepare Claude/GPT mappings in the assist layer; no live calls [possible values: claude, gpt]
+      --vision-response <VISION_RESPONSE>
+          Explicit recorded response; bound to this catalog and request
+      --experimental
+          Required acknowledgement: this feature is unqualified experimental advice
+      --out <OUT>
+          New empty directory for immutable sidecars and the advice report
+      --offline
+          Replay existing observations; never authorize providers
+      --replay <REPLAY>
+          Recorded exact cache entries for offline fixture replay
+      --run
+          Explicitly authorize evidence export under fixed user root policy
+      --route <ROUTE>
+          Deterministic rules, routed cascade or the full visual path [default: cascade] [possible values: rules, cascade, all-vision]
+      --jev-routing
+          Optional separately measured Jev evidence-need routing; disabled by default
+      --budget-calls <BUDGET_CALLS>
+          Real provider request cap; no retries or automatic top-up [default: 4]
+      --max-spend-usd <MAX_SPEND_USD>
+          Finite per-entry USD ceiling, at most 0.15 [default: 0.15]
+      --deadline-secs <DEADLINE_SECS>
+          Overall deadline, including both orders and support [default: 300]
+      --gemini-revision <GEMINI_REVISION>
+          Required immutable returned revision for dispatch/replay
+      --jev-revision <JEV_REVISION>
+          Required Jev returned revision; the pinned model ID is the initial binding [default: jev-1.13.0]
+      --bypass-cache
+          Do not reuse cache; required for independent qualification samples
+      --source-evidence <SOURCE_EVIDENCE>
+          Hash/dimension-bound Wave 3 source packets (at most one per image)
+      --incomplete-capture
+          Producer states some requested capture scope was not captured
+      --pre-masked
+          Original pixels were blacked out before capture and are unavailable
+  -h, --help
+          Print help
+
+Global options:
+      --allow-out-near-captures  Silence warnings when --out is next to capture metadata
+      --record-absolute-paths    Opt in to absolute local paths in reports and machine-readable output
+```
+
+## saccade assist batch
+
+```text
+Existing experimental frozen evaluation lifecycle
+
+Usage: saccade assist batch [OPTIONS] <COMMAND>
+
+Commands:
+  submit   Verify and submit once; ambiguous submissions cannot repeat
+  status   Read local status, or poll once with --run
+  collect  Collect once and settle terminal known usage; never wait
+
+Options:
+      --source-ref <SOURCE_REF>      External capture URI/key (repeatable); recorded in generated reports
+      --report-index <REPORT_INDEX>  Shared report index destination (default reports/index.jsonl next to each report, inside --out)
+      --json
+      --user-config <USER_CONFIG>
+  -h, --help                         Print help
+
+Global options:
+      --allow-out-near-captures  Silence warnings when --out is next to capture metadata
+      --record-absolute-paths    Opt in to absolute local paths in reports and machine-readable output
+```
+
+## saccade assist batch submit
+
+```text
+Verify and submit once; ambiguous submissions cannot repeat
+
+Usage: saccade assist batch submit [OPTIONS] --plan <PLAN> --job <JOB>
+
+Options:
+      --allow-spend-above-25-usd       Explicitly acknowledge a plan allowance above the default 25 USD ceiling
+      --source-ref <SOURCE_REF>        External capture URI/key (repeatable); recorded in generated reports
+      --plan <PLAN>                    Source-bound saccade-assist-batch-plan.v1 artifact
+      --report-index <REPORT_INDEX>    Shared report index destination (default reports/index.jsonl next to each report, inside --out)
+      --job <JOB>                      Durable receipt under the output root
+      --experimental
+      --json
+      --run                            Authorize one live submission or one poll; default local only
+      --response <RESPONSE>            Recorded collection fixture; cannot settle a live reservation
+      --user-config <USER_CONFIG>
+      --budget-calls <BUDGET_CALLS>    Maximum provider calls, 1-128 (default 8); the run stops when reached [default: 8]
+      --deadline-secs <DEADLINE_SECS>  Wall-clock limit in seconds, 1-300 (default 300) [default: 300]
+  -h, --help                           Print help
+
+Global options:
+      --allow-out-near-captures  Silence warnings when --out is next to capture metadata
+      --record-absolute-paths    Opt in to absolute local paths in reports and machine-readable output
+```
+
+## saccade assist batch status
+
+```text
+Read local status, or poll once with --run
+
+Usage: saccade assist batch status [OPTIONS] --plan <PLAN> --job <JOB>
+
+Options:
+      --allow-spend-above-25-usd       Explicitly acknowledge a plan allowance above the default 25 USD ceiling
+      --source-ref <SOURCE_REF>        External capture URI/key (repeatable); recorded in generated reports
+      --plan <PLAN>                    Source-bound saccade-assist-batch-plan.v1 artifact
+      --report-index <REPORT_INDEX>    Shared report index destination (default reports/index.jsonl next to each report, inside --out)
+      --job <JOB>                      Durable receipt under the output root
+      --experimental
+      --json
+      --run                            Authorize one live submission or one poll; default local only
+      --response <RESPONSE>            Recorded collection fixture; cannot settle a live reservation
+      --user-config <USER_CONFIG>
+      --budget-calls <BUDGET_CALLS>    Maximum provider calls, 1-128 (default 8); the run stops when reached [default: 8]
+      --deadline-secs <DEADLINE_SECS>  Wall-clock limit in seconds, 1-300 (default 300) [default: 300]
+  -h, --help                           Print help
+
+Global options:
+      --allow-out-near-captures  Silence warnings when --out is next to capture metadata
+      --record-absolute-paths    Opt in to absolute local paths in reports and machine-readable output
+```
+
+## saccade assist batch collect
+
+```text
+Collect once and settle terminal known usage; never wait
+
+Usage: saccade assist batch collect [OPTIONS] --plan <PLAN> --job <JOB>
+
+Options:
+      --allow-spend-above-25-usd       Explicitly acknowledge a plan allowance above the default 25 USD ceiling
+      --source-ref <SOURCE_REF>        External capture URI/key (repeatable); recorded in generated reports
+      --plan <PLAN>                    Source-bound saccade-assist-batch-plan.v1 artifact
+      --report-index <REPORT_INDEX>    Shared report index destination (default reports/index.jsonl next to each report, inside --out)
+      --job <JOB>                      Durable receipt under the output root
+      --experimental
+      --json
+      --run                            Authorize one live submission or one poll; default local only
+      --response <RESPONSE>            Recorded collection fixture; cannot settle a live reservation
+      --user-config <USER_CONFIG>
+      --budget-calls <BUDGET_CALLS>    Maximum provider calls, 1-128 (default 8); the run stops when reached [default: 8]
+      --deadline-secs <DEADLINE_SECS>  Wall-clock limit in seconds, 1-300 (default 300) [default: 300]
+  -h, --help                           Print help
+
+Global options:
+      --allow-out-near-captures  Silence warnings when --out is next to capture metadata
+      --record-absolute-paths    Opt in to absolute local paths in reports and machine-readable output
 ```
 
 ## saccade manifest

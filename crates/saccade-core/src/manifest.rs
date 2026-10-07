@@ -143,6 +143,7 @@ fn media_and_role(rel: &str) -> (&'static str, &'static str) {
             },
         ),
         "html" => ("text/html", "page"),
+        "csv" => ("text/csv", "table"),
         "png" => ("image/png", "image"),
         "jpg" | "jpeg" => ("image/jpeg", "image"),
         "webp" => ("image/webp", "image"),
@@ -186,7 +187,11 @@ fn scan(dir: &Path) -> Result<(Vec<File>, usize)> {
         }
         let (sha256, bytes) = hash_file(entry.path())?;
         let (media_type, mut role) = media_and_role(&rel);
-        let mut schema = None;
+        let mut schema = if rel == "rows.jsonl" && dir.join("batch-run.json").is_file() {
+            Some("saccade-batch-row.v1".to_owned())
+        } else {
+            None
+        };
         let mut report = None;
         if media_type == "application/json"
             && let Some(value) = read_json(entry.path())
