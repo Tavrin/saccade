@@ -25,7 +25,9 @@ kind = "mask"
 image = "effect.png"
 ```
 
-Mask images resolve relative to the config and must match dimensions exactly.
+Mask paths must be relative to the config file and stay inside its directory.
+Absolute paths, traversal and symlinks escaping that directory are refused.
+Mask images must match dimensions exactly.
 `kind = "boxes"` accepts `boxes = [[x,y,width,height], ...]` in capture pixels.
 `kind = "layer"` accepts `image = "ids.png"` relative to each capture image's
 parent and a `predicate` with `kind = "ids", values = [1,2]`,

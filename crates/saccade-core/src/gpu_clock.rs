@@ -91,9 +91,10 @@ impl GpuClock {
                 "saccade-gpu-clock.v1" => serde_json::from_value::<Self>(value)
                     .map_err(|e| format!("{}: {e}", path.display()))?,
                 "moss.gpu-clock.v2" => {
-                    eprintln!(
+                    static WARNING: std::sync::Once = std::sync::Once::new();
+                    WARNING.call_once(|| eprintln!(
                         "warning: legacy GPU clock schema is deprecated; supply --gpu-clock-map FILE (or gpu_clock_map in config); removed in 0.3.0"
-                    );
+                    ));
                     legacy_map()?.apply(&value)?
                 }
                 schema => {

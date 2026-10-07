@@ -187,6 +187,9 @@ pub(crate) struct AblateArgs {
     config: Option<PathBuf>,
     #[arg(long)]
     json: bool,
+    /// Return exit 1 after writing the table if any arm repeat was excluded.
+    #[arg(long)]
+    require_all_arms: bool,
     /// Per-term deltas beyond noise to show per arm.
     #[arg(long, default_value_t = 5)]
     top: usize,
@@ -272,7 +275,9 @@ pub(crate) fn ablate(args: AblateArgs, absolute: bool) -> Result<u8, CliError> {
     }
     Ok(if model.arms.iter().any(|a| !a.errors.is_empty()) {
         2
-    } else if model.arms.iter().any(|a| !a.validity_findings.is_empty()) {
+    } else if (args.require_all_arms && model.arms.iter().any(|a| !a.excluded_repeats.is_empty()))
+        || model.arms.iter().any(|a| !a.validity_findings.is_empty())
+    {
         1
     } else {
         0

@@ -1260,6 +1260,8 @@ Options:
 
       --meta-name <META_NAME>
 
+      --out <OUT>
+          Write the arm validation report as JSON to this file
       --json
 
   -h, --help
@@ -3498,6 +3500,8 @@ Options:
 
       --json
 
+      --require-all-arms
+          Return exit 1 after writing the table if any arm repeat was excluded
       --top <TOP>
           Per-term deltas beyond noise to show per arm [default: 5]
   -h, --help
@@ -4940,6 +4944,8 @@ Options:
 
       --json
 
+      --require-all-arms
+          Return exit 1 after writing the table if any arm repeat was excluded
       --top <TOP>
           Per-term deltas beyond noise to show per arm [default: 5]
   -h, --help

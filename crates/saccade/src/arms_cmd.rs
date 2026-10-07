@@ -72,6 +72,9 @@ enum Operation {
         config: Option<PathBuf>,
         #[arg(long)]
         meta_name: Option<String>,
+        /// Write the arm validation report as JSON to this file.
+        #[arg(long)]
+        out: Option<PathBuf>,
         #[arg(long)]
         json: bool,
     },
@@ -115,6 +118,7 @@ pub(crate) fn run(args: Args) -> Result<u8, CliError> {
             config,
             meta_name,
             json,
+            out,
         } => {
             let mut cfg = crate::load_config(config.as_deref())?;
             cfg.meta.compare = compare.map(Into::into);
@@ -131,6 +135,9 @@ pub(crate) fn run(args: Args) -> Result<u8, CliError> {
                 cfg.meta.name = name;
             }
             let result = saccade_core::arms::validate_paths(&a, &b, &cfg)?;
+            if let Some(out) = out {
+                crate::local_cmd::write_value(&out, &serde_json::to_value(&result)?)?;
+            }
             emit(&result, json)?;
             Ok(result.exit_code)
         }
