@@ -28,6 +28,8 @@ struct Row {
     model: String,
     revision: String,
     payload: Value,
+    #[serde(default)]
+    output_fit: Option<Value>,
 }
 fn allowance(text: &str, above_25: bool) -> Result<u64, &'static str> {
     let cap = openrouter::decimal_amount(text, false)
@@ -63,6 +65,9 @@ fn validate_rows(
     }
     let mut total = 0u64;
     for row in rows {
+        if row.output_fit.is_some() && !output_fits(row) {
+            return Err("invalid_or_insufficient_output_fit".into());
+        }
         let bytes = serde_json::to_vec(&row.payload)?;
         total = total
             .checked_add(openrouter::admission(&bytes, &row.model)?.reservation)
@@ -479,11 +484,11 @@ fn require_stage2_policy(row: &Row) -> assist::Result<()> {
         return Ok(());
     }
     let (data, _) = stage2_request(row)?;
-    if data["prompt_epoch"] != "g12-pilot/3"
-        || data["prompt_policy"] != "assist-openrouter-task-evidence/3"
+    if data["prompt_epoch"] != "g12-pilot/4"
+        || data["prompt_policy"] != "assist-openrouter-task-evidence/4"
     {
         return Err(assist::Error::Invalid(
-            "stage2 requires task-evidence policy epoch 3",
+            "stage2 requires task-evidence policy epoch 4",
         ));
     }
     Ok(())
@@ -589,6 +594,32 @@ fn record_response(
         Ok(CallOutcome::Completed)
     }
 }
+// Reviewed offline oracle proof travels with the request, outside provider payload.
+fn output_fits(row: &Row) -> bool {
+    let Some(fit) = &row.output_fit else {
+        return false;
+    };
+    let data: Value = row.payload["messages"][1]["content"][0]["text"]
+        .as_str()
+        .and_then(|s| serde_json::from_str(s).ok())
+        .unwrap_or(Value::Null);
+    fit["rule"] == "utf8-bytes/1"
+        && fit["margin"] == 2
+        && fit["passed"] == true
+        && fit["request_hash"].is_string()
+        && fit["request_hash"] == data["request_hash"]
+        && fit["max_tokens"] == row.payload["max_tokens"]
+        && fit["reasoning_hint"] == row.payload["reasoning"]["max_tokens"]
+        && fit["answer_bytes"]
+            .as_u64()
+            .filter(|n| *n > 0)
+            .and_then(|n| n.checked_mul(2))
+            .and_then(|n| n.checked_add(fit["reasoning_hint"].as_u64()?))
+            .is_some_and(|n| {
+                Some(n) == fit["required_tokens"].as_u64()
+                    && fit["max_tokens"].as_u64().is_some_and(|budget| n <= budget)
+            })
+}
 fn stage2_outcome(
     row: &Row,
     response: &[u8],
@@ -601,12 +632,10 @@ fn stage2_outcome(
     // Check outer transport/accounting before inspecting model content. A bad
     // answer must never mask unknown money or incomplete execution.
     let v: Value = assist::decode(response)?;
-    if v["choices"][0]["finish_reason"] == "length" {
-        return Err(assist::Error::Invalid("truncated_output"));
-    }
+    let truncated = v["choices"][0]["finish_reason"] == "length";
     if v["model"] != row.model
         || v["choices"].as_array().is_none_or(|a| a.len() != 1)
-        || v["choices"][0]["finish_reason"] != "stop"
+        || (!truncated && v["choices"][0]["finish_reason"] != "stop")
         || !v["choices"][0]["message"]["refusal"].is_null()
         || v["id"].as_str().is_none_or(str::is_empty)
         || v["provider"].as_str().is_none_or(str::is_empty)
@@ -626,6 +655,13 @@ fn stage2_outcome(
         return Err(assist::Error::Invalid(
             "OpenRouter inconsistent or unknown billed usage",
         ));
+    }
+    if truncated {
+        return if output_fits(row) {
+            Ok(CallOutcome::InvalidAnswer("truncated_output"))
+        } else {
+            Err(assist::Error::Invalid("truncated_output"))
+        };
     }
     match stage2_answer(row, response) {
         Ok(answer) => {
@@ -658,6 +694,7 @@ fn run_with(args: impl IntoIterator<Item = String>) -> Result<(), Box<dyn std::e
     let mut stage2 = false;
     let mut budget_bounded = false;
     let mut validate_only = false;
+    let mut preflight_only = false;
     let mut settle_unknown = false;
     while let Some(arg) = args.next() {
         if arg == "--settle-unknown-at-reservation" {
@@ -669,6 +706,10 @@ fn run_with(args: impl IntoIterator<Item = String>) -> Result<(), Box<dyn std::e
         }
         if arg == "--stage2" {
             stage2 = true;
+            continue;
+        }
+        if arg == "--preflight-only" {
+            preflight_only = true;
             continue;
         }
         if arg == "--validate-only" {
@@ -705,12 +746,19 @@ fn run_with(args: impl IntoIterator<Item = String>) -> Result<(), Box<dyn std::e
     if settle_unknown
         && (!options.contains_key("--resume")
             || validate_only
+            || preflight_only
             || options.contains_key("--reconcile-only"))
     {
         return Err("settlement requires resume execution".into());
     }
     if let Some(out) = options.get("--reconcile-only") {
-        if options.len() != 1 || above_25 || stage2 || validate_only || budget_bounded {
+        if options.len() != 1
+            || above_25
+            || stage2
+            || validate_only
+            || preflight_only
+            || budget_bounded
+        {
             return Err("reconcile-only accepts only an existing output directory".into());
         }
         return reconcile_only(
@@ -830,6 +878,15 @@ fn run_with(args: impl IntoIterator<Item = String>) -> Result<(), Box<dyn std::e
         openrouter::validate_request(&bytes, &row.model)?;
         prepared.push((key, bytes));
     }
+    // This boundary precedes all campaign writes, credential reads and HTTP.
+    if preflight_only {
+        println!(
+            "{}",
+            json!({"code":"smoke_offline_preflight_passed", "requests":count,
+            "requests_hash":requests_hash, "qualified":false})
+        );
+        return Ok(());
+    }
     if !resume {
         std::fs::create_dir(&out)?;
     }
@@ -841,8 +898,8 @@ fn run_with(args: impl IntoIterator<Item = String>) -> Result<(), Box<dyn std::e
     let identity = json!({"schema":CAMPAIGN_SCHEMA,"requests_hash":requests_hash.clone(),
         "keys":prepared.iter().map(|(k,_)| assist::digest(k)).collect::<assist::Result<Vec<_>>>()?,"allowance_nano_usd":cap,
         "stage2":stage2,"budget_bounded":budget_bounded,"answer_failure_policy":stage2.then_some(answer_limits),
-        "executor_call_cap_seconds":120,"prompt_epoch":stage2.then_some(if video_run {"video-judge/1"} else {"g12-pilot/3"}),
-        "prompt_policy":stage2.then_some(if video_run {assist::video::VERSION} else {"assist-openrouter-task-evidence/3"})});
+        "executor_call_cap_seconds":120,"prompt_epoch":stage2.then_some(if video_run {"video-judge/1"} else {"g12-pilot/4"}),
+        "prompt_policy":stage2.then_some(if video_run {assist::video::VERSION} else {"assist-openrouter-task-evidence/4"})});
     ledger.bind_campaign_with_settlement(identity, resume, settle_unknown)?;
     let mut smoke = if resume {
         assist::decode::<Value>(&assist::read_bytes(
@@ -950,7 +1007,7 @@ fn run_with(args: impl IntoIterator<Item = String>) -> Result<(), Box<dyn std::e
             outcomes.iter().rev().find_map(|o| {
                 let code = o["code"].as_str()?;
                 (o["failure_class"] == "campaign_failure")
-                    .then(|| code.replace([' ', '-', ';'], "_").to_ascii_lowercase())
+                    .then(|| code.replace([' ', '-', ';', ':'], "_").to_ascii_lowercase())
             })
         }) {
             // Codes originate from typed local execution errors, never provider text.
@@ -962,12 +1019,60 @@ fn run_with(args: impl IntoIterator<Item = String>) -> Result<(), Box<dyn std::e
     Ok(())
 }
 fn refusal_code(error: &(dyn std::error::Error + 'static)) -> String {
+    if error.downcast_ref::<std::num::ParseIntError>().is_some() {
+        return "smoke_argument_integer_invalid".into();
+    }
+    if let Some(error) = error.downcast_ref::<std::io::Error>() {
+        return match error.kind() {
+            std::io::ErrorKind::NotFound => "smoke_local_file_missing",
+            std::io::ErrorKind::PermissionDenied => "smoke_local_permission_denied",
+            std::io::ErrorKind::AlreadyExists => "smoke_output_already_exists",
+            _ => "smoke_local_io_unavailable",
+        }
+        .into();
+    }
+    if error.downcast_ref::<serde_json::Error>().is_some() {
+        return "smoke_json_invalid".into();
+    }
+    if error.downcast_ref::<saccade_core::Error>().is_some() {
+        return "smoke_root_policy_invalid_or_unavailable".into();
+    }
     let reason = if let Some(error) = error.downcast_ref::<assist::Error>() {
         error.code()
     } else {
         let text = error.to_string();
+        if text.starts_with("budget ledger:") {
+            return "smoke_ledger_unavailable".into();
+        }
         return match text.as_str() {
-            "OpenRouter smoke failed; inspect sanitized campaign receipts"
+            "openrouter_credentials_unavailable"
+            | "openrouter_ceiling_unavailable"
+            | "openrouter_allowance_exceeds_ceiling"
+            | "openrouter_campaign_not_fresh"
+            | "openrouter_allowance_changed"
+            | "openrouter_reconciliation_storage_unavailable"
+            | "openrouter_reconciliation_failed"
+            | "openrouter_generation_not_ready"
+            | "openrouter_generation_unavailable"
+            | "openrouter_generation_invalid"
+            | "paid run requires development scorer proof corpus"
+            | "paid run requires frozen development scorer proof revision"
+            | "offline scorer proof failed; paid run refused"
+            | "paid stage2 run requires task-evidence policy epoch 4"
+            | "campaign already running"
+            | "cannot read user configuration"
+            | "invalid user configuration"
+            | "invalid user root policy"
+            | "custom providers require a distinct ID, HTTPS endpoint and dedicated credentials"
+            | "pacing requires provider or provider/model keys and positive limits"
+            | "pricing requires provider/model and nonnegative finite USD per million token rates"
+            | "egress_denied: incomplete source provenance"
+            | "egress_denied: unknown source root"
+            | "egress_denied: unavailable source root"
+            | "egress_denied: unavailable policy root"
+            | "egress_denied: source root denies export"
+            | "egress_denied: unclassified or denied root"
+            | "OpenRouter smoke failed; inspect sanitized campaign receipts"
             | "answer safety options require stage2"
             | "campaign lock symlink"
             | "campaign_plan_or_policy_changed"
@@ -1007,17 +1112,27 @@ fn refusal_code(error: &(dyn std::error::Error + 'static)) -> String {
             | "spend_cap_above_25_requires_explicit_flag"
             | "stage2 requires 1 through 1000 roots"
             | "smoke requires 1 through 10 roots"
-            | "stage2 cap exceeds 5 USD" => text.replace([' ', '-', ';'], "_").to_ascii_lowercase(),
+            | "stage2 cap exceeds 5 USD" => {
+                text.replace([' ', '-', ';', ':'], "_").to_ascii_lowercase()
+            }
             _ => "smoke_preflight_invalid_or_unavailable".into(),
         };
     };
-    reason.replace([' ', '-', ';'], "_").to_ascii_lowercase()
+    reason
+        .replace([' ', '-', ';', ':'], "_")
+        .to_ascii_lowercase()
 }
 fn run_reported(args: Vec<String>) -> Result<(), Box<dyn std::error::Error>> {
     let result = run_with(args.clone());
     if let Err(error) = &result {
         let code = refusal_code(error.as_ref());
         eprintln!("OpenRouter smoke refusal: {code}");
+        if args
+            .iter()
+            .any(|a| a == "--preflight-only" || a == "--validate-only")
+        {
+            return result;
+        }
         if let Some(pair) = args.windows(2).find(|p| p[0] == "--out") {
             let out = Path::new(&pair[1]);
             if !out.exists() {
@@ -1120,6 +1235,7 @@ mod tests {
             let temp = tempfile::tempdir().unwrap();
             let ledger = Ledger::new(&temp.path().join("ledger"), true);
             let rows = vec![Row {
+                output_fit: None,
                 root: "root".into(),
                 model: "fixture".into(),
                 revision: "absent".into(),
@@ -1172,6 +1288,43 @@ mod tests {
         }
     }
     #[test]
+    fn g12_preflight_known_failures_are_sanitized_and_offline_failures_write_nothing() {
+        for reason in [
+            "paid run requires development scorer proof corpus",
+            "paid run requires frozen development scorer proof revision",
+            "offline scorer proof failed; paid run refused",
+            "paid stage2 run requires task-evidence policy epoch 4",
+            "egress_denied: source root denies export",
+            "invalid user configuration",
+        ] {
+            let error: Box<dyn std::error::Error> = reason.into();
+            assert_ne!(
+                refusal_code(error.as_ref()),
+                "smoke_preflight_invalid_or_unavailable"
+            );
+        }
+        let error: Box<dyn std::error::Error> = "untrusted secret provider body".into();
+        assert_eq!(
+            refusal_code(error.as_ref()),
+            "smoke_preflight_invalid_or_unavailable"
+        );
+        let temp = tempfile::tempdir().unwrap();
+        let out = temp.path().join("untouched");
+        assert!(
+            run_reported(vec![
+                "--preflight-only".into(),
+                "--out".into(),
+                out.to_str().unwrap().into()
+            ])
+            .is_err()
+        );
+        assert!(!out.exists());
+        assert_eq!(
+            refusal_code(&"bad".parse::<usize>().unwrap_err()),
+            "smoke_argument_integer_invalid"
+        );
+    }
+    #[test]
     fn g12_resume_refusal_is_specific_persisted_and_sanitized() {
         let temp = tempfile::tempdir().unwrap();
         let path = temp.path().join("smoke.json");
@@ -1188,7 +1341,7 @@ mod tests {
         assert_eq!(smoke["marker"], "preserved");
         assert_eq!(
             refusal_code(&std::io::Error::other("secret provider body")),
-            "smoke_preflight_invalid_or_unavailable"
+            "smoke_local_io_unavailable"
         );
         assert_eq!(
             refusal_code(&assist::Error::Policy(
@@ -1207,6 +1360,7 @@ mod tests {
         let ledger = Ledger::new(&out.join("ledger"), true);
         let rows: Vec<_> = (0..3)
             .map(|i| Row {
+                output_fit: None,
                 root: format!("root-{i}"),
                 model: "fixture".into(),
                 revision: "absent".into(),
@@ -1419,6 +1573,7 @@ mod tests {
         let ledger = Ledger::new(&out.join("ledger"), true);
         let rows: Vec<_> = (0..5)
             .map(|i| Row {
+                output_fit: None,
                 root: format!("root-{i}"),
                 model: "fixture".into(),
                 revision: "absent".into(),
@@ -1534,6 +1689,7 @@ mod tests {
     fn g12_resume_keeps_answer_safety_history_and_checkpoint_failures_stop() {
         let rows: Vec<_> = (0..8)
             .map(|i| Row {
+                output_fit: None,
                 root: format!("root-{i}"),
                 model: "fixture".into(),
                 revision: "absent".into(),
@@ -1736,6 +1892,7 @@ mod tests {
     fn g12_smoke_records_static_root_codes_and_stops_after_first_failure() {
         let rows: Vec<_> = (0..3)
             .map(|i| Row {
+                output_fit: None,
                 root: format!("fixture-{i}"),
                 model: "fixture/model".into(),
                 revision: "fixture".into(),
@@ -1833,6 +1990,7 @@ mod tests {
         )
         .unwrap();
         let mut rows = vec![Row {
+            output_fit: None,
             root: "fixture".into(),
             model: model.into(),
             revision: "fixture".into(),
@@ -1855,6 +2013,7 @@ mod tests {
     fn g12_recorded_length_response_is_truncated_in_root_outcomes() {
         let response = include_bytes!("../tests/fixtures/assist-openrouter/truncated-pilot.json");
         let row = Row {
+            output_fit: None,
             root: "fixture".into(),
             model: "google/gemini-3.8-flash".into(),
             revision: "absent".into(),
@@ -1966,9 +2125,94 @@ mod tests {
         );
     }
     #[test]
+    fn proven_output_fit_classifies_length_and_keeps_accounting_failures_fatal() {
+        let mut response: Value = serde_json::from_slice(include_bytes!(
+            "../tests/fixtures/assist-openrouter/truncated-pilot.json"
+        ))
+        .unwrap();
+        let hash = serde_json::to_value(Digest::of_bytes(b"fit")).unwrap();
+        let mut row = cross_citation_row("fit");
+        row.model = response["model"].as_str().unwrap().into();
+        row.payload["max_tokens"] = json!(4096);
+        row.payload["reasoning"] = json!({"max_tokens":1024});
+        row.payload["messages"][1]["content"][0]["text"] =
+            json!(json!({"request_hash":hash,"views":[]}).to_string());
+        row.output_fit = Some(
+            json!({"request_hash":hash,"rule":"utf8-bytes/1","margin":2,"passed":true,
+            "answer_bytes":805,"reasoning_hint":1024,"required_tokens":2634,"max_tokens":4096}),
+        );
+        let temp = tempfile::tempdir().unwrap();
+        assert_eq!(
+            stage2_outcome(
+                &row,
+                &serde_json::to_vec(&response).unwrap(),
+                temp.path(),
+                0
+            )
+            .unwrap(),
+            CallOutcome::InvalidAnswer("truncated_output")
+        );
+        let rows = [row];
+        let (outcomes, failed) = root_outcomes(
+            &rows,
+            Instant::now() + CALL_LIMIT,
+            false,
+            Some(AnswerLimits::default()),
+            Instant::now,
+            |_, _| {
+                stage2_outcome(
+                    &rows[0],
+                    &serde_json::to_vec(&response).unwrap(),
+                    temp.path(),
+                    0,
+                )
+            },
+        );
+        assert!(!failed);
+        assert_eq!(outcomes[0]["answer_reason"], "truncated_output");
+        let (continued, failed) = root_outcomes(
+            &rows,
+            Instant::now() + CALL_LIMIT,
+            false,
+            Some(AnswerLimits {
+                max_consecutive: 0,
+                ..AnswerLimits::default()
+            }),
+            Instant::now,
+            |_, _| {
+                stage2_outcome(
+                    &rows[0],
+                    &serde_json::to_vec(&response).unwrap(),
+                    temp.path(),
+                    0,
+                )
+            },
+        );
+        assert!(failed);
+        assert_eq!(continued[0]["safety_valve"], "consecutive_invalid_answers");
+
+        response["usage"]["total_tokens"] = json!(0);
+        assert!(
+            stage2_outcome(
+                &rows[0],
+                &serde_json::to_vec(&response).unwrap(),
+                temp.path(),
+                0
+            )
+            .is_err()
+        );
+        let mut row = rows.into_iter().next().unwrap();
+        row.output_fit.as_mut().unwrap()["answer_bytes"] = json!(2000);
+        assert!(!output_fits(&row));
+        row.output_fit.as_mut().unwrap()["answer_bytes"] = json!(805);
+        row.output_fit.as_mut().unwrap()["request_hash"] = json!("other");
+        assert!(!output_fits(&row));
+    }
+    #[test]
     fn stage2_mechanics_refuse_unbound_citations_and_geometry() {
         let hash = Digest::of_bytes(b"fixture");
         let row = Row {
+            output_fit: None,
             root: "fixture".into(),
             model: "google/gemini-3.8-flash".into(),
             revision: "absent".into(),
@@ -1993,11 +2237,12 @@ mod tests {
     fn epoch3_exclusion_citations_preserve_closed_same_slot_protocol() {
         let hash = Digest::of_bytes(b"invented-epoch3");
         let row = Row {
+            output_fit: None,
             root: "synthetic".into(),
             model: "google/gemini-3.8-flash".into(),
             revision: "absent".into(),
             payload: json!({"messages":[{}, {"content":[{"text":json!({"request_hash":hash,
-                "prompt_epoch":"g12-pilot/3", "views":[{"slot":"P1","regions":[
+                "prompt_epoch":"g12-pilot/4", "views":[{"slot":"P1","regions":[
                     {"id":"P1:R0"},{"id":"P1:R1","exclusion_id":"synthetic-exclusion"}]}]}).to_string()}]}]}),
         };
         let answer = json!({"request_hash":hash,"outcome":"observed","observations":[{
@@ -2063,6 +2308,7 @@ mod tests {
         let campaign_deadline = started + campaign_duration(true);
         let rows: Vec<_> = (0..300)
             .map(|i| Row {
+                output_fit: None,
                 root: format!("paced-{i}"),
                 model: "fixture/model".into(),
                 revision: "fixture".into(),
@@ -2146,6 +2392,7 @@ mod tests {
         .unwrap();
         let rows: Vec<_> = (0..10)
             .map(|i| Row {
+                output_fit: None,
                 root: format!("budget-{i}"),
                 model: model.into(),
                 revision: "absent".into(),
@@ -2252,6 +2499,7 @@ mod tests {
     }
     fn cross_citation_row(root: &str) -> Row {
         Row {
+            output_fit: None,
             root: root.into(),
             model: "google/gemini-3.8-flash".into(),
             revision: "absent".into(),

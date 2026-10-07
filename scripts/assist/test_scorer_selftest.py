@@ -44,6 +44,55 @@ class ScorerSelftestTests(unittest.TestCase):
                 self.assertEqual(inverted_result['status'],'FAIL')
                 self.assertTrue(any(w=='explain' and v=='perfect' for w,a,v in inverted_result['failures']))
 
+    def test_output_fit_gate_fails_for_an_insufficient_budget(self):
+        from dev_policy import output_fit
+        request=dict(max_tokens=4096,reasoning=dict(max_tokens=1024))
+        answer=dict(request_hash='bound', observations=['x'*2000])
+        self.assertFalse(output_fit(answer,request)['passed'])
+        with tempfile.TemporaryDirectory() as temp:
+            directory=Path(temp)
+            freeze(directory,5,4406,REVISION,'jev-1.13.0',True)
+            manifest,oracle=verify(directory)
+            manifest['cases']=[c for c in manifest['cases'] if c['split']=='development']
+            from dev_policy import payload as actual
+            def short(*args,**kwargs):
+                value=actual(*args,**kwargs);value['max_tokens']=100;return value
+            with patch('dev_policy.payload',side_effect=short):
+                result=proof(manifest,oracle,directory)
+            self.assertEqual(result['status'],'FAIL')
+            self.assertTrue(any(a=='output_budget' for w,a,v in result['failures']))
+
+    def test_epoch4_names_candidate_and_keeps_per_image_examples(self):
+        from dev_policy import INSTRUCTION, PROMPT_EPOCH, PROMPT_POLICY
+        from scorer_selftest import perfect
+        self.assertEqual(PROMPT_EPOCH, 'g12-pilot/4')
+        self.assertEqual(PROMPT_POLICY, 'assist-openrouter-task-evidence/4')
+        self.assertIn('appearance:unchanged', INSTRUCTION)
+        self.assertIn('Report BOTH on candidate_slot', INSTRUCTION)
+        self.assertIn('Other statements stay per image/slot', INSTRUCTION)
+        self.assertIn('check_ui: slot P1, kind text', INSTRUCTION)
+        self.assertIn('explain: slot P2, kind appearance', INSTRUCTION)
+        self.assertIn('audit_mask: slot P2, kind appearance', INSTRUCTION)
+        with tempfile.TemporaryDirectory() as temp:
+            directory = Path(temp)
+            freeze(directory, 5, 4406, REVISION, 'jev-1.13.0', True)
+            manifest, oracle = verify(directory)
+            cases = [c for c in manifest['cases'] if c['split'] == 'development'
+                     and c['complete'] and c['task'] != 'check_ui']
+            self.assertTrue(cases)
+            for case in cases:
+                answers = []
+                for order, slot in (('ab', 'P2'), ('ba', 'P1')):
+                    data = json.loads(payload(case, order, False, directory)['messages'][1]['content'][0]['text'])
+                    self.assertEqual(data['candidate_slot'], slot)
+                    self.assertEqual(data['prompt_epoch'], PROMPT_EPOCH)
+                    answer = perfect(case, oracle[case['root_id']], directory, order)
+                    for observation in answer['observations']:
+                        self.assertEqual(observation['slot'], slot)
+                        self.assertTrue(all(ref.startswith(slot + ':') for ref in observation['evidence_refs']))
+                    answers.append(normalize(answer, case, order))
+                self.assertTrue(semantic({False: answers}, case, oracle[case['root_id']], directory, True)['correct'])
+
     def test_unselected_oracle_values_are_never_decoded(self):
         document=dict(schema='synthetic',cases={'dev':{'public':'development'},'held':{'secret':'DO_NOT_DECODE'}})
         raw=encoded(document)+b'\n'

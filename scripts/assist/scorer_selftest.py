@@ -81,9 +81,9 @@ def validate_closed(answer, case, order, child, directory):
 
 def proof(manifest, oracle, directory):
     from stage2 import ARMS
-    from dev_policy import normalize
+    from dev_policy import normalize, payload, output_fit, PROMPT_EPOCH, PROMPT_POLICY
     from pilot_score import semantic, summarize
-    groups=defaultdict(list); legacy=defaultdict(list)
+    groups=defaultdict(list); legacy=defaultdict(list); budgets=[]
     variants=('perfect','missing','hallucinated','wrong_text','wrong_geometry','wrong_order')
     for case in manifest['cases']:
         if case['split']!='development': raise ValueError('selftest accepts development roots only')
@@ -96,7 +96,10 @@ def proof(manifest, oracle, directory):
             for child in (False,True) if case.get('counterfactual') else (False,):
                 answers[child]=[perfect(case,truth,directory,o,child) for o in orders]
             for child, order_answers in answers.items():
-                for order, answer in zip(orders,order_answers):validate_closed(answer,case,order,child,directory)
+                for order, answer in zip(orders,order_answers):
+                    validate_closed(answer,case,order,child,directory)
+                    budgets.append(dict(workload=case['workload'],root=case['root_id'],order=order,child=child,
+                        **output_fit(answer, payload(case,order,child,directory))))
             for variant in variants:
                 values=copy.deepcopy(answers)
                 if variant=='missing': values={False:[None]}
@@ -134,6 +137,8 @@ def proof(manifest, oracle, directory):
                     old_result.update(important=truth['important'],root=case['root_id'])
                     legacy[(case['workload'],arm)].append(old_result)
     rows=[]; failed=[]
+    worst=[max((b for b in budgets if b['workload']==w),key=lambda b:b['answer_bytes']) for w in sorted({b['workload'] for b in budgets})]
+    failed.extend(sorted({(b['workload'],'output_budget','fit') for b in budgets if not b['passed']}))
     for (workload,arm,variant),items in sorted(groups.items()):
         m=summarize(items,[])
         flagged=sum(not i['correct'] and not (variant=='perfect' and i['abstention']) for i in items)
@@ -149,9 +154,11 @@ def proof(manifest, oracle, directory):
     quality_proof=quality_selftest()
     if quality_proof['status'] != 'PASS': failed.append(('image-quality','offline','gate'))
     return dict(judge_gate=judge_proof,image_quality=quality_proof,schema='saccade-scorer-selftest.v1',status='FAIL' if failed else 'PASS',
+        prompt_epoch=PROMPT_EPOCH,prompt_policy=PROMPT_POLICY,
         development_roots=len(manifest['cases']),provider_calls=0,heldout_entries_decoded=0,
         evidence='Synthetic oracle-injected closed-protocol answers through dev_policy.normalize and pilot_score.semantic (score.assertion_correct/task_evidence). All arms are injections, not provider/routing performance.',
         unavailable='Unavailable roots correctly abstain, excluded from precision; important recall keeps all challenge roots. Negative cases must be wrong or unavailable, never accepted.',
+        output_budget=worst,output_budget_rule='UTF-8 bytes as tokens (at least one per character); 2x answer + reasoning hint <= max_tokens',
         rows=rows,failures=failed,legacy_perfect=[dict(workload=w,arm=a,**{k:summarize(items,[])[k] for k in ('precision','important_change_recall','false_reassurance')}) for (w,a),items in sorted(legacy.items())])
 
 
@@ -162,6 +169,9 @@ def markdown(result):
     pct=lambda v:'withheld' if v is None else f'{100*v:.0f}%'
     for r in result['rows']:
         lines.append(f"| {r['workload']} | {r['arm']} | {r['variant']} | {pct(r['precision'])} | {pct(r['important_recall'])} | {r['false_reassurance']} | {r['flagged_roots']}/{r['roots']} | {r['passed']} |")
+    lines += ['', '## Output fit', '', result['output_budget_rule'], '', '| Workload | Answer bytes/tokens | 2x answer + hint | Budget | Pass |', '|---|---:|---:|---:|---|']
+    for b in result['output_budget']:
+        lines.append(f"| {b['workload']} | {b['answer_bytes']} | {b['required_tokens']} | {b['max_tokens']} | {b['passed']} |")
     lines += ['', '## Legacy oracle-perfect diagnostic', '', '| Workload | Arm | Precision | Important recall | False reassurance |', '|---|---|---:|---:|---:|']
     for r in result['legacy_perfect']:
         lines.append(f"| {r['workload']} | {r['arm']} | {pct(r['precision'])} | {pct(r['important_change_recall'])} | {r['false_reassurance']} |")
