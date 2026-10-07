@@ -1,0 +1,418 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "saccade-print.v1",
+  "title": "ICC-managed print comparison",
+  "type": "object",
+  "required": [
+    "schema",
+    "report_id",
+    "source_refs",
+    "operation",
+    "verdict",
+    "width",
+    "height",
+    "pixels",
+    "inputs",
+    "profiles",
+    "policy",
+    "delta_e2000",
+    "separations_percent",
+    "sides",
+    "limitations"
+  ],
+  "properties": {
+    "schema": {
+      "const": "saccade-print.v1"
+    },
+    "report_id": {
+      "type": "string",
+      "pattern": "^sha256:[0-9a-f]{64}$"
+    },
+    "source_refs": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "operation": {
+      "const": "print_compare"
+    },
+    "verdict": {
+      "const": "measured"
+    },
+    "width": {
+      "type": "integer",
+      "minimum": 1
+    },
+    "height": {
+      "type": "integer",
+      "minimum": 1
+    },
+    "pixels": {
+      "type": "integer",
+      "minimum": 1
+    },
+    "inputs": {
+      "type": "object",
+      "properties": {
+        "reference_sha256": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$"
+        },
+        "candidate_sha256": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$"
+        }
+      },
+      "required": [
+        "reference_sha256",
+        "candidate_sha256"
+      ],
+      "additionalProperties": false
+    },
+    "profiles": {
+      "type": "object",
+      "properties": {
+        "reference": {
+          "$ref": "#/$defs/profile"
+        },
+        "candidate": {
+          "$ref": "#/$defs/profile"
+        },
+        "output_sha256": {
+          "anyOf": [
+            {
+              "type": "string",
+              "pattern": "^[0-9a-f]{64}$"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      },
+      "required": [
+        "reference",
+        "candidate",
+        "output_sha256"
+      ],
+      "additionalProperties": false
+    },
+    "policy": {
+      "type": "object",
+      "properties": {
+        "comparison_space": {
+          "const": "CIELAB D50"
+        },
+        "intent": {
+          "const": "relative_colorimetric"
+        },
+        "black_point_compensation": {
+          "const": false
+        },
+        "alpha": {
+          "const": "ink coverage on unprinted paper"
+        },
+        "tac_limit_percent": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 400
+        },
+        "dpi": {
+          "type": "number",
+          "minimum": 36,
+          "maximum": 2400
+        },
+        "small_text_points": {
+          "type": "number",
+          "minimum": 1,
+          "maximum": 72
+        },
+        "heatmap_saturation_delta_e2000": {
+          "const": 10.0
+        },
+        "cmm": {
+          "const": "Little CMS"
+        },
+        "cmm_version": {
+          "type": "integer"
+        }
+      },
+      "required": [
+        "comparison_space",
+        "intent",
+        "black_point_compensation",
+        "alpha",
+        "tac_limit_percent",
+        "dpi",
+        "small_text_points",
+        "heatmap_saturation_delta_e2000",
+        "cmm",
+        "cmm_version"
+      ],
+      "additionalProperties": false
+    },
+    "delta_e2000": {
+      "$ref": "#/$defs/statistics"
+    },
+    "separations_percent": {
+      "type": "object",
+      "properties": {
+        "c": {
+          "$ref": "#/$defs/statistics"
+        },
+        "m": {
+          "$ref": "#/$defs/statistics"
+        },
+        "y": {
+          "$ref": "#/$defs/statistics"
+        },
+        "k": {
+          "$ref": "#/$defs/statistics"
+        }
+      },
+      "required": [
+        "c",
+        "m",
+        "y",
+        "k"
+      ],
+      "additionalProperties": false
+    },
+    "sides": {
+      "type": "object",
+      "properties": {
+        "reference": {
+          "$ref": "#/$defs/side"
+        },
+        "candidate": {
+          "$ref": "#/$defs/side"
+        }
+      },
+      "required": [
+        "reference",
+        "candidate"
+      ],
+      "additionalProperties": false
+    },
+    "limitations": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    }
+  },
+  "additionalProperties": false,
+  "$defs": {
+    "statistics": {
+      "type": "object",
+      "properties": {
+        "mean": {
+          "type": "number",
+          "minimum": 0
+        },
+        "p50": {
+          "type": "number",
+          "minimum": 0
+        },
+        "p95": {
+          "type": "number",
+          "minimum": 0
+        },
+        "p99": {
+          "type": "number",
+          "minimum": 0
+        },
+        "max": {
+          "type": "number",
+          "minimum": 0
+        }
+      },
+      "required": [
+        "mean",
+        "p50",
+        "p95",
+        "p99",
+        "max"
+      ],
+      "additionalProperties": false
+    },
+    "side": {
+      "type": "object",
+      "properties": {
+        "tac_percent": {
+          "$ref": "#/$defs/statistics"
+        },
+        "over_limit_pixels": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "over_limit_share": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 1
+        },
+        "out_of_gamut": {
+          "oneOf": [
+            {
+              "type": "object",
+              "properties": {
+                "state": {
+                  "const": "not_requested"
+                }
+              },
+              "required": [
+                "state"
+              ],
+              "additionalProperties": false
+            },
+            {
+              "type": "object",
+              "properties": {
+                "state": {
+                  "const": "measured"
+                },
+                "method": {
+                  "type": "string"
+                },
+                "share": {
+                  "type": "number",
+                  "minimum": 0,
+                  "maximum": 1
+                }
+              },
+              "required": [
+                "state",
+                "method",
+                "share"
+              ],
+              "additionalProperties": false
+            }
+          ]
+        },
+        "registration_sensitive_marks": {
+          "type": "object",
+          "properties": {
+            "candidates": {
+              "type": "array",
+              "maxItems": 10000,
+              "items": {
+                "type": "object",
+                "properties": {
+                  "rect": {
+                    "type": "array",
+                    "minItems": 4,
+                    "maxItems": 4,
+                    "items": {
+                      "type": "integer",
+                      "minimum": 0
+                    }
+                  },
+                  "pixels": {
+                    "type": "integer",
+                    "minimum": 2
+                  },
+                  "height_points": {
+                    "type": "number",
+                    "minimum": 0
+                  },
+                  "kind": {
+                    "const": "small_four_colour_mark"
+                  },
+                  "interpretation": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "rect",
+                  "pixels",
+                  "height_points",
+                  "kind",
+                  "interpretation"
+                ],
+                "additionalProperties": false
+              }
+            },
+            "limit": {
+              "const": 10000
+            },
+            "truncated": {
+              "type": "boolean"
+            },
+            "ink_thresholds_percent": {
+              "type": "object",
+              "properties": {
+                "c": {
+                  "const": 5
+                },
+                "m": {
+                  "const": 5
+                },
+                "y": {
+                  "const": 5
+                },
+                "k": {
+                  "const": 50
+                }
+              },
+              "required": [
+                "c",
+                "m",
+                "y",
+                "k"
+              ],
+              "additionalProperties": false
+            }
+          },
+          "required": [
+            "candidates",
+            "limit",
+            "truncated",
+            "ink_thresholds_percent"
+          ],
+          "additionalProperties": false
+        }
+      },
+      "required": [
+        "tac_percent",
+        "over_limit_pixels",
+        "over_limit_share",
+        "out_of_gamut",
+        "registration_sensitive_marks"
+      ],
+      "additionalProperties": false
+    },
+    "profile": {
+      "type": "object",
+      "properties": {
+        "sha256": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$"
+        },
+        "source": {
+          "enum": [
+            "embedded",
+            "explicit"
+          ]
+        },
+        "embedded_sha256": {
+          "anyOf": [
+            {
+              "type": "string",
+              "pattern": "^[0-9a-f]{64}$"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      },
+      "required": [
+        "sha256",
+        "source",
+        "embedded_sha256"
+      ],
+      "additionalProperties": false
+    }
+  }
+}

@@ -37,7 +37,7 @@ pub(crate) fn installed(id: &str) -> Option<PathBuf> {
     if let Some(root) = std::env::var_os("SACCADE_SCHEMA_DIR") {
         roots.insert(0, root.into());
     }
-    let embedded = schema_catalog::get(id).ok()?;
+    let embedded = schema_text(id).ok()?;
     roots
         .into_iter()
         .map(|r| r.join(format!("{id}.schema.json")))
@@ -45,13 +45,23 @@ pub(crate) fn installed(id: &str) -> Option<PathBuf> {
             saccade_core::evidence_quality::read(p, 4 << 20).is_ok_and(|b| b == embedded.as_bytes())
         })
 }
+fn schema_text(id: &str) -> Result<&'static str, CliError> {
+    #[cfg(feature = "print")]
+    if id == saccade_print::SCHEMA {
+        return Ok(saccade_print::JSON_SCHEMA);
+    }
+    Ok(schema_catalog::get(id)?)
+}
 pub(crate) fn run(args: Args) -> Result<u8, CliError> {
     match args.operation {
         Operation::List { json } => {
-            let ids: Vec<_> = schema_catalog::DOCUMENTS
+            #[allow(unused_mut)]
+            let mut ids: Vec<_> = schema_catalog::DOCUMENTS
                 .iter()
                 .map(|(id, _)| *id)
                 .collect();
+            #[cfg(feature = "print")]
+            ids.push(saccade_print::SCHEMA);
             if json {
                 crate::emit(&format!(
                     "{}\n",
@@ -66,7 +76,7 @@ pub(crate) fn run(args: Args) -> Result<u8, CliError> {
             out,
             json: _json,
         } => {
-            let text = schema_catalog::get(&id)?;
+            let text = schema_text(&id)?;
             if let Some(out) = out {
                 write_new(&out, text.as_bytes())?;
             } else {
@@ -74,7 +84,7 @@ pub(crate) fn run(args: Args) -> Result<u8, CliError> {
             }
         }
         Operation::Path { id, json } => {
-            schema_catalog::get(&id)?;
+            schema_text(&id)?;
             let path = installed(&id);
             if json {
                 crate::emit(&format!(

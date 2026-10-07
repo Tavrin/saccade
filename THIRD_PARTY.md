@@ -747,3 +747,52 @@ NumPy distribution's `licenses/LICENSE.txt`; arrays use its public Python API,
 without new Rust native dependencies. NumPy is distributed separately and its
 wheel contains its own notices. `jsonschema` 0.30 was already used by schema tests;
 the CLI now uses that same MIT-licensed dependency for embedded perf validation.
+
+## Print extension dependencies (G28)
+
+Optional `print` uses the following newly resolved dependencies. Licence metadata
+was checked in the exact downloaded crate sources recorded by Cargo.lock.
+
+| Crate | Version | Licence |
+| --- | --- | --- |
+| aes | 0.9.3 | MIT OR Apache-2.0 |
+| block-padding | 0.4.2 | MIT OR Apache-2.0 |
+| brotli-decompressor | 5.0.3 | BSD-3-Clause/MIT |
+| cbc | 0.2.1 | MIT OR Apache-2.0 |
+| chacha20 | 0.10.2 | MIT OR Apache-2.0 |
+| cipher | 0.5.2 | MIT OR Apache-2.0 |
+| core_detect | 1.0.0 | MIT/Apache-2.0 |
+| cpubits | 0.1.1 | MIT OR Apache-2.0 |
+| ecb | 0.2.1 | MIT OR Apache-2.0 |
+| encoding_rs | 0.8.42 | (Apache-2.0 OR MIT) AND BSD-3-Clause |
+| fax | 0.2.7 | MIT |
+| foreign-types | 0.5.0 | MIT/Apache-2.0 |
+| foreign-types-macros | 0.2.4 | MIT/Apache-2.0 |
+| foreign-types-shared | 0.3.1 | MIT/Apache-2.0 |
+| inout | 0.2.2 | MIT OR Apache-2.0 |
+| jpeg-decoder | 0.3.2 | MIT OR Apache-2.0 |
+| lcms2 | 6.1.1 | MIT |
+| lcms2-sys | 4.0.7 | MIT |
+| lopdf | 0.45.0 | MIT |
+| md-5 | 0.11.0 | MIT OR Apache-2.0 |
+| multiversion_no_op | 1.0.0 | Apache-2.0 OR MIT |
+| rand | 0.10.3 | MIT OR Apache-2.0 |
+| rand_core | 0.10.1 | MIT OR Apache-2.0 |
+| rangemap | 1.8.0 | MIT/Apache-2.0 |
+| simdutf8 | 0.1.5 | MIT OR Apache-2.0 |
+| stringprep | 0.1.5 | MIT/Apache-2.0 |
+| tiff | 0.11.3 | MIT |
+| unicode-normalization | 0.1.25 | MIT OR Apache-2.0 |
+| unicode-properties | 0.1.4 | MIT/Apache-2.0 |
+| weezl | 0.2.1 | MIT OR Apache-2.0 |
+
+Additional reused direct dependencies: `image` (MIT OR Apache-2.0),
+`serde_json` (MIT OR Apache-2.0), `thiserror` (MIT OR Apache-2.0); project
+`saccade-core` and test-only `tempfile` (MIT OR Apache-2.0), and test-only `jsonschema 0.30.0` (MIT).
+`lcms2-sys` statically builds its bundled Little CMS, licensed MIT. Its upstream
+licence is in the crate's `vendor/LICENSE`. No system CMM package is required.
+Original procedural ICC profiles, TIFF/PDF fixtures and the constant CMYK JPEG
+fixture are MIT OR Apache-2.0; no third-party ICC profile is redistributed.
+`jpeg-encoder` was considered for fixture generation and rejected because its
+compound IJG licence is outside this lane's explicitly enumerated licences; it is
+not a dependency. Pillow was used only to generate the original constant JPEG.

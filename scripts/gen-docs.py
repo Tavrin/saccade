@@ -43,9 +43,9 @@ def generated(binary=None, allow_missing_imgtune_avif=False):
         f'[{count} reproducible cases](showcases/README.md) with commands, expected exits and measured output.\n'
         '[Pages gallery](https://tavrin.github.io/saccade/showcase/).')
     schemas = []
-    for source in sorted((ROOT / 'crates/saccade-core/schemas').glob('*.schema.json')):
+    for source in sorted((ROOT / 'crates').glob('*/schemas/*.schema.json')):
         data = json.loads(source.read_text(encoding="utf-8"))
-        schemas.append(f'- [{source.name}](../crates/saccade-core/schemas/{source.name}) — {data.get("title", "Historical reader contract")}')
+        schemas.append(f'- [{source.name}](../{source.relative_to(ROOT).as_posix()}) — {data.get("title", "Historical reader contract")}')
     packs['docs/contracts.md'] = replace_section((ROOT / 'docs/contracts.md').read_text(encoding="utf-8"), 'schema-index', '\n'.join(schemas))
     lines = ['# Reproducible showcases', '', f'{count} cases discovered from `*/commands.json`.', '',
         'Generate with `python3 scripts/gen-showcases.py` and `python3 scripts/gen-photosensitivity.py`.',

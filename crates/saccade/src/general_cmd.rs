@@ -402,6 +402,8 @@ pub(crate) fn tool_schema() -> Value {
     let registration = tool["inputSchema"].take();
     let mut variants = vec![registration];
     variants.extend(crate::documents_cmd::schemas());
+    #[cfg(feature = "print")]
+    variants.push(crate::print_cmd::schema());
     variants.extend(crate::hash_cmd::schemas());
     variants.extend(crate::embedding_cmd::schemas());
     variants.extend(crate::text_cmd::schemas());

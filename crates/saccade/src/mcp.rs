@@ -1603,6 +1603,52 @@ impl Server {
     fn wave6_tool(&self, args: &Map<String, Value>) -> ToolResult {
         use clap::ValueEnum;
         let operation = require_str(args, "operation")?;
+        #[cfg(feature = "print")]
+        if operation == "print_compare" {
+            reject_unknown(
+                args,
+                &[
+                    "operation",
+                    "reference",
+                    "capture",
+                    "out",
+                    "input_profile",
+                    "output_profile",
+                    "tac_limit",
+                    "dpi",
+                    "small_text_points",
+                ],
+            )?;
+            let a = self.existing_file("reference", &require_str(args, "reference")?)?;
+            let b = self.existing_file("capture", &require_str(args, "capture")?)?;
+            let input_profile = arg_str(args, "input_profile")?
+                .map(|p| self.existing_file("input_profile", &p))
+                .transpose()?;
+            let output_profile = arg_str(args, "output_profile")?
+                .map(|p| self.existing_file("output_profile", &p))
+                .transpose()?;
+            let mut inputs = vec![a.as_path(), b.as_path()];
+            inputs.extend(input_profile.as_deref());
+            inputs.extend(output_profile.as_deref());
+            let out = self.checked_out_dir(&require_str(args, "out")?, &inputs)?;
+            crate::general_cmd::prepare_out(&out, &inputs)?;
+            let options = saccade_print::Options {
+                input_profile,
+                output_profile,
+                tac_limit: arg_f64(args, "tac_limit")?
+                    .ok_or_else(|| CliError::usage("tac_limit is required"))?,
+                dpi: arg_f64(args, "dpi")?.ok_or_else(|| CliError::usage("dpi is required"))?,
+                small_text_points: arg_f64(args, "small_text_points")?.unwrap_or(12.),
+            };
+            let value = saccade_print::compare(&a, &b, &out, &options)
+                .map_err(|e| CliError::new(e.code(), e.to_string()))?;
+            saccade_core::report_links::write(&out.join("saccade-print.v1.json"), &value)?;
+            return Ok(ToolOutput {
+                structured: value,
+                text: "ICC-managed CMYK raster evidence; no press certification.".into(),
+                images: vec![],
+            });
+        }
         if operation == "capabilities" {
             reject_unknown(args, &["operation"])?;
             return Ok(ToolOutput {
