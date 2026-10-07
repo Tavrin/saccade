@@ -47,9 +47,9 @@ Read mask and excluded-error audits.
 `assess` is content-dependent; `inspect-image` reports provenance/C2PA, never authenticity.
 [Comparator](../docs/choosing-a-comparison.md).
 
-`models list` shows pins; inference needs a runtime/verified cache, no implicit pulls. `locate`, `faces`, `crop-check`, `quality-score`, `watermark`
-and observations are advice, never verdict overrides.
-[Vision](../docs/wave7.md): features, replay, qualification.
+`models list` shows pins; inference needs cached models/runtime and never pulls.
+Vision commands/observations are advice, never verdict overrides.
+[Vision](../docs/wave7.md). [TrustMark](../docs/trustmark.md): `watermark --trustmark` verifies BCH payloads.
 
 [Rendering](../docs/render-evidence.md): read `required_effects[].failures`
 even at zero FLIP. Declare experiment keys; opt into spatial/layer/fixed-camera

@@ -1,0 +1,222 @@
+{
+  "$defs": {
+    "Provenance": {
+      "additionalProperties": false,
+      "description": "Explicit model/export attribution on every observation.",
+      "properties": {
+        "artifact_sha256": {
+          "description": "Exact consumed export/auxiliary hashes.",
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "input_resolution": {
+          "description": "Actual graph input size.",
+          "items": {
+            "format": "uint32",
+            "minimum": 0,
+            "type": "integer"
+          },
+          "maxItems": 2,
+          "minItems": 2,
+          "type": "array"
+        },
+        "model_id": {
+          "description": "Model id (or generated fixture id).",
+          "type": "string"
+        },
+        "resolution_handling": {
+          "description": "How original resolution was handled.",
+          "type": "string"
+        },
+        "runtime": {
+          "description": "onnx-cpu, replay, or external-http; replay is always marked unqualified.",
+          "type": "string"
+        },
+        "source_parity": {
+          "description": "Source-model/export parity, independent of successful graph loading.",
+          "type": "boolean"
+        },
+        "version": {
+          "description": "Exact model/checkpoint version.",
+          "type": "string"
+        }
+      },
+      "required": [
+        "model_id",
+        "version",
+        "artifact_sha256",
+        "runtime",
+        "input_resolution",
+        "resolution_handling",
+        "source_parity"
+      ],
+      "type": "object"
+    },
+    "WatermarkEcc": {
+      "additionalProperties": false,
+      "description": "Error correction evidence, independent of calibrated confidence or authenticity.",
+      "properties": {
+        "corrected_bits": {
+          "description": "Corrected data/ECC bit count; unknown on failure. Schema bits are not BCH protected.",
+          "format": "uint8",
+          "maximum": 255,
+          "minimum": 0,
+          "type": [
+            "integer",
+            "null"
+          ]
+        },
+        "max_correctable_bits": {
+          "description": "This schema's maximum correctable data/ECC errors.",
+          "format": "uint8",
+          "maximum": 255,
+          "minimum": 0,
+          "type": "integer"
+        },
+        "status": {
+          "description": "valid (zero corrections), corrected, or failed.",
+          "type": "string"
+        },
+        "variant": {
+          "description": "BCH_SUPER, BCH_5, BCH_4 or BCH_3, selected by the two transmitted schema bits.",
+          "type": "string"
+        }
+      },
+      "required": [
+        "variant",
+        "status",
+        "max_correctable_bits"
+      ],
+      "type": "object"
+    },
+    "WatermarkFinding": {
+      "additionalProperties": false,
+      "description": "Independent outcome for one compatible scheme.",
+      "properties": {
+        "confidence": {
+          "description": "Decoder score, not authenticity probability; unknown when unavailable.",
+          "format": "float",
+          "type": [
+            "number",
+            "null"
+          ]
+        },
+        "ecc": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/WatermarkEcc"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "TrustMark error correction outcome; absent for other schemes or unavailable models."
+        },
+        "interpretation": {
+          "description": "Meaning and limitations of this particular decoder's evidence.",
+          "type": "string"
+        },
+        "payload_bits": {
+          "description": "Exact verified payload bits, preserving non-byte-aligned TrustMark capacities.",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "payload_hex": {
+          "description": "Recovered payload bytes, hex encoded; absent when not verified/matched.",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "provenance": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Provenance"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "Exact model/runtime/export attribution when a model is involved."
+        },
+        "schema_value": {
+          "description": "Verified TrustMark data schema (0..3); absent after ECC failure or unavailability.",
+          "format": "uint8",
+          "maximum": 255,
+          "minimum": 0,
+          "type": [
+            "integer",
+            "null"
+          ]
+        },
+        "scheme": {
+          "description": "Decoder scheme/variant/ECC identity, not inferred generator identity.",
+          "type": "string"
+        },
+        "status": {
+          "description": "detected, not_detected, or unavailable.",
+          "type": "string"
+        }
+      },
+      "required": [
+        "scheme",
+        "status",
+        "interpretation"
+      ],
+      "type": "object"
+    }
+  },
+  "$id": "https://github.com/Tavrin/saccade/crates/saccade-core/schemas/saccade-watermark.v4.schema.json",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "description": "Combinable watermark evidence for wave 6 inspect-image (C2PA stays independent).",
+  "properties": {
+    "absence_limit": {
+      "description": "No detection is never evidence of human origin.",
+      "type": "string"
+    },
+    "findings": {
+      "description": "Independent scheme findings, including unavailable primary decoder.",
+      "items": {
+        "$ref": "#/$defs/WatermarkFinding"
+      },
+      "type": "array"
+    },
+    "image_sha256": {
+      "description": "Exact image digest.",
+      "type": "string"
+    },
+    "report_id": {
+      "pattern": "^sha256:[0-9a-f]{64}$",
+      "type": "string"
+    },
+    "schema": {
+      "const": "saccade-watermark.v4",
+      "description": "WATERMARK_SCHEMA.",
+      "type": "string"
+    },
+    "source_refs": {
+      "items": {
+        "maxLength": 2048,
+        "minLength": 1,
+        "type": "string"
+      },
+      "maxItems": 128,
+      "type": "array"
+    }
+  },
+  "required": [
+    "schema",
+    "image_sha256",
+    "findings",
+    "absence_limit",
+    "report_id",
+    "source_refs"
+  ],
+  "title": "WatermarkReport",
+  "type": "object"
+}

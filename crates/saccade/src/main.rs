@@ -2122,6 +2122,7 @@ fn doctor(json: bool) -> Result<u8, CliError> {
     ]);
     if cfg!(feature = "local-models") {
         capabilities.push("onnx-cpu-adapter-v1");
+        capabilities.push("trustmark-q-bch-v1");
     }
     if cfg!(feature = "local-vlm") {
         capabilities.push("local-vlm-http-v1");
@@ -2165,7 +2166,7 @@ fn doctor(json: bool) -> Result<u8, CliError> {
         "capabilities": capabilities,
         "schemas": {
             // wave7
-            "local_vision": ["saccade-model-registry.v1", "saccade-model-status.v1", "saccade-locate.v1", "saccade-vision-observation.v1", "saccade-learned-quality.v1", "saccade-watermark.v1", "saccade-faces.v1", "saccade-crop-check.v1", "saccade-provider-mapping.v1"],
+            "local_vision": ["saccade-model-registry.v1", "saccade-model-status.v1", "saccade-locate.v1", "saccade-vision-observation.v1", "saccade-learned-quality.v1", saccade_core::wave7::watermark::WATERMARK_SCHEMA, "saccade-faces.v1", "saccade-crop-check.v1", "saccade-provider-mapping.v1"],
             "report": ["saccade-report.v1"],
             "result": ["saccade-result.v1", "saccade-result.v2"],
             "evidence": ["saccade-evidence.v1"],
@@ -2364,6 +2365,8 @@ fn parse_contract<T: serde::de::DeserializeOwned>(
     let value: serde_json::Value = serde_json::from_slice(bytes)?;
     if let Some(actual) = value.get("schema").and_then(|v| v.as_str())
         && saccade_core::report_links::original_schema(actual) != schema
+        && !(schema == saccade_core::wave7::watermark::WATERMARK_SCHEMA
+            && saccade_core::report_links::original_schema(actual) == "saccade-watermark.v1")
         && !(schema == "saccade-report.v1" && actual == "flipdiff-report.v1")
     {
         let prefix = schema
@@ -2485,15 +2488,20 @@ fn reject_newer_nested_schemas(value: &serde_json::Value) -> Result<(), CliError
                     "saccade-asset-views.v",
                     "saccade-asset-view-report.v",
                 ] {
+                    let supported = if prefix == "saccade-watermark.v" {
+                        3
+                    } else {
+                        1
+                    };
                     if saccade_core::report_links::original_schema(actual)
                         .strip_prefix(prefix)
                         .and_then(|v| v.parse::<u32>().ok())
-                        .is_some_and(|v| v > 1)
+                        .is_some_and(|v| v > supported)
                     {
                         return Err(CliError::new(
                             "version_skew",
                             format!(
-                                "written by {actual}; installed saccade supports up to {prefix}1, upgrade"
+                                "written by {actual}; installed saccade supports up to {prefix}{supported}, upgrade"
                             ),
                         ));
                     }
@@ -3012,7 +3020,7 @@ mod wave3_schema_tests {
             "saccade-asset-views",
             "saccade-asset-view-report",
         ] {
-            let legacy = format!("{id}.v1");
+            let legacy = format!("{id}.v{}", if id == "saccade-watermark" { 3 } else { 1 });
             let linked = saccade_core::report_links::linked_schema(&legacy);
             // A linked successor is supported; the next unknown version is not.
             for schema in [&legacy, linked] {

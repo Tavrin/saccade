@@ -210,7 +210,7 @@ score does not prove correctness or that a difference is invisible.
 | Safety/accessibility prechecks | Experimental checks; no certification or formal compliance. |
 | AI assist, Jev support and routing ([Jev](https://typesafe.ai) is a decision model from TypeSafe), blind-order handling | Unqualified in this release; experimental. |
 | LPIPS, DISTS, MUSIQ (`quality-score`) | Runs only a reviewed export you supply (`local-models` build, pulled runtime); no pinned checkpoint ships or downloads by default, so a stock install exits 2 with the missing piece named. |
-| TrustMark payload decoding | Unavailable; neural-only TrustMark inference does not decode payloads. |
+| TrustMark payload decoding | Optional local TrustMark Q decoder with verified payload bits, BCH schema and correction status. See [TrustMark](docs/trustmark.md). |
 
 ## AI layer
 
@@ -236,7 +236,7 @@ and the [release guide](docs/releasing.md).
   execution, not production accuracy or export parity.
 - GI occupancy uses supplied masks/layers as a proxy; it does not prove physical
   illumination, causality or correct rendering.
-- LPIPS, DISTS and MUSIQ have no shipped checkpoints (`quality-score` needs your reviewed export); TrustMark payload decoding is unavailable.
+- LPIPS, DISTS and MUSIQ have no shipped checkpoints (`quality-score` needs your reviewed export); TrustMark Q decoding requires explicitly provisioned local models.
 - Captures define the evidence scope. Equal images do not establish application
   correctness, and perceptual passes do not establish native sample identity.
 - Performance conclusions need matched workload, clocks, warmup and repeat noise.

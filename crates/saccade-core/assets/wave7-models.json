@@ -356,18 +356,18 @@
       "source_url": "https://github.com/adobe/trustmark",
       "runtime": "onnx",
       "input": {
-        "adapter": "trustmark-q-v1",
-        "preprocessing": "Q RGB/255 256x256; center-square crop only outside aspect[0.5,2]; triangle resize (upstream antialiased resizer not qualified); 100 logits>=0; BCH decoding deferred, no watermark presence claim",
+        "adapter": "trustmark-q-bch-v1",
+        "preprocessing": "Q RGB*2/255-1 256x256; center-square crop only outside aspect[0.5,2]; antialiased triangle resize; logits>0; BCH schemas 0/1/2/3, polynomial 137; no schema guessing; ECC-verified payloads only",
         "resolution": [
           256,
           256
         ],
         "color": "RGB",
-        "scale": 0.00392156862745098,
+        "scale": 0.00784313725490196,
         "mean": [
-          0,
-          0,
-          0
+          1,
+          1,
+          1
         ],
         "std": [
           1,

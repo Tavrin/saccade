@@ -388,6 +388,7 @@ impl Registry {
                         | "owlv2-v1"
                         | "efficientsam-v1"
                         | "trustmark-q-v1"
+                        | "trustmark-q-bch-v1"
                 )
                 || !matches!(i.color.as_str(), "RGB" | "BGR")
                 || !i.scale.is_finite()

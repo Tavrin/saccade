@@ -662,8 +662,11 @@ not vendored. Static linking and ort `download-binaries` are not enabled.
 TrustMark Q decoder: upstream research explicitly records MIT coverage for
 repository code and downloaded model files. Its authorized **mutable** Adobe URL
 is integrity pinned to locally measured SHA-256, not described as an immutable
-export revision. Exporter identity, upstream resizer/ECC and sample parity remain
-unqualified. SAM2 tagged README explicitly covers official checkpoints under
+export revision. The [current licence decision](docs/design-decisions/trustmark-decode.md)
+refreshes the code/model MIT grant against a pinned upstream commit. Reference
+encoder fixtures are generated MIT images; BCH code is independently implemented
+from the reference layout, without new crate dependencies. Constructed payload
+accuracy is verified separately from checkpoint/export numerical parity. SAM2 tagged README explicitly covers official checkpoints under
 Apache-2.0; Microsoft's v1.22.0 exporter headers are MIT. No SAM2 graph was exported.
 LPIPS/DISTS backbones and MUSIQ checkpoint remain deferred on independent grants
 and authorized immutable artifact identity; no new weight licence is inferred.

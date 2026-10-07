@@ -1726,7 +1726,7 @@ Options:
       --observations <OBSERVATIONS>
           Explicit frozen/generated primary-decoder observation report
       --trustmark
-          Run the pinned Q neural graph; ECC/resize qualification remains unavailable
+          Decode the pinned TrustMark Q model and its BCH payload/schema; never downloads
       --registry <REGISTRY>
           Deprecated: set SACCADE_MODELS_REGISTRY or [models].registry
       --cache <CACHE>

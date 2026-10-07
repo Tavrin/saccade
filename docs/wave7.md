@@ -97,9 +97,10 @@ UI-quality thresholds or native published exports are claimed.
 ## Watermarks
 
 `saccade watermark image.png --json` reports independent scheme outcomes and
-absence limits, without a real/fake or AI-origin verdict. `--trustmark` executes
-the pinned Q neural graph, but complete decoding still reports **unavailable**
-until antialiased resize, BCH/ECC and positive-sample parity are qualified. `WatermarkDecoder`
+absence limits, without a real/fake or AI-origin verdict. `--trustmark` decodes
+the pinned Q graph and all four BCH payload/schema variants using explicitly
+provisioned local models. See [TrustMark decoding](trustmark.md) for ECC evidence,
+reference fixtures and qualification limits. `WatermarkDecoder`
 is the primary integration boundary; `--observations report.json` explicitly
 replays generated/frozen decoder observations with unqualified provenance.
 
@@ -182,8 +183,8 @@ the native known-message decoder. Every image/receipt is resolved through
 `RootPolicy`; overlay/redaction files require the separate startup `--out-root`.
 No ambient HOME/config/cache access, provider HTTP call or model download can be
 introduced by tool arguments. `models_pull` explicitly returns unavailable;
-use the human-operated CLI to authorize downloads. Native model inference stays
-on the CLI until the integrator wires startup-approved runtime/model inputs.
+use the human-operated CLI to authorize downloads. TrustMark Q inference also runs through `vision_watermark` with `trustmark: true`,
+using startup/operator-configured model inputs without downloads.
 
 Results use the standalone versioned schemas. Replay is explicit and source
 parity is false. Tools never emit PNG bytes by default; files are the requested
@@ -197,7 +198,8 @@ headroom before each build, fmt, strict Clippy, full touched-crate tests,
 no-default core tests, schema drift, docs and every ignored model/network group.
 The implementation agent does not run it. No live hosted provider gate exists.
 The selected-native-adapters gate prints DEFERRED for SAM2, learned metrics and
-full TrustMark decoding. Set `WAVE7_REQUIRE_ALL_MODELS=1` to fail on these deferrals.
+the historical TrustMark qualification. The current Q payload decoder has its
+own [reference fixture gate](trustmark.md). Set `WAVE7_REQUIRE_ALL_MODELS=1` to fail on these deferrals.
 Compatible replay receipts cannot qualify missing native adapters. No showcase or browser code was touched, so no browser/showcase gate is
 needed.
 
@@ -254,8 +256,8 @@ UltraFace uses RGB 320×240 and `(pixel−127)/128`. Both apply the recorded sco
 faces. No LPIPS/DISTS weights ship, for want of independent backbone-weight grants;
 MUSIQ's official checkpoint lies outside allowed downloads without a complete pin.
 `quality-score` accepts a reviewed export you supply.
-TrustMark Q's pinned neural graph works; complete watermark decoding remains
-unavailable until ECC/resize/sample qualification. No raw-bit presence claim. LPIPS/DISTS compare attachment remains integrator work after exports
+TrustMark Q now decodes verified BCH payloads; see [the current acceptance](trustmark.md).
+The old neural-only smoke remains historical evidence. LPIPS/DISTS compare attachment remains integrator work after exports
 exist. The reason for each missing model is in `scripts/wave7/disposition.json`.
 
 `gates-wave7.sh` prepares MIT-licensed generated bottle/portrait/blank fixtures,
@@ -320,7 +322,8 @@ change deterministic outcomes or supply monetary/live qualification receipts.
 `assess` and `inspect-image` accept `--faces`, `--face-observations`, `--face-crop X,Y,W,H`,
 `--model-registry`, `--model-cache` and `--runtime-library`. `--watermark` attaches the
 named decoder findings and `--watermark-payload HEX` selects a known-message legacy DWT
-check. Complete TrustMark decoding remains unavailable. The separately named face/crop/
+check. Use the standalone `watermark --trustmark` or MCP `vision_watermark` with
+`trustmark: true` for Q payload decoding. The separately named face/crop/
 watermark documents appear in `vision_checks`, with their own input identity/provenance.
 The shared registry also holds wave 6 embedding and OCR contract pins. No implicit pull.
 

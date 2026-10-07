@@ -5,7 +5,7 @@ use super::{
 };
 use serde::{Deserialize, Serialize};
 /// Watermark evidence contract identifier.
-pub const WATERMARK_SCHEMA: &str = "saccade-watermark.v1";
+pub const WATERMARK_SCHEMA: &str = "saccade-watermark.v3";
 /// Meaning of missing evidence, required in every report.
 pub const ABSENCE_LIMIT: &str = "No detected watermark does not establish human origin, absence of AI generation, or authenticity. Decoders cover only named compatible schemes; cropping, resizing and encoding may destroy markers. Recovered payloads do not authenticate a generator or signer.";
 /// Independent outcome for one compatible scheme.
@@ -19,12 +19,35 @@ pub struct WatermarkFinding {
     pub status: String,
     /// Recovered payload bytes, hex encoded; absent when not verified/matched.
     pub payload_hex: Option<String>,
+    /// Exact verified payload bits, preserving non-byte-aligned TrustMark capacities.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub payload_bits: Option<String>,
+    /// Verified TrustMark data schema (0..3); absent after ECC failure or unavailability.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub schema_value: Option<u8>,
+    /// TrustMark error correction outcome; absent for other schemes or unavailable models.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub ecc: Option<WatermarkEcc>,
     /// Decoder score, not authenticity probability; unknown when unavailable.
     pub confidence: Option<f32>,
     /// Meaning and limitations of this particular decoder's evidence.
     pub interpretation: String,
     /// Exact model/runtime/export attribution when a model is involved.
     pub provenance: Option<Provenance>,
+}
+/// Error correction evidence, independent of calibrated confidence or authenticity.
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct WatermarkEcc {
+    /// BCH_SUPER, BCH_5, BCH_4 or BCH_3, selected by the two transmitted schema bits.
+    pub variant: String,
+    /// valid (zero corrections), corrected, or failed.
+    pub status: String,
+    /// Corrected data/ECC bit count; unknown on failure. Schema bits are not BCH protected.
+    pub corrected_bits: Option<u8>,
+    /// This schema's maximum correctable data/ECC errors.
+    pub max_correctable_bits: u8,
 }
 /// Combinable watermark evidence for wave 6 inspect-image (C2PA stays independent).
 #[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
@@ -43,7 +66,8 @@ pub struct WatermarkReport {
 impl WatermarkReport {
     /// Validate binding, schemes, payloads and confidence before exposing evidence.
     pub fn validate(&self, image: &VisionImage) -> Result<()> {
-        if crate::report_links::original_schema(&self.schema) != WATERMARK_SCHEMA
+        let schema = crate::report_links::original_schema(&self.schema);
+        if !matches!(schema, "saccade-watermark.v1" | WATERMARK_SCHEMA)
             || self.image_sha256 != image.sha256
             || self.absence_limit != ABSENCE_LIMIT
             || self.findings.len() > 8
@@ -52,6 +76,22 @@ impl WatermarkReport {
         }
         let mut schemes = std::collections::BTreeSet::new();
         for f in &self.findings {
+            if schema == WATERMARK_SCHEMA
+                && f.scheme == "trustmark-Q"
+                && f.status != "unavailable"
+                && f.ecc.is_none()
+            {
+                return Err(VisionError::Invalid(
+                    "TrustMark Q requires explicit ECC evidence".into(),
+                ));
+            }
+            if schema == "saccade-watermark.v1"
+                && (f.payload_bits.is_some() || f.schema_value.is_some() || f.ecc.is_some())
+            {
+                return Err(VisionError::Invalid(
+                    "TrustMark payload fields require watermark v3/v4".into(),
+                ));
+            }
             if f.scheme.is_empty()
                 || !schemes.insert(&f.scheme)
                 || !matches!(
@@ -73,14 +113,90 @@ impl WatermarkReport {
             if let Some(p) = &f.provenance {
                 p.validate()?;
             }
+            validate_payload(f)?;
         }
         Ok(())
     }
+}
+fn validate_payload(f: &WatermarkFinding) -> Result<()> {
+    if f.payload_bits.is_none() && f.schema_value.is_none() && f.ecc.is_none() {
+        return Ok(()); // Historical replay and independent legacy schemes.
+    }
+    let ecc = f
+        .ecc
+        .as_ref()
+        .ok_or_else(|| VisionError::Invalid("missing watermark ECC".into()))?;
+    let schema = match ecc.variant.as_str() {
+        "BCH_SUPER" => 0,
+        "BCH_5" => 1,
+        "BCH_4" => 2,
+        "BCH_3" => 3,
+        _ => return Err(VisionError::Invalid("watermark ECC variant".into())),
+    };
+    let capacities = [40, 61, 68, 75];
+    let limits = [8, 5, 4, 3];
+    let valid = f.scheme == "trustmark-Q"
+        && ecc.max_correctable_bits == limits[schema]
+        && match ecc.status.as_str() {
+            "failed" => {
+                f.status == "not_detected"
+                    && ecc.corrected_bits.is_none()
+                    && f.payload_bits.is_none()
+                    && f.payload_hex.is_none()
+                    && f.schema_value.is_none()
+            }
+            "valid" | "corrected" => {
+                f.status == "detected"
+                    && f.schema_value == Some(schema as u8)
+                    && ecc
+                        .corrected_bits
+                        .is_some_and(|n| n <= limits[schema] && (n == 0) == (ecc.status == "valid"))
+                    && f.payload_bits.as_ref().is_some_and(|b| {
+                        b.len() == capacities[schema]
+                            && b.bytes().all(|v| v == b'0' || v == b'1')
+                            && f.payload_hex.as_ref() == Some(&bits_hex(b))
+                    })
+            }
+            _ => false,
+        };
+    if !valid {
+        return Err(VisionError::Invalid(
+            "watermark payload/ECC consistency".into(),
+        ));
+    }
+    Ok(())
+}
+/// Pack a verified bitstring MSB first, padding the final byte with zeros.
+pub(crate) fn bits_hex(bits: &str) -> String {
+    bits.as_bytes()
+        .chunks(8)
+        .map(|chunk| {
+            let byte = chunk
+                .iter()
+                .fold(0u8, |n, b| (n << 1) | u8::from(*b == b'1'))
+                << (8 - chunk.len());
+            format!("{byte:02x}")
+        })
+        .collect()
 }
 /// Primary TrustMark boundary; exact decoder variant/ECC belongs to the adapter.
 pub trait WatermarkDecoder {
     /// Decode a compatible scheme; failure/unavailability is never absence.
     fn decode(&mut self, image: &VisionImage) -> Result<WatermarkFinding>;
+}
+/// Explicit missing model/runtime outcome, without interpreting it as absence.
+pub fn unavailable(reason: impl Into<String>) -> WatermarkFinding {
+    WatermarkFinding {
+        scheme: "trustmark".into(),
+        status: "unavailable".into(),
+        payload_hex: None,
+        payload_bits: None,
+        schema_value: None,
+        ecc: None,
+        confidence: None,
+        interpretation: reason.into(),
+        provenance: None,
+    }
 }
 /// Known-message legacy DWT/DCT marker settings; arbitrary bits are never detection.
 #[derive(Debug, Clone)]
@@ -171,6 +287,9 @@ pub fn decode_dwt(image: &VisionImage, c: &DwtConfig) -> Result<WatermarkFinding
             scheme: "invisible-watermark-dwt-dct".into(),
             status: "unavailable".into(),
             payload_hex: None,
+            payload_bits: None,
+            schema_value: None,
+            ecc: None,
             confidence: None,
             interpretation:
                 "Too few complete blocks for three repetitions of the declared payload.".into(),
@@ -200,6 +319,9 @@ fn decide_votes(votes: &[[u32; 2]], c: &DwtConfig) -> WatermarkFinding {
         scheme: "invisible-watermark-dwt-dct".into(),
         status: if detected { "detected" } else { "not_detected" }.into(),
         payload_hex: detected.then(|| recovered.iter().map(|b| format!("{b:02x}")).collect()),
+        payload_bits: None,
+        schema_value: None,
+        ecc: None,
         confidence: Some(minimum),
         interpretation: format!(
             "Known-message match only, minimum per-bit block agreement; U-channel Haar LL, 4x4 orthonormal DCT, maximum AC magnitude, step {}. Not generator authentication. Upstream/export parity remains unqualified.",
@@ -217,16 +339,9 @@ pub fn inspect(
     let first = if let Some(p) = primary {
         p.decode(image)?
     } else {
-        WatermarkFinding {
-            scheme: "trustmark".into(),
-            status: "unavailable".into(),
-            payload_hex: None,
-            confidence: None,
-            interpretation:
-                "Exact decoder variant, ECC scheme, export pin and runtime parity not installed."
-                    .into(),
-            provenance: None,
-        }
+        unavailable(
+            "TrustMark decoder not selected. Use --trustmark with an explicitly provisioned model and runtime; saccade models pull trustmark; saccade models pull runtime.",
+        )
     };
     let mut findings = vec![first];
     if let Some(c) = legacy {
