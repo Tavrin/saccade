@@ -775,10 +775,10 @@ fn run_with(args: impl IntoIterator<Item = String>) -> Result<(), Box<dyn std::e
     if stage2 {
         for row in &rows {
             let (data, _) = stage2_request(row)?;
-            if data["prompt_epoch"] != "g12-pilot/3"
-                || data["prompt_policy"] != "assist-openrouter-task-evidence/3"
+            if data["prompt_epoch"] != "g12-pilot/4"
+                || data["prompt_policy"] != "assist-openrouter-task-evidence/4"
             {
-                return Err("paid stage2 run requires task-evidence policy epoch 3".into());
+                return Err("paid stage2 run requires task-evidence policy epoch 4".into());
             }
         }
     }
@@ -844,8 +844,8 @@ fn run_with(args: impl IntoIterator<Item = String>) -> Result<(), Box<dyn std::e
     let identity = json!({"schema":CAMPAIGN_SCHEMA,"requests_hash":requests_hash.clone(),
         "keys":prepared.iter().map(|(k,_)| assist::digest(k)).collect::<assist::Result<Vec<_>>>()?,"allowance_nano_usd":cap,
         "stage2":stage2,"budget_bounded":budget_bounded,"answer_failure_policy":stage2.then_some(answer_limits),
-        "executor_call_cap_seconds":120,"prompt_epoch":stage2.then_some("g12-pilot/3"),
-        "prompt_policy":stage2.then_some("assist-openrouter-task-evidence/3")});
+        "executor_call_cap_seconds":120,"prompt_epoch":stage2.then_some("g12-pilot/4"),
+        "prompt_policy":stage2.then_some("assist-openrouter-task-evidence/4")});
     ledger.bind_campaign_with_settlement(identity, resume, settle_unknown)?;
     let mut smoke = if resume {
         assist::decode::<Value>(&assist::read_bytes(
@@ -1004,7 +1004,7 @@ fn refusal_code(error: &(dyn std::error::Error + 'static)) -> String {
             | "paid run requires development scorer proof corpus"
             | "paid run requires frozen development scorer proof revision"
             | "offline scorer proof failed; paid run refused"
-            | "paid stage2 run requires task-evidence policy epoch 3"
+            | "paid stage2 run requires task-evidence policy epoch 4"
             | "campaign already running"
             | "cannot read user configuration"
             | "invalid user configuration"
@@ -1238,7 +1238,7 @@ mod tests {
             "paid run requires development scorer proof corpus",
             "paid run requires frozen development scorer proof revision",
             "offline scorer proof failed; paid run refused",
-            "paid stage2 run requires task-evidence policy epoch 3",
+            "paid stage2 run requires task-evidence policy epoch 4",
             "egress_denied: source root denies export",
             "invalid user configuration",
         ] {
@@ -2019,7 +2019,7 @@ mod tests {
             model: "google/gemini-3.8-flash".into(),
             revision: "absent".into(),
             payload: json!({"messages":[{}, {"content":[{"text":json!({"request_hash":hash,
-                "prompt_epoch":"g12-pilot/3", "views":[{"slot":"P1","regions":[
+                "prompt_epoch":"g12-pilot/4", "views":[{"slot":"P1","regions":[
                     {"id":"P1:R0"},{"id":"P1:R1","exclusion_id":"synthetic-exclusion"}]}]}).to_string()}]}]}),
         };
         let answer = json!({"request_hash":hash,"outcome":"observed","observations":[{

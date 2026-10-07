@@ -81,7 +81,7 @@ def validate_closed(answer, case, order, child, directory):
 
 def proof(manifest, oracle, directory):
     from stage2 import ARMS
-    from dev_policy import normalize
+    from dev_policy import normalize, PROMPT_EPOCH, PROMPT_POLICY
     from pilot_score import semantic, summarize
     groups=defaultdict(list); legacy=defaultdict(list)
     variants=('perfect','missing','hallucinated','wrong_text','wrong_geometry','wrong_order')
@@ -143,6 +143,7 @@ def proof(manifest, oracle, directory):
             important_recall=m['important_change_recall'],false_reassurance=m['false_reassurance'],
             correct_roots=m['correct_roots'],flagged_roots=flagged,available_roots=m['available_roots'],passed=passed))
     return dict(schema='saccade-scorer-selftest.v1',status='FAIL' if failed else 'PASS',
+        prompt_epoch=PROMPT_EPOCH,prompt_policy=PROMPT_POLICY,
         development_roots=len(manifest['cases']),provider_calls=0,heldout_entries_decoded=0,
         evidence='Synthetic oracle-injected closed-protocol answers through dev_policy.normalize and pilot_score.semantic (score.assertion_correct/task_evidence). All arms are injections, not provider/routing performance.',
         unavailable='Unavailable roots correctly abstain, excluded from precision; important recall keeps all challenge roots. Negative cases must be wrong or unavailable, never accepted.',

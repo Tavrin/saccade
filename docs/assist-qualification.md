@@ -935,3 +935,38 @@ only development images/truths. It refuses a fresh-heldout corpus or a request
 outside development before opening responses. Neither held-out responses nor
 held-out oracle entries were observed; `g12-fresh-heldout/1` remains unobserved.
 Private reports and request/proof artifacts stay outside the repository.
+
+## G12 candidate-slot instruction (epoch 4)
+
+The epoch-3 development smoke identified correct pairwise appearance assertions
+attached to the baseline P1, causing task/order rejection despite correct raster
+assertions. Epoch 4 (`g12-pilot/4`, `assist-openrouter-task-evidence/4`) explicitly
+reports both `appearance:changed` and `appearance:unchanged` on the candidate,
+with evidence references from that slot. Normal presentation uses the later/second
+image P2. Reversed presentation uses P1 for the candidate; each request binds
+`candidate_slot` into its request hash. This preserves the existing reversed-order
+schedule and normalized candidate identity. Other statements remain per image.
+The check_ui, explain and audit_mask examples state their slot and citations.
+
+The scorer, oracle, geometry and order agreement rules are unchanged. The paid
+executor requires epoch 4; epoch-3 requests must be regenerated. The mandatory
+offline scorer proof passes all 96 rows on 60 development roots (synthetic
+oracle-injected evidence, not model qualification). Five synthetic regressions
+and 26 native executor tests pass. No provider calls, keys or held-out data were
+used.
+
+Artifacts: `/mnt/linux-extra/moss-scratch/saccade-g12-epoch4/`. `commands.sh`
+contains exact proof, smoke, reconciliation and scoring commands, including
+`SACCADE_SCORER_DEV_CORPUS` and `SACCADE_SCORER_SOURCE_REVISION`. `show_smoke.py`
+prints request-bound assertion/task verdicts; its ten synthetic checks pass.
+
+| Plan | Roots | Calls | Worst reservation USD | Cap USD | Unverified cost proxy USD |
+|---|---:|---:|---:|---:|---:|
+| Development smoke | 10 | 10 | 0.252169500 | 0.252199500 | 0.046281000 |
+| Targeted | 10 | 20 | 0.510225000 | 0.60 | 0.092562000 |
+
+Both retain epoch-3 sizes, caps and selected schedules (five roots per workload).
+The proxy is the inherited epoch-2 two-image estimate, not measured epoch-4 spend.
+Plans remain unauthorized; no campaign was executed. Native validate-only
+reservations agree exactly with the Python plans. The owned Cargo target is
+removed after preserving the executable and receipts.
