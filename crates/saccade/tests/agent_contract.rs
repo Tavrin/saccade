@@ -480,6 +480,7 @@ fn local_tools_and_preview_never_authorize_network_and_images_are_explicit() {
     let tmp = tempfile::tempdir().unwrap();
     let config_home = tmp.path().join("isolated-config");
     std::fs::create_dir_all(&config_home).unwrap();
+    // The denial contract must not inherit operator export roots.
     let user_config = config_home.join("user.toml");
     std::fs::write(&user_config, "").unwrap();
     let root = tmp.path().join("root");
@@ -544,16 +545,12 @@ fn local_tools_and_preview_never_authorize_network_and_images_are_explicit() {
     }
     assert_eq!(replies[4]["result"]["isError"], true);
     let report = out.join("report/saccade-report.v1.json");
-    // The denial contract must not inherit the operator's configured export roots.
-    let user_config = tmp.path().join("unconfigured-user.toml");
     let preview = json_output(
         Command::new(BIN)
             .arg("review")
             .arg("--user-config")
             .arg(&user_config)
             .arg(&report)
-            .arg("--user-config")
-            .arg(&user_config)
             .arg("--json")
             .env("JEV_API_KEY", "synthetic-never-send")
             .env("GEMINI_API_KEY", "synthetic-never-send")
@@ -567,12 +564,7 @@ fn local_tools_and_preview_never_authorize_network_and_images_are_explicit() {
             .arg("--user-config")
             .arg(&user_config)
             .arg(&report)
-            .arg("--user-config")
-            .arg(&user_config)
             .args(["--run", "--budget-calls", "1", "--json"])
-            // This contract tests an unconfigured user, independent of operator policy.
-            .arg("--user-config")
-            .arg(tmp.path().join("unconfigured-user.toml"))
             .output()
             .unwrap(),
     );
