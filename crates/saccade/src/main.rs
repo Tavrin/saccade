@@ -64,6 +64,7 @@ mod last_good;
 mod local_cmd;
 mod localized_cmd;
 mod motion_cmd;
+mod motion_stats_cmd;
 #[cfg(feature = "products")]
 mod notifier_cmd;
 #[cfg(feature = "print")]
@@ -900,6 +901,10 @@ struct ProveIdentityArgs {
 
 #[derive(Subcommand)]
 enum ExperimentOperation {
+    /// Measure independent timestamped motion diagnostics versus a reference.
+    MotionStats(motion_stats_cmd::StatsArgs),
+    /// Construct known negatives and calibrate separate scorer trust by class.
+    CalibrateDegradations(motion_stats_cmd::CalibrationArgs),
     // G26
     /// Measure popping, sampled convergence and steady level differences in captures.
     #[cfg(feature = "graphics")]
@@ -1285,6 +1290,12 @@ fn dispatch(command: Command, record_absolute_paths: bool) -> Result<u8, CliErro
         Command::MaskMetrics(args) => measure_cmd::mask_metrics(args),
         Command::Boxes(args) => measure_cmd::boxes(args),
         Command::FrameMap(args) => measure_cmd::frame_map(args),
+        Command::Experiment {
+            operation: ExperimentOperation::MotionStats(args),
+        } => motion_stats_cmd::stats(args),
+        Command::Experiment {
+            operation: ExperimentOperation::CalibrateDegradations(args),
+        } => motion_stats_cmd::calibration(args),
         #[cfg(feature = "graphics")]
         Command::Experiment {
             operation: ExperimentOperation::Settle(args),

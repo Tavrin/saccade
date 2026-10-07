@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Add independent motion statistics against timestamped references and seeded constructed-negative calibration with per-class scorer trust and exact ranking bounds.
+
 ## 0.2.8 (2026-10-07)
 
 - Run Python batch media analysis in-process with resumable receipts and cooperative deadlines, without an installed CLI.

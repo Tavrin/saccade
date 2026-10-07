@@ -1,0 +1,153 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "saccade-motion-calibration.v1",
+  "title": "saccade-motion-calibration.v1",
+  "type": "object",
+  "required": [
+    "schema",
+    "threshold",
+    "bounds",
+    "rows",
+    "scorers",
+    "limitations"
+  ],
+  "properties": {
+    "schema": {
+      "const": "saccade-motion-calibration.v1"
+    },
+    "threshold": {
+      "type": "number"
+    },
+    "bounds": {
+      "type": "string"
+    },
+    "rows": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": [
+          "scorer",
+          "class",
+          "strength",
+          "pairs",
+          "wins",
+          "ties",
+          "pairwise_accuracy",
+          "strict_win_bounds_95",
+          "trusted",
+          "pairwise_accuracy_bounds_95"
+        ],
+        "properties": {
+          "scorer": {
+            "type": "string"
+          },
+          "class": {
+            "type": "string"
+          },
+          "strength": {
+            "type": "string"
+          },
+          "pairs": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "wins": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "ties": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "pairwise_accuracy": {
+            "type": "number"
+          },
+          "strict_win_bounds_95": {
+            "type": "array",
+            "items": {
+              "type": "number"
+            },
+            "minItems": 2,
+            "maxItems": 2
+          },
+          "trusted": {
+            "type": "boolean"
+          },
+          "incomplete_support": {
+            "type": "boolean"
+          },
+          "pairwise_accuracy_bounds_95": {
+            "type": "array",
+            "items": {
+              "type": "number"
+            },
+            "minItems": 2,
+            "maxItems": 2
+          }
+        },
+        "additionalProperties": false
+      }
+    },
+    "scorers": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": [
+          "scorer",
+          "trusted_for",
+          "untrusted_elsewhere"
+        ],
+        "properties": {
+          "scorer": {
+            "type": "string"
+          },
+          "trusted_for": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "untrusted_elsewhere": {
+            "const": true
+          }
+        },
+        "additionalProperties": false
+      }
+    },
+    "limitations": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "manifest_sha256": {
+      "type": "string"
+    },
+    "score_orientation": {
+      "type": "string"
+    },
+    "independent_sources": {
+      "type": "integer"
+    },
+    "unavailable_evidence": {
+      "type": "string"
+    },
+    "report_id": {
+      "type": "string",
+      "pattern": "^sha256:[0-9a-f]{64}$"
+    },
+    "source_refs": {
+      "type": "array",
+      "maxItems": 128,
+      "items": {
+        "type": "string",
+        "maxLength": 2048
+      }
+    },
+    "builtin_numerical_tie_floor_native_units": {
+      "type": "number",
+      "const": 1e-12
+    }
+  },
+  "additionalProperties": false
+}
