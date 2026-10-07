@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+## 0.2.7 (2026-10-07)
+
 - Correct the quality-report and geometry v1 schemas to include the existing
   optional report links, preserving unlinked reports. Check generated schema bytes
   in CI with minimal compression/schema, combined assist/evaluation and all core features.
