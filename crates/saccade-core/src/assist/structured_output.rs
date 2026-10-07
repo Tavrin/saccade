@@ -19,6 +19,30 @@ pub fn openrouter_schema() -> Result<Value> {
     Ok(schema)
 }
 
+/// Provider-specific policy; accepted OpenAI keywords remain unverified.
+pub fn projection_policy(model: &str) -> &'static str {
+    if model == super::price::OPENROUTER_GPT_MODEL {
+        "assist-openai-conservative-drop-array-bounds/1; keyword-support-unknown"
+    } else {
+        PROJECTION_POLICY
+    }
+}
+/// Apply an independently versioned conservative provider projection.
+pub(crate) fn project_for(value: &mut Value, model: &str) {
+    // Separate versioned policies currently choose the same conservative transform.
+    // OpenAI keyword support is unknown; this is not transferred Gemini evidence.
+    let _policy = projection_policy(model);
+    project(value);
+}
+/// Model-bound response format, preserving the historical Gemini wire name.
+pub fn openrouter_format_for(model: &str) -> Result<Value> {
+    let mut schema = answer_schema()?;
+    project_for(&mut schema, model);
+    Ok(
+        json!({"type":"json_schema","json_schema":{"name":if model == super::price::OPENROUTER_GPT_MODEL {"saccade_assist_openai_conservative_v1"} else {PROJECTED_SCHEMA_NAME},"strict":true,"schema":schema}}),
+    )
+}
+
 pub(crate) fn project(value: &mut Value) {
     match value {
         Value::Object(map) => {

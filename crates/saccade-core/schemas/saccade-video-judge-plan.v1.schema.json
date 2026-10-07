@@ -54,7 +54,7 @@
     "rows": {
       "type": "array",
       "minItems": 1,
-      "maxItems": 32,
+      "maxItems": 1024,
       "items": {
         "type": "object",
         "additionalProperties": false,
@@ -65,7 +65,10 @@
           "input_bound",
           "output_bound",
           "reservation_nano_usd",
-          "request_hash"
+          "request_hash",
+          "repeat",
+          "image_table",
+          "schema_projection"
         ],
         "properties": {
           "root": {
@@ -93,6 +96,17 @@
             "minimum": 1
           },
           "request_hash": {
+            "type": "string"
+          },
+          "repeat": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 31
+          },
+          "image_table": {
+            "type": "string"
+          },
+          "schema_projection": {
             "type": "string"
           }
         }

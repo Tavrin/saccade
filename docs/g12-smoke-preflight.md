@@ -19,7 +19,7 @@ roots and 96 proof rows. Exact request digest:
 `sha256:71e7524be0eabcdd3b324f19e70adc944ea6293ab750f62d536071b2036f2c8f`.
 No provider calls or key reads were made. Cargo target peaked below 1 GB and is
 removed after verification. The updated binary is copied outside the target as
-`/mnt/linux-extra/moss-scratch/saccade-g12-epoch3/assist_openrouter_smoke-preflight-fixed`.
+`$SMOKE_BIN`.
 
 ## Prepared smoke command (not executed)
 
@@ -28,10 +28,10 @@ Use a fresh campaign directory because the original `smoke-live` contains the
 refusal artifact and a new run uses exclusive directory creation.
 
 ```sh
-cd /home/etienne/dev/saccade-wt/g12live
-SACCADE_SCORER_DEV_CORPUS=/mnt/linux-extra/moss-scratch/saccade-g12-dev-pilot/pilot-corpus \
+cd $CHECKOUT
+SACCADE_SCORER_DEV_CORPUS=$SCORER_CORPUS \
 SACCADE_SCORER_SOURCE_REVISION=ab305c00bc4536d4ff482b5a3645fe5b67f9a6d4 \
-/mnt/linux-extra/moss-scratch/saccade-g12-epoch3/assist_openrouter_smoke-preflight-fixed --stage2 --budget-bounded --requests /mnt/linux-extra/moss-scratch/saccade-g12-epoch3/smoke/requests.json --roots 10 --max-spend-usd 0.252199500 --max-consecutive-invalid-answers 5 --max-invalid-answer-percent 50 --invalid-answer-min-sample 20 --user-policy /home/etienne/.config/saccade/user.toml --out /mnt/linux-extra/moss-scratch/saccade-g12-epoch3/smoke-live-preflight-fixed
+$SMOKE_BIN --stage2 --budget-bounded --requests $REQUESTS --roots 10 --max-spend-usd 0.252199500 --max-consecutive-invalid-answers 5 --max-invalid-answer-percent 50 --invalid-answer-min-sample 20 --user-policy $USER_POLICY --out $RESULTS
 ```
 
 For offline verification only, add `--preflight-only` to this command.

@@ -1,5 +1,5 @@
 <!-- Generated from integrations/agent-guide.md by scripts/gen-docs.py. -->
-# Saccade agent guide
+# Saccade guide
 
 Output outside inputs:
 
@@ -13,7 +13,7 @@ saccade inspect evidence REPORT/saccade-report.v1.json --entry NAME --out EVIDEN
 Read validity/performance/pagination, `data.pass_with_local_change`. Exits: 1 failure, 2 unavailable; `performance_rejected` may exit 0.
 `--require-valid-arms` refuses mismatches (3) or missing identity (4); declare
 variables; inspect exceptions. Mixed records: `compare = "mapped_only"`; inspect `unmapped`/`outcomes`. [Arms](../docs/arm-validity.md).
-Identity binds samples; no approval/timing authority.
+Identity binds samples; no approval/timing.
 
 `review`: request/ask/propose bind hashes.
 CLI attestation null; workbench token-gated; `automated` cannot satisfy human checks.
@@ -73,7 +73,7 @@ SigLIP 2 pins; updates keep the model; prune only complete archives.
 
 `schema list|get|path`, `perf validate FILE --json`.
 Evidence: `render-evidence`, `noise build REPEATS...`, `compare --export-maps --noise-from REPEATS... --require-scope`.
-[Arm policies](../docs/arm-validity.md): null is a value; `--ignore` waives missing
+[Arms](../docs/arm-validity.md): null is a value; `--ignore` waives missing
 fields; `--allow-unreached` requires exact observations; maps select `record_files`.
 
 G12: fake dry-run; live needs ceilings. [Qualification](../docs/assist-qualification.md). [Video](../docs/video-judge.md).

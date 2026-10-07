@@ -45,6 +45,7 @@ def export(requests, results):
             if (receipt['response_hash'] != response_hash or receipt['execution_id'] != outcome['execution_id']
                     or receipt['requested_model'] != row['model'] or receipt['sampling_settings'] != row['payload']
                     or receipt['returned_model'] != row['model']
+                    or receipt['returned_revision'] != row['revision']
                     or json.loads(response['choices'][0]['message']['content']) != answer):
                 raise ValueError('settled response/provenance mismatch')
         if answer is not None and answer['request_hash'] != data['request_hash']:

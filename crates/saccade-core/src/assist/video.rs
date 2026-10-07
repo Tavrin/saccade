@@ -483,11 +483,19 @@ pub fn answer_schema_for(packet: &Packet) -> Value {
 }
 /// Provider projection of the exact configured answer shape.
 pub fn response_format_for(packet: &Packet) -> Value {
-    format_schema(answer_schema_for(packet))
+    response_format_for_model(packet, super::price::OPENROUTER_MODEL)
+}
+/// Independent provider projection; OpenAI keyword acceptance is unverified.
+pub fn response_format_for_model(packet: &Packet, model: &str) -> Value {
+    let mut schema = answer_schema_for(packet);
+    super::structured_output::project_for(&mut schema, model);
+    json!({"type":"json_schema","json_schema":{"name":if model == super::price::OPENROUTER_GPT_MODEL {"saccade_video_judge_openai_conservative_v1"} else {FORMAT},"strict":true,"schema":schema}})
 }
 /// Detect this additive protocol without altering historical image admission.
 pub fn is_request(v: &Value) -> bool {
     v["response_format"]["json_schema"]["name"] == FORMAT
+        || v["response_format"]["json_schema"]["name"]
+            == "saccade_video_judge_openai_conservative_v1"
 }
 /// Verify the frame packet, complete PNG identities and anonymous presentation order.
 pub fn packet(payload: &Value) -> Result<Packet> {
@@ -582,7 +590,7 @@ pub fn request(packet: &Packet, media: &[Vec<u8>], model: &str) -> Result<Value>
         parts.push(json!({"type":"image_url","image_url":{"url":format!("data:image/png;base64,{}",super::workflow::base64(bytes)),"detail":"high"}}));
     }
     let payload = json!({"model":model,"temperature":0,"max_tokens":1024,"reasoning":{"max_tokens":256},
-        "response_format":response_format_for(packet),"provider":{"allow_fallbacks":false,"require_parameters":true,"max_price":price.max_price()},
+        "response_format":response_format_for_model(packet, model),"provider":{"allow_fallbacks":false,"require_parameters":true,"max_price":price.max_price()},
         "usage":{"include":true},"messages":[{"role":"system","content":INSTRUCTION},{"role":"user","content":parts}]});
     self::packet(&payload)?;
     super::openrouter::admission(

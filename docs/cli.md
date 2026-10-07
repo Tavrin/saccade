@@ -200,6 +200,8 @@ Options:
 
       --model <MODEL>
           One or more pinned model identities; unpriced identities are refused
+      --repeats <REPEATS>
+          Fresh repetitions per item/model/order; replays never count as samples [default: 1]
       --revision <REVISION>
           Required provider-returned revision pin, one per model
       --fps <FPS>

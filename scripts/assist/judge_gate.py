@@ -112,6 +112,10 @@ def selftest():
     rows=[dict(provider='fixture',model='model',revision='revision',returned_model='model',returned_revision='revision',source='source',view_id='view',kind='still',sample_id='sample-0',order=i,
         outcome='scored',score=8,replay=False,preferred_source='source',cues=[dict(cue='cue',state='present',timestamps_s=[0])],criteria=[dict(id='criterion',score=3)],forbidden=[dict(condition='condition',state='absent')]) for i in range(2)]
     cases={'oracle-perfect':reduce(rows,config)['pass']}
+    near=copy.deepcopy(rows);near[0]['score']=7.5;near[0]['criteria'][0]['score']=2.5
+    cases['oracle-near-perfect']=reduce(near,config)['pass']
+    near[1]['preferred_source']='other'
+    cases['oracle-inconsistent-order']=not reduce(near,config)['pass']
     for name, field, value in [('null','score',None),('wrong-score','score',1),('flip','preferred_source','other'),('unknown-cue','cues',[dict(cue='cue',state='unknown',timestamps_s=[])]),('forbidden','forbidden',[dict(condition='condition',state='present')]),('floor','criteria',[dict(id='criterion',score=0)]),('replay','replay',True),('revision','returned_revision','other')]:
         wrong=copy.deepcopy(rows);wrong[0][field]=value
         cases['oracle-wrong-'+name]=not reduce(wrong,config)['pass']

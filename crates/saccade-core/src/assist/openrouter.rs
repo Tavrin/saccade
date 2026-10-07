@@ -140,7 +140,7 @@ pub fn request(gemini: &[u8], model: &str) -> Result<Vec<u8>> {
             content.push(json!({"type":"image_url","image_url":{"url":format!("data:image/png;base64,{data}")}}));
         }
     }
-    let mut request = json!({"model":model,"messages":[{"role":"system","content":source["systemInstruction"]["parts"][0]["text"]},{"role":"user","content":content}],"temperature":0,"max_tokens":4096,"response_format":super::structured_output::openrouter_format()?,"provider":{"allow_fallbacks":false,"require_parameters":true,"max_price":price.max_price()},"usage":{"include":true}});
+    let mut request = json!({"model":model,"messages":[{"role":"system","content":source["systemInstruction"]["parts"][0]["text"]},{"role":"user","content":content}],"temperature":0,"max_tokens":4096,"response_format":super::structured_output::openrouter_format_for(model)?,"provider":{"allow_fallbacks":false,"require_parameters":true,"max_price":price.max_price()},"usage":{"include":true}});
     request["reasoning"] = json!({"max_tokens":reasoning_budget(request_task(&request).as_deref(), super::execution::OUTPUT_LIMIT)});
     crate::evidence::canonical::bytes(&request)
         .map_err(|_| super::Error::Invalid("OpenRouter payload"))
@@ -1570,9 +1570,9 @@ pub fn admission(payload: &[u8], model: &str) -> Result<super::price::OpenRouter
     let v: Value = decode(payload)?;
     let format = if super::video::is_request(&v) {
         let packet = super::video::packet(&v)?;
-        super::video::response_format_for(&packet)
+        super::video::response_format_for_model(&packet, model)
     } else {
-        super::structured_output::openrouter_format()?
+        super::structured_output::openrouter_format_for(model)?
     };
     require(
         v.as_object().is_some_and(|o| {

@@ -44,7 +44,7 @@ class VideoJudge(unittest.TestCase):
             response_file = root/'response-0.json'
             response_file.write_text(json.dumps(response))
             (root/'receipt-0.json').write_text(json.dumps(dict(response_hash='sha256:'+hashlib.sha256(response_file.read_bytes()).hexdigest(),
-                execution_id='execution-0', requested_model='fixture-model', returned_model='fixture-model', returned_revision='absent', sampling_settings=rows[0]['payload'])))
+                execution_id='execution-0', requested_model='fixture-model', returned_model='fixture-model', returned_revision='fixture-revision', sampling_settings=rows[0]['payload'])))
             scores = list(video_scores.export(requests,root))
             self.assertEqual(len(scores),6)
             self.assertEqual([s['outcome'] for s in scores], ['abstain']*2+['invalid_answer']*2+['not_run_budget']*2)

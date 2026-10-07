@@ -955,7 +955,7 @@ oracle-injected evidence, not model qualification). Five synthetic regressions
 and 26 native executor tests pass. No provider calls, keys or held-out data were
 used.
 
-Artifacts: `/mnt/linux-extra/moss-scratch/saccade-g12-epoch4/`. `commands.sh`
+Artifacts: the operator-owned epoch-4 evidence directory. `commands.sh`
 contains exact proof, smoke, reconciliation and scoring commands, including
 `SACCADE_SCORER_DEV_CORPUS` and `SACCADE_SCORER_SOURCE_REVISION`. `show_smoke.py`
 prints request-bound assertion/task verdicts; its ten synthetic checks pass.

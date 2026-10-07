@@ -530,7 +530,7 @@ impl Executor<'_> {
                     actual_nano_usd: None,
                     outcome: "reserved".into(),
                     usage: if key.provider == "openrouter" {
-                        json!({"schema_projection":super::structured_output::PROJECTION_POLICY,"request_policy":super::openrouter::REQUEST_POLICY,"reasoning_bound":openrouter_admission.map(|a| a.reasoning),"image_table":super::price::OPENROUTER_IMAGE_TABLE,"requested_identity":{"model":key.model,"revision":key.revision}})
+                        json!({"schema_projection":super::structured_output::projection_policy(&key.model),"request_policy":super::openrouter::REQUEST_POLICY,"reasoning_bound":openrouter_admission.map(|a| a.reasoning),"image_table":super::price::openrouter_image_table(&key.model),"requested_identity":{"model":key.model,"revision":key.revision}})
                     } else {
                         Value::Null
                     },
@@ -600,7 +600,7 @@ impl Executor<'_> {
                     .finish_money(
                         &id,
                         actual,
-                        json!({"schema_projection":(key.provider == "openrouter").then_some(super::structured_output::PROJECTION_POLICY),"request_policy":(key.provider == "openrouter").then_some(super::openrouter::REQUEST_POLICY),"reasoning_bound":openrouter_admission.map(|a| a.reasoning),"reasoning_hint":reasoning_hint(openrouter_admission.map(|a| a.reasoning), &usage(&rejection.body)),"provider_reasoning_over_hint":reasoning_over_hint(openrouter_admission.map(|a| a.reasoning), &usage(&rejection.body)),"usage":usage(&rejection.body),"input_bound":bounds.input,"output_bound":bounds.output,"bound_breach":breach,"http_error":http_error,"transport_failure":rejection.transport_failure,"zero_cost_refused":zero_cost_refused,"not_dispatched":rejection.reservation.is_none(),"generation_id":generation_id(&rejection.body)}),
+                        json!({"schema_projection":(key.provider == "openrouter").then_some(super::structured_output::projection_policy(&key.model)),"request_policy":(key.provider == "openrouter").then_some(super::openrouter::REQUEST_POLICY),"reasoning_bound":openrouter_admission.map(|a| a.reasoning),"reasoning_hint":reasoning_hint(openrouter_admission.map(|a| a.reasoning), &usage(&rejection.body)),"provider_reasoning_over_hint":reasoning_over_hint(openrouter_admission.map(|a| a.reasoning), &usage(&rejection.body)),"usage":usage(&rejection.body),"input_bound":bounds.input,"output_bound":bounds.output,"bound_breach":breach,"http_error":http_error,"transport_failure":rejection.transport_failure,"zero_cost_refused":zero_cost_refused,"not_dispatched":rejection.reservation.is_none(),"generation_id":generation_id(&rejection.body)}),
                         false,
                     )
                     .map_err(|_| Error::Storage)?;
@@ -645,7 +645,7 @@ impl Executor<'_> {
             .finish_money(
                 &id,
                 cost,
-                json!({"schema_projection":(key.provider == "openrouter").then_some(super::structured_output::PROJECTION_POLICY),"request_policy":(key.provider == "openrouter").then_some(super::openrouter::REQUEST_POLICY),"reasoning_bound":openrouter_admission.map(|a| a.reasoning),"reasoning_hint":reasoning_hint(openrouter_admission.map(|a| a.reasoning), &u),"provider_reasoning_over_hint":reasoning_over_hint(openrouter_admission.map(|a| a.reasoning), &u),"usage":u,"input_bound":bounds.input,"output_bound":bounds.output,"bound_breach":breach,"price_policy":if key.provider == "openrouter" { super::price::OPENROUTER_PRICE_ID } else { policy.id },"generation_id":generation_id(&response),"response_identity":identity_metadata,"identity_error":identity_code}),
+                json!({"schema_projection":(key.provider == "openrouter").then_some(super::structured_output::projection_policy(&key.model)),"request_policy":(key.provider == "openrouter").then_some(super::openrouter::REQUEST_POLICY),"reasoning_bound":openrouter_admission.map(|a| a.reasoning),"reasoning_hint":reasoning_hint(openrouter_admission.map(|a| a.reasoning), &u),"provider_reasoning_over_hint":reasoning_over_hint(openrouter_admission.map(|a| a.reasoning), &u),"usage":u,"input_bound":bounds.input,"output_bound":bounds.output,"bound_breach":breach,"price_policy":if key.provider == "openrouter" { super::price::OPENROUTER_PRICE_ID } else { policy.id },"generation_id":generation_id(&response),"response_identity":identity_metadata,"identity_error":identity_code}),
                 key.provider != "openrouter" || cost.is_some(),
             )
             .map_err(|_| Error::Storage)?;
@@ -733,7 +733,7 @@ impl Executor<'_> {
                     format!(
                         "{}; {}; calibrated local reservation; OpenRouter billing source; provider prices without markup; alias-bound and time-specific",
                         super::price::OPENROUTER_PRICE_ID,
-                        super::price::OPENROUTER_IMAGE_TABLE
+                        super::price::openrouter_image_table(&key.model)
                     )
                 } else {
                     format!(

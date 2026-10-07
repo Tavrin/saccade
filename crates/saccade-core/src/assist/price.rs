@@ -120,6 +120,10 @@ pub fn image_tokens_for_table(table: &str, resolution: &str, dimensions: [u32; 2
             let pixels = u64::from(dimensions[0]) * u64::from(dimensions[1]);
             Ok(pixels.div_ceil(CALIBRATED_IMAGE_PIXELS) * CALIBRATED_IMAGE_TOKENS)
         }
+        // No model-specific image rate or tokenizer evidence was supplied. Reserve
+        // the full historical fallback per image, independent of dimensions/detail.
+        // This provisional calibrated policy requires a post-call breach stop.
+        OPENROUTER_GPT_IMAGE_TABLE => Ok(MAX_IMAGE_TOKENS),
         _ => Err(super::Error::Invalid("unknown image ceiling table")),
     }
 }
@@ -286,13 +290,25 @@ pub fn gemini_bounds(payload: &[u8]) -> Result<Bounds> {
 }
 
 /// Live admission allowlist, distinct from historical recorded response prices.
-pub const OPENROUTER_PRICE_ID: &str = "openrouter-price-allowlist/2026-10-07-v1";
+pub const OPENROUTER_PRICE_ID: &str = "openrouter-price-allowlist/2026-10-07-v2";
 /// Recorded source supplied by the admission brief; no runtime price discovery.
 pub const OPENROUTER_PRICE_SOURCE: &str = "https://openrouter.ai/api/v1/models";
 /// Date of the supplied models API price record.
 pub const OPENROUTER_PRICE_DATE: &str = "2026-10-07";
-/// The only model with supplied price evidence for live admission.
+/// Gemini arm with supplied price evidence for live admission.
 pub const OPENROUTER_MODEL: &str = "google/gemini-3.8-flash";
+/// Independently priced second arm; no implicit fallback or revision substitution.
+pub const OPENROUTER_GPT_MODEL: &str = "openai/gpt-5.4-mini";
+/// Provisional calibrated policy bound, not measured tokenizer qualification.
+pub const OPENROUTER_GPT_IMAGE_TABLE: &str = "assist-openai-image-ceilings/1";
+/// Bind each model to its own image policy; Gemini calibration never transfers.
+pub fn openrouter_image_table(model: &str) -> &'static str {
+    if model == OPENROUTER_GPT_MODEL {
+        OPENROUTER_GPT_IMAGE_TABLE
+    } else {
+        OPENROUTER_IMAGE_TABLE
+    }
+}
 /// Exact pinned nanodollars per token, including image input tokens.
 #[derive(Debug, Clone, Copy)]
 pub struct OpenRouterPrice {
@@ -312,15 +328,19 @@ impl OpenRouterPrice {
 }
 /// Fail closed for every model without a supplied, versioned price pin.
 pub fn openrouter_price(model: &str) -> Result<OpenRouterPrice> {
-    require(
-        model == OPENROUTER_MODEL,
-        "openrouter_model_not_allowlisted",
-    )?;
-    Ok(OpenRouterPrice {
-        input: 750,
-        output: 3750,
-        image: 750,
-    })
+    match model {
+        OPENROUTER_MODEL => Ok(OpenRouterPrice {
+            input: 750,
+            output: 3750,
+            image: 750,
+        }),
+        OPENROUTER_GPT_MODEL => Ok(OpenRouterPrice {
+            input: 750,
+            output: 4500,
+            image: 750,
+        }),
+        _ => Err(super::Error::Invalid("openrouter_model_not_allowlisted")),
+    }
 }
 /// Payload-derived token ceilings and exact pre-dispatch monetary reservation.
 #[derive(Debug, Clone, Copy)]
@@ -338,7 +358,12 @@ pub(crate) fn openrouter_bounds(
     payload: &[u8],
     price: OpenRouterPrice,
 ) -> Result<OpenRouterAdmission> {
-    openrouter_bounds_for_table(payload, price, OPENROUTER_IMAGE_TABLE)
+    let request: Value = decode(payload)?;
+    openrouter_bounds_for_table(
+        payload,
+        price,
+        openrouter_image_table(request["model"].as_str().unwrap_or("")),
+    )
 }
 // Historical verification only; live admission always selects version 2 above.
 pub(crate) fn openrouter_bounds_for_table(
@@ -457,4 +482,35 @@ pub(crate) fn openrouter_bounds_for_table(
         reasoning: request["reasoning"]["max_tokens"].as_u64().unwrap_or(0),
         reservation,
     })
+}
+
+#[cfg(test)]
+#[allow(clippy::unwrap_used)]
+mod independent_arm_tests {
+    use super::*;
+    #[test]
+    fn second_arm_prices_and_image_policy_are_independent() {
+        let p = openrouter_price(OPENROUTER_GPT_MODEL).unwrap();
+        assert_eq!((p.input, p.output, p.image), (750, 4500, 750));
+        assert_eq!(
+            p.max_price(),
+            serde_json::json!({"prompt":0.75,"completion":4.5})
+        );
+        assert_ne!(
+            openrouter_image_table(OPENROUTER_MODEL),
+            openrouter_image_table(OPENROUTER_GPT_MODEL)
+        );
+        for dimensions in [[1, 1], [256, 256], [2048, 2048]] {
+            assert_eq!(
+                image_tokens_for_table(
+                    OPENROUTER_GPT_IMAGE_TABLE,
+                    "MEDIA_RESOLUTION_HIGH",
+                    dimensions
+                )
+                .unwrap(),
+                16384
+            );
+        }
+        assert!(openrouter_price("unknown/model").is_err());
+    }
 }

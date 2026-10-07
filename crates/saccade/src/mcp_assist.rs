@@ -23,6 +23,7 @@ impl Server {
                 "reference_frame_map",
                 "view_id",
                 "contact_sheet",
+                "repeats",
                 "model",
                 "revision",
                 "fps",
@@ -51,6 +52,10 @@ impl Server {
         if !edge.is_finite() || edge.fract() != 0.0 || !(1.0..=2048.0).contains(&edge) {
             return Err(CliError::usage("video max edge"));
         }
+        let repeats = arg_f64(args, "repeats")?.unwrap_or(1.0);
+        if !repeats.is_finite() || repeats.fract() != 0.0 || !(1.0..=32.0).contains(&repeats) {
+            return Err(CliError::usage("video repeats must be an integer in 1..32"));
+        }
         let out = self.resolve("out", &require_str(args, "out")?)?;
         let value = crate::video_judge_cmd::execute(crate::video_judge_cmd::Args {
             rubric,
@@ -62,6 +67,7 @@ impl Server {
                 .transpose()?,
             view_id: arg_strings(args, "view_id")?,
             contact_sheet: arg_bool(args, "contact_sheet")?.unwrap_or(false),
+            repeats: repeats as u32,
             model: arg_strings(args, "model")?,
             revision: arg_strings(args, "revision")?,
             fps: arg_f64(args, "fps")?.unwrap_or(1.0),
@@ -364,7 +370,7 @@ pub(super) fn schemas() -> Vec<Value> {
         "operation":{"const":"video-judge"},"rubric":{"type":"string"},"frame_map":{"type":"array","maxItems":2,"items":{"type":"string"}},
         "image":{"type":"array","maxItems":2,"items":{"type":"string"}},
         "reference":{"type":"string"},"reference_frame_map":{"type":"string"},
-        "view_id":{"type":"array","maxItems":2,"items":{"type":"string","minLength":1,"maxLength":128}},"contact_sheet":{"type":"boolean"},
+        "view_id":{"type":"array","maxItems":2,"items":{"type":"string","minLength":1,"maxLength":128}},"contact_sheet":{"type":"boolean"},"repeats":{"type":"integer","minimum":1,"maximum":32},
         "model":{"type":"array","minItems":1,"items":{"type":"string"}},"revision":{"type":"array","minItems":1,"items":{"type":"string"}},
         "fps":{"type":"number","exclusiveMinimum":0,"maximum":120},"max_edge":{"type":"integer","minimum":1,"maximum":2048},
         "max_spend_usd":{"type":"string"},"out":{"type":"string"},"experimental":{"const":true}}}),

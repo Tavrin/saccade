@@ -194,7 +194,7 @@ def main():
         result['manifest_hash']=manifest['manifest_hash'];result['oracle_hash']=manifest['oracle_hash']
         result['source_revision']=args.source_revision
         current=Path(__file__).parent
-        result['scoring_source_sha256']={name:corpus.digest((current/name).read_bytes()) for name in ('scorer_selftest.py','dev_policy.py','pilot_score.py','score.py','dev_audit.py','judge_gate.py','video_scores.py','image_quality.py')}
+        result['scoring_source_sha256']={name:corpus.digest((current/name).read_bytes()) for name in ('scorer_selftest.py','dev_policy.py','pilot_score.py','score.py','dev_audit.py','judge_gate.py','video_scores.py','image_quality.py','judge_calibration.py','judge_plan.py','judge_show.py')}
         if args.out:
             corpus.put(args.out.with_suffix('.json'),result)
             args.out.with_suffix('.md').write_text(markdown(result))
@@ -212,7 +212,7 @@ def main():
         # Only current scorer fixes/adapters execute; the pinned renderer/verifier
         # verifies original development truth without changing frozen source bytes.
         program='import sys,importlib.util;sys.path.insert(0,'+repr(str(frozen/'scripts/assist'))+');sys.path.append('+repr(str(root/'scripts/assist'))+');'
-        for name in ('video_scores','judge_gate','image_quality'):
+        for name in ('video_scores','judge_gate','image_quality','dev_policy'):
             program+='spec=importlib.util.spec_from_file_location('+repr(name)+','+repr(str(root/'scripts/assist'/f'{name}.py'))+');m=importlib.util.module_from_spec(spec);sys.modules['+repr(name)+']=m;spec.loader.exec_module(m);'
         program+='spec=importlib.util.spec_from_file_location("score",'+repr(str(root/'scripts/assist/score.py'))+');m=importlib.util.module_from_spec(spec);sys.modules["score"]=m;spec.loader.exec_module(m);'
         program+='spec=importlib.util.spec_from_file_location("pilot_score",'+repr(str(root/'scripts/assist/pilot_score.py'))+');m=importlib.util.module_from_spec(spec);sys.modules["pilot_score"]=m;spec.loader.exec_module(m);spec=importlib.util.spec_from_file_location("scorer_selftest",'+repr(str(root/'scripts/assist/scorer_selftest.py'))+');m=importlib.util.module_from_spec(spec);sys.modules["scorer_selftest"]=m;spec.loader.exec_module(m);m.main()'

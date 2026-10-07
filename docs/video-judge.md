@@ -48,11 +48,11 @@ sampled more sparsely or split into independent clips; the plan never silently
 truncates frames to fit. Sparse sampling limits semantic evidence: abstain when
 it cannot support a score.
 
-Pricing uses the inherited `openrouter-price-allowlist/2026-10-07-v1` source pin
+Pricing uses the `openrouter-price-allowlist/2026-10-07-v2` source pin
 ([models API](https://openrouter.ai/api/v1/models), supplied 2026-10-07): 750
 nanodollars per prompt/image token and 3,750 per completion token for the admitted
-model. These are **frame-image prices**, not an invented native-video price.
-Each reservation is `input_bound × 750 + 1024 × 3750` integer nanodollars.
+Gemini arm. The independent GPT arm pins 4,500 per completion token. These are **frame-image prices**, not an invented native-video price.
+Each reservation is `input_bound × 750 + 1024 × arm_completion_price` integer nanodollars.
 `plan.json` lists exact per-request and aggregate reservations; the whole
 schedule must fit a positive cap ≤ $2 before any output plan is written. This
 is an exact reservation estimate, not a prediction of billed usage.
@@ -217,3 +217,74 @@ it is offline implementation proof, not empirical calibration.
 
 MCP preparation also accepts `image`, `reference`, `reference_frame_map`,
 `view_id` and `contact_sheet`, with the same filesystem authorization as frame maps.
+
+Independent arms and repetitions are prepared offline with `--repeats N`
+(1–32), repeated `--model` and matching `--revision` flags. Each item/arm/order
+has a distinct request root; both orders share one sample identity, and each
+repetition changes the packet and cache identity. Duplicate model arms are
+refused. Resume/replay never creates another fresh median sample. The complete
+schedule is reserved before publication; no partial denominator passes.
+
+The independent allowlist admits `google/gemini-3.8-flash` and
+`openai/gpt-5.4-mini`. The latter pins the supplied 2026-10-07 models API prices
+at $0.75 per million prompt tokens and $4.50 per million completion tokens.
+Image input uses the prompt rate because no separate image price was supplied.
+Its separate provisional calibrated policy reserves 16,384 tokens per image,
+regardless of dimensions or detail. This is a conservative local policy,
+not measured tokenizer qualification. A returned usage/cost bound breach stops
+the campaign. Gemini's measured image policy is not evidence for the second arm.
+Receipts bind each arm's image table, price version and actual returned identity.
+
+Provider schema projections have separate versioned wire names. Gemini retains
+its array-cardinality keyword removal. The second arm defaults independently to
+the same conservative projection: supported JSON-schema keywords remain unknown.
+Full local cardinality, score, cue, identity and timestamp checks still apply.
+No provider keyword-support or quality claim follows from offline fixtures.
+
+Constructed calibration uses the existing deterministic degradation generator,
+including freezing, flicker, speed changes, hitches, overlays, temporal blur,
+drops and spatial controls. Original frame maps and images remain user-owned:
+
+```sh
+saccade experiment calibrate-degradations --positive POSITIVE_MAP \
+  --strengths 1 --seed 42 --threshold 0.8 --out NEGATIVES --json
+python3 scripts/assist/judge_plan.py --bin ABSOLUTE_BIN \
+  --evidence NEGATIVES --positive POSITIVE_MAP --rubric ABSOLUTE_RUBRIC \
+  --model google/gemini-3.8-flash --revision absent \
+  --model openai/gpt-5.4-mini --revision absent --repeats 1 \
+  --cap-nano-usd 2000000000 --out NEW_PLAN
+python3 scripts/assist/judge_show.py --requests NEW_PLAN/requests.json \
+  --out NEW_PLAN/hand-check.html
+```
+
+Repeat `--positive` in the original source order for multiple independent clips.
+The plan script preserves all classes unless an explicit `--classes` subset is
+requested for a smoke. It prepares both orders at 120 fps, then uniformly selects
+up to eight frames for a 128-pixel timestamped contact sheet. This sparse
+representation must be hand-checked for the intended defects before any spend.
+The plan includes exact integer worst reservations and an explicitly hypothetical
+expected-cost scenario: half the bounded input and 256 aggregate output tokens.
+It never reads credentials or invokes a provider. Unaffordable complete plans
+are refused, rather than silently dropping arms, classes or samples.
+
+After separately authorized execution and score export, run:
+
+```sh
+python3 scripts/assist/judge_calibration.py --bin ABSOLUTE_BIN \
+  --manifest NEGATIVES/manifest.json --schedule NEW_PLAN/schedule.json \
+  --scores SCORES_JSONL --positive POSITIVE_MAP --threshold 0.8 --out NEW_RESULT
+python3 scripts/assist/judge_gate.py --self-test
+```
+
+The adapter passes scalar medians to `experiment calibrate-degradations` as an
+external scorer. It binds actual provider/model/revision, rubric, protocol,
+evaluation kind and sampling transform; absent, mixed, replayed or inconsistent
+answers withhold the entire external scorer. Cues and criteria remain independent
+requirements of the advisory acceptance gate. Repetitions do not inflate the
+calibrator's independent-source denominator. `trust.json` grants `trusted_for`
+only the classes whose exact lower bound passes at every tested strength;
+all other classes remain explicitly untrusted. It records calibration and score
+file hashes. This trust applies to the recorded binding and constructed domain,
+not a changed rubric, transform, kind, route or model, and never baseline approval.
+The mandatory paid-run scorer proof includes perfect, near-perfect, wrong,
+inconsistent-order, missing, replay and identity cases for the judge gate.

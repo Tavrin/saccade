@@ -2082,6 +2082,7 @@ mod tests {
         };
         let payload = video::request(&packet, &[png], assist::price::OPENROUTER_MODEL).unwrap();
         let row = Row {
+            output_fit: None,
             root: "video-fixture".into(),
             model: assist::price::OPENROUTER_MODEL.into(),
             revision: "absent".into(),

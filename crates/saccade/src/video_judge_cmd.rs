@@ -30,6 +30,9 @@ pub(crate) struct Args {
     /// One or more pinned model identities; unpriced identities are refused.
     #[arg(long, required = true)]
     pub(crate) model: Vec<String>,
+    /// Fresh repetitions per item/model/order; replays never count as samples.
+    #[arg(long, default_value_t = 1)]
+    pub(crate) repeats: u32,
     /// Required provider-returned revision pin, one per model.
     #[arg(long, required = true)]
     pub(crate) revision: Vec<String>,
@@ -60,7 +63,13 @@ pub(crate) fn run(a: Args, json_output: bool) -> Result<u8, CliError> {
 }
 pub(crate) fn execute(a: Args) -> Result<serde_json::Value, CliError> {
     let prepare = || -> assist::Result<serde_json::Value> {
-        if a.model.is_empty()
+        if !(1..=32).contains(&a.repeats)
+            || a.model
+                .iter()
+                .collect::<std::collections::BTreeSet<_>>()
+                .len()
+                != a.model.len()
+            || a.model.is_empty()
             || a.model.len() > 16
             || !(1..=2).contains(&(a.frame_map.len() + a.image.len()))
             || a.view_id
@@ -117,39 +126,41 @@ pub(crate) fn execute(a: Args) -> Result<serde_json::Value, CliError> {
         let mut rows = vec![];
         let mut costs = vec![];
         let mut total = 0u64;
-        for (m, revision) in a.model.iter().zip(&a.revision) {
-            for reverse in 0..if clips.len() == 2 { 2 } else { 1 } {
-                let mut clips = clips.clone();
-                let mut media = media.clone();
-                if reverse == 1 {
-                    clips.reverse();
-                    media.reverse();
+        for (arm, (m, revision)) in a.model.iter().zip(&a.revision).enumerate() {
+            for repeat in 0..a.repeats {
+                for reverse in 0..if clips.len() == 2 { 2 } else { 1 } {
+                    let mut clips = clips.clone();
+                    for clip in &mut clips {
+                        clip.sample_id = format!("{}-repeat-{repeat}", clip.sample_id);
+                    }
+                    let mut media = media.clone();
+                    if reverse == 1 {
+                        clips.reverse();
+                        media.reverse();
+                    }
+                    let packet = video::Packet {
+                        schema: video::VERSION.into(),
+                        rubric: rubric.clone(),
+                        clips,
+                        references: references.clone(),
+                    };
+                    let media: Vec<_> = media
+                        .into_iter()
+                        .flatten()
+                        .chain(reference_media.clone())
+                        .collect();
+                    let payload = video::request(&packet, &media, m)?;
+                    let bound = assist::openrouter::admission(
+                        &serde_json::to_vec(&payload).map_err(|_| assist::Error::Storage)?,
+                        m,
+                    )?;
+                    total = total
+                        .checked_add(bound.reservation)
+                        .ok_or(assist::Error::Invalid("video reservation overflow"))?;
+                    let root = format!("model-{arm}-repeat-{repeat}-order-{reverse}");
+                    costs.push(json!({"root":root,"model":m,"order":reverse,"repeat":repeat,"image_table":assist::price::openrouter_image_table(m),"schema_projection":assist::structured_output::projection_policy(m),"input_bound":bound.bounds.input,"output_bound":bound.bounds.output,"reservation_nano_usd":bound.reservation,"request_hash":assist::digest(&packet)?}));
+                    rows.push(json!({"root":root,"model":m,"revision":revision,"payload":payload}));
                 }
-                let packet = video::Packet {
-                    schema: video::VERSION.into(),
-                    rubric: rubric.clone(),
-                    clips,
-                    references: references.clone(),
-                };
-                let media: Vec<_> = media
-                    .into_iter()
-                    .flatten()
-                    .chain(reference_media.clone())
-                    .collect();
-                let payload = video::request(&packet, &media, m)?;
-                let bound = assist::openrouter::admission(
-                    &serde_json::to_vec(&payload).map_err(|_| assist::Error::Storage)?,
-                    m,
-                )?;
-                total = total
-                    .checked_add(bound.reservation)
-                    .ok_or(assist::Error::Invalid("video reservation overflow"))?;
-                let root = format!(
-                    "model-{}-order-{reverse}",
-                    rows.len() / if packet.clips.len() == 2 { 2 } else { 1 }
-                );
-                costs.push(json!({"root":root,"model":m,"order":reverse,"input_bound":bound.bounds.input,"output_bound":bound.bounds.output,"reservation_nano_usd":bound.reservation,"request_hash":assist::digest(&packet)?}));
-                rows.push(json!({"root":root,"model":m,"revision":revision,"payload":payload}));
             }
         }
         if total > cap {
@@ -219,6 +230,7 @@ mod tests {
             reference_frame_map: None,
             view_id: vec![],
             contact_sheet: false,
+            repeats: 1,
             model: vec![assist::price::OPENROUTER_MODEL.into()],
             revision: vec!["absent".into()],
             fps: 1.0,
@@ -258,6 +270,56 @@ mod tests {
         input.max_spend_usd = "0.000000001".into();
         assert!(execute(input).is_err());
         assert!(!dir.path().join("refused").exists());
+    }
+    #[test]
+    fn independent_arms_repeats_are_fresh_and_fully_reserved() {
+        let dir = tempfile::tempdir().unwrap();
+        let mut input = args(dir.path());
+        input.model.push(assist::price::OPENROUTER_GPT_MODEL.into());
+        input.revision.push("absent".into());
+        input.repeats = 3;
+        let plan = execute(input).unwrap();
+        assert_eq!(plan["rows"].as_array().unwrap().len(), 12);
+        let rows: Vec<serde_json::Value> =
+            assist::decode(&std::fs::read(dir.path().join("plan/requests.json")).unwrap()).unwrap();
+        let mut payloads = std::collections::BTreeSet::new();
+        for row in &rows {
+            assert!(payloads.insert(serde_json::to_string(&row["payload"]).unwrap()));
+            let bound = assist::openrouter::admission(
+                &serde_json::to_vec(&row["payload"]).unwrap(),
+                row["model"].as_str().unwrap(),
+            )
+            .unwrap();
+            assert!(bound.reservation > 0);
+        }
+        for arm in 0..2 {
+            for repeat in 0..3 {
+                let first = video::packet(&rows[arm * 6 + repeat * 2]["payload"]).unwrap();
+                let reverse = video::packet(&rows[arm * 6 + repeat * 2 + 1]["payload"]).unwrap();
+                assert_eq!(first.clips[0].sample_id, reverse.clips[1].sample_id);
+                if repeat > 0 {
+                    let previous =
+                        video::packet(&rows[arm * 6 + (repeat - 1) * 2]["payload"]).unwrap();
+                    assert_ne!(first.clips[0].sample_id, previous.clips[0].sample_id);
+                }
+            }
+        }
+        assert_ne!(
+            rows[0]["payload"]["response_format"],
+            rows[6]["payload"]["response_format"]
+        );
+        let schema: serde_json::Value =
+            serde_json::from_str(saccade_core::schema_catalog::get(video::PLAN_SCHEMA).unwrap())
+                .unwrap();
+        assert!(jsonschema::validator_for(&schema).unwrap().is_valid(&plan));
+        let mut duplicate = args(dir.path());
+        duplicate.model.push(duplicate.model[0].clone());
+        duplicate.revision.push("absent".into());
+        duplicate.out = dir.path().join("duplicate");
+        assert!(execute(duplicate).is_err());
+        let mut bad = args(dir.path());
+        bad.repeats = 0;
+        assert!(execute(bad).is_err());
     }
     #[test]
     fn judge_parity_cli_mixed_inputs_reference_and_stable_ids() {
