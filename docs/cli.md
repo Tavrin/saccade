@@ -75,9 +75,25 @@ Start here:
   saccade prove performance --base 'base_r*' --arm 'candidate=candidate_r*'
   saccade review report/saccade-report.v1.json --out review
 
-Exit codes: 0 no image regression, 1 image regression found, 2 the command could not run.
-Advanced: demo, identity, noise, view, inspect, experiment, approve, init,
+Tasks (full map and guides: docs/quickstart.md, docs/guides/):
+  Did a render or screenshot change?      saccade compare
+  Is a refactor pixel-identical?          saccade prove identity
+  Did it get faster, accounting noise?    saccade prove performance
+  Is a timing from another tool real?     saccade timing
+  Are two capture setups comparable?      saccade arms check
+  Which images are near-duplicates?       saccade dedupe
+  What does a finished report say?        saccade inspect, saccade review
+Advanced: demo, identity, noise, view, inspect, experiment (incl. settle), timing, approve, init,
 serve, mcp, ingest, bisect, history, doctor. Existing commands keep working; use `saccade COMMAND --help`.
+`saccade doctor` lists what this build and machine can run.
+
+Exit codes (a command that cannot produce a measurement never exits 0):
+  0  success: no regression, claim proven, or the requested output was written
+  1  regression found, or the claim was not proven (differs, missing, new, unreadable)
+  2  the command could not run: usage, config, input or unavailable feature/model
+  3  strict producer check refused: an undeclared difference (--require-valid-arms)
+  4  strict producer check refused: a required key is missing (--require-valid-arms)
+Units: --threshold on FLIP scores is a 0-1 score (lower = more alike); hash thresholds count bits.
 ```
 
 ## saccade timing
@@ -401,8 +417,8 @@ Options:
       --sitemap <SITEMAP>
       --before-origin <BEFORE_ORIGIN>
       --after-origin <AFTER_ORIGIN>
-      --samples <SAMPLES>              [default: 3]
-      --seed <SEED>                    [default: 42]
+      --samples <SAMPLES>              Samples per candidate setting, 1-100 (default 3) [default: 3]
+      --seed <SEED>                    Integer seed for sample order (default 42) [default: 42]
       --viewport <VIEWPORT>            Repeat WIDTHxHEIGHT. Default: 1280x720
       --out <OUT>
       --json
@@ -542,7 +558,7 @@ Options:
       --cache <CACHE>
       --report-index <REPORT_INDEX>  Shared report index destination (default reports/index.jsonl next to each report, inside --out)
       --fixture-dir <FIXTURE_DIR>
-      --scale <SCALE>                [default: 1]
+      --scale <SCALE>                Export scale factor, 0.01-4 (default 1; 2 = twice the pixel size) [default: 1]
       --json
   -h, --help                         Print help
 
@@ -946,7 +962,7 @@ Options:
       --cache <CACHE>                Deprecated: set SACCADE_MODELS_DIR or [models].dir. Content-addressed model cache
       --library <LIBRARY>            Deprecated: set SACCADE_MODELS_RUNTIME_LIBRARY or [models].runtime_library. Explicit ONNX Runtime 1.22 dynamic library, CPU execution only
       --download-model               Deprecated: provision with `saccade models pull embedding`. Still downloads the pinned export to the cache
-      --top <TOP>                    [default: 10]
+      --top <TOP>                    Number of nearest matches to return (default 10) [default: 10]
       --out <OUT>                    [default: query-report]
       --json
   -h, --help                         Print help
@@ -992,7 +1008,7 @@ Options:
       --algorithm <ALGORITHM>        Algorithm for the Hamming index [default: phash] [possible values: ahash, dhash, phash]
       --source-ref <SOURCE_REF>      External capture URI/key (repeatable); recorded in generated reports
       --report-index <REPORT_INDEX>  Shared report index destination (default reports/index.jsonl next to each report, inside --out)
-      --threshold <THRESHOLD>        Inclusive Hamming radius in 0..64; clusters use transitive connectivity [default: 6]
+      --threshold <THRESHOLD>        Largest perceptual-hash distance in bits, 0-64 (0 = identical hashes; larger = looser); clusters use transitive connectivity [default: 6]
       --out <OUT>                    New or empty output directory [default: dedupe-report]
       --json                         Emit a bounded JSON artifact receipt
   -h, --help                         Print help
@@ -1043,8 +1059,8 @@ Options:
       --out <OUT>
       --source-ref <SOURCE_REF>      External capture URI/key (repeatable); recorded in generated reports
       --report-index <REPORT_INDEX>  Shared report index destination (default reports/index.jsonl next to each report, inside --out)
-      --sample-fps <SAMPLE_FPS>      [default: 1]
-      --shot-penalty <SHOT_PENALTY>  [default: 0.15]
+      --sample-fps <SAMPLE_FPS>      Requested samples per second, 0.1-10 (default 1; the decoder may lower it) [default: 1]
+      --shot-penalty <SHOT_PENALTY>  Change-point penalty, 0.001-10 (default 0.15; higher = fewer, longer shots; content-dependent) [default: 0.15]
       --json
   -h, --help                         Print help
 
@@ -1277,11 +1293,11 @@ Options:
       --source-ref <SOURCE_REF>
           External capture URI/key (repeatable); recorded in generated reports
       --quantization-step <QUANTIZATION_STEP>
-          [default: 36]
+          Coefficient quantization step of the embedding workflow (default 36; must be above 0) [default: 36]
       --report-index <REPORT_INDEX>
           Shared report index destination (default reports/index.jsonl next to each report, inside --out)
       --minimum-agreement <MINIMUM_AGREEMENT>
-          [default: 0.9]
+          Required fraction of block votes supporting the expected bits, 0.75-1 (default 0.9) [default: 0.9]
       --observations <OBSERVATIONS>
           Explicit frozen/generated primary-decoder observation report
       --trustmark
@@ -1639,9 +1655,9 @@ Options:
       --perceptual-outside
           Use maximum full-frame complement FLIP instead of exact native preservation
       --maximum-outside-flip <MAXIMUM_OUTSIDE_FLIP>
-          [default: 0.01]
+          Largest FLIP score allowed outside the intended region, 0-1 (default 0.01; above it fails) [default: 0.01]
       --ppd <PPD>
-          [default: 67]
+          Viewing condition in pixels per degree of visual angle (default 67) [default: 67]
       --json
 
   -h, --help
@@ -1784,7 +1800,7 @@ Options:
       --report-index <REPORT_INDEX>  Shared report index destination (default reports/index.jsonl next to each report, inside --out)
       --drift                        Diagnose sustained anchor-relative drift in recorded run order
       --out <OUT>                    New file containing the complete witness for the selected groups
-      --limit <LIMIT>                [default: 10]
+      --limit <LIMIT>                Maximum runs to list, 1-20 (default 10) [default: 10]
       --json
   -h, --help                         Print help
 
@@ -1980,7 +1996,7 @@ Usage: saccade init [OPTIONS]
 
 Options:
       --source-ref <SOURCE_REF>      External capture URI/key (repeatable); recorded in generated reports
-      --template <TEMPLATE>          [default: renderer] [possible values: renderer, ui, identity, ml, ci, nightly, lookdev]
+      --template <TEMPLATE>          [default: renderer] [possible values: renderer, ui, identity, ml, producer-strict, ci, nightly, lookdev]
       --dir <DIR>                    [default: .]
       --report-index <REPORT_INDEX>  Shared report index destination (default reports/index.jsonl next to each report, inside --out)
       --force
@@ -2097,12 +2113,12 @@ Output:
       --junit <FILE.xml>  Write one JUnit testcase per entry
 
 Gate:
-      --threshold <THRESHOLD>  Default pass threshold (overrides the config file's top level)
+      --threshold <THRESHOLD>  FLIP score limit in 0-1 (0 = identical): a pair fails when its --metric value is above it. Overrides the config file
       --metric <METRIC>        Default deciding metric (overrides the config file's top level) [possible values: mean, p95, p99, max]
       --config <CONFIG>        Config file; defaults to ./saccade.toml when it exists
       --fail-on-new            Treat new images (no baseline) as a regression
       --allow-empty            Accept a run that compared no pair (for example the first run, with an empty baseline directory). Without it, nothing compared exits 1
-      --ppd <PPD>              FLIP pixels per degree
+      --ppd <PPD>              Viewing condition in pixels per degree of visual angle (default 67; larger = finer detail is visible)
 
 HDR images:
       --hdr-tonemapper <NAME>         Tone mapper for `.exr`/`.hdr` images: aces (default), hable or reinhard
@@ -2190,7 +2206,7 @@ Output:
 Gate:
       --allow-empty      Accept a run that compared no pair. Without it, nothing compared exits 1
       --config <CONFIG>  Config file; defaults to ./saccade.toml when it exists
-      --ppd <PPD>        FLIP pixels per degree, used only to describe differences
+      --ppd <PPD>        Viewing condition in pixels per degree of visual angle (default 67), used only to describe differences
 
 Selection:
       --entry <GLOB>  Include only matching names (repeatable; union of globs)
@@ -2300,7 +2316,7 @@ Options:
       --report-index <REPORT_INDEX>  Shared report index destination (default reports/index.jsonl next to each report, inside --out)
       --json
       --allow-empty
-      --ppd <PPD>
+      --ppd <PPD>                    Viewing condition in pixels per degree of visual angle (default 67)
       --labels <A,B>
       --junit <FILE.xml>
       --entry <GLOB>
@@ -2437,7 +2453,7 @@ Performance:
       --perf-min-delta-ms <MS>     Minimum meaningful delta in ms (default 0.05)
       --perf-min-delta-pct <PCT>   Minimum meaningful delta as a percentage of the baseline frame (default 0.5)
       --config <CONFIG>
-      --margin <MARGIN>            [default: 1.5]
+      --margin <MARGIN>            Multiplier on the largest observed metric value when setting the noise floor (default 1.5) [default: 1.5]
       --metric <METRIC>            [default: p95] [possible values: mean, p95, p99, max]
       --out <OUT>                  [default: saccade.noise.toml]
       --json
@@ -2522,7 +2538,7 @@ Output:
 
 Comparison:
       --reference <REFERENCE>  FLIP reference: a label or one of the directories (default: the first)
-      --ppd <PPD>              FLIP pixels per degree
+      --ppd <PPD>              Viewing condition in pixels per degree of visual angle (default 67; larger = finer detail is visible)
       --config <CONFIG>        Config file whose `[[region]]` tables become preset ROIs (default: `./saccade.toml` when present)
 
 HDR images:
@@ -2618,7 +2634,7 @@ Options:
       --source-ref <SOURCE_REF>
           External capture URI/key (repeatable); recorded in generated reports
       --api-max-bytes <API_MAX_BYTES>
-          [default: 16777216]
+          Largest accepted request body in bytes (default 16777216 = 16 MiB) [default: 16777216]
       --report-index <REPORT_INDEX>
           Shared report index destination (default reports/index.jsonl next to each report, inside --out)
       --api-bind <API_BIND>
@@ -2638,7 +2654,7 @@ Options:
       --symlink-target <SYMLINK_TARGETS>
           Allow symlinks reached below a root to resolve into DIR (repeatable)
       --fs-timeout-ms <FS_TIMEOUT_MS>
-          Storage deadline in milliseconds (default: 3000)
+          Storage deadline in milliseconds, at least 1 (default: 3000)
       --port <PORT>
           Port on 127.0.0.1 (0 picks a free one) [default: 7878]
       --cache-dir <CACHE_DIR>
@@ -2648,7 +2664,7 @@ Options:
       --config <CONFIG>
           Config file for sidecar settings and preset regions (default: `./saccade.toml` when present)
       --ppd <PPD>
-          FLIP pixels per degree
+          Viewing condition in pixels per degree of visual angle (default 67; larger = finer detail is visible). Viewing condition in pixels per degree of visual angle (default 67)
       --open
           Open the page in the default browser
   -h, --help
@@ -2742,7 +2758,7 @@ Options:
       --status <STATUS>
 
       --limit <LIMIT>
-          [default: 10]
+          Maximum rows to show (default 10) [default: 10]
       --cursor <CURSOR>
 
       --expected-case-id <EXPECTED_CASE_ID>
@@ -2793,11 +2809,11 @@ Options:
       --source-ref <SOURCE_REF>      External capture URI/key (repeatable); recorded in generated reports
       --entry <ENTRIES>
       --report-index <REPORT_INDEX>  Shared report index destination (default reports/index.jsonl next to each report, inside --out)
-      --top <TOP>                    [default: 5]
+      --top <TOP>                    Number of entries to include in the evidence pack (default 5) [default: 5]
       --stretch
       --blind
       --key-out <KEY_OUT>
-      --seed <SEED>
+      --seed <SEED>                  Integer seed for the blind shuffle (default: random)
       --json
   -h, --help                         Print help
 
@@ -2823,7 +2839,7 @@ Options:
       --report-index <REPORT_INDEX>  Shared report index destination (default reports/index.jsonl next to each report, inside --out)
       --entry <ENTRY>
       --state <STATE>
-      --width <WIDTH>                [default: 1024]
+      --width <WIDTH>                Exported image width in pixels (default 1024) [default: 1024]
       --artifact-url <ARTIFACT_URL>
       --comment-key <COMMENT_KEY>
   -h, --help                         Print help
@@ -2899,7 +2915,7 @@ Options:
       --source-ref <SOURCE_REF>      External capture URI/key (repeatable); recorded in generated reports
       --report-index <REPORT_INDEX>  Shared report index destination (default reports/index.jsonl next to each report, inside --out)
       --run
-      --budget-calls <BUDGET_CALLS>
+      --budget-calls <BUDGET_CALLS>  Maximum provider calls, at least 1; counts calls, not money
       --out <OUT>
       --user-config <USER_CONFIG>
       --intent-file <INTENT_FILE>
@@ -3095,8 +3111,8 @@ Options:
       --experimental
       --run                            Authorize one live submission or one poll; default local only
       --response <RESPONSE>            Recorded collection fixture; cannot settle a live reservation
-      --budget-calls <BUDGET_CALLS>    [default: 8]
-      --deadline-secs <DEADLINE_SECS>  [default: 300]
+      --budget-calls <BUDGET_CALLS>    Maximum provider calls, 1-128 (default 8); the run stops when reached [default: 8]
+      --deadline-secs <DEADLINE_SECS>  Wall-clock limit in seconds, 1-300 (default 300) [default: 300]
       --user-config <USER_CONFIG>
       --json
   -h, --help                           Print help
@@ -3121,8 +3137,8 @@ Options:
       --experimental
       --run                            Authorize one live submission or one poll; default local only
       --response <RESPONSE>            Recorded collection fixture; cannot settle a live reservation
-      --budget-calls <BUDGET_CALLS>    [default: 8]
-      --deadline-secs <DEADLINE_SECS>  [default: 300]
+      --budget-calls <BUDGET_CALLS>    Maximum provider calls, 1-128 (default 8); the run stops when reached [default: 8]
+      --deadline-secs <DEADLINE_SECS>  Wall-clock limit in seconds, 1-300 (default 300) [default: 300]
       --user-config <USER_CONFIG>
       --json
   -h, --help                           Print help
@@ -3147,8 +3163,8 @@ Options:
       --experimental
       --run                            Authorize one live submission or one poll; default local only
       --response <RESPONSE>            Recorded collection fixture; cannot settle a live reservation
-      --budget-calls <BUDGET_CALLS>    [default: 8]
-      --deadline-secs <DEADLINE_SECS>  [default: 300]
+      --budget-calls <BUDGET_CALLS>    Maximum provider calls, 1-128 (default 8); the run stops when reached [default: 8]
+      --deadline-secs <DEADLINE_SECS>  Wall-clock limit in seconds, 1-300 (default 300) [default: 300]
       --user-config <USER_CONFIG>
       --json
   -h, --help                           Print help
@@ -3426,9 +3442,9 @@ Options:
       --perceptual-outside
 
       --maximum-outside-flip <MAXIMUM_OUTSIDE_FLIP>
-          [default: 0.01]
+          Largest FLIP score allowed outside the intended region, 0-1 (default 0.01; above it fails) [default: 0.01]
       --ppd <PPD>
-          [default: 67]
+          Viewing condition in pixels per degree of visual angle (default 67) [default: 67]
       --out <OUT>
 
       --user-config <USER_CONFIG>
@@ -3464,7 +3480,7 @@ Options:
       --sidecar <SIDECAR>
           Pinned units, direction, origin and jitter contract (requires --vectors)
       --ppd <PPD>
-          [default: 67]
+          Viewing condition in pixels per degree of visual angle (default 67) [default: 67]
       --maximum-raw-mean <MAXIMUM_RAW_MEAN>
           Raw full-frame mean FLIP threshold; motion cannot relax it [default: 0.01]
       --out <OUT>
@@ -3831,10 +3847,10 @@ Options:
       --pattern <PATTERN>            Relative-name glob; frames must end in an integer before the extension [default: *]
       --report-index <REPORT_INDEX>  Shared report index destination (default reports/index.jsonl next to each report, inside --out)
       --out <OUT>                    [default: sequence-report]
-      --threshold <THRESHOLD>
+      --threshold <THRESHOLD>        FLIP score limit in 0-1 (0 = identical); above it fails
       --metric <METRIC>              [possible values: mean, p95, p99, max]
       --config <CONFIG>
-      --ppd <PPD>
+      --ppd <PPD>                    Viewing condition in pixels per degree of visual angle (default 67)
       --fail-on-new
       --allow-empty
       --labels <LABELS>
@@ -3889,8 +3905,8 @@ Options:
       --report-index <REPORT_INDEX>  Shared report index destination (default reports/index.jsonl next to each report, inside --out)
       --out <OUT>                    [default: rank-report]
       --config <CONFIG>
-      --threshold <THRESHOLD>
-      --ppd <PPD>
+      --threshold <THRESHOLD>        FLIP score limit in 0-1 (0 = identical); above it fails
+      --ppd <PPD>                    Viewing condition in pixels per degree of visual angle (default 67)
       --fail-on-new
       --allow-empty
       --json

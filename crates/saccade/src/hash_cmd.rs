@@ -38,7 +38,7 @@ pub(crate) struct DedupeArgs {
     /// Algorithm for the Hamming index.
     #[arg(long, value_enum, default_value = "phash")]
     algorithm: Algorithm,
-    /// Inclusive Hamming radius in 0..64; clusters use transitive connectivity.
+    /// Largest perceptual-hash distance in bits, 0-64 (0 = identical hashes; larger = looser); clusters use transitive connectivity.
     #[arg(long, default_value = "6")]
     threshold: u32,
     /// New or empty output directory.

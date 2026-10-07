@@ -573,8 +573,10 @@ pub(crate) struct WatermarkArgs {
     /// Known legacy message bytes in hex; arbitrary recovered bits are not detection.
     #[arg(long)]
     expected_payload: Option<String>,
+    /// Coefficient quantization step of the embedding workflow (default 36; must be above 0).
     #[arg(long, default_value_t = 36.)]
     quantization_step: f32,
+    /// Required fraction of block votes supporting the expected bits, 0.75-1 (default 0.9).
     #[arg(long, default_value_t = 0.9)]
     minimum_agreement: f32,
     /// Explicit frozen/generated primary-decoder observation report.

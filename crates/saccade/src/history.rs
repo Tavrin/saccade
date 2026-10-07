@@ -64,6 +64,7 @@ enum HistoryOperation {
         /// New file containing the complete witness for the selected groups.
         #[arg(long)]
         out: Option<PathBuf>,
+        /// Maximum runs to list, 1-20 (default 10).
         #[arg(long, default_value_t = 10, value_parser = clap::value_parser!(u8).range(1..=20))]
         limit: u8,
         #[arg(long)]

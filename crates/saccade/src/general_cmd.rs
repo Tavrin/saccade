@@ -155,6 +155,14 @@ pub(crate) fn compare_document(
             "registration FLIP threshold must be in [0,1]",
         ));
     }
+    for (present, missing) in [(reference, capture), (capture, reference)] {
+        if present.is_file() && !missing.exists() {
+            return Err(CliError::usage(format!(
+                "input does not exist: {}",
+                missing.display()
+            )));
+        }
+    }
     if reference.is_file() != capture.is_file() {
         return Err(CliError::usage(
             "inputs must both be files or both be directories",

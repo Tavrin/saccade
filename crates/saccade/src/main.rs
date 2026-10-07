@@ -1,7 +1,8 @@
 //! The `saccade` command-line tool. `compare`, `prove` and `review` are the
 //! main entry points.
 //!
-//! Exit codes: `0` no regression, `1` regression, `2` usage/config/IO error.
+//! Exit codes: `0` ok, `1` regression or claim not proven, `2` could not run,
+//! `3` strict-arm refusal for a difference, `4` strict-arm refusal for a missing key.
 
 #![recursion_limit = "256"]
 
@@ -117,9 +118,25 @@ Start here:
   saccade prove performance --base 'base_r*' --arm 'candidate=candidate_r*'
   saccade review report/saccade-report.v1.json --out review
 
-Exit codes: 0 no image regression, 1 image regression found, 2 the command could not run.
-Advanced: demo, identity, noise, view, inspect, experiment, approve, init,
-serve, mcp, ingest, bisect, history, doctor. Existing commands keep working; use `saccade COMMAND --help`."
+Tasks (full map and guides: docs/quickstart.md, docs/guides/):
+  Did a render or screenshot change?      saccade compare
+  Is a refactor pixel-identical?          saccade prove identity
+  Did it get faster, accounting noise?    saccade prove performance
+  Is a timing from another tool real?     saccade timing
+  Are two capture setups comparable?      saccade arms check
+  Which images are near-duplicates?       saccade dedupe
+  What does a finished report say?        saccade inspect, saccade review
+Advanced: demo, identity, noise, view, inspect, experiment (incl. settle), timing, approve, init,
+serve, mcp, ingest, bisect, history, doctor. Existing commands keep working; use `saccade COMMAND --help`.
+`saccade doctor` lists what this build and machine can run.
+
+Exit codes (a command that cannot produce a measurement never exits 0):
+  0  success: no regression, claim proven, or the requested output was written
+  1  regression found, or the claim was not proven (differs, missing, new, unreadable)
+  2  the command could not run: usage, config, input or unavailable feature/model
+  3  strict producer check refused: an undeclared difference (--require-valid-arms)
+  4  strict producer check refused: a required key is missing (--require-valid-arms)
+Units: --threshold on FLIP scores is a 0-1 score (lower = more alike); hash thresholds count bits."
 )]
 struct Cli {
     /// External capture URI/key (repeatable); recorded in generated reports.
@@ -306,6 +323,7 @@ enum Command {
     /// Locate a phrase with boxes, optional masks, and an overlay PNG.
     Locate(wave7_cmd::LocateArgs),
     /// Measure a separately named learned quality score.
+    #[command(alias = "score")]
     QualityScore(wave7_cmd::QualityArgs),
     /// Decode explicitly compatible watermark schemes without an origin verdict.
     Watermark(wave7_cmd::WatermarkArgs),
@@ -401,7 +419,7 @@ Exit codes: 0 no regression, 1 regression found, 2 the command could not run."
         /// Report output directory.
         #[arg(long, default_value = "report", help_heading = "Output")]
         out: PathBuf,
-        /// Default pass threshold (overrides the config file's top level).
+        /// FLIP score limit in 0-1 (0 = identical): a pair fails when its --metric value is above it. Overrides the config file.
         #[arg(long, help_heading = "Gate")]
         threshold: Option<f64>,
         /// Default deciding metric (overrides the config file's top level).
@@ -420,7 +438,7 @@ Exit codes: 0 no regression, 1 regression found, 2 the command could not run."
         /// Print a bounded machine-readable result.
         #[arg(long, help_heading = "Output")]
         json: bool,
-        /// FLIP pixels per degree.
+        /// Viewing condition in pixels per degree of visual angle (default 67; larger = finer detail is visible).
         #[arg(long, help_heading = "Gate")]
         ppd: Option<f32>,
         /// Display names of the two sides, `baseline,capture`.
@@ -488,7 +506,7 @@ new or unreadable), 2 the command could not run."
         /// Print a bounded machine-readable result.
         #[arg(long, help_heading = "Output")]
         json: bool,
-        /// FLIP pixels per degree, used only to describe differences.
+        /// Viewing condition in pixels per degree of visual angle (default 67), used only to describe differences.
         #[arg(long, help_heading = "Gate")]
         ppd: Option<f32>,
         /// Display names of the two sides, `parent,candidate`.
@@ -575,7 +593,7 @@ Examples:
         /// Output directory.
         #[arg(long, default_value = "view", help_heading = "Output")]
         out: PathBuf,
-        /// FLIP pixels per degree.
+        /// Viewing condition in pixels per degree of visual angle (default 67; larger = finer detail is visible).
         #[arg(long, help_heading = "Comparison")]
         ppd: Option<f32>,
         /// Config file whose `[[region]]` tables become preset ROIs
@@ -669,6 +687,7 @@ Examples:
         /// Serve the local versioned media API instead of the archive viewer.
         #[arg(long)]
         api: bool,
+        /// Largest accepted request body in bytes (default 16777216 = 16 MiB).
         #[arg(long,default_value_t=16*1024*1024)]
         api_max_bytes: usize,
         #[arg(long, default_value = "127.0.0.1")]
@@ -697,7 +716,7 @@ Examples:
         /// Allow symlinks reached below a root to resolve into DIR (repeatable).
         #[arg(long = "symlink-target")]
         symlink_targets: Vec<PathBuf>,
-        /// Storage deadline in milliseconds (default: 3000).
+        /// Storage deadline in milliseconds, at least 1 (default: 3000).
         #[arg(long, value_parser = clap::value_parser!(u64).range(1..))]
         fs_timeout_ms: Option<u64>,
         /// Port on 127.0.0.1 (0 picks a free one).
@@ -715,7 +734,8 @@ Examples:
         /// (default: `./saccade.toml` when present).
         #[arg(long)]
         config: Option<PathBuf>,
-        /// FLIP pixels per degree.
+        /// Viewing condition in pixels per degree of visual angle (default 67; larger = finer detail is visible).
+        /// Viewing condition in pixels per degree of visual angle (default 67).
         #[arg(long)]
         ppd: Option<f32>,
         /// Open the page in the default browser.
@@ -804,6 +824,7 @@ struct ProveIdentityArgs {
     json: bool,
     #[arg(long)]
     allow_empty: bool,
+    /// Viewing condition in pixels per degree of visual angle (default 67).
     #[arg(long)]
     ppd: Option<f32>,
     #[arg(long, value_delimiter = ',', value_name = "A,B")]
@@ -853,12 +874,14 @@ enum ExperimentOperation {
         pattern: String,
         #[arg(long, default_value = "sequence-report")]
         out: PathBuf,
+        /// FLIP score limit in 0-1 (0 = identical); above it fails.
         #[arg(long)]
         threshold: Option<f64>,
         #[arg(long, value_enum)]
         metric: Option<MetricArg>,
         #[arg(long)]
         config: Option<PathBuf>,
+        /// Viewing condition in pixels per degree of visual angle (default 67).
         #[arg(long)]
         ppd: Option<f32>,
         #[arg(long)]
@@ -894,8 +917,10 @@ enum ExperimentOperation {
         out: PathBuf,
         #[arg(long)]
         config: Option<PathBuf>,
+        /// FLIP score limit in 0-1 (0 = identical); above it fails.
         #[arg(long)]
         threshold: Option<f64>,
+        /// Viewing condition in pixels per degree of visual angle (default 67).
         #[arg(long)]
         ppd: Option<f32>,
         #[arg(long)]
@@ -2103,6 +2128,7 @@ fn doctor(json: bool) -> Result<u8, CliError> {
     });
     let mut value = value;
     value["optional_dependencies"] = saccade_core::optional::status();
+    value["command_availability"] = command_availability();
     value["schema_migrations"] =
         serde_json::to_value(saccade_core::report_links::SCHEMA_MIGRATIONS)?;
     if json {
@@ -2122,8 +2148,98 @@ fn doctor(json: bool) -> Result<u8, CliError> {
             "optional dependencies (present/missing and fix commands): {}\n",
             value["optional_dependencies"]
         ))?;
+        emit("command availability in this build:\n")?;
+        for row in value["command_availability"]
+            .as_array()
+            .into_iter()
+            .flatten()
+        {
+            emit(&format!(
+                "  {:<11} {} ({}; {})\n",
+                row["status"].as_str().unwrap_or(""),
+                row["commands"].as_str().unwrap_or(""),
+                row["requires"].as_str().unwrap_or(""),
+                row["note"].as_str().unwrap_or("")
+            ))?;
+        }
     }
     Ok(0)
+}
+
+/// Which command groups this build can run, with the missing piece and its fix.
+/// Models and runtimes are provisioned separately: see `optional_dependencies`.
+fn command_availability() -> serde_json::Value {
+    let rows: [(&str, &str, bool, &str, &str); 8] = [
+        (
+            "compare, prove identity, inspect, review (plan/request/ask), view, init, approve",
+            "builtin",
+            true,
+            "built in",
+            "no models or network needed",
+        ),
+        (
+            "locate, faces, crop-check, quality-score, watermark (model decode)",
+            "local-models",
+            cfg!(feature = "local-models"),
+            "needs the local-models feature",
+            "also needs a pulled model and runtime: `saccade models list --json`, then `saccade models pull ID` and `saccade models pull runtime`",
+        ),
+        (
+            "similar, index",
+            "embeddings",
+            cfg!(feature = "embeddings"),
+            "needs the embeddings feature",
+            "also needs a pinned model export: docs/embeddings.md",
+        ),
+        (
+            "compare a.svg b.pdf",
+            "documents",
+            cfg!(feature = "documents"),
+            "needs the documents feature",
+            "static SVG and PDF pages: docs/documents.md",
+        ),
+        (
+            "text with the default OCR contract",
+            "ocr",
+            cfg!(feature = "ocr"),
+            "needs the ocr feature",
+            "or pass --a-source/--b-source text files instead: docs/text.md",
+        ),
+        (
+            "experiment a11y",
+            "prechecks",
+            cfg!(feature = "prechecks"),
+            "needs the prechecks feature",
+            "docs/safety-a11y.md",
+        ),
+        (
+            "sweep, imgtune, design, notify, last-good baselines",
+            "products",
+            cfg!(feature = "products"),
+            "needs the products feature",
+            "docs/sweep.md, docs/imgtune.md",
+        ),
+        (
+            "review explain, audit-mask, check-ui, assist",
+            "assist",
+            cfg!(feature = "assist"),
+            "needs the assist feature",
+            "advisory only, experimental: docs/assist.md",
+        ),
+    ];
+    serde_json::Value::Array(
+        rows.iter()
+            .map(|(commands, feature, on, requires, note)| {
+                serde_json::json!({
+                    "commands": commands,
+                    "feature": feature,
+                    "status": if *on { "available" } else { "unavailable" },
+                    "requires": requires,
+                    "note": note,
+                })
+            })
+            .collect(),
+    )
 }
 
 /// Parses `--labels a,b` into the two side names.
@@ -2702,6 +2818,7 @@ fn required_feature(operation: &str) -> Option<&'static str> {
         "safety" | "a11y" | "saccade_safety" | "saccade_a11y" => Some("prechecks"),
         "mcp" => Some("mcp"),
         "geometry" | "mesh-identity" => Some("geometry"),
+        "sweep" | "imgtune" | "design" | "notify" => Some("products"),
         _ => None,
     }
 }
@@ -2709,6 +2826,8 @@ fn required_feature(operation: &str) -> Option<&'static str> {
 fn feature_enabled(feature: &str) -> bool {
     if feature == "mcp" {
         cfg!(feature = "mcp")
+    } else if feature == "products" {
+        cfg!(feature = "products")
     } else {
         saccade_core::COMPILED_FEATURES.contains(&feature)
     }

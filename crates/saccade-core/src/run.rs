@@ -390,6 +390,14 @@ pub fn run(
     config: &RunConfig,
 ) -> Result<Report> {
     config.validate()?;
+    for (present, missing) in [(baseline_dir, capture_dir), (capture_dir, baseline_dir)] {
+        if present.is_file() && !missing.exists() {
+            return Err(Error::Config(format!(
+                "input does not exist: {}",
+                missing.display()
+            )));
+        }
+    }
     let arm_validation = if config.meta.require_valid_arms {
         let check = crate::arms::validate_paths(baseline_dir, capture_dir, config)?;
         if check.exit_code != 0 {

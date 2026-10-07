@@ -30,8 +30,10 @@ pub(crate) struct Args {
     ocr_contract: Option<PathBuf>,
     #[arg(long)]
     perceptual_outside: bool,
+    /// Largest FLIP score allowed outside the intended region, 0-1 (default 0.01; above it fails).
     #[arg(long, default_value_t = 0.01)]
     maximum_outside_flip: f32,
+    /// Viewing condition in pixels per degree of visual angle (default 67).
     #[arg(long, default_value_t = 67.0)]
     ppd: f32,
     #[arg(long)]

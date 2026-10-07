@@ -12,6 +12,7 @@ pub(crate) struct Args {
     /// Pinned units, direction, origin and jitter contract (requires --vectors).
     #[arg(long, requires = "vectors")]
     sidecar: Option<PathBuf>,
+    /// Viewing condition in pixels per degree of visual angle (default 67).
     #[arg(long, default_value_t = 67.0)]
     ppd: f32,
     /// Raw full-frame mean FLIP threshold; motion cannot relax it.

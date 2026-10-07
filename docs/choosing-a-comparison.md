@@ -29,7 +29,7 @@ Near-duplicate and quality also pair directories by relative path, up to 100000
 pairs and 64 MiB path bytes. Missing/new and decode errors are retained as failures;
 empty comparisons fail. Same-content and same-text currently require file pairs;
 use `index build|query` for embedding directory retrieval. Quality reports include
-per-pair artifacts. SVG/PDF input is explicitly deferred, see [documents](documents.md).
+per-pair artifacts. SVG/PDF input needs a build with the `documents` feature (`saccade doctor` shows it), see [documents](documents.md).
 
 Every selected route records its question, family, command and reason. Ordinary
 same-render keeps the existing immutable report schema and writes a hash-bound
