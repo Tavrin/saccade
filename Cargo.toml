@@ -31,3 +31,7 @@ expect_used = "warn"
 # Keep contributor/CI executables within the bounded replay-pack inventory.
 [profile.dev]
 debug = 0
+
+# Optional adapters add enough symbol-table bytes to exceed the replay file cap.
+[profile.dev.package.saccade]
+strip = "symbols"
