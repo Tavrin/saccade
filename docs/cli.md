@@ -44,6 +44,7 @@ Commands:
   text                Compare image-bound OCR/text observations and literal expected strings
   tofu                Triage pixel shapes resembling missing glyphs (requires text-quality)
   text-legibility     Measure text legibility across supplied variants (requires text-quality)
+  timed-text          Check plain SRT/WebVTT captions against timestamped frames and OCR evidence
   similar             Cosine similarity with an explicitly pinned optional ONNX export
   index               Build or query a streaming exact flat embedding index
   hash                Compute perceptual hashes without changing originals
@@ -1223,6 +1224,54 @@ Options:
 
       --out <OUT>
 
+      --json
+
+  -h, --help
+          Print help
+
+Global options:
+      --allow-out-near-captures  Silence warnings when --out is next to capture metadata
+      --record-absolute-paths    Opt in to absolute local paths in reports and machine-readable output
+```
+
+## saccade timed-text
+
+```text
+Check plain SRT/WebVTT captions against timestamped frames and OCR evidence
+
+Usage: saccade timed-text [OPTIONS] --region <REGION> <TIMED_TEXT> <FRAME_MAP>
+
+Arguments:
+  <TIMED_TEXT>  Plain UTF-8 WebVTT or SRT captions
+  <FRAME_MAP>   saccade-frame-map.v1 with presentation timestamps and relative image paths
+
+Options:
+      --region <REGION>
+          Fixed text region x,y,width,height in every frame's capture pixels
+      --source-ref <SOURCE_REF>
+          External capture URI/key (repeatable); recorded in generated reports
+      --report-index <REPORT_INDEX>
+          Shared report index destination (default reports/index.jsonl next to each report, inside --out)
+      --sources <SOURCES>
+          Directory of image-bound UI OCR sources or timed-text source wrappers named INDEX.json
+      --ocr
+          Use cached PaddleOCR; absent model/runtime explicitly skips OCR, never downloads
+      --timing-tolerance-s <TIMING_TOLERANCE_S>
+          [default: 0.3]
+      --search-s <SEARCH_S>
+          [default: 2]
+      --maximum-gap-s <MAXIMUM_GAP_S>
+          [default: 0.5]
+      --minimum-contrast <MINIMUM_CONTRAST>
+          [default: 4.5]
+      --minimum-x-height-px <MINIMUM_X_HEIGHT_PX>
+          [default: 8]
+      --minimum-sharpness <MINIMUM_SHARPNESS>
+          [default: 0.35]
+      --minimum-stroke-px <MINIMUM_STROKE_PX>
+          [default: 1]
+      --out <OUT>
+          New or empty output directory for the report and artifact manifest
       --json
 
   -h, --help

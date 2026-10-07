@@ -84,6 +84,15 @@ pub(crate) fn catalogue() -> Value {
         "existing HDR-FLIP; native samples and nonfinite evidence stay separate",
     );
     add(
+        "timed_text",
+        "timed-text",
+        "plain SRT/WebVTT, frame map, declared text region and image-bound OCR",
+        vec![],
+        "available_bounded",
+        "Does expected timed text appear in the supplied samples, on time and legibly?",
+        "OCR absence explicitly skips; text-quality enables pixel evidence; external video extraction and sampling gaps remain unverified",
+    );
+    add(
         "video_temporal",
         "experiment temporal --fps",
         "numbered SDR frame directories",

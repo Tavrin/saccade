@@ -380,6 +380,8 @@ The last three names appear only when the corresponding feature is compiled in.
 - [saccade-text.v1.schema.json](../crates/saccade-core/schemas/saccade-text.v1.schema.json) — Historical reader contract
 - [saccade-text.v2.schema.json](../crates/saccade-core/schemas/saccade-text.v2.schema.json) — Historical reader contract
 - [saccade-tile-temporal.v1.schema.json](../crates/saccade-core/schemas/saccade-tile-temporal.v1.schema.json) — Report
+- [saccade-timed-text-source.v1.schema.json](../crates/saccade-core/schemas/saccade-timed-text-source.v1.schema.json) — Source
+- [saccade-timed-text.v1.schema.json](../crates/saccade-core/schemas/saccade-timed-text.v1.schema.json) — Report
 - [saccade-timing-ab.v1.schema.json](../crates/saccade-core/schemas/saccade-timing-ab.v1.schema.json) — Report
 - [saccade-timing-session.v1.schema.json](../crates/saccade-core/schemas/saccade-timing-session.v1.schema.json) — Session
 - [saccade-tofu.v1.schema.json](../crates/saccade-core/schemas/saccade-tofu.v1.schema.json) — TofuReport

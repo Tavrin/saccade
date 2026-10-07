@@ -200,3 +200,6 @@ pub mod model_config;
 
 // O12/O17
 pub mod text_quality;
+
+/// Timed subtitle/caption evidence against presentation-timestamped frames.
+pub mod timed_text;

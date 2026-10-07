@@ -2,6 +2,12 @@
 
 ## Unreleased
 
+- Add `timed-text` for plain SRT/WebVTT against frame maps, with image-bound OCR,
+  sampled timing/missing/mismatch/extra findings and reused text-legibility
+  measurements in `saccade-timed-text.v1`. Missing OCR explicitly skips; video
+  extraction stays external. Include generated caption-video and cross-domain
+  acceptance fixtures.
+
 ## 0.2.7 (2026-10-07)
 
 - Correct the quality-report and geometry v1 schemas to include the existing

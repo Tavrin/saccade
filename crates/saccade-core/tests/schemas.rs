@@ -64,6 +64,16 @@ fn committed_schemas_match_the_rust_types() {
     let update = std::env::var_os("UPDATE_SCHEMAS").is_some();
     let all = [
         (
+            "saccade-timed-text-source.v1.schema.json",
+            generated::<saccade_core::timed_text::Source>(
+                "saccade-timed-text-source.v1.schema.json",
+            ),
+        ),
+        (
+            "saccade-timed-text.v1.schema.json",
+            generated::<saccade_core::timed_text::Report>("saccade-timed-text.v1.schema.json"),
+        ),
+        (
             "saccade-tofu.v1.schema.json",
             generated::<saccade_core::text_quality::TofuReport>("saccade-tofu.v1.schema.json"),
         ),

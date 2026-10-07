@@ -79,6 +79,7 @@ mod sweep_cmd;
 mod text_cmd;
 // O12/O17
 mod text_quality_cmd;
+mod timed_text_cmd;
 
 #[cfg(feature = "mcp")]
 mod mcp;
@@ -332,6 +333,8 @@ enum Command {
     Tofu(text_quality_cmd::TofuArgs),
     /// Measure text legibility across supplied variants (requires text-quality).
     TextLegibility(text_quality_cmd::LegibilityArgs),
+    /// Check plain SRT/WebVTT captions against timestamped frames and OCR evidence.
+    TimedText(timed_text_cmd::Args),
     /// Cosine similarity with an explicitly pinned optional ONNX export.
     Similar(embedding_cmd::SimilarArgs),
     /// Build or query a streaming exact flat embedding index.
@@ -1272,6 +1275,7 @@ fn dispatch(command: Command, record_absolute_paths: bool) -> Result<u8, CliErro
         Command::Text(args) => text_cmd::run(args),
         Command::Tofu(args) => text_quality_cmd::tofu(args),
         Command::TextLegibility(args) => text_quality_cmd::legibility(args),
+        Command::TimedText(args) => timed_text_cmd::run(args),
         Command::Similar(args) => embedding_cmd::similar(args),
         Command::Index(args) => embedding_cmd::index(args),
         Command::Hash(args) => hash_cmd::run_hash(args),
