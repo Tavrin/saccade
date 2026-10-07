@@ -67,6 +67,32 @@ fn validate_rows(rows: &[Row], count: usize, cap: u64) -> Result<(), Box<dyn std
     }
     Ok(())
 }
+// Preserve the existing stop-on-first-failure policy and account for every root.
+fn root_outcomes(
+    rows: &[Row],
+    mut call: impl FnMut(usize) -> assist::Result<()>,
+) -> (Vec<Value>, bool) {
+    let mut failed = false;
+    let outcomes = rows
+        .iter()
+        .enumerate()
+        .map(|(index, row)| {
+            let code = if failed {
+                "skipped_after_failure"
+            } else {
+                match call(index) {
+                    Ok(()) => "completed",
+                    Err(error) => {
+                        failed = true;
+                        error.code()
+                    }
+                }
+            };
+            json!({"index":index,"root":row.root,"code":code})
+        })
+        .collect();
+    (outcomes, failed)
+}
 fn run_with(args: impl IntoIterator<Item = String>) -> Result<(), Box<dyn std::error::Error>> {
     let mut args = args.into_iter();
     let mut options = BTreeMap::new();
@@ -165,35 +191,52 @@ fn run_with(args: impl IntoIterator<Item = String>) -> Result<(), Box<dyn std::e
         sources: vec![source],
         deadline: Instant::now() + Duration::from_secs(300),
     };
-    let mut failed = false;
-    let writes = (|| -> Result<(), Box<dyn std::error::Error>> {
-        for (index, (key, payload)) in prepared.iter().enumerate() {
-            match executor.call(key, payload) {
-                Ok(completed) => {
-                    // Response has passed dispatch-secret reflection checks. No model qualification implied.
-                    std::fs::write(
-                        out.join(format!("response-{index}.json")),
-                        &completed.response,
-                    )?;
-                    std::fs::write(
-                        out.join(format!("receipt-{index}.json")),
-                        serde_json::to_vec(&completed.provenance)?,
-                    )?;
-                }
-                Err(_) => {
-                    failed = true;
-                    break;
-                }
+    let (mut outcomes, mut failed) = root_outcomes(&rows, |index| {
+        let (key, payload) = &prepared[index];
+        match executor.call(key, payload) {
+            Ok(completed) => {
+                // Response has passed dispatch-secret reflection checks. No model qualification implied.
+                std::fs::write(
+                    out.join(format!("response-{index}.json")),
+                    &completed.response,
+                )
+                .map_err(|_| assist::Error::Storage)?;
+                std::fs::write(
+                    out.join(format!("receipt-{index}.json")),
+                    serde_json::to_vec(&completed.provenance)
+                        .map_err(|_| assist::Error::Storage)?,
+                )
+                .map_err(|_| assist::Error::Storage)?;
+                Ok(())
+            }
+            Err(error) => Err(error),
+        }
+    });
+    let reconciliation = openrouter::reconcile(&transport, Duration::from_secs(30));
+    // OpenRouter has one money reservation per call, no auxiliary token counts
+    // or retries. A fresh output ledger and stop-on-error keep this root order.
+    let (receipts, receipt_code) = match ledger.money_receipts() {
+        Ok(receipts) => (receipts, None),
+        Err(_) => {
+            failed = true;
+            (Vec::new(), Some("assist_storage_unavailable"))
+        }
+    };
+    for (index, receipt) in receipts.iter().enumerate() {
+        outcomes[index]["execution_id"] = json!(receipt.id);
+        outcomes[index]["response_identity"] = receipt.usage["response_identity"].clone();
+        if outcomes[index]["code"] != "completed" {
+            let bytes = serde_json::to_vec(receipt).map_err(|_| "smoke_receipt_encoding_failed")?;
+            if std::fs::write(out.join(format!("receipt-{index}.json")), bytes).is_err() {
+                outcomes[index]["artifact_code"] = json!("assist_storage_unavailable");
+                failed = true;
             }
         }
-        Ok(())
-    })();
-    failed |= writes.is_err();
-    let reconciliation = openrouter::reconcile(&transport, Duration::from_secs(30));
+    }
     std::fs::write(
         out.join("smoke.json"),
         serde_json::to_vec_pretty(
-            &json!({"roots":count,"allowance_nano_usd":cap,"dispatch_failed":failed,"reconciliation":reconciliation.as_ref().err(),"qualified":false}),
+            &json!({"roots":count,"root_outcomes":outcomes,"receipt_code":receipt_code,"allowance_nano_usd":cap,"dispatch_failed":failed,"reconciliation":reconciliation.as_ref().err(),"qualified":false}),
         )?,
     )?;
     if failed || reconciliation.is_err() {
@@ -211,6 +254,46 @@ fn main() {
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[test]
+    fn g12_smoke_records_static_root_codes_and_stops_after_first_failure() {
+        let rows: Vec<_> = (0..3)
+            .map(|i| Row {
+                root: format!("fixture-{i}"),
+                model: "fixture/model".into(),
+                revision: "fixture".into(),
+                payload: Value::Null,
+            })
+            .collect();
+        for error in [
+            assist::Error::Invalid("provider revision drift quarantined"),
+            assist::Error::Policy("deadline limit"),
+            assist::Error::Storage,
+            assist::Error::Provider,
+        ] {
+            let expected = error.code();
+            let mut error = Some(error);
+            let mut calls = 0;
+            let (outcomes, failed) = root_outcomes(&rows, |index| {
+                calls += 1;
+                if index == 0 {
+                    Ok(())
+                } else {
+                    Err(error.take().unwrap())
+                }
+            });
+            assert!(failed);
+            assert_eq!(calls, 2);
+            let encoded = serde_json::to_vec(&json!({"root_outcomes":outcomes})).unwrap();
+            let smoke: Value = serde_json::from_slice(&encoded).unwrap();
+            assert_eq!(smoke["root_outcomes"][0]["code"], "completed");
+            assert_eq!(smoke["root_outcomes"][1]["code"], expected);
+            assert_eq!(smoke["root_outcomes"][2]["code"], "skipped_after_failure");
+            assert_eq!(smoke["root_outcomes"][1]["root"], "fixture-1");
+        }
+        let (outcomes, failed) = root_outcomes(&rows, |_| Ok(()));
+        assert!(!failed);
+        assert!(outcomes.iter().all(|o| o["code"] == "completed"));
+    }
     #[test]
     fn g12_smoke_total_reservations_must_fit_before_policy_or_dispatch() {
         let temp = tempfile::tempdir().unwrap();

@@ -581,11 +581,27 @@ impl Executor<'_> {
         if breach {
             self.ledger.stop_spending().map_err(|_| Error::Storage)?;
         }
+        // The transport has rejected dispatch-secret reflections. Retain only
+        // validated identity metadata, before a drift error can quarantine it.
+        let openrouter_identity = (key.provider == "openrouter").then(|| {
+            decode::<Value>(&response).and_then(|v| super::openrouter::response_identity(&v))
+        });
+        let (identity_metadata, identity_code) = match &openrouter_identity {
+            Some(Ok(identity)) => (
+                json!(identity),
+                identity
+                    .check_pin(&key.model, &key.revision)
+                    .err()
+                    .map(|e| e.code()),
+            ),
+            Some(Err(error)) => (Value::Null, Some(error.code())),
+            None => (Value::Null, None),
+        };
         self.ledger
             .finish_money(
                 &id,
                 cost,
-                json!({"usage":u,"input_bound":bounds.input,"output_bound":bounds.output,"bound_breach":breach,"price_policy":if key.provider == "openrouter" { super::price::OPENROUTER_PRICE_ID } else { policy.id },"generation_id":generation_id(&response)}),
+                json!({"usage":u,"input_bound":bounds.input,"output_bound":bounds.output,"bound_breach":breach,"price_policy":if key.provider == "openrouter" { super::price::OPENROUTER_PRICE_ID } else { policy.id },"generation_id":generation_id(&response),"response_identity":identity_metadata,"identity_error":identity_code}),
                 true,
             )
             .map_err(|_| Error::Storage)?;
@@ -602,16 +618,10 @@ impl Executor<'_> {
                     .to_owned(),
             )
         } else if key.provider == "openrouter" {
-            (
-                value["model"]
-                    .as_str()
-                    .ok_or(Error::Invalid("missing OpenRouter model"))?
-                    .to_owned(),
-                value["system_fingerprint"]
-                    .as_str()
-                    .ok_or(Error::Invalid("missing OpenRouter revision"))?
-                    .to_owned(),
-            )
+            let identity =
+                openrouter_identity.ok_or(Error::Invalid("missing OpenRouter identity"))??;
+            identity.check_pin(&key.model, &key.revision)?;
+            (identity.returned_model, identity.returned_revision)
         } else {
             let model = value["model"]
                 .as_str()

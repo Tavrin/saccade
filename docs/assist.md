@@ -201,6 +201,41 @@ local token-price estimates alone do not prove a provider invoice bound.
 The request file is a JSON array of objects with exactly `root`, `model`,
 `revision` (expected returned fingerprint), and `payload` (the existing adapter's
 closed chat-completions shape). Ten distinct roots are required for `--roots 10`.
+
+The smoke records every root in `smoke.json` under `root_outcomes`, using the
+assist error's static reason or a stable storage/provider code. It stops after
+the first failure; remaining roots have `skipped_after_failure`. A quarantined
+response is charged normally and its sanitized money receipt is written to
+`receipt-N.json`; successful receipts retain their provenance format. Returned
+identity is also available in the campaign ledger and the corresponding root's
+`response_identity`. It contains `returned_model` (at most 128 ASCII bytes),
+`system_fingerprint` (at most 256 ASCII bytes or null), `returned_revision`, and
+a fingerprint presence/absence code. Identity strings allow only ASCII letters,
+digits and `-_.:/`; malformed metadata is refused without retaining its text.
+Dispatch-secret reflections are rejected by the existing transport first.
+
+For the next independently authorized smoke, inspect the failed root's sanitized
+identity, verify that `returned_model` matches the reviewed request's `model`,
+and copy its exact observed `system_fingerprint` into that request row's
+`revision`. Keep the payload model and reviewed price/cap consistent and use a
+new output directory. Discovery uses the already charged response; it adds no
+completion request and never automatically accepts drift. An omitted or null
+fingerprint has code `openrouter_fingerprint_absent`; an unpinned absence fails
+with `openrouter_fingerprint_absent_requires_explicit_pin`. Only an explicit
+`"revision": "absent"` pin accepts identity as the matching returned model plus
+the absence marker. Empty, malformed or literal `"absent"` fingerprints are
+invalid rather than absence. Present fingerprints still require an exact pin.
+
+Generation accounting allows up to four read-only GETs per receipt, waiting
+2, 4 and 8 seconds (14 seconds total backoff). Each GET has at most five seconds;
+all receipts, GETs and waits share the smoke's 30-second reconciliation deadline.
+A retry is skipped if its wait would exhaust that deadline. Only unpublished
+generations (404 or null data) and transient transport/429/5xx failures retry.
+Identity, cost, malformed-body and secret-reflection failures are terminal.
+Each money receipt retains `reconciliation.reason`, `attempts`, `waited_ms`,
+generation cost/hash and match status. A never-published generation remains a
+recorded failure and stops spending; retries never repeat a paid completion.
+
 Live admission accepts only `google/gemini-3.8-flash`, pinned by
 `openrouter-price-allowlist/2026-10-07-v1` to $0.75/M text input tokens,
 $3.75/M output tokens and $0.75/M image input tokens. Source: the supplied

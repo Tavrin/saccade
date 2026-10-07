@@ -318,8 +318,10 @@ impl Ledger {
     pub fn record_openrouter_reconciliation(
         &self,
         id: &str,
-        generation: Option<(u64, crate::evidence::canonical::Digest)>,
+        generation: Result<(u64, crate::evidence::canonical::Digest), &'static str>,
         matches: bool,
+        attempts: u32,
+        waited_ms: u64,
     ) -> Result<(), String> {
         self.campaign().transaction(|state| {
             let receipt = state
@@ -328,8 +330,15 @@ impl Ledger {
                 .iter_mut()
                 .find(|r| r.id == id)
                 .ok_or("unknown money reservation")?;
-            receipt.usage["reconciliation"] =
-                serde_json::json!({"generation":generation,"matches":matches});
+            let reason = match &generation {
+                Err(reason) => Some(*reason),
+                Ok(_) if !matches => Some("openrouter_generation_cost_mismatch"),
+                Ok(_) => None,
+            };
+            receipt.usage["reconciliation"] = serde_json::json!({
+                "generation":generation.as_ref().ok(),"matches":matches,
+                "reason":reason,"attempts":attempts,"waited_ms":waited_ms,
+            });
             if !matches {
                 state.money.stopped = true;
             }

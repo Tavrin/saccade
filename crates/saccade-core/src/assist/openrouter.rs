@@ -55,6 +55,60 @@ pub struct Receipt {
     /// Billing source and versioned offline price contract.
     pub billing_source: String,
 }
+/// Bounded, charset-validated identity from an already secret-checked response.
+#[derive(Debug, Clone, Serialize)]
+pub struct ResponseIdentity {
+    /// Actual returned model, including on quarantined drift.
+    pub returned_model: String,
+    /// Null means the field was omitted or null, never malformed or empty.
+    pub system_fingerprint: Option<String>,
+    /// Fingerprint or the reserved explicit absence marker `absent`.
+    pub returned_revision: String,
+    /// Absence remains observable even when explicitly pinned and accepted.
+    pub code: &'static str,
+}
+/// Validate metadata before retaining it in receipts; never retain rejected text.
+pub fn response_identity(value: &Value) -> Result<ResponseIdentity> {
+    let valid = |s: &str, limit| {
+        !s.is_empty()
+            && s.len() <= limit
+            && s.bytes()
+                .all(|b| b.is_ascii_alphanumeric() || b"-_.:/".contains(&b))
+    };
+    let model = value["model"]
+        .as_str()
+        .filter(|s| valid(s, 128))
+        .ok_or(super::Error::Invalid("invalid OpenRouter returned model"))?;
+    let fingerprint = match value.get("system_fingerprint") {
+        None | Some(Value::Null) => None,
+        Some(Value::String(s)) if valid(s, 256) && s != "absent" => Some(s.clone()),
+        _ => return Err(super::Error::Invalid("invalid OpenRouter fingerprint")),
+    };
+    Ok(ResponseIdentity {
+        returned_model: model.into(),
+        returned_revision: fingerprint.clone().unwrap_or_else(|| "absent".into()),
+        code: if fingerprint.is_some() {
+            "openrouter_fingerprint_present"
+        } else {
+            "openrouter_fingerprint_absent"
+        },
+        system_fingerprint: fingerprint,
+    })
+}
+impl ResponseIdentity {
+    /// Absence is accepted only with an explicit absence pin and matching model.
+    pub fn check_pin(&self, model: &str, revision: &str) -> Result<()> {
+        if self.system_fingerprint.is_none() && revision != "absent" {
+            return Err(super::Error::Invalid(
+                "openrouter_fingerprint_absent_requires_explicit_pin",
+            ));
+        }
+        require(
+            self.returned_model == model && self.returned_revision == revision,
+            "provider revision drift quarantined",
+        )
+    }
+}
 /// Decode recorded chat-completions with bounded answers and no Responses-format assumptions.
 pub fn reply(body: &[u8], model: &str, request_hash: &Digest) -> Result<(WireAnswer, Receipt)> {
     require(body.len() <= 256 * 1024, "OpenRouter response size")?;
@@ -67,10 +121,7 @@ pub fn reply(body: &[u8], model: &str, request_hash: &Digest) -> Result<(WireAns
         .as_str()
         .filter(|s| !s.is_empty())
         .ok_or(super::Error::Invalid("OpenRouter routing provider"))?;
-    let revision = value["system_fingerprint"]
-        .as_str()
-        .filter(|s| !s.is_empty())
-        .ok_or(super::Error::Invalid("OpenRouter returned revision"))?;
+    let identity = response_identity(&value)?;
     require(
         value["model"] == model
             && value["choices"].as_array().is_some_and(|a| a.len() == 1)
@@ -110,7 +161,7 @@ pub fn reply(body: &[u8], model: &str, request_hash: &Digest) -> Result<(WireAns
             request_id: id.into(),
             model: model.into(),
             provider: provider.into(),
-            revision: revision.into(),
+            revision: identity.returned_revision,
             usage: usage.clone(),
             billing_source: format!(
                 "OpenRouter; provider prices without markup; {PRICE_VERSION}; alias-bound and time-specific"
@@ -146,7 +197,7 @@ mod tests {
             )
             .is_err()
         );
-        for field in ["usage", "provider", "system_fingerprint", "id"] {
+        for field in ["usage", "provider", "id"] {
             let mut value: Value = serde_json::from_slice(body).unwrap();
             value.as_object_mut().unwrap().remove(field);
             assert!(
@@ -280,20 +331,156 @@ mod execution_tests {
     fn g12_returned_cost_over_reservation_is_charged_and_stops_campaign() {
         scenarios(12..13);
     }
+    #[test]
+    fn g12_quarantined_drift_retains_bounded_identity_without_another_dispatch() {
+        scenarios(13..15);
+        scenarios(18..21);
+    }
+    #[test]
+    fn g12_absent_fingerprint_requires_explicit_pin_and_matching_model() {
+        scenarios(15..18);
+        scenarios(21..22);
+        let body: Value = decode(include_bytes!(
+            "../../tests/fixtures/assist-openrouter/chat-completion.json"
+        ))
+        .unwrap();
+        for fingerprint in [
+            json!(""),
+            json!("absent"),
+            json!(false),
+            json!("bad\nvalue"),
+            json!("x".repeat(257)),
+        ] {
+            let mut invalid = body.clone();
+            invalid["system_fingerprint"] = fingerprint;
+            assert_eq!(
+                response_identity(&invalid).unwrap_err().code(),
+                "invalid OpenRouter fingerprint"
+            );
+        }
+        let mut absent = body;
+        absent.as_object_mut().unwrap().remove("system_fingerprint");
+        let (_, receipt) = reply(
+            &serde_json::to_vec(&absent).unwrap(),
+            "openai/fixture-model",
+            &Digest::of_bytes(b"fixture-request"),
+        )
+        .unwrap();
+        assert_eq!(receipt.revision, "absent");
+    }
+    #[test]
+    fn g12_delayed_generation_retries_and_preserves_terminal_failure_reasons() {
+        scenarios(22..28);
+    }
+    #[test]
+    fn g12_generation_deadline_bounds_gets_waits_and_following_receipts() {
+        #[derive(Default)]
+        struct Clock(Cell<Duration>);
+        impl ReconciliationClock for Clock {
+            fn elapsed(&self) -> Duration {
+                self.0.get()
+            }
+            fn sleep(&self, duration: Duration) {
+                self.0.set(self.0.get() + duration);
+            }
+        }
+        struct Slow<'a> {
+            clock: &'a Clock,
+            timeouts: std::cell::RefCell<Vec<Duration>>,
+        }
+        impl Http for Slow<'_> {
+            fn get(
+                &self,
+                _: &str,
+                _: (&str, &str),
+                timeout: Duration,
+            ) -> std::result::Result<HttpReply, String> {
+                self.timeouts.borrow_mut().push(timeout);
+                self.clock.sleep(timeout);
+                Ok(HttpReply {
+                    status: 404,
+                    retry_after_secs: None,
+                    body: br#"{"error":"not published"}"#.to_vec(),
+                })
+            }
+            fn post(
+                &self,
+                _: &str,
+                _: (&str, &str),
+                _: &[u8],
+                _: Duration,
+            ) -> std::result::Result<HttpReply, String> {
+                panic!("reconciliation must never dispatch a completion")
+            }
+        }
+        let temp = tempfile::tempdir().unwrap();
+        std::fs::write(
+            temp.path().join("openrouter.env"),
+            "OPENROUTER_API_KEY=fixture-openrouter-key",
+        )
+        .unwrap();
+        let secret = Keys::assist_fixture(temp.path().into())
+            .openrouter()
+            .unwrap();
+        let clock = Clock::default();
+        let http = Slow {
+            clock: &clock,
+            timeouts: Default::default(),
+        };
+        let deadline = Duration::from_secs(30);
+        let first = lookup_generation(&http, &secret, Some("gen-fixture"), deadline, &clock);
+        assert_eq!(first.result.unwrap_err(), "openrouter_generation_not_ready");
+        assert_eq!(first.attempts, 4);
+        assert_eq!(first.waited_ms, 14000);
+        assert_eq!(
+            *http.timeouts.borrow(),
+            vec![
+                Duration::from_secs(5),
+                Duration::from_secs(5),
+                Duration::from_secs(5),
+                Duration::from_secs(1)
+            ]
+        );
+        assert_eq!(clock.elapsed(), deadline);
+        let second = lookup_generation(&http, &secret, Some("gen-other"), deadline, &clock);
+        assert_eq!(
+            second.result.unwrap_err(),
+            "openrouter_reconciliation_deadline"
+        );
+        assert_eq!(second.attempts, 0);
+        assert_eq!(http.timeouts.borrow().len(), 4);
+        assert_eq!(
+            lookup_generation(&http, &secret, None, deadline, &clock)
+                .result
+                .unwrap_err(),
+            "openrouter_generation_missing"
+        );
+    }
     fn scenarios(indices: std::ops::Range<usize>) {
+        #[derive(Default)]
+        struct Clock(Cell<Duration>);
+        impl ReconciliationClock for Clock {
+            fn elapsed(&self) -> Duration {
+                self.0.get()
+            }
+            fn sleep(&self, duration: Duration) {
+                self.0.set(self.0.get() + duration);
+            }
+        }
         struct Fake<'a> {
             ledger: &'a Ledger,
             calls: Cell<u32>,
             body: Vec<u8>,
             gets: Cell<u32>,
             scenario: usize,
+            generations: Cell<u32>,
         }
         impl Http for Fake<'_> {
             fn get(
                 &self,
                 url: &str,
                 _: (&str, &str),
-                _: Duration,
+                timeout: Duration,
             ) -> std::result::Result<HttpReply, String> {
                 self.gets.set(self.gets.get() + 1);
                 let remaining = if self.scenario == 4 {
@@ -315,7 +502,32 @@ mod execution_tests {
                     body = json!({"data":{}});
                 }
                 if url.contains("/generation?") {
+                    self.generations.set(self.generations.get() + 1);
+                    assert!(timeout <= Duration::from_secs(5));
+                    if self.scenario == 23 || (self.scenario == 22 && self.generations.get() < 4) {
+                        return Ok(HttpReply {
+                            status: 404,
+                            retry_after_secs: None,
+                            body: br#"{"error":{"message":"untrusted provider detail"}}"#.to_vec(),
+                        });
+                    }
                     body = json!({"data":{"id":"gen-fixture-001","total_cost":if self.scenario == 7 {0.001} else if self.scenario == 10 {0.0} else {0.0001875}}});
+                    if self.scenario == 24 {
+                        body["data"]["id"] = json!("other-generation");
+                    }
+                    if self.scenario == 25 {
+                        body["data"].as_object_mut().unwrap().remove("total_cost");
+                    }
+                    if self.scenario == 26 {
+                        return Ok(HttpReply {
+                            status: 200,
+                            retry_after_secs: None,
+                            body: b"untrusted provider detail".to_vec(),
+                        });
+                    }
+                    if self.scenario == 27 {
+                        body["reflected"] = json!("fixture-openrouter-key");
+                    }
                 }
                 if self.scenario == 8 {
                     body["reflected"] = json!("fixture-openrouter-key");
@@ -385,6 +597,27 @@ mod execution_tests {
             ))
             .unwrap();
             value["model"] = json!("google/gemini-3.8-flash");
+            if [13, 17].contains(&index) {
+                value["model"] = json!("google/other-model");
+            }
+            if index == 14 {
+                value["system_fingerprint"] = json!("observed-fixture-revision");
+            }
+            if [15, 16, 17].contains(&index) {
+                value.as_object_mut().unwrap().remove("system_fingerprint");
+            }
+            if index == 21 {
+                value["system_fingerprint"] = Value::Null;
+            }
+            if index == 18 {
+                value["system_fingerprint"] = json!("bad\nmetadata");
+            }
+            if index == 19 {
+                value["model"] = json!("x".repeat(129));
+            }
+            if index == 20 {
+                value["system_fingerprint"] = json!("fixture-openrouter-key");
+            }
             if index == 1 {
                 value["usage"] = json!({"cost":0});
             }
@@ -404,6 +637,7 @@ mod execution_tests {
                 body: serde_json::to_vec(&value).unwrap(),
                 gets: Cell::new(0),
                 scenario: index,
+                generations: Cell::new(0),
             };
             let transport = Transport {
                 user: &user,
@@ -444,7 +678,12 @@ mod execution_tests {
                 encoder_version: ENCODER.into(),
                 provider: "openrouter".into(),
                 model: "google/gemini-3.8-flash".into(),
-                revision: "fixture-revision-1".into(),
+                revision: if [16, 17, 21].contains(&index) {
+                    "absent"
+                } else {
+                    "fixture-revision-1"
+                }
+                .into(),
                 settings: json!({}),
                 api_config_hash: Digest::of_bytes(b"user"),
                 order: "single".into(),
@@ -454,6 +693,41 @@ mod execution_tests {
             let campaign =
                 std::fs::read_to_string(temp.path().join("ledger/campaign.json")).unwrap();
             assert!(!campaign.contains("fixture-openrouter-key"));
+            if (13..22).contains(&index) {
+                assert_eq!(fake.calls.get(), 1);
+                assert_eq!(receipts.len(), 1);
+                let identity = &receipts[0].usage["response_identity"];
+                if [16, 21].contains(&index) {
+                    let completed = result.unwrap();
+                    assert_eq!(completed.provenance.returned_revision, "absent");
+                    assert_eq!(identity["code"], "openrouter_fingerprint_absent");
+                } else {
+                    let code = result.err().unwrap().code();
+                    assert_eq!(
+                        code,
+                        match index {
+                            15 => "openrouter_fingerprint_absent_requires_explicit_pin",
+                            18 => "invalid OpenRouter fingerprint",
+                            19 => "invalid OpenRouter returned model",
+                            20 => "assist_provider_execution_incomplete",
+                            _ => "provider revision drift quarantined",
+                        }
+                    );
+                    if index != 20 {
+                        assert_eq!(receipts[0].usage["identity_error"], code);
+                    }
+                }
+                if index < 18 || index == 21 {
+                    assert_eq!(receipts[0].actual_nano_usd, Some(187_500));
+                    assert_eq!(identity["returned_model"], value["model"]);
+                    assert_eq!(identity["system_fingerprint"], value["system_fingerprint"]);
+                } else {
+                    assert!(identity.is_null());
+                }
+                assert!(!campaign.contains("bad\\nmetadata"));
+                assert!(!campaign.contains(&"x".repeat(129)));
+                continue;
+            }
             if index == 12 {
                 assert!(result.is_err());
                 assert_eq!(receipts[0].actual_nano_usd, Some(40_000_000));
@@ -504,12 +778,47 @@ mod execution_tests {
                 assert_eq!(receipt.usage["output_bound"], json!(64));
             }
             assert_eq!(fake.calls.get(), 1);
-            let reconciliation = reconcile(&transport, Duration::from_secs(1));
-            assert_eq!(reconciliation.is_ok(), ![1, 7].contains(&index));
+            let clock = Clock::default();
+            let reconciliation = reconcile_with_clock(
+                &transport,
+                Duration::from_secs(if index >= 22 { 30 } else { 1 }),
+                &clock,
+            );
+            assert_eq!(
+                reconciliation.is_ok(),
+                ![1, 7, 23, 24, 25, 26, 27].contains(&index)
+            );
             assert_eq!(
                 ledger.money_receipts().unwrap()[0].usage["reconciliation"]["matches"],
-                json!(![1, 7].contains(&index))
+                json!(![1, 7, 23, 24, 25, 26, 27].contains(&index))
             );
+            if index >= 22 {
+                let receipts = ledger.money_receipts().unwrap();
+                let r = &receipts[0].usage["reconciliation"];
+                assert_eq!(r["attempts"], if index <= 23 { 4 } else { 1 });
+                assert_eq!(r["waited_ms"], if index <= 23 { 14000 } else { 0 });
+                assert_eq!(
+                    r["reason"],
+                    match index {
+                        23 => json!("openrouter_generation_not_ready"),
+                        24 => json!("openrouter_generation_identity"),
+                        25 => json!("openrouter_generation_cost_unknown"),
+                        26 => json!("openrouter_generation_invalid"),
+                        27 => json!("openrouter_accounting_rejected"),
+                        _ => Value::Null,
+                    }
+                );
+                assert_eq!(fake.calls.get(), 1);
+                let campaign =
+                    std::fs::read_to_string(temp.path().join("ledger/campaign.json")).unwrap();
+                assert!(!campaign.contains("untrusted provider detail"));
+                assert!(!campaign.contains("fixture-openrouter-key"));
+                if index == 23 {
+                    assert!(r["generation"].is_null());
+                    assert!(executor.call(&key, &payload).is_err());
+                    assert_eq!(fake.calls.get(), 1);
+                }
+            }
 
             if index == 2 {
                 assert!(result.is_err());
@@ -675,17 +984,27 @@ fn accounting(
     url: &str,
     timeout: std::time::Duration,
 ) -> std::result::Result<Vec<u8>, String> {
+    let reply = accounting_reply(http, secret, url, timeout).map_err(str::to_owned)?;
+    if !(200..300).contains(&reply.status) {
+        return Err("openrouter_accounting_rejected".into());
+    }
+    Ok(reply.body)
+}
+// Shared credential/reflection/size boundary for ceilings and generation reads.
+fn accounting_reply(
+    http: &dyn crate::judge_provider::transport::Http,
+    secret: &crate::judge_provider::Secret,
+    url: &str,
+    timeout: std::time::Duration,
+) -> std::result::Result<crate::judge_provider::transport::HttpReply, &'static str> {
     let auth = format!("Bearer {}", secret.expose());
     let reply = http
         .get(url, ("Authorization", &auth), timeout)
         .map_err(|_| "openrouter_accounting_unavailable")?;
-    if !(200..300).contains(&reply.status)
-        || reply.body.len() > 256 * 1024
-        || secret.reflected(&reply.body)
-    {
-        return Err("openrouter_accounting_rejected".into());
+    if reply.body.len() > 256 * 1024 || secret.reflected(&reply.body) {
+        return Err("openrouter_accounting_rejected");
     }
-    Ok(reply.body)
+    Ok(reply)
 }
 /// Fetch both provider accounting endpoints; absent/invalid ceilings fail closed.
 pub fn ceiling(
@@ -751,60 +1070,164 @@ pub fn parse_ceiling(key: &[u8], credits: &[u8]) -> std::result::Result<Ceiling,
         hashes: [Digest::of_bytes(key), Digest::of_bytes(credits)],
     })
 }
+// Four bounded GETs, sleeping 2+4+8 = 14 seconds at most. Each GET is
+// capped at five seconds and the entire reconciliation shares a 30-second cap.
+const GENERATION_BACKOFF: [u64; 3] = [2, 4, 8];
+trait ReconciliationClock {
+    fn elapsed(&self) -> std::time::Duration;
+    fn sleep(&self, duration: std::time::Duration);
+}
+struct WallClock(std::time::Instant);
+impl ReconciliationClock for WallClock {
+    fn elapsed(&self) -> std::time::Duration {
+        self.0.elapsed()
+    }
+    fn sleep(&self, duration: std::time::Duration) {
+        std::thread::sleep(duration);
+    }
+}
+struct GenerationLookup {
+    result: std::result::Result<(u64, Digest), &'static str>,
+    attempts: u32,
+    waited_ms: u64,
+}
+fn generation_once(
+    http: &dyn crate::judge_provider::transport::Http,
+    secret: &crate::judge_provider::Secret,
+    id: &str,
+    timeout: std::time::Duration,
+) -> std::result::Result<(u64, Digest), &'static str> {
+    let encoded: String = id
+        .bytes()
+        .map(|b| {
+            if b.is_ascii_alphanumeric() || b"-_".contains(&b) {
+                (b as char).to_string()
+            } else {
+                format!("%{b:02X}")
+            }
+        })
+        .collect();
+    let reply = accounting_reply(
+        http,
+        secret,
+        &format!("https://openrouter.ai/api/v1/generation?id={encoded}"),
+        timeout,
+    )?;
+    if reply.status == 404 {
+        return Err("openrouter_generation_not_ready");
+    }
+    if reply.status == 429 || (500..600).contains(&reply.status) {
+        return Err("openrouter_accounting_unavailable");
+    }
+    if !(200..300).contains(&reply.status) {
+        return Err("openrouter_accounting_rejected");
+    }
+    let value: Value =
+        serde_json::from_slice(&reply.body).map_err(|_| "openrouter_generation_invalid")?;
+    if value["data"].is_null() {
+        return Err("openrouter_generation_not_ready");
+    }
+    if value["data"]["id"] != id {
+        return Err("openrouter_generation_identity");
+    }
+    let cost = body_amount(&reply.body, &["data", "total_cost"], true)
+        .ok_or("openrouter_generation_cost_unknown")?;
+    Ok((cost, Digest::of_bytes(&reply.body)))
+}
+fn lookup_generation(
+    http: &dyn crate::judge_provider::transport::Http,
+    secret: &crate::judge_provider::Secret,
+    id: Option<&str>,
+    deadline: std::time::Duration,
+    clock: &impl ReconciliationClock,
+) -> GenerationLookup {
+    use std::time::Duration;
+    let mut lookup = GenerationLookup {
+        result: Err("openrouter_generation_missing"),
+        attempts: 0,
+        waited_ms: 0,
+    };
+    let Some(id) = id.filter(|s| !s.is_empty() && s.len() <= 256) else {
+        return lookup;
+    };
+    lookup.result = Err("openrouter_reconciliation_deadline");
+    for attempt in 0..=GENERATION_BACKOFF.len() {
+        let remaining = deadline.saturating_sub(clock.elapsed());
+        if remaining.is_zero() {
+            break;
+        }
+        lookup.attempts += 1;
+        lookup.result = generation_once(http, secret, id, remaining.min(Duration::from_secs(5)));
+        if !matches!(
+            lookup.result,
+            Err("openrouter_generation_not_ready" | "openrouter_accounting_unavailable")
+        ) {
+            break;
+        }
+        let Some(delay) = GENERATION_BACKOFF.get(attempt) else {
+            break;
+        };
+        let delay = Duration::from_secs(*delay);
+        // Do not sleep unless there will still be time for another lookup.
+        if delay >= deadline.saturating_sub(clock.elapsed()) {
+            break;
+        }
+        clock.sleep(delay);
+        lookup.waited_ms += delay.as_millis() as u64;
+    }
+    lookup
+}
 /// Reconcile every dispatched monetary receipt, including failed/unknown calls.
-/// Unavailable or mismatched generations stop spending and remain recorded failures.
+/// Four read-only GET attempts with 2/4/8-second backoff (14 seconds of waits)
+/// share one deadline, capped at 30 seconds for all receipts. Failed lookups
+/// preserve a fixed reason; missing, malformed or mismatched data never passes.
 pub fn reconcile(
     transport: &crate::judge_provider::transport::Transport<'_>,
     timeout: std::time::Duration,
 ) -> std::result::Result<(), String> {
+    reconcile_with_clock(transport, timeout, &WallClock(std::time::Instant::now()))
+}
+fn reconcile_with_clock(
+    transport: &crate::judge_provider::transport::Transport<'_>,
+    timeout: std::time::Duration,
+    clock: &impl ReconciliationClock,
+) -> std::result::Result<(), String> {
+    let deadline = clock.elapsed() + timeout.min(std::time::Duration::from_secs(30));
     let secret = transport
         .keys
         .openrouter()
         .map_err(|_| "openrouter_credentials_unavailable")?;
     let mut failed = false;
-    for receipt in transport.ledger.money_receipts()? {
+    for receipt in transport
+        .ledger
+        .money_receipts()
+        .map_err(|_| "openrouter_reconciliation_storage_unavailable")?
+    {
         if receipt.usage["openrouter_dispatched"] != true {
             continue;
         }
-        let id = receipt.usage["generation_id"]
-            .as_str()
-            .filter(|s| !s.is_empty() && s.len() <= 256);
-        let result = id
-            .ok_or("openrouter_generation_missing".to_string())
-            .and_then(|id| {
-                let encoded: String = id
-                    .bytes()
-                    .map(|b| {
-                        if b.is_ascii_alphanumeric() || b"-_".contains(&b) {
-                            (b as char).to_string()
-                        } else {
-                            format!("%{b:02X}")
-                        }
-                    })
-                    .collect();
-                let body = accounting(
-                    transport.http,
-                    &secret,
-                    &format!("https://openrouter.ai/api/v1/generation?id={encoded}"),
-                    timeout,
-                )?;
-                let value: Value =
-                    serde_json::from_slice(&body).map_err(|_| "openrouter_generation_invalid")?;
-                if value["data"]["id"] != id {
-                    return Err("openrouter_generation_identity".into());
-                }
-                let cost = body_amount(&body, &["data", "total_cost"], true)
-                    .ok_or("openrouter_generation_cost_unknown")?;
-                Ok((cost, Digest::of_bytes(&body)))
-            });
-        let matches = result.as_ref().is_ok_and(|(cost, _)| {
+        let lookup = lookup_generation(
+            transport.http,
+            &secret,
+            receipt.usage["generation_id"].as_str(),
+            deadline,
+            clock,
+        );
+        let matches = lookup.result.as_ref().is_ok_and(|(cost, _)| {
             receipt
                 .actual_nano_usd
                 .is_some_and(|actual| actual.abs_diff(*cost) <= RECONCILIATION_TOLERANCE)
         });
         transport
             .ledger
-            .record_openrouter_reconciliation(&receipt.id, result.ok(), matches)?;
+            .record_openrouter_reconciliation(
+                &receipt.id,
+                lookup.result,
+                matches,
+                lookup.attempts,
+                lookup.waited_ms,
+            )
+            .map_err(|_| "openrouter_reconciliation_storage_unavailable")?;
         failed |= !matches;
     }
     if failed {

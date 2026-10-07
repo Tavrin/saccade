@@ -30,6 +30,16 @@ pub enum Error {
     #[error("assist provider execution incomplete")]
     Provider,
 }
+impl Error {
+    /// Stable diagnostic without provider bodies, filesystem details or credentials.
+    pub fn code(&self) -> &'static str {
+        match self {
+            Self::Invalid(reason) | Self::Policy(reason) => reason,
+            Self::Storage => "assist_storage_unavailable",
+            Self::Provider => "assist_provider_execution_incomplete",
+        }
+    }
+}
 /// Assist result, distinct from comparison failures.
 pub type Result<T> = std::result::Result<T, Error>;
 pub(crate) fn require(ok: bool, reason: &'static str) -> Result<()> {

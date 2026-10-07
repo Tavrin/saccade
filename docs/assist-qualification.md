@@ -191,6 +191,45 @@ and budgets are required before a future paid campaign can be considered.
 
 ## OpenRouter ceiling stage
 
+### Smoke observability and reconciliation correction
+
+The smoke preserves the first failure's static assist code and records skipped
+roots. Already charged responses supply bounded returned identity for operator
+pinning; quarantined responses never become accepted advice. Missing fingerprints
+require an explicit `absent` revision pin together with an exact returned model.
+Generation reads retry within one 30-second deadline and retain fixed failure
+reasons. The operator procedure and exact retry limits are documented in
+[assist.md](assist.md#openrouter-provider-ceiling).
+
+Focused synthetic/recorded-shape regression mapping:
+
+| Goal | Test |
+| --- | --- |
+| Per-root static codes and existing stop policy | `g12_smoke_records_static_root_codes_and_stops_after_first_failure` |
+| Discovery from one charged response, with bounded sanitized metadata | `g12_quarantined_drift_retains_bounded_identity_without_another_dispatch` |
+| Delayed generation lookup and retained failure reasons | `g12_delayed_generation_retries_and_preserves_terminal_failure_reasons` |
+| Explicit absent-fingerprint identity rule | `g12_absent_fingerprint_requires_explicit_pin_and_matching_model` |
+
+`g12_generation_deadline_bounds_gets_waits_and_following_receipts` additionally
+proves that GET time and waits share the deadline across receipts. These tests
+use fake HTTP and synthetic credentials only. Decisions: retain quarantine and
+stop-on-first-failure; reject automatic pin adoption or paid completion retries.
+Reserve `absent` for explicit missing-fingerprint identity; reject malformed and
+empty fingerprints. Retry only unpublished or transient generation accounting,
+retaining terminal identity, billing and reflection failures. No scoring, token
+ceiling, Gemini-direct or batch behavior is changed by this correction.
+
+Correction validation: fmt, workspace/all-target strict clippy with `assist`,
+separate core and CLI tests with `assist,schema,evaluation`, the four smoke
+example tests, all 14 Python assist unittests, generated-docs check and public
+hygiene checks exited 0. Test binaries used an isolated user directory; the
+initial ambient-policy workspace run exited 101 on a CLI configuration error.
+An additional isolated workspace-wide run exited 101 on unchanged compression
+schema drift in `saccade-quality-report.v1.schema.json`. That broader failure
+remains outside this correction; schemas and assertions were not altered to
+accept it. Fixture validation does not establish live API compatibility,
+fingerprint availability for this model or model/corpus qualification.
+
 Use the bounded request-file invocation in [assist.md](assist.md#openrouter-provider-ceiling)
 for the coordinator's 10-root, $1 smoke. It uses existing accounting and egress,
 provider-key and credit preflight, a fresh check after pacing on every dispatch,
