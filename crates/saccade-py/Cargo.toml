@@ -20,6 +20,7 @@ serde_json.workspace = true
 [features]
 default = []
 python-tests = []
+text-quality = ["saccade-core/text-quality"]
 models = ["saccade-core/local-models", "saccade-core/embeddings", "saccade-core/ocr"]
 http = ["saccade-core/media-http"]
 

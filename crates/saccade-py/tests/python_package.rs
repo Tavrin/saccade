@@ -25,11 +25,7 @@ fn light_python_package() -> Result<(), Box<dyn std::error::Error>> {
         .args(["-m", "pytest", "-q", "tests/test_light.py"])
         .current_dir(&crate_dir)
         .env("PYTHONPATH", package.path())
-        .env(
-            "SACCADE_BIN",
-            std::env::var_os("SACCADE_BIN")
-                .unwrap_or_else(|| target.join("debug/saccade").into_os_string()),
-        )
+        .env_remove("SACCADE_BIN")
         .output()?;
     assert!(
         output.status.success(),

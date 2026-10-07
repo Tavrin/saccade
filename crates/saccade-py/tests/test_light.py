@@ -85,18 +85,133 @@ def test_model_config_is_the_shared_resolver_and_old_arguments_warn(tmp_path, mo
         saccade.Analyzer(model_dir=str(tmp_path))
 
 
-def test_batch_returns_rows_and_resumes(tmp_path):
-    import os
-    binary = os.environ.get('SACCADE_BIN')
-    assert binary, 'set SACCADE_BIN for the batch package proof'
+def test_batch_returns_rows_and_resumes(tmp_path, monkeypatch):
+    monkeypatch.delenv('SACCADE_BIN', raising=False)
+    monkeypatch.setenv('PATH', '')
     folder = tmp_path / 'inputs'
     folder.mkdir()
     (folder / 'image.png').write_bytes(png())
     (folder / 'broken.png').write_bytes(b'broken')
     output = tmp_path / 'batch'
-    rows = saccade.batch(folder, output, executable=binary)
+    rows = saccade.batch(folder, output)
     assert len(rows) == 2
     assert {r['status'] for r in rows} == {'ok', 'corrupt'}
-    assert saccade.batch(folder, output, executable=binary) == rows
+    assert saccade.batch(folder, output) == rows
     assert (folder / 'image.png').read_bytes() == png()
     assert len((output / 'rows.jsonl').read_text().splitlines()) == 2
+
+
+def test_batch_history_manifest_and_resume_identity(tmp_path, monkeypatch):
+    import json
+    monkeypatch.delenv('SACCADE_BIN', raising=False)
+    monkeypatch.setenv('PATH', '')
+    source = tmp_path / 'images'
+    source.mkdir()
+    image = source / 'image.png'
+    image.write_bytes(png())
+    out = tmp_path / 'out'
+    first = saccade.batch(source, out)
+    run = json.loads((out / 'batch-run.json').read_text())
+    assert run['backend'] == 'in-process'
+    assert len(run['library_sha256']) == 64
+    assert 'executable' not in run
+    assert first[0]['sections'][0]['result']['identity']['data']['sha256'] == hashlib.sha256(png()).hexdigest()
+    receipt = (out / 'rows' / (first[0]['id'] + '.json')).read_bytes()
+    image.write_bytes(png(colour=(1, 2, 3)))
+    rows = saccade.batch(source, out)
+    assert len(rows) == 2 and first[0] in rows
+    assert (out / 'rows' / (first[0]['id'] + '.json')).read_bytes() == receipt
+    image.unlink()
+    (source / 'new.bin').write_bytes(b'unknown format')
+    rows = saccade.batch(source, out)
+    assert len(rows) == 3 and {r['status'] for r in rows} == {'ok', 'unsupported'}
+    manifest = json.loads((out / 'saccade-manifest.json').read_text())
+    assert manifest['schema'] == 'saccade-manifest.v1'
+    for artifact in manifest['artifacts']:
+        path = out / artifact['path']
+        assert hashlib.sha256(path.read_bytes()).hexdigest() == artifact['sha256']
+    with pytest.raises(saccade.AnalysisError, match='resume configuration differs'):
+        saccade.batch(source, out, options_json=json.dumps({'sections': [{'command': 'analyze-media', 'args': []}], 'concurrency': 1, 'timeout_ms': 30000}))
+    run['library_sha256'] = '0' * 64
+    (out / 'batch-run.json').write_text(json.dumps(run))
+    with pytest.raises(saccade.AnalysisError, match='resume configuration differs'):
+        saccade.batch(source, out)
+
+
+def test_batch_options_skips_pairs_and_partial_rows(tmp_path, monkeypatch):
+    import json
+    monkeypatch.setenv('PATH', '')
+    image = tmp_path / 'image.png'
+    image.write_bytes(png())
+    source = tmp_path / 'inputs.json'
+    source.write_text(json.dumps({'schema': 'saccade-batch-input.v1', 'inputs': [
+        {'path': 'image.png'}, {'path': 'image.png'}, {'path': 'image.png', 'skip': True},
+    ]}))
+    options = {'sections': [{'command': 'analyze-media', 'args': ['--output-size', '400x300']}], 'concurrency': 2, 'timeout_ms': 30000}
+    rows = saccade.batch(source, tmp_path / 'out', options_json=json.dumps(options))
+    assert len(rows) == 3 and {r['status'] for r in rows} == {'duplicate-basename', 'skipped'}
+    assert all(r['duplicate_basename'] for r in rows)
+    assert sorted(r['occurrence'] for r in rows if r['status'] != 'skipped') == [0, 1]
+    for row in rows:
+        if row['status'] != 'skipped':
+            assert row['sections'][0]['result']['quality']['data']['fitness'][0]['adequate_resolution'] is False
+    options['sections'] = [{'command': 'compare', 'args': []}]
+    rows = saccade.batch(source, tmp_path / 'pairs', options_json=json.dumps(options))
+    # Equal-path rows sort by identity hash, which includes the absolute path.
+    # Select by retained section evidence rather than a platform-dependent index.
+    processed = [r for r in rows if r['sections']]
+    skipped = [r for r in rows if not r['sections']]
+    assert len(rows) == 3 and len(processed) == 2 and len(skipped) == 1
+    assert skipped[0]['status'] == 'skipped' and skipped[0]['thumbnail'] is None
+    assert sorted(r['occurrence'] for r in processed) == [0, 1]
+    for row in processed:
+        assert row['status'] == 'partial'
+        assert row['probe']['status'] == 'ok'
+        assert row['sections'] == [{'command': 'compare', 'status': 'skipped',
+                                    'error': 'paired reference required'}]
+    options['sections'] = [{'command': 'analyze-media', 'args': ['--nonexistent', 'yes']}]
+    rows = saccade.batch(source, tmp_path / 'partial', options_json=json.dumps(options))
+    row = next(r for r in rows if r['status'] == 'partial')
+    assert row['sections'][0]['status'] == 'partial'
+    assert 'unavailable in-process' in row['sections'][0]['error']
+
+
+def test_batch_refuses_unsafe_outputs_and_options(tmp_path):
+    import json
+    source = tmp_path / 'inputs'
+    source.mkdir()
+    image = source / 'image.png'
+    image.write_bytes(png())
+    with pytest.raises(saccade.AnalysisError, match='inside an input directory'):
+        saccade.batch(source, source / 'out')
+    out = tmp_path / 'unrelated'
+    out.mkdir()
+    retain = out / 'retain.txt'
+    retain.write_bytes(b'retain')
+    with pytest.raises(saccade.AnalysisError, match='must be empty'):
+        saccade.batch(source, out)
+    assert retain.read_bytes() == b'retain' and image.read_bytes() == png()
+    options = {'sections': [{'command': 'analyze-media', 'args': ['--description']}], 'concurrency': 2, 'timeout_ms': 30000}
+    with pytest.raises(saccade.AnalysisError, match='dispatch providers'):
+        saccade.batch(source, tmp_path / 'unsafe', options_json=json.dumps(options))
+
+
+def test_batch_pair_uses_core_report_and_mask_metrics(tmp_path, monkeypatch):
+    import json
+    monkeypatch.setenv('PATH', '')
+    reference = tmp_path / 'reference.png'
+    image = tmp_path / 'image.png'
+    reference.write_bytes(png())
+    image.write_bytes(png())
+    source = tmp_path / 'inputs.json'
+    source.write_text(json.dumps({'schema': 'saccade-batch-input.v1', 'inputs': [
+        {'path': 'image.png', 'reference': 'reference.png'},
+    ]}))
+    options = {'sections': [{'command': 'compare', 'args': []}, {'command': 'mask-metrics', 'args': []}], 'concurrency': 1, 'timeout_ms': 30000}
+    rows = saccade.batch(source, tmp_path / 'out', options_json=json.dumps(options))
+    compare, masks = rows[0]['sections']
+    assert compare['result']['schema'] in {'saccade-report.v1', 'saccade-report.v2'}
+    assert compare['exit_code'] == 0
+    assert masks['result']['schema'] == 'saccade-mask-metrics.v1'
+    assert masks['result']['summary']['macro_iou'] == 1
+    assert saccade.batch(source, tmp_path / 'out', options_json=json.dumps(options)) == rows

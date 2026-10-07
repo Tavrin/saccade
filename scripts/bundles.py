@@ -43,6 +43,13 @@ def run(binary, args, env, expect=(0,)):
     return done
 
 
+def validate_features(name, features):
+    expected = set(bundle(name)['expect_features'])
+    actual = set(features)
+    if actual != expected:
+        raise SystemExit(f'bundle {name} compiled features differ: missing {sorted(expected - actual)}, extra {sorted(actual - expected)}')
+
+
 def smoke(name, binary, target, tag=None):
     """Run the bundle's smoke test against `binary`; returns the result record."""
     spec = bundle(name)
@@ -59,9 +66,7 @@ def smoke(name, binary, target, tag=None):
     doctor = json.loads(run(binary, ['doctor', '--json'], env).stdout)
     if tag:
         assert doctor['version'] == tag.removeprefix('v'), (doctor['version'], tag)
-    missing = sorted(set(spec['expect_features']) - set(doctor['features']))
-    if missing:
-        raise SystemExit(f'smoke FAILED: bundle {name} lacks compiled features {missing}')
+    validate_features(name, doctor['features'])
     ok('doctor reports the full feature inventory')
 
     for sub in ('base', 'cap'):
@@ -96,6 +101,7 @@ def smoke(name, binary, target, tag=None):
 def inventory(name, binary, target, archive, doctor_json):
     spec = bundle(name)
     doctor = json.loads(pathlib.Path(doctor_json).read_text())
+    validate_features(name, doctor['features'])
     return {
         'schema': 'saccade-bundle-inventory.v1',
         'bundle': name,
