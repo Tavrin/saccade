@@ -13,6 +13,45 @@ class JevTests(unittest.TestCase):
             self.assertEqual(row['oracle_perfect'], 1)
             self.assertEqual(row['corrupted'], 0)
 
+    def test_partial_two_arm_results(self):
+        cases, oracle = j.corpus()
+        rows, receipts = [], []
+        for w, choices in j.WORKLOADS.items():
+            for arm in ('compact_jev', 'enriched_jev'):
+                for reverse in (False, True):
+                    p = j.payload(cases[0], w, reverse, arm)
+                    truth = oracle[cases[0]['root']]['expected'][w]
+                    response = None if reverse else dict(model=j.MODEL,
+                        answers=dict(q=dict(type='choice', choice=truth, confidence=1.,
+                            probabilities={x: float(x == truth) for x in choices})),
+                        usage=dict(input_tokens=30, output_tokens=5))
+                    rows.append(dict(root=cases[0]['root'], workload=w, arm=arm,
+                        order='reverse' if reverse else 'forward', payload=p, response=response))
+                    r = j.receipt(p, response, str(len(rows)))
+                    if reverse:
+                        r.update(reserved_nano_usd=0, tariff_nano_usd=0, charged_nano_usd=0)
+                    receipts.append(r)
+        result = j.score(rows, oracle, receipts)
+        self.assertEqual(len(result['task_arm_table']), 10)
+        for metrics in result['task_arm_table']:
+            self.assertEqual(metrics['valid_answers'], 1)
+            self.assertEqual(metrics['variant_accuracy'], 1)
+            self.assertEqual(metrics['variant_availability'], .5)
+            self.assertEqual(metrics['availability'], 0)
+            self.assertEqual(metrics['accuracy'], 0)
+            self.assertEqual(metrics['option_disagreement'], 0)
+        self.assertEqual(result['accounted_attempts'], 10)
+        self.assertFalse(result['qualified'])
+
+    def test_rounded_probability_sum_stays_invalid(self):
+        choices = j.WORKLOADS['cause']
+        response = dict(model=j.MODEL, usage=dict(input_tokens=569, output_tokens=79),
+            answers=dict(q=dict(type='choice', choice='global_tone', confidence=.63,
+                probabilities=dict(global_tone=.68, local_structure=.16, misaligned=.01,
+                    noise=.02, config_mismatch=0., ambiguous=.03, unknown=.09))))
+        self.assertAlmostEqual(sum(response['answers']['q']['probabilities'].values()), .99)
+        self.assertRaises(ValueError, j.parse_native, response, choices)
+
     def test_no_oracle_in_candidate_payload(self):
         cases, oracle = j.corpus()
         for c in cases:

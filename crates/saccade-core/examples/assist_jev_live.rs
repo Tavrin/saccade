@@ -32,11 +32,18 @@ struct Row {
     payload: Value,
 }
 fn main() {
-    if execute().is_err() {
+    if let Err(error) = execute() {
         // No error bodies, keys, user-supplied paths or provider text in diagnostics.
-        eprintln!("jev_campaign_refused_or_incomplete");
+        let code = diagnostic_code(error.as_ref());
+        eprintln!("{code}");
         std::process::exit(1);
     }
+}
+fn diagnostic_code(error: &(dyn std::error::Error + 'static)) -> &'static str {
+    error
+        .downcast_ref::<assist::Error>()
+        .map(assist::Error::code)
+        .unwrap_or("jev_campaign_refused_or_incomplete")
 }
 fn execute() -> Result<(), Box<dyn std::error::Error>> {
     let mut args = std::env::args().skip(1);
@@ -259,6 +266,7 @@ fn execute() -> Result<(), Box<dyn std::error::Error>> {
     let deadline = Instant::now() + Duration::from_secs(if continue_unknown { 21600 } else { 300 });
     let mut results = Vec::new();
     let mut failed = false;
+    let mut stop_code: Option<&'static str> = None;
     let mut history = assist::continuation::History::default();
     for (index, (row, payload)) in rows.iter().zip(&prepared).enumerate() {
         if settled.contains(&index) {
@@ -272,16 +280,19 @@ fn execute() -> Result<(), Box<dyn std::error::Error>> {
             results.push(prior[index].clone());
             if let Some(valve) = history.observe(code) {
                 results[index]["safety_valve"] = json!(valve);
+                stop_code = Some(valve);
                 failed = true;
                 break;
             }
             if code == "invalid_answer" {
+                stop_code = Some("invalid_answer");
                 failed = true;
                 break;
             }
             continue;
         }
         if Instant::now() >= deadline {
+            stop_code = Some("campaign_deadline");
             failed = true;
             break;
         }
@@ -319,6 +330,7 @@ fn execute() -> Result<(), Box<dyn std::error::Error>> {
                     .collect();
                 let answer_valid = jev::choice(&response, &choices).is_ok();
                 if !answer_valid {
+                    stop_code = Some("invalid_answer");
                     failed = true;
                 }
                 results.push(json!({"index":index,"root":row.root,"workload":row.workload,"arm":row.arm,"order":row.order,"payload":row.payload,"answer_valid":answer_valid,"response":response,"response_raw":String::from_utf8(done.response)?,"provenance":done.provenance,"ceiling":jev::CEILING}));
@@ -328,7 +340,8 @@ fn execute() -> Result<(), Box<dyn std::error::Error>> {
             {
                 results.push(json!({"index":index,"root":row.root,"workload":row.workload,"arm":row.arm,"order":row.order,"payload":row.payload,"response":null,"answer_valid":false,"ceiling":jev::CEILING,"code":"not_run_transport_failure"}));
             }
-            Err(_) => {
+            Err(error) => {
+                stop_code = Some(error.code());
                 failed = true;
                 results.push(json!({"index":index,"root":row.root,"workload":row.workload,"arm":row.arm,"order":row.order,"payload":row.payload,"response":null,"ceiling":jev::CEILING,"code":"incomplete"}));
             }
@@ -353,11 +366,12 @@ fn execute() -> Result<(), Box<dyn std::error::Error>> {
         };
         if let Some(valve) = history.observe(code) {
             results[index]["safety_valve"] = json!(valve);
+            stop_code = Some(valve);
             failed = true;
         }
         assist::write(
             &out.join("results.json"),
-            &json!({"ceiling":jev::CEILING,"rows":results,"money_receipts":ledger.money_receipts()?,"qualified":false,"incomplete":failed,"transport_failure_policy":continue_unknown.then(assist::continuation::History::policy)}),
+            &json!({"ceiling":jev::CEILING,"rows":results,"money_receipts":ledger.money_receipts()?,"qualified":false,"incomplete":failed,"stop_code":stop_code,"transport_failure_policy":continue_unknown.then(assist::continuation::History::policy)}),
         )?;
         if failed {
             break;
@@ -373,13 +387,16 @@ fn execute() -> Result<(), Box<dyn std::error::Error>> {
         }
         assist::write(
             &out.join("results.json"),
-            &json!({"ceiling":jev::CEILING,"rows":results,"money_receipts":ledger.money_receipts()?,"qualified":false,"incomplete":true,"transport_failure_policy":continue_unknown.then(assist::continuation::History::policy)}),
+            &json!({"ceiling":jev::CEILING,"rows":results,"money_receipts":ledger.money_receipts()?,"qualified":false,"incomplete":true,"stop_code":stop_code,"transport_failure_policy":continue_unknown.then(assist::continuation::History::policy)}),
         )?;
-        return Err("incomplete campaign".into());
+        return Err(assist::Error::Policy(
+            stop_code.unwrap_or("jev_campaign_refused_or_incomplete"),
+        )
+        .into());
     }
     assist::write(
         &out.join("results.json"),
-        &json!({"ceiling":jev::CEILING,"rows":results,"money_receipts":ledger.money_receipts()?,"qualified":false,"incomplete":false,"transport_failure_policy":continue_unknown.then(assist::continuation::History::policy)}),
+        &json!({"ceiling":jev::CEILING,"rows":results,"money_receipts":ledger.money_receipts()?,"qualified":false,"incomplete":false,"stop_code":null,"transport_failure_policy":continue_unknown.then(assist::continuation::History::policy)}),
     )?;
     println!(
         "{}",
@@ -549,6 +566,23 @@ fn compiled_sources() -> [(&'static str, &'static [u8]); 12] {
 #[allow(clippy::unwrap_used)]
 mod tests {
     use super::*;
+    #[test]
+    fn stable_stop_diagnostics_do_not_echo_untrusted_errors() {
+        for code in [
+            "invalid_answer",
+            "campaign_deadline",
+            "transport_failure_rate",
+            "consecutive_transport_failures",
+            "assist_provider_execution_incomplete",
+        ] {
+            assert_eq!(diagnostic_code(&assist::Error::Policy(code)), code);
+        }
+        let error = std::io::Error::other("untrusted provider body or path");
+        assert_eq!(
+            diagnostic_code(&error),
+            "jev_campaign_refused_or_incomplete"
+        );
+    }
     #[test]
     #[ignore = "operator-supplied saved campaign; copies only, no provider or keys"]
     fn offline_saved_resume_fixture() {

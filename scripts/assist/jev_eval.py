@@ -251,7 +251,8 @@ def score(rows, oracle, receipts):
             for (root, a), values in groups.items():
                 if a != arm: continue
                 answers = {v['answer'] for v in values}
-                disagreement += len(answers) > 1
+                # Missing order variants reduce availability, not option agreement.
+                disagreement += len(answers - {None}) > 1
                 answer = next(iter(answers)) if len(answers) == 1 else None
                 results.append(dict(values[0], root=root, answer=answer, available=all(v['answer'] is not None for v in values)))
             n = len(results)
@@ -272,7 +273,12 @@ def score(rows, oracle, receipts):
             family_accuracy = {f:sum(v)/len(v) for f,v in families.items()}
             rng = random.Random(POLICY['family_bootstrap_seed']); values = list(family_accuracy.values())
             boots = sorted(sum(rng.choices(values, k=len(values)))/len(values) for _ in range(1000)) if values else [0]
-            metrics = dict(roots=n, accuracy=correct/n if n else 0, availability=available/n if n else 0,
+            physical = [v for (root, a), values in groups.items() if a == arm for v in values]
+            valid = [v for v in physical if v['answer'] is not None]
+            metrics = dict(scheduled_variants=len(physical), valid_answers=len(valid),
+                variant_availability=len(valid)/len(physical) if physical else 0,
+                variant_accuracy=sum(v['answer'] == v['truth'] for v in valid)/len(valid) if valid else None,
+                roots=n, accuracy=correct/n if n else 0, availability=available/n if n else 0,
                 committed_coverage=len(committed)/len(eligible) if eligible else 0,
                 precision_lower95=confidence(good_commits, len(committed)),
                 challenge_recall_lower95=confidence(recall_hits, len(challenges)),
@@ -300,6 +306,10 @@ def score(rows, oracle, receipts):
         # Single-arm convenience keeps self-test tables compact.
         report['tasks'][w] = next(iter(per_arm.values())) if len(per_arm) == 1 else dict(arms=per_arm)
         if not per_arm: report['tasks'][w] = dict(roots=0, accuracy=0, empirical_selftest_pass=False)
+    report['task_arm_table'] = [dict(task=w, arm=arm, **metrics)
+        for w, task in report['tasks'].items()
+        for arm, metrics in (task['arms'].items() if 'arms' in task else
+                             [(next(iter({r.get('arm', 'compact_jev') for r in rows if r['workload'] == w}), 'compact_jev'), task)])]
     return report
 
 
