@@ -89,6 +89,9 @@
 - Add `split-review` for declared dataset splits and photo bursts, with hash,
   geometric and explicitly provisioned embedding evidence, CSV pairs, injected-pair
   recall and explicit clean-list limits. See `docs/split-review.md`.
+- Add optional `geo` and the first-party `saccade-geo` crate: native multichannel
+  TIFF measurements with preserved grid/nodata metadata and exact grid refusals,
+  explicitly mapped RGB heatmaps, single-band class metrics and tile coverage.
 
 ## 0.2.7 (2026-10-07)
 

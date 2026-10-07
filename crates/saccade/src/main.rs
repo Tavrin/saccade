@@ -47,6 +47,8 @@ mod embedding_cmd;
 mod engine_ingest;
 mod f1;
 mod general_cmd;
+#[cfg(feature = "geo")]
+mod geo_cmd;
 #[cfg(feature = "geometry")]
 mod geometry_cmd;
 mod git_bisect;
@@ -301,6 +303,9 @@ enum Command {
     /// ICC-managed CMYK raster comparison (first-party print extension).
     #[cfg(feature = "print")]
     Print(print_cmd::Args),
+    /// Native multichannel rasters, class metrics and tile-set coverage.
+    #[cfg(feature = "geo")]
+    Geo(geo_cmd::Args),
     // wave11
     /// Verdicts over timings acquired by external tools.
     Timing(wave11_cmd::TimingArgs),
@@ -1345,6 +1350,8 @@ fn dispatch(command: Command, record_absolute_paths: bool) -> Result<u8, CliErro
         } => perf_cmd::ablate(*args, record_absolute_paths),
         #[cfg(feature = "print")]
         Command::Print(args) => print_cmd::run(args),
+        #[cfg(feature = "geo")]
+        Command::Geo(args) => geo_cmd::run(args),
         Command::Doctor { json } => doctor(json),
         Command::Bisect(args) => git_bisect::run(args),
         Command::Ingest(args) => ingest::run(args, record_absolute_paths),
@@ -2086,6 +2093,9 @@ fn dispatch(command: Command, record_absolute_paths: bool) -> Result<u8, CliErro
 
 fn doctor(json: bool) -> Result<u8, CliError> {
     let mut features = saccade_core::COMPILED_FEATURES.to_vec();
+    if cfg!(feature = "geo") {
+        features.push("geo");
+    }
     if cfg!(feature = "print") {
         features.push("print");
     }
@@ -2931,13 +2941,16 @@ fn required_feature(operation: &str) -> Option<&'static str> {
         "safety" | "a11y" | "saccade_safety" | "saccade_a11y" => Some("prechecks"),
         "mcp" => Some("mcp"),
         "geometry" | "mesh-identity" => Some("geometry"),
+        "geo" => Some("geo"),
         "sweep" | "imgtune" | "design" | "notify" => Some("products"),
         _ => None,
     }
 }
 
 fn feature_enabled(feature: &str) -> bool {
-    if feature == "mcp" {
+    if feature == "geo" {
+        cfg!(feature = "geo")
+    } else if feature == "mcp" {
         cfg!(feature = "mcp")
     } else if feature == "products" {
         cfg!(feature = "products")
@@ -2994,6 +3007,9 @@ pub(crate) fn capabilities(json: bool) -> Result<u8, CliError> {
     let mut names = Vec::new();
     operations(&Cli::command(), "", &mut names);
     let mut features = saccade_core::COMPILED_FEATURES.to_vec();
+    if cfg!(feature = "geo") {
+        features.push("geo");
+    }
     if cfg!(feature = "print") {
         features.push("print");
     }

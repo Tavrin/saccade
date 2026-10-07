@@ -13,6 +13,7 @@ build = "build.rs"
 exclude = ["report/**"]
 
 [dependencies]
+saccade-geo = { path = "../saccade-geo", version = "0.2.7", optional = true }
 saccade-print = { path = "../saccade-print", version = "0.2.7", optional = true }
 ureq = { version = "3", optional = true }
 url = { version = "2.5", optional = true }
@@ -34,6 +35,7 @@ fs2 = "0.4.3"
 jsonschema = { version = "0.30", default-features = false }
 
 [features]
+geo = ["dep:saccade-geo"]
 # O12/O17: deterministic text pixel evidence, no added dependencies.
 text-quality = ["saccade-core/text-quality"]
 print = ["dep:saccade-print"]

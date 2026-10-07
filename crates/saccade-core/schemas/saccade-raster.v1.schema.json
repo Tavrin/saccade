@@ -1,0 +1,537 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "saccade-raster.v1",
+  "title": "Native-unit raster comparison",
+  "type": "object",
+  "properties": {
+    "schema": {
+      "const": "saccade-raster.v1"
+    },
+    "operation": {
+      "const": "raster_compare"
+    },
+    "report_id": {
+      "type": "string",
+      "pattern": "^sha256:[0-9a-f]{64}$"
+    },
+    "source_refs": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "verdict": {
+      "const": "measured"
+    },
+    "reference": {
+      "type": "object",
+      "properties": {
+        "grid": {
+          "type": "object",
+          "properties": {
+            "width": {
+              "type": "integer",
+              "minimum": 1
+            },
+            "height": {
+              "type": "integer",
+              "minimum": 1
+            },
+            "crs": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "geotransform": {
+              "anyOf": [
+                {
+                  "type": "array",
+                  "items": {
+                    "type": "number"
+                  },
+                  "minItems": 6,
+                  "maxItems": 6
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "geo_keys": {
+              "type": "array",
+              "items": {
+                "type": "integer",
+                "minimum": 0
+              }
+            },
+            "geo_doubles": {
+              "type": "array",
+              "items": {
+                "type": "number"
+              }
+            },
+            "geo_ascii": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "pixel_scale": {
+              "type": "array",
+              "items": {
+                "type": "number"
+              }
+            },
+            "tiepoints": {
+              "type": "array",
+              "items": {
+                "type": "number"
+              }
+            },
+            "transformation": {
+              "type": "array",
+              "items": {
+                "type": "number"
+              }
+            }
+          },
+          "required": [
+            "width",
+            "height",
+            "crs",
+            "geotransform",
+            "geo_keys",
+            "geo_doubles",
+            "geo_ascii",
+            "pixel_scale",
+            "tiepoints",
+            "transformation"
+          ],
+          "additionalProperties": false
+        },
+        "bands": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 1024
+        },
+        "sample_type": {
+          "enum": [
+            "uint8",
+            "uint16",
+            "uint32",
+            "int8",
+            "int16",
+            "int32",
+            "float32"
+          ]
+        },
+        "nodata": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "sha256": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$"
+        }
+      },
+      "required": [
+        "grid",
+        "bands",
+        "sample_type",
+        "nodata",
+        "sha256"
+      ],
+      "additionalProperties": false
+    },
+    "candidate": {
+      "type": "object",
+      "properties": {
+        "grid": {
+          "type": "object",
+          "properties": {
+            "width": {
+              "type": "integer",
+              "minimum": 1
+            },
+            "height": {
+              "type": "integer",
+              "minimum": 1
+            },
+            "crs": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "geotransform": {
+              "anyOf": [
+                {
+                  "type": "array",
+                  "items": {
+                    "type": "number"
+                  },
+                  "minItems": 6,
+                  "maxItems": 6
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "geo_keys": {
+              "type": "array",
+              "items": {
+                "type": "integer",
+                "minimum": 0
+              }
+            },
+            "geo_doubles": {
+              "type": "array",
+              "items": {
+                "type": "number"
+              }
+            },
+            "geo_ascii": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "pixel_scale": {
+              "type": "array",
+              "items": {
+                "type": "number"
+              }
+            },
+            "tiepoints": {
+              "type": "array",
+              "items": {
+                "type": "number"
+              }
+            },
+            "transformation": {
+              "type": "array",
+              "items": {
+                "type": "number"
+              }
+            }
+          },
+          "required": [
+            "width",
+            "height",
+            "crs",
+            "geotransform",
+            "geo_keys",
+            "geo_doubles",
+            "geo_ascii",
+            "pixel_scale",
+            "tiepoints",
+            "transformation"
+          ],
+          "additionalProperties": false
+        },
+        "bands": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 1024
+        },
+        "sample_type": {
+          "enum": [
+            "uint8",
+            "uint16",
+            "uint32",
+            "int8",
+            "int16",
+            "int32",
+            "float32"
+          ]
+        },
+        "nodata": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "sha256": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$"
+        }
+      },
+      "required": [
+        "grid",
+        "bands",
+        "sample_type",
+        "nodata",
+        "sha256"
+      ],
+      "additionalProperties": false
+    },
+    "policy": {
+      "type": "object"
+    },
+    "bands": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "band": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "valid_pairs": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "changed_pixels": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "nodata": {
+            "type": "object",
+            "properties": {
+              "both": {
+                "type": "integer",
+                "minimum": 0
+              },
+              "reference_only": {
+                "type": "integer",
+                "minimum": 0
+              },
+              "candidate_only": {
+                "type": "integer",
+                "minimum": 0
+              }
+            },
+            "required": [
+              "both",
+              "reference_only",
+              "candidate_only"
+            ],
+            "additionalProperties": false
+          },
+          "statistics": {
+            "anyOf": [
+              {
+                "type": "object",
+                "properties": {
+                  "mean_delta": {
+                    "type": "number"
+                  },
+                  "mean_absolute_delta": {
+                    "type": "number"
+                  },
+                  "rmse": {
+                    "type": "number"
+                  },
+                  "min_delta": {
+                    "type": "number"
+                  },
+                  "max_delta": {
+                    "type": "number"
+                  }
+                },
+                "required": [
+                  "mean_delta",
+                  "mean_absolute_delta",
+                  "rmse",
+                  "min_delta",
+                  "max_delta"
+                ],
+                "additionalProperties": false
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "change_map": {
+            "type": "string"
+          },
+          "delta_map": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "band",
+          "valid_pairs",
+          "changed_pixels",
+          "nodata",
+          "statistics",
+          "change_map",
+          "delta_map"
+        ],
+        "additionalProperties": false
+      }
+    },
+    "perceptual": {
+      "anyOf": [
+        {
+          "type": "object",
+          "properties": {
+            "mapping": {
+              "type": "object",
+              "properties": {
+                "bands": {
+                  "type": "array",
+                  "items": {
+                    "type": "integer",
+                    "minimum": 1
+                  },
+                  "minItems": 3,
+                  "maxItems": 3
+                },
+                "min": {
+                  "type": "array",
+                  "items": {
+                    "type": "number"
+                  },
+                  "minItems": 3,
+                  "maxItems": 3
+                },
+                "max": {
+                  "type": "array",
+                  "items": {
+                    "type": "number"
+                  },
+                  "minItems": 3,
+                  "maxItems": 3
+                }
+              },
+              "required": [
+                "bands",
+                "min",
+                "max"
+              ],
+              "additionalProperties": false
+            },
+            "transfer": {
+              "type": "string"
+            },
+            "mask_mode": {
+              "const": "neutralize"
+            },
+            "valid_pairs": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "metrics": {
+              "type": "object",
+              "properties": {
+                "mean": {
+                  "type": "number",
+                  "minimum": 0,
+                  "maximum": 1
+                },
+                "max": {
+                  "type": "number",
+                  "minimum": 0,
+                  "maximum": 1
+                },
+                "p50": {
+                  "type": "number",
+                  "minimum": 0,
+                  "maximum": 1
+                },
+                "p95": {
+                  "type": "number",
+                  "minimum": 0,
+                  "maximum": 1
+                },
+                "p99": {
+                  "type": "number",
+                  "minimum": 0,
+                  "maximum": 1
+                },
+                "frac_above_0_1": {
+                  "type": "number",
+                  "minimum": 0,
+                  "maximum": 1
+                },
+                "frac_above_0_5": {
+                  "type": "number",
+                  "minimum": 0,
+                  "maximum": 1
+                },
+                "width": {
+                  "type": "integer",
+                  "minimum": 1
+                },
+                "height": {
+                  "type": "integer",
+                  "minimum": 1
+                }
+              },
+              "required": [
+                "mean",
+                "max",
+                "p50",
+                "p95",
+                "p99",
+                "frac_above_0_1",
+                "frac_above_0_5",
+                "width",
+                "height"
+              ],
+              "additionalProperties": false
+            },
+            "heatmap": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "mapping",
+            "transfer",
+            "mask_mode",
+            "valid_pairs",
+            "metrics",
+            "heatmap"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "null"
+        }
+      ]
+    }
+  },
+  "required": [
+    "schema",
+    "operation",
+    "report_id",
+    "source_refs",
+    "verdict",
+    "reference",
+    "candidate",
+    "policy",
+    "bands",
+    "perceptual"
+  ],
+  "additionalProperties": false
+}

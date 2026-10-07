@@ -5,7 +5,7 @@ Generated from compiled capabilities and `--help`; do not edit by hand.
 Generation: `cargo build --release -p saccade --all-features`, then `python3 scripts/gen-docs.py --saccade target/release/saccade`.
 The all-features binary includes every supported operation.
 
-Compiled features: `ai`, `assist`, `compression`, `credentials`, `dense-motion`, `documents`, `embeddings`, `evaluation`, `geometry`, `graphics`, `imgtune-avif`, `local-models`, `local-vlm`, `mcp`, `media-http`, `ocr`, `ocr-provider`, `parallel`, `prechecks`, `print`, `products`, `schema`, `semantic-regions`, `text-quality`, `vision-providers`, `workbench`.
+Compiled features: `ai`, `assist`, `compression`, `credentials`, `dense-motion`, `documents`, `embeddings`, `evaluation`, `geo`, `geometry`, `graphics`, `imgtune-avif`, `local-models`, `local-vlm`, `mcp`, `media-http`, `ocr`, `ocr-provider`, `parallel`, `prechecks`, `print`, `products`, `schema`, `semantic-regions`, `text-quality`, `vision-providers`, `workbench`.
 
 Exit 1 means a failed image measurement/evaluation gate or located divergence.
 Exit 0 for compare/identity means no image regression; inspect `performance` for qualification.
@@ -32,6 +32,7 @@ Commands:
   manifest            Find, link and re-check the outputs of a report directory
   export-regions      Crop the worst regions of a report, with coordinates
   print               ICC-managed CMYK raster comparison (first-party print extension)
+  geo                 Native multichannel rasters, class metrics and tile-set coverage
   timing              Verdicts over timings acquired by external tools
   mask-metrics        Overlap and boundary metrics between two integer label images
   boxes               Export, import and transform bounding boxes as COCO or YOLO
@@ -690,6 +691,113 @@ Options:
           Maximum text-like component height, points [default: 12]
       --json
           Emit the versioned, linked measurement as JSON
+  -h, --help
+          Print help
+
+Global options:
+      --allow-out-near-captures  Silence warnings when --out is next to capture metadata
+      --record-absolute-paths    Opt in to absolute local paths in reports and machine-readable output
+```
+
+## saccade geo
+
+```text
+Native multichannel rasters, class metrics and tile-set coverage
+
+Usage: saccade geo [OPTIONS] <COMMAND>
+
+Commands:
+  compare       Measure same-grid multichannel TIFFs in native units
+  tiles         Compare z/x/y PNG/JPEG/WebP trees and report coverage by zoom
+  mask-metrics  Score single-band class TIFFs with overlap and boundary metrics
+
+Options:
+      --source-ref <SOURCE_REF>      External capture URI/key (repeatable); recorded in generated reports
+      --report-index <REPORT_INDEX>  Shared report index destination (default reports/index.jsonl next to each report, inside --out)
+  -h, --help                         Print help
+
+Global options:
+      --allow-out-near-captures  Silence warnings when --out is next to capture metadata
+      --record-absolute-paths    Opt in to absolute local paths in reports and machine-readable output
+```
+
+## saccade geo compare
+
+```text
+Measure same-grid multichannel TIFFs in native units
+
+Usage: saccade geo compare [OPTIONS] --out <OUT> <REFERENCE> <CANDIDATE>
+
+Arguments:
+  <REFERENCE>  Reference input file or tile directory
+  <CANDIDATE>  Candidate input file or tile directory
+
+Options:
+      --out <OUT>                    Empty artifact output directory, outside inputs
+      --source-ref <SOURCE_REF>      External capture URI/key (repeatable); recorded in generated reports
+      --json                         Emit versioned measurement JSON
+      --report-index <REPORT_INDEX>  Shared report index destination (default reports/index.jsonl next to each report, inside --out)
+      --rgb-bands <RGB_BANDS>        Three one-based band indices for R,G,B. Requires declared ranges
+      --rgb-min <RGB_MIN>            Three native-unit lower bounds, shared by both rasters
+      --rgb-max <RGB_MAX>            Three native-unit upper bounds, shared by both rasters
+  -h, --help                         Print help
+
+Global options:
+      --allow-out-near-captures  Silence warnings when --out is next to capture metadata
+      --record-absolute-paths    Opt in to absolute local paths in reports and machine-readable output
+```
+
+## saccade geo tiles
+
+```text
+Compare z/x/y PNG/JPEG/WebP trees and report coverage by zoom
+
+Usage: saccade geo tiles [OPTIONS] --out <OUT> <REFERENCE> <CANDIDATE>
+
+Arguments:
+  <REFERENCE>  Reference input file or tile directory
+  <CANDIDATE>  Candidate input file or tile directory
+
+Options:
+      --out <OUT>                    Empty artifact output directory, outside inputs
+      --source-ref <SOURCE_REF>      External capture URI/key (repeatable); recorded in generated reports
+      --json                         Emit versioned measurement JSON
+      --report-index <REPORT_INDEX>  Shared report index destination (default reports/index.jsonl next to each report, inside --out)
+  -h, --help                         Print help
+
+Global options:
+      --allow-out-near-captures  Silence warnings when --out is next to capture metadata
+      --record-absolute-paths    Opt in to absolute local paths in reports and machine-readable output
+```
+
+## saccade geo mask-metrics
+
+```text
+Score single-band class TIFFs with overlap and boundary metrics
+
+Usage: saccade geo mask-metrics [OPTIONS] --out <OUT> <REFERENCE> <CANDIDATE>
+
+Arguments:
+  <REFERENCE>  Reference input file or tile directory
+  <CANDIDATE>  Candidate input file or tile directory
+
+Options:
+      --out <OUT>
+          Empty artifact output directory, outside inputs
+      --source-ref <SOURCE_REF>
+          External capture URI/key (repeatable); recorded in generated reports
+      --json
+          Emit versioned measurement JSON
+      --report-index <REPORT_INDEX>
+          Shared report index destination (default reports/index.jsonl next to each report, inside --out)
+      --class <CLASSES>
+          Class predicate NAME=id=1,2, NAME=range=1,5, NAME=above=0 or NAME=mask; repeatable
+      --each-label
+          Score each non-void native label independently
+      --void <VOID>
+          Reference void predicate; nodata on either side is also excluded
+      --boundary-tolerance-px <BOUNDARY_TOLERANCE_PX>
+          Euclidean boundary match tolerance in pixels [default: 1]
   -h, --help
           Print help
 
