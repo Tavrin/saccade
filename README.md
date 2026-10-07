@@ -162,7 +162,7 @@ frames described by a [frame map](docs/frame-map.md).
 Install with Rust 1.89 or newer:
 
 ```sh
-cargo install saccade --version 0.2.7 --locked
+cargo install saccade --version 0.2.8 --locked
 saccade doctor --json
 ```
 

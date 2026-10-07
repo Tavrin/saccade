@@ -381,7 +381,8 @@ jobs:
           workspace = tomllib.loads(pathlib.Path('Cargo.toml').read_text())
           if workspace['workspace']['package']['version'] != version:
               raise SystemExit('::error::Tag and workspace versions differ')
-          for crate, output in [('saccade-core', 'core'), ('saccade', 'cli')]:
+          for crate, output in [('saccade-core', 'core'), ('saccade-print', 'print'),
+                                ('saccade-geo', 'geo'), ('saccade', 'cli')]:
               manifest = tomllib.loads(pathlib.Path(f'crates/{crate}/Cargo.toml').read_text())
               package_version = manifest['package']['version']
               if package_version != version and package_version != {'workspace': True}:
@@ -404,7 +405,9 @@ jobs:
                   print(f'{output}={needed}', file=output_file)
           PYTHON
       - uses: dtolnay/rust-toolchain@7e38f4b43b4db5c8dd498af069a4f6196df1d067 # stable
-        if: steps.versions.outputs.core == 'true' || steps.versions.outputs.cli == 'true'
+        if: >-
+          steps.versions.outputs.core == 'true' || steps.versions.outputs.print == 'true' ||
+          steps.versions.outputs.geo == 'true' || steps.versions.outputs.cli == 'true'
         with:
           toolchain: stable
       - name: Authenticate for saccade-core
@@ -416,6 +419,24 @@ jobs:
         env:
           CARGO_REGISTRY_TOKEN: ${{ steps.core-auth.outputs.token }}
         run: cargo publish --locked --registry crates-io -p saccade-core
+      - name: Authenticate for saccade-print
+        if: steps.versions.outputs.print == 'true'
+        id: print-auth
+        uses: rust-lang/crates-io-auth-action@v1.0.5
+      - name: Publish saccade-print
+        if: steps.versions.outputs.print == 'true'
+        env:
+          CARGO_REGISTRY_TOKEN: ${{ steps.print-auth.outputs.token }}
+        run: cargo publish --locked --registry crates-io -p saccade-print
+      - name: Authenticate for saccade-geo
+        if: steps.versions.outputs.geo == 'true'
+        id: geo-auth
+        uses: rust-lang/crates-io-auth-action@v1.0.5
+      - name: Publish saccade-geo
+        if: steps.versions.outputs.geo == 'true'
+        env:
+          CARGO_REGISTRY_TOKEN: ${{ steps.geo-auth.outputs.token }}
+        run: cargo publish --locked --registry crates-io -p saccade-geo
       - name: Authenticate for saccade
         if: steps.versions.outputs.cli == 'true'
         id: cli-auth
