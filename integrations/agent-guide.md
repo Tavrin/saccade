@@ -36,8 +36,8 @@ Browser/sweep masks `neutralize`; core `exclude`. Read mask/excluded-error audit
 [Matcher](../docs/playwright-matcher.md).
 
 `sweep plan|compare` retains failures; `imgtune audit|search` measures delivery;
-`design pull|compare` retains unavailable variables.
-`--baseline last-good` verifies passing history hashes, never human approval.
+`design pull|compare`: unavailable variables.
+`--baseline last-good`: passing history hashes, never approval.
 `notify` needs authorization/credentials. [Products](../docs/wave5-mcp.md).
 
 `capabilities --json` lists limits; `compare --question` has no fallback.

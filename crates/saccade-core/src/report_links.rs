@@ -132,6 +132,7 @@ pub const SCHEMA_MIGRATIONS: &[(&str, &str)] = &[
     ("saccade-crop-check.v1", "saccade-crop-check.v2"),
     ("saccade-decide-result.v1", "saccade-decide-result.v2"),
     ("saccade-dedupe.v1", "saccade-dedupe.v2"),
+    ("saccade-split-review.v1", "saccade-split-review.v2"),
     ("saccade-design-pull.v1", "saccade-design-pull.v2"),
     ("saccade-design-report.v1", "saccade-design-report.v2"),
     ("saccade-document-ocr.v1", "saccade-document-ocr.v2"),

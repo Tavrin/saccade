@@ -16,7 +16,7 @@ spec.loader.exec_module(gen_docs)
 
 
 class CompiledFeatures(unittest.TestCase):
-    def generate(self, features, allow_missing_imgtune_avif=False):
+    def generate(self, features, allow_missing_imgtune_avif=False, preserve_all_features_header=False):
         def run(argv, **kwargs):
             if argv[1:] == ['inspect', 'capabilities', '--json']:
                 # The legacy inventory can omit newer feature flags.
@@ -28,7 +28,7 @@ class CompiledFeatures(unittest.TestCase):
             return subprocess.CompletedProcess(argv, 0, stdout=json.dumps(value))
 
         with patch.object(gen_docs.subprocess, 'run', side_effect=run):
-            return gen_docs.generated('saccade', allow_missing_imgtune_avif)
+            return gen_docs.generated('saccade', allow_missing_imgtune_avif, preserve_all_features_header)
 
     def features(self):
         manifest = gen_docs.tomllib.loads((gen_docs.ROOT / 'crates/saccade/Cargo.toml').read_text())
@@ -53,6 +53,16 @@ class CompiledFeatures(unittest.TestCase):
         self.assertIn('`imgtune-avif`', inventory)
         self.assertEqual(cli.splitlines()[4:8], self.generate(self.features())['docs/cli.md'].splitlines()[4:8])
         self.assertIn('## saccade text\n', cli)
+
+    def test_preserved_header_keeps_reference_and_actual_inventory_separate(self):
+        full = self.generate(self.features())['docs/cli.md']
+        features = [f for f in self.features() if f != 'imgtune-avif']
+        cli = self.generate(features, True, True)['docs/cli.md']
+        self.assertEqual(cli.splitlines()[4:8], full.splitlines()[4:8])
+        actual = cli.split('Actual generation binary', 1)[1]
+        inventory = next(line for line in actual.splitlines() if line.startswith('Compiled features:'))
+        self.assertNotIn('`imgtune-avif`', inventory)
+        self.assertIn('--allow-missing-imgtune-avif', actual)
 
     def test_avif_exception_rejects_other_missing_features(self):
         features = [f for f in self.features() if f not in {'imgtune-avif', 'ocr-provider'}]

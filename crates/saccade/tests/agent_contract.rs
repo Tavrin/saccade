@@ -85,6 +85,7 @@ fn help_lists_active_commands_and_watch_alias_stays_hidden() {
         .filter_map(Value::as_str)
         .filter(|s| !s.contains(' '))
         .collect::<Vec<_>>();
+    assert!(top.contains(&"split-review"));
     assert_eq!(
         top.len(),
         53 + usize::from(cfg!(feature = "compression"))

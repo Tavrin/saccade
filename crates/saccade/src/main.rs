@@ -74,6 +74,7 @@ mod region_cmd;
 mod renderdoc_cmd;
 #[cfg(feature = "ai")]
 mod review_cmd;
+mod split_review_cmd;
 #[cfg(feature = "products")]
 mod sweep_cmd;
 mod text_cmd;
@@ -354,6 +355,8 @@ enum Command {
     Hash(hash_cmd::HashArgs),
     /// Cluster near-duplicates with bounded Hamming search; never delete images.
     Dedupe(hash_cmd::DedupeArgs),
+    /// Review duplicate candidates across declared splits and group bursts within splits.
+    SplitReview(split_review_cmd::Args),
     // wave8
     /// Analyze an image into a versioned media record (no model downloads by default).
     AnalyzeMedia(media_cmd::AnalyzeArgs),
@@ -1297,6 +1300,7 @@ fn dispatch(command: Command, record_absolute_paths: bool) -> Result<u8, CliErro
         Command::Index(args) => embedding_cmd::index(args),
         Command::Hash(args) => hash_cmd::run_hash(args),
         Command::Dedupe(args) => hash_cmd::run_dedupe(args),
+        Command::SplitReview(args) => split_review_cmd::run(args),
         // wave8
         Command::AnalyzeMedia(args) => media_cmd::analyze(args),
         Command::Keyframes(args) => media_cmd::keyframes(args),

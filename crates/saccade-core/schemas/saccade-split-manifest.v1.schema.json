@@ -1,0 +1,71 @@
+{
+  "$id": "https://github.com/Tavrin/saccade/crates/saccade-core/schemas/saccade-split-manifest.v1.schema.json",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "properties": {
+    "entries": {
+      "items": {
+        "additionalProperties": false,
+        "properties": {
+          "path": {
+            "maxLength": 4096,
+            "minLength": 1,
+            "type": "string"
+          },
+          "split": {
+            "maxLength": 128,
+            "minLength": 1,
+            "type": "string"
+          }
+        },
+        "required": [
+          "path",
+          "split"
+        ],
+        "type": "object"
+      },
+      "maxItems": 128,
+      "minItems": 1,
+      "type": "array"
+    },
+    "injected_pairs": {
+      "items": {
+        "additionalProperties": false,
+        "properties": {
+          "a": {
+            "maxLength": 4096,
+            "minLength": 1,
+            "type": "string"
+          },
+          "b": {
+            "maxLength": 4096,
+            "minLength": 1,
+            "type": "string"
+          },
+          "transform": {
+            "maxLength": 128,
+            "minLength": 1,
+            "type": "string"
+          }
+        },
+        "required": [
+          "a",
+          "b",
+          "transform"
+        ],
+        "type": "object"
+      },
+      "maxItems": 8128,
+      "type": "array"
+    },
+    "schema": {
+      "const": "saccade-split-manifest.v1"
+    }
+  },
+  "required": [
+    "schema",
+    "entries"
+  ],
+  "title": "Declared split membership",
+  "type": "object"
+}

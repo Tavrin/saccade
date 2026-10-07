@@ -86,6 +86,9 @@
   extraction stays external. Include generated caption-video and cross-domain
   acceptance fixtures. Preserve decimal timing/gap boundaries through floating-point
   roundoff; zero timing tolerance stays strict and coarse clocks abstain.
+- Add `split-review` for declared dataset splits and photo bursts, with hash,
+  geometric and explicitly provisioned embedding evidence, CSV pairs, injected-pair
+  recall and explicit clean-list limits. See `docs/split-review.md`.
 
 ## 0.2.7 (2026-10-07)
 
