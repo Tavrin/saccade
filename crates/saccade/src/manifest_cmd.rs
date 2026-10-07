@@ -69,6 +69,11 @@ pub(crate) fn run(args: Args) -> Result<u8, CliError> {
             last_good,
             json,
         } => {
+            if crate::signed_approval::required()
+                && let Some(anchor) = &approved_anchor
+            {
+                crate::signed_approval::check_anchor(anchor, None)?;
+            }
             let (path, value) = manifest::write(
                 &dir,
                 Anchors {
@@ -95,6 +100,9 @@ pub(crate) fn run(args: Args) -> Result<u8, CliError> {
             Ok(0)
         }
         Operation::Verify { target, json } => {
+            if crate::signed_approval::required() {
+                crate::signed_approval::check_manifest(&target)?;
+            }
             let findings = manifest::verify(&target)?;
             if !findings.is_empty() {
                 let code = if findings
@@ -135,6 +143,9 @@ pub(crate) fn run(args: Args) -> Result<u8, CliError> {
             out,
             json,
         } => {
+            if crate::signed_approval::required() {
+                crate::signed_approval::check_manifest(&dir)?;
+            }
             manifest::link(&dir, &report_id, &out)?;
             let mut result = base_result("manifest.link");
             result["artifact"] = reference(&out)?;
@@ -150,6 +161,13 @@ pub(crate) fn run(args: Args) -> Result<u8, CliError> {
         }
         Operation::Classify { path, json: _ } => {
             let value = manifest::classify(&path)?;
+            if crate::signed_approval::required()
+                && (value["manifest"] == true
+                    || value["kind"] == "manifest"
+                    || value["kind"] == "link")
+            {
+                crate::signed_approval::check_manifest(&path)?;
+            }
             crate::emit(&format!("{}\n", serde_json::to_string(&value)?))?;
             Ok(0)
         }

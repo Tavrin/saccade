@@ -21,9 +21,9 @@ variables; inspect exceptions. Mixed records: `compare = "mapped_only"`; inspect
 Identity binds samples, not approval/timing authority.
 
 `review` previews; `review request|ask|propose` binds input hashes.
-CLI attestation is null; workbench is token-gated;
-`automated` cannot satisfy human-required checks. Shell agents can invoke approval;
-human-final is an audit policy. Deletion needs approval and `--prune-missing`;
+CLI attestation is null; workbench is token-gated.
+[Signed approvals](../docs/signed-approvals.md) require an external human key;
+policy-off CLI approval is unattested. Deletion needs approval and `--prune-missing`;
 models need fresh review. [Evidence](../docs/contracts.md),
 [review](../docs/review.md).
 

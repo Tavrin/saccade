@@ -2,10 +2,15 @@
 
 ## Unreleased
 
+- Add opt-in externally signed OpenSSH approvals, full baseline content verification,
+  trusted signer policy and `compare --approved`. Policy-enabled manifest anchor
+  consumers reject unsigned or invalid approval. The authority harness now proves
+  credential refusal with policy on and retains explicit policy-off behavior.
+
 - Add an offline CLI/MCP authority-boundary harness, unprivileged container recipe,
   versioned receipts and a CI regression job with external networking disabled.
-  Record the missing separate baseline-write credential as an explicit expected
-  failure; writable CLI baselines remain outside an authenticated human boundary.
+  Exercise signed-policy credential refusal and explicit default behavior;
+  policy-off writable CLI baselines retain unattested authority.
 - Enforce declared user read/output roots during offline review previews, including
   referenced inputs and intent files, before reading or writing those paths.
 

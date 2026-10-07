@@ -20,6 +20,7 @@ use serde_json::json;
 use crate::agent::CliError;
 
 pub(crate) struct Options {
+    pub signing: crate::signed_approval::SigningArgs,
     pub names: Vec<String>,
     pub all_failing: bool,
     pub include_errors: bool,
@@ -379,6 +380,28 @@ pub(crate) fn run(
     {
         return Err(mismatch("report changed during approval"));
     }
+    let signed_mode = crate::signed_approval::required()
+        || opts.signing.approval_record.is_some()
+        || opts.signing.approver.is_some();
+    let signing_record = if signed_mode {
+        Some(crate::signed_approval::draft(
+            &report,
+            &report_bytes,
+            &decision,
+            baseline,
+            &applied,
+            opts.signing.approver.as_deref().unwrap_or("reviewer"),
+        )?)
+    } else {
+        None
+    };
+    let signed = if !opts.dry_run
+        && let Some(record) = &signing_record
+    {
+        Some(crate::signed_approval::authorize(&opts.signing, record)?)
+    } else {
+        None
+    };
     let out = opts.out.unwrap_or_else(|| {
         report_path.parent().unwrap_or(Path::new(".")).join(format!(
             "approval-{}-{}",
@@ -438,6 +461,14 @@ pub(crate) fn run(
         &Document::new(Artifact::HumanDecision(Box::new(decision))),
     )?;
     write_json(&out.join("manifest.json"), &plan)?;
+    if opts.dry_run
+        && let Some(record) = &signing_record
+    {
+        write_json(&out.join("approval.json"), record)?;
+    }
+    if let Some(signed) = &signed {
+        write_json(&out.join("signed-approval.json"), signed)?;
+    }
     // Reserve the receipt path before mutation. A dry-run never writes a receipt.
     let mut receipt_file = if opts.dry_run {
         None
@@ -487,6 +518,9 @@ pub(crate) fn run(
                 pruned.push(paths::cwd(&target, opts.absolute));
             }
         }
+        if let Some(signed) = &signed {
+            crate::signed_approval::persist(baseline, signed)?;
+        }
         if let Some(file) = &mut receipt_file {
             let bytes = serde_json::to_vec_pretty(&Document::new(Artifact::ApprovalReceipt(
                 Box::new(receipt),
@@ -502,12 +536,19 @@ pub(crate) fn run(
         value["review"] = json!(if opts.dry_run { "pending" } else { "accepted" });
         value["counts"] = json!({"copied":copied.len(),"pruned":pruned.len()});
         value["data"] = json!({"copied":copied.into_iter().take(5).collect::<Vec<_>>(),"pruned":pruned.into_iter().take(5).collect::<Vec<_>>(),"dry_run":opts.dry_run,"authority":"cli","human_attestation":null});
+        if signed.is_some() {
+            value["data"]["authority"] = json!("signed_cli");
+            value["data"]["signed_approval"] =
+                crate::local_cmd::reference(&out.join("signed-approval.json"))?;
+        }
         crate::local_cmd::print(&crate::local_cmd::bounded(value, 4096)?, true)?;
     } else {
         crate::emit(&format!(
             "{}: {}\n",
             if opts.dry_run {
                 "review decision"
+            } else if signed.is_some() {
+                "signed cli receipt"
             } else {
                 "unattested cli receipt"
             },

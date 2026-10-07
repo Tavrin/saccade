@@ -14,13 +14,7 @@ import tempfile
 import zlib
 
 SCHEMA = "saccade-authority-boundary.v1"
-KNOWN_FINDINGS = {
-    "cli-uncredentialed-approval": (
-        "CLI decisions attest intent, not identity. A writable baseline can be "
-        "updated without a separate human credential. Authentication and "
-        "deployment permissions need an owner-defined contract; outside a local fix."
-    ),
-}
+
 
 
 def digest(path):
@@ -266,14 +260,17 @@ class Harness:
             finally:
                 baseline.parent.chmod(0o755)
                 baseline.chmod(0o644)
+        result = self.cli([*args, "--require-signed-approval", "--out",
+                           self.outputs / "signed-policy-denied"])
+        self.record("cli-uncredentialed-approval-policy-on", "cli", 2,
+                    "approval_signature_required", result, digest(baseline) == before)
         result = self.cli([*args, "--out", self.outputs / "uncredentialed-approval"])
-        self.record("cli-uncredentialed-approval", "cli", 0, None, result,
+        self.record("cli-uncredentialed-approval-policy-off", "cli", 0, None, result,
                     digest(baseline) == digest(self.inputs / "candidate/sample.png")
                     and before != digest(baseline)
                     and result[1].get("data", {}).get("authority") == "cli"
                     and "human_attestation" in result[1].get("data", {})
-                    and result[1]["data"]["human_attestation"] is None,
-                    KNOWN_FINDINGS["cli-uncredentialed-approval"])
+                    and result[1]["data"]["human_attestation"] is None)
         # Denied calls must not create a dispatch ledger or escaped artifacts.
         self.record("no-denied-dispatch-or-output", "harness", 0, None, (0, {}, {}),
                     not (self.work / "config/attempts").exists()

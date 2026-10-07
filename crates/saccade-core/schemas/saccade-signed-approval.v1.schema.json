@@ -1,0 +1,25 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "saccade-signed-approval.v1",
+  "title": "saccade-signed-approval.v1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema",
+    "record",
+    "signature"
+  ],
+  "properties": {
+    "schema": {
+      "const": "saccade-signed-approval.v1"
+    },
+    "record": {
+      "type": "string",
+      "description": "Exact signed UTF-8 saccade-approval-record.v1 JSON bytes"
+    },
+    "signature": {
+      "type": "string",
+      "description": "Detached OpenSSH SSHSIG, namespace saccade-approval"
+    }
+  }
+}

@@ -2,6 +2,13 @@
 
 saccade itself is licensed `MIT OR Apache-2.0` (see `LICENSE-MIT`, `LICENSE-APACHE`).
 
+## OpenSSH signature verification (external executable)
+
+Opt-in signed approvals invoke the system `ssh-keygen -Y verify` executable.
+OpenSSH is separately installed, not linked or bundled; its upstream components
+use BSD-style licences. The installed distribution supplies its exact licence
+notices. No new Rust dependency or private-key implementation is introduced.
+
 ## flip-rs / NVIDIA FLIP (BSD-3-Clause)
 
 FLIP and HDR-FLIP are implemented by the pure-Rust
