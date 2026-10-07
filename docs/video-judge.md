@@ -118,7 +118,7 @@ Unified media and local gates:
 - `--image PNG [PNG]` accepts direct still candidates, alongside `--frame-map`
   motion candidates (one or two candidates total). `--view-id` values follow
   frame-map then image order; omitted ids use source content identity. The kind
-  and `sample-0` identity follow the source through both presentation orders.
+  and declared sample identity follow the source through both presentation orders.
 - `--contact-sheet` first applies the fps filter, then selects up to eight eligible
   frames at indices `floor(i*(n-1)/7)` when `n > 8`. The first and last eligible
   frames are retained. A four-column, two-row PNG labels each cell with its
