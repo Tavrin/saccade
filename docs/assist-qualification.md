@@ -719,3 +719,68 @@ nominal one-sided 95% limits, invalid answers, over-hint rates, known costs,
 unknown reservations and completed cold-call latency. Split results are separate;
 no development/calibration provider performance is inferred from heldout calls.
 The synthetic scorer and its qualification gates retain their original rules.
+
+## G12 combined pilot scorer audit
+
+`python3 scripts/assist/pilot_audit.py --corpus CORPUS --requests ORIGINAL_REQUESTS
+--campaign ORIGINAL_REQUESTS FIRST_RESULTS --campaign SUBSET_REQUESTS SECOND_RESULTS
+--local-results LOCAL_RESULTS --source-revision FROZEN_COMMIT --out SCORE_PREFIX`
+combines existing campaigns offline. It verifies each campaign request-file hash,
+canonical root binding and identical payload hash before opening answer files;
+unknown roots, changed payloads, duplicate terminal dispatches, duplicate money
+IDs and unbound receipts refuse combination. The original files remain read-only.
+The frozen corpus adapter verifies the original source snapshot and requires
+unchanged oracle, scorer, payload and receipt implementation files. The union
+adapter has its own source hash in the report.
+
+Selection is by canonical request identity, never response quality. A later paid
+retry can supersede an incomplete call for answer scoring, but all physical
+attempts remain in cost and request-rate denominators. Unknown charges retain
+their full reservations. Scheduled request counts remain distinct from attempts.
+Quality bounds use root events; correlated request bounds remain descriptive.
+The report publishes aggregate metrics and combination reasons only, with no
+individual held-out response, oracle answer or root result.
+
+The supplied two campaigns execute **only held-out requests**. Development and
+calibration each have 60 corpus roots, but no provider observations. Therefore
+reviewed development/calibration disagreements are zero; empirical model-error
+and scorer-artefact counts are **unavailable**, not zero. Their quality rates do
+not measure model behavior. No held-out individual answer or oracle was inspected
+to tune the scorer, prompt or policy. Automated oracle/response reads are used
+only for the frozen aggregate score. No provider calls or key reads are needed.
+
+No semantic scorer change is justified by these inputs. Source audit findings:
+
+- `text:<literal>` compares exact code points, case, whitespace and line breaks.
+  NFC conversion, whitespace folding or case folding would be a new protocol
+  decision, not a repair authorized by the literal protocol. A multiline
+  transcription cannot be adjudicated from a held-out example.
+- Two-order arms require exact role-normalized observations, including geometry,
+  evidence citations, visibility and uncertainty. Missing orders/descendants and
+  disagreement withhold the root. Aggregate reasons distinguish missing samples,
+  invalid answers and exact disagreement. `check_ui` uses one scheduled sample
+  even in `two_gemini`; that arm name does not establish independent replication.
+- `presence:present` can witness one visible glyph while `check_ui` task evidence
+  requires complete literal text, absence with target coverage, or clipping.
+  The prompt's presence example establishes a valid observation shape, not task
+  success. `unverifiable` is an abstention only for a completed consistent root;
+  invalid, missing and inconsistent answers are unavailable, not abstentions.
+- Text requires every witnessed glyph pixel inside the exact half-open box.
+  Absence/clipping/explanation require target coverage. Points use a one-pixel
+  footprint for assertions; task coverage requires boxes. There is no IoU
+  matching threshold, padding, snapping or rounding tolerance.
+- `audit_mask` task evidence requires exclusion-ID citations while the live
+  protocol permits only same-slot region citations. This incompatibility prevents
+  task success; it cannot be counted as demonstrated model error. Repair requires
+  a separately authorized development protocol epoch and independent evidence.
+
+Focused synthetic tests use invented text and pixel witnesses, not copied pilot
+answers. They lock exact Unicode/whitespace/case and geometry behavior, partial
+presence versus task success, retry cost conservation, aggregate-only publication,
+request-hash refusal and duplicate execution refusal. The combined pilot remains
+unqualified. Do not proceed to run B: first obtain a development/calibration audit
+under a separately reviewed protocol; do not adapt from this held-out pilot.
+
+Identical payloads across distinct arm/order bindings share a hash. The union
+indexes by payload hash **and** canonical schedule binding, retaining these
+separate arm events instead of collapsing them or inflating independent support.

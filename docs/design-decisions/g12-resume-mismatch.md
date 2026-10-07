@@ -31,20 +31,20 @@ Exact operator resume command (printed only, never executed here). Use a binary
 built from this commit; the old pilot binary predates this fix:
 
 ```sh
-CARGO_TARGET_DIR=/mnt/linux-extra/moss-cargo-targets/codex-saccade-g12live \
+CARGO_TARGET_DIR="$ASSIST_TARGET_DIR" \
 CARGO_INCREMENTAL=0 CARGO_PROFILE_DEV_DEBUG=0 \
 cargo run --offline --locked -p saccade-core --features assist \
   --example assist_openrouter_smoke -- --stage2 \
-  --requests /mnt/linux-extra/moss-scratch/saccade-g12-reasoning-hint/pilot-plan/requests.json \
+  --requests "$PILOT_REQUESTS" \
   --roots 216 --max-spend-usd 5 \
   --max-consecutive-invalid-answers 5 --max-invalid-answer-percent 50 --invalid-answer-min-sample 20 \
-  --user-policy /home/etienne/.config/saccade/user.toml \
-  --resume /mnt/linux-extra/moss-scratch/saccade-g12-reasoning-hint/pilot-live \
+  --user-policy "$ASSIST_USER_POLICY" \
+  --resume "$PILOT_RESULTS" \
   --settle-unknown-at-reservation
 ```
 
 Gate receipts are kept outside the repository in
-`/mnt/linux-extra/moss-scratch/saccade-g12-resume-mismatch/gates.json`.
+`$GATE_RECEIPTS/gates.json`.
 
 Final verification: fmt, clippy (`saccade-core`, all targets, `assist`, warnings
 denied), core tests (`assist,schema,evaluation`), and all 23 smoke example tests
