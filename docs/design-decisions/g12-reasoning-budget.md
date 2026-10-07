@@ -25,7 +25,7 @@ aggregate, preserving at least three quarters for visible output. Payloads too
 small to reserve a positive reasoning budget are refused.
 
 The payload hash pins the exact control. Plans and money receipts also record
-the request policy and reasoning bound. The serialized control participates in
+the request policy and requested reasoning hint. The serialized control participates in
 the conservative input bound. Reserve the full aggregate completion ceiling at
 the pinned completion rate once: reasoning is its subset, never an additional
 4096-plus-1024 reservation. The aggregate stays within `OUTPUT_LIMIT`.
@@ -36,8 +36,10 @@ zero means zero. `candidate_tokens` retains OpenRouter's aggregate completion
 counter, including reasoning; Gemini-direct counters retain their existing
 semantics. Current schema descriptions document this distinction. Billed cost,
 aggregate output bounds, ceiling, and reconciliation rules remain authoritative.
-A known reasoning overrun or reasoning greater than completion stops spending
-and retains the billed amount. Unknown thinking does not erase a known bill or
+Exceeding the requested reasoning budget is metadata, not a monetary breach;
+see [the superseding classification decision](g12-reasoning-hint.md). Impossible
+reasoning-greater-than-completion counters remain an integrity failure and retain
+the billed amount. Unknown thinking does not erase a known bill or
 release an unknown-cost reservation.
 
 A single choice with `finish_reason: length` is `truncated_output`, separate from
@@ -64,7 +66,7 @@ Focused regressions:
 - `g12_recorded_reasoning_usage_is_a_subset_and_unknown_stays_unknown`
 - `g12_recorded_length_response_is_truncated_in_root_outcomes`
 - `test_reasoning_policy_is_pinned_in_both_regenerated_plans`
-- `g12_truncation_and_reasoning_breach_keep_billed_money_and_do_not_retry`
+- `g12_recorded_call7_reasoning_hint_is_not_a_campaign_stop`
 
 Exact preparation, admission, and future operator commands are recorded in
 `commands.sh` beside `gates.json` in the evidence directory. Future operator

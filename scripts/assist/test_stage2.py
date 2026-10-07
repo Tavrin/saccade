@@ -205,6 +205,60 @@ class Stage2Tests(unittest.TestCase):
             (out/'smoke.json').write_text(json.dumps(dict(root_outcomes=outcomes)))
             self.assertRaisesRegex(ValueError,'reason code',collect,rows,out,manifest)
 
+    def test_reasoning_over_hint_rates_keep_invalid_and_unknown_usage_separate(self):
+        import json
+        with tempfile.TemporaryDirectory() as tmp:
+            directory=Path(tmp)/'corpus'
+            manifest=freeze(directory,5,4406,REVISION,'jev-1.13.0',True)
+            rows,_=report(manifest,directory)
+            out=Path(tmp)/'results';out.mkdir()
+            outcomes=[]
+            for i,row in enumerate(rows):
+                # One over-hint answer per group is invalid, one meets the hint,
+                # remaining counters are unknown. All scheduled calls stay counted.
+                outcomes.append(dict(index=i,root=row['root'],code='invalid_answer',answer_reason='closed_schema'))
+            workloads={c['root_id']:c['workload'] for c in manifest['cases']}
+            grouped={}
+            for i,row in enumerate(rows):
+                root,arm,_,_=row['root'].rsplit(':',3)
+                grouped.setdefault((arm,workloads[root]),[]).append(i)
+            for indices in grouped.values():
+                for i,observed in zip(indices[:2],(1638,512)):
+                    outcomes[i].update(provider_reasoning_over_hint=observed>1024,
+                        reasoning_hint=dict(requested_tokens=1024,observed_tokens=observed))
+            (out/'smoke.json').write_text(json.dumps(dict(root_outcomes=outcomes)))
+            result=collect(rows,out,manifest)
+            self.assertEqual(result['invalid_answers'],len(rows))
+            for rate in result['provider_reasoning_over_hint_rates_per_arm_workload']:
+                self.assertEqual(rate['reasoning_hint_observed_requests'],2)
+                self.assertEqual(rate['provider_reasoning_over_hint_requests'],1)
+                self.assertEqual(rate['provider_reasoning_over_hint_rate'],.5)
+                self.assertEqual(rate['provider_reasoning_over_hint_scheduled_rate'],1/rate['scheduled_requests'])
+            # A legacy hint-only breach remains unavailable evidence, but its
+            # recorded reasoning counters still contribute to the usage rate.
+            i=0
+            outcomes[i]=dict(index=i,root=rows[i]['root'],code='provider usage exceeded reservation')
+            (out/'receipt-0.json').write_text(json.dumps(dict(usage=dict(bound_breach=True,
+                reasoning_bound=1024,usage=dict(thinking_tokens=1638)))))
+            (out/'smoke.json').write_text(json.dumps(dict(root_outcomes=outcomes)))
+            result=collect(rows,out,manifest)
+            self.assertEqual(sum(r['provider_reasoning_over_hint_requests'] for r in result['provider_reasoning_over_hint_rates_per_arm_workload']),len(grouped))
+            self.assertEqual(result['unavailable_request_codes'],{'provider usage exceeded reservation':1})
+            # Successful legacy exports contain provenance only; their separate
+            # money receipt retains the requested hint and full observed usage.
+            legacy_id='a'*32
+            outcomes[i]['execution_id']=legacy_id
+            (out/f'money-{legacy_id}.json').write_bytes((out/'receipt-0.json').read_bytes())
+            (out/'receipt-0.json').write_text(json.dumps(dict(execution_id=legacy_id)))
+            (out/'smoke.json').write_text(json.dumps(dict(root_outcomes=outcomes)))
+            legacy=collect(rows,out,manifest)
+            self.assertEqual(legacy['provider_reasoning_over_hint_rates_per_arm_workload'],result['provider_reasoning_over_hint_rates_per_arm_workload'])
+            # Contradictory flags cannot be scored as clean evidence.
+            outcomes[i].update(provider_reasoning_over_hint=False,
+                reasoning_hint=dict(requested_tokens=1024,observed_tokens=1638))
+            (out/'smoke.json').write_text(json.dumps(dict(root_outcomes=outcomes)))
+            self.assertRaisesRegex(ValueError,'flag drift',collect,rows,out,manifest)
+
     def test_frozen_schedule_binding_and_closed_budget(self):
         with tempfile.TemporaryDirectory() as tmp:
             directory=Path(tmp)/'corpus'

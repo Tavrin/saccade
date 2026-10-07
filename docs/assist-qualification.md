@@ -592,7 +592,7 @@ The new prompt epoch is `g12-pilot/2`, prompt policy
 `assist-openrouter-geometry-citations/2`, corpus campaign `g12-stage2/2`,
 constructed epoch `wave4-constructed/4`, and policy `constructed-assist/4`.
 Encoder identity advances to `assist-encoder/4`. The provider schema projection,
-reasoning/output bounds, statement vocabulary and all answer validators stay fixed.
+reasoning hints/output bounds, statement vocabulary and all answer validators stay fixed.
 Plans include the exact prompt hash and policy; request hashes include the prompt.
 
 The system instruction explicitly defines normalized boxes as
@@ -677,3 +677,28 @@ Focused offline regressions:
 Rejected alternatives: accepting corner boxes, permitting cross-slot citations,
 inspecting held-out responses to tune examples, treating missing IDs as unbilled,
 resetting allowances/counters on resume, and relaxing mismatches or permanent stops.
+
+
+## G12 reasoning hints and runner identity
+
+Requested reasoning budgets are provider hints. Only input above its reserved
+bound, aggregate completion (including reasoning) above its reserved bound, and
+actual cost above the reservation constitute known money-bound breaches.
+Unknown cost stops the runner and retains the reservation for reconciliation.
+The separate `provider_reasoning_over_hint` flag and requested/observed counts
+never override content validation or identity quarantine. Missing thinking counts
+remain unknown, not a measured below-hint call.
+
+Stage-2 collection reports `provider_reasoning_over_hint_rates_per_arm_workload`:
+known observations are the rate denominator; each row also retains the scheduled
+request denominator and scheduled over-hint rate. Invalid answers and legacy
+campaign failures contribute their known usage without becoming valid answers.
+
+The epoch-2 pilot's seventh response/answer was never saved by the old executor.
+Its bill is known, but token counters cannot reconstruct or validate its content.
+The runner binding therefore advances from `saccade-g12-campaign/2` to `/3`;
+request, prompt, encoder, provider, pricing, output ceiling and safety controls
+stay fixed. The old durably stopped ledger is retained read only; no stop bit or
+spend counter is cleared. Use a fresh campaign, then resume that campaign with
+identical policy/plan/allowance. This is the spec's documented fresh-run fallback.
+See [the exact commands and evidence](design-decisions/g12-reasoning-hint.md).

@@ -648,10 +648,7 @@ mod tests {
 #[allow(clippy::unwrap_used)]
 mod execution_tests {
     use super::*;
-    use crate::assist::{
-        execution::{CacheKey, ENCODER, Executor},
-        schema::Usage,
-    };
+    use crate::assist::execution::{CacheKey, ENCODER, Executor};
     use crate::budget_ledger::{Caps, Ledger, MoneyScope, Scope};
     use crate::judge_provider::{Keys, transport::*};
     use crate::root_policy::RootPolicy;
@@ -667,6 +664,10 @@ mod execution_tests {
     #[test]
     fn g12_reservation_tracks_payload_and_explicit_output_before_dispatch() {
         scenarios(11..12);
+    }
+    #[test]
+    fn g12_total_output_over_reservation_is_charged_and_stops_campaign() {
+        scenarios(47..48);
     }
     #[test]
     fn g12_returned_cost_over_reservation_is_charged_and_stops_campaign() {
@@ -743,7 +744,7 @@ mod execution_tests {
         );
     }
     #[test]
-    fn g12_truncation_and_reasoning_breach_keep_billed_money_and_do_not_retry() {
+    fn g12_recorded_call7_reasoning_hint_is_not_a_campaign_stop() {
         scenarios(30..32);
     }
     #[test]
@@ -941,7 +942,7 @@ mod execution_tests {
                 timeout: Duration,
             ) -> std::result::Result<HttpReply, String> {
                 assert_eq!(url, ENDPOINT);
-                if self.scenario >= 42 {
+                if (42..47).contains(&self.scenario) {
                     assert!(timeout > Duration::from_secs(60));
                     assert!(timeout <= Duration::from_secs(120));
                 }
@@ -955,7 +956,7 @@ mod execution_tests {
                     "reserved"
                 );
                 self.calls.set(self.calls.get() + 1);
-                if self.scenario >= 42 {
+                if (42..47).contains(&self.scenario) {
                     return Err([
                         "transport_timeout",
                         "transport_connect",
@@ -971,7 +972,7 @@ mod execution_tests {
                 Ok(HttpReply {
                     status: if self.scenario == 33 {
                         500
-                    } else if self.scenario >= 32 {
+                    } else if (32..47).contains(&self.scenario) {
                         400
                     } else {
                         200
@@ -1049,6 +1050,16 @@ mod execution_tests {
                     value["usage"]["completion_tokens_details"]["reasoning_tokens"] = json!(1024);
                 }
             }
+            if matches!(index, 31 | 47) {
+                value = decode(include_bytes!(
+                    "../../tests/fixtures/assist-openrouter/call7-reasoning-hint.json"
+                ))
+                .unwrap();
+                if index == 47 {
+                    value["usage"]["completion_tokens"] = json!(4097);
+                    value["usage"]["total_tokens"] = json!(9270);
+                }
+            }
             if index == 1 {
                 value["usage"] = json!({"cost":0});
             }
@@ -1058,7 +1069,7 @@ mod execution_tests {
             if index == 12 {
                 value["usage"]["cost"] = json!(0.04);
             }
-            if index >= 32 {
+            if (32..47).contains(&index) {
                 value = decode(include_bytes!(
                     "../../tests/fixtures/assist-openrouter/schema-http-400.json"
                 ))
@@ -1136,7 +1147,8 @@ mod execution_tests {
                     cap_nano_usd: 100_000_000,
                 }],
                 sources: vec!["fixture".into()],
-                deadline: Instant::now() + Duration::from_secs(if index >= 42 { 300 } else { 1 }),
+                deadline: Instant::now()
+                    + Duration::from_secs(if (42..47).contains(&index) { 300 } else { 1 }),
             };
             let key = CacheKey {
                 evidence_hash: Digest::of_bytes(b"fixture-request"),
@@ -1162,11 +1174,11 @@ mod execution_tests {
             let campaign =
                 std::fs::read_to_string(temp.path().join("ledger/campaign.json")).unwrap();
             assert!(!campaign.contains("fixture-openrouter-key"));
-            if index >= 32 {
+            if (32..47).contains(&index) {
                 assert_eq!(fake.calls.get(), 1);
                 assert_eq!(fake.generations.get(), 0);
                 let receipt = &receipts[0];
-                if index >= 42 {
+                if (42..47).contains(&index) {
                     assert_eq!(
                         receipt.usage["transport_failure"],
                         ["timeout", "connect", "reset", "tls", "other"][index - 42]
@@ -1243,27 +1255,48 @@ mod execution_tests {
                 }
                 continue;
             }
-            if index >= 30 {
+            if index == 47 {
                 assert_eq!(
                     result.err().unwrap().code(),
-                    if index == 30 {
-                        "truncated_output"
-                    } else {
-                        "provider usage exceeded reservation"
-                    }
+                    "provider usage exceeded reservation"
                 );
-                assert_eq!(receipts[0].actual_nano_usd, Some(17_222_250));
+                assert_eq!(receipts[0].actual_nano_usd, Some(10_862_250));
+                assert_eq!(receipts[0].outcome, "usage_limit_exceeded");
+                assert_eq!(receipts[0].usage["bound_breach"], true);
+                assert_eq!(receipts[0].usage["provider_reasoning_over_hint"], true);
+                assert!(receipts[0].reserved_nano_usd > 10_862_250);
+                assert!(executor.call(&key, &payload).is_err());
+                assert_eq!(fake.calls.get(), 1);
+                continue;
+            }
+            if index >= 30 {
+                if index == 30 {
+                    assert_eq!(result.err().unwrap().code(), "truncated_output");
+                } else {
+                    let completed = result.unwrap();
+                    assert_eq!(completed.provenance.usage.thinking_tokens, Some(1638));
+                    assert_eq!(receipts[0].outcome, "completed");
+                    assert!(receipts[0].reserved_nano_usd >= 10_862_250);
+                    assert_eq!(
+                        receipts[0].usage["reasoning_hint"],
+                        json!({"requested_tokens":1024,"observed_tokens":1638})
+                    );
+                }
                 assert_eq!(
-                    receipts[0].usage["usage"]["thinking_tokens"],
-                    if index == 30 { 1024 } else { 3928 }
+                    receipts[0].actual_nano_usd,
+                    Some(if index == 30 { 17_222_250 } else { 10_862_250 })
                 );
                 assert_eq!(receipts[0].usage["reasoning_bound"], 1024);
+                assert_eq!(
+                    receipts[0].usage["provider_reasoning_over_hint"],
+                    index == 31
+                );
                 assert_eq!(receipts[0].usage["request_policy"], REQUEST_POLICY);
-                assert_eq!(receipts[0].usage["qualification_eligible"], false);
-                assert_eq!(receipts[0].usage["bound_breach"], index == 31);
-                if index == 31 {
-                    assert!(executor.call(&key, &payload).is_err());
-                }
+                assert_eq!(receipts[0].usage["bound_breach"], false);
+                assert_eq!(
+                    decode::<Value>(campaign.as_bytes()).unwrap()["money"]["stopped"],
+                    false
+                );
                 assert_eq!(fake.calls.get(), 1);
                 assert_eq!(fake.generations.get(), 0);
                 continue;
@@ -1345,6 +1378,16 @@ mod execution_tests {
                 }
                 assert!(!campaign.contains("bad\\nmetadata"));
                 assert!(!campaign.contains(&"x".repeat(129)));
+                continue;
+            }
+            if index == 1 {
+                assert_eq!(
+                    result.err().unwrap().code(),
+                    "assist_provider_execution_incomplete"
+                );
+                assert_eq!(receipts[0].actual_nano_usd, None);
+                assert_eq!(receipts[0].outcome, "incomplete");
+                assert!(receipts[0].reserved_nano_usd > 0);
                 continue;
             }
             if index == 12 {
@@ -1466,11 +1509,6 @@ mod execution_tests {
                         Some(187_500)
                     }
                 );
-                if index == 1 {
-                    assert!(result.provenance.cost_usd.is_none());
-                    assert!(receipt.reserved_nano_usd > 0);
-                    assert_ne!(result.provenance.usage, Usage::default());
-                }
             }
         }
     }

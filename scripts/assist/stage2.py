@@ -171,7 +171,8 @@ def collect(requests, result_dir, manifest=None):
     metrics = {}
     def metric(arm, workload):
         return metrics.setdefault((arm,workload),dict(arm=arm,workload=workload,scheduled_requests=0,
-            settled_answers=0,invalid_answers=0,reason_breakdown=Counter(),roots=set(),invalid_roots=set()))
+            settled_answers=0,invalid_answers=0,reason_breakdown=Counter(),roots=set(),invalid_roots=set(),
+            reasoning_hint_observed_requests=0,provider_reasoning_over_hint_requests=0))
     # Retain explicit campaign stops even if stale answer files are present.
     smoke_path=result_dir/'smoke.json'
     outcomes=None
@@ -188,6 +189,34 @@ def collect(requests, result_dir, manifest=None):
         m=metric(arm,workload)
         m['scheduled_requests']+=1
         m['roots'].add(root)
+        # Usage is orthogonal to answer validity and campaign outcome. Read old
+        # receipts too: their legacy bound_breach bit conflated this hint with money.
+        outcome=outcomes[index] if outcomes is not None else {}
+        hint=outcome.get('reasoning_hint')
+        flag=outcome.get('provider_reasoning_over_hint')
+        receipt_paths=[result_dir/f'receipt-{index}.json']
+        execution_id=outcome.get('execution_id')
+        if isinstance(execution_id,str) and len(execution_id)==32 and all(c in '0123456789abcdef' for c in execution_id):
+            receipt_paths.append(result_dir/f'money-{execution_id}.json')
+        for receipt_path in receipt_paths:
+            if hint is None and receipt_path.exists():
+                receipt=json.loads(receipt_path.read_text())
+                metadata=receipt.get('usage',{})
+                if isinstance(metadata,dict) and 'reasoning_bound' in metadata:
+                    hint=metadata.get('reasoning_hint') or dict(requested_tokens=metadata['reasoning_bound'],
+                        observed_tokens=metadata.get('usage',{}).get('thinking_tokens'))
+        if hint is not None:
+            requested=hint.get('requested_tokens'); observed=hint.get('observed_tokens')
+            if all(type(n) is int and n>=0 for n in (requested,observed)):
+                over=observed>requested
+                if flag is not None and (type(flag) is not bool or flag!=over):
+                    raise ValueError('collected reasoning hint flag drift')
+                m['reasoning_hint_observed_requests']+=1
+                m['provider_reasoning_over_hint_requests']+=int(over)
+            elif flag is not None:
+                raise ValueError('collected reasoning hint counts unavailable')
+        elif flag is not None:
+            raise ValueError('collected reasoning hint counts unavailable')
         path=result_dir/f'answer-{index}.json'
         code=outcomes[index]['code'] if outcomes is not None else None
         if code=='invalid_answer':
@@ -233,13 +262,18 @@ def collect(requests, result_dir, manifest=None):
         m.update(scheduled_root_arm_denominator=scheduled_roots,invalid_root_arms=invalid_roots,
             invalid_answer_rate=m['invalid_answers']/m['settled_answers'] if m['settled_answers'] else None,
             invalid_answer_scheduled_rate=m['invalid_answers']/m['scheduled_requests'],
-            invalid_root_arm_rate=invalid_roots/scheduled_roots)
+            invalid_root_arm_rate=invalid_roots/scheduled_roots,
+            provider_reasoning_over_hint_rate=m['provider_reasoning_over_hint_requests']/m['reasoning_hint_observed_requests'] if m['reasoning_hint_observed_requests'] else None,
+            provider_reasoning_over_hint_scheduled_rate=m['provider_reasoning_over_hint_requests']/m['scheduled_requests'])
         rates.append(m)
     invalid_roots={(r['root'],r['arm']) for r in results if r['invalid_answer']}
     return dict(schema='saccade-g12-stage2-mechanics.v1',qualified=False,root_arm_results=results,
         scheduled_requests=len(requests), unavailable_request_codes=dict(unavailable_codes),
         invalid_answers=sum(m['invalid_answers'] for m in rates), invalid_root_arms=len(invalid_roots),
         invalid_answer_rates_per_arm_workload=rates,
+        provider_reasoning_over_hint_rates_per_arm_workload=[{k:m[k] for k in ('arm','workload','scheduled_requests',
+            'reasoning_hint_observed_requests','provider_reasoning_over_hint_requests','provider_reasoning_over_hint_rate',
+            'provider_reasoning_over_hint_scheduled_rate')} for m in rates],
         scheduled_root_arm_denominator=len(denominator), unavailable_root_arms=len(unavailable),
         limitation='Conservative exact normalized statement comparison; no truth scoring or qualification. Descendants retain roots.')
 

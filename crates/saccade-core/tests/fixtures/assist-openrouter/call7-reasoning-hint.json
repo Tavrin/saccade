@@ -1,0 +1,26 @@
+{
+  "id": "gen-fixture-call7",
+  "object": "chat.completion",
+  "model": "google/gemini-3.8-flash",
+  "provider": "Google AI Studio",
+  "choices": [
+    {
+      "index": 0,
+      "finish_reason": "stop",
+      "message": {
+        "role": "assistant",
+        "content": "{\"request_hash\":\"sha256:752179b2327daedbe5ed07aa3bf09389b7cb4b729c9cc3296fd56dcbdf7fe664\",\"outcome\":\"unverifiable\",\"observations\":[]}",
+        "refusal": null
+      }
+    }
+  ],
+  "usage": {
+    "prompt_tokens": 5173,
+    "completion_tokens": 1862,
+    "total_tokens": 7035,
+    "cost": 0.01086225,
+    "completion_tokens_details": {
+      "reasoning_tokens": 1638
+    }
+  }
+}

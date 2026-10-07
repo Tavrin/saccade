@@ -73,6 +73,8 @@ fn validate_rows(
     }
     Ok(())
 }
+// Runner accounting semantics changed; request/cache/prompt identities stay fixed.
+const CAMPAIGN_SCHEMA: &str = "saccade-g12-campaign/3";
 const CALL_LIMIT: Duration = Duration::from_secs(300);
 fn campaign_duration(stage2: bool) -> Duration {
     Duration::from_secs(if stage2 { 21600 } else { 300 })
@@ -239,6 +241,9 @@ fn attach_receipts(out: &Path, ledger: &Ledger, smoke: &mut Value) -> assist::Re
             .ok_or(assist::Error::Storage)?;
         outcome["execution_id"] = json!(receipt.id);
         outcome["response_identity"] = receipt.usage["response_identity"].clone();
+        outcome["provider_reasoning_over_hint"] =
+            receipt.usage["provider_reasoning_over_hint"].clone();
+        outcome["reasoning_hint"] = receipt.usage["reasoning_hint"].clone();
         outcome["transport_failure"] = receipt.usage["transport_failure"].clone();
         outcome["http_error"] = receipt.usage["http_error"].clone();
         outcome["money_outcome"] = json!(receipt.outcome);
@@ -736,7 +741,7 @@ fn run_with(args: impl IntoIterator<Item = String>) -> Result<(), Box<dyn std::e
     }
     let _run_lock = campaign_lock(&out)?;
     let ledger = Ledger::new(&out.join("ledger"), true);
-    let identity = json!({"schema":"saccade-g12-campaign/2","requests_hash":requests_hash.clone(),
+    let identity = json!({"schema":CAMPAIGN_SCHEMA,"requests_hash":requests_hash.clone(),
         "keys":prepared.iter().map(|(k,_)| assist::digest(k)).collect::<assist::Result<Vec<_>>>()?,"allowance_nano_usd":cap,
         "stage2":stage2,"budget_bounded":budget_bounded,"answer_failure_policy":stage2.then_some(answer_limits),
         "executor_call_cap_seconds":120,"prompt_epoch":stage2.then_some("g12-pilot/2"),
@@ -1593,6 +1598,111 @@ mod tests {
                 "request_hash":"sha256:752179b2327daedbe5ed07aa3bf09389b7cb4b729c9cc3296fd56dcbdf7fe664",
                 "views":[{"slot":"P1","regions":[{"id":"P1:R0"}]},{"slot":"P2","regions":[{"id":"P2:R0"}]}]
             }).to_string()}]}]}),
+        }
+    }
+    #[test]
+    fn g12_resume_over_hint_settled_answer_continues_at_next_root() {
+        use saccade_core::budget_ledger::MoneyReceipt;
+        let body = include_bytes!("../tests/fixtures/assist-openrouter/call7-reasoning-hint.json");
+        for valid in [true, false] {
+            let temp = tempfile::tempdir().unwrap();
+            let out = temp.path();
+            let ledger = Ledger::new(&out.join("ledger"), true);
+            let rows = [cross_citation_row("call7"), cross_citation_row("next")];
+            let identity = json!({"schema":CAMPAIGN_SCHEMA,"plan":"epoch-2-fixture"});
+            ledger.bind_campaign(identity.clone(), false).unwrap();
+            let hash = Digest::of_bytes(&serde_json::to_vec(&rows[0].payload).unwrap());
+            ledger.begin_campaign_root(0, hash.clone()).unwrap();
+            ledger
+                .reserve_money(
+                    &[MoneyScope {
+                        id: "smoke".into(),
+                        cap_nano_usd: 5_000_000_000,
+                    }],
+                    MoneyReceipt {
+                        id: "call7".into(),
+                        request_hash: hash,
+                        scopes: vec!["smoke".into()],
+                        reserved_nano_usd: 26_055_750,
+                        actual_nano_usd: None,
+                        outcome: "reserved".into(),
+                        usage: json!({}),
+                    },
+                )
+                .unwrap();
+            ledger.finish_money("call7", Some(10_862_250), json!({"bound_breach":false,
+                "provider_reasoning_over_hint":true,"reasoning_hint":{"requested_tokens":1024,"observed_tokens":1638},
+                "input_bound":14261,"output_bound":4096}), true).unwrap();
+            let mut response: Value = assist::decode(body).unwrap();
+            if !valid {
+                response["choices"][0]["message"]["content"] = json!("{}");
+            }
+            let result = record_response(
+                &rows[0],
+                &serde_json::to_vec(&response).unwrap(),
+                &json!({"execution_id":"call7"}),
+                out,
+                0,
+                true,
+            )
+            .unwrap();
+            assert_eq!(
+                result,
+                if valid {
+                    CallOutcome::Completed
+                } else {
+                    CallOutcome::InvalidAnswer("closed_schema")
+                }
+            );
+            let mut smoke = json!({"root_outcomes":[{"index":0,"root":"call7","code":if valid {"completed"} else {"invalid_answer"},
+                "answer_reason":if valid {Value::Null} else {json!("closed_schema")}},
+                {"index":1,"root":"next","code":"not_run"}]});
+            attach_receipts(out, &ledger, &mut smoke).unwrap();
+            export_reconciliation(out, &ledger, &mut smoke).unwrap();
+            assert_eq!(
+                smoke["root_outcomes"][0]["provider_reasoning_over_hint"],
+                true
+            );
+            assert_eq!(
+                smoke["root_outcomes"][0]["reasoning_hint"],
+                json!({"requested_tokens":1024,"observed_tokens":1638})
+            );
+            ledger.bind_campaign(identity, true).unwrap();
+            assert!(
+                ledger
+                    .bind_campaign(
+                        json!({"schema":"saccade-g12-campaign/2","plan":"epoch-2-fixture"}),
+                        true
+                    )
+                    .is_err()
+            );
+            let settled = resume_roots(&rows, &ledger, &smoke).unwrap();
+            assert_eq!(settled, BTreeSet::from([0]));
+            let mut calls = Vec::new();
+            let (outcomes, failed) = continue_roots(
+                &rows,
+                Instant::now() + CALL_LIMIT,
+                false,
+                Some(AnswerLimits::default()),
+                smoke["root_outcomes"].as_array().unwrap(),
+                &settled,
+                Instant::now,
+                |i, _| {
+                    calls.push(i);
+                    Ok(CallOutcome::Completed)
+                },
+                |_| Ok(()),
+            );
+            assert!(!failed);
+            assert_eq!(calls, vec![1]);
+            assert_eq!(
+                outcomes[0]["code"],
+                if valid { "completed" } else { "invalid_answer" }
+            );
+            assert_eq!(
+                ledger.money_receipts().unwrap()[0].actual_nano_usd,
+                Some(10_862_250)
+            );
         }
     }
     #[test]

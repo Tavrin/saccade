@@ -119,20 +119,21 @@ fn openrouter_cost(body: &[u8]) -> Option<u64> {
     }
     super::openrouter::body_amount(body, &["usage", "cost"], true)
 }
-fn openrouter_settlement(
-    body: &[u8],
-    bounds: super::price::Bounds,
-    reasoning: u64,
-) -> (Option<u64>, bool) {
+fn openrouter_settlement(body: &[u8], bounds: super::price::Bounds) -> (Option<u64>, bool) {
     let u = usage(body);
     let breach = u.input_tokens.is_some_and(|n| n > bounds.input)
-        || u.candidate_tokens.is_some_and(|n| n > bounds.output)
-        || u.thinking_tokens.is_some_and(|n| n > reasoning)
-        || u.thinking_tokens
-            .zip(u.candidate_tokens)
-            .is_some_and(|(thinking, completion)| thinking > completion);
+        || u.candidate_tokens.is_some_and(|n| n > bounds.output);
     let billed = openrouter_cost(body);
     (billed, breach)
+}
+// Unknown observations remain null, never a false claim that the hint was met.
+fn reasoning_over_hint(requested: Option<u64>, u: &Usage) -> Option<bool> {
+    requested
+        .zip(u.thinking_tokens)
+        .map(|(hint, observed)| observed > hint)
+}
+fn reasoning_hint(requested: Option<u64>, u: &Usage) -> Value {
+    json!({"requested_tokens":requested,"observed_tokens":u.thinking_tokens})
 }
 /// Frozen exact cache identity includes API configuration and observed immutable revision.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -570,11 +571,7 @@ impl Executor<'_> {
                 let (actual, breach) = if rejection.reservation.is_none() || zero_cost_refused {
                     (Some(0), false)
                 } else if key.provider == "openrouter" {
-                    openrouter_settlement(
-                        &rejection.body,
-                        bounds,
-                        openrouter_admission.map_or(0, |a| a.reasoning),
-                    )
+                    openrouter_settlement(&rejection.body, bounds)
                 } else {
                     let actual = cost_nano(&key.provider, &usage(&rejection.body), start, false);
                     (
@@ -591,7 +588,7 @@ impl Executor<'_> {
                     .finish_money(
                         &id,
                         actual,
-                        json!({"schema_projection":(key.provider == "openrouter").then_some(super::structured_output::PROJECTION_POLICY),"request_policy":(key.provider == "openrouter").then_some(super::openrouter::REQUEST_POLICY),"reasoning_bound":openrouter_admission.map(|a| a.reasoning),"usage":usage(&rejection.body),"input_bound":bounds.input,"output_bound":bounds.output,"bound_breach":breach,"http_error":http_error,"transport_failure":rejection.transport_failure,"zero_cost_refused":zero_cost_refused,"not_dispatched":rejection.reservation.is_none(),"generation_id":generation_id(&rejection.body)}),
+                        json!({"schema_projection":(key.provider == "openrouter").then_some(super::structured_output::PROJECTION_POLICY),"request_policy":(key.provider == "openrouter").then_some(super::openrouter::REQUEST_POLICY),"reasoning_bound":openrouter_admission.map(|a| a.reasoning),"reasoning_hint":reasoning_hint(openrouter_admission.map(|a| a.reasoning), &usage(&rejection.body)),"provider_reasoning_over_hint":reasoning_over_hint(openrouter_admission.map(|a| a.reasoning), &usage(&rejection.body)),"usage":usage(&rejection.body),"input_bound":bounds.input,"output_bound":bounds.output,"bound_breach":breach,"http_error":http_error,"transport_failure":rejection.transport_failure,"zero_cost_refused":zero_cost_refused,"not_dispatched":rejection.reservation.is_none(),"generation_id":generation_id(&rejection.body)}),
                         false,
                     )
                     .map_err(|_| Error::Storage)?;
@@ -605,11 +602,7 @@ impl Executor<'_> {
         let u = usage(&response);
         let finish = crate::budget_ledger::now_ms();
         let (cost, breach) = if key.provider == "openrouter" {
-            openrouter_settlement(
-                &response,
-                bounds,
-                openrouter_admission.map_or(0, |a| a.reasoning),
-            )
+            openrouter_settlement(&response, bounds)
         } else {
             let cost = cost_nano(&key.provider, &u, start, false);
             (
@@ -640,13 +633,18 @@ impl Executor<'_> {
             .finish_money(
                 &id,
                 cost,
-                json!({"schema_projection":(key.provider == "openrouter").then_some(super::structured_output::PROJECTION_POLICY),"request_policy":(key.provider == "openrouter").then_some(super::openrouter::REQUEST_POLICY),"reasoning_bound":openrouter_admission.map(|a| a.reasoning),"usage":u,"input_bound":bounds.input,"output_bound":bounds.output,"bound_breach":breach,"price_policy":if key.provider == "openrouter" { super::price::OPENROUTER_PRICE_ID } else { policy.id },"generation_id":generation_id(&response),"response_identity":identity_metadata,"identity_error":identity_code}),
-                true,
+                json!({"schema_projection":(key.provider == "openrouter").then_some(super::structured_output::PROJECTION_POLICY),"request_policy":(key.provider == "openrouter").then_some(super::openrouter::REQUEST_POLICY),"reasoning_bound":openrouter_admission.map(|a| a.reasoning),"reasoning_hint":reasoning_hint(openrouter_admission.map(|a| a.reasoning), &u),"provider_reasoning_over_hint":reasoning_over_hint(openrouter_admission.map(|a| a.reasoning), &u),"usage":u,"input_bound":bounds.input,"output_bound":bounds.output,"bound_breach":breach,"price_policy":if key.provider == "openrouter" { super::price::OPENROUTER_PRICE_ID } else { policy.id },"generation_id":generation_id(&response),"response_identity":identity_metadata,"identity_error":identity_code}),
+                key.provider != "openrouter" || cost.is_some(),
             )
             .map_err(|_| Error::Storage)?;
         self.ledger
             .finish(&attempt, "answered", false, None)
             .map_err(|_| Error::Storage)?;
+        if key.provider == "openrouter" && cost.is_none() {
+            // Keep the reservation for reconciliation; the runner stops this
+            // campaign until authoritative billing can settle the attempt.
+            return Err(Error::Provider);
+        }
         let value: Value = decode(&response)?;
         let (returned_model, revision) = if key.provider == "gemini" {
             (
@@ -685,6 +683,16 @@ impl Executor<'_> {
             !breach && cost.is_none_or(|c| c <= reservation),
             "provider usage exceeded reservation",
         )?;
+        if key.provider == "openrouter" {
+            // Impossible subset counters are an integrity failure, not a money
+            // bound breach. The known bill and hint metadata remain recorded.
+            require(
+                u.thinking_tokens
+                    .zip(u.candidate_tokens)
+                    .is_none_or(|(thinking, completion)| thinking <= completion),
+                "OpenRouter inconsistent or unknown billed usage",
+            )?;
+        }
         if key.provider == "openrouter"
             && value["choices"].as_array().is_some_and(|a| a.len() == 1)
             && value["choices"][0]["finish_reason"] == "length"
@@ -737,6 +745,31 @@ impl Executor<'_> {
 mod reasoning_tests {
     use super::*;
     #[test]
+    fn g12_call7_only_input_and_total_output_are_token_reservation_bounds() {
+        let body =
+            include_bytes!("../../tests/fixtures/assist-openrouter/call7-reasoning-hint.json");
+        let bounds = super::super::price::Bounds {
+            input: 14261,
+            output: 4096,
+        };
+        assert_eq!(
+            openrouter_settlement(body, bounds),
+            (Some(10_862_250), false)
+        );
+        let u = usage(body);
+        assert_eq!(reasoning_over_hint(Some(1024), &u), Some(true));
+        assert_eq!(
+            reasoning_hint(Some(1024), &u),
+            json!({"requested_tokens":1024,"observed_tokens":1638})
+        );
+        let mut v: Value = decode(body).unwrap();
+        v["usage"]["prompt_tokens"] = json!(14262);
+        assert!(openrouter_settlement(&serde_json::to_vec(&v).unwrap(), bounds).1);
+        v["usage"]["prompt_tokens"] = json!(5173);
+        v["usage"]["completion_tokens"] = json!(4097);
+        assert!(openrouter_settlement(&serde_json::to_vec(&v).unwrap(), bounds).1);
+    }
+    #[test]
     fn g12_recorded_reasoning_usage_is_a_subset_and_unknown_stays_unknown() {
         let body = include_bytes!("../../tests/fixtures/assist-openrouter/truncated-pilot.json");
         let u = usage(body);
@@ -748,12 +781,13 @@ mod reasoning_tests {
         };
         // Completion already contains reasoning; never add its subset again.
         assert_eq!(
-            openrouter_settlement(body, bounds, 4096),
+            openrouter_settlement(body, bounds),
             (Some(17_222_250), false)
         );
+        assert_eq!(reasoning_over_hint(Some(1024), &u), Some(true));
         assert_eq!(
-            openrouter_settlement(body, bounds, 1024),
-            (Some(17_222_250), true)
+            reasoning_hint(Some(1024), &u),
+            json!({"requested_tokens":1024,"observed_tokens":3928})
         );
         let mut v: Value = decode(body).unwrap();
         for details in [
@@ -766,10 +800,8 @@ mod reasoning_tests {
             v["usage"]["completion_tokens_details"] = details;
             let bytes = serde_json::to_vec(&v).unwrap();
             assert_eq!(usage(&bytes).thinking_tokens, None);
-            assert_eq!(
-                openrouter_settlement(&bytes, bounds, 1024).0,
-                Some(17_222_250)
-            );
+            assert_eq!(reasoning_over_hint(Some(1024), &usage(&bytes)), None);
+            assert_eq!(openrouter_settlement(&bytes, bounds).0, Some(17_222_250));
         }
         v["usage"]
             .as_object_mut()
@@ -785,9 +817,9 @@ mod reasoning_tests {
             Some(0)
         );
         v["usage"]["completion_tokens"] = json!(4097);
-        assert!(openrouter_settlement(&serde_json::to_vec(&v).unwrap(), bounds, 1024).1);
+        assert!(openrouter_settlement(&serde_json::to_vec(&v).unwrap(), bounds).1);
         v["usage"]["completion_tokens"] = json!(100);
         v["usage"]["completion_tokens_details"] = json!({"reasoning_tokens":101});
-        assert!(openrouter_settlement(&serde_json::to_vec(&v).unwrap(), bounds, 1024).1);
+        assert!(!openrouter_settlement(&serde_json::to_vec(&v).unwrap(), bounds).1);
     }
 }

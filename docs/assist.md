@@ -326,7 +326,13 @@ the coordinator's reviewed live smoke.
 OpenRouter requests pin an explicit reasoning subset under
 `assist-openrouter-provider-schema/1`: 512 tokens for `check_ui`, 1024 for
 `explain`/`audit_mask`, within the 4096-token aggregate completion ceiling.
-Reported reasoning tokens are retained; missing counts stay unknown.
+Reported reasoning tokens are retained; missing counts stay unknown. Exceeding
+the requested reasoning hint records `provider_reasoning_over_hint` and
+`reasoning_hint.requested_tokens` / `observed_tokens` in monetary receipts and root
+outcomes. Answers still undergo the normal content validators. Input, aggregate
+completion and actual cost above the reservation still stop spending; unknown
+cost stops the runner and holds its reservation for reconciliation.
+See [the classification and resume decision](design-decisions/g12-reasoning-hint.md).
 `finish_reason: length` yields `truncated_output` and cannot qualify an answer.
 The [G12 reasoning decision](design-decisions/g12-reasoning-budget.md) records
 reservation semantics, conservative failure precedence, and offline fixtures.
