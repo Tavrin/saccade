@@ -86,6 +86,7 @@ pub(crate) fn mask_metrics(args: MaskMetricsArgs) -> Result<u8, CliError> {
     if let Some(out) = &args.out {
         crate::general_cmd::prepare_out(out, &[&args.predicted, &args.reference])?;
         write_json(out, &format!("{}.json", mask_metrics::SCHEMA), &report)?;
+        saccade_core::manifest::write(out, saccade_core::manifest::Anchors::default())?;
     }
     if args.json {
         crate::emit(&format!("{}\n", serde_json::to_string(&report)?))?;
@@ -202,6 +203,7 @@ fn receipt(
         "boxes": count, "adjustments": adj, "files": listed,
     });
     write_json(out, &format!("{}.json", boxes::RESULT_SCHEMA), &value)?;
+    saccade_core::manifest::write(out, saccade_core::manifest::Anchors::default())?;
     if json {
         crate::emit(&format!("{value}\n"))?;
     } else {
@@ -417,6 +419,7 @@ pub(crate) fn frame_map(args: FrameMapArgs) -> Result<u8, CliError> {
     if let Some(out) = &out {
         crate::general_cmd::prepare_out(out, &[&map])?;
         write_json(out, &format!("{}.json", frame_map::CHECK_SCHEMA), &check)?;
+        saccade_core::manifest::write(out, saccade_core::manifest::Anchors::default())?;
     }
     if json {
         crate::emit(&format!("{}\n", serde_json::to_string(&check)?))?;
