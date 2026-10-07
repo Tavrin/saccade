@@ -1088,6 +1088,7 @@ fn acquire(
         deadline,
         sources,
     } = context;
+    crate::advice_cmd::preview(key, payload, &common.out, common.run)?;
     let cache_dir = saccade_core::judge_provider::Keys::default_dir().join("assist-cache");
     if common.offline {
         if !records.is_empty() {

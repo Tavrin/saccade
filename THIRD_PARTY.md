@@ -813,3 +813,15 @@ for bounded preflight of Flate streams. No new crate or native library is added.
 On Linux the worker uses the system util-linux `prlimit` executable as an OS
 resource-limit launcher; it is neither linked nor bundled. If it is unavailable,
 intake fails closed. Other platforms currently refuse isolated document intake.
+
+## Native raster extension dependencies (G27)
+
+Optional `geo` reuses the exact locked pure Rust `tiff 0.11.3` (MIT),
+`image` (MIT OR Apache-2.0; PNG/JPEG/WebP decoding and lossless WebP fixtures),
+`walkdir` (Unlicense OR MIT), `serde`, `serde_json`, `thiserror` and project
+`saccade-core` (MIT OR Apache-2.0). TIFF transitive dependencies and their
+licences are already recorded above for the print extension. No new runtime
+package or system GDAL dependency is introduced. Test-only `tempfile` is
+MIT OR Apache-2.0 and `jsonschema 0.30.0` is MIT. Crate-source licence metadata
+and Cargo.lock are the evidence, not an external licensing assumption.
+All TIFF and tile fixtures are original procedural data, MIT OR Apache-2.0.

@@ -1,0 +1,71 @@
+{
+  "schema": "saccade-playbook.v1",
+  "id": "W10",
+  "bundle": "media",
+  "features": [
+    "documents"
+  ],
+  "dependencies": [],
+  "generated_inputs": "@INPUT@/documents",
+  "cwd": "@INPUT@/documents",
+  "commands": [
+    {
+      "name": "same",
+      "argv": [
+        "@BIN@",
+        "compare",
+        "before.pdf",
+        "before.pdf",
+        "--dpi",
+        "96",
+        "--out",
+        "@OUTPUT@/same",
+        "--json"
+      ],
+      "exit": 0,
+      "checks": [
+        {
+          "name": "counts",
+          "source": "@OUTPUT@/same/saccade-documents.v1.json",
+          "pointer": "/counts"
+        },
+        {
+          "name": "verdict",
+          "source": "@OUTPUT@/same/saccade-documents.v1.json",
+          "pointer": "/verdict",
+          "equals": "pass"
+        }
+      ],
+      "sha256": "8fd03b67861b7295fc78a608fc4d91ea81ac638d9c8a0a68ffec20e72215ecd4"
+    },
+    {
+      "name": "changed",
+      "argv": [
+        "@BIN@",
+        "compare",
+        "before.pdf",
+        "after.pdf",
+        "--dpi",
+        "96",
+        "--out",
+        "@OUTPUT@/changed",
+        "--json"
+      ],
+      "exit": 1,
+      "checks": [
+        {
+          "name": "counts",
+          "source": "@OUTPUT@/changed/saccade-documents.v1.json",
+          "pointer": "/counts"
+        },
+        {
+          "name": "pages",
+          "source": "@OUTPUT@/changed/saccade-documents.v1.json",
+          "pointer": "/pages/1/status",
+          "equals": "regression"
+        }
+      ],
+      "sha256": "50e88750d489f382981d592a2ff7a806a503b4da6913b15c21d63066fddd6a8a"
+    }
+  ]
+}

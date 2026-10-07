@@ -1,0 +1,80 @@
+{
+  "$id": "https://github.com/Tavrin/saccade/crates/saccade-core/schemas/saccade-egress-preview.v1.schema.json",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "properties": {
+    "authority": {
+      "additionalProperties": false,
+      "properties": {
+        "approve_baselines": {
+          "const": false
+        },
+        "create_exclusions": {
+          "const": false
+        },
+        "qualify_timing": {
+          "const": false
+        }
+      },
+      "required": [
+        "approve_baselines",
+        "create_exclusions",
+        "qualify_timing"
+      ],
+      "type": "object"
+    },
+    "cost_basis": {
+      "type": "string"
+    },
+    "dispatch_requested": {
+      "type": "boolean"
+    },
+    "estimated_cost_usd": {
+      "minimum": 0,
+      "type": [
+        "number",
+        "null"
+      ]
+    },
+    "estimated_text_input_tokens": {
+      "minimum": 0,
+      "type": "integer"
+    },
+    "model": {
+      "type": "string"
+    },
+    "payload_file": {
+      "type": "string"
+    },
+    "provider": {
+      "type": "string"
+    },
+    "request_bytes": {
+      "minimum": 0,
+      "type": "integer"
+    },
+    "request_sha256": {
+      "type": "string"
+    },
+    "required_revision": {
+      "type": "string"
+    },
+    "schema": {
+      "const": "saccade-egress-preview.v1"
+    }
+  },
+  "required": [
+    "schema",
+    "provider",
+    "model",
+    "required_revision",
+    "payload_file",
+    "request_bytes",
+    "estimated_cost_usd",
+    "cost_basis",
+    "dispatch_requested",
+    "authority"
+  ],
+  "title": "Advisory provider egress preview",
+  "type": "object"
+}

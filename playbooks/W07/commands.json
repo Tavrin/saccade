@@ -1,0 +1,123 @@
+{
+  "schema": "saccade-playbook.v1",
+  "id": "W07",
+  "bundle": "media",
+  "features": [
+    "products"
+  ],
+  "dependencies": [],
+  "generated_inputs": "@INPUT@/tuning",
+  "cwd": "@INPUT@/tuning",
+  "commands": [
+    {
+      "name": "search",
+      "argv": [
+        "@BIN@",
+        "imgtune",
+        "search",
+        "tuning.json",
+        "--out",
+        "@OUTPUT@/search.json",
+        "--json"
+      ],
+      "exit": 0,
+      "checks": [
+        {
+          "name": "schema",
+          "source": "stdout",
+          "pointer": "/schema"
+        },
+        {
+          "name": "complete",
+          "source": "stdout",
+          "pointer": "/verdict",
+          "equals": "complete"
+        },
+        {
+          "name": "width-64",
+          "source": "stdout",
+          "pointer": "/items/0/width",
+          "equals": 64
+        },
+        {
+          "name": "width-128",
+          "source": "stdout",
+          "pointer": "/items/1/width",
+          "equals": 128
+        },
+        {
+          "name": "grid-64",
+          "source": "stdout",
+          "pointer": "/items/0/candidates"
+        },
+        {
+          "name": "grid-128",
+          "source": "stdout",
+          "pointer": "/items/1/candidates"
+        },
+        {
+          "name": "coverage-64",
+          "source": "stdout",
+          "pointer": "/items/0/coverage",
+          "equals": "complete"
+        },
+        {
+          "name": "coverage-128",
+          "source": "stdout",
+          "pointer": "/items/1/coverage",
+          "equals": "complete"
+        },
+        {
+          "name": "selected-64",
+          "source": "stdout",
+          "pointer": "/items/0/selected/meets_target",
+          "equals": true
+        },
+        {
+          "name": "selected-128",
+          "source": "stdout",
+          "pointer": "/items/1/selected/meets_target",
+          "equals": true
+        }
+      ],
+      "sha256": "7f74426603a238c0763f61ab3ea7cddcbdeb4bf95cb60efe696b7c52eab175e3"
+    },
+    {
+      "name": "audit",
+      "argv": [
+        "@BIN@",
+        "imgtune",
+        "audit",
+        "--urls",
+        "images.txt",
+        "--accept",
+        "image/avif,image/webp,image/*",
+        "--accept",
+        "image/*",
+        "--out",
+        "@OUTPUT@/audit.json",
+        "--json"
+      ],
+      "exit": 0,
+      "checks": [
+        {
+          "name": "schema",
+          "source": "stdout",
+          "pointer": "/schema"
+        },
+        {
+          "name": "complete",
+          "source": "stdout",
+          "pointer": "/verdict",
+          "equals": "complete"
+        },
+        {
+          "name": "delivery",
+          "source": "stdout",
+          "pointer": "/items"
+        }
+      ],
+      "sha256": "c9b2ae1675e06697ad75aac5058e44763dc47356b519579ecc5bdfc2dd732f1d"
+    }
+  ]
+}

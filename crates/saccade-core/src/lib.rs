@@ -178,6 +178,8 @@ pub mod optional;
 
 // wave11
 pub mod ablation_timing;
+/// Declared coverage, variant grouping and baseline health.
+pub mod coverage;
 pub mod manifest;
 pub mod report_links;
 pub mod settling;
@@ -199,4 +201,12 @@ pub mod frame_map;
 pub mod model_config;
 
 // O12/O17
+/// Required region/string gates independent of global image averages.
+pub mod critical_text;
 pub mod text_quality;
+
+// laneD
+#[cfg(any(unix, windows))]
+pub mod batch;
+/// Timed subtitle/caption evidence against presentation-timestamped frames.
+pub mod timed_text;

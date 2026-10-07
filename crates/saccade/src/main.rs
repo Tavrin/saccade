@@ -47,6 +47,8 @@ mod embedding_cmd;
 mod engine_ingest;
 mod f1;
 mod general_cmd;
+#[cfg(feature = "geo")]
+mod geo_cmd;
 #[cfg(feature = "geometry")]
 mod geometry_cmd;
 mod git_bisect;
@@ -74,11 +76,14 @@ mod region_cmd;
 mod renderdoc_cmd;
 #[cfg(feature = "ai")]
 mod review_cmd;
+mod split_review_cmd;
 #[cfg(feature = "products")]
 mod sweep_cmd;
 mod text_cmd;
 // O12/O17
+mod critical_text_cmd;
 mod text_quality_cmd;
+mod timed_text_cmd;
 
 #[cfg(feature = "mcp")]
 mod mcp;
@@ -282,6 +287,14 @@ impl From<MetricArg> for Metric {
 
 #[derive(Subcommand)]
 enum Command {
+    // laneD
+    /// Bounded folder or manifest intake with resumable rows and review summaries.
+    Batch(batch_cmd::Args),
+    #[command(hide = true)]
+    BatchProbe(batch_cmd::ProbeArgs),
+    /// Experimental advisory AI with an egress preview before dispatch.
+    #[cfg(feature = "assist")]
+    Assist(advice_cmd::Args),
     // laneC
     /// Find, link and re-check the outputs of a report directory.
     Manifest(manifest_cmd::Args),
@@ -290,6 +303,9 @@ enum Command {
     /// ICC-managed CMYK raster comparison (first-party print extension).
     #[cfg(feature = "print")]
     Print(print_cmd::Args),
+    /// Native multichannel rasters, class metrics and tile-set coverage.
+    #[cfg(feature = "geo")]
+    Geo(geo_cmd::Args),
     // wave11
     /// Verdicts over timings acquired by external tools.
     Timing(wave11_cmd::TimingArgs),
@@ -332,6 +348,10 @@ enum Command {
     Tofu(text_quality_cmd::TofuArgs),
     /// Measure text legibility across supplied variants (requires text-quality).
     TextLegibility(text_quality_cmd::LegibilityArgs),
+    /// Gate exact critical strings and pixel legibility in declared regions.
+    CriticalText(critical_text_cmd::Args),
+    /// Check plain SRT/WebVTT captions against timestamped frames and OCR evidence.
+    TimedText(timed_text_cmd::Args),
     /// Cosine similarity with an explicitly pinned optional ONNX export.
     Similar(embedding_cmd::SimilarArgs),
     /// Build or query a streaming exact flat embedding index.
@@ -340,6 +360,8 @@ enum Command {
     Hash(hash_cmd::HashArgs),
     /// Cluster near-duplicates with bounded Hamming search; never delete images.
     Dedupe(hash_cmd::DedupeArgs),
+    /// Review duplicate candidates across declared splits and group bursts within splits.
+    SplitReview(split_review_cmd::Args),
     // wave8
     /// Analyze an image into a versioned media record (no model downloads by default).
     AnalyzeMedia(media_cmd::AnalyzeArgs),
@@ -1249,6 +1271,11 @@ fn emit_run(
 
 fn dispatch(command: Command, record_absolute_paths: bool) -> Result<u8, CliError> {
     match command {
+        // laneD
+        Command::Batch(a) => batch_cmd::run(a),
+        Command::BatchProbe(a) => batch_cmd::probe(a),
+        #[cfg(feature = "assist")]
+        Command::Assist(a) => advice_cmd::run(a),
         // laneC
         Command::Manifest(args) => manifest_cmd::run(args),
         Command::ExportRegions(args) => region_export_cmd::run(args),
@@ -1279,10 +1306,13 @@ fn dispatch(command: Command, record_absolute_paths: bool) -> Result<u8, CliErro
         Command::Text(args) => text_cmd::run(args),
         Command::Tofu(args) => text_quality_cmd::tofu(args),
         Command::TextLegibility(args) => text_quality_cmd::legibility(args),
+        Command::CriticalText(args) => critical_text_cmd::run(args),
+        Command::TimedText(args) => timed_text_cmd::run(args),
         Command::Similar(args) => embedding_cmd::similar(args),
         Command::Index(args) => embedding_cmd::index(args),
         Command::Hash(args) => hash_cmd::run_hash(args),
         Command::Dedupe(args) => hash_cmd::run_dedupe(args),
+        Command::SplitReview(args) => split_review_cmd::run(args),
         // wave8
         Command::AnalyzeMedia(args) => media_cmd::analyze(args),
         Command::Keyframes(args) => media_cmd::keyframes(args),
@@ -1327,6 +1357,8 @@ fn dispatch(command: Command, record_absolute_paths: bool) -> Result<u8, CliErro
         } => perf_cmd::ablate(*args, record_absolute_paths),
         #[cfg(feature = "print")]
         Command::Print(args) => print_cmd::run(args),
+        #[cfg(feature = "geo")]
+        Command::Geo(args) => geo_cmd::run(args),
         Command::Doctor { json } => doctor(json),
         Command::Bisect(args) => git_bisect::run(args),
         Command::Ingest(args) => ingest::run(args, record_absolute_paths),
@@ -2068,6 +2100,9 @@ fn dispatch(command: Command, record_absolute_paths: bool) -> Result<u8, CliErro
 
 fn doctor(json: bool) -> Result<u8, CliError> {
     let mut features = saccade_core::COMPILED_FEATURES.to_vec();
+    if cfg!(feature = "geo") {
+        features.push("geo");
+    }
     if cfg!(feature = "print") {
         features.push("print");
     }
@@ -2149,6 +2184,7 @@ fn doctor(json: bool) -> Result<u8, CliError> {
     }
     // wave8
     capabilities.push("media-record-v1");
+    capabilities.push("batch-intake-v1");
     // wave11
     capabilities.extend([
         "timing-ab-v1",
@@ -2901,6 +2937,7 @@ fn required_feature(operation: &str) -> Option<&'static str> {
         "ablate" | "bisect" | "sequence" | "temporal" | "rank" | "saccade_ablate"
         | "saccade_bisect" | "saccade_sequence" | "saccade_rank" => Some("graphics"),
         "saccade_review" => Some("ai"),
+        "assist" => Some("assist"),
         "calibrate"
         | "selftest"
         | "bench"
@@ -2911,13 +2948,16 @@ fn required_feature(operation: &str) -> Option<&'static str> {
         "safety" | "a11y" | "saccade_safety" | "saccade_a11y" => Some("prechecks"),
         "mcp" => Some("mcp"),
         "geometry" | "mesh-identity" => Some("geometry"),
+        "geo" => Some("geo"),
         "sweep" | "imgtune" | "design" | "notify" => Some("products"),
         _ => None,
     }
 }
 
 fn feature_enabled(feature: &str) -> bool {
-    if feature == "mcp" {
+    if feature == "geo" {
+        cfg!(feature = "geo")
+    } else if feature == "mcp" {
         cfg!(feature = "mcp")
     } else if feature == "products" {
         cfg!(feature = "products")
@@ -2959,6 +2999,9 @@ pub(crate) fn capabilities(json: bool) -> Result<u8, CliError> {
     use clap::CommandFactory;
     fn operations(command: &clap::Command, prefix: &str, out: &mut Vec<String>) {
         for child in command.get_subcommands() {
+            if child.get_name() == "batch-probe" {
+                continue;
+            }
             let name = if prefix.is_empty() {
                 child.get_name().to_owned()
             } else {
@@ -2971,6 +3014,9 @@ pub(crate) fn capabilities(json: bool) -> Result<u8, CliError> {
     let mut names = Vec::new();
     operations(&Cli::command(), "", &mut names);
     let mut features = saccade_core::COMPILED_FEATURES.to_vec();
+    if cfg!(feature = "geo") {
+        features.push("geo");
+    }
     if cfg!(feature = "print") {
         features.push("print");
     }
@@ -3064,3 +3110,8 @@ mod assist_cmd;
 
 // OCR lane: optional document provider transport.
 mod document_ocr_cmd;
+
+// laneD
+#[cfg(feature = "assist")]
+mod advice_cmd;
+mod batch_cmd;

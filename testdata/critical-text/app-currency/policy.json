@@ -1,0 +1,29 @@
+{
+  "schema": "saccade-critical-text-policy.v1",
+  "dimensions": [
+    900,
+    700
+  ],
+  "minimum_ocr_confidence": 80,
+  "regions": [
+    {
+      "id": "critical",
+      "rect_px": [
+        94,
+        544,
+        96,
+        42
+      ],
+      "accepted_text": [
+        "12.50 €",
+        "12.50 €"
+      ],
+      "legibility": {
+        "minimum_contrast": 4.5,
+        "minimum_x_height_px": 3,
+        "minimum_sharpness": 0.35,
+        "minimum_stroke_px": 1
+      }
+    }
+  ]
+}

@@ -4,6 +4,7 @@
 //! Both read only the [`Report`] model (see `docs/design.md`).
 
 pub mod bundle;
+mod coverage_html;
 mod html;
 mod markdown;
 pub(crate) mod shared;
@@ -78,4 +79,13 @@ pub fn render_markdown(report: &Report, opts: &MarkdownOptions) -> String {
 /// holds the images the model references) and returns its path.
 pub(crate) fn write_view_html(model: &crate::view::ViewModel, view_dir: &Path) -> Result<PathBuf> {
     view_html::write_view_html(model, view_dir)
+}
+
+/// Write a grouped declared-case report using the shared HTML report design system.
+pub fn render_coverage_html(
+    report: &crate::coverage::Report,
+    manifest: &Path,
+    out: &Path,
+) -> Result<PathBuf> {
+    coverage_html::render(report, manifest, out)
 }

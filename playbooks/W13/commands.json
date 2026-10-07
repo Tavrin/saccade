@@ -1,0 +1,60 @@
+{
+  "schema": "saccade-playbook.v1",
+  "id": "W13",
+  "bundle": "full",
+  "features": [
+    "geometry",
+    "graphics"
+  ],
+  "dependencies": [],
+  "generated_inputs": "@INPUT@/geometry",
+  "cwd": "@INPUT@/geometry",
+  "commands": [
+    {
+      "name": "geometry",
+      "argv": [
+        "@BIN@",
+        "experiment",
+        "geometry",
+        "source.obj",
+        "lod.obj",
+        "--unit",
+        "metres",
+        "--views",
+        "cameras.json",
+        "--out",
+        "@OUTPUT@/geometry.json",
+        "--json"
+      ],
+      "exit": 0,
+      "checks": [
+        {
+          "name": "coverage",
+          "source": "@OUTPUT@/geometry.json",
+          "pointer": "/views/coverage",
+          "equals": {
+            "declared_views": 3,
+            "supplied_pairs": 3,
+            "measured_views": 3,
+            "missing_views": 0,
+            "rejected_views": 0,
+            "fraction": 1.0
+          }
+        },
+        {
+          "name": "passed",
+          "source": "@OUTPUT@/geometry.json",
+          "pointer": "/views/passed",
+          "equals": true
+        },
+        {
+          "name": "identity",
+          "source": "@OUTPUT@/geometry.json",
+          "pointer": "/analysis/evidence/identity/ordered_geometry_identical",
+          "equals": false
+        }
+      ],
+      "sha256": "85597ed9155f7ee021b2d66cfb15da487f0fef074338835a3f7f998ce90ed588"
+    }
+  ]
+}

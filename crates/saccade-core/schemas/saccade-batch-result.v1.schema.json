@@ -1,0 +1,45 @@
+{
+  "$id": "https://github.com/Tavrin/saccade/crates/saccade-core/schemas/saccade-batch-result.v1.schema.json",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "properties": {
+    "counts": {
+      "additionalProperties": {
+        "minimum": 0,
+        "type": "integer"
+      },
+      "type": "object"
+    },
+    "manifest": {
+      "type": "string"
+    },
+    "out": {
+      "type": "string"
+    },
+    "report_id": {
+      "type": "string"
+    },
+    "rows": {
+      "minimum": 0,
+      "type": "integer"
+    },
+    "schema": {
+      "const": "saccade-batch-result.v1"
+    },
+    "source_refs": {
+      "items": {
+        "type": "object"
+      },
+      "type": "array"
+    }
+  },
+  "required": [
+    "schema",
+    "rows",
+    "counts",
+    "out",
+    "manifest"
+  ],
+  "title": "Batch transport summary",
+  "type": "object"
+}

@@ -324,6 +324,11 @@ pub(crate) fn execute(
     if operation == "submit" {
         batch::plan(&job_path, &frozen.plan)?;
     }
+    let preview = json!({"schema":crate::advice_cmd::PREVIEW_SCHEMA,"provider":"gemini","model":saccade_core::assist::schema::GEMINI,"required_revision":frozen.plan.revision,"payload_file":saccade_core::paths::portable(&plan_path),"request_bytes":serde_json::to_vec(&frozen.plan.requests)?.len(),"estimated_cost_usd":frozen.plan.max_spend_nano_usd as f64 / 1e9,"cost_basis":"frozen plan maximum spend allowance","dispatch_requested":args.run,"authority":{"approve_baselines":false,"create_exclusions":false,"qualify_timing":false}});
+    // Preview the frozen request set before submission or status HTTP.
+    if args.run {
+        eprintln!("{}", serde_json::to_string(&preview)?);
+    }
     batch::bind_sources(&job_path, &frozen)?;
     let mut job = batch::receipt(&job_path, &frozen.plan)?;
     let ledger = Ledger::new(
@@ -427,7 +432,7 @@ pub(crate) fn execute(
     };
     value["execution"] = json!(if exit == 0 { "complete" } else { "incomplete" });
     value["artifact"] = local_cmd::reference(&job_path)?;
-    value["data"] = json!({"operation":operation,"state":job.state,"remote_state":remote,"provider_operation":job.operation,"failed_items":job.failed_items,"experimental":true});
+    value["data"] = json!({"operation":operation,"state":job.state,"remote_state":remote,"provider_operation":job.operation,"failed_items":job.failed_items,"experimental":true,"egress_preview":preview});
     value["limits"] = json!([
         "Asynchronous experimental advice; job completion does not establish semantic accuracy."
     ]);

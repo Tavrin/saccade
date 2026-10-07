@@ -1,0 +1,82 @@
+{
+  "$id": "https://github.com/Tavrin/saccade/crates/saccade-core/schemas/saccade-batch-run.v1.schema.json",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "properties": {
+    "executable": {
+      "type": "string"
+    },
+    "executable_sha256": {
+      "pattern": "^[a-f0-9]{64}$",
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "options": {
+      "additionalProperties": false,
+      "properties": {
+        "concurrency": {
+          "maximum": 16,
+          "minimum": 1,
+          "type": "integer"
+        },
+        "sections": {
+          "items": {
+            "additionalProperties": false,
+            "properties": {
+              "args": {
+                "items": {
+                  "maxLength": 8192,
+                  "type": "string"
+                },
+                "maxItems": 128,
+                "type": "array"
+              },
+              "command": {
+                "enum": [
+                  "analyze-media",
+                  "inspect",
+                  "compare",
+                  "text-quality",
+                  "tofu",
+                  "watermark",
+                  "mask-metrics"
+                ]
+              }
+            },
+            "required": [
+              "command"
+            ],
+            "type": "object"
+          },
+          "maxItems": 16,
+          "minItems": 1,
+          "type": "array"
+        },
+        "timeout_ms": {
+          "maximum": 300000,
+          "minimum": 1,
+          "type": "integer"
+        }
+      },
+      "required": [
+        "sections",
+        "concurrency",
+        "timeout_ms"
+      ],
+      "type": "object"
+    },
+    "schema": {
+      "const": "saccade-batch-run.v1"
+    }
+  },
+  "required": [
+    "schema",
+    "options",
+    "executable",
+    "executable_sha256"
+  ],
+  "title": "Immutable batch resume configuration",
+  "type": "object"
+}

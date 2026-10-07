@@ -1,0 +1,83 @@
+{
+  "schema": "saccade-playbook.v1",
+  "id": "W08",
+  "bundle": "default (optional credentials)",
+  "features": [],
+  "dependencies": [],
+  "generated_inputs": "@INPUT@",
+  "cwd": "@INPUT@",
+  "commands": [
+    {
+      "name": "inspect",
+      "argv": [
+        "@BIN@",
+        "inspect-image",
+        "tuning/source.png",
+        "--out",
+        "@OUTPUT@/inspection",
+        "--json"
+      ],
+      "exit": 0,
+      "checks": [
+        {
+          "name": "schema",
+          "source": "stdout",
+          "pointer": "/schema"
+        },
+        {
+          "name": "authenticity",
+          "source": "stdout",
+          "pointer": "/verdict",
+          "equals": "unknown"
+        },
+        {
+          "name": "outputs",
+          "source": "stdout",
+          "pointer": "/data/counts",
+          "equals": {
+            "copy_move_candidates": 0,
+            "publication_outputs": 0
+          }
+        }
+      ],
+      "sha256": "01579e232eeab7560e532f195f2f609233d0b8ef6515902ab40e02e1b1d0da68"
+    },
+    {
+      "name": "reuse",
+      "argv": [
+        "@BIN@",
+        "find-usage",
+        "tuning/source.png",
+        "reuse",
+        "--json"
+      ],
+      "exit": 0,
+      "checks": [
+        {
+          "name": "schema",
+          "source": "stdout",
+          "pointer": "/schema"
+        },
+        {
+          "name": "found",
+          "source": "stdout",
+          "pointer": "/targets/0/status",
+          "equals": "matched"
+        },
+        {
+          "name": "basis",
+          "source": "stdout",
+          "pointer": "/targets/0/basis",
+          "equals": "encoded-content-equality"
+        },
+        {
+          "name": "different",
+          "source": "stdout",
+          "pointer": "/targets/1/status",
+          "equals": "no_match"
+        }
+      ],
+      "sha256": "8c645023431fb4f09a4f15d927a787062475dbcb8809bb2449e2bbc7a3804138"
+    }
+  ]
+}

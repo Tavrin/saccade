@@ -34,7 +34,6 @@ sha2 = "0.10"
 tiny_http = { version = "0.12", optional = true }
 # Blocking HTTP client for the judge-mode providers (MIT OR Apache-2.0); no async runtime.
 ureq = { version = "3", optional = true }
-fs2 = { version = "0.4.3", optional = true }
 httpdate = { version = "1", optional = true }
 tempfile = "3"
 schemars = { version = "1", optional = true }
@@ -78,11 +77,11 @@ dense-motion = []
 # Compression scoring is independent of graphics and provider adapters.
 compression = ["dep:ssimulacra2", "dep:butteraugli"]
 # Optional dynamically loaded ONNX runtime, explicit cache downloads only.
-semantic-regions = ["dep:ort", "dep:ureq", "dep:fs2"]
+semantic-regions = ["dep:ort", "dep:ureq"]
 # Deterministic f64 triangle-surface measurement and mesh loaders.
 geometry = ["dep:parry3d-f64", "dep:tobj", "dep:gltf", "dep:base64"]
 # Provider adapters and review orchestration.
-ai = ["dep:ureq", "dep:fs2", "dep:httpdate"]
+ai = ["dep:ureq", "dep:httpdate"]
 # Local HTTP workbench, independent of AI.
 workbench = ["dep:tiny_http", "dep:base64"]
 # wave8
@@ -96,7 +95,7 @@ schema = ["dep:schemars"]
 
 assist = ["ai", "serde_json/raw_value"]
 # wave7
-local-models = ["dep:ort", "dep:ureq", "dep:fs2", "dep:tokenizers", "dep:flate2", "dep:tar"]
+local-models = ["dep:ort", "dep:ureq", "dep:tokenizers", "dep:flate2", "dep:tar"]
 local-vlm = ["dep:ureq", "dep:base64"]
 vision-providers = ["dep:base64", "dep:url"]
 
@@ -159,3 +158,7 @@ required-features = ["ocr"]
 [[example]]
 name = "assist_openrouter_smoke"
 required-features = ["assist"]
+
+# Local batch locking must not add a native dependency to portable core targets.
+[target.'cfg(any(unix, windows))'.dependencies]
+fs2 = "0.4.3"

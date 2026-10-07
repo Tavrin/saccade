@@ -83,3 +83,20 @@ def test_model_config_is_the_shared_resolver_and_old_arguments_warn(tmp_path, mo
     assert config['dir']['source']['name'] == 'SACCADE_MODELS_DIR'
     with pytest.warns(DeprecationWarning, match='model_dir='):
         saccade.Analyzer(model_dir=str(tmp_path))
+
+
+def test_batch_returns_rows_and_resumes(tmp_path):
+    import os
+    binary = os.environ.get('SACCADE_BIN')
+    assert binary, 'set SACCADE_BIN for the batch package proof'
+    folder = tmp_path / 'inputs'
+    folder.mkdir()
+    (folder / 'image.png').write_bytes(png())
+    (folder / 'broken.png').write_bytes(b'broken')
+    output = tmp_path / 'batch'
+    rows = saccade.batch(folder, output, executable=binary)
+    assert len(rows) == 2
+    assert {r['status'] for r in rows} == {'ok', 'corrupt'}
+    assert saccade.batch(folder, output, executable=binary) == rows
+    assert (folder / 'image.png').read_bytes() == png()
+    assert len((output / 'rows.jsonl').read_text().splitlines()) == 2
