@@ -32,6 +32,26 @@
   and a generated hostile PDF corpus. Multipage export comparisons require a
   complete, hash-bound page map; v3 reports retain inserted/removed pages.
 
+- Add offline `review board prepare|collect`: separately distributable blind human/tool
+  ballots, item/rater disagreement and notes, explicit missing votes, nominal
+  Krippendorff alpha and an advisory HTML board. Versioned contracts integrate
+  with manifests; votes never approve baselines. See `docs/review-board.md`.
+- Add offline `replay pack|verify` with versioned recipes, exact input/config/tool/schema
+  identities, pinned local OCR models and runtime, full reports and manifests. Replay
+  re-executes and compares the report identity; changed evidence and unavailable optional
+  artifacts have distinct failures. See `docs/replay.md`.
+- Add optional `optical-code` verification of QR and common 1D/2D codes from
+  final rasters or explicitly selected PDF/SVG page renders. The standalone
+  `saccade-optical-code.v1` report keeps decode failure, payload mismatch and
+  QR module-size/contrast/quiet-zone policy failures separate from visual similarity.
+  Uses pure-Rust Apache-2.0 rxing; generated fixtures cover app/document renders,
+  damage, small modules, wrong payloads, low contrast and Code 128.
+
+## 0.2.8 (2026-10-07)
+
+- Run Python batch media analysis in-process with resumable receipts and cooperative deadlines, without an installed CLI.
+- Include text-quality, print and geo in their release bundles and require exact compiled-feature inventories.
+- Correct Python installation instructions to use the saccade-vision distribution while keeping import saccade.
 
 - Add bounded `batch` folder/manifest intake with immutable resumable rows, JSONL/CSV,
   thumbnail indexes and Lane C manifests, plus a synchronous `saccade-vision` Python API.
@@ -62,26 +82,6 @@
 - Add optional `geo` and the first-party `saccade-geo` crate: native multichannel
   TIFF measurements with preserved grid/nodata metadata and exact grid refusals,
   explicitly mapped RGB heatmaps, single-band class metrics and tile coverage.
-- Add offline `review board prepare|collect`: separately distributable blind human/tool
-  ballots, item/rater disagreement and notes, explicit missing votes, nominal
-  Krippendorff alpha and an advisory HTML board. Versioned contracts integrate
-  with manifests; votes never approve baselines. See `docs/review-board.md`.
-- Add offline `replay pack|verify` with versioned recipes, exact input/config/tool/schema
-  identities, pinned local OCR models and runtime, full reports and manifests. Replay
-  re-executes and compares the report identity; changed evidence and unavailable optional
-  artifacts have distinct failures. See `docs/replay.md`.
-- Add optional `optical-code` verification of QR and common 1D/2D codes from
-  final rasters or explicitly selected PDF/SVG page renders. The standalone
-  `saccade-optical-code.v1` report keeps decode failure, payload mismatch and
-  QR module-size/contrast/quiet-zone policy failures separate from visual similarity.
-  Uses pure-Rust Apache-2.0 rxing; generated fixtures cover app/document renders,
-  damage, small modules, wrong payloads, low contrast and Code 128.
-
-## 0.2.8 (2026-10-07)
-
-- Run Python batch media analysis in-process with resumable receipts and cooperative deadlines, without an installed CLI.
-- Include text-quality, print and geo in their release bundles and require exact compiled-feature inventories.
-- Correct Python installation instructions to use the saccade-vision distribution while keeping import saccade.
 
 ## 0.2.7 (2026-10-07)
 
