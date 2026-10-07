@@ -1,0 +1,425 @@
+{
+  "$defs": {
+    "Case": {
+      "additionalProperties": false,
+      "description": "A declared variant; absent files and absent comparisons are valid declarations.",
+      "properties": {
+        "anchor_comparison": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/MeasurementRef"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "Current capture relative to the approved anchor."
+        },
+        "approved_anchor": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/FileRef"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "Human-approved reference declaration; passing never populates it."
+        },
+        "approved_at_unix": {
+          "description": "Explicit approval time, if known; never inferred from a report timestamp.",
+          "format": "uint64",
+          "minimum": 0,
+          "type": [
+            "integer",
+            "null"
+          ]
+        },
+        "baseline": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/FileRef"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "Expected baseline, including a path/hash for an unavailable input if known."
+        },
+        "capture": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/FileRef"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "Expected current capture. None means explicitly absent on this side."
+        },
+        "case_id": {
+          "description": "Stable identity independent of paths.",
+          "type": "string"
+        },
+        "last_good": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/FileRef"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "Most recent passing reference declaration; a separate role from approval."
+        },
+        "last_good_comparison": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/MeasurementRef"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "Current capture relative to last-good."
+        },
+        "latest": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/MeasurementRef"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "Latest baseline-relative comparison."
+        },
+        "refusal": {
+          "description": "Optional producer refusal reason (no semantic inference).",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "required": {
+          "description": "Whether incomplete coverage fails the coverage gate.",
+          "type": "boolean"
+        },
+        "variants": {
+          "additionalProperties": {
+            "type": "string"
+          },
+          "description": "One value for every declared axis.",
+          "type": "object"
+        }
+      },
+      "required": [
+        "case_id",
+        "variants",
+        "required"
+      ],
+      "type": "object"
+    },
+    "Counts": {
+      "description": "Counts over exactly the declared cases in a group.",
+      "properties": {
+        "captured": {
+          "description": "Both current inputs exist with recorded hashes.",
+          "format": "uint",
+          "minimum": 0,
+          "type": "integer"
+        },
+        "expected": {
+          "description": "Declared cases.",
+          "format": "uint",
+          "minimum": 0,
+          "type": "integer"
+        },
+        "measured": {
+          "description": "Input-bound measurements, including measured failures.",
+          "format": "uint",
+          "minimum": 0,
+          "type": "integer"
+        },
+        "outcomes": {
+          "additionalProperties": {
+            "format": "uint",
+            "minimum": 0,
+            "type": "integer"
+          },
+          "description": "Outcome counts, summing to expected.",
+          "type": "object"
+        },
+        "refused": {
+          "description": "Explicit producer refusals or refused measurements.",
+          "format": "uint",
+          "minimum": 0,
+          "type": "integer"
+        }
+      },
+      "required": [
+        "expected",
+        "captured",
+        "measured",
+        "refused",
+        "outcomes"
+      ],
+      "type": "object"
+    },
+    "FileRef": {
+      "additionalProperties": false,
+      "description": "An encoded input recorded by path and content hash, as in Lane C anchors.",
+      "properties": {
+        "path": {
+          "description": "Path relative to the output manifest (not the declaration input).",
+          "type": "string"
+        },
+        "sha256": {
+          "description": "SHA-256 of encoded bytes.",
+          "type": "string"
+        }
+      },
+      "required": [
+        "path",
+        "sha256"
+      ],
+      "type": "object"
+    },
+    "Group": {
+      "description": "A group of declared variants.",
+      "properties": {
+        "case_ids": {
+          "description": "Stable case IDs in this group.",
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "counts": {
+          "$ref": "#/$defs/Counts",
+          "description": "Coverage accounting for this group."
+        },
+        "variants": {
+          "additionalProperties": {
+            "type": "string"
+          },
+          "description": "Values of selected axes; an empty map is the all-cases group.",
+          "type": "object"
+        }
+      },
+      "required": [
+        "variants",
+        "case_ids",
+        "counts"
+      ],
+      "type": "object"
+    },
+    "Measurement": {
+      "description": "Verified pair evidence, independent of coverage and reference health.",
+      "properties": {
+        "metric": {
+          "description": "Report metric name when measured.",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "report_id": {
+          "description": "Declared report-ID link, even when unavailable.",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "report_path": {
+          "description": "Report path relative to the input manifest, for audit/navigation.",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "run_at_unix": {
+          "description": "Recorded run time, if known (not approval).",
+          "format": "uint64",
+          "minimum": 0,
+          "type": [
+            "integer",
+            "null"
+          ]
+        },
+        "state": {
+          "description": "measured, missing, stale, refused, unbound or unavailable.",
+          "type": "string"
+        },
+        "value": {
+          "description": "Report metric value when measured.",
+          "format": "double",
+          "type": [
+            "number",
+            "null"
+          ]
+        },
+        "verdict": {
+          "description": "pass/fail only for verified, input-bound comparisons.",
+          "type": [
+            "string",
+            "null"
+          ]
+        }
+      },
+      "required": [
+        "state"
+      ],
+      "type": "object"
+    },
+    "MeasurementRef": {
+      "additionalProperties": false,
+      "description": "One measured entry resolved through the existing manifest report-ID index.",
+      "properties": {
+        "entry": {
+          "description": "Exact comparison entry name; never guessed from case ID or filename.",
+          "type": "string"
+        },
+        "report_id": {
+          "description": "Content-addressed report identity.",
+          "type": "string"
+        }
+      },
+      "required": [
+        "report_id",
+        "entry"
+      ],
+      "type": "object"
+    },
+    "Row": {
+      "description": "One explicit row in every grouped view.",
+      "properties": {
+        "approved_anchor": {
+          "$ref": "#/$defs/Measurement",
+          "description": "Cumulative drift evidence, independent of last-good."
+        },
+        "baseline_state": {
+          "description": "present, missing, stale or unavailable for baseline bytes.",
+          "type": "string"
+        },
+        "capture_state": {
+          "description": "present, missing, stale or unavailable for capture bytes.",
+          "type": "string"
+        },
+        "case": {
+          "$ref": "#/$defs/Case",
+          "description": "Original declaration, retaining all roles and absences."
+        },
+        "coverage": {
+          "description": "measured, missing, stale, refused, unbound or unavailable.",
+          "type": "string"
+        },
+        "health": {
+          "description": "Explicit health findings. Empty means no finding under the recorded policy.",
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "last_good": {
+          "$ref": "#/$defs/Measurement",
+          "description": "Operational continuity evidence, independent of approved anchor."
+        },
+        "latest": {
+          "$ref": "#/$defs/Measurement",
+          "description": "Latest ordinary baseline-relative evidence."
+        }
+      },
+      "required": [
+        "case",
+        "baseline_state",
+        "capture_state",
+        "coverage",
+        "latest",
+        "approved_anchor",
+        "last_good",
+        "health"
+      ],
+      "type": "object"
+    }
+  },
+  "$id": "https://github.com/Tavrin/saccade/crates/saccade-core/schemas/saccade-coverage.v1.schema.json",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "description": "Audit-ready grouped view with reproducible freshness policy.",
+  "properties": {
+    "counts": {
+      "$ref": "#/$defs/Counts",
+      "description": "All-case accounting."
+    },
+    "coverage": {
+      "description": "complete or incomplete for required cases; domain coverage remains unknown.",
+      "type": "string"
+    },
+    "group_by": {
+      "description": "Selected axes, defaulting to every declared axis.",
+      "items": {
+        "type": "string"
+      },
+      "type": "array"
+    },
+    "groups": {
+      "description": "Stable groups. Missing cases remain members.",
+      "items": {
+        "$ref": "#/$defs/Group"
+      },
+      "type": "array"
+    },
+    "manifest_sha256": {
+      "description": "SHA-256 of the exact input manifest bytes.",
+      "type": "string"
+    },
+    "max_age_seconds": {
+      "description": "Maximum age for runs and known approval times.",
+      "format": "uint64",
+      "minimum": 0,
+      "type": "integer"
+    },
+    "now_unix": {
+      "description": "Observation time supplied by the caller.",
+      "format": "uint64",
+      "minimum": 0,
+      "type": "integer"
+    },
+    "report_id": {
+      "pattern": "^sha256:[0-9a-f]{64}$",
+      "type": "string"
+    },
+    "rows": {
+      "description": "Every declared case, in stable case-ID order.",
+      "items": {
+        "$ref": "#/$defs/Row"
+      },
+      "type": "array"
+    },
+    "schema": {
+      "description": "[`REPORT_SCHEMA`].",
+      "type": "string"
+    },
+    "source_refs": {
+      "items": {
+        "maxLength": 2048,
+        "type": "string"
+      },
+      "maxItems": 128,
+      "type": "array"
+    }
+  },
+  "required": [
+    "schema",
+    "manifest_sha256",
+    "now_unix",
+    "max_age_seconds",
+    "group_by",
+    "coverage",
+    "counts",
+    "rows",
+    "groups"
+  ],
+  "title": "Report",
+  "type": "object"
+}

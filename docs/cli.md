@@ -12,6 +12,10 @@ Exit 0 for compare/identity means no image regression; inspect `performance` for
 Inspection, review, rank and ablation completion grant no acceptance authority.
 Exit 2 means the operation cannot run. Demo intentionally exits 1.
 
+Generation: build with every Cargo feature except `imgtune-avif`, then run `python3 scripts/gen-docs.py --allow-missing-imgtune-avif --saccade "$CARGO_TARGET_DIR/debug/saccade"`.
+This reference omits the AVIF codec feature when system dav1d is unavailable; CI also tests `--all-features`. All CLI operations remain included.
+Generation build features: `ai`, `assist`, `compression`, `credentials`, `dense-motion`, `documents`, `embeddings`, `evaluation`, `geometry`, `graphics`, `local-models`, `local-vlm`, `mcp`, `media-http`, `ocr`, `ocr-provider`, `parallel`, `prechecks`, `print`, `products`, `schema`, `semantic-regions`, `text-quality`, `vision-providers`, `workbench`.
+
 ## saccade
 
 ```text
@@ -487,6 +491,7 @@ Usage: saccade manifest [OPTIONS] <COMMAND>
 
 Commands:
   build     Write saccade-manifest.json for a report directory: artifacts by hash, reports by report_id, duplicates listed once. Passing is never recorded as approval
+  views     Group declared variants, show missing cases and reference health in JSON and HTML
   verify    Re-hash everything a manifest or link names; fails with `link_missing` or `stale_link` when a recorded file moved or changed
   link      Write a stable link to one report of a directory, by report_id
   classify  Say whether a path is a report directory, a JSON document or an API response
@@ -520,8 +525,43 @@ Options:
           Record the last passing run (a different role; not approval)
       --report-index <REPORT_INDEX>
           Shared report index destination (default reports/index.jsonl next to each report, inside --out)
+      --cases <CASES>
+          Explicit cases and axes (saccade-cases.v1); creates manifest v2
       --json
           Print a JSON result
+  -h, --help
+          Print help
+
+Global options:
+      --allow-out-near-captures  Silence warnings when --out is next to capture metadata
+      --record-absolute-paths    Opt in to absolute local paths in reports and machine-readable output
+```
+
+## saccade manifest views
+
+```text
+Group declared variants, show missing cases and reference health in JSON and HTML
+
+Usage: saccade manifest views [OPTIONS] --out <OUT> <TARGET>
+
+Arguments:
+  <TARGET>  A saccade-manifest.v2 file, or its report directory
+
+Options:
+      --out <OUT>
+          Output directory for coverage.json and index.html
+      --source-ref <SOURCE_REF>
+          External capture URI/key (repeatable); recorded in generated reports
+      --group-by <GROUP_BY>
+          Declared axes to group by (default: all axes)
+      --report-index <REPORT_INDEX>
+          Shared report index destination (default reports/index.jsonl next to each report, inside --out)
+      --now-unix <NOW_UNIX>
+          Observation time for reproducible health findings (default: current time)
+      --max-age-seconds <MAX_AGE_SECONDS>
+          Age limit for recorded runs and known approval times [default: 2592000]
+      --json
+          Print a bounded JSON result; full rows stay in coverage.json
   -h, --help
           Print help
 

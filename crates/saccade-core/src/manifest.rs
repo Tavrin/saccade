@@ -457,7 +457,28 @@ pub fn verify(target: &Path) -> Result<Vec<Value>> {
     })?;
     let mut findings = Vec::new();
     match schema_of(&value) {
-        Some(MANIFEST_SCHEMA) => {
+        Some(MANIFEST_SCHEMA | crate::coverage::MANIFEST_SCHEMA) => {
+            if schema_of(&value) == Some(crate::coverage::MANIFEST_SCHEMA) {
+                let declaration = crate::coverage::Declaration {
+                    schema: crate::coverage::CASES_SCHEMA.into(),
+                    axes: serde_json::from_value(value["axes"].clone())?,
+                    cases: serde_json::from_value(value["cases"].clone())?,
+                };
+                declaration.validate()?;
+                for case in &declaration.cases {
+                    for reference in [
+                        &case.baseline,
+                        &case.capture,
+                        &case.approved_anchor,
+                        &case.last_good,
+                    ]
+                    .into_iter()
+                    .flatten()
+                    {
+                        check(&file, &reference.path, &reference.sha256, &mut findings);
+                    }
+                }
+            }
             for artifact in value["artifacts"].as_array().into_iter().flatten() {
                 let (Some(path), Some(sha)) =
                     (artifact["path"].as_str(), artifact["sha256"].as_str())

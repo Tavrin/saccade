@@ -94,6 +94,7 @@ pub fn is_report_schema(id: &str) -> bool {
                 | "saccade-perf-pairs.v1"
                 | "saccade-labels.v1"
                 | "saccade-labels.v2"
+                | "saccade-cases.v1"
                 | "saccade-inventory.v1"
                 | "saccade-quality-sweep.v1"
                 | "saccade-asset-views.v1"

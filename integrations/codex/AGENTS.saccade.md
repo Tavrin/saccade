@@ -1,7 +1,7 @@
 <!-- Generated from integrations/agent-guide.md by scripts/gen-docs.py. -->
 # Saccade agent guide
 
-Keep outputs outside inputs:
+Outputs outside inputs:
 
 ```sh
 saccade compare BASE CANDIDATE --out REPORT --json
@@ -49,7 +49,7 @@ Browser/sweep masks `neutralize`; core `exclude`. Read mask/excluded-error audit
 [Comparator](../docs/choosing-a-comparison.md).
 
 `models list` shows pins; inference needs cached models/runtime and never pulls.
-Vision observations are advice, never verdict overrides.
+Vision is advice, never overrides.
 [Vision](../docs/wave7.md). [TrustMark](../docs/trustmark.md): `watermark --trustmark` verifies BCH payloads.
 
 [Rendering](../docs/render-evidence.md): read `required_effects[].failures`
@@ -81,3 +81,4 @@ G12: `scripts/qualify-wave4.sh --dry-run`: fake provider; live needs reviewed bi
 [Animation/LOD](../docs/animated-lod.md).
 
 [Print/CMYK](../docs/print.md): `print` feature; no press approval.
+[Coverage](../docs/coverage.md).
