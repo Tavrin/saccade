@@ -84,4 +84,4 @@ G12: `scripts/qualify-wave4.sh --dry-run`: fake provider; live needs reviewed bi
 [Experiments](../docs/experiments-wave11.md): timing/settling.
 [Animation/LOD](../docs/animated-lod.md).
 
-[Print/CMYK](../docs/print.md): `print` feature; no press approval.
+[Print](../docs/print.md): no approval. [Rasters](../docs/raster.md): `geo`.

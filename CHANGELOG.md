@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+- Add optional `geo` and the first-party `saccade-geo` crate: native multichannel
+  TIFF measurements with preserved grid/nodata metadata and exact grid refusals,
+  explicitly mapped RGB heatmaps, single-band class metrics and tile coverage.
+
 ## 0.2.7 (2026-10-07)
 
 - Correct the quality-report and geometry v1 schemas to include the existing

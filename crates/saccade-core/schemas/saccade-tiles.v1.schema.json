@@ -1,0 +1,194 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "saccade-tiles.v1",
+  "title": "Tile coverage and perceptual measurements",
+  "type": "object",
+  "properties": {
+    "schema": {
+      "const": "saccade-tiles.v1"
+    },
+    "operation": {
+      "const": "tile_compare"
+    },
+    "report_id": {
+      "type": "string",
+      "pattern": "^sha256:[0-9a-f]{64}$"
+    },
+    "source_refs": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "verdict": {
+      "enum": [
+        "identical",
+        "changed"
+      ]
+    },
+    "policy": {
+      "type": "object"
+    },
+    "coverage": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "zoom": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "reference_tiles": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "candidate_tiles": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "missing": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "extra": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          }
+        },
+        "required": [
+          "zoom",
+          "reference_tiles",
+          "candidate_tiles",
+          "missing",
+          "extra"
+        ],
+        "additionalProperties": false
+      }
+    },
+    "compared_tiles": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "changed_tiles": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "tiles": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "tile": {
+            "type": "string"
+          },
+          "reference": {
+            "type": "string"
+          },
+          "candidate": {
+            "type": "string"
+          },
+          "reference_sha256": {
+            "type": "string"
+          },
+          "candidate_sha256": {
+            "type": "string"
+          },
+          "decoded_identical": {
+            "type": "boolean"
+          },
+          "metrics": {
+            "type": "object",
+            "properties": {
+              "mean": {
+                "type": "number",
+                "minimum": 0,
+                "maximum": 1
+              },
+              "max": {
+                "type": "number",
+                "minimum": 0,
+                "maximum": 1
+              },
+              "p50": {
+                "type": "number",
+                "minimum": 0,
+                "maximum": 1
+              },
+              "p95": {
+                "type": "number",
+                "minimum": 0,
+                "maximum": 1
+              },
+              "p99": {
+                "type": "number",
+                "minimum": 0,
+                "maximum": 1
+              },
+              "frac_above_0_1": {
+                "type": "number",
+                "minimum": 0,
+                "maximum": 1
+              },
+              "frac_above_0_5": {
+                "type": "number",
+                "minimum": 0,
+                "maximum": 1
+              },
+              "width": {
+                "type": "integer",
+                "minimum": 1
+              },
+              "height": {
+                "type": "integer",
+                "minimum": 1
+              }
+            },
+            "required": [
+              "mean",
+              "max",
+              "p50",
+              "p95",
+              "p99",
+              "frac_above_0_1",
+              "frac_above_0_5",
+              "width",
+              "height"
+            ],
+            "additionalProperties": false
+          },
+          "heatmap": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "tile",
+          "reference",
+          "candidate",
+          "reference_sha256",
+          "candidate_sha256",
+          "decoded_identical",
+          "metrics",
+          "heatmap"
+        ],
+        "additionalProperties": false
+      }
+    }
+  },
+  "required": [
+    "schema",
+    "operation",
+    "report_id",
+    "source_refs",
+    "verdict",
+    "policy",
+    "coverage",
+    "compared_tiles",
+    "changed_tiles",
+    "tiles"
+  ],
+  "additionalProperties": false
+}

@@ -57,6 +57,19 @@ pub(crate) fn catalogue() -> Value {
         "Requires CMYK ICC; bounded raster PDF subset; ICC gamut model and heuristic text-like marks; no press approval",
     );
     add(
+        "native_rasters",
+        "geo compare; geo mask-metrics; geo tiles",
+        "paired native multichannel TIFFs, class rasters or z/x/y tile trees",
+        vec!["geo"],
+        if cfg!(feature = "geo") {
+            "available_bounded"
+        } else {
+            "feature_unavailable"
+        },
+        "What native band, class or tile-coverage changes are present?",
+        "Exact grid metadata required; nodata-aware; RGB ranges must be declared; no reprojection or map rendering",
+    );
+    add(
         "pixel_perceptual",
         "compare; prove identity",
         "paired rasters or matching directories",
@@ -384,6 +397,9 @@ pub(crate) fn catalogue() -> Value {
     }
     if cfg!(feature = "products") {
         features.push("products".into());
+    }
+    if cfg!(feature = "geo") {
+        features.push("geo".into());
     }
     if cfg!(feature = "print") {
         features.push("print".into());

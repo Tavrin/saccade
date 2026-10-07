@@ -89,6 +89,7 @@ fn help_lists_active_commands_and_watch_alias_stays_hidden() {
         top.len(),
         51 + usize::from(cfg!(feature = "compression"))
             + usize::from(cfg!(feature = "print"))
+            + usize::from(cfg!(feature = "geo"))
             + 4 * usize::from(cfg!(feature = "products"))
             + usize::from(cfg!(feature = "local-vlm"))
             + usize::from(cfg!(feature = "vision-providers")),

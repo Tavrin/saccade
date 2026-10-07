@@ -1,0 +1,26 @@
+[package]
+name = "saccade-geo"
+description = "Native multichannel raster and tile-set comparison for Saccade"
+readme = "README.md"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+include = ["src/**", "tests/**", "examples/**", "Cargo.toml", "README.md", "LICENSE-*"]
+
+[dependencies]
+saccade-core.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+thiserror.workspace = true
+image = { workspace = true, features = ["webp"] }
+tiff = "=0.11.3"
+walkdir = "2"
+
+[dev-dependencies]
+tempfile = "3"
+jsonschema = { version = "0.30", default-features = false }
+
+[lints]
+workspace = true
