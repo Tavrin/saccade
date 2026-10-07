@@ -67,6 +67,11 @@ class AcceptanceTests(unittest.TestCase):
                     self.assertEqual(render["context_sha256"],RUNNER.sha(RUNNER.canonical(manifest["context"])))
                     self.assertEqual(render["asset_geometry_sha256"],asset["geometry_sha256"])
                     self.assertEqual(render["image"]["sha256"],RUNNER.sha((root/"geometry"/render["image"]["path"]).read_bytes()))
+            for name, candidate in (("same", "before"), ("changed", "after")):
+                page_map = RUNNER.load(root / f"documents/{name}-map.json")
+                self.assertEqual(page_map["reference_sha256"], RUNNER.sha((root / "documents/before.pdf").read_bytes()))
+                self.assertEqual(page_map["candidate_sha256"], RUNNER.sha((root / f"documents/{candidate}.pdf").read_bytes()))
+                self.assertEqual(page_map["pairs"], [dict(reference=1, candidate=1), dict(reference=2, candidate=2)])
             provenance = RUNNER.load(root/"provenance.json")
             for path, digest in provenance["files"].items():
                 self.assertEqual(RUNNER.sha((root/path).read_bytes()),digest)

@@ -16,6 +16,8 @@
         "compare",
         "before.pdf",
         "before.pdf",
+        "--page-map",
+        "same-map.json",
         "--dpi",
         "96",
         "--out",
@@ -26,12 +28,18 @@
       "checks": [
         {
           "name": "counts",
-          "source": "@OUTPUT@/same/saccade-documents.v1.json",
-          "pointer": "/counts"
+          "source": "@OUTPUT@/same/saccade-documents.v3.json",
+          "pointer": "/counts",
+          "equals": {
+            "total": 2,
+            "failures": 0,
+            "reference_pages": 2,
+            "candidate_pages": 2
+          }
         },
         {
           "name": "verdict",
-          "source": "@OUTPUT@/same/saccade-documents.v1.json",
+          "source": "@OUTPUT@/same/saccade-documents.v3.json",
           "pointer": "/verdict",
           "equals": "pass"
         }
@@ -45,6 +53,8 @@
         "compare",
         "before.pdf",
         "after.pdf",
+        "--page-map",
+        "changed-map.json",
         "--dpi",
         "96",
         "--out",
@@ -55,12 +65,18 @@
       "checks": [
         {
           "name": "counts",
-          "source": "@OUTPUT@/changed/saccade-documents.v1.json",
-          "pointer": "/counts"
+          "source": "@OUTPUT@/changed/saccade-documents.v3.json",
+          "pointer": "/counts",
+          "equals": {
+            "total": 2,
+            "failures": 1,
+            "reference_pages": 2,
+            "candidate_pages": 2
+          }
         },
         {
           "name": "pages",
-          "source": "@OUTPUT@/changed/saccade-documents.v1.json",
+          "source": "@OUTPUT@/changed/saccade-documents.v3.json",
           "pointer": "/pages/1/status",
           "equals": "regression"
         }

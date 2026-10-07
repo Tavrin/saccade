@@ -168,6 +168,12 @@ def generate(out):
                 frame=dict(value=value+2.,samples=5,stat="p50"),terms=[dict(id="render",kind="pass",value=value),dict(id="gap",kind="gap",value=2.)],counters={}))
     for name, changed in (("before",False),("after",True)):
         pdf(out / f"documents/{name}.pdf", changed)
+    for name, candidate in (("same", "before"), ("changed", "after")):
+        write_json(out / f"documents/{name}-map.json", dict(
+            schema="saccade-page-map.v1",
+            reference_sha256=digest((out / "documents/before.pdf").read_bytes()),
+            candidate_sha256=digest((out / f"documents/{candidate}.pdf").read_bytes()),
+            pairs=[dict(reference=1, candidate=1), dict(reference=2, candidate=2)]))
     geometry(out / "geometry")
     for n in range(3):
         for side in ("a", "b"):
