@@ -107,6 +107,73 @@ fn verify_inputs(
     }
     Ok(())
 }
+// Case construction may read an adjacent evidence document and hash sidecars.
+// Check those routes before construction, not merely before provider dispatch.
+fn guard_case_inputs(
+    file: &Path,
+    roots: &saccade_core::root_policy::RootPolicy,
+) -> Result<(), CliError> {
+    roots.read(file)?;
+    let value = local_cmd::read_value(file)?;
+    if saccade_core::report_links::original_schema(value["schema"].as_str().unwrap_or_default())
+        == saccade_core::report::REPORT_SCHEMA
+    {
+        let report: saccade_core::Report = serde_json::from_value(value)?;
+        let evidence = file.with_file_name("evidence.json");
+        if evidence.exists() {
+            roots.read(&evidence)?;
+        }
+        for entry in &report.entries {
+            for baseline in [true, false] {
+                let recorded = if baseline {
+                    &entry.paths.baseline
+                } else {
+                    &entry.paths.capture
+                };
+                if recorded.is_none() {
+                    continue;
+                }
+                if let Some(input) = local_cmd::report_input(&report, file, &entry.name, baseline) {
+                    roots.read(&input)?;
+                    let source = if baseline {
+                        &report.baseline_dir
+                    } else {
+                        &report.capture_dir
+                    };
+                    let source = source
+                        .as_deref()
+                        .map(|p| saccade_core::paths::resolve(p, file))
+                        .map(|p| {
+                            if p.is_file() {
+                                p.parent().unwrap_or(Path::new(".")).to_owned()
+                            } else {
+                                p
+                            }
+                        });
+                    let mut directory = input.parent();
+                    while let Some(dir) = directory {
+                        if source.as_ref().is_none_or(|root| !dir.starts_with(root)) {
+                            break;
+                        }
+                        let sidecar = dir.join(&report.config.meta.name);
+                        if sidecar.exists() {
+                            roots.read(&sidecar)?;
+                        }
+                        directory = dir.parent();
+                    }
+                    if let Some(stem) = input.file_stem().and_then(|s| s.to_str()) {
+                        let sidecar =
+                            input.with_file_name(format!("{stem}.{}", report.config.meta.name));
+                        if sidecar.exists() {
+                            roots.read(&sidecar)?;
+                        }
+                    }
+                }
+            }
+        }
+    }
+    Ok(())
+}
 // Presentation references never replace the full provenance used by egress
 // checks, provider dispatch, or the saved review plan.
 fn source_references(
@@ -152,6 +219,7 @@ pub(crate) fn review(
     let mut policy = roots.clone();
     user.apply(&mut policy)
         .map_err(|e| CliError::new("invalid_user_policy", e))?;
+    guard_case_inputs(file, &policy)?;
     let mut c = case(file)?;
     apply_intent(&mut c, intent)?;
     verify_inputs(&c, file, &policy)?;
@@ -466,10 +534,10 @@ pub(crate) fn cli(args: &local_cmd::ReviewArgs) -> Result<Value, CliError> {
     } else {
         None
     };
-    let intent = read_intent(args.intent.as_deref(), args.intent_file.as_deref(), &input)?;
     if let Some(file) = &args.intent_file {
         roots.read(file)?;
     }
+    let intent = read_intent(args.intent.as_deref(), args.intent_file.as_deref(), &input)?;
     review(
         &input,
         out.as_deref(),
@@ -554,6 +622,28 @@ pub(crate) fn evaluate(
     local_cmd::bounded(result, 4096)
 }
 /// Offline default preview also works before the user configures export permissions.
+pub(crate) fn preview_policy(
+    user: &UserConfig,
+) -> Result<Option<saccade_core::root_policy::RootPolicy>, CliError> {
+    // A pricing-only/default configuration retains the local preview contract.
+    // Once roots are declared, offline execution cannot bypass their containment.
+    if user.roots.is_empty() {
+        return Ok(None);
+    }
+    let roots = user
+        .roots
+        .iter()
+        .map(|r| r.path.clone())
+        .collect::<Vec<_>>();
+    Ok(Some(saccade_core::root_policy::RootPolicy::new(
+        &roots,
+        user.out_root.as_deref(),
+        false,
+        &[],
+    )?))
+}
+
+/// Prepare a local preview under any configured path policy; never dispatch.
 pub(crate) fn preview_local(
     file: &Path,
     budget: u64,
@@ -562,13 +652,24 @@ pub(crate) fn preview_local(
     absolute: bool,
     user_config: Option<&Path>,
 ) -> Result<Value, CliError> {
+    let user = load_user(&user_file(user_config))?;
+    let policy = preview_policy(&user)?;
+    if let Some(policy) = &policy {
+        policy.read(file)?;
+        if let Some(out) = out {
+            policy.write(out)?;
+        }
+        guard_case_inputs(file, policy)?;
+    }
     let mut c = case(file)?;
+    if let Some(policy) = &policy {
+        verify_inputs(&c, file, policy)?;
+    }
     apply_intent(&mut c, intent)?;
     if c.requests.is_empty() {
         saccade_core::judge_evidence::prepare_context(&mut c)?;
     }
     let (requests, shortfalls) = prepare_requests(&c)?;
-    let user = load_user(&user_file(user_config))?;
     let sources = saccade_core::judge_bench_sources(&c)
         .iter()
         .map(|s| {

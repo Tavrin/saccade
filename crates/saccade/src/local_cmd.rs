@@ -970,6 +970,16 @@ pub(crate) fn preview(
 ) -> Result<Value, CliError> {
     #[cfg(feature = "ai")]
     {
+        let user = crate::review_cmd::load_user(&crate::review_cmd::user_file(user_config))?;
+        if let Some(policy) = crate::review_cmd::preview_policy(&user)? {
+            policy.read(report)?;
+            if let Some(out) = out {
+                policy.write(out)?;
+            }
+            if let Some(file) = intent_file {
+                policy.read(file)?;
+            }
+        }
         if let Some(p) = intent_file {
             read_value(p)?;
         }

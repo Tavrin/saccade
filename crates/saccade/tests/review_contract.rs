@@ -430,6 +430,8 @@ fn never_final_and_local_preview_contracts_are_enforced() {
     let output = Command::new(BIN)
         .arg("review")
         .arg(&path)
+        .arg("--user-config")
+        .arg(tmp.path().join("unconfigured-user.toml"))
         .arg("--json")
         .output()
         .unwrap();

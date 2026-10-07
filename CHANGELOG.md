@@ -2,6 +2,13 @@
 
 ## Unreleased
 
+- Add an offline CLI/MCP authority-boundary harness, unprivileged container recipe,
+  versioned receipts and a CI regression job with external networking disabled.
+  Record the missing separate baseline-write credential as an explicit expected
+  failure; writable CLI baselines remain outside an authenticated human boundary.
+- Enforce declared user read/output roots during offline review previews, including
+  referenced inputs and intent files, before reading or writing those paths.
+
 ## 0.2.7 (2026-10-07)
 
 - Correct the quality-report and geometry v1 schemas to include the existing

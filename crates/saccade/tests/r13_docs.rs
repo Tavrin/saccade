@@ -42,11 +42,14 @@ fn copyable_commands_execute_with_documented_verdicts() {
             text(command["document"].as_str().unwrap()).contains(&spelling),
             "undocumented smoke command: {spelling}"
         );
-        let out = Command::new(env!("CARGO_BIN_EXE_saccade"))
-            .args(&args)
-            .current_dir(temp.path())
-            .output()
-            .unwrap();
+        let mut cli = Command::new(env!("CARGO_BIN_EXE_saccade"));
+        cli.args(&args).current_dir(temp.path());
+        if args.first() == Some(&"review") {
+            // Documentation smoke inputs have no contributor-owned root authority.
+            cli.arg("--user-config")
+                .arg(temp.path().join("unconfigured-user.toml"));
+        }
+        let out = cli.output().unwrap();
         assert_eq!(
             out.status.code().map(i64::from),
             command["exit"].as_i64(),
