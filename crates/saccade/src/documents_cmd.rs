@@ -232,11 +232,19 @@ mod budget_tests {
                 code: "document_output_byte_limit"
             }
         ));
-        assert_eq!(
-            std::fs::metadata(dir.path().join("reports/index.jsonl"))
-                .unwrap()
-                .len(),
-            0
-        );
+        // Capability-bound append refuses before creating an index inode.
+        let index = dir.path().join("reports/index.jsonl");
+        assert!(!index.exists());
+        std::fs::create_dir_all(index.parent().unwrap()).unwrap();
+        std::fs::write(&index, b"retained index bytes\n").unwrap();
+        let error = saccade_core::report_links::index(&dir.path().join("report.json"), &report)
+            .unwrap_err();
+        assert!(matches!(
+            error,
+            saccade_core::Error::Document {
+                code: "document_output_byte_limit"
+            }
+        ));
+        assert_eq!(std::fs::read(&index).unwrap(), b"retained index bytes\n");
     }
 }
