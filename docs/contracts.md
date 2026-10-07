@@ -338,11 +338,13 @@ The last three names appear only when the corresponding feature is compiled in.
 - [saccade-sweep.v1.schema.json](../crates/saccade-core/schemas/saccade-sweep.v1.schema.json) — saccade-sweep.v1
 - [saccade-temporal.v1.schema.json](../crates/saccade-core/schemas/saccade-temporal.v1.schema.json) — saccade-temporal.v1
 - [saccade-tesseract.v1.schema.json](../crates/saccade-core/schemas/saccade-tesseract.v1.schema.json) — OcrContract
+- [saccade-text-legibility.v1.schema.json](../crates/saccade-core/schemas/saccade-text-legibility.v1.schema.json) — LegibilityReport
 - [saccade-text.v1.schema.json](../crates/saccade-core/schemas/saccade-text.v1.schema.json) — Historical reader contract
 - [saccade-text.v2.schema.json](../crates/saccade-core/schemas/saccade-text.v2.schema.json) — Historical reader contract
 - [saccade-tile-temporal.v1.schema.json](../crates/saccade-core/schemas/saccade-tile-temporal.v1.schema.json) — Report
 - [saccade-timing-ab.v1.schema.json](../crates/saccade-core/schemas/saccade-timing-ab.v1.schema.json) — Report
 - [saccade-timing-session.v1.schema.json](../crates/saccade-core/schemas/saccade-timing-session.v1.schema.json) — Session
+- [saccade-tofu.v1.schema.json](../crates/saccade-core/schemas/saccade-tofu.v1.schema.json) — TofuReport
 - [saccade-ui-review.v1.schema.json](../crates/saccade-core/schemas/saccade-ui-review.v1.schema.json) — Report
 - [saccade-ui-review.v2.schema.json](../crates/saccade-core/schemas/saccade-ui-review.v2.schema.json) — Report
 - [saccade-ui-source.v1.schema.json](../crates/saccade-core/schemas/saccade-ui-source.v1.schema.json) — Source

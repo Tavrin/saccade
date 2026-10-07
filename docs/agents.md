@@ -196,3 +196,8 @@ For performance evidence, read `qualification_reasons` and any
 `gpu_clock_before` / `gpu_clock_after` summaries. An unqualified or mismatched
 clock or power state makes performance comparability `rejected`; image results
 remain separate.
+
+Text-quality builds add [`tofu`](tofu.md) and [`text-legibility`](text-legibility.md).
+Read the full `--json` state and reasons: exit 4 means insufficient evidence;
+missing OCR is never agreement, and no tofu candidate never certifies glyph coverage.
+MCP mirrors remain a follow-up.

@@ -33,6 +33,8 @@ fs2 = "0.4.3"
 jsonschema = { version = "0.30", default-features = false }
 
 [features]
+# O12/O17: deterministic text pixel evidence, no added dependencies.
+text-quality = ["saccade-core/text-quality"]
 ocr-provider = ["assist", "saccade-core/ocr-provider"]
 media-http = ["saccade-core/media-http"]
 products = ["dep:ureq", "dep:url", "dep:roxmltree", "compression", "image/webp"]

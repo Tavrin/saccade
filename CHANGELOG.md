@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+- Add feature-gated `tofu` missing-glyph shape triage and `text-legibility`
+  per-region variant sampling evidence, with versioned schemas, explicit
+  abstention, optional cached OCR and generated multi-script fixtures.
+
 - Harden experimental assist pre-spend accounting: shared campaign reservations,
   charged and quarantined usage overruns, request-bound recorded execution receipts,
   nonvacuous qualification, independent control and glyph-localization checks, and

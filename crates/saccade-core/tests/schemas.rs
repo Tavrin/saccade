@@ -64,6 +64,16 @@ fn committed_schemas_match_the_rust_types() {
     let update = std::env::var_os("UPDATE_SCHEMAS").is_some();
     let all = [
         (
+            "saccade-tofu.v1.schema.json",
+            generated::<saccade_core::text_quality::TofuReport>("saccade-tofu.v1.schema.json"),
+        ),
+        (
+            "saccade-text-legibility.v1.schema.json",
+            generated::<saccade_core::text_quality::LegibilityReport>(
+                "saccade-text-legibility.v1.schema.json",
+            ),
+        ),
+        (
             "saccade-asset-views.v1.schema.json",
             generated::<saccade_core::asset_views::Manifest>("saccade-asset-views.v1.schema.json"),
         ),

@@ -1,0 +1,300 @@
+{
+  "$defs": {
+    "OcrEvidence": {
+      "additionalProperties": false,
+      "description": "Optional OCR evidence, isolated from pixel measurements.",
+      "properties": {
+        "agrees_with_baseline": {
+          "description": "Exact baseline agreement, absent without comparable observations.",
+          "type": [
+            "boolean",
+            "null"
+          ]
+        },
+        "reason": {
+          "description": "Adapter identity or explicit missing-evidence reason.",
+          "type": "string"
+        },
+        "state": {
+          "$ref": "#/$defs/State",
+          "description": "unavailable, candidates, legible (agreement) or illegible (disagreement)."
+        },
+        "text": {
+          "description": "Exact observed Unicode scalars; inert data.",
+          "type": [
+            "string",
+            "null"
+          ]
+        }
+      },
+      "required": [
+        "state",
+        "reason"
+      ],
+      "type": "object"
+    },
+    "Policy": {
+      "additionalProperties": false,
+      "description": "Frozen thresholds in physical capture pixels.",
+      "properties": {
+        "minimum_contrast": {
+          "description": "WCAG-style relative luminance ratio (not compliance certification).",
+          "format": "double",
+          "type": "number"
+        },
+        "minimum_sharpness": {
+          "description": "Minimum normalized adjacent-pixel edge step.",
+          "format": "double",
+          "type": "number"
+        },
+        "minimum_stroke_px": {
+          "description": "Minimum stroke run width in pixels.",
+          "format": "double",
+          "type": "number"
+        },
+        "minimum_x_height_px": {
+          "description": "Minimum component body-height proxy in sampled pixels.",
+          "format": "double",
+          "type": "number"
+        }
+      },
+      "required": [
+        "minimum_contrast",
+        "minimum_x_height_px",
+        "minimum_sharpness",
+        "minimum_stroke_px"
+      ],
+      "type": "object"
+    },
+    "RegionResult": {
+      "additionalProperties": false,
+      "description": "Measurements for one declared text region.",
+      "properties": {
+        "contrast": {
+          "description": "Actual measured background/foreground luminance ratio.",
+          "format": "double",
+          "type": [
+            "number",
+            "null"
+          ]
+        },
+        "ocr": {
+          "$ref": "#/$defs/OcrEvidence",
+          "description": "Optional OCR agreement with baseline in this region."
+        },
+        "reasons": {
+          "description": "Threshold failures or abstention reasons.",
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "rect_px": {
+          "description": "Region in the current capture, after proportional mapping.",
+          "items": {
+            "format": "uint32",
+            "minimum": 0,
+            "type": "integer"
+          },
+          "maxItems": 4,
+          "minItems": 4,
+          "type": "array"
+        },
+        "region": {
+          "description": "Stable zero-based baseline region index.",
+          "format": "uint",
+          "minimum": 0,
+          "type": "integer"
+        },
+        "sharpness": {
+          "description": "Minimum per-component normalized maximum edge step.",
+          "format": "double",
+          "type": [
+            "number",
+            "null"
+          ]
+        },
+        "state": {
+          "$ref": "#/$defs/State",
+          "description": "Pixel/optional OCR verdict with unavailable evidence kept separate."
+        },
+        "stroke_px": {
+          "description": "Minimum component lower-quartile horizontal/vertical run width.",
+          "format": "double",
+          "type": [
+            "number",
+            "null"
+          ]
+        },
+        "x_height_px": {
+          "description": "Minimum measurable body-height proxy; not inferred typographic x-height.",
+          "format": "double",
+          "type": [
+            "number",
+            "null"
+          ]
+        }
+      },
+      "required": [
+        "region",
+        "rect_px",
+        "state",
+        "ocr",
+        "reasons"
+      ],
+      "type": "object"
+    },
+    "State": {
+      "description": "Evidence states; absence of a candidate never certifies complete glyph coverage.",
+      "oneOf": [
+        {
+          "const": "candidates",
+          "description": "At least one glyph-shaped candidate needs review.",
+          "type": "string"
+        },
+        {
+          "const": "legible",
+          "description": "Pixel thresholds are satisfied in a declared text region.",
+          "type": "string"
+        },
+        {
+          "const": "illegible",
+          "description": "At least one measured threshold fails.",
+          "type": "string"
+        },
+        {
+          "const": "insufficient_evidence",
+          "description": "Evidence cannot support a positive verdict.",
+          "type": "string"
+        },
+        {
+          "const": "unavailable",
+          "description": "Optional evidence is absent.",
+          "type": "string"
+        }
+      ]
+    },
+    "Variant": {
+      "additionalProperties": false,
+      "description": "One variant and all baseline-mapped regions.",
+      "properties": {
+        "dimensions": {
+          "description": "Capture dimensions.",
+          "items": {
+            "format": "uint32",
+            "minimum": 0,
+            "type": "integer"
+          },
+          "maxItems": 2,
+          "minItems": 2,
+          "type": "array"
+        },
+        "image_sha256": {
+          "description": "Exact encoded input identity.",
+          "type": "string"
+        },
+        "index": {
+          "description": "Input index (zero is first variant).",
+          "format": "uint",
+          "minimum": 0,
+          "type": "integer"
+        },
+        "regions": {
+          "description": "Every declared region, including unavailable evidence.",
+          "items": {
+            "$ref": "#/$defs/RegionResult"
+          },
+          "type": "array"
+        }
+      },
+      "required": [
+        "index",
+        "image_sha256",
+        "dimensions",
+        "regions"
+      ],
+      "type": "object"
+    }
+  },
+  "$id": "https://github.com/Tavrin/saccade/crates/saccade-core/schemas/saccade-text-legibility.v1.schema.json",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "description": "Baseline plus N variant results.",
+  "properties": {
+    "baseline": {
+      "description": "Baseline measurements; an invalid baseline cannot qualify a variant.",
+      "items": {
+        "$ref": "#/$defs/RegionResult"
+      },
+      "type": "array"
+    },
+    "baseline_dimensions": {
+      "description": "Baseline capture dimensions.",
+      "items": {
+        "format": "uint32",
+        "minimum": 0,
+        "type": "integer"
+      },
+      "maxItems": 2,
+      "minItems": 2,
+      "type": "array"
+    },
+    "baseline_sha256": {
+      "description": "Encoded baseline identity.",
+      "type": "string"
+    },
+    "limitations": {
+      "description": "Explicit interpretation boundaries.",
+      "items": {
+        "type": "string"
+      },
+      "type": "array"
+    },
+    "policy": {
+      "$ref": "#/$defs/Policy",
+      "description": "Effective thresholds."
+    },
+    "report_id": {
+      "description": "Content-addressed transport report identity, absent before emission.",
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "schema": {
+      "const": "saccade-text-legibility.v1",
+      "description": "Versioned discriminator.",
+      "type": "string"
+    },
+    "source_refs": {
+      "description": "Caller-supplied capture backlinks, absent when not declared.",
+      "items": {
+        "type": "string"
+      },
+      "type": "array"
+    },
+    "state": {
+      "$ref": "#/$defs/State",
+      "description": "Overall state; failures dominate missing evidence."
+    },
+    "variants": {
+      "description": "Per-region results for every supplied variant.",
+      "items": {
+        "$ref": "#/$defs/Variant"
+      },
+      "type": "array"
+    }
+  },
+  "required": [
+    "schema",
+    "state",
+    "baseline_sha256",
+    "baseline_dimensions",
+    "policy",
+    "baseline",
+    "variants",
+    "limitations"
+  ],
+  "title": "LegibilityReport",
+  "type": "object"
+}
