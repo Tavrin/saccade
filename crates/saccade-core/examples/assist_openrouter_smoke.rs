@@ -145,6 +145,9 @@ fn export_reconciliation(
             .iter()
             .find(|r| r.id == id)
             .ok_or("missing campaign receipt")?;
+        outcome["http_error"] = receipt.usage["http_error"].clone();
+        outcome["money_outcome"] = json!(receipt.outcome);
+        outcome["actual_nano_usd"] = json!(receipt.actual_nano_usd);
         outcome["reconciliation"] = receipt.usage["reconciliation"].clone();
         outcome["revision_identity"] = receipt.usage["revision_identity"].clone();
         outcome["qualification_eligible"] = receipt.usage["qualification_eligible"].clone();
@@ -438,6 +441,9 @@ fn run_with(args: impl IntoIterator<Item = String>) -> Result<(), Box<dyn std::e
     for (index, receipt) in receipts.iter().enumerate() {
         outcomes[index]["execution_id"] = json!(receipt.id);
         outcomes[index]["response_identity"] = receipt.usage["response_identity"].clone();
+        outcomes[index]["http_error"] = receipt.usage["http_error"].clone();
+        outcomes[index]["money_outcome"] = json!(receipt.outcome);
+        outcomes[index]["actual_nano_usd"] = json!(receipt.actual_nano_usd);
         if outcomes[index]["code"] != "completed" {
             let bytes = serde_json::to_vec(receipt).map_err(|_| "smoke_receipt_encoding_failed")?;
             if std::fs::write(out.join(format!("receipt-{index}.json")), bytes).is_err() {
@@ -463,6 +469,79 @@ fn main() {
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[test]
+    fn g12_smoke_exports_http_refusal_classification_and_zero_cost_root_outcome() {
+        use saccade_core::budget_ledger::MoneyReceipt;
+        let temp = tempfile::tempdir().unwrap();
+        let out = temp.path();
+        let ledger = Ledger::new(&out.join("ledger"), true);
+        let error = openrouter::http_error(
+            Some(400),
+            include_bytes!("../tests/fixtures/assist-openrouter/schema-http-400.json"),
+        )
+        .unwrap();
+        ledger
+            .reserve_money(
+                &[MoneyScope {
+                    id: "fixture".into(),
+                    cap_nano_usd: 5_000_000,
+                }],
+                MoneyReceipt {
+                    id: "fixture".into(),
+                    request_hash: Digest::of_bytes(b"fixture"),
+                    scopes: vec!["fixture".into()],
+                    reserved_nano_usd: 5_000_000,
+                    actual_nano_usd: None,
+                    outcome: "reserved".into(),
+                    usage: json!({"openrouter_dispatched":true}),
+                },
+            )
+            .unwrap();
+        ledger
+            .finish_money(
+                "fixture",
+                Some(0),
+                json!({"http_error":error,"zero_cost_refused":true}),
+                false,
+            )
+            .unwrap();
+        assist::write(
+            &out.join("receipt-0.json"),
+            &ledger.money_receipts().unwrap()[0],
+        )
+        .unwrap();
+        let mut smoke = json!({"root_outcomes":[{"execution_id":"fixture","code":"openrouter_http_zero_cost_refused"}],"qualified":false});
+        export_reconciliation(out, &ledger, &mut smoke).unwrap();
+        let before = std::fs::read(out.join("ledger/campaign.json")).unwrap();
+        // Terminal zero settlement needs neither a credential read nor a GET.
+        run_with(vec![
+            "--reconcile-only".into(),
+            out.to_string_lossy().into_owned(),
+        ])
+        .unwrap();
+        assert_eq!(
+            before,
+            std::fs::read(out.join("ledger/campaign.json")).unwrap()
+        );
+        let recorded: Value =
+            assist::decode(&std::fs::read(out.join("smoke.json")).unwrap()).unwrap();
+        assert_eq!(recorded["root_outcomes"][0]["http_error"], json!(error));
+        assert_eq!(recorded["root_outcomes"][0]["actual_nano_usd"], 0);
+        assert_eq!(
+            recorded["root_outcomes"][0]["money_outcome"],
+            "zero_cost_refused"
+        );
+        assert_eq!(recorded["reconciliation"]["zero_cost_refused"], 1);
+        assert_eq!(recorded["reconciliation"]["matched"], 0);
+        assert_eq!(recorded["qualified"], false);
+        assert_eq!(
+            recorded["root_outcomes"][0]["qualification_eligible"],
+            false
+        );
+        let exported: Value =
+            assist::decode(&std::fs::read(out.join("receipt-0.json")).unwrap()).unwrap();
+        assert_eq!(exported["usage"]["http_error"], json!(error));
+    }
     #[test]
     fn g12_reconcile_only_needs_no_allowance_and_preserves_exported_provenance() {
         use saccade_core::budget_ledger::MoneyReceipt;

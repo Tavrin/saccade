@@ -1,0 +1,10 @@
+{
+  "error": {
+    "code": 400,
+    "message": "Provider returned error",
+    "metadata": {
+      "provider_name": "Google AI Studio",
+      "raw": "{\"error\":{\"code\":400,\"message\":\"Request contains an invalid argument.\",\"status\":\"INVALID_ARGUMENT\"}}"
+    }
+  }
+}

@@ -171,6 +171,8 @@ impl Ledger {
             let dispatched = receipt.usage["openrouter_dispatched"] == true;
             let requested_identity = receipt.usage["requested_identity"].clone();
             let image_table = receipt.usage.get("image_table").cloned();
+            let zero_cost_refused = dispatched && actual == Some(0)
+                && usage["zero_cost_refused"] == true;
             let charged = actual.unwrap_or(receipt.reserved_nano_usd);
             for scope in &receipt.scopes {
                 let counter = state
@@ -194,13 +196,15 @@ impl Ledger {
             if dispatched {
                 receipt.usage["openrouter_dispatched"] = serde_json::json!(true);
                 receipt.usage["requested_identity"] = requested_identity;
-                receipt.usage["reconciliation"] = serde_json::json!({"state":"pending","matches":false,"attempts":0,"attempted_ms":null});
+                receipt.usage["reconciliation"] = serde_json::json!({"state":if zero_cost_refused { "zero_cost_refused" } else { "pending" },"matches":false,"attempts":0,"attempted_ms":null});
                 receipt.usage["qualification_eligible"] = serde_json::json!(false);
             }
             receipt.outcome = if receipt.usage["bound_breach"] == true {
                 "usage_limit_exceeded"
             } else if charged > receipt.reserved_nano_usd {
                 "cost_limit_exceeded"
+            } else if zero_cost_refused {
+                "zero_cost_refused"
             } else if complete {
                 "completed"
             } else {
@@ -337,7 +341,7 @@ impl Ledger {
         self.campaign().transaction(|state| {
             let receipt = state.money.receipts.iter_mut().find(|r| r.id == id)
                 .ok_or("unknown money reservation")?;
-            if matches!(receipt.usage["reconciliation"]["state"].as_str(), Some("matched" | "mismatch")) { return Ok(()); }
+            if matches!(receipt.usage["reconciliation"]["state"].as_str(), Some("matched" | "mismatch" | "zero_cost_refused")) { return Ok(()); }
             let cost_matches = generation.as_ref().is_ok_and(|g| receipt.actual_nano_usd
                 .is_some_and(|actual| actual.abs_diff(g.cost_nano_usd) <= crate::assist::openrouter::RECONCILIATION_TOLERANCE));
             let drifted = generation.as_ref().is_ok_and(|g| {

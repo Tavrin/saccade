@@ -522,7 +522,7 @@ rejected before dispatch; the paced schedule uses a simulated clock, never sleep
 
 ## G12 explicit reasoning policy
 
-Stage-2 plans now pin `assist-openrouter-strict-schema/1`: `reasoning.max_tokens` is
+Stage-2 plans now pin `assist-openrouter-provider-schema/1`: `reasoning.max_tokens` is
 512 for `check_ui` (including routing) and 1024 for `explain`/`audit_mask`, inside
 the existing 4096 aggregate output limit. Offline admission refuses omitted or
 changed controls. OpenRouter's reported reasoning counter is a completion subset;
@@ -531,19 +531,36 @@ non-qualifying root outcome. Monetary breaches continue to stop the campaign and
 retain billed spend. See [the decision and focused fixtures](design-decisions/g12-reasoning-budget.md)
 for the exact request choice and offline evidence location.
 
-## G12 strict structured output
+## G12 provider-compatible structured output
 
-The same closed answer schema now feeds the Gemini assist payload, Rust
-OpenRouter requests and Python stage-2 plans. OpenRouter pins
-`response_format: {"type":"json_schema","json_schema":{"name":"saccade_assist_answer","strict":true,"schema":...}}`
-with `require_parameters: true`. Admission refuses any format drift, including
-the old `json_object` shape. The full schema participates in input reservations,
-payload hashes and the frozen gate-source hash; plans record its exact
-`response_format_hash` under request policy `assist-openrouter-strict-schema/1`.
+The full closed answer schema feeds the Gemini payload and local validation of
+every Gemini/OpenRouter answer. OpenRouter requests and Python stage-2 plans use
+projection `assist-openrouter-drop-array-bounds/1`: recursively remove only
+`minItems` and `maxItems`. Preserve `additionalProperties`, `anyOf`, enums,
+required fields and numeric ranges. The versioned wire name is
+`saccade_assist_answer_drop_array_bounds_v1`, with `strict: true` and
+`require_parameters: true`; admission refuses any schema or format drift.
+The projected format participates in payload hashes and input reservations.
+Plans pin `response_format_hash`, `full_answer_schema_hash`, `schema_projection`
+and request policy `assist-openrouter-provider-schema/1`.
 
-The recorded pilot's `geometry.value` answer remains locally refused. No local
-decoder, citation, geometry, statement or request-binding validation is relaxed.
-The [strict-schema decision](design-decisions/g12-strict-schema.md) records the
-shared source, dialect choice, rejected alternatives and focused regressions.
-Regenerating and admitting the two plans remains offline evidence only; provider
-compatibility and model qualification are unverified by this change.
+Local validation uses the full shared schema, followed by the existing request,
+citation, geometry and statement checks. Oversized observation/coordinate arrays
+and the recorded `geometry.value` answer remain refused. The
+[provider-schema decision](design-decisions/g12-provider-schema.md) records the
+projection, refusal accounting, rejected alternatives and regression names.
+
+HTTP error receipts and root outcomes expose only `http_status`,
+`openrouter_error_code`, `provider_name` and `provider_status`, plus the
+`zero_cost_refused` classification. Strings are ASCII charset-checked and capped
+at 64 bytes; raw messages/bodies are never retained. A 4xx error object without
+any generation, usage or completion evidence settles at zero and becomes a
+terminal, non-qualifying `zero_cost_refused` receipt. Embedded raw error JSON
+must also contain an error object without generation evidence. Generation
+lookup is skipped for these receipts. Network failures, 5xx, malformed errors,
+identifiers (including null IDs), and ambiguous embedded errors retain existing
+cost handling, including charging the reservation when cost is unknown.
+
+Regenerating and admitting both plans remains offline evidence only. The
+coordinator supplied the compatibility probes; this change makes no provider
+calls and establishes no fresh provider/model qualification.

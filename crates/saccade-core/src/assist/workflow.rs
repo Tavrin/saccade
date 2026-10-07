@@ -367,6 +367,7 @@ pub fn decode_answer(
         .filter(|p| p["thought"] != true)
         .filter_map(|p| p["text"].as_str())
         .collect::<String>();
+    super::structured_output::validate_answer(text.as_bytes())?;
     let answer: WireAnswer = decode(text.as_bytes())?;
     require(
         answer.request_hash == prepared.identity.request_hash && answer.observations.len() <= 64,

@@ -3,7 +3,7 @@ from pathlib import Path
 import tempfile
 import unittest
 from corpus import freeze, verify
-from stage2 import payload, priced, report, schedule, collect, REVISION, REQUEST_POLICY, REASONING_BUDGETS, reservation, response_format, ANSWER_SCHEMA_PATH
+from stage2 import payload, priced, report, schedule, collect, REVISION, REQUEST_POLICY, REASONING_BUDGETS, reservation, response_format, ANSWER_SCHEMA_PATH, project_schema, PROJECTION_POLICY, PROJECTED_SCHEMA_NAME
 
 class Stage2Tests(unittest.TestCase):
     def test_stage2_replan_interleaves_pilot_and_budget_bounded_larger_schedule(self):
@@ -14,7 +14,10 @@ class Stage2Tests(unittest.TestCase):
             rows,plan=report(manifest,directory)
             self.assertEqual(len(rows),216)
             self.assertEqual(rows,report(verify(directory)[0],directory)[0])
-            self.assertEqual(plan['reservation_nano_usd'],4843501500)
+            old_format=dict(type='json_schema',json_schema=dict(name='saccade_assist_answer',strict=True,schema=json.loads(ANSWER_SCHEMA_PATH.read_text())))
+            from corpus import encoded
+            delta=len(encoded(response_format()))-len(encoded(old_format))
+            self.assertEqual(plan['reservation_nano_usd'],4843501500+216*delta*750)
             self.assertFalse(plan['budget_bounded'])
             self.assertTrue(plan['full_reservation_fits'])
             workloads={c['root_id']:c['workload'] for c in manifest['cases']}
@@ -65,9 +68,9 @@ class Stage2Tests(unittest.TestCase):
         import json
         from corpus import digest, encoded
         expected=response_format()
-        self.assertEqual(expected,dict(type='json_schema',json_schema=dict(name='saccade_assist_answer',strict=True,
-            schema=json.loads(ANSWER_SCHEMA_PATH.read_text()))))
-        self.assertEqual(REQUEST_POLICY,'assist-openrouter-strict-schema/1')
+        self.assertEqual(expected,dict(type='json_schema',json_schema=dict(name=PROJECTED_SCHEMA_NAME,strict=True,
+            schema=project_schema(json.loads(ANSWER_SCHEMA_PATH.read_text())))))
+        self.assertEqual(REQUEST_POLICY,'assist-openrouter-provider-schema/1')
         def closed(schema):
             if schema.get('type')=='object':
                 self.assertIs(schema['additionalProperties'],False)
@@ -77,10 +80,22 @@ class Stage2Tests(unittest.TestCase):
             for child in schema.get('anyOf',[]): closed(child)
         closed(expected['json_schema']['schema'])
         geometry=expected['json_schema']['schema']['properties']['observations']['items']['properties']['geometry']
-        for variant,size in zip(geometry['anyOf'],(4,2)):
+        for variant in geometry['anyOf']:
             self.assertEqual(set(variant['properties']),{'type','pixels'})
-            self.assertEqual(variant['properties']['pixels']['minItems'],size)
-            self.assertEqual(variant['properties']['pixels']['maxItems'],size)
+            self.assertNotIn('minItems',variant['properties']['pixels'])
+            self.assertNotIn('maxItems',variant['properties']['pixels'])
+        full=json.loads(ANSWER_SCHEMA_PATH.read_text())
+        def compare(full, projected):
+            if isinstance(full, dict):
+                self.assertEqual(set(projected),set(full)-{'minItems','maxItems'})
+                return sum(key in ('minItems','maxItems') for key in full)+sum(compare(child,projected[key]) for key,child in full.items() if key not in ('minItems','maxItems'))
+            if isinstance(full, list):
+                self.assertEqual(len(full),len(projected))
+                return sum(compare(a,b) for a,b in zip(full,projected))
+            self.assertEqual(full,projected)
+            return 0
+        self.assertEqual(compare(full,expected['json_schema']['schema']),6)
+        self.assertEqual(full['properties']['observations']['maxItems'],64)
         with tempfile.TemporaryDirectory() as tmp:
             for target,count,bounded in [(15,216,False),(60,864,True)]:
                 directory=Path(tmp)/str(target)
@@ -89,6 +104,8 @@ class Stage2Tests(unittest.TestCase):
                 self.assertEqual(plan['requests'],count)
                 self.assertEqual(plan['request_policy'],REQUEST_POLICY)
                 self.assertEqual(plan['response_format_hash'],digest(encoded(expected)))
+                self.assertEqual(plan['schema_projection'],PROJECTION_POLICY)
+                self.assertEqual(plan['full_answer_schema_hash'],digest(encoded(json.loads(ANSWER_SCHEMA_PATH.read_text()))))
                 for row in rows: self.assertEqual(row['payload']['response_format'],expected)
                 for invalid in (None,dict(type='json_object'),dict(type='json_schema',json_schema=dict(expected['json_schema'],strict=False))):
                     drift=copy.deepcopy(rows[0]['payload'])

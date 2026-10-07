@@ -335,7 +335,7 @@ fn response(
     serde_json::to_vec(&json!({"modelVersion":"r1","candidates":[{"finishReason":"STOP","content":{"parts":[{"text":answer.to_string()}]}}]})).unwrap()
 }
 #[test]
-fn g12_strict_openrouter_schema_is_identical_to_prepared_gemini_schema() {
+fn g12_projected_openrouter_schema_preserves_full_prepared_gemini_schema() {
     let mut c = catalog();
     let image = png(0);
     c.images[0].encoded_sha256 = Digest::of_bytes(&image);
@@ -366,7 +366,7 @@ fn g12_strict_openrouter_schema_is_identical_to_prepared_gemini_schema() {
     );
     assert_eq!(
         payload["response_format"]["json_schema"]["schema"],
-        source["generationConfig"]["responseJsonSchema"]
+        structured_output::openrouter_schema().unwrap()
     );
     assert_eq!(
         payload["response_format"],

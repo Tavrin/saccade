@@ -14,12 +14,21 @@ ARMS = ('rules', 'single_gemini', 'two_gemini', 'cascade')
 MODEL = 'google/gemini-3.8-flash'
 REVISION = MODEL + '-20260902'
 SCHEDULE_SEED = 4406
-REQUEST_POLICY = 'assist-openrouter-strict-schema/1'
+REQUEST_POLICY = 'assist-openrouter-provider-schema/1'
+PROJECTION_POLICY = 'assist-openrouter-drop-array-bounds/1'
+PROJECTED_SCHEMA_NAME = 'saccade_assist_answer_drop_array_bounds_v1'
 ANSWER_SCHEMA_PATH = Path(__file__).resolve().parents[2] / 'crates/saccade-core/src/assist/answer.schema.json'
 
+def project_schema(value):
+    if isinstance(value, dict):
+        return {key: project_schema(child) for key, child in value.items() if key not in ('minItems', 'maxItems')}
+    if isinstance(value, list):
+        return [project_schema(child) for child in value]
+    return value
+
 def response_format():
-    return dict(type='json_schema', json_schema=dict(name='saccade_assist_answer', strict=True,
-                                                   schema=json.loads(ANSWER_SCHEMA_PATH.read_text())))
+    return dict(type='json_schema', json_schema=dict(name=PROJECTED_SCHEMA_NAME, strict=True,
+                                                   schema=project_schema(json.loads(ANSWER_SCHEMA_PATH.read_text()))))
 REASONING_BUDGETS = dict(check_ui=512, explain=1024, audit_mask=1024)
 # Supplied ten-call aggregate; two-image expectation adds one mean prompt at pinned price.
 SINGLE_EXPECTED_NANO = 3485850
@@ -124,6 +133,7 @@ def report(manifest, directory, budget_bounded=False):
     if len(rows)>1000: raise ValueError('stage2 schedule exceeds 1000 request limit')
     return rows, dict(schema='saccade-g12-stage2-plan.v1', manifest_hash=manifest['manifest_hash'],
         epoch=manifest['epoch'], policy=manifest['policy']['version'], request_policy=REQUEST_POLICY,
+        schema_projection=PROJECTION_POLICY, full_answer_schema_hash=digest(encoded(json.loads(ANSWER_SCHEMA_PATH.read_text()))),
         response_format_hash=digest(encoded(response_format())),
         reasoning_budgets=REASONING_BUDGETS, aggregate_output_limit=4096, per_arm_workload=table,
         requests=len(rows), expected_nano_usd=expected, reservation_nano_usd=worst,

@@ -6,7 +6,7 @@ use serde_json::{Value, json};
 /// Billing source: OpenRouter passes provider prices through without markup.
 pub const PRICE_VERSION: &str = "openrouter-recorded-prices/2026-10-06-v1";
 /// Pinned strict answer schema and unchanged minimal unified reasoning budgets.
-pub const REQUEST_POLICY: &str = "assist-openrouter-strict-schema/1";
+pub const REQUEST_POLICY: &str = "assist-openrouter-provider-schema/1";
 /// Keep at least three quarters of the aggregate completion budget for visible output.
 /// Missing/unknown task data receives the bounded multi-view policy.
 pub fn reasoning_budget(task: Option<&str>, output: u64) -> u64 {
@@ -25,6 +25,85 @@ fn request_task(v: &Value) -> Option<String> {
 }
 /// Fixed API dialect; credentials can never be redirected by a project.
 pub const ENDPOINT: &str = "https://openrouter.ai/api/v1/chat/completions";
+/// Sanitized HTTP diagnostics; raw provider text is never retained.
+#[derive(Debug, Clone, Serialize)]
+pub struct HttpError {
+    /// Observed HTTP status.
+    pub http_status: u16,
+    /// Bounded OpenRouter numeric or token code, when well formed.
+    pub openrouter_error_code: Option<Value>,
+    /// Bounded routing name; spaces are allowed for names such as Google AI Studio.
+    pub provider_name: Option<String>,
+    /// Bounded provider status token from the embedded error envelope.
+    pub provider_status: Option<String>,
+    /// An explicit error-only 4xx response with no generation or billing evidence.
+    pub zero_cost_refused: bool,
+}
+/// Classify an already reflection-checked, bounded HTTP rejection without logging it.
+pub fn http_error(status: Option<u16>, body: &[u8]) -> Option<HttpError> {
+    let status = status.filter(|n| (300..600).contains(n))?;
+    let value = decode::<Value>(body).unwrap_or(Value::Null);
+    let error = &value["error"];
+    let token = |value: &Value, spaces: bool| {
+        value
+            .as_str()
+            .filter(|s| {
+                !s.is_empty()
+                    && s.len() <= 64
+                    && s.bytes().all(|b| {
+                        b.is_ascii_alphanumeric() || b"-_.:/".contains(&b) || (spaces && b == b' ')
+                    })
+            })
+            .map(str::to_owned)
+    };
+    let code = if error["code"].as_u64().is_some_and(|n| n <= 999_999) {
+        Some(error["code"].clone())
+    } else {
+        token(&error["code"], false).map(Value::String)
+    };
+    let raw = error["metadata"].get("raw");
+    let embedded = raw
+        .and_then(Value::as_str)
+        .filter(|s| s.len() <= 8192)
+        .and_then(|s| decode::<Value>(s.as_bytes()).ok());
+    // Any identifier, usage or completion evidence makes zero settlement ambiguous.
+    fn generation_evidence(value: &Value) -> bool {
+        match value {
+            Value::Object(map) => map.iter().any(|(key, child)| {
+                [
+                    "id",
+                    "generation_id",
+                    "usage",
+                    "choices",
+                    "cost",
+                    "total_cost",
+                ]
+                .contains(&key.as_str())
+                    || generation_evidence(child)
+            }),
+            Value::Array(array) => array.iter().any(generation_evidence),
+            _ => false,
+        }
+    }
+    let zero_cost_refused = (400..500).contains(&status)
+        && error.is_object()
+        && code.is_some()
+        && !generation_evidence(&value)
+        && raw.is_none_or(|_| {
+            embedded
+                .as_ref()
+                .is_some_and(|v| v["error"].is_object() && !generation_evidence(v))
+        });
+    Some(HttpError {
+        http_status: status,
+        openrouter_error_code: code,
+        provider_name: token(&error["metadata"]["provider_name"], true),
+        provider_status: embedded
+            .as_ref()
+            .and_then(|v| token(&v["error"]["status"], false)),
+        zero_cost_refused,
+    })
+}
 /// Build chat messages from the same anonymous image extraction packet.
 pub fn request(gemini: &[u8], model: &str) -> Result<Vec<u8>> {
     let price = super::price::openrouter_price(model)?;
@@ -176,6 +255,7 @@ pub fn reply(body: &[u8], model: &str, request_hash: &Digest) -> Result<(WireAns
     let text = value["choices"][0]["message"]["content"]
         .as_str()
         .ok_or(super::Error::Invalid("OpenRouter content"))?;
+    super::structured_output::validate_answer(text.as_bytes())?;
     let answer: WireAnswer = decode(text.as_bytes())?;
     require(
         answer.request_hash == *request_hash
@@ -319,13 +399,18 @@ mod tests {
             *format,
             super::super::structured_output::openrouter_format().unwrap()
         );
-        assert_eq!(REQUEST_POLICY, "assist-openrouter-strict-schema/1");
+        assert_eq!(REQUEST_POLICY, "assist-openrouter-provider-schema/1");
+        assert_eq!(
+            format["json_schema"]["name"],
+            super::super::structured_output::PROJECTED_SCHEMA_NAME
+        );
         for invalid in [
             Value::Null,
             json!({"type":"json_object"}),
             json!({"type":"json_schema","json_schema":{"name":"saccade_assist_answer","strict":false,"schema":format["json_schema"]["schema"]}}),
             json!({"type":"json_schema","json_schema":{"name":"other","strict":true,"schema":format["json_schema"]["schema"]}}),
             json!({"type":"json_schema","json_schema":{"name":"saccade_assist_answer","strict":true,"schema":{}}}),
+            json!({"type":"json_schema","json_schema":{"name":super::super::structured_output::PROJECTED_SCHEMA_NAME,"strict":true,"schema":super::super::structured_output::answer_schema().unwrap()}}),
         ] {
             let mut drift = payload.clone();
             drift["response_format"] = invalid;
@@ -351,6 +436,65 @@ mod tests {
         let mut drift = payload;
         drift.as_object_mut().unwrap().remove("response_format");
         assert!(validate_request(&serde_json::to_vec(&drift).unwrap(), model).is_err());
+    }
+    #[test]
+    fn g12_http_error_metadata_is_bounded_and_charset_validated() {
+        let fixture = include_bytes!("../../tests/fixtures/assist-openrouter/schema-http-400.json");
+        for invalid in [
+            "x".repeat(65),
+            "bad\nvalue".into(),
+            "非ascii".into(),
+            String::new(),
+        ] {
+            let mut value: Value = decode(fixture).unwrap();
+            value["error"]["code"] = json!(invalid);
+            value["error"]["metadata"]["provider_name"] = json!(invalid);
+            value["error"]["metadata"]["raw"] =
+                json!(json!({"error":{"status":invalid}}).to_string());
+            let classified = http_error(Some(400), &serde_json::to_vec(&value).unwrap()).unwrap();
+            assert!(classified.openrouter_error_code.is_none());
+            assert!(classified.provider_name.is_none());
+            assert!(classified.provider_status.is_none());
+            assert!(!classified.zero_cost_refused);
+            assert!(
+                !serde_json::to_string(&classified)
+                    .unwrap()
+                    .contains(&invalid)
+                    || invalid.is_empty()
+            );
+        }
+        assert!(http_error(None, fixture).is_none());
+        assert!(!http_error(Some(500), fixture).unwrap().zero_cost_refused);
+        assert!(!http_error(Some(400), b"{}").unwrap().zero_cost_refused);
+    }
+    #[test]
+    fn g12_openrouter_reply_refuses_projected_array_overflow_locally() {
+        let fixture = include_bytes!("../../tests/fixtures/assist-openrouter/chat-completion.json");
+        let mut response: Value = decode(fixture).unwrap();
+        let mut answer: Value = decode(
+            response["choices"][0]["message"]["content"]
+                .as_str()
+                .unwrap()
+                .as_bytes(),
+        )
+        .unwrap();
+        let hash: Digest = serde_json::from_value(answer["request_hash"].clone()).unwrap();
+        let observation = json!({"slot":"P1","kind":"appearance","statement":"appearance:changed",
+            "geometry":{"type":"box","pixels":[0.1,0.1,0.5,0.5]},"visibility":"visible",
+            "evidence_refs":["P1:R0"],"uncertainty":0.1});
+        for length in [64, 65] {
+            answer["observations"] = json!(vec![observation.clone(); length]);
+            response["choices"][0]["message"]["content"] = json!(answer.to_string());
+            assert_eq!(
+                reply(
+                    &serde_json::to_vec(&response).unwrap(),
+                    "openai/fixture-model",
+                    &hash
+                )
+                .is_ok(),
+                length == 64
+            );
+        }
     }
     #[test]
     fn g12_recorded_value_geometry_is_still_refused_locally() {
@@ -690,6 +834,10 @@ mod execution_tests {
             "openrouter_generation_missing"
         );
     }
+    #[test]
+    fn g12_recorded_http_400_classifies_and_settles_zero_without_generation_lookup() {
+        scenarios(32..42);
+    }
     fn scenarios(indices: std::ops::Range<usize>) {
         #[derive(Default)]
         struct Clock(Cell<Duration>);
@@ -799,8 +947,17 @@ mod execution_tests {
                     "reserved"
                 );
                 self.calls.set(self.calls.get() + 1);
+                if self.scenario == 37 {
+                    return Err("fixture network failure".into());
+                }
                 Ok(HttpReply {
-                    status: 200,
+                    status: if self.scenario == 33 {
+                        500
+                    } else if self.scenario >= 32 {
+                        400
+                    } else {
+                        200
+                    },
                     retry_after_secs: None,
                     body: self.body.clone(),
                 })
@@ -882,6 +1039,25 @@ mod execution_tests {
             }
             if index == 12 {
                 value["usage"]["cost"] = json!(0.04);
+            }
+            if index >= 32 {
+                value = decode(include_bytes!(
+                    "../../tests/fixtures/assist-openrouter/schema-http-400.json"
+                ))
+                .unwrap();
+                match index {
+                    34 => value = json!({"error":"ambiguous"}),
+                    35 => value["id"] = json!("gen-fixture-error"),
+                    36 => value["error"]["message"] = json!("fixture-openrouter-key"),
+                    38 => value["usage"] = json!({"cost":0.0001}),
+                    39 => value["id"] = Value::Null,
+                    40 => {
+                        value["error"]["metadata"]["raw"] =
+                            json!("{\"error\":{\"id\":\"gen-fixture\"}}")
+                    }
+                    41 => value["error"]["metadata"]["raw"] = json!("ambiguous provider text"),
+                    _ => {}
+                }
             }
             let mut fake = Fake {
                 ledger: &ledger,
@@ -968,6 +1144,79 @@ mod execution_tests {
             let campaign =
                 std::fs::read_to_string(temp.path().join("ledger/campaign.json")).unwrap();
             assert!(!campaign.contains("fixture-openrouter-key"));
+            if index >= 32 {
+                assert_eq!(fake.calls.get(), 1);
+                assert_eq!(fake.generations.get(), 0);
+                let receipt = &receipts[0];
+                let refused = index == 32;
+                assert_eq!(
+                    result.err().unwrap().code(),
+                    if refused {
+                        "openrouter_http_zero_cost_refused"
+                    } else {
+                        "assist_provider_execution_incomplete"
+                    }
+                );
+                assert_eq!(
+                    receipt.actual_nano_usd,
+                    if refused {
+                        Some(0)
+                    } else if index == 38 {
+                        Some(100_000)
+                    } else {
+                        None
+                    }
+                );
+                assert_eq!(
+                    receipt.outcome,
+                    if refused {
+                        "zero_cost_refused"
+                    } else {
+                        "incomplete"
+                    }
+                );
+                assert_eq!(receipt.usage["qualification_eligible"], false);
+                assert_eq!(receipt.usage["request_policy"], REQUEST_POLICY);
+                assert_eq!(
+                    receipt.usage["schema_projection"],
+                    super::super::structured_output::PROJECTION_POLICY
+                );
+                assert!(!campaign.contains("Request contains an invalid argument"));
+                assert!(!campaign.contains("Provider returned error"));
+                assert!(!campaign.contains("ambiguous provider text"));
+                if refused {
+                    assert_eq!(
+                        receipt.usage["http_error"],
+                        json!({"http_status":400,"openrouter_error_code":400,"provider_name":"Google AI Studio","provider_status":"INVALID_ARGUMENT","zero_cost_refused":true})
+                    );
+                    assert_eq!(
+                        receipt.usage["reconciliation"]["state"],
+                        "zero_cost_refused"
+                    );
+                    let before = std::fs::read(temp.path().join("ledger/campaign.json")).unwrap();
+                    let summary = reconcile_with_clock(
+                        &transport,
+                        Duration::from_secs(30),
+                        &Clock::default(),
+                    )
+                    .unwrap();
+                    assert_eq!(summary.zero_cost_refused, 1);
+                    assert_eq!(summary.pending, 0);
+                    assert_eq!(summary.matched, 0);
+                    assert_eq!(summary.state, "zero_cost_refused");
+                    assert_eq!(fake.generations.get(), 0);
+                    assert_eq!(
+                        before,
+                        std::fs::read(temp.path().join("ledger/campaign.json")).unwrap()
+                    );
+                    let counters: Value = decode(before.as_slice()).unwrap();
+                    assert_eq!(counters["money"]["counters"]["offline"][1], 0);
+                    assert_eq!(counters["money"]["counters"]["campaign/assist"][1], 0);
+                } else if index != 38 {
+                    assert_eq!(receipt.usage["reconciliation"]["state"], "pending");
+                }
+                continue;
+            }
             if index >= 30 {
                 assert_eq!(
                     result.err().unwrap().code(),
@@ -1574,6 +1823,8 @@ pub struct ReconciliationSummary {
     pub pending: usize,
     /// Terminal matched receipts.
     pub matched: usize,
+    /// Proved error-only refusals settled without generation lookup.
+    pub zero_cost_refused: usize,
     /// Terminal billing, identity or revision mismatches.
     pub mismatch: usize,
     /// Aggregate state: pending, matched or mismatch.
@@ -1586,6 +1837,7 @@ pub fn reconciliation_status(
     let mut summary = ReconciliationSummary {
         pending: 0,
         matched: 0,
+        zero_cost_refused: 0,
         mismatch: 0,
         state: "pending",
     };
@@ -1597,6 +1849,7 @@ pub fn reconciliation_status(
             continue;
         }
         match receipt.usage["reconciliation"]["state"].as_str() {
+            Some("zero_cost_refused") => summary.zero_cost_refused += 1,
             Some("matched") => summary.matched += 1,
             Some("mismatch") => summary.mismatch += 1,
             _ => summary.pending += 1,
@@ -1604,6 +1857,8 @@ pub fn reconciliation_status(
     }
     summary.state = if summary.mismatch > 0 {
         "mismatch"
+    } else if summary.pending == 0 && summary.matched == 0 && summary.zero_cost_refused > 0 {
+        "zero_cost_refused"
     } else if summary.pending == 0 && summary.matched > 0 {
         "matched"
     } else {
@@ -1667,7 +1922,7 @@ fn reconcile_pending_with_clock(
         if receipt.usage["openrouter_dispatched"] != true
             || matches!(
                 receipt.usage["reconciliation"]["state"].as_str(),
-                Some("matched" | "mismatch")
+                Some("matched" | "mismatch" | "zero_cost_refused")
             )
         {
             continue;
