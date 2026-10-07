@@ -1889,6 +1889,8 @@ pub struct ReconciliationSummary {
     pub matched: usize,
     /// Proved error-only refusals settled without generation lookup.
     pub zero_cost_refused: usize,
+    /// Operator settlements at full reservation, never provider reconciled.
+    pub settled_conservatively: usize,
     /// Terminal billing, identity or revision mismatches.
     pub mismatch: usize,
     /// Aggregate state: pending, matched or mismatch.
@@ -1902,6 +1904,7 @@ pub fn reconciliation_status(
         pending: 0,
         matched: 0,
         zero_cost_refused: 0,
+        settled_conservatively: 0,
         mismatch: 0,
         state: "pending",
     };
@@ -1909,6 +1912,10 @@ pub fn reconciliation_status(
         .money_receipts()
         .map_err(|_| "openrouter_reconciliation_storage_unavailable")?
     {
+        if receipt.outcome == "settled_conservatively" {
+            summary.settled_conservatively += 1;
+            continue;
+        }
         if receipt.usage["openrouter_dispatched"] != true {
             continue;
         }
@@ -1921,6 +1928,8 @@ pub fn reconciliation_status(
     }
     summary.state = if summary.mismatch > 0 {
         "mismatch"
+    } else if summary.settled_conservatively > 0 {
+        "settled_conservatively"
     } else if summary.pending == 0 && summary.matched == 0 && summary.zero_cost_refused > 0 {
         "zero_cost_refused"
     } else if summary.pending == 0 && summary.matched > 0 {
@@ -1983,7 +1992,8 @@ fn reconcile_pending_with_clock(
         .money_receipts()
         .map_err(|_| "openrouter_reconciliation_storage_unavailable")?
     {
-        if receipt.usage["openrouter_dispatched"] != true
+        if receipt.outcome == "settled_conservatively"
+            || receipt.usage["openrouter_dispatched"] != true
             || matches!(
                 receipt.usage["reconciliation"]["state"].as_str(),
                 Some("matched" | "mismatch" | "zero_cost_refused")

@@ -257,6 +257,42 @@ impl Ledger {
             Ok(())
         })
     }
+    /// Explicit operator settlement: retain every unknown charge at its reservation.
+    /// This is not provider reconciliation and can never release allowance or qualify.
+    /// The campaign runner must validate its frozen root bindings before calling.
+    pub fn settle_unknown_at_reservation(&self) -> Result<(), String> {
+        self.campaign().transaction(|state| {
+            if state.money.stopped {
+                return Err("campaign_spending_stopped".into());
+            }
+            for receipt in &state.money.receipts {
+                if receipt.actual_nano_usd.is_none()
+                    && (!matches!(receipt.outcome.as_str(), "reserved" | "incomplete")
+                        || receipt.reserved_nano_usd == 0
+                        || receipt.usage["campaign_root_index"].as_u64().is_none())
+                {
+                    return Err("invalid unknown cost settlement".into());
+                }
+            }
+            for receipt in &mut state.money.receipts {
+                if receipt.actual_nano_usd.is_some() {
+                    continue;
+                }
+                // Counters already include this entire reservation. Leave them intact.
+                receipt.usage["unknown_cost_settlement"] = serde_json::json!({
+                    "method":"operator_full_reservation", "conservative":true,
+                    "reconciled":false, "previous_actual_nano_usd":null,
+                    "previous_charge_nano_usd":receipt.reserved_nano_usd,
+                    "previous_outcome":receipt.outcome,
+                    "charge_nano_usd":receipt.reserved_nano_usd,
+                    "settled_ms":crate::budget_ledger::now_ms()});
+                receipt.actual_nano_usd = Some(receipt.reserved_nano_usd);
+                receipt.outcome = "settled_conservatively".into();
+                receipt.usage["qualification_eligible"] = serde_json::json!(false);
+            }
+            Ok(())
+        })
+    }
     /// Bind the allowance and baseline to the campaign before any reservation.
     pub fn openrouter_preflight(
         &self,
@@ -308,7 +344,9 @@ impl Ledger {
                         outstanding = outstanding
                             .checked_add(r.reserved_nano_usd)
                             .ok_or("openrouter_accounting_overflow")?;
-                    } else if r.usage["openrouter_dispatched"] == true {
+                    } else if r.usage["openrouter_dispatched"] == true
+                        || r.outcome == "settled_conservatively"
+                    {
                         settled = settled
                             .checked_add(r.actual_nano_usd.unwrap_or(0))
                             .ok_or("openrouter_accounting_overflow")?;
@@ -384,7 +422,8 @@ impl Ledger {
         self.campaign().transaction(|state| {
             let receipt = state.money.receipts.iter_mut().find(|r| r.id == id)
                 .ok_or("unknown money reservation")?;
-            if matches!(receipt.usage["reconciliation"]["state"].as_str(), Some("matched" | "mismatch" | "zero_cost_refused")) { return Ok(()); }
+            if matches!(receipt.usage["reconciliation"]["state"].as_str(), Some("matched" | "mismatch" | "zero_cost_refused"))
+                || receipt.outcome == "settled_conservatively" { return Ok(()); }
             let drifted = generation.as_ref().is_ok_and(|g| {
                 let model = receipt.usage["requested_identity"]["model"].as_str()
                     .or_else(|| receipt.usage["response_identity"]["returned_model"].as_str()).unwrap_or("");
@@ -567,6 +606,84 @@ mod tests {
                 assert!(ledger.bind_campaign(serde_json::json!({}), false).is_err());
             }
         }
+    }
+    #[cfg(feature = "assist")]
+    #[test]
+    fn g12_conservative_settlement_keeps_known_cost_and_unreflected_ceiling_charge() {
+        use crate::{assist::openrouter::Ceiling, evidence::canonical::Digest};
+        let temp = tempfile::tempdir().unwrap();
+        let ledger = Ledger::new(temp.path(), true);
+        let baseline = Ceiling {
+            remaining: 200_000_000,
+            key_usage: Some(0),
+            account_usage: Some(0),
+            hashes: [Digest::of_bytes(b"key"), Digest::of_bytes(b"account")],
+        };
+        ledger
+            .bind_campaign(serde_json::json!({"fixture":true}), false)
+            .unwrap();
+        ledger
+            .openrouter_preflight(200_000_000, || Ok(baseline.clone()))
+            .unwrap();
+        let scopes = [MoneyScope {
+            id: "smoke".into(),
+            cap_nano_usd: 200_000_000,
+        }];
+        for (i, id, amount) in [(0, "known", 10_000_000), (1, "unknown", 60_000_000)] {
+            let hash = Digest::of_bytes(id.as_bytes());
+            ledger.begin_campaign_root(i, hash.clone()).unwrap();
+            ledger
+                .reserve_money(
+                    &scopes,
+                    MoneyReceipt {
+                        id: id.into(),
+                        request_hash: hash,
+                        scopes: vec!["smoke".into()],
+                        reserved_nano_usd: amount,
+                        actual_nano_usd: None,
+                        outcome: "reserved".into(),
+                        usage: serde_json::json!({}),
+                    },
+                )
+                .unwrap();
+            if id == "known" {
+                ledger
+                    .finish_money(id, Some(5_000_000), serde_json::json!({}), true)
+                    .unwrap();
+            }
+        }
+        let known = serde_json::to_value(&ledger.money_receipts().unwrap()[0]).unwrap();
+        ledger.settle_unknown_at_reservation().unwrap();
+        assert_eq!(
+            serde_json::to_value(&ledger.money_receipts().unwrap()[0]).unwrap(),
+            known
+        );
+        let next = Digest::of_bytes(b"next");
+        ledger.begin_campaign_root(2, next.clone()).unwrap();
+        ledger
+            .reserve_money(
+                &scopes,
+                MoneyReceipt {
+                    id: "next".into(),
+                    request_hash: next.clone(),
+                    scopes: vec!["smoke".into()],
+                    reserved_nano_usd: 115_000_000,
+                    actual_nano_usd: None,
+                    outcome: "reserved".into(),
+                    usage: serde_json::json!({}),
+                },
+            )
+            .unwrap();
+        let mut fresh = baseline;
+        fresh.remaining = 140_000_000;
+        assert_eq!(
+            ledger
+                .openrouter_dispatch_check(next, || Ok(fresh))
+                .err()
+                .unwrap(),
+            "openrouter_remaining_exhausted"
+        );
+        assert!(ledger.settle_unknown_at_reservation().is_err());
     }
     #[test]
     fn ordinary_ai_ledger_rewrites_preserve_assist_money_receipts() {

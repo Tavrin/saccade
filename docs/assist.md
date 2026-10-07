@@ -352,3 +352,19 @@ in receipts and root outcomes, never raw bodies or messages. Only a proved 4xx
 error object with no generation, usage or completion evidence is settled as
 `zero_cost_refused`; it remains non-qualifying and needs no generation lookup.
 Network, 5xx and ambiguous failures retain existing unknown-cost handling.
+
+### Conservative settlement of unknown transport cost
+
+For an existing frozen campaign, `--resume EXISTING_DIR
+--settle-unknown-at-reservation` retains each unknown receipt's full reservation,
+records `settled_conservatively` (never reconciled), and permanently skips that
+request as `not_run_transport_failure`. Repeat the original runner options.
+Without the flag, unknown charges still block resume. Known costs and permanent
+stops are never rewritten. The failed request stays unavailable in pilot scoring.
+See [the settlement and scoring decision](design-decisions/g12-unknown-settlement.md).
+
+Score an existing partial live pilot offline with `python3
+scripts/assist/pilot_score.py --corpus CORPUS --requests REQUESTS --results RUN_DIR
+--local-results LOCAL_RESULTS --source-revision ORIGINAL_COMMIT --out SCORE-partial.md`.
+The report and adjacent JSON separate development/calibration/heldout samples,
+retain unknown reservations, and remain explicitly partial and unqualified.

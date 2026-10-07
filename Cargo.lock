@@ -4419,6 +4419,7 @@ dependencies = [
  "tokenizers",
  "toml 0.8.23",
  "ureq",
+ "ureq-proto",
  "url",
  "walkdir",
 ]

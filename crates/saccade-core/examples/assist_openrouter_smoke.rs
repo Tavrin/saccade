@@ -265,35 +265,19 @@ fn resume_roots(
     ledger: &Ledger,
     smoke: &Value,
 ) -> Result<BTreeSet<usize>, Box<dyn std::error::Error>> {
+    let latest = resume_bindings(rows, ledger, smoke)?;
     let outcomes = smoke["root_outcomes"]
         .as_array()
         .ok_or("invalid resume outcomes")?;
-    if outcomes.len() != rows.len()
-        || outcomes
-            .iter()
-            .zip(rows)
-            .enumerate()
-            .any(|(i, (o, r))| o["index"] != i || o["root"] != r.root)
-    {
-        return Err("resume topology changed".into());
-    }
-    let receipts = ledger.money_receipts()?;
-    let mut latest = BTreeMap::new();
-    for receipt in &receipts {
-        let index = receipt.usage["campaign_root_index"]
-            .as_u64()
-            .ok_or("resume receipt lacks root binding")? as usize;
-        let row = rows.get(index).ok_or("resume receipt root changed")?;
-        if receipt.request_hash != Digest::of_bytes(&serde_json::to_vec(&row.payload)?) {
-            return Err("resume receipt payload changed".into());
-        }
-        latest.insert(index, receipt);
-    }
     let mut settled = BTreeSet::new();
     for (index, outcome) in outcomes.iter().enumerate() {
         if let Some(receipt) = latest.get(&index) {
             if receipt.actual_nano_usd.is_none() || receipt.outcome == "reserved" {
                 return Err("resume requires reconciled incomplete cost".into());
+            }
+            if receipt.outcome == "settled_conservatively" {
+                settled.insert(index);
+                continue;
             }
             if receipt.outcome == "zero_cost_refused"
                 || (receipt.outcome == "completed"
@@ -324,6 +308,48 @@ fn resume_roots(
     }
     Ok(settled)
 }
+// Validate all durable attempts before any operator settlement can mutate charges.
+fn resume_bindings(
+    rows: &[Row],
+    ledger: &Ledger,
+    smoke: &Value,
+) -> Result<BTreeMap<usize, saccade_core::budget_ledger::MoneyReceipt>, Box<dyn std::error::Error>>
+{
+    let outcomes = smoke["root_outcomes"]
+        .as_array()
+        .ok_or("invalid resume outcomes")?;
+    if outcomes.len() != rows.len()
+        || outcomes
+            .iter()
+            .zip(rows)
+            .enumerate()
+            .any(|(i, (o, r))| o["index"] != i || o["root"] != r.root)
+    {
+        return Err("resume topology changed".into());
+    }
+    let receipts = ledger.money_receipts()?;
+    let mut latest = BTreeMap::new();
+    for receipt in &receipts {
+        let index = receipt.usage["campaign_root_index"]
+            .as_u64()
+            .ok_or("resume receipt lacks root binding")? as usize;
+        let row = rows.get(index).ok_or("resume receipt root changed")?;
+        if receipt.request_hash != Digest::of_bytes(&serde_json::to_vec(&row.payload)?) {
+            return Err("resume receipt payload changed".into());
+        }
+        latest.insert(index, receipt.clone());
+    }
+    Ok(latest)
+}
+fn settle_resume_unknown(
+    rows: &[Row],
+    ledger: &Ledger,
+    smoke: &Value,
+) -> Result<(), Box<dyn std::error::Error>> {
+    resume_bindings(rows, ledger, smoke)?;
+    ledger.settle_unknown_at_reservation()?;
+    Ok(())
+}
 // Refresh exported receipts from the authoritative ledger without replacing provenance.
 fn export_reconciliation(
     out: &Path,
@@ -346,6 +372,14 @@ fn export_reconciliation(
         outcome["http_error"] = receipt.usage["http_error"].clone();
         outcome["money_outcome"] = json!(receipt.outcome);
         outcome["actual_nano_usd"] = json!(receipt.actual_nano_usd);
+        outcome["unknown_cost_settlement"] = receipt.usage["unknown_cost_settlement"].clone();
+        if receipt.outcome == "settled_conservatively" {
+            if outcome["code"] != "not_run_transport_failure" {
+                outcome["previous_code"] = outcome["code"].clone();
+            }
+            outcome["code"] = json!("not_run_transport_failure");
+            outcome["failure_class"] = json!("not_run");
+        }
         outcome["reconciliation"] = receipt.usage["reconciliation"].clone();
         outcome["revision_identity"] = receipt.usage["revision_identity"].clone();
         outcome["qualification_eligible"] = if outcome["code"] == "invalid_answer" {
@@ -361,6 +395,7 @@ fn export_reconciliation(
         if receipt.usage["campaign_root_index"].is_u64() {
             assist::write(&out.join(format!("money-{}.json", receipt.id)), receipt)?;
         }
+        exported["unknown_cost_settlement"] = receipt.usage["unknown_cost_settlement"].clone();
         exported["transport_failure"] = receipt.usage["transport_failure"].clone();
         exported["reconciliation"] = receipt.usage["reconciliation"].clone();
         exported["revision_identity"] = receipt.usage["revision_identity"].clone();
@@ -586,7 +621,15 @@ fn run_with(args: impl IntoIterator<Item = String>) -> Result<(), Box<dyn std::e
     let mut stage2 = false;
     let mut budget_bounded = false;
     let mut validate_only = false;
+    let mut settle_unknown = false;
     while let Some(arg) = args.next() {
+        if arg == "--settle-unknown-at-reservation" {
+            if settle_unknown {
+                return Err("duplicate settlement flag".into());
+            }
+            settle_unknown = true;
+            continue;
+        }
         if arg == "--stage2" {
             stage2 = true;
             continue;
@@ -621,6 +664,13 @@ fn run_with(args: impl IntoIterator<Item = String>) -> Result<(), Box<dyn std::e
             return Err("invalid smoke arguments".into());
         }
         options.insert(arg, args.next().ok_or("missing argument value")?);
+    }
+    if settle_unknown
+        && (!options.contains_key("--resume")
+            || validate_only
+            || options.contains_key("--reconcile-only"))
+    {
+        return Err("settlement requires resume execution".into());
     }
     if let Some(out) = options.get("--reconcile-only") {
         if options.len() != 1 || above_25 || stage2 || validate_only || budget_bounded {
@@ -758,7 +808,13 @@ fn run_with(args: impl IntoIterator<Item = String>) -> Result<(), Box<dyn std::e
             "dispatch_failed":false,"answer_failure_policy":stage2.then_some(answer_limits),"qualified":false})
     };
     let settled = if resume {
-        resume_roots(&rows, &ledger, &smoke)?
+        if settle_unknown {
+            settle_resume_unknown(&rows, &ledger, &smoke)?;
+        }
+        let settled = resume_roots(&rows, &ledger, &smoke)?;
+        attach_receipts(&out, &ledger, &mut smoke)?;
+        export_reconciliation(&out, &ledger, &mut smoke)?;
+        settled
     } else {
         BTreeSet::new()
     };
@@ -853,6 +909,195 @@ fn main() {
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[test]
+    fn g12_operator_settlement_retains_charge_skips_failed_root_and_survives_reopen() {
+        use saccade_core::budget_ledger::MoneyReceipt;
+        let temp = tempfile::tempdir().unwrap();
+        let out = temp.path();
+        let ledger = Ledger::new(&out.join("ledger"), true);
+        let rows: Vec<_> = (0..3)
+            .map(|i| Row {
+                root: format!("root-{i}"),
+                model: "fixture".into(),
+                revision: "absent".into(),
+                payload: json!({"index":i}),
+            })
+            .collect();
+        ledger
+            .bind_campaign(json!({"plan":"fixture"}), false)
+            .unwrap();
+        for i in 0..2 {
+            let hash = Digest::of_bytes(&serde_json::to_vec(&rows[i].payload).unwrap());
+            ledger.begin_campaign_root(i, hash.clone()).unwrap();
+            ledger
+                .reserve_money(
+                    &[MoneyScope {
+                        id: "smoke".into(),
+                        cap_nano_usd: 250,
+                    }],
+                    MoneyReceipt {
+                        id: format!("attempt-{i}"),
+                        request_hash: hash,
+                        scopes: vec!["smoke".into()],
+                        reserved_nano_usd: 100,
+                        actual_nano_usd: None,
+                        outcome: "reserved".into(),
+                        usage: json!({"openrouter_dispatched":true}),
+                    },
+                )
+                .unwrap();
+        }
+        ledger
+            .finish_money(
+                "attempt-0",
+                None,
+                json!({"transport_failure":"timeout"}),
+                false,
+            )
+            .unwrap();
+        // Second receipt simulates a crash between dispatch/reservation and finish.
+        let mut smoke = json!({"root_outcomes":rows.iter().enumerate().map(|(i,r)| json!({"index":i,"root":r.root,
+            "code":"assist_provider_execution_incomplete"})).collect::<Vec<_>>()});
+        attach_receipts(out, &ledger, &mut smoke).unwrap();
+        assert!(resume_roots(&rows, &ledger, &smoke).is_err());
+        let mut changed = smoke.clone();
+        changed["root_outcomes"][0]["root"] = json!("wrong");
+        assert!(settle_resume_unknown(&rows, &ledger, &changed).is_err());
+        assert!(
+            ledger.money_receipts().unwrap()[0]
+                .actual_nano_usd
+                .is_none()
+        );
+        let before: Value =
+            serde_json::from_slice(&std::fs::read(out.join("ledger/campaign.json")).unwrap())
+                .unwrap();
+        settle_resume_unknown(&rows, &ledger, &smoke).unwrap();
+        let receipts = ledger.money_receipts().unwrap();
+        assert_eq!(
+            receipts
+                .iter()
+                .map(|r| r.actual_nano_usd.unwrap())
+                .sum::<u64>(),
+            200
+        );
+        assert!(
+            receipts
+                .iter()
+                .all(|r| r.outcome == "settled_conservatively"
+                    && r.usage["qualification_eligible"] == false)
+        );
+        settle_resume_unknown(&rows, &ledger, &smoke).unwrap();
+        assert_eq!(
+            serde_json::to_value(ledger.money_receipts().unwrap()).unwrap(),
+            serde_json::to_value(&receipts).unwrap()
+        );
+        ledger
+            .record_openrouter_reconciliation(
+                "attempt-0",
+                Err("openrouter_generation_missing"),
+                0,
+                0,
+                1,
+            )
+            .unwrap();
+        assert_eq!(
+            serde_json::to_value(ledger.money_receipts().unwrap()).unwrap(),
+            serde_json::to_value(&receipts).unwrap()
+        );
+        let after: Value =
+            serde_json::from_slice(&std::fs::read(out.join("ledger/campaign.json")).unwrap())
+                .unwrap();
+        assert_eq!(before["money"]["counters"], after["money"]["counters"]);
+        assert_eq!(
+            openrouter::reconciliation_status(&ledger)
+                .unwrap()
+                .settled_conservatively,
+            2
+        );
+        assert_eq!(
+            openrouter::reconciliation_status(&ledger).unwrap().state,
+            "settled_conservatively"
+        );
+        // Recover even if the process crashed before exporting the settlement.
+        let reopened = Ledger::new(&out.join("ledger"), true);
+        assert_eq!(
+            resume_roots(&rows, &reopened, &smoke).unwrap(),
+            BTreeSet::from([0, 1])
+        );
+        export_reconciliation(out, &reopened, &mut smoke).unwrap();
+        assert_eq!(
+            smoke["root_outcomes"][0]["code"],
+            "not_run_transport_failure"
+        );
+        assert_eq!(
+            smoke["root_outcomes"][0]["previous_code"],
+            "assist_provider_execution_incomplete"
+        );
+        let mut called = Vec::new();
+        let (_, failed) = continue_roots(
+            &rows,
+            Instant::now() + Duration::from_secs(300),
+            false,
+            None,
+            smoke["root_outcomes"].as_array().unwrap(),
+            &resume_roots(&rows, &reopened, &smoke).unwrap(),
+            Instant::now,
+            |i, _| {
+                called.push(i);
+                Ok(CallOutcome::Completed)
+            },
+            |_| Ok(()),
+        );
+        assert!(!failed);
+        assert_eq!(called, vec![2]);
+        let hash = Digest::of_bytes(&serde_json::to_vec(&rows[2].payload).unwrap());
+        reopened.begin_campaign_root(2, hash.clone()).unwrap();
+        assert!(
+            reopened
+                .reserve_money(
+                    &[MoneyScope {
+                        id: "smoke".into(),
+                        cap_nano_usd: 250
+                    }],
+                    MoneyReceipt {
+                        id: "next".into(),
+                        request_hash: hash,
+                        scopes: vec!["smoke".into()],
+                        reserved_nano_usd: 100,
+                        actual_nano_usd: None,
+                        outcome: "reserved".into(),
+                        usage: json!({})
+                    }
+                )
+                .is_err()
+        );
+        reopened.stop_spending().unwrap();
+        assert!(reopened.settle_unknown_at_reservation().is_err());
+    }
+    #[test]
+    fn g12_settlement_flag_requires_resume_before_policy_or_credentials() {
+        for args in [
+            vec!["--settle-unknown-at-reservation"],
+            vec![
+                "--settle-unknown-at-reservation",
+                "--resume",
+                "absent",
+                "--validate-only",
+            ],
+            vec![
+                "--settle-unknown-at-reservation",
+                "--reconcile-only",
+                "absent",
+            ],
+        ] {
+            assert_eq!(
+                run_with(args.into_iter().map(String::from))
+                    .unwrap_err()
+                    .to_string(),
+                "settlement requires resume execution"
+            );
+        }
+    }
     #[test]
     fn g12_resume_skips_settled_roots_blocks_unknown_and_preserves_attempt_mapping() {
         use saccade_core::budget_ledger::MoneyReceipt;

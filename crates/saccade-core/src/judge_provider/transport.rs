@@ -384,6 +384,12 @@ pub enum TransportFailure {
     Reset,
     /// TLS handshake or certificate failure.
     Tls,
+    /// Response body read, size or decompression failure.
+    BodyReadDecode,
+    /// Premature stream termination or invalid chunk framing.
+    StreamTermination,
+    /// HTTP framing/protocol failure. ureq exposes HTTP/1.1 only.
+    HttpProtocol,
     /// Other transport failure.
     Other,
 }
@@ -403,11 +409,19 @@ impl TransportFailure {
             ErrorKind::ConnectionRefused
             | ErrorKind::AddrNotAvailable
             | ErrorKind::NotConnected => Self::Connect,
-            ErrorKind::ConnectionReset
-            | ErrorKind::ConnectionAborted
-            | ErrorKind::BrokenPipe
-            | ErrorKind::UnexpectedEof => Self::Reset,
+            ErrorKind::ConnectionReset | ErrorKind::ConnectionAborted | ErrorKind::BrokenPipe => {
+                Self::Reset
+            }
+            ErrorKind::UnexpectedEof => Self::StreamTermination,
+            ErrorKind::InvalidData => Self::BodyReadDecode,
             _ => Self::Other,
+        }
+    }
+    #[cfg(feature = "assist")]
+    fn body(error: &std::io::Error) -> Self {
+        match Self::io(error) {
+            Self::Other => Self::BodyReadDecode,
+            class => class,
         }
     }
     #[cfg(feature = "assist")]
@@ -416,7 +430,20 @@ impl TransportFailure {
             ureq::Error::Timeout(_) => Self::Timeout,
             ureq::Error::ConnectionFailed | ureq::Error::HostNotFound => Self::Connect,
             ureq::Error::Io(error) => Self::io(error),
-            ureq::Error::Tls(_) | ureq::Error::Rustls(_) | ureq::Error::Pem(_) => Self::Tls,
+            ureq::Error::Tls(_)
+            | ureq::Error::Rustls(_)
+            | ureq::Error::Pem(_)
+            | ureq::Error::TlsRequired => Self::Tls,
+            ureq::Error::Protocol(error) => match error {
+                ureq_proto::Error::ChunkLenNotAscii
+                | ureq_proto::Error::ChunkLenNotANumber
+                | ureq_proto::Error::ChunkExpectedCrLf => Self::StreamTermination,
+                _ => Self::HttpProtocol,
+            },
+            ureq::Error::BodyStalled => Self::StreamTermination,
+            ureq::Error::Decompress(_, _) | ureq::Error::BodyExceedsLimit(_) => {
+                Self::BodyReadDecode
+            }
             _ => Self::Other,
         }
     }
@@ -428,6 +455,9 @@ impl TransportFailure {
             Self::Connect => "transport_connect",
             Self::Reset => "transport_reset",
             Self::Tls => "transport_tls",
+            Self::BodyReadDecode => "transport_body_read_decode",
+            Self::StreamTermination => "transport_stream_termination",
+            Self::HttpProtocol => "transport_http_protocol",
             Self::Other => "transport_other",
         }
     }
@@ -437,6 +467,9 @@ impl TransportFailure {
             "transport_connect" => Self::Connect,
             "transport_reset" => Self::Reset,
             "transport_tls" => Self::Tls,
+            "transport_body_read_decode" => Self::BodyReadDecode,
+            "transport_stream_termination" => Self::StreamTermination,
+            "transport_http_protocol" => Self::HttpProtocol,
             _ => Self::Other,
         }
     }
@@ -574,9 +607,9 @@ fn openrouter_http(
         .into_reader()
         .take(256 * 1024 + 1)
         .read_to_end(&mut body)
-        .map_err(|error| TransportFailure::io(&error).code())?;
+        .map_err(|error| TransportFailure::body(&error).code())?;
     if body.len() > 256 * 1024 {
-        return Err("OpenRouter body limit".into());
+        return Err(TransportFailure::BodyReadDecode.code().into());
     }
     Ok(HttpReply {
         status,
@@ -1199,6 +1232,54 @@ impl std::fmt::Debug for FailedAttempt {
 #[allow(clippy::unwrap_used)]
 mod transport_class_tests {
     use super::TransportFailure;
+    #[cfg(feature = "assist")]
+    #[test]
+    fn g12_transport_body_chunk_and_protocol_errors_are_sanitized() {
+        use std::io::{Error, ErrorKind};
+        for (error, expected) in [
+            (
+                ureq::Error::Decompress("fixture-secret", Error::other("body secret")),
+                TransportFailure::BodyReadDecode,
+            ),
+            (
+                ureq::Error::Protocol(ureq_proto::Error::ChunkExpectedCrLf),
+                TransportFailure::StreamTermination,
+            ),
+            (
+                ureq::Error::Protocol(ureq_proto::Error::ChunkLenNotAscii),
+                TransportFailure::StreamTermination,
+            ),
+            (
+                ureq::Error::Protocol(ureq_proto::Error::ChunkLenNotANumber),
+                TransportFailure::StreamTermination,
+            ),
+            (
+                ureq::Error::Protocol(ureq_proto::Error::BodyNotAllowed),
+                TransportFailure::HttpProtocol,
+            ),
+            (
+                ureq::Error::BodyStalled,
+                TransportFailure::StreamTermination,
+            ),
+        ] {
+            assert_eq!(TransportFailure::ureq(&error), expected);
+            assert_eq!(TransportFailure::body(&error.into_io()), expected);
+            assert_eq!(TransportFailure::from_code(expected.code()), expected);
+            assert!(!serde_json::to_string(&expected).unwrap().contains("secret"));
+        }
+        assert_eq!(
+            TransportFailure::body(&Error::other("secret")),
+            TransportFailure::BodyReadDecode
+        );
+        assert_eq!(
+            TransportFailure::body(&Error::new(ErrorKind::ConnectionReset, "secret")),
+            TransportFailure::Reset
+        );
+        assert_eq!(
+            TransportFailure::body(&Error::new(ErrorKind::TimedOut, "secret")),
+            TransportFailure::Timeout
+        );
+    }
     #[test]
     fn g12_transport_classes_discard_untrusted_diagnostics() {
         use std::io::{Error, ErrorKind};
@@ -1206,7 +1287,10 @@ mod transport_class_tests {
             (ErrorKind::TimedOut, TransportFailure::Timeout),
             (ErrorKind::ConnectionRefused, TransportFailure::Connect),
             (ErrorKind::ConnectionReset, TransportFailure::Reset),
-            (ErrorKind::UnexpectedEof, TransportFailure::Reset),
+            (
+                ErrorKind::UnexpectedEof,
+                TransportFailure::StreamTermination,
+            ),
             (ErrorKind::Other, TransportFailure::Other),
         ] {
             let error = Error::new(kind, "fixture-secret and untrusted endpoint");

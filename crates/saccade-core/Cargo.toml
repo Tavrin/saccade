@@ -34,6 +34,7 @@ sha2 = "0.10"
 tiny_http = { version = "0.12", optional = true }
 # Blocking HTTP client for the judge-mode providers (MIT OR Apache-2.0); no async runtime.
 ureq = { version = "3", optional = true }
+ureq-proto = { version = "0.6", optional = true }
 httpdate = { version = "1", optional = true }
 tempfile = "3"
 schemars = { version = "1", optional = true }
@@ -93,7 +94,7 @@ prechecks = []
 # Derives `schemars::JsonSchema` on the report, decisions and explain types.
 schema = ["dep:schemars"]
 
-assist = ["ai", "serde_json/raw_value"]
+assist = ["ai", "serde_json/raw_value", "dep:ureq-proto"]
 # wave7
 local-models = ["dep:ort", "dep:ureq", "dep:tokenizers", "dep:flate2", "dep:tar"]
 local-vlm = ["dep:ureq", "dep:base64"]

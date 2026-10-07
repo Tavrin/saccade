@@ -702,3 +702,20 @@ stay fixed. The old durably stopped ledger is retained read only; no stop bit or
 spend counter is cleared. Use a fresh campaign, then resume that campaign with
 identical policy/plan/allowance. This is the spec's documented fresh-run fallback.
 See [the exact commands and evidence](design-decisions/g12-reasoning-hint.md).
+
+### G12 operator settlement exception and partial scoring
+
+The explicit resume-only flag `--settle-unknown-at-reservation` accepts full
+reservation charges for unknown receipts after frozen binding validation. It
+never releases allowance or clears stops, never claims generation reconciliation,
+and never redispatches the conservatively settled request. That request is
+`not_run_transport_failure` and remains unavailable in quality denominators.
+The default unknown-cost refusal and matched-incomplete retry behavior remain
+unchanged. See [the decision](design-decisions/g12-unknown-settlement.md).
+
+The offline `scripts/assist/pilot_score.py` adapter uses the original frozen
+oracle/scoring functions and records input identities, independent root counts,
+nominal one-sided 95% limits, invalid answers, over-hint rates, known costs,
+unknown reservations and completed cold-call latency. Split results are separate;
+no development/calibration provider performance is inferred from heldout calls.
+The synthetic scorer and its qualification gates retain their original rules.
