@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Mandatory offline oracle-perfect/wrong scorer gate; development data only."""
+"""Mandatory offline oracle-perfect/near-perfect/wrong scorer gate; development data only."""
 import argparse
 import copy
 import io
@@ -13,10 +13,10 @@ from collections import defaultdict
 
 
 def box(rect, dimensions):
-    # Outward enclosure is an answer choice, not scorer padding/tolerance.
+    # Synthetic perfect boxes use exact declared region coordinates.
     x,y,w,h=rect; width,height=dimensions
-    left=max(0,x-1);top=max(0,y-1)
-    right=min(width,x+w+1);bottom=min(height,y+h+1)
+    left=x;top=y
+    right=x+w;bottom=y+h
     return [left/width,top/height,(right-left)/width,(bottom-top)/height]
 
 
@@ -32,14 +32,15 @@ def perfect(case, truth, directory, order, child=False):
         return dict(slot=slot,kind=statement.split(':')[0],statement=statement,
             geometry=dict(type='box',pixels=coords),visibility='visible',evidence_refs=refs,uncertainty=0)
     if (case.get('condition') or {}).get('kind')=='non_overlap':
-        observations=[observation('overlap:separate',[0,0,1,1],[slot+':R0',slot+':R1'])]
+        from dev_policy import region_rect
+        observations=[observation('overlap:separate',box(region_rect(case,'single:'+r,directory),case['dimensions']),[slot+':'+r]) for r in ('R0','R1')]
     elif case['task']=='check_ui':
         statement='text:'+case['label'] if witness['label_complete'] else (
             'clipping:clipped' if witness['label_pixels'] else 'presence:absent')
-        observations=[observation(statement,[0,0,1,1],[slot+':R0'])]
+        observations=[observation(statement,box(case['target'],case['dimensions']),[slot+':R0'])]
     else:
         def appearance(rect, ref):
-            coords=box(rect,c['dimensions'])
+            coords=[v/c['dimensions'][i%2] for i,v in enumerate(rect)]
             # Independent oracle-bound raster comparison: never ask the scorer
             # which statement it would accept when constructing expected answers.
             from PIL import Image
@@ -57,17 +58,20 @@ def perfect(case, truth, directory, order, child=False):
     return dict(request_hash=request_hash,outcome='observed' if child else truth['expected_outcome'],observations=observations)
 
 
-def validate_closed(answer, case, order, child, directory):
+def validate_closed(answer, case, order, child, directory, request_data=None):
     """Offline checks of the live transport's closed shape and citation contract."""
     from dev_policy import payload
-    data=json.loads(payload(case,order,child,directory)['messages'][1]['content'][0]['text'])
+    data=request_data if request_data is not None else json.loads(payload(case,order,child,directory)['messages'][1]['content'][0]['text'])
     if set(answer)!={'request_hash','outcome','observations'} or answer['request_hash']!=data['request_hash']:
         raise ValueError('synthetic request-bound closed answer')
     if answer['outcome'] not in ('observed','not_observed','unverifiable'):raise ValueError('outcome')
     views={v['slot']:{r['id'] for r in v['regions']} for v in data['views']}
+    seen=set()
     for o in answer['observations']:
         if set(o)!={'slot','kind','statement','geometry','visibility','evidence_refs','uncertainty'}:raise ValueError('closed observation')
-        if o['slot'] not in views or not o['evidence_refs'] or not set(o['evidence_refs'])<=views[o['slot']]:raise ValueError('citation identity')
+        if o['slot'] not in views or len(o['evidence_refs'])!=1 or not set(o['evidence_refs'])<=views[o['slot']]:raise ValueError('citation identity')
+        if o['evidence_refs'][0] in seen: raise ValueError('duplicate region statement')
+        seen.add(o['evidence_refs'][0])
         if o['kind']!=o['statement'].split(':',1)[0]:raise ValueError('kind statement mismatch')
         permitted={'presence':('presence:present','presence:absent'),'clipping':('clipping:clipped','clipping:contained'),
             'overlap':('overlap:overlap','overlap:separate'),'appearance':('appearance:changed','appearance:unchanged')}
@@ -81,10 +85,12 @@ def validate_closed(answer, case, order, child, directory):
 
 def proof(manifest, oracle, directory):
     from stage2 import ARMS
-    from dev_policy import normalize
+    from score import GEOMETRY_POLICY, REGION_MIN_IOU, REGION_MIN_COVERAGE
+    from dev_policy import normalize, payload, output_fit, PROMPT_EPOCH, PROMPT_POLICY, SCORER_POLICY
     from pilot_score import semantic, summarize
-    groups=defaultdict(list); legacy=defaultdict(list)
-    variants=('perfect','missing','hallucinated','wrong_text','wrong_geometry','wrong_order')
+    groups=defaultdict(list); legacy=defaultdict(list); budgets=[]
+    positive=('perfect','near_inward_0.5pct','near_outward_0.5pct','near_inward_1pct','near_outward_1pct')
+    variants=(*positive,'merged_regions','missing','hallucinated','wrong_text','wrong_geometry','wrong_order')
     for case in manifest['cases']:
         if case['split']!='development': raise ValueError('selftest accepts development roots only')
         truth=oracle[case['root_id']]
@@ -96,18 +102,38 @@ def proof(manifest, oracle, directory):
             for child in (False,True) if case.get('counterfactual') else (False,):
                 answers[child]=[perfect(case,truth,directory,o,child) for o in orders]
             for child, order_answers in answers.items():
-                for order, answer in zip(orders,order_answers):validate_closed(answer,case,order,child,directory)
+                for order, answer in zip(orders,order_answers):
+                    validate_closed(answer,case,order,child,directory)
+                    budgets.append(dict(workload=case['workload'],root=case['root_id'],order=order,child=child,
+                        **output_fit(answer, payload(case,order,child,directory))))
             for variant in variants:
                 values=copy.deepcopy(answers)
                 if variant=='missing': values={False:[None]}
                 else:
                     for child, values_order in values.items():
                         for a in values_order:
-                            if variant!='perfect':
+                            if variant not in positive:
                                 a['outcome']='observed'
                                 if not a['observations']:
                                     a['observations']=[dict(slot='P1',kind='text',statement='text:invented',geometry=dict(type='box',pixels=[0,0,1,1]),visibility='visible',evidence_refs=['P1:R0'],uncertainty=0)]
-                            if variant=='hallucinated':
+                            if variant.startswith('near_'):
+                                # Width and height jitter by the named image percentage,
+                                # centered (each edge moves half that amount).
+                                # on the primary region, consistently across orders.
+                                amount=.0025 if '0.5pct' in variant else .005
+                                sign=1 if 'inward' in variant else -1
+                                for obs in a['observations']:
+                                    if obs['evidence_refs']==[obs['slot']+':R0']:
+                                        x,y,w,h=[v/case['dimensions'][i%2] for i,v in enumerate(case['target'])]
+                                        l=max(0,x+sign*amount);t=max(0,y+sign*amount)
+                                        r=min(1,x+w-sign*amount);b=min(1,y+h-sign*amount)
+                                        obs['geometry']['pixels']=[l,t,r-l,b-t]
+                            elif variant=='merged_regions':
+                                obs=a['observations'][0]
+                                refs=list(dict.fromkeys(r for o in a['observations'] for r in o['evidence_refs']))
+                                obs['evidence_refs']=refs if len(refs)>1 else refs*2
+                                a['observations']=[obs]
+                            elif variant=='hallucinated':
                                 a['observations'].append(dict(a['observations'][0],kind='text',statement='text:unsupported synthetic hallucination'))
                             elif variant=='wrong_text':
                                 for obs in a['observations']: obs.update(kind='text',statement='text:deliberately wrong literal')
@@ -134,18 +160,22 @@ def proof(manifest, oracle, directory):
                     old_result.update(important=truth['important'],root=case['root_id'])
                     legacy[(case['workload'],arm)].append(old_result)
     rows=[]; failed=[]
+    worst=[max((b for b in budgets if b['workload']==w),key=lambda b:b['answer_bytes']) for w in sorted({b['workload'] for b in budgets})]
+    failed.extend(sorted({(b['workload'],'output_budget','fit') for b in budgets if not b['passed']}))
     for (workload,arm,variant),items in sorted(groups.items()):
         m=summarize(items,[])
-        flagged=sum(not i['correct'] and not (variant=='perfect' and i['abstention']) for i in items)
-        passed=(m['precision']==1 and m['important_change_recall']==1 and m['false_reassurance']==0 and m['available_roots']==m['roots']) if variant=='perfect' else (m['correct_roots']==0 and flagged==len(items))
+        flagged=sum(not i['correct'] and not (variant in positive and i['abstention']) for i in items)
+        passed=(m['precision']==1 and m['important_change_recall']==1 and m['false_reassurance']==0 and m['available_roots']==m['roots']) if variant in positive else (m['correct_roots']==0 and flagged==len(items))
         if not passed: failed.append((workload,arm,variant))
         rows.append(dict(workload=workload,arm=arm,variant=variant,roots=m['roots'],precision=m['precision'],
             important_recall=m['important_change_recall'],false_reassurance=m['false_reassurance'],
             correct_roots=m['correct_roots'],flagged_roots=flagged,available_roots=m['available_roots'],passed=passed))
     return dict(schema='saccade-scorer-selftest.v1',status='FAIL' if failed else 'PASS',
+        prompt_epoch=PROMPT_EPOCH,prompt_policy=PROMPT_POLICY,scorer_policy=SCORER_POLICY,geometry_policy=GEOMETRY_POLICY,geometry_mode='tolerance',region_min_iou=REGION_MIN_IOU,region_min_coverage=REGION_MIN_COVERAGE,
         development_roots=len(manifest['cases']),provider_calls=0,heldout_entries_decoded=0,
         evidence='Synthetic oracle-injected closed-protocol answers through dev_policy.normalize and pilot_score.semantic (score.assertion_correct/task_evidence). All arms are injections, not provider/routing performance.',
         unavailable='Unavailable roots correctly abstain, excluded from precision; important recall keeps all challenge roots. Negative cases must be wrong or unavailable, never accepted.',
+        output_budget=worst,output_budget_rule='UTF-8 bytes as tokens (at least one per character); 2x answer + reasoning hint <= max_tokens',
         rows=rows,failures=failed,legacy_perfect=[dict(workload=w,arm=a,**{k:summarize(items,[])[k] for k in ('precision','important_change_recall','false_reassurance')}) for (w,a),items in sorted(legacy.items())])
 
 
@@ -156,10 +186,13 @@ def markdown(result):
     pct=lambda v:'withheld' if v is None else f'{100*v:.0f}%'
     for r in result['rows']:
         lines.append(f"| {r['workload']} | {r['arm']} | {r['variant']} | {pct(r['precision'])} | {pct(r['important_recall'])} | {r['false_reassurance']} | {r['flagged_roots']}/{r['roots']} | {r['passed']} |")
+    lines += ['', '## Output fit', '', result['output_budget_rule'], '', '| Workload | Answer bytes/tokens | 2x answer + hint | Budget | Pass |', '|---|---:|---:|---:|---|']
+    for b in result['output_budget']:
+        lines.append(f"| {b['workload']} | {b['answer_bytes']} | {b['required_tokens']} | {b['max_tokens']} | {b['passed']} |")
     lines += ['', '## Legacy oracle-perfect diagnostic', '', '| Workload | Arm | Precision | Important recall | False reassurance |', '|---|---|---:|---:|---:|']
     for r in result['legacy_perfect']:
         lines.append(f"| {r['workload']} | {r['arm']} | {pct(r['precision'])} | {pct(r['important_change_recall'])} | {r['false_reassurance']} |")
-    lines += ['', 'Legacy region-only citation scorer cannot establish audit-mask success even with perfect answers; epoch-3 explicit region/exclusion mapping repairs that protocol mismatch. No tolerance or statement matching changes.','']
+    lines += ['', 'Legacy region-only citation scorer cannot establish audit-mask success even with perfect answers; epoch-3 explicit region/exclusion mapping repairs that protocol mismatch. Epoch 5 uses explicit region tolerance and rejects merged region statements.','']
     return '\n'.join(lines)
 
 

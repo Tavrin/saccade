@@ -28,6 +28,8 @@ struct Row {
     model: String,
     revision: String,
     payload: Value,
+    #[serde(default)]
+    output_fit: Option<Value>,
 }
 fn allowance(text: &str, above_25: bool) -> Result<u64, &'static str> {
     let cap = openrouter::decimal_amount(text, false)
@@ -63,6 +65,9 @@ fn validate_rows(
     }
     let mut total = 0u64;
     for row in rows {
+        if row.output_fit.is_some() && !output_fits(row) {
+            return Err("invalid_or_insufficient_output_fit".into());
+        }
         let bytes = serde_json::to_vec(&row.payload)?;
         total = total
             .checked_add(openrouter::admission(&bytes, &row.model)?.reservation)
@@ -477,6 +482,7 @@ fn stage2_answer(row: &Row, response: &[u8]) -> assist::Result<Value> {
     let (data, hash) = stage2_request(row)?;
     let (answer, _) = openrouter::reply(response, &row.model, &hash)?;
     let value = serde_json::to_value(answer).map_err(|_| assist::Error::Storage)?;
+    let mut cited_regions = BTreeSet::new();
     for observation in value["observations"]
         .as_array()
         .ok_or(assist::Error::Invalid("stage2 observations"))?
@@ -521,11 +527,17 @@ fn stage2_answer(row: &Row, response: &[u8]) -> assist::Result<Value> {
             .as_array()
             .ok_or(assist::Error::Invalid("stage2 citations"))?;
         if refs.is_empty()
+            || (data["prompt_epoch"] == "g12-pilot/5" && refs.len() != 1)
             || refs.iter().any(|r| {
                 !view["regions"]
                     .as_array()
                     .is_some_and(|regions| regions.iter().any(|region| region["id"] == *r))
             })
+        {
+            return Err(assist::Error::Invalid("stage2 citation identity"));
+        }
+        if data["prompt_epoch"] == "g12-pilot/5"
+            && !cited_regions.insert(refs[0].as_str().unwrap_or("").to_owned())
         {
             return Err(assist::Error::Invalid("stage2 citation identity"));
         }
@@ -571,6 +583,32 @@ fn record_response(
         Ok(CallOutcome::Completed)
     }
 }
+// Reviewed offline oracle proof travels with the request, outside provider payload.
+fn output_fits(row: &Row) -> bool {
+    let Some(fit) = &row.output_fit else {
+        return false;
+    };
+    let data: Value = row.payload["messages"][1]["content"][0]["text"]
+        .as_str()
+        .and_then(|s| serde_json::from_str(s).ok())
+        .unwrap_or(Value::Null);
+    fit["rule"] == "utf8-bytes/1"
+        && fit["margin"] == 2
+        && fit["passed"] == true
+        && fit["request_hash"].is_string()
+        && fit["request_hash"] == data["request_hash"]
+        && fit["max_tokens"] == row.payload["max_tokens"]
+        && fit["reasoning_hint"] == row.payload["reasoning"]["max_tokens"]
+        && fit["answer_bytes"]
+            .as_u64()
+            .filter(|n| *n > 0)
+            .and_then(|n| n.checked_mul(2))
+            .and_then(|n| n.checked_add(fit["reasoning_hint"].as_u64()?))
+            .is_some_and(|n| {
+                Some(n) == fit["required_tokens"].as_u64()
+                    && fit["max_tokens"].as_u64().is_some_and(|budget| n <= budget)
+            })
+}
 fn stage2_outcome(
     row: &Row,
     response: &[u8],
@@ -583,12 +621,10 @@ fn stage2_outcome(
     // Check outer transport/accounting before inspecting model content. A bad
     // answer must never mask unknown money or incomplete execution.
     let v: Value = assist::decode(response)?;
-    if v["choices"][0]["finish_reason"] == "length" {
-        return Err(assist::Error::Invalid("truncated_output"));
-    }
+    let truncated = v["choices"][0]["finish_reason"] == "length";
     if v["model"] != row.model
         || v["choices"].as_array().is_none_or(|a| a.len() != 1)
-        || v["choices"][0]["finish_reason"] != "stop"
+        || (!truncated && v["choices"][0]["finish_reason"] != "stop")
         || !v["choices"][0]["message"]["refusal"].is_null()
         || v["id"].as_str().is_none_or(str::is_empty)
         || v["provider"].as_str().is_none_or(str::is_empty)
@@ -608,6 +644,13 @@ fn stage2_outcome(
         return Err(assist::Error::Invalid(
             "OpenRouter inconsistent or unknown billed usage",
         ));
+    }
+    if truncated {
+        return if output_fits(row) {
+            Ok(CallOutcome::InvalidAnswer("truncated_output"))
+        } else {
+            Err(assist::Error::Invalid("truncated_output"))
+        };
     }
     match stage2_answer(row, response) {
         Ok(answer) => {
@@ -775,10 +818,10 @@ fn run_with(args: impl IntoIterator<Item = String>) -> Result<(), Box<dyn std::e
     if stage2 {
         for row in &rows {
             let (data, _) = stage2_request(row)?;
-            if data["prompt_epoch"] != "g12-pilot/3"
-                || data["prompt_policy"] != "assist-openrouter-task-evidence/3"
+            if data["prompt_epoch"] != "g12-pilot/5"
+                || data["prompt_policy"] != "assist-openrouter-task-evidence/5"
             {
-                return Err("paid stage2 run requires task-evidence policy epoch 3".into());
+                return Err("paid stage2 run requires task-evidence policy epoch 5".into());
             }
         }
     }
@@ -844,8 +887,8 @@ fn run_with(args: impl IntoIterator<Item = String>) -> Result<(), Box<dyn std::e
     let identity = json!({"schema":CAMPAIGN_SCHEMA,"requests_hash":requests_hash.clone(),
         "keys":prepared.iter().map(|(k,_)| assist::digest(k)).collect::<assist::Result<Vec<_>>>()?,"allowance_nano_usd":cap,
         "stage2":stage2,"budget_bounded":budget_bounded,"answer_failure_policy":stage2.then_some(answer_limits),
-        "executor_call_cap_seconds":120,"prompt_epoch":stage2.then_some("g12-pilot/3"),
-        "prompt_policy":stage2.then_some("assist-openrouter-task-evidence/3")});
+        "executor_call_cap_seconds":120,"prompt_epoch":stage2.then_some("g12-pilot/5"),
+        "prompt_policy":stage2.then_some("assist-openrouter-task-evidence/5")});
     ledger.bind_campaign_with_settlement(identity, resume, settle_unknown)?;
     let mut smoke = if resume {
         assist::decode::<Value>(&assist::read_bytes(
@@ -1004,7 +1047,7 @@ fn refusal_code(error: &(dyn std::error::Error + 'static)) -> String {
             | "paid run requires development scorer proof corpus"
             | "paid run requires frozen development scorer proof revision"
             | "offline scorer proof failed; paid run refused"
-            | "paid stage2 run requires task-evidence policy epoch 3"
+            | "paid stage2 run requires task-evidence policy epoch 5"
             | "campaign already running"
             | "cannot read user configuration"
             | "invalid user configuration"
@@ -1181,6 +1224,7 @@ mod tests {
             let temp = tempfile::tempdir().unwrap();
             let ledger = Ledger::new(&temp.path().join("ledger"), true);
             let rows = vec![Row {
+                output_fit: None,
                 root: "root".into(),
                 model: "fixture".into(),
                 revision: "absent".into(),
@@ -1238,7 +1282,7 @@ mod tests {
             "paid run requires development scorer proof corpus",
             "paid run requires frozen development scorer proof revision",
             "offline scorer proof failed; paid run refused",
-            "paid stage2 run requires task-evidence policy epoch 3",
+            "paid stage2 run requires task-evidence policy epoch 5",
             "egress_denied: source root denies export",
             "invalid user configuration",
         ] {
@@ -1305,6 +1349,7 @@ mod tests {
         let ledger = Ledger::new(&out.join("ledger"), true);
         let rows: Vec<_> = (0..3)
             .map(|i| Row {
+                output_fit: None,
                 root: format!("root-{i}"),
                 model: "fixture".into(),
                 revision: "absent".into(),
@@ -1517,6 +1562,7 @@ mod tests {
         let ledger = Ledger::new(&out.join("ledger"), true);
         let rows: Vec<_> = (0..5)
             .map(|i| Row {
+                output_fit: None,
                 root: format!("root-{i}"),
                 model: "fixture".into(),
                 revision: "absent".into(),
@@ -1632,6 +1678,7 @@ mod tests {
     fn g12_resume_keeps_answer_safety_history_and_checkpoint_failures_stop() {
         let rows: Vec<_> = (0..8)
             .map(|i| Row {
+                output_fit: None,
                 root: format!("root-{i}"),
                 model: "fixture".into(),
                 revision: "absent".into(),
@@ -1834,6 +1881,7 @@ mod tests {
     fn g12_smoke_records_static_root_codes_and_stops_after_first_failure() {
         let rows: Vec<_> = (0..3)
             .map(|i| Row {
+                output_fit: None,
                 root: format!("fixture-{i}"),
                 model: "fixture/model".into(),
                 revision: "fixture".into(),
@@ -1931,6 +1979,7 @@ mod tests {
         )
         .unwrap();
         let mut rows = vec![Row {
+            output_fit: None,
             root: "fixture".into(),
             model: model.into(),
             revision: "fixture".into(),
@@ -1953,6 +2002,7 @@ mod tests {
     fn g12_recorded_length_response_is_truncated_in_root_outcomes() {
         let response = include_bytes!("../tests/fixtures/assist-openrouter/truncated-pilot.json");
         let row = Row {
+            output_fit: None,
             root: "fixture".into(),
             model: "google/gemini-3.8-flash".into(),
             revision: "absent".into(),
@@ -1988,9 +2038,94 @@ mod tests {
         );
     }
     #[test]
+    fn proven_output_fit_classifies_length_and_keeps_accounting_failures_fatal() {
+        let mut response: Value = serde_json::from_slice(include_bytes!(
+            "../tests/fixtures/assist-openrouter/truncated-pilot.json"
+        ))
+        .unwrap();
+        let hash = serde_json::to_value(Digest::of_bytes(b"fit")).unwrap();
+        let mut row = cross_citation_row("fit");
+        row.model = response["model"].as_str().unwrap().into();
+        row.payload["max_tokens"] = json!(4096);
+        row.payload["reasoning"] = json!({"max_tokens":1024});
+        row.payload["messages"][1]["content"][0]["text"] =
+            json!(json!({"request_hash":hash,"views":[]}).to_string());
+        row.output_fit = Some(
+            json!({"request_hash":hash,"rule":"utf8-bytes/1","margin":2,"passed":true,
+            "answer_bytes":805,"reasoning_hint":1024,"required_tokens":2634,"max_tokens":4096}),
+        );
+        let temp = tempfile::tempdir().unwrap();
+        assert_eq!(
+            stage2_outcome(
+                &row,
+                &serde_json::to_vec(&response).unwrap(),
+                temp.path(),
+                0
+            )
+            .unwrap(),
+            CallOutcome::InvalidAnswer("truncated_output")
+        );
+        let rows = [row];
+        let (outcomes, failed) = root_outcomes(
+            &rows,
+            Instant::now() + CALL_LIMIT,
+            false,
+            Some(AnswerLimits::default()),
+            Instant::now,
+            |_, _| {
+                stage2_outcome(
+                    &rows[0],
+                    &serde_json::to_vec(&response).unwrap(),
+                    temp.path(),
+                    0,
+                )
+            },
+        );
+        assert!(!failed);
+        assert_eq!(outcomes[0]["answer_reason"], "truncated_output");
+        let (continued, failed) = root_outcomes(
+            &rows,
+            Instant::now() + CALL_LIMIT,
+            false,
+            Some(AnswerLimits {
+                max_consecutive: 0,
+                ..AnswerLimits::default()
+            }),
+            Instant::now,
+            |_, _| {
+                stage2_outcome(
+                    &rows[0],
+                    &serde_json::to_vec(&response).unwrap(),
+                    temp.path(),
+                    0,
+                )
+            },
+        );
+        assert!(failed);
+        assert_eq!(continued[0]["safety_valve"], "consecutive_invalid_answers");
+
+        response["usage"]["total_tokens"] = json!(0);
+        assert!(
+            stage2_outcome(
+                &rows[0],
+                &serde_json::to_vec(&response).unwrap(),
+                temp.path(),
+                0
+            )
+            .is_err()
+        );
+        let mut row = rows.into_iter().next().unwrap();
+        row.output_fit.as_mut().unwrap()["answer_bytes"] = json!(2000);
+        assert!(!output_fits(&row));
+        row.output_fit.as_mut().unwrap()["answer_bytes"] = json!(805);
+        row.output_fit.as_mut().unwrap()["request_hash"] = json!("other");
+        assert!(!output_fits(&row));
+    }
+    #[test]
     fn stage2_mechanics_refuse_unbound_citations_and_geometry() {
         let hash = Digest::of_bytes(b"fixture");
         let row = Row {
+            output_fit: None,
             root: "fixture".into(),
             model: "google/gemini-3.8-flash".into(),
             revision: "absent".into(),
@@ -2012,25 +2147,35 @@ mod tests {
         assert!(stage2_answer(&row, &response(&bad)).is_err());
     }
     #[test]
-    fn epoch3_exclusion_citations_preserve_closed_same_slot_protocol() {
+    fn epoch5_exclusion_citations_require_one_region_per_statement() {
         let hash = Digest::of_bytes(b"invented-epoch3");
         let row = Row {
+            output_fit: None,
             root: "synthetic".into(),
             model: "google/gemini-3.8-flash".into(),
             revision: "absent".into(),
             payload: json!({"messages":[{}, {"content":[{"text":json!({"request_hash":hash,
-                "prompt_epoch":"g12-pilot/3", "views":[{"slot":"P1","regions":[
+                "prompt_epoch":"g12-pilot/5", "views":[{"slot":"P1","regions":[
                     {"id":"P1:R0"},{"id":"P1:R1","exclusion_id":"synthetic-exclusion"}]}]}).to_string()}]}]}),
         };
         let answer = json!({"request_hash":hash,"outcome":"observed","observations":[{
             "slot":"P1","kind":"appearance","statement":"appearance:changed",
             "geometry":{"type":"box","pixels":[0.0,0.0,1.0,1.0]},"visibility":"visible",
-            "evidence_refs":["P1:R0","P1:R1"],"uncertainty":0.0}]});
+            "evidence_refs":["P1:R1"],"uncertainty":0.0}]});
         let response = |a: &Value| {
             serde_json::to_vec(&json!({"id":"gen-synthetic",
             "model":row.model,"provider":"fixture","choices":[{"finish_reason":"stop","message":{"content":a.to_string()}}],"usage":{"prompt_tokens":1,"completion_tokens":1,"total_tokens":2,"cost":0.001}})).unwrap()
         };
         stage2_answer(&row, &response(&answer)).unwrap();
+        let mut merged = answer.clone();
+        merged["observations"][0]["evidence_refs"] = json!(["P1:R0", "P1:R1"]);
+        assert!(stage2_answer(&row, &response(&merged)).is_err());
+        let mut duplicate = answer.clone();
+        duplicate["observations"]
+            .as_array_mut()
+            .unwrap()
+            .push(answer["observations"][0].clone());
+        assert!(stage2_answer(&row, &response(&duplicate)).is_err());
         for citation in ["synthetic-exclusion", "P2:R1", "P1:R2"] {
             let mut wrong = answer.clone();
             wrong["observations"][0]["evidence_refs"] = json!([citation]);
@@ -2085,6 +2230,7 @@ mod tests {
         let campaign_deadline = started + campaign_duration(true);
         let rows: Vec<_> = (0..300)
             .map(|i| Row {
+                output_fit: None,
                 root: format!("paced-{i}"),
                 model: "fixture/model".into(),
                 revision: "fixture".into(),
@@ -2168,6 +2314,7 @@ mod tests {
         .unwrap();
         let rows: Vec<_> = (0..10)
             .map(|i| Row {
+                output_fit: None,
                 root: format!("budget-{i}"),
                 model: model.into(),
                 revision: "absent".into(),
@@ -2274,6 +2421,7 @@ mod tests {
     }
     fn cross_citation_row(root: &str) -> Row {
         Row {
+            output_fit: None,
             root: root.into(),
             model: "google/gemini-3.8-flash".into(),
             revision: "absent".into(),

@@ -935,3 +935,152 @@ only development images/truths. It refuses a fresh-heldout corpus or a request
 outside development before opening responses. Neither held-out responses nor
 held-out oracle entries were observed; `g12-fresh-heldout/1` remains unobserved.
 Private reports and request/proof artifacts stay outside the repository.
+
+## G12 candidate-slot instruction (epoch 4)
+
+The epoch-3 development smoke identified correct pairwise appearance assertions
+attached to the baseline P1, causing task/order rejection despite correct raster
+assertions. Epoch 4 (`g12-pilot/4`, `assist-openrouter-task-evidence/4`) explicitly
+reports both `appearance:changed` and `appearance:unchanged` on the candidate,
+with evidence references from that slot. Normal presentation uses the later/second
+image P2. Reversed presentation uses P1 for the candidate; each request binds
+`candidate_slot` into its request hash. This preserves the existing reversed-order
+schedule and normalized candidate identity. Other statements remain per image.
+The check_ui, explain and audit_mask examples state their slot and citations.
+
+The scorer, oracle, geometry and order agreement rules are unchanged. The paid
+executor requires epoch 4; epoch-3 requests must be regenerated. The mandatory
+offline scorer proof passes all 96 rows on 60 development roots (synthetic
+oracle-injected evidence, not model qualification). Five synthetic regressions
+and 26 native executor tests pass. No provider calls, keys or held-out data were
+used.
+
+Artifacts: `/mnt/linux-extra/moss-scratch/saccade-g12-epoch4/`. `commands.sh`
+contains exact proof, smoke, reconciliation and scoring commands, including
+`SACCADE_SCORER_DEV_CORPUS` and `SACCADE_SCORER_SOURCE_REVISION`. `show_smoke.py`
+prints request-bound assertion/task verdicts; its ten synthetic checks pass.
+
+| Plan | Roots | Calls | Worst reservation USD | Cap USD | Unverified cost proxy USD |
+|---|---:|---:|---:|---:|---:|
+| Development smoke | 10 | 10 | 0.252169500 | 0.252199500 | 0.046281000 |
+| Targeted | 10 | 20 | 0.510225000 | 0.60 | 0.092562000 |
+
+Both retain epoch-3 sizes, caps and selected schedules (five roots per workload).
+The proxy is the inherited epoch-2 two-image estimate, not measured epoch-4 spend.
+Plans remain unauthorized; no campaign was executed. Native validate-only
+reservations agree exactly with the Python plans. The owned Cargo target is
+removed after preserving the executable and receipts.
+
+## G12 realistic region geometry and separate statements (epoch 5)
+
+Epoch 5 is `g12-pilot/5`, prompt `assist-openrouter-task-evidence/5`, mapping
+`assist-region-exclusion-mapping/2`, geometry `assist-region-geometry/2`.
+Qualification defaults to named mode `tolerance`: a finite, positive box must
+have **IoU >= 0.8 AND intersection / oracle-region area >= 0.9**. Both thresholds
+are inclusive declared constants (`REGION_MIN_IOU`, `REGION_MIN_COVERAGE`).
+The request binds the scorer identity, geometry identity and thresholds into its
+request hash; reports retain scoring-source hashes. This replaces unrealistic
+subpixel enclosure requirements. An oversized whole-image answer cannot match
+an arbitrary small region just because it encloses it.
+
+Named mode `strict` retains exact enclosure and assertion checks over the answer
+box; it is available through `pilot_score.py --task-evidence-policy
+--geometry-mode strict`, and the development selected-plan adapter accepts the
+same option. Strict scoring can conservatively re-evaluate the same requests;
+it does not rewrite their prompt or billing bindings. Legacy non-task-policy
+scoring remains strict. Exact literal text, case, Unicode, whitespace, outcomes,
+all-assertions correctness and exact normalized order agreement remain required.
+In tolerance mode, semantics are independently checked over the cited oracle
+region after geometry matching: shrinking a box cannot hide a changed boundary
+pixel, and expanding it cannot import a decorative change from outside the
+region. Regression fixtures test both attacks and both independent thresholds.
+
+The prompt now says **one statement per region; cite exactly one region id per
+statement**, with separate R0 and exclusion examples. The native epoch-5
+transport and offline scorer reject merged citations and repeated statements
+for the same region. Internal exclusion-ID mappings do not count as public
+region citations. Every exclusion still needs its own correct appearance
+statement and matching box; missing exclusion evidence fails. Non-overlap uses
+one separately cited statement for each node; both are mandatory and their
+relationship is checked against independently bound source bounds.
+
+All current statement kinds, including diagnostic `audit_mask` appearance,
+use the tolerance geometry rule. These observations never approve or create
+exclusions, so full enclosure is not a safety authorization requirement here.
+Actual exclusion/mask authority is unchanged. Workloads needing exact spatial
+coverage can select `strict`; points cannot establish region-box evidence.
+The paid executor requires epoch 5 and refuses older request epochs.
+
+The offline gate passes **176/176 rows on 60 development roots**, with four
+synthetically injected arms. Forty-eight roots have complete pixels; twelve
+correctly abstain. Each variant has 16 workload/arm rows, so its aggregate
+root-arm count is 240, not 240 independent roots.
+
+| Synthetic variant | Rows passing | Correct / abstaining root-arms | Flagged root-arms |
+|---|---:|---:|---:|
+| Oracle-perfect | 16/16 | 192 / 48 | 0 |
+| Near-perfect inward 0.5% | 16/16 | 192 / 48 | 0 |
+| Near-perfect outward 0.5% | 16/16 | 192 / 48 | 0 |
+| Near-perfect inward 1% | 16/16 | 192 / 48 | 0 |
+| Near-perfect outward 1% | 16/16 | 192 / 48 | 0 |
+| Merged-region statements | 16/16 | 0 / 0 | 240 |
+| Missing, hallucinated, wrong text, wrong geometry, conflicting order (each) | 16/16 | 0 / 0 | 240 |
+
+Jitter changes the primary region box's width and height by the named percentage
+of image width/height, centered on the region (each edge moves half that amount),
+in both presentations and descendants. Other required regions remain separately
+represented. This is not an unconditional allowance for any image-relative
+jitter: a focused thin-region fixture is rejected when it drops below 90%
+coverage. Every positive workload/arm retains 100% precision and important
+recall with zero false reassurance; every negative case is rejected. Mutation
+checks still require the proof to fail when task evidence or appearance scoring
+is broken. These are offline scorer checks, not provider qualification.
+
+The epoch-4b development smoke was replayed without changing answers, request
+hashes, receipts or old prompt metadata. Its original payload, response, answer,
+receipt and money bindings were verified before retrospective epoch-5 scoring.
+
+| Original root index | Workload | Epoch 4 | Epoch 5 | Explanation |
+|---:|---|---|---|---|
+| 0 | audit_mask | PASS | FAIL | Merged citations |
+| 1 | explain | PASS | PASS | Correct |
+| 2 | audit_mask | FAIL | PASS | Region tolerance repairs enclosure |
+| 3 | explain | PASS | PASS | Correct |
+| 4 | audit_mask | PASS | FAIL | Merged citations |
+| 5 | explain | FAIL | PASS | Region tolerance repairs enclosure |
+| 6 | audit_mask | FAIL | FAIL | Merged citations |
+| 7 | explain | PASS | PASS | Correct |
+| 8 | audit_mask | FAIL | FAIL | Merged citations |
+| 9 | explain | PASS | PASS | Correct |
+
+Both policies accept 6/10, but different roots. Epoch-5 strict accepts 4/10.
+Rejecting newly forbidden merges in old answers is retrospective diagnostic
+information; the new prompt cannot retroactively be supplied to those answers.
+Full root identities and input/source hashes are in `epoch4b-rescore.json`.
+
+| Regenerated development plan | Roots | Calls | Worst reservation USD | Cap USD | Unverified cost proxy USD |
+|---|---:|---:|---:|---:|---:|
+| Smoke | 10 | 10 | 0.251914500 | 0.251914500 | 0.046281000 |
+| Targeted | 10 | 20 | 0.509715000 | 0.600000000 | 0.092562000 |
+
+Both preserve the epoch-4b selected roots and schedules. Redundant prompt wording
+was shortened to retain the existing admission ceiling. Native validate-only
+reservations exactly match Python planning. The proxy remains the inherited
+epoch-2 estimate, not measured epoch-5 spend. Plans remain unauthorized.
+
+Artifacts are under `/mnt/linux-extra/moss-scratch/saccade-g12-epoch5/`:
+`selftest-qualified.{json,md}`, `epoch4b-rescore.{json,md}`, `smoke/`, `targeted/`,
+validation/test logs and the preserved native executable. `commands.sh` contains
+exact offline proof, regeneration, retrospective replay and native admission
+commands, plus commented prepared provider/scoring commands. The required proof
+inputs are:
+
+```sh
+export SACCADE_SCORER_DEV_CORPUS=/mnt/linux-extra/moss-scratch/saccade-g12-dev-pilot/pilot-corpus
+export SACCADE_SCORER_SOURCE_REVISION=ab305c00bc4536d4ff482b5a3645fe5b67f9a6d4
+python3 scripts/assist/scorer_selftest.py --corpus "$SACCADE_SCORER_DEV_CORPUS" --source-revision "$SACCADE_SCORER_SOURCE_REVISION" --out /mnt/linux-extra/moss-scratch/saccade-g12-epoch5/operator-selftest
+python3 /mnt/linux-extra/moss-scratch/saccade-g12-epoch5/rescore.py
+```
+
+No provider calls, keys or real held-out truths were accessed. The dedicated
+Cargo target stays below 10 GB and is deleted after retaining evidence.

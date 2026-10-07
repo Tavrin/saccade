@@ -24,9 +24,9 @@ class ScorerSelftestTests(unittest.TestCase):
             manifest['cases']=[c for c in manifest['cases'] if c['split']=='development']
             result=proof(manifest,oracle,directory)
             self.assertEqual(result['status'],'PASS',result['failures'])
-            self.assertEqual(len(result['rows']),96)
+            self.assertEqual(len(result['rows']),176)
             for row in result['rows']:
-                if row['variant']=='perfect':
+                if row['variant']=='perfect' or row['variant'].startswith('near_'):
                     self.assertEqual((row['precision'],row['important_recall'],row['false_reassurance']),(1,1,0))
                 else:
                     self.assertEqual(row['correct_roots'],0)
@@ -44,6 +44,55 @@ class ScorerSelftestTests(unittest.TestCase):
                 self.assertEqual(inverted_result['status'],'FAIL')
                 self.assertTrue(any(w=='explain' and v=='perfect' for w,a,v in inverted_result['failures']))
 
+    def test_output_fit_gate_fails_for_an_insufficient_budget(self):
+        from dev_policy import output_fit
+        request=dict(max_tokens=4096,reasoning=dict(max_tokens=1024))
+        answer=dict(request_hash='bound', observations=['x'*2000])
+        self.assertFalse(output_fit(answer,request)['passed'])
+        with tempfile.TemporaryDirectory() as temp:
+            directory=Path(temp)
+            freeze(directory,5,4406,REVISION,'jev-1.13.0',True)
+            manifest,oracle=verify(directory)
+            manifest['cases']=[c for c in manifest['cases'] if c['split']=='development']
+            from dev_policy import payload as actual
+            def short(*args,**kwargs):
+                value=actual(*args,**kwargs);value['max_tokens']=100;return value
+            with patch('dev_policy.payload',side_effect=short):
+                result=proof(manifest,oracle,directory)
+            self.assertEqual(result['status'],'FAIL')
+            self.assertTrue(any(a=='output_budget' for w,a,v in result['failures']))
+
+    def test_epoch5_names_candidate_and_keeps_per_image_examples(self):
+        from dev_policy import INSTRUCTION, PROMPT_EPOCH, PROMPT_POLICY
+        from scorer_selftest import perfect
+        self.assertEqual(PROMPT_EPOCH, 'g12-pilot/5')
+        self.assertEqual(PROMPT_POLICY, 'assist-openrouter-task-evidence/5')
+        self.assertIn('appearance:unchanged', INSTRUCTION)
+        self.assertIn('Report BOTH on candidate_slot', INSTRUCTION)
+        self.assertIn('Other statements stay per image/slot', INSTRUCTION)
+        self.assertIn('check_ui: slot P1, kind text', INSTRUCTION)
+        self.assertIn('explain: slot P2, kind appearance', INSTRUCTION)
+        self.assertIn('audit_mask: slot P2, kind appearance', INSTRUCTION)
+        with tempfile.TemporaryDirectory() as temp:
+            directory = Path(temp)
+            freeze(directory, 5, 4406, REVISION, 'jev-1.13.0', True)
+            manifest, oracle = verify(directory)
+            cases = [c for c in manifest['cases'] if c['split'] == 'development'
+                     and c['complete'] and c['task'] != 'check_ui']
+            self.assertTrue(cases)
+            for case in cases:
+                answers = []
+                for order, slot in (('ab', 'P2'), ('ba', 'P1')):
+                    data = json.loads(payload(case, order, False, directory)['messages'][1]['content'][0]['text'])
+                    self.assertEqual(data['candidate_slot'], slot)
+                    self.assertEqual(data['prompt_epoch'], PROMPT_EPOCH)
+                    answer = perfect(case, oracle[case['root_id']], directory, order)
+                    for observation in answer['observations']:
+                        self.assertEqual(observation['slot'], slot)
+                        self.assertTrue(all(ref.startswith(slot + ':') for ref in observation['evidence_refs']))
+                    answers.append(normalize(answer, case, order))
+                self.assertTrue(semantic({False: answers}, case, oracle[case['root_id']], directory, True)['correct'])
+
     def test_unselected_oracle_values_are_never_decoded(self):
         document=dict(schema='synthetic',cases={'dev':{'public':'development'},'held':{'secret':'DO_NOT_DECODE'}})
         raw=encoded(document)+b'\n'
@@ -59,7 +108,7 @@ class ScorerSelftestTests(unittest.TestCase):
         self.assertIsNone(result['cases']['held'])
         self.assertFalse(any('DO_NOT_DECODE' in str(v) for v in decoded))
 
-    def test_exclusion_mapping_requires_explicit_region_and_full_coverage(self):
+    def test_exclusion_mapping_requires_separate_region_statements_and_matching_boxes(self):
         case=dict(task='audit_mask',dimensions=[20,20],target=[2,2,8,4],label='Synthetic',before='b.png',after='a.png',exclusions=[dict(id='exclude',dimensions=[20,20],runs=[[42,3]])])
         truth=dict(expected_outcome='not_observed',important=False,rendered_witness=dict(label_pixels=[],before_label_pixels=[],label_complete=False,before_label_complete=False))
         from PIL import Image
@@ -71,6 +120,10 @@ class ScorerSelftestTests(unittest.TestCase):
             value=normalize(answer,case,'ab')
             self.assertFalse(semantic({False:[value]},case,truth,directory,True)['correct'])
             obs['evidence_refs'].append('P2:R1');value=normalize(answer,case,'ab')
+            self.assertFalse(semantic({False:[value]},case,truth,directory,True)['correct'])
+            other=copy.deepcopy(obs);other['evidence_refs']=['P2:R1'];other['geometry']['pixels']=[.1,.1,.15,.05]
+            obs['evidence_refs']=['P2:R0'];obs['geometry']['pixels']=[.1,.1,.4,.2]
+            answer['observations']=[obs,other];value=normalize(answer,case,'ab')
             self.assertTrue(semantic({False:[value]},case,truth,directory,True)['correct'])
             obs['geometry']['pixels']=[0,0,.1,.1];value=normalize(answer,case,'ab')
             self.assertFalse(semantic({False:[value]},case,truth,directory,True)['correct'])
@@ -78,13 +131,15 @@ class ScorerSelftestTests(unittest.TestCase):
 
     def test_overlap_requires_bound_source_both_citations_and_both_nodes(self):
         case=dict(condition=dict(kind='non_overlap',first='a',second='b'),source='source.json')
-        obs=dict(image_role='single',statement='overlap:separate',geometry=dict(type='box',pixels=[0,0,20,20]),evidence_refs=['single:R0','single:R1'])
+        obs=dict(image_role='single',statement='overlap:separate',geometry=dict(type='box',pixels=[1,1,3,3]),evidence_refs=['single:R0'])
         with tempfile.TemporaryDirectory() as temp:
             directory=Path(temp);path=directory/'source.json'
             path.write_text(json.dumps(dict(nodes=[dict(id='a',bounds=[1,1,3,3]),dict(id='b',bounds=[1,10,3,3])])))
             self.assertTrue(assertion_correct(obs,{},case,directory))
-            self.assertTrue(task_evidence([obs],case,{},directory))
-            self.assertFalse(assertion_correct(dict(obs,evidence_refs=['single:R0']),{},case,directory))
+            other=dict(obs,geometry=dict(type='box',pixels=[1,10,3,3]),evidence_refs=['single:R1'])
+            self.assertTrue(task_evidence([obs,other],case,{},directory))
+            self.assertFalse(task_evidence([obs],case,{},directory))
+            self.assertFalse(assertion_correct(dict(obs,evidence_refs=['single:R0','single:R1']),{},case,directory))
             self.assertFalse(assertion_correct(dict(obs,statement='overlap:overlap'),{},case,directory))
             self.assertFalse(assertion_correct(dict(obs,geometry=dict(type='box',pixels=[0,0,5,5])),{},case,directory))
 
