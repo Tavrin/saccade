@@ -470,6 +470,10 @@ fn aliases_authorize_registered_storage_but_not_direct_roots_or_escape_outputs()
 #[test]
 fn local_tools_and_preview_never_authorize_network_and_images_are_explicit() {
     let tmp = tempfile::tempdir().unwrap();
+    let config_home = tmp.path().join("isolated-config");
+    std::fs::create_dir_all(&config_home).unwrap();
+    let user_config = config_home.join("user.toml");
+    std::fs::write(&user_config, "").unwrap();
     let root = tmp.path().join("root");
     let out = tmp.path().join("out");
     image(&root.join("base"), "a.png", 40);
@@ -535,6 +539,8 @@ fn local_tools_and_preview_never_authorize_network_and_images_are_explicit() {
     let preview = json_output(
         Command::new(BIN)
             .arg("review")
+            .arg("--user-config")
+            .arg(&user_config)
             .arg(&report)
             .arg("--json")
             .env("JEV_API_KEY", "synthetic-never-send")
@@ -546,6 +552,8 @@ fn local_tools_and_preview_never_authorize_network_and_images_are_explicit() {
     let denied = json_output(
         Command::new(BIN)
             .arg("review")
+            .arg("--user-config")
+            .arg(&user_config)
             .arg(&report)
             .args(["--run", "--budget-calls", "1", "--json"])
             .output()

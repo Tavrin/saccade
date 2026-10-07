@@ -170,6 +170,7 @@ impl Ledger {
             }
             let dispatched = receipt.usage["openrouter_dispatched"] == true;
             let requested_identity = receipt.usage["requested_identity"].clone();
+            let image_table = receipt.usage.get("image_table").cloned();
             let charged = actual.unwrap_or(receipt.reserved_nano_usd);
             for scope in &receipt.scopes {
                 let counter = state
@@ -187,6 +188,9 @@ impl Ledger {
             }
             receipt.actual_nano_usd = actual;
             receipt.usage = usage;
+            if let Some(table) = image_table {
+                receipt.usage["image_table"] = table;
+            }
             if dispatched {
                 receipt.usage["openrouter_dispatched"] = serde_json::json!(true);
                 receipt.usage["requested_identity"] = requested_identity;

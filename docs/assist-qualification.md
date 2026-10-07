@@ -350,3 +350,108 @@ below the recorded 1,513 prompt tokens; enlarging that fixture request corrected
 the mismatch without changing production ceilings. The final focused run passed
 all 21 G12 tests. These are unit and fixture gates; broader integration, ignored
 heavy tests and live qualification were not run for fix 3.
+
+
+## G12 image-token bound
+
+The repository records no documented provider image-token rule for
+`google/gemini-3.8-flash-20260902` or OpenRouter's declared image detail.
+The existing `/1` documentation expressly describes local policy awaiting live
+conformance. No provider documentation was fetched. Therefore `/2` is a
+**calibrated local bound, not a documented tokenizer guarantee**; the durable
+post-call breach stop is essential to its use.
+
+Evidence: the coordinator's ten-call single-image ledger supplied on 2026-10-07
+contains completed prompt counts of **1503–1543**, total reservations of
+$0.238797 and billed cost of $0.0348585. The supplied brief summarized the range
+as 1513–1539; implementation uses the larger observed maximum, 1543.
+The ledger SHA-256 is `4c01b3edad8228b69500420d400af235f2477c9feec116223784b14d403b2dc4`.
+These receipts are calibration evidence supplied by the coordinator, not new
+live calls or model qualification performed in this lane.
+
+Decision: `assist-image-ceilings/2` reserves
+`2 * 1543 * ceil(width * height / 524288)` tokens per image, using decoded PNG
+header dimensions. The safety factor is **2** against the largest *whole prompt*
+count, including system and user text; serialized non-image UTF-8 bytes and
+1024 framing tokens are additionally reserved. The area block is a local policy
+choice, not a claimed provider tile size. It covers every constructed corpus
+size: width `([240,320,480][family % 3] + jitter) * (1 + family % 2)`, jitter 0–39,
+height `160 * (1 + family % 2)`, for families 0–31; maximum 1038 by 320.
+Larger images scale in rounded-up area blocks. Edges above 2048, zero dimensions
+and unknown resolution retain the 16384-token refusal fallback.
+
+OpenRouter `detail:low` maps to low resolution, and high/auto/omitted detail maps
+to high. Both get the full calibrated bound: no undocumented low-detail discount.
+Gemini-direct and its declared medium resolution retain `/1`. The versioned
+reader preserves `/1` exactly; live OpenRouter always selects `/2`. New receipts
+retain `image_table` through settlement and deferred reconciliation. Historical
+receipts lacking that field continue to use their recorded bounds and charges.
+The price pin is unchanged: $0.75/M input and image tokens, $3.75/M output tokens.
+
+For a corpus image the image component is **3086 tokens**, and two images use
+**6172 tokens**, leaving respectively **12914** and **9828** tokens for the
+serialized non-image payload plus framing under `INPUT_LIMIT=16000`.
+With `max_tokens=4096`, the exact reservation formula is
+`750 * input_bound + 3750 * 4096` nanodollars. The worst permitted reservation
+for either a single-image or two-image request with arbitrary admitted text is
+**$0.02736** (the INPUT_LIMIT-based cap). Reapplying `/2` to the supplied
+single-image receipts gives input bounds 6240–6270 and maximum reservation
+**$0.0200625**, down from $0.023892. No single observed prompt count is treated
+as a guaranteed provider maximum.
+
+At the maximum corpus dimensions, the normal prepared request regression reserves
+**$0.020454** for single-image `check_ui` with the maximum 512-byte label condition
+(input bound 6792), and **$0.02259225** for two-image `explain` in either blind order
+(input bound 9643). These cases leave 9208 and 6357 tokens of margin respectively.
+They are concrete prepared-payload reservations; larger admissible text/catalogs
+remain subject to the $0.02736 absolute reservation cap.
+
+Acceptance coverage:
+
+| Requirement | Offline regression |
+| --- | --- |
+| Every corpus size, area transitions, resolution and fallback behavior | `g12_calibrated_table_covers_corpus_sizes_and_preserves_version_one` |
+| Real PNGs at maximum corpus dimensions; single-image and both two-image explain orders admitted with at least 6000 input tokens of margin; reservation at or below the INPUT_LIMIT price cap | `g12_corpus_single_and_two_image_explain_reservations_fit_with_margin` |
+| Actual prompt usage one token above the calibrated reservation, still below INPUT_LIMIT and below reserved cost, records `usage_limit_exceeded` and prevents a second dispatch | `g12_openrouter_reserves_settles_unknown_zero_and_quarantines_usage_breach` |
+| Historical `/1` bound and receipt deserialize, verify and round-trip without revision or monetary changes | `g12_historical_version_one_reservation_and_receipt_still_verify` |
+| Review denial is independent of real user configuration | `local_tools_and_preview_never_authorize_network_and_images_are_explicit` uses an empty user policy in an isolated temporary config directory |
+
+Rejected alternatives: asserting an unavailable documented provider rule;
+using only the brief's smaller count; discounting low-detail input without
+provider evidence; globally reducing `/1` or changing Gemini-direct; repricing
+historical receipts; accepting a breach because total cost or global input limits
+still fit. Corpus construction, scoring and batch are outside this change.
+
+Final offline validation (2026-10-07):
+
+| Gate | Command | Result |
+| --- | --- | --- |
+| Formatting | `cargo fmt --all --check` | Exit 0 |
+| Strict clippy | `cargo clippy --locked --workspace --all-targets --features assist -- -D warnings` | Exit 0 |
+| Core feature suite | `cargo test --locked -p saccade-core --features assist,schema,evaluation` | Exit 0; 396 passed, 6 pre-existing ignored; schema conformance passed |
+| CLI feature suite | `cargo test --locked -p saccade --features assist,schema,evaluation` | Exit 0; 198 passed, 24 pre-existing ignored |
+| Smoke example | `cargo test --locked -p saccade-core --features assist,schema,evaluation --example assist_openrouter_smoke` | Exit 0; 5 passed |
+| Full default suite | `cargo test --locked -p saccade-core -p saccade` | Exit 0; 617 passed, 25 pre-existing ignored; real user.toml present |
+| Focused acceptance | `cargo test --locked -p saccade-core --features assist,schema,evaluation --lib g12_ -- --nocapture` | Exit 0; 24 passed |
+| Python assist | `python3 -m unittest discover -s scripts/assist -p 'test_*.py'` | Exit 0; 14 passed against stable final source |
+| Generated docs | `python3 scripts/gen-docs.py --check` | Exit 0 |
+| Public hygiene | `bash scripts/check-public-hygiene.sh` | Exit 0; worktree and staged index |
+
+Cargo used offline resolution, the required dedicated target, no incremental
+compilation and no dev debug information. The largest observed target size was
+6.10 GB, below the 8 GB limit; completed default-test executables were reclaimed
+before subsequent builds. The target was removed after validation. Real user
+configuration remained present and unmodified; the review denial regression
+selects its own isolated empty policy instead of masking ambient configuration
+for the whole suite. No external network calls or real key reads were performed.
+
+An additional, broader **combined-package** run
+`cargo test --locked -p saccade-core -p saccade --features assist,schema,evaluation`
+remains **FAIL** on `saccade-quality-report.v1.schema.json` conformance.
+Combining packages enables compression in the core schema suite; the unchanged
+`report_links::extend_schema` adds optional `report_id`/`source_refs`, which the
+committed quality-report schema lacks. The separate core feature suite's schema
+checks passed. This broader configuration is not converted into PASS: the
+quality/report linkage files remain untouched, and changing them is deferred
+outside the image-bound envelope. No live model or provider qualification is
+claimed by these offline tests.

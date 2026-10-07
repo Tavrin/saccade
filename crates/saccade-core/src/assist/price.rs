@@ -10,8 +10,14 @@ use serde_json::Value;
 
 /// Changed reservation semantics require a fresh qualification epoch.
 pub const PRICE_ID: &str = "assist-prices/2026-10-05-local-v2";
-/// Pinned image ceiling table revision.
+/// Historical and Gemini-direct image ceiling table revision.
 pub const IMAGE_TABLE: &str = "assist-image-ceilings/1";
+/// Calibrated OpenRouter/Gemini table; never a documented tokenizer guarantee.
+pub const OPENROUTER_IMAGE_TABLE: &str = "assist-image-ceilings/2";
+/// Twice the largest prompt count in the supplied ten-call receipt (including text).
+pub const CALIBRATED_IMAGE_TOKENS: u64 = 1543 * 2;
+/// Area block covering every constructed corpus image (maximum 1038 by 320).
+pub const CALIBRATED_IMAGE_PIXELS: u64 = 1024 * 512;
 /// Upper bound for an image outside the pinned dimension/resolution table.
 pub const MAX_IMAGE_TOKENS: u64 = 16_384;
 /// At most one token per encoded UTF-8 text byte, plus protocol framing.
@@ -91,6 +97,30 @@ pub fn image_tokens(resolution: &str, dimensions: [u32; 2]) -> u64 {
         ("MEDIA_RESOLUTION_MEDIUM", 1025..=2048) => 8192,
         ("MEDIA_RESOLUTION_HIGH", 1..=2048) => 8192,
         _ => MAX_IMAGE_TOKENS,
+    }
+}
+/// Read either table revision without reinterpreting historical reservations.
+/// Version 2 scales by rounded-up area blocks, with no undocumented low-detail discount.
+/// Unknown resolution, zero dimensions or edges above 2048 retain fail-closed admission.
+pub fn image_tokens_for_table(table: &str, resolution: &str, dimensions: [u32; 2]) -> Result<u64> {
+    match table {
+        IMAGE_TABLE => Ok(image_tokens(resolution, dimensions)),
+        OPENROUTER_IMAGE_TABLE => {
+            if ![
+                "MEDIA_RESOLUTION_LOW",
+                "MEDIA_RESOLUTION_MEDIUM",
+                "MEDIA_RESOLUTION_HIGH",
+            ]
+            .contains(&resolution)
+                || dimensions.contains(&0)
+                || dimensions.iter().any(|edge| *edge > 2048)
+            {
+                return Ok(MAX_IMAGE_TOKENS);
+            }
+            let pixels = u64::from(dimensions[0]) * u64::from(dimensions[1]);
+            Ok(pixels.div_ceil(CALIBRATED_IMAGE_PIXELS) * CALIBRATED_IMAGE_TOKENS)
+        }
+        _ => Err(super::Error::Invalid("unknown image ceiling table")),
     }
 }
 // Decode only the PNG header; no image-sized allocation or pixel decoding.
@@ -299,6 +329,14 @@ pub(crate) fn openrouter_bounds(
     payload: &[u8],
     price: OpenRouterPrice,
 ) -> Result<OpenRouterAdmission> {
+    openrouter_bounds_for_table(payload, price, OPENROUTER_IMAGE_TABLE)
+}
+// Historical verification only; live admission always selects version 2 above.
+pub(crate) fn openrouter_bounds_for_table(
+    payload: &[u8],
+    price: OpenRouterPrice,
+    table: &str,
+) -> Result<OpenRouterAdmission> {
     let mut request: Value = decode(payload)?;
     let output = request["max_tokens"]
         .as_u64()
@@ -347,10 +385,19 @@ pub(crate) fn openrouter_bounds(
                     .as_str()
                     .and_then(|s| s.strip_prefix("data:image/png;base64,"))
                     .ok_or(super::Error::Invalid("OpenRouter inline PNG required"))?;
-                // Reserve high resolution even for low/auto detail. Unknown dimensions
-                // use the existing table's maximum and therefore cannot fit INPUT_LIMIT.
+                // Auto/absent detail gets the high-resolution bound. Version 2 gives
+                // low no discount: there is no documented provider rule in the repo.
+                let resolution = if table != IMAGE_TABLE && image["detail"] == "low" {
+                    "MEDIA_RESOLUTION_LOW"
+                } else {
+                    "MEDIA_RESOLUTION_HIGH"
+                };
                 images = images
-                    .checked_add(image_tokens("MEDIA_RESOLUTION_HIGH", png_dimensions(data)?))
+                    .checked_add(image_tokens_for_table(
+                        table,
+                        resolution,
+                        png_dimensions(data)?,
+                    )?)
                     .ok_or(super::Error::Invalid("image ceiling overflow"))?;
                 image_count += 1;
                 image["url"] = Value::Null;

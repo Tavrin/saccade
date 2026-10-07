@@ -509,7 +509,7 @@ impl Executor<'_> {
                     actual_nano_usd: None,
                     outcome: "reserved".into(),
                     usage: if key.provider == "openrouter" {
-                        json!({"requested_identity":{"model":key.model,"revision":key.revision}})
+                        json!({"image_table":super::price::OPENROUTER_IMAGE_TABLE,"requested_identity":{"model":key.model,"revision":key.revision}})
                     } else {
                         Value::Null
                     },
@@ -670,8 +670,9 @@ impl Executor<'_> {
                     .map(|c| c as f64 / 1e9),
                 cost_basis: if key.provider == "openrouter" {
                     format!(
-                        "{}; OpenRouter billing source; provider prices without markup; alias-bound and time-specific",
-                        super::price::OPENROUTER_PRICE_ID
+                        "{}; {}; calibrated local reservation; OpenRouter billing source; provider prices without markup; alias-bound and time-specific",
+                        super::price::OPENROUTER_PRICE_ID,
+                        super::price::OPENROUTER_IMAGE_TABLE
                     )
                 } else {
                     format!(

@@ -274,13 +274,24 @@ usage accounting. `provider.max_price` must be exactly
 `{"prompt":0.75,"completion":3.75}` in OpenRouter's USD-per-million-token units;
 the adapter sets these caps, and reviewed request files must include them.
 Only text and inline PNG content are admitted. Prompt bounds count serialized
-non-image UTF-8 bytes plus 1024 framing tokens, adding the existing high-resolution
-image ceiling table from decoded PNG header dimensions (8192 tokens for edges
-through 2048, otherwise 16384). Invalid headers, remote/unsupported media and
-prompt bounds above 16000 tokens refuse before credential access or dispatch.
+non-image UTF-8 bytes plus 1024 framing tokens. OpenRouter uses the calibrated
+`assist-image-ceilings/2` table: each inline PNG reserves
+`3086 * ceil(width * height / 524288)` image tokens for nonzero edges through
+2048. Declared `detail:low` receives the same conservative bound as high;
+auto/omitted detail uses high. Unknown dimensions/resolution use 16384 tokens
+and refuse admission. Every constructed corpus image fits one area block,
+so two images reserve 6172 image tokens. This is calibrated with a safety factor
+of two against supplied receipts, not a documented tokenizer guarantee.
+See [the calibration record](assist-qualification.md#g12-image-token-bound)
+for evidence, prices and limits. The `/1` table remains readable for historical
+receipts and Gemini-direct. Invalid headers, remote/unsupported media and prompt
+bounds above 16000 tokens refuse before credential access or dispatch.
 Reservation uses those input bounds and explicit output tokens at the pinned
 integer nanodollar prices. Returned cost above reservation is charged, recorded
-as a failure and stops the campaign. The smoke sums all root reservations and
+as a failure and stops the campaign. Actual prompt or output tokens exceeding
+the receipt's reserved bound also stop the campaign, even below the global input
+limit and when billed cost fits. New receipts retain their image-table revision;
+old receipts retain their original stored bounds. The smoke sums all root reservations and
 refuses `smoke_reservations_exceed_cap` before policy loading or dispatch if they
 do not fit its allowance. This runner does not consume oracle answers,
 generate corpora, score outputs or confer immutable model identity.

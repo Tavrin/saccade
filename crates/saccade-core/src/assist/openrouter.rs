@@ -262,7 +262,7 @@ mod tests {
             decode(&request(&serde_json::to_vec(&source).unwrap(), model).unwrap()).unwrap();
         let bytes = serde_json::to_vec(&payload).unwrap();
         let admitted = admission(&bytes, model).unwrap();
-        assert!(admitted.bounds.input >= 8192 + 1024);
+        assert!(admitted.bounds.input >= super::super::price::CALIBRATED_IMAGE_TOKENS + 1024);
         assert_eq!(
             admitted.reservation,
             admitted.bounds.input * 750 + 4096 * 3750
@@ -273,7 +273,9 @@ mod tests {
             .as_array_mut()
             .unwrap()
             .push(second);
-        assert!(validate_request(&serde_json::to_vec(&payload).unwrap(), model).is_err());
+        let two = admission(&serde_json::to_vec(&payload).unwrap(), model).unwrap();
+        assert!(two.bounds.input < super::super::execution::INPUT_LIMIT);
+        assert!(two.reservation <= super::super::execution::INPUT_LIMIT * 750 + 4096 * 3750);
         for url in [
             "https://example.org/image.png",
             "data:image/png;base64,invalid",
@@ -297,6 +299,38 @@ mod tests {
             .unwrap()
             .remove("max_price");
         assert!(validate_request(&serde_json::to_vec(&payload).unwrap(), model).is_err());
+    }
+    #[test]
+    fn g12_historical_version_one_reservation_and_receipt_still_verify() {
+        use crate::assist::price;
+        use crate::budget_ledger::MoneyReceipt;
+        let source = json!({"systemInstruction":{"parts":[{"text":"fixture"}]},"contents":[{"parts":[{"inline_data":{"data":"iVBORw0KGgoAAAANSUhEUgAAAgAAAAIA"}}]}]});
+        let payload = request(
+            &serde_json::to_vec(&source).unwrap(),
+            price::OPENROUTER_MODEL,
+        )
+        .unwrap();
+        let price_pin = price::openrouter_price(price::OPENROUTER_MODEL).unwrap();
+        let old =
+            price::openrouter_bounds_for_table(&payload, price_pin, price::IMAGE_TABLE).unwrap();
+        let current = admission(&payload, price::OPENROUTER_MODEL).unwrap();
+        assert_eq!(old.bounds.input - current.bounds.input, 8192 - 3086);
+        assert_eq!(old.reservation, old.bounds.input * 750 + 4096 * 3750);
+        // Legacy receipts have no image_table field; their stored bounds remain authoritative.
+        let receipt: MoneyReceipt = serde_json::from_value(json!({
+            "id":"historical-v1", "request_hash":Digest::of_bytes(&payload), "scopes":["fixture"],
+            "reserved_nano_usd":old.reservation,"actual_nano_usd":2323500,"outcome":"completed",
+            "usage":{"input_bound":old.bounds.input,"output_bound":4096,
+                "usage":{"input_tokens":1513,"candidate_tokens":212,"thinking_tokens":0,"total_tokens":1725,"modality_details":null}}
+        })).unwrap();
+        let usage = serde_json::from_value(receipt.usage["usage"].clone()).unwrap();
+        assert!(old.bounds.contains(&usage));
+        assert!(receipt.usage.get("image_table").is_none());
+        let encoded = serde_json::to_vec(&receipt).unwrap();
+        assert_eq!(
+            encoded,
+            serde_json::to_vec(&serde_json::from_slice::<MoneyReceipt>(&encoded).unwrap()).unwrap()
+        );
     }
     #[test]
     fn chat_request_has_chat_messages_bounded_output_and_pinned_routing() {
@@ -685,11 +719,7 @@ mod execution_tests {
             if index == 12 {
                 value["usage"]["cost"] = json!(0.04);
             }
-            if index == 2 {
-                value["usage"]["prompt_tokens"] = json!(16001);
-                value["usage"]["total_tokens"] = json!(16031);
-            }
-            let fake = Fake {
+            let mut fake = Fake {
                 ledger: &ledger,
                 calls: Cell::new(0),
                 body: serde_json::to_vec(&value).unwrap(),
@@ -697,6 +727,37 @@ mod execution_tests {
                 scenario: index,
                 generations: Cell::new(0),
             };
+            let mut source = json!({"systemInstruction":{"parts":[{"text":"system fixture"}]},
+                "contents":[{"parts":[{"text":if index >= 28 { "fixture".repeat(40) } else { "fixture".into() }}]}]});
+            if index == 2 {
+                source["contents"][0]["parts"]
+                    .as_array_mut()
+                    .unwrap()
+                    .push(json!({"inline_data":{"data":"iVBORw0KGgoAAAANSUhEUgAAAgAAAAIA"}}));
+            }
+            let mut payload: Value = decode(
+                &request(
+                    &serde_json::to_vec(&source).unwrap(),
+                    "google/gemini-3.8-flash",
+                )
+                .unwrap(),
+            )
+            .unwrap();
+            if index == 11 {
+                payload["max_tokens"] = json!(64);
+            }
+            let payload = serde_json::to_vec(&payload).unwrap();
+            if index == 2 {
+                let input = admission(&payload, "google/gemini-3.8-flash")
+                    .unwrap()
+                    .bounds
+                    .input
+                    + 1;
+                assert!(input < crate::assist::execution::INPUT_LIMIT);
+                value["usage"]["prompt_tokens"] = json!(input);
+                value["usage"]["total_tokens"] = json!(input + 30);
+                fake.body = serde_json::to_vec(&value).unwrap();
+            }
             let transport = Transport {
                 user: &user,
                 roots: &roots,
@@ -715,20 +776,6 @@ mod execution_tests {
                 sources: vec!["fixture".into()],
                 deadline: Instant::now() + Duration::from_secs(1),
             };
-            let source = json!({"systemInstruction":{"parts":[{"text":"system fixture"}]},
-                "contents":[{"parts":[{"text":if index >= 28 { "fixture".repeat(40) } else { "fixture".into() }}]}]});
-            let mut payload: Value = decode(
-                &request(
-                    &serde_json::to_vec(&source).unwrap(),
-                    "google/gemini-3.8-flash",
-                )
-                .unwrap(),
-            )
-            .unwrap();
-            if index == 11 {
-                payload["max_tokens"] = json!(64);
-            }
-            let payload = serde_json::to_vec(&payload).unwrap();
             let key = CacheKey {
                 evidence_hash: Digest::of_bytes(b"fixture-request"),
                 payload_hash: Digest::of_bytes(&payload),
@@ -927,6 +974,11 @@ mod execution_tests {
                 assert!(result.is_err());
                 assert_eq!(receipt.actual_nano_usd, Some(187_500));
                 assert_eq!(receipt.outcome, "usage_limit_exceeded");
+                assert_eq!(receipt.usage["bound_breach"], true);
+                assert_eq!(
+                    receipt.usage["image_table"],
+                    crate::assist::price::OPENROUTER_IMAGE_TABLE
+                );
                 assert!(executor.call(&key, &payload).is_err());
                 assert_eq!(fake.calls.get(), 1);
             } else {
