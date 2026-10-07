@@ -319,6 +319,9 @@ fn committed_schemas_match_the_rust_types() {
         "decision-request",
         "decide-result",
         "error",
+        "manifest",
+        "link",
+        "region-export",
     ] {
         let file = format!("saccade-{name}.v1.schema.json");
         let text =

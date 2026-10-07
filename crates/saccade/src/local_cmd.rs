@@ -1100,9 +1100,14 @@ pub(crate) fn ask(request_file: &Path, out: Option<&Path>) -> Result<Value, CliE
     value["review"] = json!("unresolved");
     Ok(value)
 }
-pub(crate) fn view_artifact(path: &Path, out: &Path, json: bool) -> Result<u8, CliError> {
+pub(crate) fn view_artifact(
+    path: &Path,
+    out: &Path,
+    json: bool,
+    open: bool,
+) -> Result<u8, CliError> {
     if path.is_dir() && path.join(".saccade-demo").is_file() {
-        return view_artifact(&path.join("report"), out, json);
+        return view_artifact(&path.join("report"), out, json, open);
     }
     let parent = if path.is_dir() {
         path
@@ -1119,6 +1124,9 @@ pub(crate) fn view_artifact(path: &Path, out: &Path, json: bool) -> Result<u8, C
     let mut value = base_result("view");
     value["artifact"] = reference(&index)?;
     let _ = out;
+    if open {
+        crate::open_page(&index);
+    }
     if json {
         print(&value, json)?;
     } else if let Some(path) = value["artifact"]["path"].as_str() {

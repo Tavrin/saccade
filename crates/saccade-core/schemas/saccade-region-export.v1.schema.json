@@ -1,0 +1,126 @@
+{
+  "$id": "https://github.com/Tavrin/saccade/crates/saccade-core/schemas/saccade-region-export.v1.schema.json",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "properties": {
+    "note": {
+      "type": "string"
+    },
+    "order": {
+      "type": "string"
+    },
+    "padding_px": {
+      "minimum": 0,
+      "type": "integer"
+    },
+    "regions": {
+      "items": {
+        "additionalProperties": false,
+        "properties": {
+          "area_px": {
+            "minimum": 0,
+            "type": "integer"
+          },
+          "crop_rect_px": {
+            "items": {
+              "minimum": 0,
+              "type": "integer"
+            },
+            "maxItems": 4,
+            "minItems": 4,
+            "type": "array"
+          },
+          "entry": {
+            "type": "string"
+          },
+          "files": {
+            "additionalProperties": {
+              "type": "string"
+            },
+            "type": "object"
+          },
+          "max_flip": {
+            "type": "number"
+          },
+          "mean_flip": {
+            "type": "number"
+          },
+          "rank": {
+            "minimum": 1,
+            "type": "integer"
+          },
+          "rect_frac": {
+            "items": {
+              "type": "number"
+            },
+            "maxItems": 4,
+            "minItems": 4,
+            "type": "array"
+          },
+          "rect_px": {
+            "items": {
+              "minimum": 0,
+              "type": "integer"
+            },
+            "maxItems": 4,
+            "minItems": 4,
+            "type": "array"
+          },
+          "share_of_total_error": {
+            "type": "number"
+          }
+        },
+        "required": [
+          "rank",
+          "entry",
+          "rect_px",
+          "crop_rect_px",
+          "rect_frac",
+          "max_flip",
+          "mean_flip",
+          "area_px",
+          "share_of_total_error",
+          "files"
+        ],
+        "type": "object"
+      },
+      "type": "array"
+    },
+    "schema": {
+      "const": "saccade-region-export.v1"
+    },
+    "source": {
+      "additionalProperties": false,
+      "properties": {
+        "report": {
+          "type": "string"
+        },
+        "report_id": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "sha256": {
+          "pattern": "^[0-9a-f]{64}$",
+          "type": "string"
+        }
+      },
+      "required": [
+        "report",
+        "sha256",
+        "report_id"
+      ],
+      "type": "object"
+    }
+  },
+  "required": [
+    "schema",
+    "source",
+    "order",
+    "padding_px",
+    "regions",
+    "note"
+  ],
+  "type": "object"
+}

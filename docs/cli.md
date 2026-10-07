@@ -23,6 +23,8 @@ Commands:
   compare             Compare a directory of captures against a directory of baselines
   prove               Check whether image identity or performance evidence proves a claim
   review              Preview a review plan or handle a local closed decision request
+  manifest            Find, link and re-check the outputs of a report directory
+  export-regions      Crop the worst regions of a report, with coordinates
   timing              Verdicts over timings acquired by external tools
   render-evidence     Compare structural rendering evidence with explicit scope and ID attribution
   schema              Discover JSON Schemas without a source checkout
@@ -94,6 +96,147 @@ Exit codes (a command that cannot produce a measurement never exits 0):
   3  strict producer check refused: an undeclared difference (--require-valid-arms)
   4  strict producer check refused: a required key is missing (--require-valid-arms)
 Units: --threshold on FLIP scores is a 0-1 score (lower = more alike); hash thresholds count bits.
+```
+
+## saccade manifest
+
+```text
+Find, link and re-check the outputs of a report directory
+
+Usage: saccade manifest [OPTIONS] <COMMAND>
+
+Commands:
+  build     Write saccade-manifest.json for a report directory: artifacts by hash, reports by report_id, duplicates listed once. Passing is never recorded as approval
+  verify    Re-hash everything a manifest or link names; fails with `link_missing` or `stale_link` when a recorded file moved or changed
+  link      Write a stable link to one report of a directory, by report_id
+  classify  Say whether a path is a report directory, a JSON document or an API response
+
+Options:
+      --source-ref <SOURCE_REF>      External capture URI/key (repeatable); recorded in generated reports
+      --report-index <REPORT_INDEX>  Shared report index destination (default reports/index.jsonl next to each report, inside --out)
+  -h, --help                         Print help
+
+Global options:
+      --allow-out-near-captures  Silence warnings when --out is next to capture metadata
+      --record-absolute-paths    Opt in to absolute local paths in reports and machine-readable output
+```
+
+## saccade manifest build
+
+```text
+Write saccade-manifest.json for a report directory: artifacts by hash, reports by report_id, duplicates listed once. Passing is never recorded as approval
+
+Usage: saccade manifest build [OPTIONS] <DIR>
+
+Arguments:
+  <DIR>  The output directory to describe
+
+Options:
+      --approved-anchor <APPROVED_ANCHOR>
+          Record a baseline a human approved (separate from last-good)
+      --source-ref <SOURCE_REF>
+          External capture URI/key (repeatable); recorded in generated reports
+      --last-good <LAST_GOOD>
+          Record the last passing run (a different role; not approval)
+      --report-index <REPORT_INDEX>
+          Shared report index destination (default reports/index.jsonl next to each report, inside --out)
+      --json
+          Print a JSON result
+  -h, --help
+          Print help
+
+Global options:
+      --allow-out-near-captures  Silence warnings when --out is next to capture metadata
+      --record-absolute-paths    Opt in to absolute local paths in reports and machine-readable output
+```
+
+## saccade manifest verify
+
+```text
+Re-hash everything a manifest or link names; fails with `link_missing` or `stale_link` when a recorded file moved or changed
+
+Usage: saccade manifest verify [OPTIONS] <TARGET>
+
+Arguments:
+  <TARGET>  A report directory, a saccade-manifest.json or a saccade-link.json
+
+Options:
+      --json                         Print a JSON result
+      --source-ref <SOURCE_REF>      External capture URI/key (repeatable); recorded in generated reports
+      --report-index <REPORT_INDEX>  Shared report index destination (default reports/index.jsonl next to each report, inside --out)
+  -h, --help                         Print help
+
+Global options:
+      --allow-out-near-captures  Silence warnings when --out is next to capture metadata
+      --record-absolute-paths    Opt in to absolute local paths in reports and machine-readable output
+```
+
+## saccade manifest link
+
+```text
+Write a stable link to one report of a directory, by report_id
+
+Usage: saccade manifest link [OPTIONS] --report-id <REPORT_ID> --out <OUT> <DIR>
+
+Arguments:
+  <DIR>  A report directory that has a manifest
+
+Options:
+      --report-id <REPORT_ID>        The report_id to link (see `reports` in the manifest)
+      --source-ref <SOURCE_REF>      External capture URI/key (repeatable); recorded in generated reports
+      --out <OUT>                    Where to write the link document
+      --report-index <REPORT_INDEX>  Shared report index destination (default reports/index.jsonl next to each report, inside --out)
+      --json                         Print a JSON result
+  -h, --help                         Print help
+
+Global options:
+      --allow-out-near-captures  Silence warnings when --out is next to capture metadata
+      --record-absolute-paths    Opt in to absolute local paths in reports and machine-readable output
+```
+
+## saccade manifest classify
+
+```text
+Say whether a path is a report directory, a JSON document or an API response
+
+Usage: saccade manifest classify [OPTIONS] <PATH>
+
+Arguments:
+  <PATH>  Path to inspect
+
+Options:
+      --json                         Print JSON (the default output is already one line of JSON)
+      --source-ref <SOURCE_REF>      External capture URI/key (repeatable); recorded in generated reports
+      --report-index <REPORT_INDEX>  Shared report index destination (default reports/index.jsonl next to each report, inside --out)
+  -h, --help                         Print help
+
+Global options:
+      --allow-out-near-captures  Silence warnings when --out is next to capture metadata
+      --record-absolute-paths    Opt in to absolute local paths in reports and machine-readable output
+```
+
+## saccade export-regions
+
+```text
+Crop the worst regions of a report, with coordinates
+
+Usage: saccade export-regions [OPTIONS] <REPORT>
+
+Arguments:
+  <REPORT>  A saccade report JSON (saccade-report.v1 or its linked successor)
+
+Options:
+      --out <OUT>                    Output directory for the crops and the coordinates document [default: regions-export]
+      --source-ref <SOURCE_REF>      External capture URI/key (repeatable); recorded in generated reports
+      --report-index <REPORT_INDEX>  Shared report index destination (default reports/index.jsonl next to each report, inside --out)
+      --top <TOP>                    How many regions to export, worst first (1 to 200) [default: 5]
+      --padding <PADDING>            Context pixels added around each hotspot box [default: 8]
+      --json                         Print a JSON result
+  -h, --help                         Print help
+
+Global options:
+      --allow-out-near-captures  Silence warnings when --out is next to capture metadata
+      --record-absolute-paths    Opt in to absolute local paths in reports and machine-readable output
 ```
 
 ## saccade timing
@@ -2535,6 +2678,7 @@ Output:
       --labels <LABELS>  Comma-separated labels, one per directory (default: directory names)
       --out <OUT>        Output directory [default: view]
       --json             Print a JSON summary (`saccade-view-summary.v1`) instead of text
+      --open             Open the page in the default browser after writing or locating it
 
 Comparison:
       --reference <REFERENCE>  FLIP reference: a label or one of the directories (default: the first)

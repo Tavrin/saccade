@@ -87,13 +87,15 @@ fn help_lists_active_commands_and_watch_alias_stays_hidden() {
         .collect::<Vec<_>>();
     assert_eq!(
         top.len(),
-        44 + usize::from(cfg!(feature = "compression"))
+        46 + usize::from(cfg!(feature = "compression"))
             + 4 * usize::from(cfg!(feature = "products"))
             + usize::from(cfg!(feature = "local-vlm"))
             + usize::from(cfg!(feature = "vision-providers")),
         "{top:?}"
     );
     for name in [
+        "manifest",
+        "export-regions",
         "timing",
         "render-evidence",
         "schema",

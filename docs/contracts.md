@@ -275,11 +275,13 @@ The last three names appear only when the corresponding feature is compiled in.
 - [saccade-labels.v2.schema.json](../crates/saccade-core/schemas/saccade-labels.v2.schema.json) — Labels
 - [saccade-learned-quality.v1.schema.json](../crates/saccade-core/schemas/saccade-learned-quality.v1.schema.json) — QualityReport
 - [saccade-learned-quality.v2.schema.json](../crates/saccade-core/schemas/saccade-learned-quality.v2.schema.json) — QualityReport
+- [saccade-link.v1.schema.json](../crates/saccade-core/schemas/saccade-link.v1.schema.json) — Historical reader contract
 - [saccade-localized-summary.v1.schema.json](../crates/saccade-core/schemas/saccade-localized-summary.v1.schema.json) — saccade-localized-summary.v1
 - [saccade-localized.v1.schema.json](../crates/saccade-core/schemas/saccade-localized.v1.schema.json) — Measurement
 - [saccade-localized.v2.schema.json](../crates/saccade-core/schemas/saccade-localized.v2.schema.json) — Measurement
 - [saccade-locate.v1.schema.json](../crates/saccade-core/schemas/saccade-locate.v1.schema.json) — LocateReport
 - [saccade-locate.v2.schema.json](../crates/saccade-core/schemas/saccade-locate.v2.schema.json) — LocateReport
+- [saccade-manifest.v1.schema.json](../crates/saccade-core/schemas/saccade-manifest.v1.schema.json) — Historical reader contract
 - [saccade-media-compare.v1.schema.json](../crates/saccade-core/schemas/saccade-media-compare.v1.schema.json) — Historical reader contract
 - [saccade-media-compare.v2.schema.json](../crates/saccade-core/schemas/saccade-media-compare.v2.schema.json) — Historical reader contract
 - [saccade-media-error.v1.schema.json](../crates/saccade-core/schemas/saccade-media-error.v1.schema.json) — Historical reader contract
@@ -326,6 +328,7 @@ The last three names appear only when the corresponding feature is compiled in.
 - [saccade-question-report.v2.schema.json](../crates/saccade-core/schemas/saccade-question-report.v2.schema.json) — Historical reader contract
 - [saccade-rank.v1.schema.json](../crates/saccade-core/schemas/saccade-rank.v1.schema.json) — RankReport
 - [saccade-reference-evidence.v1.schema.json](../crates/saccade-core/schemas/saccade-reference-evidence.v1.schema.json) — Report
+- [saccade-region-export.v1.schema.json](../crates/saccade-core/schemas/saccade-region-export.v1.schema.json) — Historical reader contract
 - [saccade-region-models.v1.schema.json](../crates/saccade-core/schemas/saccade-region-models.v1.schema.json) — ModelManifest
 - [saccade-registration.v1.schema.json](../crates/saccade-core/schemas/saccade-registration.v1.schema.json) — saccade-registration.v1
 - [saccade-registration.v2.schema.json](../crates/saccade-core/schemas/saccade-registration.v2.schema.json) — saccade-registration.v1
