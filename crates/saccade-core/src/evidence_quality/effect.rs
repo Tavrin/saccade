@@ -169,7 +169,9 @@ pub fn select(
     }
     match selection {
         Selection::Mask { image } => {
-            let path = super::relative(policy_root, image)?;
+            let path = super::relative(policy_root, image).map_err(|e| {
+                Error::Config(format!("masks must be relative to the config file (or declaring policy file), inside its directory; absolute paths, traversal and escaping symlinks are forbidden: {e}"))
+            })?;
             let img = super::image(&path)?;
             if (img.width(), img.height()) != dimensions {
                 return Err(Error::Config("effect mask dimensions differ".into()));

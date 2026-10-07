@@ -2,6 +2,14 @@
 
 ## Unreleased
 
+- Add JSON report output to `arms check --out`.
+- Render plain ranks and confidence intervals in ablation tables.
+- Show ablation repeat counts and mark unavailable spread and intervals with a dash.
+- Emit the legacy GPU-clock deprecation warning once per command.
+- Keep image-free ablation arms as excluded rows and add `--require-all-arms`.
+- Report skipped noise-input symlinks and distinguish empty capture sets from over-budget sets.
+- Clarify that effect masks must use relative paths inside the config directory.
+
 ## 0.2.9 (2026-10-07)
 
 - Add offline `capture conform` validation with versioned capture records, exact

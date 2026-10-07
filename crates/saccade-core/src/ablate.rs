@@ -98,6 +98,54 @@ pub enum ImageEffect {
     Unknown,
 }
 impl Arm {
+    fn excluded(label: String, path: String, excluded_repeats: Vec<String>) -> Self {
+        Self {
+            label,
+            path,
+            excluded_repeats,
+            flag: "EXCLUDED".into(),
+            image_verdict: "excluded: no images".into(),
+            combined_verdict: "excluded: no images".into(),
+            image_effect: ImageEffect::Unknown,
+            frame_change: crate::perf::FrameChange::Unknown,
+            frame_delta: None,
+            timing: None,
+            timing_rank: None,
+            perf_diff: None,
+            intended_variables: Vec::new(),
+            covered_by_derivation: Vec::new(),
+            intended_keys: Vec::new(),
+            image_classes: Vec::new(),
+            top_deltas: Vec::new(),
+            config_differs: Vec::new(),
+            no_effect: false,
+            perf_only: false,
+            errors: Vec::new(),
+            perf_errors: Vec::new(),
+            report_html: String::new(),
+            repeats: Vec::new(),
+            repeat_stability: None,
+            validity_findings: Vec::new(),
+            next_actions: vec!["recapture the arm with images".into()],
+        }
+    }
+    fn timing_cells(&self) -> Option<Vec<String>> {
+        let t = self.timing.as_ref()?;
+        Some(vec![
+            self.timing_rank
+                .map_or_else(|| "-".into(), |r| r.to_string()),
+            t.samples_ms.len().to_string(),
+            format!("{:.6}", t.median_ms),
+            if t.samples_ms.len() < 2 {
+                "-".into()
+            } else {
+                format!("{:.6}", t.iqr_ms)
+            },
+            format!("{:+.6}", t.hl_delta_ms),
+            t.interval_ms
+                .map_or_else(|| "-".into(), |[lo, hi]| format!("[{lo:.6}, {hi:.6}]")),
+        ])
+    }
     pub fn from_report(
         label: String,
         path: String,
@@ -235,23 +283,20 @@ pub struct RepeatStability {
 impl Ablation {
     /// Markdown evidence summary including repeat validity and next actions.
     pub fn markdown(&self) -> String {
-        let mut out = String::from(
-            "# Saccade ablation\n\n| Arm | Flag | Image | Repeat validity |\n|---|---|---|---|\n",
-        );
-        out.push_str("\n| Arm | Rank | Median ms | IQR ms | HL delta ms | 95% CI ms |\n|---|---|---|---|---|---|\n");
+        let mut out = String::from("# Saccade ablation\n");
+        out.push_str("\n| Arm | Rank | n | Median ms | IQR ms | HL delta ms | 95% CI ms |\n|---|---|---|---|---|---|---|\n");
         for arm in &self.arms {
-            if let Some(t) = &arm.timing {
+            if let Some(cells) = arm.timing_cells() {
                 out.push_str(&format!(
-                    "| {} | {:?} | {:.6} | {:.6} | {:+.6} | {:?} |\n",
+                    "| {} | {} |\n",
                     crate::perf::clean(&arm.label).replace('|', "\\|"),
-                    arm.timing_rank,
-                    t.median_ms,
-                    t.iqr_ms,
-                    t.hl_delta_ms,
-                    t.interval_ms
+                    cells.join(" | ")
                 ));
             }
         }
+        out.push_str(
+            "\nIQR is - for n < 2; CI is - unless both base and arm have at least two repeats.\n",
+        );
         out.push_str("\n| Arm | Flag | Image | Repeat validity |\n|---|---|---|---|\n");
         for arm in &self.arms {
             let clean = |s: &str| crate::perf::clean(s).replace('|', "\\|");
@@ -298,10 +343,7 @@ impl Ablation {
     }
 
     pub fn text(&self) -> String {
-        let mut out = format!(
-            "base {}\nARM\tFLAG\tCOMBINED VERDICT\tCONFIG DIFFERS\n",
-            crate::perf::clean(&self.base)
-        );
+        let mut out = format!("base {}\n", crate::perf::clean(&self.base));
         if self.base_repeats.len() > 1 {
             out.push_str(&format!(
                 "base repeats: {}; qualification: {:?}\n",
@@ -324,6 +366,20 @@ impl Ablation {
                 crate::perf::clean(reason)
             ));
         }
+        out.push_str("ARM\tRANK\tn\tMEDIAN MS\tIQR MS\tHL DELTA MS\t95% CI MS\n");
+        for a in &self.arms {
+            if let Some(cells) = a.timing_cells() {
+                out.push_str(&format!(
+                    "{}\t{}\n",
+                    crate::perf::clean(&a.label),
+                    cells.join("\t")
+                ));
+            }
+        }
+        out.push_str(
+            "IQR is - for n < 2; CI is - unless both base and arm have at least two repeats.\n",
+        );
+        out.push_str("ARM\tFLAG\tCOMBINED VERDICT\tCONFIG DIFFERS\n");
         for a in &self.arms {
             out.push_str(&format!(
                 "{}\t{}\t{}\t{}\n",
@@ -407,14 +463,21 @@ impl Ablation {
             .replace("</", "<\\/")
             .replace("<!--", "<\\u0021--");
         let mut timing_html = String::from(
-            "<table><tr><th>Arm</th><th>Rank</th><th>Median ms</th><th>IQR ms</th><th>HL delta ms</th><th>95% CI ms</th></tr>",
+            "<table><tr><th>Arm</th><th>Rank</th><th>n</th><th>Median ms</th><th>IQR ms</th><th>HL delta ms</th><th>95% CI ms</th></tr>",
         );
         for a in &self.arms {
-            if let Some(t) = &a.timing {
-                timing_html.push_str(&format!("<tr><td>{}</td><td>{:?}</td><td>{:.6}</td><td>{:.6}</td><td>{:+.6}</td><td>{:?}</td></tr>",a.label.replace('&',"&amp;").replace('<',"&lt;").replace('>',"&gt;"),a.timing_rank,t.median_ms,t.iqr_ms,t.hl_delta_ms,t.interval_ms));
+            if let Some(cells) = a.timing_cells() {
+                timing_html.push_str(&format!(
+                    "<tr><td>{}</td><td>{}</td></tr>",
+                    a.label
+                        .replace('&', "&amp;")
+                        .replace('<', "&lt;")
+                        .replace('>', "&gt;"),
+                    cells.join("</td><td>")
+                ));
             }
         }
-        timing_html.push_str("</table>");
+        timing_html.push_str("</table><p>IQR is - for n &lt; 2; CI is - unless both base and arm have at least two repeats.</p>");
         Ok(format!(
             "<!doctype html><html lang=\"en\"><head><meta charset=\"utf-8\"><meta name=\"viewport\" content=\"width=device-width,initial-scale=1\"><title>saccade ablation</title><style>{}</style></head><body><main class=\"perf-page\"><h1>saccade ablation</h1><p><a href=\"{ABLATE_FILE}\">JSON evidence</a></p>{timing_html}<div id=\"ablation\"></div></main><script type=\"application/json\" id=\"ablation-data\">{data}</script><script>{}\nwindow.saccadePerf.ablation(document.getElementById('ablation'), JSON.parse(document.getElementById('ablation-data').textContent));</script></body></html>",
             crate::render::shared::page_css(&[]),
@@ -449,6 +512,9 @@ pub fn run_repeats(
 ) -> Result<Ablation> {
     if groups.is_empty() {
         return Err(crate::Error::Config("ablate needs at least one arm".into()));
+    }
+    if groups.iter().any(|(_, paths)| paths.is_empty()) {
+        return Err(crate::Error::Config("arm has no repeat paths".into()));
     }
     cfg.validate()?;
     if cfg.meta.require_valid_arms {
@@ -517,16 +583,47 @@ pub fn run_repeats(
         .first()
         .ok_or_else(|| crate::Error::Config("no complete base repeat".into()))?;
     let mut accepted = Vec::new();
-    for (label, paths) in groups {
+    let mut excluded_rows = Vec::new();
+    let group_labels = crate::runs::unique_labels(
+        &groups
+            .iter()
+            .filter_map(|(_, p)| p.first().cloned())
+            .collect::<Vec<_>>(),
+    );
+    for ((label, paths), fallback) in groups.iter().zip(group_labels) {
+        let original = paths;
         let (paths, excluded, _) =
             complete_repeats(paths, Some(&expected), &cfg.perf.name, &required_sidecars)?;
+        if paths.is_empty()
+            && !excluded.is_empty()
+            && excluded.iter().all(|r| r.ends_with(": no images"))
+        {
+            excluded_rows.push(Arm::excluded(
+                if label.is_empty() {
+                    fallback
+                } else {
+                    label.clone()
+                },
+                crate::paths::record(&original[0], out, cfg.record_absolute_paths),
+                excluded,
+            ));
+            continue;
+        }
         if paths.is_empty() {
             return Err(crate::Error::Config(format!(
                 "arm {label:?} has no complete repeats: {}",
                 excluded.join("; ")
             )));
         }
-        accepted.push((label.clone(), paths, excluded));
+        accepted.push((
+            if label.is_empty() {
+                fallback
+            } else {
+                label.clone()
+            },
+            paths,
+            excluded,
+        ));
     }
     let arms = accepted
         .iter()
@@ -534,7 +631,7 @@ pub fn run_repeats(
         .collect::<Vec<_>>();
     let inputs: Vec<_> = std::iter::once(base)
         .chain(bases.iter().skip(1))
-        .chain(accepted.iter().flat_map(|(_, paths, _)| paths.iter()))
+        .chain(groups.iter().flat_map(|(_, paths)| paths.iter()))
         .map(PathBuf::as_path)
         .collect();
     crate::run::guard_output_dir(out, &inputs, &[ABLATE_FILE, crate::run::RUN_SENTINEL])?;
@@ -655,6 +752,7 @@ pub fn run_repeats(
     for (rank, (i, _)) in ranked.into_iter().enumerate() {
         rows[i].timing_rank = Some(rank + 1);
     }
+    rows.extend(excluded_rows);
     rows.sort_by_key(|r| r.timing_rank.unwrap_or(usize::MAX));
     let model = Ablation {
         base_timing,

@@ -218,51 +218,81 @@ pub fn build_runs(repeats: &[PathBuf], tile_size: u32) -> Result<Report> {
     if repeats.len() < 2 {
         return Err(Error::Config("noise requires repeats".into()));
     }
-    let names = if repeats[0].is_dir() {
-        crate::run::collect_images(&repeats[0])?
-            .files
-            .keys()
-            .cloned()
-            .collect::<Vec<_>>()
-    } else {
-        vec![
-            repeats[0]
-                .file_name()
-                .unwrap_or_default()
-                .to_string_lossy()
-                .into_owned(),
-        ]
-    };
     if repeats.iter().any(|p| p.is_dir() != repeats[0].is_dir()) {
         return Err(Error::Config(
             "noise repeats must all be files or all run directories".into(),
         ));
     }
-    if repeats[0].is_dir() {
-        for repeat in repeats.iter().skip(1) {
-            let found = crate::run::collect_images(repeat)?
-                .files
-                .keys()
-                .cloned()
+    let mut discovery_limits = Vec::new();
+    let mut sets = Vec::new();
+    for repeat in repeats {
+        let names = if repeat.is_dir() {
+            let found = crate::run::collect_images(repeat)?;
+            let skipped = found
+                .problems
+                .iter()
+                .filter(|(_, reason)| reason.contains("symlinks are not followed"))
+                .map(|(name, _)| name)
                 .collect::<Vec<_>>();
-            if found != names {
-                return Err(Error::Config("repeat capture names differ".into()));
+            if !skipped.is_empty() {
+                let diagnostic = format!(
+                    "noise skipped symlinks: {} in {}; first paths: {}",
+                    skipped.len(),
+                    crate::perf::clean(&repeat.display().to_string()),
+                    skipped
+                        .iter()
+                        .take(3)
+                        .map(|p| crate::perf::clean(p))
+                        .collect::<Vec<_>>()
+                        .join(", ")
+                );
+                eprintln!("{diagnostic}");
+                discovery_limits.push(diagnostic);
             }
+            found.files.keys().cloned().collect::<Vec<_>>()
+        } else {
+            vec![
+                repeat
+                    .file_name()
+                    .unwrap_or_default()
+                    .to_string_lossy()
+                    .into_owned(),
+            ]
+        };
+        if names.is_empty() {
+            return Err(Error::Config(format!(
+                "noise capture set empty in {}{}",
+                crate::perf::clean(&repeat.display().to_string()),
+                if discovery_limits.is_empty() {
+                    String::new()
+                } else {
+                    format!("; {}", discovery_limits.join("; "))
+                }
+            )));
         }
+        if names.len() > 1024 {
+            return Err(Error::Config(format!(
+                "noise capture set over budget in {}: {} images (maximum 1024)",
+                crate::perf::clean(&repeat.display().to_string()),
+                names.len()
+            )));
+        }
+        sets.push(names);
     }
-    if names.is_empty() || names.len() > 1024 {
-        return Err(Error::Config(
-            "noise capture set empty or over budget".into(),
-        ));
+    let names = &sets[0];
+    if sets.iter().skip(1).any(|found| found != names) {
+        return Err(Error::Config("repeat capture names differ".into()));
     }
     let mut entries = std::collections::BTreeMap::new();
     for name in names {
         entries.insert(
             name.clone(),
-            build(&paths(repeats, &name)?, tile_size, None)?,
+            build(&paths(repeats, name)?, tile_size, None)?,
         );
     }
-    Ok(Report{schema:SCHEMA.into(),method:"max_pairwise_rgb_luminance_envelope_v1".into(),entries,limits:vec!["Caller declares all repeats are the same arm. Use --require-valid-arms to validate producer identity; hashes bind pixels but do not prove capture conditions.".into(),"Normalized sRGB luminance over black; all repeat pairs contribute maxima. Finite-repeat envelope is not population noise qualification; RGB RMS detects chromatic differences; native buffers require their own noise model.".into()]})
+    let mut report = Report{schema:SCHEMA.into(),method:"max_pairwise_rgb_luminance_envelope_v1".into(),entries,limits:vec!["Caller declares all repeats are the same arm. Use --require-valid-arms to validate producer identity; hashes bind pixels but do not prove capture conditions.".into(),"Normalized sRGB luminance over black; all repeat pairs contribute maxima. Finite-repeat envelope is not population noise qualification; RGB RMS detects chromatic differences; native buffers require their own noise model.".into()]};
+    report.limits.extend(discovery_limits);
+    Ok(report)
 }
 #[cfg(test)]
 mod tests {
