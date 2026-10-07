@@ -1,6 +1,6 @@
 //! Bounding-box annotation interchange: COCO and YOLO export/import with explicit coordinates.
 //!
-//! The canonical document ([`BoxDoc`], `saccade-boxes.v1`) states its
+//! The canonical document ([`BoxDoc`](crate::boxes::BoxDoc), `saccade-boxes.v1`) states its
 //! coordinate convention instead of implying one: pixel units, top-left origin,
 //! `x y w h` boxes in the coordinates of the **named image**. Anything else is
 //! refused rather than guessed. One document describes one image.
@@ -13,8 +13,8 @@
 //!   list (`classes.txt` on export). An empty file is a valid empty annotation.
 //!   YOLO carries no image size, so import needs the size stated.
 //! * A box outside the image is an error unless clipping is requested; clipping
-//!   and dropping are counted in [`Adjustments`], never silent.
-//! * [`crop`] and [`resize`] re-express boxes for a cropped or resized image;
+//!   and dropping are counted in [`Adjustments`](crate::boxes::Adjustments), never silent.
+//! * [`crop`](crate::boxes::crop) and [`resize`](crate::boxes::resize) re-express boxes for a cropped or resized image;
 //!   the derivation is recorded and the source hash is not carried over.
 use crate::{Error, Result};
 use serde::{Deserialize, Serialize};

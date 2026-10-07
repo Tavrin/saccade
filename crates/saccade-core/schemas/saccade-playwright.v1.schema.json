@@ -1,0 +1,28 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "saccade-playwright.v1",
+  "title": "saccade-playwright.v1",
+  "description": "Screenshot reporter intake: command readers validate exact entries, containment and optional metadata/inventory.",
+  "type": "object",
+  "required": [
+    "schema",
+    "entries"
+  ],
+  "properties": {
+    "schema": {
+      "const": "saccade-playwright.v1"
+    },
+    "entries": {
+      "type": "array",
+      "items": {
+        "type": "object"
+      }
+    },
+    "inventory": {
+      "type": [
+        "object",
+        "null"
+      ]
+    }
+  }
+}

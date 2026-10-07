@@ -18,7 +18,7 @@
 //!
 //! Requests received over MCP never supply any of these values: a server reads
 //! only the operator configuration and refuses a request-supplied location that
-//! differs from it ([`ModelConfig::check_request_location`]). Downloads happen
+//! differs from it ([`ModelConfig::check_request_location`](crate::model_config::ModelConfig::check_request_location)). Downloads happen
 //! only through `saccade models pull` (or the deprecated per-command flags on
 //! the CLI/Python side), never from a request.
 

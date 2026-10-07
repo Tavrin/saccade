@@ -957,3 +957,8 @@ LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 THE SOFTWARE.
 ```
+
+Rust library workflow extraction reuses the existing `serde_ignored` 0.1.14
+(MIT OR Apache-2.0) and `rustix` 1.1.5 (Apache-2.0 WITH LLVM-exception OR
+Apache-2.0 OR MIT) dependencies in core, and `jsonschema` 0.30.0 (MIT) for
+transferred history tests. No additional package version is introduced.

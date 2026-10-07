@@ -2,6 +2,15 @@
 
 ## Unreleased
 
+- Add Rust `saccade_core::workflows` entry points for stock compare/exact proof,
+  approval drafting/application and explicit signed verification policy, history,
+  manifest coverage, batch intake, review and screenshot ingest. CLI adapters
+  retain established outputs and startup authority. This 0.x change is additive:
+  existing core functions, command names and report schemas are unchanged.
+  Embed the previously CLI-only screenshot intake and mapping schemas so Rust
+  schema discovery covers these existing contracts. See `docs/library.md` for
+  the complete command audit and deferred orchestration.
+
 ## 0.2.9 (2026-10-07)
 
 - Add offline `capture conform` validation with versioned capture records, exact

@@ -65,7 +65,7 @@ pub struct Statistics {
     pub p95: f64,
     /// Declared per-pixel difference threshold.
     pub threshold: f64,
-    /// Fraction strictly over threshold, in [0,1].
+    /// Fraction strictly over threshold, in `[0,1]`.
     pub share_over_threshold: f64,
 }
 /// One ID, ranked by its total absolute-difference contribution.

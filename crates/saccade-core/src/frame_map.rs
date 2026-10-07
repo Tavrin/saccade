@@ -1,13 +1,13 @@
 //! Input contract for frame sequences extracted by an external tool.
 //!
-//! A [`FrameMap`] lists, for every extracted frame, its frame index, its
-//! presentation timestamp in seconds and the file holding it. [`check`] reports
+//! A [`FrameMap`](crate::frame_map::FrameMap) lists, for every extracted frame, its frame index, its
+//! presentation timestamp in seconds and the file holding it. [`check`](crate::frame_map::check) reports
 //! what the map does and does not support. It never resamples, interpolates or
 //! guesses: a gap, a variable frame rate or a sequence that never settles is an
 //! explicit state with reasons, and conclusions that need uniform time are
 //! flagged unusable rather than approximated.
 //!
-//! State precedence in [`Check::state`]: `invalid_files`, `missing_frames`,
+//! State precedence in [`Check::state`](crate::frame_map::Check::state): `invalid_files`, `missing_frames`,
 //! `variable_frame_rate`, `constant_frame_rate`, `single_frame`. The per-step
 //! rate is the timestamp step divided by the index step, so a dropped frame is
 //! reported as a gap and does not by itself make the rate "variable".

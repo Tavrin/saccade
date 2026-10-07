@@ -5,7 +5,7 @@
 //!
 //! Everything here is plain arithmetic over already-collected answers; it
 //! makes no calls and reads no files except the decisions files handed to
-//! [`calibrate`].
+//! `calibrate`.
 
 use std::collections::BTreeMap;
 #[cfg(feature = "evaluation")]
@@ -150,7 +150,7 @@ struct Pred {
     prob: Option<f64>,
 }
 
-/// Options of [`calibrate`].
+/// Options of `calibrate`.
 #[derive(Debug, Clone)]
 pub struct CalibrateOptions {
     /// The accuracy a suggested gate threshold must reach.

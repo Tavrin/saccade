@@ -269,3 +269,6 @@ Saccade originated in the Moss engine’s visual testing tools.
 
 Verify final QR/barcode payloads independently of visual comparison with the optional
 [`optical-code` feature](docs/optical-code.md); PDF/SVG pages also require `documents`.
+
+Rust callers can use [`saccade-core` workflows](docs/library.md) for command-level
+comparison, approval, history, manifests, batch and review without CLI dispatch.

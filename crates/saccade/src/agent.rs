@@ -397,3 +397,14 @@ pub fn result_value(
         Err(error) => error.value(),
     }
 }
+
+impl From<saccade_core::workflows::CommandError> for CliError {
+    fn from(e: saccade_core::workflows::CommandError) -> Self {
+        Self {
+            code: e.code,
+            message: e.message,
+            hint: e.hint,
+            arm_check: e.arm_check,
+        }
+    }
+}

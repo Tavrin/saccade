@@ -37,7 +37,7 @@ pub struct MotionHotspot {
     pub aligned_flip_mean: Option<f64>,
     /// Peak aligned FLIP on the same valid pixels; prevents small defects being diluted in a large hotspot.
     pub aligned_flip_max: Option<f64>,
-    /// Fraction of raw mean removed by alignment, clamped to [0,1].
+    /// Fraction of raw mean removed by alignment, clamped to `[0,1]`.
     pub explained_fraction: Option<f64>,
     /// Baseline encoded-luminance standard deviation on the valid pixels.
     pub texture_std: f64,
@@ -64,7 +64,7 @@ pub struct MotionEvidence {
     pub aligned_valid_flip_mean: Option<f64>,
     /// Conservative interpolation plus FLIP filter border margin.
     pub border_margin_px: usize,
-    /// Pixels excluded from aligned evidence, as row-major [start,length] runs.
+    /// Pixels excluded from aligned evidence, as row-major `[start,length]` runs.
     pub invalid_border_runs: Vec<[u32; 2]>,
     /// Per-original-hotspot diagnostics.
     pub hotspots: Vec<MotionHotspot>,

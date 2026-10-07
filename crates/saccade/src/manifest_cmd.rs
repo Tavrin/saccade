@@ -1,7 +1,8 @@
 //! `saccade manifest`: find, link and re-check the outputs of a report directory.
 use crate::agent::CliError;
 use crate::local_cmd::{base_result, reference};
-use saccade_core::manifest::{self, Anchors};
+use saccade_core::manifest;
+use saccade_core::workflows::manifest as workflow;
 use serde_json::json;
 use std::path::PathBuf;
 
@@ -93,27 +94,15 @@ pub(crate) fn run(args: Args) -> Result<u8, CliError> {
             cases,
             json,
         } => {
-            if crate::signed_approval::required()
-                && let Some(anchor) = &approved_anchor
-            {
-                crate::signed_approval::check_anchor(anchor, None)?;
-            }
-            let anchors = Anchors {
-                approved: approved_anchor.as_deref(),
+            let output = workflow::build(&workflow::BuildOptions {
+                dir: &dir,
+                approved_anchor: approved_anchor.as_deref(),
                 last_good: last_good.as_deref(),
-            };
-            let (path, value) = if let Some(cases) = cases {
-                let declaration = saccade_core::coverage::read_declaration(&cases)?;
-                if crate::signed_approval::required() {
-                    crate::signed_approval::check_case_anchors(
-                        &dir.join(manifest::MANIFEST_FILE),
-                        &serde_json::to_value(&declaration.cases)?,
-                    )?;
-                }
-                saccade_core::coverage::write_manifest(&dir, anchors, &declaration)?
-            } else {
-                manifest::write(&dir, anchors)?
-            };
+                cases: cases.as_deref(),
+                policy: crate::signed_approval::policy(),
+            })?;
+            let path = output.path;
+            let value = output.document;
             let mut result = base_result("manifest.build");
             result["artifact"] = reference(&path)?;
             result["counts"] = value["counts"].clone();
@@ -152,17 +141,15 @@ pub(crate) fn run(args: Args) -> Result<u8, CliError> {
                     .map_err(|e| CliError::new("config", e.to_string()))?
                     .as_secs(),
             };
-            if crate::signed_approval::required() {
-                crate::signed_approval::check_manifest(&path)?;
-            }
-            let report = saccade_core::coverage::analyze(&path, &group_by, now, max_age_seconds)?;
-            saccade_core::run::guard_output_dir(&out, &[&path], &["coverage.json"])?;
-            std::fs::create_dir_all(&out).map_err(|e| CliError::io(e.to_string()))?;
+            let report = workflow::views(&workflow::ViewsOptions {
+                target: &path,
+                out: &out,
+                group_by: &group_by,
+                now_unix: now,
+                max_age_seconds,
+                policy: crate::signed_approval::policy(),
+            })?;
             let artifact = out.join("coverage.json");
-            let linked = saccade_core::report_links::decorate(&serde_json::to_value(&report)?)?;
-            manifest::write_owned(&artifact, saccade_core::coverage::REPORT_SCHEMA, &linked)?;
-            saccade_core::report_links::index(&artifact, &linked)?;
-            saccade_core::render::render_coverage_html(&report, &path, &out)?;
             let mut result = base_result("manifest.views");
             result["verdict"] = report.coverage.clone().into();
             result["artifact"] = reference(&artifact)?;
@@ -185,32 +172,7 @@ pub(crate) fn run(args: Args) -> Result<u8, CliError> {
             Ok(u8::from(report.coverage != "complete"))
         }
         Operation::Verify { target, json } => {
-            if crate::signed_approval::required() {
-                crate::signed_approval::check_manifest(&target)?;
-            }
-            let findings = manifest::verify(&target)?;
-            if !findings.is_empty() {
-                let code = if findings
-                    .iter()
-                    .any(|f| f["code"] == manifest::CODE_STALE_LINK)
-                {
-                    "stale_link"
-                } else {
-                    "link_missing"
-                };
-                let listed = findings
-                    .iter()
-                    .take(5)
-                    .filter_map(|f| f["message"].as_str())
-                    .collect::<Vec<_>>()
-                    .join("; ");
-                let mut error = CliError::new(
-                    code,
-                    format!("{} link failure(s): {listed}", findings.len()),
-                );
-                error.hint = "rebuild the manifest with `saccade manifest build` and re-link, or restore the recorded file".into();
-                return Err(error);
-            }
+            workflow::verify(&target, crate::signed_approval::policy())?;
             let mut result = base_result("manifest.verify");
             result["data"] = json!({"verified":true});
             if json {
@@ -228,10 +190,7 @@ pub(crate) fn run(args: Args) -> Result<u8, CliError> {
             out,
             json,
         } => {
-            if crate::signed_approval::required() {
-                crate::signed_approval::check_manifest(&dir)?;
-            }
-            manifest::link(&dir, &report_id, &out)?;
+            workflow::link(&dir, &report_id, &out, crate::signed_approval::policy())?;
             let mut result = base_result("manifest.link");
             result["artifact"] = reference(&out)?;
             if json {
@@ -245,14 +204,7 @@ pub(crate) fn run(args: Args) -> Result<u8, CliError> {
             Ok(0)
         }
         Operation::Classify { path, json: _ } => {
-            let value = manifest::classify(&path)?;
-            if crate::signed_approval::required()
-                && (value["manifest"] == true
-                    || value["kind"] == "manifest"
-                    || value["kind"] == "link")
-            {
-                crate::signed_approval::check_manifest(&path)?;
-            }
+            let value = workflow::classify(&path, crate::signed_approval::policy())?.value;
             crate::emit(&format!("{}\n", serde_json::to_string(&value)?))?;
             Ok(0)
         }

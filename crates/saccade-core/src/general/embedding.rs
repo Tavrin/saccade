@@ -39,9 +39,9 @@ pub struct TextModel {
     pub artifact: semantic::ModelArtifact,
     /// Official tokenizer JSON from the same immutable checkpoint revision.
     pub tokenizer: semantic::ModelArtifact,
-    /// Exact int64 [1,length] input name.
+    /// Exact int64 `[1,length]` input name.
     pub input: String,
-    /// Exact float32 [1,dimensions] output name.
+    /// Exact float32 `[1,dimensions]` output name.
     pub output: String,
     /// SigLIP 2 fixed context length.
     pub length: usize,
@@ -60,7 +60,7 @@ pub struct Model {
     pub artifact: semantic::ModelArtifact,
     /// Exact NCHW input tensor name.
     pub input: String,
-    /// Exact pooled [1,dimensions] f32 output tensor name.
+    /// Exact pooled `[1,dimensions]` f32 output tensor name.
     pub output: String,
     /// Resize width,height; explicit triangle resize over white, no hidden crop.
     pub size: [u32; 2],

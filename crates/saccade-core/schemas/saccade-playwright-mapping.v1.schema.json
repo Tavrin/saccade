@@ -1,0 +1,22 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "saccade-playwright-mapping.v1",
+  "title": "saccade-playwright-mapping.v1",
+  "description": "Screenshot ingest mapping: pairs and retained companion metadata, not an approval or comparison verdict.",
+  "type": "object",
+  "required": [
+    "schema",
+    "entries"
+  ],
+  "properties": {
+    "schema": {
+      "const": "saccade-playwright-mapping.v1"
+    },
+    "entries": {
+      "type": "array",
+      "items": {
+        "type": "object"
+      }
+    }
+  }
+}

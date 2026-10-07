@@ -11,6 +11,8 @@ keywords.workspace = true
 categories.workspace = true
 
 [dependencies]
+serde_ignored = "=0.1.14"
+rustix = { version = "1", features = ["process"] }
 image.workspace = true
 exr = "1"
 flip-rs = { workspace = true, default-features = false }
@@ -108,6 +110,8 @@ local-vlm = ["dep:ureq", "dep:base64"]
 vision-providers = ["dep:base64", "dep:url"]
 
 [dev-dependencies]
+# Existing workspace validator, now used by transferred history contract tests.
+jsonschema = { version = "0.30", default-features = false }
 rxing = { version = "=0.9.3", default-features = false, features = ["encoders", "qrcode", "oned", "datamatrix", "aztec", "pdf417", "encoding_rs"] }
 tempfile = "3"
 

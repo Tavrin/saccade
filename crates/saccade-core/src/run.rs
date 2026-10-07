@@ -393,7 +393,7 @@ pub fn run(
         let expected = guard(baseline_dir)?;
         return run_approved(baseline_dir, capture_dir, report_dir, config, &expected);
     }
-    run_inner(baseline_dir, capture_dir, report_dir, config, None)
+    run_inner(baseline_dir, capture_dir, report_dir, config, None, true)
 }
 
 /// Authentication callback installed by a trusted embedding process.
@@ -425,6 +425,7 @@ fn run_inner(
     report_dir: &Path,
     config: &RunConfig,
     source_baseline: Option<&Path>,
+    print_warnings: bool,
 ) -> Result<Report> {
     config.validate()?;
     for (present, missing) in [(baseline_dir, capture_dir), (capture_dir, baseline_dir)] {
@@ -606,7 +607,9 @@ fn run_inner(
     let combined_verdict = perf_diff
         .as_ref()
         .map(|diff| crate::ablate::combined(&entries, diff));
-    warn_unmatched_globs(config, &entries);
+    if print_warnings {
+        warn_unmatched_globs(config, &entries);
+    }
 
     let mut totals = Totals {
         total: entries.len(),
@@ -668,7 +671,7 @@ fn run_inner(
         exclusion_audit: None,
     };
     report.exclusion_audit = Some(crate::exclusions::audit(&report, excluded_captures));
-    if report.is_empty_run() {
+    if print_warnings && report.is_empty_run() {
         let why = if baselines.files.is_empty() && report.totals.new > 0 {
             format!(
                 "the baseline directory {} has no images, so every capture is new",
@@ -701,6 +704,29 @@ pub fn run_approved(
     out: &Path,
     config: &RunConfig,
     expected: &BTreeMap<String, String>,
+) -> Result<Report> {
+    run_approved_inner(baseline, capture, out, config, expected, true)
+}
+pub(crate) fn run_scoped(
+    baseline: &Path,
+    capture: &Path,
+    out: &Path,
+    config: &RunConfig,
+    expected: Option<&BTreeMap<String, String>>,
+) -> Result<Report> {
+    if let Some(expected) = expected {
+        run_approved_inner(baseline, capture, out, config, expected, false)
+    } else {
+        run_inner(baseline, capture, out, config, None, false)
+    }
+}
+fn run_approved_inner(
+    baseline: &Path,
+    capture: &Path,
+    out: &Path,
+    config: &RunConfig,
+    expected: &BTreeMap<String, String>,
+    print_warnings: bool,
 ) -> Result<Report> {
     use sha2::{Digest as _, Sha256};
     use std::io::Write;
@@ -793,7 +819,14 @@ pub fn run_approved(
     if &actual != expected {
         return Err(Error::ApprovalContentMismatch);
     }
-    run_inner(temp.path(), capture, out, config, Some(baseline))
+    run_inner(
+        temp.path(),
+        capture,
+        out,
+        config,
+        Some(baseline),
+        print_warnings,
+    )
 }
 
 /// Fills `entry.warnings` from the structural checks and applies
@@ -1878,4 +1911,42 @@ fn layered_config<'a>(
     };
     local.layer_mask = Some(selected.into_iter().map(|v| !v).collect());
     Ok(std::borrow::Cow::Owned(local))
+}
+
+// Returned to command adapters; legacy run APIs retain their historical stderr output.
+pub(crate) fn workflow_warnings(
+    config: &RunConfig,
+    report: &Report,
+    baseline: &Path,
+) -> Vec<String> {
+    let mut warnings = Vec::new();
+    let globs = config
+        .regions
+        .iter()
+        .map(|r| ("region", r.glob.as_deref()))
+        .chain(config.masks.iter().map(|m| ("mask", m.glob.as_deref())));
+    for (kind, glob) in globs {
+        if let Some(glob) = glob
+            && let Ok(matcher) = compile_glob(glob)
+            && !report.entries.iter().any(|e| matcher.is_match(&e.name))
+        {
+            warnings.push(format!(
+                "saccade: warning: {kind} glob {glob:?} matches no image in this run"
+            ));
+        }
+    }
+    if report.is_empty_run() {
+        let why = if report.totals.new > 0 && report.totals.total == report.totals.new {
+            format!(
+                "the baseline directory {} has no images, so every capture is new",
+                baseline.display()
+            )
+        } else {
+            "no image exists in both directories".to_owned()
+        };
+        warnings.push(format!(
+            "saccade: warning: nothing compared: {why}; empty comparisons are not evidence"
+        ));
+    }
+    warnings
 }

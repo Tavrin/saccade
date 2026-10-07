@@ -217,3 +217,6 @@ pub mod batch;
 pub mod timed_text;
 // N22: offline categorical blind review.
 pub mod review_board;
+
+/// Typed command-level Rust entry points and stateless approval policy.
+pub mod workflows;

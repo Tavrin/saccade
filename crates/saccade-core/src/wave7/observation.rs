@@ -268,7 +268,7 @@ pub struct WireStatement {
     pub image_id: String,
     /// Bounded extracted/advisory text.
     pub text: String,
-    /// Wire [x,y,width,height].
+    /// Wire `[x,y,width,height]`.
     pub bbox: Option<[f32; 4]>,
     /// Wire point.
     pub point: Option<[f32; 2]>,

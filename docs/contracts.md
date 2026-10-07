@@ -344,8 +344,10 @@ The last three names appear only when the corresponding feature is compiled in.
 - [saccade-perf.v2.schema.json](../crates/saccade-core/schemas/saccade-perf.v2.schema.json) — PerfDocument
 - [saccade-pipeline-choice.v1.schema.json](../crates/saccade-core/schemas/saccade-pipeline-choice.v1.schema.json) — Historical reader contract
 - [saccade-pipeline-choice.v2.schema.json](../crates/saccade-core/schemas/saccade-pipeline-choice.v2.schema.json) — Historical reader contract
+- [saccade-playwright-mapping.v1.schema.json](../crates/saccade-core/schemas/saccade-playwright-mapping.v1.schema.json) — saccade-playwright-mapping.v1
 - [saccade-playwright-matcher.v1.schema.json](../crates/saccade-core/schemas/saccade-playwright-matcher.v1.schema.json) — saccade-playwright-matcher.v1
 - [saccade-playwright-matcher.v2.schema.json](../crates/saccade-core/schemas/saccade-playwright-matcher.v2.schema.json) — saccade-playwright-matcher.v1
+- [saccade-playwright.v1.schema.json](../crates/saccade-core/schemas/saccade-playwright.v1.schema.json) — saccade-playwright.v1
 - [saccade-print.v1.schema.json](../crates/saccade-core/schemas/saccade-print.v1.schema.json) — ICC-managed print comparison
 - [saccade-provider-mapping.v1.schema.json](../crates/saccade-core/schemas/saccade-provider-mapping.v1.schema.json) — saccade-provider-mapping.v1
 - [saccade-quality-report.v1.schema.json](../crates/saccade-core/schemas/saccade-quality-report.v1.schema.json) — Sweep

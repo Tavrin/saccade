@@ -61,7 +61,7 @@ pub enum Operation {
         a: PathBuf,
         /// Candidate input relative to the recipe.
         b: PathBuf,
-        /// FLIP deciding threshold in [0,1].
+        /// FLIP deciding threshold in `[0,1]`.
         threshold: f64,
         /// mean, max, p95 or p99.
         metric: String,
@@ -82,7 +82,7 @@ pub enum Operation {
         ocr: Option<Ocr>,
         /// Exact expected Unicode text, treated as inert data.
         expect_text: Vec<String>,
-        /// Confidence cutoff in [0,100].
+        /// Confidence cutoff in `[0,100]`.
         readable_confidence: f64,
         /// Positive or zero movement cutoff in pixels.
         moved_px: f64,

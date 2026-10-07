@@ -8,7 +8,7 @@ use std::path::Path;
 #[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct GalleryRegion {
-    /// Full-resolution [x,y,width,height].
+    /// Full-resolution `[x,y,width,height]`.
     pub rect_px: [u32; 4],
     /// Selection reason(s): hotspot, bias, coverage, or detail.
     pub reasons: Vec<String>,
