@@ -190,23 +190,27 @@ crashed and unknown-cost reservations remain nonzero. USD decimals are parsed
 without floating-point rounding at the accounting boundaries.
 
 Every request includes `usage: {"include": true}`. Returned USD cost settles the
-original money receipt even when the answer fails validation. End-of-campaign
-`/api/v1/generation?id=` reads attach total cost and response hash to each receipt;
-unknown/missing generations or cost differences above one nanodollar are recorded
-failures and stop spending. Failed calls and artifact-write failures also reach
-reconciliation. Process crashes retain durable reservations for operator review.
+original money receipt even when the answer fails validation. Every dispatched
+receipt starts with `reconciliation.state: "pending"`; the smoke performs no
+generation lookup and succeeds if dispatch and artifact writes succeed. A later
+`--reconcile-only` invocation uses `/api/v1/generation?id=` to attach authoritative
+cost, response hash, model and provider to pending receipts. Unpublished records
+remain pending; terminal failures and cost differences above one nanodollar are
+recorded as mismatch and stop spending. Failed calls and crashes retain their
+charges and pending state for operator review.
 The external remaining ceiling is distinct from the local campaign allowance;
 local token-price estimates alone do not prove a provider invoice bound.
 
 The request file is a JSON array of objects with exactly `root`, `model`,
-`revision` (expected returned fingerprint), and `payload` (the existing adapter's
+`revision` (expected fingerprint, explicit `absent`, or dated model ID), and `payload` (the existing adapter's
 closed chat-completions shape). Ten distinct roots are required for `--roots 10`.
 
 The smoke records every root in `smoke.json` under `root_outcomes`, using the
 assist error's static reason or a stable storage/provider code. It stops after
 the first failure; remaining roots have `skipped_after_failure`. A quarantined
 response is charged normally and its sanitized money receipt is written to
-`receipt-N.json`; successful receipts retain their provenance format. Returned
+`receipt-N.json`; successful receipts retain their provenance fields. Both
+receipt forms include reconciliation and revision identity metadata. Returned
 identity is also available in the campaign ledger and the corresponding root's
 `response_identity`. It contains `returned_model` (at most 128 ASCII bytes),
 `system_fingerprint` (at most 256 ASCII bytes or null), `returned_revision`, and
@@ -223,18 +227,39 @@ completion request and never automatically accepts drift. An omitted or null
 fingerprint has code `openrouter_fingerprint_absent`; an unpinned absence fails
 with `openrouter_fingerprint_absent_requires_explicit_pin`. Only an explicit
 `"revision": "absent"` pin accepts identity as the matching returned model plus
-the absence marker. Empty, malformed or literal `"absent"` fingerprints are
+the absence marker. A dated pin such as
+`"revision": "google/gemini-3.8-flash-20260902"` also requires that same matching
+alias and absent fingerprint at dispatch; its dated identity check is deferred
+to reconciliation. A present fingerprint still fails this absence check. Empty, malformed or literal `"absent"` fingerprints are
 invalid rather than absence. Present fingerprints still require an exact pin.
 
 Generation accounting allows up to four read-only GETs per receipt, waiting
 2, 4 and 8 seconds (14 seconds total backoff). Each GET has at most five seconds;
-all receipts, GETs and waits share the smoke's 30-second reconciliation deadline.
+all pending receipts, GETs and waits share the later invocation's 30-second deadline.
 A retry is skipped if its wait would exhaust that deadline. Only unpublished
 generations (404 or null data) and transient transport/429/5xx failures retry.
 Identity, cost, malformed-body and secret-reflection failures are terminal.
-Each money receipt retains `reconciliation.reason`, `attempts`, `waited_ms`,
-generation cost/hash and match status. A never-published generation remains a
-recorded failure and stops spending; retries never repeat a paid completion.
+Each money receipt retains `reconciliation.state`, `reason`, `attempts`,
+`waited_ms`, `attempted_ms` (Unix milliseconds), generation cost/hash and match
+status, plus a history of lookup invocations. A never-published generation stays
+pending with reason `openrouter_generation_not_ready`; transient unavailability
+or an exhausted lookup deadline also stays pending. Pending accounting does not
+stop spending or clear the existing charge. Matched and mismatched records are
+terminal and skipped on repeat invocations, including credential loading when
+all records are terminal. Reconciliation never repeats a paid completion,
+changes an allowance, or alters settled money counters.
+
+`revision_identity` records the generation's `dated_model`, `provider_name`,
+requested revision, `revision_drifted` and `quarantined` flags. A dated model that
+differs from the reviewed dated pin records `provider revision drift quarantined`
+and mismatch, even when billing agrees. It is ineligible for qualification.
+Pending receipts are also ineligible. `qualification_eligible` means only that
+accounting and identity checks passed for a completed dispatch; it is no model
+qualification claim. The smoke always retains `qualified: false`.
+A campaign's aggregate reconciliation is matched only when every dispatched
+receipt matched; any mismatch is a recorded failure and exits 4. Pending remains
+observable and exits 0. Later attempts refresh the original receipts and root
+outcomes using execution IDs; dispatch failures retain their original codes.
 
 Live admission accepts only `google/gemini-3.8-flash`, pinned by
 `openrouter-price-allowlist/2026-10-07-v1` to $0.75/M text input tokens,
@@ -266,6 +291,18 @@ cargo run --locked -p saccade-core --features assist --example assist_openrouter
   --max-spend-usd 1 --user-policy ~/.config/saccade/user.toml \
   --out /path/to/new-openrouter-smoke
 ```
+
+Later, after the provider publishes the generation records, run against the same
+output directory (no request file, user policy or spend allowance is required):
+
+```sh
+cargo run --locked -p saccade-core --features assist --example assist_openrouter_smoke -- \
+  --reconcile-only /path/to/new-openrouter-smoke
+```
+
+The library entry point is `assist::openrouter::reconcile_pending(ledger, http,
+keys, timeout)`; the existing transport-based `reconcile` delegates to it.
+Only fixed-endpoint generation GETs occur in this mode.
 
 Every CLI rejects allowances above $25 by default. The smoke's separately named
 `--allow-spend-above-25-usd` flag allows up to the existing $30 campaign parent;

@@ -197,8 +197,9 @@ The smoke preserves the first failure's static assist code and records skipped
 roots. Already charged responses supply bounded returned identity for operator
 pinning; quarantined responses never become accepted advice. Missing fingerprints
 require an explicit `absent` revision pin together with an exact returned model.
-Generation reads retry within one 30-second deadline and retain fixed failure
-reasons. The operator procedure and exact retry limits are documented in
+Later generation reads retry within one 30-second deadline and retain fixed
+reasons; unpublished records remain pending. Dispatch itself performs no
+reconciliation GETs. The operator procedure and exact retry limits are documented in
 [assist.md](assist.md#openrouter-provider-ceiling).
 
 Focused synthetic/recorded-shape regression mapping:
@@ -289,3 +290,63 @@ bounds, exact-cap admission, malformed key accounting, partial/full usage
 reflection, and returned cost overruns that remain charged and stop the campaign.
 This evidence is limited to offline fixtures; no network, credential or live
 model/provider validation was performed.
+
+## Deferred reconciliation and dated revision identity (fix 3)
+
+The coordinator's supplied evidence showed an unpublished generation at about
+three minutes and a published record at about one hour. The recorded 200 shape
+contains `google/gemini-3.8-flash-20260902`, `Google AI Studio`, a total cost of
+$0.0023235 (2,323,500 nanodollars), 1,513 native prompt tokens and 212 completion
+tokens. The fixture retains these fields with a synthetic generation ID; it is
+not a live API capture produced by this implementation run.
+
+Dispatch now leaves receipts pending. A later library call or smoke
+`--reconcile-only` invocation updates the existing ledger without dispatch or
+allowance. Unpublished/transient/deadline results stay pending and retain attempt
+time and history. Billing/identity/revision mismatches remain failures. Only all
+matched receipts make a campaign reconciled; repeated reconciliation skips
+terminal receipts without additional reads. Original charges remain unchanged.
+
+A reviewed revision may pin the dated model ID. That pin still requires an
+absent fingerprint and matching alias at dispatch. Reconciliation records the
+actual dated model and provider name; a changed dated model quarantines the
+result from qualification even when cost matches. No pin is automatically
+adopted, and no date or provider text is guessed from the request.
+
+| Goal | Focused test |
+| --- | --- |
+| Deferred 404-to-200 lookup, attempt history, unchanged charges and idempotence | `g12_deferred_404_then_200_reconciliation_is_pending_and_idempotent` |
+| Dated revision match versus drift quarantine, with absent-fingerprint dispatch checks | `g12_dated_revision_pin_matches_or_quarantines_after_reconciliation` |
+| Reconcile-only arguments and refreshed exported receipts | `g12_reconcile_only_needs_no_allowance_and_preserves_exported_provenance` |
+
+Decisions: reuse the locked campaign ledger and the existing bounded GET policy;
+reject in-run publication waits, allowance resets, completion retries and silent
+acceptance of dated drift. Keep dispatch fingerprint and reconciled dated identity
+separate. This correction does not change scoring, batch, two-image token ceilings
+or Gemini-direct. Offline fixture evidence does not qualify a live model or prove
+live API availability. See [assist.md](assist.md#openrouter-provider-ceiling) for
+the exact dispatch and later reconciliation commands.
+
+Fix 3 validation (offline and locked Cargo resolution):
+
+| Gate | Command or scope | Exit |
+| --- | --- | --- |
+| Formatting | `cargo fmt --all --check`; explicit `rustfmt --edition 2024 --check` on the ledger module | 0 |
+| Strict clippy | `cargo clippy --workspace --all-targets --features assist -- -D warnings` | 0 |
+| Core unit tests | `cargo test -p saccade-core --features assist,schema,evaluation --lib` (254 passed, 6 pre-existing ignored) | 0 |
+| CLI unit tests | `cargo test -p saccade --features assist,schema,evaluation --bin saccade` (26 passed, 1 pre-existing ignored) | 0 |
+| Smoke example tests | `cargo test -p saccade-core --features assist --example assist_openrouter_smoke` (5 passed) | 0 |
+| Python assist tests | `python3 -m unittest discover -s scripts/assist -p 'test_*.py'` (14 passed) | 0 |
+| Generated documentation | `python3 scripts/gen-docs.py --check` | 0 |
+| Public hygiene | `bash scripts/check-public-hygiene.sh` (worktree and index) | 0 |
+
+Cargo commands used `--offline --locked`, `CARGO_INCREMENTAL=0` and
+`CARGO_PROFILE_DEV_DEBUG=0`. Final Rust test binaries ran with `HOME` and
+`USERPROFILE` removed by the Cargo target runner, preventing ambient credential
+or user-policy reads. Credential fixtures used synthetic keys in temporary
+directories. No network or real credential access occurred. The initial focused
+run exited 101 because the tiny synthetic request's conservative input bound was
+below the recorded 1,513 prompt tokens; enlarging that fixture request corrected
+the mismatch without changing production ceilings. The final focused run passed
+all 21 G12 tests. These are unit and fixture gates; broader integration, ignored
+heavy tests and live qualification were not run for fix 3.

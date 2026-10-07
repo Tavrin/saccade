@@ -508,7 +508,11 @@ impl Executor<'_> {
                     reserved_nano_usd: reservation,
                     actual_nano_usd: None,
                     outcome: "reserved".into(),
-                    usage: Value::Null,
+                    usage: if key.provider == "openrouter" {
+                        json!({"requested_identity":{"model":key.model,"revision":key.revision}})
+                    } else {
+                        Value::Null
+                    },
                 },
             )
             .map_err(|_| Error::Policy("money budget exhausted"))?;
@@ -635,7 +639,11 @@ impl Executor<'_> {
             )
         };
         require(
-            returned_model == key.model && revision == key.revision,
+            returned_model == key.model
+                && (revision == key.revision
+                    || (key.provider == "openrouter"
+                        && revision == "absent"
+                        && super::openrouter::dated_pin(&key.model, &key.revision))),
             "provider revision drift quarantined",
         )?;
         require(

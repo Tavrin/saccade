@@ -17,7 +17,7 @@ use serde::Deserialize;
 use serde_json::{Value, json};
 use std::{
     collections::{BTreeMap, BTreeSet},
-    path::PathBuf,
+    path::{Path, PathBuf},
     time::{Duration, Instant},
 };
 
@@ -93,6 +93,56 @@ fn root_outcomes(
         .collect();
     (outcomes, failed)
 }
+// Refresh exported receipts from the authoritative ledger without replacing provenance.
+fn export_reconciliation(
+    out: &Path,
+    ledger: &Ledger,
+    smoke: &mut Value,
+) -> Result<(), Box<dyn std::error::Error>> {
+    let receipts = ledger.money_receipts()?;
+    let outcomes = smoke["root_outcomes"]
+        .as_array_mut()
+        .ok_or("invalid smoke outcomes")?;
+    for (index, outcome) in outcomes.iter_mut().enumerate() {
+        let Some(id) = outcome["execution_id"].as_str() else {
+            continue;
+        };
+        let receipt = receipts
+            .iter()
+            .find(|r| r.id == id)
+            .ok_or("missing campaign receipt")?;
+        outcome["reconciliation"] = receipt.usage["reconciliation"].clone();
+        outcome["revision_identity"] = receipt.usage["revision_identity"].clone();
+        outcome["qualification_eligible"] = receipt.usage["qualification_eligible"].clone();
+        let path = out.join(format!("receipt-{index}.json"));
+        let mut exported: Value = assist::decode(&assist::read_bytes(&path, 32 * 1024 * 1024)?)?;
+        exported["reconciliation"] = receipt.usage["reconciliation"].clone();
+        exported["revision_identity"] = receipt.usage["revision_identity"].clone();
+        exported["qualification_eligible"] = receipt.usage["qualification_eligible"].clone();
+        assist::write(&path, &exported)?;
+    }
+    smoke["reconciliation"] = json!(openrouter::reconciliation_status(ledger)?);
+    smoke["qualified"] = json!(false);
+    assist::write(&out.join("smoke.json"), smoke)?;
+    Ok(())
+}
+fn reconcile_only(
+    out: &Path,
+    http: &dyn saccade_core::judge_provider::transport::Http,
+    keys: &Keys,
+) -> Result<(), Box<dyn std::error::Error>> {
+    // Refuse a missing campaign before the ledger can create any state.
+    assist::read_bytes(&out.join("ledger/campaign.json"), 32 * 1024 * 1024)?;
+    let mut smoke: Value = assist::decode(&assist::read_bytes(
+        &out.join("smoke.json"),
+        32 * 1024 * 1024,
+    )?)?;
+    let ledger = Ledger::new(&out.join("ledger"), true);
+    let result = openrouter::reconcile_pending(&ledger, http, keys, Duration::from_secs(30));
+    export_reconciliation(out, &ledger, &mut smoke)?;
+    result?;
+    Ok(())
+}
 fn run_with(args: impl IntoIterator<Item = String>) -> Result<(), Box<dyn std::error::Error>> {
     let mut args = args.into_iter();
     let mut options = BTreeMap::new();
@@ -103,6 +153,7 @@ fn run_with(args: impl IntoIterator<Item = String>) -> Result<(), Box<dyn std::e
             continue;
         }
         if ![
+            "--reconcile-only",
             "--requests",
             "--roots",
             "--max-spend-usd",
@@ -115,6 +166,16 @@ fn run_with(args: impl IntoIterator<Item = String>) -> Result<(), Box<dyn std::e
             return Err("invalid smoke arguments".into());
         }
         options.insert(arg, args.next().ok_or("missing argument value")?);
+    }
+    if let Some(out) = options.get("--reconcile-only") {
+        if options.len() != 1 || above_25 {
+            return Err("reconcile-only accepts only an existing output directory".into());
+        }
+        return reconcile_only(
+            Path::new(out),
+            &Network,
+            &Keys::new(Some(Keys::default_dir())),
+        );
     }
     let required = |name: &str| options.get(name).ok_or("required smoke argument missing");
     let cap = allowance(required("--max-spend-usd")?, above_25)?;
@@ -212,7 +273,7 @@ fn run_with(args: impl IntoIterator<Item = String>) -> Result<(), Box<dyn std::e
             Err(error) => Err(error),
         }
     });
-    let reconciliation = openrouter::reconcile(&transport, Duration::from_secs(30));
+    // Generation publication is delayed: dispatch ends pending with no lookup.
     // OpenRouter has one money reservation per call, no auxiliary token counts
     // or retries. A fresh output ledger and stop-on-error keep this root order.
     let (receipts, receipt_code) = match ledger.money_receipts() {
@@ -233,13 +294,9 @@ fn run_with(args: impl IntoIterator<Item = String>) -> Result<(), Box<dyn std::e
             }
         }
     }
-    std::fs::write(
-        out.join("smoke.json"),
-        serde_json::to_vec_pretty(
-            &json!({"roots":count,"root_outcomes":outcomes,"receipt_code":receipt_code,"allowance_nano_usd":cap,"dispatch_failed":failed,"reconciliation":reconciliation.as_ref().err(),"qualified":false}),
-        )?,
-    )?;
-    if failed || reconciliation.is_err() {
+    let mut smoke = json!({"roots":count,"root_outcomes":outcomes,"receipt_code":receipt_code,"allowance_nano_usd":cap,"dispatch_failed":failed,"qualified":false});
+    export_reconciliation(&out, &ledger, &mut smoke)?;
+    if failed {
         return Err("OpenRouter smoke failed; inspect sanitized campaign receipts".into());
     }
     Ok(())
@@ -254,6 +311,87 @@ fn main() {
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[test]
+    fn g12_reconcile_only_needs_no_allowance_and_preserves_exported_provenance() {
+        use saccade_core::budget_ledger::MoneyReceipt;
+        let temp = tempfile::tempdir().unwrap();
+        let out = temp.path();
+        let ledger = Ledger::new(&out.join("ledger"), true);
+        ledger.reserve_money(&[MoneyScope { id: "fixture".into(), cap_nano_usd: 5_000_000 }], MoneyReceipt {
+            id: "fixture".into(), request_hash: Digest::of_bytes(b"fixture"), scopes: vec!["fixture".into()],
+            reserved_nano_usd: 5_000_000, actual_nano_usd: None, outcome: "reserved".into(),
+            usage: json!({"openrouter_dispatched":true,"requested_identity":{"model":"google/gemini-3.8-flash","revision":"absent"}}),
+        }).unwrap();
+        ledger
+            .finish_money(
+                "fixture",
+                Some(2_323_500),
+                json!({"generation_id":"gen-fixture-001"}),
+                true,
+            )
+            .unwrap();
+        assist::write(
+            &out.join("receipt-0.json"),
+            &json!({"execution_id":"fixture","response_hash":"preserved"}),
+        )
+        .unwrap();
+        let mut smoke = json!({"root_outcomes":[{"execution_id":"fixture","code":"completed"}],"qualified":false});
+        export_reconciliation(out, &ledger, &mut smoke).unwrap();
+        assert_eq!(smoke["reconciliation"]["state"], "pending");
+        ledger
+            .record_openrouter_reconciliation(
+                "fixture",
+                Ok(openrouter::Generation {
+                    cost_nano_usd: 2_323_500,
+                    response_hash: Digest::of_bytes(b"generation"),
+                    model: "google/gemini-3.8-flash-20260902".into(),
+                    provider_name: "Google AI Studio".into(),
+                }),
+                1,
+                0,
+                1000,
+            )
+            .unwrap();
+        // Already matched: no network or credential access is needed to refresh artifacts.
+        run_with(vec![
+            "--reconcile-only".into(),
+            out.to_string_lossy().into_owned(),
+        ])
+        .unwrap();
+        let receipt: Value = assist::decode(
+            &assist::read_bytes(&out.join("receipt-0.json"), 32 * 1024 * 1024).unwrap(),
+        )
+        .unwrap();
+        assert_eq!(receipt["response_hash"], "preserved");
+        assert_eq!(
+            receipt["revision_identity"]["dated_model"],
+            "google/gemini-3.8-flash-20260902"
+        );
+        assert_eq!(receipt["reconciliation"]["state"], "matched");
+        let smoke: Value =
+            assist::decode(&assist::read_bytes(&out.join("smoke.json"), 32 * 1024 * 1024).unwrap())
+                .unwrap();
+        assert_eq!(smoke["reconciliation"]["state"], "matched");
+        assert_eq!(smoke["qualified"], false);
+        assert!(
+            run_with(vec![
+                "--reconcile-only".into(),
+                out.to_string_lossy().into_owned(),
+                "--max-spend-usd".into(),
+                "1".into()
+            ])
+            .is_err()
+        );
+        let absent = out.join("absent");
+        assert!(
+            run_with(vec![
+                "--reconcile-only".into(),
+                absent.to_string_lossy().into_owned()
+            ])
+            .is_err()
+        );
+        assert!(!absent.exists());
+    }
     #[test]
     fn g12_smoke_records_static_root_codes_and_stops_after_first_failure() {
         let rows: Vec<_> = (0..3)

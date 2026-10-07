@@ -95,16 +95,28 @@ pub fn response_identity(value: &Value) -> Result<ResponseIdentity> {
         system_fingerprint: fingerprint,
     })
 }
+// A dated pin binds the requested alias to an explicit eight-digit revision.
+pub(crate) fn dated_pin(model: &str, revision: &str) -> bool {
+    revision
+        .strip_prefix(model)
+        .and_then(|s| s.strip_prefix('-'))
+        .is_some_and(|date| date.len() == 8 && date.bytes().all(|b| b.is_ascii_digit()))
+}
 impl ResponseIdentity {
     /// Absence is accepted only with an explicit absence pin and matching model.
     pub fn check_pin(&self, model: &str, revision: &str) -> Result<()> {
-        if self.system_fingerprint.is_none() && revision != "absent" {
+        let dispatch_revision = if dated_pin(model, revision) {
+            "absent"
+        } else {
+            revision
+        };
+        if self.system_fingerprint.is_none() && dispatch_revision != "absent" {
             return Err(super::Error::Invalid(
                 "openrouter_fingerprint_absent_requires_explicit_pin",
             ));
         }
         require(
-            self.returned_model == model && self.returned_revision == revision,
+            self.returned_model == model && self.returned_revision == dispatch_revision,
             "provider revision drift quarantined",
         )
     }
@@ -369,6 +381,39 @@ mod execution_tests {
         assert_eq!(receipt.revision, "absent");
     }
     #[test]
+    fn g12_dated_revision_pin_matches_or_quarantines_after_reconciliation() {
+        scenarios(28..30);
+        let identity = response_identity(&json!({"model":"google/gemini-3.8-flash"})).unwrap();
+        assert!(
+            identity
+                .check_pin(
+                    "google/gemini-3.8-flash",
+                    "google/gemini-3.8-flash-20260902"
+                )
+                .is_ok()
+        );
+        assert!(
+            identity
+                .check_pin(
+                    "google/gemini-3.8-flash",
+                    "google/gemini-3.8-flash-2026090x"
+                )
+                .is_err()
+        );
+        let present = response_identity(
+            &json!({"model":"google/gemini-3.8-flash","system_fingerprint":"present-fixture"}),
+        )
+        .unwrap();
+        assert!(
+            present
+                .check_pin(
+                    "google/gemini-3.8-flash",
+                    "google/gemini-3.8-flash-20260902"
+                )
+                .is_err()
+        );
+    }
+    #[test]
     fn g12_delayed_generation_retries_and_preserves_terminal_failure_reasons() {
         scenarios(22..28);
     }
@@ -511,7 +556,16 @@ mod execution_tests {
                             body: br#"{"error":{"message":"untrusted provider detail"}}"#.to_vec(),
                         });
                     }
-                    body = json!({"data":{"id":"gen-fixture-001","total_cost":if self.scenario == 7 {0.001} else if self.scenario == 10 {0.0} else {0.0001875}}});
+                    body = json!({"data":{"model":"google/gemini-3.8-flash-20260902","provider_name":"Google AI Studio","id":"gen-fixture-001","total_cost":if self.scenario == 7 {0.001} else if self.scenario == 10 {0.0} else {0.0001875}}});
+                    if self.scenario >= 28 {
+                        body = serde_json::from_slice(include_bytes!(
+                            "../../tests/fixtures/assist-openrouter/generation-ready.json"
+                        ))
+                        .unwrap();
+                        if self.scenario == 29 {
+                            body["data"]["model"] = json!("google/gemini-3.8-flash-20261001");
+                        }
+                    }
                     if self.scenario == 24 {
                         body["data"]["id"] = json!("other-generation");
                     }
@@ -618,6 +672,10 @@ mod execution_tests {
             if index == 20 {
                 value["system_fingerprint"] = json!("fixture-openrouter-key");
             }
+            if index >= 28 {
+                value.as_object_mut().unwrap().remove("system_fingerprint");
+                value["usage"] = json!({"prompt_tokens":1513,"completion_tokens":212,"total_tokens":1725,"cost":0.0023235});
+            }
             if index == 1 {
                 value["usage"] = json!({"cost":0});
             }
@@ -658,7 +716,7 @@ mod execution_tests {
                 deadline: Instant::now() + Duration::from_secs(1),
             };
             let source = json!({"systemInstruction":{"parts":[{"text":"system fixture"}]},
-                "contents":[{"parts":[{"text":"fixture"}]}]});
+                "contents":[{"parts":[{"text":if index >= 28 { "fixture".repeat(40) } else { "fixture".into() }}]}]});
             let mut payload: Value = decode(
                 &request(
                     &serde_json::to_vec(&source).unwrap(),
@@ -678,7 +736,9 @@ mod execution_tests {
                 encoder_version: ENCODER.into(),
                 provider: "openrouter".into(),
                 model: "google/gemini-3.8-flash".into(),
-                revision: if [16, 17, 21].contains(&index) {
+                revision: if index >= 28 {
+                    "google/gemini-3.8-flash-20260902"
+                } else if [16, 17, 21].contains(&index) {
                     "absent"
                 } else {
                     "fixture-revision-1"
@@ -693,6 +753,50 @@ mod execution_tests {
             let campaign =
                 std::fs::read_to_string(temp.path().join("ledger/campaign.json")).unwrap();
             assert!(!campaign.contains("fixture-openrouter-key"));
+            if index >= 28 {
+                let completed = result.unwrap();
+                assert_eq!(completed.provenance.returned_revision, "absent");
+                assert_eq!(receipts[0].usage["reconciliation"]["state"], "pending");
+                assert_eq!(receipts[0].usage["qualification_eligible"], false);
+                assert_eq!(fake.generations.get(), 0);
+                let reconciled =
+                    reconcile_with_clock(&transport, Duration::from_secs(30), &Clock::default());
+                assert_eq!(reconciled.is_ok(), index == 28);
+                let receipts = ledger.money_receipts().unwrap();
+                let receipt = &receipts[0];
+                let identity = &receipt.usage["revision_identity"];
+                assert_eq!(
+                    identity["dated_model"],
+                    if index == 28 {
+                        "google/gemini-3.8-flash-20260902"
+                    } else {
+                        "google/gemini-3.8-flash-20261001"
+                    }
+                );
+                assert_eq!(identity["provider_name"], "Google AI Studio");
+                assert_eq!(identity["requested_revision"], key.revision);
+                assert_eq!(identity["revision_drifted"], index == 29);
+                assert_eq!(identity["quarantined"], index == 29);
+                assert_eq!(receipt.usage["qualification_eligible"], index == 28);
+                assert_eq!(receipt.actual_nano_usd, Some(2_323_500));
+                assert_eq!(
+                    reconciliation_status(&ledger).unwrap().state,
+                    if index == 28 { "matched" } else { "mismatch" }
+                );
+                let before = std::fs::read(temp.path().join("ledger/campaign.json")).unwrap();
+                assert_eq!(
+                    reconcile_with_clock(&transport, Duration::from_secs(30), &Clock::default())
+                        .is_ok(),
+                    index == 28
+                );
+                assert_eq!(
+                    before,
+                    std::fs::read(temp.path().join("ledger/campaign.json")).unwrap()
+                );
+                assert_eq!(fake.generations.get(), 1);
+                assert_eq!(fake.calls.get(), 1);
+                continue;
+            }
             if (13..22).contains(&index) {
                 assert_eq!(fake.calls.get(), 1);
                 assert_eq!(receipts.len(), 1);
@@ -786,7 +890,7 @@ mod execution_tests {
             );
             assert_eq!(
                 reconciliation.is_ok(),
-                ![1, 7, 23, 24, 25, 26, 27].contains(&index)
+                ![1, 7, 24, 25, 26, 27].contains(&index)
             );
             assert_eq!(
                 ledger.money_receipts().unwrap()[0].usage["reconciliation"]["matches"],
@@ -815,8 +919,7 @@ mod execution_tests {
                 assert!(!campaign.contains("fixture-openrouter-key"));
                 if index == 23 {
                     assert!(r["generation"].is_null());
-                    assert!(executor.call(&key, &payload).is_err());
-                    assert_eq!(fake.calls.get(), 1);
+                    assert_eq!(r["state"], "pending");
                 }
             }
 
@@ -1086,8 +1189,20 @@ impl ReconciliationClock for WallClock {
         std::thread::sleep(duration);
     }
 }
+/// Sanitized authoritative generation billing and revision identity.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct Generation {
+    /// Settled total cost in nanodollars.
+    pub cost_nano_usd: u64,
+    /// Hash of the secret-checked generation response.
+    pub response_hash: Digest,
+    /// Actual generation model, including its dated suffix when supplied.
+    pub model: String,
+    /// Actual provider route name.
+    pub provider_name: String,
+}
 struct GenerationLookup {
-    result: std::result::Result<(u64, Digest), &'static str>,
+    result: std::result::Result<Generation, &'static str>,
     attempts: u32,
     waited_ms: u64,
 }
@@ -1096,7 +1211,7 @@ fn generation_once(
     secret: &crate::judge_provider::Secret,
     id: &str,
     timeout: std::time::Duration,
-) -> std::result::Result<(u64, Digest), &'static str> {
+) -> std::result::Result<Generation, &'static str> {
     let encoded: String = id
         .bytes()
         .map(|b| {
@@ -1132,7 +1247,30 @@ fn generation_once(
     }
     let cost = body_amount(&reply.body, &["data", "total_cost"], true)
         .ok_or("openrouter_generation_cost_unknown")?;
-    Ok((cost, Digest::of_bytes(&reply.body)))
+    let model = value["data"]["model"]
+        .as_str()
+        .filter(|s| {
+            !s.is_empty()
+                && s.len() <= 128
+                && s.bytes()
+                    .all(|b| b.is_ascii_alphanumeric() || b"-_.:/".contains(&b))
+        })
+        .ok_or("openrouter_generation_revision_invalid")?;
+    let provider = value["data"]["provider_name"]
+        .as_str()
+        .filter(|s| {
+            !s.trim().is_empty()
+                && s.len() <= 128
+                && s.bytes()
+                    .all(|b| b.is_ascii_alphanumeric() || b" -_.:/".contains(&b))
+        })
+        .ok_or("openrouter_generation_revision_invalid")?;
+    Ok(Generation {
+        cost_nano_usd: cost,
+        response_hash: Digest::of_bytes(&reply.body),
+        model: model.into(),
+        provider_name: provider.into(),
+    })
 }
 fn lookup_generation(
     http: &dyn crate::judge_provider::transport::Http,
@@ -1177,63 +1315,301 @@ fn lookup_generation(
     }
     lookup
 }
-/// Reconcile every dispatched monetary receipt, including failed/unknown calls.
-/// Four read-only GET attempts with 2/4/8-second backoff (14 seconds of waits)
-/// share one deadline, capped at 30 seconds for all receipts. Failed lookups
-/// preserve a fixed reason; missing, malformed or mismatched data never passes.
-pub fn reconcile(
-    transport: &crate::judge_provider::transport::Transport<'_>,
-    timeout: std::time::Duration,
-) -> std::result::Result<(), String> {
-    reconcile_with_clock(transport, timeout, &WallClock(std::time::Instant::now()))
+/// Campaign reconciliation counts. Only every dispatched receipt matched is reconciled.
+#[derive(Debug, Clone, Serialize, PartialEq, Eq)]
+pub struct ReconciliationSummary {
+    /// Pending receipts, including records still unpublished by the provider.
+    pub pending: usize,
+    /// Terminal matched receipts.
+    pub matched: usize,
+    /// Terminal billing, identity or revision mismatches.
+    pub mismatch: usize,
+    /// Aggregate state: pending, matched or mismatch.
+    pub state: &'static str,
 }
-fn reconcile_with_clock(
-    transport: &crate::judge_provider::transport::Transport<'_>,
-    timeout: std::time::Duration,
-    clock: &impl ReconciliationClock,
-) -> std::result::Result<(), String> {
-    let deadline = clock.elapsed() + timeout.min(std::time::Duration::from_secs(30));
-    let secret = transport
-        .keys
-        .openrouter()
-        .map_err(|_| "openrouter_credentials_unavailable")?;
-    let mut failed = false;
-    for receipt in transport
-        .ledger
+/// Read durable reconciliation state without credentials, dispatch or allowance.
+pub fn reconciliation_status(
+    ledger: &crate::budget_ledger::Ledger,
+) -> std::result::Result<ReconciliationSummary, String> {
+    let mut summary = ReconciliationSummary {
+        pending: 0,
+        matched: 0,
+        mismatch: 0,
+        state: "pending",
+    };
+    for receipt in ledger
         .money_receipts()
         .map_err(|_| "openrouter_reconciliation_storage_unavailable")?
     {
         if receipt.usage["openrouter_dispatched"] != true {
             continue;
         }
+        match receipt.usage["reconciliation"]["state"].as_str() {
+            Some("matched") => summary.matched += 1,
+            Some("mismatch") => summary.mismatch += 1,
+            _ => summary.pending += 1,
+        }
+    }
+    summary.state = if summary.mismatch > 0 {
+        "mismatch"
+    } else if summary.pending == 0 && summary.matched > 0 {
+        "matched"
+    } else {
+        "pending"
+    };
+    Ok(summary)
+}
+/// Later read-only reconciliation of pending dispatched receipts, without allowance.
+/// Matched/mismatched receipts are immutable and skipped on subsequent invocations.
+/// Unpublished/transient lookups remain pending; terminal failures stop spending.
+/// GETs and backoff share a deadline capped at 30 seconds. Never dispatches completions.
+pub fn reconcile(
+    transport: &crate::judge_provider::transport::Transport<'_>,
+    timeout: std::time::Duration,
+) -> std::result::Result<ReconciliationSummary, String> {
+    reconcile_pending(transport.ledger, transport.http, transport.keys, timeout)
+}
+/// Reconcile an existing campaign using only generation GETs and the fixed credential policy.
+/// Requires neither a dispatch authorization nor a monetary allowance.
+pub fn reconcile_pending(
+    ledger: &crate::budget_ledger::Ledger,
+    http: &dyn crate::judge_provider::transport::Http,
+    keys: &crate::judge_provider::Keys,
+    timeout: std::time::Duration,
+) -> std::result::Result<ReconciliationSummary, String> {
+    reconcile_pending_with_clock(
+        ledger,
+        http,
+        keys,
+        timeout,
+        &WallClock(std::time::Instant::now()),
+    )
+}
+#[cfg(test)]
+fn reconcile_with_clock(
+    transport: &crate::judge_provider::transport::Transport<'_>,
+    timeout: std::time::Duration,
+    clock: &impl ReconciliationClock,
+) -> std::result::Result<ReconciliationSummary, String> {
+    reconcile_pending_with_clock(
+        transport.ledger,
+        transport.http,
+        transport.keys,
+        timeout,
+        clock,
+    )
+}
+fn reconcile_pending_with_clock(
+    ledger: &crate::budget_ledger::Ledger,
+    http: &dyn crate::judge_provider::transport::Http,
+    keys: &crate::judge_provider::Keys,
+    timeout: std::time::Duration,
+    clock: &impl ReconciliationClock,
+) -> std::result::Result<ReconciliationSummary, String> {
+    let deadline = clock.elapsed() + timeout.min(std::time::Duration::from_secs(30));
+    let mut secret = None;
+    for receipt in ledger
+        .money_receipts()
+        .map_err(|_| "openrouter_reconciliation_storage_unavailable")?
+    {
+        if receipt.usage["openrouter_dispatched"] != true
+            || matches!(
+                receipt.usage["reconciliation"]["state"].as_str(),
+                Some("matched" | "mismatch")
+            )
+        {
+            continue;
+        }
+        let secret = match &secret {
+            Some(secret) => secret,
+            None => secret.insert(
+                keys.openrouter()
+                    .map_err(|_| "openrouter_credentials_unavailable")?,
+            ),
+        };
+        let attempted_ms = crate::budget_ledger::now_ms();
         let lookup = lookup_generation(
-            transport.http,
-            &secret,
+            http,
+            secret,
             receipt.usage["generation_id"].as_str(),
             deadline,
             clock,
         );
-        let matches = lookup.result.as_ref().is_ok_and(|(cost, _)| {
-            receipt
-                .actual_nano_usd
-                .is_some_and(|actual| actual.abs_diff(*cost) <= RECONCILIATION_TOLERANCE)
-        });
-        transport
-            .ledger
+        ledger
             .record_openrouter_reconciliation(
                 &receipt.id,
                 lookup.result,
-                matches,
                 lookup.attempts,
                 lookup.waited_ms,
+                attempted_ms,
             )
             .map_err(|_| "openrouter_reconciliation_storage_unavailable")?;
-        failed |= !matches;
     }
-    if failed {
+    let summary = reconciliation_status(ledger)?;
+    if summary.mismatch > 0 {
         Err("openrouter_reconciliation_failed".into())
     } else {
-        Ok(())
+        Ok(summary)
+    }
+}
+
+#[cfg(test)]
+#[allow(clippy::unwrap_used)]
+mod deferred_tests {
+    use super::*;
+    use crate::budget_ledger::{Ledger, MoneyReceipt, MoneyScope};
+    use crate::judge_provider::{
+        Keys,
+        transport::{Http, HttpReply},
+    };
+    use std::{cell::Cell, time::Duration};
+
+    #[derive(Default)]
+    struct Clock(Cell<Duration>);
+    impl ReconciliationClock for Clock {
+        fn elapsed(&self) -> Duration {
+            self.0.get()
+        }
+        fn sleep(&self, duration: Duration) {
+            self.0.set(self.0.get() + duration);
+        }
+    }
+    struct Recorded {
+        ready: Cell<u32>,
+        gets: Cell<u32>,
+    }
+    impl Http for Recorded {
+        fn get(
+            &self,
+            url: &str,
+            _: (&str, &str),
+            _: Duration,
+        ) -> std::result::Result<HttpReply, String> {
+            self.gets.set(self.gets.get() + 1);
+            let id = url
+                .strip_prefix("https://openrouter.ai/api/v1/generation?id=")
+                .unwrap();
+            let ready = self.ready.get() >= if id == "gen-fixture-001" { 1 } else { 2 };
+            let body = if ready {
+                let mut value: Value = serde_json::from_slice(include_bytes!(
+                    "../../tests/fixtures/assist-openrouter/generation-ready.json"
+                ))
+                .unwrap();
+                value["data"]["id"] = json!(id);
+                serde_json::to_vec(&value).unwrap()
+            } else {
+                include_bytes!("../../tests/fixtures/assist-openrouter/generation-not-ready.json")
+                    .to_vec()
+            };
+            Ok(HttpReply {
+                status: if ready { 200 } else { 404 },
+                retry_after_secs: None,
+                body,
+            })
+        }
+        fn post(
+            &self,
+            _: &str,
+            _: (&str, &str),
+            _: &[u8],
+            _: Duration,
+        ) -> std::result::Result<HttpReply, String> {
+            panic!("deferred reconciliation must never dispatch")
+        }
+    }
+    #[test]
+    fn g12_deferred_404_then_200_reconciliation_is_pending_and_idempotent() {
+        let temp = tempfile::tempdir().unwrap();
+        std::fs::write(
+            temp.path().join("openrouter.env"),
+            "OPENROUTER_API_KEY=fixture-openrouter-key",
+        )
+        .unwrap();
+        let keys = Keys::assist_fixture(temp.path().into());
+        let ledger = Ledger::new(&temp.path().join("ledger"), true);
+        for id in ["gen-fixture-001", "gen-fixture-002"] {
+            ledger.reserve_money(&[MoneyScope { id: "fixture".into(), cap_nano_usd: 20_000_000 }], MoneyReceipt {
+                id: id.into(), request_hash: Digest::of_bytes(id.as_bytes()), scopes: vec!["fixture".into()],
+                reserved_nano_usd: 5_000_000, actual_nano_usd: None, outcome: "reserved".into(),
+                usage: json!({"openrouter_dispatched":true,"requested_identity":{"model":"google/gemini-3.8-flash","revision":"absent"}}),
+            }).unwrap();
+            ledger
+                .finish_money(id, Some(2_323_500), json!({"generation_id":id}), true)
+                .unwrap();
+        }
+        assert_eq!(reconciliation_status(&ledger).unwrap().pending, 2);
+        assert!(
+            ledger
+                .money_receipts()
+                .unwrap()
+                .iter()
+                .all(|r| r.usage["reconciliation"]["state"] == "pending")
+        );
+        let original: Value = serde_json::from_slice(
+            &std::fs::read(temp.path().join("ledger/campaign.json")).unwrap(),
+        )
+        .unwrap();
+        let http = Recorded {
+            ready: Cell::new(0),
+            gets: Cell::new(0),
+        };
+        let run = || {
+            reconcile_pending_with_clock(
+                &ledger,
+                &http,
+                &keys,
+                Duration::from_secs(30),
+                &Clock::default(),
+            )
+            .unwrap()
+        };
+        assert_eq!(run().pending, 2);
+        for r in ledger.money_receipts().unwrap() {
+            let attempt = &r.usage["reconciliation"];
+            assert_eq!(attempt["state"], "pending");
+            assert_eq!(attempt["reason"], "openrouter_generation_not_ready");
+            assert!(attempt["attempted_ms"].as_u64().is_some());
+            assert_eq!(r.usage["qualification_eligible"], false);
+        }
+        http.ready.set(1);
+        let partial = run();
+        assert_eq!(
+            (partial.pending, partial.matched, partial.state),
+            (1, 1, "pending")
+        );
+        http.ready.set(2);
+        let final_state = run();
+        assert_eq!(
+            (final_state.pending, final_state.matched, final_state.state),
+            (0, 2, "matched")
+        );
+        let before = std::fs::read(temp.path().join("ledger/campaign.json")).unwrap();
+        let gets = http.gets.get();
+        // Terminal replay does not even read a credential file.
+        let missing_keys = Keys::assist_fixture(temp.path().join("missing-keys"));
+        assert_eq!(
+            reconcile_pending(&ledger, &http, &missing_keys, Duration::from_secs(30)).unwrap(),
+            final_state
+        );
+        assert_eq!(http.gets.get(), gets);
+        assert_eq!(
+            std::fs::read(temp.path().join("ledger/campaign.json")).unwrap(),
+            before
+        );
+        let final_ledger: Value = serde_json::from_slice(&before).unwrap();
+        assert_eq!(
+            original["money"]["counters"],
+            final_ledger["money"]["counters"]
+        );
+        assert_eq!(original["scopes"], final_ledger["scopes"]);
+        assert_eq!(final_ledger["money"]["stopped"], false);
+        assert_eq!(
+            ledger.money_receipts().unwrap()[0].usage["reconciliation"]["history"]
+                .as_array()
+                .unwrap()
+                .len(),
+            2
+        );
     }
 }
 

@@ -169,6 +169,7 @@ impl Ledger {
                 return Err("money receipt already final".into());
             }
             let dispatched = receipt.usage["openrouter_dispatched"] == true;
+            let requested_identity = receipt.usage["requested_identity"].clone();
             let charged = actual.unwrap_or(receipt.reserved_nano_usd);
             for scope in &receipt.scopes {
                 let counter = state
@@ -188,6 +189,9 @@ impl Ledger {
             receipt.usage = usage;
             if dispatched {
                 receipt.usage["openrouter_dispatched"] = serde_json::json!(true);
+                receipt.usage["requested_identity"] = requested_identity;
+                receipt.usage["reconciliation"] = serde_json::json!({"state":"pending","matches":false,"attempts":0,"attempted_ms":null});
+                receipt.usage["qualification_eligible"] = serde_json::json!(false);
             }
             receipt.outcome = if receipt.usage["bound_breach"] == true {
                 "usage_limit_exceeded"
@@ -301,7 +305,9 @@ impl Ledger {
                             && r.usage["openrouter_dispatched"] != true
                     })
                     .ok_or("openrouter_reservation_required")?;
-                receipt.usage = serde_json::json!({"openrouter_dispatched":true});
+                receipt.usage["openrouter_dispatched"] = serde_json::json!(true);
+                receipt.usage["reconciliation"] = serde_json::json!({"state":"pending","matches":false,"attempts":0,"attempted_ms":null});
+                receipt.usage["qualification_eligible"] = serde_json::json!(false);
                 Ok(crate::assist::openrouter::DispatchPermit::new(hash))
             })();
             if let Err(reason) = &result {
@@ -314,34 +320,54 @@ impl Ledger {
             Ok(result)
         })?
     }
-    /// Attach authoritative generation reconciliation to the original money receipt.
+    /// Attach a later lookup to the original receipt without changing settled charges.
+    /// Pending lookups retain their history; terminal records are immutable.
     pub fn record_openrouter_reconciliation(
         &self,
         id: &str,
-        generation: Result<(u64, crate::evidence::canonical::Digest), &'static str>,
-        matches: bool,
+        generation: Result<crate::assist::openrouter::Generation, &'static str>,
         attempts: u32,
         waited_ms: u64,
+        attempted_ms: u64,
     ) -> Result<(), String> {
         self.campaign().transaction(|state| {
-            let receipt = state
-                .money
-                .receipts
-                .iter_mut()
-                .find(|r| r.id == id)
+            let receipt = state.money.receipts.iter_mut().find(|r| r.id == id)
                 .ok_or("unknown money reservation")?;
+            if matches!(receipt.usage["reconciliation"]["state"].as_str(), Some("matched" | "mismatch")) { return Ok(()); }
+            let cost_matches = generation.as_ref().is_ok_and(|g| receipt.actual_nano_usd
+                .is_some_and(|actual| actual.abs_diff(g.cost_nano_usd) <= crate::assist::openrouter::RECONCILIATION_TOLERANCE));
+            let drifted = generation.as_ref().is_ok_and(|g| {
+                let model = receipt.usage["requested_identity"]["model"].as_str()
+                    .or_else(|| receipt.usage["response_identity"]["returned_model"].as_str()).unwrap_or("");
+                let pin = receipt.usage["requested_identity"]["revision"].as_str().unwrap_or("");
+                (!model.is_empty() && g.model != model && !crate::assist::openrouter::dated_pin(model, &g.model))
+                    || (crate::assist::openrouter::dated_pin(model, pin) && g.model != pin)
+            });
             let reason = match &generation {
                 Err(reason) => Some(*reason),
-                Ok(_) if !matches => Some("openrouter_generation_cost_mismatch"),
+                Ok(_) if !cost_matches => Some("openrouter_generation_cost_mismatch"),
+                Ok(_) if drifted => Some("provider revision drift quarantined"),
                 Ok(_) => None,
             };
-            receipt.usage["reconciliation"] = serde_json::json!({
-                "generation":generation.as_ref().ok(),"matches":matches,
-                "reason":reason,"attempts":attempts,"waited_ms":waited_ms,
-            });
-            if !matches {
-                state.money.stopped = true;
+            let pending = matches!(reason, Some("openrouter_generation_not_ready" | "openrouter_accounting_unavailable" | "openrouter_reconciliation_deadline"));
+            let matches = reason.is_none();
+            let status = if pending { "pending" } else if matches { "matched" } else { "mismatch" };
+            if let Ok(g) = &generation {
+                receipt.usage["revision_identity"] = serde_json::json!({
+                    "dated_model":g.model,"provider_name":g.provider_name,
+                    "requested_revision":receipt.usage["requested_identity"]["revision"],
+                    "revision_drifted":drifted,"quarantined":drifted,
+                });
             }
+            let attempt = serde_json::json!({"state":status,"generation":generation.as_ref().ok(),
+                "matches":matches,"reason":reason,"attempts":attempts,"waited_ms":waited_ms,"attempted_ms":attempted_ms});
+            let mut history = receipt.usage["reconciliation"]["history"].as_array().cloned().unwrap_or_default();
+            history.push(attempt.clone());
+            receipt.usage["reconciliation"] = attempt;
+            receipt.usage["reconciliation"]["history"] = serde_json::json!(history);
+            receipt.usage["qualification_eligible"] = serde_json::json!(matches
+                && receipt.outcome == "completed" && receipt.usage["identity_error"].is_null());
+            if status == "mismatch" { state.money.stopped = true; }
             Ok(())
         })
     }
