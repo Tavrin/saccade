@@ -463,6 +463,8 @@ fn keys_come_only_from_allowed_files_and_ignore_ambient_values() {
     let out = Command::new(BIN)
         .arg("review")
         .arg(&p)
+        .arg("--user-config")
+        .arg(tmp.path().join("unconfigured-user.toml"))
         .arg("--json")
         .env("JEV_API_KEY", "ambient-secret-must-be-ignored")
         .env("GEMINI_API_KEY", "ignored")
