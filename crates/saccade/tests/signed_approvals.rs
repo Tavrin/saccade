@@ -1,4 +1,5 @@
 #![allow(clippy::expect_used, clippy::unwrap_used, clippy::panic, missing_docs)]
+#![cfg(unix)]
 //! Original CC0-1.0 procedural images and ephemeral OpenSSH keys; no downloads.
 use serde_json::{Value, json};
 use std::{
@@ -51,6 +52,7 @@ impl Fixture {
             format!("reviewer namespaces=\"saccade-approval\" {public}"),
         )
         .unwrap();
+        secure(&f.root.path().join("signers"));
         ok(f.cli(&[
             "approve",
             "--report",
@@ -169,6 +171,32 @@ fn signed_update_and_all_anchor_consumers_verify_content() {
         "manifest",
         "build",
         "report",
+        "--approved-anchor",
+        "base/.saccade-approval.json",
+        "--require-signed-approval",
+        "--approval-allowed-signers",
+        "signers",
+        "--json",
+    ]));
+    assert_eq!(
+        f.value("checked/saccade-report.v1.json")["baseline_dir"],
+        "../base"
+    );
+    let anchor_hash = saccade_core::evidence::canonical::Digest::of_bytes(
+        &fs::read(f.root.path().join("base/sample.png")).unwrap(),
+    );
+    f.write(
+        "cases.json",
+        &json!({"schema":"saccade-cases.v1", "axes":{"variant":["one"]},
+        "cases":[{"case_id":"one", "variants":{"variant":"one"}, "required":true,
+        "approved_anchor":{"path":"../base/sample.png", "sha256":anchor_hash.as_str().strip_prefix("sha256:").unwrap()}}]}),
+    );
+    ok(f.cli(&[
+        "manifest",
+        "build",
+        "report",
+        "--cases",
+        "cases.json",
         "--approved-anchor",
         "base/.saccade-approval.json",
         "--require-signed-approval",
@@ -305,9 +333,18 @@ fn missing_wrong_key_namespace_and_tampered_record_cannot_mutate() {
         code(f.apply(true), "approval_signature_invalid");
     }
     fs::write(f.root.path().join("plan/approval.json"), original).unwrap();
+    assert!(
+        Command::new("ssh-keygen")
+            .args(["-q", "-t", "ed25519", "-N", "", "-f"])
+            .arg(f.key.path().join("unauthorized"))
+            .status()
+            .unwrap()
+            .success()
+    );
+    let other_public = fs::read_to_string(f.key.path().join("unauthorized.pub")).unwrap();
     fs::write(
         f.root.path().join("signers"),
-        "reviewer ssh-ed25519 invalid\n",
+        format!("reviewer namespaces=\"saccade-approval\" {other_public}"),
     )
     .unwrap();
     code(f.apply(true), "approval_signature_invalid");
@@ -352,6 +389,7 @@ fn required_user_policy_cannot_be_overridden_and_default_stays_unattested() {
     let config = f.root.path().join("home/.config/saccade");
     fs::create_dir_all(&config).unwrap();
     fs::write(config.join("approval-policy.json"), serde_json::to_vec(&json!({"require_signed_approval":true,"allowed_signers":f.root.path().join("signers")})).unwrap()).unwrap();
+    secure(&config.join("approval-policy.json"));
     code(f.apply(false), "approval_signature_required");
     code(
         f.cli(&["doctor", "--approval-allowed-signers", "other", "--json"]),
@@ -375,4 +413,313 @@ fn required_user_policy_cannot_be_overridden_and_default_stays_unattested() {
     fs::remove_file(config.join("approval-policy.json")).unwrap();
     assert_eq!(ok(f.apply(false))["data"]["authority"], "cli");
     assert!(!f.root.path().join("base/.saccade-approval.json").exists());
+}
+
+fn secure(path: &Path) {
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::PermissionsExt;
+        fs::set_permissions(path, fs::Permissions::from_mode(0o600)).unwrap();
+    }
+}
+impl Fixture {
+    fn policy(&self, extra: Value) {
+        let config = self.root.path().join("home/.config/saccade");
+        fs::create_dir_all(&config).unwrap();
+        let mut value = json!({"allowed_signers": self.root.path().join("signers")});
+        for (key, val) in extra.as_object().unwrap() {
+            value[key] = val.clone();
+        }
+        fs::write(
+            config.join("approval-policy.json"),
+            serde_json::to_vec(&value).unwrap(),
+        )
+        .unwrap();
+        secure(&config.join("approval-policy.json"));
+    }
+    fn replan(&self) {
+        let plan = self.root.path().join("plan");
+        fs::remove_dir_all(&plan).unwrap();
+        ok(self.cli(&[
+            "approve",
+            "--report",
+            "report/saccade-report.v1.json",
+            "--entry",
+            "sample.png",
+            "--approver",
+            "reviewer",
+            "--dry-run",
+            "--out",
+            "plan",
+            "--json",
+        ]));
+    }
+}
+
+#[test]
+#[cfg(feature = "mcp")]
+fn required_mcp_comparison_refuses_unsigned_and_changed_baselines() {
+    use std::io::Write;
+    let f = Fixture::new();
+    f.policy(json!({"require_signed_approval": true}));
+    code(
+        f.cli(&[
+            "identity",
+            "base",
+            "cap",
+            "--out",
+            "identity-unsigned",
+            "--json",
+        ]),
+        "approval_signature_required",
+    );
+    #[cfg(feature = "graphics")]
+    code(
+        f.cli(&[
+            "experiment",
+            "sequence",
+            "base",
+            "cap",
+            "--out",
+            "sequence-unsigned",
+            "--json",
+        ]),
+        "approval_signature_required",
+    );
+    let mcp = || {
+        let mut child = Command::new(env!("CARGO_BIN_EXE_saccade"))
+            .args([
+                "mcp",
+                "--root",
+                "base",
+                "--root",
+                "cap",
+                "--out-root",
+                "outputs",
+            ])
+            .current_dir(f.root.path())
+            .env("HOME", f.root.path().join("home"))
+            .stdin(std::process::Stdio::piped())
+            .stdout(std::process::Stdio::piped())
+            .stderr(std::process::Stdio::piped())
+            .spawn()
+            .unwrap();
+        let request = json!({"jsonrpc":"2.0","id":2,"method":"tools/call","params":{"name":"saccade_measure",
+            "arguments":{"operation":"compare","baseline_dir":f.root.path().join("base"),"capture_dir":f.root.path().join("cap"),"out":"comparison"}}});
+        let mut input = child.stdin.take().unwrap();
+        writeln!(input, "{}", json!({"jsonrpc":"2.0","id":1,"method":"initialize","params":{
+            "protocolVersion":"2025-06-18","capabilities":{},"clientInfo":{"name":"signed-test","version":"1"}}})).unwrap();
+        writeln!(
+            input,
+            "{}",
+            json!({"jsonrpc":"2.0","method":"notifications/initialized"})
+        )
+        .unwrap();
+        writeln!(input, "{request}").unwrap();
+        drop(input);
+        let result = child.wait_with_output().unwrap();
+        assert!(result.status.success(), "{result:?}");
+        let responses: Vec<Value> = String::from_utf8(result.stdout)
+            .unwrap()
+            .lines()
+            .map(|l| serde_json::from_str(l).unwrap())
+            .collect();
+        responses.last().unwrap()["result"].clone()
+    };
+    fs::create_dir(f.root.path().join("outputs")).unwrap();
+    let result = mcp();
+    assert_eq!(
+        result["structuredContent"]["errors"][0]["code"], "approval_signature_required",
+        "{result}"
+    );
+    assert_eq!(result["isError"], true);
+    f.sign("saccade-approval");
+    ok(f.apply(true));
+    assert!(mcp()["isError"].as_bool() != Some(true));
+    fs::write(f.root.path().join("base/sample.png"), b"replacement").unwrap();
+    assert_eq!(
+        mcp()["structuredContent"]["errors"][0]["code"],
+        "approval_content_mismatch"
+    );
+}
+
+#[test]
+#[cfg(unix)]
+fn replacement_between_verification_and_measurement_is_refused() {
+    use std::{
+        io::Write,
+        os::unix::fs::OpenOptionsExt,
+        time::{Duration, Instant},
+    };
+    let f = Fixture::new();
+    f.sign("saccade-approval");
+    ok(f.apply(true));
+    let fifo = f.root.path().join("config.fifo");
+    assert!(
+        Command::new("mkfifo")
+            .arg(&fifo)
+            .status()
+            .unwrap()
+            .success()
+    );
+    let mut child = Command::new(env!("CARGO_BIN_EXE_saccade"))
+        .args([
+            "compare",
+            "base",
+            "cap",
+            "--approved",
+            "--approval-allowed-signers",
+            "signers",
+            "--config",
+            "config.fifo",
+            "--out",
+            "seam",
+            "--json",
+            "--allow-out-near-captures",
+        ])
+        .current_dir(f.root.path())
+        .env("HOME", f.root.path().join("home"))
+        .stdout(std::process::Stdio::piped())
+        .stderr(std::process::Stdio::piped())
+        .spawn()
+        .unwrap();
+    let start = Instant::now();
+    let mut reads = 0;
+    loop {
+        assert!(
+            start.elapsed() < Duration::from_secs(15),
+            "configuration seam timed out"
+        );
+        if child.try_wait().unwrap().is_some() {
+            break;
+        }
+        match fs::OpenOptions::new()
+            .write(true)
+            .custom_flags(libc::O_NONBLOCK)
+            .open(&fifo)
+        {
+            Ok(mut writer) => {
+                if reads == 0 {
+                    // Opening the FIFO writer proves the consumer passed signature
+                    // verification and is blocked on its first config read.
+                    image::RgbImage::from_pixel(8, 8, image::Rgb([42, 42, 42]))
+                        .save(f.root.path().join("base/sample.png"))
+                        .unwrap();
+                }
+                writer.write_all(b"threshold = 0.02\n").unwrap();
+                drop(writer);
+                reads += 1;
+                std::thread::sleep(Duration::from_millis(100));
+            }
+            Err(e) if e.raw_os_error() == Some(libc::ENXIO) => {
+                std::thread::sleep(Duration::from_millis(5))
+            }
+            Err(e) => panic!("{e}"),
+        }
+    }
+    assert!(reads >= 1);
+    code(
+        child.wait_with_output().unwrap(),
+        "approval_content_mismatch",
+    );
+    assert!(!f.root.path().join("seam/saccade-report.v1.json").exists());
+}
+
+#[test]
+fn trusted_ledger_refuses_restored_old_approval_and_age_is_enforced() {
+    let f = Fixture::new();
+    let ledger = f.root.path().join("ledger.json");
+    fs::write(&ledger, b"{}").unwrap();
+    secure(&ledger);
+    f.policy(json!({"ledger":ledger}));
+    f.replan();
+    assert_eq!(f.value("plan/approval.json")["sequence"], 1);
+    f.sign("saccade-approval");
+    ok(f.apply(true));
+    ok(f.compare());
+    let old_image = fs::read(f.root.path().join("base/sample.png")).unwrap();
+    let old_envelope = fs::read(f.root.path().join("base/.saccade-approval.json")).unwrap();
+    image::RgbImage::from_pixel(8, 8, image::Rgb([250, 250, 250]))
+        .save(f.root.path().join("cap/sample.png"))
+        .unwrap();
+    assert_eq!(
+        f.cli(&["compare", "base", "cap", "--out", "report", "--json"])
+            .status
+            .code(),
+        Some(1)
+    );
+    f.replan();
+    assert_eq!(f.value("plan/approval.json")["sequence"], 2);
+    f.sign("saccade-approval");
+    fs::remove_dir_all(f.root.path().join("applied")).unwrap();
+    ok(f.apply(true));
+    ok(f.compare());
+    fs::write(f.root.path().join("base/sample.png"), old_image).unwrap();
+    fs::write(
+        f.root.path().join("base/.saccade-approval.json"),
+        old_envelope,
+    )
+    .unwrap();
+    code(f.compare(), "approval_replayed");
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::PermissionsExt;
+        fs::set_permissions(&ledger, fs::Permissions::from_mode(0o666)).unwrap();
+        code(f.compare(), "approval_trust_unsafe");
+        secure(&ledger);
+    }
+    // Max age is separate from rollback state, and is checked on genuine signatures.
+    f.policy(json!({"max_approval_age_seconds":0}));
+    code(f.compare(), "approval_expired");
+}
+
+#[test]
+#[cfg(unix)]
+fn unsafe_signers_are_refused_and_path_cannot_replace_verifier() {
+    use std::os::unix::fs::PermissionsExt;
+    let f = Fixture::new();
+    f.sign("saccade-approval");
+    fs::set_permissions(
+        f.root.path().join("signers"),
+        fs::Permissions::from_mode(0o666),
+    )
+    .unwrap();
+    code(f.apply(true), "approval_trust_unsafe");
+    secure(&f.root.path().join("signers"));
+    let fake = f.root.path().join("fake-bin");
+    fs::create_dir(&fake).unwrap();
+    fs::write(fake.join("ssh-keygen"), b"#!/bin/sh\nexit 0\n").unwrap();
+    fs::set_permissions(fake.join("ssh-keygen"), fs::Permissions::from_mode(0o755)).unwrap();
+    fs::write(
+        f.root.path().join("plan/approval.json.sig"),
+        b"forged signature",
+    )
+    .unwrap();
+    code(
+        Command::new(env!("CARGO_BIN_EXE_saccade"))
+            .args([
+                "approve",
+                "--report",
+                "report/saccade-report.v1.json",
+                "--decisions",
+                "plan/decision.json",
+                "--out",
+                "forged",
+                "--json",
+                "--require-signed-approval",
+                "--approval-allowed-signers",
+                "signers",
+                "--approval-record",
+                "plan/approval.json",
+                "--approval-signature",
+                "plan/approval.json.sig",
+            ])
+            .current_dir(f.root.path())
+            .env("HOME", f.root.path().join("home"))
+            .env("PATH", &fake)
+            .output()
+            .unwrap(),
+        "approval_signature_invalid",
+    );
+    assert!(!f.root.path().join("forged").exists());
 }

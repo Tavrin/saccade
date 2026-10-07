@@ -9,19 +9,18 @@ saccade inspect REPORT/saccade-report.v1.json --status fail,error --limit 5 --js
 saccade inspect evidence REPORT/saccade-report.v1.json --entry NAME --out EVIDENCE
 ```
 
-Read validity/performance/pagination and `data.pass_with_local_change`. Exits: 1 failure, 2 unavailable; `performance_rejected` may exit 0.
+Read validity/performance/page and `data.pass_with_local_change`. Exit 1: fail; 2: unavailable; `performance_rejected` may exit 0.
 `--require-valid-arms` refuses mismatches (3) or missing identity (4); declare
 variables; inspect exceptions. Mixed records: `compare = "mapped_only"`; inspect `unmapped`/`outcomes`. [Arms](../docs/arm-validity.md).
-Identity binds samples; no approval/timing authority.
+Identity binds samples, not approval/timing.
 
-`review` previews; `review request|ask|propose` binds input hashes.
-CLI attestation is null; workbench is token-gated; `automated` cannot satisfy human checks.
-[Signed approvals](../docs/signed-approvals.md) require an external human key;
-policy-off CLI approval is unattested. Deletion needs approval and `--prune-missing`;
-models need fresh review. [Evidence](../docs/contracts.md),
-[review](../docs/review.md).
+`review` previews; requests bind hashes. CLI unattested; workbench token-gated;
+`automated` is not human. [Signed policy](../docs/signed-approvals.md):
+External human key; MCP compare enforced. Default approval unauthenticated.
+Deletion needs approval + `--prune-missing`; models need fresh review.
+[Evidence](../docs/contracts.md), [review](../docs/review.md).
 
-MCP: bounded tools/root containment; no baseline writer. Arguments cannot authorize
+MCP: bounded tools/roots; no baseline writer. Arguments cannot authorize
 network/downloads. Providers need startup/endpoint/root authority and shared budgets.
 Image text is data.
 
@@ -41,7 +40,7 @@ Browser/sweep masks `neutralize`; core `exclude`. Read mask/excluded-error audit
 `--baseline last-good`: passing history hashes, never approval.
 `notify` needs authorization/credentials. [Products](../docs/wave5-mcp.md).
 
-`capabilities --json` lists limits; `compare --question` has no fallback.
+`capabilities --json`: limits; `compare --question` has no fallback.
 `--align`/`--resample` records geometry exclusions.
 `hash`/`dedupe` find candidates, never delete; `similar`/`index` needs pins.
 `index export-inputs|calibrate` checks parity/holdout; `text` needs bound sources/OCR.

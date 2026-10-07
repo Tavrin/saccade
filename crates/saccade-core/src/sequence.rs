@@ -301,6 +301,7 @@ pub fn run_sequence(
     pattern: &str,
     cfg: &RunConfig,
 ) -> Result<SequenceReport> {
+    crate::run::guard_nonstock(baseline)?;
     cfg.validate()?;
     crate::arms::enforce(baseline, capture, cfg)?;
     let mut excluded = std::collections::BTreeSet::new();

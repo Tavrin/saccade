@@ -4367,6 +4367,7 @@ dependencies = [
  "jsonschema",
  "libc",
  "roxmltree 0.20.0",
+ "rustix",
  "saccade-core",
  "saccade-geo",
  "saccade-print",

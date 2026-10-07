@@ -23,7 +23,10 @@ no capabilities, no inherited provider environment and no credentials mount:
 scripts/authority-boundary/run-container.sh target/debug/saccade ./authority-reports
 ```
 
-The recipe copies only the supplied binary and harness into a Python runtime.
+The recipe copies the supplied binary, harness and host OpenSSH verifier with
+its loader/shared libraries into a Python runtime. This lets the forged-proof
+probe run real signature verification without installing packages over the network.
+The verifier bundle is test infrastructure, not a distributed Saccade dependency.
 It generates a separate baseline fixture and mounts it read-only. The harness
 requires `EROFS` even when attempting to restore the current file mode, then
 measures it and prepares a valid decision before testing the refused update.
@@ -47,6 +50,8 @@ Future incompatible report contracts require a successor schema.
 | MCP baseline write | Unregistered approval tool or operation | JSON-RPC `-32602`, `usage` |
 | OS baseline write | Valid approval against a read-only baseline mount | CLI exit 2, `io`, baseline bytes unchanged |
 | Human credential, policy on | Valid CLI decision, no signature | Exit 2, `approval_signature_required`, unchanged baseline |
+| Forged credential, policy on | Complete reviewed record and forged SSHSIG | Exit 2, `approval_signature_invalid`, unchanged baseline and absent receipt |
+| MCP signed consumer | Unsigned comparison with policy enabled at startup | Tool error `approval_signature_required` |
 | Compatibility, policy off | Valid CLI decision against a writable baseline, no credential | Exit 0, baseline updated, null human attestation (explicit default behavior) |
 
 CLI read/output probes exercise both preview and execution with a declared

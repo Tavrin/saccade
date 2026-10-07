@@ -104,6 +104,12 @@ pub(crate) fn run(args: Args) -> Result<u8, CliError> {
             };
             let (path, value) = if let Some(cases) = cases {
                 let declaration = saccade_core::coverage::read_declaration(&cases)?;
+                if crate::signed_approval::required() {
+                    crate::signed_approval::check_case_anchors(
+                        &dir.join(manifest::MANIFEST_FILE),
+                        &serde_json::to_value(&declaration.cases)?,
+                    )?;
+                }
                 saccade_core::coverage::write_manifest(&dir, anchors, &declaration)?
             } else {
                 manifest::write(&dir, anchors)?
@@ -146,6 +152,9 @@ pub(crate) fn run(args: Args) -> Result<u8, CliError> {
                     .map_err(|e| CliError::new("config", e.to_string()))?
                     .as_secs(),
             };
+            if crate::signed_approval::required() {
+                crate::signed_approval::check_manifest(&path)?;
+            }
             let report = saccade_core::coverage::analyze(&path, &group_by, now, max_age_seconds)?;
             saccade_core::run::guard_output_dir(&out, &[&path], &["coverage.json"])?;
             std::fs::create_dir_all(&out).map_err(|e| CliError::io(e.to_string()))?;

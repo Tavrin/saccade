@@ -25,6 +25,7 @@ serde_json.workspace = true
 serde_ignored = "=0.1.14"
 sha2 = "0.10"
 libc = "0.2"
+rustix = { version = "1", features = ["process"] }
 colorvideovdp = { version = "0.1.1", default-features = false, features = ["parallel"], optional = true }
 clap = { version = "4", features = ["derive"] }
 tempfile = "3"

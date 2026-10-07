@@ -2,6 +2,12 @@
 
 ## Unreleased
 
+- Close signed-approval consumer gaps with shared CLI/MCP measurement enforcement,
+  verified byte snapshots, optional age limits and a trusted monotonic ledger.
+  Fixed system policy, Unix trust-file checks and absolute verifier resolution
+  protect configured authority; the offline harness now probes forged proof and
+  policy-enabled MCP comparison. Default approvals remain unauthenticated.
+
 - Add opt-in externally signed OpenSSH approvals, full baseline content verification,
   trusted signer policy and `compare --approved`. Policy-enabled manifest anchor
   consumers reject unsigned or invalid approval. The authority harness now proves

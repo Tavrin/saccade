@@ -12,6 +12,11 @@ Exit 0 for compare/identity means no image regression; inspect `performance` for
 Inspection, review, rank and ablation completion grant no acceptance authority.
 Exit 2 means the operation cannot run. Demo intentionally exits 1.
 
+Actual generation binary (reference header above describes all features):
+
+Generation: `python3 scripts/gen-docs.py --allow-missing-imgtune-avif --preserve-all-features-header`.
+Compiled features: `ai`, `assist`, `compression`, `credentials`, `dense-motion`, `documents`, `embeddings`, `evaluation`, `geo`, `geometry`, `graphics`, `local-models`, `local-vlm`, `mcp`, `media-http`, `ocr`, `ocr-provider`, `parallel`, `prechecks`, `print`, `products`, `schema`, `semantic-regions`, `text-quality`, `vision-providers`, `workbench`.
+
 ## saccade
 
 ```text
@@ -76,7 +81,7 @@ Options:
       --require-signed-approval
           Require externally signed approvals and verify baseline approval consumers
       --approval-allowed-signers <APPROVAL_ALLOWED_SIGNERS>
-          External OpenSSH allowed-signers file (cannot override a required user policy)
+          External OpenSSH allowed-signers file (cannot override a required policy)
       --source-ref <SOURCE_REF>
           External capture URI/key (repeatable); recorded in generated reports
       --report-index <REPORT_INDEX>
@@ -129,16 +134,30 @@ Arguments:
   <SOURCE>  Folder or saccade-batch-input.v1 JSON manifest
 
 Options:
-      --out <OUT>                      Dedicated output directory; rerunning resumes immutable receipts
-      --source-ref <SOURCE_REF>        External capture URI/key (repeatable); recorded in generated reports
-      --report-index <REPORT_INDEX>    Shared report index destination (default reports/index.jsonl next to each report, inside --out)
-      --section <SECTION>              Existing commands to apply (repeatable); default analyze-media [possible values: analyze-media, inspect, compare, text-quality, tofu, watermark, mask-metrics]
-      --options <OPTIONS>              Options JSON: sections with command/args, concurrency and timeout_ms
-      --reference-dir <REFERENCE_DIR>  Match relative paths in this reference folder for pair commands
-      --concurrency <CONCURRENCY>      [default: 2]
-      --timeout-ms <TIMEOUT_MS>        Whole-item timeout, including input decoding, in milliseconds [default: 30000]
+      --out <OUT>
+          Dedicated output directory; rerunning resumes immutable receipts
+      --require-signed-approval
+          Require externally signed approvals and verify baseline approval consumers
+      --approval-allowed-signers <APPROVAL_ALLOWED_SIGNERS>
+          External OpenSSH allowed-signers file (cannot override a required policy)
+      --section <SECTION>
+          Existing commands to apply (repeatable); default analyze-media [possible values: analyze-media, inspect, compare, text-quality, tofu, watermark, mask-metrics]
+      --options <OPTIONS>
+          Options JSON: sections with command/args, concurrency and timeout_ms
+      --source-ref <SOURCE_REF>
+          External capture URI/key (repeatable); recorded in generated reports
+      --reference-dir <REFERENCE_DIR>
+          Match relative paths in this reference folder for pair commands
+      --report-index <REPORT_INDEX>
+          Shared report index destination (default reports/index.jsonl next to each report, inside --out)
+      --concurrency <CONCURRENCY>
+          [default: 2]
+      --timeout-ms <TIMEOUT_MS>
+          Whole-item timeout, including input decoding, in milliseconds [default: 30000]
       --json
-  -h, --help                           Print help
+
+  -h, --help
+          Print help
 
 Global options:
       --allow-out-near-captures  Silence warnings when --out is next to capture metadata
@@ -159,11 +178,20 @@ Commands:
   batch       Existing experimental frozen evaluation lifecycle
 
 Options:
-      --source-ref <SOURCE_REF>      External capture URI/key (repeatable); recorded in generated reports
-      --report-index <REPORT_INDEX>  Shared report index destination (default reports/index.jsonl next to each report, inside --out)
+      --require-signed-approval
+          Require externally signed approvals and verify baseline approval consumers
+      --approval-allowed-signers <APPROVAL_ALLOWED_SIGNERS>
+          External OpenSSH allowed-signers file (cannot override a required policy)
+      --source-ref <SOURCE_REF>
+          External capture URI/key (repeatable); recorded in generated reports
+      --report-index <REPORT_INDEX>
+          Shared report index destination (default reports/index.jsonl next to each report, inside --out)
       --json
+
       --user-config <USER_CONFIG>
-  -h, --help                         Print help
+
+  -h, --help
+          Print help
 
 Global options:
       --allow-out-near-captures  Silence warnings when --out is next to capture metadata
@@ -180,14 +208,18 @@ Usage: saccade assist explain [OPTIONS] --report <REPORT> --out <OUT>
 Options:
       --report <REPORT>
 
-      --source-ref <SOURCE_REF>
-          External capture URI/key (repeatable); recorded in generated reports
+      --require-signed-approval
+          Require externally signed approvals and verify baseline approval consumers
+      --approval-allowed-signers <APPROVAL_ALLOWED_SIGNERS>
+          External OpenSSH allowed-signers file (cannot override a required policy)
       --entry <ENTRY>
           Select exactly one report entry; required when the report contains several
-      --report-index <REPORT_INDEX>
-          Shared report index destination (default reports/index.jsonl next to each report, inside --out)
       --mask-manifest <MASK_MANIFEST>
           Optional original individual-mask declarations, bound to exact report bytes
+      --source-ref <SOURCE_REF>
+          External capture URI/key (repeatable); recorded in generated reports
+      --report-index <REPORT_INDEX>
+          Shared report index destination (default reports/index.jsonl next to each report, inside --out)
       --vision-provider <VISION_PROVIDER>
           Prepare Claude/GPT mappings in the assist layer; no live calls [possible values: claude, gpt]
       --json
@@ -246,14 +278,18 @@ Usage: saccade assist audit-mask [OPTIONS] --report <REPORT> --out <OUT>
 Options:
       --report <REPORT>
 
-      --source-ref <SOURCE_REF>
-          External capture URI/key (repeatable); recorded in generated reports
+      --require-signed-approval
+          Require externally signed approvals and verify baseline approval consumers
+      --approval-allowed-signers <APPROVAL_ALLOWED_SIGNERS>
+          External OpenSSH allowed-signers file (cannot override a required policy)
       --entry <ENTRY>
           Select exactly one report entry; required when the report contains several
-      --report-index <REPORT_INDEX>
-          Shared report index destination (default reports/index.jsonl next to each report, inside --out)
       --mask-manifest <MASK_MANIFEST>
           Optional original individual-mask declarations, bound to exact report bytes
+      --source-ref <SOURCE_REF>
+          External capture URI/key (repeatable); recorded in generated reports
+      --report-index <REPORT_INDEX>
+          Shared report index destination (default reports/index.jsonl next to each report, inside --out)
       --vision-provider <VISION_PROVIDER>
           Prepare Claude/GPT mappings in the assist layer; no live calls [possible values: claude, gpt]
       --json
@@ -315,14 +351,18 @@ Arguments:
 Options:
       --image <IMAGE>
 
-      --source-ref <SOURCE_REF>
-          External capture URI/key (repeatable); recorded in generated reports
+      --require-signed-approval
+          Require externally signed approvals and verify baseline approval consumers
+      --approval-allowed-signers <APPROVAL_ALLOWED_SIGNERS>
+          External OpenSSH allowed-signers file (cannot override a required policy)
       --box <BOX>
           Original image pixels: X,Y,W,H
-      --report-index <REPORT_INDEX>
-          Shared report index destination (default reports/index.jsonl next to each report, inside --out)
       --kind <KIND>
           Closed screenshot-only condition category [default: label-visible] [possible values: label-visible, banner-absent, not-clipped, non-overlap]
+      --source-ref <SOURCE_REF>
+          External capture URI/key (repeatable); recorded in generated reports
+      --report-index <REPORT_INDEX>
+          Shared report index destination (default reports/index.jsonl next to each report, inside --out)
       --target <TARGET>
           Stable source node ID for geometric conditions
       --json
@@ -398,11 +438,20 @@ Commands:
   collect  Collect once and settle terminal known usage; never wait
 
 Options:
-      --source-ref <SOURCE_REF>      External capture URI/key (repeatable); recorded in generated reports
-      --report-index <REPORT_INDEX>  Shared report index destination (default reports/index.jsonl next to each report, inside --out)
+      --require-signed-approval
+          Require externally signed approvals and verify baseline approval consumers
+      --approval-allowed-signers <APPROVAL_ALLOWED_SIGNERS>
+          External OpenSSH allowed-signers file (cannot override a required policy)
+      --source-ref <SOURCE_REF>
+          External capture URI/key (repeatable); recorded in generated reports
+      --report-index <REPORT_INDEX>
+          Shared report index destination (default reports/index.jsonl next to each report, inside --out)
       --json
+
       --user-config <USER_CONFIG>
-  -h, --help                         Print help
+
+  -h, --help
+          Print help
 
 Global options:
       --allow-out-near-captures  Silence warnings when --out is next to capture metadata
@@ -417,19 +466,36 @@ Verify and submit once; ambiguous submissions cannot repeat
 Usage: saccade assist batch submit [OPTIONS] --plan <PLAN> --job <JOB>
 
 Options:
-      --allow-spend-above-25-usd       Explicitly acknowledge a plan allowance above the default 25 USD ceiling
-      --source-ref <SOURCE_REF>        External capture URI/key (repeatable); recorded in generated reports
-      --plan <PLAN>                    Source-bound saccade-assist-batch-plan.v1 artifact
-      --report-index <REPORT_INDEX>    Shared report index destination (default reports/index.jsonl next to each report, inside --out)
-      --job <JOB>                      Durable receipt under the output root
+      --allow-spend-above-25-usd
+          Explicitly acknowledge a plan allowance above the default 25 USD ceiling
+      --require-signed-approval
+          Require externally signed approvals and verify baseline approval consumers
+      --approval-allowed-signers <APPROVAL_ALLOWED_SIGNERS>
+          External OpenSSH allowed-signers file (cannot override a required policy)
+      --plan <PLAN>
+          Source-bound saccade-assist-batch-plan.v1 artifact
+      --job <JOB>
+          Durable receipt under the output root
+      --source-ref <SOURCE_REF>
+          External capture URI/key (repeatable); recorded in generated reports
       --experimental
+
+      --report-index <REPORT_INDEX>
+          Shared report index destination (default reports/index.jsonl next to each report, inside --out)
       --json
-      --run                            Authorize one live submission or one poll; default local only
-      --response <RESPONSE>            Recorded collection fixture; cannot settle a live reservation
+
+      --run
+          Authorize one live submission or one poll; default local only
+      --response <RESPONSE>
+          Recorded collection fixture; cannot settle a live reservation
       --user-config <USER_CONFIG>
-      --budget-calls <BUDGET_CALLS>    Maximum provider calls, 1-128 (default 8); the run stops when reached [default: 8]
-      --deadline-secs <DEADLINE_SECS>  Wall-clock limit in seconds, 1-300 (default 300) [default: 300]
-  -h, --help                           Print help
+
+      --budget-calls <BUDGET_CALLS>
+          Maximum provider calls, 1-128 (default 8); the run stops when reached [default: 8]
+      --deadline-secs <DEADLINE_SECS>
+          Wall-clock limit in seconds, 1-300 (default 300) [default: 300]
+  -h, --help
+          Print help
 
 Global options:
       --allow-out-near-captures  Silence warnings when --out is next to capture metadata
@@ -444,19 +510,36 @@ Read local status, or poll once with --run
 Usage: saccade assist batch status [OPTIONS] --plan <PLAN> --job <JOB>
 
 Options:
-      --allow-spend-above-25-usd       Explicitly acknowledge a plan allowance above the default 25 USD ceiling
-      --source-ref <SOURCE_REF>        External capture URI/key (repeatable); recorded in generated reports
-      --plan <PLAN>                    Source-bound saccade-assist-batch-plan.v1 artifact
-      --report-index <REPORT_INDEX>    Shared report index destination (default reports/index.jsonl next to each report, inside --out)
-      --job <JOB>                      Durable receipt under the output root
+      --allow-spend-above-25-usd
+          Explicitly acknowledge a plan allowance above the default 25 USD ceiling
+      --require-signed-approval
+          Require externally signed approvals and verify baseline approval consumers
+      --approval-allowed-signers <APPROVAL_ALLOWED_SIGNERS>
+          External OpenSSH allowed-signers file (cannot override a required policy)
+      --plan <PLAN>
+          Source-bound saccade-assist-batch-plan.v1 artifact
+      --job <JOB>
+          Durable receipt under the output root
+      --source-ref <SOURCE_REF>
+          External capture URI/key (repeatable); recorded in generated reports
       --experimental
+
+      --report-index <REPORT_INDEX>
+          Shared report index destination (default reports/index.jsonl next to each report, inside --out)
       --json
-      --run                            Authorize one live submission or one poll; default local only
-      --response <RESPONSE>            Recorded collection fixture; cannot settle a live reservation
+
+      --run
+          Authorize one live submission or one poll; default local only
+      --response <RESPONSE>
+          Recorded collection fixture; cannot settle a live reservation
       --user-config <USER_CONFIG>
-      --budget-calls <BUDGET_CALLS>    Maximum provider calls, 1-128 (default 8); the run stops when reached [default: 8]
-      --deadline-secs <DEADLINE_SECS>  Wall-clock limit in seconds, 1-300 (default 300) [default: 300]
-  -h, --help                           Print help
+
+      --budget-calls <BUDGET_CALLS>
+          Maximum provider calls, 1-128 (default 8); the run stops when reached [default: 8]
+      --deadline-secs <DEADLINE_SECS>
+          Wall-clock limit in seconds, 1-300 (default 300) [default: 300]
+  -h, --help
+          Print help
 
 Global options:
       --allow-out-near-captures  Silence warnings when --out is next to capture metadata
@@ -471,19 +554,36 @@ Collect once and settle terminal known usage; never wait
 Usage: saccade assist batch collect [OPTIONS] --plan <PLAN> --job <JOB>
 
 Options:
-      --allow-spend-above-25-usd       Explicitly acknowledge a plan allowance above the default 25 USD ceiling
-      --source-ref <SOURCE_REF>        External capture URI/key (repeatable); recorded in generated reports
-      --plan <PLAN>                    Source-bound saccade-assist-batch-plan.v1 artifact
-      --report-index <REPORT_INDEX>    Shared report index destination (default reports/index.jsonl next to each report, inside --out)
-      --job <JOB>                      Durable receipt under the output root
+      --allow-spend-above-25-usd
+          Explicitly acknowledge a plan allowance above the default 25 USD ceiling
+      --require-signed-approval
+          Require externally signed approvals and verify baseline approval consumers
+      --approval-allowed-signers <APPROVAL_ALLOWED_SIGNERS>
+          External OpenSSH allowed-signers file (cannot override a required policy)
+      --plan <PLAN>
+          Source-bound saccade-assist-batch-plan.v1 artifact
+      --job <JOB>
+          Durable receipt under the output root
+      --source-ref <SOURCE_REF>
+          External capture URI/key (repeatable); recorded in generated reports
       --experimental
+
+      --report-index <REPORT_INDEX>
+          Shared report index destination (default reports/index.jsonl next to each report, inside --out)
       --json
-      --run                            Authorize one live submission or one poll; default local only
-      --response <RESPONSE>            Recorded collection fixture; cannot settle a live reservation
+
+      --run
+          Authorize one live submission or one poll; default local only
+      --response <RESPONSE>
+          Recorded collection fixture; cannot settle a live reservation
       --user-config <USER_CONFIG>
-      --budget-calls <BUDGET_CALLS>    Maximum provider calls, 1-128 (default 8); the run stops when reached [default: 8]
-      --deadline-secs <DEADLINE_SECS>  Wall-clock limit in seconds, 1-300 (default 300) [default: 300]
-  -h, --help                           Print help
+
+      --budget-calls <BUDGET_CALLS>
+          Maximum provider calls, 1-128 (default 8); the run stops when reached [default: 8]
+      --deadline-secs <DEADLINE_SECS>
+          Wall-clock limit in seconds, 1-300 (default 300) [default: 300]
+  -h, --help
+          Print help
 
 Global options:
       --allow-out-near-captures  Silence warnings when --out is next to capture metadata
@@ -508,7 +608,7 @@ Options:
       --require-signed-approval
           Require externally signed approvals and verify baseline approval consumers
       --approval-allowed-signers <APPROVAL_ALLOWED_SIGNERS>
-          External OpenSSH allowed-signers file (cannot override a required user policy)
+          External OpenSSH allowed-signers file (cannot override a required policy)
       --source-ref <SOURCE_REF>
           External capture URI/key (repeatable); recorded in generated reports
       --report-index <REPORT_INDEX>
@@ -537,17 +637,15 @@ Options:
       --require-signed-approval
           Require externally signed approvals and verify baseline approval consumers
       --approval-allowed-signers <APPROVAL_ALLOWED_SIGNERS>
-          External OpenSSH allowed-signers file (cannot override a required user policy)
+          External OpenSSH allowed-signers file (cannot override a required policy)
       --last-good <LAST_GOOD>
           Record the last passing run (a different role; not approval)
-      --report-index <REPORT_INDEX>
-          Shared report index destination (default reports/index.jsonl next to each report, inside --out)
       --cases <CASES>
           Explicit cases and axes (saccade-cases.v1); creates manifest v2
-      --json
-          Print a JSON result
       --source-ref <SOURCE_REF>
           External capture URI/key (repeatable); recorded in generated reports
+      --json
+          Print a JSON result
       --report-index <REPORT_INDEX>
           Shared report index destination (default reports/index.jsonl next to each report, inside --out)
   -h, --help
@@ -571,16 +669,20 @@ Arguments:
 Options:
       --out <OUT>
           Output directory for coverage.json and index.html
-      --source-ref <SOURCE_REF>
-          External capture URI/key (repeatable); recorded in generated reports
+      --require-signed-approval
+          Require externally signed approvals and verify baseline approval consumers
+      --approval-allowed-signers <APPROVAL_ALLOWED_SIGNERS>
+          External OpenSSH allowed-signers file (cannot override a required policy)
       --group-by <GROUP_BY>
           Declared axes to group by (default: all axes)
-      --report-index <REPORT_INDEX>
-          Shared report index destination (default reports/index.jsonl next to each report, inside --out)
       --now-unix <NOW_UNIX>
           Observation time for reproducible health findings (default: current time)
+      --source-ref <SOURCE_REF>
+          External capture URI/key (repeatable); recorded in generated reports
       --max-age-seconds <MAX_AGE_SECONDS>
           Age limit for recorded runs and known approval times [default: 2592000]
+      --report-index <REPORT_INDEX>
+          Shared report index destination (default reports/index.jsonl next to each report, inside --out)
       --json
           Print a bounded JSON result; full rows stay in coverage.json
   -h, --help
@@ -607,7 +709,7 @@ Options:
       --require-signed-approval
           Require externally signed approvals and verify baseline approval consumers
       --approval-allowed-signers <APPROVAL_ALLOWED_SIGNERS>
-          External OpenSSH allowed-signers file (cannot override a required user policy)
+          External OpenSSH allowed-signers file (cannot override a required policy)
       --source-ref <SOURCE_REF>
           External capture URI/key (repeatable); recorded in generated reports
       --report-index <REPORT_INDEX>
@@ -636,7 +738,7 @@ Options:
       --require-signed-approval
           Require externally signed approvals and verify baseline approval consumers
       --approval-allowed-signers <APPROVAL_ALLOWED_SIGNERS>
-          External OpenSSH allowed-signers file (cannot override a required user policy)
+          External OpenSSH allowed-signers file (cannot override a required policy)
       --out <OUT>
           Where to write the link document
       --json
@@ -669,7 +771,7 @@ Options:
       --require-signed-approval
           Require externally signed approvals and verify baseline approval consumers
       --approval-allowed-signers <APPROVAL_ALLOWED_SIGNERS>
-          External OpenSSH allowed-signers file (cannot override a required user policy)
+          External OpenSSH allowed-signers file (cannot override a required policy)
       --source-ref <SOURCE_REF>
           External capture URI/key (repeatable); recorded in generated reports
       --report-index <REPORT_INDEX>
@@ -698,7 +800,7 @@ Options:
       --require-signed-approval
           Require externally signed approvals and verify baseline approval consumers
       --approval-allowed-signers <APPROVAL_ALLOWED_SIGNERS>
-          External OpenSSH allowed-signers file (cannot override a required user policy)
+          External OpenSSH allowed-signers file (cannot override a required policy)
       --top <TOP>
           How many regions to export, worst first (1 to 200) [default: 5]
       --padding <PADDING>
@@ -734,7 +836,7 @@ Options:
       --require-signed-approval
           Require externally signed approvals and verify baseline approval consumers
       --approval-allowed-signers <APPROVAL_ALLOWED_SIGNERS>
-          External OpenSSH allowed-signers file (cannot override a required user policy)
+          External OpenSSH allowed-signers file (cannot override a required policy)
       --input-profile <INPUT_PROFILE>
           Override both embedded input ICC profiles with this CMYK ICC
       --output-profile <OUTPUT_PROFILE>
@@ -772,9 +874,16 @@ Commands:
   mask-metrics  Score single-band class TIFFs with overlap and boundary metrics
 
 Options:
-      --source-ref <SOURCE_REF>      External capture URI/key (repeatable); recorded in generated reports
-      --report-index <REPORT_INDEX>  Shared report index destination (default reports/index.jsonl next to each report, inside --out)
-  -h, --help                         Print help
+      --require-signed-approval
+          Require externally signed approvals and verify baseline approval consumers
+      --approval-allowed-signers <APPROVAL_ALLOWED_SIGNERS>
+          External OpenSSH allowed-signers file (cannot override a required policy)
+      --source-ref <SOURCE_REF>
+          External capture URI/key (repeatable); recorded in generated reports
+      --report-index <REPORT_INDEX>
+          Shared report index destination (default reports/index.jsonl next to each report, inside --out)
+  -h, --help
+          Print help
 
 Global options:
       --allow-out-near-captures  Silence warnings when --out is next to capture metadata
@@ -793,14 +902,26 @@ Arguments:
   <CANDIDATE>  Candidate input file or tile directory
 
 Options:
-      --out <OUT>                    Empty artifact output directory, outside inputs
-      --source-ref <SOURCE_REF>      External capture URI/key (repeatable); recorded in generated reports
-      --json                         Emit versioned measurement JSON
-      --report-index <REPORT_INDEX>  Shared report index destination (default reports/index.jsonl next to each report, inside --out)
-      --rgb-bands <RGB_BANDS>        Three one-based band indices for R,G,B. Requires declared ranges
-      --rgb-min <RGB_MIN>            Three native-unit lower bounds, shared by both rasters
-      --rgb-max <RGB_MAX>            Three native-unit upper bounds, shared by both rasters
-  -h, --help                         Print help
+      --out <OUT>
+          Empty artifact output directory, outside inputs
+      --require-signed-approval
+          Require externally signed approvals and verify baseline approval consumers
+      --approval-allowed-signers <APPROVAL_ALLOWED_SIGNERS>
+          External OpenSSH allowed-signers file (cannot override a required policy)
+      --json
+          Emit versioned measurement JSON
+      --rgb-bands <RGB_BANDS>
+          Three one-based band indices for R,G,B. Requires declared ranges
+      --source-ref <SOURCE_REF>
+          External capture URI/key (repeatable); recorded in generated reports
+      --report-index <REPORT_INDEX>
+          Shared report index destination (default reports/index.jsonl next to each report, inside --out)
+      --rgb-min <RGB_MIN>
+          Three native-unit lower bounds, shared by both rasters
+      --rgb-max <RGB_MAX>
+          Three native-unit upper bounds, shared by both rasters
+  -h, --help
+          Print help
 
 Global options:
       --allow-out-near-captures  Silence warnings when --out is next to capture metadata
@@ -819,11 +940,20 @@ Arguments:
   <CANDIDATE>  Candidate input file or tile directory
 
 Options:
-      --out <OUT>                    Empty artifact output directory, outside inputs
-      --source-ref <SOURCE_REF>      External capture URI/key (repeatable); recorded in generated reports
-      --json                         Emit versioned measurement JSON
-      --report-index <REPORT_INDEX>  Shared report index destination (default reports/index.jsonl next to each report, inside --out)
-  -h, --help                         Print help
+      --out <OUT>
+          Empty artifact output directory, outside inputs
+      --require-signed-approval
+          Require externally signed approvals and verify baseline approval consumers
+      --approval-allowed-signers <APPROVAL_ALLOWED_SIGNERS>
+          External OpenSSH allowed-signers file (cannot override a required policy)
+      --json
+          Emit versioned measurement JSON
+      --source-ref <SOURCE_REF>
+          External capture URI/key (repeatable); recorded in generated reports
+      --report-index <REPORT_INDEX>
+          Shared report index destination (default reports/index.jsonl next to each report, inside --out)
+  -h, --help
+          Print help
 
 Global options:
       --allow-out-near-captures  Silence warnings when --out is next to capture metadata
@@ -844,16 +974,20 @@ Arguments:
 Options:
       --out <OUT>
           Empty artifact output directory, outside inputs
-      --source-ref <SOURCE_REF>
-          External capture URI/key (repeatable); recorded in generated reports
+      --require-signed-approval
+          Require externally signed approvals and verify baseline approval consumers
+      --approval-allowed-signers <APPROVAL_ALLOWED_SIGNERS>
+          External OpenSSH allowed-signers file (cannot override a required policy)
       --json
           Emit versioned measurement JSON
-      --report-index <REPORT_INDEX>
-          Shared report index destination (default reports/index.jsonl next to each report, inside --out)
       --class <CLASSES>
           Class predicate NAME=id=1,2, NAME=range=1,5, NAME=above=0 or NAME=mask; repeatable
+      --source-ref <SOURCE_REF>
+          External capture URI/key (repeatable); recorded in generated reports
       --each-label
           Score each non-void native label independently
+      --report-index <REPORT_INDEX>
+          Shared report index destination (default reports/index.jsonl next to each report, inside --out)
       --void <VOID>
           Reference void predicate; nodata on either side is also excluded
       --boundary-tolerance-px <BOUNDARY_TOLERANCE_PX>
@@ -880,7 +1014,7 @@ Options:
       --require-signed-approval
           Require externally signed approvals and verify baseline approval consumers
       --approval-allowed-signers <APPROVAL_ALLOWED_SIGNERS>
-          External OpenSSH allowed-signers file (cannot override a required user policy)
+          External OpenSSH allowed-signers file (cannot override a required policy)
       --source-ref <SOURCE_REF>
           External capture URI/key (repeatable); recorded in generated reports
       --report-index <REPORT_INDEX>
@@ -909,7 +1043,7 @@ Options:
       --require-signed-approval
           Require externally signed approvals and verify baseline approval consumers
       --approval-allowed-signers <APPROVAL_ALLOWED_SIGNERS>
-          External OpenSSH allowed-signers file (cannot override a required user policy)
+          External OpenSSH allowed-signers file (cannot override a required policy)
       --out <OUT>
           [default: timing-ab]
       --json
@@ -945,7 +1079,7 @@ Options:
       --require-signed-approval
           Require externally signed approvals and verify baseline approval consumers
       --approval-allowed-signers <APPROVAL_ALLOWED_SIGNERS>
-          External OpenSSH allowed-signers file (cannot override a required user policy)
+          External OpenSSH allowed-signers file (cannot override a required policy)
       --each-label
           Score every distinct non-void label as its own class (at most 256)
       --source-ref <SOURCE_REF>
@@ -984,7 +1118,7 @@ Options:
       --require-signed-approval
           Require externally signed approvals and verify baseline approval consumers
       --approval-allowed-signers <APPROVAL_ALLOWED_SIGNERS>
-          External OpenSSH allowed-signers file (cannot override a required user policy)
+          External OpenSSH allowed-signers file (cannot override a required policy)
       --source-ref <SOURCE_REF>
           External capture URI/key (repeatable); recorded in generated reports
       --report-index <REPORT_INDEX>
@@ -1013,7 +1147,7 @@ Options:
       --require-signed-approval
           Require externally signed approvals and verify baseline approval consumers
       --approval-allowed-signers <APPROVAL_ALLOWED_SIGNERS>
-          External OpenSSH allowed-signers file (cannot override a required user policy)
+          External OpenSSH allowed-signers file (cannot override a required policy)
       --out <OUT>
           New or empty output directory
       --clip
@@ -1048,7 +1182,7 @@ Options:
       --require-signed-approval
           Require externally signed approvals and verify baseline approval consumers
       --approval-allowed-signers <APPROVAL_ALLOWED_SIGNERS>
-          External OpenSSH allowed-signers file (cannot override a required user policy)
+          External OpenSSH allowed-signers file (cannot override a required policy)
       --out <OUT>
 
       --source-ref <SOURCE_REF>
@@ -1089,7 +1223,7 @@ Options:
       --require-signed-approval
           Require externally signed approvals and verify baseline approval consumers
       --approval-allowed-signers <APPROVAL_ALLOWED_SIGNERS>
-          External OpenSSH allowed-signers file (cannot override a required user policy)
+          External OpenSSH allowed-signers file (cannot override a required policy)
       --resize <RESIZE>
           Resized image size W,H (each axis scaled independently)
       --image-file <IMAGE_FILE>
@@ -1124,7 +1258,7 @@ Options:
       --require-signed-approval
           Require externally signed approvals and verify baseline approval consumers
       --approval-allowed-signers <APPROVAL_ALLOWED_SIGNERS>
-          External OpenSSH allowed-signers file (cannot override a required user policy)
+          External OpenSSH allowed-signers file (cannot override a required policy)
       --source-ref <SOURCE_REF>
           External capture URI/key (repeatable); recorded in generated reports
       --report-index <REPORT_INDEX>
@@ -1153,7 +1287,7 @@ Options:
       --root <ROOT>
           Directory the map's relative paths resolve against (default: the map's directory)
       --approval-allowed-signers <APPROVAL_ALLOWED_SIGNERS>
-          External OpenSSH allowed-signers file (cannot override a required user policy)
+          External OpenSSH allowed-signers file (cannot override a required policy)
       --skip-files
           Do not look at frame files; check the index and timestamps only
       --rate-tolerance-pct <RATE_TOLERANCE_PCT>
@@ -1193,7 +1327,7 @@ Options:
       --require-signed-approval
           Require externally signed approvals and verify baseline approval consumers
       --approval-allowed-signers <APPROVAL_ALLOWED_SIGNERS>
-          External OpenSSH allowed-signers file (cannot override a required user policy)
+          External OpenSSH allowed-signers file (cannot override a required policy)
       --config <CONFIG>
 
       --json
@@ -1252,7 +1386,7 @@ Options:
       --require-signed-approval
           Require externally signed approvals and verify baseline approval consumers
       --approval-allowed-signers <APPROVAL_ALLOWED_SIGNERS>
-          External OpenSSH allowed-signers file (cannot override a required user policy)
+          External OpenSSH allowed-signers file (cannot override a required policy)
       --source-ref <SOURCE_REF>
           External capture URI/key (repeatable); recorded in generated reports
       --report-index <REPORT_INDEX>
@@ -1278,7 +1412,7 @@ Options:
       --require-signed-approval
           Require externally signed approvals and verify baseline approval consumers
       --approval-allowed-signers <APPROVAL_ALLOWED_SIGNERS>
-          External OpenSSH allowed-signers file (cannot override a required user policy)
+          External OpenSSH allowed-signers file (cannot override a required policy)
       --source-ref <SOURCE_REF>
           External capture URI/key (repeatable); recorded in generated reports
       --report-index <REPORT_INDEX>
@@ -1307,7 +1441,7 @@ Options:
       --require-signed-approval
           Require externally signed approvals and verify baseline approval consumers
       --approval-allowed-signers <APPROVAL_ALLOWED_SIGNERS>
-          External OpenSSH allowed-signers file (cannot override a required user policy)
+          External OpenSSH allowed-signers file (cannot override a required policy)
       --json
 
       --source-ref <SOURCE_REF>
@@ -1338,7 +1472,7 @@ Options:
       --require-signed-approval
           Require externally signed approvals and verify baseline approval consumers
       --approval-allowed-signers <APPROVAL_ALLOWED_SIGNERS>
-          External OpenSSH allowed-signers file (cannot override a required user policy)
+          External OpenSSH allowed-signers file (cannot override a required policy)
       --source-ref <SOURCE_REF>
           External capture URI/key (repeatable); recorded in generated reports
       --report-index <REPORT_INDEX>
@@ -1365,7 +1499,7 @@ Options:
       --require-signed-approval
           Require externally signed approvals and verify baseline approval consumers
       --approval-allowed-signers <APPROVAL_ALLOWED_SIGNERS>
-          External OpenSSH allowed-signers file (cannot override a required user policy)
+          External OpenSSH allowed-signers file (cannot override a required policy)
       --source-ref <SOURCE_REF>
           External capture URI/key (repeatable); recorded in generated reports
       --report-index <REPORT_INDEX>
@@ -1394,7 +1528,7 @@ Options:
       --require-signed-approval
           Require externally signed approvals and verify baseline approval consumers
       --approval-allowed-signers <APPROVAL_ALLOWED_SIGNERS>
-          External OpenSSH allowed-signers file (cannot override a required user policy)
+          External OpenSSH allowed-signers file (cannot override a required policy)
       --source-ref <SOURCE_REF>
           External capture URI/key (repeatable); recorded in generated reports
       --report-index <REPORT_INDEX>
@@ -1421,7 +1555,7 @@ Options:
       --require-signed-approval
           Require externally signed approvals and verify baseline approval consumers
       --approval-allowed-signers <APPROVAL_ALLOWED_SIGNERS>
-          External OpenSSH allowed-signers file (cannot override a required user policy)
+          External OpenSSH allowed-signers file (cannot override a required policy)
       --source-ref <SOURCE_REF>
           External capture URI/key (repeatable); recorded in generated reports
       --report-index <REPORT_INDEX>
@@ -1453,7 +1587,7 @@ Options:
       --allow-unreached <ALLOW_UNREACHED>
           Permit intentionally unreached captures with exactly matching observations
       --approval-allowed-signers <APPROVAL_ALLOWED_SIGNERS>
-          External OpenSSH allowed-signers file (cannot override a required user policy)
+          External OpenSSH allowed-signers file (cannot override a required policy)
       --ignore <IGNORE>
           Explicit exception matching destination or mapped source, echoed even if unmatched; repeat or comma-separate
       --source-ref <SOURCE_REF>
@@ -1495,7 +1629,7 @@ Options:
       --require-signed-approval
           Require externally signed approvals and verify baseline approval consumers
       --approval-allowed-signers <APPROVAL_ALLOWED_SIGNERS>
-          External OpenSSH allowed-signers file (cannot override a required user policy)
+          External OpenSSH allowed-signers file (cannot override a required policy)
       --source-ref <SOURCE_REF>
           External capture URI/key (repeatable); recorded in generated reports
       --report-index <REPORT_INDEX>
@@ -1521,7 +1655,7 @@ Options:
       --urls <URLS>
 
       --approval-allowed-signers <APPROVAL_ALLOWED_SIGNERS>
-          External OpenSSH allowed-signers file (cannot override a required user policy)
+          External OpenSSH allowed-signers file (cannot override a required policy)
       --sitemap <SITEMAP>
 
       --before-origin <BEFORE_ORIGIN>
@@ -1566,7 +1700,7 @@ Options:
       --require-signed-approval
           Require externally signed approvals and verify baseline approval consumers
       --approval-allowed-signers <APPROVAL_ALLOWED_SIGNERS>
-          External OpenSSH allowed-signers file (cannot override a required user policy)
+          External OpenSSH allowed-signers file (cannot override a required policy)
       --out <OUT>
 
       --config <CONFIG>
@@ -1608,7 +1742,7 @@ Options:
       --require-signed-approval
           Require externally signed approvals and verify baseline approval consumers
       --approval-allowed-signers <APPROVAL_ALLOWED_SIGNERS>
-          External OpenSSH allowed-signers file (cannot override a required user policy)
+          External OpenSSH allowed-signers file (cannot override a required policy)
       --source-ref <SOURCE_REF>
           External capture URI/key (repeatable); recorded in generated reports
       --report-index <REPORT_INDEX>
@@ -1636,7 +1770,7 @@ Options:
       --accept <ACCEPT>
 
       --approval-allowed-signers <APPROVAL_ALLOWED_SIGNERS>
-          External OpenSSH allowed-signers file (cannot override a required user policy)
+          External OpenSSH allowed-signers file (cannot override a required policy)
       --out <OUT>
 
       --source-ref <SOURCE_REF>
@@ -1669,7 +1803,7 @@ Options:
       --require-signed-approval
           Require externally signed approvals and verify baseline approval consumers
       --approval-allowed-signers <APPROVAL_ALLOWED_SIGNERS>
-          External OpenSSH allowed-signers file (cannot override a required user policy)
+          External OpenSSH allowed-signers file (cannot override a required policy)
       --json
 
       --source-ref <SOURCE_REF>
@@ -1699,7 +1833,7 @@ Options:
       --require-signed-approval
           Require externally signed approvals and verify baseline approval consumers
       --approval-allowed-signers <APPROVAL_ALLOWED_SIGNERS>
-          External OpenSSH allowed-signers file (cannot override a required user policy)
+          External OpenSSH allowed-signers file (cannot override a required policy)
       --source-ref <SOURCE_REF>
           External capture URI/key (repeatable); recorded in generated reports
       --report-index <REPORT_INDEX>
@@ -1728,7 +1862,7 @@ Options:
       --require-signed-approval
           Require externally signed approvals and verify baseline approval consumers
       --approval-allowed-signers <APPROVAL_ALLOWED_SIGNERS>
-          External OpenSSH allowed-signers file (cannot override a required user policy)
+          External OpenSSH allowed-signers file (cannot override a required policy)
       --cache <CACHE>
 
       --fixture-dir <FIXTURE_DIR>
@@ -1765,7 +1899,7 @@ Options:
       --require-signed-approval
           Require externally signed approvals and verify baseline approval consumers
       --approval-allowed-signers <APPROVAL_ALLOWED_SIGNERS>
-          External OpenSSH allowed-signers file (cannot override a required user policy)
+          External OpenSSH allowed-signers file (cannot override a required policy)
       --captures <CAPTURES>
 
       --out <OUT>
@@ -1804,7 +1938,7 @@ Options:
       --template <TEMPLATE>
           [default: generic] [possible values: generic, slack, teams]
       --approval-allowed-signers <APPROVAL_ALLOWED_SIGNERS>
-          External OpenSSH allowed-signers file (cannot override a required user policy)
+          External OpenSSH allowed-signers file (cannot override a required policy)
       --report-link <REPORT_LINK>
           Display link; defaults to the report path. Never used as the webhook endpoint
       --json
@@ -1834,7 +1968,7 @@ Options:
       --require-signed-approval
           Require externally signed approvals and verify baseline approval consumers
       --approval-allowed-signers <APPROVAL_ALLOWED_SIGNERS>
-          External OpenSSH allowed-signers file (cannot override a required user policy)
+          External OpenSSH allowed-signers file (cannot override a required policy)
       --source-ref <SOURCE_REF>
           External capture URI/key (repeatable); recorded in generated reports
       --report-index <REPORT_INDEX>
@@ -1863,7 +1997,7 @@ Options:
       --require-signed-approval
           Require externally signed approvals and verify baseline approval consumers
       --approval-allowed-signers <APPROVAL_ALLOWED_SIGNERS>
-          External OpenSSH allowed-signers file (cannot override a required user policy)
+          External OpenSSH allowed-signers file (cannot override a required policy)
       --face-observations <FACE_OBSERVATIONS>
           Image-bound face receipt; explicitly labelled replay
       --model-registry <MODEL_REGISTRY>
@@ -1924,7 +2058,7 @@ Options:
       --require-signed-approval
           Require externally signed approvals and verify baseline approval consumers
       --approval-allowed-signers <APPROVAL_ALLOWED_SIGNERS>
-          External OpenSSH allowed-signers file (cannot override a required user policy)
+          External OpenSSH allowed-signers file (cannot override a required policy)
       --face-observations <FACE_OBSERVATIONS>
           Image-bound face receipt; explicitly labelled replay
       --model-registry <MODEL_REGISTRY>
@@ -1974,7 +2108,7 @@ Options:
       --require-signed-approval
           Require externally signed approvals and verify baseline approval consumers
       --approval-allowed-signers <APPROVAL_ALLOWED_SIGNERS>
-          External OpenSSH allowed-signers file (cannot override a required user policy)
+          External OpenSSH allowed-signers file (cannot override a required policy)
       --ocr-model <OCR_MODEL>
           Explicit dated OCR model (aliases refused)
       --ocr-pages <OCR_PAGES>
@@ -2037,7 +2171,7 @@ Options:
       --require-signed-approval
           Require externally signed approvals and verify baseline approval consumers
       --approval-allowed-signers <APPROVAL_ALLOWED_SIGNERS>
-          External OpenSSH allowed-signers file (cannot override a required user policy)
+          External OpenSSH allowed-signers file (cannot override a required policy)
       --expected-text <EXPECTED_TEXT>
           Declared expected Unicode text, never interpreted as instructions
       --source <SOURCE>
@@ -2077,7 +2211,7 @@ Options:
       --require-signed-approval
           Require externally signed approvals and verify baseline approval consumers
       --approval-allowed-signers <APPROVAL_ALLOWED_SIGNERS>
-          External OpenSSH allowed-signers file (cannot override a required user policy)
+          External OpenSSH allowed-signers file (cannot override a required policy)
       --minimum-contrast <MINIMUM_CONTRAST>
           [default: 4.5]
       --minimum-x-height-px <MINIMUM_X_HEIGHT_PX>
@@ -2120,15 +2254,28 @@ Arguments:
   <CANDIDATE>
 
 Options:
-      --policy <POLICY>              Frozen saccade-critical-text-policy.v1 region/string thresholds
-      --source-ref <SOURCE_REF>      External capture URI/key (repeatable); recorded in generated reports
-      --a-source <A_SOURCE>          Image-bound baseline saccade-ui-source.v1 (works on stock builds)
-      --report-index <REPORT_INDEX>  Shared report index destination (default reports/index.jsonl next to each report, inside --out)
-      --b-source <B_SOURCE>          Image-bound candidate source; requires --a-source
-      --ocr                          Execute cached local OCR; never downloads (requires ocr feature/runtime/models)
-      --out <OUT>                    Optional report directory, must be empty and outside inputs
+      --policy <POLICY>
+          Frozen saccade-critical-text-policy.v1 region/string thresholds
+      --require-signed-approval
+          Require externally signed approvals and verify baseline approval consumers
+      --a-source <A_SOURCE>
+          Image-bound baseline saccade-ui-source.v1 (works on stock builds)
+      --approval-allowed-signers <APPROVAL_ALLOWED_SIGNERS>
+          External OpenSSH allowed-signers file (cannot override a required policy)
+      --b-source <B_SOURCE>
+          Image-bound candidate source; requires --a-source
+      --source-ref <SOURCE_REF>
+          External capture URI/key (repeatable); recorded in generated reports
+      --ocr
+          Execute cached local OCR; never downloads (requires ocr feature/runtime/models)
+      --report-index <REPORT_INDEX>
+          Shared report index destination (default reports/index.jsonl next to each report, inside --out)
+      --out <OUT>
+          Optional report directory, must be empty and outside inputs
       --json
-  -h, --help                         Print help
+
+  -h, --help
+          Print help
 
 Global options:
       --allow-out-near-captures  Silence warnings when --out is next to capture metadata
@@ -2149,14 +2296,18 @@ Arguments:
 Options:
       --region <REGION>
           Fixed text region x,y,width,height in every frame's capture pixels
-      --source-ref <SOURCE_REF>
-          External capture URI/key (repeatable); recorded in generated reports
-      --report-index <REPORT_INDEX>
-          Shared report index destination (default reports/index.jsonl next to each report, inside --out)
+      --require-signed-approval
+          Require externally signed approvals and verify baseline approval consumers
+      --approval-allowed-signers <APPROVAL_ALLOWED_SIGNERS>
+          External OpenSSH allowed-signers file (cannot override a required policy)
       --sources <SOURCES>
           Directory of image-bound UI OCR sources or timed-text source wrappers named INDEX.json
       --ocr
           Use cached PaddleOCR; absent model/runtime explicitly skips OCR, never downloads
+      --source-ref <SOURCE_REF>
+          External capture URI/key (repeatable); recorded in generated reports
+      --report-index <REPORT_INDEX>
+          Shared report index destination (default reports/index.jsonl next to each report, inside --out)
       --timing-tolerance-s <TIMING_TOLERANCE_S>
           [default: 0.3]
       --search-s <SEARCH_S>
@@ -2200,7 +2351,7 @@ Options:
       --require-signed-approval
           Require externally signed approvals and verify baseline approval consumers
       --approval-allowed-signers <APPROVAL_ALLOWED_SIGNERS>
-          External OpenSSH allowed-signers file (cannot override a required user policy)
+          External OpenSSH allowed-signers file (cannot override a required policy)
       --cache <CACHE>
           Deprecated: set SACCADE_MODELS_DIR or [models].dir. Content-addressed model cache
       --library <LIBRARY>
@@ -2242,7 +2393,7 @@ Options:
       --require-signed-approval
           Require externally signed approvals and verify baseline approval consumers
       --approval-allowed-signers <APPROVAL_ALLOWED_SIGNERS>
-          External OpenSSH allowed-signers file (cannot override a required user policy)
+          External OpenSSH allowed-signers file (cannot override a required policy)
       --source-ref <SOURCE_REF>
           External capture URI/key (repeatable); recorded in generated reports
       --report-index <REPORT_INDEX>
@@ -2268,7 +2419,7 @@ Options:
       --require-signed-approval
           Require externally signed approvals and verify baseline approval consumers
       --approval-allowed-signers <APPROVAL_ALLOWED_SIGNERS>
-          External OpenSSH allowed-signers file (cannot override a required user policy)
+          External OpenSSH allowed-signers file (cannot override a required policy)
       --format <FORMAT>
           [default: jsonl]
       --out <OUT>
@@ -2303,7 +2454,7 @@ Options:
       --require-signed-approval
           Require externally signed approvals and verify baseline approval consumers
       --approval-allowed-signers <APPROVAL_ALLOWED_SIGNERS>
-          External OpenSSH allowed-signers file (cannot override a required user policy)
+          External OpenSSH allowed-signers file (cannot override a required policy)
       --out <OUT>
 
       --json
@@ -2336,7 +2487,7 @@ Options:
       --require-signed-approval
           Require externally signed approvals and verify baseline approval consumers
       --approval-allowed-signers <APPROVAL_ALLOWED_SIGNERS>
-          External OpenSSH allowed-signers file (cannot override a required user policy)
+          External OpenSSH allowed-signers file (cannot override a required policy)
       --cache <CACHE>
           Deprecated: set SACCADE_MODELS_DIR or [models].dir. Content-addressed model cache
       --library <LIBRARY>
@@ -2375,7 +2526,7 @@ Options:
       --segmented
           Use durable v2 segments (up to 1000000 images and 16 GiB vectors)
       --approval-allowed-signers <APPROVAL_ALLOWED_SIGNERS>
-          External OpenSSH allowed-signers file (cannot override a required user policy)
+          External OpenSSH allowed-signers file (cannot override a required policy)
       --model <MODEL>
           Supplied saccade-embedding-model.v1 contract; includes export SHA-256 and preprocessing. Default: SACCADE_MODELS_EMBEDDING_CONTRACT or [models].embedding_contract
       --cache <CACHE>
@@ -2417,7 +2568,7 @@ Options:
       --require-signed-approval
           Require externally signed approvals and verify baseline approval consumers
       --approval-allowed-signers <APPROVAL_ALLOWED_SIGNERS>
-          External OpenSSH allowed-signers file (cannot override a required user policy)
+          External OpenSSH allowed-signers file (cannot override a required policy)
       --model <MODEL>
           Supplied saccade-embedding-model.v1 contract; includes export SHA-256 and preprocessing. Default: SACCADE_MODELS_EMBEDDING_CONTRACT or [models].embedding_contract
       --cache <CACHE>
@@ -2459,7 +2610,7 @@ Options:
       --text <TEXT>
           Text query requires a pinned SigLIP 2 joint text/image model
       --approval-allowed-signers <APPROVAL_ALLOWED_SIGNERS>
-          External OpenSSH allowed-signers file (cannot override a required user policy)
+          External OpenSSH allowed-signers file (cannot override a required policy)
       --model <MODEL>
           Supplied saccade-embedding-model.v1 contract; includes export SHA-256 and preprocessing. Default: SACCADE_MODELS_EMBEDDING_CONTRACT or [models].embedding_contract
       --cache <CACHE>
@@ -2502,7 +2653,7 @@ Options:
       --require-signed-approval
           Require externally signed approvals and verify baseline approval consumers
       --approval-allowed-signers <APPROVAL_ALLOWED_SIGNERS>
-          External OpenSSH allowed-signers file (cannot override a required user policy)
+          External OpenSSH allowed-signers file (cannot override a required policy)
       --json
           Emit a bounded JSON artifact receipt
       --source-ref <SOURCE_REF>
@@ -2533,7 +2684,7 @@ Options:
       --require-signed-approval
           Require externally signed approvals and verify baseline approval consumers
       --approval-allowed-signers <APPROVAL_ALLOWED_SIGNERS>
-          External OpenSSH allowed-signers file (cannot override a required user policy)
+          External OpenSSH allowed-signers file (cannot override a required policy)
       --threshold <THRESHOLD>
           Largest perceptual-hash distance in bits, 0-64 (0 = identical hashes; larger = looser); clusters use transitive connectivity [default: 6]
       --out <OUT>
@@ -2565,16 +2716,20 @@ Arguments:
 Options:
       --hash-threshold <HASH_THRESHOLD>
           Inclusive perceptual-hash distance, 0..64 [default: 6]
-      --source-ref <SOURCE_REF>
-          External capture URI/key (repeatable); recorded in generated reports
+      --require-signed-approval
+          Require externally signed approvals and verify baseline approval consumers
+      --approval-allowed-signers <APPROVAL_ALLOWED_SIGNERS>
+          External OpenSSH allowed-signers file (cannot override a required policy)
       --embeddings
           Explicitly enable a provisioned embedding route; never downloads
-      --report-index <REPORT_INDEX>
-          Shared report index destination (default reports/index.jsonl next to each report, inside --out)
       --cosine-threshold <COSINE_THRESHOLD>
           Inclusive raw cosine candidate threshold [default: 0.95]
+      --source-ref <SOURCE_REF>
+          External capture URI/key (repeatable); recorded in generated reports
       --out <OUT>
           New or empty output directory outside the dataset [default: split-review-report]
+      --report-index <REPORT_INDEX>
+          Shared report index destination (default reports/index.jsonl next to each report, inside --out)
       --json
           Emit the complete versioned review, including limitations
   -h, --help
@@ -2601,7 +2756,7 @@ Options:
       --require-signed-approval
           Require externally signed approvals and verify baseline approval consumers
       --approval-allowed-signers <APPROVAL_ALLOWED_SIGNERS>
-          External OpenSSH allowed-signers file (cannot override a required user policy)
+          External OpenSSH allowed-signers file (cannot override a required policy)
       --model-dir <MODEL_DIR>
           Deprecated: set SACCADE_MODELS_DIR or [models].dir (see `saccade models config`)
       --registry <REGISTRY>
@@ -2642,7 +2797,7 @@ Options:
       --require-signed-approval
           Require externally signed approvals and verify baseline approval consumers
       --approval-allowed-signers <APPROVAL_ALLOWED_SIGNERS>
-          External OpenSSH allowed-signers file (cannot override a required user policy)
+          External OpenSSH allowed-signers file (cannot override a required policy)
       --sample-fps <SAMPLE_FPS>
           Requested samples per second, 0.1-10 (default 1; the decoder may lower it) [default: 1]
       --shot-penalty <SHOT_PENALTY>
@@ -2678,7 +2833,7 @@ Options:
       --require-signed-approval
           Require externally signed approvals and verify baseline approval consumers
       --approval-allowed-signers <APPROVAL_ALLOWED_SIGNERS>
-          External OpenSSH allowed-signers file (cannot override a required user policy)
+          External OpenSSH allowed-signers file (cannot override a required policy)
       --source-ref <SOURCE_REF>
           External capture URI/key (repeatable); recorded in generated reports
       --report-index <REPORT_INDEX>
@@ -2707,7 +2862,7 @@ Options:
       --require-signed-approval
           Require externally signed approvals and verify baseline approval consumers
       --approval-allowed-signers <APPROVAL_ALLOWED_SIGNERS>
-          External OpenSSH allowed-signers file (cannot override a required user policy)
+          External OpenSSH allowed-signers file (cannot override a required policy)
       --source-ref <SOURCE_REF>
           External capture URI/key (repeatable); recorded in generated reports
       --report-index <REPORT_INDEX>
@@ -2733,7 +2888,7 @@ Options:
       --require-signed-approval
           Require externally signed approvals and verify baseline approval consumers
       --approval-allowed-signers <APPROVAL_ALLOWED_SIGNERS>
-          External OpenSSH allowed-signers file (cannot override a required user policy)
+          External OpenSSH allowed-signers file (cannot override a required policy)
       --cache <CACHE>
           Deprecated: set SACCADE_MODELS_DIR or [models].dir
       --json
@@ -2763,7 +2918,7 @@ Options:
       --require-signed-approval
           Require externally signed approvals and verify baseline approval consumers
       --approval-allowed-signers <APPROVAL_ALLOWED_SIGNERS>
-          External OpenSSH allowed-signers file (cannot override a required user policy)
+          External OpenSSH allowed-signers file (cannot override a required policy)
       --source-ref <SOURCE_REF>
           External capture URI/key (repeatable); recorded in generated reports
       --report-index <REPORT_INDEX>
@@ -2797,7 +2952,7 @@ Options:
           Require externally signed approvals and verify baseline approval consumers
 
       --approval-allowed-signers <APPROVAL_ALLOWED_SIGNERS>
-          External OpenSSH allowed-signers file (cannot override a required user policy)
+          External OpenSSH allowed-signers file (cannot override a required policy)
 
       --registry <REGISTRY>
           Deprecated: set SACCADE_MODELS_REGISTRY or [models].registry
@@ -2842,7 +2997,7 @@ Options:
       --segment
 
       --approval-allowed-signers <APPROVAL_ALLOWED_SIGNERS>
-          External OpenSSH allowed-signers file (cannot override a required user policy)
+          External OpenSSH allowed-signers file (cannot override a required policy)
       --detector <DETECTOR>
           [default: grounding-dino-tiny]
       --segmenter <SEGMENTER>
@@ -2889,7 +3044,7 @@ Options:
       --require-signed-approval
           Require externally signed approvals and verify baseline approval consumers
       --approval-allowed-signers <APPROVAL_ALLOWED_SIGNERS>
-          External OpenSSH allowed-signers file (cannot override a required user policy)
+          External OpenSSH allowed-signers file (cannot override a required policy)
       --metric <METRIC>
           [default: musiq]
       --observations <OBSERVATIONS>
@@ -2932,7 +3087,7 @@ Options:
       --require-signed-approval
           Require externally signed approvals and verify baseline approval consumers
       --approval-allowed-signers <APPROVAL_ALLOWED_SIGNERS>
-          External OpenSSH allowed-signers file (cannot override a required user policy)
+          External OpenSSH allowed-signers file (cannot override a required policy)
       --quantization-step <QUANTIZATION_STEP>
           Coefficient quantization step of the embedding workflow (default 36; must be above 0) [default: 36]
       --minimum-agreement <MINIMUM_AGREEMENT>
@@ -2979,7 +3134,7 @@ Options:
       --require-signed-approval
           Require externally signed approvals and verify baseline approval consumers
       --approval-allowed-signers <APPROVAL_ALLOWED_SIGNERS>
-          External OpenSSH allowed-signers file (cannot override a required user policy)
+          External OpenSSH allowed-signers file (cannot override a required policy)
       --observations <OBSERVATIONS>
 
       --blur-faces <BLUR_FACES>
@@ -3022,7 +3177,7 @@ Options:
       --require-signed-approval
           Require externally signed approvals and verify baseline approval consumers
       --approval-allowed-signers <APPROVAL_ALLOWED_SIGNERS>
-          External OpenSSH allowed-signers file (cannot override a required user policy)
+          External OpenSSH allowed-signers file (cannot override a required policy)
       --observations <OBSERVATIONS>
 
       --blur-faces <BLUR_FACES>
@@ -3069,7 +3224,7 @@ Options:
       --require-signed-approval
           Require externally signed approvals and verify baseline approval consumers
       --approval-allowed-signers <APPROVAL_ALLOWED_SIGNERS>
-          External OpenSSH allowed-signers file (cannot override a required user policy)
+          External OpenSSH allowed-signers file (cannot override a required policy)
       --runtime-revision <RUNTIME_REVISION>
 
       --response <RESPONSE>
@@ -3104,7 +3259,7 @@ Options:
       --require-signed-approval
           Require externally signed approvals and verify baseline approval consumers
       --approval-allowed-signers <APPROVAL_ALLOWED_SIGNERS>
-          External OpenSSH allowed-signers file (cannot override a required user policy)
+          External OpenSSH allowed-signers file (cannot override a required policy)
       --endpoint-profile <ENDPOINT_PROFILE>
           Startup env-file mapping for generic OpenAI-compatible or Azure deployment endpoints [possible values: openai-compatible, azure-openai]
       --response <RESPONSE>
@@ -3142,7 +3297,7 @@ Options:
       --require-signed-approval
           Require externally signed approvals and verify baseline approval consumers
       --approval-allowed-signers <APPROVAL_ALLOWED_SIGNERS>
-          External OpenSSH allowed-signers file (cannot override a required user policy)
+          External OpenSSH allowed-signers file (cannot override a required policy)
       --json
 
       --source-ref <SOURCE_REF>
@@ -3174,7 +3329,7 @@ Options:
       --require-signed-approval
           Require externally signed approvals and verify baseline approval consumers
       --approval-allowed-signers <APPROVAL_ALLOWED_SIGNERS>
-          External OpenSSH allowed-signers file (cannot override a required user policy)
+          External OpenSSH allowed-signers file (cannot override a required policy)
       --source-ref <SOURCE_REF>
           External capture URI/key (repeatable); recorded in generated reports
       --report-index <REPORT_INDEX>
@@ -3200,7 +3355,7 @@ Options:
       --require-signed-approval
           Require externally signed approvals and verify baseline approval consumers
       --approval-allowed-signers <APPROVAL_ALLOWED_SIGNERS>
-          External OpenSSH allowed-signers file (cannot override a required user policy)
+          External OpenSSH allowed-signers file (cannot override a required policy)
       --mask <MASK>
 
       --phrase <PHRASE>
@@ -3230,7 +3385,7 @@ Options:
       --require-signed-approval
           Require externally signed approvals and verify baseline approval consumers
       --approval-allowed-signers <APPROVAL_ALLOWED_SIGNERS>
-          External OpenSSH allowed-signers file (cannot override a required user policy)
+          External OpenSSH allowed-signers file (cannot override a required policy)
       --source-ref <SOURCE_REF>
           External capture URI/key (repeatable); recorded in generated reports
       --report-index <REPORT_INDEX>
@@ -3256,7 +3411,7 @@ Options:
       --require-signed-approval
           Require externally signed approvals and verify baseline approval consumers
       --approval-allowed-signers <APPROVAL_ALLOWED_SIGNERS>
-          External OpenSSH allowed-signers file (cannot override a required user policy)
+          External OpenSSH allowed-signers file (cannot override a required policy)
       --cache <CACHE>
 
       --source-ref <SOURCE_REF>
@@ -3284,7 +3439,7 @@ Options:
       --require-signed-approval
           Require externally signed approvals and verify baseline approval consumers
       --approval-allowed-signers <APPROVAL_ALLOWED_SIGNERS>
-          External OpenSSH allowed-signers file (cannot override a required user policy)
+          External OpenSSH allowed-signers file (cannot override a required policy)
       --cache <CACHE>
 
       --library <LIBRARY>
@@ -3314,7 +3469,7 @@ Options:
       --require-signed-approval
           Require externally signed approvals and verify baseline approval consumers
       --approval-allowed-signers <APPROVAL_ALLOWED_SIGNERS>
-          External OpenSSH allowed-signers file (cannot override a required user policy)
+          External OpenSSH allowed-signers file (cannot override a required policy)
       --proposals <PROPOSALS>
           Optional JSON array of atomic proposals; no provider calls are made
       --out <OUT>
@@ -3350,7 +3505,7 @@ Options:
       --require-signed-approval
           Require externally signed approvals and verify baseline approval consumers
       --approval-allowed-signers <APPROVAL_ALLOWED_SIGNERS>
-          External OpenSSH allowed-signers file (cannot override a required user policy)
+          External OpenSSH allowed-signers file (cannot override a required policy)
       --require-valid-arms
           Refuse verdicts for incomplete or mismatched producer identity
       --fingerprint-map <FINGERPRINT_MAP>
@@ -3408,7 +3563,7 @@ Options:
       --require-signed-approval
           Require externally signed approvals and verify baseline approval consumers
       --approval-allowed-signers <APPROVAL_ALLOWED_SIGNERS>
-          External OpenSSH allowed-signers file (cannot override a required user policy)
+          External OpenSSH allowed-signers file (cannot override a required policy)
       --report <REPORT>
           Existing comparison report
       --out <OUT>
@@ -3443,7 +3598,7 @@ Options:
       --require-signed-approval
           Require externally signed approvals and verify baseline approval consumers
       --approval-allowed-signers <APPROVAL_ALLOWED_SIGNERS>
-          External OpenSSH allowed-signers file (cannot override a required user policy)
+          External OpenSSH allowed-signers file (cannot override a required policy)
       --json
 
       --source-ref <SOURCE_REF>
@@ -3474,7 +3629,7 @@ Options:
       --require-signed-approval
           Require externally signed approvals and verify baseline approval consumers
       --approval-allowed-signers <APPROVAL_ALLOWED_SIGNERS>
-          External OpenSSH allowed-signers file (cannot override a required user policy)
+          External OpenSSH allowed-signers file (cannot override a required policy)
       --source-ref <SOURCE_REF>
           External capture URI/key (repeatable); recorded in generated reports
       --report-index <REPORT_INDEX>
@@ -3500,7 +3655,7 @@ Options:
       --store <STORE>
 
       --approval-allowed-signers <APPROVAL_ALLOWED_SIGNERS>
-          External OpenSSH allowed-signers file (cannot override a required user policy)
+          External OpenSSH allowed-signers file (cannot override a required policy)
       --limit <LIMIT>
           Most recent distinct observations per partition; exact DP is bounded to 120 [default: 60]
       --json
@@ -3533,7 +3688,7 @@ Options:
       --run-id <RUN_ID>
           Producer-assigned independent capture run, never an image or report hash
       --approval-allowed-signers <APPROVAL_ALLOWED_SIGNERS>
-          External OpenSSH allowed-signers file (cannot override a required user policy)
+          External OpenSSH allowed-signers file (cannot override a required policy)
       --environment-id <ENVIRONMENT_ID>
           Frozen browser/device, fonts, viewport, warmup and temporal protocol identity
       --source-ref <SOURCE_REF>
@@ -3567,7 +3722,7 @@ Options:
       --store <STORE>
 
       --approval-allowed-signers <APPROVAL_ALLOWED_SIGNERS>
-          External OpenSSH allowed-signers file (cannot override a required user policy)
+          External OpenSSH allowed-signers file (cannot override a required policy)
       --entry <ENTRY>
 
       --drift
@@ -3603,7 +3758,7 @@ Options:
       --require-signed-approval
           Require externally signed approvals and verify baseline approval consumers
       --approval-allowed-signers <APPROVAL_ALLOWED_SIGNERS>
-          External OpenSSH allowed-signers file (cannot override a required user policy)
+          External OpenSSH allowed-signers file (cannot override a required policy)
       --bad <BAD>
           Known bad revision descended from --good
       --capture <CAPTURE>
@@ -3646,7 +3801,7 @@ Options:
       --require-signed-approval
           Require externally signed approvals and verify baseline approval consumers
       --approval-allowed-signers <APPROVAL_ALLOWED_SIGNERS>
-          External OpenSSH allowed-signers file (cannot override a required user policy)
+          External OpenSSH allowed-signers file (cannot override a required policy)
       --source-ref <SOURCE_REF>
           External capture URI/key (repeatable); recorded in generated reports
       --report-index <REPORT_INDEX>
@@ -3675,7 +3830,7 @@ Options:
       --require-signed-approval
           Require externally signed approvals and verify baseline approval consumers
       --approval-allowed-signers <APPROVAL_ALLOWED_SIGNERS>
-          External OpenSSH allowed-signers file (cannot override a required user policy)
+          External OpenSSH allowed-signers file (cannot override a required policy)
       --json
 
       --source-ref <SOURCE_REF>
@@ -3707,7 +3862,7 @@ Options:
       --require-signed-approval
           Require externally signed approvals and verify baseline approval consumers
       --approval-allowed-signers <APPROVAL_ALLOWED_SIGNERS>
-          External OpenSSH allowed-signers file (cannot override a required user policy)
+          External OpenSSH allowed-signers file (cannot override a required policy)
       --json
 
       --source-ref <SOURCE_REF>
@@ -3738,7 +3893,7 @@ Options:
       --require-signed-approval
           Require externally signed approvals and verify baseline approval consumers
       --approval-allowed-signers <APPROVAL_ALLOWED_SIGNERS>
-          External OpenSSH allowed-signers file (cannot override a required user policy)
+          External OpenSSH allowed-signers file (cannot override a required policy)
       --json
 
       --source-ref <SOURCE_REF>
@@ -3769,7 +3924,7 @@ Options:
       --require-signed-approval
           Require externally signed approvals and verify baseline approval consumers
       --approval-allowed-signers <APPROVAL_ALLOWED_SIGNERS>
-          External OpenSSH allowed-signers file (cannot override a required user policy)
+          External OpenSSH allowed-signers file (cannot override a required policy)
       --json
 
       --source-ref <SOURCE_REF>
@@ -3800,7 +3955,7 @@ Options:
       --require-signed-approval
           Require externally signed approvals and verify baseline approval consumers
       --approval-allowed-signers <APPROVAL_ALLOWED_SIGNERS>
-          External OpenSSH allowed-signers file (cannot override a required user policy)
+          External OpenSSH allowed-signers file (cannot override a required policy)
       --json
           Print the bounded comparison result
       --source-ref <SOURCE_REF>
@@ -3830,7 +3985,7 @@ Options:
       --require-signed-approval
           Require externally signed approvals and verify baseline approval consumers
       --approval-allowed-signers <APPROVAL_ALLOWED_SIGNERS>
-          External OpenSSH allowed-signers file (cannot override a required user policy)
+          External OpenSSH allowed-signers file (cannot override a required policy)
       --source-ref <SOURCE_REF>
           External capture URI/key (repeatable); recorded in generated reports
       --report-index <REPORT_INDEX>
@@ -3856,7 +4011,7 @@ Options:
       --template <TEMPLATE>
           [default: renderer] [possible values: renderer, ui, identity, ml, producer-strict, ci, nightly, lookdev]
       --approval-allowed-signers <APPROVAL_ALLOWED_SIGNERS>
-          External OpenSSH allowed-signers file (cannot override a required user policy)
+          External OpenSSH allowed-signers file (cannot override a required policy)
       --dir <DIR>
           [default: .]
       --force
@@ -3894,7 +4049,7 @@ Options:
       --require-signed-approval
           Require externally signed approvals and verify baseline approval consumers
       --approval-allowed-signers <APPROVAL_ALLOWED_SIGNERS>
-          External OpenSSH allowed-signers file (cannot override a required user policy)
+          External OpenSSH allowed-signers file (cannot override a required policy)
       --source-ref <SOURCE_REF>
           External capture URI/key (repeatable); recorded in generated reports
       --report-index <REPORT_INDEX>
@@ -3938,7 +4093,7 @@ Options:
       --require-signed-approval
           Require externally signed approvals and verify baseline approval consumers
       --approval-allowed-signers <APPROVAL_ALLOWED_SIGNERS>
-          External OpenSSH allowed-signers file (cannot override a required user policy)
+          External OpenSSH allowed-signers file (cannot override a required policy)
       --question <QUESTION>
           Explicit comparison question; no automatic model fallback [possible values: same-render, same-content, same-text, near-duplicate, quality]
       --model <MODEL>
@@ -4076,7 +4231,7 @@ Options:
       --require-signed-approval
           Require externally signed approvals and verify baseline approval consumers
       --approval-allowed-signers <APPROVAL_ALLOWED_SIGNERS>
-          External OpenSSH allowed-signers file (cannot override a required user policy)
+          External OpenSSH allowed-signers file (cannot override a required policy)
       --source-ref <SOURCE_REF>
           External capture URI/key (repeatable); recorded in generated reports
       --report-index <REPORT_INDEX>
@@ -4156,7 +4311,7 @@ Options:
       --require-signed-approval
           Require externally signed approvals and verify baseline approval consumers
       --approval-allowed-signers <APPROVAL_ALLOWED_SIGNERS>
-          External OpenSSH allowed-signers file (cannot override a required user policy)
+          External OpenSSH allowed-signers file (cannot override a required policy)
       --source-ref <SOURCE_REF>
           External capture URI/key (repeatable); recorded in generated reports
       --report-index <REPORT_INDEX>
@@ -4186,7 +4341,7 @@ Options:
       --unit <UNIT>
           Declared common coordinate unit; no conversion or registration is performed
       --approval-allowed-signers <APPROVAL_ALLOWED_SIGNERS>
-          External OpenSSH allowed-signers file (cannot override a required user policy)
+          External OpenSSH allowed-signers file (cannot override a required policy)
       --json
 
       --source-ref <SOURCE_REF>
@@ -4218,7 +4373,7 @@ Options:
       --require-signed-approval
           Require externally signed approvals and verify baseline approval consumers
       --approval-allowed-signers <APPROVAL_ALLOWED_SIGNERS>
-          External OpenSSH allowed-signers file (cannot override a required user policy)
+          External OpenSSH allowed-signers file (cannot override a required policy)
       --config <CONFIG>
 
       --json
@@ -4299,7 +4454,7 @@ Options:
       --require-signed-approval
           Require externally signed approvals and verify baseline approval consumers
       --approval-allowed-signers <APPROVAL_ALLOWED_SIGNERS>
-          External OpenSSH allowed-signers file (cannot override a required user policy)
+          External OpenSSH allowed-signers file (cannot override a required policy)
       --require-valid-arms
           Refuse verdicts for incomplete or mismatched producer identity
       --fingerprint-map <FINGERPRINT_MAP>
@@ -4361,7 +4516,7 @@ Options:
       --require-signed-approval
           Require externally signed approvals and verify baseline approval consumers
       --approval-allowed-signers <APPROVAL_ALLOWED_SIGNERS>
-          External OpenSSH allowed-signers file (cannot override a required user policy)
+          External OpenSSH allowed-signers file (cannot override a required policy)
       --kind <KIND>
           Image calibration (default) or qualified performance noise in ms [default: image] [possible values: image, performance]
       --source-ref <SOURCE_REF>
@@ -4410,7 +4565,7 @@ Options:
       --require-signed-approval
           Require externally signed approvals and verify baseline approval consumers
       --approval-allowed-signers <APPROVAL_ALLOWED_SIGNERS>
-          External OpenSSH allowed-signers file (cannot override a required user policy)
+          External OpenSSH allowed-signers file (cannot override a required policy)
       --tile-size <TILE_SIZE>
           [default: 32]
       --json
@@ -4457,7 +4612,7 @@ Options:
       --require-signed-approval
           Require externally signed approvals and verify baseline approval consumers
       --approval-allowed-signers <APPROVAL_ALLOWED_SIGNERS>
-          External OpenSSH allowed-signers file (cannot override a required user policy)
+          External OpenSSH allowed-signers file (cannot override a required policy)
       --source-ref <SOURCE_REF>
           External capture URI/key (repeatable); recorded in generated reports
       --report-index <REPORT_INDEX>
@@ -4538,7 +4693,7 @@ Options:
       --require-signed-approval
           Require externally signed approvals and verify baseline approval consumers
       --approval-allowed-signers <APPROVAL_ALLOWED_SIGNERS>
-          External OpenSSH allowed-signers file (cannot override a required user policy)
+          External OpenSSH allowed-signers file (cannot override a required policy)
       --approval-record <APPROVAL_RECORD>
           Exact approval.json from the reviewed dry run, signed externally
       --approval-signature <APPROVAL_SIGNATURE>
@@ -4600,7 +4755,7 @@ Options:
       --api-max-bytes <API_MAX_BYTES>
           Largest accepted request body in bytes (default 16777216 = 16 MiB) [default: 16777216]
       --approval-allowed-signers <APPROVAL_ALLOWED_SIGNERS>
-          External OpenSSH allowed-signers file (cannot override a required user policy)
+          External OpenSSH allowed-signers file (cannot override a required policy)
       --api-bind <API_BIND>
           [default: 127.0.0.1]
       --source-ref <SOURCE_REF>
@@ -4684,7 +4839,7 @@ Options:
       --root <ROOTS>
           Read-only roots (repeatable)
       --approval-allowed-signers <APPROVAL_ALLOWED_SIGNERS>
-          External OpenSSH allowed-signers file (cannot override a required user policy)
+          External OpenSSH allowed-signers file (cannot override a required policy)
       --out-root <OUT_ROOT>
           Generated artifacts require this separate root
       --follow-symlinks-within-roots
@@ -4734,7 +4889,7 @@ Options:
       --require-signed-approval
           Require externally signed approvals and verify baseline approval consumers
       --approval-allowed-signers <APPROVAL_ALLOWED_SIGNERS>
-          External OpenSSH allowed-signers file (cannot override a required user policy)
+          External OpenSSH allowed-signers file (cannot override a required policy)
       --source-ref <SOURCE_REF>
           External capture URI/key (repeatable); recorded in generated reports
       --report-index <REPORT_INDEX>
@@ -4777,7 +4932,7 @@ Options:
       --require-signed-approval
           Require externally signed approvals and verify baseline approval consumers
       --approval-allowed-signers <APPROVAL_ALLOWED_SIGNERS>
-          External OpenSSH allowed-signers file (cannot override a required user policy)
+          External OpenSSH allowed-signers file (cannot override a required policy)
       --source-ref <SOURCE_REF>
           External capture URI/key (repeatable); recorded in generated reports
       --report-index <REPORT_INDEX>
@@ -4806,7 +4961,7 @@ Options:
       --require-signed-approval
           Require externally signed approvals and verify baseline approval consumers
       --approval-allowed-signers <APPROVAL_ALLOWED_SIGNERS>
-          External OpenSSH allowed-signers file (cannot override a required user policy)
+          External OpenSSH allowed-signers file (cannot override a required policy)
       --entry <ENTRIES>
 
       --source-ref <SOURCE_REF>
@@ -4849,7 +5004,7 @@ Options:
       --require-signed-approval
           Require externally signed approvals and verify baseline approval consumers
       --approval-allowed-signers <APPROVAL_ALLOWED_SIGNERS>
-          External OpenSSH allowed-signers file (cannot override a required user policy)
+          External OpenSSH allowed-signers file (cannot override a required policy)
       --out <OUT>
 
       --entry <ENTRY>
@@ -4887,7 +5042,7 @@ Options:
       --require-signed-approval
           Require externally signed approvals and verify baseline approval consumers
       --approval-allowed-signers <APPROVAL_ALLOWED_SIGNERS>
-          External OpenSSH allowed-signers file (cannot override a required user policy)
+          External OpenSSH allowed-signers file (cannot override a required policy)
       --entry <PATH_OR_NAME>
 
       --json
@@ -4917,7 +5072,7 @@ Options:
       --require-signed-approval
           Require externally signed approvals and verify baseline approval consumers
       --approval-allowed-signers <APPROVAL_ALLOWED_SIGNERS>
-          External OpenSSH allowed-signers file (cannot override a required user policy)
+          External OpenSSH allowed-signers file (cannot override a required policy)
       --source-ref <SOURCE_REF>
           External capture URI/key (repeatable); recorded in generated reports
       --report-index <REPORT_INDEX>
@@ -4958,7 +5113,7 @@ Options:
       --require-signed-approval
           Require externally signed approvals and verify baseline approval consumers
       --approval-allowed-signers <APPROVAL_ALLOWED_SIGNERS>
-          External OpenSSH allowed-signers file (cannot override a required user policy)
+          External OpenSSH allowed-signers file (cannot override a required policy)
       --source-ref <SOURCE_REF>
           External capture URI/key (repeatable); recorded in generated reports
       --report-index <REPORT_INDEX>
@@ -5002,7 +5157,7 @@ Options:
       --require-signed-approval
           Require externally signed approvals and verify baseline approval consumers
       --approval-allowed-signers <APPROVAL_ALLOWED_SIGNERS>
-          External OpenSSH allowed-signers file (cannot override a required user policy)
+          External OpenSSH allowed-signers file (cannot override a required policy)
       --source-ref <SOURCE_REF>
           External capture URI/key (repeatable); recorded in generated reports
       --report-index <REPORT_INDEX>
@@ -5035,7 +5190,7 @@ Options:
       --require-signed-approval
           Require externally signed approvals and verify baseline approval consumers
       --approval-allowed-signers <APPROVAL_ALLOWED_SIGNERS>
-          External OpenSSH allowed-signers file (cannot override a required user policy)
+          External OpenSSH allowed-signers file (cannot override a required policy)
       --source-ref <SOURCE_REF>
           External capture URI/key (repeatable); recorded in generated reports
       --report-index <REPORT_INDEX>
@@ -5068,7 +5223,7 @@ Options:
       --require-signed-approval
           Require externally signed approvals and verify baseline approval consumers
       --approval-allowed-signers <APPROVAL_ALLOWED_SIGNERS>
-          External OpenSSH allowed-signers file (cannot override a required user policy)
+          External OpenSSH allowed-signers file (cannot override a required policy)
       --source-ref <SOURCE_REF>
           External capture URI/key (repeatable); recorded in generated reports
       --report-index <REPORT_INDEX>
@@ -5101,7 +5256,7 @@ Options:
       --require-signed-approval
           Require externally signed approvals and verify baseline approval consumers
       --approval-allowed-signers <APPROVAL_ALLOWED_SIGNERS>
-          External OpenSSH allowed-signers file (cannot override a required user policy)
+          External OpenSSH allowed-signers file (cannot override a required policy)
       --voter <VOTER>
 
       --item <ITEM>
@@ -5141,7 +5296,7 @@ Options:
       --require-signed-approval
           Require externally signed approvals and verify baseline approval consumers
       --approval-allowed-signers <APPROVAL_ALLOWED_SIGNERS>
-          External OpenSSH allowed-signers file (cannot override a required user policy)
+          External OpenSSH allowed-signers file (cannot override a required policy)
       --voter <VOTER>
 
       --source-ref <SOURCE_REF>
@@ -5174,7 +5329,7 @@ Options:
       --require-signed-approval
           Require externally signed approvals and verify baseline approval consumers
       --approval-allowed-signers <APPROVAL_ALLOWED_SIGNERS>
-          External OpenSSH allowed-signers file (cannot override a required user policy)
+          External OpenSSH allowed-signers file (cannot override a required policy)
       --source-ref <SOURCE_REF>
           External capture URI/key (repeatable); recorded in generated reports
       --report-index <REPORT_INDEX>
@@ -5207,7 +5362,7 @@ Options:
       --require-signed-approval
           Require externally signed approvals and verify baseline approval consumers
       --approval-allowed-signers <APPROVAL_ALLOWED_SIGNERS>
-          External OpenSSH allowed-signers file (cannot override a required user policy)
+          External OpenSSH allowed-signers file (cannot override a required policy)
       --source-ref <SOURCE_REF>
           External capture URI/key (repeatable); recorded in generated reports
       --report-index <REPORT_INDEX>
@@ -5237,7 +5392,7 @@ Options:
       --require-signed-approval
           Require externally signed approvals and verify baseline approval consumers
       --approval-allowed-signers <APPROVAL_ALLOWED_SIGNERS>
-          External OpenSSH allowed-signers file (cannot override a required user policy)
+          External OpenSSH allowed-signers file (cannot override a required policy)
       --plan <PLAN>
           Source-bound saccade-assist-batch-plan.v1 artifact
       --job <JOB>
@@ -5281,7 +5436,7 @@ Options:
       --require-signed-approval
           Require externally signed approvals and verify baseline approval consumers
       --approval-allowed-signers <APPROVAL_ALLOWED_SIGNERS>
-          External OpenSSH allowed-signers file (cannot override a required user policy)
+          External OpenSSH allowed-signers file (cannot override a required policy)
       --plan <PLAN>
           Source-bound saccade-assist-batch-plan.v1 artifact
       --job <JOB>
@@ -5325,7 +5480,7 @@ Options:
       --require-signed-approval
           Require externally signed approvals and verify baseline approval consumers
       --approval-allowed-signers <APPROVAL_ALLOWED_SIGNERS>
-          External OpenSSH allowed-signers file (cannot override a required user policy)
+          External OpenSSH allowed-signers file (cannot override a required policy)
       --plan <PLAN>
           Source-bound saccade-assist-batch-plan.v1 artifact
       --job <JOB>
@@ -5369,7 +5524,7 @@ Options:
       --require-signed-approval
           Require externally signed approvals and verify baseline approval consumers
       --approval-allowed-signers <APPROVAL_ALLOWED_SIGNERS>
-          External OpenSSH allowed-signers file (cannot override a required user policy)
+          External OpenSSH allowed-signers file (cannot override a required policy)
       --entry <ENTRY>
           Select exactly one report entry; required when the report contains several
       --mask-manifest <MASK_MANIFEST>
@@ -5439,7 +5594,7 @@ Options:
       --require-signed-approval
           Require externally signed approvals and verify baseline approval consumers
       --approval-allowed-signers <APPROVAL_ALLOWED_SIGNERS>
-          External OpenSSH allowed-signers file (cannot override a required user policy)
+          External OpenSSH allowed-signers file (cannot override a required policy)
       --entry <ENTRY>
           Select exactly one report entry; required when the report contains several
       --mask-manifest <MASK_MANIFEST>
@@ -5512,7 +5667,7 @@ Options:
       --require-signed-approval
           Require externally signed approvals and verify baseline approval consumers
       --approval-allowed-signers <APPROVAL_ALLOWED_SIGNERS>
-          External OpenSSH allowed-signers file (cannot override a required user policy)
+          External OpenSSH allowed-signers file (cannot override a required policy)
       --box <BOX>
           Original image pixels: X,Y,W,H
       --kind <KIND>
@@ -5599,7 +5754,7 @@ Options:
       --require-signed-approval
           Require externally signed approvals and verify baseline approval consumers
       --approval-allowed-signers <APPROVAL_ALLOWED_SIGNERS>
-          External OpenSSH allowed-signers file (cannot override a required user policy)
+          External OpenSSH allowed-signers file (cannot override a required policy)
       --out <OUT>
           New review packet JSON file
       --source-ref <SOURCE_REF>
@@ -5635,7 +5790,7 @@ Options:
       --require-signed-approval
           Require externally signed approvals and verify baseline approval consumers
       --approval-allowed-signers <APPROVAL_ALLOWED_SIGNERS>
-          External OpenSSH allowed-signers file (cannot override a required user policy)
+          External OpenSSH allowed-signers file (cannot override a required policy)
       --candidate-source <CANDIDATE_SOURCE>
 
       --region <REGION>
@@ -5685,7 +5840,7 @@ Options:
       --vectors <VECTORS>
           Row-major saccade-vector-buffer.v1 JSON (requires --sidecar)
       --approval-allowed-signers <APPROVAL_ALLOWED_SIGNERS>
-          External OpenSSH allowed-signers file (cannot override a required user policy)
+          External OpenSSH allowed-signers file (cannot override a required policy)
       --sidecar <SIDECAR>
           Pinned units, direction, origin and jitter contract (requires --vectors)
       --ppd <PPD>
@@ -5726,7 +5881,7 @@ Options:
       --require-signed-approval
           Require externally signed approvals and verify baseline approval consumers
       --approval-allowed-signers <APPROVAL_ALLOWED_SIGNERS>
-          External OpenSSH allowed-signers file (cannot override a required user policy)
+          External OpenSSH allowed-signers file (cannot override a required policy)
       --out <OUT>
 
       --source-ref <SOURCE_REF>
@@ -5761,7 +5916,7 @@ Options:
       --require-signed-approval
           Require externally signed approvals and verify baseline approval consumers
       --approval-allowed-signers <APPROVAL_ALLOWED_SIGNERS>
-          External OpenSSH allowed-signers file (cannot override a required user policy)
+          External OpenSSH allowed-signers file (cannot override a required policy)
       --out <OUT>
 
       --source-ref <SOURCE_REF>
@@ -5796,7 +5951,7 @@ Options:
       --require-signed-approval
           Require externally signed approvals and verify baseline approval consumers
       --approval-allowed-signers <APPROVAL_ALLOWED_SIGNERS>
-          External OpenSSH allowed-signers file (cannot override a required user policy)
+          External OpenSSH allowed-signers file (cannot override a required policy)
       --source-ref <SOURCE_REF>
           External capture URI/key (repeatable); recorded in generated reports
       --report-index <REPORT_INDEX>
@@ -5826,7 +5981,7 @@ Options:
       --require-signed-approval
           Require externally signed approvals and verify baseline approval consumers
       --approval-allowed-signers <APPROVAL_ALLOWED_SIGNERS>
-          External OpenSSH allowed-signers file (cannot override a required user policy)
+          External OpenSSH allowed-signers file (cannot override a required policy)
       --run
 
       --source-ref <SOURCE_REF>
@@ -5870,7 +6025,7 @@ Options:
       --require-signed-approval
           Require externally signed approvals and verify baseline approval consumers
       --approval-allowed-signers <APPROVAL_ALLOWED_SIGNERS>
-          External OpenSSH allowed-signers file (cannot override a required user policy)
+          External OpenSSH allowed-signers file (cannot override a required policy)
       --source-ref <SOURCE_REF>
           External capture URI/key (repeatable); recorded in generated reports
       --report-index <REPORT_INDEX>
@@ -5899,7 +6054,7 @@ Options:
       --require-signed-approval
           Require externally signed approvals and verify baseline approval consumers
       --approval-allowed-signers <APPROVAL_ALLOWED_SIGNERS>
-          External OpenSSH allowed-signers file (cannot override a required user policy)
+          External OpenSSH allowed-signers file (cannot override a required policy)
       --json
 
       --change-frame <CHANGE_FRAME>
@@ -5946,7 +6101,7 @@ Options:
       --require-signed-approval
           Require externally signed approvals and verify baseline approval consumers
       --approval-allowed-signers <APPROVAL_ALLOWED_SIGNERS>
-          External OpenSSH allowed-signers file (cannot override a required user policy)
+          External OpenSSH allowed-signers file (cannot override a required policy)
       --json
 
       --maximum-frame-error <MAXIMUM_FRAME_ERROR>
@@ -5985,7 +6140,7 @@ Options:
       --require-signed-approval
           Require externally signed approvals and verify baseline approval consumers
       --approval-allowed-signers <APPROVAL_ALLOWED_SIGNERS>
-          External OpenSSH allowed-signers file (cannot override a required user policy)
+          External OpenSSH allowed-signers file (cannot override a required policy)
       --event <EVENT>
           Bounded JSON event marker containing change_frame
       --reference <REFERENCE>
@@ -6033,7 +6188,7 @@ Options:
       --require-signed-approval
           Require externally signed approvals and verify baseline approval consumers
       --approval-allowed-signers <APPROVAL_ALLOWED_SIGNERS>
-          External OpenSSH allowed-signers file (cannot override a required user policy)
+          External OpenSSH allowed-signers file (cannot override a required policy)
       --require-valid-arms
           Refuse verdicts for incomplete or mismatched producer identity
       --fingerprint-map <FINGERPRINT_MAP>
@@ -6085,7 +6240,7 @@ Options:
       --unit <UNIT>
           Declared common coordinate unit; no conversion or registration is performed
       --approval-allowed-signers <APPROVAL_ALLOWED_SIGNERS>
-          External OpenSSH allowed-signers file (cannot override a required user policy)
+          External OpenSSH allowed-signers file (cannot override a required policy)
       --samples <SAMPLES>
           Approximate area samples per direction, plus mandatory triangle/edge/vertex coverage [default: 4096]
       --source-ref <SOURCE_REF>
@@ -6123,7 +6278,7 @@ Options:
       --require-signed-approval
           Require externally signed approvals and verify baseline approval consumers
       --approval-allowed-signers <APPROVAL_ALLOWED_SIGNERS>
-          External OpenSSH allowed-signers file (cannot override a required user policy)
+          External OpenSSH allowed-signers file (cannot override a required policy)
       --require-valid-arms
           Refuse verdicts for incomplete or mismatched producer identity
       --fingerprint-map <FINGERPRINT_MAP>
@@ -6187,7 +6342,7 @@ Options:
       --require-signed-approval
           Require externally signed approvals and verify baseline approval consumers
       --approval-allowed-signers <APPROVAL_ALLOWED_SIGNERS>
-          External OpenSSH allowed-signers file (cannot override a required user policy)
+          External OpenSSH allowed-signers file (cannot override a required policy)
       --require-valid-arms
           Refuse verdicts for incomplete or mismatched producer identity
       --fingerprint-map <FINGERPRINT_MAP>
@@ -6239,7 +6394,7 @@ Options:
       --require-signed-approval
           Require externally signed approvals and verify baseline approval consumers
       --approval-allowed-signers <APPROVAL_ALLOWED_SIGNERS>
-          External OpenSSH allowed-signers file (cannot override a required user policy)
+          External OpenSSH allowed-signers file (cannot override a required policy)
       --pattern <PATTERN>
           Relative-name glob; frames must end in an integer before the extension [default: *]
       --out <OUT>
@@ -6314,7 +6469,7 @@ Options:
       --require-signed-approval
           Require externally signed approvals and verify baseline approval consumers
       --approval-allowed-signers <APPROVAL_ALLOWED_SIGNERS>
-          External OpenSSH allowed-signers file (cannot override a required user policy)
+          External OpenSSH allowed-signers file (cannot override a required policy)
       --metric <METRIC>
           [default: mean] [possible values: mean, p95, p99, max]
       --out <OUT>
@@ -6381,7 +6536,7 @@ Options:
       --runs <RUNS>...
           Ordered run directories, oldest first (repeatable)
       --approval-allowed-signers <APPROVAL_ALLOWED_SIGNERS>
-          External OpenSSH allowed-signers file (cannot override a required user policy)
+          External OpenSSH allowed-signers file (cannot override a required policy)
       --runs-from <RUNS_FROM>
           One ordered run path per line
       --good <GOOD>
@@ -6424,7 +6579,7 @@ Options:
       --require-signed-approval
           Require externally signed approvals and verify baseline approval consumers
       --approval-allowed-signers <APPROVAL_ALLOWED_SIGNERS>
-          External OpenSSH allowed-signers file (cannot override a required user policy)
+          External OpenSSH allowed-signers file (cannot override a required policy)
       --display <DISPLAY>
           WxH@diagonal_inches,distance_metres (default 1920x1080@55,4)
       --source-ref <SOURCE_REF>
@@ -6463,7 +6618,7 @@ Options:
       --require-signed-approval
           Require externally signed approvals and verify baseline approval consumers
       --approval-allowed-signers <APPROVAL_ALLOWED_SIGNERS>
-          External OpenSSH allowed-signers file (cannot override a required user policy)
+          External OpenSSH allowed-signers file (cannot override a required policy)
       --json
           Print full saccade-a11y.v1 JSON
       --out <OUT>

@@ -7,7 +7,11 @@ saccade itself is licensed `MIT OR Apache-2.0` (see `LICENSE-MIT`, `LICENSE-APAC
 Opt-in signed approvals invoke the system `ssh-keygen -Y verify` executable.
 OpenSSH is separately installed, not linked or bundled; its upstream components
 use BSD-style licences. The installed distribution supplies its exact licence
-notices. No new Rust dependency or private-key implementation is introduced.
+notices. The CLI does not implement private-key operations. Trust-file ownership
+checks use `rustix 1.1.5` (`Apache-2.0 WITH LLVM-exception OR Apache-2.0 OR MIT`),
+already present through tempfile and now a direct dependency with process support.
+The offline authority test container copies the host verifier/loader/libraries;
+its bundle includes the installed distribution copyright notices.
 
 ## flip-rs / NVIDIA FLIP (BSD-3-Clause)
 

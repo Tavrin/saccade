@@ -160,7 +160,7 @@ struct Cli {
     /// Require externally signed approvals and verify baseline approval consumers.
     #[arg(long, global = true)]
     require_signed_approval: bool,
-    /// External OpenSSH allowed-signers file (cannot override a required user policy).
+    /// External OpenSSH allowed-signers file (cannot override a required policy).
     #[arg(long, global = true)]
     approval_allowed_signers: Option<PathBuf>,
     /// External capture URI/key (repeatable); recorded in generated reports.
@@ -1600,9 +1600,11 @@ fn dispatch(command: Command, record_absolute_paths: bool) -> Result<u8, CliErro
                 .map(|dir| dir.path().to_path_buf())
                 .or(baseline_dir)
                 .ok_or_else(|| CliError::usage("baseline directory required"))?;
-            if approved || signed_approval::required() {
-                signed_approval::check_baseline(&baseline_dir)?;
-            }
+            let verified = if approved || signed_approval::required() {
+                Some(signed_approval::check_baseline(&baseline_dir)?)
+            } else {
+                None
+            };
             let mut arm_cfg = load_config(config.as_deref())?;
             meta.apply(&mut arm_cfg.meta);
             require.apply(&mut arm_cfg.meta);
@@ -1615,6 +1617,18 @@ fn dispatch(command: Command, record_absolute_paths: bool) -> Result<u8, CliErro
                 && capture_dir.is_file()
                 && (documents_cmd::is_document(&baseline_dir)
                     || documents_cmd::is_document(&capture_dir));
+            if verified.is_some()
+                && (document_pair
+                    || general.align.is_some()
+                    || general
+                        .question
+                        .is_some_and(|q| q != capability_cmd::Question::SameRender))
+            {
+                return Err(CliError::new(
+                    "approval_consumer_unsupported",
+                    "signed approvals require stock directory measurement",
+                ));
+            }
             if document_pair
                 && general
                     .question
@@ -1733,7 +1747,8 @@ fn dispatch(command: Command, record_absolute_paths: bool) -> Result<u8, CliErro
             if let Some((declaration, source)) = &visual {
                 saccade_core::intent::apply_effects(declaration, source, &mut cfg)?;
             }
-            let report = saccade_core::run::run(&baseline_dir, &capture_dir, &out, &cfg)?;
+            let report =
+                signed_approval::run(&baseline_dir, &capture_dir, &out, &cfg, verified.as_ref())?;
             if let Some(path) = junit {
                 saccade_core::ergonomics::junit(&report, &path)?;
             }
@@ -1814,7 +1829,7 @@ fn dispatch(command: Command, record_absolute_paths: bool) -> Result<u8, CliErro
             if let Some((declaration, source)) = &visual {
                 saccade_core::intent::apply_effects(declaration, source, &mut cfg)?;
             }
-            let report = saccade_core::run::run(&parent_dir, &candidate_dir, &out, &cfg)?;
+            let report = signed_approval::run(&parent_dir, &candidate_dir, &out, &cfg, None)?;
             if let Some(path) = junit {
                 saccade_core::ergonomics::junit(&report, &path)?;
             }
