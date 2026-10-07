@@ -130,9 +130,6 @@ impl Engine {
     /// Verify every pin before loading any graph; resolve the existing runtime cache or ORT_DYLIB_PATH.
     pub fn load(c: &Contract, cache: &Path, download: bool) -> Result<Self> {
         validate(c)?;
-        let library = crate::wave7::runtime_install::resolve(None, cache)
-            .map_err(|e| Error::Config(e.to_string()))?;
-        crate::optional::require_library(&library)?;
         if download {
             semantic::cache_models(&manifest(c), cache)?;
         }
@@ -150,6 +147,9 @@ impl Engine {
         let det = verify(&c.detection)?;
         let rec = verify(&c.recognition)?;
         let dict = verify(&c.dictionary)?;
+        let library = crate::wave7::runtime_install::resolve(None, cache)
+            .map_err(|e| Error::Config(e.to_string()))?;
+        crate::optional::require_library(&library)?;
         let config: serde_yaml::Value = serde_yaml::from_slice(&dict)
             .map_err(|_| Error::Config("OCR dictionary configuration".into()))?;
         let chars = config["PostProcess"]["character_dict"]
