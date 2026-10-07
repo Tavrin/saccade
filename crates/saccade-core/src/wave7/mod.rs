@@ -26,3 +26,5 @@ pub mod runtime_install;
 
 #[cfg(feature = "local-models")]
 pub mod trustmark;
+#[cfg(feature = "local-models")]
+mod trustmark_bch;

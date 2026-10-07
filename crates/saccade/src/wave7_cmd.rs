@@ -582,7 +582,7 @@ pub(crate) struct WatermarkArgs {
     /// Explicit frozen/generated primary-decoder observation report.
     #[arg(long)]
     observations: Option<PathBuf>,
-    /// Run the pinned Q neural graph; ECC/resize qualification remains unavailable.
+    /// Decode the pinned TrustMark Q model and its BCH payload/schema; never downloads.
     #[arg(long)]
     trustmark: bool,
     #[command(flatten)]
@@ -610,8 +610,10 @@ pub(crate) fn watermark(a: WatermarkArgs) -> Result<u8, CliError> {
         vision::VisionImage,
         watermark::{self, DwtConfig, WatermarkReport},
     };
-    if a.trustmark && a.observations.is_none() {
-        a.model.preflight(&["trustmark"])?;
+    if a.trustmark && a.model.allow_download {
+        return Err(CliError::usage(
+            "TrustMark inspection never downloads; use saccade models pull trustmark and saccade models pull runtime first",
+        ));
     }
     let image = VisionImage::load(&a.image).map_err(error)?;
     let r = if let Some(p) = a.observations {
@@ -641,33 +643,64 @@ pub(crate) fn watermark(a: WatermarkArgs) -> Result<u8, CliError> {
             })
             .transpose()?;
         if a.trustmark {
-            #[cfg(feature = "local-models")]
-            {
-                let reg = registry(a.model.registry.as_deref())?;
-                let cache = cache(a.model.cache.as_deref())?;
-                let library = saccade_core::wave7::runtime_install::resolve(
-                    a.model.runtime()?.as_deref(),
-                    &cache,
-                )
-                .map_err(error)?;
-                let mut decoder = saccade_core::wave7::trustmark::TrustMarkQ::load(
-                    reg.model("trustmark").map_err(error)?,
-                    &cache,
-                    &library,
-                    a.model.download(),
-                )
-                .map_err(error)?;
-                watermark::inspect(&image, Some(&mut decoder), legacy.as_ref()).map_err(error)?
-            }
-            #[cfg(not(feature = "local-models"))]
-            return Err(error(VisionError::Unavailable(
-                "compile local-models for TrustMark Q".into(),
-            )));
+            trustmark_report(
+                &image,
+                legacy.as_ref(),
+                a.model.registry.as_deref(),
+                a.model.cache.as_deref(),
+                a.model.runtime_library.as_deref(),
+            )?
         } else {
             watermark::inspect(&image, None, legacy.as_ref()).map_err(error)?
         }
     };
     emit(&r, a.json)
+}
+
+/// Cached-only TrustMark path shared by CLI and root-contained MCP.
+pub(crate) fn trustmark_report(
+    image: &saccade_core::wave7::vision::VisionImage,
+    legacy: Option<&saccade_core::wave7::watermark::DwtConfig>,
+    _registry: Option<&Path>,
+    _cache: Option<&Path>,
+    _runtime: Option<&Path>,
+) -> Result<saccade_core::wave7::watermark::WatermarkReport, CliError> {
+    use saccade_core::wave7::watermark;
+    #[cfg(feature = "local-models")]
+    {
+        let reg = registry(_registry)?;
+        let cache = cache(_cache)?;
+        let configured_library = runtime_flag(_runtime)?;
+        let loaded = (|| {
+            let model = reg.model("trustmark")?;
+            models::ensure(model, &cache, false)?;
+            let library = saccade_core::wave7::runtime_install::resolve(
+                configured_library.as_deref(),
+                &cache,
+            )?;
+            saccade_core::wave7::trustmark::TrustMarkQ::load(model, &cache, &library, false)
+        })();
+        match loaded {
+            Ok(mut decoder) => watermark::inspect(image, Some(&mut decoder), legacy).map_err(error),
+            Err(VisionError::Unavailable(reason))
+            | Err(VisionError::RuntimeIncompatible { detail: reason, .. }) => {
+                let mut r = watermark::inspect(image, None, legacy).map_err(error)?;
+                r.findings[0] = watermark::unavailable(format!(
+                    "{reason}; provision explicitly: saccade models pull trustmark; saccade models pull runtime"
+                ));
+                Ok(r)
+            }
+            Err(e) => Err(error(e)),
+        }
+    }
+    #[cfg(not(feature = "local-models"))]
+    {
+        let mut r = watermark::inspect(image, None, legacy).map_err(error)?;
+        r.findings[0] = watermark::unavailable(
+            "This build has no local-models feature; install a build with local-models, then explicitly run saccade models pull trustmark and saccade models pull runtime.",
+        );
+        Ok(r)
+    }
 }
 
 #[derive(clap::Args)]

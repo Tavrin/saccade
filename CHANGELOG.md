@@ -2,6 +2,11 @@
 
 ## Unreleased
 
+- Decode TrustMark Q payload bits and all four BCH schemas with explicit ECC
+  outcomes, pinned local models and reference-encoder tests. Watermark reports
+  use versioned successor schemas; missing models remain explicitly unavailable
+  and inspection never downloads.
+
 - Add a task map, exit-code table and threshold-unit notes to the quickstart, and
   five task guides under `docs/guides/` (visual CI, controlled rendering,
   document export, media intake, delivery tuning). `scripts/test-guides.py` runs

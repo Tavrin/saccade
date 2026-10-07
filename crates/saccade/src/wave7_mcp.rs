@@ -63,6 +63,8 @@ enum Operation {
         image: PathBuf,
         observations: Option<PathBuf>,
         expected_payload: Option<Vec<u8>>,
+        #[serde(default)]
+        trustmark: bool,
     },
     #[cfg(feature = "local-vlm")]
     #[serde(rename = "vision_local")]
@@ -231,6 +233,7 @@ pub(crate) fn call(
             image: p,
             observations,
             expected_payload,
+            trustmark,
         } => {
             let i = image(policy, p)?;
             let r = if let Some(p) = observations {
@@ -253,7 +256,11 @@ pub(crate) fn call(
                     quantization_step: 36.,
                     minimum_agreement: 0.9,
                 });
-                watermark::inspect(&i, None, c.as_ref()).map_err(error)?
+                if trustmark {
+                    crate::wave7_cmd::trustmark_report(&i, c.as_ref(), None, None, None)?
+                } else {
+                    watermark::inspect(&i, None, c.as_ref()).map_err(error)?
+                }
             };
             Ok(serde_json::to_value(r)?)
         }
@@ -339,7 +346,7 @@ pub(crate) fn measure_schemas() -> Vec<Value> {
         ),
         variant(
             "vision_watermark",
-            json!({"image":{"type":"string"},"observations":{"type":["string","null"]},"expected_payload":{"type":["array","null"],"items":{"type":"integer","minimum":0,"maximum":255},"minItems":1,"maxItems":64}}),
+            json!({"image":{"type":"string"},"observations":{"type":["string","null"]},"trustmark":{"type":"boolean","default":false},"expected_payload":{"type":["array","null"],"items":{"type":"integer","minimum":0,"maximum":255},"minItems":1,"maxItems":64}}),
             &["image"],
         ),
     ];

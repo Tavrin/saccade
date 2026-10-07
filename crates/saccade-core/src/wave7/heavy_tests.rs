@@ -420,7 +420,7 @@ fn pinned_single_image_cpu_smoke() {
                 super::trustmark::TrustMarkQ::load(m, &model_cache(), &library(), false).unwrap();
             let (logits, p) = decoder.logits(&image).unwrap();
             assert!(logits.iter().all(|v| v.is_finite()));
-            serde_json::json!({"logits":logits.as_slice(),"provenance":p,"qualification":"neural-only; ECC/resize deferred"})
+            serde_json::json!({"logits":logits.as_slice(),"provenance":p,"qualification":"neural-only; no payload accuracy claim"})
         }
         _ => panic!("unsupported smoke model"),
     };

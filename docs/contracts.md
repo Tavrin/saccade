@@ -360,6 +360,8 @@ The last three names appear only when the corresponding feature is compiled in.
 - [saccade-visual-trial-receipt.v1.schema.json](../crates/saccade-core/schemas/saccade-visual-trial-receipt.v1.schema.json) — Receipt
 - [saccade-watermark.v1.schema.json](../crates/saccade-core/schemas/saccade-watermark.v1.schema.json) — WatermarkReport
 - [saccade-watermark.v2.schema.json](../crates/saccade-core/schemas/saccade-watermark.v2.schema.json) — WatermarkReport
+- [saccade-watermark.v3.schema.json](../crates/saccade-core/schemas/saccade-watermark.v3.schema.json) — WatermarkReport
+- [saccade-watermark.v4.schema.json](../crates/saccade-core/schemas/saccade-watermark.v4.schema.json) — WatermarkReport
 <!-- schema-index:end -->
 
 Historical validators and fixtures do not imply that retired writers or commands
@@ -424,3 +426,7 @@ Measurement reports add `report_id` and external `source_refs`; strict historica
 Linked report successors preserve strict legacy schemas; see the
 [Wave 11 migration](experiments-wave11.md#linked-report-contract-migration) and the shipped
 `report_links::SCHEMA_MIGRATIONS` table. Select schemas by the JSON discriminator.
+
+TrustMark payload fields use the new watermark v3 data contract and v4 linked
+successor. Historical watermark v1/v2 schemas stay frozen and remain readable.
+See [TrustMark](trustmark.md) for bit packing, schema and ECC semantics.

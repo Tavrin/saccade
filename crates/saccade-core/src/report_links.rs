@@ -191,6 +191,7 @@ pub const SCHEMA_MIGRATIONS: &[(&str, &str)] = &[
         "saccade-vision-observation.v2",
     ),
     ("saccade-watermark.v1", "saccade-watermark.v2"),
+    ("saccade-watermark.v3", "saccade-watermark.v4"),
     ("saccade-ui-review.v1", "saccade-ui-review.v2"),
 ];
 /// Schema emitted when links would violate a legacy strict reader.

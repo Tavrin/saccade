@@ -34,8 +34,10 @@ Rust smokes and exact deferral evidence, and equals the bundled disposition asse
   research quotes the upstream MIT coverage for code and downloaded model files;
   attempted `v0.2.2` / `0.2.2` raw tags were absent, so exporter revision/licence
   statement were not independently refreshed. `trustmark-signature.json` comes
-  from direct graph inspection, not executing upstream code. Rust runs 100 logits
-  but full decoding stays unavailable until resizer/ECC/positive-sample parity.
+  from direct graph inspection. The current Q decoder adds BCH payload recovery
+  and reference-encoder fixtures; see [the refreshed licence decision](../../docs/design-decisions/trustmark-decode.md)
+  and [qualification](../../docs/trustmark.md). The old smoke is neural-only;
+  checkpoint/export numerical parity remains unqualified.
 
 `smoke-rust.py` runs one generated image per selected pinned model, each with
 one CPU inference thread and an external 55-second process bound. These smokes

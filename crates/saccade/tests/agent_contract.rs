@@ -548,6 +548,9 @@ fn local_tools_and_preview_never_authorize_network_and_images_are_explicit() {
             .arg("review")
             .arg(&report)
             .args(["--run", "--budget-calls", "1", "--json"])
+            // This contract tests an unconfigured user, independent of operator policy.
+            .arg("--user-config")
+            .arg(tmp.path().join("unconfigured-user.toml"))
             .output()
             .unwrap(),
     );
