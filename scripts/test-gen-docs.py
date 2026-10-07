@@ -52,6 +52,7 @@ class CompiledFeatures(unittest.TestCase):
         inventory = next(line for line in cli.splitlines() if line.startswith('Compiled features:'))
         self.assertIn('`imgtune-avif`', inventory)
         self.assertEqual(cli.splitlines()[4:8], self.generate(self.features())['docs/cli.md'].splitlines()[4:8])
+        self.assertEqual(cli, self.generate(self.features())['docs/cli.md'])
         self.assertIn('## saccade text\n', cli)
 
     def test_preserved_header_keeps_reference_and_actual_inventory_separate(self):

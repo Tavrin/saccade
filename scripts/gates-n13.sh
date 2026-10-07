@@ -2,10 +2,9 @@
 # N13 lane gates: assigned disk target, bounded jobs; no models/providers/GPU.
 set -u
 cd "$(dirname "$0")/.."
-export CARGO_TARGET_DIR=/mnt/linux-extra/moss-cargo-targets/codex-saccade-n13
 export CARGO_INCREMENTAL=0 CARGO_PROFILE_DEV_DEBUG=0
 source scripts/gate-env.sh
-receipts=/mnt/linux-extra/moss-scratch/saccade-n13
+receipts="${SACCADE_GATE_RECEIPTS:-$CARGO_TARGET_DIR/n13-receipts}"
 mkdir -p "$receipts"
 status=0
 gate() {

@@ -206,6 +206,8 @@ The last three names appear only when the corresponding feature is compiled in.
 - [saccade-constructed-oracle.v1.schema.json](../crates/saccade-core/schemas/saccade-constructed-oracle.v1.schema.json) — saccade-constructed-oracle.v1
 - [saccade-constructed-truth.v1.schema.json](../crates/saccade-core/schemas/saccade-constructed-truth.v1.schema.json) — saccade-constructed-truth.v1
 - [saccade-coverage.v1.schema.json](../crates/saccade-core/schemas/saccade-coverage.v1.schema.json) — Report
+- [saccade-critical-text-policy.v1.schema.json](../crates/saccade-core/schemas/saccade-critical-text-policy.v1.schema.json) — Policy
+- [saccade-critical-text.v1.schema.json](../crates/saccade-core/schemas/saccade-critical-text.v1.schema.json) — Report
 - [saccade-crop-check.v1.schema.json](../crates/saccade-core/schemas/saccade-crop-check.v1.schema.json) — CropReport
 - [saccade-crop-check.v2.schema.json](../crates/saccade-core/schemas/saccade-crop-check.v2.schema.json) — CropReport
 - [saccade-decide-result.v1.schema.json](../crates/saccade-core/schemas/saccade-decide-result.v1.schema.json) — saccade-decide-result.v1
@@ -345,6 +347,8 @@ The last three names appear only when the corresponding feature is compiled in.
 - [saccade-question-report.v1.schema.json](../crates/saccade-core/schemas/saccade-question-report.v1.schema.json) — Historical reader contract
 - [saccade-question-report.v2.schema.json](../crates/saccade-core/schemas/saccade-question-report.v2.schema.json) — Historical reader contract
 - [saccade-rank.v1.schema.json](../crates/saccade-core/schemas/saccade-rank.v1.schema.json) — RankReport
+- [saccade-raster-mask.v1.schema.json](../crates/saccade-core/schemas/saccade-raster-mask.v1.schema.json) — Class raster overlap and boundaries
+- [saccade-raster.v1.schema.json](../crates/saccade-core/schemas/saccade-raster.v1.schema.json) — Native-unit raster comparison
 - [saccade-reference-evidence.v1.schema.json](../crates/saccade-core/schemas/saccade-reference-evidence.v1.schema.json) — Report
 - [saccade-region-export.v1.schema.json](../crates/saccade-core/schemas/saccade-region-export.v1.schema.json) — Historical reader contract
 - [saccade-region-models.v1.schema.json](../crates/saccade-core/schemas/saccade-region-models.v1.schema.json) — ModelManifest
@@ -391,6 +395,7 @@ The last three names appear only when the corresponding feature is compiled in.
 - [saccade-text.v1.schema.json](../crates/saccade-core/schemas/saccade-text.v1.schema.json) — Historical reader contract
 - [saccade-text.v2.schema.json](../crates/saccade-core/schemas/saccade-text.v2.schema.json) — Historical reader contract
 - [saccade-tile-temporal.v1.schema.json](../crates/saccade-core/schemas/saccade-tile-temporal.v1.schema.json) — Report
+- [saccade-tiles.v1.schema.json](../crates/saccade-core/schemas/saccade-tiles.v1.schema.json) — Tile coverage and perceptual measurements
 - [saccade-timed-text-source.v1.schema.json](../crates/saccade-core/schemas/saccade-timed-text-source.v1.schema.json) — Source
 - [saccade-timed-text.v1.schema.json](../crates/saccade-core/schemas/saccade-timed-text.v1.schema.json) — Report
 - [saccade-timing-ab.v1.schema.json](../crates/saccade-core/schemas/saccade-timing-ab.v1.schema.json) — Report

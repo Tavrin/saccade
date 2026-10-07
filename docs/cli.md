@@ -12,10 +12,6 @@ Exit 0 for compare/identity means no image regression; inspect `performance` for
 Inspection, review, rank and ablation completion grant no acceptance authority.
 Exit 2 means the operation cannot run. Demo intentionally exits 1.
 
-Generation: build with every Cargo feature except `imgtune-avif`, then run `python3 scripts/gen-docs.py --allow-missing-imgtune-avif --saccade "$CARGO_TARGET_DIR/debug/saccade"`.
-This reference omits the AVIF codec feature when system dav1d is unavailable; CI also tests `--all-features`. All CLI operations remain included.
-Generation build features: `ai`, `assist`, `compression`, `credentials`, `dense-motion`, `documents`, `embeddings`, `evaluation`, `geometry`, `graphics`, `local-models`, `local-vlm`, `mcp`, `media-http`, `ocr`, `ocr-provider`, `parallel`, `prechecks`, `print`, `products`, `schema`, `semantic-regions`, `text-quality`, `vision-providers`, `workbench`.
-
 ## saccade
 
 ```text
@@ -52,10 +48,12 @@ Commands:
   tofu                Triage pixel shapes resembling missing glyphs (requires text-quality)
   text-legibility     Measure text legibility across supplied variants (requires text-quality)
   critical-text       Gate exact critical strings and pixel legibility in declared regions
+  timed-text          Check plain SRT/WebVTT captions against timestamped frames and OCR evidence
   similar             Cosine similarity with an explicitly pinned optional ONNX export
   index               Build or query a streaming exact flat embedding index
   hash                Compute perceptual hashes without changing originals
   dedupe              Cluster near-duplicates with bounded Hamming search; never delete images
+  split-review        Review duplicate candidates across declared splits and group bursts within splits
   analyze-media       Analyze an image into a versioned media record (no model downloads by default)
   keyframes           Extract shot representatives with timestamps, without linking a video decoder
   find-usage          Match an image or media record against generic target images
@@ -1783,6 +1781,54 @@ Global options:
       --record-absolute-paths    Opt in to absolute local paths in reports and machine-readable output
 ```
 
+## saccade timed-text
+
+```text
+Check plain SRT/WebVTT captions against timestamped frames and OCR evidence
+
+Usage: saccade timed-text [OPTIONS] --region <REGION> <TIMED_TEXT> <FRAME_MAP>
+
+Arguments:
+  <TIMED_TEXT>  Plain UTF-8 WebVTT or SRT captions
+  <FRAME_MAP>   saccade-frame-map.v1 with presentation timestamps and relative image paths
+
+Options:
+      --region <REGION>
+          Fixed text region x,y,width,height in every frame's capture pixels
+      --source-ref <SOURCE_REF>
+          External capture URI/key (repeatable); recorded in generated reports
+      --report-index <REPORT_INDEX>
+          Shared report index destination (default reports/index.jsonl next to each report, inside --out)
+      --sources <SOURCES>
+          Directory of image-bound UI OCR sources or timed-text source wrappers named INDEX.json
+      --ocr
+          Use cached PaddleOCR; absent model/runtime explicitly skips OCR, never downloads
+      --timing-tolerance-s <TIMING_TOLERANCE_S>
+          [default: 0.3]
+      --search-s <SEARCH_S>
+          [default: 2]
+      --maximum-gap-s <MAXIMUM_GAP_S>
+          [default: 0.5]
+      --minimum-contrast <MINIMUM_CONTRAST>
+          [default: 4.5]
+      --minimum-x-height-px <MINIMUM_X_HEIGHT_PX>
+          [default: 8]
+      --minimum-sharpness <MINIMUM_SHARPNESS>
+          [default: 0.35]
+      --minimum-stroke-px <MINIMUM_STROKE_PX>
+          [default: 1]
+      --out <OUT>
+          New or empty output directory for the report and artifact manifest
+      --json
+
+  -h, --help
+          Print help
+
+Global options:
+      --allow-out-near-captures  Silence warnings when --out is next to capture metadata
+      --record-absolute-paths    Opt in to absolute local paths in reports and machine-readable output
+```
+
 ## saccade similar
 
 ```text
@@ -2029,6 +2075,39 @@ Options:
       --out <OUT>                    New or empty output directory [default: dedupe-report]
       --json                         Emit a bounded JSON artifact receipt
   -h, --help                         Print help
+
+Global options:
+      --allow-out-near-captures  Silence warnings when --out is next to capture metadata
+      --record-absolute-paths    Opt in to absolute local paths in reports and machine-readable output
+```
+
+## saccade split-review
+
+```text
+Review duplicate candidates across declared splits and group bursts within splits
+
+Usage: saccade split-review [OPTIONS] <MANIFEST>
+
+Arguments:
+  <MANIFEST>  saccade-split-manifest.v1; paths resolve relative to this file
+
+Options:
+      --hash-threshold <HASH_THRESHOLD>
+          Inclusive perceptual-hash distance, 0..64 [default: 6]
+      --source-ref <SOURCE_REF>
+          External capture URI/key (repeatable); recorded in generated reports
+      --embeddings
+          Explicitly enable a provisioned embedding route; never downloads
+      --report-index <REPORT_INDEX>
+          Shared report index destination (default reports/index.jsonl next to each report, inside --out)
+      --cosine-threshold <COSINE_THRESHOLD>
+          Inclusive raw cosine candidate threshold [default: 0.95]
+      --out <OUT>
+          New or empty output directory outside the dataset [default: split-review-report]
+      --json
+          Emit the complete versioned review, including limitations
+  -h, --help
+          Print help
 
 Global options:
       --allow-out-near-captures  Silence warnings when --out is next to capture metadata

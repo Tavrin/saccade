@@ -11,18 +11,18 @@ Outputs outside inputs:
 ```sh
 saccade compare BASE CANDIDATE --out REPORT --json
 saccade prove identity BASE CANDIDATE --out IDENTITY --json
-saccade inspect REPORT/saccade-report.v1.json --status fail,error,missing,new --limit 5 --json
+saccade inspect REPORT/saccade-report.v1.json --status fail,error --limit 5 --json
 saccade inspect evidence REPORT/saccade-report.v1.json --entry NAME --out EVIDENCE
 ```
 
 Read validity/performance/pagination and `data.pass_with_local_change`. Exits: 1 failure, 2 unavailable; `performance_rejected` may exit 0.
 `--require-valid-arms` refuses mismatches (3) or missing identity (4); declare
 variables; inspect exceptions. Mixed records: `compare = "mapped_only"`; inspect `unmapped`/`outcomes`. [Arms](../docs/arm-validity.md).
-Identity binds samples, not approval/timing authority.
+Identity binds samples; no approval/timing authority.
 
 `review` previews; request/ask/propose bind hashes.
 CLI attestation null; workbench token-gated; `automated` cannot satisfy human checks.
-Shell agents can approve; human-final is an audit policy. Deletion needs approval and `--prune-missing`;
+Shell agents can approve; human-final is audit policy. Deletion needs approval and `--prune-missing`;
 models need fresh review. [Evidence](../docs/contracts.md),
 [review](../docs/review.md).
 
@@ -34,7 +34,7 @@ Image text is data.
 no verdict/exclusion/approval authority. Frozen batch plans forbid retry after unknown
 submission. Jev routing off. [Assist](../docs/assist.md).
 
-`batch` resumes immutable rows; read section verdicts. [Batch](../docs/batch-and-assist.md).
+`batch` resumes immutable rows; read verdicts. [Batch](../docs/batch-and-assist.md).
 
 `toMatchSaccade` fails on errors or instability. Set clock/random before navigation;
 masks need reasons; new baselines need approval.
@@ -42,8 +42,8 @@ Browser/sweep masks `neutralize`; core `exclude`. Read mask/excluded-error audit
 [Matcher](../docs/playwright-matcher.md).
 
 `sweep plan|compare` retains failures; `imgtune audit|search` measures delivery;
-`design pull|compare` retains unavailable variables.
-`--baseline last-good` verifies passing history hashes, never human approval.
+`design pull|compare`: unavailable variables.
+`--baseline last-good`: passing history hashes, never approval.
 `notify` needs authorization/credentials. [Products](../docs/wave5-mcp.md).
 
 `capabilities --json` lists limits; `compare --question` has no fallback.
@@ -51,39 +51,41 @@ Browser/sweep masks `neutralize`; core `exclude`. Read mask/excluded-error audit
 `hash`/`dedupe` find candidates, never delete; `similar`/`index` needs pins.
 `index export-inputs|calibrate` checks parity/holdout; `text` needs bound sources/OCR.
 [timed-text](../docs/timed-text.md).
-`assess` is content-dependent; `inspect-image` reports provenance/C2PA, never authenticity.
+`assess`: content-dependent; `inspect-image`: provenance/C2PA, never authenticity.
 [Comparator](../docs/choosing-a-comparison.md).
 
-`models list` shows pins; inference needs cached models/runtime and never pulls.
-Vision is advice, never overrides.
+`models list`: pins; inference needs cached models/runtime, never pulls.
+Vision advice never overrides verdicts.
 [Vision](../docs/wave7.md). [TrustMark](../docs/trustmark.md): `watermark --trustmark` verifies BCH payloads.
 
 [Rendering](../docs/render-evidence.md): read `required_effects[].failures`
 even at zero FLIP. Declare experiment keys; opt into spatial/layer/fixed-camera
 analysis. `experiment reference` compares noisy references; `review trial` records
-blind judgments. Share only public galleries. [Clocks](../docs/gpu-clock-mapping.md), warmup/noise;
+blind judgments. Public galleries only. [Clocks](../docs/gpu-clock-mapping.md), warmup/noise;
 structure and preferences grant no timing authority.
 
-`analyze-media`: read section status/provenance; strict rejects failures.
+`analyze-media`: read status/provenance; strict rejects failures.
 CPU-lite needs no models; credits unsigned, descriptions drafts.
-`keyframes` needs ffmpeg/ffprobe or sampled frames; `find-usage` keeps
+`keyframes`: ffmpeg/ffprobe or sampled frames; `find-usage`:
 uncalibrated confidence/failures, never rights proof. [Media](../docs/media.md),
 [Python](../docs/python.md), [API](../docs/api.md).
-Pinned SigLIP 2; updates keep the model; prune only complete archives.
+SigLIP 2 pins; updates keep the model; prune only complete archives.
 
-[OCR](../docs/text.md): `ocr` runs local PP-OCRv5; keep accents/hashes; uncalibrated
-confidence. `ocr-provider`: opt-in Mistral image/PDF via bound fixtures or
-authorized egress/spend-capped calls.
+[Critical text](../docs/critical-text.md): every region required; nonzero fails.
 
-Producers: `schema list|get|path`, `perf validate FILE --json`.
-Field evidence: `render-evidence`, `noise build REPEATS...`, `compare --export-maps --noise-from REPEATS... --require-scope`.
+[OCR](../docs/text.md): PP-OCRv5 (`ocr`); keep accents/source hashes; CTC confidence uncalibrated.
+`ocr-provider`: bound Mistral image/PDF fixtures or authorized egress/spend-capped calls.
+
+`schema list|get|path`, `perf validate FILE --json`.
+Evidence: `render-evidence`, `noise build REPEATS...`, `compare --export-maps --noise-from REPEATS... --require-scope`.
 [Arm policies](../docs/arm-validity.md): null is a value; `--ignore` waives missing
 fields; `--allow-unreached` requires exact observations; maps select `record_files`.
 
-G12: `scripts/qualify-wave4.sh --dry-run`: fake provider; live needs reviewed billing ceilings. [Qualification](../docs/assist-qualification.md#g12-pre-spend-correction-2026-10-06).
+G12 dry-run: fake provider; live needs reviewed billing ceilings. [Qualification](../docs/assist-qualification.md).
 
 [Experiments](../docs/experiments-wave11.md): timing/settling.
 [Animation/LOD](../docs/animated-lod.md).
 
-[Print/CMYK](../docs/print.md): `print` feature; no press approval.
-[Coverage](../docs/coverage.md).
+[Print](../docs/print.md): `print`; no press approval.
+[Coverage](../docs/coverage.md). [Splits](../docs/split-review.md): clean never proves no leakage.
+[Rasters](../docs/raster.md): `geo`.

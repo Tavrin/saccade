@@ -6,8 +6,6 @@ import json
 import pathlib
 import subprocess
 
-from PIL import Image, ImageDraw, ImageFont, __version__ as pillow_version
-
 ROOT = pathlib.Path(__file__).resolve().parents[2]
 FONT = pathlib.Path('/usr/share/fonts/truetype/liberation/LiberationSans-Regular.ttf')
 LICENCE = pathlib.Path('/usr/share/doc/fonts-liberation/copyright')
@@ -22,6 +20,8 @@ def write(path, value):
 
 
 def generate(out):
+    from PIL import Image, ImageDraw, ImageFont, __version__ as pillow_version
+
     out.mkdir(parents=True, exist_ok=True)
     # Use only this installed OFL package, never download or silently substitute fonts.
     license_text = LICENCE.read_text()

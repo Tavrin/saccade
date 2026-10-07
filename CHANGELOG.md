@@ -7,70 +7,6 @@
 - Add the experimental `assist` advice aliases and provider egress previews before dispatch;
   advice cannot create exclusions or approve baselines.
 
-
-- Correct the quality-report and geometry v1 schemas to include the existing
-  optional report links, preserving unlinked reports. Check generated schema bytes
-  in CI with minimal compression/schema, combined assist/evaluation and all core features.
-
-- Add `saccade manifest build|verify|link|classify` and `saccade-manifest.v1` / `saccade-link.v1`:
-  one manifest per output directory built on `report_id` and `reports/index.jsonl`, duplicates listed
-  once, approval kept separate from last-good, and `link_missing` / `stale_link` failures for moved or
-  changed artifacts. Add `saccade export-regions` (worst hotspots as crops with coordinates,
-  `saccade-region-export.v1`), `saccade view --open`, and worst-first ordering plus a `w` shortcut in
-  the HTML report. See `docs/discovery.md`.
-- Decode TrustMark Q payload bits and all four BCH schemas with explicit ECC
-  outcomes, pinned local models and reference-encoder tests. Watermark reports
-  use versioned successor schemas; missing models remain explicitly unavailable
-  and inspection never downloads.
-- Add optional `saccade-print` extension and `print` CLI/MCP comparison for ICC-managed CMYK rasters, ΔE2000, TAC, separations, target gamut diagnostics and small four-colour mark candidates.
-
-- Add a task map, exit-code table and threshold-unit notes to the quickstart, and
-  five task guides under `docs/guides/` (visual CI, controlled rendering,
-  document export, media intake, delivery tuning). `scripts/test-guides.py` runs
-  every guide block against a built binary: known-good, known-bad, missing-input
-  and unavailable-dependency cases, with the expected exit codes.
-- `saccade --help` now lists exit codes 0-4, the task map and threshold units.
-- `saccade doctor` adds `command_availability`: which command groups this build
-  can run, the feature each needs, and the fix text.
-- Unavailable-model errors point at `saccade doctor` instead of an argument hint;
-  `sweep`, `imgtune`, `design` and `notify` on a build without `products` report
-  the missing feature instead of an unrecognized subcommand.
-- Add `saccade score` as an alias of `quality-score`, and `saccade init --template
-  producer-strict` (`require_matching_meta` and `require_valid_arms`, nothing
-  waived). No command is removed and no default changes.
-- State unit and direction in help for numeric flags (`--threshold`, `--ppd`,
-  `dedupe --threshold`, `--maximum-outside-flip`, `--limit`, `--top` and others).
-- Correct stale documentation: LPIPS, DISTS and MUSIQ run through `quality-score`
-  on an operator-supplied reviewed export (none ships), and SVG/PDF comparison
-  needs the `documents` feature rather than being deferred.
-- Add `saccade mask-metrics`: IoU, Dice, precision/recall and tolerance-based boundary
-  F-score between two integer label images, with per-class results, void labels,
-  explicit empty/missed/spurious class states and no resampling (`saccade-mask-metrics.v1`).
-- Add `saccade boxes export|import|transform`: COCO and YOLO bounding-box interchange
-  from a `saccade-boxes.v1` document with explicit pixel/top-left/xywh coordinates,
-  counted clipping, and crop and resize re-expression (`saccade-boxes-result.v1`).
-- Add `saccade frame-map check` and the `saccade-frame-map.v1` input contract for
-  externally extracted frames: gaps, variable frame rate, file integrity and settling
-  restated in the map's own timestamps, with an explicit `never_settled` state.
-- Add the performance sidecar kit (`examples/perf-kit`, `scripts/gen-perf-kit.py`,
-  `docs/perf-kit.md`) with declared `timing ab` outcomes.
-- Add feature-gated `tofu` missing-glyph shape triage and `text-legibility`
-  per-region variant sampling evidence, with versioned schemas, explicit
-  abstention, optional cached OCR and generated multi-script fixtures.
-- Add opt-in segmented exact embedding indexes, incremental changed-byte replacement
-  and pruning, atomic durable manifest updates, and bounded-memory v2 queries.
-  Preserve flat v1 readers and record synthetic scale costs.
-- Add budgeted `experiment transition` and `experiment animation` over external
-  timestamped captures, with localized error trajectories, popping/convergence,
-  steady level differences and motion-aware diagnostics in versioned packets.
-
-- Harden experimental assist pre-spend accounting: shared campaign reservations,
-  charged and quarantined usage overruns, request-bound recorded execution receipts,
-  nonvacuous qualification, independent control and glyph-localization checks, and
-  dispatch-key reflection suppression. Live provider dispatch is disabled until
-  verified billing ceilings are available. Add an OpenRouter chat-completions
-  adapter and a fixture-only `qualify-wave4.sh --dry-run` with frozen expected output.
-
 - Add declared-case coverage, variant grouping and baseline-health views with manifest v2, explicit missing cases and separate approved-anchor/last-good evidence.
 
 - Add W01–W13 playbook acceptance manifests, a generated fixture pack and a runner
@@ -80,15 +16,18 @@
 
 - Add a stock-build critical text region/string gate, versioned policy/report and
   generated OFL glyph-edit pack with app, figure and document proofs.
+
 - Add `timed-text` for plain SRT/WebVTT against frame maps, with image-bound OCR,
   sampled timing/missing/mismatch/extra findings and reused text-legibility
   measurements in `saccade-timed-text.v1`. Missing OCR explicitly skips; video
   extraction stays external. Include generated caption-video and cross-domain
   acceptance fixtures. Preserve decimal timing/gap boundaries through floating-point
   roundoff; zero timing tolerance stays strict and coarse clocks abstain.
+
 - Add `split-review` for declared dataset splits and photo bursts, with hash,
   geometric and explicitly provisioned embedding evidence, CSV pairs, injected-pair
   recall and explicit clean-list limits. See `docs/split-review.md`.
+
 - Add optional `geo` and the first-party `saccade-geo` crate: native multichannel
   TIFF measurements with preserved grid/nodata metadata and exact grid refusals,
   explicitly mapped RGB heatmaps, single-band class metrics and tile coverage.
