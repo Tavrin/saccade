@@ -1,0 +1,176 @@
+{
+  "$defs": {
+    "Ocr": {
+      "additionalProperties": false,
+      "description": "An explicitly selected registry contract and compatible local runtime.",
+      "properties": {
+        "contract_id": {
+          "description": "Stable OCR contract id in that registry (no automatic selection).",
+          "type": "string"
+        },
+        "library": {
+          "description": "Exact ONNX Runtime library; no downloads or ambient cache lookup.",
+          "type": "string"
+        },
+        "registry": {
+          "description": "Shared model registry, relative to the recipe.",
+          "type": "string"
+        }
+      },
+      "required": [
+        "registry",
+        "contract_id",
+        "library"
+      ],
+      "type": "object"
+    },
+    "Operation": {
+      "description": "Closed local operations, deliberately excluding shell and provider execution.",
+      "oneOf": [
+        {
+          "additionalProperties": false,
+          "description": "Standard raster file or directory comparison with explicit tolerances.",
+          "properties": {
+            "a": {
+              "description": "Reference input relative to the recipe.",
+              "type": "string"
+            },
+            "b": {
+              "description": "Candidate input relative to the recipe.",
+              "type": "string"
+            },
+            "metric": {
+              "description": "mean, max, p95 or p99.",
+              "type": "string"
+            },
+            "operation": {
+              "const": "compare",
+              "type": "string"
+            },
+            "ppd": {
+              "description": "Observer pixels per degree, positive and finite.",
+              "format": "float",
+              "type": "number"
+            },
+            "threshold": {
+              "description": "FLIP deciding threshold in [0,1].",
+              "format": "double",
+              "type": "number"
+            }
+          },
+          "required": [
+            "operation",
+            "a",
+            "b",
+            "threshold",
+            "metric",
+            "ppd"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "description": "Text comparison using imported observations or local pinned PP-OCRv5.",
+          "properties": {
+            "a": {
+              "description": "Reference raster relative to the recipe.",
+              "type": "string"
+            },
+            "a_source": {
+              "description": "Optional reference image-bound observations.",
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "b": {
+              "description": "Candidate raster relative to the recipe.",
+              "type": "string"
+            },
+            "b_source": {
+              "description": "Optional candidate image-bound observations.",
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "expect_text": {
+              "description": "Exact expected Unicode text, treated as inert data.",
+              "items": {
+                "type": "string"
+              },
+              "type": "array"
+            },
+            "moved_px": {
+              "description": "Positive or zero movement cutoff in pixels.",
+              "format": "double",
+              "type": "number"
+            },
+            "ocr": {
+              "anyOf": [
+                {
+                  "$ref": "#/$defs/Ocr"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Required when either imported source is absent."
+            },
+            "operation": {
+              "const": "text",
+              "type": "string"
+            },
+            "readable_confidence": {
+              "description": "Confidence cutoff in [0,100].",
+              "format": "double",
+              "type": "number"
+            }
+          },
+          "required": [
+            "operation",
+            "a",
+            "b",
+            "expect_text",
+            "readable_confidence",
+            "moved_px"
+          ],
+          "type": "object"
+        }
+      ]
+    }
+  },
+  "$id": "https://github.com/Tavrin/saccade/crates/saccade-core/schemas/saccade-replay-recipe.v1.schema.json",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "description": "Versioned, complete configuration for the recorded operation.",
+  "properties": {
+    "report_id": {
+      "pattern": "^sha256:[0-9a-f]{64}$",
+      "type": "string"
+    },
+    "run": {
+      "$ref": "#/$defs/Operation",
+      "description": "Local operation and all its effective options."
+    },
+    "schema": {
+      "const": "saccade-replay-recipe.v1",
+      "description": "RECIPE_SCHEMA.",
+      "type": "string"
+    },
+    "source_refs": {
+      "items": {
+        "maxLength": 2048,
+        "type": "string"
+      },
+      "maxItems": 128,
+      "type": "array"
+    }
+  },
+  "required": [
+    "schema",
+    "run"
+  ],
+  "title": "Recipe",
+  "type": "object"
+}

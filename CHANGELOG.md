@@ -66,6 +66,10 @@
   ballots, item/rater disagreement and notes, explicit missing votes, nominal
   Krippendorff alpha and an advisory HTML board. Versioned contracts integrate
   with manifests; votes never approve baselines. See `docs/review-board.md`.
+- Add offline `replay pack|verify` with versioned recipes, exact input/config/tool/schema
+  identities, pinned local OCR models and runtime, full reports and manifests. Replay
+  re-executes and compares the report identity; changed evidence and unavailable optional
+  artifacts have distinct failures. See `docs/replay.md`.
 
 ## 0.2.7 (2026-10-07)
 

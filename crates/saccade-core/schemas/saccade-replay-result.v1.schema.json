@@ -1,0 +1,59 @@
+{
+  "$id": "https://github.com/Tavrin/saccade/crates/saccade-core/schemas/saccade-replay-result.v1.schema.json",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "description": "Successful bounded replay receipt; errors use the existing typed CLI envelope.",
+  "properties": {
+    "measurement_exit": {
+      "description": "Independent original measurement exit code.",
+      "format": "uint8",
+      "maximum": 255,
+      "minimum": 0,
+      "type": "integer"
+    },
+    "operation": {
+      "description": "pack or verify.",
+      "type": "string"
+    },
+    "pack_sha256": {
+      "description": "Verified pack manifest hash.",
+      "type": "string"
+    },
+    "replayed_report_id": {
+      "description": "Actual fresh report id; diagnostic computation durations may make it differ.",
+      "type": "string"
+    },
+    "report_id": {
+      "description": "Reproduced report identity.",
+      "type": "string"
+    },
+    "schema": {
+      "const": "saccade-replay-result.v1",
+      "description": "RESULT_SCHEMA.",
+      "type": "string"
+    },
+    "source_refs": {
+      "items": {
+        "maxLength": 2048,
+        "type": "string"
+      },
+      "maxItems": 128,
+      "type": "array"
+    },
+    "status": {
+      "description": "Always reproduced; drift/unavailability never uses a success receipt.",
+      "type": "string"
+    }
+  },
+  "required": [
+    "schema",
+    "operation",
+    "status",
+    "pack_sha256",
+    "report_id",
+    "replayed_report_id",
+    "measurement_exit"
+  ],
+  "title": "Receipt",
+  "type": "object"
+}

@@ -106,6 +106,7 @@ mod wave10_cmd;
 // laneC
 mod manifest_cmd;
 mod region_export_cmd;
+mod replay_cmd;
 // wave11
 mod measure_cmd;
 #[cfg(feature = "mcp")]
@@ -305,6 +306,8 @@ enum Command {
     /// Experimental advisory AI with an egress preview before dispatch.
     #[cfg(feature = "assist")]
     Assist(advice_cmd::Args),
+    /// Record or re-execute an offline, content-bound evidence pack.
+    Replay(replay_cmd::Args),
     // laneC
     /// Find, link and re-check the outputs of a report directory.
     Manifest(manifest_cmd::Args),
@@ -1308,6 +1311,7 @@ fn dispatch(command: Command, record_absolute_paths: bool) -> Result<u8, CliErro
         Command::BatchProbe(a) => batch_cmd::probe(a),
         #[cfg(feature = "assist")]
         Command::Assist(a) => advice_cmd::run(a),
+        Command::Replay(args) => replay_cmd::run(args),
         // laneC
         Command::Manifest(args) => manifest_cmd::run(args),
         Command::ExportRegions(args) => region_export_cmd::run(args),

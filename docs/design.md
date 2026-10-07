@@ -20,6 +20,7 @@ Task documentation:
 
 - [Captures](captures.md), [identity/performance](identity-and-performance.md)
 - [Review](review.md), [agents](agents.md), [CI](ci.md)
+- [Offline evidence replay](replay.md)
 - [Contracts](contracts.md), [evaluation](evaluation.md)
 - [Generated CLI reference](cli.md), [experiments](experimental.md)
 - [Design decisions](design-decisions/)

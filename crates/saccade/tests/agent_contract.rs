@@ -88,7 +88,7 @@ fn help_lists_active_commands_and_watch_alias_stays_hidden() {
     assert!(top.contains(&"split-review"));
     assert_eq!(
         top.len(),
-        55 + usize::from(cfg!(feature = "compression"))
+        56 + usize::from(cfg!(feature = "compression"))
             + usize::from(cfg!(feature = "assist"))
             + usize::from(cfg!(feature = "print"))
             + usize::from(cfg!(feature = "geo"))
@@ -101,6 +101,7 @@ fn help_lists_active_commands_and_watch_alias_stays_hidden() {
     assert_eq!(top.contains(&"assist"), cfg!(feature = "assist"));
     for name in [
         "batch",
+        "replay",
         "manifest",
         "export-regions",
         "mask-metrics",

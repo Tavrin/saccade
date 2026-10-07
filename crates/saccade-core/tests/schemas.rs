@@ -94,6 +94,18 @@ fn committed_schemas_match_the_rust_types() {
             generated::<saccade_core::timed_text::Report>("saccade-timed-text.v1.schema.json"),
         ),
         (
+            "saccade-replay-recipe.v1.schema.json",
+            generated::<saccade_core::replay::Recipe>("saccade-replay-recipe.v1.schema.json"),
+        ),
+        (
+            "saccade-replay-pack.v1.schema.json",
+            generated::<saccade_core::replay::Pack>("saccade-replay-pack.v1.schema.json"),
+        ),
+        (
+            "saccade-replay-result.v1.schema.json",
+            generated::<saccade_core::replay::Receipt>("saccade-replay-result.v1.schema.json"),
+        ),
+        (
             "saccade-tofu.v1.schema.json",
             generated::<saccade_core::text_quality::TofuReport>("saccade-tofu.v1.schema.json"),
         ),

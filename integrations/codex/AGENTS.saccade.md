@@ -87,3 +87,5 @@ G12 dry-run: fake provider; live needs reviewed billing ceilings. [Qualification
 [Print](../docs/print.md): `print`; no press approval.
 [Coverage](../docs/coverage.md). [Splits](../docs/split-review.md): clean never proves no leakage.
 [Rasters](../docs/raster.md): `geo`.
+
+[Replay](../docs/replay.md): `replay pack|verify`.
