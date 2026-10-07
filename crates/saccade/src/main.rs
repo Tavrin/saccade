@@ -90,6 +90,7 @@ mod wave10_cmd;
 mod manifest_cmd;
 mod region_export_cmd;
 // wave11
+mod measure_cmd;
 #[cfg(feature = "mcp")]
 mod wave10_mcp;
 mod wave11_cmd;
@@ -281,6 +282,12 @@ enum Command {
     // wave11
     /// Verdicts over timings acquired by external tools.
     Timing(wave11_cmd::TimingArgs),
+    /// Overlap and boundary metrics between two integer label images.
+    MaskMetrics(measure_cmd::MaskMetricsArgs),
+    /// Export, import and transform bounding boxes as COCO or YOLO.
+    Boxes(measure_cmd::BoxesArgs),
+    /// Check the index, timestamp and file map of externally extracted frames.
+    FrameMap(measure_cmd::FrameMapArgs),
     // wave10
     /// Compare structural rendering evidence with explicit scope and ID attribution.
     RenderEvidence(wave10_cmd::RenderArgs),
@@ -1217,6 +1224,9 @@ fn dispatch(command: Command, record_absolute_paths: bool) -> Result<u8, CliErro
         Command::Manifest(args) => manifest_cmd::run(args),
         Command::ExportRegions(args) => region_export_cmd::run(args),
         Command::Timing(args) => wave11_cmd::timing(args),
+        Command::MaskMetrics(args) => measure_cmd::mask_metrics(args),
+        Command::Boxes(args) => measure_cmd::boxes(args),
+        Command::FrameMap(args) => measure_cmd::frame_map(args),
         #[cfg(feature = "graphics")]
         Command::Experiment {
             operation: ExperimentOperation::Settle(args),
@@ -2099,6 +2109,9 @@ fn doctor(json: bool) -> Result<u8, CliError> {
         "fingerprint-subtrees-v1",
         "report-index-v1",
         "mask-shortcuts-v1",
+        "mask-metrics-v1",
+        "box-interchange-v1",
+        "frame-map-v1",
     ]);
     #[cfg(feature = "graphics")]
     capabilities.extend(["settling-v1", "ablation-repeat-spread-v1"]);

@@ -1,0 +1,89 @@
+{
+  "$id": "https://github.com/Tavrin/saccade/crates/saccade-core/schemas/saccade-boxes-result.v1.schema.json",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "description": "Receipt of a box export, import or transform, with every adjustment counted.",
+  "properties": {
+    "adjustments": {
+      "additionalProperties": false,
+      "properties": {
+        "clipped": {
+          "minimum": 0,
+          "type": "integer"
+        },
+        "dropped": {
+          "minimum": 0,
+          "type": "integer"
+        }
+      },
+      "required": [
+        "clipped",
+        "dropped"
+      ],
+      "type": "object"
+    },
+    "boxes": {
+      "minimum": 0,
+      "type": "integer"
+    },
+    "files": {
+      "items": {
+        "additionalProperties": false,
+        "properties": {
+          "path": {
+            "type": "string"
+          },
+          "sha256": {
+            "pattern": "^[0-9a-f]{64}$",
+            "type": "string"
+          }
+        },
+        "required": [
+          "path",
+          "sha256"
+        ],
+        "type": "object"
+      },
+      "type": "array"
+    },
+    "format": {
+      "enum": [
+        "coco",
+        "yolo",
+        "boxes"
+      ]
+    },
+    "operation": {
+      "enum": [
+        "export",
+        "import",
+        "transform"
+      ]
+    },
+    "report_id": {
+      "pattern": "^sha256:[0-9a-f]{64}$",
+      "type": "string"
+    },
+    "schema": {
+      "const": "saccade-boxes-result.v1"
+    },
+    "source_refs": {
+      "items": {
+        "maxLength": 2048,
+        "type": "string"
+      },
+      "maxItems": 128,
+      "type": "array"
+    }
+  },
+  "required": [
+    "adjustments",
+    "boxes",
+    "files",
+    "format",
+    "operation",
+    "schema"
+  ],
+  "title": "Box interchange result",
+  "type": "object"
+}

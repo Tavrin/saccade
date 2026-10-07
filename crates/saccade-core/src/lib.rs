@@ -181,5 +181,14 @@ pub mod timing;
 /// Stable shared mask-spec parser for CLI, MCP and downstream measurement APIs.
 pub mod mask_spec;
 
+/// Deterministic overlap and boundary metrics between integer label images.
+pub mod mask_metrics;
+
+/// COCO and YOLO bounding-box interchange with explicit coordinate conventions.
+pub mod boxes;
+
+/// Frame-index, timestamp and file contract for externally extracted video frames.
+pub mod frame_map;
+
 /// One operator-owned model and runtime configuration shared by every surface.
 pub mod model_config;

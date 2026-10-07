@@ -152,6 +152,10 @@ See [paired statistics](docs/paired-performance.md),
 [timing verdicts](docs/experiments-wave11.md#timing-ab),
 [ablation tables](docs/experiments-wave11.md#multi-arm-repeat-tables)
 and [report linking](docs/experiments-wave11.md#external-report-links-and-indexes).
+The [performance sidecar kit](docs/perf-kit.md) has fixtures and recipes for producers.
+Label images can be scored with [mask metrics](docs/mask-metrics.md), boxes exchanged
+as COCO or YOLO ([box interchange](docs/box-interchange.md)), and extracted video
+frames described by a [frame map](docs/frame-map.md).
 
 ## Install
 

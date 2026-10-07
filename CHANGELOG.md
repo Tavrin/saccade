@@ -31,6 +31,18 @@
 - Correct stale documentation: LPIPS, DISTS and MUSIQ run through `quality-score`
   on an operator-supplied reviewed export (none ships), and SVG/PDF comparison
   needs the `documents` feature rather than being deferred.
+- Add `saccade mask-metrics`: IoU, Dice, precision/recall and tolerance-based boundary
+  F-score between two integer label images, with per-class results, void labels,
+  explicit empty/missed/spurious class states and no resampling (`saccade-mask-metrics.v1`).
+- Add `saccade boxes export|import|transform`: COCO and YOLO bounding-box interchange
+  from a `saccade-boxes.v1` document with explicit pixel/top-left/xywh coordinates,
+  counted clipping, and crop and resize re-expression (`saccade-boxes-result.v1`).
+- Add `saccade frame-map check` and the `saccade-frame-map.v1` input contract for
+  externally extracted frames: gaps, variable frame rate, file integrity and settling
+  restated in the map's own timestamps, with an explicit `never_settled` state.
+- Add the performance sidecar kit (`examples/perf-kit`, `scripts/gen-perf-kit.py`,
+  `docs/perf-kit.md`) with declared `timing ab` outcomes.
+
 - Harden experimental assist pre-spend accounting: shared campaign reservations,
   charged and quarantined usage overruns, request-bound recorded execution receipts,
   nonvacuous qualification, independent control and glyph-localization checks, and

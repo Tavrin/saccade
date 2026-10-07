@@ -1,0 +1,52 @@
+{
+  "$id": "https://github.com/Tavrin/saccade/crates/saccade-core/schemas/saccade-frame-map.v1.schema.json",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "description": "Frame index, presentation timestamp and file for each externally extracted frame, in increasing order.",
+  "properties": {
+    "frames": {
+      "items": {
+        "additionalProperties": false,
+        "properties": {
+          "file": {
+            "minLength": 1,
+            "type": "string"
+          },
+          "index": {
+            "minimum": 0,
+            "type": "integer"
+          },
+          "sha256": {
+            "type": "string"
+          },
+          "timestamp_s": {
+            "minimum": 0,
+            "type": "number"
+          }
+        },
+        "required": [
+          "file",
+          "index",
+          "timestamp_s"
+        ],
+        "type": "object"
+      },
+      "maxItems": 100000,
+      "minItems": 1,
+      "type": "array"
+    },
+    "nominal_fps": {
+      "exclusiveMinimum": 0,
+      "type": "number"
+    },
+    "schema": {
+      "const": "saccade-frame-map.v1"
+    }
+  },
+  "required": [
+    "frames",
+    "schema"
+  ],
+  "title": "Frame map",
+  "type": "object"
+}

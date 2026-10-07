@@ -1,0 +1,11 @@
+{
+  "counters": {},
+  "frame": {
+    "samples": 64,
+    "stat": "mean",
+    "value": 10.0
+  },
+  "schema": "saccade-perf.v1",
+  "terms": [],
+  "unit": "ms"
+}
