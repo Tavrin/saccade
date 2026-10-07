@@ -1,0 +1,114 @@
+{
+  "$defs": {
+    "Alignment": {
+      "description": "Motion correspondence used only for supplementary aligned measurements.",
+      "oneOf": [
+        {
+          "const": "none",
+          "description": "Compare original coordinates.",
+          "type": "string"
+        },
+        {
+          "const": "translation",
+          "description": "Existing phase-correlation global translation, confidence at least 0.6.",
+          "type": "string"
+        },
+        {
+          "const": "dense",
+          "description": "Existing qualified dense image correspondence; requires dense-motion.",
+          "type": "string"
+        }
+      ]
+    },
+    "Capture": {
+      "additionalProperties": false,
+      "description": "One externally captured observation on the common declared timeline.",
+      "properties": {
+        "image": {
+          "description": "Relative image path inside the plan directory.",
+          "type": "string"
+        },
+        "timestamp_ms": {
+          "description": "Declared timestamp in milliseconds; never inferred from filenames.",
+          "format": "double",
+          "type": "number"
+        }
+      },
+      "required": [
+        "image",
+        "timestamp_ms"
+      ],
+      "type": "object"
+    }
+  },
+  "$id": "https://github.com/Tavrin/saccade/crates/saccade-core/schemas/saccade-captured-sequence-plan.v1.schema.json",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "description": "Explicit capture lists, avoiding silent pairing or missing-frame truncation.",
+  "properties": {
+    "alignment": {
+      "$ref": "#/$defs/Alignment",
+      "description": "Alignment diagnostics do not override raw error budgets."
+    },
+    "candidate": {
+      "description": "Candidate observations, in strictly increasing timestamp order.",
+      "items": {
+        "$ref": "#/$defs/Capture"
+      },
+      "type": "array"
+    },
+    "id_buffers": {
+      "description": "Optional L8/L16 ID buffer per frame, on the original reference grid.",
+      "items": {
+        "type": "string"
+      },
+      "type": [
+        "array",
+        "null"
+      ]
+    },
+    "include_ids": {
+      "description": "IDs to include; combined with masks by intersection, never candidate-derived.",
+      "items": {
+        "format": "uint16",
+        "maximum": 65535,
+        "minimum": 0,
+        "type": "integer"
+      },
+      "type": "array"
+    },
+    "masks": {
+      "description": "Optional binary L8 inclusion mask per frame, on the original reference grid.",
+      "items": {
+        "type": "string"
+      },
+      "type": [
+        "array",
+        "null"
+      ]
+    },
+    "reference": {
+      "description": "Independent matched reference; required for animation and level pairs.",
+      "items": {
+        "$ref": "#/$defs/Capture"
+      },
+      "type": [
+        "array",
+        "null"
+      ]
+    },
+    "schema": {
+      "const": "saccade-captured-sequence-plan.v1",
+      "description": "Version discriminator.",
+      "type": "string"
+    }
+  },
+  "required": [
+    "schema",
+    "candidate",
+    "include_ids",
+    "alignment"
+  ],
+  "title": "Plan",
+  "type": "object"
+}

@@ -30,6 +30,10 @@ mod wave9_cmd;
 #[cfg(feature = "mcp")]
 mod wave9_mcp;
 
+// G26
+#[cfg(feature = "graphics")]
+mod captured_sequence_cmd;
+
 mod agent;
 mod agent_ui;
 mod approval;
@@ -869,6 +873,13 @@ struct ProveIdentityArgs {
 
 #[derive(Subcommand)]
 enum ExperimentOperation {
+    // G26
+    /// Measure popping, sampled convergence and steady level differences in captures.
+    #[cfg(feature = "graphics")]
+    Transition(captured_sequence_cmd::TransitionArgs),
+    /// Compare timestamp-matched animation captures with localized motion diagnostics.
+    #[cfg(feature = "graphics")]
+    Animation(captured_sequence_cmd::AnimationArgs),
     // wave11
     /// Event-relative tile error, settling, lag and pre-change residual trajectories.
     #[cfg(feature = "graphics")]
@@ -1229,6 +1240,15 @@ fn dispatch(command: Command, record_absolute_paths: bool) -> Result<u8, CliErro
         // laneC
         Command::Manifest(args) => manifest_cmd::run(args),
         Command::ExportRegions(args) => region_export_cmd::run(args),
+        // G26
+        #[cfg(feature = "graphics")]
+        Command::Experiment {
+            operation: ExperimentOperation::Transition(args),
+        } => captured_sequence_cmd::transition(args),
+        #[cfg(feature = "graphics")]
+        Command::Experiment {
+            operation: ExperimentOperation::Animation(args),
+        } => captured_sequence_cmd::animation(args),
         Command::Timing(args) => wave11_cmd::timing(args),
         Command::MaskMetrics(args) => measure_cmd::mask_metrics(args),
         Command::Boxes(args) => measure_cmd::boxes(args),

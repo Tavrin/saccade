@@ -1,0 +1,415 @@
+{
+  "$defs": {
+    "Alignment": {
+      "description": "Motion correspondence used only for supplementary aligned measurements.",
+      "oneOf": [
+        {
+          "const": "none",
+          "description": "Compare original coordinates.",
+          "type": "string"
+        },
+        {
+          "const": "translation",
+          "description": "Existing phase-correlation global translation, confidence at least 0.6.",
+          "type": "string"
+        },
+        {
+          "const": "dense",
+          "description": "Existing qualified dense image correspondence; requires dense-motion.",
+          "type": "string"
+        }
+      ]
+    },
+    "Capture": {
+      "additionalProperties": false,
+      "description": "One externally captured observation on the common declared timeline.",
+      "properties": {
+        "image": {
+          "description": "Relative image path inside the plan directory.",
+          "type": "string"
+        },
+        "timestamp_ms": {
+          "description": "Declared timestamp in milliseconds; never inferred from filenames.",
+          "format": "double",
+          "type": "number"
+        }
+      },
+      "required": [
+        "image",
+        "timestamp_ms"
+      ],
+      "type": "object"
+    },
+    "Frame": {
+      "description": "Matched frame measurements and explicit alignment support.",
+      "properties": {
+        "aligned_error": {
+          "description": "Supplementary aligned error, null when no correspondence is supported.",
+          "format": "double",
+          "type": [
+            "number",
+            "null"
+          ]
+        },
+        "aligned_pixels": {
+          "description": "Supported aligned pixels; geometric/flow exclusions are explicit.",
+          "format": "uint",
+          "minimum": 0,
+          "type": "integer"
+        },
+        "aligned_regions": {
+          "description": "Supplementary aligned tile errors for temporal inspection.",
+          "items": {
+            "$ref": "#/$defs/Region"
+          },
+          "type": "array"
+        },
+        "index": {
+          "description": "Zero-based input index.",
+          "format": "uint",
+          "minimum": 0,
+          "type": "integer"
+        },
+        "local_error": {
+          "description": "Largest scoped tile mean error.",
+          "format": "double",
+          "type": "number"
+        },
+        "pixels": {
+          "description": "Included original-grid pixels.",
+          "format": "uint",
+          "minimum": 0,
+          "type": "integer"
+        },
+        "raw_error": {
+          "description": "Raw error; correspondence never changes this score.",
+          "format": "double",
+          "type": "number"
+        },
+        "regions": {
+          "description": "Raw tiles exceeding the declared local/settling threshold.",
+          "items": {
+            "$ref": "#/$defs/Region"
+          },
+          "type": "array"
+        },
+        "residual_flicker": {
+          "description": "Maximum tile signed-residual change from the previous frame, divided by two.\nNull for the first frame or incomplete persistent correspondence support.",
+          "format": "double",
+          "type": [
+            "number",
+            "null"
+          ]
+        },
+        "timestamp_ms": {
+          "description": "Common declared timestamp.",
+          "format": "double",
+          "type": "number"
+        },
+        "translation": {
+          "description": "Estimated dx,dy,confidence for translation; null in other modes.",
+          "items": {
+            "format": "double",
+            "type": "number"
+          },
+          "maxItems": 3,
+          "minItems": 3,
+          "type": [
+            "array",
+            "null"
+          ]
+        }
+      },
+      "required": [
+        "index",
+        "timestamp_ms",
+        "pixels",
+        "raw_error",
+        "local_error",
+        "aligned_pixels",
+        "regions",
+        "aligned_regions"
+      ],
+      "type": "object"
+    },
+    "Plan": {
+      "additionalProperties": false,
+      "description": "Explicit capture lists, avoiding silent pairing or missing-frame truncation.",
+      "properties": {
+        "alignment": {
+          "$ref": "#/$defs/Alignment",
+          "description": "Alignment diagnostics do not override raw error budgets."
+        },
+        "candidate": {
+          "description": "Candidate observations, in strictly increasing timestamp order.",
+          "items": {
+            "$ref": "#/$defs/Capture"
+          },
+          "type": "array"
+        },
+        "id_buffers": {
+          "description": "Optional L8/L16 ID buffer per frame, on the original reference grid.",
+          "items": {
+            "type": "string"
+          },
+          "type": [
+            "array",
+            "null"
+          ]
+        },
+        "include_ids": {
+          "description": "IDs to include; combined with masks by intersection, never candidate-derived.",
+          "items": {
+            "format": "uint16",
+            "maximum": 65535,
+            "minimum": 0,
+            "type": "integer"
+          },
+          "type": "array"
+        },
+        "masks": {
+          "description": "Optional binary L8 inclusion mask per frame, on the original reference grid.",
+          "items": {
+            "type": "string"
+          },
+          "type": [
+            "array",
+            "null"
+          ]
+        },
+        "reference": {
+          "description": "Independent matched reference; required for animation and level pairs.",
+          "items": {
+            "$ref": "#/$defs/Capture"
+          },
+          "type": [
+            "array",
+            "null"
+          ]
+        },
+        "schema": {
+          "const": "saccade-captured-sequence-plan.v1",
+          "description": "Version discriminator.",
+          "type": "string"
+        }
+      },
+      "required": [
+        "schema",
+        "candidate",
+        "include_ids",
+        "alignment"
+      ],
+      "type": "object"
+    },
+    "Region": {
+      "description": "Spatially localized error at one observation.",
+      "properties": {
+        "error": {
+          "description": "Scoped mean absolute normalized RGB difference.",
+          "format": "double",
+          "type": "number"
+        },
+        "rect_px": {
+          "description": "Reference-grid rectangle x,y,width,height.",
+          "items": {
+            "format": "uint32",
+            "minimum": 0,
+            "type": "integer"
+          },
+          "maxItems": 4,
+          "minItems": 4,
+          "type": "array"
+        }
+      },
+      "required": [
+        "rect_px",
+        "error"
+      ],
+      "type": "object"
+    },
+    "TransitionPolicy": {
+      "additionalProperties": false,
+      "description": "Declared transition budgets and observation windows.",
+      "properties": {
+        "change_frame": {
+          "description": "Switch request index; null selects a matched pair of steady levels.",
+          "format": "uint",
+          "minimum": 0,
+          "type": [
+            "integer",
+            "null"
+          ]
+        },
+        "consecutive": {
+          "description": "Number of consecutive observations required for convergence.",
+          "format": "uint",
+          "minimum": 0,
+          "type": "integer"
+        },
+        "maximum_duration_ms": {
+          "description": "Maximum time from request to K settled frames, in milliseconds.",
+          "format": "double",
+          "type": "number"
+        },
+        "maximum_pop": {
+          "description": "Maximum positive frame-to-frame RGB error above motion baseline.",
+          "format": "double",
+          "type": "number"
+        },
+        "maximum_steady_error": {
+          "description": "Maximum final-window paired level difference, normalized RGB MAE.",
+          "format": "double",
+          "type": "number"
+        },
+        "settle_threshold": {
+          "description": "Maximum tile error for convergence to the target observation.",
+          "format": "double",
+          "type": "number"
+        },
+        "tile_size": {
+          "description": "Spatial tile edge in pixels.",
+          "format": "uint32",
+          "minimum": 0,
+          "type": "integer"
+        },
+        "window": {
+          "description": "Final observation window length and pre-switch baseline window length.",
+          "format": "uint",
+          "minimum": 0,
+          "type": "integer"
+        }
+      },
+      "required": [
+        "maximum_pop",
+        "maximum_duration_ms",
+        "maximum_steady_error",
+        "settle_threshold",
+        "consecutive",
+        "window",
+        "tile_size"
+      ],
+      "type": "object"
+    }
+  },
+  "$id": "https://github.com/Tavrin/saccade/crates/saccade-core/schemas/saccade-transition.v1.schema.json",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "description": "Complete transition packet, separate from static geometry proof.",
+  "properties": {
+    "frames": {
+      "description": "Target/reference differences, including localized regions.",
+      "items": {
+        "$ref": "#/$defs/Frame"
+      },
+      "type": "array"
+    },
+    "limits": {
+      "description": "Explicit interpretation boundaries.",
+      "items": {
+        "type": "string"
+      },
+      "type": "array"
+    },
+    "motion_baseline": {
+      "description": "Raw temporal motion baseline from the reference, or pre-switch window.",
+      "items": {
+        "format": "double",
+        "type": "number"
+      },
+      "type": "array"
+    },
+    "plan": {
+      "$ref": "#/$defs/Plan",
+      "description": "Effective capture declaration."
+    },
+    "policy": {
+      "$ref": "#/$defs/TransitionPolicy",
+      "description": "Effective budgets and switch request."
+    },
+    "pop_curve": {
+      "description": "Positive excess over baseline, indexed by later frame; index zero is zero.",
+      "items": {
+        "format": "double",
+        "type": "number"
+      },
+      "type": "array"
+    },
+    "pop_frame": {
+      "description": "Earliest maximum in the switch interval; null if no positive excess.",
+      "format": "uint",
+      "minimum": 0,
+      "type": [
+        "integer",
+        "null"
+      ]
+    },
+    "popping": {
+      "description": "Maximum excess in the declared switch interval (null for level pairs).",
+      "format": "double",
+      "type": [
+        "number",
+        "null"
+      ]
+    },
+    "report_id": {
+      "pattern": "^sha256:[0-9a-f]{64}$",
+      "type": "string"
+    },
+    "schema": {
+      "const": "saccade-transition.v1",
+      "description": "Version discriminator.",
+      "type": "string"
+    },
+    "settle_frame": {
+      "description": "First K-frame target-convergence interval; null for level pairs/unsettled.",
+      "format": "uint",
+      "minimum": 0,
+      "type": [
+        "integer",
+        "null"
+      ]
+    },
+    "source_refs": {
+      "items": {
+        "maxLength": 2048,
+        "type": "string"
+      },
+      "maxItems": 128,
+      "type": "array"
+    },
+    "steady_state_basis": {
+      "description": "matched_reference or pre_post_windows; single-sequence values include temporal motion.",
+      "type": "string"
+    },
+    "steady_state_difference": {
+      "description": "Final-window paired level difference, or pre/post window difference for a single switch.",
+      "format": "double",
+      "type": "number"
+    },
+    "transition_duration_ms": {
+      "description": "Timestamp difference from request to settling; null if unmeasured.",
+      "format": "double",
+      "type": [
+        "number",
+        "null"
+      ]
+    },
+    "verdict": {
+      "description": "pass or regression.",
+      "type": "string"
+    }
+  },
+  "required": [
+    "schema",
+    "verdict",
+    "plan",
+    "policy",
+    "frames",
+    "pop_curve",
+    "motion_baseline",
+    "steady_state_difference",
+    "steady_state_basis",
+    "limits"
+  ],
+  "title": "TransitionReport",
+  "type": "object"
+}
