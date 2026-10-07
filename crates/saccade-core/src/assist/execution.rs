@@ -239,7 +239,7 @@ pub struct Executor<'a> {
     pub money_scopes: Vec<MoneyScope>,
     /// Original evidence source roots, never supplied by a model.
     pub sources: Vec<String>,
-    /// Overall finite deadline (at most 300 seconds).
+    /// Finite deadline for this call (at most 300 seconds).
     pub deadline: Instant,
 }
 impl Executor<'_> {
@@ -515,7 +515,15 @@ impl Executor<'_> {
                     },
                 },
             )
-            .map_err(|_| Error::Policy("money budget exhausted"))?;
+            .map_err(|reason| {
+                // Only an allowance shortfall is a clean budget stop. Storage,
+                // stopped campaigns and invalid accounting must remain failures.
+                Error::Policy(if reason == "money_budget_exhausted" {
+                    "money budget exhausted"
+                } else {
+                    "money reservation refused"
+                })
+            })?;
         let clock = Instant::now();
         let result = self.transport.once_detailed(
             &key.provider,

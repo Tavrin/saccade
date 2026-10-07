@@ -6,6 +6,64 @@ from corpus import freeze, verify
 from stage2 import payload, priced, report, schedule, collect, REVISION
 
 class Stage2Tests(unittest.TestCase):
+    def test_stage2_replan_interleaves_pilot_and_budget_bounded_larger_schedule(self):
+        import json
+        with tempfile.TemporaryDirectory() as tmp:
+            directory=Path(tmp)/'pilot'
+            manifest=freeze(directory,15,4406,REVISION,'jev-1.13.0',True)
+            rows,plan=report(manifest,directory)
+            self.assertEqual(len(rows),216)
+            self.assertEqual(rows,report(verify(directory)[0],directory)[0])
+            self.assertEqual(plan['reservation_nano_usd'],4616611500)
+            self.assertFalse(plan['budget_bounded'])
+            self.assertTrue(plan['full_reservation_fits'])
+            workloads={c['root_id']:c['workload'] for c in manifest['cases']}
+            def group(row):
+                root,arm,_,_=row['root'].rsplit(':',3)
+                return arm,workloads[root]
+            active={group(r) for r in rows}
+            # Every arm/workload receives one request before any receives two.
+            self.assertEqual(len(active),12)
+            self.assertEqual({group(r) for r in rows[:12]},active)
+            self.assertEqual({group(r) for r in rows[12:24]},active)
+            larger=Path(tmp)/'larger'
+            manifest=freeze(larger,60,4406,REVISION,'jev-1.13.0',True)
+            self.assertRaises(ValueError,report,manifest,larger)
+            rows,plan=report(verify(larger)[0],larger,True)
+            self.assertEqual(len(rows),864)
+            self.assertTrue(plan['budget_bounded'])
+            self.assertFalse(plan['full_reservation_fits'])
+            self.assertGreater(plan['reservation_nano_usd'],plan['allowance_nano_usd'])
+            self.assertFalse(plan['authorized'])
+            self.assertFalse(plan['qualified'])
+            workloads={c['root_id']:c['workload'] for c in manifest['cases']}
+            self.assertEqual({group(r) for r in rows[:12]},active)
+
+    def test_budget_and_deadline_stops_remain_unavailable_in_full_denominator(self):
+        import json
+        with tempfile.TemporaryDirectory() as tmp:
+            directory=Path(tmp)/'corpus'
+            manifest=freeze(directory,5,4406,REVISION,'jev-1.13.0',True)
+            rows,_=report(manifest,directory)
+            out=Path(tmp)/'results';out.mkdir()
+            for code in ('not_run_budget','not_run_deadline'):
+                outcomes=[dict(index=i,root=r['root'],code=code) for i,r in enumerate(rows)]
+                (out/'smoke.json').write_text(json.dumps(dict(root_outcomes=outcomes)))
+                # A stale answer cannot turn an explicitly unrun root into success.
+                h=json.loads(rows[0]['payload']['messages'][1]['content'][0]['text'])['request_hash']
+                (out/'answer-0.json').write_text(json.dumps(dict(request_hash=h,outcome='observed',observations=[])))
+                result=collect(rows,out)
+                denominator=len({(r['root'].rsplit(':',3)[0],r['root'].rsplit(':',3)[1]) for r in rows})
+                self.assertEqual(result['scheduled_requests'],len(rows))
+                self.assertEqual(result['scheduled_root_arm_denominator'],denominator)
+                self.assertEqual(result['unavailable_root_arms'],denominator)
+                self.assertEqual(result['unavailable_request_codes'],{code:len(rows)})
+                self.assertTrue(all(r['missing'] and r['outcome']=='unverifiable' for r in result['root_arm_results']))
+                self.assertFalse(result['qualified'])
+            outcomes.pop()
+            (out/'smoke.json').write_text(json.dumps(dict(root_outcomes=outcomes)))
+            self.assertRaises(ValueError,collect,rows,out)
+
     def test_frozen_schedule_binding_and_closed_budget(self):
         with tempfile.TemporaryDirectory() as tmp:
             directory=Path(tmp)/'corpus'

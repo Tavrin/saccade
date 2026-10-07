@@ -41,9 +41,15 @@ fn allowance(text: &str, above_25: bool) -> Result<u64, &'static str> {
     }
     Ok(cap)
 }
-// All roots must fit at their worst-case pinned price before credentials,
-// accounting, artifact creation or the first dispatch can occur.
-fn validate_rows(rows: &[Row], count: usize, cap: u64) -> Result<(), Box<dyn std::error::Error>> {
+// Always validate every request offline. By default the whole schedule must
+// fit before credentials/accounting; budget-bounded mode delegates admission
+// to the unchanged per-call reservation and external ceiling checks.
+fn validate_rows(
+    rows: &[Row],
+    count: usize,
+    cap: u64,
+    budget_bounded: bool,
+) -> Result<(), Box<dyn std::error::Error>> {
     let mut ids = BTreeSet::new();
     if rows.len() != count
         || rows.iter().any(|r| {
@@ -62,29 +68,57 @@ fn validate_rows(rows: &[Row], count: usize, cap: u64) -> Result<(), Box<dyn std
             .checked_add(openrouter::admission(&bytes, &row.model)?.reservation)
             .ok_or("smoke_reservation_overflow")?;
     }
-    if total > cap {
+    if !budget_bounded && total > cap {
         return Err("smoke_reservations_exceed_cap".into());
     }
     Ok(())
 }
-// Preserve the existing stop-on-first-failure policy and account for every root.
+const CALL_LIMIT: Duration = Duration::from_secs(300);
+fn campaign_duration(stage2: bool) -> Duration {
+    Duration::from_secs(if stage2 { 21600 } else { 300 })
+}
+// The clock is injectable for fixture pacing. Production uses Instant::now.
+// Preserve stop-on-first-failure and retain the entire scheduled denominator.
 fn root_outcomes(
     rows: &[Row],
-    mut call: impl FnMut(usize) -> assist::Result<()>,
+    campaign_deadline: Instant,
+    budget_bounded: bool,
+    mut now: impl FnMut() -> Instant,
+    mut call: impl FnMut(usize, Instant) -> assist::Result<()>,
 ) -> (Vec<Value>, bool) {
     let mut failed = false;
+    let mut stop = None;
     let outcomes = rows
         .iter()
         .enumerate()
         .map(|(index, row)| {
-            let code = if failed {
-                "skipped_after_failure"
+            let code = if let Some(code) = stop {
+                code
             } else {
-                match call(index) {
-                    Ok(()) => "completed",
-                    Err(error) => {
-                        failed = true;
-                        error.code()
+                let started = now();
+                if started >= campaign_deadline {
+                    stop = Some("not_run_deadline");
+                    "not_run_deadline"
+                } else {
+                    // Refresh for each root, including after simulated/real pacing.
+                    let deadline = campaign_deadline.min(started + CALL_LIMIT);
+                    match call(index, deadline) {
+                        Ok(()) => "completed",
+                        Err(assist::Error::Policy("money budget exhausted")) if budget_bounded => {
+                            stop = Some("not_run_budget");
+                            "not_run_budget"
+                        }
+                        Err(error) => {
+                            failed = true;
+                            // Keep the failing root's diagnostic/charge, while
+                            // recording campaign expiry for the undispatched tail.
+                            stop = Some(if now() >= campaign_deadline {
+                                "not_run_deadline"
+                            } else {
+                                "skipped_after_failure"
+                            });
+                            error.code()
+                        }
                     }
                 }
             };
@@ -220,6 +254,7 @@ fn run_with(args: impl IntoIterator<Item = String>) -> Result<(), Box<dyn std::e
     let mut options = BTreeMap::new();
     let mut above_25 = false;
     let mut stage2 = false;
+    let mut budget_bounded = false;
     let mut validate_only = false;
     while let Some(arg) = args.next() {
         if arg == "--stage2" {
@@ -228,6 +263,10 @@ fn run_with(args: impl IntoIterator<Item = String>) -> Result<(), Box<dyn std::e
         }
         if arg == "--validate-only" {
             validate_only = true;
+            continue;
+        }
+        if arg == "--budget-bounded" {
+            budget_bounded = true;
             continue;
         }
         if arg == "--allow-spend-above-25-usd" {
@@ -250,7 +289,7 @@ fn run_with(args: impl IntoIterator<Item = String>) -> Result<(), Box<dyn std::e
         options.insert(arg, args.next().ok_or("missing argument value")?);
     }
     if let Some(out) = options.get("--reconcile-only") {
-        if options.len() != 1 || above_25 || stage2 || validate_only {
+        if options.len() != 1 || above_25 || stage2 || validate_only || budget_bounded {
             return Err("reconcile-only accepts only an existing output directory".into());
         }
         return reconcile_only(
@@ -266,11 +305,16 @@ fn run_with(args: impl IntoIterator<Item = String>) -> Result<(), Box<dyn std::e
         return Err("stage2 cap exceeds 5 USD".into());
     }
     if count == 0 || count > if stage2 { 1000 } else { 10 } {
-        return Err("smoke requires 1 through 10 roots".into());
+        return Err(if stage2 {
+            "stage2 requires 1 through 1000 roots"
+        } else {
+            "smoke requires 1 through 10 roots"
+        }
+        .into());
     }
     let path = PathBuf::from(required("--requests")?);
     let rows: Vec<Row> = assist::decode(&assist::read_bytes(&path, 32 * 1024 * 1024)?)?;
-    validate_rows(&rows, count, cap)?;
+    validate_rows(&rows, count, cap, budget_bounded)?;
     if validate_only {
         let reservations: Vec<_> = rows
             .iter()
@@ -339,41 +383,48 @@ fn run_with(args: impl IntoIterator<Item = String>) -> Result<(), Box<dyn std::e
         keys: &keys,
         http: &network,
     };
-    let executor = Executor {
-        transport: &transport,
-        ledger: &ledger,
-        money_scopes: vec![MoneyScope {
-            id: "smoke".into(),
-            cap_nano_usd: cap,
-        }],
-        sources: vec![source],
-        deadline: Instant::now() + Duration::from_secs(if stage2 { 21600 } else { 300 }),
-    };
-    let (mut outcomes, mut failed) = root_outcomes(&rows, |index| {
-        let (key, payload) = &prepared[index];
-        match executor.call(key, payload) {
-            Ok(completed) => {
-                // Response has passed dispatch-secret reflection checks. No model qualification implied.
-                std::fs::write(
-                    out.join(format!("response-{index}.json")),
-                    &completed.response,
-                )
-                .map_err(|_| assist::Error::Storage)?;
-                std::fs::write(
-                    out.join(format!("receipt-{index}.json")),
-                    serde_json::to_vec(&completed.provenance)
-                        .map_err(|_| assist::Error::Storage)?,
-                )
-                .map_err(|_| assist::Error::Storage)?;
-                if stage2 {
-                    let answer = stage2_answer(&rows[index], &completed.response)?;
-                    assist::write(&out.join(format!("answer-{index}.json")), &answer)?;
+    let campaign_deadline = Instant::now() + campaign_duration(stage2);
+    let (mut outcomes, mut failed) = root_outcomes(
+        &rows,
+        campaign_deadline,
+        budget_bounded,
+        Instant::now,
+        |index, deadline| {
+            let executor = Executor {
+                transport: &transport,
+                ledger: &ledger,
+                money_scopes: vec![MoneyScope {
+                    id: "smoke".into(),
+                    cap_nano_usd: cap,
+                }],
+                sources: vec![source.clone()],
+                deadline,
+            };
+            let (key, payload) = &prepared[index];
+            match executor.call(key, payload) {
+                Ok(completed) => {
+                    // Response has passed dispatch-secret reflection checks. No model qualification implied.
+                    std::fs::write(
+                        out.join(format!("response-{index}.json")),
+                        &completed.response,
+                    )
+                    .map_err(|_| assist::Error::Storage)?;
+                    std::fs::write(
+                        out.join(format!("receipt-{index}.json")),
+                        serde_json::to_vec(&completed.provenance)
+                            .map_err(|_| assist::Error::Storage)?,
+                    )
+                    .map_err(|_| assist::Error::Storage)?;
+                    if stage2 {
+                        let answer = stage2_answer(&rows[index], &completed.response)?;
+                        assist::write(&out.join(format!("answer-{index}.json")), &answer)?;
+                    }
+                    Ok(())
                 }
-                Ok(())
+                Err(error) => Err(error),
             }
-            Err(error) => Err(error),
-        }
-    });
+        },
+    );
     // Generation publication is delayed: dispatch ends pending with no lookup.
     // OpenRouter has one money reservation per call, no auxiliary token counts
     // or retries. A fresh output ledger and stop-on-error keep this root order.
@@ -395,7 +446,7 @@ fn run_with(args: impl IntoIterator<Item = String>) -> Result<(), Box<dyn std::e
             }
         }
     }
-    let mut smoke = json!({"roots":count,"root_outcomes":outcomes,"receipt_code":receipt_code,"allowance_nano_usd":cap,"dispatch_failed":failed,"qualified":false});
+    let mut smoke = json!({"roots":count,"root_outcomes":outcomes,"receipt_code":receipt_code,"allowance_nano_usd":cap,"budget_bounded":budget_bounded,"campaign_seconds":campaign_duration(stage2).as_secs(),"dispatch_failed":failed,"qualified":false});
     export_reconciliation(&out, &ledger, &mut smoke)?;
     if failed {
         return Err("OpenRouter smoke failed; inspect sanitized campaign receipts".into());
@@ -512,14 +563,20 @@ mod tests {
             let expected = error.code();
             let mut error = Some(error);
             let mut calls = 0;
-            let (outcomes, failed) = root_outcomes(&rows, |index| {
-                calls += 1;
-                if index == 0 {
-                    Ok(())
-                } else {
-                    Err(error.take().unwrap())
-                }
-            });
+            let (outcomes, failed) = root_outcomes(
+                &rows,
+                Instant::now() + campaign_duration(false),
+                false,
+                Instant::now,
+                |index, _| {
+                    calls += 1;
+                    if index == 0 {
+                        Ok(())
+                    } else {
+                        Err(error.take().unwrap())
+                    }
+                },
+            );
             assert!(failed);
             assert_eq!(calls, 2);
             let encoded = serde_json::to_vec(&json!({"root_outcomes":outcomes})).unwrap();
@@ -529,7 +586,13 @@ mod tests {
             assert_eq!(smoke["root_outcomes"][2]["code"], "skipped_after_failure");
             assert_eq!(smoke["root_outcomes"][1]["root"], "fixture-1");
         }
-        let (outcomes, failed) = root_outcomes(&rows, |_| Ok(()));
+        let (outcomes, failed) = root_outcomes(
+            &rows,
+            Instant::now() + campaign_duration(false),
+            false,
+            Instant::now,
+            |_, _| Ok(()),
+        );
         assert!(!failed);
         assert!(outcomes.iter().all(|o| o["code"] == "completed"));
     }
@@ -585,15 +648,15 @@ mod tests {
         let cost = openrouter::admission(&serde_json::to_vec(&rows[0].payload).unwrap(), model)
             .unwrap()
             .reservation;
-        assert!(validate_rows(&rows, 1, cost).is_ok());
-        assert!(validate_rows(&rows, 1, cost - 1).is_err());
+        assert!(validate_rows(&rows, 1, cost, false).is_ok());
+        assert!(validate_rows(&rows, 1, cost - 1, false).is_err());
         rows[0].model = "unpriced/model".into();
         rows[0].payload["model"] = json!("unpriced/model");
-        assert!(validate_rows(&rows, 1, u64::MAX).is_err());
+        assert!(validate_rows(&rows, 1, u64::MAX, false).is_err());
         rows[0].model = model.into();
         rows[0].payload["model"] = json!(model);
         rows[0].payload["messages"][1]["content"][0]["text"] = json!("x".repeat(16000));
-        assert!(validate_rows(&rows, 1, u64::MAX).is_err());
+        assert!(validate_rows(&rows, 1, u64::MAX, false).is_err());
     }
     #[test]
     fn stage2_mechanics_refuse_unbound_citations_and_geometry() {
@@ -645,11 +708,207 @@ mod tests {
             "5".into(),
         ];
         run_with(args.clone()).unwrap();
+        let mut bounded = args.clone();
+        *bounded.last_mut().unwrap() = "0.001".into();
+        assert!(run_with(bounded.clone()).is_err());
+        bounded.push("--budget-bounded".into());
+        run_with(bounded).unwrap();
         let mut over = args.clone();
         *over.last_mut().unwrap() = "5.000000001".into();
+        assert!(run_with(over.clone()).is_err());
+        over.push("--budget-bounded".into());
         assert!(run_with(over).is_err());
         assert!(run_with(args.into_iter().filter(|a| a != "--stage2")).is_err());
         assert!(!temp.path().join("ledger").exists());
+    }
+    #[test]
+    fn g12_stage2_per_root_deadlines_survive_pacing_and_stop_campaign() {
+        use std::cell::Cell;
+        let started = Instant::now();
+        let clock = Cell::new(started);
+        let campaign_deadline = started + campaign_duration(true);
+        let rows: Vec<_> = (0..300)
+            .map(|i| Row {
+                root: format!("paced-{i}"),
+                model: "fixture/model".into(),
+                revision: "fixture".into(),
+                payload: Value::Null,
+            })
+            .collect();
+        let mut calls = 0;
+        let (outcomes, failed) = root_outcomes(
+            &rows,
+            campaign_deadline,
+            false,
+            || clock.get(),
+            |_, deadline| {
+                // Fixture executor enforces the unchanged 300s admission guard.
+                // Passing the old six-hour deadline here fails on the first root.
+                let remaining = deadline.saturating_duration_since(clock.get());
+                if remaining.is_zero() || remaining > CALL_LIMIT {
+                    return Err(assist::Error::Policy("deadline limit"));
+                }
+                assert!(deadline <= campaign_deadline);
+                calls += 1;
+                // Simulated transport/pacing, with no sockets or real sleeps.
+                clock.set(clock.get() + Duration::from_secs(90));
+                Ok(())
+            },
+        );
+        assert!(!failed);
+        assert_eq!(calls, 240);
+        assert!(clock.get().duration_since(started) > CALL_LIMIT);
+        assert_eq!(clock.get(), campaign_deadline);
+        assert_eq!(outcomes.len(), rows.len());
+        assert!(outcomes[..calls].iter().all(|o| o["code"] == "completed"));
+        assert!(
+            outcomes[calls..]
+                .iter()
+                .all(|o| o["code"] == "not_run_deadline")
+        );
+        // An already expired campaign never reaches the fixture executor.
+        let (outcomes, failed) = root_outcomes(
+            &rows,
+            started,
+            false,
+            || started,
+            |_, _| panic!("expired campaign dispatched"),
+        );
+        assert!(!failed);
+        assert!(outcomes.iter().all(|o| o["code"] == "not_run_deadline"));
+        // If a call fails as the campaign expires, its failure stays visible
+        // and the remaining schedule is unavailable due to the deadline.
+        clock.set(started);
+        let (outcomes, failed) = root_outcomes(
+            &rows,
+            campaign_deadline,
+            false,
+            || clock.get(),
+            |_, _| {
+                clock.set(campaign_deadline);
+                Err(assist::Error::Provider)
+            },
+        );
+        assert!(failed);
+        assert_eq!(outcomes[0]["code"], "assist_provider_execution_incomplete");
+        assert!(
+            outcomes[1..]
+                .iter()
+                .all(|o| o["code"] == "not_run_deadline")
+        );
+    }
+    #[test]
+    fn g12_budget_bounded_schedule_reserves_until_next_shortfall_and_retains_tail() {
+        use saccade_core::budget_ledger::MoneyReceipt;
+        let temp = tempfile::tempdir().unwrap();
+        let model = "google/gemini-3.8-flash";
+        let source = json!({"systemInstruction":{"parts":[{"text":"fixture"}]},"contents":[{"parts":[{"text":"fixture"}]}]});
+        let payload: Value = assist::decode(
+            &openrouter::request(&serde_json::to_vec(&source).unwrap(), model).unwrap(),
+        )
+        .unwrap();
+        let rows: Vec<_> = (0..10)
+            .map(|i| Row {
+                root: format!("budget-{i}"),
+                model: model.into(),
+                revision: "absent".into(),
+                payload: payload.clone(),
+            })
+            .collect();
+        let reservation = openrouter::admission(&serde_json::to_vec(&payload).unwrap(), model)
+            .unwrap()
+            .reservation;
+        // Half a reservation settles after each call; actual usage, not the
+        // full schedule or a guessed average, determines subsequent admission.
+        let actual = reservation / 2;
+        let cap = reservation + 2 * actual;
+        assert!(validate_rows(&rows, rows.len(), cap, false).is_err());
+        validate_rows(&rows, rows.len(), cap, true).unwrap();
+        assert!(validate_rows(&rows, rows.len() - 1, cap, true).is_err());
+        let ledger = Ledger::new(&temp.path().join("ledger"), true);
+        let scopes = [MoneyScope {
+            id: "smoke".into(),
+            cap_nano_usd: cap,
+        }];
+        let mut dispatches = 0;
+        let (outcomes, failed) = root_outcomes(
+            &rows,
+            Instant::now() + campaign_duration(true),
+            true,
+            Instant::now,
+            |index, _| {
+                let id = format!("budget-{index}");
+                ledger
+                    .reserve_money(
+                        &scopes,
+                        MoneyReceipt {
+                            id: id.clone(),
+                            request_hash: Digest::of_bytes(id.as_bytes()),
+                            scopes: vec!["smoke".into()],
+                            reserved_nano_usd: reservation,
+                            actual_nano_usd: None,
+                            outcome: "reserved".into(),
+                            usage: Value::Null,
+                        },
+                    )
+                    .map_err(|reason| {
+                        assert_eq!(reason, "money_budget_exhausted");
+                        assist::Error::Policy("money budget exhausted")
+                    })?;
+                dispatches += 1;
+                ledger
+                    .finish_money(&id, Some(actual), json!({"fixture":true}), true)
+                    .unwrap();
+                Ok(())
+            },
+        );
+        assert!(!failed);
+        assert_eq!(dispatches, 3);
+        assert_eq!(ledger.money_receipts().unwrap().len(), dispatches);
+        assert_eq!(outcomes.len(), rows.len());
+        assert!(
+            outcomes[..dispatches]
+                .iter()
+                .all(|o| o["code"] == "completed")
+        );
+        assert!(
+            outcomes[dispatches..]
+                .iter()
+                .all(|o| o["code"] == "not_run_budget")
+        );
+        // Security/accounting failures are never relabelled as clean budget stops.
+        for error in [
+            assist::Error::Policy("money reservation refused"),
+            assist::Error::Policy("openrouter_preflight_refused"),
+            assist::Error::Invalid("provider usage exceeded reservation"),
+        ] {
+            let code = error.code();
+            let mut error = Some(error);
+            let (outcomes, failed) = root_outcomes(
+                &rows,
+                Instant::now() + campaign_duration(true),
+                true,
+                Instant::now,
+                |_, _| Err(error.take().unwrap()),
+            );
+            assert!(failed);
+            assert_eq!(outcomes[0]["code"], code);
+            assert!(
+                outcomes[1..]
+                    .iter()
+                    .all(|o| o["code"] == "skipped_after_failure")
+            );
+        }
+        let (outcomes, failed) = root_outcomes(
+            &rows,
+            Instant::now() + campaign_duration(true),
+            false,
+            Instant::now,
+            |_, _| Err(assist::Error::Policy("money budget exhausted")),
+        );
+        assert!(failed);
+        assert_eq!(outcomes[0]["code"], "money budget exhausted");
+        assert_eq!(outcomes[1]["code"], "skipped_after_failure");
     }
     #[test]
     fn caps_above_25_require_separate_flag_without_raising_campaign_parent() {

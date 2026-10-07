@@ -785,6 +785,9 @@ fn fake_provider_reserves_before_dispatch_and_settles_or_retains_unknown_usage()
             let fake=Fake {ledger:&ledger,calls:Cell::new(0),status:200,count:100,body:serde_json::to_vec(&json!({"modelVersion":"r1","usageMetadata":usage})).unwrap()};
             let transport=Transport {user:&user,roots:&roots,authorization:&auth,ledger:&ledger,keys:&keys,http:&fake};
             let executor=execution::Executor {transport:&transport,ledger:&ledger,money_scopes:vec![MoneyScope{id:"cap".into(),cap_nano_usd:100_000_000}],sources:vec![crate::paths::portable(temp.path())],deadline:Instant::now()+Duration::from_secs(30)};
+            let far_deadline=execution::Executor{transport:executor.transport,ledger:executor.ledger,money_scopes:executor.money_scopes.clone(),sources:executor.sources.clone(),deadline:Instant::now()+Duration::from_secs(21600)};
+            assert_eq!(far_deadline.call_with_policy(&request.key,&request.payload,policy).err().unwrap().code(),"deadline limit");
+            assert_eq!(fake.calls.get(),0);
             let done=executor.call_with_policy(&request.key,&request.payload,policy);
             if index==3 {
                 assert!(done.is_err());

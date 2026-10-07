@@ -254,8 +254,10 @@ limits requires reviewed policy and renewed fixtures.
 Ceiling review fixes bind live dispatch to the single supplied model price pin
 (`openrouter-price-allowlist/2026-10-07-v1`, OpenRouter models API record dated
 2026-10-07), payload-derived text/PNG token ceilings, explicit completion bounds
-and provider route price caps. The smoke admits the entire schedule's worst-case
-reservations against its cap before the first call. Malformed non-null key limits
+and provider route price caps. By default the smoke admits the entire schedule's
+worst-case reservations against its cap before the first call. Explicit
+`--budget-bounded` mode admits each call through the same reservation and ceiling
+checks and retains unrun requests as unavailable. Malformed non-null key limits
 cannot fall back to valid credits. Settled spend remains deducted until both
 tracked provider usage counters reflect it. Fixtures cover stale usage plus an
 equal spend by another consumer, partial reflection and full reflection.
@@ -473,15 +475,30 @@ The single-image expectation uses the supplied ten-call aggregate; two-image
 expectation adds a mean 1,523 prompt tokens at the pinned prompt price. Completion
 usage is assumed unchanged; transfer to other workloads is not verified.
 Reservations are derived from complete payloads and the existing image table.
+The schedule shuffles cases and active arm/workload groups with seed 4406 and
+interleaves one request per active group per round. Adding `--budget-bounded` to
+the plan allows a larger schedule whose full reservation exceeds $5, while
+retaining the same $5 maximum campaign allowance and 1,000-request runner limit.
+The plan records whether the full reservation fits; it grants no dispatch authority.
 The 95% bounds use independent challenge roots. The existing 99% qualification
 threshold remains unchanged; this small pilot cannot qualify a model/workflow.
 
 `scripts/qualify-wave4.sh --openrouter-stage2 --requests FILE --roots COUNT
 --max-spend-usd 5 --user-policy FILE --out NEW_DIR` collects the bounded schedule
 through the same smoke Executor, ceiling checks, monetary ledger, stop-on-error
-and reconciliation path. It supports up to 1,000 requests with a six-hour deadline;
-stage 2 cannot raise the $5 cap. `--validate-only` checks the entire reservation
-schedule and prints integer per-request reservations before policy/key access.
+and reconciliation path. It supports up to 1,000 requests with a six-hour campaign
+deadline and a fresh executor deadline per root, bounded by both 300 seconds and
+the remaining campaign time. The executor's 300-second guard remains enforced.
+Campaign expiry stops new dispatch and records every remaining request as
+`not_run_deadline`. Stage 2 cannot raise the $5 cap. Without `--budget-bounded`,
+the full worst-case reservation must fit before policy/key access. With the flag,
+each executor call must pass the existing monetary reservation and external
+ceiling checks; a local allowance shortfall stops cleanly and records the current
+and remaining requests as `not_run_budget`. Storage, ceiling, accounting, usage
+breach and reconciliation failures retain fail-closed behavior. Partial collection
+does not imply qualification. `--validate-only` validates every request and prints
+integer per-request reservations before policy/key access, using the selected
+all-fits or budget-bounded admission mode.
 It validates the closed response protocol, geometry and citations and retains
 answers beside responses/receipts. Independent-root scoring and semantic
 order comparison remain separate; these artifacts cannot be passed off as the
@@ -492,4 +509,13 @@ The plan also records deterministic rules/unavailable/source-only outcomes in
 `local-results.json`. After dispatch, use `python3 scripts/assist/stage2.py
 --requests FILE --results-dir DIR --out NEW_FILE` for conservative normalized
 paired-order comparison. Missing answers and disagreement yield unverifiable;
-this report does not score semantic truth or grant qualification.
+the full scheduled root/arm denominator and unavailable request codes are reported,
+including budget/deadline stops. Explicit unrun outcomes cannot be overridden by
+stale answer files. This report does not score semantic truth or grant qualification.
+
+Focused fixtures: `g12_stage2_per_root_deadlines_survive_pacing_and_stop_campaign`,
+`g12_budget_bounded_schedule_reserves_until_next_shortfall_and_retains_tail`,
+`test_stage2_replan_interleaves_pilot_and_budget_bounded_larger_schedule`, and
+`test_budget_and_deadline_stops_remain_unavailable_in_full_denominator`. The fake
+provider executor fixture also verifies that a six-hour executor deadline is
+rejected before dispatch; the paced schedule uses a simulated clock, never sleeps.
