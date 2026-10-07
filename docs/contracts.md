@@ -33,6 +33,31 @@ missing clocks and cross-arm differences append named `qualification_reasons` an
 `comparability: rejected`. The performance-noise path applies the same checks
 across repeats.
 
+## Quality-report v1 feature compatibility
+
+`saccade-quality-report.v1` has one contract for every build that supports
+compression. Its generated schema is checked byte for byte against the same
+shipped file with minimal `compression,schema`, combined
+`compression,graphics,workbench,assist,schema,evaluation` (the effective core
+features of the failing combined core/CLI invocation), and all core features.
+`credentials` enables `serde_json/preserve_order` through C2PA; the generator
+already sorts objects, so this changes neither the contract nor its canonical
+schema bytes.
+
+The missing `report_id` and `source_refs` definitions were a stale shipped
+schema, not feature-gated report data. The v0.2.6 tagged source routes
+`quality-sweep` file and JSON output through the shared report decorator in
+every compression-enabled CLI build: default, media and full bundles all emit
+these links. Direct core `quality::sweep` serialization emits the unlinked
+shape. This is source evidence, not a fresh execution of release assets.
+The corrected schema makes both link fields optional and retains all existing
+fields and requirements. Historical unlinked reports remain valid, and core
+readers continue to accept decorated reports. No successor schema or report
+type change is needed; changing feature gates would not repair this stale file.
+The all-core schema check also exposed the identical missing optional link
+definitions in `saccade-geometry.v1`; that schema receives the same additive
+correction, with no geometry type or required-field changes.
+
 ## Result v2 fields for compare and identity
 
 The [result v2 schema](../crates/saccade-core/schemas/saccade-result.v2.schema.json) lists every

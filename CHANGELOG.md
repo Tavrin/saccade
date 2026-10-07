@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+- Correct the quality-report and geometry v1 schemas to include the existing
+  optional report links, preserving unlinked reports. Check generated schema bytes
+  in CI with minimal compression/schema, combined assist/evaluation and all core features.
+
 - Add a task map, exit-code table and threshold-unit notes to the quickstart, and
   five task guides under `docs/guides/` (visual CI, controlled rendering,
   document export, media intake, delivery tuning). `scripts/test-guides.py` runs
