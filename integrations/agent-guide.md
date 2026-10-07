@@ -54,7 +54,7 @@ Vision is advice, never overrides.
 [Rendering](../docs/render-evidence.md): read `required_effects[].failures`
 even at zero FLIP. Declare experiment keys; opt into spatial/layer/fixed-camera
 analysis. `experiment reference` compares noisy references; `review trial` records
-blind judgments. Share only public galleries. [Clocks](../docs/gpu-clock-mapping.md), warmup/noise;
+blind judgments. Share public galleries only. [Clocks](../docs/gpu-clock-mapping.md), warmup/noise;
 structure and preferences grant no timing authority.
 
 `analyze-media`: read section status/provenance; strict rejects failures.
@@ -64,13 +64,13 @@ uncalibrated confidence/failures, never rights proof. [Media](../docs/media.md),
 [Python](../docs/python.md), [API](../docs/api.md).
 Pinned SigLIP 2; updates keep the model; prune only complete archives.
 
-[OCR](../docs/text.md): `ocr` enables local PP-OCRv5; keep accents/source hashes;
-CTC confidence is uncalibrated. `ocr-provider`
-adds opt-in Mistral image/PDF text via bound fixtures or authorized,
-egress/spend-capped calls.
+[Critical text](../docs/critical-text.md): every region required; nonzero fails.
 
-Producers: `schema list|get|path`, `perf validate FILE --json`.
-Field evidence: `render-evidence`, `noise build REPEATS...`, `compare --export-maps --noise-from REPEATS... --require-scope`.
+[OCR](../docs/text.md): PP-OCRv5 (`ocr`); keep accents/source hashes; CTC confidence uncalibrated.
+`ocr-provider`: bound Mistral image/PDF fixtures or authorized egress/spend-capped calls.
+
+`schema list|get|path`, `perf validate FILE --json`.
+Evidence: `render-evidence`, `noise build REPEATS...`, `compare --export-maps --noise-from REPEATS... --require-scope`.
 [Arm policies](../docs/arm-validity.md): null is a value; `--ignore` waives missing
 fields; `--allow-unreached` requires exact observations; maps select `record_files`.
 

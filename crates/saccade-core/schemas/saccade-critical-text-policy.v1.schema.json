@@ -1,0 +1,118 @@
+{
+  "$defs": {
+    "Policy": {
+      "additionalProperties": false,
+      "description": "Frozen thresholds in physical capture pixels.",
+      "properties": {
+        "minimum_contrast": {
+          "description": "WCAG-style relative luminance ratio (not compliance certification).",
+          "format": "double",
+          "type": "number"
+        },
+        "minimum_sharpness": {
+          "description": "Minimum normalized adjacent-pixel edge step.",
+          "format": "double",
+          "type": "number"
+        },
+        "minimum_stroke_px": {
+          "description": "Minimum stroke run width in pixels.",
+          "format": "double",
+          "type": "number"
+        },
+        "minimum_x_height_px": {
+          "description": "Minimum component body-height proxy in sampled pixels.",
+          "format": "double",
+          "type": "number"
+        }
+      },
+      "required": [
+        "minimum_contrast",
+        "minimum_x_height_px",
+        "minimum_sharpness",
+        "minimum_stroke_px"
+      ],
+      "type": "object"
+    },
+    "Region": {
+      "additionalProperties": false,
+      "description": "One critical region at a frozen capture scale.",
+      "properties": {
+        "accepted_text": {
+          "description": "Exact accepted whole-region strings; explicit typography alternatives only.",
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "id": {
+          "description": "Unique caller-owned identifier.",
+          "type": "string"
+        },
+        "legibility": {
+          "$ref": "#/$defs/Policy",
+          "description": "Required pixel-legibility thresholds, applied to both captures."
+        },
+        "rect_px": {
+          "description": "x,y,width,height in physical capture pixels; captures must share dimensions.",
+          "items": {
+            "format": "uint32",
+            "minimum": 0,
+            "type": "integer"
+          },
+          "maxItems": 4,
+          "minItems": 4,
+          "type": "array"
+        }
+      },
+      "required": [
+        "id",
+        "rect_px",
+        "accepted_text",
+        "legibility"
+      ],
+      "type": "object"
+    }
+  },
+  "$id": "https://github.com/Tavrin/saccade/crates/saccade-core/schemas/saccade-critical-text-policy.v1.schema.json",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "description": "Reusable caller-owned policy; no domain-specific string normalization.",
+  "properties": {
+    "dimensions": {
+      "description": "Exact capture scale required for the declared rectangles.",
+      "items": {
+        "format": "uint32",
+        "minimum": 0,
+        "type": "integer"
+      },
+      "maxItems": 2,
+      "minItems": 2,
+      "type": "array"
+    },
+    "minimum_ocr_confidence": {
+      "description": "Minimum retained OCR confidence, uncalibrated; does not apply to source facts.",
+      "format": "double",
+      "type": "number"
+    },
+    "regions": {
+      "description": "1..64 critical regions, all required.",
+      "items": {
+        "$ref": "#/$defs/Region"
+      },
+      "type": "array"
+    },
+    "schema": {
+      "const": "saccade-critical-text-policy.v1",
+      "description": "Versioned policy discriminator.",
+      "type": "string"
+    }
+  },
+  "required": [
+    "schema",
+    "dimensions",
+    "minimum_ocr_confidence",
+    "regions"
+  ],
+  "title": "Policy",
+  "type": "object"
+}

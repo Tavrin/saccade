@@ -40,6 +40,10 @@ pub fn scope(refs: Vec<String>, index: Option<PathBuf>) -> Result<ContextGuard> 
 }
 /// Whether a schema describes a report rather than acquisition/policy/authority input.
 pub fn is_report_schema(id: &str) -> bool {
+    // New critical-text policies are inputs, not decorated measurement reports.
+    if id == crate::critical_text::POLICY_SCHEMA {
+        return false;
+    }
     ![
         "-source.",
         "-map.",

@@ -64,6 +64,7 @@ def main():
             work.mkdir()
             (work / "samples").symlink_to(tmp / "samples")
             (work / "examples").symlink_to(ROOT / "examples")
+            (work / "testdata").symlink_to(ROOT / "testdata")
             for attrs, body in blocks(guide.read_text()):
                 case = attrs["case"]
                 found.add(case)

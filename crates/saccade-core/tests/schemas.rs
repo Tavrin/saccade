@@ -72,6 +72,18 @@ fn committed_schemas_match_the_rust_types() {
             generated::<saccade_core::coverage::Report>("saccade-coverage.v1.schema.json"),
         ),
         (
+            "saccade-critical-text-policy.v1.schema.json",
+            generated::<saccade_core::critical_text::Policy>(
+                "saccade-critical-text-policy.v1.schema.json",
+            ),
+        ),
+        (
+            "saccade-critical-text.v1.schema.json",
+            generated::<saccade_core::critical_text::Report>(
+                "saccade-critical-text.v1.schema.json",
+            ),
+        ),
+        (
             "saccade-tofu.v1.schema.json",
             generated::<saccade_core::text_quality::TofuReport>("saccade-tofu.v1.schema.json"),
         ),

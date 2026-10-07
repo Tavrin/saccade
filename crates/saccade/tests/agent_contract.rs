@@ -106,6 +106,7 @@ fn help_lists_active_commands_and_watch_alias_stays_hidden() {
         "frame-map",
         "tofu",
         "text-legibility",
+        "critical-text",
         "timing",
         "render-evidence",
         "schema",
