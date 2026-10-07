@@ -25,7 +25,7 @@ characters). Unobserved glyph completeness and ambiguous squares must abstain;
 no clean tofu verdict is emitted. Pixel failures and abstentions remain
 separate. The cached OCR check prints an explicit `SKIP` reason when optional
 OCR is unavailable; it never converts missing OCR into agreement or downloads
-models. Imported OCR tests cover exact regional agreement/disagreement and
+models. Imported OCR tests cover exact regional disagreement and
 stale image identities independently of model availability.
 
 This finite generated proof does not qualify arbitrary scripts/fonts, natural
