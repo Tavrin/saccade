@@ -5,17 +5,12 @@ Generated from compiled capabilities and `--help`; do not edit by hand.
 Generation: `cargo build --release -p saccade --all-features`, then `python3 scripts/gen-docs.py --saccade target/release/saccade`.
 The all-features binary includes every supported operation.
 
-Compiled features: `ai`, `assist`, `compression`, `credentials`, `dense-motion`, `documents`, `embeddings`, `evaluation`, `geo`, `geometry`, `graphics`, `imgtune-avif`, `local-models`, `local-vlm`, `mcp`, `media-http`, `ocr`, `ocr-provider`, `parallel`, `prechecks`, `print`, `products`, `schema`, `semantic-regions`, `text-quality`, `vision-providers`, `workbench`.
+Compiled features: `ai`, `assist`, `compression`, `credentials`, `dense-motion`, `documents`, `embeddings`, `evaluation`, `geo`, `geometry`, `graphics`, `imgtune-avif`, `local-models`, `local-vlm`, `mcp`, `media-http`, `ocr`, `ocr-provider`, `optical-code`, `parallel`, `prechecks`, `print`, `products`, `schema`, `semantic-regions`, `text-quality`, `vision-providers`, `workbench`.
 
 Exit 1 means a failed image measurement/evaluation gate or located divergence.
 Exit 0 for compare/identity means no image regression; inspect `performance` for qualification.
 Inspection, review, rank and ablation completion grant no acceptance authority.
 Exit 2 means the operation cannot run. Demo intentionally exits 1.
-
-Actual generation binary (reference header above describes all features):
-
-Generation: `python3 scripts/gen-docs.py --allow-missing-imgtune-avif --preserve-all-features-header`.
-Compiled features: `ai`, `assist`, `compression`, `credentials`, `dense-motion`, `documents`, `embeddings`, `evaluation`, `geo`, `geometry`, `graphics`, `local-models`, `local-vlm`, `mcp`, `media-http`, `ocr`, `ocr-provider`, `parallel`, `prechecks`, `print`, `products`, `schema`, `semantic-regions`, `text-quality`, `vision-providers`, `workbench`.
 
 ## saccade
 
@@ -30,6 +25,7 @@ Commands:
   review              Preview a review plan or handle a local closed decision request
   batch               Bounded folder or manifest intake with resumable rows and review summaries
   assist              Experimental advisory AI with an egress preview before dispatch
+  replay              Record or re-execute an offline, content-bound evidence pack
   manifest            Find, link and re-check the outputs of a report directory
   export-regions      Crop the worst regions of a report, with coordinates
   print               ICC-managed CMYK raster comparison (first-party print extension)
@@ -584,6 +580,96 @@ Options:
           Maximum provider calls, 1-128 (default 8); the run stops when reached [default: 8]
       --deadline-secs <DEADLINE_SECS>
           Wall-clock limit in seconds, 1-300 (default 300) [default: 300]
+  -h, --help
+          Print help
+
+Global options:
+      --allow-out-near-captures  Silence warnings when --out is next to capture metadata
+      --record-absolute-paths    Opt in to absolute local paths in reports and machine-readable output
+```
+
+## saccade replay
+
+```text
+Record or re-execute an offline, content-bound evidence pack
+
+Usage: saccade replay [OPTIONS] <COMMAND>
+
+Commands:
+  pack    Record a local compare/text recipe, exact inputs, models, binary and report
+  verify  Verify every identity, re-execute offline and compare the complete report identity
+
+Options:
+      --require-signed-approval
+          Require externally signed approvals and verify baseline approval consumers
+      --approval-allowed-signers <APPROVAL_ALLOWED_SIGNERS>
+          External OpenSSH allowed-signers file (cannot override a required policy)
+      --source-ref <SOURCE_REF>
+          External capture URI/key (repeatable); recorded in generated reports
+      --report-index <REPORT_INDEX>
+          Shared report index destination (default reports/index.jsonl next to each report, inside --out)
+  -h, --help
+          Print help
+
+Global options:
+      --allow-out-near-captures  Silence warnings when --out is next to capture metadata
+      --record-absolute-paths    Opt in to absolute local paths in reports and machine-readable output
+```
+
+## saccade replay pack
+
+```text
+Record a local compare/text recipe, exact inputs, models, binary and report
+
+Usage: saccade replay pack [OPTIONS] --out <OUT> <RECIPE>
+
+Arguments:
+  <RECIPE>  saccade-replay-recipe.v1 JSON; paths resolve against its parent
+
+Options:
+      --out <OUT>
+          New destination, outside every input (must not exist)
+      --require-signed-approval
+          Require externally signed approvals and verify baseline approval consumers
+      --approval-allowed-signers <APPROVAL_ALLOWED_SIGNERS>
+          External OpenSSH allowed-signers file (cannot override a required policy)
+      --report <REPORT>
+          Require a fresh execution to match an existing report before packing it
+      --json
+
+      --source-ref <SOURCE_REF>
+          External capture URI/key (repeatable); recorded in generated reports
+      --report-index <REPORT_INDEX>
+          Shared report index destination (default reports/index.jsonl next to each report, inside --out)
+  -h, --help
+          Print help
+
+Global options:
+      --allow-out-near-captures  Silence warnings when --out is next to capture metadata
+      --record-absolute-paths    Opt in to absolute local paths in reports and machine-readable output
+```
+
+## saccade replay verify
+
+```text
+Verify every identity, re-execute offline and compare the complete report identity
+
+Usage: saccade replay verify [OPTIONS] <PACK>
+
+Arguments:
+  <PACK>  Pack directory containing pack.json and pack.sha256
+
+Options:
+      --json
+
+      --require-signed-approval
+          Require externally signed approvals and verify baseline approval consumers
+      --approval-allowed-signers <APPROVAL_ALLOWED_SIGNERS>
+          External OpenSSH allowed-signers file (cannot override a required policy)
+      --source-ref <SOURCE_REF>
+          External capture URI/key (repeatable); recorded in generated reports
+      --report-index <REPORT_INDEX>
+          Shared report index destination (default reports/index.jsonl next to each report, inside --out)
   -h, --help
           Print help
 
@@ -1627,9 +1713,16 @@ Commands:
   conform  Check a versioned receipt, all planned slots and exact image hashes
 
 Options:
-      --source-ref <SOURCE_REF>      External capture URI/key (repeatable); recorded in generated reports
-      --report-index <REPORT_INDEX>  Shared report index destination (default reports/index.jsonl next to each report, inside --out)
-  -h, --help                         Print help
+      --require-signed-approval
+          Require externally signed approvals and verify baseline approval consumers
+      --approval-allowed-signers <APPROVAL_ALLOWED_SIGNERS>
+          External OpenSSH allowed-signers file (cannot override a required policy)
+      --source-ref <SOURCE_REF>
+          External capture URI/key (repeatable); recorded in generated reports
+      --report-index <REPORT_INDEX>
+          Shared report index destination (default reports/index.jsonl next to each report, inside --out)
+  -h, --help
+          Print help
 
 Global options:
       --allow-out-near-captures  Silence warnings when --out is next to capture metadata
@@ -1647,10 +1740,18 @@ Arguments:
   <RECORD>
 
 Options:
-      --json                         Emit the versioned conformance result, including stable failure codes
-      --source-ref <SOURCE_REF>      External capture URI/key (repeatable); recorded in generated reports
-      --report-index <REPORT_INDEX>  Shared report index destination (default reports/index.jsonl next to each report, inside --out)
-  -h, --help                         Print help
+      --json
+          Emit the versioned conformance result, including stable failure codes
+      --require-signed-approval
+          Require externally signed approvals and verify baseline approval consumers
+      --approval-allowed-signers <APPROVAL_ALLOWED_SIGNERS>
+          External OpenSSH allowed-signers file (cannot override a required policy)
+      --source-ref <SOURCE_REF>
+          External capture URI/key (repeatable); recorded in generated reports
+      --report-index <REPORT_INDEX>
+          Shared report index destination (default reports/index.jsonl next to each report, inside --out)
+  -h, --help
+          Print help
 
 Global options:
       --allow-out-near-captures  Silence warnings when --out is next to capture metadata
@@ -2248,18 +2349,22 @@ Arguments:
   <IMAGE>  Final 8-bit SDR image, or PDF/SVG with explicit --page and --dpi
 
 Options:
-      --source-ref <SOURCE_REF>
-          External capture URI/key (repeatable); recorded in generated reports
+      --require-signed-approval
+          Require externally signed approvals and verify baseline approval consumers
       --symbology <SYMBOLOGY>
           Select one symbology; use a region when multiple codes are present [default: qr] [possible values: qr, code128, code39, ean13, ean8, upca, upce, itf, data-matrix, aztec, pdf417]
+      --approval-allowed-signers <APPROVAL_ALLOWED_SIGNERS>
+          External OpenSSH allowed-signers file (cannot override a required policy)
       --expect <EXPECT>
           Exact decoded Unicode payload (no normalization)
-      --report-index <REPORT_INDEX>
-          Shared report index destination (default reports/index.jsonl next to each report, inside --out)
       --expect-pattern <EXPECT_PATTERN>
           Rust regex matched against the entire decoded payload (max 4096 bytes)
+      --source-ref <SOURCE_REF>
+          External capture URI/key (repeatable); recorded in generated reports
       --region <REGION>
           Capture-pixel rectangle x,y,width,height
+      --report-index <REPORT_INDEX>
+          Shared report index destination (default reports/index.jsonl next to each report, inside --out)
       --page <PAGE>
           One-based document page; must be explicit for documents
       --dpi <DPI>
@@ -4178,26 +4283,22 @@ Arguments:
 Options:
       --page-map <PAGE_MAP>
           Complete saccade-page-map.v1 correspondence for document exports
-      --source-ref <SOURCE_REF>
-          External capture URI/key (repeatable); recorded in generated reports
-      --dpi <DPI>
-          Declared document raster density, 36..600 DPI (default 96)
-      --report-index <REPORT_INDEX>
-          Shared report index destination (default reports/index.jsonl next to each report, inside --out)
       --require-signed-approval
           Require externally signed approvals and verify baseline approval consumers
       --approval-allowed-signers <APPROVAL_ALLOWED_SIGNERS>
           External OpenSSH allowed-signers file (cannot override a required policy)
+      --dpi <DPI>
+          Declared document raster density, 36..600 DPI (default 96)
       --question <QUESTION>
           Explicit comparison question; no automatic model fallback [possible values: same-render, same-content, same-text, near-duplicate, quality]
-      --model <MODEL>
-          Supplied embedding export contract for same-content
       --source-ref <SOURCE_REF>
           External capture URI/key (repeatable); recorded in generated reports
-      --cache <CACHE>
-          Content-addressed model cache for same-content
+      --model <MODEL>
+          Supplied embedding export contract for same-content
       --report-index <REPORT_INDEX>
           Shared report index destination (default reports/index.jsonl next to each report, inside --out)
+      --cache <CACHE>
+          Content-addressed model cache for same-content
       --library <LIBRARY>
           Explicit ONNX Runtime library for same-content
       --reference-source <REFERENCE_SOURCE>
@@ -5247,11 +5348,20 @@ Commands:
   collect  Collect offline ballots; output must be outside the prepared bundle
 
 Options:
-      --source-ref <SOURCE_REF>      External capture URI/key (repeatable); recorded in generated reports
-      --report-index <REPORT_INDEX>  Shared report index destination (default reports/index.jsonl next to each report, inside --out)
+      --require-signed-approval
+          Require externally signed approvals and verify baseline approval consumers
+      --approval-allowed-signers <APPROVAL_ALLOWED_SIGNERS>
+          External OpenSSH allowed-signers file (cannot override a required policy)
+      --source-ref <SOURCE_REF>
+          External capture URI/key (repeatable); recorded in generated reports
+      --report-index <REPORT_INDEX>
+          Shared report index destination (default reports/index.jsonl next to each report, inside --out)
       --user-config <USER_CONFIG>
+
       --json
-  -h, --help                         Print help
+
+  -h, --help
+          Print help
 
 Global options:
       --allow-out-near-captures  Silence warnings when --out is next to capture metadata
@@ -5269,12 +5379,22 @@ Arguments:
   <PLAN>
 
 Options:
-      --out <OUT>                    A new directory whose parent exists
-      --source-ref <SOURCE_REF>      External capture URI/key (repeatable); recorded in generated reports
-      --report-index <REPORT_INDEX>  Shared report index destination (default reports/index.jsonl next to each report, inside --out)
+      --out <OUT>
+          A new directory whose parent exists
+      --require-signed-approval
+          Require externally signed approvals and verify baseline approval consumers
+      --approval-allowed-signers <APPROVAL_ALLOWED_SIGNERS>
+          External OpenSSH allowed-signers file (cannot override a required policy)
+      --source-ref <SOURCE_REF>
+          External capture URI/key (repeatable); recorded in generated reports
+      --report-index <REPORT_INDEX>
+          Shared report index destination (default reports/index.jsonl next to each report, inside --out)
       --user-config <USER_CONFIG>
+
       --json
-  -h, --help                         Print help
+
+  -h, --help
+          Print help
 
 Global options:
       --allow-out-near-captures  Silence warnings when --out is next to capture metadata
@@ -5292,13 +5412,24 @@ Arguments:
   <TRIAL>
 
 Options:
-      --ballot <BALLOTS>             Returned ballot file; repeat for each rater. Omitted raters stay missing
-      --source-ref <SOURCE_REF>      External capture URI/key (repeatable); recorded in generated reports
-      --out <OUT>                    New operator-only board directory; never distribute before voting closes
-      --report-index <REPORT_INDEX>  Shared report index destination (default reports/index.jsonl next to each report, inside --out)
+      --ballot <BALLOTS>
+          Returned ballot file; repeat for each rater. Omitted raters stay missing
+      --require-signed-approval
+          Require externally signed approvals and verify baseline approval consumers
+      --approval-allowed-signers <APPROVAL_ALLOWED_SIGNERS>
+          External OpenSSH allowed-signers file (cannot override a required policy)
+      --out <OUT>
+          New operator-only board directory; never distribute before voting closes
+      --source-ref <SOURCE_REF>
+          External capture URI/key (repeatable); recorded in generated reports
+      --report-index <REPORT_INDEX>
+          Shared report index destination (default reports/index.jsonl next to each report, inside --out)
       --user-config <USER_CONFIG>
+
       --json
-  -h, --help                         Print help
+
+  -h, --help
+          Print help
 
 Global options:
       --allow-out-near-captures  Silence warnings when --out is next to capture metadata
