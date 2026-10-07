@@ -51,6 +51,28 @@ pub(super) struct MoneyState {
     ceiling_events: Vec<UsageValue>,
 }
 #[cfg(feature = "assist")]
+fn missing_generation(receipt: &MoneyReceipt) -> bool {
+    receipt.actual_nano_usd.is_none()
+        && receipt.outcome == "incomplete"
+        && receipt.usage["generation_id"].is_null()
+        && receipt.usage["reconciliation"]["state"] == "mismatch"
+        && receipt.usage["reconciliation"]["reason"] == "openrouter_generation_missing"
+        && receipt.usage["reconciliation"]["generation"].is_null()
+}
+#[cfg(feature = "assist")]
+fn recoverable_missing_generation(state: &MoneyState) -> bool {
+    state.receipts.iter().any(missing_generation)
+        && state.ceiling_events.iter().all(|e| e["refusal"].is_null())
+        && state.receipts.iter().all(|r| {
+            r.outcome != "cost_limit_exceeded"
+                && r.usage["bound_breach"] != true
+                && r.usage["identity_error"].is_null()
+                && (r.usage["reconciliation"]["state"] != "mismatch"
+                    || r.outcome == "settled_conservatively"
+                    || missing_generation(r))
+        })
+}
+#[cfg(feature = "assist")]
 impl Ledger {
     fn campaign(&self) -> Self {
         Self {
@@ -61,9 +83,43 @@ impl Ledger {
     /// Freeze the complete runner identity under the monetary lock. Legacy ledgers
     /// without this binding cannot be resumed or silently assigned a new policy.
     pub fn bind_campaign(&self, identity: UsageValue, resume: bool) -> Result<(), String> {
+        self.bind_campaign_with_settlement(identity, resume, false)
+    }
+    /// Permit binding validation for an explicitly requested missing-generation settlement.
+    /// Spending remains stopped until the atomic settlement succeeds.
+    pub fn bind_campaign_with_settlement(
+        &self,
+        identity: UsageValue,
+        resume: bool,
+        settle: bool,
+    ) -> Result<(), String> {
         self.campaign().transaction(|state| {
-            if state.money.stopped {
-                return Err("campaign_spending_stopped".into());
+            if state.money.stopped
+                && !(resume && settle && recoverable_missing_generation(&state.money))
+            {
+                let reason = state
+                    .money
+                    .receipts
+                    .iter()
+                    .find_map(|r| {
+                        if r.usage["reconciliation"]["state"] != "mismatch" {
+                            return None;
+                        }
+                        Some(match r.usage["reconciliation"]["reason"].as_str() {
+                            Some("openrouter_generation_missing") => {
+                                "openrouter_generation_missing"
+                            }
+                            Some("openrouter_generation_cost_mismatch") => {
+                                "openrouter_generation_cost_mismatch"
+                            }
+                            Some("provider revision drift quarantined") => {
+                                "openrouter_generation_identity_mismatch"
+                            }
+                            _ => "openrouter_reconciliation_mismatch",
+                        })
+                    })
+                    .unwrap_or("campaign_spending_stopped");
+                return Err(reason.into());
             }
             match &state.money.campaign_identity {
                 Some(old) if resume && *old == identity => Ok(()),
@@ -93,6 +149,9 @@ impl Ledger {
     pub fn stop_spending(&self) -> Result<(), String> {
         self.campaign().transaction(|state| {
             state.money.stopped = true;
+            state.money.ceiling_events.push(
+                serde_json::json!({"phase":"operator_stop","refusal":"campaign_spending_stopped"}),
+            );
             Ok(())
         })
     }
@@ -262,10 +321,16 @@ impl Ledger {
     /// The campaign runner must validate its frozen root bindings before calling.
     pub fn settle_unknown_at_reservation(&self) -> Result<(), String> {
         self.campaign().transaction(|state| {
-            if state.money.stopped {
+            if state.money.stopped && !recoverable_missing_generation(&state.money) {
                 return Err("campaign_spending_stopped".into());
             }
             for receipt in &state.money.receipts {
+                if receipt.usage["reconciliation"]["state"] == "mismatch"
+                    && receipt.outcome != "settled_conservatively"
+                    && !missing_generation(receipt)
+                {
+                    return Err("openrouter_reconciliation_mismatch".into());
+                }
                 if receipt.actual_nano_usd.is_none()
                     && (!matches!(receipt.outcome.as_str(), "reserved" | "incomplete")
                         || receipt.reserved_nano_usd == 0
@@ -290,6 +355,7 @@ impl Ledger {
                 receipt.outcome = "settled_conservatively".into();
                 receipt.usage["qualification_eligible"] = serde_json::json!(false);
             }
+            state.money.stopped = false;
             Ok(())
         })
     }
@@ -497,6 +563,62 @@ mod tests {
     use super::*;
 
     #[cfg(feature = "assist")]
+    #[cfg(feature = "assist")]
+    #[test]
+    fn g12_later_missing_generation_recovers_with_prior_conservative_history() {
+        let receipt = MoneyReceipt {
+            id: "unknown".into(),
+            request_hash: crate::evidence::canonical::Digest::of_bytes(b"fixture"),
+            scopes: vec![],
+            reserved_nano_usd: 100,
+            actual_nano_usd: None,
+            outcome: "incomplete".into(),
+            usage: serde_json::json!({"campaign_root_index":0,"reconciliation":{"state":"mismatch","reason":"openrouter_generation_missing"}}),
+        };
+        let mut prior = receipt.clone();
+        prior.id = "settled".into();
+        prior.actual_nano_usd = Some(100);
+        prior.outcome = "settled_conservatively".into();
+        let state = MoneyState {
+            stopped: true,
+            receipts: vec![prior, receipt],
+            ..Default::default()
+        };
+        assert!(recoverable_missing_generation(&state));
+    }
+    #[cfg(feature = "assist")]
+    #[test]
+    fn g12_missing_generation_settlement_preserves_other_stop_causes() {
+        for cause in ["operator", "ceiling", "bound", "identity", "generation_id"] {
+            let temp = tempfile::tempdir().unwrap();
+            let ledger = Ledger::new(temp.path(), true);
+            ledger.campaign().transaction(|s| {
+                s.money.stopped = true;
+                s.money.receipts = vec![MoneyReceipt {
+                    id:"unknown".into(),request_hash:crate::evidence::canonical::Digest::of_bytes(b"fixture"),
+                    scopes:vec![],reserved_nano_usd:100,actual_nano_usd:None,outcome:"incomplete".into(),
+                    usage:serde_json::json!({"campaign_root_index":0,"reconciliation":{"state":"mismatch","reason":"openrouter_generation_missing"}})
+                }];
+                match cause {
+                    "ceiling" => s.money.ceiling_events.push(serde_json::json!({"refusal":"openrouter_concurrent_consumer"})),
+                    "bound" => s.money.receipts[0].usage["bound_breach"] = serde_json::json!(true),
+                    "identity" => s.money.receipts[0].usage["identity_error"] = serde_json::json!("drift"),
+                    "generation_id" => s.money.receipts[0].usage["generation_id"] = serde_json::json!("gen-found"),
+                    _ => (),
+                }
+                Ok(())
+            }).unwrap();
+            if cause == "operator" {
+                ledger.stop_spending().unwrap();
+            }
+            assert!(ledger.settle_unknown_at_reservation().is_err(), "{cause}");
+            assert!(
+                ledger.money_receipts().unwrap()[0]
+                    .actual_nano_usd
+                    .is_none()
+            );
+        }
+    }
     #[test]
     fn g12_resume_identity_and_reconciliation_preserve_prior_spend() {
         use crate::{assist::openrouter::Generation, evidence::canonical::Digest};

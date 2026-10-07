@@ -499,7 +499,19 @@ impl Executor<'_> {
                 .openrouter_preflight(allowance, || {
                     super::openrouter::ceiling(self.transport.http, &secret, timeout)
                 })
-                .map_err(|_| Error::Policy("openrouter_preflight_refused"))?;
+                .map_err(|reason| {
+                    Error::Policy(match reason.as_str() {
+                        "campaign_spending_stopped" => "campaign_spending_stopped",
+                        "openrouter_allowance_exceeds_ceiling" => {
+                            "openrouter_allowance_exceeds_ceiling"
+                        }
+                        "openrouter_campaign_not_fresh" => "openrouter_campaign_not_fresh",
+                        "openrouter_accounting_rejected" => "openrouter_accounting_rejected",
+                        "openrouter_accounting_unavailable" => "openrouter_accounting_unavailable",
+                        "openrouter_ceiling_unavailable" => "openrouter_ceiling_unavailable",
+                        _ => "openrouter_preflight_refused",
+                    })
+                })?;
             timeout = self
                 .deadline
                 .saturating_duration_since(Instant::now())

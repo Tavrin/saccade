@@ -269,8 +269,16 @@ fn resume_roots(
     let outcomes = smoke["root_outcomes"]
         .as_array()
         .ok_or("invalid resume outcomes")?;
-    let mut settled = BTreeSet::new();
+    let mut settled: BTreeSet<_> = ledger
+        .money_receipts()?
+        .iter()
+        .filter(|r| r.outcome == "settled_conservatively")
+        .filter_map(|r| r.usage["campaign_root_index"].as_u64().map(|i| i as usize))
+        .collect();
     for (index, outcome) in outcomes.iter().enumerate() {
+        if settled.contains(&index) {
+            continue;
+        }
         if let Some(receipt) = latest.get(&index) {
             if receipt.actual_nano_usd.is_none() || receipt.outcome == "reserved" {
                 return Err("resume requires reconciled incomplete cost".into());
@@ -330,6 +338,16 @@ fn resume_bindings(
     let receipts = ledger.money_receipts()?;
     let mut latest = BTreeMap::new();
     for receipt in &receipts {
+        if receipt.usage["reconciliation"]["state"] == "mismatch"
+            && receipt.outcome != "settled_conservatively"
+            && !(receipt.actual_nano_usd.is_none()
+                && receipt.outcome == "incomplete"
+                && receipt.usage["generation_id"].is_null()
+                && receipt.usage["reconciliation"]["generation"].is_null()
+                && receipt.usage["reconciliation"]["reason"] == "openrouter_generation_missing")
+        {
+            return Err("openrouter_reconciliation_mismatch".into());
+        }
         let index = receipt.usage["campaign_root_index"]
             .as_u64()
             .ok_or("resume receipt lacks root binding")? as usize;
@@ -796,7 +814,7 @@ fn run_with(args: impl IntoIterator<Item = String>) -> Result<(), Box<dyn std::e
         "stage2":stage2,"budget_bounded":budget_bounded,"answer_failure_policy":stage2.then_some(answer_limits),
         "executor_call_cap_seconds":120,"prompt_epoch":stage2.then_some("g12-pilot/2"),
         "prompt_policy":stage2.then_some("assist-openrouter-geometry-citations/2")});
-    ledger.bind_campaign(identity, resume)?;
+    ledger.bind_campaign_with_settlement(identity, resume, settle_unknown)?;
     let mut smoke = if resume {
         assist::decode::<Value>(&assist::read_bytes(
             &out.join("smoke.json"),
@@ -807,6 +825,10 @@ fn run_with(args: impl IntoIterator<Item = String>) -> Result<(), Box<dyn std::e
             "allowance_nano_usd":cap,"budget_bounded":budget_bounded,"campaign_seconds":campaign_duration(stage2).as_secs(),
             "dispatch_failed":false,"answer_failure_policy":stage2.then_some(answer_limits),"qualified":false})
     };
+    smoke
+        .as_object_mut()
+        .ok_or("invalid smoke outcomes")?
+        .remove("refusal");
     let settled = if resume {
         if settle_unknown {
             settle_resume_unknown(&rows, &ledger, &smoke)?;
@@ -895,13 +917,123 @@ fn run_with(args: impl IntoIterator<Item = String>) -> Result<(), Box<dyn std::e
     attach_receipts(&out, &ledger, &mut smoke)?;
     export_reconciliation(&out, &ledger, &mut smoke)?;
     if failed {
+        if let Some(code) = smoke["root_outcomes"].as_array().and_then(|outcomes| {
+            outcomes.iter().rev().find_map(|o| {
+                let code = o["code"].as_str()?;
+                (o["failure_class"] == "campaign_failure")
+                    .then(|| code.replace([' ', '-', ';'], "_").to_ascii_lowercase())
+            })
+        }) {
+            // Codes originate from typed local execution errors, never provider text.
+            smoke["refusal"] = json!({"code":code,"reason":code});
+            assist::write(&out.join("smoke.json"), &smoke)?;
+        }
         return Err("OpenRouter smoke failed; inspect sanitized campaign receipts".into());
     }
     Ok(())
 }
+fn refusal_code(error: &(dyn std::error::Error + 'static)) -> String {
+    let reason = if let Some(error) = error.downcast_ref::<assist::Error>() {
+        error.code()
+    } else {
+        let text = error.to_string();
+        return match text.as_str() {
+            "OpenRouter smoke failed; inspect sanitized campaign receipts"
+            | "answer safety options require stage2"
+            | "campaign lock symlink"
+            | "campaign_plan_or_policy_changed"
+            | "campaign_spending_stopped"
+            | "cap must be positive and at most campaign parent 30 USD"
+            | "cap precision exceeds nanodollars"
+            | "duplicate settlement flag"
+            | "invalid answer safety percent"
+            | "invalid answer safety sample limit"
+            | "invalid campaign directory"
+            | "invalid outcomes"
+            | "invalid resume outcomes"
+            | "invalid reviewed smoke topology or unsupported batch arm"
+            | "invalid smoke arguments"
+            | "invalid smoke outcomes"
+            | "invalid unknown cost settlement"
+            | "missing argument value"
+            | "missing campaign receipt"
+            | "openrouter_generation_cost_mismatch"
+            | "openrouter_generation_identity_mismatch"
+            | "openrouter_generation_missing"
+            | "openrouter_reconciliation_mismatch"
+            | "reconcile-only accepts only an existing output directory"
+            | "required smoke argument missing"
+            | "resume and out are exclusive"
+            | "resume missing settled receipt"
+            | "resume receipt identity changed"
+            | "resume receipt lacks root binding"
+            | "resume receipt payload changed"
+            | "resume receipt root changed"
+            | "resume requires matched incomplete receipt or settled answer artifacts"
+            | "resume requires reconciled incomplete cost"
+            | "resume topology changed"
+            | "settlement requires resume execution"
+            | "smoke_reservation_overflow"
+            | "smoke_reservations_exceed_cap"
+            | "spend_cap_above_25_requires_explicit_flag"
+            | "stage2 requires 1 through 1000 roots"
+            | "smoke requires 1 through 10 roots"
+            | "stage2 cap exceeds 5 USD" => text.replace([' ', '-', ';'], "_").to_ascii_lowercase(),
+            _ => "smoke_preflight_invalid_or_unavailable".into(),
+        };
+    };
+    reason.replace([' ', '-', ';'], "_").to_ascii_lowercase()
+}
+fn run_reported(args: Vec<String>) -> Result<(), Box<dyn std::error::Error>> {
+    let result = run_with(args.clone());
+    if let Err(error) = &result {
+        let code = refusal_code(error.as_ref());
+        eprintln!("OpenRouter smoke refusal: {code}");
+        if let Some(pair) = args.windows(2).find(|p| p[0] == "--out") {
+            let out = Path::new(&pair[1]);
+            if !out.exists() {
+                std::fs::create_dir(out)?;
+            }
+        }
+        if let Some(out) = args
+            .windows(2)
+            .find(|p| p[0] == "--resume" || p[0] == "--out" || p[0] == "--reconcile-only")
+            .map(|p| Path::new(&p[1]))
+            && out.is_dir()
+            && let Ok(_lock) = campaign_lock(out)
+        {
+            let path = out.join("smoke.json");
+            let existing = assist::read_bytes(&path, 32 * 1024 * 1024)
+                .and_then(|b| assist::decode::<Value>(&b));
+            if let Ok(mut smoke) = existing
+                && smoke.is_object()
+            {
+                if error.to_string()
+                    == "OpenRouter smoke failed; inspect sanitized campaign receipts"
+                    && let Some(specific) = smoke["refusal"]["code"].as_str()
+                    && specific.len() <= 128
+                    && specific
+                        .bytes()
+                        .all(|b| b.is_ascii_lowercase() || b == b'_')
+                {
+                    eprintln!("OpenRouter smoke refusal: {specific}");
+                } else {
+                    smoke["refusal"] = json!({"code":code,"reason":code});
+                }
+                smoke["qualified"] = json!(false);
+                assist::write(&path, &smoke)?;
+            } else if !path.exists() {
+                assist::write(
+                    &path,
+                    &json!({"refusal":{"code":code,"reason":code},"qualified":false}),
+                )?;
+            }
+        }
+    }
+    result
+}
 fn main() {
-    if run_with(std::env::args().skip(1)).is_err() {
-        eprintln!("OpenRouter smoke refused or failed; inspect campaign receipts when created");
+    if run_reported(std::env::args().skip(1).collect()).is_err() {
         std::process::exit(4);
     }
 }
@@ -909,6 +1041,92 @@ fn main() {
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[test]
+    fn g12_resume_genuine_cost_or_identity_mismatch_blocks_settlement() {
+        use saccade_core::budget_ledger::MoneyReceipt;
+        for drift in [false, true] {
+            let temp = tempfile::tempdir().unwrap();
+            let ledger = Ledger::new(&temp.path().join("ledger"), true);
+            let rows = vec![Row {
+                root: "root".into(),
+                model: "fixture".into(),
+                revision: "absent".into(),
+                payload: json!({}),
+            }];
+            ledger
+                .bind_campaign(json!({"plan":"fixture"}), false)
+                .unwrap();
+            let hash = Digest::of_bytes(b"{}");
+            ledger.begin_campaign_root(0, hash.clone()).unwrap();
+            ledger.reserve_money(&[MoneyScope { id:"smoke".into(),cap_nano_usd:100 }],MoneyReceipt {
+                id:"attempt".into(),request_hash:hash,scopes:vec!["smoke".into()],reserved_nano_usd:100,
+                actual_nano_usd:None,outcome:"reserved".into(),usage:json!({"openrouter_dispatched":true,"requested_identity":{"model":"fixture","revision":"absent"}})
+            }).unwrap();
+            ledger
+                .finish_money(
+                    "attempt",
+                    Some(10),
+                    json!({"generation_id":"gen-fixture"}),
+                    false,
+                )
+                .unwrap();
+            ledger
+                .record_openrouter_reconciliation(
+                    "attempt",
+                    Ok(openrouter::Generation {
+                        cost_nano_usd: if drift { 10 } else { 90 },
+                        response_hash: Digest::of_bytes(b"generation"),
+                        model: if drift { "other" } else { "fixture" }.into(),
+                        provider_name: "fixture".into(),
+                    }),
+                    1,
+                    0,
+                    1,
+                )
+                .unwrap();
+            let smoke = json!({"root_outcomes":[{"index":0,"root":"root","code":"assist_provider_execution_incomplete"}]});
+            let before = std::fs::read(temp.path().join("ledger/campaign.json")).unwrap();
+            assert!(
+                ledger
+                    .bind_campaign_with_settlement(json!({"plan":"fixture"}), true, true)
+                    .is_err()
+            );
+            assert!(settle_resume_unknown(&rows, &ledger, &smoke).is_err());
+            assert!(resume_roots(&rows, &ledger, &smoke).is_err());
+            assert_eq!(
+                before,
+                std::fs::read(temp.path().join("ledger/campaign.json")).unwrap()
+            );
+        }
+    }
+    #[test]
+    fn g12_resume_refusal_is_specific_persisted_and_sanitized() {
+        let temp = tempfile::tempdir().unwrap();
+        let path = temp.path().join("smoke.json");
+        assist::write(&path, &json!({"root_outcomes":[],"marker":"preserved"})).unwrap();
+        let error = run_reported(vec![
+            "--resume".into(),
+            temp.path().to_str().unwrap().into(),
+            "--untrusted-secret".into(),
+        ])
+        .unwrap_err();
+        assert_eq!(refusal_code(error.as_ref()), "invalid_smoke_arguments");
+        let smoke: Value = serde_json::from_slice(&std::fs::read(path).unwrap()).unwrap();
+        assert_eq!(smoke["refusal"]["code"], "invalid_smoke_arguments");
+        assert_eq!(smoke["marker"], "preserved");
+        assert_eq!(
+            refusal_code(&std::io::Error::other("secret provider body")),
+            "smoke_preflight_invalid_or_unavailable"
+        );
+        assert_eq!(
+            refusal_code(&assist::Error::Policy(
+                "openrouter_allowance_exceeds_ceiling"
+            )),
+            "openrouter_allowance_exceeds_ceiling"
+        );
+        let error: Box<dyn std::error::Error> = "campaign_spending_stopped".into();
+        assert_eq!(refusal_code(error.as_ref()), "campaign_spending_stopped");
+    }
     #[test]
     fn g12_operator_settlement_retains_charge_skips_failed_root_and_survives_reopen() {
         use saccade_core::budget_ledger::MoneyReceipt;
@@ -954,6 +1172,29 @@ mod tests {
                 json!({"transport_failure":"timeout"}),
                 false,
             )
+            .unwrap();
+        ledger
+            .record_openrouter_reconciliation(
+                "attempt-0",
+                Err("openrouter_generation_missing"),
+                0,
+                0,
+                1,
+            )
+            .unwrap();
+        assert_eq!(
+            ledger
+                .bind_campaign(json!({"plan":"fixture"}), true)
+                .unwrap_err(),
+            "openrouter_generation_missing"
+        );
+        assert!(
+            ledger
+                .bind_campaign_with_settlement(json!({"plan":"changed"}), true, true)
+                .is_err()
+        );
+        ledger
+            .bind_campaign_with_settlement(json!({"plan":"fixture"}), true, true)
             .unwrap();
         // Second receipt simulates a crash between dispatch/reservation and finish.
         let mut smoke = json!({"root_outcomes":rows.iter().enumerate().map(|(i,r)| json!({"index":i,"root":r.root,
