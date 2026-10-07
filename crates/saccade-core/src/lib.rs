@@ -178,6 +178,8 @@ pub mod optional;
 
 // wave11
 pub mod ablation_timing;
+/// Declared coverage, variant grouping and baseline health.
+pub mod coverage;
 pub mod manifest;
 pub mod report_links;
 pub mod settling;

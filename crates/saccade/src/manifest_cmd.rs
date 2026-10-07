@@ -24,7 +24,30 @@ enum Operation {
         /// Record the last passing run (a different role; not approval).
         #[arg(long)]
         last_good: Option<PathBuf>,
+        /// Explicit cases and axes (saccade-cases.v1); creates manifest v2.
+        #[arg(long)]
+        cases: Option<PathBuf>,
         /// Print a JSON result.
+        #[arg(long)]
+        json: bool,
+    },
+    /// Group declared variants, show missing cases and reference health in JSON and HTML.
+    Views {
+        /// A saccade-manifest.v2 file, or its report directory.
+        target: PathBuf,
+        /// Output directory for coverage.json and index.html.
+        #[arg(long)]
+        out: PathBuf,
+        /// Declared axes to group by (default: all axes).
+        #[arg(long, value_delimiter = ',')]
+        group_by: Vec<String>,
+        /// Observation time for reproducible health findings (default: current time).
+        #[arg(long)]
+        now_unix: Option<u64>,
+        /// Age limit for recorded runs and known approval times.
+        #[arg(long, default_value_t = 2_592_000)]
+        max_age_seconds: u64,
+        /// Print a bounded JSON result; full rows stay in coverage.json.
         #[arg(long)]
         json: bool,
     },
@@ -67,15 +90,19 @@ pub(crate) fn run(args: Args) -> Result<u8, CliError> {
             dir,
             approved_anchor,
             last_good,
+            cases,
             json,
         } => {
-            let (path, value) = manifest::write(
-                &dir,
-                Anchors {
-                    approved: approved_anchor.as_deref(),
-                    last_good: last_good.as_deref(),
-                },
-            )?;
+            let anchors = Anchors {
+                approved: approved_anchor.as_deref(),
+                last_good: last_good.as_deref(),
+            };
+            let (path, value) = if let Some(cases) = cases {
+                let declaration = saccade_core::coverage::read_declaration(&cases)?;
+                saccade_core::coverage::write_manifest(&dir, anchors, &declaration)?
+            } else {
+                manifest::write(&dir, anchors)?
+            };
             let mut result = base_result("manifest.build");
             result["artifact"] = reference(&path)?;
             result["counts"] = value["counts"].clone();
@@ -93,6 +120,55 @@ pub(crate) fn run(args: Args) -> Result<u8, CliError> {
                 ))?;
             }
             Ok(0)
+        }
+        Operation::Views {
+            target,
+            out,
+            group_by,
+            now_unix,
+            max_age_seconds,
+            json,
+        } => {
+            let path = if target.is_dir() {
+                target.join(manifest::MANIFEST_FILE)
+            } else {
+                target
+            };
+            let now = match now_unix {
+                Some(now) => now,
+                None => std::time::SystemTime::now()
+                    .duration_since(std::time::UNIX_EPOCH)
+                    .map_err(|e| CliError::new("config", e.to_string()))?
+                    .as_secs(),
+            };
+            let report = saccade_core::coverage::analyze(&path, &group_by, now, max_age_seconds)?;
+            saccade_core::run::guard_output_dir(&out, &[&path], &["coverage.json"])?;
+            std::fs::create_dir_all(&out).map_err(|e| CliError::io(e.to_string()))?;
+            let artifact = out.join("coverage.json");
+            let linked = saccade_core::report_links::decorate(&serde_json::to_value(&report)?)?;
+            manifest::write_owned(&artifact, saccade_core::coverage::REPORT_SCHEMA, &linked)?;
+            saccade_core::report_links::index(&artifact, &linked)?;
+            saccade_core::render::render_coverage_html(&report, &path, &out)?;
+            let mut result = base_result("manifest.views");
+            result["verdict"] = report.coverage.clone().into();
+            result["artifact"] = reference(&artifact)?;
+            result["counts"] = json!({"expected":report.counts.expected,"captured":report.counts.captured,"measured":report.counts.measured,"refused":report.counts.refused});
+            result["data"] = json!({"outcomes":report.counts.outcomes,"health_cases":report.rows.iter().filter(|r| !r.health.is_empty()).count(), "groups":report.groups.len(), "html":saccade_core::paths::portable(&out.join("index.html"))});
+            if json {
+                crate::emit(&format!("{}\n", serde_json::to_string(&result)?))?;
+            } else {
+                crate::emit(&format!(
+                    "coverage: {}; {} expected, {} captured, {} measured, {} refused; {} health cases; {}\n",
+                    report.coverage,
+                    report.counts.expected,
+                    report.counts.captured,
+                    report.counts.measured,
+                    report.counts.refused,
+                    result["data"]["health_cases"],
+                    crate::escape_control(&out.join("index.html").display().to_string())
+                ))?;
+            }
+            Ok(u8::from(report.coverage != "complete"))
         }
         Operation::Verify { target, json } => {
             let findings = manifest::verify(&target)?;

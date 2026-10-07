@@ -197,9 +197,11 @@ The last three names appear only when the corresponding feature is compiled in.
 - [saccade-capabilities.v2.schema.json](../crates/saccade-core/schemas/saccade-capabilities.v2.schema.json) — Historical reader contract
 - [saccade-capture-layers.v1.schema.json](../crates/saccade-core/schemas/saccade-capture-layers.v1.schema.json) — Manifest
 - [saccade-captured-sequence-plan.v1.schema.json](../crates/saccade-core/schemas/saccade-captured-sequence-plan.v1.schema.json) — Plan
+- [saccade-cases.v1.schema.json](../crates/saccade-core/schemas/saccade-cases.v1.schema.json) — Declaration
 - [saccade-config.v1.schema.json](../crates/saccade-core/schemas/saccade-config.v1.schema.json) — saccade-config.v1
 - [saccade-constructed-oracle.v1.schema.json](../crates/saccade-core/schemas/saccade-constructed-oracle.v1.schema.json) — saccade-constructed-oracle.v1
 - [saccade-constructed-truth.v1.schema.json](../crates/saccade-core/schemas/saccade-constructed-truth.v1.schema.json) — saccade-constructed-truth.v1
+- [saccade-coverage.v1.schema.json](../crates/saccade-core/schemas/saccade-coverage.v1.schema.json) — Report
 - [saccade-crop-check.v1.schema.json](../crates/saccade-core/schemas/saccade-crop-check.v1.schema.json) — CropReport
 - [saccade-crop-check.v2.schema.json](../crates/saccade-core/schemas/saccade-crop-check.v2.schema.json) — CropReport
 - [saccade-decide-result.v1.schema.json](../crates/saccade-core/schemas/saccade-decide-result.v1.schema.json) — saccade-decide-result.v1
@@ -290,6 +292,7 @@ The last three names appear only when the corresponding feature is compiled in.
 - [saccade-locate.v1.schema.json](../crates/saccade-core/schemas/saccade-locate.v1.schema.json) — LocateReport
 - [saccade-locate.v2.schema.json](../crates/saccade-core/schemas/saccade-locate.v2.schema.json) — LocateReport
 - [saccade-manifest.v1.schema.json](../crates/saccade-core/schemas/saccade-manifest.v1.schema.json) — Historical reader contract
+- [saccade-manifest.v2.schema.json](../crates/saccade-core/schemas/saccade-manifest.v2.schema.json) — Declared-case output manifest (v2 successor)
 - [saccade-mask-metrics.v1.schema.json](../crates/saccade-core/schemas/saccade-mask-metrics.v1.schema.json) — Mask metrics
 - [saccade-media-compare.v1.schema.json](../crates/saccade-core/schemas/saccade-media-compare.v1.schema.json) — Historical reader contract
 - [saccade-media-compare.v2.schema.json](../crates/saccade-core/schemas/saccade-media-compare.v2.schema.json) — Historical reader contract
