@@ -212,3 +212,5 @@ pub mod text_quality;
 pub mod batch;
 /// Timed subtitle/caption evidence against presentation-timestamped frames.
 pub mod timed_text;
+// N22: offline categorical blind review.
+pub mod review_board;

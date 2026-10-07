@@ -144,6 +144,7 @@ impl From<saccade_core::Error> for CliError {
         }
         let code = match e {
             Error::ApprovalContentMismatch => "approval_content_mismatch",
+            Error::ReviewBoard { code, .. } => code,
             Error::TrialPlanChanged => "trial_plan_changed",
             Error::Config(_) => "config",
             Error::VersionSkew { .. } => "version_skew",

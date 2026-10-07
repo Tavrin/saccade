@@ -371,6 +371,12 @@ The last three names appear only when the corresponding feature is compiled in.
 - [saccade-result.v2.schema.json](../crates/saccade-core/schemas/saccade-result.v2.schema.json) — ResultEnvelope
 - [saccade-result.v3.schema.json](../crates/saccade-core/schemas/saccade-result.v3.schema.json) — saccade-result.v1
 - [saccade-result.v4.schema.json](../crates/saccade-core/schemas/saccade-result.v4.schema.json) — ResultEnvelope
+- [saccade-review-board-ballot.v1.schema.json](../crates/saccade-core/schemas/saccade-review-board-ballot.v1.schema.json) — Individual blind board ballot
+- [saccade-review-board-packet.v1.schema.json](../crates/saccade-core/schemas/saccade-review-board-packet.v1.schema.json) — Blind board rater packet
+- [saccade-review-board-plan.v1.schema.json](../crates/saccade-core/schemas/saccade-review-board-plan.v1.schema.json) — Blind board source plan (operator only)
+- [saccade-review-board-trial.v1.schema.json](../crates/saccade-core/schemas/saccade-review-board-trial.v1.schema.json) — Registered blind board mapping (operator only)
+- [saccade-review-board.v1.schema.json](../crates/saccade-core/schemas/saccade-review-board.v1.schema.json) — Review disagreement board
+- [saccade-review-board.v2.schema.json](../crates/saccade-core/schemas/saccade-review-board.v2.schema.json) — Review disagreement board
 - [saccade-review.v1.schema.json](../crates/saccade-core/schemas/saccade-review.v1.schema.json) — Historical reader contract
 - [saccade-runs.v1.schema.json](../crates/saccade-core/schemas/saccade-runs.v1.schema.json) — saccade-runs.v1
 - [saccade-runs.v2.schema.json](../crates/saccade-core/schemas/saccade-runs.v2.schema.json) — saccade-runs.v1

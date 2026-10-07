@@ -20,6 +20,8 @@ Identity binds samples, not approval/timing.
 External human key; MCP compare enforced. Default approval unauthenticated.
 Deletion needs approval + `--prune-missing`; models need fresh review.
 [Evidence](../docs/contracts.md), [review](../docs/review.md).
+`review board prepare|collect`: blind, missing shown, no approval.
+[Board](../docs/review-board.md).
 
 MCP: bounded tools/roots; no baseline writer. Arguments cannot authorize
 network/downloads. Providers need startup/endpoint/root authority and shared budgets.

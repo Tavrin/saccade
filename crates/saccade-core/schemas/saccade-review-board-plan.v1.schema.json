@@ -1,0 +1,76 @@
+{
+  "$id": "https://github.com/Tavrin/saccade/crates/saccade-core/schemas/saccade-review-board-plan.v1.schema.json",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "properties": {
+    "pairs": {
+      "items": {
+        "additionalProperties": false,
+        "properties": {
+          "first": {
+            "type": "string"
+          },
+          "group": {
+            "maxLength": 128,
+            "minLength": 1,
+            "type": "string"
+          },
+          "id": {
+            "maxLength": 128,
+            "minLength": 1,
+            "type": "string"
+          },
+          "second": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "group",
+          "first",
+          "second"
+        ],
+        "type": "object"
+      },
+      "maxItems": 256,
+      "minItems": 1,
+      "type": "array"
+    },
+    "raters": {
+      "items": {
+        "additionalProperties": false,
+        "properties": {
+          "id": {
+            "maxLength": 128,
+            "minLength": 1,
+            "type": "string"
+          },
+          "kind": {
+            "enum": [
+              "human",
+              "tool"
+            ]
+          }
+        },
+        "required": [
+          "id",
+          "kind"
+        ],
+        "type": "object"
+      },
+      "maxItems": 32,
+      "minItems": 2,
+      "type": "array"
+    },
+    "schema": {
+      "const": "saccade-review-board-plan.v1"
+    }
+  },
+  "required": [
+    "schema",
+    "raters",
+    "pairs"
+  ],
+  "title": "Blind board source plan (operator only)",
+  "type": "object"
+}

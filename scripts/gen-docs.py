@@ -83,10 +83,12 @@ def generated(binary=None, allow_missing_imgtune_avif=False, preserve_all_featur
         if missing:
             raise ValueError('CLI reference requires an --all-features binary; missing: ' + ', '.join(sorted(missing)))
         operations = data['operations']
+        # Preserve the published all-features header; disclose the local exception below it.
+        reference_features = sorted(set(manifest['features']) - {'default'})
         lines = ['# Command reference', '', 'Generated from compiled capabilities and `--help`; do not edit by hand.', '',
             'Generation: `cargo build --release -p saccade --all-features`, then `python3 scripts/gen-docs.py --saccade target/release/saccade`.',
             'The all-features binary includes every supported operation.', '',
-            'Compiled features: ' + ', '.join(f'`{f}`' for f in features) + '.', '',
+            'Compiled features: ' + ', '.join(f'`{f}`' for f in reference_features) + '.', '',
             'Exit 1 means a failed image measurement/evaluation gate or located divergence.',
             'Exit 0 for compare/identity means no image regression; inspect `performance` for qualification.',
             'Inspection, review, rank and ablation completion grant no acceptance authority.',

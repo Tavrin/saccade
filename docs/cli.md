@@ -5141,6 +5141,7 @@ Preview a review plan or handle a local closed decision request
 Usage: saccade review [OPTIONS] [REPORT] [COMMAND]
 
 Commands:
+  board       Collect blind categorical votes and inspect disagreement, without approval
   trial       Preregister and present offline blind visual trials
   assist      Experimental assist lifecycle operations
   explain     Experimental localized visible explanations, advisory only
@@ -5182,6 +5183,76 @@ Options:
 
   -h, --help
           Print help
+
+Global options:
+      --allow-out-near-captures  Silence warnings when --out is next to capture metadata
+      --record-absolute-paths    Opt in to absolute local paths in reports and machine-readable output
+```
+
+## saccade review board
+
+```text
+Collect blind categorical votes and inspect disagreement, without approval
+
+Usage: saccade review board [OPTIONS] <COMMAND>
+
+Commands:
+  prepare  Generate separate blind forms/files; keep trial.json private
+  collect  Collect offline ballots; output must be outside the prepared bundle
+
+Options:
+      --source-ref <SOURCE_REF>      External capture URI/key (repeatable); recorded in generated reports
+      --report-index <REPORT_INDEX>  Shared report index destination (default reports/index.jsonl next to each report, inside --out)
+      --user-config <USER_CONFIG>
+      --json
+  -h, --help                         Print help
+
+Global options:
+      --allow-out-near-captures  Silence warnings when --out is next to capture metadata
+      --record-absolute-paths    Opt in to absolute local paths in reports and machine-readable output
+```
+
+## saccade review board prepare
+
+```text
+Generate separate blind forms/files; keep trial.json private
+
+Usage: saccade review board prepare [OPTIONS] --out <OUT> <PLAN>
+
+Arguments:
+  <PLAN>
+
+Options:
+      --out <OUT>                    A new directory whose parent exists
+      --source-ref <SOURCE_REF>      External capture URI/key (repeatable); recorded in generated reports
+      --report-index <REPORT_INDEX>  Shared report index destination (default reports/index.jsonl next to each report, inside --out)
+      --user-config <USER_CONFIG>
+      --json
+  -h, --help                         Print help
+
+Global options:
+      --allow-out-near-captures  Silence warnings when --out is next to capture metadata
+      --record-absolute-paths    Opt in to absolute local paths in reports and machine-readable output
+```
+
+## saccade review board collect
+
+```text
+Collect offline ballots; output must be outside the prepared bundle
+
+Usage: saccade review board collect [OPTIONS] --out <OUT> <TRIAL>
+
+Arguments:
+  <TRIAL>
+
+Options:
+      --ballot <BALLOTS>             Returned ballot file; repeat for each rater. Omitted raters stay missing
+      --source-ref <SOURCE_REF>      External capture URI/key (repeatable); recorded in generated reports
+      --out <OUT>                    New operator-only board directory; never distribute before voting closes
+      --report-index <REPORT_INDEX>  Shared report index destination (default reports/index.jsonl next to each report, inside --out)
+      --user-config <USER_CONFIG>
+      --json
+  -h, --help                         Print help
 
 Global options:
       --allow-out-near-captures  Silence warnings when --out is next to capture metadata
@@ -5607,18 +5678,18 @@ Options:
           Overall deadline, including both orders and support [default: 300]
       --gemini-revision <GEMINI_REVISION>
           Required immutable returned revision for dispatch/replay
-      --user-config <USER_CONFIG>
-
       --jev-revision <JEV_REVISION>
           Required Jev returned revision; the pinned model ID is the initial binding [default: jev-1.13.0]
+      --user-config <USER_CONFIG>
+
       --bypass-cache
           Do not reuse cache; required for independent qualification samples
-      --json
-
       --source-evidence <SOURCE_EVIDENCE>
           Hash/dimension-bound Wave 3 source packets (at most one per image)
       --incomplete-capture
           Producer states some requested capture scope was not captured
+      --json
+
       --pre-masked
           Original pixels were blacked out before capture and are unavailable
   -h, --help
@@ -5677,18 +5748,18 @@ Options:
           Overall deadline, including both orders and support [default: 300]
       --gemini-revision <GEMINI_REVISION>
           Required immutable returned revision for dispatch/replay
-      --user-config <USER_CONFIG>
-
       --jev-revision <JEV_REVISION>
           Required Jev returned revision; the pinned model ID is the initial binding [default: jev-1.13.0]
+      --user-config <USER_CONFIG>
+
       --bypass-cache
           Do not reuse cache; required for independent qualification samples
-      --json
-
       --source-evidence <SOURCE_EVIDENCE>
           Hash/dimension-bound Wave 3 source packets (at most one per image)
       --incomplete-capture
           Producer states some requested capture scope was not captured
+      --json
+
       --pre-masked
           Original pixels were blacked out before capture and are unavailable
   -h, --help
@@ -5750,18 +5821,18 @@ Options:
           Replay existing observations; never authorize providers
       --replay <REPLAY>
           Recorded exact cache entries for offline fixture replay
-      --user-config <USER_CONFIG>
-
       --run
           Explicitly authorize evidence export under fixed user root policy
+      --user-config <USER_CONFIG>
+
       --route <ROUTE>
           Deterministic rules, routed cascade or the full visual path [default: cascade] [possible values: rules, cascade, all-vision]
       --jev-routing
           Optional separately measured Jev evidence-need routing; disabled by default
-      --json
-
       --budget-calls <BUDGET_CALLS>
           Real provider request cap; no retries or automatic top-up [default: 4]
+      --json
+
       --max-spend-usd <MAX_SPEND_USD>
           Finite per-entry USD ceiling, at most 0.15 [default: 0.15]
       --deadline-secs <DEADLINE_SECS>

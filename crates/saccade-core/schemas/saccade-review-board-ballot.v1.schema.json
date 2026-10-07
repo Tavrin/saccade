@@ -1,0 +1,71 @@
+{
+  "$id": "https://github.com/Tavrin/saccade/crates/saccade-core/schemas/saccade-review-board-ballot.v1.schema.json",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "properties": {
+    "blind_confirmed": {
+      "type": "boolean"
+    },
+    "rater_key": {
+      "pattern": "^sha256:[0-9a-f]{64}$",
+      "type": "string"
+    },
+    "responses": {
+      "items": {
+        "additionalProperties": false,
+        "properties": {
+          "answer": {
+            "enum": [
+              "first",
+              "second",
+              "tie",
+              "unsure",
+              null
+            ],
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "evidence_hash": {
+            "pattern": "^sha256:[0-9a-f]{64}$",
+            "type": "string"
+          },
+          "id": {
+            "pattern": "^sha256:[0-9a-f]{64}$",
+            "type": "string"
+          },
+          "note": {
+            "maxLength": 2048,
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "evidence_hash",
+          "answer",
+          "note"
+        ],
+        "type": "object"
+      },
+      "maxItems": 256,
+      "type": "array"
+    },
+    "schema": {
+      "const": "saccade-review-board-ballot.v1"
+    },
+    "trial_id": {
+      "pattern": "^sha256:[0-9a-f]{64}$",
+      "type": "string"
+    }
+  },
+  "required": [
+    "schema",
+    "trial_id",
+    "rater_key",
+    "blind_confirmed",
+    "responses"
+  ],
+  "title": "Individual blind board ballot",
+  "type": "object"
+}
