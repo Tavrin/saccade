@@ -29,6 +29,21 @@ pub fn context(refs: Vec<String>, index: Option<PathBuf>) -> Result<()> {
 pub fn current_context() -> (Vec<String>, Option<PathBuf>) {
     CONTEXT.with(|c| c.borrow().clone())
 }
+/// Refuse a contextual index that could write outside a command's reserved artifact path.
+/// Read-only input commands can use this before any report writer runs.
+pub fn require_index_path(expected: &Path) -> Result<()> {
+    CONTEXT.with(|context| {
+        if let Some(index) = &context.borrow().1
+            && crate::run::normalise_path(index) != crate::run::normalise_path(expected)
+        {
+            return Err(Error::Config(
+                "this command requires --report-index to name its output reports/index.jsonl"
+                    .into(),
+            ));
+        }
+        Ok(())
+    })
+}
 /// Scoped context that restores prior references when an MCP request completes.
 pub struct ContextGuard((Vec<String>, Option<PathBuf>));
 impl Drop for ContextGuard {
@@ -45,7 +60,7 @@ pub fn scope(refs: Vec<String>, index: Option<PathBuf>) -> Result<ContextGuard> 
 /// Whether a schema describes a report rather than acquisition/policy/authority input.
 pub fn is_report_schema(id: &str) -> bool {
     // New critical-text policies are inputs, not decorated measurement reports.
-    if id == crate::critical_text::POLICY_SCHEMA {
+    if id == crate::critical_text::POLICY_SCHEMA || id == crate::sensitivity::CATALOGUE_SCHEMA {
         return false;
     }
     ![
@@ -144,6 +159,7 @@ pub const SCHEMA_MIGRATIONS: &[(&str, &str)] = &[
     ("saccade-decide-result.v1", "saccade-decide-result.v2"),
     ("saccade-dedupe.v1", "saccade-dedupe.v2"),
     ("saccade-split-review.v1", "saccade-split-review.v2"),
+    ("saccade-sensitivity.v1", "saccade-sensitivity.v2"),
     ("saccade-design-pull.v1", "saccade-design-pull.v2"),
     ("saccade-design-report.v1", "saccade-design-report.v2"),
     ("saccade-document-ocr.v1", "saccade-document-ocr.v2"),

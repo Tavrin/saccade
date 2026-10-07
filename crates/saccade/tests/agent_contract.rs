@@ -111,6 +111,7 @@ fn help_lists_active_commands_and_watch_alias_stays_hidden() {
         "tofu",
         "text-legibility",
         "critical-text",
+        "sensitivity",
         "timed-text",
         "timing",
         "render-evidence",

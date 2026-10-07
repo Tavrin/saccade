@@ -88,6 +88,7 @@ mod sweep_cmd;
 mod text_cmd;
 // O12/O17
 mod critical_text_cmd;
+mod sensitivity_cmd;
 mod text_quality_cmd;
 mod timed_text_cmd;
 
@@ -369,6 +370,8 @@ enum Command {
     TextLegibility(text_quality_cmd::LegibilityArgs),
     /// Gate exact critical strings and pixel legibility in declared regions.
     CriticalText(critical_text_cmd::Args),
+    /// Measure configured gate sensitivity on frozen injected defects.
+    Sensitivity(sensitivity_cmd::Args),
     /// Check plain SRT/WebVTT captions against timestamped frames and OCR evidence.
     TimedText(timed_text_cmd::Args),
     /// Cosine similarity with an explicitly pinned optional ONNX export.
@@ -1359,6 +1362,7 @@ fn dispatch(command: Command, record_absolute_paths: bool) -> Result<u8, CliErro
         Command::Tofu(args) => text_quality_cmd::tofu(args),
         Command::TextLegibility(args) => text_quality_cmd::legibility(args),
         Command::CriticalText(args) => critical_text_cmd::run(args),
+        Command::Sensitivity(args) => sensitivity_cmd::run(args),
         Command::TimedText(args) => timed_text_cmd::run(args),
         Command::Similar(args) => embedding_cmd::similar(args),
         Command::Index(args) => embedding_cmd::index(args),

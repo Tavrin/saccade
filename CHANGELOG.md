@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Add `sensitivity`: frozen defect catalogues, configured compare gates, per-class/magnitude miss rates, discrete detection minima and optional before/after policies; source images remain untouched.
+
 - Add independent motion statistics against timestamped references and seeded constructed-negative calibration with per-class scorer trust and exact ranking bounds.
 
 - Add JSON report output to `arms check --out`.

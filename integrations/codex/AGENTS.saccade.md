@@ -64,7 +64,7 @@ unsigned credits, draft descriptions. `keyframes`: ffmpeg/ffprobe or frames;
 [Media](../docs/media.md), [Python](../docs/python.md), [API](../docs/api.md).
 SigLIP 2 pinned; updates retain model; prune complete archives only.
 
-[Critical text](../docs/critical-text.md): every region required; nonzero fails.
+[Text](../docs/critical-text.md): all required.
 
 [OCR](../docs/text.md): PP-OCRv5 (`ocr`); keep accents/source hashes; CTC confidence uncalibrated.
 `ocr-provider`: bound Mistral image/PDF fixtures or authorized egress/spend-capped calls.
@@ -85,3 +85,4 @@ G12 dry-run: fixture; live needs reviewed ceilings. [Qualification](../docs/assi
 
 [Replay](../docs/replay.md): `replay pack|verify`.
 [Optical codes](../docs/optical-code.md): independent decode/payload gates.
+[Sensitivity](../docs/sensitivity.md).
