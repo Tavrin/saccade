@@ -251,8 +251,9 @@ The earlier community archive remains excluded on exporter licence evidence.
 YuNet uses native BGR pixels with bottom/right zero padding to multiples of 32;
 UltraFace uses RGB 320×240 and `(pixel−127)/128`. Both apply the recorded score
 0.6/NMS 0.3 policy. Successful face detection never certifies absence of other
-faces. LPIPS/DISTS remain deferred on independent backbone-weight grants;
+faces. No LPIPS/DISTS weights ship, for want of independent backbone-weight grants;
 MUSIQ's official checkpoint lies outside allowed downloads without a complete pin.
+`quality-score` accepts a reviewed export you supply.
 TrustMark Q's pinned neural graph works; complete watermark decoding remains
 unavailable until ECC/resize/sample qualification. No raw-bit presence claim. LPIPS/DISTS compare attachment remains integrator work after exports
 exist. The reason for each missing model is in `scripts/wave7/disposition.json`.

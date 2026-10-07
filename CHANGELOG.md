@@ -8,6 +8,25 @@
   changed artifacts. Add `saccade export-regions` (worst hotspots as crops with coordinates,
   `saccade-region-export.v1`), `saccade view --open`, and worst-first ordering plus a `w` shortcut in
   the HTML report. See `docs/discovery.md`.
+- Add a task map, exit-code table and threshold-unit notes to the quickstart, and
+  five task guides under `docs/guides/` (visual CI, controlled rendering,
+  document export, media intake, delivery tuning). `scripts/test-guides.py` runs
+  every guide block against a built binary: known-good, known-bad, missing-input
+  and unavailable-dependency cases, with the expected exit codes.
+- `saccade --help` now lists exit codes 0-4, the task map and threshold units.
+- `saccade doctor` adds `command_availability`: which command groups this build
+  can run, the feature each needs, and the fix text.
+- Unavailable-model errors point at `saccade doctor` instead of an argument hint;
+  `sweep`, `imgtune`, `design` and `notify` on a build without `products` report
+  the missing feature instead of an unrecognized subcommand.
+- Add `saccade score` as an alias of `quality-score`, and `saccade init --template
+  producer-strict` (`require_matching_meta` and `require_valid_arms`, nothing
+  waived). No command is removed and no default changes.
+- State unit and direction in help for numeric flags (`--threshold`, `--ppd`,
+  `dedupe --threshold`, `--maximum-outside-flip`, `--limit`, `--top` and others).
+- Correct stale documentation: LPIPS, DISTS and MUSIQ run through `quality-score`
+  on an operator-supplied reviewed export (none ships), and SVG/PDF comparison
+  needs the `documents` feature rather than being deferred.
 - Harden experimental assist pre-spend accounting: shared campaign reservations,
   charged and quarantined usage overruns, request-bound recorded execution receipts,
   nonvacuous qualification, independent control and glyph-localization checks, and

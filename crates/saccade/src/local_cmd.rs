@@ -24,6 +24,7 @@ pub(crate) struct InspectArgs {
     pub validity_reasons: bool,
     #[arg(long, value_delimiter = ',')]
     pub status: Vec<String>,
+    /// Maximum rows to show (default 10).
     #[arg(long, default_value_t = 10)]
     pub limit: usize,
     #[arg(long)]
@@ -48,6 +49,7 @@ pub(crate) enum InspectOperation {
         out: PathBuf,
         #[arg(long = "entry")]
         entries: Vec<String>,
+        /// Number of entries to include in the evidence pack (default 5).
         #[arg(long, default_value_t = 5)]
         top: usize,
         #[arg(long)]
@@ -56,6 +58,7 @@ pub(crate) enum InspectOperation {
         blind: bool,
         #[arg(long, requires = "blind")]
         key_out: Option<PathBuf>,
+        /// Integer seed for the blind shuffle (default: random).
         #[arg(long)]
         seed: Option<u64>,
         #[arg(long)]
@@ -72,6 +75,7 @@ pub(crate) enum InspectOperation {
         entry: Option<String>,
         #[arg(long)]
         state: Option<String>,
+        /// Exported image width in pixels (default 1024).
         #[arg(long, default_value_t = 1024)]
         width: u32,
         #[arg(long)]
@@ -102,6 +106,7 @@ pub(crate) struct ReviewArgs {
     pub operation: Option<ReviewOperation>,
     #[arg(long)]
     pub run: bool,
+    /// Maximum provider calls, at least 1; counts calls, not money.
     #[arg(long, value_parser=clap::value_parser!(u64).range(1..))]
     pub budget_calls: Option<u64>,
     #[arg(long)]

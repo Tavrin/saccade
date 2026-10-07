@@ -27,6 +27,13 @@ The demo exits 1 on purpose: it contains changed and missing captures.
 Open `saccade-demo/report/index.html` to see the result. The
 [quickstart walkthrough](docs/quickstart.md) has copyable examples for
 comparison, exact identity, configuration, evidence export and local review.
+Not sure which command fits? Use the [task map](docs/quickstart.md#which-command-for-which-task)
+and the five tested guides: [visual CI](docs/guides/visual-ci.md),
+[controlled rendering](docs/guides/controlled-rendering.md),
+[document export](docs/guides/document-export.md),
+[media intake](docs/guides/media-intake.md) and
+[delivery tuning](docs/guides/delivery-tuning.md). `saccade doctor` shows what your
+install can run.
 
 ## Use cases
 
@@ -198,7 +205,8 @@ score does not prove correctness or that a difference is invisible.
 | Paired Hodges–Lehmann estimates, bootstrap and change points | Constructed statistical checks; actual timing requires independent qualified runs. |
 | Safety/accessibility prechecks | Experimental checks; no certification or formal compliance. |
 | AI assist, Jev support and routing ([Jev](https://typesafe.ai) is a decision model from TypeSafe), blind-order handling | Unqualified in this release; experimental. |
-| LPIPS, DISTS, MUSIQ; TrustMark payload decoding | Deferred / unavailable; neural-only TrustMark inference does not decode payloads. |
+| LPIPS, DISTS, MUSIQ (`quality-score`) | Runs only a reviewed export you supply (`local-models` build, pulled runtime); no pinned checkpoint ships or downloads by default, so a stock install exits 2 with the missing piece named. |
+| TrustMark payload decoding | Unavailable; neural-only TrustMark inference does not decode payloads. |
 
 ## AI layer
 
@@ -224,7 +232,7 @@ and the [release guide](docs/releasing.md).
   execution, not production accuracy or export parity.
 - GI occupancy uses supplied masks/layers as a proxy; it does not prove physical
   illumination, causality or correct rendering.
-- LPIPS, DISTS and MUSIQ remain deferred; TrustMark payload decoding is unavailable.
+- LPIPS, DISTS and MUSIQ have no shipped checkpoints (`quality-score` needs your reviewed export); TrustMark payload decoding is unavailable.
 - Captures define the evidence scope. Equal images do not establish application
   correctness, and perceptual passes do not establish native sample identity.
 - Performance conclusions need matched workload, clocks, warmup and repeat noise.

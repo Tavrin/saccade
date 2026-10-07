@@ -155,8 +155,10 @@ pub(crate) struct KeyframesArgs {
     source: PathBuf,
     #[arg(long)]
     out: PathBuf,
+    /// Requested samples per second, 0.1-10 (default 1; the decoder may lower it).
     #[arg(long, default_value_t = 1.)]
     sample_fps: f64,
+    /// Change-point penalty, 0.001-10 (default 0.15; higher = fewer, longer shots; content-dependent).
     #[arg(long, default_value_t = 0.15)]
     shot_penalty: f64,
     #[arg(long)]

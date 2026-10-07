@@ -132,6 +132,7 @@ enum Operation {
         text: Option<String>,
         #[command(flatten)]
         runtime: RuntimeArgs,
+        /// Number of nearest matches to return (default 10).
         #[arg(long, default_value_t = 10)]
         top: usize,
         #[arg(long, default_value = "query-report")]

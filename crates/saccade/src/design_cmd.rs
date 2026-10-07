@@ -29,6 +29,7 @@ enum Operation {
         cache: Option<PathBuf>,
         #[arg(long)]
         fixture_dir: Option<PathBuf>,
+        /// Export scale factor, 0.01-4 (default 1; 2 = twice the pixel size).
         #[arg(long, default_value_t = 1.0)]
         scale: f64,
         #[arg(long)]
