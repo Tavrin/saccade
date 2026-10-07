@@ -156,8 +156,19 @@ def test_batch_options_skips_pairs_and_partial_rows(tmp_path, monkeypatch):
         if row['status'] != 'skipped':
             assert row['sections'][0]['result']['quality']['data']['fitness'][0]['adequate_resolution'] is False
     options['sections'] = [{'command': 'compare', 'args': []}]
-    row = saccade.batch(source, tmp_path / 'pairs', options_json=json.dumps(options))[0]
-    assert row['status'] == 'partial' and row['sections'][0]['status'] == 'skipped'
+    rows = saccade.batch(source, tmp_path / 'pairs', options_json=json.dumps(options))
+    # Equal-path rows sort by identity hash, which includes the absolute path.
+    # Select by retained section evidence rather than a platform-dependent index.
+    processed = [r for r in rows if r['sections']]
+    skipped = [r for r in rows if not r['sections']]
+    assert len(rows) == 3 and len(processed) == 2 and len(skipped) == 1
+    assert skipped[0]['status'] == 'skipped' and skipped[0]['thumbnail'] is None
+    assert sorted(r['occurrence'] for r in processed) == [0, 1]
+    for row in processed:
+        assert row['status'] == 'partial'
+        assert row['probe']['status'] == 'ok'
+        assert row['sections'] == [{'command': 'compare', 'status': 'skipped',
+                                    'error': 'paired reference required'}]
     options['sections'] = [{'command': 'analyze-media', 'args': ['--nonexistent', 'yes']}]
     rows = saccade.batch(source, tmp_path / 'partial', options_json=json.dumps(options))
     row = next(r for r in rows if r['status'] == 'partial')
