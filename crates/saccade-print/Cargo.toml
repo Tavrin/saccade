@@ -1,12 +1,13 @@
 [package]
 name = "saccade-print"
 description = "ICC-managed CMYK raster comparison for Saccade"
+readme = "README.md"
 version.workspace = true
 edition.workspace = true
 rust-version.workspace = true
 license.workspace = true
 repository.workspace = true
-include = ["src/**", "schemas/**", "tests/**", "examples/**", "Cargo.toml", "README.md", "LICENSE-*"]
+include = ["src/**", "tests/**", "examples/**", "Cargo.toml", "README.md", "LICENSE-*"]
 
 [dependencies]
 saccade-core.workspace = true

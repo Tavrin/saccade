@@ -59,7 +59,7 @@ OCR, semantic text recognition and proofing UI are outside this feature.
 `saccade-print.v1.json` has `report_id` and `source_refs` from core report_links;
 encoded inputs, selected profiles and policy are bound into the identity.
 Retrieve its contract with `saccade schema get saccade-print.v1`.
-The schema lives in the extension's `schemas/` directory. MCP exposes the same
+The schema lives in `crates/saccade-core/schemas/` and is shared by the extension and CLI catalogue. MCP exposes the same
 operation as `saccade_general`, `operation: print_compare`, using `reference`,
 `capture`, `out`, required `tac_limit` and `dpi`, and optional `input_profile`,
 `output_profile`, `small_text_points`. Existing MCP root/output policies apply.

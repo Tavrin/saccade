@@ -359,3 +359,75 @@ fn performance_kit_produces_the_declared_outcomes() {
     assert_eq!(sidecar("sidecar-valid.json"), true);
     assert_eq!(sidecar("sidecar-invalid.json"), false);
 }
+
+#[test]
+fn output_manifests_cover_mask_boxes_and_frame_map_artifacts() {
+    let tmp = tempfile::tempdir().unwrap();
+    let root = tmp.path();
+    write_pairs(root);
+    let doc = json!({"schema":"saccade-boxes.v1","coordinates":{"unit":"pixel","origin":"top_left","form":"xywh"},
+        "image":{"file":"scene.png","width":32,"height":32},"classes":["a"],
+        "boxes":[{"class":"a","x":1.0,"y":1.0,"w":5.0,"h":5.0}]});
+    std::fs::write(root.join("doc.json"), doc.to_string()).unwrap();
+    let map = json!({"schema":"saccade-frame-map.v1","frames":[
+        {"index":0,"file":"gray-ref.png","timestamp_s":0.0}]});
+    std::fs::write(root.join("map.json"), map.to_string()).unwrap();
+    for (args, directory, artifact) in [
+        (
+            vec![
+                "mask-metrics",
+                "gray-pred.png",
+                "gray-ref.png",
+                "--out",
+                "mask",
+                "--json",
+            ],
+            "mask",
+            "saccade-mask-metrics.v1.json",
+        ),
+        (
+            vec![
+                "boxes", "export", "doc.json", "--format", "coco", "--out", "boxes", "--json",
+            ],
+            "boxes",
+            "saccade-boxes-result.v1.json",
+        ),
+        (
+            vec![
+                "frame-map",
+                "check",
+                "map.json",
+                "--out",
+                "frames",
+                "--json",
+            ],
+            "frames",
+            "saccade-frame-map-check.v1.json",
+        ),
+    ] {
+        let (code, _) = run(root, &args);
+        assert_eq!(code, Some(0), "{args:?}");
+        let out = root.join(directory);
+        let manifest: Value = serde_json::from_slice(
+            &std::fs::read(out.join(saccade_core::manifest::MANIFEST_FILE)).unwrap(),
+        )
+        .unwrap();
+        conforms(saccade_core::manifest::MANIFEST_SCHEMA, &manifest);
+        assert!(
+            manifest["artifacts"]
+                .as_array()
+                .unwrap()
+                .iter()
+                .any(|a| a["path"] == artifact),
+            "{manifest}"
+        );
+        assert!(saccade_core::manifest::verify(&out).unwrap().is_empty());
+        std::fs::write(out.join(artifact), b"changed").unwrap();
+        assert!(
+            saccade_core::manifest::verify(&out)
+                .unwrap()
+                .iter()
+                .any(|v| v["code"] == saccade_core::manifest::CODE_STALE_LINK)
+        );
+    }
+}

@@ -433,11 +433,21 @@ fn custom_url_receives_only_dedicated_credentials_and_redirects_stop() {
 }
 #[test]
 fn retries_429_503_and_success_count_each_http_request() {
+    struct Clock(std::cell::Cell<Duration>);
+    impl RetryClock for Clock {
+        fn elapsed(&self) -> Duration {
+            self.0.get()
+        }
+        fn sleep(&self, wait: Duration) {
+            self.0.set(self.0.get() + wait);
+        }
+    }
+    let clock = Clock(std::cell::Cell::new(Duration::ZERO));
     let f = Fixture::new();
     let m = mock(&[429, 503, 200]);
     let out = f
         .transport(&m)
-        .execute(
+        .execute_observed_with_clock(
             "jev",
             &["model".into()],
             |_| Ok(b"{}".to_vec()),
@@ -445,11 +455,42 @@ fn retries_429_503_and_success_count_each_http_request() {
             8,
             Duration::from_secs(5),
             false,
+            &mut |_| {},
+            &clock,
         )
         .unwrap();
     assert_eq!(out.attempts.len(), 3);
+    assert!(clock.elapsed() >= Duration::from_secs(3));
+    assert!(clock.elapsed() < Duration::from_secs(5));
+    assert_eq!(out.latency_ms, clock.elapsed().as_millis() as u64);
     assert_eq!(f.ledger.used("run/fixture").unwrap(), 3);
     assert_eq!(m.sent.borrow().len(), 3);
+    // An insufficient deadline still defers before dispatching a retry.
+    let clock = Clock(std::cell::Cell::new(Duration::ZERO));
+    let f = Fixture::new();
+    let m = mock(&[429, 200]);
+    let error = f
+        .transport(&m)
+        .execute_observed_with_clock(
+            "jev",
+            &["model".into()],
+            |_| Ok(b"{}".to_vec()),
+            &["capture".into()],
+            8,
+            Duration::from_secs(1),
+            false,
+            &mut |_| {},
+            &clock,
+        )
+        .unwrap_err();
+    assert_eq!(
+        error.class,
+        saccade_core::decision_provider::RetryClass::RateLimited
+    );
+    assert!(error.message.contains("retry exceeds deadline"));
+    assert_eq!(m.sent.borrow().len(), 1);
+    assert_eq!(f.ledger.used("run/fixture").unwrap(), 1);
+    assert_eq!(clock.elapsed(), Duration::ZERO);
 }
 #[test]
 fn retry_after_and_timeouts_defer_and_fallback_stays_inside_shared_budget() {

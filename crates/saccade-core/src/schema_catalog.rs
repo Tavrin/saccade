@@ -1,6 +1,8 @@
 //! Source-independent discovery of the JSON Schemas shipped with this build.
 /// All shipped schema IDs and their exact JSON bytes, sorted by ID.
 pub const DOCUMENTS: &[(&str, &str)] = include!(concat!(env!("OUT_DIR"), "/schema_catalog.rs"));
+/// Print extension schema, shared with the standalone library and embedded CLI catalogue.
+pub const PRINT_JSON_SCHEMA: &str = include_str!("../schemas/saccade-print.v1.schema.json");
 /// Retrieve a schema by its discriminator, without a source checkout or filesystem lookup.
 pub fn get(id: &str) -> crate::Result<&'static str> {
     DOCUMENTS

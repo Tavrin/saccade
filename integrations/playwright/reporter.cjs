@@ -29,8 +29,10 @@ class SaccadeReporter {
       const name = match[1] || 'snapshot-0', role = match[2].toLowerCase();
       if (!snapshots.has(name)) snapshots.set(name, { expected: [], actual: [], diff: [], duplicate: false });
       const roles = snapshots.get(name);
-      const stat = fs.statSync(attachment.path);
-      const identity = `${stat.dev}:${stat.ino}`;
+      const canonical = fs.realpathSync(attachment.path);
+      // BigInt preserves Windows file IDs beyond Number's exact integer range.
+      const stat = fs.statSync(canonical, { bigint: true });
+      const identity = stat.ino !== 0n ? `${stat.dev}:${stat.ino}` : canonical;
       if (this.sources.has(identity)) roles.duplicate = true;
       this.sources.add(identity);
       roles[role].push(attachment.path);

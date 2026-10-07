@@ -12,7 +12,7 @@ use std::path::{Path, PathBuf};
 /// Versioned, report-links-compatible measurement schema.
 pub const SCHEMA: &str = "saccade-print.v1";
 /// Machine-readable contract shipped with the extension.
-pub const JSON_SCHEMA: &str = include_str!("../schemas/saccade-print.v1.schema.json");
+pub const JSON_SCHEMA: &str = saccade_core::schema_catalog::PRINT_JSON_SCHEMA;
 /// Typed print input/measurement failure.
 #[derive(Debug, thiserror::Error)]
 pub enum Error {

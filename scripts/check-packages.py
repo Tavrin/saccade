@@ -11,17 +11,25 @@ ROOT = Path(__file__).resolve().parents[1]
 READMES = {
     'saccade-core': ROOT / 'crates/saccade-core/README.md',
     'saccade': ROOT / 'README.md',
+    'saccade-print': ROOT / 'crates/saccade-print/README.md',
 }
-ALLOWED = ('.cargo_vcs_info.json', 'Cargo.lock', 'Cargo.toml', 'Cargo.toml.orig', 'README.md')
+ALLOWED = ('.cargo_vcs_info.json', 'Cargo.lock', 'Cargo.toml', 'Cargo.toml.orig', 'README.md',
+           'LICENSE-MIT', 'LICENSE-APACHE')
 MODEL_MANIFEST = 'models/semantic-regions.json'
 COMPRESSION_IMAGES = {f'tests/fixtures/compression-reference/{name}.png'
                       for name in ('reference', 'brightness', 'blocks', 'patch')}
 
 
+TRUSTMARK_IMAGES = {f'tests/fixtures/trustmark/schema-{schema}-payload-{payload}.png'
+                    for schema in range(4) for payload in range(2)}
+PRINT_IMAGES = {'tests/fixtures/constant-cmyk.jpg'}
+
+
 def approved_image(crate, path):
-    """Only demo assets and the four project-authored compression fixtures ship."""
+    """Only explicit demo and project-authored reference image inventories ship."""
     return ((crate == 'saccade' and path.startswith('assets/demo/'))
-            or (crate == 'saccade-core' and path in COMPRESSION_IMAGES))
+            or (crate == 'saccade-core' and path in COMPRESSION_IMAGES | TRUSTMARK_IMAGES)
+            or (crate == 'saccade-print' and path in PRINT_IMAGES))
 
 
 def approved_file(crate, path):
@@ -72,6 +80,7 @@ def main():
             expected = {f'schemas/{p.name}' for p in (ROOT / 'crates/saccade-core/schemas').glob('*.schema.json')}
             packaged = {p for p in files if p.startswith('schemas/')}
             assert expected and packaged == expected, (crate, expected - packaged, packaged - expected)
+            assert TRUSTMARK_IMAGES <= set(files), 'TrustMark reference images absent from package'
             assert 'examples/panel.toml' in files, crate
             assert 'assets/licenses/daltonlens-MIT.txt' in files, crate
             assert {p for p in files if p.startswith('models/')} == {MODEL_MANIFEST}, crate

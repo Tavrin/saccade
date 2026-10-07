@@ -515,6 +515,22 @@ fn openrouter_http(
         body,
     })
 }
+/// Monotonic retry timing, injectable for recorded transports without real sleeps.
+pub trait RetryClock {
+    /// Time elapsed since this exchange began.
+    fn elapsed(&self) -> Duration;
+    /// Wait at least the requested backoff duration.
+    fn sleep(&self, wait: Duration);
+}
+struct WallRetryClock(Instant);
+impl RetryClock for WallRetryClock {
+    fn elapsed(&self) -> Duration {
+        self.0.elapsed()
+    }
+    fn sleep(&self, wait: Duration) {
+        std::thread::sleep(wait);
+    }
+}
 /// Authorized transport shared by canonical adapters and historical backends.
 pub struct Transport<'a> {
     /// Machine-local policy owner.
@@ -702,7 +718,6 @@ impl Transport<'_> {
                 Err(e) => return Err(config(e)),
             }
         };
-        let timeout = paced_until.saturating_duration_since(Instant::now());
         // Re-resolve aliases against the human-owned policy immediately before dispatch.
         if let Err(e) = self.user.authorize(sources, self.roots) {
             self.ledger
@@ -720,7 +735,11 @@ impl Transport<'_> {
             let result = self
                 .ledger
                 .openrouter_dispatch_check(Digest::of_bytes(payload), || {
-                    crate::assist::openrouter::ceiling(self.http, &secret, timeout)
+                    crate::assist::openrouter::ceiling(
+                        self.http,
+                        &secret,
+                        paced_until.saturating_duration_since(Instant::now()),
+                    )
                 });
             match result {
                 Ok(permit) => Some(permit),
@@ -836,7 +855,33 @@ impl Transport<'_> {
         pinned: bool,
         observe: &mut dyn FnMut(&FailedAttempt),
     ) -> Result<Exchange, ProviderFailure> {
-        let start = Instant::now();
+        self.execute_observed_with_clock(
+            provider,
+            models,
+            payload,
+            sources,
+            batch_size,
+            deadline,
+            pinned,
+            observe,
+            &WallRetryClock(Instant::now()),
+        )
+    }
+    /// Execute with explicit monotonic retry timing for offline recorded replies.
+    /// Production entry points use a wall clock; deadlines and retry limits are identical.
+    #[allow(clippy::too_many_arguments)]
+    pub fn execute_observed_with_clock(
+        &self,
+        provider: &str,
+        models: &[String],
+        payload: impl Fn(&str) -> Result<Vec<u8>, String>,
+        sources: &[String],
+        batch_size: usize,
+        deadline: Duration,
+        pinned: bool,
+        observe: &mut dyn FnMut(&FailedAttempt),
+        clock: &dyn RetryClock,
+    ) -> Result<Exchange, ProviderFailure> {
         let mut attempts = Vec::new();
         let mut last = failure(
             RetryClass::AuthenticationOrConfiguration,
@@ -857,7 +902,7 @@ impl Transport<'_> {
             let bytes = payload(model)
                 .map_err(|_| failure(RetryClass::InvalidResponse, "invalid payload", None))?;
             for retry in 0..=if pinned { 0 } else { 2 } {
-                let remaining = deadline.saturating_sub(start.elapsed());
+                let remaining = deadline.saturating_sub(clock.elapsed());
                 if remaining.is_zero() {
                     return Err(failure(
                         RetryClass::Transient,
@@ -881,7 +926,7 @@ impl Transport<'_> {
                             body,
                             model: model.clone(),
                             attempts,
-                            latency_ms: start.elapsed().as_millis() as u64,
+                            latency_ms: clock.elapsed().as_millis() as u64,
                         });
                     }
                     Err(rejection) => rejection,
@@ -919,7 +964,7 @@ impl Transport<'_> {
                     break;
                 }
                 let wait = backoff(retry, e.retry_after_secs);
-                if wait >= deadline.saturating_sub(start.elapsed()) {
+                if wait >= deadline.saturating_sub(clock.elapsed()) {
                     persist(
                         &id,
                         "unavailable",
@@ -935,7 +980,7 @@ impl Transport<'_> {
                 }
                 // Failure remains consumed even if the process dies during backoff.
                 persist(&id, "unavailable", false, None)?;
-                std::thread::sleep(wait);
+                clock.sleep(wait);
             }
         }
         Err(last)

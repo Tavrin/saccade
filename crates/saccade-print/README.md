@@ -15,3 +15,19 @@ four-colour mark candidates. These are measured diagnostics, not print acceptanc
 See the repository `docs/print.md` for policy, limits and CLI examples.
 Synthetic fixtures and their generated ICC profile are original project code,
 licensed MIT OR Apache-2.0, and do not characterize a physical printing device.
+
+## Library use
+
+Call `saccade_print::compare` with two locally supplied inputs and an explicit
+comparison policy. `saccade_print::JSON_SCHEMA` exposes the exact report contract
+also shipped by the core schema catalogue.
+
+Input profiles define the colour interpretation; record their hashes alongside
+the measured result. An explicit override replaces the embedded profile and is
+recorded in the report. The library never downloads profiles or image assets.
+
+## Scope
+
+Unsupported layouts and invalid profiles return errors rather than converting
+silently to RGB. TAC and gamut diagnostics describe the supplied profiles and
+policy. They do not establish physical press behaviour or approve a print job.

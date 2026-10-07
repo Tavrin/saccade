@@ -87,7 +87,8 @@ fn help_lists_active_commands_and_watch_alias_stays_hidden() {
         .collect::<Vec<_>>();
     assert_eq!(
         top.len(),
-        50 + usize::from(cfg!(feature = "compression"))
+        51 + usize::from(cfg!(feature = "compression"))
+            + usize::from(cfg!(feature = "print"))
             + 4 * usize::from(cfg!(feature = "products"))
             + usize::from(cfg!(feature = "local-vlm"))
             + usize::from(cfg!(feature = "vision-providers")),
@@ -96,6 +97,11 @@ fn help_lists_active_commands_and_watch_alias_stays_hidden() {
     for name in [
         "manifest",
         "export-regions",
+        "mask-metrics",
+        "boxes",
+        "frame-map",
+        "tofu",
+        "text-legibility",
         "timing",
         "render-evidence",
         "schema",

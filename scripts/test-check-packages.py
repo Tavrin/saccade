@@ -31,6 +31,19 @@ class PackagedReadmeTests(unittest.TestCase):
         self.assertFalse(checker.approved_image('saccade-core', 'tests/fixtures/private.png'))
         self.assertFalse(checker.approved_image('saccade', 'tests/fixtures/compression-reference/reference.png'))
 
+    def test_reference_image_inventories_are_exact(self):
+        for schema in range(4):
+            for payload in range(2):
+                self.assertTrue(checker.approved_image('saccade-core',
+                    f'tests/fixtures/trustmark/schema-{schema}-payload-{payload}.png'))
+        self.assertTrue(checker.approved_image('saccade-print', 'tests/fixtures/constant-cmyk.jpg'))
+        for crate, name in [('saccade-core', 'tests/fixtures/trustmark/schema-4-payload-0.png'),
+                            ('saccade-core', 'tests/fixtures/trustmark/private.png'),
+                            ('saccade-print', 'tests/fixtures/private.jpg'),
+                            ('saccade', 'tests/fixtures/constant-cmyk.jpg')]:
+            with self.subTest(crate=crate, name=name):
+                self.assertFalse(checker.approved_image(crate, name))
+
     def setUp(self):
         self.temp = tempfile.TemporaryDirectory()
         self.addCleanup(self.temp.cleanup)
