@@ -467,14 +467,14 @@ fn compare_maps(
     }
     Ok(result.into_any().unbind())
 }
-/// Run bounded, resumable batch intake through an explicitly installed matching CLI.
+/// Run resumable batch intake in Rust, without an external CLI.
+/// Deadlines are cooperative; active bounded operations finish before returning.
 #[pyfunction]
-#[pyo3(signature=(source, out, executable="saccade", options_json=None, reference_dir=None))]
+#[pyo3(signature=(source, out, options_json=None, reference_dir=None))]
 fn batch(
     py: Python<'_>,
     source: PathBuf,
     out: PathBuf,
-    executable: &str,
     options_json: Option<&str>,
     reference_dir: Option<PathBuf>,
 ) -> PyResult<Py<PyAny>> {
@@ -483,7 +483,10 @@ fn batch(
         .transpose()
         .map_err(|e| error(py, MediaError::new("invalid_batch_options", e.to_string())))?
         .unwrap_or_default();
-    let executable = PathBuf::from(executable);
+    let library: PathBuf = py
+        .import("saccade._native")?
+        .getattr("__file__")?
+        .extract()?;
     let rows = py
         .allow_threads(|| {
             if source.is_dir()
@@ -497,7 +500,7 @@ fn batch(
                 ));
             }
             let inputs = saccade_core::batch::intake(&source, reference_dir.as_deref())?;
-            saccade_core::batch::run(&executable, &inputs, &options, &out)
+            saccade_core::batch::run_in_process(&library, &inputs, &options, &out)
         })
         .map_err(|e| error(py, MediaError::new("batch_failed", e.to_string())))?;
     json(py, Ok(serde_json::Value::Array(rows)))

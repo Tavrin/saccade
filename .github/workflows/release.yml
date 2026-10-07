@@ -10,6 +10,10 @@ on:
       - 'scripts/release-check.sh'
       - 'scripts/bundles.py'
       - 'scripts/bundles.json'
+      - 'scripts/test-bundles.py'
+      - 'docs/install-matrix.md'
+      - 'crates/saccade/Cargo.toml'
+      - 'crates/saccade-core/Cargo.toml'
       - 'scripts/generate-third-party-notices.py'
       - 'scripts/validate-showcase-schemas.py'
       - 'scripts/verify-sha256sums.py'
@@ -39,6 +43,7 @@ jobs:
         with:
           ref: ${{ github.event.pull_request.head.sha || github.sha }}
           persist-credentials: false
+      - run: python3 scripts/test-bundles.py
       - name: Resolve the version label
         id: tag
         env:
@@ -121,7 +126,8 @@ jobs:
           RELEASE_COMMIT: ${{ github.event.pull_request.head.sha || github.sha }}
         run: |
           set -euo pipefail
-          cargo build --release --locked -p saccade --features prechecks --target "$TARGET"
+          features="$(python3 scripts/bundles.py features default)"
+          cargo build --release --locked -p saccade --features "$features" --target "$TARGET"
           binary="$CARGO_TARGET_DIR/$TARGET/release/saccade"
           if [ "$RUNNER_OS" = Windows ]; then binary="$binary.exe"; fi
           "$binary" doctor --json > doctor.json

@@ -91,3 +91,17 @@ have the actual tile-grid shape. This SDR pair API accepts paths or encoded byte
 imports NumPy before input work, and releases the GIL during native comparison.
 `compare --export-maps` provides the same maps as `.npy`/float32 `.exr` with a
 versioned JSON index. See [rendering evidence](render-evidence.md) for units and limits.
+
+## Batch intake
+
+```python
+rows = saccade.batch("images", "batch-results")
+rows = saccade.batch("images", "batch-results")  # resumes immutable receipts
+```
+
+The installed wheel runs this API in-process through Rust and releases the GIL.
+No CLI installation or `SACCADE_BIN` is needed. The same core runner owns receipts,
+row statuses, summaries and `saccade-manifest.v1`. Python uses cooperative deadlines:
+an active bounded operation finishes before an overdue item returns as `timed-out`.
+See [batch intake](batch-and-assist.md) for limits, supported section flags and resume
+identity. The former `executable` argument is removed from this new 0.2.8 API.

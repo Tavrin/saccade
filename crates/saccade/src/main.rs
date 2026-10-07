@@ -2102,6 +2102,9 @@ fn doctor(json: bool) -> Result<u8, CliError> {
     if cfg!(feature = "ocr") {
         features.push("ocr");
     }
+    if cfg!(feature = "ocr-provider") {
+        features.push("ocr-provider");
+    }
     if cfg!(feature = "mcp") {
         features.push("mcp");
     }

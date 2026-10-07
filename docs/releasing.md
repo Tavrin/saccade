@@ -121,14 +121,16 @@ feature list, runs the smoke test and writes the inventory.
 
 | Asset | Content |
 |---|---|
-| `saccade-default-<target>` | Same binary as `saccade-<target>`, republished under its bundle name |
-| `saccade-media-<target>` | default + `credentials`, `documents`, `products`, `ocr` |
-| `saccade-full-<target>` | media + embeddings, geometry, dense motion, local models/VLM/providers, assist, media HTTP |
+| `saccade-default-<target>` | Same binary as `saccade-<target>`, including prechecks and text-quality, republished under its bundle name |
+| `saccade-media-<target>` | default + `credentials`, `documents`, `products`, `ocr`, `print` |
+| `saccade-full-<target>` | media + embeddings, geometry, geo TIFF measurements, dense motion, local models/VLM/providers, assist, media HTTP |
 
 Each archive ships with `<asset>.inventory.json` (features added to the defaults,
 compiled-feature list from `doctor --json`, archive SHA-256, exclusions),
 `<asset>.smoke.json` (the smoke test result for that exact binary) and a combined
-`SHA256SUMS-bundles`. The smoke test checks the compiled-feature inventory, a
+`SHA256SUMS-bundles`. The configuration check resolves both CLI and core Cargo feature edges. The smoke
+and inventory writers require exact agreement with the compiled-feature inventory,
+including rejection of extra features. The smoke test also checks a
 `compare` run, `models config`/`models list`, and, for media and full, `analyze-media`
 and `inspect-image`, and fails if any step downloaded a model. `bundle-assemble`
 refuses the release when any expected file or a passed smoke result is missing.

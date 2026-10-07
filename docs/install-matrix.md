@@ -7,10 +7,10 @@ runtime (see [models](models.md)).
 | You want to | Bundle | Install |
 |---|---|---|
 | Compare captures, prove identity or performance, review, run the MCP server | `default` | download `saccade-<target>` (legacy name) or `saccade-default-<target>` |
-| Also read C2PA credentials, compare PDF/SVG, use imgtune/product tools or Rust OCR | `media` | download `saccade-media-<target>` |
-| Also use embeddings, geometry, dense motion, local models and providers, assist, media HTTP | `full` | download `saccade-full-<target>` |
+| Also read C2PA credentials, compare PDF/SVG, use imgtune/product tools, print measurements or Rust OCR | `media` | download `saccade-media-<target>` |
+| Also use embeddings, geometry, geo TIFF measurements, dense motion, local models and providers, assist, media HTTP | `full` | download `saccade-full-<target>` |
 | Use AVIF in imgtune | build from source | `cargo install saccade --features imgtune-avif` (needs libdav1d and pkg-config) |
-| Use it from Python | wheel | `pip install saccade` (see [python](python.md)); wheels carry no models |
+| Use it from Python | wheel | `pip install saccade-vision` (see [python](python.md)); wheels carry no models |
 | Use it from Rust | crate | `cargo install saccade` (default features) or add `--features ...` |
 
 Targets: `x86_64-unknown-linux-gnu`, `aarch64-unknown-linux-gnu`,
@@ -21,7 +21,9 @@ Targets: `x86_64-unknown-linux-gnu`, `aarch64-unknown-linux-gnu`,
 | Capability | default | media | full |
 |---|:-:|:-:|:-:|
 | `compare`, `prove`, `perf`, `arms`, `review`, `mcp`, workbench | yes | yes | yes |
-| Prechecks | yes | yes | yes |
+| Prechecks and text-quality pixel evidence | yes | yes | yes |
+| ICC-managed CMYK print measurements | no | yes | yes |
+| Geo TIFF measurements and grid checks | no | no | yes |
 | C2PA credentials (`inspect-image`) | no | yes | yes |
 | PDF and SVG documents | no | yes | yes |
 | imgtune and product tools (AVIF excluded) | no | yes | yes |
