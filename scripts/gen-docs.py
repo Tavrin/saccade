@@ -86,8 +86,54 @@ def generated(binary=None, allow_missing_imgtune_avif=False):
         lines = ['# Command reference', '', 'Generated from compiled capabilities and `--help`; do not edit by hand.', '',
             'Generation: `cargo build --release -p saccade --all-features`, then `python3 scripts/gen-docs.py --saccade target/release/saccade`.',
             'The all-features binary includes every supported operation.', '',
-            'Compiled features: ' + ', '.join(f'`{f}`' for f in sorted(set(manifest['features']) - {'default'})) + '.', '',
+            'Compiled features: ' + ', '.join(f'`{f}`' for f in features) + '.', '',
             'Exit 1 means a failed image measurement/evaluation gate or located divergence.',
             'Exit 0 for compare/identity means no image regression; inspect `performance` for qualification.',
             'Inspection, review, rank and ablation completion grant no acceptance authority.',
             'Exit 2 means the operation cannot run. Demo intentionally exits 1.', '']
+        if allow_missing_imgtune_avif and 'imgtune-avif' not in features:
+            # Keep the canonical reference header; this exception affects only the codec build.
+            lines[7] = 'Compiled features: ' + ', '.join(f'`{f}`' for f in sorted(set(features) | {'imgtune-avif'})) + '.'
+        for op in [''] + operations:
+            help_result = subprocess.run([binary] + op.split() + ['--help'], check=True, capture_output=True, text=True, encoding="utf-8")
+            help_text = '\n'.join(line.rstrip() for line in help_result.stdout.rstrip().splitlines())
+            lines += [f'## saccade {op}'.rstrip(), '', '```text', help_text, '```', '']
+        packs['docs/cli.md'] = '\n'.join(lines)
+    return packs
+
+
+def main():
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument('--saccade', help='also generate the command reference from this binary')
+    parser.add_argument('--allow-missing-imgtune-avif', action='store_true',
+                        help='allow only the AVIF codec feature to be absent when system dav1d is unavailable')
+    parser.add_argument('--skip-readme', action='store_true', help='preserve README during integration')
+    parser.add_argument('--check', action='store_true', help='reject drift without rewriting files')
+    args = parser.parse_args()
+    stale = []
+    for name, body in generated(args.saccade, args.allow_missing_imgtune_avif).items():
+        if args.skip_readme and name == "README.md":
+            continue
+        dest = ROOT / name
+        if args.check:
+            existing = dest.read_text(encoding="utf-8") if dest.is_file() else ''
+            if not dest.is_file() or existing != body:
+                stale.append(name)
+                diff = difflib.unified_diff(
+                    existing.splitlines(keepends=True), body.splitlines(keepends=True),
+                    fromfile=name, tofile=name + ' (generated)')
+                # Bound each file's diagnostics without materializing a large diff.
+                for line in itertools.islice(diff, 200):
+                    print(line, end='' if line.endswith('\n') else '\n')
+                if next(diff, None) is not None:
+                    print(f'... diff truncated after 200 lines: {name}')
+        else:
+            dest.parent.mkdir(parents=True, exist_ok=True)
+            dest.write_text(body, encoding="utf-8", newline="\n")
+    if stale:
+        parser.exit(1, 'Generated files differ: ' + ', '.join(stale) + '\n')
+    print('Generated documentation matches.' if args.check else 'Generated documentation written.')
+
+
+if __name__ == '__main__':
+    main()

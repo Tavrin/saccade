@@ -1,0 +1,93 @@
+{
+  "schema": "saccade-playbook.v1",
+  "id": "W12",
+  "bundle": "default",
+  "features": [
+    "mcp"
+  ],
+  "dependencies": [],
+  "generated_inputs": "@INPUT@",
+  "cwd": "@INPUT@",
+  "commands": [
+    {
+      "name": "mcp",
+      "argv": [
+        "@PYTHON@",
+        "@RUNNER@",
+        "--helper",
+        "mcp",
+        "--bin",
+        "@BIN@",
+        "--inputs",
+        "@INPUT@",
+        "--out",
+        "@OUTPUT@/mcp"
+      ],
+      "exit": 0,
+      "checks": [
+        {
+          "name": "server",
+          "source": "stdout",
+          "pointer": "/server",
+          "equals": "saccade"
+        },
+        {
+          "name": "measure",
+          "source": "stdout",
+          "pointer": "/measure_available",
+          "equals": true
+        },
+        {
+          "name": "write",
+          "source": "stdout",
+          "pointer": "/baseline_write_available",
+          "equals": false
+        }
+      ],
+      "sha256": "86cc7ed55826c378177a4cac378cd1cce9af768b1a22df99c433860940b7b31a"
+    },
+    {
+      "name": "compare",
+      "argv": [
+        "@BIN@",
+        "compare",
+        "local/reference.png",
+        "local/candidate.png",
+        "--out",
+        "@OUTPUT@/compare",
+        "--json"
+      ],
+      "exit": 1,
+      "checks": [
+        {
+          "name": "verdict",
+          "source": "stdout",
+          "pointer": "/verdict",
+          "equals": "regression"
+        }
+      ],
+      "sha256": "372c0822580ba7f662826e27efc27e84da81347bfa3da279d237b5c36c22a946"
+    },
+    {
+      "name": "review",
+      "argv": [
+        "@BIN@",
+        "review",
+        "@OUTPUT@/compare/saccade-report.v1.json",
+        "--out",
+        "@OUTPUT@/review",
+        "--json"
+      ],
+      "exit": 0,
+      "checks": [
+        {
+          "name": "calls",
+          "source": "stdout",
+          "pointer": "/counts/dispatched_calls",
+          "equals": 0
+        }
+      ],
+      "sha256": "8a426a8986fe5156af486ca3b0145d30a2a3bf59d65643e7836980a3592c153b"
+    }
+  ]
+}
