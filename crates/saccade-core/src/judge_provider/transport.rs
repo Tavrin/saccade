@@ -512,6 +512,18 @@ pub trait Http {
             timeout,
         )
     }
+    /// Explicit Jev local-allowance boundary; standard transport remains disabled.
+    #[cfg(feature = "assist")]
+    fn post_jev(
+        &self,
+        permit: crate::assist::jev::DispatchPermit,
+        header: (&str, &str),
+        payload: &[u8],
+        timeout: Duration,
+    ) -> Result<HttpReply, String> {
+        permit.check(payload)?;
+        self.post(crate::assist::jev::ENDPOINT, header, payload, timeout)
+    }
     /// Send one reserved request. Secret-bearing headers must never be logged.
     fn post(
         &self,
@@ -555,6 +567,24 @@ impl Http for Network {
         openrouter_http(
             "POST",
             crate::assist::openrouter::ENDPOINT,
+            header,
+            Some(payload),
+            timeout,
+        )
+    }
+
+    #[cfg(feature = "assist")]
+    fn post_jev(
+        &self,
+        permit: crate::assist::jev::DispatchPermit,
+        header: (&str, &str),
+        payload: &[u8],
+        timeout: Duration,
+    ) -> Result<HttpReply, String> {
+        permit.check(payload)?;
+        openrouter_http(
+            "POST",
+            crate::assist::jev::ENDPOINT,
             header,
             Some(payload),
             timeout,

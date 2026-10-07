@@ -268,6 +268,7 @@ impl Ledger {
             if receipt.outcome != "reserved" {
                 return Err("money receipt already final".into());
             }
+            let jev_metadata = (receipt.usage["ceiling"] == crate::assist::jev::CEILING).then(|| receipt.usage.clone());
             let dispatched = receipt.usage["openrouter_dispatched"] == true;
             let requested_identity = receipt.usage["requested_identity"].clone();
             let image_table = receipt.usage.get("image_table").cloned();
@@ -291,6 +292,12 @@ impl Ledger {
             }
             receipt.actual_nano_usd = actual;
             receipt.usage = usage;
+            if let Some(metadata) = jev_metadata {
+                for name in ["ceiling", "price_policy", "price_source", "price_date", "price_expires_ms", "billing_verified", "prepaid_no_refill_attested"] {
+                    receipt.usage[name] = metadata[name].clone();
+                }
+                receipt.usage["reconciliation"] = serde_json::json!({"state":"unsupported","actual_debit":null});
+            }
             if let Some(index) = root_index { receipt.usage["campaign_root_index"] = index; }
             if let Some(table) = image_table {
                 receipt.usage["image_table"] = table;
@@ -619,6 +626,7 @@ mod tests {
             );
         }
     }
+    #[cfg(feature = "assist")]
     #[test]
     fn g12_resume_identity_and_reconciliation_preserve_prior_spend() {
         use crate::{assist::openrouter::Generation, evidence::canonical::Digest};

@@ -704,7 +704,11 @@ impl LiveBackend {
             confidence: a["confidence"].as_f64(),
             probs,
             prob_source: "model_distribution",
-            model_version: reply["model"].as_str().unwrap_or(model).to_owned(),
+            model_version: reply["model"]
+                .as_str()
+                .filter(|m| *m == model)
+                .ok_or_else(|| CallError::fatal("missing or mismatched Jev model identity"))?
+                .to_owned(),
             model: model.to_owned(),
             latency_ms: started.elapsed().as_millis() as u64,
             usage: reply["usage"].clone(),

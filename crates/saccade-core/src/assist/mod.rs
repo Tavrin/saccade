@@ -3,6 +3,7 @@ pub mod batch;
 pub mod catalog;
 pub mod execution;
 pub mod geometry;
+pub mod jev;
 /// Recorded OpenRouter chat-completions adapter.
 pub mod openrouter;
 pub mod price;

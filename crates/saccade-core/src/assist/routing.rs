@@ -58,7 +58,7 @@ pub fn prepare(
 pub fn answer(body: &[u8], revision: &str) -> Result<Decision> {
     let value: Value = decode(body)?;
     require(
-        value["model"] == JEV && value["modelVersion"].as_str() == Some(revision),
+        super::jev::identity(&value, revision).is_ok(),
         "Jev routing revision drift",
     )?;
     let choice = workflow::closed_choice(&value, &["vision", "insufficient"])?;

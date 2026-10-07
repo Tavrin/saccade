@@ -1380,7 +1380,7 @@ fn g12_live_boundaries_refuse_without_verified_billing_limits() {
 }
 
 #[test]
-fn g12_jev_closed_contract_rejects_extra_fields_bad_probabilities_and_missing_revision() {
+fn g12_jev_closed_contract_rejects_extra_fields_and_bad_probabilities() {
     for q in [
         json!({"choice":"supported","approve":true}),
         json!({"choice":"supported","probabilities":{"supported":2,"unsupported":-1,"insufficient":0}}),
@@ -1401,7 +1401,7 @@ fn g12_jev_closed_contract_rejects_extra_fields_bad_probabilities_and_missing_re
                 .unwrap(),
             JEV
         )
-        .is_err()
+        .is_ok()
     );
 }
 

@@ -163,3 +163,7 @@ required-features = ["assist"]
 # Local batch locking must not add a native dependency to portable core targets.
 [target.'cfg(any(unix, windows))'.dependencies]
 fs2 = "0.4.3"
+
+[[example]]
+name = "assist_jev_live"
+required-features = ["assist"]

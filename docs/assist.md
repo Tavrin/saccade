@@ -67,7 +67,9 @@ settings, transforms, catalog/condition identities and returned revisions are
 checked. Replay records are attributed cached evidence, never independent samples.
 `--bypass-cache` disables reuse; an explicit offline fixture is still a replay.
 
-The Gemini/Jev interactive live network path remains refused. Its authorization
+The Gemini/Jev interactive live network path remains refused. An explicit
+[Jev development runner](jev-live.md) supports a separately attested local allowance
+labelled `local_allowance_not_provider_verified`. Its authorization
 controls require `--run`, source-root export permission and a separate
 output root in the existing `~/.config/saccade/user.toml` policy. Keys come only
 from `~/.config/saccade/{gemini,jev}.env`, with `SACCADE_GEMINI_API_KEY` and

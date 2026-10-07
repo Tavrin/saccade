@@ -520,7 +520,7 @@ pub fn support_payload(
 pub fn support_answer(body: &[u8], revision: &str) -> Result<Support> {
     let value: Value = decode(body)?;
     require(
-        value["model"] == JEV && value["modelVersion"].as_str() == Some(revision),
+        super::jev::identity(&value, revision).is_ok(),
         "Jev identity drift",
     )?;
     let choice = closed_choice(&value, &["supported", "unsupported", "insufficient"])?;
@@ -579,9 +579,20 @@ pub(crate) fn closed_choice<'a>(value: &'a Value, choices: &[&str]) -> Result<&'
     require(
         answer.as_object().is_some_and(|o| {
             o.keys()
-                .all(|k| ["choice", "probabilities"].contains(&k.as_str()))
+                .all(|k| ["type", "choice", "probabilities", "confidence"].contains(&k.as_str()))
         }),
         "unknown Jev answer fields",
+    )?;
+    require(
+        answer.get("type").is_none_or(|v| v == "choice"),
+        "Jev answer type",
+    )?;
+    require(
+        answer.get("confidence").is_none_or(|v| {
+            v.as_f64()
+                .is_some_and(|n| n.is_finite() && (0.0..=1.0).contains(&n))
+        }),
+        "Jev confidence range",
     )?;
     let choice = answer["choice"]
         .as_str()
