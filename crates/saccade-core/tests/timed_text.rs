@@ -159,3 +159,90 @@ fn early_repeated_cues_and_whitespace_normalization_do_not_use_fuzzy_spelling() 
     };
     assert!(tt::check(&expected, &observations, invalid).is_err());
 }
+
+#[test]
+fn timing_and_gap_boundaries_ignore_roundoff_but_reject_actual_excess() {
+    let expected = cues("1\n00:00:00,100 --> 00:00:01,100\nSample\n");
+    let mut samples = vec![
+        observed(0, 0.4, Some("Sample")),
+        observed(1, 0.7, Some("Sample")),
+        observed(2, 1.0, Some("Sample")),
+    ];
+    let policy = tt::Policy {
+        maximum_gap_s: 0.3,
+        ..tt::Policy::default()
+    };
+    assert_eq!(tt::check(&expected, &samples, policy).unwrap().0, "aligned");
+    let adjacent =
+        cues("WEBVTT\n\n00:00.000 --> 00:01.000\nSample\n\n00:01.000 --> 00:02.000\nSample\n");
+    let adjacent_samples: Vec<_> = (0..4)
+        .map(|i| observed(i, i as f64 * 0.5, Some("Sample")))
+        .collect();
+    let (state, results, _) =
+        tt::check(&adjacent, &adjacent_samples, tt::Policy::default()).unwrap();
+    assert_eq!(state, "aligned");
+    assert_eq!(results[1].first_seen_s, Some(1.0));
+    let equidistant =
+        cues("WEBVTT\n\n00:00.000 --> 00:00.200\nSample\n\n00:01.000 --> 00:01.200\nSample\n");
+    let (state, results, extra) = tt::check(
+        &equidistant,
+        &[observed(0, 0.6, Some("Sample"))],
+        tt::Policy::default(),
+    )
+    .unwrap();
+    assert_eq!(state, "insufficient_evidence");
+    assert!(results.iter().all(|r| r.matching_frames.is_empty()));
+    assert!(extra.is_empty());
+    let horizon = cues("WEBVTT\n\n00:02.100 --> 00:03.100\nSample\n");
+    let (_, results, extra) = tt::check(
+        &horizon,
+        &[observed(0, 0.1, Some("Sample"))],
+        tt::Policy::default(),
+    )
+    .unwrap();
+    assert!(extra.is_empty());
+    assert!(results[0].findings.iter().any(|f| f == "early"));
+    let mut hours = expected.clone();
+    hours[0].start_s += 36_000.0;
+    hours[0].end_s += 36_000.0;
+    let mut hour_samples = samples.clone();
+    for sample in &mut hour_samples {
+        sample.timestamp_s += 36_000.0;
+    }
+    assert_eq!(
+        tt::check(&hours, &hour_samples, policy).unwrap().0,
+        "aligned"
+    );
+    let mut coarse = expected.clone();
+    coarse[0].start_s += 1e15;
+    coarse[0].end_s += 1e15;
+    let coarse_samples: Vec<_> = (0..4)
+        .map(|i| observed(i, coarse[0].start_s + i as f64 * 0.25, Some("Sample")))
+        .collect();
+    let (state, results, _) = tt::check(&coarse, &coarse_samples, policy).unwrap();
+    assert_eq!(state, "insufficient_evidence");
+    assert!(
+        results[0]
+            .reasons
+            .iter()
+            .any(|r| r.contains("clock precision"))
+    );
+    samples[0].timestamp_s = 0.401;
+    let (_, results, _) = tt::check(&expected, &samples, tt::Policy::default()).unwrap();
+    assert!(results[0].findings.iter().any(|f| f == "late"));
+    samples[0].timestamp_s = 0.4;
+    samples[1].timestamp_s = 0.701;
+    let (_, results, _) = tt::check(&expected, &samples, policy).unwrap();
+    assert!(!results[0].window_covered);
+    samples[0].timestamp_s = expected[0].start_s + f64::EPSILON;
+    let strict = tt::Policy {
+        timing_tolerance_s: 0.0,
+        ..tt::Policy::default()
+    };
+    assert!(
+        tt::check(&expected, &samples, strict).unwrap().1[0]
+            .findings
+            .iter()
+            .any(|f| f == "late")
+    );
+}

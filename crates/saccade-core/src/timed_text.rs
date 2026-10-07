@@ -308,6 +308,18 @@ pub struct Report {
     /// Interpretation limits.
     pub limitations: Vec<String>,
 }
+fn roundoff(a: f64, b: f64) -> f64 {
+    8.0 * f64::EPSILON * a.abs().max(b.abs()).max(1.0)
+}
+fn gap_exceeds(from: f64, to: f64, limit: f64) -> bool {
+    let delta = to - from;
+    // Explicit zero tolerance remains a strict comparison of supplied floats.
+    if limit == 0.0 {
+        return delta > 0.0;
+    }
+    delta - limit > roundoff(from, to)
+}
+
 fn normalized(text: &str) -> String {
     text.split_whitespace().collect::<Vec<_>>().join(" ")
 }
@@ -383,11 +395,18 @@ pub fn check(
         };
         let mut best = f64::INFINITY;
         let mut owner = None;
+        let mut best_active = false;
         let mut tie = false;
         for (i, c) in cues.iter().enumerate() {
-            if text != &expected[i]
-                || o.timestamp_s < c.start_s - policy.search_s
-                || o.timestamp_s >= c.end_s + policy.search_s
+            if text != &expected[i] {
+                continue;
+            }
+            let active = o.timestamp_s >= c.start_s && o.timestamp_s < c.end_s;
+            if o.timestamp_s < c.start_s && gap_exceeds(o.timestamp_s, c.start_s, policy.search_s)
+                || o.timestamp_s >= c.end_s
+                    && (policy.search_s == 0.0
+                        || o.timestamp_s - c.end_s
+                            >= policy.search_s - roundoff(o.timestamp_s, c.end_s))
             {
                 continue;
             }
@@ -398,11 +417,16 @@ pub fn check(
             } else {
                 0.
             };
-            if distance < best {
+            let uncertainty = roundoff(o.timestamp_s, c.end_s);
+            if owner.is_none()
+                || active && !best_active
+                || active == best_active && distance < best - uncertainty
+            {
                 best = distance;
                 owner = Some(i);
+                best_active = active;
                 tie = false;
-            } else if distance == best {
+            } else if active == best_active && (distance - best).abs() <= uncertainty {
                 tie = true;
             }
         }
@@ -415,7 +439,7 @@ pub fn check(
             if let Some(previous) = extra.last_mut().filter(|e| {
                 e.frame_indices.last() == j.checked_sub(1).map(|p| &observations[p].index)
                     && normalized(&e.text) == *text
-                    && o.timestamp_s - e.last_seen_s <= policy.maximum_gap_s
+                    && !gap_exceeds(e.last_seen_s, o.timestamp_s, policy.maximum_gap_s)
             }) {
                 previous.frame_indices.push(o.index);
                 previous.last_seen_s = o.timestamp_s;
@@ -444,14 +468,28 @@ pub fn check(
             .filter(|(_, a)| **a == Some(i))
             .map(|(j, _)| j)
             .collect();
-        let covered = !window.is_empty()
+        let precision = roundoff(c.start_s, c.end_s);
+        let coarse_clock = precision >= policy.maximum_gap_s
+            || policy.timing_tolerance_s > 0.0 && precision >= policy.timing_tolerance_s;
+        let covered = !coarse_clock
+            && !window.is_empty()
             && window.iter().all(|j| texts[*j].is_some() && !ambiguous[*j])
-            && observations[window[0]].timestamp_s - c.start_s <= policy.maximum_gap_s
-            && c.end_s - observations[*window.last().unwrap_or(&window[0])].timestamp_s
-                <= policy.maximum_gap_s
+            && !gap_exceeds(
+                c.start_s,
+                observations[window[0]].timestamp_s,
+                policy.maximum_gap_s,
+            )
+            && !gap_exceeds(
+                observations[*window.last().unwrap_or(&window[0])].timestamp_s,
+                c.end_s,
+                policy.maximum_gap_s,
+            )
             && window.windows(2).all(|w| {
-                observations[w[1]].timestamp_s - observations[w[0]].timestamp_s
-                    <= policy.maximum_gap_s
+                !gap_exceeds(
+                    observations[w[0]].timestamp_s,
+                    observations[w[1]].timestamp_s,
+                    policy.maximum_gap_s,
+                )
             });
         let first = matches.first().map(|j| observations[*j].timestamp_s);
         let last = matches.last().map(|j| observations[*j].timestamp_s);
@@ -471,7 +509,7 @@ pub fn check(
                 .into(),
             );
         }
-        if offset.is_some_and(|v| v < -policy.timing_tolerance_s) {
+        if first.is_some_and(|t| gap_exceeds(t, c.start_s, policy.timing_tolerance_s)) {
             findings.push("early".into());
         }
         let onset_covered = first.is_some_and(|first| {
@@ -482,21 +520,32 @@ pub fn check(
                 .map(|(j, _)| j)
                 .collect();
             !span.is_empty()
-                && observations[span[0]].timestamp_s - c.start_s <= policy.maximum_gap_s
+                && !gap_exceeds(
+                    c.start_s,
+                    observations[span[0]].timestamp_s,
+                    policy.maximum_gap_s,
+                )
                 && span.iter().all(|j| texts[*j].is_some() && !ambiguous[*j])
                 && span.windows(2).all(|w| {
-                    observations[w[1]].timestamp_s - observations[w[0]].timestamp_s
-                        <= policy.maximum_gap_s
+                    !gap_exceeds(
+                        observations[w[0]].timestamp_s,
+                        observations[w[1]].timestamp_s,
+                        policy.maximum_gap_s,
+                    )
                 })
         });
-        if onset_covered && offset.is_some_and(|v| v > policy.timing_tolerance_s) {
+        if onset_covered
+            && first.is_some_and(|t| gap_exceeds(c.start_s, t, policy.timing_tolerance_s))
+        {
             findings.push("late".into());
         }
-        if last.is_some_and(|t| t >= c.end_s + policy.timing_tolerance_s) {
+        if last.is_some_and(|t| gap_exceeds(c.end_s, t, policy.timing_tolerance_s)) {
             findings.push("persists_after_end".into());
         }
         if covered
-            && last.is_some_and(|t| t + policy.maximum_gap_s < c.end_s - policy.timing_tolerance_s)
+            && last.is_some_and(|t| {
+                gap_exceeds(t, c.end_s, policy.maximum_gap_s + policy.timing_tolerance_s)
+            })
         {
             findings.push("ends_before_end".into());
         }
@@ -536,8 +585,13 @@ pub fn check(
         if legibility == "illegible" {
             findings.push("illegible".into());
         }
-        if offset.is_some_and(|v| v > policy.timing_tolerance_s) && !onset_covered {
+        if first.is_some_and(|t| gap_exceeds(c.start_s, t, policy.timing_tolerance_s))
+            && !onset_covered
+        {
             reasons.push("sampled onset offset cannot establish lateness across unknown OCR or sampling gaps".into());
+        }
+        if coarse_clock {
+            reasons.push("presentation clock precision is too coarse for timing/gap policy; use a sequence-relative origin".into());
         }
         if !covered {
             reasons.push("window lacks known unambiguous OCR samples within maximum_gap_s; unsampled times remain unverified".into());
@@ -546,7 +600,11 @@ pub fn check(
             reasons.push("expected text pixel legibility unavailable or insufficient".into());
         }
         if matches.windows(2).any(|w| {
-            observations[w[1]].timestamp_s - observations[w[0]].timestamp_s > policy.maximum_gap_s
+            gap_exceeds(
+                observations[w[0]].timestamp_s,
+                observations[w[1]].timestamp_s,
+                policy.maximum_gap_s,
+            )
         }) {
             reasons.push("matching observations are separated by a sampling gap".into());
         }

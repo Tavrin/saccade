@@ -310,6 +310,7 @@ pub(crate) fn run(args: Args) -> Result<u8, CliError> {
     let (state, cues, extra) = tt::check(&cues, &observations, policy)?;
     let report=tt::Report {schema:tt::SCHEMA.into(),report_id:None,source_refs:Vec::new(),state:state.clone(),timed_text_sha256:digest(&cue_bytes),frame_map_sha256:digest(&map_bytes),policy,region_px:args.region,observations,cues,extra,limitations:vec![
         "Only supplied presentation-time samples are checked; video extraction, timestamp origin and unsampled frames remain producer-owned.".into(),
+        "Timing/gap limits allow only floating-point roundoff at eight machine epsilons of the clock scale; zero timing tolerance stays strict and coarse clocks abstain.".into(),
         "Timing offsets are first matching sample minus cue start; last_seen_s is not disappearance time. Gaps cannot establish continuous presence or exact onset.".into(),
         "Exact Unicode with whitespace normalization only; no spelling correction, semantic inference or provider calls. Overlapping identical cues abstain; use separate text regions for simultaneous captions.".into(),
         "Missing/text-mismatch findings require known OCR coverage under maximum_gap_s. Empty regions require an explicit image-bound producer annotation in the timed-text source wrapper; empty OCR alone cannot certify absence.".into(),

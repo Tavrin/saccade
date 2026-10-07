@@ -76,12 +76,16 @@ HTML evidence view and artifact manifest.
 Matching is exact Unicode after collapsing whitespace. Misspellings are
 `text_mismatch`, not silently corrected. Identical repeated text is assigned
 to the closest expected time interval within `--search-s` (default 2 seconds).
-Equal-distance overlaps abstain. Unexpected nonempty text is listed in `extra`
+A unique active cue takes priority over an adjacent cue ending at the same
+timestamp. Equal-distance overlaps (including clock roundoff) abstain. Unexpected nonempty text is listed in `extra`
 in contiguous sampled runs, retaining frame indices and first/last sightings
 under the gap policy. A shifted cue's text stays assigned within the search window;
 it is not also counted as extra. Text outside that search horizon is extra.
 
-`--timing-tolerance-s` defaults to 0.3 seconds. Findings include `early`, `late`,
+`--timing-tolerance-s` defaults to 0.3 seconds. Timing and gap comparisons allow
+only floating-point roundoff (eight machine epsilons at the presentation-clock
+scale); a zero timing tolerance stays strict. Clocks too coarse for the policy
+abstain: supply a sequence-relative origin. Findings include `early`, `late`,
 `persists_after_end`, `ends_before_end`, `interrupted`, `missing`, `text_mismatch`
 and `illegible`. Early/persistence findings have direct sampled sightings.
 Lateness requires known samples from expected onset to first sighting; unknown
