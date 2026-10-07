@@ -383,6 +383,33 @@ pub struct HttpReply {
 }
 /// The only raw HTTP boundary. Tests supply recorded replies without sockets.
 pub trait Http {
+    /// Read bounded provider accounting; fixtures override this without sockets.
+    #[cfg(feature = "assist")]
+    fn get(
+        &self,
+        _url: &str,
+        _header: (&str, &str),
+        _timeout: Duration,
+    ) -> Result<HttpReply, String> {
+        Err("openrouter_ceiling_unavailable".into())
+    }
+    /// A single-use ledger permit is required for the live OpenRouter path.
+    #[cfg(feature = "assist")]
+    fn post_openrouter(
+        &self,
+        permit: crate::assist::openrouter::DispatchPermit,
+        header: (&str, &str),
+        payload: &[u8],
+        timeout: Duration,
+    ) -> Result<HttpReply, String> {
+        permit.check(payload)?;
+        self.post(
+            crate::assist::openrouter::ENDPOINT,
+            header,
+            payload,
+            timeout,
+        )
+    }
     /// Send one reserved request. Secret-bearing headers must never be logged.
     fn post(
         &self,
@@ -407,6 +434,31 @@ pub fn usage(body: &[u8]) -> Option<Usage> {
 /// Blocking production client with bounded body, deadline and zero redirects.
 pub struct Network;
 impl Http for Network {
+    #[cfg(feature = "assist")]
+    fn get(&self, url: &str, header: (&str, &str), timeout: Duration) -> Result<HttpReply, String> {
+        if !crate::assist::openrouter::accounting_url(url) {
+            return Err("openrouter_accounting_endpoint_refused".into());
+        }
+        openrouter_http("GET", url, header, None, timeout)
+    }
+    #[cfg(feature = "assist")]
+    fn post_openrouter(
+        &self,
+        permit: crate::assist::openrouter::DispatchPermit,
+        header: (&str, &str),
+        payload: &[u8],
+        timeout: Duration,
+    ) -> Result<HttpReply, String> {
+        permit.check(payload)?;
+        openrouter_http(
+            "POST",
+            crate::assist::openrouter::ENDPOINT,
+            header,
+            Some(payload),
+            timeout,
+        )
+    }
+
     fn post(
         &self,
         url: &str,
@@ -417,6 +469,51 @@ impl Http for Network {
         let _ = (url, header, payload, timeout);
         Err("live provider dispatch disabled: verified billing ceiling unavailable".into())
     }
+}
+#[cfg(feature = "assist")]
+fn openrouter_http(
+    method: &str,
+    url: &str,
+    header: (&str, &str),
+    payload: Option<&[u8]>,
+    timeout: Duration,
+) -> Result<HttpReply, String> {
+    use std::io::Read;
+    if timeout.is_zero() {
+        return Err("OpenRouter deadline exhausted".into());
+    }
+    let agent: ureq::Agent = ureq::Agent::config_builder()
+        .timeout_global(Some(timeout))
+        .max_redirects(0)
+        .http_status_as_error(false)
+        .build()
+        .into();
+    let response = if method == "GET" {
+        agent.get(url).header(header.0, header.1).call()
+    } else {
+        agent
+            .post(url)
+            .header(header.0, header.1)
+            .header("Content-Type", "application/json")
+            .send(payload.unwrap_or_default())
+    }
+    .map_err(|_| "OpenRouter transport unavailable")?;
+    let status = response.status().as_u16();
+    let mut body = Vec::new();
+    response
+        .into_body()
+        .into_reader()
+        .take(256 * 1024 + 1)
+        .read_to_end(&mut body)
+        .map_err(|_| "OpenRouter body unavailable")?;
+    if body.len() > 256 * 1024 {
+        return Err("OpenRouter body limit".into());
+    }
+    Ok(HttpReply {
+        status,
+        retry_after_secs: None,
+        body,
+    })
 }
 /// Authorized transport shared by canonical adapters and historical backends.
 pub struct Transport<'a> {
@@ -618,16 +715,47 @@ impl Transport<'_> {
         } else {
             secret.expose().into()
         };
-        let reply = self
-            .http
-            .post(&url, (&header, &auth), payload, timeout)
-            .and_then(|r| {
-                if secret.reflected(&r.body) {
-                    Err("credential material in provider envelope".into())
-                } else {
-                    Ok(r)
+        #[cfg(feature = "assist")]
+        let permit = if provider == "openrouter" {
+            let result = self
+                .ledger
+                .openrouter_dispatch_check(Digest::of_bytes(payload), || {
+                    crate::assist::openrouter::ceiling(self.http, &secret, timeout)
+                });
+            match result {
+                Ok(permit) => Some(permit),
+                Err(reason) => {
+                    self.ledger
+                        .finish(&id, "not_dispatched", false, None)
+                        .map_err(config)?;
+                    return Err(config(reason));
                 }
-            });
+            }
+        } else {
+            None
+        };
+        let send = |timeout| {
+            #[cfg(feature = "assist")]
+            if let Some(permit) = permit {
+                return self
+                    .http
+                    .post_openrouter(permit, (&header, &auth), payload, timeout);
+            }
+            self.http.post(&url, (&header, &auth), payload, timeout)
+        };
+        let timeout = paced_until.saturating_duration_since(Instant::now());
+        let reply = if timeout.is_zero() {
+            Err("dispatch deadline".into())
+        } else {
+            send(timeout)
+        }
+        .and_then(|r| {
+            if secret.reflected(&r.body) {
+                Err("credential material in provider envelope".into())
+            } else {
+                Ok(r)
+            }
+        });
         match reply {
             Ok(r) if (200..300).contains(&r.status) => Ok((r.body, id)),
             Ok(r) => {

@@ -41,6 +41,10 @@ pub(super) struct MoneyState {
     #[serde(default)]
     stopped: bool,
     receipts: Vec<MoneyReceipt>,
+    #[serde(default)]
+    openrouter: Option<UsageValue>,
+    #[serde(default)]
+    ceiling_events: Vec<UsageValue>,
 }
 #[cfg(feature = "assist")]
 impl Ledger {
@@ -87,6 +91,15 @@ impl Ledger {
         self.campaign().transaction(|state| {
             if state.money.stopped {
                 return Err("campaign_spending_stopped".into());
+            }
+            if let Some(verified) = &state.money.openrouter
+                && scopes
+                    .iter()
+                    .map(|s| s.cap_nano_usd)
+                    .min()
+                    .is_none_or(|cap| cap > verified["allowance"].as_u64().unwrap_or(0))
+            {
+                return Err("openrouter_allowance_changed".into());
             }
             if scopes.is_empty()
                 || receipt.id.is_empty()
@@ -155,6 +168,9 @@ impl Ledger {
             if receipt.outcome != "reserved" {
                 return Err("money receipt already final".into());
             }
+            let dispatched = receipt.usage["openrouter_dispatched"] == true;
+            let requested_identity = receipt.usage["requested_identity"].clone();
+            let image_table = receipt.usage.get("image_table").cloned();
             let charged = actual.unwrap_or(receipt.reserved_nano_usd);
             for scope in &receipt.scopes {
                 let counter = state
@@ -172,6 +188,15 @@ impl Ledger {
             }
             receipt.actual_nano_usd = actual;
             receipt.usage = usage;
+            if let Some(table) = image_table {
+                receipt.usage["image_table"] = table;
+            }
+            if dispatched {
+                receipt.usage["openrouter_dispatched"] = serde_json::json!(true);
+                receipt.usage["requested_identity"] = requested_identity;
+                receipt.usage["reconciliation"] = serde_json::json!({"state":"pending","matches":false,"attempts":0,"attempted_ms":null});
+                receipt.usage["qualification_eligible"] = serde_json::json!(false);
+            }
             receipt.outcome = if receipt.usage["bound_breach"] == true {
                 "usage_limit_exceeded"
             } else if charged > receipt.reserved_nano_usd {
@@ -182,6 +207,171 @@ impl Ledger {
                 "incomplete"
             }
             .into();
+            Ok(())
+        })
+    }
+    /// Bind the allowance and baseline to the campaign before any reservation.
+    pub fn openrouter_preflight(
+        &self,
+        allowance: u64,
+        fetch: impl FnOnce() -> Result<crate::assist::openrouter::Ceiling, String>,
+    ) -> Result<(), String> {
+        self.campaign().transaction(|state| {
+            if state.money.stopped { return Ok(Err("campaign_spending_stopped".into())); }
+            if state.money.openrouter.is_some() { return Ok(Ok(())); }
+            let result = fetch().and_then(|snapshot| {
+                state.money.ceiling_events.push(serde_json::json!({"phase":"preflight","allowance":allowance,"snapshot":snapshot}));
+                if allowance == 0 || allowance > snapshot.remaining { return Err("openrouter_allowance_exceeds_ceiling".into()); }
+                if !state.money.receipts.is_empty() { return Err("openrouter_campaign_not_fresh".into()); }
+                state.money.openrouter = Some(serde_json::json!({"allowance":allowance,"baseline":snapshot}));
+                Ok(())
+            });
+            state.money.ceiling_events.push(serde_json::json!({"phase":"preflight","allowance":allowance,"refusal":result.as_ref().err()}));
+            Ok(result)
+        })?
+    }
+    /// Check under the campaign lock after pacing, including the current reservation.
+    pub(crate) fn openrouter_dispatch_check(
+        &self,
+        hash: crate::evidence::canonical::Digest,
+        fetch: impl FnOnce() -> Result<crate::assist::openrouter::Ceiling, String>,
+    ) -> Result<crate::assist::openrouter::DispatchPermit, String> {
+        self.campaign().transaction(|state| {
+            let result = (|| {
+                if state.money.stopped {
+                    return Err("campaign_spending_stopped".into());
+                }
+                let verified = state
+                    .money
+                    .openrouter
+                    .as_ref()
+                    .ok_or("openrouter_preflight_required")?;
+                let baseline: crate::assist::openrouter::Ceiling =
+                    serde_json::from_value(verified["baseline"].clone())
+                        .map_err(|_| "openrouter_baseline_invalid")?;
+                let snapshot = fetch()?;
+                state
+                    .money
+                    .ceiling_events
+                    .push(serde_json::json!({"phase":"dispatch","snapshot":snapshot}));
+                let mut outstanding = 0u64;
+                let mut settled = 0u64;
+                for r in &state.money.receipts {
+                    if r.outcome == "reserved" || r.actual_nano_usd.is_none() {
+                        outstanding = outstanding
+                            .checked_add(r.reserved_nano_usd)
+                            .ok_or("openrouter_accounting_overflow")?;
+                    } else if r.usage["openrouter_dispatched"] == true {
+                        settled = settled
+                            .checked_add(r.actual_nano_usd.unwrap_or(0))
+                            .ok_or("openrouter_accounting_overflow")?;
+                    }
+                }
+                let mut unreflected = 0;
+                let mut has_usage_baseline = false;
+                for (old, new) in [
+                    (baseline.key_usage, snapshot.key_usage),
+                    (baseline.account_usage, snapshot.account_usage),
+                ] {
+                    if let Some(old) = old {
+                        has_usage_baseline = true;
+                        let new = new.ok_or("openrouter_usage_unavailable")?;
+                        if new < old
+                            || new - old
+                                > settled
+                                    .saturating_add(crate::assist::openrouter::CONSUMER_TOLERANCE)
+                        {
+                            return Err("openrouter_concurrent_consumer".into());
+                        }
+                        // Key and account counters can update at different times. Use
+                        // the least reflected spend so neither can release it early.
+                        unreflected = unreflected.max(settled.saturating_sub(new - old));
+                    }
+                }
+                if !has_usage_baseline {
+                    unreflected = settled;
+                }
+                let effective_remaining = snapshot.remaining.saturating_sub(unreflected);
+                state.money.ceiling_events.push(serde_json::json!({
+                    "phase":"admission", "settled":settled, "unreflected":unreflected,
+                    "outstanding":outstanding, "effective_remaining":effective_remaining
+                }));
+                if outstanding > effective_remaining {
+                    return Err("openrouter_remaining_exhausted".into());
+                }
+                let receipt = state
+                    .money
+                    .receipts
+                    .iter_mut()
+                    .find(|r| {
+                        r.request_hash == hash
+                            && r.outcome == "reserved"
+                            && r.usage["openrouter_dispatched"] != true
+                    })
+                    .ok_or("openrouter_reservation_required")?;
+                receipt.usage["openrouter_dispatched"] = serde_json::json!(true);
+                receipt.usage["reconciliation"] = serde_json::json!({"state":"pending","matches":false,"attempts":0,"attempted_ms":null});
+                receipt.usage["qualification_eligible"] = serde_json::json!(false);
+                Ok(crate::assist::openrouter::DispatchPermit::new(hash))
+            })();
+            if let Err(reason) = &result {
+                state.money.stopped = true;
+                state
+                    .money
+                    .ceiling_events
+                    .push(serde_json::json!({"phase":"dispatch","refusal":reason}));
+            }
+            Ok(result)
+        })?
+    }
+    /// Attach a later lookup to the original receipt without changing settled charges.
+    /// Pending lookups retain their history; terminal records are immutable.
+    pub fn record_openrouter_reconciliation(
+        &self,
+        id: &str,
+        generation: Result<crate::assist::openrouter::Generation, &'static str>,
+        attempts: u32,
+        waited_ms: u64,
+        attempted_ms: u64,
+    ) -> Result<(), String> {
+        self.campaign().transaction(|state| {
+            let receipt = state.money.receipts.iter_mut().find(|r| r.id == id)
+                .ok_or("unknown money reservation")?;
+            if matches!(receipt.usage["reconciliation"]["state"].as_str(), Some("matched" | "mismatch")) { return Ok(()); }
+            let cost_matches = generation.as_ref().is_ok_and(|g| receipt.actual_nano_usd
+                .is_some_and(|actual| actual.abs_diff(g.cost_nano_usd) <= crate::assist::openrouter::RECONCILIATION_TOLERANCE));
+            let drifted = generation.as_ref().is_ok_and(|g| {
+                let model = receipt.usage["requested_identity"]["model"].as_str()
+                    .or_else(|| receipt.usage["response_identity"]["returned_model"].as_str()).unwrap_or("");
+                let pin = receipt.usage["requested_identity"]["revision"].as_str().unwrap_or("");
+                (!model.is_empty() && g.model != model && !crate::assist::openrouter::dated_pin(model, &g.model))
+                    || (crate::assist::openrouter::dated_pin(model, pin) && g.model != pin)
+            });
+            let reason = match &generation {
+                Err(reason) => Some(*reason),
+                Ok(_) if !cost_matches => Some("openrouter_generation_cost_mismatch"),
+                Ok(_) if drifted => Some("provider revision drift quarantined"),
+                Ok(_) => None,
+            };
+            let pending = matches!(reason, Some("openrouter_generation_not_ready" | "openrouter_accounting_unavailable" | "openrouter_reconciliation_deadline"));
+            let matches = reason.is_none();
+            let status = if pending { "pending" } else if matches { "matched" } else { "mismatch" };
+            if let Ok(g) = &generation {
+                receipt.usage["revision_identity"] = serde_json::json!({
+                    "dated_model":g.model,"provider_name":g.provider_name,
+                    "requested_revision":receipt.usage["requested_identity"]["revision"],
+                    "revision_drifted":drifted,"quarantined":drifted,
+                });
+            }
+            let attempt = serde_json::json!({"state":status,"generation":generation.as_ref().ok(),
+                "matches":matches,"reason":reason,"attempts":attempts,"waited_ms":waited_ms,"attempted_ms":attempted_ms});
+            let mut history = receipt.usage["reconciliation"]["history"].as_array().cloned().unwrap_or_default();
+            history.push(attempt.clone());
+            receipt.usage["reconciliation"] = attempt;
+            receipt.usage["reconciliation"]["history"] = serde_json::json!(history);
+            receipt.usage["qualification_eligible"] = serde_json::json!(matches
+                && receipt.outcome == "completed" && receipt.usage["identity_error"].is_null());
+            if status == "mismatch" { state.money.stopped = true; }
             Ok(())
         })
     }
@@ -204,6 +394,8 @@ mod tests {
         let ledger = Ledger::new(temp.path(), false);
         let expected = MoneyState {
             stopped: false,
+            openrouter: None,
+            ceiling_events: Vec::new(),
             counters: BTreeMap::from([("epoch/frozen".into(), (100, 60))]),
             receipts: vec![MoneyReceipt {
                 id: "reserved-before-feature-change".into(),

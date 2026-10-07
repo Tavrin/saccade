@@ -67,7 +67,8 @@ settings, transforms, catalog/condition identities and returned revisions are
 checked. Replay records are attributed cached evidence, never independent samples.
 `--bypass-cache` disables reuse; an explicit offline fixture is still a replay.
 
-Live dispatch requires `--run`, source-root export permission and a separate
+The Gemini/Jev interactive live network path remains refused. Its authorization
+controls require `--run`, source-root export permission and a separate
 output root in the existing `~/.config/saccade/user.toml` policy. Keys come only
 from `~/.config/saccade/{gemini,jev}.env`, with `SACCADE_GEMINI_API_KEY` and
 `JEV_API_KEY`. Ambient keys and alternative credential directories are ignored.
@@ -142,7 +143,9 @@ Without `--run`, submit only validates/plans and status only reads local state.
 Live status and collect perform one poll and return immediately. No interactive
 workflow waits for Batch. `--budget-calls` is bounded to 128 for Batch and never
 increases MCP startup authority; `--deadline-secs` is at most 300. The frozen
-plan carries the dollar ceiling, at most $250; there is no automatic top-up.
+plan carries the dollar allowance. Caps above $25 require the separately named
+`--allow-spend-above-25-usd` CLI flag; MCP refuses them. The existing $30
+campaign parent still applies; there is no automatic top-up.
 MCP mirrors these as `saccade_review` operations `batch-submit`, `batch-status`,
 `batch-collect`, using `artifact` for the plan and `out` for the durable job file.
 
@@ -154,3 +157,168 @@ from a crash without another HTTP poll. Partial, failed or unknown-cost collecti
 retain the full charge. A recorded `collect --response FILE` is for offline
 fixtures only and cannot settle a live monetary reservation. Qualification and
 heavy gate commands are in [constructed qualification](assist-qualification.md).
+
+
+## OpenRouter provider ceiling
+
+The `assist_openrouter_smoke` example enables only OpenRouter chat-completions,
+using the existing executor, source-root egress policy, attempt reservations and
+campaign money ledger. It accepts a reviewed JSON request file, one request per
+independent root (1–10 roots), and a new output directory. This is a transport
+smoke, not constructed-corpus qualification. The legacy paid qualification runner
+and Gemini-direct network dispatch remain refused.
+
+Only `~/.config/saccade/openrouter.env` with `OPENROUTER_API_KEY` is accepted;
+ambient keys, alternate key directories and redirects are refused. Provider
+responses are checked for literal, escaped and nested credential reflections
+with the actual dispatch key before artifacts are created. Accounting response
+bodies are retained only as SHA-256 hashes and parsed monetary metadata.
+
+Preflight reads OpenRouter's `/api/v1/key` and `/api/v1/credits`. The ceiling is the
+minimum available key remaining limit and credit balance; a null key limit uses
+credits alone. A non-null limit with invalid `limit`, `limit_remaining` or
+`usage` is refused even when credits are valid; refusal is
+`openrouter_ceiling_unavailable`. Neither parseable also refuses.
+The allowance must fit the ceiling. Before every dispatch, after pacing, another
+fresh read subtracts settled spend not yet reflected in provider usage and the
+outstanding reservations (including this request). With two usage counters, the
+least reflected settled spend is used conservatively. It also checks both
+usage deltas against our settled spend plus a fixed $0.000001 tolerance. A missing
+check, insufficient remaining balance, regressing usage or another consumer stops
+the campaign, recording the reason. The ledger lock serializes these checks;
+crashed and unknown-cost reservations remain nonzero. USD decimals are parsed
+without floating-point rounding at the accounting boundaries.
+
+Every request includes `usage: {"include": true}`. Returned USD cost settles the
+original money receipt even when the answer fails validation. Every dispatched
+receipt starts with `reconciliation.state: "pending"`; the smoke performs no
+generation lookup and succeeds if dispatch and artifact writes succeed. A later
+`--reconcile-only` invocation uses `/api/v1/generation?id=` to attach authoritative
+cost, response hash, model and provider to pending receipts. Unpublished records
+remain pending; terminal failures and cost differences above one nanodollar are
+recorded as mismatch and stop spending. Failed calls and crashes retain their
+charges and pending state for operator review.
+The external remaining ceiling is distinct from the local campaign allowance;
+local token-price estimates alone do not prove a provider invoice bound.
+
+The request file is a JSON array of objects with exactly `root`, `model`,
+`revision` (expected fingerprint, explicit `absent`, or dated model ID), and `payload` (the existing adapter's
+closed chat-completions shape). Ten distinct roots are required for `--roots 10`.
+
+The smoke records every root in `smoke.json` under `root_outcomes`, using the
+assist error's static reason or a stable storage/provider code. It stops after
+the first failure; remaining roots have `skipped_after_failure`. A quarantined
+response is charged normally and its sanitized money receipt is written to
+`receipt-N.json`; successful receipts retain their provenance fields. Both
+receipt forms include reconciliation and revision identity metadata. Returned
+identity is also available in the campaign ledger and the corresponding root's
+`response_identity`. It contains `returned_model` (at most 128 ASCII bytes),
+`system_fingerprint` (at most 256 ASCII bytes or null), `returned_revision`, and
+a fingerprint presence/absence code. Identity strings allow only ASCII letters,
+digits and `-_.:/`; malformed metadata is refused without retaining its text.
+Dispatch-secret reflections are rejected by the existing transport first.
+
+For the next independently authorized smoke, inspect the failed root's sanitized
+identity, verify that `returned_model` matches the reviewed request's `model`,
+and copy its exact observed `system_fingerprint` into that request row's
+`revision`. Keep the payload model and reviewed price/cap consistent and use a
+new output directory. Discovery uses the already charged response; it adds no
+completion request and never automatically accepts drift. An omitted or null
+fingerprint has code `openrouter_fingerprint_absent`; an unpinned absence fails
+with `openrouter_fingerprint_absent_requires_explicit_pin`. Only an explicit
+`"revision": "absent"` pin accepts identity as the matching returned model plus
+the absence marker. A dated pin such as
+`"revision": "google/gemini-3.8-flash-20260902"` also requires that same matching
+alias and absent fingerprint at dispatch; its dated identity check is deferred
+to reconciliation. A present fingerprint still fails this absence check. Empty, malformed or literal `"absent"` fingerprints are
+invalid rather than absence. Present fingerprints still require an exact pin.
+
+Generation accounting allows up to four read-only GETs per receipt, waiting
+2, 4 and 8 seconds (14 seconds total backoff). Each GET has at most five seconds;
+all pending receipts, GETs and waits share the later invocation's 30-second deadline.
+A retry is skipped if its wait would exhaust that deadline. Only unpublished
+generations (404 or null data) and transient transport/429/5xx failures retry.
+Identity, cost, malformed-body and secret-reflection failures are terminal.
+Each money receipt retains `reconciliation.state`, `reason`, `attempts`,
+`waited_ms`, `attempted_ms` (Unix milliseconds), generation cost/hash and match
+status, plus a history of lookup invocations. A never-published generation stays
+pending with reason `openrouter_generation_not_ready`; transient unavailability
+or an exhausted lookup deadline also stays pending. Pending accounting does not
+stop spending or clear the existing charge. Matched and mismatched records are
+terminal and skipped on repeat invocations, including credential loading when
+all records are terminal. Reconciliation never repeats a paid completion,
+changes an allowance, or alters settled money counters.
+
+`revision_identity` records the generation's `dated_model`, `provider_name`,
+requested revision, `revision_drifted` and `quarantined` flags. A dated model that
+differs from the reviewed dated pin records `provider revision drift quarantined`
+and mismatch, even when billing agrees. It is ineligible for qualification.
+Pending receipts are also ineligible. `qualification_eligible` means only that
+accounting and identity checks passed for a completed dispatch; it is no model
+qualification claim. The smoke always retains `qualified: false`.
+A campaign's aggregate reconciliation is matched only when every dispatched
+receipt matched; any mismatch is a recorded failure and exits 4. Pending remains
+observable and exits 0. Later attempts refresh the original receipts and root
+outcomes using execution IDs; dispatch failures retain their original codes.
+
+Live admission accepts only `google/gemini-3.8-flash`, pinned by
+`openrouter-price-allowlist/2026-10-07-v1` to $0.75/M text input tokens,
+$3.75/M output tokens and $0.75/M image input tokens. Source: the supplied
+OpenRouter models API record (`https://openrouter.ai/api/v1/models`, 2026-10-07);
+no price discovery or second model is enabled. Historical recorded response
+fixtures do not authorize their model for dispatch.
+
+Every payload requires messages, temperature zero, explicit `max_tokens` (1–4096),
+JSON-object output, disabled routing fallbacks, required parameters and included
+usage accounting. `provider.max_price` must be exactly
+`{"prompt":0.75,"completion":3.75}` in OpenRouter's USD-per-million-token units;
+the adapter sets these caps, and reviewed request files must include them.
+Only text and inline PNG content are admitted. Prompt bounds count serialized
+non-image UTF-8 bytes plus 1024 framing tokens. OpenRouter uses the calibrated
+`assist-image-ceilings/2` table: each inline PNG reserves
+`3086 * ceil(width * height / 524288)` image tokens for nonzero edges through
+2048. Declared `detail:low` receives the same conservative bound as high;
+auto/omitted detail uses high. Unknown dimensions/resolution use 16384 tokens
+and refuse admission. Every constructed corpus image fits one area block,
+so two images reserve 6172 image tokens. This is calibrated with a safety factor
+of two against supplied receipts, not a documented tokenizer guarantee.
+See [the calibration record](assist-qualification.md#g12-image-token-bound)
+for evidence, prices and limits. The `/1` table remains readable for historical
+receipts and Gemini-direct. Invalid headers, remote/unsupported media and prompt
+bounds above 16000 tokens refuse before credential access or dispatch.
+Reservation uses those input bounds and explicit output tokens at the pinned
+integer nanodollar prices. Returned cost above reservation is charged, recorded
+as a failure and stops the campaign. Actual prompt or output tokens exceeding
+the receipt's reserved bound also stop the campaign, even below the global input
+limit and when billed cost fits. New receipts retain their image-table revision;
+old receipts retain their original stored bounds. The smoke sums all root reservations and
+refuses `smoke_reservations_exceed_cap` before policy loading or dispatch if they
+do not fit its allowance. This runner does not consume oracle answers,
+generate corpora, score outputs or confer immutable model identity.
+
+```sh
+cargo run --locked -p saccade-core --features assist --example assist_openrouter_smoke -- \
+  --requests /path/to/reviewed-openrouter-requests.json --roots 10 \
+  --max-spend-usd 1 --user-policy ~/.config/saccade/user.toml \
+  --out /path/to/new-openrouter-smoke
+```
+
+Later, after the provider publishes the generation records, run against the same
+output directory (no request file, user policy or spend allowance is required):
+
+```sh
+cargo run --locked -p saccade-core --features assist --example assist_openrouter_smoke -- \
+  --reconcile-only /path/to/new-openrouter-smoke
+```
+
+The library entry point is `assist::openrouter::reconcile_pending(ledger, http,
+keys, timeout)`; the existing transport-based `reconcile` delegates to it.
+Only fixed-endpoint generation GETs occur in this mode.
+
+Every CLI rejects allowances above $25 by default. The smoke's separately named
+`--allow-spend-above-25-usd` flag allows up to the existing $30 campaign parent;
+it never bypasses provider checks. No verified `:batch` model/compatible shape was
+supplied, so batch arms are omitted and `:batch` requests are refused. No separate
+batch API is invented. All lane evidence is synthetic/in-memory; endpoint
+compatibility, current model availability and actual provider enforcement require
+the coordinator's reviewed live smoke.

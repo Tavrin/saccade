@@ -7,8 +7,7 @@
 //! custom providers, a dedicated file bound by user-level configuration inside
 //! that same directory. Project files cannot bind endpoints or credentials. The ambient environment (`GEMINI_API_KEY` and the
 //! like), other projects' `.env` files and global configs are never read. A
-//! `OPENROUTER_API_KEY` is the explicit exception: its fixed `openrouter.env` file
-//! is preferred and the environment is supported as a fallback. A
+//! `OPENROUTER_API_KEY` is read only from the fixed `openrouter.env` file. A
 //! key is never printed, logged, stored in a result or sent anywhere but its
 //! provider's endpoint, and it travels in an HTTP header inside this process,
 //! never on a command line.
@@ -147,17 +146,21 @@ impl Keys {
             .ok_or_else(|| format!("no key: {} has no {var} line", path.display()))
     }
 
-    /// OpenRouter's fixed file binding, with the explicitly supported ambient fallback.
+    /// OpenRouter's fixed file binding; ambient credentials never grant authority.
     pub fn openrouter(&self) -> Result<Secret, String> {
-        if let Ok(secret) = self.load("openrouter.env", "OPENROUTER_API_KEY") {
-            return Ok(secret);
+        if self.dir != Self::default_dir() {
+            #[cfg(all(test, feature = "assist"))]
+            if self.assist_fixture {
+                return self.load("openrouter.env", "OPENROUTER_API_KEY");
+            }
+            return Err("fixed OpenRouter credential directory required".into());
         }
-        if let Ok(value) = std::env::var("OPENROUTER_API_KEY")
-            && !value.trim().is_empty()
-        {
-            return Ok(Secret(value));
+        let metadata = std::fs::symlink_metadata(self.dir.join("openrouter.env"))
+            .map_err(|_| "OpenRouter credentials unavailable")?;
+        if !metadata.is_file() || metadata.len() > 65_536 {
+            return Err("OpenRouter requires a bounded ordinary key file".into());
         }
-        Err("OpenRouter credentials unavailable".into())
+        self.load("openrouter.env", "OPENROUTER_API_KEY")
     }
 
     /// The key a provider needs, per the key policy.
@@ -1310,6 +1313,7 @@ mod review_chain_tests {
         assert!(later.ask(&req).result.is_err());
         assert_eq!(later.counts(), [0, 1]);
     }
+    #[cfg(feature = "assist")]
     #[test]
     fn g12_openrouter_historical_adapter_uses_fixed_key_and_namespaced_chat_dialect() {
         let tmp = tempfile::tempdir().unwrap();
@@ -1318,7 +1322,7 @@ mod review_chain_tests {
             "OPENROUTER_API_KEY=fixture-openrouter-key",
         )
         .unwrap();
-        let keys = Keys::new(Some(tmp.path().into()));
+        let keys = Keys::assist_fixture(tmp.path().into());
         let mut spec = Profile::default().spec(Provider::Gemini).unwrap();
         spec.provider = Provider::OpenaiCompatible;
         spec.model = "openai/fixture-model".into();
@@ -1359,10 +1363,9 @@ mod review_chain_tests {
             prompt: &prompt,
             images: &[],
         };
-        let result = backend.ask(&req).result.unwrap();
-        assert_eq!(result.answer, "yes");
-        assert_eq!(result.model_version, "fixture-revision");
-        assert_eq!(result.usage["cost"], 0.00001);
+        // Historical calls lack monetary/ceiling admission and must not reach HTTP.
+        assert!(backend.ask(&req).result.is_err());
+        assert_eq!(backend.mock_replies.as_ref().unwrap().borrow().len(), 1);
         assert_eq!(
             backend
                 .security

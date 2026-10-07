@@ -530,6 +530,157 @@ fn local_reservation_counts_text_dimensions_resolution_and_explicit_output() {
 }
 
 #[test]
+fn g12_calibrated_table_covers_corpus_sizes_and_preserves_version_one() {
+    use price::*;
+    // Exactly the family/DPR/jitter ranges in scripts/assist/corpus.py::render.
+    for family in 0..32 {
+        let dpr = 1 + family % 2;
+        for jitter in 0..40 {
+            let dimensions = [
+                ([240, 320, 480][family as usize % 3] + jitter) * dpr,
+                160 * dpr,
+            ];
+            for resolution in [
+                "MEDIA_RESOLUTION_LOW",
+                "MEDIA_RESOLUTION_MEDIUM",
+                "MEDIA_RESOLUTION_HIGH",
+            ] {
+                assert_eq!(
+                    image_tokens_for_table(OPENROUTER_IMAGE_TABLE, resolution, dimensions).unwrap(),
+                    3086
+                );
+            }
+            assert_eq!(
+                image_tokens_for_table(IMAGE_TABLE, "MEDIA_RESOLUTION_HIGH", dimensions).unwrap(),
+                8192
+            );
+        }
+    }
+    for (dimensions, expected) in [
+        ([1024, 512], 3086),
+        ([1025, 512], 6172),
+        ([1024, 1024], 6172),
+        ([2048, 2048], 24688),
+    ] {
+        assert_eq!(
+            image_tokens_for_table(OPENROUTER_IMAGE_TABLE, "MEDIA_RESOLUTION_HIGH", dimensions)
+                .unwrap(),
+            expected
+        );
+    }
+    for dimensions in [[0, 320], [320, 0], [2049, 1], [u32::MAX, u32::MAX]] {
+        assert_eq!(
+            image_tokens_for_table(OPENROUTER_IMAGE_TABLE, "MEDIA_RESOLUTION_HIGH", dimensions)
+                .unwrap(),
+            MAX_IMAGE_TOKENS
+        );
+    }
+    assert_eq!(
+        image_tokens_for_table(OPENROUTER_IMAGE_TABLE, "unknown", [240, 160]).unwrap(),
+        MAX_IMAGE_TOKENS
+    );
+    assert!(
+        image_tokens_for_table(
+            "assist-image-ceilings/3",
+            "MEDIA_RESOLUTION_HIGH",
+            [240, 160]
+        )
+        .is_err()
+    );
+}
+
+#[test]
+fn g12_corpus_single_and_two_image_explain_reservations_fit_with_margin() {
+    // Worst corpus dimensions; real PNG encoding and normal prepared prompts.
+    let dimensions = [1038, 320];
+    let mut bytes = std::io::Cursor::new(Vec::new());
+    image::DynamicImage::ImageRgb8(image::RgbImage::from_pixel(
+        dimensions[0],
+        dimensions[1],
+        image::Rgb([80; 3]),
+    ))
+    .write_to(&mut bytes, image::ImageFormat::Png)
+    .unwrap();
+    let png = bytes.into_inner();
+    for count in 1..=2 {
+        let mut c = catalog();
+        c.images.clear();
+        c.regions.clear();
+        let mut pngs = Vec::new();
+        for role in if count == 1 {
+            vec![Role::Single]
+        } else {
+            vec![Role::Before, Role::After]
+        } {
+            c.images.push(Image {
+                role,
+                sha256: Digest::of_bytes(&png),
+                encoded_sha256: Digest::of_bytes(&png),
+                dimensions,
+                capture_scope: [0, 0, dimensions[0], dimensions[1]],
+                complete: true,
+                original_pixels: true,
+                transform: Transform {
+                    crop: [0, 0, dimensions[0], dimensions[1]],
+                    encoded: dimensions,
+                },
+            });
+            c.regions.push(Region {
+                id: format!("{role:?}:scope"),
+                image_role: role,
+                rect: [0, 0, dimensions[0], dimensions[1]],
+            });
+            pngs.push((role, png.clone()));
+        }
+        let task = if count == 1 {
+            Task::CheckUi
+        } else {
+            Task::Explain
+        };
+        let condition = (count == 1).then(|| Condition::LabelVisible {
+            label: "x".repeat(512),
+        });
+        let identity = c.identity(task, None, condition.as_ref()).unwrap();
+        for reverse in [false, true] {
+            let prepared = workflow::prepare(
+                &c,
+                identity.clone(),
+                condition.as_ref(),
+                &pngs,
+                reverse,
+                "r1",
+                Digest::of_bytes(b"api"),
+            )
+            .unwrap();
+            let payload = openrouter::request(&prepared.payload, price::OPENROUTER_MODEL).unwrap();
+            let admitted = openrouter::admission(&payload, price::OPENROUTER_MODEL).unwrap();
+            println!(
+                "G12 {count} image(s), reverse={reverse}: input={}, reservation={} nanodollars",
+                admitted.bounds.input, admitted.reservation
+            );
+            assert!(admitted.bounds.input <= 10_000);
+            assert_eq!(
+                admitted.reservation,
+                admitted.bounds.input * 750 + 4096 * 3750
+            );
+            assert!(
+                admitted.reservation
+                    <= execution::INPUT_LIMIT * 750 + execution::OUTPUT_LIMIT * 3750
+            );
+            assert!(
+                price::openrouter_bounds_for_table(
+                    &payload,
+                    price::openrouter_price(price::OPENROUTER_MODEL).unwrap(),
+                    price::IMAGE_TABLE
+                )
+                .is_ok()
+                    == (count == 1)
+            );
+        }
+    }
+}
+
+#[test]
 fn fake_provider_reserves_before_dispatch_and_settles_or_retains_unknown_usage() {
     use crate::budget_ledger::{Caps, Ledger, MoneyScope, Scope};
     use crate::judge_provider::{Keys, transport::*};

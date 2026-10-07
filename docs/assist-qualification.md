@@ -116,8 +116,9 @@ accuracy on arbitrary pages or grant baseline/exclusion authority.
 
 ## G12 pre-spend correction (2026-10-06)
 
-The earlier paid-run instructions above are superseded. **Live provider network
-adapters and the old paid runner now refuse dispatch.** No verified provider-side
+The earlier paid-run instructions above are superseded. **Gemini-direct live network
+adapters and the old paid runner refuse dispatch.** The bounded OpenRouter-only
+smoke described below has a separate provider-verified admission boundary. No verified provider-side
 invoice limit or authoritative token/billing ceiling was supplied. Local prices
 prove reservation arithmetic only; they cannot establish an unconditional invoice
 ceiling. There is no environment switch to bypass this refusal. Re-enabling live
@@ -168,8 +169,8 @@ OpenRouter has an explicit chat-completions adapter (`assist::openrouter`) and a
 `two_openrouter` recorded arm. The historical `openai_compatible` adapter now uses
 the fixed OpenRouter endpoint without a project `base_url`. It accepts namespaced
 JSON model IDs, bounded output, explicit routing, usage and execution identity.
-`OPENROUTER_API_KEY` comes from the environment or
-`~/.config/saccade/openrouter.env`; keys are never printed. Responses are checked
+`OPENROUTER_API_KEY` comes only from
+`~/.config/saccade/openrouter.env`; ambient keys are refused and keys are never printed. Responses are checked
 for literal, Unicode-escaped and nested reflections with the actual dispatch key.
 OpenRouter is the billing source and passes provider prices through without markup.
 Price fixtures are versioned and explicitly **not live-verified**; returned
@@ -186,3 +187,271 @@ request count, qualifying class support, conservative local reservation estimate
 and $30 campaign-fit decision. It never grants authorization; missing billing,
 API payload or reviewed execution inputs are explicit plan blockers. Full support
 and budgets are required before a future paid campaign can be considered.
+
+
+## OpenRouter ceiling stage
+
+### Smoke observability and reconciliation correction
+
+The smoke preserves the first failure's static assist code and records skipped
+roots. Already charged responses supply bounded returned identity for operator
+pinning; quarantined responses never become accepted advice. Missing fingerprints
+require an explicit `absent` revision pin together with an exact returned model.
+Later generation reads retry within one 30-second deadline and retain fixed
+reasons; unpublished records remain pending. Dispatch itself performs no
+reconciliation GETs. The operator procedure and exact retry limits are documented in
+[assist.md](assist.md#openrouter-provider-ceiling).
+
+Focused synthetic/recorded-shape regression mapping:
+
+| Goal | Test |
+| --- | --- |
+| Per-root static codes and existing stop policy | `g12_smoke_records_static_root_codes_and_stops_after_first_failure` |
+| Discovery from one charged response, with bounded sanitized metadata | `g12_quarantined_drift_retains_bounded_identity_without_another_dispatch` |
+| Delayed generation lookup and retained failure reasons | `g12_delayed_generation_retries_and_preserves_terminal_failure_reasons` |
+| Explicit absent-fingerprint identity rule | `g12_absent_fingerprint_requires_explicit_pin_and_matching_model` |
+
+`g12_generation_deadline_bounds_gets_waits_and_following_receipts` additionally
+proves that GET time and waits share the deadline across receipts. These tests
+use fake HTTP and synthetic credentials only. Decisions: retain quarantine and
+stop-on-first-failure; reject automatic pin adoption or paid completion retries.
+Reserve `absent` for explicit missing-fingerprint identity; reject malformed and
+empty fingerprints. Retry only unpublished or transient generation accounting,
+retaining terminal identity, billing and reflection failures. No scoring, token
+ceiling, Gemini-direct or batch behavior is changed by this correction.
+
+Correction validation: fmt, workspace/all-target strict clippy with `assist`,
+separate core and CLI tests with `assist,schema,evaluation`, the four smoke
+example tests, all 14 Python assist unittests, generated-docs check and public
+hygiene checks exited 0. Test binaries used an isolated user directory; the
+initial ambient-policy workspace run exited 101 on a CLI configuration error.
+An additional isolated workspace-wide run exited 101 on unchanged compression
+schema drift in `saccade-quality-report.v1.schema.json`. That broader failure
+remains outside this correction; schemas and assertions were not altered to
+accept it. Fixture validation does not establish live API compatibility,
+fingerprint availability for this model or model/corpus qualification.
+
+Use the bounded request-file invocation in [assist.md](assist.md#openrouter-provider-ceiling)
+for the coordinator's 10-root, $1 smoke. It uses existing accounting and egress,
+provider-key and credit preflight, a fresh check after pacing on every dispatch,
+returned-cost settlement and generation reconciliation. Campaign receipts record
+allowance, ceiling snapshots, raw-response hashes, generation costs and stable
+refusal classifications. No live request was run or API compatibility verified
+in the fixture lane. Passing fixture/gate tests establishes implementation
+behavior only; all model/corpus qualification decisions remain unchanged.
+
+Decisions: reuse the existing executor and ledger, including the $30 parent;
+reject a second accounting path or an unverified bypass. Reversal would require
+an accounting migration and a new provider-limit design. Use a separate bounded
+smoke over reviewed requests; reject relabelling it as the old full qualification
+campaign. Reversal requires a complete reviewed execution schedule and unchanged
+qualification gates. Omit batch because no supported model variant/shape was
+supplied; adding it requires provider evidence and fixtures, not a guessed API.
+Keep Gemini-direct refused; changing that requires a provider-side hard cap.
+Use exact monetary decimal parsing and fixed tolerances; changing tolerances or
+limits requires reviewed policy and renewed fixtures.
+
+Ceiling review fixes bind live dispatch to the single supplied model price pin
+(`openrouter-price-allowlist/2026-10-07-v1`, OpenRouter models API record dated
+2026-10-07), payload-derived text/PNG token ceilings, explicit completion bounds
+and provider route price caps. The smoke admits the entire schedule's worst-case
+reservations against its cap before the first call. Malformed non-null key limits
+cannot fall back to valid credits. Settled spend remains deducted until both
+tracked provider usage counters reflect it. Fixtures cover stale usage plus an
+equal spend by another consumer, partial reflection and full reflection.
+
+Decisions: accept only the model with supplied price evidence; reject guessing a
+second price or fetching prices in the fixture lane. Adding a model requires a
+new recorded price pin and renewed admission fixtures. Reuse the PNG ceiling
+table with high-resolution bounds for every image detail; unsupported content
+refuses. Broadening content requires a conservative token bound and fixtures.
+Require the reviewed request file to carry the exact route caps, preserving
+payload hashes; reject mutating request bytes after hashing. Existing files must
+be regenerated with the pinned adapter. Deduct the least reflected spend across
+key/account usage; reject releasing settled reservations on a stale counter.
+The previously recorded scope, permit lookup, parallel consumer classification,
+reconciliation placement and artifact-test limitations remain outside this round.
+No live call, provider route enforcement or current model availability is verified.
+
+Focused regression evidence was replayed against `b09e99f` with implementation
+code unchanged (the smoke adds only an argument-injection seam). The following
+tests fail there and pass with the ceiling fixes:
+
+| Finding | Focused regression |
+| --- | --- |
+| Model/input/output-dependent reservation | `g12_reservation_tracks_payload_and_explicit_output_before_dispatch` |
+| Model pin and provider route price caps | `g12_model_price_caps_and_payload_bounds_fail_closed` |
+| Entire smoke schedule must fit its cap | `g12_smoke_total_reservations_must_fit_before_policy_or_dispatch` |
+| Invalid non-null limit with valid $20 credits | `g12_non_null_malformed_key_limit_never_falls_back_to_credits` |
+| Settled spend with stale provider usage | `g12_settled_unreported_spend_is_subtracted_before_dispatch` |
+
+Additional fixtures cover PNG headers, unsupported content, explicit output
+bounds, exact-cap admission, malformed key accounting, partial/full usage
+reflection, and returned cost overruns that remain charged and stop the campaign.
+This evidence is limited to offline fixtures; no network, credential or live
+model/provider validation was performed.
+
+## Deferred reconciliation and dated revision identity (fix 3)
+
+The coordinator's supplied evidence showed an unpublished generation at about
+three minutes and a published record at about one hour. The recorded 200 shape
+contains `google/gemini-3.8-flash-20260902`, `Google AI Studio`, a total cost of
+$0.0023235 (2,323,500 nanodollars), 1,513 native prompt tokens and 212 completion
+tokens. The fixture retains these fields with a synthetic generation ID; it is
+not a live API capture produced by this implementation run.
+
+Dispatch now leaves receipts pending. A later library call or smoke
+`--reconcile-only` invocation updates the existing ledger without dispatch or
+allowance. Unpublished/transient/deadline results stay pending and retain attempt
+time and history. Billing/identity/revision mismatches remain failures. Only all
+matched receipts make a campaign reconciled; repeated reconciliation skips
+terminal receipts without additional reads. Original charges remain unchanged.
+
+A reviewed revision may pin the dated model ID. That pin still requires an
+absent fingerprint and matching alias at dispatch. Reconciliation records the
+actual dated model and provider name; a changed dated model quarantines the
+result from qualification even when cost matches. No pin is automatically
+adopted, and no date or provider text is guessed from the request.
+
+| Goal | Focused test |
+| --- | --- |
+| Deferred 404-to-200 lookup, attempt history, unchanged charges and idempotence | `g12_deferred_404_then_200_reconciliation_is_pending_and_idempotent` |
+| Dated revision match versus drift quarantine, with absent-fingerprint dispatch checks | `g12_dated_revision_pin_matches_or_quarantines_after_reconciliation` |
+| Reconcile-only arguments and refreshed exported receipts | `g12_reconcile_only_needs_no_allowance_and_preserves_exported_provenance` |
+
+Decisions: reuse the locked campaign ledger and the existing bounded GET policy;
+reject in-run publication waits, allowance resets, completion retries and silent
+acceptance of dated drift. Keep dispatch fingerprint and reconciled dated identity
+separate. This correction does not change scoring, batch, two-image token ceilings
+or Gemini-direct. Offline fixture evidence does not qualify a live model or prove
+live API availability. See [assist.md](assist.md#openrouter-provider-ceiling) for
+the exact dispatch and later reconciliation commands.
+
+Fix 3 validation (offline and locked Cargo resolution):
+
+| Gate | Command or scope | Exit |
+| --- | --- | --- |
+| Formatting | `cargo fmt --all --check`; explicit `rustfmt --edition 2024 --check` on the ledger module | 0 |
+| Strict clippy | `cargo clippy --workspace --all-targets --features assist -- -D warnings` | 0 |
+| Core unit tests | `cargo test -p saccade-core --features assist,schema,evaluation --lib` (254 passed, 6 pre-existing ignored) | 0 |
+| CLI unit tests | `cargo test -p saccade --features assist,schema,evaluation --bin saccade` (26 passed, 1 pre-existing ignored) | 0 |
+| Smoke example tests | `cargo test -p saccade-core --features assist --example assist_openrouter_smoke` (5 passed) | 0 |
+| Python assist tests | `python3 -m unittest discover -s scripts/assist -p 'test_*.py'` (14 passed) | 0 |
+| Generated documentation | `python3 scripts/gen-docs.py --check` | 0 |
+| Public hygiene | `bash scripts/check-public-hygiene.sh` (worktree and index) | 0 |
+
+Cargo commands used `--offline --locked`, `CARGO_INCREMENTAL=0` and
+`CARGO_PROFILE_DEV_DEBUG=0`. Final Rust test binaries ran with `HOME` and
+`USERPROFILE` removed by the Cargo target runner, preventing ambient credential
+or user-policy reads. Credential fixtures used synthetic keys in temporary
+directories. No network or real credential access occurred. The initial focused
+run exited 101 because the tiny synthetic request's conservative input bound was
+below the recorded 1,513 prompt tokens; enlarging that fixture request corrected
+the mismatch without changing production ceilings. The final focused run passed
+all 21 G12 tests. These are unit and fixture gates; broader integration, ignored
+heavy tests and live qualification were not run for fix 3.
+
+
+## G12 image-token bound
+
+The repository records no documented provider image-token rule for
+`google/gemini-3.8-flash-20260902` or OpenRouter's declared image detail.
+The existing `/1` documentation expressly describes local policy awaiting live
+conformance. No provider documentation was fetched. Therefore `/2` is a
+**calibrated local bound, not a documented tokenizer guarantee**; the durable
+post-call breach stop is essential to its use.
+
+Evidence: the coordinator's ten-call single-image ledger supplied on 2026-10-07
+contains completed prompt counts of **1503–1543**, total reservations of
+$0.238797 and billed cost of $0.0348585. The supplied brief summarized the range
+as 1513–1539; implementation uses the larger observed maximum, 1543.
+The ledger SHA-256 is `4c01b3edad8228b69500420d400af235f2477c9feec116223784b14d403b2dc4`.
+These receipts are calibration evidence supplied by the coordinator, not new
+live calls or model qualification performed in this lane.
+
+Decision: `assist-image-ceilings/2` reserves
+`2 * 1543 * ceil(width * height / 524288)` tokens per image, using decoded PNG
+header dimensions. The safety factor is **2** against the largest *whole prompt*
+count, including system and user text; serialized non-image UTF-8 bytes and
+1024 framing tokens are additionally reserved. The area block is a local policy
+choice, not a claimed provider tile size. It covers every constructed corpus
+size: width `([240,320,480][family % 3] + jitter) * (1 + family % 2)`, jitter 0–39,
+height `160 * (1 + family % 2)`, for families 0–31; maximum 1038 by 320.
+Larger images scale in rounded-up area blocks. Edges above 2048, zero dimensions
+and unknown resolution retain the 16384-token refusal fallback.
+
+OpenRouter `detail:low` maps to low resolution, and high/auto/omitted detail maps
+to high. Both get the full calibrated bound: no undocumented low-detail discount.
+Gemini-direct and its declared medium resolution retain `/1`. The versioned
+reader preserves `/1` exactly; live OpenRouter always selects `/2`. New receipts
+retain `image_table` through settlement and deferred reconciliation. Historical
+receipts lacking that field continue to use their recorded bounds and charges.
+The price pin is unchanged: $0.75/M input and image tokens, $3.75/M output tokens.
+
+For a corpus image the image component is **3086 tokens**, and two images use
+**6172 tokens**, leaving respectively **12914** and **9828** tokens for the
+serialized non-image payload plus framing under `INPUT_LIMIT=16000`.
+With `max_tokens=4096`, the exact reservation formula is
+`750 * input_bound + 3750 * 4096` nanodollars. The worst permitted reservation
+for either a single-image or two-image request with arbitrary admitted text is
+**$0.02736** (the INPUT_LIMIT-based cap). Reapplying `/2` to the supplied
+single-image receipts gives input bounds 6240–6270 and maximum reservation
+**$0.0200625**, down from $0.023892. No single observed prompt count is treated
+as a guaranteed provider maximum.
+
+At the maximum corpus dimensions, the normal prepared request regression reserves
+**$0.020454** for single-image `check_ui` with the maximum 512-byte label condition
+(input bound 6792), and **$0.02259225** for two-image `explain` in either blind order
+(input bound 9643). These cases leave 9208 and 6357 tokens of margin respectively.
+They are concrete prepared-payload reservations; larger admissible text/catalogs
+remain subject to the $0.02736 absolute reservation cap.
+
+Acceptance coverage:
+
+| Requirement | Offline regression |
+| --- | --- |
+| Every corpus size, area transitions, resolution and fallback behavior | `g12_calibrated_table_covers_corpus_sizes_and_preserves_version_one` |
+| Real PNGs at maximum corpus dimensions; single-image and both two-image explain orders admitted with at least 6000 input tokens of margin; reservation at or below the INPUT_LIMIT price cap | `g12_corpus_single_and_two_image_explain_reservations_fit_with_margin` |
+| Actual prompt usage one token above the calibrated reservation, still below INPUT_LIMIT and below reserved cost, records `usage_limit_exceeded` and prevents a second dispatch | `g12_openrouter_reserves_settles_unknown_zero_and_quarantines_usage_breach` |
+| Historical `/1` bound and receipt deserialize, verify and round-trip without revision or monetary changes | `g12_historical_version_one_reservation_and_receipt_still_verify` |
+| Review denial is independent of real user configuration | `local_tools_and_preview_never_authorize_network_and_images_are_explicit` uses an empty user policy in an isolated temporary config directory |
+
+Rejected alternatives: asserting an unavailable documented provider rule;
+using only the brief's smaller count; discounting low-detail input without
+provider evidence; globally reducing `/1` or changing Gemini-direct; repricing
+historical receipts; accepting a breach because total cost or global input limits
+still fit. Corpus construction, scoring and batch are outside this change.
+
+Final offline validation (2026-10-07):
+
+| Gate | Command | Result |
+| --- | --- | --- |
+| Formatting | `cargo fmt --all --check` | Exit 0 |
+| Strict clippy | `cargo clippy --locked --workspace --all-targets --features assist -- -D warnings` | Exit 0 |
+| Core feature suite | `cargo test --locked -p saccade-core --features assist,schema,evaluation` | Exit 0; 396 passed, 6 pre-existing ignored; schema conformance passed |
+| CLI feature suite | `cargo test --locked -p saccade --features assist,schema,evaluation` | Exit 0; 198 passed, 24 pre-existing ignored |
+| Smoke example | `cargo test --locked -p saccade-core --features assist,schema,evaluation --example assist_openrouter_smoke` | Exit 0; 5 passed |
+| Full default suite | `cargo test --locked -p saccade-core -p saccade` | Exit 0; 617 passed, 25 pre-existing ignored; real user.toml present |
+| Focused acceptance | `cargo test --locked -p saccade-core --features assist,schema,evaluation --lib g12_ -- --nocapture` | Exit 0; 24 passed |
+| Python assist | `python3 -m unittest discover -s scripts/assist -p 'test_*.py'` | Exit 0; 14 passed against stable final source |
+| Generated docs | `python3 scripts/gen-docs.py --check` | Exit 0 |
+| Public hygiene | `bash scripts/check-public-hygiene.sh` | Exit 0; worktree and staged index |
+
+Cargo used offline resolution, the required dedicated target, no incremental
+compilation and no dev debug information. The largest observed target size was
+6.10 GB, below the 8 GB limit; completed default-test executables were reclaimed
+before subsequent builds. The target was removed after validation. Real user
+configuration remained present and unmodified; the review denial regression
+selects its own isolated empty policy instead of masking ambient configuration
+for the whole suite. No external network calls or real key reads were performed.
+
+An additional, broader **combined-package** run
+`cargo test --locked -p saccade-core -p saccade --features assist,schema,evaluation`
+remains **FAIL** on `saccade-quality-report.v1.schema.json` conformance.
+Combining packages enables compression in the core schema suite; the unchanged
+`report_links::extend_schema` adds optional `report_id`/`source_refs`, which the
+committed quality-report schema lacks. The separate core feature suite's schema
+checks passed. This broader configuration is not converted into PASS: the
+quality/report linkage files remain untouched, and changing them is deferred
+outside the image-bound envelope. No live model or provider qualification is
+claimed by these offline tests.
