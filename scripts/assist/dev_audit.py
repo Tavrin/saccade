@@ -242,7 +242,7 @@ def worker(args):
         reason_counts=dict(reasons),disagreements=records,order_disagreements=orders,
         representative_examples={k:[r for r in records if k in r['classes']][:5] for k in ('model_error','scorer_artefact','task_definition')},
         order_examples=orders[:5],fixes=[dict(kind='task_definition',prompt_epoch=PROMPT_EPOCH,prompt_policy=PROMPT_POLICY,
-            scorer_policy=SCORER_POLICY,rationale='Explicit pairwise/task/outcome semantics; same-slot exclusion regions map to required exclusion IDs. No text/geometry/order relaxation.')],
+            scorer_policy=SCORER_POLICY,rationale='Explicit pairwise/task/outcome semantics; same-slot exclusion regions map to required exclusion IDs. Exact literals/order agreement; epoch-5 region IoU/coverage tolerance and one citation per statement.')],
         oracle_mapping_fix_count=2,mandatory_oracle_proof=proof_result,baseline=baseline,recommendation='b: new development run required before fresh held-out qualification',
         new_development_schedule_requests=len(rows),new_development_reservation_nano_usd=new_cost,
         cost_method='Full scheduled epoch-3 pre-dispatch reservations at pinned prices; no calls authorized or made. Expected spend unverified.',

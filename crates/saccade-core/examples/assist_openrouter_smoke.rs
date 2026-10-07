@@ -482,6 +482,7 @@ fn stage2_answer(row: &Row, response: &[u8]) -> assist::Result<Value> {
     let (data, hash) = stage2_request(row)?;
     let (answer, _) = openrouter::reply(response, &row.model, &hash)?;
     let value = serde_json::to_value(answer).map_err(|_| assist::Error::Storage)?;
+    let mut cited_regions = BTreeSet::new();
     for observation in value["observations"]
         .as_array()
         .ok_or(assist::Error::Invalid("stage2 observations"))?
@@ -526,11 +527,17 @@ fn stage2_answer(row: &Row, response: &[u8]) -> assist::Result<Value> {
             .as_array()
             .ok_or(assist::Error::Invalid("stage2 citations"))?;
         if refs.is_empty()
+            || (data["prompt_epoch"] == "g12-pilot/5" && refs.len() != 1)
             || refs.iter().any(|r| {
                 !view["regions"]
                     .as_array()
                     .is_some_and(|regions| regions.iter().any(|region| region["id"] == *r))
             })
+        {
+            return Err(assist::Error::Invalid("stage2 citation identity"));
+        }
+        if data["prompt_epoch"] == "g12-pilot/5"
+            && !cited_regions.insert(refs[0].as_str().unwrap_or("").to_owned())
         {
             return Err(assist::Error::Invalid("stage2 citation identity"));
         }
@@ -811,10 +818,10 @@ fn run_with(args: impl IntoIterator<Item = String>) -> Result<(), Box<dyn std::e
     if stage2 {
         for row in &rows {
             let (data, _) = stage2_request(row)?;
-            if data["prompt_epoch"] != "g12-pilot/4"
-                || data["prompt_policy"] != "assist-openrouter-task-evidence/4"
+            if data["prompt_epoch"] != "g12-pilot/5"
+                || data["prompt_policy"] != "assist-openrouter-task-evidence/5"
             {
-                return Err("paid stage2 run requires task-evidence policy epoch 4".into());
+                return Err("paid stage2 run requires task-evidence policy epoch 5".into());
             }
         }
     }
@@ -880,8 +887,8 @@ fn run_with(args: impl IntoIterator<Item = String>) -> Result<(), Box<dyn std::e
     let identity = json!({"schema":CAMPAIGN_SCHEMA,"requests_hash":requests_hash.clone(),
         "keys":prepared.iter().map(|(k,_)| assist::digest(k)).collect::<assist::Result<Vec<_>>>()?,"allowance_nano_usd":cap,
         "stage2":stage2,"budget_bounded":budget_bounded,"answer_failure_policy":stage2.then_some(answer_limits),
-        "executor_call_cap_seconds":120,"prompt_epoch":stage2.then_some("g12-pilot/4"),
-        "prompt_policy":stage2.then_some("assist-openrouter-task-evidence/4")});
+        "executor_call_cap_seconds":120,"prompt_epoch":stage2.then_some("g12-pilot/5"),
+        "prompt_policy":stage2.then_some("assist-openrouter-task-evidence/5")});
     ledger.bind_campaign_with_settlement(identity, resume, settle_unknown)?;
     let mut smoke = if resume {
         assist::decode::<Value>(&assist::read_bytes(
@@ -1040,7 +1047,7 @@ fn refusal_code(error: &(dyn std::error::Error + 'static)) -> String {
             | "paid run requires development scorer proof corpus"
             | "paid run requires frozen development scorer proof revision"
             | "offline scorer proof failed; paid run refused"
-            | "paid stage2 run requires task-evidence policy epoch 4"
+            | "paid stage2 run requires task-evidence policy epoch 5"
             | "campaign already running"
             | "cannot read user configuration"
             | "invalid user configuration"
@@ -1275,7 +1282,7 @@ mod tests {
             "paid run requires development scorer proof corpus",
             "paid run requires frozen development scorer proof revision",
             "offline scorer proof failed; paid run refused",
-            "paid stage2 run requires task-evidence policy epoch 4",
+            "paid stage2 run requires task-evidence policy epoch 5",
             "egress_denied: source root denies export",
             "invalid user configuration",
         ] {
@@ -2140,7 +2147,7 @@ mod tests {
         assert!(stage2_answer(&row, &response(&bad)).is_err());
     }
     #[test]
-    fn epoch3_exclusion_citations_preserve_closed_same_slot_protocol() {
+    fn epoch5_exclusion_citations_require_one_region_per_statement() {
         let hash = Digest::of_bytes(b"invented-epoch3");
         let row = Row {
             output_fit: None,
@@ -2148,18 +2155,27 @@ mod tests {
             model: "google/gemini-3.8-flash".into(),
             revision: "absent".into(),
             payload: json!({"messages":[{}, {"content":[{"text":json!({"request_hash":hash,
-                "prompt_epoch":"g12-pilot/4", "views":[{"slot":"P1","regions":[
+                "prompt_epoch":"g12-pilot/5", "views":[{"slot":"P1","regions":[
                     {"id":"P1:R0"},{"id":"P1:R1","exclusion_id":"synthetic-exclusion"}]}]}).to_string()}]}]}),
         };
         let answer = json!({"request_hash":hash,"outcome":"observed","observations":[{
             "slot":"P1","kind":"appearance","statement":"appearance:changed",
             "geometry":{"type":"box","pixels":[0.0,0.0,1.0,1.0]},"visibility":"visible",
-            "evidence_refs":["P1:R0","P1:R1"],"uncertainty":0.0}]});
+            "evidence_refs":["P1:R1"],"uncertainty":0.0}]});
         let response = |a: &Value| {
             serde_json::to_vec(&json!({"id":"gen-synthetic",
             "model":row.model,"provider":"fixture","choices":[{"finish_reason":"stop","message":{"content":a.to_string()}}],"usage":{"prompt_tokens":1,"completion_tokens":1,"total_tokens":2,"cost":0.001}})).unwrap()
         };
         stage2_answer(&row, &response(&answer)).unwrap();
+        let mut merged = answer.clone();
+        merged["observations"][0]["evidence_refs"] = json!(["P1:R0", "P1:R1"]);
+        assert!(stage2_answer(&row, &response(&merged)).is_err());
+        let mut duplicate = answer.clone();
+        duplicate["observations"]
+            .as_array_mut()
+            .unwrap()
+            .push(answer["observations"][0].clone());
+        assert!(stage2_answer(&row, &response(&duplicate)).is_err());
         for citation in ["synthetic-exclusion", "P2:R1", "P1:R2"] {
             let mut wrong = answer.clone();
             wrong["observations"][0]["evidence_refs"] = json!([citation]);
