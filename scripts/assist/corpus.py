@@ -217,7 +217,7 @@ def render(seed, family, kind, workload):
                 label=label,exclusions=exclusions,wanted=wanted,witnesses=witnesses,
                 font_family=family%2,dpr=dpr,theme=theme)
 
-def freeze(out, target, seed, gemini_revision, jev_revision, stage2=False):
+def freeze(out, target, seed, gemini_revision, jev_revision, stage2=False, fresh_heldout=False):
     if target <= 0 or target > 1000 or target % 5:
         raise ValueError("target must be a positive multiple of five at most 1000")
     if stage2 and gemini_revision!="google/gemini-3.8-flash-20260902":
@@ -226,13 +226,16 @@ def freeze(out, target, seed, gemini_revision, jev_revision, stage2=False):
         raise ValueError("freeze exact observed model revisions")
     # Distinct families, seeds and roots; descendants/orders/retries retain root/split.
     families = {"development":list(range(0,8)),"calibration":list(range(8,12)),"heldout":list(range(12,32))}
+    if fresh_heldout:
+        if not stage2 or seed == 4406: raise ValueError("fresh draw requires stage2 and a new seed")
+        families["heldout"] = list(range(32,52))
     policy = dict(POLICY, version="constructed-assist/4") if stage2 else POLICY
     versions = dict(gate_source_hash=gate_source_hash(),generator_hash=digest(Path(__file__).read_bytes()),policy_hash=digest(encoded(policy)),
                     pillow=PIL_VERSION,fonts=[digest(p.read_bytes()) for p in FONT_FILES],
                     font_license_hash=digest(FONT_LICENSE.read_bytes()),
                     workflow_hash=digest((ROOT/"crates/saccade-core/src/assist/workflow.rs").read_bytes()),
                     schema_hash=digest((ROOT/"crates/saccade-core/schemas/saccade-assist.v1.schema.json").read_bytes()))
-    metadata = dict(schema=SCHEMA,epoch="wave4-constructed/4" if stage2 else "wave4-constructed/3",seed=seed,target_per_workload=target,
+    metadata = dict(schema=SCHEMA,epoch="g12-fresh-heldout/1" if fresh_heldout else "wave4-constructed/4" if stage2 else "wave4-constructed/3",seed=seed,target_per_workload=target,
                     families=families,policy=policy,versions=versions,
                     campaign="g12-stage2/2" if stage2 else "offline-fixture-campaign/1",
                     models={"openrouter":"google/gemini-3.8-flash" if stage2 else "openai/fixture-model","openrouter_revision":gemini_revision if stage2 else "fixture-fingerprint-r1","gemini":"gemini-3.8-flash","gemini_revision":gemini_revision,
@@ -321,8 +324,12 @@ def verify(directory):
     if set(oracle_document)!={"schema","cases"} or oracle_document["schema"]!=ORACLE_SCHEMA or digest(encoded(oracle_document))!=manifest["oracle_hash"]: raise ValueError("oracle schema/hash drift")
     oracle=oracle_document["cases"]
     expected_families={"development":list(range(8)),"calibration":list(range(8,12)),"heldout":list(range(12,32))}
+    fresh = manifest["epoch"] == "g12-fresh-heldout/1"
+    if fresh:
+        if not stage2 or manifest["seed"] == 4406: raise ValueError("fresh draw seed drift")
+        expected_families["heldout"] = list(range(32,52))
     target=manifest["target_per_workload"]
-    if manifest["epoch"]!=("wave4-constructed/4" if stage2 else "wave4-constructed/3") or manifest["families"]!=expected_families or not isinstance(target,int) or target<=0 or target>1000 or target%5:
+    if manifest["epoch"]!=("g12-fresh-heldout/1" if fresh else "wave4-constructed/4" if stage2 else "wave4-constructed/3") or manifest["families"]!=expected_families or not isinstance(target,int) or target<=0 or target>1000 or target%5:
         raise ValueError("preregistered split/epoch drift")
     if manifest["models"]["gemini"]!="gemini-3.8-flash" or manifest["models"]["jev"]!="jev-1.13.0" or not all(manifest["models"][m+"_revision"] for m in ("gemini","jev")):
         raise ValueError("pinned model binding drift")
@@ -414,9 +421,10 @@ if __name__=="__main__":
     parser.add_argument("--jev-revision",default="jev-1.13.0")
     parser.add_argument("--verify",action="store_true")
     parser.add_argument("--stage2",action="store_true")
+    parser.add_argument("--fresh-heldout",action="store_true")
     args=parser.parse_args()
     try:
-        data=verify(args.out)[0] if args.verify else freeze(args.out,args.target_per_workload,args.seed,args.gemini_revision,args.jev_revision,args.stage2)
+        data=verify(args.out)[0] if args.verify else freeze(args.out,args.target_per_workload,args.seed,args.gemini_revision,args.jev_revision,args.stage2,args.fresh_heldout)
         print(json.dumps({"schema":SCHEMA,"manifest_hash":data["manifest_hash"],"cases":len(data["cases"]),"excluded":len(data["exclusions"])}))
     except (ValueError,OSError) as error:
         print("constructed freeze refused: "+str(error),file=sys.stderr);sys.exit(4)

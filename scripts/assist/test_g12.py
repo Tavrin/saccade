@@ -108,7 +108,7 @@ class G12Tests(unittest.TestCase):
             directory=Path(temp);manifest=freeze(directory/"corpus",5,4406,"fixture-r1","jev-1.13.0")
             manifest,oracle=verify(directory/"corpus")
             from plan import plan
-            frozen_plan=plan(directory/"corpus")
+            frozen_plan=plan(directory/"corpus", "heldout")
             self.assertFalse(frozen_plan["qualifying_support"])
             self.assertFalse(frozen_plan["authorized"])
             self.assertGreater(sum(frozen_plan["provider_requests"].values()),0)

@@ -719,3 +719,219 @@ nominal one-sided 95% limits, invalid answers, over-hint rates, known costs,
 unknown reservations and completed cold-call latency. Split results are separate;
 no development/calibration provider performance is inferred from heldout calls.
 The synthetic scorer and its qualification gates retain their original rules.
+
+## G12 combined pilot scorer audit
+
+`python3 scripts/assist/pilot_audit.py --corpus CORPUS --requests ORIGINAL_REQUESTS
+--campaign ORIGINAL_REQUESTS FIRST_RESULTS --campaign SUBSET_REQUESTS SECOND_RESULTS
+--local-results LOCAL_RESULTS --source-revision FROZEN_COMMIT --out SCORE_PREFIX`
+combines existing campaigns offline. It verifies each campaign request-file hash,
+canonical root binding and identical payload hash before opening answer files;
+unknown roots, changed payloads, duplicate terminal dispatches, duplicate money
+IDs and unbound receipts refuse combination. The original files remain read-only.
+The frozen corpus adapter verifies the original source snapshot and requires
+unchanged oracle, scorer, payload and receipt implementation files. The union
+adapter has its own source hash in the report.
+
+Selection is by canonical request identity, never response quality. A later paid
+retry can supersede an incomplete call for answer scoring, but all physical
+attempts remain in cost and request-rate denominators. Unknown charges retain
+their full reservations. Scheduled request counts remain distinct from attempts.
+Quality bounds use root events; correlated request bounds remain descriptive.
+The report publishes aggregate metrics and combination reasons only, with no
+individual held-out response, oracle answer or root result.
+
+The supplied two campaigns execute **only held-out requests**. Development and
+calibration each have 60 corpus roots, but no provider observations. Therefore
+reviewed development/calibration disagreements are zero; empirical model-error
+and scorer-artefact counts are **unavailable**, not zero. Their quality rates do
+not measure model behavior. No held-out individual answer or oracle was inspected
+to tune the scorer, prompt or policy. Automated oracle/response reads are used
+only for the frozen aggregate score. No provider calls or key reads are needed.
+
+No semantic scorer change is justified by these inputs. Source audit findings:
+
+- `text:<literal>` compares exact code points, case, whitespace and line breaks.
+  NFC conversion, whitespace folding or case folding would be a new protocol
+  decision, not a repair authorized by the literal protocol. A multiline
+  transcription cannot be adjudicated from a held-out example.
+- Two-order arms require exact role-normalized observations, including geometry,
+  evidence citations, visibility and uncertainty. Missing orders/descendants and
+  disagreement withhold the root. Aggregate reasons distinguish missing samples,
+  invalid answers and exact disagreement. `check_ui` uses one scheduled sample
+  even in `two_gemini`; that arm name does not establish independent replication.
+- `presence:present` can witness one visible glyph while `check_ui` task evidence
+  requires complete literal text, absence with target coverage, or clipping.
+  The prompt's presence example establishes a valid observation shape, not task
+  success. `unverifiable` is an abstention only for a completed consistent root;
+  invalid, missing and inconsistent answers are unavailable, not abstentions.
+- Text requires every witnessed glyph pixel inside the exact half-open box.
+  Absence/clipping/explanation require target coverage. Points use a one-pixel
+  footprint for assertions; task coverage requires boxes. There is no IoU
+  matching threshold, padding, snapping or rounding tolerance.
+- `audit_mask` task evidence requires exclusion-ID citations while the live
+  protocol permits only same-slot region citations. This incompatibility prevents
+  task success; it cannot be counted as demonstrated model error. Repair requires
+  a separately authorized development protocol epoch and independent evidence.
+
+Focused synthetic tests use invented text and pixel witnesses, not copied pilot
+answers. They lock exact Unicode/whitespace/case and geometry behavior, partial
+presence versus task success, retry cost conservation, aggregate-only publication,
+request-hash refusal and duplicate execution refusal. The combined pilot remains
+unqualified. Do not proceed to run B: first obtain a development/calibration audit
+under a separately reviewed protocol; do not adapt from this held-out pilot.
+
+Identical payloads across distinct arm/order bindings share a hash. The union
+indexes by payload hash **and** canonical schedule binding, retaining these
+separate arm events instead of collapsing them or inflating independent support.
+
+## G12 development/calibration pilot and consumed held-out draw
+
+The first held-out draw (`wave4-constructed/4`, seed 4406, families 12–31)
+was consumed by an unqualified pilot and is excluded from qualification claims.
+It must not be reused as a prospective qualification holdout. No semantic scorer,
+prompt, payload, price, model or provider policy is changed by this scheduling fix.
+
+The planner now requires `--split development|calibration|held-out`, including
+stage-2 plans. Missing split selection refuses before reading the corpus. The
+scorer accepts the same split selection and verifies complete request and local
+result topology for that split. Other splits remain unobserved.
+
+The development and calibration plans each retain all 60 roots of the existing
+frozen pilot corpus and the same four arms: 240 root/arm evaluations and 216
+provider requests per split. Each full schedule has expected cost $0.890013600;
+worst-case reservations are $4.969337250 for development and $4.970257500 for
+calibration. These are full-schedule estimates, not a claim that all calls fit the
+cap. Two independent budget-bounded campaigns each receive $0.75, enforcing a
+combined $1.50 allowance. Admission verifies every request reservation offline;
+execution will stop before admitting a request that exceeds remaining allowance.
+Budget-stopped requests retain unavailable outcomes in the full denominator.
+The expected-cost transfer from the earlier aggregate remains unverified.
+
+Artifacts and exact run/reconcile/score commands are in
+the external pilot artifact directory as `operator-commands.sh`.
+The copied frozen binary has SHA-256
+`2429c019e63e8c4179fc1fe54ddd771ad77046101791119cdd4e41d1054e365f`.
+The original corpus is verified against source snapshot
+`ab305c00bc4536d4ff482b5a3645fe5b67f9a6d4`; the binary is the existing
+reasoning-hint pilot executor from the starting worktree revision. Frozen source
+verification checks unchanged scoring, receipt and policy files, renderer and
+payload functions and prompt/payload constants. Scheduling/freeze changes do not
+silently admit altered answer semantics.
+
+A new unscheduled draw, `g12-fresh-heldout/1`, uses seed 975031 and held-out
+families 32–51, disjoint from every original family, seed and root. Its 45 held-out
+roots have never received provider observations or individual human inspection;
+automated construction and oracle verification are recorded separately from
+observation. The manifest/oracle hashes and never-observed status are recorded in
+the external pilot artifact directory as `fresh-heldout-status.json`.
+This fresh pilot-sized draw does not establish sufficient qualification support.
+No held-out request plan is generated. No provider calls or key reads occurred.
+
+## G12 development audit and mandatory scorer proof (epoch 3)
+
+Before any paid run, `scripts/assist/scorer_selftest.py --corpus
+DEVELOPMENT_CORPUS --source-revision FROZEN_REVISION` must pass. Both the
+qualification wrapper and the direct OpenRouter example enforce this gate before
+credentials or campaign creation; missing or empty `SACCADE_SCORER_DEV_CORPUS`
+or `SACCADE_SCORER_SOURCE_REVISION`, a failed proof, or an epoch-2 paid stage-2
+request refuses execution. Offline `--validate-only` and reconciliation retain
+their separate purposes. This audit made no provider calls and read no keys.
+
+The gate builds **synthetic oracle-injected** answers for every development root,
+workload and G12 arm, including unavailable roots and routing counterfactuals.
+It checks the closed answer shape, same-slot declared citations and request hash,
+then uses `dev_policy.normalize`, `pilot_score.semantic`, and the real atomic
+assertion/task scorer. All four arms are synthetic injections: this establishes
+scorer expressibility, not model, routing or runtime performance. Unavailable
+roots correctly abstain; precision excludes them while important recall retains
+every challenge root. Perfect answers must attain exactly 100% precision and
+important recall with zero false reassurance for **every workload/arm**.
+Missing answers, hallucinated facts, wrong literal text, wrong geometry and
+conflicting order answers must have zero correct roots and be flagged in every
+workload/arm. A gate test injects a broken task scorer and verifies failure.
+
+The 60-root development proof has 96 workload/arm/variant rows. The repaired
+policy passes all rows. Its legacy diagnostic shows perfect `explain` and
+`check_ui` at 100% precision/recall, perfect `audit_mask` at 0%/0%, and routing at
+75% precision with 100% important recall. These establish two protocol/oracle
+mapping defects, rather than a need to relax correctness:
+
+- The old mask scorer requires exclusion-ID citations, but the live protocol
+  permits only same-slot region citations. New public regions explicitly map
+  each exclusion to `P1:Rn` / `P2:Rn`. The epoch-3 normalizer preserves the region
+  reference and adds its declared exclusion ID for task scoring. Each exclusion
+  still needs an independently correct appearance assertion and full coverage;
+  `R0` alone, wrong-slot references, points and undersized boxes cannot satisfy it.
+- Routing controls ask for `non_overlap` while the old atomic oracle rejects
+  `overlap:separate`. The new mapping independently checks the verified capture
+  source bounds, requires both node citations and coverage of both nodes, and
+  scores their strict rectangle intersection. Text alone cannot prove non-overlap.
+  Unknown overlap statements without bound source evidence remain unsupported.
+
+The policy is `g12-pilot/3`, prompt `assist-openrouter-task-evidence/3`, scorer
+mapping `assist-region-exclusion-mapping/1`, implemented in `dev_policy.py`.
+`plan.py --stage2 --task-evidence-policy` emits this policy; `pilot_score.py
+--task-evidence-policy` checks its exact payload binding and refuses epoch-2
+requests as epoch 3. The prompt defines pairwise appearance independent of slot
+order, task-specific outcomes, required task evidence, and decorative changes
+outside the target. It explicitly requires conservative enclosing answer boxes
+when decimal rounding could trim a boundary. This is a model answer requirement,
+not scorer padding. Literal text, Unicode, case, whitespace, exact glyph/target
+coverage and exact normalized order agreement remain unchanged. Wider boxes
+must still support every assertion over their declared extent. No IoU threshold,
+rounding tolerance, fuzzy matching, dropped assertions or reduced quality gate
+was introduced. Expected appearance statements come from independent comparisons
+of oracle-bound rendered pixels, not from asking the scorer what it accepts. A
+mutation regression inverts the appearance scorer and requires the proof to fail.
+Focused tests use invented images, source packets and oracle
+fixtures, never development response fragments.
+
+Development inspection reviewed all 188 completed answers, including every
+`explain`/`audit_mask` disagreement and all completed `check_ui`/routing answers.
+There are 139 disagreeing completed responses: 75 primarily model error,
+63 task-definition problem and 1 scorer artefact. Causes overlap: 104 include
+model error, 63 task-definition problems and 1 the independently supported source
+mapping artefact. The mask incompatibility affects 48 responses; independent-view
+versus pairwise wording affects 7, missing pairwise evidence 8, and exact target
+coverage fails in 36 `explain` responses. These are response counts, not independent
+quality events. Only one observed scorer-artefact example exists; none were
+invented to meet an example quota. The private audit provides five model-error
+examples, five task-definition examples, that one scorer example, five order
+examples and every individual comparison. Twenty-nine root/arms disagree across
+orders: geometry in 23, statement in 21, role/citation in 20 each, observation
+kind in 17, observation count/uncertainty/visibility in 13 each, outcome in 3.
+These overlapping causes withhold roots; agreement requirements remain strict.
+
+Replaying old development answers with the fixed source mapping and preserving
+missing exclusion evidence gives the following precision / important recall:
+
+| Workload | Single Gemini | Two Gemini | Cascade |
+|---|---:|---:|---:|
+| explain | 0% / 0% | 0% / 0% | unavailable / 0% |
+| audit_mask | 0% / 0% | 0% / 0% | 0% / 0% |
+| check_ui | 50.00% / 33.33% | 25.00% / 0% | 58.33% / 44.44% |
+| routing | 18.18% / 11.11% | 9.09% / 11.11% | 45.45% / 22.22% |
+
+False reassurance is zero for these available committed roots; missing/disagreeing
+roots remain unavailable, not successes. Cascade `explain` has zero committed
+roots, so its precision is unavailable rather than zero. These small correlated
+development samples do not qualify any model. The old and replayed score reports
+retain counts, nominal bounds, provenance hashes and unchanged billing receipts.
+
+Decision **(b): a new development run is required first**. New prompt semantics
+and exclusion regions cannot be retroactively supplied to old answers. The
+216-request epoch-3 development schedule currently reserves **$5.14548975** at
+pinned worst-case prices, exceeding both the development allowance and the $5
+single-campaign ceiling. This is an offline reservation estimate, not billed or
+expected cost, and the plan remains unauthorized. A later operator must choose
+an admitted bounded schedule or separately authorized campaigns within the
+existing ceilings; this audit authorizes neither. Fresh held-out qualification
+must wait for the new development run and passing oracle proof.
+
+The audit runner verifies the pinned renderer/source and opaque oracle hash,
+lexically skips non-development oracle values without decoding them, and verifies
+only development images/truths. It refuses a fresh-heldout corpus or a request
+outside development before opening responses. Neither held-out responses nor
+held-out oracle entries were observed; `g12-fresh-heldout/1` remains unobserved.
+Private reports and request/proof artifacts stay outside the repository.

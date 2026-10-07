@@ -45,6 +45,7 @@ cargo run --offline --locked -p saccade-core --features assist \
 
 Gate receipts are kept in the operator’s private evidence directory.
 
+
 Final verification: fmt, clippy (`saccade-core`, all targets, `assist`, warnings
 denied), core tests (`assist,schema,evaluation`), and all 23 smoke example tests
 exited 0. The four existing offline pilot-scoring fixtures also exited 0.

@@ -767,6 +767,17 @@ fn run_with(args: impl IntoIterator<Item = String>) -> Result<(), Box<dyn std::e
         println!("{}", serde_json::to_string(&reservations)?);
         return Ok(());
     }
+    require_scorer_selftest()?;
+    if stage2 {
+        for row in &rows {
+            let (data, _) = stage2_request(row)?;
+            if data["prompt_epoch"] != "g12-pilot/3"
+                || data["prompt_policy"] != "assist-openrouter-task-evidence/3"
+            {
+                return Err("paid stage2 run requires task-evidence policy epoch 3".into());
+            }
+        }
+    }
     if options.contains_key("--resume") && options.contains_key("--out") {
         return Err("resume and out are exclusive".into());
     }
@@ -820,8 +831,8 @@ fn run_with(args: impl IntoIterator<Item = String>) -> Result<(), Box<dyn std::e
     let identity = json!({"schema":CAMPAIGN_SCHEMA,"requests_hash":requests_hash.clone(),
         "keys":prepared.iter().map(|(k,_)| assist::digest(k)).collect::<assist::Result<Vec<_>>>()?,"allowance_nano_usd":cap,
         "stage2":stage2,"budget_bounded":budget_bounded,"answer_failure_policy":stage2.then_some(answer_limits),
-        "executor_call_cap_seconds":120,"prompt_epoch":stage2.then_some(if video_run {"video-judge/1"} else {"g12-pilot/2"}),
-        "prompt_policy":stage2.then_some(if video_run {assist::video::VERSION} else {"assist-openrouter-geometry-citations/2"})});
+        "executor_call_cap_seconds":120,"prompt_epoch":stage2.then_some(if video_run {"video-judge/1"} else {"g12-pilot/3"}),
+        "prompt_policy":stage2.then_some(if video_run {assist::video::VERSION} else {"assist-openrouter-task-evidence/3"})});
     ledger.bind_campaign_with_settlement(identity, resume, settle_unknown)?;
     let mut smoke = if resume {
         assist::decode::<Value>(&assist::read_bytes(
@@ -1040,6 +1051,41 @@ fn run_reported(args: Vec<String>) -> Result<(), Box<dyn std::error::Error>> {
     }
     result
 }
+fn scorer_proof_inputs(
+    corpus: Option<std::ffi::OsString>,
+    revision: Option<std::ffi::OsString>,
+) -> Result<(std::ffi::OsString, std::ffi::OsString), Box<dyn std::error::Error>> {
+    let corpus = corpus
+        .filter(|s| !s.is_empty())
+        .ok_or("paid run requires development scorer proof corpus")?;
+    let revision = revision
+        .filter(|s| !s.is_empty())
+        .ok_or("paid run requires frozen development scorer proof revision")?;
+    Ok((corpus, revision))
+}
+
+// Every paid entry point, including direct binary invocation, proves the current
+// scorer offline before opening credentials or creating a campaign directory.
+fn require_scorer_selftest() -> Result<(), Box<dyn std::error::Error>> {
+    let (corpus, revision) = scorer_proof_inputs(
+        std::env::var_os("SACCADE_SCORER_DEV_CORPUS"),
+        std::env::var_os("SACCADE_SCORER_SOURCE_REVISION"),
+    )?;
+    let script =
+        Path::new(env!("CARGO_MANIFEST_DIR")).join("../../scripts/assist/scorer_selftest.py");
+    let status = std::process::Command::new("python3")
+        .arg(script)
+        .arg("--corpus")
+        .arg(corpus)
+        .arg("--source-revision")
+        .arg(revision)
+        .status()?;
+    if !status.success() {
+        return Err("offline scorer proof failed; paid run refused".into());
+    }
+    Ok(())
+}
+
 fn main() {
     if run_reported(std::env::args().skip(1).collect()).is_err() {
         std::process::exit(4);
@@ -1049,6 +1095,14 @@ fn main() {
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[test]
+    fn paid_scorer_gate_requires_both_proof_inputs_without_credentials() {
+        assert!(scorer_proof_inputs(None, Some("fixture".into())).is_err());
+        assert!(scorer_proof_inputs(Some("fixture".into()), None).is_err());
+        assert!(scorer_proof_inputs(Some("".into()), Some("fixture".into())).is_err());
+        assert!(scorer_proof_inputs(Some("fixture".into()), Some("".into())).is_err());
+    }
+
     #[test]
     fn g12_resume_genuine_cost_or_identity_mismatch_blocks_settlement() {
         use saccade_core::budget_ledger::MoneyReceipt;
@@ -1919,6 +1973,33 @@ mod tests {
         bad["request_hash"] = json!(Digest::of_bytes(b"other"));
         assert!(stage2_answer(&row, &response(&bad)).is_err());
     }
+    #[test]
+    fn epoch3_exclusion_citations_preserve_closed_same_slot_protocol() {
+        let hash = Digest::of_bytes(b"invented-epoch3");
+        let row = Row {
+            root: "synthetic".into(),
+            model: "google/gemini-3.8-flash".into(),
+            revision: "absent".into(),
+            payload: json!({"messages":[{}, {"content":[{"text":json!({"request_hash":hash,
+                "prompt_epoch":"g12-pilot/3", "views":[{"slot":"P1","regions":[
+                    {"id":"P1:R0"},{"id":"P1:R1","exclusion_id":"synthetic-exclusion"}]}]}).to_string()}]}]}),
+        };
+        let answer = json!({"request_hash":hash,"outcome":"observed","observations":[{
+            "slot":"P1","kind":"appearance","statement":"appearance:changed",
+            "geometry":{"type":"box","pixels":[0.0,0.0,1.0,1.0]},"visibility":"visible",
+            "evidence_refs":["P1:R0","P1:R1"],"uncertainty":0.0}]});
+        let response = |a: &Value| {
+            serde_json::to_vec(&json!({"id":"gen-synthetic",
+            "model":row.model,"provider":"fixture","choices":[{"finish_reason":"stop","message":{"content":a.to_string()}}],"usage":{"prompt_tokens":1,"completion_tokens":1,"total_tokens":2,"cost":0.001}})).unwrap()
+        };
+        stage2_answer(&row, &response(&answer)).unwrap();
+        for citation in ["synthetic-exclusion", "P2:R1", "P1:R2"] {
+            let mut wrong = answer.clone();
+            wrong["observations"][0]["evidence_refs"] = json!([citation]);
+            assert!(stage2_answer(&row, &response(&wrong)).is_err());
+        }
+    }
+
     #[test]
     fn stage2_schedule_validation_is_offline_and_keeps_five_dollar_cap() {
         let temp = tempfile::tempdir().unwrap();
