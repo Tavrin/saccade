@@ -109,11 +109,13 @@ fn verify_inputs(
 }
 // Case construction may read an adjacent evidence document and hash sidecars.
 // Check those routes before construction, not merely before provider dispatch.
-fn guard_case_inputs(
+pub(crate) fn guard_case_inputs(
     file: &Path,
     roots: &saccade_core::root_policy::RootPolicy,
 ) -> Result<(), CliError> {
-    roots.read(file)?;
+    let _scope = saccade_core::root_policy::io::scope(roots);
+    let file = roots.read(file)?;
+    let file = file.as_path();
     let value = local_cmd::read_value(file)?;
     if saccade_core::report_links::original_schema(value["schema"].as_str().unwrap_or_default())
         == saccade_core::report::REPORT_SCHEMA
@@ -219,7 +221,29 @@ pub(crate) fn review(
     let mut policy = roots.clone();
     user.apply(&mut policy)
         .map_err(|e| CliError::new("invalid_user_policy", e))?;
+    let file = policy.read(file)?;
+    let out = out.map(|p| policy.write(p)).transpose()?;
+    let file = file.as_path();
+    let out = out.as_deref();
+    let _scope = saccade_core::root_policy::io::scope(&policy);
     guard_case_inputs(file, &policy)?;
+    // Authorize every companion before constructing a case or dispatching.
+    if let Some(out) = out {
+        let parent = out.parent().unwrap_or(Path::new("."));
+        for p in [
+            out.to_owned(),
+            parent.join("review-plan.json"),
+            parent.join(".saccade-run"),
+        ] {
+            policy.write(&p)?;
+            if std::fs::symlink_metadata(&p).is_ok_and(|m| m.file_type().is_symlink()) {
+                return Err(CliError::new(
+                    "unsafe_path",
+                    "refusing output companion symlink",
+                ));
+            }
+        }
+    }
     let mut c = case(file)?;
     apply_intent(&mut c, intent)?;
     verify_inputs(&c, file, &policy)?;
@@ -462,7 +486,7 @@ pub(crate) fn review(
         local_cmd::write_value(out, &value)?;
         let parent = out.parent().unwrap_or(Path::new("."));
         local_cmd::write_value(&parent.join("review-plan.json"), &plan)?;
-        std::fs::write(parent.join(".saccade-run"), b"")
+        saccade_core::root_policy::io::write(parent.join(".saccade-run"), b"")
             .map_err(|e| CliError::io(e.to_string()))?;
     }
     let source_references = json!(source_references(&sources, &policy));
@@ -486,7 +510,8 @@ pub(crate) fn review(
     local_cmd::bounded(result, 4096)
 }
 fn toml_policy(path: &Path) -> Result<transport::ProjectPolicy, CliError> {
-    let text = std::fs::read_to_string(path).map_err(|e| CliError::io(e.to_string()))?;
+    let text = saccade_core::root_policy::io::read_to_string(path)
+        .map_err(|e| CliError::io(e.to_string()))?;
     // Deserialize with strict fields: URL/key/root/startup fields are rejected.
     saccade_core::judge_provider::transport::parse_project_policy(&text)
         .map_err(|e| CliError::new("invalid_project_policy", e))
@@ -534,10 +559,13 @@ pub(crate) fn cli(args: &local_cmd::ReviewArgs) -> Result<Value, CliError> {
     } else {
         None
     };
-    if let Some(file) = &args.intent_file {
-        roots.read(file)?;
-    }
-    let intent = read_intent(args.intent.as_deref(), args.intent_file.as_deref(), &input)?;
+    let intent_file = args
+        .intent_file
+        .as_deref()
+        .map(|p| roots.read(p))
+        .transpose()?;
+    let _scope = saccade_core::root_policy::io::scope(&roots);
+    let intent = read_intent(args.intent.as_deref(), intent_file.as_deref(), &input)?;
     review(
         &input,
         out.as_deref(),
@@ -654,11 +682,18 @@ pub(crate) fn preview_local(
 ) -> Result<Value, CliError> {
     let user = load_user(&user_file(user_config))?;
     let policy = preview_policy(&user)?;
+    let resolved_file = policy.as_ref().map(|p| p.read(file)).transpose()?;
+    let resolved_out = out
+        .map(|out| {
+            policy
+                .as_ref()
+                .map_or_else(|| Ok(out.to_owned()), |p| p.write(out))
+        })
+        .transpose()?;
+    let file = resolved_file.as_deref().unwrap_or(file);
+    let out = resolved_out.as_deref();
+    let _scope = policy.as_ref().map(saccade_core::root_policy::io::scope);
     if let Some(policy) = &policy {
-        policy.read(file)?;
-        if let Some(out) = out {
-            policy.write(out)?;
-        }
         guard_case_inputs(file, policy)?;
     }
     let mut c = case(file)?;
@@ -704,7 +739,13 @@ pub(crate) fn preview_local(
         "Local preview; explicit execution, user root permissions and finite attempt budget are required.",
         "Every model answer is a proposal; human review remains unresolved."
     ]);
-    local_cmd::bounded(value, 4096)
+    let mut value = local_cmd::bounded(value, 4096)?;
+    if let Some(out) = out {
+        let summary = out.join("preview.json");
+        value["paths"] = json!({"summary":saccade_core::paths::cwd(&summary,absolute),"requests":saccade_core::paths::cwd(&out.join("requests.json"),absolute)});
+        local_cmd::write_value(&summary, &value)?;
+    }
+    Ok(value)
 }
 
 pub(crate) fn rebase(value: &mut Value, source: &Path, destination: &Path) -> Result<(), CliError> {

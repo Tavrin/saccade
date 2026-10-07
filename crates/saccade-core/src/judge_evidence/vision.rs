@@ -52,8 +52,9 @@ impl DisplayImage {
     /// Reads a canonical local path, hashing the source and applying the recorded
     /// display conversion. No path or filename is included in the visual payload.
     pub fn load(input_id: &str, path: &Path, transform: DisplayTransform) -> EvidenceResult<Self> {
-        let path = crate::paths::canonicalize(path)?;
-        let before = std::fs::read(&path)?;
+        let route = path;
+        let path = crate::paths::canonicalize(route)?;
+        let before = crate::root_policy::io::read(route)?;
         let pixels = match &transform {
             DisplayTransform::Srgb { background } => {
                 require(
@@ -82,13 +83,14 @@ impl DisplayImage {
                     tm.name() == tonemapper,
                     "tone mapper must use its canonical name",
                 )?;
-                let hdr = crate::hdr::decode_hdr(&path)
+                let decoded = image::load_from_memory(&before)
                     .map_err(|e| crate::evidence::ContractError::Invalid(e.to_string()))?;
+                let hdr = crate::hdr::from_decoded(decoded);
                 crate::hdr::display_image(&hdr, tm)
             }
         };
         require(
-            before == std::fs::read(&path)?,
+            before == crate::root_policy::io::read(route)?,
             "source changed during display encoding",
         )?;
         Ok(Self {

@@ -2398,7 +2398,7 @@ fn open_browser(url: &str) {
 }
 
 fn read_report(path: &Path) -> Result<Report, CliError> {
-    let text = std::fs::read_to_string(path)
+    let text = saccade_core::root_policy::io::read_to_string(path)
         .map_err(|e| CliError::io(format!("reading report {}: {e}", path.display())))?;
     parse_contract(text.as_bytes(), saccade_core::report::REPORT_SCHEMA)
 }

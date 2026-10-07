@@ -819,3 +819,22 @@ package or system GDAL dependency is introduced. Test-only `tempfile` is
 MIT OR Apache-2.0 and `jsonschema 0.30.0` is MIT. Crate-source licence metadata
 and Cargo.lock are the evidence, not an external licensing assumption.
 All TIFF and tile fixtures are original procedural data, MIT OR Apache-2.0.
+
+## N20 capability-relative filesystem I/O
+
+The new lockfile additions are permissively licensed. No native sandbox or
+model artifacts are added. Release notices retain upstream license texts.
+
+| Package | Version | License |
+| --- | --- | --- |
+| `ambient-authority` | 0.0.2 | Apache-2.0 WITH LLVM-exception OR Apache-2.0 OR MIT |
+| `cap-fs-ext` | 3.4.6 | Apache-2.0 WITH LLVM-exception OR Apache-2.0 OR MIT |
+| `cap-primitives` | 3.4.6 | Apache-2.0 WITH LLVM-exception OR Apache-2.0 OR MIT |
+| `cap-std` | 3.4.6 | Apache-2.0 WITH LLVM-exception OR Apache-2.0 OR MIT |
+| `fs-set-times` | 0.20.3 | Apache-2.0 WITH LLVM-exception OR Apache-2.0 OR MIT |
+| `io-extras` | 0.18.4 | Apache-2.0 WITH LLVM-exception OR Apache-2.0 OR MIT |
+| `io-lifetimes` | 2.0.4 | Apache-2.0 WITH LLVM-exception OR Apache-2.0 OR MIT |
+| `ipnet` | 2.12.2 | MIT OR Apache-2.0 |
+| `maybe-owned` | 0.3.4 | MIT OR Apache-2.0 |
+| `rustix-linux-procfs` | 0.1.1 | Apache-2.0 WITH LLVM-exception OR Apache-2.0 OR MIT |
+| `winx` | 0.36.4 | Apache-2.0 WITH LLVM-exception |

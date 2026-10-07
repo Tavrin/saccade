@@ -135,7 +135,8 @@ impl Document {
 
     /// Reads a complete document and rejects malformed semantic identities.
     pub fn read(path: &std::path::Path) -> Result<Self> {
-        let document: Self = canonical::decode(&std::fs::read(crate::paths::native(path))?)?;
+        let document: Self =
+            canonical::decode(&crate::root_policy::io::read(crate::paths::native(path))?)?;
         document.validate()?;
         Ok(document)
     }

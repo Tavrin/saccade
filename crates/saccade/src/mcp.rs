@@ -1550,7 +1550,10 @@ impl Server {
                     )
                 })?,
         };
+        let _scope = saccade_core::root_policy::io::scope(&self.policy);
         let file = self.existing_file("artifact", &require_str(args, "artifact")?)?;
+        crate::review_cmd::guard_case_inputs(&file, &self.policy)
+            .map_err(|e| CliError::new("unsafe_path", e.message))?;
         self.document_inputs(&file)?;
         if let Some(reference) = args.get("artifact").and_then(Value::as_object) {
             let actual = format!("sha256:{}", saccade_core::run::sha256_file(&file)?);

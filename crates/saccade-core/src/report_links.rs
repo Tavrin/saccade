@@ -4,7 +4,7 @@ use serde::Serialize;
 use serde_json::{Value, json};
 use std::{
     cell::RefCell,
-    io::{Read, Write},
+    io::Read,
     path::{Path, PathBuf},
 };
 /// Exported report-index row contract.
@@ -398,35 +398,26 @@ pub fn index(path: &Path, value: &Value) -> Result<()> {
             "report index directory cannot be a symlink".into(),
         ));
     }
-    std::fs::create_dir_all(parent)
-        .map_err(crate::run::io_err("creating report index directory".into()))?;
     if std::fs::symlink_metadata(&target).is_ok_and(|m| m.file_type().is_symlink()) {
         return Err(Error::Config("report index cannot be a symlink".into()));
     }
-    let file = std::fs::OpenOptions::new()
-        .create(true)
-        .append(true)
-        .read(true)
-        .open(&target)
-        .map_err(crate::run::io_err("opening report index".into()))?;
-    file.lock()
-        .map_err(crate::run::io_err("locking report index".into()))?;
     let timestamp = std::time::SystemTime::now()
         .duration_since(std::time::UNIX_EPOCH)
         .map_err(|e| Error::Config(e.to_string()))?
         .as_secs();
     let verdict = verdict_class(value);
     let row = json!({"report_id":value["report_id"],"source_refs":value["source_refs"],"verdict_class":verdict,"timestamp_unix":timestamp,"report_path":crate::paths::portable(&crate::explain::absolute(path)),"schema":INDEX_SCHEMA,"report_schema":value["schema"]});
-    let mut writer = &file;
-    writer
-        .write_all(format!("{}\n", serde_json::to_string(&row)?).as_bytes())
-        .map_err(crate::run::io_err("appending report index".into()))?;
+    crate::root_policy::io::append(
+        &target,
+        format!("{}\n", serde_json::to_string(&row)?).as_bytes(),
+    )
+    .map_err(crate::run::io_err("appending report index".into()))?;
     Ok(())
 }
 /// Write an enriched JSON report and append its external index row.
 pub fn write<T: Serialize>(path: &Path, report: &T) -> Result<Value> {
     let value = decorate(&serde_json::to_value(report)?)?;
-    std::fs::write(path, serde_json::to_vec_pretty(&value)?)
+    crate::root_policy::io::write(path, serde_json::to_vec_pretty(&value)?)
         .map_err(crate::run::io_err("writing linked report".into()))?;
     index(path, &value)?;
     Ok(value)
@@ -441,7 +432,8 @@ pub fn write_bytes(path: impl AsRef<Path>, bytes: impl AsRef<[u8]>) -> Result<()
     {
         write(path, &value)?;
     } else {
-        std::fs::write(path, bytes).map_err(crate::run::io_err("writing report asset".into()))?;
+        crate::root_policy::io::write(path, bytes)
+            .map_err(crate::run::io_err("writing report asset".into()))?;
     }
     Ok(())
 }

@@ -1,5 +1,7 @@
 //! Shared read-only capture registry and generated-output authorization.
 use crate::{Error, Result};
+/// Bound filesystem operations for synchronous review.
+pub mod io;
 use std::path::{Component, Path, PathBuf};
 
 /// Machine-local egress policy; unclassified sources are denied.
@@ -28,6 +30,7 @@ pub struct RootPolicy {
     output: Option<PathBuf>,
     follow: bool,
     targets: Vec<PathBuf>,
+    handles: Vec<(PathBuf, std::sync::Arc<cap_std::fs::Dir>)>,
 }
 impl RootPolicy {
     /// Authorized generated-output root, used for auxiliary report indexes.
@@ -92,7 +95,26 @@ impl RootPolicy {
                     .into(),
             ));
         }
+        let mut locations = roots
+            .iter()
+            .map(|r| r.path.clone())
+            .chain(targets.iter().cloned())
+            .collect::<Vec<_>>();
+        if let Some(out) = &output {
+            // Output is a human startup setting, not a tool-provided destination.
+            std::fs::create_dir_all(out).map_err(|e| Error::Config(format!("output root: {e}")))?;
+            locations.push(out.clone());
+        }
+        let handles = locations
+            .into_iter()
+            .map(|p| {
+                io::pin_directory(&p, output.as_ref() == Some(&p))
+                    .map(|d| (p, std::sync::Arc::new(d)))
+                    .map_err(|e| Error::Config(format!("opening policy directory: {e}")))
+            })
+            .collect::<Result<Vec<_>>>()?;
         Ok(Self {
+            handles,
             roots,
             output,
             follow,
@@ -147,6 +169,9 @@ impl RootPolicy {
     }
     /// Resolve an input, including a generated artifact, while retaining the alias route.
     pub fn read(&self, given: &Path) -> Result<PathBuf> {
+        Ok(self.resolve_read(given)?.0)
+    }
+    fn resolve_read(&self, given: &Path) -> Result<(PathBuf, PathBuf)> {
         let given = crate::paths::native(given);
         let joined = if given.is_absolute() {
             given.to_path_buf()
@@ -166,7 +191,7 @@ impl RootPolicy {
         if !allowed {
             return Err(Error::Config("input escapes registered roots".into()));
         }
-        Ok(joined)
+        Ok((joined, canonical))
     }
     /// Resolve a new output using its existing parent, never a capture permission.
     pub fn write(&self, given: &Path) -> Result<PathBuf> {
@@ -194,7 +219,7 @@ impl RootPolicy {
         {
             return Err(Error::Config("output escapes --out-root".into()));
         }
-        Ok(canonical)
+        Ok(self.route(&path))
     }
     /// Whether a local generated directory stays outside capture storage.
     pub fn allows_output(&self, path: &Path) -> bool {

@@ -1093,14 +1093,8 @@ pub fn vision(
         },
     )
     .map_err(|e| e.to_string())?;
-    let parent = response_file
-        .parent()
-        .ok_or("invalid vision response output")?;
-    std::fs::create_dir_all(parent).map_err(|_| "cannot create vision response directory")?;
-    if std::fs::symlink_metadata(response_file).is_ok_and(|m| m.file_type().is_symlink()) {
-        return Err("refusing response symlink".into());
-    }
-    std::fs::write(response_file, &exchange.body).map_err(|_| "cannot persist vision response")?;
+    crate::root_policy::io::write(response_file, &exchange.body)
+        .map_err(|_| "cannot persist vision response")?;
     Ok(completed)
 }
 

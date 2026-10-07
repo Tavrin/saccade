@@ -177,10 +177,13 @@ fn scan(dir: &Path) -> Result<(Vec<File>, usize)> {
             continue;
         };
         let rel = crate::paths::portable(relative);
-        // The batch sentinel is coordination state, not an output artifact.
+        // Lock sentinels are coordination state, not output artifacts.
         // Reading it through another handle while batch holds its exclusive
         // byte-range lock fails on Windows. Never hash or reopen it here.
-        if rel == MANIFEST_FILE || rel == ".batch-lock" {
+        if rel == MANIFEST_FILE
+            || rel == ".batch-lock"
+            || entry.file_name() == crate::root_policy::io::INDEX_LOCK_FILE
+        {
             continue;
         }
         if files.len() >= MAX_FILES {

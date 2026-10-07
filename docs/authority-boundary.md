@@ -82,7 +82,42 @@ wrong code, side effect or missing case is a regression, never automatically
 accepted. Exit 2 denotes a harness/setup failure. CI uploads the receipt even
 on failure.
 
-These probes cover static filesystem attacks on generated inputs, not concurrent
-rename races, live provider behavior, every optional adapter, or all host OS/CI
-permissions. Review the retained receipt for the deployed binary and run the
+The transport probes cover static filesystem attacks on generated inputs.
+Separate deterministic Rust tests cover review check/open replacement races;
+live provider behavior, every optional adapter, and all host OS/CI permissions
+remain outside that evidence. Review the retained receipt for the deployed binary and run the
 container in the integrator's own environment before claiming that boundary.
+
+## N20 security fixes (review findings 4–9)
+
+Rooted review consumes policy-resolved report, intent and output paths. Relative
+inputs resolve under the first read root and relative outputs under `out_root`,
+even when the process working directory contains conflicting files. MCP guards
+adjacent evidence before checking `expected_case_id`. All output companions,
+including `.saccade-run`, review plans and report indexes, receive output policy
+checks as well.
+
+Review uses pinned `cap-std` directory handles for evidence reads, content
+hashes, sidecars, intent and visual source bytes, and for output directory creation
+and replacement. The synchronous, thread-bound I/O scope restores the previous
+policy on return or panic. Human startup configuration, credentials and the
+attempt ledger retain their separate human-owned authority; they are not tool
+input paths. Path-returning policy methods authorize display routes; consumers
+must use the bound I/O methods for filesystem access. This scope is not an async
+context and must not cross spawned threads.
+
+Artifact writes create an exclusive temporary file in the destination directory,
+flush it, and atomically rename it over the output entry. Existing output inodes
+are never truncated, so output hardlinks cannot overwrite input bytes. Index rows
+use a directory-relative lock and atomic replacement too. Capability operations
+are portable to Windows/macOS; unsupported filesystem operations fail closed.
+This is application path confinement, not a full filesystem/syscall sandbox.
+
+Focused Rust tests inject replacement of an input file, an input parent, an output
+parent, an output entry and root pathnames between authorization and open. These
+are deterministic confinement tests, not timing-dependent concurrent stress tests.
+The transport harness additionally requires a successful MCP review preview with
+its case, plan, marker and zero dispatch count, exercises execution path attacks
+with actual startup authorization, and probes companion access with
+`expected_case_id`. Native mode and container mount evidence remain distinct;
+the existing human-credential XFAIL remains unresolved.

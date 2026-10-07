@@ -132,9 +132,17 @@ class Harness:
             failed = bool(rpc) or body.get("isError") is True
             expected_failed = expected is not None
             receipt = {"request": request, "reply": reply, "stderr": result.stderr}
-            self.record(case, "mcp", 0, expected, (0, value, receipt),
-                        failed == expected_failed and (not case.startswith("mcp-positive")
-                        or (self.outputs / "mcp-positive/saccade-report.v1.json").is_file()))
+            invariant = failed == expected_failed
+            if case == "mcp-positive-compare":
+                invariant = invariant and (self.outputs / "mcp-positive/saccade-report.v1.json").is_file()
+            if case == "mcp-positive-review-preview":
+                output = self.outputs / "mcp-review/case.json"
+                invariant = (invariant and output.is_file()
+                             and output.with_name("review-plan.json").is_file()
+                             and output.with_name(".saccade-run").is_file()
+                             and value.get("counts", {}).get("dispatched_calls") == 0
+                             and value.get("review") == "unresolved")
+            self.record(case, "mcp", 0, expected, (0, value, receipt), invariant)
 
     def run(self):
         for name, value in (("baseline", 20), ("candidate", 220)):
@@ -184,7 +192,10 @@ class Harness:
                         not output.exists() if mode else (output / "requests.json").is_file())
         measure = {"operation": "compare", "baseline_dir": str(self.inputs / "baseline"),
                    "capture_dir": str(self.inputs / "candidate"), "out": "mcp-positive"}
-        calls = [("mcp-positive-compare", "saccade_measure", measure, None)]
+        calls = [("mcp-positive-compare", "saccade_measure", measure, None),
+                 ("mcp-positive-review-preview", "saccade_review",
+                  {"operation": "preview", "artifact": str(report),
+                   "out": "mcp-review/case.json"}, None)]
         for name, source, output in cli_cases:
             calls.append(("mcp-" + name, "saccade_review",
                           {"operation": "preview", "artifact": str(source),
@@ -199,6 +210,12 @@ class Harness:
             ("mcp-no-baseline-operation", "saccade_measure", {"operation": "approve"}, "usage"),
         ]
         self.mcp(calls)
+        # Execution path probes need genuine startup permission so authorization
+        # refusal cannot mask path checking. Egress is still denied; no dispatch.
+        self.mcp([("mcp-run-" + name, "saccade_review",
+                   {"operation": "run", "artifact": str(source), "out": str(output)},
+                   "unsafe_path") for name, source, output in cli_cases],
+                 ["--allow-provider-calls", "--budget-calls", "1"])
         # A valid report with a transitive companion escape must fail before parsing it.
         evidence = report_dir / "evidence.json"
         saved = evidence.read_bytes()
@@ -207,6 +224,10 @@ class Harness:
         try:
             result = self.cli(["review", report, "--user-config", self.policy, "--json"])
             self.record("cli-preview-companion-symlink", "cli", 2, "config", result)
+            self.mcp([("mcp-expected-case-id-companion-symlink", "saccade_review",
+                       {"operation": "preview", "artifact": str(report),
+                        "expected_case_id": "sha256:" + "0" * 64,
+                        "out": "companion-denied.json"}, "unsafe_path")])
         finally:
             evidence.unlink()
             evidence.write_bytes(saved)
@@ -296,7 +317,7 @@ def main():
               "binary_sha256": digest(binary), "fixture_provenance": {
                   "generator": "scripts/authority-boundary/harness.py:png",
                   "license": "CC0-1.0", "source": "original procedural RGB squares"},
-              "limitations": ["Static filesystem probes; concurrent rename races unverified.",
+              "limitations": ["Transport probes are static; separate Rust tests inject check/open replacement races.",
                               "Unrestricted CLI/shell requires OS confinement; MCP is the policy surface.",
                               "MCP mirrors for anchor/approval remain a follow-up."]}
     report["baseline_protection"] = "read_only_mount" if args.protected_baseline else "unix_modes_only"
